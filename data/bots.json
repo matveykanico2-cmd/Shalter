@@ -1,0 +1,17 @@
+[
+  {
+    "id": "b1",
+    "userId": "u6",
+    "description": "Показывает прогноз погоды по городу",
+    "commands": [
+      {
+        "command": "/weather",
+        "description": "Погода в вашем городе"
+      },
+      {
+        "command": "/subscribe",
+        "description": "Подписаться на ежедневный прогноз"
+      }
+    ]
+  }
+]

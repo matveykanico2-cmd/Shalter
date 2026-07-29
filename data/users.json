@@ -1,0 +1,127 @@
+[
+  {
+    "id": "u1",
+    "name": "Максим Волков",
+    "username": "maxim",
+    "phone": "+7 900 000-00-01",
+    "avatarColor": "#2E56D9",
+    "bio": "Дизайню интерфейсы",
+    "online": true,
+    "lastSeen": "2026-07-28T15:00:00.000Z",
+    "blockedUserIds": []
+  },
+  {
+    "id": "u2",
+    "name": "Анна Соколова",
+    "username": "anna_s",
+    "phone": "+7 900 000-00-02",
+    "avatarColor": "#C6403B",
+    "bio": "Продакт-менеджер",
+    "online": true,
+    "lastSeen": "2026-07-28T15:00:00.000Z"
+  },
+  {
+    "id": "u3",
+    "name": "Дмитрий Орлов",
+    "username": "orlov_d",
+    "phone": "+7 900 000-00-03",
+    "avatarColor": "#1F9D63",
+    "bio": "Backend",
+    "online": false,
+    "lastSeen": "2026-07-28T11:20:00.000Z"
+  },
+  {
+    "id": "u4",
+    "name": "Мария Лебедева",
+    "username": "m_lebedeva",
+    "phone": "+7 900 000-00-04",
+    "avatarColor": "#B9791C",
+    "bio": "QA",
+    "online": false,
+    "lastSeen": "2026-07-27T09:05:00.000Z"
+  },
+  {
+    "id": "u5",
+    "name": "Игорь Петров",
+    "username": "igorpetrov",
+    "phone": "+7 900 000-00-05",
+    "avatarColor": "#6E56C6",
+    "bio": "",
+    "online": true,
+    "lastSeen": "2026-07-28T15:00:00.000Z"
+  },
+  {
+    "id": "u6",
+    "name": "Погода",
+    "username": "weatherbot",
+    "phone": "",
+    "avatarColor": "#1C9BD9",
+    "bio": "Показывает прогноз погоды",
+    "online": true,
+    "lastSeen": "2026-07-28T15:00:00.000Z",
+    "isBot": true
+  },
+  {
+    "id": "u7",
+    "name": "Елена Кузнецова",
+    "username": "elena_k",
+    "phone": "+7 900 000-00-07",
+    "avatarColor": "#D9822E",
+    "bio": "Редактор канала",
+    "online": false,
+    "lastSeen": "2026-07-28T08:00:00.000Z"
+  },
+  {
+    "id": "u_1785241758186",
+    "name": "vfndtq",
+    "username": "vfndtq",
+    "phone": "+7 9781827502",
+    "avatarColor": "#2E56D9",
+    "bio": "",
+    "online": true,
+    "lastSeen": "2026-07-28T12:29:18.186Z"
+  },
+  {
+    "id": "u_1785241904278",
+    "name": "ы",
+    "username": "ы",
+    "phone": "+79000000003",
+    "avatarColor": "#2E56D9",
+    "bio": "",
+    "online": true,
+    "lastSeen": "2026-07-28T12:31:44.278Z"
+  },
+  {
+    "id": "u_1785248390790",
+    "name": "vfndtq",
+    "username": "vfndtq",
+    "phone": "+7 9789000000",
+    "avatarColor": "#2E56D9",
+    "bio": "",
+    "online": true,
+    "lastSeen": "2026-07-28T14:19:50.790Z"
+  },
+  {
+    "id": "u_1785248666975",
+    "name": "78",
+    "username": "78",
+    "phone": "+7 786785476884957869",
+    "avatarColor": "#2E56D9",
+    "bio": "",
+    "online": true,
+    "lastSeen": "2026-07-28T14:24:26.975Z"
+  },
+  {
+    "id": "u_1785296435125",
+    "name": "matvey",
+    "username": "matvey",
+    "phone": "",
+    "email": "matveykanico@gmail.com",
+    "passwordHash": "577670c95b78d0d601097f98c602f966d52c4fa133fba2702f7611820b50ffd3131e9d1b3a3cee6d9764e105558458b2991b333ed1330bc233274cad3b306a64",
+    "passwordSalt": "b94d2ef1a55d301ee1ef7faa17fe9c2c",
+    "avatarColor": "#2E56D9",
+    "bio": "",
+    "online": true,
+    "lastSeen": "2026-07-29T03:40:35.125Z"
+  }
+]

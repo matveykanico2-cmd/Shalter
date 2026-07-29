@@ -1,0 +1,340 @@
+[
+  {
+    "id": "m1",
+    "chatId": "c1",
+    "senderId": "u2",
+    "type": "text",
+    "text": "Привет! Как продвигается макет профиля?",
+    "createdAt": "2026-07-27T10:00:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u2"
+    ]
+  },
+  {
+    "id": "m2",
+    "chatId": "c1",
+    "senderId": "u1",
+    "type": "text",
+    "text": "Почти готов, сегодня пришлю на ревью",
+    "createdAt": "2026-07-27T10:05:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u1"
+    ]
+  },
+  {
+    "id": "m3",
+    "chatId": "c1",
+    "senderId": "u2",
+    "type": "text",
+    "text": "Супер, жду 🙌",
+    "createdAt": "2026-07-27T10:06:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u2"
+    ]
+  },
+  {
+    "id": "m4",
+    "chatId": "c1",
+    "senderId": "u1",
+    "type": "text",
+    "text": "Закинул макет в Figma, глянешь?",
+    "createdAt": "2026-07-28T09:00:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": true,
+    "reactions": [],
+    "readByIds": [
+      "u1"
+    ]
+  },
+  {
+    "id": "m5",
+    "chatId": "c1",
+    "senderId": "u2",
+    "type": "text",
+    "text": "Гляну через час",
+    "createdAt": "2026-07-28T09:10:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u2"
+    ]
+  },
+  {
+    "id": "m6",
+    "chatId": "c2",
+    "senderId": "u1",
+    "type": "text",
+    "text": "Дмитрий, апи для чатов уже готово?",
+    "createdAt": "2026-07-26T12:00:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u1"
+    ]
+  },
+  {
+    "id": "m7",
+    "chatId": "c2",
+    "senderId": "u3",
+    "type": "text",
+    "text": "Да, задеплоил на стейдж вчера",
+    "createdAt": "2026-07-26T12:15:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u3"
+    ]
+  },
+  {
+    "id": "m8",
+    "chatId": "c2",
+    "senderId": "u1",
+    "type": "text",
+    "text": "Отлично, тестирую",
+    "createdAt": "2026-07-27T09:00:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u1"
+    ]
+  },
+  {
+    "id": "m9",
+    "chatId": "c3",
+    "senderId": "u4",
+    "type": "text",
+    "text": "Нашла баг в поиске по чатам",
+    "createdAt": "2026-07-26T14:00:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u4"
+    ]
+  },
+  {
+    "id": "m10",
+    "chatId": "c3",
+    "senderId": "u1",
+    "type": "text",
+    "text": "Заведи тикет, посмотрю сегодня",
+    "createdAt": "2026-07-26T14:20:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u1"
+    ]
+  },
+  {
+    "id": "m11",
+    "chatId": "c3",
+    "senderId": "u4",
+    "type": "text",
+    "text": "Готово, номер 128",
+    "createdAt": "2026-07-26T14:25:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u4"
+    ]
+  },
+  {
+    "id": "m12",
+    "chatId": "c4",
+    "senderId": "u5",
+    "type": "text",
+    "text": "Го созвон в 15:00?",
+    "createdAt": "2026-07-27T11:00:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u5"
+    ]
+  },
+  {
+    "id": "m13",
+    "chatId": "c4",
+    "senderId": "u1",
+    "type": "text",
+    "text": "Давай, скину ссылку",
+    "createdAt": "2026-07-27T11:05:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u1"
+    ]
+  },
+  {
+    "id": "m14",
+    "chatId": "c5",
+    "senderId": "u6",
+    "type": "text",
+    "text": "Сегодня в Москве +24°C, без осадков",
+    "createdAt": "2026-07-28T08:00:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u6"
+    ]
+  },
+  {
+    "id": "m15",
+    "chatId": "c6",
+    "senderId": "u1",
+    "type": "text",
+    "text": "Всем привет! Начинаем спринт по звонкам",
+    "createdAt": "2026-07-25T10:00:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u1"
+    ]
+  },
+  {
+    "id": "m16",
+    "chatId": "c6",
+    "senderId": "u2",
+    "type": "text",
+    "text": "Уже накидала пользовательские сценарии",
+    "createdAt": "2026-07-25T10:10:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u2"
+    ]
+  },
+  {
+    "id": "m17",
+    "chatId": "c6",
+    "senderId": "u3",
+    "type": "text",
+    "text": "Signaling API готово, сегодня опишу в доке",
+    "createdAt": "2026-07-26T16:00:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u3"
+    ]
+  },
+  {
+    "id": "m18",
+    "chatId": "c6",
+    "senderId": "u4",
+    "type": "text",
+    "text": "Проверю на моках, как будет что тестировать",
+    "createdAt": "2026-07-26T16:05:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u4"
+    ]
+  },
+  {
+    "id": "m19",
+    "chatId": "c6",
+    "senderId": "u1",
+    "type": "text",
+    "text": "Отлично, держим темп 🚀",
+    "createdAt": "2026-07-28T12:00:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u1"
+    ]
+  },
+  {
+    "id": "m20",
+    "chatId": "c7",
+    "senderId": "u7",
+    "type": "text",
+    "text": "🚀 Вышло обновление 2.4: реакции, ответы и пересылка сообщений",
+    "createdAt": "2026-07-27T09:00:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u7"
+    ],
+    "views": 128
+  },
+  {
+    "id": "m21",
+    "chatId": "c7",
+    "senderId": "u7",
+    "type": "text",
+    "text": "Также добавили голосовые и видео-заметки",
+    "createdAt": "2026-07-28T09:00:00.000Z",
+    "editedAt": null,
+    "deleted": false,
+    "replyToId": null,
+    "pinned": false,
+    "reactions": [],
+    "readByIds": [
+      "u7"
+    ],
+    "views": 96
+  }
+]

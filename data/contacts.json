@@ -1,0 +1,38 @@
+[
+  {
+    "id": "ct1",
+    "ownerId": "u1",
+    "userId": "u2",
+    "addedAt": "2026-07-22T15:00:00.000Z"
+  },
+  {
+    "id": "ct2",
+    "ownerId": "u1",
+    "userId": "u3",
+    "addedAt": "2026-07-23T15:00:00.000Z"
+  },
+  {
+    "id": "ct3",
+    "ownerId": "u1",
+    "userId": "u4",
+    "addedAt": "2026-07-24T15:00:00.000Z"
+  },
+  {
+    "id": "ct4",
+    "ownerId": "u1",
+    "userId": "u5",
+    "addedAt": "2026-07-25T15:00:00.000Z"
+  },
+  {
+    "id": "ct5",
+    "ownerId": "u1",
+    "userId": "u7",
+    "addedAt": "2026-07-26T15:00:00.000Z"
+  },
+  {
+    "id": "ct6",
+    "ownerId": "u2",
+    "userId": "u1",
+    "addedAt": "2026-07-22T15:00:00.000Z"
+  }
+]

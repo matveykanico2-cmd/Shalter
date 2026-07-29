@@ -1,0 +1,118 @@
+[
+  {
+    "id": "c1",
+    "type": "dm",
+    "title": "Максим и Анна",
+    "avatarColor": "#2E56D9",
+    "memberIds": [
+      "u1",
+      "u2"
+    ],
+    "pinned": true,
+    "muted": false,
+    "archived": false,
+    "createdAt": "2026-07-22T15:00:00.000Z"
+  },
+  {
+    "id": "c2",
+    "type": "dm",
+    "title": "Максим и Дмитрий",
+    "avatarColor": "#1F9D63",
+    "memberIds": [
+      "u1",
+      "u3"
+    ],
+    "pinned": false,
+    "muted": false,
+    "archived": false,
+    "createdAt": "2026-07-23T15:00:00.000Z"
+  },
+  {
+    "id": "c3",
+    "type": "dm",
+    "title": "Максим и Мария",
+    "avatarColor": "#B9791C",
+    "memberIds": [
+      "u1",
+      "u4"
+    ],
+    "pinned": false,
+    "muted": false,
+    "archived": false,
+    "createdAt": "2026-07-24T15:00:00.000Z"
+  },
+  {
+    "id": "c4",
+    "type": "dm",
+    "title": "Максим и Игорь",
+    "avatarColor": "#6E56C6",
+    "memberIds": [
+      "u1",
+      "u5"
+    ],
+    "pinned": false,
+    "muted": false,
+    "archived": false,
+    "createdAt": "2026-07-25T15:00:00.000Z"
+  },
+  {
+    "id": "c5",
+    "type": "dm",
+    "title": "Максим и Погода",
+    "avatarColor": "#1C9BD9",
+    "memberIds": [
+      "u1",
+      "u6"
+    ],
+    "pinned": false,
+    "muted": false,
+    "archived": false,
+    "createdAt": "2026-07-26T15:00:00.000Z"
+  },
+  {
+    "id": "c6",
+    "type": "group",
+    "title": "Дизайн-команда",
+    "description": "Обсуждаем интерфейсы мессенджера",
+    "avatarColor": "#C6403B",
+    "memberIds": [
+      "u1",
+      "u2",
+      "u3",
+      "u4"
+    ],
+    "ownerId": "u1",
+    "adminIds": [
+      "u1"
+    ],
+    "pinned": false,
+    "muted": false,
+    "archived": false,
+    "createdAt": "2026-07-23T15:00:00.000Z"
+  },
+  {
+    "id": "c7",
+    "type": "channel",
+    "title": "Новости продукта",
+    "description": "Официальный канал обновлений",
+    "username": "product_news",
+    "isPublic": true,
+    "avatarColor": "#D9822E",
+    "memberIds": [
+      "u1",
+      "u2",
+      "u3",
+      "u4",
+      "u5",
+      "u7"
+    ],
+    "ownerId": "u7",
+    "adminIds": [
+      "u7"
+    ],
+    "pinned": false,
+    "muted": false,
+    "archived": false,
+    "createdAt": "2026-07-21T15:00:00.000Z"
+  }
+]
