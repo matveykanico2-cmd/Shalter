@@ -114,5 +114,19 @@
     "muted": false,
     "archived": false,
     "createdAt": "2026-07-21T15:00:00.000Z"
+  },
+  {
+    "id": "c_1785393159133",
+    "type": "dm",
+    "title": "Максим Волков",
+    "avatarColor": "#2E56D9",
+    "memberIds": [
+      "u_1785241758186",
+      "u1"
+    ],
+    "pinned": false,
+    "muted": false,
+    "archived": false,
+    "createdAt": "2026-07-30T06:32:39.133Z"
   }
 ]

@@ -336,5 +336,19 @@
       "u7"
     ],
     "views": 96
+  },
+  {
+    "id": "m_1785393163322",
+    "chatId": "c_1785393159133",
+    "senderId": "u_1785241758186",
+    "type": "text",
+    "text": "ghbdtn",
+    "createdAt": "2026-07-30T06:32:43.322Z",
+    "pinned": false,
+    "reactions": [],
+    "replyToId": null,
+    "readByIds": [
+      "u_1785241758186"
+    ]
   }
 ]
