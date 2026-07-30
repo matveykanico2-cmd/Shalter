@@ -32,7 +32,10 @@ export const api = {
   deleteChat: (id) => req(`/api/chats/${id}`, { method: "DELETE" }),
   startDm: (userId, title, avatarColor) =>
     req("/api/chats", { method: "POST", body: JSON.stringify({ userId, title, avatarColor }) }),
-  createChannel: (title) => req("/api/chats/channels", { method: "POST", body: JSON.stringify({ title }) }),
+  createChannel: (title, avatarImage) =>
+    req("/api/chats/channels", { method: "POST", body: JSON.stringify({ title, avatarImage }) }),
+  createGroup: (title, memberIds, avatarImage) =>
+    req("/api/chats/groups", { method: "POST", body: JSON.stringify({ title, memberIds, avatarImage }) }),
   leaveChat: (id) => req(`/api/chats/${id}/leave`, { method: "POST" }),
   clearHistory: (id, forEveryone) =>
     req(`/api/chats/${id}/clear`, { method: "POST", body: JSON.stringify({ forEveryone: !!forEveryone }) }),

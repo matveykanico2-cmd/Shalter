@@ -53,7 +53,12 @@ export function ChatListItem({ chat, active, meId, onPatch }) {
       },
     },
     [
-      Avatar({ name: chat.otherUser?.name ?? title, color: chat.avatarColor, image: chat.otherUser?.avatarImage, online }),
+      Avatar({
+        name: chat.otherUser?.name ?? title,
+        color: chat.avatarColor,
+        image: chat.otherUser?.avatarImage ?? chat.avatarImage,
+        online,
+      }),
       el("div", { class: "chat-list-item-body" }, [
         el("div", { class: "chat-list-item-row" }, [
           chat.type === "secret" ? el("span", { html: iconSvg("Lock", 13, "text-accent") }) : null,

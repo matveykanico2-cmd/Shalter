@@ -2,10 +2,19 @@ const path = require("path");
 const http = require("http");
 const express = require("express");
 const cookieParser = require("cookie-parser");
+const compression = require("compression");
 const { errorHandler } = require("./middleware/errors");
 const { attachWebSocketServer } = require("./ws");
 
 const app = express();
+
+// Gzip cuts network time for message/chat JSON (meaningfully so once
+// attachments' base64 data is in the payload) at a modest CPU cost — worth it
+// on a small box. If nginx sits in front and already gzips, set
+// DISABLE_APP_GZIP=1 to skip compressing twice.
+if (!process.env.DISABLE_APP_GZIP) {
+  app.use(compression({ level: 6 }));
+}
 
 app.use(cookieParser());
 // Message attachments (voice notes, video-notes, images) are inline base64
@@ -25,7 +34,10 @@ app.use("/api/bots", require("./routes/bots"));
 app.use("/api/posts", require("./routes/posts"));
 app.use("/api/search", require("./routes/search"));
 
-app.use(express.static(path.join(__dirname, "..", "public")));
+// Static JS/CSS is cache-busted by nothing (no build step), so keep the
+// cache short-ish rather than immutable — long enough to skip re-fetching on
+// every navigation, short enough that a deploy doesn't need a hard refresh.
+app.use(express.static(path.join(__dirname, "..", "public"), { maxAge: "1h" }));
 
 // Client-side router owns every non-API path — always serve the shell.
 app.get(/^\/(?!api|ws).*/, (req, res) => {

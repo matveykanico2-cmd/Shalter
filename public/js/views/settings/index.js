@@ -276,7 +276,9 @@ async function renderNotifications(root) {
 
 async function renderPrivacy(root) {
   const { settings: initial } = await api.getSettings();
+  const { users: allUsers } = await api.listUsers();
   let settings = initial;
+  let blockedIds = new Set(getState().user.blockedUserIds ?? []);
   const OPTIONS = [
     { value: "everyone", label: "Все" },
     { value: "contacts", label: "Мои контакты" },
@@ -287,6 +289,13 @@ async function renderPrivacy(root) {
     settings = { ...settings, privacy: { ...settings.privacy, ...privacy } };
     render();
     await api.patchSettings({ privacy: settings.privacy });
+  }
+
+  async function unblock(userId) {
+    await api.setBlocked(userId, false);
+    blockedIds.delete(userId);
+    setState({ user: { ...getState().user, blockedUserIds: [...blockedIds] } });
+    render();
   }
 
   function row(label, key) {
@@ -301,12 +310,27 @@ async function renderPrivacy(root) {
   }
 
   function render() {
+    const blockedUsers = allUsers.filter((u) => blockedIds.has(u.id));
     mount(
       root,
       pageWrap("Конфиденциальность", "Кто видит вашу информацию", [
         row("Последний визит", "lastSeen"),
         row("Номер телефона", "phone"),
         row("Фото профиля", "photo"),
+        el("p", { class: "settings-field-label" }, `Заблокированные пользователи (${blockedUsers.length})`),
+        blockedUsers.length === 0
+          ? el("p", { class: "empty-hint" }, "Никого не заблокировано")
+          : el(
+              "div",
+              { class: "settings-devices-list" },
+              blockedUsers.map((u) =>
+                el("div", { class: "settings-device-row" }, [
+                  Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 28 }),
+                  el("div", { class: "settings-device-body" }, [el("p", {}, u.name)]),
+                  el("button", { class: "settings-danger-link", onclick: () => unblock(u.id) }, "Разблокировать"),
+                ])
+              )
+            ),
       ])
     );
   }

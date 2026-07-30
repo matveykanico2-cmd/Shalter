@@ -1,0 +1,67 @@
+# Reverse proxy for the messenger app on a small 2-core/2GB box.
+# Copy to /etc/nginx/sites-available/messenger, symlink into sites-enabled,
+# fill in server_name + certificate paths, then `nginx -t && systemctl reload nginx`.
+#
+# Why nginx in front at all on such a small box: it terminates TLS and serves
+# static files/gzip with far less memory per connection than Node does, which
+# is exactly the resource you're short on here — keeps Node's 768MB heap
+# budget for the app, not for TLS handshakes and file I/O.
+
+worker_processes 1;  # match the 2 cores: 1 nginx worker + 1 core free for Node
+
+events {
+  worker_connections 1024;
+}
+
+http {
+  gzip on;
+  gzip_types text/plain text/css application/javascript application/json;
+  gzip_min_length 1024;
+  # If nginx is gzipping, set DISABLE_APP_GZIP=1 in the Node process's
+  # environment (see ecosystem.config.js) so responses aren't compressed twice.
+
+  # Data-URL attachments (voice/video-note/image) ride inline in JSON bodies —
+  # match server/index.js's express.json({ limit: "25mb" }).
+  client_max_body_size 25m;
+
+  upstream messenger_app {
+    server 127.0.0.1:3000;
+    keepalive 16;
+  }
+
+  server {
+    listen 80;
+    server_name your-domain.example;
+
+    # Redirect to HTTPS once a certificate is in place (comment out until then).
+    # return 301 https://$host$request_uri;
+
+    location / {
+      proxy_pass http://messenger_app;
+      proxy_http_version 1.1;
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # WebSocket upgrade for call signaling/presence (server/ws.js) — without
+    # this block, /ws requests just get proxied as plain HTTP and never upgrade.
+    location /ws {
+      proxy_pass http://messenger_app;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_set_header Host $host;
+      proxy_read_timeout 3600s;  # keep long-lived call sockets from being cut
+    }
+  }
+
+  # server {
+  #   listen 443 ssl http2;
+  #   server_name your-domain.example;
+  #   ssl_certificate     /etc/letsencrypt/live/your-domain.example/fullchain.pem;
+  #   ssl_certificate_key /etc/letsencrypt/live/your-domain.example/privkey.pem;
+  #   # ... same location blocks as the :80 server above ...
+  # }
+}

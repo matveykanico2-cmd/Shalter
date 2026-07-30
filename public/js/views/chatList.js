@@ -1,9 +1,45 @@
 import { el, mount, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { ChatListItem } from "../components/chatListItem.js";
+import { openDropdownMenu } from "../components/dropdownMenu.js";
+import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
+import { openCreateChatDialog } from "../components/createChatDialog.js";
 import { api } from "../api.js";
 import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
+
+async function openNewChatMenu(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  openDropdownMenu(
+    { x: rect.left, y: rect.bottom + 4 },
+    [
+      {
+        icon: "Users",
+        label: "Новая группа",
+        onClick: () => {
+          openCreateChatDialog("group", (title, avatarImage) => {
+            openMemberPickerDialog(async (memberIds) => {
+              const { chat } = await api.createGroup(title, memberIds, avatarImage);
+              await api.listChats().then((r) => setState({ chats: r.chats }));
+              navigate(`/chat/${chat.id}`);
+            });
+          });
+        },
+      },
+      {
+        icon: "Send",
+        label: "Новый канал",
+        onClick: () => {
+          openCreateChatDialog("channel", async (title, avatarImage) => {
+            const { chat } = await api.createChannel(title, avatarImage);
+            await api.listChats().then((r) => setState({ chats: r.chats }));
+            navigate(`/chat/${chat.id}`);
+          });
+        },
+      },
+    ]
+  );
+}
 
 const SYSTEM_TABS = [
   { id: "all", name: "Все" },
@@ -88,15 +124,9 @@ function renderInto(container) {
     ]),
     el("button", {
       class: "chat-new-channel-btn",
-      title: "Новый канал",
+      title: "Новый чат",
       html: iconSvg("Plus", 16),
-      onclick: async () => {
-        const title = window.prompt("Название канала:");
-        if (!title?.trim()) return;
-        const { chat } = await api.createChannel(title.trim());
-        await api.listChats().then((r) => setState({ chats: r.chats }));
-        navigate(`/chat/${chat.id}`);
-      },
+      onclick: (e) => openNewChatMenu(e),
     }),
   ]);
   container.appendChild(searchBar);

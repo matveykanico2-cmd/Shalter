@@ -58,10 +58,24 @@ function withLock(file, fn) {
   return next;
 }
 
+// In-memory read cache — on constrained hardware, re-reading and
+// JSON.parse-ing the whole file on every single API call (chat list and
+// message polling hit this every few seconds per open tab) is real, avoidable
+// CPU/IO cost as messages.json grows with inline base64 attachments. Every
+// mutation in this codebase is written in an immutable style (spread/map/
+// filter, never in-place mutation — see server/data/*.js), so handing out the
+// same cached reference is safe: nothing here ever mutates a read result.
+// This assumes a single server process owns data/ (see DEPLOY.md) — a second
+// process writing the same files wouldn't be seen by this cache until restart.
+const cache = new Map();
+
 async function readFile(name) {
+  if (cache.has(name)) return cache.get(name);
   const file = path.join(DATA_DIR, `${name}.json`);
   const raw = await fs.readFile(file, "utf-8");
-  return JSON.parse(raw);
+  const data = JSON.parse(raw);
+  cache.set(name, data);
+  return data;
 }
 
 // Write to a temp file then rename, so a crash mid-write never leaves a
@@ -71,6 +85,7 @@ async function writeFile(name, data) {
   const tmp = path.join(DATA_DIR, `.${name}.json.tmp`);
   await fs.writeFile(tmp, JSON.stringify(data, null, 2) + "\n", "utf-8");
   await fs.rename(tmp, file);
+  cache.set(name, data);
 }
 
 function readCollection(name) {

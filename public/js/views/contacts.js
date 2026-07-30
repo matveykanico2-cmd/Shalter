@@ -3,6 +3,7 @@ import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
+import { getState, setState } from "../state.js";
 
 export async function ContactsView(root) {
   const [{ contacts: initialContacts }, { users: allUsers }] = await Promise.all([api.listContacts(), api.listUsers()]);
@@ -10,6 +11,16 @@ export async function ContactsView(root) {
   let candidates = allUsers.filter((u) => !contacts.some((c) => c.userId === u.id));
   let adding = false;
   let query = "";
+  let blockedIds = new Set(getState().user.blockedUserIds ?? []);
+
+  async function toggleBlocked(userId) {
+    const nextBlocked = !blockedIds.has(userId);
+    await api.setBlocked(userId, nextBlocked);
+    if (nextBlocked) blockedIds.add(userId);
+    else blockedIds.delete(userId);
+    setState({ user: { ...getState().user, blockedUserIds: [...blockedIds] } });
+    render();
+  }
 
   function render() {
     const sorted = [...contacts].sort((a, b) => a.user.name.localeCompare(b.user.name, "ru"));
@@ -79,6 +90,12 @@ export async function ContactsView(root) {
                   const { chat } = await api.startDm(user.id, user.name, user.avatarColor);
                   navigate(`/chat/${chat.id}`);
                 },
+              }),
+              el("button", {
+                class: `icon-btn ${blockedIds.has(user.id) ? "blocked-icon" : ""}`,
+                title: blockedIds.has(user.id) ? "Разблокировать" : "Заблокировать",
+                html: iconSvg("Lock", 16),
+                onclick: () => toggleBlocked(user.id),
               }),
               el("button", {
                 class: "icon-btn",

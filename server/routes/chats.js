@@ -55,7 +55,7 @@ router.post(
 router.post(
   "/channels",
   asyncRoute(async (req, res) => {
-    const { title } = req.body ?? {};
+    const { title, avatarImage } = req.body ?? {};
     if (!title?.trim()) return res.status(400).json({ error: "Введите название канала" });
     const now = new Date().toISOString();
     const discussion = await createChat({
@@ -76,6 +76,7 @@ router.post(
       type: "channel",
       title: title.trim(),
       avatarColor: "#D9822E",
+      avatarImage: avatarImage || undefined,
       memberIds: [req.uid],
       ownerId: req.uid,
       adminIds: [req.uid],
@@ -87,6 +88,32 @@ router.post(
       createdAt: now,
     });
     res.json({ chat: channel });
+  })
+);
+
+// Creates a new group chat with the given title and initial members
+// (the creator is always included as owner+admin).
+router.post(
+  "/groups",
+  asyncRoute(async (req, res) => {
+    const { title, memberIds, avatarImage } = req.body ?? {};
+    if (!title?.trim()) return res.status(400).json({ error: "Введите название группы" });
+    const members = new Set([req.uid, ...(Array.isArray(memberIds) ? memberIds : [])]);
+    const chat = await createChat({
+      id: `c_${Date.now()}`,
+      type: "group",
+      title: title.trim(),
+      avatarColor: "#2E56D9",
+      avatarImage: avatarImage || undefined,
+      memberIds: [...members],
+      ownerId: req.uid,
+      adminIds: [req.uid],
+      pinned: false,
+      muted: false,
+      archived: false,
+      createdAt: new Date().toISOString(),
+    });
+    res.json({ chat });
   })
 );
 

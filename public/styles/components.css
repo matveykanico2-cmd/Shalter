@@ -415,6 +415,9 @@
   background: var(--color-surface-alt);
   color: var(--color-text);
 }
+.blocked-icon {
+  color: var(--color-danger);
+}
 .info-toggle {
   display: none;
 }
@@ -1134,6 +1137,34 @@
 .poll-create-btn {
   width: 100%;
 }
+.create-chat-avatar-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 14px;
+}
+.create-chat-avatar-preview {
+  display: flex;
+  height: 64px;
+  width: 64px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+}
+.create-chat-avatar-img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+.create-chat-avatar-label {
+  font-size: 12px;
+  color: var(--color-accent);
+}
 
 /* Info panel */
 .info-panel {
@@ -1194,6 +1225,24 @@
   align-items: center;
   gap: 8px;
   padding: 6px 0;
+}
+.info-panel-member-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.info-panel-role-tag {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+.member-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
 }
 
 /* Modal / dialog */

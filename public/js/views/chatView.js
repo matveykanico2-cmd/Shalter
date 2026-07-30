@@ -131,6 +131,15 @@ export async function ChatView(root, chatId) {
     renderComposer();
   }
 
+  async function handleMemberAction(userId, role) {
+    await api.setMemberRole(chat.id, userId, role);
+    const { chat: updated, members: refreshedMembers } = await api.getChat(chat.id);
+    Object.assign(chat, updated);
+    members = refreshedMembers;
+    renderHeader();
+    renderInfoPanel();
+  }
+
   function handleClearHistory() {
     openChoiceDialog("Очистить историю чата", [
       {
@@ -198,7 +207,7 @@ export async function ChatView(root, chatId) {
         "button",
         { class: "chat-header-info-btn", onclick: () => setInfoOpen(true) },
         [
-          Avatar({ name: other?.name ?? title, color: chat.avatarColor, image: isDm ? other?.avatarImage : undefined, size: 38, online: isDm ? other?.online : undefined }),
+          Avatar({ name: other?.name ?? title, color: chat.avatarColor, image: isDm ? other?.avatarImage : chat.avatarImage, size: 38, online: isDm ? other?.online : undefined }),
           el("div", { class: "chat-header-titles" }, [
             el("p", { class: "chat-header-title" }, [chat.type === "secret" ? el("span", { html: iconSvg("Lock", 13) }) : null, title]),
             el("p", { class: "chat-header-subtitle" }, subtitle),
@@ -240,7 +249,16 @@ export async function ChatView(root, chatId) {
     clear(infoSlot);
     if (infoOpen) {
       infoSlot.appendChild(
-        InfoPanel({ chat, members, isBlocked: iBlockedThem, onClose: () => setInfoOpen(false), onToggleMute: toggleMute, onToggleBlock: toggleBlock })
+        InfoPanel({
+          chat,
+          members,
+          isBlocked: iBlockedThem,
+          meId: me.id,
+          onClose: () => setInfoOpen(false),
+          onToggleMute: toggleMute,
+          onToggleBlock: toggleBlock,
+          onMemberAction: handleMemberAction,
+        })
       );
     }
   }

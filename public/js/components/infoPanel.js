@@ -1,13 +1,27 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
+import { openDropdownMenu } from "./dropdownMenu.js";
 
-// Reduced vanilla-JS version of components/chat/InfoPanel.tsx: shows the
-// chat/members and the mute toggle. Member roles, secret-chat timer and
-// block-management get full parity in a later polish pass.
-export function InfoPanel({ chat, members, isBlocked, onClose, onToggleMute, onToggleBlock }) {
+// Vanilla-JS port of components/chat/InfoPanel.tsx: chat/members, mute
+// toggle, block management, and — for group/channel owners/admins — member
+// role management (promote/demote/kick).
+export function InfoPanel({ chat, members, isBlocked, meId, onClose, onToggleMute, onToggleBlock, onMemberAction }) {
   const isDm = chat.type === "dm" || chat.type === "secret";
   const title = isDm ? (chat.otherUser?.name ?? chat.title) : chat.title;
+  const isOwnerOrAdmin = chat.ownerId === meId || chat.adminIds?.includes(meId);
+
+  function openMemberMenu(e, member) {
+    const isAdmin = chat.adminIds?.includes(member.id);
+    openDropdownMenu({ x: e.clientX, y: e.clientY }, [
+      {
+        icon: "Users",
+        label: isAdmin ? "Снять права администратора" : "Сделать администратором",
+        onClick: () => onMemberAction(member.id, isAdmin ? "demote" : "promote"),
+      },
+      { icon: "X", label: "Исключить из чата", danger: true, onClick: () => onMemberAction(member.id, "kick") },
+    ]);
+  }
 
   return el("aside", { class: "info-panel" }, [
     el("div", { class: "info-panel-header" }, [
@@ -16,7 +30,7 @@ export function InfoPanel({ chat, members, isBlocked, onClose, onToggleMute, onT
     ]),
     el("div", { class: "info-panel-body" }, [
       el("div", { class: "info-panel-avatar-row" }, [
-        Avatar({ name: chat.otherUser?.name ?? title, color: chat.avatarColor, image: chat.otherUser?.avatarImage, size: 72 }),
+        Avatar({ name: chat.otherUser?.name ?? title, color: chat.avatarColor, image: chat.otherUser?.avatarImage ?? chat.avatarImage, size: 72 }),
         el("p", { class: "info-panel-title" }, title),
       ]),
       el("button", { class: "info-panel-row", onclick: onToggleMute }, chat.muted ? "Включить уведомления" : "Отключить уведомления"),
@@ -24,12 +38,21 @@ export function InfoPanel({ chat, members, isBlocked, onClose, onToggleMute, onT
       !isDm
         ? el("div", { class: "info-panel-members" }, [
             el("p", { class: "list-section-label" }, `Участники (${members.length})`),
-            ...members.map((m) =>
-              el("div", { class: "info-panel-member-row" }, [
+            ...members.map((m) => {
+              const isMemberOwner = m.id === chat.ownerId;
+              const isMemberAdmin = chat.adminIds?.includes(m.id);
+              const canManage = isOwnerOrAdmin && !isMemberOwner && m.id !== meId;
+              return el("div", { class: "info-panel-member-row" }, [
                 Avatar({ name: m.name, color: m.avatarColor, image: m.avatarImage, size: 32 }),
-                el("span", {}, m.name),
-              ])
-            ),
+                el("span", { class: "info-panel-member-name" }, [
+                  m.name,
+                  isMemberOwner ? el("span", { class: "info-panel-role-tag" }, " владелец") : isMemberAdmin ? el("span", { class: "info-panel-role-tag" }, " админ") : null,
+                ]),
+                canManage
+                  ? el("button", { class: "icon-btn", html: iconSvg("More", 15), onclick: (e) => openMemberMenu(e, m) })
+                  : null,
+              ]);
+            }),
           ])
         : null,
     ]),
