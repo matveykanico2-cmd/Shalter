@@ -4,6 +4,111 @@ This app is a single Express process backed by flat JSON files — it was never
 designed to scale horizontally, which actually matches a small box well: the
 goal here is keeping that one process lean, not spreading it across cores.
 
+Nothing below runs itself — this is a manual, one-time setup, not a push-button
+deploy. None of it is hard, but skipping a step (especially TLS — see below)
+leaves the app half-working. Two paths, depending on how you're hosting:
+
+- **Docker / Dokploy (or any Docker-based PaaS)** — use the `Dockerfile` at
+  the repo root. Skip straight to "Deploying via Docker / Dokploy" below;
+  the nginx/certbot/PM2 sections after it are for the *other* path and don't
+  apply once Dokploy/Traefik is doing that job.
+- **A bare VPS with nothing on it yet** — follow "From a blank server to
+  running" below (Node + PM2 + nginx + certbot by hand).
+
+## Deploying via Docker / Dokploy
+
+Use the `Dockerfile` at the repo root (multi-stage: builds the client bundle
+in a Debian-slim stage, ships from a small Alpine stage — see the file's
+comments for why two stages). In Dokploy: set **Build Type → Dockerfile**
+instead of Nixpacks, point it at this repo, and set the exposed port to
+`3000` (or whatever `$PORT` Dokploy injects — `server/index.js` already reads
+`process.env.PORT`).
+
+Three things that matter and are easy to miss:
+
+1. **Mount a persistent volume at `/app/data`.** This app's entire database
+   is flat JSON files in that directory. Without a volume, `/app/data` is
+   just part of the container's writable layer — the moment Dokploy rebuilds
+   or recreates the container (any redeploy), it resets to the seed data
+   baked into the image and **every user, chat, and message is gone.** In
+   Dokploy's UI this is a "Volume" / "Mount" entry: host path (or a
+   Dokploy-managed volume) → container path `/app/data`.
+2. **Exactly one replica.** Same reason as the bare-VPS path (see "The one
+   hard rule" below): the read cache and write lock in
+   `server/data/store.js` are per-process. Two containers both mounting the
+   same volume would race on it exactly like the bug that in-process
+   locking was built to fix. Don't set a replica count above 1 and don't
+   enable any autoscaling for this service.
+3. **Check `/ws` actually upgrades after the first deploy.** Dokploy's
+   Traefik proxy generally handles WebSocket upgrades transparently, but
+   it's worth confirming: place a call or watch for the "typing…" indicator
+   between two logged-in sessions. If neither ever appears, the app has
+   silently fallen back to slower HTTP polling for everything — that's the
+   symptom of `/ws` not reaching the container.
+
+HTTPS: if Dokploy has a domain attached to this service, it almost certainly
+already provisions Let's Encrypt via Traefik automatically — you don't need
+the certbot steps further down. HTTPS itself is still non-negotiable, though
+(see "Why HTTPS isn't optional" below): without it, camera/mic access is
+blocked by the browser and calls/voice-messages/video-notes won't work.
+
+I wrote this Dockerfile carefully for this specific app (right Node version,
+the actual entry point and port, the esbuild/Alpine issue above) but couldn't
+build-test it myself — Docker isn't available in the environment I worked in.
+Treat the first deploy as the real test; if `npm run build` or `npm ci`
+fail inside the build stage, the error in Dokploy's build log will point at
+which of those two steps to look at.
+
+## From a blank server to running (assumes Ubuntu/Debian, a domain already pointed at the server's IP)
+
+```bash
+# 1. Node.js 20+ (engines requires >=20.9.0)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# 2. Get the code onto the server (git clone, scp, rsync — whatever you use)
+git clone <your-repo-url> /opt/messenger
+cd /opt/messenger
+
+# 3. Install, build, then drop devDependencies (esbuild/nodemon aren't needed at runtime)
+npm install
+npm run build
+npm prune --omit=dev
+
+# 4. Process supervisor
+sudo npm install -g pm2
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup   # <-- prints ONE MORE command starting with "sudo env PATH=..." — run that too,
+              #     it's what makes PM2 survive a reboot; pm2 save alone does not.
+
+# 5. nginx + a real TLS certificate (REQUIRED — see "Why HTTPS isn't optional" below)
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/messenger
+sudo sed -i 's/your-domain.example/YOUR-ACTUAL-DOMAIN/' /etc/nginx/sites-available/messenger
+sudo ln -s /etc/nginx/sites-available/messenger /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d YOUR-ACTUAL-DOMAIN   # obtains + wires in the cert, sets up auto-renewal
+
+# 6. Firewall — only 80/443 need to be public; Node's port 3000 stays localhost-only
+#    (nginx proxies to it — see deploy/nginx.conf.example's `upstream` block)
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
+
+At this point: `https://YOUR-ACTUAL-DOMAIN` should load the app. Do the OS
+tuning below (swappiness, log rotation) once, then treat "code changed" as
+`git pull && npm install && npm run build && pm2 restart messenger`.
+
+### Why HTTPS isn't optional here
+
+Browsers refuse camera/microphone access (`getUserMedia`) on any origin that
+isn't HTTPS or `localhost` — that's a browser security rule, not something
+this app can work around. Skip step 5 and the app will otherwise run fine,
+but calls, voice messages, and video-notes will all silently fail to record
+or connect the moment a real visitor (not you on localhost) opens it.
+
 ## The one hard rule: run exactly one instance
 
 The data layer (`server/data/store.js`) now keeps an in-memory read cache and

@@ -1,0 +1,11 @@
+node_modules
+.git
+public/dist
+logs
+*.log
+npm-debug.log*
+.DS_Store
+*.pem
+.env*
+data/.*.lockfile
+data/.*.json.tmp
