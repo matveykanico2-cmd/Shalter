@@ -1,19 +1,32 @@
+const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const compression = require("compression");
+const expressStaticGzip = require("express-static-gzip");
 const { errorHandler } = require("./middleware/errors");
 const { attachWebSocketServer } = require("./ws");
 
 const app = express();
 
+const PUBLIC_DIR = path.join(__dirname, "..", "public");
+const DIST_DIR = path.join(PUBLIC_DIR, "dist");
+// `npm run build` (scripts/build.js) bundles+minifies+precompresses the
+// client into public/dist — use it only once it's actually there, so
+// `npm start` in production without a prior build still serves something
+// (the raw, unbundled files) instead of a blank page.
+const useBuilt = process.env.NODE_ENV === "production" && fs.existsSync(path.join(DIST_DIR, "index.html"));
+const indexHtml = path.join(useBuilt ? DIST_DIR : PUBLIC_DIR, "index.html");
+
 // Gzip cuts network time for message/chat JSON (meaningfully so once
 // attachments' base64 data is in the payload) at a modest CPU cost — worth it
-// on a small box. If nginx sits in front and already gzips, set
-// DISABLE_APP_GZIP=1 to skip compressing twice.
+// on a small box. Static assets are handled separately below (precompressed
+// at build time when available, so no per-request CPU cost there at all).
+// If nginx sits in front and already gzips, set DISABLE_APP_GZIP=1 to skip
+// compressing twice.
 if (!process.env.DISABLE_APP_GZIP) {
-  app.use(compression({ level: 6 }));
+  app.use(compression({ level: 6, filter: (req) => !req.path.startsWith("/dist/") }));
 }
 
 app.use(cookieParser());
@@ -34,14 +47,22 @@ app.use("/api/bots", require("./routes/bots"));
 app.use("/api/posts", require("./routes/posts"));
 app.use("/api/search", require("./routes/search"));
 
-// Static JS/CSS is cache-busted by nothing (no build step), so keep the
-// cache short-ish rather than immutable — long enough to skip re-fetching on
-// every navigation, short enough that a deploy doesn't need a hard refresh.
-app.use(express.static(path.join(__dirname, "..", "public"), { maxAge: "1h" }));
+if (useBuilt) {
+  // Serves whichever of app.js/app.js.br/app.js.gz the client's
+  // Accept-Encoding supports, straight off disk — the build already did the
+  // compression, so this costs no CPU per request (unlike the `compression`
+  // middleware above, which is why /dist/ is excluded from it).
+  app.use("/dist", expressStaticGzip(DIST_DIR, { enableBrotli: true, orderPreference: ["br", "gz"], serveStatic: { maxAge: "1y", immutable: true } }));
+}
+// Static assets not covered by the build (favicon, anything added to public/
+// directly). No build step for these, so keep cache short-ish rather than
+// immutable — long enough to skip re-fetching on every navigation, short
+// enough that a deploy doesn't need a hard refresh.
+app.use(express.static(PUBLIC_DIR, { maxAge: "1h" }));
 
 // Client-side router owns every non-API path — always serve the shell.
 app.get(/^\/(?!api|ws).*/, (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+  res.sendFile(indexHtml);
 });
 
 app.use(errorHandler);

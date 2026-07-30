@@ -18,12 +18,20 @@ move the data layer to a real database, not to add workers here.
 ## Running it
 
 ```bash
-npm install --omit=dev   # skip nodemon in production
-npm install -g pm2       # process supervisor — restarts on crash, log capture
+npm install               # full install — esbuild (build step) is a devDependency
+npm run build              # bundles+minifies+precompresses public/ into public/dist/
+npm prune --omit=dev       # esbuild's job is done; drop it (and nodemon) before running
+npm install -g pm2         # process supervisor — restarts on crash, log capture
 pm2 start ecosystem.config.js
-pm2 save                 # persist across reboots
-pm2 startup              # prints the systemd command to enable that
+pm2 save                   # persist across reboots
+pm2 startup                # prints the systemd command to enable that
 ```
+
+Re-run `npm run build` after every deploy (any change under `public/js/` or
+`public/styles/`) — `NODE_ENV=production` only serves `public/dist/` when it
+actually exists, otherwise it quietly falls back to the raw unbundled files,
+so a stale or missing build doesn't break anything, it just gives up the
+size/CPU win below until you rebuild.
 
 `ecosystem.config.js` is already sized for this box:
 - `instances: 1`, `exec_mode: "fork"` — see above.
@@ -91,13 +99,40 @@ if it's growing fast, that's a signal to prune old attachments or add real
 object storage before the disk (or the in-memory cache's RAM footprint) becomes
 the bottleneck.
 
+## The production build (`npm run build`)
+
+`scripts/build.js` (esbuild) bundles every `public/js/**` module into one
+minified `public/dist/app.js`, minifies the CSS, and — the part that actually
+saves CPU at runtime, not just bytes — precompresses each output to `.gz` and
+`.br` at build time. `server/index.js` then serves those precomputed files
+directly (`express-static-gzip`) instead of running gzip on every single
+request the way the `compression` middleware does for dynamic API responses.
+Measured output for this app:
+
+| file | raw | gzip | brotli |
+|---|---|---|---|
+| app.js (all client JS bundled) | 96KB | 26KB | 22KB |
+| components.css | 33KB | 5.4KB | 4.8KB |
+| base.css | 2.3KB | 0.8KB | 0.6KB |
+
+Concretely, on a 2-core box this means: one HTTP request instead of ~25
+(every view/component/lib module was a separate file before bundling), ~75%
+fewer bytes over the wire, and the compression CPU cost paid once at build
+time instead of on every page load for every visitor.
+
 ## What was changed for this box specifically
 
+- `scripts/build.js`, `npm run build`: bundle+minify+precompress the client
+  (see table above) — the single biggest lever available since this app has
+  no other CPU-heavy work (it's a thin JSON API + static files).
+- `server/index.js`: serves the precompressed build via `express-static-gzip`
+  when `NODE_ENV=production` and a build is present (falls back to raw files
+  otherwise); `compression` middleware now only runs against dynamic API
+  responses, not `/dist/*`, so static assets never cost CPU to compress at
+  request time.
 - `server/data/store.js`: in-memory read cache, so polling (chat list,
   messages, typing) doesn't re-read-and-JSON.parse the whole file on every
   request — the biggest recurring CPU/IO cost as message history grows.
-- `server/index.js`: gzip (`compression` middleware) and a 1-hour static-asset
-  cache header, both reducing repeat network/IO work.
 - `package.json`: `--max-old-space-size=768` on the `start` script.
 - `ecosystem.config.js`, `deploy/nginx.conf.example`: this document's
   recommendations, as actual config rather than just prose.
