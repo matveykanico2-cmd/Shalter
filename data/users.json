@@ -6,8 +6,8 @@
     "phone": "+7 900 000-00-01",
     "avatarColor": "#2E56D9",
     "bio": "Дизайню интерфейсы",
-    "online": true,
-    "lastSeen": "2026-07-28T15:00:00.000Z",
+    "online": false,
+    "lastSeen": "2026-07-30T11:36:34.412Z",
     "blockedUserIds": []
   },
   {
@@ -72,46 +72,6 @@
     "lastSeen": "2026-07-28T08:00:00.000Z"
   },
   {
-    "id": "u_1785241758186",
-    "name": "vfndtq",
-    "username": "vfndtq",
-    "phone": "+7 9781827502",
-    "avatarColor": "#2E56D9",
-    "bio": "",
-    "online": true,
-    "lastSeen": "2026-07-28T12:29:18.186Z"
-  },
-  {
-    "id": "u_1785241904278",
-    "name": "ы",
-    "username": "ы",
-    "phone": "+79000000003",
-    "avatarColor": "#2E56D9",
-    "bio": "",
-    "online": true,
-    "lastSeen": "2026-07-28T12:31:44.278Z"
-  },
-  {
-    "id": "u_1785248390790",
-    "name": "vfndtq",
-    "username": "vfndtq",
-    "phone": "+7 9789000000",
-    "avatarColor": "#2E56D9",
-    "bio": "",
-    "online": true,
-    "lastSeen": "2026-07-28T14:19:50.790Z"
-  },
-  {
-    "id": "u_1785248666975",
-    "name": "78",
-    "username": "78",
-    "phone": "+7 786785476884957869",
-    "avatarColor": "#2E56D9",
-    "bio": "",
-    "online": true,
-    "lastSeen": "2026-07-28T14:24:26.975Z"
-  },
-  {
     "id": "u_1785296435125",
     "name": "matvey",
     "username": "matvey",
@@ -123,5 +83,18 @@
     "bio": "",
     "online": true,
     "lastSeen": "2026-07-29T03:40:35.125Z"
+  },
+  {
+    "id": "u_1785403929879",
+    "name": "матвей",
+    "username": "матвей",
+    "phone": "",
+    "email": "matveykanico2@gmail.com",
+    "passwordHash": "0a3e05b6a3b7a47dc39e868a0120135eb0ab37f57b797ad1b258f9a2f240bed521a00fa42cb8279139aba3feaf5ce1a0afd98e0aef43ce9cac397dc97b50299f",
+    "passwordSalt": "de13286418a80867f39d9440038997f1",
+    "avatarColor": "#2E56D9",
+    "bio": "",
+    "online": true,
+    "lastSeen": "2026-07-30T09:32:09.879Z"
   }
 ]

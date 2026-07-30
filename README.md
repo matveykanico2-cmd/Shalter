@@ -1,36 +1,28 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Messenger
 
-## Getting Started
+A Telegram-style messenger: chats, groups, channels with posts/comments, real WebRTC calls, voice messages, and video-notes ("kruzhki"). Plain HTML/CSS/JS frontend served by an Express backend — no build step, no framework.
 
-First, run the development server:
+## Getting started
 
 ```bash
-npm run dev
+npm install
+npm run dev     # nodemon server/index.js, restarts on change
 # or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm start       # node server/index.js
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Architecture
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **`server/`** — Express app. `routes/` are the HTTP API, `data/` is the storage layer (flat JSON files under `/data`, one file per collection, serialized per-file locking), `ws.js` handles WebSocket push (call signaling, incoming calls).
+- **`public/`** — the frontend. `index.html` is a single shell page; `js/router.js` is a small History-API router that swaps content into the shell without a page reload (so the nav rail, chat list, and an in-progress call's PiP bubble survive navigation). `js/views/` are route-level screens, `js/components/` are reusable pieces, `js/lib/` holds framework-free helpers (WebRTC call handling, MediaRecorder-based voice/video-note capture, a WebSocket client).
+- **`data/`** — the JSON "database". No migrations; each entity is a flat array (or map, for per-user settings) in its own file.
 
-## Learn More
+## Calls
 
-To learn more about Next.js, take a look at the following resources:
+WebRTC with a mesh topology (one `RTCPeerConnection` per remote participant), signaled primarily over WebSocket with HTTP polling as a reconnect/catch-up fallback. ICE uses Google's public STUN plus the Open Relay Project's public TURN relay — fine for getting calls working across NATs, but swap in a dedicated TURN server (e.g. self-hosted `coturn`) before relying on this for production traffic.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Posts/channels
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+A channel is a `Chat` with `type: "channel"`; posts are just `Message`s in it. Publishing a post auto-forwards a copy into the channel's linked discussion group (`Chat.linkedDiscussionChatId`), and comments are ordinary replies to that forwarded copy — the same pattern Telegram uses.
