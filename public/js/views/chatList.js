@@ -4,6 +4,7 @@ import { ChatListItem } from "../components/chatListItem.js";
 import { openDropdownMenu } from "../components/dropdownMenu.js";
 import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
 import { openCreateChatDialog } from "../components/createChatDialog.js";
+import { openContactPickerDialog } from "../components/contactPickerDialog.js";
 import { api } from "../api.js";
 import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
@@ -13,6 +14,17 @@ async function openNewChatMenu(e) {
   openDropdownMenu(
     { x: rect.left, y: rect.bottom + 4 },
     [
+      {
+        icon: "Accounts",
+        label: "Новый чат",
+        onClick: () => {
+          openContactPickerDialog(async (user) => {
+            const { chat } = await api.startDm(user.id, user.name, user.avatarColor);
+            await api.listChats().then((r) => setState({ chats: r.chats }));
+            navigate(`/chat/${chat.id}`);
+          }, "Новый чат");
+        },
+      },
       {
         icon: "Users",
         label: "Новая группа",

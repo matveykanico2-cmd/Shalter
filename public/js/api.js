@@ -12,8 +12,6 @@ async function req(url, init) {
 
 export const api = {
   session: () => req("/api/auth/session"),
-  sendCode: (phone) => req("/api/auth/login", { method: "POST", body: JSON.stringify({ phone }) }),
-  verifyCode: (phone, code) => req("/api/auth/verify", { method: "POST", body: JSON.stringify({ phone, code }) }),
   registerEmail: (name, email, password) =>
     req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password }) }),
   loginEmail: (email, password) =>

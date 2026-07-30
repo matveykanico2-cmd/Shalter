@@ -11,11 +11,6 @@ async function getUser(id) {
   return users.find((u) => u.id === id);
 }
 
-async function findUserByPhone(phone) {
-  const users = await listUsers();
-  return users.find((u) => u.phone === phone);
-}
-
 async function findUserByEmail(email) {
   const users = await listUsers();
   const normalized = email.trim().toLowerCase();
@@ -25,24 +20,6 @@ async function findUserByEmail(email) {
 async function createUser(user) {
   await updateCollection(FILE, (users) => [...users, user]);
   return user;
-}
-
-// Atomic check-then-create, so two concurrent verify() calls for the same
-// new phone number can't both see "not found" and each create a duplicate.
-async function findOrCreateUserByPhone(phone, makeNew) {
-  let isNew = false;
-  let result;
-  await updateCollection(FILE, (users) => {
-    const existing = users.find((u) => u.phone === phone);
-    if (existing) {
-      result = existing;
-      return users;
-    }
-    isNew = true;
-    result = makeNew();
-    return [...users, result];
-  });
-  return { user: result, isNew };
 }
 
 async function updateUser(id, patch) {
@@ -75,10 +52,8 @@ async function setBlocked(userId, targetId, blocked) {
 module.exports = {
   listUsers,
   getUser,
-  findUserByPhone,
   findUserByEmail,
   createUser,
-  findOrCreateUserByPhone,
   updateUser,
   setBlocked,
 };

@@ -7,50 +7,12 @@ const {
   switchActiveAccount,
   removeAccountSession,
 } = require("../middleware/auth");
-const { findUserByEmail, createUser, findOrCreateUserByPhone, getUser } = require("../data/users");
+const { findUserByEmail, createUser, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
 
 const router = express.Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// Mock "send code" step: any well-formed phone number is accepted and a
-// (fake) code is issued. No account is created yet — that happens on verify.
-router.post(
-  "/login",
-  asyncRoute(async (req, res) => {
-    const { phone } = req.body ?? {};
-    if (!phone || phone.replace(/\D/g, "").length < 7) {
-      return res.status(400).json({ error: "Введите корректный номер телефона" });
-    }
-    res.json({ ok: true, demoCode: "00000" });
-  })
-);
-
-// Mock: any 4+ digit code is accepted (demo code is "00000").
-router.post(
-  "/verify",
-  asyncRoute(async (req, res) => {
-    const { phone, code } = req.body ?? {};
-    if (!code || code.replace(/\D/g, "").length < 4) {
-      return res.status(400).json({ error: "Неверный код" });
-    }
-
-    const { user, isNew } = await findOrCreateUserByPhone(phone, () => ({
-      id: `u_${Date.now()}`,
-      name: "",
-      username: "",
-      phone,
-      avatarColor: "#2E56D9",
-      bio: "",
-      online: true,
-      lastSeen: new Date().toISOString(),
-    }));
-
-    addAccountSession(req, res, user.id);
-    res.json({ user: publicUser(user), isNew });
-  })
-);
 
 router.post(
   "/login-email",

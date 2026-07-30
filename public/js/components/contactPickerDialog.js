@@ -2,8 +2,9 @@ import { el } from "../lib/dom.js";
 import { Avatar } from "./avatar.js";
 import { api } from "../api.js";
 
-// Pick one of your contacts to send as a "contact card" attachment.
-export async function openContactPickerDialog(onPick) {
+// Pick one of your contacts — used both to send a "contact card" attachment
+// and (with a different title) to start a new private chat.
+export async function openContactPickerDialog(onPick, title = "Отправить контакт") {
   const { contacts } = await api.listContacts();
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const list = el(
@@ -26,7 +27,7 @@ export async function openContactPickerDialog(onPick) {
         )
   );
   const dialog = el("div", { class: "modal-dialog" }, [
-    el("h2", { class: "modal-title" }, "Отправить контакт"),
+    el("h2", { class: "modal-title" }, title),
     list,
     el("button", { class: "modal-cancel", onclick: () => close() }, "Отмена"),
   ]);
