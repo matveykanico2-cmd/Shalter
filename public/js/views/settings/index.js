@@ -26,10 +26,9 @@ function Toggle(checked, onChange) {
 export async function SettingsView(root, page) {
   const section = page ?? "";
   const shell = el("div", { class: "settings-view" });
-  const nav = el(
-    "div",
-    { class: "settings-nav" },
-    SECTIONS.map((s) =>
+  const nav = el("div", { class: "settings-nav" }, [
+    el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
+    ...SECTIONS.map((s) =>
       el(
         "a",
         {
@@ -39,8 +38,8 @@ export async function SettingsView(root, page) {
         },
         s.label
       )
-    )
-  );
+    ),
+  ]);
   const contentSlot = el("div", { class: "settings-content" });
   shell.append(nav, contentSlot);
   mount(root, shell);

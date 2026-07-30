@@ -202,41 +202,43 @@ export async function ChatView(root, chatId) {
     })();
 
     header.append(
-      el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
-      el(
-        "button",
-        { class: "chat-header-info-btn", onclick: () => setInfoOpen(true) },
-        [
-          Avatar({ name: other?.name ?? title, color: chat.avatarColor, image: isDm ? other?.avatarImage : chat.avatarImage, size: 38, online: isDm ? other?.online : undefined }),
-          el("div", { class: "chat-header-titles" }, [
-            el("p", { class: "chat-header-title" }, [chat.type === "secret" ? el("span", { html: iconSvg("Lock", 13) }) : null, title]),
-            el("p", { class: "chat-header-subtitle" }, subtitle),
-          ]),
-        ]
-      ),
-      isDm || chat.type === "group"
-        ? el("button", { class: "icon-btn", title: "Позвонить", html: iconSvg("Phone", 18), onclick: () => placeCall("audio") })
-        : null,
-      isDm || chat.type === "group"
-        ? el("button", { class: "icon-btn", title: "Видеозвонок", html: iconSvg("Video", 18), onclick: () => placeCall("video") })
-        : null,
-      el("button", {
-        class: "icon-btn",
-        html: iconSvg("More", 18),
-        onclick: (e) =>
-          openDropdownMenu({ x: e.clientX, y: e.clientY }, [
-            { icon: chat.muted ? "Bell" : "BellOff", label: chat.muted ? "Включить уведомления" : "Отключить уведомления", onClick: toggleMute },
-            { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
-            { icon: "Trash", label: "Очистить историю", onClick: handleClearHistory },
-            {
-              icon: "X",
-              label: chat.type === "channel" ? "Отписаться от канала" : chat.type === "group" ? "Покинуть группу" : "Удалить чат",
-              danger: true,
-              onClick: handleLeaveOrDelete,
-            },
-          ]),
-      }),
-      el("button", { class: "icon-btn info-toggle", html: iconSvg("Info", 18), onclick: () => setInfoOpen(!infoOpen) })
+      ...[
+        el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
+        el(
+          "button",
+          { class: "chat-header-info-btn", onclick: () => setInfoOpen(true) },
+          [
+            Avatar({ name: other?.name ?? title, color: chat.avatarColor, image: isDm ? other?.avatarImage : chat.avatarImage, size: 38, online: isDm ? other?.online : undefined }),
+            el("div", { class: "chat-header-titles" }, [
+              el("p", { class: "chat-header-title" }, [chat.type === "secret" ? el("span", { html: iconSvg("Lock", 13) }) : null, title]),
+              el("p", { class: "chat-header-subtitle" }, subtitle),
+            ]),
+          ]
+        ),
+        isDm || chat.type === "group"
+          ? el("button", { class: "icon-btn", title: "Позвонить", html: iconSvg("Phone", 18), onclick: () => placeCall("audio") })
+          : null,
+        isDm || chat.type === "group"
+          ? el("button", { class: "icon-btn", title: "Видеозвонок", html: iconSvg("Video", 18), onclick: () => placeCall("video") })
+          : null,
+        el("button", {
+          class: "icon-btn",
+          html: iconSvg("More", 18),
+          onclick: (e) =>
+            openDropdownMenu({ x: e.clientX, y: e.clientY }, [
+              { icon: chat.muted ? "Bell" : "BellOff", label: chat.muted ? "Включить уведомления" : "Отключить уведомления", onClick: toggleMute },
+              { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
+              { icon: "Trash", label: "Очистить историю", onClick: handleClearHistory },
+              {
+                icon: "X",
+                label: chat.type === "channel" ? "Отписаться от канала" : chat.type === "group" ? "Покинуть группу" : "Удалить чат",
+                danger: true,
+                onClick: handleLeaveOrDelete,
+              },
+            ]),
+        }),
+        el("button", { class: "icon-btn info-toggle", html: iconSvg("Info", 18), onclick: () => setInfoOpen(!infoOpen) }),
+      ].filter(Boolean)
     );
   }
 

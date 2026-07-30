@@ -1,7 +1,9 @@
 import { el, mount, clear } from "../lib/dom.js";
+import { iconSvg } from "../icons.js";
 import { ChatListItem } from "../components/chatListItem.js";
 import { api } from "../api.js";
 import { getState } from "../state.js";
+import { navigate } from "../router.js";
 
 export async function ArchiveView(root) {
   const { chats: all } = await api.listChats();
@@ -20,7 +22,10 @@ export async function ArchiveView(root) {
     mount(
       root,
       el("div", { class: "contacts-view" }, [
-        el("header", { class: "contacts-header" }, [el("p", { class: "view-title" }, "Архив")]),
+        el("header", { class: "contacts-header" }, [
+          el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
+          el("p", { class: "view-title" }, "Архив"),
+        ]),
         list,
       ])
     );

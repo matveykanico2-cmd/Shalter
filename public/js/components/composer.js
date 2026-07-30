@@ -17,7 +17,7 @@ export function Composer({ chatId, replyingTo, editingMessage, onCancelReply, on
   const wrap = el("div", { class: "composer" });
   const banner = renderBanner();
   const bodySlot = el("div", {});
-  wrap.append(banner, bodySlot);
+  wrap.append(...[banner, bodySlot].filter(Boolean));
   renderIdleBody();
 
   function renderBanner() {
@@ -269,9 +269,18 @@ export function Composer({ chatId, replyingTo, editingMessage, onCancelReply, on
     const dot = el("span", { class: "composer-recording-dot" });
     const timeLabel = el("span", { class: "mono" }, `0s / ${MAX_RECORD_SEC}s`);
     const hint = el("span", { class: "composer-recording-hint" }, mode === "voice" ? "Запись голосового…" : "Запись видео-сообщения…");
+    const flipBtn =
+      mode === "video-note"
+        ? el("button", {
+            class: "composer-icon-btn",
+            title: "Сменить камеру",
+            html: iconSvg("FlipCamera", 16),
+            onclick: () => recordingHandle?.flipCamera?.(),
+          })
+        : null;
     const cancelBtn = el("button", { class: "composer-icon-btn", html: iconSvg("X", 16), onclick: cancelRecording });
     const sendBtn = el("button", { class: "composer-recording-send", onclick: finishRecording }, "Отправить");
-    recordingBar.append(dot, timeLabel, hint, cancelBtn, sendBtn);
+    recordingBar.append(...[dot, timeLabel, hint, flipBtn, cancelBtn, sendBtn].filter(Boolean));
 
     try {
       recordingHandle = await startRecording(mode, {

@@ -29,6 +29,7 @@ export async function ContactsView(root) {
     );
 
     const header = el("header", { class: "contacts-header" }, [
+      el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
       el("p", { class: "view-title" }, "Контакты"),
       el(
         "button",

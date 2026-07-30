@@ -78,7 +78,12 @@ async function boot() {
 
   let prevPath = path;
   window.addEventListener("app:navigate", ({ detail }) => {
-    const fullScreen = detail.path.startsWith("/chat/") || detail.path.startsWith("/call/");
+    // Any route other than the bare chat list renders into mainSlot — on
+    // mobile widths mainSlot is only visible while "chat-open" is set (see
+    // components.css), so every one of those routes needs it, not just
+    // /chat/ and /call/. Without this, Contacts/Calls/Archive/Settings were
+    // rendering into a display:none column and looked like dead nav buttons.
+    const fullScreen = detail.path !== "/";
     shell.classList.toggle("chat-open", fullScreen);
     // Leaving the call screen without explicitly minimizing (nav-rail click,
     // browser back) still needs the call to keep running in the background —
@@ -89,7 +94,7 @@ async function boot() {
     }
     prevPath = detail.path;
   });
-  shell.classList.toggle("chat-open", path.startsWith("/chat/") || path.startsWith("/call/"));
+  shell.classList.toggle("chat-open", path !== "/");
 
   route("/", () => {
     withCleanup(mainSlot);

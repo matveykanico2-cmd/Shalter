@@ -3,6 +3,7 @@ import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
 import { api } from "../api.js";
 import { getState } from "../state.js";
+import { navigate } from "../router.js";
 import { placeCall } from "../lib/callController.js";
 
 function timeLabel(iso) {
@@ -57,7 +58,10 @@ export async function CallsView(root) {
   mount(
     root,
     el("div", { class: "contacts-view" }, [
-      el("header", { class: "contacts-header" }, [el("p", { class: "view-title" }, "Звонки")]),
+      el("header", { class: "contacts-header" }, [
+        el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
+        el("p", { class: "view-title" }, "Звонки"),
+      ]),
       list,
     ])
   );
