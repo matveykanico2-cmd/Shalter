@@ -426,7 +426,7 @@ async function renderAccounts(root) {
           ])
         )
       ),
-      el("button", { class: "settings-add-account-btn", onclick: () => navigate("/login?add=1") }, [
+      el("button", { class: "settings-add-account-btn", onclick: () => (window.location.href = "/login?add=1") }, [
         el("span", { html: iconSvg("Plus", 16) }),
         " Добавить аккаунт",
       ]),

@@ -4,7 +4,6 @@ import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { api } from "../api.js";
 import { getState } from "../state.js";
-import { navigate } from "../router.js";
 
 function railButton(href, iconName, label, active) {
   return el(
@@ -60,7 +59,11 @@ export function NavRail() {
     items.push({
       label: "Добавить аккаунт",
       icon: "Plus",
-      onClick: () => navigate("/login?add=1"),
+      // A real navigation, not the SPA router's navigate() — /login has no
+      // client-side route registered in app.js (it's only ever handled by
+      // boot()'s special-case on a fresh page load), so navigate() here
+      // just fell through to notFound() and bounced straight back to "/".
+      onClick: () => (window.location.href = "/login?add=1"),
     });
     openDropdownMenu(pos, items);
   }
