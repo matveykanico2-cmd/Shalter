@@ -106,6 +106,7 @@ export async function CallScreenView(root, callId) {
           el("div", { class: "call-header-spacer" }),
         ]),
         s.mediaError ? el("p", { class: "call-media-error" }, s.mediaError) : null,
+        s.connectionError ? el("p", { class: "call-media-error" }, s.connectionError) : null,
         el("div", { class: "call-tiles-grid", style: { gridTemplateColumns: `repeat(${Math.min(s.others.length, 2) || 1}, minmax(0,1fr))` } }, tiles),
         localPip,
         el("div", { class: "call-controls" }, [

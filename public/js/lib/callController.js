@@ -42,6 +42,16 @@ function sendSignal(toUserId, kind, data) {
   }
 }
 
+const ICE_FAILURE_MESSAGE = "Не удалось установить соединение — проверьте сеть и попробуйте позвонить снова";
+// A stuck negotiation (TURN relay unreachable/overloaded, restrictive
+// firewall) previously had *no* failure path at all: connectionstatechange
+// only ever handled "connected", so a call that couldn't connect just sat on
+// "Вызов…" with the ringback playing forever — indistinguishable from a call
+// that was about to connect any second. That's the bug behind "calls don't
+// connect": they don't fail loudly, they fail silently and permanently.
+const CONNECT_TIMEOUT_MS = 20000;
+const RESTART_GRACE_MS = 10000;
+
 function createPeer(otherUserId) {
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
   if (state.localStream) {
@@ -54,6 +64,26 @@ function createPeer(otherUserId) {
     pc.addTransceiver("audio", { direction: "recvonly" });
     if (state.call.kind === "video") pc.addTransceiver("video", { direction: "recvonly" });
   }
+
+  let restarted = false;
+  function handleStuck() {
+    if (!state || pc.connectionState === "connected" || pc.connectionState === "closed") return;
+    if (!restarted) {
+      restarted = true;
+      try {
+        pc.restartIce();
+      } catch {
+        // Unsupported/already-closed — the timeout below still catches it.
+      }
+      setTimeout(handleStuck, RESTART_GRACE_MS);
+      return;
+    }
+    state.connectionError = ICE_FAILURE_MESSAGE;
+    stopRingtone();
+    notify();
+  }
+  const watchdog = setTimeout(handleStuck, CONNECT_TIMEOUT_MS);
+
   pc.onicecandidate = (e) => {
     if (e.candidate) sendSignal(otherUserId, "ice", e.candidate.toJSON());
   };
@@ -65,9 +95,15 @@ function createPeer(otherUserId) {
     state.connectedPeers = { ...state.connectedPeers, [otherUserId]: pc.connectionState === "connected" };
     // Only a real connection ends the ring — not a fixed timer (that was
     // cosmetic and had nothing to do with whether media actually flowed).
-    if (pc.connectionState === "connected" && state.phase === "ringing") {
-      state.phase = "connected";
-      stopRingtone();
+    if (pc.connectionState === "connected") {
+      clearTimeout(watchdog);
+      state.connectionError = null;
+      if (state.phase === "ringing") {
+        state.phase = "connected";
+        stopRingtone();
+      }
+    } else if (pc.connectionState === "failed") {
+      handleStuck();
     }
     notify();
   };
@@ -150,6 +186,7 @@ async function join({ call, chatTitle, chatType, participants, me }) {
     minimized: false,
     localStream: null,
     mediaError: null,
+    connectionError: null,
     remoteStreams: {},
     connectedPeers: {},
     peers: new Map(),
