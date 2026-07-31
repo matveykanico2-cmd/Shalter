@@ -1,8 +1,9 @@
 # Deploying on a small box (2 cores, 2GB RAM, 30GB swap)
 
-This app is a single Express process backed by flat JSON files — it was never
-designed to scale horizontally, which actually matches a small box well: the
-goal here is keeping that one process lean, not spreading it across cores.
+This app is a single Express process backed by a SQLite database file
+(`data/app.db`) — it was never designed to scale horizontally, which actually
+matches a small box well: the goal here is keeping that one process lean, not
+spreading it across cores.
 
 Nothing below runs itself — this is a manual, one-time setup, not a push-button
 deploy. None of it is hard, but skipping a step (especially TLS — see below)
@@ -27,18 +28,20 @@ instead of Nixpacks, point it at this repo, and set the exposed port to
 Three things that matter and are easy to miss:
 
 1. **Mount a persistent volume at `/app/data`.** This app's entire database
-   is flat JSON files in that directory. Without a volume, `/app/data` is
-   just part of the container's writable layer — the moment Dokploy rebuilds
-   or recreates the container (any redeploy), it resets to the seed data
-   baked into the image and **every user, chat, and message is gone.** In
-   Dokploy's UI this is a "Volume" / "Mount" entry: host path (or a
-   Dokploy-managed volume) → container path `/app/data`.
-2. **Exactly one replica.** Same reason as the bare-VPS path (see "The one
-   hard rule" below): the read cache and write lock in
-   `server/data/store.js` are per-process. Two containers both mounting the
-   same volume would race on it exactly like the bug that in-process
-   locking was built to fix. Don't set a replica count above 1 and don't
-   enable any autoscaling for this service.
+   is a single SQLite file (`data/app.db`, plus its `-wal`/`-shm` sidecar
+   files) in that directory. Without a volume, `/app/data` is just part of
+   the container's writable layer — the moment Dokploy rebuilds or recreates
+   the container (any redeploy), it resets to empty and **every user, chat,
+   and message is gone.** In Dokploy's UI this is a "Volume" / "Mount" entry:
+   host path (or a Dokploy-managed volume) → container path `/app/data`.
+2. **Exactly one replica.** SQLite's own locking (WAL mode, see
+   `server/db.js`) makes concurrent access from multiple processes *safe* —
+   it won't corrupt the database the way the old flat-JSON-file store's
+   custom in-process lock could if run twice. But typing presence and
+   WebSocket connections are still in-memory and per-process, so two
+   containers would each have an incomplete, inconsistent view of who's
+   online/typing. Don't set a replica count above 1 and don't enable any
+   autoscaling for this service.
 3. **Check `/ws` actually upgrades after the first deploy.** Dokploy's
    Traefik proxy generally handles WebSocket upgrades transparently, but
    it's worth confirming: place a call or watch for the "typing…" indicator
@@ -111,14 +114,18 @@ or connect the moment a real visitor (not you on localhost) opens it.
 
 ## The one hard rule: run exactly one instance
 
-The data layer (`server/data/store.js`) now keeps an in-memory read cache and
-serializes writes with an in-process lock, on the assumption that **this
-process is the only writer**. A second Node instance (another `pm2 start`, a
-second `node server/index.js`, a cluster/fork mode with >1 worker) would keep
-its own separate cache and lock, invisible to the first — two processes can
-then race on the same files exactly like the bug this was built to fix. Don't
-run this app clustered; if load ever outgrows one process, that's a sign to
-move the data layer to a real database, not to add workers here.
+The data layer (`server/db.js`, SQLite via `better-sqlite3`) safely handles
+concurrent access across processes on its own — that part of the old
+"never run two instances" rule is gone. What isn't: typing presence
+(`server/data/typing.js`) and WebSocket connections (`server/ws.js`, call
+signaling + online/offline presence) are in-memory, per-process state with no
+cross-process sync. A second Node instance (another `pm2 start`, a second
+`node server/index.js`, a cluster/fork mode with >1 worker) would have its own
+disconnected view of who's online and typing, and roughly half of any two
+users' WS traffic would land on the "wrong" process and never reach the other
+side. Don't run this app clustered; if load ever outgrows one process, that
+state needs to move to something shared (e.g. Redis pub/sub) before adding
+workers, not just point them at the same database.
 
 ## Running it
 
@@ -196,13 +203,14 @@ pm2 set pm2-logrotate:retain 5
 
 ## Watch the data directory's size
 
-`data/messages.json` holds every message inline, including voice notes,
-video-notes, and images as base64 — there's no object storage in this app by
-design (see README.md). On a small disk this is the thing most likely to
-become a real problem over time. Keep an eye on `du -sh data/` periodically;
-if it's growing fast, that's a signal to prune old attachments or add real
-object storage before the disk (or the in-memory cache's RAM footprint) becomes
-the bottleneck.
+`data/app.db`'s `messages` table holds every message inline, including voice
+notes, video-notes, and images as base64 in the `attachments` column — there's
+no object storage in this app by design (see README.md). On a small disk this
+is the thing most likely to become a real problem over time. Keep an eye on
+`du -sh data/` periodically; if it's growing fast, that's a signal to prune
+old attachments or add real object storage before the disk becomes the
+bottleneck. (`VACUUM`ing the database after a bulk prune reclaims the freed
+space — SQLite doesn't shrink the file automatically on delete.)
 
 ## The production build (`npm run build`)
 
@@ -235,8 +243,10 @@ time instead of on every page load for every visitor.
   otherwise); `compression` middleware now only runs against dynamic API
   responses, not `/dist/*`, so static assets never cost CPU to compress at
   request time.
-- `server/data/store.js`: in-memory read cache, so polling (chat list,
-  messages, typing) doesn't re-read-and-JSON.parse the whole file on every
+- `server/db.js`: real SQLite (`better-sqlite3`, synchronous, in-process —
+  no separate DB server to run) instead of the old flat-JSON-file store, so
+  polling (chat list, messages, typing) and every query hits an indexed
+  table instead of re-reading and re-scanning a whole JSON file on every
   request — the biggest recurring CPU/IO cost as message history grows.
 - `package.json`: `--max-old-space-size=768` on the `start` script.
 - `ecosystem.config.js`, `deploy/nginx.conf.example`: this document's

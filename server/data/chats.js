@@ -1,40 +1,106 @@
-const { readCollection, updateCollection } = require("./store");
+const db = require("../db");
 
-const FILE = "chats";
+function rowToChat(row) {
+  if (!row) return undefined;
+  const members = db.prepare("SELECT userId, isAdmin FROM chat_members WHERE chatId = ?").all(row.id);
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    description: row.description ?? undefined,
+    username: row.username ?? undefined,
+    isPublic: !!row.isPublic || undefined,
+    avatarColor: row.avatarColor ?? undefined,
+    avatarImage: row.avatarImage ?? undefined,
+    ownerId: row.ownerId ?? undefined,
+    adminIds: members.filter((m) => m.isAdmin).map((m) => m.userId),
+    memberIds: members.map((m) => m.userId),
+    pinned: !!row.pinned,
+    muted: !!row.muted,
+    archived: !!row.archived,
+    createdAt: row.createdAt,
+    linkedDiscussionChatId: row.linkedDiscussionChatId ?? undefined,
+  };
+}
 
-function listChats() {
-  return readCollection(FILE);
+async function listChats() {
+  return db.prepare("SELECT * FROM chats").all().map(rowToChat);
 }
 
 async function listChatsForUser(userId) {
-  const chats = await listChats();
-  return chats.filter((c) => c.memberIds.includes(userId));
+  const rows = db
+    .prepare("SELECT c.* FROM chats c JOIN chat_members m ON m.chatId = c.id WHERE m.userId = ?")
+    .all(userId);
+  return rows.map(rowToChat);
 }
 
 async function getChat(id) {
-  const chats = await listChats();
-  return chats.find((c) => c.id === id);
+  return rowToChat(db.prepare("SELECT * FROM chats WHERE id = ?").get(id));
 }
 
-async function updateChat(id, patch) {
-  let updated;
-  await updateCollection(FILE, (chats) =>
-    chats.map((c) => {
-      if (c.id !== id) return c;
-      updated = { ...c, ...patch };
-      return updated;
-    })
-  );
-  return updated;
-}
+const setMembers = db.transaction((chatId, memberIds, adminIds) => {
+  db.prepare("DELETE FROM chat_members WHERE chatId = ?").run(chatId);
+  const insert = db.prepare("INSERT INTO chat_members (chatId, userId, isAdmin) VALUES (?, ?, ?)");
+  for (const userId of memberIds) {
+    insert.run(chatId, userId, adminIds?.includes(userId) ? 1 : 0);
+  }
+});
 
 async function createChat(chat) {
-  await updateCollection(FILE, (chats) => [...chats, chat]);
-  return chat;
+  db.prepare(
+    `INSERT INTO chats (id, type, title, description, username, isPublic, avatarColor, avatarImage, ownerId, pinned, muted, archived, createdAt, linkedDiscussionChatId)
+     VALUES (@id, @type, @title, @description, @username, @isPublic, @avatarColor, @avatarImage, @ownerId, @pinned, @muted, @archived, @createdAt, @linkedDiscussionChatId)`
+  ).run({
+    id: chat.id,
+    type: chat.type,
+    title: chat.title ?? "",
+    description: chat.description ?? null,
+    username: chat.username ?? null,
+    isPublic: chat.isPublic ? 1 : 0,
+    avatarColor: chat.avatarColor ?? null,
+    avatarImage: chat.avatarImage ?? null,
+    ownerId: chat.ownerId ?? null,
+    pinned: chat.pinned ? 1 : 0,
+    muted: chat.muted ? 1 : 0,
+    archived: chat.archived ? 1 : 0,
+    createdAt: chat.createdAt,
+    linkedDiscussionChatId: chat.linkedDiscussionChatId ?? null,
+  });
+  setMembers(chat.id, chat.memberIds ?? [], chat.adminIds ?? []);
+  return getChat(chat.id);
+}
+
+const PATCHABLE_FIELDS = [
+  "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage",
+  "ownerId", "pinned", "muted", "archived", "createdAt", "linkedDiscussionChatId",
+];
+
+async function updateChat(id, patch) {
+  const existing = db.prepare("SELECT id FROM chats WHERE id = ?").get(id);
+  if (!existing) return undefined;
+
+  const fields = Object.keys(patch).filter((k) => PATCHABLE_FIELDS.includes(k));
+  if (fields.length > 0) {
+    const setClause = fields.map((f) => `${f} = @${f}`).join(", ");
+    const values = {};
+    for (const f of fields) {
+      const v = patch[f];
+      values[f] = typeof v === "boolean" ? (v ? 1 : 0) : v ?? null;
+    }
+    db.prepare(`UPDATE chats SET ${setClause} WHERE id = @id`).run({ ...values, id });
+  }
+  // memberIds/adminIds are patched together (see server/routes/chats.js —
+  // every caller that changes membership passes both) so the join table can
+  // just be replaced wholesale rather than diffed.
+  if ("memberIds" in patch || "adminIds" in patch) {
+    const current = rowToChat(db.prepare("SELECT * FROM chats WHERE id = ?").get(id));
+    setMembers(id, patch.memberIds ?? current.memberIds, patch.adminIds ?? current.adminIds);
+  }
+  return getChat(id);
 }
 
 async function deleteChat(id) {
-  await updateCollection(FILE, (chats) => chats.filter((c) => c.id !== id));
+  db.prepare("DELETE FROM chats WHERE id = ?").run(id);
 }
 
 module.exports = { listChats, listChatsForUser, getChat, updateChat, createChat, deleteChat };

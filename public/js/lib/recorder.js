@@ -40,7 +40,13 @@ function wireRecorder(stream, mimeType, onTick, extraStop) {
       stream.getTracks().forEach((t) => t.stop());
       extraStop?.();
       if (cancelled) return resolve(null);
-      const blob = new Blob(chunks, { type: recorder.mimeType || mimeType });
+      // Data URLs split header from payload at the FIRST comma (RFC 2397),
+      // and MediaRecorder's real mimeType can be a comma-separated codecs
+      // list (e.g. "video/webm;codecs=vp8,opus") — embedding that raw
+      // corrupts the resulting data: URL. The container already carries its
+      // own codec info, so the outer Blob/data-URL only needs the base type.
+      const baseType = (recorder.mimeType || mimeType).split(";")[0];
+      const blob = new Blob(chunks, { type: baseType });
       const url = await blobToDataUrl(blob);
       resolve({ url, mimeType: blob.type, durationSec: sec });
     };
@@ -89,6 +95,24 @@ async function startVideoNoteRecording(onTick) {
   canvas.width = 240;
   canvas.height = 240;
   const ctx = canvas.getContext("2d");
+
+  // canvas.captureStream() grabs whatever's already painted at the instant
+  // it's called — starting the capture before the draw loop's first
+  // requestAnimationFrame callback has run hands MediaRecorder a blank
+  // opening frame, which corrupted the whole container (recording completed
+  // and produced a normal-sized file, but every output failed to demux on
+  // playback). Paint one real frame first, synchronously, before capturing.
+  await new Promise((resolve) => {
+    (function waitForFirstFrame() {
+      if (camVideo.readyState >= 2) {
+        ctx.drawImage(camVideo, 0, 0, canvas.width, canvas.height);
+        resolve();
+      } else {
+        requestAnimationFrame(waitForFirstFrame);
+      }
+    })();
+  });
+
   let drawing = true;
   (function draw() {
     if (!drawing) return;

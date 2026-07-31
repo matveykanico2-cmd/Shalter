@@ -1,13 +1,14 @@
-const { readCollection, updateCollection } = require("./store");
-
-const FILE = "reports";
+const db = require("../db");
 
 function listAllReports() {
-  return readCollection(FILE);
+  return db.prepare("SELECT * FROM reports").all();
 }
 
 async function addReport(report) {
-  await updateCollection(FILE, (reports) => [...reports, report]);
+  db.prepare(
+    `INSERT INTO reports (id, reporterId, targetType, targetId, reason, details, createdAt, status)
+     VALUES (@id, @reporterId, @targetType, @targetId, @reason, @details, @createdAt, @status)`
+  ).run(report);
   return report;
 }
 

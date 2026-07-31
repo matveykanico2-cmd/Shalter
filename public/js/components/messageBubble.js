@@ -219,7 +219,7 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
           html: iconSvg("Smile", 15),
           onclick: (e) => {
             e.stopPropagation();
-            togglePicker();
+            togglePicker({ x: e.clientX, y: e.clientY });
           },
         }),
         el("button", {
@@ -236,11 +236,19 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
         }),
       ]);
 
+  // position:fixed + JS-computed, viewport-clamped coordinates, appended to
+  // <body> — same pattern as openDropdownMenu (public/js/components/
+  // dropdownMenu.js), and for the same reason: this used to be position:
+  // absolute relative to the bubble, which put it inside .message-list's
+  // scrolling/clipping box. For the first message in a chat there's no room
+  // above it, so the picker's negative offset escaped the scroll container's
+  // top edge and got clipped there — invisible, and clicks fell through to
+  // the chat header painted underneath.
   let picker = null;
-  function togglePicker() {
+  let closePicker = null;
+  function togglePicker(pos) {
     if (picker) {
-      picker.remove();
-      picker = null;
+      closePicker();
       return;
     }
     picker = el(
@@ -252,15 +260,29 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
           {
             onclick: () => {
               onReact(message, e);
-              picker.remove();
-              picker = null;
+              closePicker();
             },
           },
           e
         )
       )
     );
-    bubbleWrap.appendChild(picker);
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    picker.style.left = `${Math.min(pos.x, vw - 260)}px`;
+    picker.style.top = `${Math.min(Math.max(pos.y - 50, 8), vh - 50)}px`;
+    document.body.appendChild(picker);
+
+    closePicker = () => {
+      document.removeEventListener("mousedown", onOutsideClick);
+      picker.remove();
+      picker = null;
+      closePicker = null;
+    };
+    function onOutsideClick(e) {
+      if (!picker.contains(e.target)) closePicker();
+    }
+    setTimeout(() => document.addEventListener("mousedown", onOutsideClick), 0);
   }
 
   function openMessageMenu(pos) {
@@ -270,7 +292,7 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
     // touchscreen, so without this they'd be unreachable on mobile.
     const items = [
       { icon: "Reply", label: "Ответить", onClick: () => onReply(message) },
-      { icon: "Smile", label: "Реакция", onClick: () => togglePicker() },
+      { icon: "Smile", label: "Реакция", onClick: () => togglePicker(pos) },
       { icon: "Pin", label: message.pinned ? "Открепить" : "Закрепить", onClick: () => onPin(message) },
       { icon: "Forward", label: "Переслать", onClick: () => onForward(message) },
     ];

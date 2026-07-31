@@ -15,9 +15,9 @@ Open http://localhost:3000.
 
 ## Architecture
 
-- **`server/`** — Express app. `routes/` are the HTTP API, `data/` is the storage layer (flat JSON files under `/data`, one file per collection, serialized per-file locking), `ws.js` handles WebSocket push (call signaling, incoming calls).
+- **`server/`** — Express app. `routes/` are the HTTP API, `data/` is the storage layer (real SQLite, via `server/db.js`/`better-sqlite3`; one module per entity), `ws.js` handles WebSocket push (call signaling, incoming calls).
 - **`public/`** — the frontend. `index.html` is a single shell page; `js/router.js` is a small History-API router that swaps content into the shell without a page reload (so the nav rail, chat list, and an in-progress call's PiP bubble survive navigation). `js/views/` are route-level screens, `js/components/` are reusable pieces, `js/lib/` holds framework-free helpers (WebRTC call handling, MediaRecorder-based voice/video-note capture, a WebSocket client).
-- **`data/`** — the JSON "database". No migrations; each entity is a flat array (or map, for per-user settings) in its own file.
+- **`data/app.db`** — the SQLite database (schema in `server/db.js`). Genuinely relational data (chat membership, call participants) is normalized into join tables; per-row nested fields that are never queried across rows (message reactions, a folder's chat list, per-user settings, etc.) stay as JSON columns.
 
 ## Calls
 

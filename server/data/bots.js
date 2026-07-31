@@ -1,14 +1,16 @@
-const { readCollection } = require("./store");
+const db = require("../db");
 
-const FILE = "bots";
+function rowToBot(row) {
+  if (!row) return undefined;
+  return { id: row.id, userId: row.userId, description: row.description ?? "", commands: JSON.parse(row.commands) };
+}
 
 function listBots() {
-  return readCollection(FILE);
+  return db.prepare("SELECT * FROM bots").all().map(rowToBot);
 }
 
 async function getBotByUserId(userId) {
-  const bots = await listBots();
-  return bots.find((b) => b.userId === userId);
+  return rowToBot(db.prepare("SELECT * FROM bots WHERE userId = ?").get(userId));
 }
 
 module.exports = { listBots, getBotByUserId };

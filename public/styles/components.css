@@ -780,9 +780,8 @@
   color: var(--color-text);
 }
 .emoji-picker {
-  position: absolute;
-  z-index: 10;
-  top: -44px;
+  position: fixed;
+  z-index: 55;
   display: flex;
   gap: 2px;
   border-radius: 999px;
@@ -790,12 +789,6 @@
   background: var(--color-surface);
   padding: 4px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-}
-.message-row.mine .emoji-picker {
-  right: 0;
-}
-.message-row:not(.mine) .emoji-picker {
-  left: 0;
 }
 .emoji-picker button {
   padding: 4px;

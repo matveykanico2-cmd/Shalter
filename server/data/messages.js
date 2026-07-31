@@ -1,9 +1,32 @@
-const { readCollection, updateCollection } = require("./store");
+const db = require("../db");
 
-const FILE = "messages";
+function rowToMessage(row) {
+  if (!row) return undefined;
+  return {
+    id: row.id,
+    chatId: row.chatId,
+    senderId: row.senderId,
+    type: row.type,
+    text: row.text,
+    createdAt: row.createdAt,
+    editedAt: row.editedAt ?? undefined,
+    pinned: !!row.pinned,
+    replyToId: row.replyToId ?? null,
+    forwardedFrom: row.forwardedFrom ? JSON.parse(row.forwardedFrom) : undefined,
+    attachments: row.attachments ? JSON.parse(row.attachments) : undefined,
+    keyboard: row.keyboard ? JSON.parse(row.keyboard) : undefined,
+    reactions: JSON.parse(row.reactions),
+    readByIds: JSON.parse(row.readByIds),
+    deletedForIds: JSON.parse(row.deletedForIds),
+    anchorForPostId: row.anchorForPostId ?? undefined,
+    discussionAnchorId: row.discussionAnchorId ?? undefined,
+    views: row.views,
+    commentCount: row.commentCount || undefined,
+  };
+}
 
 function listAllMessages() {
-  return readCollection(FILE);
+  return db.prepare("SELECT * FROM messages").all().map(rowToMessage);
 }
 
 // viewerId + clearedBefore apply the per-viewer overlay: messages the viewer
@@ -11,38 +34,75 @@ function listAllMessages() {
 // "clear history for me" action (clearedBefore, from Settings.chatClears) are
 // hidden from *this* viewer only — everyone else still sees them normally.
 async function listMessages(chatId, viewerId, clearedBefore) {
-  const all = await listAllMessages();
-  return all
-    .filter((m) => m.chatId === chatId)
-    .filter((m) => !viewerId || !m.deletedForIds?.includes(viewerId))
-    .filter((m) => !clearedBefore || m.createdAt > clearedBefore)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  let rows = db.prepare("SELECT * FROM messages WHERE chatId = ? ORDER BY createdAt ASC").all(chatId).map(rowToMessage);
+  if (viewerId) rows = rows.filter((m) => !m.deletedForIds?.includes(viewerId));
+  if (clearedBefore) rows = rows.filter((m) => m.createdAt > clearedBefore);
+  return rows;
 }
 
 async function getMessage(id) {
-  const all = await listAllMessages();
-  return all.find((m) => m.id === id);
+  return rowToMessage(db.prepare("SELECT * FROM messages WHERE id = ?").get(id));
 }
 
 async function addMessage(message) {
-  await updateCollection(FILE, (all) => [...all, message]);
-  return message;
+  db.prepare(
+    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, reactions, readByIds, deletedForIds, anchorForPostId, discussionAnchorId, views, commentCount)
+     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @reactions, @readByIds, @deletedForIds, @anchorForPostId, @discussionAnchorId, @views, @commentCount)`
+  ).run({
+    id: message.id,
+    chatId: message.chatId,
+    senderId: message.senderId,
+    type: message.type ?? "text",
+    text: message.text ?? "",
+    createdAt: message.createdAt,
+    editedAt: message.editedAt ?? null,
+    pinned: message.pinned ? 1 : 0,
+    replyToId: message.replyToId ?? null,
+    forwardedFrom: message.forwardedFrom ? JSON.stringify(message.forwardedFrom) : null,
+    attachments: message.attachments ? JSON.stringify(message.attachments) : null,
+    keyboard: message.keyboard ? JSON.stringify(message.keyboard) : null,
+    reactions: JSON.stringify(message.reactions ?? []),
+    readByIds: JSON.stringify(message.readByIds ?? []),
+    deletedForIds: JSON.stringify(message.deletedForIds ?? []),
+    anchorForPostId: message.anchorForPostId ?? null,
+    discussionAnchorId: message.discussionAnchorId ?? null,
+    views: message.views ?? 0,
+    commentCount: message.commentCount ?? 0,
+  });
+  return getMessage(message.id);
 }
 
 async function deleteMessagesForChat(chatId) {
-  await updateCollection(FILE, (all) => all.filter((m) => m.chatId !== chatId));
+  db.prepare("DELETE FROM messages WHERE chatId = ?").run(chatId);
 }
 
 async function mutate(id, fn) {
-  let updated;
-  await updateCollection(FILE, (all) =>
-    all.map((m) => {
-      if (m.id !== id) return m;
-      updated = fn(m);
-      return updated;
-    })
-  );
-  return updated;
+  const existing = rowToMessage(db.prepare("SELECT * FROM messages WHERE id = ?").get(id));
+  if (!existing) return undefined;
+  const updated = fn(existing);
+  db.prepare(
+    `UPDATE messages SET text = @text, editedAt = @editedAt, pinned = @pinned, forwardedFrom = @forwardedFrom,
+       attachments = @attachments, keyboard = @keyboard, reactions = @reactions, readByIds = @readByIds,
+       deletedForIds = @deletedForIds, anchorForPostId = @anchorForPostId, discussionAnchorId = @discussionAnchorId,
+       views = @views, commentCount = @commentCount
+     WHERE id = @id`
+  ).run({
+    id,
+    text: updated.text ?? "",
+    editedAt: updated.editedAt ?? null,
+    pinned: updated.pinned ? 1 : 0,
+    forwardedFrom: updated.forwardedFrom ? JSON.stringify(updated.forwardedFrom) : null,
+    attachments: updated.attachments ? JSON.stringify(updated.attachments) : null,
+    keyboard: updated.keyboard ? JSON.stringify(updated.keyboard) : null,
+    reactions: JSON.stringify(updated.reactions ?? []),
+    readByIds: JSON.stringify(updated.readByIds ?? []),
+    deletedForIds: JSON.stringify(updated.deletedForIds ?? []),
+    anchorForPostId: updated.anchorForPostId ?? null,
+    discussionAnchorId: updated.discussionAnchorId ?? null,
+    views: updated.views ?? 0,
+    commentCount: updated.commentCount ?? 0,
+  });
+  return getMessage(id);
 }
 
 function editMessage(id, text) {
@@ -51,7 +111,7 @@ function editMessage(id, text) {
 
 // "Delete for everyone" — the message is gone, no tombstone left behind.
 async function deleteMessage(id) {
-  await updateCollection(FILE, (all) => all.filter((m) => m.id !== id));
+  db.prepare("DELETE FROM messages WHERE id = ?").run(id);
 }
 
 // "Delete for me" — hidden from just this viewer; still fully visible to
@@ -89,18 +149,24 @@ function markRead(id, userId) {
   return mutate(id, (m) => (m.readByIds.includes(userId) ? m : { ...m, readByIds: [...m.readByIds, userId] }));
 }
 
-// Bulk version of markRead for "viewer opened this chat" — one collection
-// pass instead of one mutate() per message. Returns the ids that actually
-// changed (so callers can skip broadcasting a no-op read receipt).
+// Bulk version of markRead for "viewer opened this chat" — one transaction
+// instead of one mutate() per message. Returns the ids that actually changed
+// (so callers can skip broadcasting a no-op read receipt).
 async function markChatRead(chatId, viewerId) {
+  const rows = db.prepare("SELECT id, senderId, readByIds FROM messages WHERE chatId = ?").all(chatId);
   const changedIds = [];
-  await updateCollection(FILE, (all) =>
-    all.map((m) => {
-      if (m.chatId !== chatId || m.senderId === viewerId || m.readByIds.includes(viewerId)) return m;
-      changedIds.push(m.id);
-      return { ...m, readByIds: [...m.readByIds, viewerId] };
-    })
-  );
+  const update = db.prepare("UPDATE messages SET readByIds = ? WHERE id = ?");
+  const txn = db.transaction(() => {
+    for (const row of rows) {
+      if (row.senderId === viewerId) continue;
+      const readByIds = JSON.parse(row.readByIds);
+      if (readByIds.includes(viewerId)) continue;
+      readByIds.push(viewerId);
+      update.run(JSON.stringify(readByIds), row.id);
+      changedIds.push(row.id);
+    }
+  });
+  txn();
   return changedIds;
 }
 

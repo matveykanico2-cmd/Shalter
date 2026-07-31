@@ -1,19 +1,22 @@
 // Real Web Push (works even with the tab/browser fully closed), not just the
 // foreground Notification API. VAPID keys are generated once and persisted
-// to data/vapidKeys.json — a push subscription is bound to the server's
+// in the vapid_keys table — a push subscription is bound to the server's
 // public key, so regenerating them on every restart would silently break
 // every subscription made so far.
 const webpush = require("web-push");
-const { readDoc, writeDoc } = require("./data/store");
+const db = require("./db");
 const { listSubscriptionsForUser, removeSubscriptionByEndpoint } = require("./data/pushSubscriptions");
 
 let publicKey = null;
 
 async function initPush() {
-  let keys = await readDoc("vapidKeys");
+  let keys = db.prepare("SELECT publicKey, privateKey FROM vapid_keys WHERE id = 1").get();
   if (!keys?.publicKey || !keys?.privateKey) {
     keys = webpush.generateVAPIDKeys();
-    await writeDoc("vapidKeys", keys);
+    db.prepare(
+      `INSERT INTO vapid_keys (id, publicKey, privateKey) VALUES (1, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET publicKey = excluded.publicKey, privateKey = excluded.privateKey`
+    ).run(keys.publicKey, keys.privateKey);
   }
   publicKey = keys.publicKey;
   webpush.setVapidDetails("mailto:push@example.com", keys.publicKey, keys.privateKey);

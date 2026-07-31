@@ -30,3 +30,12 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+
+# runtime SQLite database — this is user data (accounts, messages, calls...),
+# not source; the old flat-JSON-file equivalents got committed by mistake in
+# this repo's history, don't repeat that with a binary DB file (no meaningful
+# diffs, bloats the repo, and it's real user data besides). See DEPLOY.md for
+# the actual persistence story (mount /app/data as a volume).
+/data/*.db
+/data/*.db-wal
+/data/*.db-shm

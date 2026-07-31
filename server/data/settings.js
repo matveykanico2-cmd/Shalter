@@ -1,6 +1,4 @@
-const { readDoc, updateDoc } = require("./store");
-
-const FILE = "settings";
+const db = require("../db");
 
 const DEFAULT_SETTINGS = {
   theme: "system",
@@ -22,16 +20,16 @@ const DEFAULT_SETTINGS = {
 };
 
 async function getSettings(userId) {
-  const all = await readDoc(FILE);
-  return all[userId] ?? DEFAULT_SETTINGS;
+  const row = db.prepare("SELECT data FROM settings WHERE userId = ?").get(userId);
+  return row ? JSON.parse(row.data) : DEFAULT_SETTINGS;
 }
 
 async function updateSettings(userId, patch) {
-  let updated;
-  await updateDoc(FILE, (all) => {
-    updated = { ...DEFAULT_SETTINGS, ...all[userId], ...patch };
-    return { ...all, [userId]: updated };
-  });
+  const current = await getSettings(userId);
+  const updated = { ...DEFAULT_SETTINGS, ...current, ...patch };
+  db.prepare(
+    `INSERT INTO settings (userId, data) VALUES (?, ?) ON CONFLICT(userId) DO UPDATE SET data = excluded.data`
+  ).run(userId, JSON.stringify(updated));
   return updated;
 }
 

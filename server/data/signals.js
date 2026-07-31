@@ -1,29 +1,32 @@
-const { readCollection, updateCollection } = require("./store");
-
-const FILE = "signals";
+const db = require("../db");
 
 async function addSignal(input) {
-  let signal;
-  await updateCollection(FILE, (all) => {
-    const seq = all.reduce((max, s) => Math.max(max, s.seq), 0) + 1;
-    signal = {
-      ...input,
-      id: `sig_${Date.now()}_${seq}`,
-      seq,
-      createdAt: new Date().toISOString(),
-    };
-    const next = [...all, signal];
-    // Signaling is transient — trim old entries so signals.json doesn't grow unbounded.
-    return next.length > 500 ? next.slice(next.length - 500) : next;
-  });
+  const seqRow = db.prepare("SELECT MAX(seq) AS maxSeq FROM signals").get();
+  const seq = (seqRow.maxSeq ?? 0) + 1;
+  const signal = {
+    ...input,
+    id: `sig_${Date.now()}_${seq}`,
+    seq,
+    createdAt: new Date().toISOString(),
+  };
+  db.prepare(
+    "INSERT INTO signals (id, seq, callId, fromUserId, toUserId, kind, data, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(signal.id, seq, signal.callId, signal.fromUserId, signal.toUserId, signal.kind, JSON.stringify(signal.data ?? null), signal.createdAt);
+
+  // Signaling is transient — trim old entries so the table doesn't grow
+  // unbounded (mirrors the old JSON store's "keep last 500" behavior).
+  db.prepare(
+    "DELETE FROM signals WHERE id NOT IN (SELECT id FROM signals ORDER BY seq DESC LIMIT 500)"
+  ).run();
+
   return signal;
 }
 
 async function listSignalsFor(callId, forUserId, after) {
-  const all = await readCollection(FILE);
-  return all
-    .filter((s) => s.callId === callId && s.toUserId === forUserId && s.seq > after)
-    .sort((a, b) => a.seq - b.seq);
+  const rows = db
+    .prepare("SELECT * FROM signals WHERE callId = ? AND toUserId = ? AND seq > ? ORDER BY seq ASC")
+    .all(callId, forUserId, after);
+  return rows.map((r) => ({ ...r, data: r.data ? JSON.parse(r.data) : null }));
 }
 
 module.exports = { addSignal, listSignalsFor };

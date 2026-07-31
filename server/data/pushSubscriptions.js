@@ -1,26 +1,27 @@
-const { readCollection, updateCollection } = require("./store");
+const db = require("../db");
 
-const FILE = "pushSubscriptions";
-
-function listAllSubscriptions() {
-  return readCollection(FILE);
+function rowToRow(row) {
+  if (!row) return undefined;
+  return { id: row.id, userId: row.userId, subscription: JSON.parse(row.subscription) };
 }
 
 async function listSubscriptionsForUser(userId) {
-  const subs = await listAllSubscriptions();
-  return subs.filter((s) => s.userId === userId);
+  return db.prepare("SELECT * FROM push_subscriptions WHERE userId = ?").all(userId).map(rowToRow);
 }
 
 // Re-subscribing with the same endpoint (browser re-registers the same
 // service worker) replaces the old row rather than piling up duplicates.
 async function addSubscription(userId, subscription) {
-  const row = { id: `ps_${Date.now()}`, userId, subscription };
-  await updateCollection(FILE, (subs) => [...subs.filter((s) => s.subscription.endpoint !== subscription.endpoint), row]);
-  return row;
+  const id = `ps_${Date.now()}`;
+  db.prepare(
+    `INSERT INTO push_subscriptions (id, userId, endpoint, subscription) VALUES (?, ?, ?, ?)
+     ON CONFLICT(endpoint) DO UPDATE SET userId = excluded.userId, subscription = excluded.subscription`
+  ).run(id, userId, subscription.endpoint, JSON.stringify(subscription));
+  return { id, userId, subscription };
 }
 
 async function removeSubscriptionByEndpoint(endpoint) {
-  await updateCollection(FILE, (subs) => subs.filter((s) => s.subscription.endpoint !== endpoint));
+  db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").run(endpoint);
 }
 
 module.exports = { listSubscriptionsForUser, addSubscription, removeSubscriptionByEndpoint };

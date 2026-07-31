@@ -1,32 +1,25 @@
-const { readCollection, updateCollection } = require("./store");
-
-const FILE = "sessions";
+const db = require("../db");
 
 async function listSessions(userId) {
-  const sessions = await readCollection(FILE);
-  return sessions.filter((s) => s.userId === userId);
+  return db.prepare("SELECT * FROM sessions WHERE userId = ?").all(userId);
 }
 
 // One row per (userId, deviceId) — logging in again from the same browser
 // refreshes the existing row (device label + lastActive) instead of piling
 // up duplicates every time.
 async function upsertSession({ userId, deviceId, device, location }) {
-  let saved;
-  await updateCollection(FILE, (sessions) => {
-    const idx = sessions.findIndex((s) => s.userId === userId && s.deviceId === deviceId);
-    const lastActive = new Date().toISOString();
-    if (idx === -1) {
-      saved = { id: `sess_${Date.now()}`, userId, deviceId, device, location, lastActive };
-      return [...sessions, saved];
-    }
-    saved = { ...sessions[idx], device, location, lastActive };
-    return sessions.map((s, i) => (i === idx ? saved : s));
-  });
-  return saved;
+  const lastActive = new Date().toISOString();
+  const existing = db.prepare("SELECT id FROM sessions WHERE userId = ? AND deviceId = ?").get(userId, deviceId);
+  const id = existing?.id ?? `sess_${Date.now()}`;
+  db.prepare(
+    `INSERT INTO sessions (id, userId, deviceId, device, location, lastActive) VALUES (@id, @userId, @deviceId, @device, @location, @lastActive)
+     ON CONFLICT(userId, deviceId) DO UPDATE SET device = @device, location = @location, lastActive = @lastActive`
+  ).run({ id, userId, deviceId, device, location, lastActive });
+  return db.prepare("SELECT * FROM sessions WHERE userId = ? AND deviceId = ?").get(userId, deviceId);
 }
 
 async function removeSession(id) {
-  await updateCollection(FILE, (sessions) => sessions.filter((s) => s.id !== id));
+  db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
 }
 
 module.exports = { listSessions, upsertSession, removeSession };
