@@ -17,7 +17,7 @@ export async function ArchiveView(root) {
       { class: "chat-list-scroll" },
       chats.length === 0
         ? el("p", { class: "empty-hint" }, "В архиве пусто")
-        : chats.map((c) => ChatListItem({ chat: c, active: currentId === c.id, meId: me.id, onPatch: patchChat }))
+        : chats.map((c) => ChatListItem({ chat: c, active: currentId === c.id, meId: me.id, onPatch: patchChat, onDelete: deleteChatItem }))
     );
     mount(
       root,
@@ -39,6 +39,14 @@ export async function ArchiveView(root) {
     }
     render();
     await api.patchChat(id, patch);
+  }
+
+  async function deleteChatItem(id, forEveryone) {
+    chats = chats.filter((c) => c.id !== id);
+    render();
+    if (window.location.pathname === `/chat/${id}`) navigate("/");
+    if (forEveryone) await api.deleteChat(id);
+    else await api.deleteChatForMe(id);
   }
 
   render();

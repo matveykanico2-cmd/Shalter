@@ -2,6 +2,7 @@ import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
+import { openChoiceDialog } from "./confirmDialog.js";
 import { navigate } from "../router.js";
 
 function timeLabel(iso) {
@@ -36,7 +37,7 @@ function preview(chat, meId) {
   return `${who}${m.text}`;
 }
 
-export function ChatListItem({ chat, active, meId, onPatch }) {
+export function ChatListItem({ chat, active, meId, onPatch, onDelete }) {
   const title = chat.type === "dm" || chat.type === "secret" ? (chat.otherUser?.name ?? chat.title) : chat.title;
   const online = (chat.type === "dm" || chat.type === "secret") && chat.otherUser?.online;
 
@@ -100,6 +101,24 @@ export function ChatListItem({ chat, active, meId, onPatch }) {
         icon: "Archive",
         label: chat.archived ? "Вернуть из архива" : "Архивировать",
         onClick: () => onPatch(chat.id, { archived: !chat.archived }),
+      },
+      { separator: true },
+      {
+        icon: "Trash",
+        label: "Удалить чат",
+        danger: true,
+        onClick: () => {
+          const isDmLike = chat.type === "dm" || chat.type === "secret" || chat.type === "bot";
+          openChoiceDialog(
+            "Удалить чат",
+            isDmLike
+              ? [
+                  { label: "Удалить у меня", onClick: () => onDelete(chat.id, false) },
+                  { label: "Удалить у всех", danger: true, onClick: () => onDelete(chat.id, true) },
+                ]
+              : [{ label: "Удалить у меня", danger: true, onClick: () => onDelete(chat.id, false) }]
+          );
+        },
       },
     ]);
   }

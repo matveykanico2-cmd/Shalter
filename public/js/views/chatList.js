@@ -168,7 +168,7 @@ function renderInto(container) {
     if (results.chats.length) {
       box.appendChild(el("p", { class: "list-section-label" }, "Чаты"));
       for (const c of results.chats) {
-        box.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat }));
+        box.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem }));
       }
     }
     if (results.users.length) {
@@ -241,7 +241,7 @@ function renderInto(container) {
   const scroll = el("div", { class: "chat-list-scroll" });
   if (!list.length) scroll.appendChild(el("p", { class: "empty-hint" }, "Чатов нет"));
   for (const c of list) {
-    scroll.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat }));
+    scroll.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem }));
   }
   container.appendChild(scroll);
 }
@@ -250,4 +250,12 @@ async function patchChat(id, patch) {
   const { chats } = getState();
   setState({ chats: chats.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
   await api.patchChat(id, patch);
+}
+
+async function deleteChatItem(id, forEveryone) {
+  const { chats } = getState();
+  setState({ chats: chats.filter((c) => c.id !== id) });
+  if (window.location.pathname === `/chat/${id}`) navigate("/");
+  if (forEveryone) await api.deleteChat(id);
+  else await api.deleteChatForMe(id);
 }

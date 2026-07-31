@@ -28,6 +28,7 @@ export const api = {
   getChat: (id) => req(`/api/chats/${id}`),
   patchChat: (id, patch) => req(`/api/chats/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteChat: (id) => req(`/api/chats/${id}`, { method: "DELETE" }),
+  deleteChatForMe: (id) => req(`/api/chats/${id}/delete-for-me`, { method: "POST" }),
   startDm: (userId, title, avatarColor) =>
     req("/api/chats", { method: "POST", body: JSON.stringify({ userId, title, avatarColor }) }),
   createChannel: (title, avatarImage) =>

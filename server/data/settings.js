@@ -13,6 +13,12 @@ const DEFAULT_SETTINGS = {
   // Per-chat "clear history for me" timestamps (ISO) — messages at or before
   // this point are hidden from this user's view only. See server/routes/chats.js.
   chatClears: {},
+  // Per-chat "delete for me" timestamps (ISO) — the chat itself drops out of
+  // this user's chat list (not just its history) unless/until a newer
+  // message arrives, at which point it reappears (same as Telegram: deleting
+  // a chat for yourself doesn't stop the other side from messaging you
+  // again). See server/routes/chats.js.
+  hiddenChats: {},
 };
 
 async function getSettings(userId) {
@@ -33,4 +39,16 @@ async function setChatCleared(userId, chatId, iso) {
   return updateSettings(userId, { chatClears: { ...(await getSettings(userId)).chatClears, [chatId]: iso } });
 }
 
-module.exports = { getSettings, updateSettings, setChatCleared, DEFAULT_SETTINGS };
+// "Delete for me" — clears history *and* drops the chat out of this user's
+// list, in one settings write (both timestamps need to agree, or a chat
+// could reappear in the list with its old history still cleared, or vice
+// versa).
+async function deleteChatForUser(userId, chatId, iso) {
+  const current = await getSettings(userId);
+  return updateSettings(userId, {
+    chatClears: { ...current.chatClears, [chatId]: iso },
+    hiddenChats: { ...current.hiddenChats, [chatId]: iso },
+  });
+}
+
+module.exports = { getSettings, updateSettings, setChatCleared, deleteChatForUser, DEFAULT_SETTINGS };

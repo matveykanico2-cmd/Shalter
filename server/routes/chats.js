@@ -3,7 +3,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser } = require("../data/chats");
 const { deleteMessagesForChat } = require("../data/messages");
-const { setChatCleared } = require("../data/settings");
+const { getSettings, setChatCleared, deleteChatForUser } = require("../data/settings");
 const { attachSummaries } = require("../data/chat-summary");
 const { listUsers } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
@@ -19,7 +19,14 @@ router.get(
   asyncRoute(async (req, res) => {
     const chats = await listChatsForUser(req.uid);
     const withSummary = await attachSummaries(chats, req.uid);
-    res.json({ chats: withSummary });
+    // attachSummaries already applies chatClears when computing lastMessage,
+    // so a hidden chat with no *new* message since it was hidden naturally
+    // has lastMessage: null here — no separate timestamp comparison needed,
+    // and a fresh incoming message un-hides it for free.
+    const settings = await getSettings(req.uid);
+    const hidden = settings.hiddenChats ?? {};
+    const visible = withSummary.filter((c) => !hidden[c.id] || c.lastMessage);
+    res.json({ chats: visible });
   })
 );
 
@@ -176,6 +183,22 @@ router.post(
       // intact for everyone else in the chat.
       await setChatCleared(req.uid, req.params.id, new Date().toISOString());
     }
+    res.json({ ok: true });
+  })
+);
+
+// "Delete for me" from the chat-list long-press menu: the chat drops out of
+// *this user's* list and its history is cleared from their view, but stays
+// fully intact for every other member — the group/channel-wide DELETE /:id
+// below is the "for everyone" counterpart, and stays restricted to DM-like
+// chats client-side (see chatListItem.js) since wiping a whole group for
+// every member isn't something a casual long-press should be able to do.
+router.post(
+  "/:id/delete-for-me",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    await deleteChatForUser(req.uid, req.params.id, new Date().toISOString());
     res.json({ ok: true });
   })
 );
