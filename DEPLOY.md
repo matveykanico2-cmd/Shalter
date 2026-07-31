@@ -65,8 +65,8 @@ which of those two steps to look at.
 ## From a blank server to running (assumes Ubuntu/Debian, a domain already pointed at the server's IP)
 
 ```bash
-# 1. Node.js 20+ (engines requires >=20.9.0)
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# 1. Node.js 22+ (better-sqlite3 requires it; engines field enforces >=22)
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # 2. Get the code onto the server (git clone, scp, rsync — whatever you use)
