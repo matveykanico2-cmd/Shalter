@@ -32,7 +32,11 @@ COPY package*.json ./
 RUN npm ci --omit=dev && apk del .build-deps
 COPY --from=build /app/server ./server
 COPY --from=build /app/public ./public
-COPY --from=build /app/data ./data
+# /app/data isn't in the repo or the build stage — it's a runtime mount point
+# (see DEPLOY.md: mount a persistent volume here for data/app.db). Just make
+# sure the directory exists so better-sqlite3 has somewhere to create the
+# DB file if no volume is mounted.
+RUN mkdir -p ./data
 
 # Respect $PORT if the platform injects one (Dokploy/most PaaS do); server/index.js
 # already reads process.env.PORT and falls back to 3000 — this just documents it.
