@@ -42,5 +42,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:${PORT:-3000}/ >/dev/null || exit 1
 
 # --max-old-space-size=768 matches DEPLOY.md's sizing for a small (2GB-class)
-# host; raise it only alongside more RAM, not instead of it.
-CMD ["node", "--max-old-space-size=768", "server/index.js"]
+# host; raise it only alongside more RAM, not instead of it. Set via
+# NODE_OPTIONS (not a CMD flag) so the limit still applies even if the
+# hosting platform overrides CMD with its own start command.
+ENV NODE_OPTIONS="--max-old-space-size=768"
+CMD ["node", "server/index.js"]
