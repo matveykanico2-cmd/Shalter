@@ -89,6 +89,21 @@ function markRead(id, userId) {
   return mutate(id, (m) => (m.readByIds.includes(userId) ? m : { ...m, readByIds: [...m.readByIds, userId] }));
 }
 
+// Bulk version of markRead for "viewer opened this chat" — one collection
+// pass instead of one mutate() per message. Returns the ids that actually
+// changed (so callers can skip broadcasting a no-op read receipt).
+async function markChatRead(chatId, viewerId) {
+  const changedIds = [];
+  await updateCollection(FILE, (all) =>
+    all.map((m) => {
+      if (m.chatId !== chatId || m.senderId === viewerId || m.readByIds.includes(viewerId)) return m;
+      changedIds.push(m.id);
+      return { ...m, readByIds: [...m.readByIds, viewerId] };
+    })
+  );
+  return changedIds;
+}
+
 // Persisted poll voting — clicking your current option un-votes, clicking a
 // different one moves your vote (only one choice per poll, like Telegram).
 function votePoll(id, optionIndex, userId) {
@@ -147,6 +162,7 @@ module.exports = {
   togglePin,
   toggleReaction,
   markRead,
+  markChatRead,
   votePoll,
   incrementViews,
   incrementCommentCount,

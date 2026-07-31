@@ -5,6 +5,7 @@ import { api } from "../../api.js";
 import { getState, setState } from "../../state.js";
 import { navigate } from "../../router.js";
 import { fileToAvatarDataUrl } from "../../lib/image.js";
+import { requestPushPermission } from "../../lib/push.js";
 
 const SECTIONS = [
   { id: "", label: "Профиль" },
@@ -264,7 +265,7 @@ async function renderNotifications(root) {
           el("p", { class: "settings-toggle-title" }, "Уведомления браузера"),
           el("p", { class: "settings-toggle-hint" }, `Статус: ${permLabel()}`),
           canRequest
-            ? el("button", { class: "btn-accent", onclick: async () => { await Notification.requestPermission(); render(); } }, "Разрешить уведомления")
+            ? el("button", { class: "btn-accent", onclick: async () => { await requestPushPermission(); render(); } }, "Разрешить уведомления")
             : null,
         ]),
       ])
@@ -361,7 +362,7 @@ async function renderDevices(root) {
           ? el("div", { class: "settings-current-device" }, [
               el("p", { class: "settings-toggle-title" }, "Это устройство"),
               el("p", {}, current.device),
-              el("p", { class: "mono settings-toggle-hint" }, `${current.city} · ${timeLabel(current.lastActive)}`),
+              el("p", { class: "mono settings-toggle-hint" }, `${current.location} · ${timeLabel(current.lastActive)}`),
             ])
           : null,
         others.length
@@ -373,7 +374,7 @@ async function renderDevices(root) {
               ...others.map((s) =>
                 el("div", { class: "settings-device-row" }, [
                   el("span", { html: iconSvg("Phone", 16) }),
-                  el("div", { class: "settings-device-body" }, [el("p", {}, s.device), el("p", { class: "mono settings-toggle-hint" }, `${s.city} · ${timeLabel(s.lastActive)}`)]),
+                  el("div", { class: "settings-device-body" }, [el("p", {}, s.device), el("p", { class: "mono settings-toggle-hint" }, `${s.location} · ${timeLabel(s.lastActive)}`)]),
                   el("button", { class: "icon-btn", html: iconSvg("X", 15), onclick: () => terminate(s.id) }),
                 ])
               ),

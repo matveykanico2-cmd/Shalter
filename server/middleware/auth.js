@@ -1,6 +1,26 @@
+const { randomBytes } = require("crypto");
+
 const SESSIONS_COOKIE = "session_uids";
 const ACTIVE_COOKIE = "active_uid";
+const DEVICE_COOKIE = "device_id";
 const COOKIE_OPTS = { httpOnly: true, sameSite: "lax", path: "/" };
+// Long-lived and independent of login state — it identifies *this browser*,
+// not any particular account, so the Settings → Devices list (server/data/
+// sessions.js) can tell "same device, logged in again" from "a new device"
+// across logins/logouts/account switches.
+const DEVICE_COOKIE_OPTS = { httpOnly: true, sameSite: "lax", path: "/", maxAge: 400 * 24 * 60 * 60 * 1000 };
+
+// Identifies this browser for the Devices/Sessions list — issues a stable id
+// on first request and reuses it after. Call on any request that should be
+// attributable to a device (currently: login, register, switch account).
+function getOrCreateDeviceId(req, res) {
+  let id = req.cookies?.[DEVICE_COOKIE];
+  if (!id) {
+    id = randomBytes(12).toString("hex");
+    res.cookie(DEVICE_COOKIE, id, DEVICE_COOKIE_OPTS);
+  }
+  return id;
+}
 
 function parseIds(raw) {
   if (!raw) return [];
@@ -103,4 +123,5 @@ module.exports = {
   clearAllSessions,
   requireUserId,
   getCurrentUserIdFromCookieHeader,
+  getOrCreateDeviceId,
 };

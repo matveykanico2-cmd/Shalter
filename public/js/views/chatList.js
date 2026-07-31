@@ -5,9 +5,11 @@ import { openDropdownMenu } from "../components/dropdownMenu.js";
 import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
 import { openCreateChatDialog } from "../components/createChatDialog.js";
 import { openContactPickerDialog } from "../components/contactPickerDialog.js";
+import { StoriesBar } from "../components/storiesBar.js";
 import { api } from "../api.js";
 import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
+import { onWsMessage } from "../lib/wsClient.js";
 
 async function openNewChatMenu(e) {
   const rect = e.currentTarget.getBoundingClientRect();
@@ -68,10 +70,15 @@ const lastMessageIds = new Map();
 
 export function ChatListPane() {
   const container = el("div", { class: "chat-list-pane" });
-  renderInto(container);
+  // Mounted once, outside renderInto's clear-and-rebuild cycle — renderInto
+  // runs on every poll/WS event, and re-creating the stories bar that often
+  // would re-fetch stories constantly and drop any in-progress UI state in it.
+  const listSlot = el("div", { class: "chat-list-inner" });
+  container.append(StoriesBar(), listSlot);
+  renderInto(listSlot);
 
-  const unsubState = subscribe(() => renderInto(container));
-  window.addEventListener("app:navigate", () => renderInto(container));
+  const unsubState = subscribe(() => renderInto(listSlot));
+  window.addEventListener("app:navigate", () => renderInto(listSlot));
 
   api.getSettings().then((r) => (settingsCache = r.settings));
 
@@ -92,10 +99,20 @@ export function ChatListPane() {
   }
 
   refetch();
-  const iv = setInterval(refetch, 4000);
+  // WS push (any message event, anywhere) triggers an immediate refetch so a
+  // new message's preview/unread badge/ordering shows up without waiting on
+  // the poll — that poll now only needs to run as a slow reconnect/catch-up
+  // safety net, same as everywhere else this pattern is used.
+  const unsubNew = onWsMessage("message:new", refetch);
+  const unsubUpdated = onWsMessage("message:updated", refetch);
+  const unsubDeleted = onWsMessage("message:deleted", refetch);
+  const iv = setInterval(refetch, 15000);
   container._cleanup = () => {
     clearInterval(iv);
     unsubState();
+    unsubNew();
+    unsubUpdated();
+    unsubDeleted();
   };
 
   return container;

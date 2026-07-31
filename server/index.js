@@ -6,9 +6,15 @@ const cookieParser = require("cookie-parser");
 const compression = require("compression");
 const expressStaticGzip = require("express-static-gzip");
 const { errorHandler } = require("./middleware/errors");
+const { apiLimiter, authLimiter } = require("./middleware/rateLimit");
 const { attachWebSocketServer } = require("./ws");
+const { initPush } = require("./push");
 
 const app = express();
+// Deployed behind nginx (see DEPLOY.md/deploy/nginx.conf.example) — trust
+// its X-Forwarded-For so req.ip (rate limiting, session location tracking)
+// reflects the real client instead of nginx's own address for every request.
+app.set("trust proxy", 1);
 
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const DIST_DIR = path.join(PUBLIC_DIR, "dist");
@@ -35,6 +41,10 @@ app.use(cookieParser());
 // well above Composer's MAX_RECORD_SEC=20 worst case.
 app.use(express.json({ limit: "25mb" }));
 
+app.use("/api", apiLimiter);
+app.use("/api/auth/login-email", authLimiter);
+app.use("/api/auth/register-email", authLimiter);
+
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/chats", require("./routes/chats"));
@@ -46,6 +56,9 @@ app.use("/api/settings", require("./routes/settings"));
 app.use("/api/bots", require("./routes/bots"));
 app.use("/api/posts", require("./routes/posts"));
 app.use("/api/search", require("./routes/search"));
+app.use("/api/push", require("./routes/push"));
+app.use("/api/reports", require("./routes/reports"));
+app.use("/api/stories", require("./routes/stories"));
 
 if (useBuilt) {
   // Serves whichever of app.js/app.js.br/app.js.gz the client's
@@ -71,9 +84,16 @@ const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 attachWebSocketServer(server);
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`messenger server listening on http://localhost:${PORT}`);
-});
+// VAPID key setup must finish before anything can subscribe/send push, but
+// must never block the server from coming up at all if it fails for some
+// reason (e.g. a corrupt data/vapidKeys.json) — push is additive, not core.
+initPush()
+  .catch((err) => console.error("push init failed, push notifications disabled:", err))
+  .finally(() => {
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`messenger server listening on http://localhost:${PORT}`);
+    });
+  });
 
 // Stop accepting new connections and let in-flight requests finish before
 // exiting — an abrupt kill mid-write was the cause of a real data-loss bug

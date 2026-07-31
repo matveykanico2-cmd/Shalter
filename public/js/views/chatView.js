@@ -8,7 +8,7 @@ import { InfoPanel } from "../components/infoPanel.js";
 import { openForwardDialog } from "../components/forwardDialog.js";
 import { openChoiceDialog } from "../components/confirmDialog.js";
 import { api } from "../api.js";
-import { getState } from "../state.js";
+import { getState, setState } from "../state.js";
 import { navigate } from "../router.js";
 import { placeCall as placeCallController } from "../lib/callController.js";
 import { onWsMessage } from "../lib/wsClient.js";
@@ -30,6 +30,15 @@ export async function ChatView(root, chatId) {
   } catch {
     mount(root, el("div", { class: "empty-chat" }, "Чат не найден"));
     return;
+  }
+
+  // That listMessages() call just marked this chat's messages read on the
+  // server (see server/routes/messages.js) — clear the badge in the shared
+  // chat-list state right away instead of waiting on its own poll/WS refetch
+  // to notice the unreadCount changed.
+  const { chats: sharedChats } = getState();
+  if (sharedChats.some((c) => c.id === chatId && c.unreadCount > 0)) {
+    setState({ chats: sharedChats.map((c) => (c.id === chatId ? { ...c, unreadCount: 0 } : c)) });
   }
 
   let replyingTo = null;
@@ -394,12 +403,15 @@ export async function ChatView(root, chatId) {
   mount(root, wrap);
   list.scrollTo({ top: list.scrollHeight });
 
-  const messagesIv = setInterval(refreshMessages, 3000);
+  // WS push is the primary path for both messages and typing (near-instant);
+  // the polling below only needs to catch up after a dropped/reconnecting
+  // socket, so it can run at a much longer interval than before.
+  const messagesIv = setInterval(refreshMessages, 15000);
   const typingIv = setInterval(async () => {
     const r = await api.getTyping(chat.id);
     typingUserId = r.typingUserId;
     renderHeader();
-  }, 1500);
+  }, 5000);
 
   const unsubPresence = onWsMessage("presence:update", (msg) => {
     if (!other || msg.userId !== other.id) return;
@@ -407,10 +419,49 @@ export async function ChatView(root, chatId) {
     other.lastSeen = msg.lastSeen;
     renderHeader();
   });
+  const unsubMessageNew = onWsMessage("message:new", (msg) => {
+    if (msg.chatId !== chat.id) return;
+    refreshMessages();
+  });
+  const unsubMessageUpdated = onWsMessage("message:updated", (msg) => {
+    if (msg.chatId !== chat.id) return;
+    refreshMessages();
+  });
+  const unsubMessageDeleted = onWsMessage("message:deleted", (msg) => {
+    if (msg.chatId !== chat.id) return;
+    refreshMessages();
+  });
+  // Someone else opened the chat and read our messages — refresh so the
+  // sent/read checkmark (readByIds.length, see messageBubble.js) updates.
+  const unsubMessageRead = onWsMessage("message:read", (msg) => {
+    if (msg.chatId !== chat.id) return;
+    refreshMessages();
+  });
+  // The push only signals "typing started" (mirroring how the composer only
+  // pings on keystrokes, not on stop) — the server's typing state self-expires
+  // after 4s (see server/data/typing.js), so clear it locally on the same
+  // schedule instead of leaning on the slow poll to notice it's gone stale.
+  let typingClearTimer = null;
+  const unsubTyping = onWsMessage("typing:update", (msg) => {
+    if (msg.chatId !== chat.id) return;
+    typingUserId = msg.userId;
+    renderHeader();
+    clearTimeout(typingClearTimer);
+    typingClearTimer = setTimeout(() => {
+      typingUserId = null;
+      renderHeader();
+    }, 4000);
+  });
 
   root._cleanup = () => {
     clearInterval(messagesIv);
     clearInterval(typingIv);
+    clearTimeout(typingClearTimer);
     unsubPresence();
+    unsubMessageNew();
+    unsubMessageUpdated();
+    unsubMessageDeleted();
+    unsubMessageRead();
+    unsubTyping();
   };
 }

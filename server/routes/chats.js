@@ -8,6 +8,7 @@ const { attachSummaries } = require("../data/chat-summary");
 const { listUsers } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { markTyping, getTypingUserId } = require("../data/typing");
+const { broadcastToUsers } = require("../ws");
 const messagesRouter = require("./messages");
 
 const router = express.Router();
@@ -257,6 +258,11 @@ router.post(
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
     markTyping(req.params.id, req.uid);
+    broadcastToUsers(chat.memberIds.filter((id) => id !== req.uid), {
+      type: "typing:update",
+      chatId: req.params.id,
+      userId: req.uid,
+    });
     res.json({ ok: true });
   })
 );

@@ -89,4 +89,16 @@ export const api = {
 
   publishPost: (channelId, text, attachments) =>
     req(`/api/posts/${channelId}/publish`, { method: "POST", body: JSON.stringify({ text, attachments }) }),
+
+  getVapidPublicKey: () => req("/api/push/vapid-public-key"),
+  subscribePush: (subscription) => req("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription }) }),
+  unsubscribePush: (endpoint) => req("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) }),
+
+  submitReport: (targetType, targetId, reason, details) =>
+    req("/api/reports", { method: "POST", body: JSON.stringify({ targetType, targetId, reason, details }) }),
+
+  listStories: () => req("/api/stories"),
+  postStory: (kind, url) => req("/api/stories", { method: "POST", body: JSON.stringify({ kind, url }) }),
+  viewStory: (id) => req(`/api/stories/${id}/view`, { method: "POST" }),
+  deleteStory: (id) => req(`/api/stories/${id}`, { method: "DELETE" }),
 };

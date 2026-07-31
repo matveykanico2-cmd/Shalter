@@ -6,13 +6,29 @@ const {
   addAccountSession,
   switchActiveAccount,
   removeAccountSession,
+  getOrCreateDeviceId,
 } = require("../middleware/auth");
 const { findUserByEmail, createUser, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
+const { upsertSession } = require("../data/sessions");
+const { parseUserAgent } = require("../lib/userAgent");
 
 const router = express.Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Records/refreshes the Settings → Devices entry for this (account, browser)
+// pair. Called on every event that establishes or resumes an authenticated
+// session on this device — login, register, switch.
+function recordSession(req, res, userId) {
+  const deviceId = getOrCreateDeviceId(req, res);
+  return upsertSession({
+    userId,
+    deviceId,
+    device: parseUserAgent(req.headers["user-agent"]),
+    location: req.ip || "неизвестно",
+  });
+}
 
 router.post(
   "/login-email",
@@ -32,6 +48,7 @@ router.post(
     }
 
     addAccountSession(req, res, user.id);
+    await recordSession(req, res, user.id);
     res.json({ user: publicUser(user) });
   })
 );
@@ -66,6 +83,7 @@ router.post(
     });
 
     addAccountSession(req, res, user.id);
+    await recordSession(req, res, user.id);
     res.json({ user: publicUser(user) });
   })
 );
@@ -95,6 +113,7 @@ router.post(
       return res.status(403).json({ error: "Этот аккаунт не подключён на этом устройстве" });
     }
     switchActiveAccount(req, res, userId);
+    await recordSession(req, res, userId);
     const user = await getUser(userId);
     res.json({ user: user ? publicUser(user) : null });
   })

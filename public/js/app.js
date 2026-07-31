@@ -13,6 +13,7 @@ import { ArchiveView } from "./views/archive.js";
 import { SettingsView } from "./views/settings/index.js";
 import { mountIncomingCallWatcher } from "./components/incomingCallWatcher.js";
 import { startWsClient } from "./lib/wsClient.js";
+import { ensurePushSubscribed } from "./lib/push.js";
 import { subscribeCall, getCallState, minimize, restore } from "./lib/callController.js";
 import { Avatar } from "./components/avatar.js";
 import { iconSvg } from "./icons.js";
@@ -47,6 +48,10 @@ async function boot() {
   setState({ user, accounts });
   startWsClient();
   mountIncomingCallWatcher();
+  // Re-subscribes silently if permission was already granted in an earlier
+  // session (e.g. browser restart) — does nothing if it wasn't, so this is
+  // safe to call unconditionally on every boot.
+  ensurePushSubscribed().catch(() => {});
 
   const shell = el("div", { class: "shell" });
   const listCol = el("div", { class: "shell-list-col" });

@@ -92,8 +92,8 @@ export function LoginView(root, { addMode }) {
         },
       },
       [
-        nameInput,
         avatarInput,
+        nameInput,
         emailInput,
         passwordInput,
         mode === "register" ? el("p", { class: "login-hint" }, "Не короче 6 символов. Пароль хранится только в виде хеша.") : null,

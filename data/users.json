@@ -98,16 +98,14 @@
     "lastSeen": "2026-07-30T09:32:09.879Z"
   },
   {
-    "id": "u_1785435892450",
-    "name": "Мобильный Тест",
-    "username": "мобильный_тест",
-    "phone": "",
-    "email": "mobiletest1785435892220@example.com",
-    "passwordHash": "b1459f5d26c401e21ebddd75b3c7533189a2b695154a2a2c2d745274b74de26211075633edc56a4a4a97a343e3c70260e86e1302a924c306507d1bfc0d908929",
-    "passwordSalt": "dd7808cd26c50ca44b734f7f54025a1f",
-    "avatarColor": "#2E56D9",
+    "id": "u_dev_79781827502",
+    "name": "Разработчик",
+    "username": "developer",
+    "phone": "+79781827502",
+    "avatarColor": "#1F9D63",
     "bio": "",
     "online": false,
-    "lastSeen": "2026-07-30T18:24:55.566Z"
+    "lastSeen": "2026-07-31T06:40:00.000Z",
+    "blockedUserIds": []
   }
 ]

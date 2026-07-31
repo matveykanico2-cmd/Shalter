@@ -3,13 +3,38 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { listCalls, createCall, getCall, updateCall, addParticipant } = require("../data/calls");
 const { getChat } = require("../data/chats");
-const { listUsers } = require("../data/users");
+const { listUsers, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { addSignal, listSignalsFor } = require("../data/signals");
 const { broadcastToUsers } = require("../ws");
+const { sendPushToUser } = require("../push");
 
 const router = express.Router();
 router.use(requireUserId);
+
+// Real Web Push for the ring, same reasoning as pushNewMessage in
+// server/routes/messages.js — the WS broadcast above only reaches an already-
+// open tab. requireInteraction keeps it on screen instead of auto-dismissing
+// like a normal notification, since a missed-call notice that vanishes in a
+// few seconds defeats the point.
+async function pushIncomingCall(call, callerId, recipientIds) {
+  const caller = await getUser(callerId);
+  const title = caller?.name ?? "Входящий звонок";
+  const body = call.kind === "video" ? "Видеозвонок…" : "Звонит…";
+  await Promise.all(
+    recipientIds
+      .filter((id) => id !== callerId)
+      .map((uid) =>
+        sendPushToUser(uid, {
+          title,
+          body,
+          url: `/call/${call.id}`,
+          tag: `call-${call.id}`,
+          requireInteraction: true,
+        })
+      )
+  );
+}
 
 router.get(
   "/",
@@ -52,6 +77,8 @@ router.post(
       call,
     });
     res.json({ call });
+
+    pushIncomingCall(call, req.uid, call.participantIds).catch((err) => console.error("push notify failed:", err));
   })
 );
 
@@ -84,6 +111,8 @@ router.post(
     // since they haven't joined a call controller yet.
     broadcastToUsers([userId], { type: "call:incoming", call: updated });
     res.json({ call: updated });
+
+    pushIncomingCall(updated, updated.callerId, [userId]).catch((err) => console.error("push notify failed:", err));
   })
 );
 

@@ -2,6 +2,7 @@ import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
+import { openReportDialog } from "./reportDialog.js";
 
 // Vanilla-JS port of components/chat/InfoPanel.tsx: chat/members, mute
 // toggle, block management, and — for group/channel owners/admins — member
@@ -35,6 +36,20 @@ export function InfoPanel({ chat, members, isBlocked, meId, onClose, onToggleMut
       ]),
       el("button", { class: "info-panel-row", onclick: onToggleMute }, chat.muted ? "Включить уведомления" : "Отключить уведомления"),
       isDm ? el("button", { class: "info-panel-row danger", onclick: onToggleBlock }, isBlocked ? "Разблокировать" : "Заблокировать") : null,
+      isDm && chat.otherUser
+        ? el(
+            "button",
+            { class: "info-panel-row danger", onclick: () => openReportDialog("user", chat.otherUser.id, chat.otherUser.name) },
+            "Пожаловаться"
+          )
+        : null,
+      !isDm
+        ? el(
+            "button",
+            { class: "info-panel-row danger", onclick: () => openReportDialog("chat", chat.id, title) },
+            `Пожаловаться на ${chat.type === "channel" ? "канал" : "группу"}`
+          )
+        : null,
       !isDm
         ? el("div", { class: "info-panel-members" }, [
             el("p", { class: "list-section-label" }, `Участники (${members.length})`),
