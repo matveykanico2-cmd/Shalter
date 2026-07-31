@@ -264,7 +264,13 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
   }
 
   function openMessageMenu(pos) {
+    // Reply/react are included here too (not just Pin/Forward/Edit/Delete)
+    // since this menu is also the touch entry point (long-press, below) —
+    // the .bubble-actions hover bar those normally live in never shows on a
+    // touchscreen, so without this they'd be unreachable on mobile.
     const items = [
+      { icon: "Reply", label: "Ответить", onClick: () => onReply(message) },
+      { icon: "Smile", label: "Реакция", onClick: () => togglePicker() },
       { icon: "Pin", label: message.pinned ? "Открепить" : "Закрепить", onClick: () => onPin(message) },
       { icon: "Forward", label: "Переслать", onClick: () => onForward(message) },
     ];
@@ -273,7 +279,13 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
     openDropdownMenu(pos, items);
   }
 
-  const bubbleWrap = el("div", { class: "bubble-wrap" }, [bubble, hoverActions]);
+  const bubbleWrap = el("div", {
+    class: "bubble-wrap",
+    oncontextmenu: (e) => {
+      e.preventDefault();
+      openMessageMenu({ x: e.clientX, y: e.clientY });
+    },
+  }, [bubble, hoverActions]);
 
   const reactionsRow = message.reactions.length
     ? el(
