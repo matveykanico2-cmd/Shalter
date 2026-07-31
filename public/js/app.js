@@ -48,6 +48,12 @@ async function boot() {
   setState({ user, accounts });
   startWsClient();
   mountIncomingCallWatcher();
+  // Register the service worker unconditionally — it's what makes the app
+  // installable as a PWA (manifest + icons alone aren't enough), independent
+  // of whether the user has granted push permission. ensurePushSubscribed()
+  // below also registers it, but only when permission is already "granted";
+  // registration itself is idempotent, so doing it here too is harmless.
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   // Re-subscribes silently if permission was already granted in an earlier
   // session (e.g. browser restart) — does nothing if it wasn't, so this is
   // safe to call unconditionally on every boot.

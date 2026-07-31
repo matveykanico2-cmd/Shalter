@@ -1,7 +1,9 @@
-// Push notifications only — no offline caching/asset intercepting here.
-// A service worker is required for the Push API to work at all (it's what
-// receives the push event even when no tab is open), but this app isn't
-// trying to be a full offline-capable PWA, so there's no fetch handler.
+// Registered unconditionally (see app.js) so the app is installable as a
+// PWA — a controlling service worker is required for that regardless of
+// push permission. It also is what makes the Push API work at all (it's
+// what receives the push event even when no tab is open). There's
+// deliberately no fetch handler: this app isn't trying to be a full
+// offline-capable PWA, just an installable one — no asset caching here.
 
 self.addEventListener("install", () => {
   self.skipWaiting();
