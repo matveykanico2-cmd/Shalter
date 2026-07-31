@@ -70,8 +70,8 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # 2. Get the code onto the server (git clone, scp, rsync — whatever you use)
-git clone <your-repo-url> /opt/messenger
-cd /opt/messenger
+git clone <your-repo-url> /opt/shalter
+cd /opt/shalter
 
 # 3. Install, build, then drop devDependencies (esbuild/nodemon aren't needed at runtime)
 npm install
@@ -87,9 +87,9 @@ pm2 startup   # <-- prints ONE MORE command starting with "sudo env PATH=..." �
 
 # 5. nginx + a real TLS certificate (REQUIRED — see "Why HTTPS isn't optional" below)
 sudo apt-get install -y nginx certbot python3-certbot-nginx
-sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/messenger
-sudo sed -i 's/your-domain.example/YOUR-ACTUAL-DOMAIN/' /etc/nginx/sites-available/messenger
-sudo ln -s /etc/nginx/sites-available/messenger /etc/nginx/sites-enabled/
+sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/shalter
+sudo sed -i 's/your-domain.example/YOUR-ACTUAL-DOMAIN/' /etc/nginx/sites-available/shalter
+sudo ln -s /etc/nginx/sites-available/shalter /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d YOUR-ACTUAL-DOMAIN   # obtains + wires in the cert, sets up auto-renewal
 
@@ -102,7 +102,7 @@ sudo ufw enable
 
 At this point: `https://YOUR-ACTUAL-DOMAIN` should load the app. Do the OS
 tuning below (swappiness, log rotation) once, then treat "code changed" as
-`git pull && npm install && npm run build && pm2 restart messenger`.
+`git pull && npm install && npm run build && pm2 restart shalter`.
 
 ### Why HTTPS isn't optional here
 

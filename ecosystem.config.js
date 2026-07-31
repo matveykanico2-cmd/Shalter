@@ -8,7 +8,7 @@
 module.exports = {
   apps: [
     {
-      name: "messenger",
+      name: "shalter",
       script: "server/index.js",
       instances: 1,
       exec_mode: "fork",

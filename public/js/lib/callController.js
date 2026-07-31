@@ -128,6 +128,14 @@ async function handleSignal(sig) {
   if (!state || sig.callId !== state.call.id) return;
   try {
     if (sig.kind === "offer") {
+      // Wait for our own getUserMedia attempt to settle before creating the
+      // peer. createPeer() locks in recvonly if state.localStream isn't set
+      // yet, and there's no renegotiation path to add real tracks later — if
+      // an offer arrived while a permission prompt was still up (common,
+      // since that's human-speed vs. a WS round-trip), we'd be stuck sending
+      // nothing for the whole call.
+      await state.mediaReadyPromise;
+      if (!state || sig.callId !== state.call.id) return;
       const pc = state.peers.get(sig.fromUserId) ?? createPeer(sig.fromUserId);
       await pc.setRemoteDescription(new RTCSessionDescription(sig.data));
       const answer = await pc.createAnswer();
@@ -191,7 +199,12 @@ async function join({ call, chatTitle, chatType, participants, me }) {
     connectedPeers: {},
     peers: new Map(),
     offered: new Set(),
+    mediaReadyPromise: null,
   };
+  let resolveMediaReady;
+  state.mediaReadyPromise = new Promise((resolve) => {
+    resolveMediaReady = resolve;
+  });
   notify();
   // Only the caller hears a ringback — the callee already decided to join by
   // clicking "Accept" (see incomingCallWatcher.js, which rings *before* that).
@@ -254,6 +267,7 @@ async function join({ call, chatTitle, chatType, participants, me }) {
     // the call would just sit there connecting nothing.
     if (state) state.mediaError = "Нет доступа к микрофону или камере — звук и видео от вас не передаются";
   }
+  resolveMediaReady();
   notify();
 
   // The offer must go out whether or not local media was acquired — gating

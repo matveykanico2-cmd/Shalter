@@ -1,4 +1,4 @@
-# Messenger
+# Shalter
 
 A Telegram-style messenger: chats, groups, channels with posts/comments, real WebRTC calls, voice messages, and video-notes ("kruzhki"). Plain HTML/CSS/JS frontend served by an Express backend — no build step, no framework.
 

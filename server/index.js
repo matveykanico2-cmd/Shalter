@@ -91,7 +91,7 @@ initPush()
   .catch((err) => console.error("push init failed, push notifications disabled:", err))
   .finally(() => {
     server.listen(PORT, "0.0.0.0", () => {
-      console.log(`messenger server listening on http://localhost:${PORT}`);
+      console.log(`shalter server listening on http://localhost:${PORT}`);
     });
   });
 

@@ -32,6 +32,15 @@ export async function CallScreenView(root, callId) {
     return;
   }
 
+  // render() rebuilds the whole tree every tick (the elapsed-time timer calls
+  // notify() once a second). Reusing the actual <video>/<audio> nodes across
+  // renders — instead of calling el() fresh each time — means mount()'s
+  // clear+append just moves the existing element, which browsers treat as a
+  // no-op for an already-playing stream. Recreating the node instead would
+  // tear down and restart playback every second.
+  const remoteMediaEls = new Map(); // participantId -> { el, kind }
+  let localVideoEl = null;
+
   function render(s) {
     if (!s || s.call.id !== callId) return;
     // Minimizing always navigates away as a direct user/router action (the
@@ -51,31 +60,52 @@ export async function CallScreenView(root, callId) {
           const remoteStream = s.remoteStreams[p.id] ?? null;
           const isConnected = !!s.connectedPeers[p.id];
           const showVideo = s.call.kind === "video" && remoteStream && remoteStream.getVideoTracks().length > 0;
+          const kind = showVideo ? "video" : s.call.kind === "audio" ? "audio" : null;
+
+          let mediaEl = null;
+          if (kind) {
+            const cached = remoteMediaEls.get(p.id);
+            if (cached && cached.kind === kind) {
+              mediaEl = cached.el;
+            } else {
+              mediaEl =
+                kind === "video"
+                  ? el("video", { autoplay: true, playsinline: true, class: "call-tile-video" })
+                  : el("audio", { autoplay: true });
+              remoteMediaEls.set(p.id, { el: mediaEl, kind });
+            }
+            // el() only wires on*/props — srcObject needs a real assignment, not an attribute.
+            if (mediaEl.srcObject !== remoteStream) mediaEl.srcObject = remoteStream;
+          }
+
           const tile = el("div", { class: "call-tile" }, [
             showVideo
-              ? el("video", { autoplay: true, playsinline: true, class: "call-tile-video" })
+              ? mediaEl
               : el("div", { class: "call-tile-avatar-wrap" }, [
                   Avatar({ name: p.name, color: p.avatarColor, image: p.avatarImage, size: 72 }),
                   el("p", { class: "call-tile-name" }, p.name),
-                  s.call.kind === "audio" ? el("audio", { autoplay: true }) : null,
+                  s.call.kind === "audio" ? mediaEl : null,
                 ]),
             el("p", { class: "call-tile-status" }, s.phase === "ringing" ? "вызов…" : isConnected ? "" : "соединение…"),
           ]);
-          // el() only wires on*/props — srcObject needs a real assignment, not an attribute.
-          const mediaEl = tile.querySelector("video, audio");
-          if (mediaEl) mediaEl.srcObject = remoteStream;
           return tile;
         })
       : [el("p", { class: "call-empty-hint" }, "Ожидание участников…")];
+
+    for (const id of [...remoteMediaEls.keys()]) {
+      if (!s.others.some((p) => p.id === id)) remoteMediaEls.delete(id);
+    }
 
     const localPip =
       s.call.kind === "video"
         ? el("div", { class: "call-local-pip" }, [
             s.cameraOn
               ? (() => {
-                  const v = el("video", { autoplay: true, muted: true, playsinline: true, class: "call-local-video" });
-                  v.srcObject = s.localStream;
-                  return v;
+                  if (!localVideoEl) {
+                    localVideoEl = el("video", { autoplay: true, muted: true, playsinline: true, class: "call-local-video" });
+                  }
+                  if (localVideoEl.srcObject !== s.localStream) localVideoEl.srcObject = s.localStream;
+                  return localVideoEl;
                 })()
               : el("div", { class: "call-local-avatar" }, [Avatar({ name: me.name, color: me.avatarColor, image: me.avatarImage, size: 48 })]),
             s.cameraOn
