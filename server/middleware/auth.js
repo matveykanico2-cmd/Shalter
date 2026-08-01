@@ -3,7 +3,12 @@ const { randomBytes } = require("crypto");
 const SESSIONS_COOKIE = "session_uids";
 const ACTIVE_COOKIE = "active_uid";
 const DEVICE_COOKIE = "device_id";
-const COOKIE_OPTS = { httpOnly: true, sameSite: "lax", path: "/" };
+// maxAge matches DEVICE_COOKIE_OPTS below (400 days, the Chrome-imposed cap
+// on Set-Cookie expiry) — without it these were session cookies that died
+// whenever the browser fully closed, which on a standalone/installed PWA
+// (see manifest.webmanifest) can happen between every single launch, making
+// "log in once per device" not actually hold.
+const COOKIE_OPTS = { httpOnly: true, sameSite: "lax", path: "/", maxAge: 400 * 24 * 60 * 60 * 1000 };
 // Long-lived and independent of login state — it identifies *this browser*,
 // not any particular account, so the Settings → Devices list (server/data/
 // sessions.js) can tell "same device, logged in again" from "a new device"
