@@ -1,4 +1,6 @@
 const { randomBytes } = require("crypto");
+const { asyncRoute } = require("./errors");
+const { getSession } = require("../data/sessions");
 
 const SESSIONS_COOKIE = "session_uids";
 const ACTIVE_COOKIE = "active_uid";
@@ -111,13 +113,25 @@ function clearAllSessions(req, res) {
   writeSessions(res, [], null);
 }
 
-// Express middleware: attaches req.uid, or short-circuits with 401.
-function requireUserId(req, res, next) {
+// Express middleware: attaches req.uid, or short-circuits with 401. Also
+// enforces that Settings → Devices "terminate session" actually does
+// something: if this browser's device cookie no longer has a matching row
+// in the sessions table (deleted — see server/data/sessions.js), the
+// account is dropped from this browser's cookie too and the request is
+// rejected, instead of the deleted "Devices" entry being purely cosmetic.
+const requireUserId = asyncRoute(async (req, res, next) => {
   const uid = getCurrentUserId(req);
   if (!uid) return res.status(401).json({ error: "unauthorized" });
+
+  const deviceId = req.cookies?.[DEVICE_COOKIE];
+  if (deviceId && !(await getSession(uid, deviceId))) {
+    removeAccountSession(req, res, uid);
+    return res.status(401).json({ error: "session_revoked" });
+  }
+
   req.uid = uid;
   next();
-}
+});
 
 module.exports = {
   getSessionUserIds,

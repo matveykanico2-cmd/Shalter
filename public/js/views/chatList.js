@@ -5,6 +5,8 @@ import { openDropdownMenu } from "../components/dropdownMenu.js";
 import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
 import { openCreateChatDialog } from "../components/createChatDialog.js";
 import { openContactPickerDialog } from "../components/contactPickerDialog.js";
+import { openCreateBotDialog } from "../components/createBotDialog.js";
+import { openBotTokenDialog } from "../components/botTokenDialog.js";
 import { StoriesBar } from "../components/storiesBar.js";
 import { api } from "../api.js";
 import { getState, setState, subscribe } from "../state.js";
@@ -46,6 +48,19 @@ async function openNewChatMenu(e) {
         onClick: () => {
           openCreateChatDialog("channel", async (title, avatarImage) => {
             const { chat } = await api.createChannel(title, avatarImage);
+            await api.listChats().then((r) => setState({ chats: r.chats }));
+            navigate(`/chat/${chat.id}`);
+          });
+        },
+      },
+      {
+        icon: "Code",
+        label: "Новый бот",
+        onClick: () => {
+          openCreateBotDialog(async (name, avatarImage, description) => {
+            const { bot, token } = await api.createBot(name, avatarImage, description);
+            openBotTokenDialog(bot.user.name, token);
+            const { chat } = await api.startDm(bot.user.id, bot.user.name, bot.user.avatarColor);
             await api.listChats().then((r) => setState({ chats: r.chats }));
             navigate(`/chat/${chat.id}`);
           });

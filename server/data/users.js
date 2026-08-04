@@ -1,4 +1,14 @@
+const crypto = require("crypto");
 const db = require("../db");
+
+// Short, human-typeable codes (no 0/O/1/I — they're the ones people misread
+// when a friend reads a referral code aloud or types it from a screenshot).
+const REFERRAL_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+
+// "Forever" is represented as a date far enough out that it's effectively
+// permanent, rather than a separate null-means-forever branch everywhere
+// premiumUntil is compared against "now" — one comparison always works.
+const FOREVER = "9999-01-01T00:00:00.000Z";
 
 function rowToUser(row) {
   if (!row) return undefined;
@@ -17,6 +27,14 @@ function rowToUser(row) {
     lastSeen: row.lastSeen ?? undefined,
     isBot: !!row.isBot || undefined,
     blockedUserIds: JSON.parse(row.blockedUserIds),
+    // Premium is a duration, not a permanent flag (see server/db.js) —
+    // isPremium is always derived from premiumUntil, never trusted from its
+    // own (legacy, no-longer-written-to) column.
+    isPremium: !!row.premiumUntil && row.premiumUntil > new Date().toISOString(),
+    premiumUntil: row.premiumUntil && row.premiumUntil !== FOREVER ? row.premiumUntil : undefined,
+    premiumForever: row.premiumUntil === FOREVER || undefined,
+    referralCode: row.referralCode ?? undefined,
+    referredBy: row.referredBy ?? undefined,
   };
 }
 
@@ -33,10 +51,32 @@ async function findUserByEmail(email) {
   return rowToUser(db.prepare("SELECT * FROM users WHERE lower(email) = ?").get(normalized));
 }
 
+async function findUserByPhone(phone) {
+  return rowToUser(db.prepare("SELECT * FROM users WHERE phone = ? AND phone <> ''").get((phone ?? "").trim()));
+}
+
+async function findUserByReferralCode(code) {
+  const normalized = (code ?? "").trim().toUpperCase();
+  if (!normalized) return undefined;
+  return rowToUser(db.prepare("SELECT * FROM users WHERE referralCode = ?").get(normalized));
+}
+
+// Generates a unique 6-character referral code, retrying on the rare
+// collision (checked against the DB, not just in-memory, since codes must
+// stay unique across restarts).
+function generateReferralCode() {
+  for (;;) {
+    let code = "";
+    for (let i = 0; i < 6; i++) code += REFERRAL_ALPHABET[crypto.randomInt(REFERRAL_ALPHABET.length)];
+    const exists = db.prepare("SELECT 1 FROM users WHERE referralCode = ?").get(code);
+    if (!exists) return code;
+  }
+}
+
 async function createUser(user) {
   db.prepare(
-    `INSERT INTO users (id, name, username, phone, email, passwordHash, passwordSalt, avatarColor, avatarImage, bio, online, lastSeen, isBot, blockedUserIds)
-     VALUES (@id, @name, @username, @phone, @email, @passwordHash, @passwordSalt, @avatarColor, @avatarImage, @bio, @online, @lastSeen, @isBot, @blockedUserIds)`
+    `INSERT INTO users (id, name, username, phone, email, passwordHash, passwordSalt, avatarColor, avatarImage, bio, online, lastSeen, isBot, blockedUserIds, referralCode, referredBy, premiumUntil)
+     VALUES (@id, @name, @username, @phone, @email, @passwordHash, @passwordSalt, @avatarColor, @avatarImage, @bio, @online, @lastSeen, @isBot, @blockedUserIds, @referralCode, @referredBy, @premiumUntil)`
   ).run({
     id: user.id,
     name: user.name ?? "",
@@ -52,11 +92,32 @@ async function createUser(user) {
     lastSeen: user.lastSeen ?? null,
     isBot: user.isBot ? 1 : 0,
     blockedUserIds: JSON.stringify(user.blockedUserIds ?? []),
+    referralCode: user.referralCode ?? generateReferralCode(),
+    referredBy: user.referredBy ?? null,
+    premiumUntil: user.premiumUntil ?? null,
   });
   return getUser(user.id);
 }
 
-const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "avatarColor", "avatarImage", "bio", "online", "lastSeen", "isBot"];
+const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "avatarColor", "avatarImage", "bio", "online", "lastSeen", "isBot", "premiumUntil"];
+
+// Extends (or starts) a Premium period — stacks on top of remaining time if
+// already active, the way a real subscription top-up would, rather than
+// just resetting the clock. `days: null` grants it "forever" (see FOREVER).
+async function grantPremiumDays(userId, days) {
+  const user = await getUser(userId);
+  if (!user) return undefined;
+  // Already-forever stays forever regardless of what smaller top-up arrives
+  // — there's nothing "more" than permanent to stack on top of.
+  if (days == null || user.premiumForever) return updateUser(userId, { premiumUntil: FOREVER });
+  const base = user.isPremium && user.premiumUntil ? new Date(user.premiumUntil) : new Date();
+  base.setUTCDate(base.getUTCDate() + days);
+  return updateUser(userId, { premiumUntil: base.toISOString() });
+}
+
+async function revokePremium(userId) {
+  return updateUser(userId, { premiumUntil: null });
+}
 
 async function updateUser(id, patch) {
   const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(id);
@@ -77,6 +138,10 @@ async function updateUser(id, patch) {
   return getUser(id);
 }
 
+async function listReferrals(userId) {
+  return db.prepare("SELECT * FROM users WHERE referredBy = ?").all(userId).map(rowToUser);
+}
+
 async function setBlocked(userId, targetId, blocked) {
   const row = db.prepare("SELECT blockedUserIds FROM users WHERE id = ?").get(userId);
   if (!row) return undefined;
@@ -91,7 +156,13 @@ module.exports = {
   listUsers,
   getUser,
   findUserByEmail,
+  findUserByPhone,
+  findUserByReferralCode,
+  generateReferralCode,
+  listReferrals,
   createUser,
   updateUser,
   setBlocked,
+  grantPremiumDays,
+  revokePremium,
 };

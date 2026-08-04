@@ -11,7 +11,7 @@ const REASONS = [
 ];
 
 // targetType: "user" | "chat" (a group/channel is just a chat with that type,
-// same as everywhere else in this app — see server/routes/reports.js).
+// same as everywhere else in this app) | "message" — see server/routes/reports.js.
 export function openReportDialog(targetType, targetId, targetLabel) {
   let reason = REASONS[0].value;
 

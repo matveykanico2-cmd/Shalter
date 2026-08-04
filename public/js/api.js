@@ -5,6 +5,13 @@ async function req(url, init) {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    // Settings → Devices → "Завершить" now actually revokes the session
+    // server-side (see server/middleware/auth.js) — this is what a
+    // still-open tab on the terminated device sees on its next request.
+    // Bounce it to /login instead of showing a raw "unauthorized" error.
+    if (body.error === "session_revoked") {
+      window.location.href = "/login?reason=revoked";
+    }
     throw new Error(body.error ?? `Request failed: ${res.status}`);
   }
   return res.json();
@@ -12,15 +19,23 @@ async function req(url, init) {
 
 export const api = {
   session: () => req("/api/auth/session"),
-  registerEmail: (name, email, password) =>
-    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password }) }),
+  registerEmail: (name, email, password, phone, referralCode) =>
+    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, referralCode }) }),
   loginEmail: (email, password) =>
     req("/api/auth/login-email", { method: "POST", body: JSON.stringify({ email, password }) }),
   switchAccount: (userId) => req("/api/auth/switch", { method: "POST", body: JSON.stringify({ userId }) }),
   logout: (uid) => req("/api/auth/logout", { method: "POST", body: JSON.stringify({ uid }) }),
 
+  startQrLogin: () => req("/api/auth/qr/start", { method: "POST" }),
+  pollQrLogin: (token) => req(`/api/auth/qr/poll?token=${encodeURIComponent(token)}`),
+  confirmQrLogin: (token) => req("/api/auth/qr/confirm", { method: "POST", body: JSON.stringify({ token }) }),
+
+  startCodeLogin: (phone) => req("/api/auth/code/start", { method: "POST", body: JSON.stringify({ phone }) }),
+  verifyCodeLogin: (phone, code) => req("/api/auth/code/verify", { method: "POST", body: JSON.stringify({ phone, code }) }),
+
   updateProfile: (id, patch) => req(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   listUsers: () => req("/api/users"),
+  getUser: (id) => req(`/api/users/${id}`),
   setBlocked: (userId, blocked) =>
     req(`/api/users/${userId}/block`, { method: "POST", body: JSON.stringify({ blocked }) }),
 
@@ -85,6 +100,13 @@ export const api = {
   pollSignals: (callId, after) => req(`/api/calls/${callId}/signal?after=${after}`),
 
   listBots: () => req("/api/bots"),
+  createBot: (name, avatarImage, description) =>
+    req("/api/bots", { method: "POST", body: JSON.stringify({ name, avatarImage, description }) }),
+  regenerateBotToken: (id) => req(`/api/bots/${id}/regenerate-token`, { method: "POST" }),
+  deleteBot: (id) => req(`/api/bots/${id}`, { method: "DELETE" }),
+  saveBotCode: (id, code) => req(`/api/bots/${id}/code`, { method: "PUT", body: JSON.stringify({ code }) }),
+  testBotCode: (id, code, text) => req(`/api/bots/${id}/test`, { method: "POST", body: JSON.stringify({ code, text }) }),
+  getBotLogs: (id) => req(`/api/bots/${id}/logs`),
 
   search: (q) => req(`/api/search?q=${encodeURIComponent(q)}`),
 
@@ -102,4 +124,18 @@ export const api = {
   postStory: (kind, url) => req("/api/stories", { method: "POST", body: JSON.stringify({ kind, url }) }),
   viewStory: (id) => req(`/api/stories/${id}/view`, { method: "POST" }),
   deleteStory: (id) => req(`/api/stories/${id}`, { method: "DELETE" }),
+
+  translateText: (text, target) => req("/api/translate", { method: "POST", body: JSON.stringify({ text, target }) }),
+  translateBatch: (texts, target) => req("/api/translate/batch", { method: "POST", body: JSON.stringify({ texts, target }) }),
+
+  getPremiumInfo: () => req("/api/premium/me"),
+  requestPremium: () => req("/api/premium/request", { method: "POST" }),
+  grantPremium: (userId, premium = true) =>
+    req("/api/premium/grant", { method: "POST", body: JSON.stringify({ userId, premium }) }),
+
+  listGifts: () => req("/api/gifts"),
+  requestGift: (giftId, recipientId) =>
+    req("/api/gifts/request", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
+  deliverGift: (giftId, recipientId) =>
+    req("/api/gifts/deliver", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
 };

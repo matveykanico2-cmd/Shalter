@@ -3,6 +3,8 @@ import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { formatText } from "../lib/formatText.js";
+import { api } from "../api.js";
+import { openReportDialog } from "./reportDialog.js";
 
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
 
@@ -158,7 +160,7 @@ function VideoNotePlayer(a) {
 }
 
 export function MessageBubble({ message, me, sender, showSender, replyToMessage, handlers }) {
-  const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote } = handlers;
+  const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onKeyboardAction } = handlers;
   const mine = message.senderId === me.id;
 
   if (message.type === "system") {
@@ -211,6 +213,25 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
   bubbleInner.push(meta);
 
   const bubble = el("div", { class: `bubble ${mine ? "mine" : ""}` }, bubbleInner);
+
+  const canTranslate = !!message.text?.trim() && !message.attachments?.some((a) => a.kind === "poll");
+  let translationEl = null;
+  async function toggleTranslation() {
+    if (translationEl) {
+      translationEl.remove();
+      translationEl = null;
+      return;
+    }
+    translationEl = el("p", { class: "message-translation" }, "Переводим…");
+    bubble.insertBefore(translationEl, meta);
+    try {
+      const { settings } = await api.getSettings();
+      const { translated } = await api.translateText(message.text, settings.translateLanguage || "ru");
+      translationEl.textContent = translated || "—";
+    } catch {
+      translationEl.textContent = "Не удалось перевести";
+    }
+  }
 
   const hoverActions = el("div", { class: "bubble-actions" }, [
         el("button", {
@@ -296,7 +317,18 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
       { icon: "Pin", label: message.pinned ? "Открепить" : "Закрепить", onClick: () => onPin(message) },
       { icon: "Forward", label: "Переслать", onClick: () => onForward(message) },
     ];
+    if (canTranslate) {
+      items.push({ icon: "Globe", label: translationEl ? "Скрыть перевод" : "Перевести", onClick: toggleTranslation });
+    }
     if (mine) items.push({ icon: "Edit", label: "Изменить", onClick: () => onEdit(message) });
+    else {
+      items.push({
+        icon: "Info",
+        label: "Пожаловаться",
+        danger: true,
+        onClick: () => openReportDialog("message", message.id, sender?.name ? `сообщение от ${sender.name}` : "сообщение"),
+      });
+    }
     items.push({ icon: "Trash", label: "Удалить", danger: true, onClick: () => onDelete(message) });
     openDropdownMenu(pos, items);
   }
@@ -335,7 +367,11 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
             "div",
             { class: "keyboard-row" },
             row.map((btn) =>
-              el("button", { class: "keyboard-btn", onclick: () => onReply({ ...message, text: btn.action }) }, btn.text)
+              // Real inline-keyboard behavior (matches Telegram, and what
+              // BOTS.md documents to bot authors): tapping sends the action
+              // immediately as a normal message — it doesn't just quote it
+              // into the composer for the user to send themselves.
+              el("button", { class: "keyboard-btn", onclick: () => onKeyboardAction(btn.action) }, btn.text)
             )
           )
         )

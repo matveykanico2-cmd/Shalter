@@ -6,9 +6,15 @@ import { getState, setState } from "../../state.js";
 import { navigate } from "../../router.js";
 import { fileToAvatarDataUrl } from "../../lib/image.js";
 import { requestPushPermission } from "../../lib/push.js";
+import { openContactPickerDialog } from "../../components/contactPickerDialog.js";
+import { openCreateBotDialog } from "../../components/createBotDialog.js";
+import { openBotTokenDialog } from "../../components/botTokenDialog.js";
+import { openBotCodeDialog } from "../../components/botCodeDialog.js";
 
 const SECTIONS = [
   { id: "", label: "Профиль" },
+  { id: "premium", label: "Premium и друзья" },
+  { id: "bots", label: "Боты" },
   { id: "appearance", label: "Внешний вид" },
   { id: "notifications", label: "Уведомления" },
   { id: "privacy", label: "Конфиденциальность" },
@@ -47,6 +53,8 @@ export async function SettingsView(root, page) {
 
   const renderers = {
     "": renderProfile,
+    premium: renderPremium,
+    bots: renderBots,
     appearance: renderAppearance,
     notifications: renderNotifications,
     privacy: renderPrivacy,
@@ -93,7 +101,7 @@ async function renderProfile(root) {
       },
     });
     const avatarBtn = el("button", { class: "settings-avatar-btn", onclick: () => fileInput.click() }, [
-      Avatar({ name: name || "?", color: me.avatarColor, image: avatarImage, size: 72 }),
+      Avatar({ name: name || "?", color: me.avatarColor, image: avatarImage, size: 72, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
       el("span", { class: "settings-avatar-edit", html: iconSvg("Edit", 12) }),
     ]);
 
@@ -104,7 +112,11 @@ async function renderProfile(root) {
           avatarBtn,
           fileInput,
           el("div", {}, [
-            el("p", { class: "settings-profile-name" }, name || "Без имени"),
+            el("p", { class: "settings-profile-name" }, [
+              name || "Без имени",
+              me.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
+              me.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 16) }) : null,
+            ]),
             el("p", { class: "mono settings-profile-sub" }, me.phone || me.email),
           ]),
         ]),
@@ -143,6 +155,257 @@ async function renderProfile(root) {
   render();
 }
 
+function formatPremiumUntil(info) {
+  if (info.premiumForever) return "Активен навсегда";
+  if (info.premiumUntil) {
+    const d = new Date(info.premiumUntil);
+    return `Активен до ${d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
+  }
+  return "Уберите ограничения и получите золотой значок";
+}
+
+// Decorative hero for the Premium page — perk icons circling a crown, each
+// item counter-rotated inside the spinning ring so the glyphs stay upright.
+const ORBIT_ITEMS = [
+  { icon: "Star", color: "#d9822e" },
+  { icon: "Zap", color: "#6e56c6" },
+  { icon: "Gift", color: "#2e56d9" },
+  { icon: "Shield", color: "#1f9d63" },
+  { icon: "Smile", color: "#c6403b" },
+  { icon: "Video", color: "#1c9bd9" },
+];
+
+function premiumOrbit() {
+  return el("div", { class: "premium-orbit" }, [
+    el("div", { class: "premium-orbit-core", html: iconSvg("Crown", 26) }),
+    el(
+      "div",
+      { class: "premium-orbit-ring" },
+      ORBIT_ITEMS.map((item, i) =>
+        el("div", { class: "premium-orbit-item", style: `--angle: ${(360 / ORBIT_ITEMS.length) * i}deg` }, [
+          el("div", { class: "premium-orbit-item-icon", style: `--orbit-color: ${item.color}`, html: iconSvg(item.icon, 15) }),
+        ])
+      )
+    ),
+  ]);
+}
+
+async function renderPremium(root) {
+  let info = await api.getPremiumInfo();
+  let gifts = [];
+  try {
+    ({ gifts } = await api.listGifts());
+  } catch {
+    // Gift catalog is a nice-to-have on this page — Premium status/referrals
+    // above still work fine even if this call fails for some reason.
+  }
+  let copied = false;
+  let buying = false;
+  let buyError = null;
+  let giftPendingId = null;
+  let giftError = null;
+
+  function referralLink() {
+    return `${window.location.origin}/login?ref=${info.referralCode}`;
+  }
+
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(referralLink());
+    } catch {
+      // Clipboard API can be unavailable (insecure context, permissions) —
+      // the code is still shown on screen for manual copying either way.
+    }
+    copied = true;
+    render();
+    setTimeout(() => {
+      copied = false;
+      render();
+    }, 1500);
+  }
+
+  async function buyPremium() {
+    buying = true;
+    buyError = null;
+    render();
+    try {
+      const { chatId } = await api.requestPremium();
+      navigate(`/chat/${chatId}`);
+    } catch (err) {
+      buyError = err.message;
+    } finally {
+      buying = false;
+      render();
+    }
+  }
+
+  async function sendGift(gift, recipient) {
+    giftPendingId = gift.id;
+    giftError = null;
+    render();
+    try {
+      const { chatId } = await api.requestGift(gift.id, recipient.id);
+      navigate(`/chat/${chatId}`);
+    } catch (err) {
+      giftError = err.message;
+    } finally {
+      giftPendingId = null;
+      render();
+    }
+  }
+
+  function pickRecipientAndSend(gift) {
+    openContactPickerDialog((user) => sendGift(gift, user), `Кому подарить «${gift.name}»?`);
+  }
+
+  function render() {
+    mount(
+      root,
+      pageWrap("Premium и друзья", "Реферальная программа, подписка Shalter Premium и подарки", [
+        premiumOrbit(),
+        el("div", { class: `premium-status-card ${info.isPremium ? "active" : ""}` }, [
+          el("span", { class: "premium-status-icon", html: iconSvg("Crown", 26) }),
+          el("div", {}, [
+            el("p", { class: "premium-status-title" }, info.isPremium ? "У вас Shalter Premium" : "Shalter Premium не активен"),
+            el("p", { class: "premium-status-hint" }, formatPremiumUntil(info)),
+          ]),
+        ]),
+        !info.isPremium
+          ? el("div", { class: "settings-notice-box" }, [
+              el("p", { class: "settings-toggle-title" }, "Купить Premium на 30 дней — 10₽"),
+              el("p", { class: "settings-toggle-hint" }, "Оплата переводом администрации Shalter. Нажмите «Купить» — откроется чат, переведите 10₽ и дождитесь подтверждения."),
+              el("button", { class: "btn-accent", disabled: buying, onclick: buyPremium }, buying ? "Открываем чат…" : "Купить Premium"),
+              buyError ? el("p", { class: "login-error" }, buyError) : null,
+            ])
+          : null,
+        el("div", { class: "referral-card" }, [
+          el("div", { class: "referral-card-header" }, [
+            el("span", { html: iconSvg("Gift", 22) }),
+            el("p", { class: "settings-toggle-title" }, "Пригласите друга — получите Premium"),
+          ]),
+          el(
+            "p",
+            { class: "settings-toggle-hint" },
+            "Когда друг зарегистрируется по вашему коду, Premium на 30 дней получите оба — бесплатно."
+          ),
+          el("div", { class: "referral-code-row" }, [
+            el("span", { class: "mono referral-code-value" }, info.referralCode),
+            el("button", { class: "icon-btn", title: "Скопировать ссылку-приглашение", html: iconSvg("Copy", 16), onclick: copyCode }),
+          ]),
+          copied ? el("p", { class: "settings-toggle-hint" }, "Ссылка скопирована ✓") : null,
+        ]),
+        el("p", { class: "settings-field-label" }, `Приглашено друзей — ${info.referrals.length}`),
+        info.referrals.length === 0
+          ? el("p", { class: "empty-hint" }, "Пока никто не зарегистрировался по вашему коду")
+          : el(
+              "div",
+              { class: "settings-devices-list" },
+              info.referrals.map((u) =>
+                el("div", { class: "settings-device-row" }, [
+                  Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 28 }),
+                  el("div", { class: "settings-device-body" }, [el("p", {}, u.name)]),
+                  u.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 14) }) : null,
+                ])
+              )
+            ),
+        gifts.length
+          ? el("div", { class: "gifts-section" }, [
+              el("p", { class: "settings-field-label" }, "Подарки"),
+              el(
+                "p",
+                { class: "settings-toggle-hint" },
+                "От розы за 1₽ до вечного Premium — как и с обычной покупкой, оплата переводом администрации Shalter, подарок приходит после подтверждения."
+              ),
+              giftError ? el("p", { class: "login-error" }, giftError) : null,
+              el(
+                "div",
+                { class: "gifts-grid" },
+                gifts.map((g) =>
+                  el("div", { class: "gift-card" }, [
+                    el("span", { class: "gift-card-emoji" }, g.emoji),
+                    el("p", { class: "gift-card-name" }, g.name),
+                    el("p", { class: "mono gift-card-price" }, `${g.priceRub}₽`),
+                    el(
+                      "button",
+                      { class: "gift-card-btn", disabled: giftPendingId === g.id, onclick: () => pickRecipientAndSend(g) },
+                      giftPendingId === g.id ? "…" : "Подарить"
+                    ),
+                  ])
+                )
+              ),
+            ])
+          : null,
+      ])
+    );
+  }
+  render();
+}
+
+async function renderBots(root) {
+  let { bots } = await api.listBots();
+
+  async function createBot() {
+    openCreateBotDialog(async (name, avatarImage, description) => {
+      const { bot, token } = await api.createBot(name, avatarImage, description);
+      bots = [bot, ...bots];
+      render();
+      openBotTokenDialog(bot.user.name, token);
+    });
+  }
+
+  async function regenerate(bot) {
+    if (!confirm(`Обновить токен бота «${bot.user.name}»? Старый токен перестанет работать.`)) return;
+    const { token } = await api.regenerateBotToken(bot.id);
+    openBotTokenDialog(bot.user.name, token);
+  }
+
+  async function remove(bot) {
+    if (!confirm(`Удалить бота «${bot.user.name}» безвозвратно?`)) return;
+    await api.deleteBot(bot.id);
+    bots = bots.filter((b) => b.id !== bot.id);
+    render();
+  }
+
+  function render() {
+    mount(
+      root,
+      pageWrap("Боты", "Настоящие боты, которых можно программировать как угодно", [
+        el("div", { class: "settings-notice-box" }, [
+          el("p", { class: "settings-toggle-title" }, "Два способа программировать бота" ),
+          el(
+            "p",
+            { class: "settings-toggle-hint" },
+            "1) Значок «</>» у бота — встроенный редактор кода с подсказками, код выполняется прямо на сервере Shalter. " +
+              "2) Внешний скрипт (на любом языке) через Bot API и токен бота — см. документацию."
+          ),
+          el("a", { href: "/BOTS.md", target: "_blank", rel: "noreferrer", class: "text-link" }, "Открыть документацию по Bot API →"),
+        ]),
+        el("button", { class: "btn-accent", onclick: createBot }, [el("span", { html: iconSvg("Plus", 15) }), " Создать бота"]),
+        el("p", { class: "settings-field-label" }, `Ваши боты — ${bots.length}`),
+        bots.length === 0
+          ? el("p", { class: "empty-hint" }, "У вас пока нет ботов")
+          : el(
+              "div",
+              { class: "settings-devices-list" },
+              bots.map((b) =>
+                el("div", { class: "settings-device-row" }, [
+                  Avatar({ name: b.user.name, color: b.user.avatarColor, image: b.user.avatarImage, size: 32 }),
+                  el("div", { class: "settings-device-body" }, [
+                    el("p", {}, b.user.name),
+                    el("p", { class: "mono settings-toggle-hint" }, `@${b.user.username}`),
+                  ]),
+                  el("button", { class: "icon-btn", title: "Код бота", html: iconSvg("Code", 15), onclick: () => openBotCodeDialog(b) }),
+                  el("button", { class: "icon-btn", title: "Обновить токен", html: iconSvg("Lock", 15), onclick: () => regenerate(b) }),
+                  el("button", { class: "icon-btn", title: "Удалить бота", html: iconSvg("Trash", 15), onclick: () => remove(b) }),
+                ])
+              )
+            ),
+      ])
+    );
+  }
+  render();
+}
+
 async function renderAppearance(root) {
   const { settings: initial } = await api.getSettings();
   let settings = initial;
@@ -156,6 +419,31 @@ async function renderAppearance(root) {
     { id: "default", label: "По умолчанию" },
     { id: "dots", label: "Точки" },
     { id: "gradient", label: "Градиент" },
+  ];
+  // Covers the world's most-spoken languages — Google Translate itself
+  // supports 100+, but a dropdown of every ISO code is a worse UX than a
+  // curated list (same tradeoff Telegram's own translate picker makes).
+  const TRANSLATE_LANGUAGES = [
+    { id: "ru", label: "Русский" },
+    { id: "en", label: "English" },
+    { id: "es", label: "Español" },
+    { id: "zh-CN", label: "中文" },
+    { id: "hi", label: "हिन्दी" },
+    { id: "ar", label: "العربية" },
+    { id: "pt", label: "Português" },
+    { id: "fr", label: "Français" },
+    { id: "de", label: "Deutsch" },
+    { id: "ja", label: "日本語" },
+    { id: "ko", label: "한국어" },
+    { id: "tr", label: "Türkçe" },
+    { id: "it", label: "Italiano" },
+    { id: "pl", label: "Polski" },
+    { id: "uk", label: "Українська" },
+    { id: "vi", label: "Tiếng Việt" },
+    { id: "th", label: "ไทย" },
+    { id: "id", label: "Bahasa Indonesia" },
+    { id: "fa", label: "فارسی" },
+    { id: "kk", label: "Қазақша" },
   ];
 
   function applyTheme(theme) {
@@ -223,6 +511,30 @@ async function renderAppearance(root) {
               w.label
             )
           )
+        ),
+        el("p", { class: "settings-field-label" }, "Язык перевода сообщений"),
+        el(
+          "select",
+          { class: "settings-select", onchange: (e) => patch({ translateLanguage: e.target.value }) },
+          TRANSLATE_LANGUAGES.map((l) => el("option", { value: l.id, selected: settings.translateLanguage === l.id }, l.label))
+        ),
+        el("p", { class: "settings-toggle-hint" }, "Кнопка «Перевести» в меню сообщения переводит его на этот язык"),
+        el("p", { class: "settings-field-label" }, "Язык интерфейса"),
+        el(
+          "select",
+          {
+            class: "settings-select",
+            onchange: async (e) => {
+              await api.patchSettings({ uiLanguage: e.target.value });
+              window.location.reload();
+            },
+          },
+          TRANSLATE_LANGUAGES.map((l) => el("option", { value: l.id, selected: settings.uiLanguage === l.id }, l.label))
+        ),
+        el(
+          "p",
+          { class: "settings-toggle-hint" },
+          "Переводит саму программу — кнопки, меню, надписи (не сообщения) — через Google Translate. Применяется после перезагрузки страницы."
         ),
       ])
     );

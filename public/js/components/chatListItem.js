@@ -64,6 +64,8 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete }) {
         el("div", { class: "chat-list-item-row" }, [
           chat.type === "secret" ? el("span", { html: iconSvg("Lock", 13, "text-accent") }) : null,
           el("span", { class: "chat-list-item-title" }, title),
+          chat.otherUser?.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 13) }) : null,
+          chat.otherUser?.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 13) }) : null,
           el(
             "span",
             { class: "chat-list-item-time" },

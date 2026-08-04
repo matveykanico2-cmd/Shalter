@@ -14,9 +14,10 @@ const {
   votePoll,
   markChatRead,
 } = require("../data/messages");
-const { getBotByUserId } = require("../data/bots");
 const { getUser } = require("../data/users");
 const { getSettings } = require("../data/settings");
+const { getBotByUserId } = require("../data/bots");
+const { runBotCode } = require("../lib/botSandbox");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser } = require("../push");
 
@@ -134,27 +135,19 @@ router.post(
     });
     broadcastToOtherMembers(chat, req.uid, { type: "message:new", chatId: req.params.id, message });
 
-    // Bot chats auto-reply so the composer + inline-keyboard flow is testable end to end.
-    const botMemberId = chat.memberIds.find((m) => m !== req.uid);
-    const bot = botMemberId ? await getBotByUserId(botMemberId) : undefined;
-    if (bot) {
-      const city = (body.text ?? "").replace(/^\/weather\s*/i, "").trim() || "Москва";
-      const botMessage = await addMessage({
-        id: `m_${Date.now() + 1}`,
-        chatId: req.params.id,
-        senderId: bot.userId,
-        type: "text",
-        text: `${city}: +${18 + (city.length % 10)}°C, переменная облачность`,
-        createdAt: new Date().toISOString(),
-        pinned: false,
-        reactions: [],
-        readByIds: [],
-        keyboard: [[{ text: "Обновить", action: `/weather ${city}` }, { text: "Другой город", action: "/weather" }]],
-      });
-      // Unlike a human sender's message, the composer's own post-send refetch
-      // never sees this one — it was created after that response — so it
-      // does need to reach req.uid too, not just other members.
-      broadcastToUsers([req.uid], { type: "message:new", chatId: req.params.id, message: botMessage });
+    // A chat with a bot only gets a reply if the bot's own program sends
+    // one back — either an external script polling GET /api/bot-api/updates
+    // and calling /sendMessage, or (for bots with code saved in the in-app
+    // editor) the sandboxed handleMessage below. Fire-and-forget: a slow or
+    // buggy bot script must never delay *this* response to the human sender.
+    for (const memberId of chat.memberIds) {
+      if (memberId === req.uid) continue;
+      getBotByUserId(memberId)
+        .then((bot) => {
+          if (!bot?.code?.trim()) return;
+          return runBotCode(bot, bot.code, { id: message.id, chatId: chat.id, senderId: req.uid, text: message.text, createdAt: message.createdAt });
+        })
+        .catch((err) => console.error(`bot sandbox dispatch failed for ${memberId}:`, err));
     }
 
     // A comment on a channel post is just a reply to that post's auto-forwarded

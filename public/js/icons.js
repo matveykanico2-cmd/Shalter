@@ -38,6 +38,21 @@ const PATHS = {
   FlipCamera:
     '<path d="M4 12a8 8 0 0 1 13.6-5.7L20 8.5"/><path d="M20 5v3.5h-3.5"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 15.5"/><path d="M4 19v-3.5h3.5"/><circle cx="12" cy="12" r="2.3"/>',
   LogOut: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+  Crown:
+    '<path d="M3 8l4 3 5-6 5 6 4-3-2 11H5L3 8Z"/><path d="M5 21h14"/>',
+  Gift:
+    '<rect x="4" y="9" width="16" height="11" rx="1"/><path d="M4 9h16v4H4z"/><path d="M12 9v11"/><path d="M12 9C10.5 9 8 8 8 5.8A2.2 2.2 0 0 1 12 4.5"/><path d="M12 9c1.5 0 4-1 4-3.2A2.2 2.2 0 0 0 12 4.5"/>',
+  Copy:
+    '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+  Qrcode:
+    '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20 14h1v1h-1z"/><path d="M14 20h1v1h-1z"/><path d="M17 17h1v1h-1z"/><path d="M20 20h1v1h-1z"/>',
+  Globe:
+    '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18"/><path d="M12 3a15 15 0 0 0 0 18"/>',
+  Code:
+    '<path d="M9 8 4 12l5 4"/><path d="M15 8l5 4-5 4"/>',
+  Star: '<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6-4.5-4.2 6.1-.7Z"/>',
+  Zap: '<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/>',
+  Shield: '<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/><path d="M9 12l2 2 4-4"/>',
 };
 
 export function iconSvg(name, size = 20, extraClass = "") {

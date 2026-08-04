@@ -7,6 +7,14 @@ const DEFAULT_SETTINGS = {
   notifications: { previewText: true, sound: true, mutedChatIds: [] },
   privacy: { lastSeen: "everyone", phone: "contacts", photo: "everyone" },
   chatWallpaper: "default",
+  // Target language for the per-message "Перевести" action (messageBubble.js)
+  // — a plain ISO 639-1 code passed straight through to the translate API.
+  translateLanguage: "ru",
+  // Target language for the *interface itself* (public/js/lib/uiTranslate.js)
+  // — "ru" means "don't translate," since that's the language the UI is
+  // authored in. Unlike translateLanguage, this one triggers a live pass
+  // over the app's own DOM through the same Google Translate endpoint.
+  uiLanguage: "ru",
   autoDownload: true,
   // Per-chat "clear history for me" timestamps (ISO) — messages at or before
   // this point are hidden from this user's view only. See server/routes/chats.js.

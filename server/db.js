@@ -39,7 +39,10 @@ CREATE TABLE IF NOT EXISTS users (
   online INTEGER NOT NULL DEFAULT 0,
   lastSeen TEXT,
   isBot INTEGER NOT NULL DEFAULT 0,
-  blockedUserIds TEXT NOT NULL DEFAULT '[]'
+  blockedUserIds TEXT NOT NULL DEFAULT '[]',
+  isPremium INTEGER NOT NULL DEFAULT 0,
+  referralCode TEXT,
+  referredBy TEXT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
 
@@ -156,8 +159,11 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE TABLE IF NOT EXISTS bots (
   id TEXT PRIMARY KEY,
   userId TEXT NOT NULL,
+  ownerId TEXT,
+  token TEXT,
   description TEXT,
-  commands TEXT NOT NULL DEFAULT '[]'
+  commands TEXT NOT NULL DEFAULT '[]',
+  createdAt TEXT
 );
 
 CREATE TABLE IF NOT EXISTS reports (
@@ -196,5 +202,36 @@ CREATE TABLE IF NOT EXISTS vapid_keys (
   privateKey TEXT NOT NULL
 );
 `);
+
+// Ad-hoc migration for columns added after this db.js's CREATE TABLE
+// statements were first written — CREATE TABLE IF NOT EXISTS is a no-op on a
+// database file that already has the `users` table (from before Premium/
+// referrals existed), so those columns need to be bolted on separately here.
+const existingUserColumns = new Set(db.prepare("PRAGMA table_info(users)").all().map((c) => c.name));
+if (!existingUserColumns.has("isPremium")) db.exec("ALTER TABLE users ADD COLUMN isPremium INTEGER NOT NULL DEFAULT 0");
+if (!existingUserColumns.has("referralCode")) db.exec("ALTER TABLE users ADD COLUMN referralCode TEXT");
+if (!existingUserColumns.has("referredBy")) db.exec("ALTER TABLE users ADD COLUMN referredBy TEXT");
+// Premium is time-boxed (a duration, like a real subscription) rather than a
+// permanent flag — premiumUntil is the actual source of truth; the isPremium
+// column above is kept only as a legacy/compat field and is no longer read
+// (see rowToUser in server/data/users.js, which computes it from this instead).
+if (!existingUserColumns.has("premiumUntil")) db.exec("ALTER TABLE users ADD COLUMN premiumUntil TEXT");
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone <> ''");
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referralCode) WHERE referralCode IS NOT NULL");
+
+// Same ad-hoc migration for `bots` — real user-programmable bots (a token +
+// owner, see server/routes/botApi.js) were added after this table already
+// existed in deployed databases.
+const existingBotColumns = new Set(db.prepare("PRAGMA table_info(bots)").all().map((c) => c.name));
+if (!existingBotColumns.has("ownerId")) db.exec("ALTER TABLE bots ADD COLUMN ownerId TEXT");
+if (!existingBotColumns.has("token")) db.exec("ALTER TABLE bots ADD COLUMN token TEXT");
+if (!existingBotColumns.has("createdAt")) db.exec("ALTER TABLE bots ADD COLUMN createdAt TEXT");
+// In-app programmable bots (server/lib/botSandbox.js) — a `handleMessage`
+// function the owner writes in the built-in editor, run server-side in a
+// restricted vm sandbox on every incoming message, as an alternative to
+// running an external script against the Bot API.
+if (!existingBotColumns.has("code")) db.exec("ALTER TABLE bots ADD COLUMN code TEXT");
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_bots_token ON bots(token) WHERE token IS NOT NULL");
+db.exec("CREATE INDEX IF NOT EXISTS idx_bots_owner ON bots(ownerId)");
 
 module.exports = db;

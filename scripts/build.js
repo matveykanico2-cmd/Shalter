@@ -24,6 +24,12 @@ async function main() {
     target: "es2022",
     outfile: path.join(DIST_DIR, "app.js"),
     logLevel: "info",
+    // lib/codeEditor.js imports CodeMirror straight from esm.sh (see that
+    // file's comment) — esbuild has no business trying to fetch/bundle a
+    // remote URL, and can't resolve it as a local path either. `external`
+    // leaves the import statement exactly as written; the browser resolves
+    // it at runtime the same way it does in `npm run dev`.
+    external: ["https://esm.sh/*"],
   });
 
   await esbuild.build({

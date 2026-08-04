@@ -48,9 +48,25 @@ export async function ChatView(root, chatId) {
   let typingUserId = null;
   let iBlockedThem = !!chat.otherUser && !!me.blockedUserIds?.includes(chat.otherUser.id);
   let messagesCount = messages.length;
+  let isShalterAdmin = false;
+  let gifts = [];
 
   const isDm = chat.type === "dm" || chat.type === "secret";
   const other = chat.otherUser;
+
+  // Only DMs can ever show the grant-Premium/gift actions, so skip the extra
+  // requests everywhere else — the real permission check is server-side
+  // anyway (POST /api/premium/grant, /api/gifts/deliver), this only decides
+  // whether to show the buttons.
+  if (isDm && other) {
+    Promise.all([api.getPremiumInfo(), api.listGifts()])
+      .then(([info, giftsRes]) => {
+        isShalterAdmin = info.isAdmin;
+        gifts = giftsRes.gifts;
+        if (isShalterAdmin) renderInfoPanel();
+      })
+      .catch(() => {});
+  }
   const isChannel = chat.type === "channel";
   const isChannelAdmin = isChannel && (chat.ownerId === me.id || chat.adminIds?.includes(me.id));
 
@@ -217,7 +233,16 @@ export async function ChatView(root, chatId) {
           "button",
           { class: "chat-header-info-btn", onclick: () => setInfoOpen(true) },
           [
-            Avatar({ name: other?.name ?? title, color: chat.avatarColor, image: isDm ? other?.avatarImage : chat.avatarImage, size: 38, online: isDm ? other?.online : undefined }),
+            Avatar({
+              name: other?.name ?? title,
+              color: chat.avatarColor,
+              image: isDm ? other?.avatarImage : chat.avatarImage,
+              size: 38,
+              online: isDm ? other?.online : undefined,
+              isPremium: isDm && other?.isPremium,
+              isDeveloper: isDm && other?.isDeveloper,
+              orbit: true,
+            }),
             el("div", { class: "chat-header-titles" }, [
               el("p", { class: "chat-header-title" }, [chat.type === "secret" ? el("span", { html: iconSvg("Lock", 13) }) : null, title]),
               el("p", { class: "chat-header-subtitle" }, subtitle),
@@ -256,6 +281,27 @@ export async function ChatView(root, chatId) {
     renderInfoPanel();
   }
 
+  async function toggleOtherPremium(userId, premium) {
+    try {
+      const { user } = await api.grantPremium(userId, premium);
+      chat = { ...chat, otherUser: { ...chat.otherUser, isPremium: user.isPremium } };
+      renderInfoPanel();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function deliverGiftToOther(giftId, userId) {
+    try {
+      const { user } = await api.deliverGift(giftId, userId);
+      chat = { ...chat, otherUser: { ...chat.otherUser, isPremium: user.isPremium } };
+      renderInfoPanel();
+      await refreshMessages();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
   function renderInfoPanel() {
     clear(infoSlot);
     if (infoOpen) {
@@ -265,10 +311,14 @@ export async function ChatView(root, chatId) {
           members,
           isBlocked: iBlockedThem,
           meId: me.id,
+          isShalterAdmin,
+          gifts,
           onClose: () => setInfoOpen(false),
           onToggleMute: toggleMute,
           onToggleBlock: toggleBlock,
           onMemberAction: handleMemberAction,
+          onTogglePremium: toggleOtherPremium,
+          onDeliverGift: deliverGiftToOther,
         })
       );
     }
@@ -342,6 +392,7 @@ export async function ChatView(root, chatId) {
             onJumpTo: jumpTo,
             onForward: (msg) => openForwardDialog((targetChatId) => handleForward(msg, targetChatId)),
             onVote: handleVote,
+            onKeyboardAction: (action) => handleSend(action, []),
           },
         })
       );

@@ -1,14 +1,27 @@
 {
   "name": "shalter",
   "version": "0.2.0",
+  "description": "Shalter messenger — desktop shell",
+  "author": "Shalter",
   "private": true,
+  "main": "electron/main.js",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "dev": "nodemon server/index.js",
     "build": "node scripts/build.js",
-    "start": "NODE_ENV=production node --max-old-space-size=768 server/index.js"
+    "start": "NODE_ENV=production node --max-old-space-size=768 server/index.js",
+    "cap:add:android": "npm run build && npx cap add android",
+    "cap:add:ios": "npm run build && npx cap add ios",
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "electron:dev": "SHALTER_APP_URL=http://localhost:3000 electron .",
+    "electron:build:linux": "electron-builder --linux",
+    "electron:build:win": "electron-builder --win",
+    "electron:build:mac": "electron-builder --mac",
+    "electron:build": "electron-builder -mwl"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.2",
@@ -21,7 +34,39 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.8",
+    "@capacitor/core": "^7.6.8",
+    "electron": "^32.3.3",
+    "electron-builder": "^25.1.8",
     "esbuild": "^0.28.1",
     "nodemon": "^3.1.9"
+  },
+  "build": {
+    "appId": "ru.shalter.app",
+    "productName": "Shalter",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "npmRebuild": false,
+    "files": [
+      "electron/**/*",
+      "capacitor.config.json",
+      "package.json"
+    ],
+    "icon": "electron/icon.png",
+    "win": {
+      "target": ["nsis"],
+      "icon": "electron/icon.png"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Network",
+      "icon": "electron/icon.png"
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "icon": "electron/icon.png",
+      "category": "public.app-category.social-networking"
+    }
   }
 }

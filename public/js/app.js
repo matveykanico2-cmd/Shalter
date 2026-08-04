@@ -5,6 +5,7 @@ import { route, notFound, startRouter, navigate } from "./router.js";
 import { NavRail } from "./components/navRail.js";
 import { ChatListPane } from "./views/chatList.js";
 import { LoginView } from "./views/login.js";
+import { QrLoginConfirmView } from "./views/qrLoginConfirm.js";
 import { ChatView } from "./views/chatView.js";
 import { ContactsView } from "./views/contacts.js";
 import { CallScreenView } from "./views/callScreen.js";
@@ -17,6 +18,7 @@ import { ensurePushSubscribed } from "./lib/push.js";
 import { subscribeCall, getCallState, minimize, restore } from "./lib/callController.js";
 import { Avatar } from "./components/avatar.js";
 import { iconSvg } from "./icons.js";
+import { initUiTranslation } from "./lib/uiTranslate.js";
 
 const root = document.getElementById("view-root");
 
@@ -40,6 +42,15 @@ async function boot() {
     return;
   }
 
+  // Where a scanned QR code lands — a standalone confirm screen, shown as-is
+  // whether or not this browser/device already has a Shalter session (see
+  // QrLoginConfirmView), so it deliberately sits outside the authenticated
+  // app shell below.
+  if (path === "/qr-login") {
+    await QrLoginConfirmView(root);
+    return;
+  }
+
   const { user, accounts } = await api.session();
   if (!user || !user.name) {
     window.location.href = "/login";
@@ -48,6 +59,12 @@ async function boot() {
   setState({ user, accounts });
   startWsClient();
   mountIncomingCallWatcher();
+  // Starts observing before the shell below does its first render, so that
+  // initial paint gets caught by the same pass as everything after it.
+  api
+    .getSettings()
+    .then(({ settings }) => initUiTranslation(settings.uiLanguage))
+    .catch(() => {});
   // Register the service worker unconditionally — it's what makes the app
   // installable as a PWA (manifest + icons alone aren't enough), independent
   // of whether the user has granted push permission. ensurePushSubscribed()

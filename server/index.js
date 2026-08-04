@@ -9,6 +9,9 @@ const { errorHandler } = require("./middleware/errors");
 const { apiLimiter, authLimiter } = require("./middleware/rateLimit");
 const { attachWebSocketServer } = require("./ws");
 const { initPush } = require("./push");
+const { ensureSystemBot } = require("./data/systemBot");
+
+ensureSystemBot();
 
 const app = express();
 // Deployed behind nginx (see DEPLOY.md/deploy/nginx.conf.example) — trust
@@ -54,11 +57,15 @@ app.use("/api/calls", require("./routes/calls"));
 app.use("/api/sessions", require("./routes/sessions"));
 app.use("/api/settings", require("./routes/settings"));
 app.use("/api/bots", require("./routes/bots"));
+app.use("/api/bot-api", require("./routes/botApi"));
 app.use("/api/posts", require("./routes/posts"));
 app.use("/api/search", require("./routes/search"));
 app.use("/api/push", require("./routes/push"));
 app.use("/api/reports", require("./routes/reports"));
 app.use("/api/stories", require("./routes/stories"));
+app.use("/api/premium", require("./routes/premium"));
+app.use("/api/gifts", require("./routes/gifts"));
+app.use("/api/translate", require("./routes/translate"));
 
 if (useBuilt) {
   // Serves whichever of app.js/app.js.br/app.js.gz the client's

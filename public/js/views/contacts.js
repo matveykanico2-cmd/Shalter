@@ -4,6 +4,7 @@ import { Avatar } from "../components/avatar.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { getState, setState } from "../state.js";
+import { openProfileDialog } from "../components/profileDialog.js";
 
 export async function ContactsView(root) {
   const [{ contacts: initialContacts }, { users: allUsers }] = await Promise.all([api.listContacts(), api.listUsers()]);
@@ -78,10 +79,12 @@ export async function ContactsView(root) {
         ? el("p", { class: "empty-hint" }, "Список контактов пуст")
         : sorted.map(({ user }) =>
             el("div", { class: "contact-row" }, [
-              Avatar({ name: user.name, color: user.avatarColor, image: user.avatarImage, online: user.online }),
-              el("div", { class: "contact-row-body" }, [
-                el("p", { class: "contact-row-name" }, user.name),
-                el("p", { class: "contact-row-username" }, `@${user.username}`),
+              el("button", { class: "contact-row-profile-btn", onclick: () => openProfileDialog(user.id) }, [
+                Avatar({ name: user.name, color: user.avatarColor, image: user.avatarImage, online: user.online }),
+                el("div", { class: "contact-row-body" }, [
+                  el("p", { class: "contact-row-name" }, user.name),
+                  el("p", { class: "contact-row-username" }, `@${user.username}`),
+                ]),
               ]),
               el("button", {
                 class: "icon-btn",

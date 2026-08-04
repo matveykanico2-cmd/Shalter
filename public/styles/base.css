@@ -108,6 +108,23 @@ button {
   background: var(--color-accent-soft);
 }
 
+/* Light global polish pass: consistent, subtle motion on every interactive
+   surface (Telegram-style tactile feedback) without touching any layout. */
+button,
+a,
+.rail-btn,
+.chat-list-item,
+.settings-chip,
+.settings-nav-item,
+.info-panel-row,
+.login-input,
+.settings-input {
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;

@@ -7,27 +7,76 @@ const {
   switchActiveAccount,
   removeAccountSession,
   getOrCreateDeviceId,
+  requireUserId,
 } = require("../middleware/auth");
-const { findUserByEmail, createUser, getUser } = require("../data/users");
+const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, grantPremiumDays } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
-const { upsertSession } = require("../data/sessions");
+const { listSessions, upsertSession } = require("../data/sessions");
 const { parseUserAgent } = require("../lib/userAgent");
+const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
+const { SYSTEM_BOT_ID } = require("../data/systemBot");
+const { PREMIUM_GRANT_DAYS } = require("../config");
+const qrLogins = require("../data/qrLogins");
+const codeLogins = require("../data/codeLogins");
 
 const router = express.Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_RE = /^\+?\d{10,15}$/;
+
+function normalizePhone(phone) {
+  return (phone ?? "").trim().replace(/[\s()-]/g, "");
+}
+
+// Tells the account (via the Shalter service chat — same one code logins use)
+// that a new device just logged in, the way Telegram's own "Telegram" service
+// chat does. Best-effort: login must still succeed even if this fails.
+async function sendLoginAlert(userId, session) {
+  try {
+    const chat = await findOrCreateDm(userId, SYSTEM_BOT_ID);
+    const when = new Date(session.lastActive).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    await sendMessageAndBroadcast(
+      chat,
+      SYSTEM_BOT_ID,
+      `🔐 Выполнен вход в аккаунт с нового устройства.\n\n${session.device} · ${session.location} · ${when}\n\nЕсли это были не вы — Настройки → Устройства → Завершить сессию.`
+    );
+  } catch (err) {
+    console.error("login alert failed:", err);
+  }
+}
+
+// Tells the referrer (also via a plain DM — not the service chat, since this
+// is from the *person*, not the system) that their code was used.
+async function notifyReferralBonus(referrerId, newUser) {
+  try {
+    const chat = await findOrCreateDm(referrerId, newUser.id);
+    await sendMessageAndBroadcast(
+      chat,
+      newUser.id,
+      `🎉 Я зарегистрировался(ась) в Shalter по вашему коду приглашения! Нам обоим начислен Shalter Premium.`
+    );
+  } catch (err) {
+    console.error("referral notification failed:", err);
+  }
+}
 
 // Records/refreshes the Settings → Devices entry for this (account, browser)
 // pair. Called on every event that establishes or resumes an authenticated
-// session on this device — login, register, switch.
-function recordSession(req, res, userId) {
+// session on this device — login, register, switch, QR/code confirmation.
+// Fires the new-device alert above whenever this is a genuinely new device
+// *and* the account already had at least one other session (so a brand new
+// registration's very first device doesn't alert itself).
+async function recordSession(req, res, userId) {
   const deviceId = getOrCreateDeviceId(req, res);
-  return upsertSession({
+  const priorSessions = await listSessions(userId);
+  const { session, isNewDevice } = await upsertSession({
     userId,
     deviceId,
     device: parseUserAgent(req.headers["user-agent"]),
     location: req.ip || "неизвестно",
   });
+  if (isNewDevice && priorSessions.length > 0) await sendLoginAlert(userId, session);
+  return session;
 }
 
 router.post(
@@ -56,15 +105,28 @@ router.post(
 router.post(
   "/register-email",
   asyncRoute(async (req, res) => {
-    const { name, email, password } = req.body ?? {};
+    const { name, email, password, phone, referralCode } = req.body ?? {};
 
     if (!name?.trim()) return res.status(400).json({ error: "Введите имя" });
     if (!EMAIL_RE.test(email ?? "")) return res.status(400).json({ error: "Некорректный email" });
     if (!password || password.length < 6) {
       return res.status(400).json({ error: "Пароль должен быть не короче 6 символов" });
     }
+    const normalizedPhone = normalizePhone(phone);
+    if (!PHONE_RE.test(normalizedPhone)) {
+      return res.status(400).json({ error: "Введите номер телефона в формате +79991234567" });
+    }
     if (await findUserByEmail(email)) {
       return res.status(409).json({ error: "Аккаунт с таким email уже существует" });
+    }
+    if (await findUserByPhone(normalizedPhone)) {
+      return res.status(409).json({ error: "Аккаунт с таким номером телефона уже существует" });
+    }
+
+    let referrer = null;
+    if (referralCode?.trim()) {
+      referrer = await findUserByReferralCode(referralCode);
+      if (!referrer) return res.status(400).json({ error: "Код друга не найден — проверьте и попробуйте снова" });
     }
 
     const { hash, salt } = hashPassword(password);
@@ -72,7 +134,7 @@ router.post(
       id: `u_${Date.now()}`,
       name: name.trim(),
       username: name.trim().toLowerCase().replace(/\s+/g, "_"),
-      phone: "",
+      phone: normalizedPhone,
       email: email.trim().toLowerCase(),
       passwordHash: hash,
       passwordSalt: salt,
@@ -80,7 +142,16 @@ router.post(
       bio: "",
       online: true,
       lastSeen: new Date().toISOString(),
+      referredBy: referrer?.id,
+      // The referral bonus: both the new account and the friend who invited
+      // them get Premium, one-time, the moment registration completes.
+      premiumUntil: referrer ? new Date(Date.now() + PREMIUM_GRANT_DAYS * 86400000).toISOString() : undefined,
     });
+
+    if (referrer) {
+      await grantPremiumDays(referrer.id, PREMIUM_GRANT_DAYS);
+      await notifyReferralBonus(referrer.id, user);
+    }
 
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
@@ -129,6 +200,96 @@ router.post(
     if (!uid) return res.json({ ok: true, remaining: [] });
     const remaining = removeAccountSession(req, res, uid);
     res.json({ ok: true, remaining });
+  })
+);
+
+// QR login: a real, scannable QR code (see public/js/views/login.js) encodes
+// an absolute URL to /qr-login?token=... on *this* server. Any phone camera
+// can scan it — no in-app scanner needed. Whoever opens that link (already
+// logged in, or after logging in right there) taps "Confirm" to authenticate
+// the original, still-waiting browser. Token state lives in server/data/
+// qrLogins.js — ephemeral and in-memory, same pattern as typing presence.
+router.post(
+  "/qr/start",
+  asyncRoute(async (req, res) => {
+    const deviceId = getOrCreateDeviceId(req, res);
+    const token = qrLogins.createToken(deviceId);
+    const origin = `${req.protocol}://${req.get("host")}`;
+    res.json({ token, loginUrl: `${origin}/qr-login?token=${token}` });
+  })
+);
+
+// Polled by the waiting (unauthenticated) browser. Finalizes the session
+// itself once confirmed, since this request carries *that* browser's cookies
+// — same addAccountSession/recordSession as a normal login.
+router.get(
+  "/qr/poll",
+  asyncRoute(async (req, res) => {
+    const { token } = req.query;
+    const entry = qrLogins.getEntry(String(token ?? ""));
+    if (!entry) return res.json({ status: "expired" });
+    if (!entry.confirmedUserId) return res.json({ status: "pending" });
+
+    const consumed = qrLogins.consume(String(token));
+    if (!consumed) return res.json({ status: "pending" }); // lost a race, try again
+    const user = await getUser(consumed.confirmedUserId);
+    if (!user) return res.json({ status: "expired" });
+
+    addAccountSession(req, res, user.id);
+    await recordSession(req, res, user.id);
+    res.json({ status: "confirmed", user: publicUser(user) });
+  })
+);
+
+// Called by the already-authenticated device that scanned the code (or just
+// logged in on the /qr-login page) — requires a real session, since this is
+// the side vouching for the login.
+router.post(
+  "/qr/confirm",
+  requireUserId,
+  asyncRoute(async (req, res) => {
+    const { token } = req.body ?? {};
+    const result = qrLogins.confirm(String(token ?? ""), req.uid);
+    if (result === "expired") return res.status(410).json({ error: "QR-код устарел, обновите его на другом устройстве" });
+    if (result === "already-used") return res.status(409).json({ error: "Этот код уже использован" });
+    res.json({ ok: true });
+  })
+);
+
+// Login by numeric code: the *same* underlying idea as QR, just typed
+// instead of scanned. Only works if the account already has another
+// logged-in device — the code is delivered as a message from the Shalter
+// service account (server/data/systemBot.js), which only an existing
+// session can actually see. There's no SMS gateway here, so unlike
+// Telegram/WhatsApp this can't fall back to a text message.
+router.post(
+  "/code/start",
+  asyncRoute(async (req, res) => {
+    const user = await findUserByPhone(normalizePhone(req.body?.phone));
+    if (!user) return res.status(404).json({ error: "Аккаунт с таким номером не найден" });
+
+    const code = codeLogins.createCode(user.id);
+    const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
+    await sendMessageAndBroadcast(
+      chat,
+      SYSTEM_BOT_ID,
+      `🔢 Код для входа в Shalter: ${code}\n\nНикому не сообщайте его — даже сотрудникам Shalter. Действует 5 минут.`
+    );
+    res.json({ ok: true });
+  })
+);
+
+router.post(
+  "/code/verify",
+  asyncRoute(async (req, res) => {
+    const user = await findUserByPhone(normalizePhone(req.body?.phone));
+    const code = String(req.body?.code ?? "").trim();
+    if (!user || !codeLogins.verify(user.id, code)) {
+      return res.status(401).json({ error: "Неверный или устаревший код" });
+    }
+    addAccountSession(req, res, user.id);
+    await recordSession(req, res, user.id);
+    res.json({ user: publicUser(user) });
   })
 );
 

@@ -670,6 +670,13 @@
   font-size: 14.5px;
   line-height: 1.5;
 }
+/* formatText.js renders each line of a message as its own .block span
+   (rather than a literal "\n" text node) so markdown-ish inline tokens
+   (**bold**, links, mentions...) can be parsed per line — needs display:
+   block itself, or every line runs together with no separation at all. */
+.message-text .block {
+  display: block;
+}
 .message-text .quote-line {
   display: block;
   border-left: 2px solid var(--color-accent);
@@ -702,6 +709,17 @@
 .spoiler.revealed {
   background: transparent;
   color: inherit;
+}
+.message-translation {
+  display: block;
+  margin: 4px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid rgba(127, 127, 127, 0.2);
+  font-size: 14.5px;
+  font-style: italic;
+  line-height: 1.5;
+  color: var(--color-muted);
+  white-space: pre-wrap;
 }
 .message-meta {
   margin-top: 2px;
@@ -1369,6 +1387,15 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 16px;
+  width: 100%;
+}
+.info-panel-avatar-row.clickable {
+  border-radius: 12px;
+  padding: 8px;
+  cursor: pointer;
+}
+.info-panel-avatar-row.clickable:hover {
+  background: var(--color-surface-alt);
 }
 .info-panel-title {
   font-weight: 500;
@@ -1396,6 +1423,18 @@
   align-items: center;
   gap: 8px;
   padding: 6px 0;
+}
+.info-panel-member-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border-radius: 6px;
+}
+.info-panel-member-profile-btn:hover {
+  background: var(--color-surface-alt);
 }
 .info-panel-member-name {
   min-width: 0;
@@ -1442,6 +1481,172 @@
   font-size: 16px;
   font-weight: 600;
 }
+
+/* Profile dialog */
+.profile-dialog {
+  position: relative;
+  max-width: 340px;
+  padding: 32px 20px 20px;
+}
+.profile-dialog-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+.profile-dialog-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2px;
+}
+.profile-loading-spinner {
+  height: 88px;
+  width: 88px;
+  border-radius: 50%;
+  background: var(--color-surface-alt);
+  position: relative;
+  overflow: hidden;
+}
+.profile-loading-spinner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  animation: qr-login-shimmer 1.3s ease-in-out infinite;
+}
+.profile-avatar-row {
+  margin-bottom: 10px;
+}
+.profile-name {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+.profile-username {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--color-accent);
+}
+.profile-status {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.profile-bio {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.profile-field-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--color-text);
+}
+.profile-contact-tag {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.profile-actions {
+  margin-top: 20px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.profile-actions .btn-accent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.profile-action-btn {
+  width: 100%;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  font-size: 14px;
+}
+.profile-action-btn:hover {
+  background: var(--color-surface-alt);
+}
+.profile-action-btn.danger {
+  color: var(--color-danger);
+}
+
+/* Bot code editor */
+.bot-code-dialog {
+  width: 100%;
+  max-width: 760px;
+  max-height: 90vh;
+}
+.bot-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.bot-code-editor-slot {
+  height: 320px;
+  margin: 10px 0;
+}
+.bot-code-editor-slot .cm-editor {
+  height: 100%;
+}
+.bot-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.bot-code-actions .btn-accent {
+  width: auto;
+  padding: 8px 20px;
+}
+.bot-code-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+.bot-code-test-row {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+.bot-code-test-row .login-input {
+  flex: 1;
+}
+.bot-code-output,
+.bot-code-logs {
+  max-height: 140px;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: var(--color-surface-alt);
+  padding: 8px 10px;
+}
+.bot-code-logs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.bot-log-line {
+  margin: 0 0 4px;
+  font-size: 13px;
+  word-break: break-word;
+}
+.bot-log-line.danger {
+  color: var(--color-danger);
+}
+.bot-log-time {
+  color: var(--color-muted);
+  margin-right: 6px;
+}
+
 .forward-list {
   flex: 1;
   overflow-y: auto;
@@ -1488,15 +1693,71 @@
 
 /* Login */
 .login-page {
+  position: relative;
   display: flex;
   min-height: 100vh;
   align-items: center;
   justify-content: center;
   padding: 0 16px;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+.login-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.login-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.35;
+  animation: login-orb-float 16s ease-in-out infinite;
+}
+.login-orb-1 {
+  top: -10%;
+  left: -8%;
+  width: 340px;
+  height: 340px;
+  background: var(--color-accent);
+  animation-delay: 0s;
+}
+.login-orb-2 {
+  bottom: -15%;
+  right: -10%;
+  width: 380px;
+  height: 380px;
+  background: #6e56c6;
+  animation-delay: -5s;
+}
+.login-orb-3 {
+  top: 40%;
+  left: 60%;
+  width: 260px;
+  height: 260px;
+  background: #1c9bd9;
+  animation-delay: -10s;
+}
+@keyframes login-orb-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.08); }
+  66% { transform: translate(-20px, 25px) scale(0.95); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-orb { animation: none; }
 }
 .login-box {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 360px;
+  animation: login-box-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes login-box-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .login-header {
   text-align: center;
@@ -1505,16 +1766,22 @@
 .login-logo {
   margin: 0 auto 16px;
   display: flex;
-  height: 56px;
-  width: 56px;
+  height: 64px;
+  width: 64px;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
-  background: var(--color-accent);
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--color-accent), #6e56c6);
   color: var(--color-accent-contrast);
-  font-family: var(--font-serif);
-  font-size: 24px;
-  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(46, 86, 217, 0.35);
+  animation: login-logo-in 0.6s 0.1s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.login-logo .icon {
+  transform: rotate(-8deg);
+}
+@keyframes login-logo-in {
+  from { opacity: 0; transform: scale(0.4) rotate(-20deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
 }
 .login-title {
   font-family: var(--font-serif);
@@ -1522,10 +1789,32 @@
   font-weight: 600;
   margin: 0;
 }
+.login-brand {
+  font-family: var(--font-serif);
+  font-size: 34px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.01em;
+  background: linear-gradient(100deg, var(--color-accent), #6e56c6 45%, #1c9bd9 90%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: login-brand-sheen 5s ease-in-out infinite, login-title-in 0.5s 0.15s ease both;
+}
+@keyframes login-brand-sheen {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+}
+@keyframes login-title-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .login-subtitle {
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: 14px;
   color: var(--color-muted);
+  animation: login-title-in 0.5s 0.22s ease both;
 }
 .login-method-switch {
   margin-bottom: 16px;
@@ -1549,11 +1838,12 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 .login-card {
-  border-radius: 16px;
+  border-radius: 18px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   padding: 24px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
+  animation: login-title-in 0.5s 0.28s ease both;
 }
 .login-form {
   display: flex;
@@ -1610,6 +1900,393 @@
 }
 .login-link:disabled {
   color: var(--color-muted);
+}
+.login-code-field {
+  letter-spacing: 0.08em;
+}
+.login-alt-methods {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+.qr-login-entry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.login-revoked-notice {
+  margin: -8px 0 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-danger);
+  background: rgba(198, 64, 59, 0.12);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+/* QR login */
+.qr-login-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+.qr-login-title {
+  font-weight: 600;
+  font-size: 16px;
+  margin: 0;
+}
+.qr-login-code {
+  width: 220px;
+  height: 220px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+.qr-login-code svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.qr-login-instructions {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+.qr-login-instructions.center {
+  text-align: center;
+}
+.qr-login-spinner {
+  width: 220px;
+  height: 220px;
+  border-radius: 16px;
+  background: var(--color-surface-alt);
+  position: relative;
+  overflow: hidden;
+}
+.qr-login-spinner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  animation: qr-login-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes qr-login-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(280%); }
+}
+.qr-confirm-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  padding: 12px 16px;
+  text-align: left;
+}
+.qr-confirm-name {
+  font-weight: 600;
+  margin: 0;
+}
+.qr-confirm-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.referral-hint {
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+/* Premium & referrals */
+.premium-status-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.premium-status-card.active {
+  border-color: #d9822e;
+  background: linear-gradient(135deg, rgba(217, 130, 46, 0.12), rgba(110, 86, 198, 0.08));
+}
+.premium-status-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  width: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #d9822e, #f0b74a);
+  color: #fff;
+  flex-shrink: 0;
+  overflow: hidden;
+  animation: premium-icon-glow 2.6s ease-in-out infinite;
+}
+.premium-status-icon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.55) 48%, transparent 66%);
+  background-size: 220% 100%;
+  animation: premium-icon-shine 3.2s ease-in-out infinite;
+}
+.premium-status-title {
+  font-weight: 600;
+  margin: 0;
+}
+.premium-status-hint {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.premium-mini-badge {
+  display: inline-flex;
+  color: #d9822e;
+  filter: drop-shadow(0 0 0 rgba(217, 130, 46, 0));
+  animation: premium-badge-pulse 2.4s ease-in-out infinite;
+  transform-origin: 50% 60%;
+}
+.developer-mini-badge {
+  display: inline-flex;
+  color: #1c9bd9;
+  filter: drop-shadow(0 0 0 rgba(28, 155, 217, 0));
+  animation: developer-badge-pulse 2.4s ease-in-out infinite;
+}
+@keyframes premium-icon-glow {
+  0%, 100% { box-shadow: 0 0 0 rgba(240, 183, 74, 0.5); }
+  50% { box-shadow: 0 0 16px rgba(240, 183, 74, 0.65); }
+}
+@keyframes premium-icon-shine {
+  0% { background-position: 140% 0; }
+  55%, 100% { background-position: -60% 0; }
+}
+@keyframes premium-badge-pulse {
+  0%, 100% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 0 rgba(217, 130, 46, 0)); }
+  50% { transform: scale(1.14) rotate(-4deg); filter: drop-shadow(0 0 4px rgba(240, 183, 74, 0.85)); }
+}
+@keyframes developer-badge-pulse {
+  0%, 100% { opacity: 1; filter: drop-shadow(0 0 0 rgba(28, 155, 217, 0)); }
+  50% { opacity: 0.75; filter: drop-shadow(0 0 5px rgba(28, 155, 217, 0.9)); }
+}
+
+/* Decorative orbiting-perks hero on the Premium settings page — a центральная
+   corona icon with perk icons circling it, each counter-rotated so the icon
+   glyphs themselves stay upright while the ring carrying them spins. */
+.premium-orbit {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  margin: 4px auto 20px;
+}
+.premium-orbit-core {
+  position: absolute;
+  inset: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #d9822e, #f0b74a);
+  color: #fff;
+  box-shadow: 0 0 0 6px var(--color-bg, transparent), 0 0 24px rgba(240, 183, 74, 0.55);
+  animation: premium-orbit-core-pulse 2.6s ease-in-out infinite;
+  z-index: 1;
+}
+.premium-orbit-ring {
+  position: absolute;
+  inset: 0;
+  animation: premium-orbit-spin 16s linear infinite;
+}
+.premium-orbit-item {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 32px;
+  height: 32px;
+  margin: -16px;
+  transform: rotate(var(--angle)) translate(66px);
+}
+.premium-orbit-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--orbit-color, #d9822e);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  animation: premium-orbit-counter-spin 16s linear infinite;
+}
+@keyframes premium-orbit-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes premium-orbit-counter-spin {
+  to { transform: rotate(-360deg); }
+}
+@keyframes premium-orbit-core-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .premium-status-icon,
+  .premium-status-icon::after,
+  .premium-mini-badge,
+  .developer-mini-badge,
+  .premium-orbit-core,
+  .premium-orbit-ring,
+  .premium-orbit-item-icon,
+  .avatar-orbit-ring,
+  .avatar-orbit-item-icon {
+    animation: none;
+  }
+}
+
+/* Same orbiting-satellite technique as .premium-orbit, but wrapped directly
+   around a Premium/Developer account's avatar (see components/avatar.js) —
+   --radius/size come from inline styles so it scales with whatever avatar
+   size the call site uses. */
+.avatar-orbit-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.avatar-orbit-ring {
+  position: absolute;
+  inset: 0;
+  animation: premium-orbit-spin 14s linear infinite;
+}
+.avatar-orbit-item {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: rotate(var(--angle)) translate(var(--radius));
+}
+.avatar-orbit-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--orbit-color, #d9822e);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  animation: premium-orbit-counter-spin 14s linear infinite;
+}
+.gifts-section {
+  margin-top: 24px;
+}
+.gifts-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+.gift-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 14px 8px 10px;
+  text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.gift-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+.gift-card-emoji {
+  font-size: 30px;
+  line-height: 1.2;
+}
+.gift-card-name {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.gift-card-price {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.gift-card-btn {
+  margin-top: 6px;
+  width: 100%;
+  border-radius: 8px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 0;
+}
+.gift-card-btn:hover {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+.gift-card-btn:disabled {
+  opacity: 0.6;
+}
+.referral-card {
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 16px;
+  margin: 16px 0;
+}
+.referral-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-accent);
+  margin-bottom: 6px;
+}
+.referral-card-header .settings-toggle-title {
+  color: var(--color-text);
+}
+.referral-code-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--color-border);
+  background: var(--color-surface-alt);
+  padding: 12px 16px;
+}
+.referral-code-value {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+}
+.bot-token-value {
+  font-size: 13px;
+  font-weight: 600;
+  word-break: break-all;
 }
 
 /* Contacts */
@@ -1686,6 +2363,14 @@
 }
 .contact-row:hover {
   background: var(--color-surface-alt);
+}
+.contact-row-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
 }
 .contact-row-body {
   min-width: 0;
