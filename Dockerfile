@@ -51,3 +51,11 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # hosting platform overrides CMD with its own start command.
 ENV NODE_OPTIONS="--max-old-space-size=768"
 CMD ["node", "server/index.js"]
+
+RUN apk add --no-cache --virtual .build-deps python3 make g++
+COPY package*.json ./
+RUN npm config set fetch-retries 5 \
+ && npm config set fetch-retry-mintimeout 20000 \
+ && npm config set fetch-retry-maxtimeout 120000 \
+ && npm ci --omit=dev \
+ && apk del .build-deps
