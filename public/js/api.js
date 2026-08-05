@@ -88,7 +88,6 @@ export const api = {
   patchSettings: (patch) => req("/api/settings", { method: "PATCH", body: JSON.stringify(patch) }),
 
   listSessions: () => req("/api/sessions"),
-  removeSession: (id) => req(`/api/sessions/${id}`, { method: "DELETE" }),
 
   listCalls: () => req("/api/calls"),
   placeCall: (chatId, kind) => req("/api/calls", { method: "POST", body: JSON.stringify({ chatId, kind }) }),

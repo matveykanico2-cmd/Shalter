@@ -650,18 +650,11 @@ async function renderPrivacy(root) {
 }
 
 async function renderDevices(root) {
-  const { sessions: initial } = await api.listSessions();
-  let sessions = initial;
+  const { sessions } = await api.listSessions();
 
   function timeLabel(iso) {
     const d = new Date(iso);
     return `${d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })}, ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
-  }
-
-  async function terminate(id) {
-    sessions = sessions.filter((s) => s.id !== id);
-    render();
-    await api.removeSession(id);
   }
 
   function render() {
@@ -679,15 +672,11 @@ async function renderDevices(root) {
           : null,
         others.length
           ? el("div", { class: "settings-devices-list" }, [
-              el("div", { class: "settings-devices-list-header" }, [
-                el("p", { class: "settings-field-label" }, "Другие сеансы"),
-                el("button", { class: "settings-danger-link", onclick: () => others.forEach((s) => terminate(s.id)) }, "Завершить все"),
-              ]),
+              el("p", { class: "settings-field-label" }, "Другие сеансы"),
               ...others.map((s) =>
                 el("div", { class: "settings-device-row" }, [
                   el("span", { html: iconSvg("Phone", 16) }),
                   el("div", { class: "settings-device-body" }, [el("p", {}, s.device), el("p", { class: "mono settings-toggle-hint" }, `${s.location} · ${timeLabel(s.lastActive)}`)]),
-                  el("button", { class: "icon-btn", html: iconSvg("X", 15), onclick: () => terminate(s.id) }),
                 ])
               ),
             ])

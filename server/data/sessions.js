@@ -24,8 +24,4 @@ async function upsertSession({ userId, deviceId, device, location }) {
   return { session: db.prepare("SELECT * FROM sessions WHERE userId = ? AND deviceId = ?").get(userId, deviceId), isNewDevice: !existing };
 }
 
-async function removeSession(id) {
-  db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
-}
-
-module.exports = { listSessions, getSession, upsertSession, removeSession };
+module.exports = { listSessions, getSession, upsertSession };
