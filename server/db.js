@@ -228,6 +228,12 @@ if (!existingUserColumns.has("adUrl")) db.exec("ALTER TABLE users ADD COLUMN adU
 // (see profileDialog.js) — the year is kept anyway since a plain date input
 // requires one, not because the app does anything with someone's age.
 if (!existingUserColumns.has("birthday")) db.exec("ALTER TABLE users ADD COLUMN birthday TEXT");
+// Gift shelf shown on a user's public profile (profileDialog.js) — a JSON
+// array appended to whenever the admin actually /deliver's a gift (see
+// server/routes/gifts.js), never queried across rows, so it stays a plain
+// JSON column rather than its own table (same convention as reactions/
+// readByIds on messages — see AGENTS.md).
+if (!existingUserColumns.has("giftsReceived")) db.exec("ALTER TABLE users ADD COLUMN giftsReceived TEXT NOT NULL DEFAULT '[]'");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone <> ''");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referralCode) WHERE referralCode IS NOT NULL");
 // Case-insensitive (COLLATE NOCASE) — usernames are compared case-

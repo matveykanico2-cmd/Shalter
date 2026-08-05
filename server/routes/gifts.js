@@ -2,7 +2,7 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE } = require("../config");
-const { getUser, findUserByPhone, grantPremiumDays } = require("../data/users");
+const { getUser, findUserByPhone, grantPremiumDays, addReceivedGift } = require("../data/users");
 const { listGifts, getGift } = require("../data/gifts");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -67,6 +67,7 @@ router.post(
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
 
     if (gift.premiumDays !== 0) await grantPremiumDays(recipient.id, gift.premiumDays);
+    await addReceivedGift(recipient.id, { emoji: gift.emoji, name: gift.name, fromId: req.uid, at: new Date().toISOString() });
 
     const duration = durationLabel(gift.premiumDays);
     const chat = await findOrCreateDm(req.uid, recipient.id);

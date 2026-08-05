@@ -81,7 +81,26 @@ export async function openProfileDialog(userId) {
       user.phone
         ? el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("Phone", 15) }), el("span", { class: "mono" }, user.phone)])
         : null,
+      user.birthday
+        ? el("div", { class: "profile-field-row" }, [
+            el("span", {}, "🎂"),
+            el("span", {}, new Date(user.birthday).toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" })),
+          ])
+        : null,
       isContact ? el("p", { class: "profile-contact-tag" }, "В ваших контактах") : null,
+      user.giftsReceived?.length
+        ? el("div", { class: "profile-gifts-block" }, [
+            el("p", { class: "settings-section-title" }, `Подарки — ${user.giftsReceived.length}`),
+            el(
+              "div",
+              { class: "profile-gifts-row" },
+              user.giftsReceived
+                .slice()
+                .reverse()
+                .map((g) => el("span", { class: "profile-gift-chip", title: g.name }, g.emoji))
+            ),
+          ])
+        : null,
       // Ad cabinet (Settings → Реклама, server/routes/ads.js) — an active
       // subscriber's one promotional text/link, shown here rather than in
       // the chat itself since a profile view is a deliberate "look someone

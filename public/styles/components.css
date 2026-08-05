@@ -2001,6 +2001,28 @@
   margin: 0;
   font-size: 13.5px;
 }
+.profile-gifts-block {
+  margin-top: 16px;
+}
+.profile-gifts-block .settings-section-title {
+  margin: 0 0 6px;
+}
+.profile-gifts-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.profile-gift-chip {
+  display: flex;
+  height: 34px;
+  width: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  font-size: 18px;
+}
 .profile-actions {
   margin-top: 20px;
   width: 100%;

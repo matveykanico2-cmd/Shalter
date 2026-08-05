@@ -41,6 +41,7 @@ function rowToUser(row) {
     adText: row.adText ?? undefined,
     adUrl: row.adUrl ?? undefined,
     birthday: row.birthday ?? undefined,
+    giftsReceived: JSON.parse(row.giftsReceived ?? "[]"),
   };
 }
 
@@ -189,6 +190,18 @@ async function setBlocked(userId, targetId, blocked) {
   return getUser(userId);
 }
 
+// Appends to the gift shelf shown on a user's public profile — called once a
+// gift actually /deliver's (server/routes/gifts.js), not when it's merely
+// requested, so the shelf only ever shows gifts that really landed.
+async function addReceivedGift(userId, gift) {
+  const row = db.prepare("SELECT giftsReceived FROM users WHERE id = ?").get(userId);
+  if (!row) return undefined;
+  const current = JSON.parse(row.giftsReceived ?? "[]");
+  current.push(gift);
+  db.prepare("UPDATE users SET giftsReceived = ? WHERE id = ?").run(JSON.stringify(current), userId);
+  return getUser(userId);
+}
+
 module.exports = {
   listUsers,
   getUser,
@@ -201,6 +214,7 @@ module.exports = {
   createUser,
   updateUser,
   setBlocked,
+  addReceivedGift,
   grantPremiumDays,
   revokePremium,
   grantAdsDays,
