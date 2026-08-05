@@ -1,4 +1,5 @@
 import { el } from "./dom.js";
+import { openInAppBrowser, checkLinkSafety } from "../components/inAppBrowser.js";
 
 // Vanilla-JS port of components/chat/formatText.tsx — same markdown-like
 // shortcuts (**bold**, *italic*, `code`, ~~strike~~, ||spoiler||, > quote,
@@ -26,7 +27,21 @@ function renderInline(text) {
     if (tok.startsWith("||") && tok.endsWith("||")) return spoiler(tok.slice(2, -2));
     if (tok.startsWith("@")) return el("span", { class: "mention" }, tok);
     if (tok.startsWith("http://") || tok.startsWith("https://"))
-      return el("a", { href: tok, target: "_blank", rel: "noreferrer", class: "text-link" }, tok);
+      return el(
+        "a",
+        {
+          href: tok,
+          target: "_blank",
+          rel: "noreferrer",
+          class: "text-link",
+          onclick: (e) => {
+            e.preventDefault();
+            const { unsafe, warning } = checkLinkSafety(tok);
+            openInAppBrowser(tok, { unsafe, warning });
+          },
+        },
+        tok
+      );
     if (tok.startsWith("*") && tok.endsWith("*")) return el("i", {}, tok.slice(1, -1));
     return tok;
   });

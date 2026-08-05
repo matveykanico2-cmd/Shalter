@@ -203,6 +203,16 @@ export async function ChatView(root, chatId) {
     }
   }
 
+  async function handleSetAutoDelete(seconds) {
+    try {
+      const { chat: updated } = await api.patchChat(chat.id, { autoDeleteSeconds: seconds });
+      Object.assign(chat, updated);
+      renderInfoPanel();
+    } catch (err) {
+      alert(err.message || "Не удалось изменить автоудаление");
+    }
+  }
+
   function handleAddMember() {
     openMemberPickerDialog(
       async (userIds) => {
@@ -382,6 +392,7 @@ export async function ChatView(root, chatId) {
           onRestrictMember: handleRestrictMember,
           isMePremium: me.isPremium,
           onVoteForGroup: handleVoteForGroup,
+          onSetAutoDelete: handleSetAutoDelete,
         })
       );
     }

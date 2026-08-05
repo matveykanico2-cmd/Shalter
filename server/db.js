@@ -223,8 +223,24 @@ if (!existingUserColumns.has("premiumUntil")) db.exec("ALTER TABLE users ADD COL
 if (!existingUserColumns.has("adsUntil")) db.exec("ALTER TABLE users ADD COLUMN adsUntil TEXT");
 if (!existingUserColumns.has("adText")) db.exec("ALTER TABLE users ADD COLUMN adText TEXT");
 if (!existingUserColumns.has("adUrl")) db.exec("ALTER TABLE users ADD COLUMN adUrl TEXT");
+// Birthday (Settings → Профиль) — a plain "YYYY-MM-DD" string, same as an
+// HTML <input type="date"> gives back. Only the day/month are ever shown
+// (see profileDialog.js) — the year is kept anyway since a plain date input
+// requires one, not because the app does anything with someone's age.
+if (!existingUserColumns.has("birthday")) db.exec("ALTER TABLE users ADD COLUMN birthday TEXT");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone <> ''");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referralCode) WHERE referralCode IS NOT NULL");
+// Case-insensitive (COLLATE NOCASE) — usernames are compared case-
+// insensitively everywhere else (see findUserByUsername). Wrapped in
+// try/catch because, unlike a fresh install, an existing deployment's data
+// might already have a legacy duplicate from before this was enforced at
+// the app layer (routes/auth.js, routes/users.js) — better to skip the DB-
+// level constraint on that one deployment than crash startup entirely.
+try {
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username COLLATE NOCASE) WHERE username <> ''");
+} catch (err) {
+  console.error("Could not create unique username index (likely pre-existing duplicate usernames):", err.message);
+}
 
 // Same ad-hoc migration for `bots` — real user-programmable bots (a token +
 // owner, see server/routes/botApi.js) were added after this table already
@@ -251,6 +267,11 @@ if (!existingMessageColumns.has("gift")) db.exec("ALTER TABLE messages ADD COLUM
 // — same shape as gift above: { emoji, name, anim } so the client can render
 // a big, uniquely-animated sticker instead of plain text.
 if (!existingMessageColumns.has("sticker")) db.exec("ALTER TABLE messages ADD COLUMN sticker TEXT");
+// A fetched link preview (server/lib/linkPreview.js) — { url, title,
+// description, image, siteName }. Populated asynchronously after the
+// message is already sent (see routes/messages.js), never blocking send on
+// a slow/unreachable external site.
+if (!existingMessageColumns.has("linkPreview")) db.exec("ALTER TABLE messages ADD COLUMN linkPreview TEXT");
 
 // Per-chat "restrict this member from posting" — { [userId]: isoTimestamp |
 // "forever" } (see server/routes/chats.js's /:id/restrict and the send-path
@@ -268,5 +289,10 @@ if (!existingChatColumns.has("points")) db.exec("ALTER TABLE chats ADD COLUMN po
 // per Premium member per group (see /:id/vote), without needing a separate
 // votes table for what's really just per-chat rate-limiting state.
 if (!existingChatColumns.has("votes")) db.exec("ALTER TABLE chats ADD COLUMN votes TEXT");
+// Per-chat "auto-delete messages after N seconds" (server/lib/autoDelete.js's
+// sweep, infoPanel.js's duration picker) — null/0 means off. A chat-level
+// property (like Telegram's own auto-delete timer), not a per-user setting,
+// since it needs to mean the same thing to everyone in the chat.
+if (!existingChatColumns.has("autoDeleteSeconds")) db.exec("ALTER TABLE chats ADD COLUMN autoDeleteSeconds INTEGER");
 
 module.exports = db;

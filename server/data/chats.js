@@ -23,6 +23,7 @@ function rowToChat(row) {
     restrictions: row.restrictions ? JSON.parse(row.restrictions) : {},
     points: row.points ?? 0,
     votes: row.votes ? JSON.parse(row.votes) : {},
+    autoDeleteSeconds: row.autoDeleteSeconds ?? undefined,
   };
 }
 
@@ -79,6 +80,7 @@ async function createChat(chat) {
 const PATCHABLE_FIELDS = [
   "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage",
   "ownerId", "pinned", "muted", "archived", "createdAt", "linkedDiscussionChatId", "points",
+  "autoDeleteSeconds",
 ];
 
 async function updateChat(id, patch) {

@@ -7,12 +7,42 @@ import { getState, setState } from "../state.js";
 import { openProfileDialog } from "../components/profileDialog.js";
 
 export async function ContactsView(root) {
-  const [{ contacts: initialContacts }, { users: allUsers }] = await Promise.all([api.listContacts(), api.listUsers()]);
+  const { contacts: initialContacts } = await api.listContacts();
   let contacts = initialContacts;
-  let candidates = allUsers.filter((u) => !contacts.some((c) => c.userId === u.id));
   let adding = false;
   let query = "";
+  // Explicit exact-username lookup only (see server/routes/users.js's
+  // /by-username/:username) — no more browsing/filtering a dump of every
+  // registered user, which made it trivially easy to "just add" someone you
+  // barely know. Matches Telegram's own "add by username" flow: you type
+  // the handle you already know, not scroll a directory of strangers.
+  let searchResult = null;
+  let searchError = null;
+  let searching = false;
+  let searchTimer = null;
   let blockedIds = new Set(getState().user.blockedUserIds ?? []);
+
+  async function runSearch(q) {
+    searchResult = null;
+    searchError = null;
+    const trimmed = q.trim().replace(/^@/, "");
+    if (trimmed.length < 5) {
+      render();
+      return;
+    }
+    searching = true;
+    render();
+    try {
+      const { user } = await api.findUserByUsername(trimmed);
+      if (contacts.some((c) => c.userId === user.id)) searchError = "Уже в контактах";
+      else searchResult = user;
+    } catch {
+      searchError = "Пользователь не найден";
+    } finally {
+      searching = false;
+      render();
+    }
+  }
 
   async function toggleBlocked(userId) {
     const nextBlocked = !blockedIds.has(userId);
@@ -25,49 +55,63 @@ export async function ContactsView(root) {
 
   function render() {
     const sorted = [...contacts].sort((a, b) => a.user.name.localeCompare(b.user.name, "ru"));
-    const filteredCandidates = candidates.filter(
-      (u) => u.name.toLowerCase().includes(query.toLowerCase()) || u.username.toLowerCase().includes(query.toLowerCase())
-    );
 
     const header = el("header", { class: "contacts-header" }, [
       el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
       el("p", { class: "view-title" }, "Контакты"),
       el(
         "button",
-        { class: "btn-accent-pill", onclick: () => { adding = !adding; render(); } },
+        { class: "btn-accent-pill", onclick: () => { adding = !adding; searchResult = null; searchError = null; query = ""; render(); } },
         [el("span", { html: iconSvg("Plus", 15) }), " Добавить"]
       ),
     ]);
 
     const addPanel = adding
       ? el("div", { class: "contacts-add-panel" }, [
+          el("p", { class: "settings-toggle-hint" }, "Введите точный @юзернейм — по имени искать нельзя, чтобы случайно не добавить незнакомца."),
           el("input", {
             class: "login-input",
             autofocus: true,
-            placeholder: "Имя или @юзернейм",
+            placeholder: "@юзернейм",
             value: query,
-            oninput: (e) => { query = e.target.value; render(); },
+            oninput: (e) => {
+              query = e.target.value;
+              searchResult = null;
+              searchError = null;
+              clearTimeout(searchTimer);
+              searchTimer = setTimeout(() => runSearch(query), 400);
+              render();
+            },
           }),
           el(
             "div",
             { class: "contacts-candidates" },
-            filteredCandidates.length === 0
-              ? el("p", { class: "empty-hint" }, "Никого не найдено")
-              : filteredCandidates.map((u) =>
-                  el(
+            [
+              searching ? el("p", { class: "empty-hint" }, "Ищем…") : null,
+              searchError ? el("p", { class: "empty-hint" }, searchError) : null,
+              searchResult
+                ? el(
                     "button",
                     {
                       class: "contact-candidate-row",
                       onclick: async () => {
+                        const u = searchResult;
                         await api.addContact(u.id);
                         contacts = [...contacts, { id: `ct_${u.id}`, userId: u.id, addedAt: new Date().toISOString(), user: u }];
-                        candidates = candidates.filter((x) => x.id !== u.id);
+                        adding = false;
+                        query = "";
+                        searchResult = null;
                         render();
                       },
                     },
-                    [Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 32 }), el("span", { class: "contact-candidate-name" }, u.name), el("span", { class: "contact-candidate-username" }, `@${u.username}`)]
+                    [
+                      Avatar({ name: searchResult.name, color: searchResult.avatarColor, image: searchResult.avatarImage, size: 32 }),
+                      el("span", { class: "contact-candidate-name" }, searchResult.name),
+                      el("span", { class: "contact-candidate-username" }, `@${searchResult.username}`),
+                    ]
                   )
-                )
+                : null,
+            ].filter(Boolean)
           ),
         ])
       : null;

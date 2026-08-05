@@ -17,6 +17,7 @@ function rowToMessage(row) {
     keyboard: row.keyboard ? JSON.parse(row.keyboard) : undefined,
     gift: row.gift ? JSON.parse(row.gift) : undefined,
     sticker: row.sticker ? JSON.parse(row.sticker) : undefined,
+    linkPreview: row.linkPreview ? JSON.parse(row.linkPreview) : undefined,
     reactions: JSON.parse(row.reactions),
     readByIds: JSON.parse(row.readByIds),
     deletedForIds: JSON.parse(row.deletedForIds),
@@ -80,6 +81,18 @@ async function deleteMessagesForChat(chatId) {
   db.prepare("DELETE FROM messages WHERE chatId = ?").run(chatId);
 }
 
+// Auto-delete sweep (server/lib/autoDelete.js) — finds and deletes everything
+// past its expiry in one query/transaction rather than select-then-delete-
+// one-by-one, and hands back the ids so the caller can broadcast exactly
+// what disappeared.
+function deleteExpiredMessages(chatId, cutoffIso) {
+  const ids = db.prepare("SELECT id FROM messages WHERE chatId = ? AND createdAt < ?").all(chatId, cutoffIso).map((r) => r.id);
+  if (ids.length === 0) return [];
+  const placeholders = ids.map(() => "?").join(",");
+  db.prepare(`DELETE FROM messages WHERE id IN (${placeholders})`).run(...ids);
+  return ids;
+}
+
 async function mutate(id, fn) {
   const existing = rowToMessage(db.prepare("SELECT * FROM messages WHERE id = ?").get(id));
   if (!existing) return undefined;
@@ -88,7 +101,7 @@ async function mutate(id, fn) {
     `UPDATE messages SET text = @text, editedAt = @editedAt, pinned = @pinned, forwardedFrom = @forwardedFrom,
        attachments = @attachments, keyboard = @keyboard, reactions = @reactions, readByIds = @readByIds,
        deletedForIds = @deletedForIds, anchorForPostId = @anchorForPostId, discussionAnchorId = @discussionAnchorId,
-       views = @views, commentCount = @commentCount
+       views = @views, commentCount = @commentCount, linkPreview = @linkPreview
      WHERE id = @id`
   ).run({
     id,
@@ -105,8 +118,13 @@ async function mutate(id, fn) {
     discussionAnchorId: updated.discussionAnchorId ?? null,
     views: updated.views ?? 0,
     commentCount: updated.commentCount ?? 0,
+    linkPreview: updated.linkPreview ? JSON.stringify(updated.linkPreview) : null,
   });
   return getMessage(id);
+}
+
+function setLinkPreview(id, linkPreview) {
+  return mutate(id, (m) => ({ ...m, linkPreview }));
 }
 
 function editMessage(id, text) {
@@ -226,6 +244,7 @@ module.exports = {
   getMessage,
   addMessage,
   deleteMessagesForChat,
+  deleteExpiredMessages,
   editMessage,
   deleteMessage,
   deleteMessageForMe,
@@ -238,4 +257,5 @@ module.exports = {
   incrementCommentCount,
   setAnchorForPost,
   setDiscussionAnchor,
+  setLinkPreview,
 };

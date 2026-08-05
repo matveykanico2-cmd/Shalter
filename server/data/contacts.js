@@ -22,4 +22,10 @@ async function removeContact(ownerId, userId) {
   db.prepare("DELETE FROM contacts WHERE ownerId = ? AND userId = ?").run(ownerId, userId);
 }
 
-module.exports = { listAllContacts, listContactsFor, addContact, removeContact };
+// Account deletion (server/lib/deleteAccount.js) — strips a user out of
+// everyone else's contact list too, not just their own of others.
+async function removeAllContactsInvolving(userId) {
+  db.prepare("DELETE FROM contacts WHERE ownerId = ? OR userId = ?").run(userId, userId);
+}
+
+module.exports = { listAllContacts, listContactsFor, addContact, removeContact, removeAllContactsInvolving };

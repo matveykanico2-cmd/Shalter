@@ -24,4 +24,13 @@ async function upsertSession({ userId, deviceId, device, location }) {
   return { session: db.prepare("SELECT * FROM sessions WHERE userId = ? AND deviceId = ?").get(userId, deviceId), isNewDevice: !existing };
 }
 
-module.exports = { listSessions, getSession, upsertSession };
+// Account deletion (server/lib/deleteAccount.js) only — this stays separate
+// from the removed manual "terminate session" feature (see the auth
+// middleware's history), which was specifically about forcing a *different*
+// device out from under someone. This one just cleans up after the account
+// itself is gone.
+async function removeAllSessionsForUser(userId) {
+  db.prepare("DELETE FROM sessions WHERE userId = ?").run(userId);
+}
+
+module.exports = { listSessions, getSession, upsertSession, removeAllSessionsForUser };

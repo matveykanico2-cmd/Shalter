@@ -5,6 +5,8 @@ import { openDropdownMenu } from "./dropdownMenu.js";
 import { formatText } from "../lib/formatText.js";
 import { api } from "../api.js";
 import { openReportDialog } from "./reportDialog.js";
+import { openInAppBrowser } from "./inAppBrowser.js";
+import { openProfileDialog } from "./profileDialog.js";
 
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
 
@@ -28,6 +30,26 @@ function FileAttachment(a) {
       el("p", { class: "mono file-attachment-size" }, a.size ? `${(a.size / 1024).toFixed(0)} КБ` : ""),
     ]),
   ]);
+}
+
+// Rendered from message.linkPreview (server/lib/linkPreview.js, fetched
+// server-side after send — see routes/messages.js). Opens via the in-app
+// browser rather than a new tab, same as inline links in formatText.js.
+function LinkPreviewCard(p) {
+  if (!p.title && !p.description && !p.image && !p.warning) return null;
+  return el(
+    "button",
+    { class: "link-preview-card", onclick: () => openInAppBrowser(p.url, { unsafe: p.unsafe, warning: p.warning }) },
+    [
+      p.image ? el("img", { class: "link-preview-image", src: p.image, alt: "" }) : null,
+      el("div", { class: "link-preview-body" }, [
+        p.warning ? el("p", { class: `link-preview-warning ${p.unsafe ? "danger" : ""}` }, [el("span", { html: iconSvg("Info", 12) }), " ", p.warning]) : null,
+        p.siteName ? el("p", { class: "link-preview-site" }, p.siteName) : null,
+        p.title ? el("p", { class: "link-preview-title" }, p.title) : null,
+        p.description ? el("p", { class: "link-preview-desc" }, p.description) : null,
+      ]),
+    ]
+  );
 }
 
 function LocationAttachment(a) {
@@ -210,11 +232,19 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
   const bubbleInner = [];
 
   if (message.forwardedFrom) {
+    // linkAllowed (stamped server-side at forward time — see routes/
+    // messages.js) reflects the original sender's "who can see a link to me
+    // in forwards" privacy setting — when it's false, the name still shows
+    // (Telegram doesn't hide *that* either) but isn't clickable to a profile.
+    const fromEl = message.forwardedFrom.linkAllowed
+      ? el(
+          "button",
+          { class: "forwarded-banner-name-btn", onclick: () => openProfileDialog(message.forwardedFrom.senderId) },
+          message.forwardedFrom.senderName
+        )
+      : message.forwardedFrom.senderName;
     bubbleInner.push(
-      el("p", { class: "forwarded-banner" }, [
-        el("span", { html: iconSvg("Forward", 12) }),
-        ` Переслано от ${message.forwardedFrom.senderName}`,
-      ])
+      el("p", { class: "forwarded-banner" }, [el("span", { html: iconSvg("Forward", 12) }), " Переслано от ", fromEl])
     );
   }
   if (replyToMessage) {
@@ -240,6 +270,9 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
   }
   if (!message.attachments?.some((a) => a.kind === "poll")) {
     bubbleInner.push(el("span", { class: "message-text" }, formatText(message.text)));
+  }
+  if (message.linkPreview) {
+    bubbleInner.push(LinkPreviewCard(message.linkPreview));
   }
 
   const meta = el("span", { class: "message-meta" }, [

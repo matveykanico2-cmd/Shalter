@@ -39,6 +39,7 @@ function rowToUser(row) {
     adsUntil: row.adsUntil ?? undefined,
     adText: row.adText ?? undefined,
     adUrl: row.adUrl ?? undefined,
+    birthday: row.birthday ?? undefined,
   };
 }
 
@@ -57,6 +58,14 @@ async function findUserByEmail(email) {
 
 async function findUserByPhone(phone) {
   return rowToUser(db.prepare("SELECT * FROM users WHERE phone = ? AND phone <> ''").get((phone ?? "").trim()));
+}
+
+// Usernames are case-insensitive (matches Telegram) — "Ivan" and "ivan" are
+// the same handle, so lookups/uniqueness both go through lower().
+async function findUserByUsername(username) {
+  const normalized = (username ?? "").trim().toLowerCase();
+  if (!normalized) return undefined;
+  return rowToUser(db.prepare("SELECT * FROM users WHERE lower(username) = ? AND username <> ''").get(normalized));
 }
 
 async function findUserByReferralCode(code) {
@@ -103,7 +112,7 @@ async function createUser(user) {
   return getUser(user.id);
 }
 
-const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "avatarColor", "avatarImage", "bio", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl"];
+const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "avatarColor", "avatarImage", "bio", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday"];
 
 // Extends (or starts) a Premium period — stacks on top of remaining time if
 // already active, the way a real subscription top-up would, rather than
@@ -137,6 +146,13 @@ async function grantAdsDays(userId, days) {
 
 async function revokeAds(userId) {
   return updateUser(userId, { adsUntil: null });
+}
+
+// Real hard delete — see server/lib/deleteAccount.js for the full cascade
+// (chats/sessions/contacts/bots) that has to happen alongside this so
+// nothing references a row that no longer exists.
+async function deleteUser(id) {
+  db.prepare("DELETE FROM users WHERE id = ?").run(id);
 }
 
 async function updateUser(id, patch) {
@@ -177,6 +193,7 @@ module.exports = {
   getUser,
   findUserByEmail,
   findUserByPhone,
+  findUserByUsername,
   findUserByReferralCode,
   generateReferralCode,
   listReferrals,
@@ -187,4 +204,5 @@ module.exports = {
   revokePremium,
   grantAdsDays,
   revokeAds,
+  deleteUser,
 };

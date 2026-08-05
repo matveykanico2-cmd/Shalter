@@ -14,13 +14,16 @@ const {
   incrementCommentCount,
   votePoll,
   markChatRead,
+  setLinkPreview,
 } = require("../data/messages");
 const { getUser } = require("../data/users");
 const { getSettings } = require("../data/settings");
+const { listContactsFor } = require("../data/contacts");
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser } = require("../push");
+const { fetchLinkPreview } = require("../lib/linkPreview");
 
 const router = express.Router({ mergeParams: true });
 
@@ -129,6 +132,30 @@ router.post(
       }
     }
 
+    // "Who can see a link back to me in forwarded messages" (Settings →
+    // Конфиденциальность) — stamped once, at forward time, into the
+    // forwardedFrom snapshot itself (same spot senderName/chatTitle already
+    // get captured), rather than re-checked on every future render for every
+    // viewer. "contacts" is evaluated against whoever is doing *this* forward
+    // (they're the one who could see the original message), not every
+    // eventual reader of the copy they create — a deliberate, contained
+    // approximation, same spirit as the profile-view privacy check in
+    // routes/users.js, not a claim that this is exact for every group member.
+    let forwardedFrom = body.forwardedFrom;
+    if (forwardedFrom?.senderId) {
+      if (forwardedFrom.senderId === req.uid) {
+        forwardedFrom = { ...forwardedFrom, linkAllowed: true };
+      } else {
+        const { privacy } = await getSettings(forwardedFrom.senderId);
+        let linkAllowed = privacy.forwards === "everyone";
+        if (privacy.forwards === "contacts") {
+          const contacts = await listContactsFor(forwardedFrom.senderId);
+          linkAllowed = contacts.some((c) => c.userId === req.uid);
+        }
+        forwardedFrom = { ...forwardedFrom, linkAllowed };
+      }
+    }
+
     const message = await addMessage({
       id: `m_${Date.now()}`,
       chatId: req.params.id,
@@ -140,7 +167,7 @@ router.post(
       reactions: [],
       replyToId: body.replyToId ?? null,
       attachments: sanitizeAttachments(body.attachments),
-      forwardedFrom: body.forwardedFrom,
+      forwardedFrom,
       sticker: body.sticker,
       readByIds: [req.uid],
     });
@@ -173,6 +200,20 @@ router.post(
 
     const sender = await getUser(req.uid);
     pushNewMessage(chat, sender, message).catch((err) => console.error("push notify failed:", err));
+
+    // Fire-and-forget, same as the bot dispatch above — fetching a link's
+    // metadata from a slow or unreachable site must never delay the actual
+    // send. Broadcasts an update once the preview lands so open chat views
+    // pick it up live instead of needing a refresh.
+    if (message.type === "text" && message.text) {
+      fetchLinkPreview(message.text)
+        .then(async (linkPreview) => {
+          if (!linkPreview) return;
+          const updated = await setLinkPreview(message.id, linkPreview);
+          broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+        })
+        .catch((err) => console.error("link preview fetch failed:", err));
+    }
   })
 );
 

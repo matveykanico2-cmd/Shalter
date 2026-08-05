@@ -10,6 +10,7 @@ const { apiLimiter, authLimiter } = require("./middleware/rateLimit");
 const { attachWebSocketServer } = require("./ws");
 const { initPush } = require("./push");
 const { ensureSystemBot } = require("./data/systemBot");
+const { startAutoDeleteSweep } = require("./lib/autoDelete");
 
 ensureSystemBot();
 
@@ -107,6 +108,7 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 attachWebSocketServer(server);
+startAutoDeleteSweep();
 
 // VAPID key setup must finish before anything can subscribe/send push, but
 // must never block the server from coming up at all if it fails for some

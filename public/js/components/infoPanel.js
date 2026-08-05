@@ -14,13 +14,31 @@ const RESTRICT_DURATIONS = [
   { label: "Навсегда", hours: null },
 ];
 
+// Chat-level "auto-delete messages" timer (chat.autoDeleteSeconds, swept
+// server-side by server/lib/autoDelete.js) — same duration scale Telegram's
+// own picker offers.
+const AUTO_DELETE_DURATIONS = [
+  { label: "Выключено", seconds: null },
+  { label: "1 день", seconds: 24 * 3600 },
+  { label: "1 неделя", seconds: 7 * 24 * 3600 },
+  { label: "1 месяц", seconds: 30 * 24 * 3600 },
+];
+
+function autoDeleteLabel(seconds) {
+  return AUTO_DELETE_DURATIONS.find((d) => d.seconds === seconds)?.label ?? "Выключено";
+}
+
 // Vanilla-JS port of components/chat/InfoPanel.tsx: chat/members, mute
 // toggle, block management, and — for group/channel owners/admins — member
 // role management (promote/demote/kick/restrict).
-export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalterAdmin, gifts, onClose, onToggleMute, onToggleBlock, onMemberAction, onTogglePremium, onDeliverGift, onAddMember, onRestrictMember, onVoteForGroup }) {
+export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalterAdmin, gifts, onClose, onToggleMute, onToggleBlock, onMemberAction, onTogglePremium, onDeliverGift, onAddMember, onRestrictMember, onVoteForGroup, onSetAutoDelete }) {
   const isDm = chat.type === "dm" || chat.type === "secret";
   const title = isDm ? (chat.otherUser?.name ?? chat.title) : chat.title;
   const isOwnerOrAdmin = chat.ownerId === meId || chat.adminIds?.includes(meId);
+  // Either DM party can set the timer (it's a mutual chat property, same as
+  // Telegram); for groups/channels it's owner/admin-only, same bar as the
+  // other chat-wide settings (restrict/points aren't member-settable either).
+  const canSetAutoDelete = isDm || isOwnerOrAdmin;
 
   function openMemberMenu(e, member) {
     const isAdmin = chat.adminIds?.includes(member.id);
@@ -124,6 +142,23 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
           )
         : null,
       el("button", { class: "info-panel-row", onclick: onToggleMute }, chat.muted ? "Включить уведомления" : "Отключить уведомления"),
+      canSetAutoDelete
+        ? el(
+            "button",
+            {
+              class: "info-panel-row",
+              onclick: (e) =>
+                openDropdownMenu(
+                  { x: e.clientX, y: e.clientY },
+                  AUTO_DELETE_DURATIONS.map((d) => ({
+                    label: d.label,
+                    onClick: () => onSetAutoDelete(d.seconds),
+                  }))
+                ),
+            },
+            `Автоудаление сообщений: ${autoDeleteLabel(chat.autoDeleteSeconds)}`
+          )
+        : null,
       isDm ? el("button", { class: "info-panel-row danger", onclick: onToggleBlock }, isBlocked ? "Разблокировать" : "Заблокировать") : null,
       isDm && chat.otherUser
         ? el(
@@ -160,7 +195,11 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
                   Avatar({ name: m.name, color: m.avatarColor, image: m.avatarImage, size: 32 }),
                   el("span", { class: "info-panel-member-name" }, [
                     m.name,
-                    isMemberOwner ? el("span", { class: "info-panel-role-tag" }, " владелец") : isMemberAdmin ? el("span", { class: "info-panel-role-tag" }, " админ") : null,
+                    isMemberOwner
+                      ? el("span", { class: "info-panel-role-tag owner" }, [el("span", { html: iconSvg("Crown", 11) }), " владелец"])
+                      : isMemberAdmin
+                        ? el("span", { class: "info-panel-role-tag admin" }, [el("span", { html: iconSvg("Shield", 11) }), " админ"])
+                        : null,
                     chat.restrictions?.[m.id] ? el("span", { class: "info-panel-role-tag restricted", title: "Не может писать" }, [" ", el("span", { html: iconSvg("Lock", 11) })]) : null,
                   ]),
                 ]),

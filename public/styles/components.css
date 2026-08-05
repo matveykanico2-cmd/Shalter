@@ -766,6 +766,68 @@
   font-size: 12px;
   color: var(--color-muted);
 }
+.forwarded-banner-name-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-preview-card {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  overflow: hidden;
+  text-align: left;
+  max-width: 280px;
+}
+.link-preview-image {
+  width: 100%;
+  max-height: 140px;
+  object-fit: cover;
+  display: block;
+}
+.link-preview-body {
+  padding: 8px 10px;
+}
+.link-preview-site {
+  margin: 0 0 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-muted);
+}
+.link-preview-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.link-preview-desc {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--color-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.link-preview-warning {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--color-warning);
+}
+.link-preview-warning.danger {
+  color: var(--color-danger);
+}
 .reply-preview {
   display: block;
   width: 100%;
@@ -1664,6 +1726,16 @@
 .info-panel-role-tag {
   font-size: 11px;
   color: var(--color-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  vertical-align: middle;
+}
+.info-panel-role-tag.owner {
+  color: #d9822e;
+}
+.info-panel-role-tag.admin {
+  color: #1c9bd9;
 }
 .info-panel-role-tag.restricted {
   color: var(--color-danger);
@@ -1734,6 +1806,89 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.4);
+}
+/* Local passcode lock (lib/passcodeLock.js, components/passcodeLockScreen.js)
+   — highest z-index in the app, since it must sit above absolutely
+   everything else (including the in-app browser) whenever it's shown. */
+.passcode-lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+}
+.passcode-lock-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: min(320px, 88vw);
+  text-align: center;
+}
+.passcode-lock-icon {
+  font-size: 40px;
+  margin-bottom: 4px;
+}
+.passcode-lock-title {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.passcode-lock-input {
+  text-align: center;
+  letter-spacing: 4px;
+}
+
+/* In-app browser (components/inAppBrowser.js) — full-screen, above regular
+   modals, since it hosts a whole embedded page rather than a small dialog. */
+.inapp-browser-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+}
+.inapp-browser-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+.inapp-browser-host {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.inapp-browser-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  background: var(--color-surface-alt);
+  color: var(--color-warning);
+  flex-shrink: 0;
+}
+.inapp-browser-warning.danger {
+  color: var(--color-danger);
+}
+.inapp-browser-frame {
+  flex: 1;
+  width: 100%;
+  border: none;
 }
 .modal-dialog {
   width: 100%;
@@ -2948,6 +3103,10 @@
 .settings-danger-link:disabled {
   color: var(--color-muted);
 }
+.settings-passcode-actions {
+  display: flex;
+  gap: 12px;
+}
 .settings-devices-list {
   display: flex;
   flex-direction: column;
@@ -3326,6 +3485,13 @@
   width: 100%;
   border-radius: 999px;
   object-fit: cover;
+}
+/* Mirroring only makes sense for the front camera (matches what you'd see
+   in a real mirror) — flipCamera() in callController.js switches the actual
+   video track correctly either way, but this class used to be applied
+   unconditionally, so the back camera's preview looked mirrored/backwards
+   too. */
+.call-local-video.mirrored {
   transform: scaleX(-1);
 }
 .call-local-avatar {

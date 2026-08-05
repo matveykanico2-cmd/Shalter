@@ -6,6 +6,7 @@ const { deleteMessagesForChat } = require("../data/messages");
 const { getSettings, setChatCleared, deleteChatForUser } = require("../data/settings");
 const { attachSummaries } = require("../data/chat-summary");
 const { listUsers, getUser } = require("../data/users");
+const { listContactsFor } = require("../data/contacts");
 const { publicUser } = require("../data/sanitize");
 const { markTyping, getTypingUserId } = require("../data/typing");
 const { broadcastToUsers } = require("../ws");
@@ -253,6 +254,22 @@ router.post(
       }
       const user = await getUser(userId);
       if (!user) return res.status(404).json({ error: "Пользователь не найден" });
+
+      // "Who can add me to groups/channels" (Settings → Конфиденциальность) —
+      // same everyone/contacts/nobody shape as phone/last-seen, checked
+      // against the *target's* contact list, not the adder's (same sense as
+      // the profile-view privacy check in routes/users.js).
+      const { privacy } = await getSettings(userId);
+      if (privacy.invites === "nobody") {
+        return res.status(403).json({ error: "Пользователь ограничил добавление в чаты" });
+      }
+      if (privacy.invites === "contacts") {
+        const targetsContacts = await listContactsFor(userId);
+        if (!targetsContacts.some((c) => c.userId === req.uid)) {
+          return res.status(403).json({ error: "Пользователь ограничил добавление в чаты" });
+        }
+      }
+
       const updated = await updateChat(req.params.id, { memberIds: [...chat.memberIds, userId] });
       // The newly added member needs to see this chat show up in their own
       // list right away, not just on their next poll.

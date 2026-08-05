@@ -9,24 +9,21 @@ const {
   getOrCreateDeviceId,
   requireUserId,
 } = require("../middleware/auth");
-const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, grantPremiumDays } = require("../data/users");
+const { findUserByEmail, findUserByPhone, findUserByUsername, findUserByReferralCode, createUser, getUser, grantPremiumDays } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
 const { listSessions, upsertSession } = require("../data/sessions");
 const { parseUserAgent } = require("../lib/userAgent");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
+const { deleteAccount } = require("../lib/deleteAccount");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { PREMIUM_GRANT_DAYS } = require("../config");
 const qrLogins = require("../data/qrLogins");
 const codeLogins = require("../data/codeLogins");
 
-const router = express.Router();
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_RE = /^\+?\d{10,15}$/;
+const { EMAIL_RE, PHONE_RE, USERNAME_RE, normalizePhone } = require("../lib/validators");
 
-function normalizePhone(phone) {
-  return (phone ?? "").trim().replace(/[\s()-]/g, "");
-}
+const router = express.Router();
 
 // Tells the account (via the Shalter service chat — same one code logins use)
 // that a new device just logged in, the way Telegram's own "Telegram" service
@@ -105,9 +102,12 @@ router.post(
 router.post(
   "/register-email",
   asyncRoute(async (req, res) => {
-    const { name, email, password, phone, referralCode } = req.body ?? {};
+    const { name, username, email, password, phone, referralCode } = req.body ?? {};
 
     if (!name?.trim()) return res.status(400).json({ error: "Введите имя" });
+    if (!USERNAME_RE.test(username ?? "")) {
+      return res.status(400).json({ error: "Юзернейм: 5-32 символов, латинские буквы, цифры и _" });
+    }
     if (!EMAIL_RE.test(email ?? "")) return res.status(400).json({ error: "Некорректный email" });
     if (!password || password.length < 6) {
       return res.status(400).json({ error: "Пароль должен быть не короче 6 символов" });
@@ -122,6 +122,9 @@ router.post(
     if (await findUserByPhone(normalizedPhone)) {
       return res.status(409).json({ error: "Аккаунт с таким номером телефона уже существует" });
     }
+    if (await findUserByUsername(username)) {
+      return res.status(409).json({ error: "Этот юзернейм уже занят" });
+    }
 
     let referrer = null;
     if (referralCode?.trim()) {
@@ -133,7 +136,7 @@ router.post(
     const user = await createUser({
       id: `u_${Date.now()}`,
       name: name.trim(),
-      username: name.trim().toLowerCase().replace(/\s+/g, "_"),
+      username: username.trim(),
       phone: normalizedPhone,
       email: email.trim().toLowerCase(),
       passwordHash: hash,
@@ -200,6 +203,28 @@ router.post(
     if (!uid) return res.json({ ok: true, remaining: [] });
     const remaining = removeAccountSession(req, res, uid);
     res.json({ ok: true, remaining });
+  })
+);
+
+// Real, permanent deletion (see server/lib/deleteAccount.js for the full
+// cascade) — requires re-entering the password even though the session is
+// already authenticated, same "prove it's really you" bar as changing a
+// password would have, given how irreversible this is.
+router.post(
+  "/delete-account",
+  requireUserId,
+  asyncRoute(async (req, res) => {
+    const user = await getUser(req.uid);
+    if (
+      !user?.passwordHash ||
+      !user?.passwordSalt ||
+      !verifyPassword(req.body?.password ?? "", user.passwordHash, user.passwordSalt)
+    ) {
+      return res.status(401).json({ error: "Неверный пароль" });
+    }
+    await deleteAccount(req.uid);
+    removeAccountSession(req, res, req.uid);
+    res.json({ ok: true });
   })
 );
 

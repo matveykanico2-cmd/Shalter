@@ -105,6 +105,7 @@ export async function CallScreenView(root, callId) {
                     localVideoEl = el("video", { autoplay: true, muted: true, playsinline: true, class: "call-local-video" });
                   }
                   if (localVideoEl.srcObject !== s.localStream) localVideoEl.srcObject = s.localStream;
+                  localVideoEl.classList.toggle("mirrored", !s.facingBack);
                   return localVideoEl;
                 })()
               : el("div", { class: "call-local-avatar" }, [Avatar({ name: me.name, color: me.avatarColor, image: me.avatarImage, size: 48 })]),

@@ -10,6 +10,9 @@ import { openContactPickerDialog } from "../../components/contactPickerDialog.js
 import { openCreateBotDialog } from "../../components/createBotDialog.js";
 import { openBotTokenDialog } from "../../components/botTokenDialog.js";
 import { openBotCodeDialog } from "../../components/botCodeDialog.js";
+import { formatPhoneInput } from "../../lib/phoneFormat.js";
+import { hasPasscode } from "../../lib/passcodeLock.js";
+import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 
 const SECTIONS = [
   { id: "", label: "Профиль" },
@@ -80,9 +83,12 @@ async function renderProfile(root) {
   const me = getState().user;
   let name = me.name;
   let username = me.username;
+  let phone = me.phone ?? "";
   let bio = me.bio;
+  let birthday = me.birthday ?? "";
   let avatarImage = me.avatarImage;
   let saved = false;
+  let profileError = null;
 
   function render() {
     const fileInput = el("input", {
@@ -128,25 +134,48 @@ async function renderProfile(root) {
         ]),
         el("label", { class: "settings-field" }, [
           el("span", { class: "settings-field-label" }, "Юзернейм"),
-          el("input", { class: "settings-input", value: username, oninput: (e) => (username = e.target.value) }),
+          el("input", { class: "settings-input", value: username, oninput: (e) => (username = e.target.value.replace(/[^a-zA-Z0-9_]/g, "")) }),
+        ]),
+        el("label", { class: "settings-field" }, [
+          el("span", { class: "settings-field-label" }, "Телефон"),
+          el("input", {
+            class: "settings-input",
+            type: "tel",
+            value: phone,
+            oninput: (e) => {
+              phone = formatPhoneInput(e.target.value);
+              e.target.value = phone;
+            },
+          }),
         ]),
         el("label", { class: "settings-field" }, [
           el("span", { class: "settings-field-label" }, "О себе"),
           el("textarea", { class: "settings-input", rows: 3, value: bio, oninput: (e) => (bio = e.target.value) }),
         ]),
+        el("label", { class: "settings-field" }, [
+          el("span", { class: "settings-field-label" }, "Дата рождения"),
+          el("input", { class: "settings-input", type: "date", value: birthday, oninput: (e) => (birthday = e.target.value) }),
+        ]),
+        profileError ? el("p", { class: "login-error" }, profileError) : null,
         el(
           "button",
           {
             class: "btn-accent",
             onclick: async () => {
-              await api.updateProfile(me.id, { name, username, bio });
-              setState({ user: { ...getState().user, name, username, bio } });
-              saved = true;
-              render();
-              setTimeout(() => {
-                saved = false;
+              profileError = null;
+              try {
+                const { user } = await api.updateProfile(me.id, { name, username, phone, bio, birthday });
+                setState({ user: { ...getState().user, name, username, phone: user.phone, bio, birthday } });
+                saved = true;
                 render();
-              }, 1500);
+                setTimeout(() => {
+                  saved = false;
+                  render();
+                }, 1500);
+              } catch (err) {
+                profileError = err.message || "Не удалось сохранить";
+                render();
+              }
             },
           },
           saved ? "Сохранено ✓" : "Сохранить"
@@ -722,6 +751,7 @@ async function renderPrivacy(root) {
   const { users: allUsers } = await api.listUsers();
   let settings = initial;
   let blockedIds = new Set(getState().user.blockedUserIds ?? []);
+  let passcodeOn = hasPasscode();
   const OPTIONS = [
     { value: "everyone", label: "Все" },
     { value: "contacts", label: "Мои контакты" },
@@ -752,6 +782,27 @@ async function renderPrivacy(root) {
     ]);
   }
 
+  async function deleteAccount() {
+    openDeleteAccountDialog(async (password) => {
+      await api.deleteAccount(password);
+      window.location.href = "/login";
+    });
+  }
+
+  function changePasscode() {
+    openSetPasscodeDialog(() => {
+      passcodeOn = true;
+      render();
+    });
+  }
+
+  function disablePasscode() {
+    openRemovePasscodeDialog(() => {
+      passcodeOn = false;
+      render();
+    });
+  }
+
   function render() {
     const blockedUsers = allUsers.filter((u) => blockedIds.has(u.id));
     mount(
@@ -760,6 +811,22 @@ async function renderPrivacy(root) {
         row("Последний визит", "lastSeen"),
         row("Номер телефона", "phone"),
         row("Фото профиля", "photo"),
+        row("О себе", "bio"),
+        row("Дата рождения", "birthday"),
+        row("Ссылка при пересылке", "forwards"),
+        row("Кто добавляет меня в группы", "invites"),
+        el("div", { class: "settings-toggle-row" }, [
+          el("div", {}, [
+            el("p", { class: "settings-toggle-title" }, "Код-пароль"),
+            el("p", { class: "settings-toggle-hint" }, "Локальный PIN на этом устройстве — не связан с аккаунтом"),
+          ]),
+          passcodeOn
+            ? el("div", { class: "settings-passcode-actions" }, [
+                el("button", { class: "settings-danger-link", onclick: changePasscode }, "Изменить"),
+                el("button", { class: "settings-danger-link", onclick: disablePasscode }, "Отключить"),
+              ])
+            : el("button", { class: "settings-danger-link", onclick: changePasscode }, "Включить"),
+        ]),
         el("p", { class: "settings-field-label" }, `Заблокированные пользователи (${blockedUsers.length})`),
         blockedUsers.length === 0
           ? el("p", { class: "empty-hint" }, "Никого не заблокировано")
@@ -774,10 +841,69 @@ async function renderPrivacy(root) {
                 ])
               )
             ),
+        el("div", { class: "settings-logout-block" }, [
+          el("button", { class: "settings-logout-btn", onclick: deleteAccount }, [
+            el("span", { html: iconSvg("Trash", 16) }),
+            " Удалить аккаунт",
+          ]),
+          el("p", { class: "settings-toggle-hint" }, "Безвозвратно удаляет аккаунт, чаты и ботов. Отменить нельзя."),
+        ]),
       ])
     );
   }
   render();
+}
+
+// Password re-confirmation before the irreversible delete-account call (see
+// server/lib/deleteAccount.js) — a small one-off modal rather than a new
+// component file, since this is the only place it's used.
+function openDeleteAccountDialog(onConfirm) {
+  let error = null;
+  let busy = false;
+  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
+  const passwordInput = el("input", { class: "login-input", type: "password", placeholder: "Пароль", autofocus: true });
+
+  function close() {
+    overlay.remove();
+  }
+
+  function renderDialog() {
+    const dialog = el("div", { class: "modal-dialog choice-dialog" }, [
+      el("h2", { class: "modal-title" }, "Удалить аккаунт"),
+      el("p", { class: "settings-toggle-hint" }, "Это действие необратимо. Все ваши чаты, боты и данные будут удалены навсегда. Введите пароль для подтверждения."),
+      passwordInput,
+      error ? el("p", { class: "login-error" }, error) : null,
+      el(
+        "button",
+        {
+          class: "choice-dialog-btn danger",
+          disabled: busy,
+          onclick: async () => {
+            error = null;
+            busy = true;
+            renderDialog();
+            try {
+              await onConfirm(passwordInput.value);
+              close();
+            } catch (err) {
+              error = err.message || "Не удалось удалить аккаунт";
+              busy = false;
+              renderDialog();
+            }
+          },
+        },
+        busy ? "Удаляем…" : "Удалить безвозвратно"
+      ),
+      el("button", { class: "modal-cancel", onclick: () => close() }, "Отмена"),
+    ]);
+    // passwordInput is the same node re-appended each render (not recreated),
+    // so moving it into the fresh dialog preserves its value/focus.
+    overlay.textContent = "";
+    overlay.appendChild(dialog);
+  }
+
+  renderDialog();
+  document.body.appendChild(overlay);
 }
 
 async function renderDevices(root) {

@@ -5,7 +5,21 @@ const DEFAULT_SETTINGS = {
   accent: "#2E56D9",
   fontSize: 15,
   notifications: { previewText: true, sound: true, mutedChatIds: [] },
-  privacy: { lastSeen: "everyone", phone: "contacts", photo: "everyone" },
+  privacy: {
+    lastSeen: "everyone",
+    phone: "contacts",
+    photo: "everyone",
+    bio: "everyone",
+    birthday: "everyone",
+    // "Who can add a clickable link back to me when my messages are
+    // forwarded" — enforced in messageBubble.js's forwarded-banner rendering
+    // (server/routes/messages.js stamps forwardedFrom.linkAllowed at forward
+    // time, since that's a snapshot the same way senderName/chatTitle are).
+    forwards: "everyone",
+    // "Who can add me to groups/channels without an invite link" — enforced
+    // in the /:id/members "add" branch (server/routes/chats.js).
+    invites: "everyone",
+  },
   chatWallpaper: "default",
   // Only meaningful when chatWallpaper === "custom" — a data URL, same
   // client-side-downscaled-before-upload pattern as avatarImage (see

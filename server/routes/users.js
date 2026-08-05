@@ -1,10 +1,11 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { listUsers, updateUser, getUser, setBlocked } = require("../data/users");
+const { listUsers, updateUser, getUser, setBlocked, findUserByUsername, findUserByPhone } = require("../data/users");
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
+const { PHONE_RE, USERNAME_RE, normalizePhone } = require("../lib/validators");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -17,9 +18,27 @@ router.get(
   })
 );
 
+// Exact-match-only lookup — the one legitimate way to find someone to add as
+// a contact (see public/js/views/contacts.js): unlike GET / above (which
+// dumps every user on the server and used to power a browse-and-click "add
+// contact" list), this can't be used to enumerate/browse anyone, only to
+// resolve a specific @username you already know, same as Telegram's own
+// "add by username" flow.
+router.get(
+  "/by-username/:username",
+  asyncRoute(async (req, res) => {
+    const user = await findUserByUsername(req.params.username);
+    if (!user || user.id === req.uid) return res.status(404).json({ error: "not found" });
+    res.json({ user: publicUser(user) });
+  })
+);
+
 // Only profile fields may be edited this way — never credentials
-// (passwordHash/passwordSalt/email/id), even for your own account.
-const EDITABLE_FIELDS = ["name", "username", "bio", "avatarColor", "avatarImage"];
+// (passwordHash/passwordSalt/email/id), even for your own account. username
+// and phone get their own uniqueness/format checks below (same rules as
+// registration — see server/lib/validators.js) since, unlike name/bio, other
+// people rely on these being unique to find/message the right account.
+const EDITABLE_FIELDS = ["name", "username", "phone", "bio", "avatarColor", "avatarImage", "birthday"];
 
 // Powers the profile view (public/js/components/profileDialog.js). Unlike
 // every other place a user object gets sent to a client (chat lists,
@@ -48,6 +67,8 @@ router.get(
       const canSee = (level) => level === "everyone" || (level === "contacts" && isContact);
       if (!canSee(privacy.phone)) delete visible.phone;
       if (!canSee(privacy.lastSeen)) delete visible.lastSeen;
+      if (!canSee(privacy.bio)) delete visible.bio;
+      if (!canSee(privacy.birthday)) delete visible.birthday;
     }
 
     res.json({ user: visible, isContact });
@@ -63,6 +84,24 @@ router.patch(
     for (const key of EDITABLE_FIELDS) {
       if (key in body) patch[key] = body[key];
     }
+
+    if ("username" in patch) {
+      if (!USERNAME_RE.test(patch.username ?? "")) {
+        return res.status(400).json({ error: "Юзернейм: 5-32 символов, латинские буквы, цифры и _" });
+      }
+      const existing = await findUserByUsername(patch.username);
+      if (existing && existing.id !== req.uid) return res.status(409).json({ error: "Этот юзернейм уже занят" });
+    }
+    if ("phone" in patch) {
+      const normalized = normalizePhone(patch.phone);
+      if (!PHONE_RE.test(normalized)) {
+        return res.status(400).json({ error: "Введите номер телефона в формате +79991234567" });
+      }
+      const existing = await findUserByPhone(normalized);
+      if (existing && existing.id !== req.uid) return res.status(409).json({ error: "Этот номер уже используется другим аккаунтом" });
+      patch.phone = normalized;
+    }
+
     const user = await updateUser(req.params.id, patch);
     res.json({ user: user ? publicUser(user) : null });
   })

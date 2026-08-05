@@ -19,6 +19,8 @@ import { subscribeCall, getCallState, minimize, restore } from "./lib/callContro
 import { Avatar } from "./components/avatar.js";
 import { iconSvg } from "./icons.js";
 import { initUiTranslation } from "./lib/uiTranslate.js";
+import { hasPasscode } from "./lib/passcodeLock.js";
+import { showPasscodeLockScreen } from "./components/passcodeLockScreen.js";
 
 const root = document.getElementById("view-root");
 
@@ -56,6 +58,17 @@ async function boot() {
     window.location.href = "/login";
     return;
   }
+  // A local (this-device-only, see lib/passcodeLock.js) passcode lock, if
+  // one's been set — blocks here, before anything from the actual app
+  // renders, rather than showing the shell underneath and locking on top of
+  // it. Re-armed below (see the visibilitychange listener) every time the
+  // tab comes back from being hidden, same trigger Telegram's own Passcode
+  // Lock uses.
+  if (hasPasscode()) await showPasscodeLockScreen();
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && hasPasscode()) showPasscodeLockScreen();
+  });
+
   setState({ user, accounts });
   startWsClient();
   mountIncomingCallWatcher();

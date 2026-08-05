@@ -12,12 +12,13 @@ async function req(url, init) {
 
 export const api = {
   session: () => req("/api/auth/session"),
-  registerEmail: (name, email, password, phone, referralCode) =>
-    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, referralCode }) }),
+  registerEmail: (name, username, email, password, phone, referralCode) =>
+    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, username, email, password, phone, referralCode }) }),
   loginEmail: (email, password) =>
     req("/api/auth/login-email", { method: "POST", body: JSON.stringify({ email, password }) }),
   switchAccount: (userId) => req("/api/auth/switch", { method: "POST", body: JSON.stringify({ userId }) }),
   logout: (uid) => req("/api/auth/logout", { method: "POST", body: JSON.stringify({ uid }) }),
+  deleteAccount: (password) => req("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password }) }),
 
   startQrLogin: () => req("/api/auth/qr/start", { method: "POST" }),
   pollQrLogin: (token) => req(`/api/auth/qr/poll?token=${encodeURIComponent(token)}`),
@@ -78,6 +79,7 @@ export const api = {
 
   listContacts: () => req("/api/contacts"),
   addContact: (userId) => req("/api/contacts", { method: "POST", body: JSON.stringify({ userId }) }),
+  findUserByUsername: (username) => req(`/api/users/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
   removeContact: (userId) => req("/api/contacts", { method: "DELETE", body: JSON.stringify({ userId }) }),
 
   getSettings: () => req("/api/settings"),
