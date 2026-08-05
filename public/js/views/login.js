@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { fileToAvatarDataUrl } from "../lib/image.js";
 import qrcode from "../lib/qrcode.js";
+import { formatPhoneInput } from "../lib/phoneFormat.js";
 
 const QR_POLL_MS = 1500;
 
@@ -180,7 +181,10 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               placeholder: "+7 999 123-45-67",
               autofocus: true,
               value: codePhone,
-              oninput: (e) => (codePhone = e.target.value),
+              oninput: (e) => {
+                codePhone = formatPhoneInput(e.target.value);
+                e.target.value = codePhone;
+              },
             }),
             el(
               "p",
@@ -255,7 +259,10 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             type: "tel",
             placeholder: "+7 999 123-45-67",
             value: phone,
-            oninput: (e) => (phone = e.target.value),
+            oninput: (e) => {
+              phone = formatPhoneInput(e.target.value);
+              e.target.value = phone;
+            },
           })
         : null;
     const passwordInput = el("input", {

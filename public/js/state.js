@@ -4,6 +4,7 @@ const state = {
   accounts: [],
   chats: [],
   folders: [],
+  settings: null,
 };
 
 const listeners = new Set();

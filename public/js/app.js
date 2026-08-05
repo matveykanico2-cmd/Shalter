@@ -22,6 +22,17 @@ import { initUiTranslation } from "./lib/uiTranslate.js";
 
 const root = document.getElementById("view-root");
 
+// Removes the inline splash screen (public/index.html) — called once boot()
+// has decided what to render, at the top of each branch below, so the
+// splash only ever covers real load time (fetching/parsing this module
+// graph) and never lingers waiting on view-specific data fetches.
+function hideSplash() {
+  const splash = document.getElementById("splash-screen");
+  if (!splash) return;
+  splash.classList.add("hidden");
+  setTimeout(() => splash.remove(), 300);
+}
+
 function withCleanup(mainSlot) {
   if (mainSlot._cleanup) {
     mainSlot._cleanup();
@@ -39,6 +50,7 @@ async function boot() {
   if (path.startsWith("/login")) {
     const params = new URLSearchParams(window.location.search);
     LoginView(root, { addMode: params.get("add") === "1" });
+    hideSplash();
     return;
   }
 
@@ -47,10 +59,14 @@ async function boot() {
   // QrLoginConfirmView), so it deliberately sits outside the authenticated
   // app shell below.
   if (path === "/qr-login") {
+    hideSplash();
     await QrLoginConfirmView(root);
     return;
   }
 
+  // Splash stays up through this fetch too — hiding it before session()
+  // resolves would flash an empty view-root for however long that request
+  // takes, right when it matters most (cold load of the authenticated shell).
   const { user, accounts } = await api.session();
   if (!user || !user.name) {
     window.location.href = "/login";
@@ -63,7 +79,10 @@ async function boot() {
   // initial paint gets caught by the same pass as everything after it.
   api
     .getSettings()
-    .then(({ settings }) => initUiTranslation(settings.uiLanguage))
+    .then(({ settings }) => {
+      setState({ settings });
+      initUiTranslation(settings.uiLanguage);
+    })
     .catch(() => {});
   // Register the service worker unconditionally — it's what makes the app
   // installable as a PWA (manifest + icons alone aren't enough), independent
@@ -81,6 +100,7 @@ async function boot() {
   const mainSlot = el("div", { class: "shell-main-col" });
   const callBubbleSlot = el("div", { class: "call-bubble-slot" });
   mount(root, shell);
+  hideSplash();
   shell.append(listCol, mainSlot, callBubbleSlot);
   listCol.append(NavRail(), ChatListPane());
 
@@ -166,5 +186,6 @@ async function boot() {
 
 boot().catch((err) => {
   console.error(err);
+  hideSplash();
   mount(root, el("div", { class: "empty-hint" }, "Не удалось загрузить приложение."));
 });

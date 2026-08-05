@@ -14,9 +14,81 @@
   <meta name="apple-mobile-web-app-title" content="Shalter" />
   <link rel="stylesheet" href="/styles/base.css" />
   <link rel="stylesheet" href="/styles/components.css" />
+  <style>
+    /* Splash screen — inline so it paints on the very first frame, before
+       app.js has even been fetched, let alone finished deciding whether to
+       show the login page or the chat shell. app.js removes #splash-screen
+       (see hideSplash() near the top of boot()) the instant it's ready to
+       mount real content, so this only ever covers genuine load time, not
+       app logic. Own brand (paper-plane-in-a-gradient-square, same mark as
+       the login page's logo — see .login-logo in components.css) rather
+       than reusing another app's splash design. */
+    #splash-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: var(--color-bg);
+      transition: opacity 0.25s ease;
+    }
+    #splash-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #splash-logo {
+      display: flex;
+      height: 72px;
+      width: 72px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 22px;
+      background: linear-gradient(135deg, var(--color-accent), #6e56c6);
+      color: var(--color-accent-contrast);
+      box-shadow: 0 8px 28px rgba(46, 86, 217, 0.4);
+      animation: splash-pulse 1.8s ease-in-out infinite;
+    }
+    #splash-logo svg {
+      transform: rotate(-8deg);
+    }
+    #splash-brand {
+      font-family: var(--font-serif);
+      font-size: 26px;
+      font-weight: 700;
+      margin: 0;
+      background: linear-gradient(100deg, var(--color-accent), #6e56c6 45%, #1c9bd9 90%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: splash-sheen 2.4s ease-in-out infinite;
+    }
+    @keyframes splash-pulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 8px 28px rgba(46, 86, 217, 0.4); }
+      50% { transform: scale(1.06); box-shadow: 0 10px 34px rgba(46, 86, 217, 0.55); }
+    }
+    @keyframes splash-sheen {
+      0% { background-position: 0% center; }
+      100% { background-position: 200% center; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #splash-logo, #splash-brand { animation: none; }
+    }
+  </style>
 </head>
 <body>
-  <div id="view-root">Loadig</div>
+  <div id="splash-screen">
+    <div id="splash-logo">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 20l17-8L4 4l0 6.5L15 12 4 13.5 4 20Z" />
+      </svg>
+    </div>
+    <p id="splash-brand">Shalter</p>
+  </div>
+  <div id="view-root"></div>
   <script type="module" src="/js/app.js"></script>
 </body>
 </html>

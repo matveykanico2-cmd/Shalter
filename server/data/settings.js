@@ -7,6 +7,11 @@ const DEFAULT_SETTINGS = {
   notifications: { previewText: true, sound: true, mutedChatIds: [] },
   privacy: { lastSeen: "everyone", phone: "contacts", photo: "everyone" },
   chatWallpaper: "default",
+  // Only meaningful when chatWallpaper === "custom" — a data URL, same
+  // client-side-downscaled-before-upload pattern as avatarImage (see
+  // public/js/lib/image.js), stored inline since there's no object storage
+  // in this app (see AGENTS.md's JSON-column note for per-user settings).
+  chatWallpaperImage: null,
   // Target language for the per-message "Перевести" action (messageBubble.js)
   // — a plain ISO 639-1 code passed straight through to the translate API.
   translateLanguage: "ru",

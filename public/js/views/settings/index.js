@@ -4,7 +4,7 @@ import { Avatar } from "../../components/avatar.js";
 import { api } from "../../api.js";
 import { getState, setState } from "../../state.js";
 import { navigate } from "../../router.js";
-import { fileToAvatarDataUrl } from "../../lib/image.js";
+import { fileToAvatarDataUrl, fileToImageDataUrl } from "../../lib/image.js";
 import { requestPushPermission } from "../../lib/push.js";
 import { openContactPickerDialog } from "../../components/contactPickerDialog.js";
 import { openCreateBotDialog } from "../../components/createBotDialog.js";
@@ -419,7 +419,9 @@ async function renderAppearance(root) {
     { id: "default", label: "По умолчанию" },
     { id: "dots", label: "Точки" },
     { id: "gradient", label: "Градиент" },
+    { id: "custom", label: "Своё фото" },
   ];
+  let wallpaperError = null;
   // Covers the world's most-spoken languages — Google Translate itself
   // supports 100+, but a dropdown of every ISO code is a worse UX than a
   // curated list (same tradeoff Telegram's own translate picker makes).
@@ -459,11 +461,30 @@ async function renderAppearance(root) {
     settings = { ...settings, ...p };
     if (p.theme) applyTheme(p.theme);
     if (p.accent) applyAccent(p.accent);
+    setState({ settings });
     render();
     await api.patchSettings(p);
   }
 
+  async function pickCustomWallpaper(file) {
+    if (!file) return;
+    wallpaperError = null;
+    try {
+      const dataUrl = await fileToImageDataUrl(file, 1280);
+      await patch({ chatWallpaper: "custom", chatWallpaperImage: dataUrl });
+    } catch (err) {
+      wallpaperError = err.message || "Не удалось загрузить фото";
+      render();
+    }
+  }
+
   function render() {
+    const wallpaperFileInput = el("input", {
+      type: "file",
+      accept: "image/*",
+      class: "hidden-input",
+      onchange: (e) => pickCustomWallpaper(e.target.files?.[0]),
+    });
     mount(
       root,
       pageWrap("Внешний вид", "Тема, акцентный цвет и фон переписки", [
@@ -507,11 +528,19 @@ async function renderAppearance(root) {
           WALLPAPERS.map((w) =>
             el(
               "button",
-              { class: `settings-chip ${settings.chatWallpaper === w.id ? "active" : ""}`, onclick: () => patch({ chatWallpaper: w.id }) },
+              {
+                class: `settings-chip ${settings.chatWallpaper === w.id ? "active" : ""}`,
+                onclick: () => (w.id === "custom" ? wallpaperFileInput.click() : patch({ chatWallpaper: w.id })),
+              },
               w.label
             )
           )
         ),
+        settings.chatWallpaper === "custom" && settings.chatWallpaperImage
+          ? el("div", { class: "settings-wallpaper-preview", style: `background-image: url(${settings.chatWallpaperImage})` })
+          : null,
+        wallpaperFileInput,
+        wallpaperError ? el("p", { class: "login-error" }, wallpaperError) : null,
         el("p", { class: "settings-field-label" }, "Язык перевода сообщений"),
         el(
           "select",

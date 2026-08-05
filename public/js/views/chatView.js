@@ -13,6 +13,24 @@ import { navigate } from "../router.js";
 import { placeCall as placeCallController } from "../lib/callController.js";
 import { onWsMessage } from "../lib/wsClient.js";
 
+// Settings → Внешний вид → "Фон чата" (renderAppearance in settings/index.js)
+// — "default"/"dots"/"gradient" are plain CSS classes (see components.css);
+// "custom" paints the user's own uploaded image via an inline style, since
+// that part can't be a static class.
+const WALLPAPER_CLASSES = ["wallpaper-default", "wallpaper-dots", "wallpaper-gradient", "wallpaper-custom"];
+function applyWallpaper(list) {
+  const settings = getState().settings;
+  const id = settings?.chatWallpaper ?? "default";
+  list.classList.remove(...WALLPAPER_CLASSES);
+  if (id === "custom" && settings?.chatWallpaperImage) {
+    list.classList.add("wallpaper-custom");
+    list.style.backgroundImage = `url(${settings.chatWallpaperImage})`;
+  } else {
+    list.style.backgroundImage = "";
+    list.classList.add(`wallpaper-${id === "custom" ? "default" : id}`);
+  }
+}
+
 function lastSeenLabel(user) {
   if (user.online) return "в сети";
   const d = new Date(user.lastSeen);
@@ -205,6 +223,7 @@ export async function ChatView(root, chatId) {
   const header = el("header", { class: "chat-header" });
   const pinnedBar = el("div", { class: "pinned-bar-slot" });
   const list = el("div", { class: "message-list" });
+  applyWallpaper(list);
   const composerSlot = el("div", { class: "composer-slot" });
   const bodyBottomSlot = el("div", { class: "body-bottom-slot" });
   const mainCol = el("div", { class: "chat-main-col" }, [header, pinnedBar, list, bodyBottomSlot, composerSlot]);
