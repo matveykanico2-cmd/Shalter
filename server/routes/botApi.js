@@ -6,6 +6,7 @@ const { listChatsForUser } = require("../data/chats");
 const { listAllMessages } = require("../data/messages");
 const { publicUser } = require("../data/sanitize");
 const { sendBotMessage } = require("../lib/botMessaging");
+const { askAI } = require("../lib/ai");
 
 // The actual "program it however you want" surface — see BOTS.md. A bot's
 // owner runs their own script anywhere (no public URL/webhook needed) that
@@ -53,6 +54,22 @@ router.post(
       res.json({ message });
     } catch (err) {
       res.status(err.message === "text is required" ? 400 : 404).json({ error: err.message });
+    }
+  })
+);
+
+// Same underlying call as the in-app editor's bot.ai() (server/lib/ai.js) —
+// an external script gets the same "use the server's configured AI, no key
+// of your own to manage" convenience, not just bots written in-app.
+router.post(
+  "/ai",
+  asyncRoute(async (req, res) => {
+    const { prompt, system, maxTokens } = req.body ?? {};
+    try {
+      const text = await askAI(req.bot.id, prompt, { system, maxTokens });
+      res.json({ text });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
     }
   })
 );

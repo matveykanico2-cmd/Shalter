@@ -14,8 +14,13 @@
 const vm = require("vm");
 const botLogs = require("../data/botLogs");
 const { sendBotMessage } = require("./botMessaging");
+const { askAI } = require("./ai");
 
-const EXECUTION_TIMEOUT_MS = 3000;
+// Long enough for a real bot.ai() call (an LLM round-trip is commonly
+// 1-8s, sometimes more) to actually finish rather than always losing the
+// race against the timeout — a plain fetch() to some REST API would've
+// tolerated the old 3s limit fine, but AI replies specifically don't.
+const EXECUTION_TIMEOUT_MS = 20_000;
 
 function safeStringify(value) {
   if (typeof value === "string") return value;
@@ -53,6 +58,7 @@ async function runBotCode(bot, code, msg) {
     bot: {
       send: (text, opts) => sendBotMessage(bot.userId, msg.chatId, text, opts),
       sendTo: (chatId, text, opts) => sendBotMessage(bot.userId, chatId, text, opts),
+      ai: (prompt, opts) => askAI(bot.id, prompt, opts),
     },
     // Deliberately no require/process/global/Buffer/module — a clean,
     // curated surface rather than full Node access.

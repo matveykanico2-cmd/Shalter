@@ -38,7 +38,7 @@ export function openBotCodeDialog(bot) {
     el(
       "p",
       { class: "settings-toggle-hint" },
-      "Определите async function handleMessage(msg, bot) — она вызывается на каждое сообщение боту. Работает в песочнице: без доступа к файлам/процессу, с таймаутом 3с. Подробности — /BOTS.md."
+      "Определите async function handleMessage(msg, bot) — она вызывается на каждое сообщение боту. bot.ai(prompt) даёт ИИ-ответ без своего API-ключа (если он настроен на сервере). Работает в песочнице: без доступа к файлам/процессу, с таймаутом 20с. Подробности — /BOTS.md."
     ),
     editorSlot,
     el("div", { class: "bot-code-actions" }, [

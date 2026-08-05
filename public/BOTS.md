@@ -94,6 +94,26 @@ Optional fields:
   Tapping a button sends `action` back as a normal message from that user —
   your bot sees it on the next `/updates` poll like any other text.
 
+### `POST /ai`
+
+Asks the server's configured AI (see [AI-powered bots](#ai-powered-bots)
+below) and returns its text reply — so your external script doesn't need its
+own API key either, same as the in-app editor's `bot.ai()`.
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"prompt":"Скажи, что сейчас происходит в мире IT одним предложением"}' \
+  https://your-domain/api/bot-api/ai
+```
+```json
+{ "text": "..." }
+```
+
+Optional fields: `system` (a system prompt — gives the reply a persona/
+instructions without repeating them in every `prompt`), `maxTokens` (capped
+at 2048 server-side). Rate-limited per bot (12 calls/minute) and will error
+with a clear message if the deployment hasn't set `ANTHROPIC_API_KEY`.
+
 ## A complete example: an echo + command bot (Node.js)
 
 Needs nothing but a recent Node (built-in `fetch`) — no dependencies.
@@ -182,6 +202,8 @@ It's called once for every message your bot receives, with:
 - `bot.send(text, opts?)` — reply in the same chat as `msg`.
 - `bot.sendTo(chatId, text, opts?)` — reply in a specific chat (`opts`
   supports `keyboard`/`replyToId`, same shape as `POST /sendMessage`).
+- `bot.ai(prompt, opts?)` — ask the server's configured AI, get back its text
+  reply. See [AI-powered bots](#ai-powered-bots) below.
 - `console.log`/`console.error`/`console.warn` and `fetch` — for calling out
   to an external API, same as anywhere else in JS.
 
@@ -191,12 +213,43 @@ message you can see) without needing a second device or account. The logs
 panel below it shows the last 100 `console.*` calls and errors from both
 test runs and real messages, newest first.
 
+## AI-powered bots
+
+Both ways of programming a bot can call a real LLM without the bot's owner
+needing their own API key — the deployment sets one key once, and every bot
+on it can use `bot.ai()` / `POST /ai`:
+
+```js
+async function handleMessage(msg, bot) {
+  const reply = await bot.ai(msg.text, {
+    system: "Ты дружелюбный бот-помощник Shalter. Отвечай коротко.",
+  });
+  return bot.send(reply);
+}
+```
+
+- `prompt` (required) — the user-turn text; up to 8000 characters.
+- `opts.system` — an optional system prompt, so your bot has a consistent
+  persona/instructions without repeating them in every message.
+- `opts.maxTokens` — caps the reply length (default 512, hard ceiling 2048).
+- Rate-limited to 12 calls/minute *per bot* — this calls a real, metered API
+  using the deployment's own key, so one runaway bot script can't rack up an
+  unbounded bill for the person hosting Shalter. A burst past that limit
+  throws a catchable error rather than silently queueing.
+
+**Setup (deployment-side, not per-bot):** set the `ANTHROPIC_API_KEY`
+environment variable on the server (optionally `ANTHROPIC_MODEL`, defaults to
+a fast/cheap model). Until it's set, `bot.ai()`/`POST /ai` fail with a clear
+"ИИ не настроен на этом сервере" error instead of silently doing nothing —
+if you're self-hosting and want this feature, this is the one thing to add.
+
 ### Sandbox limits
 
 This runs in Node's built-in `vm` module — **not a security boundary**
 (Node's own docs are explicit about this), only a convenience wrapper around
 your own trusted code. There's no `require`, `process`, `Buffer`, or file
-access; a run is killed after 3 seconds either way. If you need npm
+access; a run is killed after 20 seconds either way (long enough for a real
+`bot.ai()` round-trip, which is the slowest normal thing a bot does). If you need npm
 packages, a database, or genuine isolation from the rest of the app, use the
 external Bot API instead — the two aren't mutually exclusive, but only one
 should call `bot.send`/`sendMessage` for a given bot at a time, or replies
