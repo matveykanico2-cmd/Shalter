@@ -12,8 +12,8 @@ async function req(url, init) {
 
 export const api = {
   session: () => req("/api/auth/session"),
-  registerEmail: (name, username, email, password, phone, referralCode) =>
-    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, username, email, password, phone, referralCode }) }),
+  registerEmail: (name, email, password, phone, referralCode) =>
+    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, referralCode }) }),
   loginEmail: (email, password) =>
     req("/api/auth/login-email", { method: "POST", body: JSON.stringify({ email, password }) }),
   switchAccount: (userId) => req("/api/auth/switch", { method: "POST", body: JSON.stringify({ userId }) }),

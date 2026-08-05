@@ -18,7 +18,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   const refFromLink = new URLSearchParams(window.location.search).get("ref") ?? "";
   let mode = refFromLink ? "register" : "login"; // "login" | "register" | "qr" | "code"
   let name = "";
-  let username = "";
   let email = "";
   let password = "";
   let phone = "";
@@ -244,15 +243,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         ? el("input", { class: "login-input", placeholder: "Имя", value: name, oninput: (e) => (name = e.target.value) })
         : null;
     const avatarInput = mode === "register" ? avatarPicker() : null;
-    const usernameInput =
-      mode === "register"
-        ? el("input", {
-            class: "login-input",
-            placeholder: "Юзернейм (только для входа/поиска)",
-            value: username,
-            oninput: (e) => (username = e.target.value.replace(/[^a-zA-Z0-9_]/g, "")),
-          })
-        : null;
     const emailInput = el("input", {
       class: "login-input",
       type: "email",
@@ -304,7 +294,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           try {
             let user;
             if (mode === "register") {
-              ({ user } = await api.registerEmail(name, username, email, password, phone, referralCode));
+              ({ user } = await api.registerEmail(name, email, password, phone, referralCode));
               if (avatarImage) await api.updateProfile(user.id, { avatarImage });
             } else {
               ({ user } = await api.loginEmail(email, password));
@@ -321,7 +311,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       [
         avatarInput,
         nameInput,
-        usernameInput,
         emailInput,
         phoneInput,
         passwordInput,

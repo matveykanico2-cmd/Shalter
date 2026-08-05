@@ -9,7 +9,7 @@ const {
   getOrCreateDeviceId,
   requireUserId,
 } = require("../middleware/auth");
-const { findUserByEmail, findUserByPhone, findUserByUsername, findUserByReferralCode, createUser, getUser, grantPremiumDays } = require("../data/users");
+const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, grantPremiumDays } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
 const { listSessions, upsertSession } = require("../data/sessions");
@@ -21,7 +21,7 @@ const { PREMIUM_GRANT_DAYS } = require("../config");
 const qrLogins = require("../data/qrLogins");
 const codeLogins = require("../data/codeLogins");
 
-const { EMAIL_RE, PHONE_RE, USERNAME_RE, normalizePhone } = require("../lib/validators");
+const { EMAIL_RE, PHONE_RE, normalizePhone } = require("../lib/validators");
 
 const router = express.Router();
 
@@ -102,12 +102,9 @@ router.post(
 router.post(
   "/register-email",
   asyncRoute(async (req, res) => {
-    const { name, username, email, password, phone, referralCode } = req.body ?? {};
+    const { name, email, password, phone, referralCode } = req.body ?? {};
 
     if (!name?.trim()) return res.status(400).json({ error: "Введите имя" });
-    if (!USERNAME_RE.test(username ?? "")) {
-      return res.status(400).json({ error: "Юзернейм: 5-32 символов, латинские буквы, цифры и _" });
-    }
     if (!EMAIL_RE.test(email ?? "")) return res.status(400).json({ error: "Некорректный email" });
     if (!password || password.length < 6) {
       return res.status(400).json({ error: "Пароль должен быть не короче 6 символов" });
@@ -122,9 +119,6 @@ router.post(
     if (await findUserByPhone(normalizedPhone)) {
       return res.status(409).json({ error: "Аккаунт с таким номером телефона уже существует" });
     }
-    if (await findUserByUsername(username)) {
-      return res.status(409).json({ error: "Этот юзернейм уже занят" });
-    }
 
     let referrer = null;
     if (referralCode?.trim()) {
@@ -136,7 +130,6 @@ router.post(
     const user = await createUser({
       id: `u_${Date.now()}`,
       name: name.trim(),
-      username: username.trim(),
       phone: normalizedPhone,
       email: email.trim().toLowerCase(),
       passwordHash: hash,
