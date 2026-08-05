@@ -5,13 +5,6 @@ async function req(url, init) {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    // Settings → Devices → "Завершить" now actually revokes the session
-    // server-side (see server/middleware/auth.js) — this is what a
-    // still-open tab on the terminated device sees on its next request.
-    // Bounce it to /login instead of showing a raw "unauthorized" error.
-    if (body.error === "session_revoked") {
-      window.location.href = "/login?reason=revoked";
-    }
     throw new Error(body.error ?? `Request failed: ${res.status}`);
   }
   return res.json();

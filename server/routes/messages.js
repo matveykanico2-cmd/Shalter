@@ -1,6 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { getChat } = require("../data/chats");
+const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 const {
   listMessages,
   addMessage,
@@ -129,7 +130,7 @@ router.post(
       pinned: false,
       reactions: [],
       replyToId: body.replyToId ?? null,
-      attachments: body.attachments,
+      attachments: sanitizeAttachments(body.attachments),
       forwardedFrom: body.forwardedFrom,
       sticker: body.sticker,
       readByIds: [req.uid],

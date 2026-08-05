@@ -16,7 +16,6 @@ const QR_POLL_MS = 1500;
 // for when a caller (again, qrLoginConfirm.js) supplies its own frame.
 export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   const refFromLink = new URLSearchParams(window.location.search).get("ref") ?? "";
-  const revokedNotice = new URLSearchParams(window.location.search).get("reason") === "revoked";
   let mode = refFromLink ? "register" : "login"; // "login" | "register" | "qr" | "code"
   let name = "";
   let email = "";
@@ -395,9 +394,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             el("h1", { class: "login-brand" }, addMode ? "Добавить аккаунт" : "Shalter"),
             el("p", { class: "login-subtitle" }, subtitle),
           ]),
-          revokedNotice
-            ? el("p", { class: "login-revoked-notice" }, "Сессия была завершена — войдите заново")
-            : null,
           el("div", { class: "login-card" }, content),
         ]),
       ])

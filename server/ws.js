@@ -59,8 +59,16 @@ async function markOffline(uid) {
 // notifications, and presence. HTTP polling (server/routes/calls.js signal
 // endpoints) stays as a fallback for reconnect/catch-up after a page reload
 // or dropped socket.
+// Real messages here are small JSON signaling frames (offer/answer/ICE
+// candidates, a few KB at most) — attachments never ride over this socket
+// (those go through the regular HTTP API instead). 64KB is generous
+// headroom over any real frame; ws's own default (no cap at all) would let
+// a client send an arbitrarily large frame and force the server to buffer
+// it before handleMessage() ever gets a chance to reject it.
+const MAX_WS_PAYLOAD_BYTES = 64 * 1024;
+
 function attachWebSocketServer(httpServer) {
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_WS_PAYLOAD_BYTES });
 
   httpServer.on("upgrade", (req, socket, head) => {
     if (req.url !== "/ws") return; // let other upgrade handlers (if any) see it

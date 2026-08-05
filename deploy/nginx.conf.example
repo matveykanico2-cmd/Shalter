@@ -24,6 +24,24 @@ http {
   # match server/index.js's express.json({ limit: "25mb" }).
   client_max_body_size 25m;
 
+  # First line of defense against request floods: rejecting excess requests
+  # HERE means nginx never even opens a connection to Node for them, so a
+  # flood doesn't burn Node's single event loop just to get rate-limited by
+  # server/middleware/rateLimit.js (that's the second, app-level layer —
+  # keep both; this one is what actually protects Node's own resources).
+  # `rate=20r/s` is generous for normal usage (chat polling + WS is mostly
+  # idle-open connections, not request bursts) — tune down if abused.
+  # NOTE — what this can't do: a real distributed (multi-IP/botnet)
+  # volumetric DDoS will still saturate this box's bandwidth/connections
+  # regardless of any config in this file, because the flood never has to
+  # cross the same per-IP counter twice. That needs a service in front of
+  # this server entirely (Cloudflare's free tier is the standard pick for a
+  # small self-hosted app — proxy DNS through it and it absorbs/filters
+  # traffic before it ever reaches this box). Treat everything below as
+  # "stop one misbehaving client," not "survive a real attack."
+  limit_req_zone $binary_remote_addr zone=general:10m rate=20r/s;
+  limit_conn_zone $binary_remote_addr zone=perip:10m;
+
   upstream messenger_app {
     server 127.0.0.1:3000;
     keepalive 16;
@@ -36,6 +54,15 @@ http {
     # Redirect to HTTPS once a certificate is in place (comment out until then).
     # return 301 https://$host$request_uri;
 
+    # burst=40 nodelay: absorbs a legitimate short burst (opening several
+    # chats/loading history at once) without queuing/delaying it, only
+    # rejecting (503) once a client is sustainedly over rate for real.
+    limit_req zone=general burst=40 nodelay;
+    # Concurrent-connection cap per IP — catches connection-flood abuse that
+    # a request-rate limit alone wouldn't (many connections, each making few
+    # requests). 20 comfortably covers one real user's tabs/devices.
+    limit_conn perip 20;
+
     location / {
       proxy_pass http://messenger_app;
       proxy_http_version 1.1;
@@ -47,7 +74,12 @@ http {
 
     # WebSocket upgrade for call signaling/presence (server/ws.js) — without
     # this block, /ws requests just get proxied as plain HTTP and never upgrade.
+    # Excluded from limit_req: a call's socket sends frequent small signaling
+    # frames over one already-open connection, which isn't the "new request
+    # burst" this limit is meant to catch — it's still covered by limit_conn
+    # above (one connection per call) and ws.js's own maxPayload cap.
     location /ws {
+      limit_req off;
       proxy_pass http://messenger_app;
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;

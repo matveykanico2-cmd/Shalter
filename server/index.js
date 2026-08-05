@@ -19,6 +19,22 @@ const app = express();
 // reflects the real client instead of nginx's own address for every request.
 app.set("trust proxy", 1);
 
+// A handful of standard security headers — not pulling in `helmet` for just
+// these three, since that's the entire useful subset for a same-origin app
+// with no iframe embedding use case. Skips both CSP (this app loads
+// CodeMirror from esm.sh at runtime — see public/js/lib/codeEditor.js — so a
+// strict CSP needs real per-deployment tuning, not a one-size-fits-all
+// default that'd likely break that import) and HSTS (nginx.conf.example
+// deploys HTTP-only until a cert is in place; forcing HTTPS here could lock
+// out a deployment mid-setup — set it in nginx's own :443 block instead once
+// a cert exists).
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff"); // stop the browser from re-guessing a response's type past what Content-Type says
+  res.setHeader("X-Frame-Options", "DENY"); // this app is never meant to be embedded in someone else's page (clickjacking)
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin"); // URLs here can carry tokens (QR/code login) — don't leak the full path to a third-party Referer
+  next();
+});
+
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const DIST_DIR = path.join(PUBLIC_DIR, "dist");
 // `npm run build` (scripts/build.js) bundles+minifies+precompresses the

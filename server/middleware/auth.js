@@ -1,6 +1,5 @@
 const { randomBytes } = require("crypto");
 const { asyncRoute } = require("./errors");
-const { getSession } = require("../data/sessions");
 
 const SESSIONS_COOKIE = "session_uids";
 const ACTIVE_COOKIE = "active_uid";
@@ -113,22 +112,19 @@ function clearAllSessions(req, res) {
   writeSessions(res, [], null);
 }
 
-// Express middleware: attaches req.uid, or short-circuits with 401. Also
-// enforces that Settings → Devices "terminate session" actually does
-// something: if this browser's device cookie no longer has a matching row
-// in the sessions table (deleted — see server/data/sessions.js), the
-// account is dropped from this browser's cookie too and the request is
-// rejected, instead of the deleted "Devices" entry being purely cosmetic.
+// Express middleware: attaches req.uid, or short-circuits with 401. Trusts
+// the signed-cookie-derived uid alone — there used to also be a check here
+// against a per-device row in the sessions table (auto-logout if that row
+// was ever missing, e.g. from "Settings → Devices → terminate"), but that
+// forced-logout path is gone entirely now (both the manual button and this
+// automatic check): it caused real, confusing lockouts (a device losing its
+// session row for any reason, e.g. a stale/cleared DB, had no recovery
+// except a fresh login with no clear explanation why). Sessions (see
+// server/data/sessions.js) are still tracked for the read-only "Устройства"
+// list, just no longer enforced against.
 const requireUserId = asyncRoute(async (req, res, next) => {
   const uid = getCurrentUserId(req);
   if (!uid) return res.status(401).json({ error: "unauthorized" });
-
-  const deviceId = req.cookies?.[DEVICE_COOKIE];
-  if (deviceId && !(await getSession(uid, deviceId))) {
-    removeAccountSession(req, res, uid);
-    return res.status(401).json({ error: "session_revoked" });
-  }
-
   req.uid = uid;
   next();
 });

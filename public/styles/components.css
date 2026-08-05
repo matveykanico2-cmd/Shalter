@@ -2126,16 +2126,6 @@
   justify-content: center;
   gap: 6px;
 }
-.login-revoked-notice {
-  margin: -8px 0 20px;
-  text-align: center;
-  font-size: 13px;
-  color: var(--color-danger);
-  background: rgba(198, 64, 59, 0.12);
-  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
-  border-radius: 8px;
-  padding: 8px 12px;
-}
 
 /* QR login */
 .qr-login-panel {

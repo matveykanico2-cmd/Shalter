@@ -4,6 +4,7 @@ const { requireUserId } = require("../middleware/auth");
 const { getChat } = require("../data/chats");
 const { addMessage, setAnchorForPost, setDiscussionAnchor } = require("../data/messages");
 const { getUser } = require("../data/users");
+const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -33,7 +34,7 @@ router.post(
       createdAt: new Date().toISOString(),
       pinned: false,
       reactions: [],
-      attachments: body.attachments,
+      attachments: sanitizeAttachments(body.attachments),
       readByIds: [req.uid],
       views: 0,
       commentCount: 0,
