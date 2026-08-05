@@ -36,7 +36,8 @@ function rowToUser(row) {
     referralCode: row.referralCode ?? undefined,
     referredBy: row.referredBy ?? undefined,
     isAdsActive: !!row.adsUntil && row.adsUntil > new Date().toISOString(),
-    adsUntil: row.adsUntil ?? undefined,
+    adsUntil: row.adsUntil && row.adsUntil !== FOREVER ? row.adsUntil : undefined,
+    adsForever: row.adsUntil === FOREVER || undefined,
     adText: row.adText ?? undefined,
     adUrl: row.adUrl ?? undefined,
     birthday: row.birthday ?? undefined,
@@ -133,12 +134,12 @@ async function revokePremium(userId) {
 }
 
 // Same stacking-top-up shape as grantPremiumDays above, for the ad cabinet
-// (20₽/month — see server/routes/ads.js). No "forever" tier for this one —
-// it's a plain recurring subscription, not something worth ever granting
-// permanently.
+// (20₽/month — see server/routes/ads.js). `days: null` grants it "forever"
+// (see FOREVER), same as Premium — used for the admin's own account.
 async function grantAdsDays(userId, days) {
   const user = await getUser(userId);
   if (!user) return undefined;
+  if (days == null || user.adsForever) return updateUser(userId, { adsUntil: FOREVER });
   const base = user.isAdsActive && user.adsUntil ? new Date(user.adsUntil) : new Date();
   base.setUTCDate(base.getUTCDate() + days);
   return updateUser(userId, { adsUntil: base.toISOString() });

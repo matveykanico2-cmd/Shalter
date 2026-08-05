@@ -16,16 +16,16 @@ import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../component
 
 const SECTIONS = [
   { id: "", label: "Профиль" },
-  { id: "premium", label: "Premium и друзья" },
-  { id: "ads", label: "Реклама" },
-  { id: "bots", label: "Боты" },
-  { id: "appearance", label: "Внешний вид" },
-  { id: "notifications", label: "Уведомления" },
-  { id: "privacy", label: "Конфиденциальность" },
-  { id: "devices", label: "Устройства" },
-  { id: "accounts", label: "Аккаунты" },
-  { id: "folders", label: "Папки" },
-  { id: "data", label: "Данные и память" },
+  { id: "premium", label: "Premium и друзья", icon: "Star" },
+  { id: "ads", label: "Реклама", icon: "Zap" },
+  { id: "bots", label: "Боты", icon: "Code" },
+  { id: "appearance", label: "Внешний вид", icon: "Settings" },
+  { id: "notifications", label: "Уведомления", icon: "Bell" },
+  { id: "privacy", label: "Конфиденциальность", icon: "Lock" },
+  { id: "devices", label: "Устройства", icon: "Phone" },
+  { id: "accounts", label: "Аккаунты", icon: "Accounts" },
+  { id: "folders", label: "Папки", icon: "Archive" },
+  { id: "data", label: "Данные и память", icon: "Download" },
 ];
 
 function Toggle(checked, onChange) {
@@ -36,18 +36,41 @@ function Toggle(checked, onChange) {
 
 export async function SettingsView(root, page) {
   const section = page ?? "";
+  const me = getState().user;
   const shell = el("div", { class: "settings-view" });
   const nav = el("div", { class: "settings-nav" }, [
-    el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
-    ...SECTIONS.map((s) =>
-      el(
-        "a",
-        {
-          href: `/settings${s.id ? "/" + s.id : ""}`,
-          "data-route": "1",
-          class: `settings-nav-item ${section === s.id ? "active" : ""}`,
-        },
-        s.label
+    el("div", { class: "settings-nav-topbar" }, [
+      el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
+      el("span", { class: "settings-nav-topbar-title" }, "Настройки"),
+    ]),
+    el(
+      "a",
+      {
+        href: "/settings",
+        "data-route": "1",
+        class: `settings-nav-profile ${section === "" ? "active" : ""}`,
+      },
+      [
+        Avatar({ name: me.name || "?", color: me.avatarColor, image: me.avatarImage, size: 48, isPremium: me.isPremium, isDeveloper: me.isDeveloper }),
+        el("div", { class: "settings-nav-profile-info" }, [
+          el("p", { class: "settings-nav-profile-name" }, me.name || "Профиль"),
+          el("p", { class: "settings-nav-profile-sub" }, me.online ? "в сети" : "показать профиль"),
+        ]),
+      ]
+    ),
+    el(
+      "div",
+      { class: "settings-nav-list" },
+      SECTIONS.filter((s) => s.id).map((s) =>
+        el(
+          "a",
+          {
+            href: `/settings/${s.id}`,
+            "data-route": "1",
+            class: `settings-nav-item ${section === s.id ? "active" : ""}`,
+          },
+          [el("span", { class: "settings-nav-icon", html: iconSvg(s.icon, 20) }), el("span", { class: "settings-nav-label" }, s.label)]
+        )
       )
     ),
   ]);
@@ -437,7 +460,11 @@ async function renderAds(root) {
             el(
               "p",
               { class: "premium-status-hint" },
-              info.isAdsActive && info.adsUntil ? `Активен до ${new Date(info.adsUntil).toLocaleDateString("ru-RU")}` : "Объявление увидят все, кто откроет ваш профиль"
+              info.isAdsActive && info.adsForever
+                ? "Активен навсегда"
+                : info.isAdsActive && info.adsUntil
+                ? `Активен до ${new Date(info.adsUntil).toLocaleDateString("ru-RU")}`
+                : "Объявление увидят все, кто откроет ваш профиль"
             ),
           ]),
         ]),

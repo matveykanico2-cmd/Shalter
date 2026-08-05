@@ -22,7 +22,7 @@ router.get(
   "/me",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    res.json({ isAdsActive: !!me.isAdsActive, adsUntil: me.adsUntil, adText: me.adText, adUrl: me.adUrl, priceRub: ADS_PRICE_RUB });
+    res.json({ isAdsActive: !!me.isAdsActive, adsUntil: me.adsUntil, adsForever: !!me.adsForever, adText: me.adText, adUrl: me.adUrl, priceRub: ADS_PRICE_RUB });
   })
 );
 
