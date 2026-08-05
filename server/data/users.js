@@ -40,7 +40,7 @@ function rowToUser(row) {
     adsForever: row.adsUntil === FOREVER || undefined,
     adText: row.adText ?? undefined,
     adUrl: row.adUrl ?? undefined,
-    adAttachment: row.adAttachment ? JSON.parse(row.adAttachment) : undefined,
+    adAttachments: row.adAttachments ? JSON.parse(row.adAttachments) : [],
     birthday: row.birthday ?? undefined,
     giftsReceived: JSON.parse(row.giftsReceived ?? "[]"),
   };
@@ -174,8 +174,8 @@ async function updateUser(id, patch) {
   if ("blockedUserIds" in patch) {
     db.prepare("UPDATE users SET blockedUserIds = ? WHERE id = ?").run(JSON.stringify(patch.blockedUserIds ?? []), id);
   }
-  if ("adAttachment" in patch) {
-    db.prepare("UPDATE users SET adAttachment = ? WHERE id = ?").run(patch.adAttachment ? JSON.stringify(patch.adAttachment) : null, id);
+  if ("adAttachments" in patch) {
+    db.prepare("UPDATE users SET adAttachments = ? WHERE id = ?").run(JSON.stringify(patch.adAttachments ?? []), id);
   }
   return getUser(id);
 }

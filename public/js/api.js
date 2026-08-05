@@ -137,7 +137,7 @@ export const api = {
 
   getAdsInfo: () => req("/api/ads/me"),
   requestAds: () => req("/api/ads/request", { method: "POST" }),
-  setAdContent: (text, url, attachment) => req("/api/ads/content", { method: "PUT", body: JSON.stringify({ text, url, attachment }) }),
+  setAdContent: (text, url, attachments) => req("/api/ads/content", { method: "PUT", body: JSON.stringify({ text, url, attachments }) }),
   deliverGift: (giftId, recipientId) =>
     req("/api/gifts/deliver", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
 };

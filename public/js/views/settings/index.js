@@ -414,7 +414,8 @@ async function renderAds(root) {
   let buyError = null;
   let saving = false;
   let saveStatus = null;
-  let attachment = info.adAttachment ?? null;
+  let attachments = info.adAttachments ?? [];
+  const MAX_AD_ATTACHMENTS = 6;
 
   async function buyAds() {
     buying = true;
@@ -436,9 +437,9 @@ async function renderAds(root) {
     saveStatus = null;
     render();
     try {
-      const { user } = await api.setAdContent(text, url, attachment);
-      info = { ...info, adText: user.adText, adUrl: user.adUrl, adAttachment: user.adAttachment };
-      attachment = user.adAttachment ?? null;
+      const { user } = await api.setAdContent(text, url, attachments);
+      info = { ...info, adText: user.adText, adUrl: user.adUrl, adAttachments: user.adAttachments };
+      attachments = user.adAttachments ?? [];
       saveStatus = "Сохранено ✓";
     } catch (err) {
       saveStatus = err.message || "Не удалось сохранить";
@@ -462,11 +463,11 @@ async function renderAds(root) {
     onchange: async (e) => {
       const file = e.target.files?.[0];
       e.target.value = "";
-      if (!file) return;
+      if (!file || attachments.length >= MAX_AD_ATTACHMENTS) return;
       if (file.type.startsWith("image/")) {
-        attachment = { kind: "image", name: file.name, url: await fileToImageDataUrl(file, 1600) };
+        attachments = [...attachments, { kind: "image", name: file.name, url: await fileToImageDataUrl(file, 1600) }];
       } else if (file.type.startsWith("video/")) {
-        attachment = { kind: "video", name: file.name, size: file.size, url: await fileToDataUrl(file) };
+        attachments = [...attachments, { kind: "video", name: file.name, size: file.size, url: await fileToDataUrl(file) }];
       }
       render();
     },
@@ -477,8 +478,8 @@ async function renderAds(root) {
     onchange: async (e) => {
       const file = e.target.files?.[0];
       e.target.value = "";
-      if (!file) return;
-      attachment = { kind: "file", name: file.name, size: file.size, url: await fileToDataUrl(file) };
+      if (!file || attachments.length >= MAX_AD_ATTACHMENTS) return;
+      attachments = [...attachments, { kind: "file", name: file.name, size: file.size, url: await fileToDataUrl(file) }];
       render();
     },
   });
@@ -496,20 +497,26 @@ async function renderAds(root) {
       placeholder: "Ссылка (необязательно) — https://…",
       value: info.adUrl ?? "",
     });
-    const attachmentPreview = attachment
-      ? el("div", { class: "ad-attachment-preview" }, [
-          attachment.kind === "video" ? VideoAttachment(attachment) : attachment.kind === "image" ? ImageAttachment(attachment) : FileAttachment(attachment),
-          el("button", {
-            type: "button",
-            class: "icon-btn ad-attachment-remove",
-            title: "Удалить вложение",
-            html: iconSvg("X", 14),
-            onclick: () => {
-              attachment = null;
-              render();
-            },
-          }),
-        ])
+    const attachmentsPreview = attachments.length
+      ? el(
+          "div",
+          { class: "ad-attachments-preview" },
+          attachments.map((a, i) =>
+            el("div", { class: "ad-attachment-preview" }, [
+              a.kind === "video" ? VideoAttachment(a) : a.kind === "image" ? ImageAttachment(a) : FileAttachment(a),
+              el("button", {
+                type: "button",
+                class: "icon-btn ad-attachment-remove",
+                title: "Удалить вложение",
+                html: iconSvg("X", 14),
+                onclick: () => {
+                  attachments = attachments.filter((_, j) => j !== i);
+                  render();
+                },
+              }),
+            ])
+          )
+        )
       : null;
     mount(
       root,
@@ -546,13 +553,24 @@ async function renderAds(root) {
               el("p", { class: "settings-field-label" }, "Ваше объявление"),
               textInput,
               urlInput,
-              attachmentPreview,
+              attachmentsPreview,
               el("div", { class: "ad-attach-row" }, [
-                el("button", { type: "button", class: "profile-action-btn", onclick: () => mediaFileInput.click() }, "Фото/видео"),
-                el("button", { type: "button", class: "profile-action-btn", onclick: () => anyFileInput.click() }, "Файл"),
+                el(
+                  "button",
+                  { type: "button", class: "profile-action-btn", disabled: attachments.length >= MAX_AD_ATTACHMENTS, onclick: () => mediaFileInput.click() },
+                  "Фото/видео"
+                ),
+                el(
+                  "button",
+                  { type: "button", class: "profile-action-btn", disabled: attachments.length >= MAX_AD_ATTACHMENTS, onclick: () => anyFileInput.click() },
+                  "Файл"
+                ),
                 mediaFileInput,
                 anyFileInput,
               ]),
+              attachments.length >= MAX_AD_ATTACHMENTS
+                ? el("p", { class: "settings-toggle-hint" }, `Максимум ${MAX_AD_ATTACHMENTS} вложений`)
+                : null,
               el(
                 "button",
                 { class: "btn-accent", disabled: saving, onclick: () => saveContent(textInput.value.trim(), urlInput.value.trim()) },

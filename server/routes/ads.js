@@ -7,20 +7,29 @@ const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
 
-// Ads get one attachment, image/video/file only — no voice/video-note/
-// location/contact/poll, none of which make sense on a promotional banner.
+// Ads get a small gallery of attachments, image/video/file only — no voice/
+// video-note/location/contact/poll, none of which make sense on a
+// promotional banner.
 const AD_ATTACHMENT_KINDS = new Set(["image", "video", "file"]);
+const MAX_AD_ATTACHMENTS = 6;
 
 // Same "never trust client-authored JSON" reasoning as sanitizeAttachments —
-// this is a standalone (rather than shared) check since ads only ever have
-// one attachment, not an array, and don't need the location/contact/poll
-// meta handling that function also does.
+// this is a standalone (rather than shared) check since ads don't need the
+// location/contact/poll meta handling that function also does.
 function sanitizeAdAttachment(a) {
   if (!a || !AD_ATTACHMENT_KINDS.has(a.kind) || !isSafeUrl(a.url)) return null;
   const out = { kind: a.kind, url: a.url };
   if (a.name !== undefined) out.name = String(a.name).slice(0, 300);
   if (a.size !== undefined) out.size = Number.isFinite(a.size) ? a.size : undefined;
   return out;
+}
+
+// Invalid entries are dropped rather than failing the whole save — same
+// "recovered is more useful than 400'd" call as sanitizeAttachments.js makes
+// for message attachments.
+function sanitizeAdAttachments(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, MAX_AD_ATTACHMENTS).map(sanitizeAdAttachment).filter(Boolean);
 }
 
 // "Кабинет рекламы" — 20₽/месяц, same no-payment-gateway trust model as
@@ -39,7 +48,15 @@ router.get(
   "/me",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    res.json({ isAdsActive: !!me.isAdsActive, adsUntil: me.adsUntil, adsForever: !!me.adsForever, adText: me.adText, adUrl: me.adUrl, priceRub: ADS_PRICE_RUB });
+    res.json({
+      isAdsActive: !!me.isAdsActive,
+      adsUntil: me.adsUntil,
+      adsForever: !!me.adsForever,
+      adText: me.adText,
+      adUrl: me.adUrl,
+      adAttachments: me.adAttachments,
+      priceRub: ADS_PRICE_RUB,
+    });
   })
 );
 
@@ -70,15 +87,14 @@ router.put(
     const me = await getUser(req.uid);
     if (!me.isAdsActive) return res.status(403).json({ error: "Кабинет рекламы не активен" });
 
-    const { text, url, attachment } = req.body ?? {};
+    const { text, url, attachments } = req.body ?? {};
     if (!text?.trim()) return res.status(400).json({ error: "Введите текст объявления" });
     if (url && !/^https?:\/\//.test(url)) return res.status(400).json({ error: "Ссылка должна начинаться с http:// или https://" });
-    if (attachment && !sanitizeAdAttachment(attachment)) return res.status(400).json({ error: "Неподдерживаемое вложение" });
 
     const updated = await updateUser(req.uid, {
       adText: text.trim().slice(0, AD_TEXT_MAX),
       adUrl: url?.trim() || null,
-      adAttachment: attachment ? sanitizeAdAttachment(attachment) : null,
+      adAttachments: sanitizeAdAttachments(attachments),
     });
     res.json({ user: publicUser(updated) });
   })

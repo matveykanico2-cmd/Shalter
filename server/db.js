@@ -223,11 +223,11 @@ if (!existingUserColumns.has("premiumUntil")) db.exec("ALTER TABLE users ADD COL
 if (!existingUserColumns.has("adsUntil")) db.exec("ALTER TABLE users ADD COLUMN adsUntil TEXT");
 if (!existingUserColumns.has("adText")) db.exec("ALTER TABLE users ADD COLUMN adText TEXT");
 if (!existingUserColumns.has("adUrl")) db.exec("ALTER TABLE users ADD COLUMN adUrl TEXT");
-// One optional image/video/file attachment shown alongside the ad text —
-// same client-authored-JSON shape as a message attachment (see
-// server/lib/sanitizeAttachments.js), stored as JSON TEXT since (like a
-// message's own attachments column) it's never queried across rows.
-if (!existingUserColumns.has("adAttachment")) db.exec("ALTER TABLE users ADD COLUMN adAttachment TEXT");
+// Optional image/video/file attachments (a small gallery, not just one)
+// shown alongside the ad text — same client-authored-JSON shape as a
+// message's own attachments array (see server/lib/sanitizeAttachments.js),
+// stored as JSON TEXT since it's never queried across rows.
+if (!existingUserColumns.has("adAttachments")) db.exec("ALTER TABLE users ADD COLUMN adAttachments TEXT");
 // Birthday (Settings → Профиль) — a plain "YYYY-MM-DD" string, same as an
 // HTML <input type="date"> gives back. Only the day/month are ever shown
 // (see profileDialog.js) — the year is kept anyway since a plain date input

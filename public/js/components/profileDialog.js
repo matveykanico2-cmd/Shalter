@@ -155,13 +155,13 @@ export async function openProfileDialog(userId) {
       user.isAdsActive && user.adText
         ? el("div", { class: "profile-ad-banner" }, [
             el("span", { class: "profile-ad-label" }, "Реклама"),
-            user.adAttachment?.kind === "video"
-              ? VideoAttachment(user.adAttachment)
-              : user.adAttachment?.kind === "image"
-                ? ImageAttachment(user.adAttachment)
-                : user.adAttachment?.kind === "file"
-                  ? FileAttachment(user.adAttachment)
-                  : null,
+            user.adAttachments?.length
+              ? el(
+                  "div",
+                  { class: "profile-ad-gallery" },
+                  user.adAttachments.map((a) => (a.kind === "video" ? VideoAttachment(a) : a.kind === "image" ? ImageAttachment(a) : FileAttachment(a)))
+                )
+              : null,
             el("p", { class: "profile-ad-text" }, user.adText),
             user.adUrl ? el("a", { class: "profile-ad-link", href: user.adUrl, target: "_blank", rel: "noreferrer" }, "Перейти →") : null,
           ])

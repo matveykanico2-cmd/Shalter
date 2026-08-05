@@ -2085,14 +2085,23 @@
   margin: 0;
   font-size: 13.5px;
 }
-.profile-ad-banner .image-attachment,
-.profile-ad-banner .video-attachment {
+.profile-ad-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin: 6px 0;
-  max-width: 100%;
 }
-.profile-ad-banner .file-attachment {
-  margin: 6px 0;
+.profile-ad-gallery .image-attachment,
+.profile-ad-gallery .video-attachment {
+  display: block;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 0;
+  object-fit: cover;
+}
+.profile-ad-gallery .file-attachment {
   width: 100%;
+  margin-bottom: 0;
 }
 .profile-ad-link {
   display: inline-block;
@@ -3285,10 +3294,25 @@
   background: var(--color-surface-alt);
   padding: 14px;
 }
+.ad-attachments-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
 .ad-attachment-preview {
   position: relative;
   display: inline-block;
-  margin-top: 10px;
+}
+.ad-attachment-preview .image-attachment,
+.ad-attachment-preview .video-attachment {
+  display: block;
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+}
+.ad-attachment-preview .file-attachment {
+  width: 200px;
 }
 .ad-attachment-remove {
   position: absolute;
