@@ -945,6 +945,7 @@ async function renderPrivacy(root) {
           row("Дата рождения", "birthday"),
           row("Ссылка при пересылке", "forwards"),
           row("Кто добавляет меня в группы", "invites"),
+          row("Кто может мне звонить", "calls"),
         ]),
         section("Безопасность", [
           el("div", { class: "settings-toggle-row" }, [

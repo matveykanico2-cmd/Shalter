@@ -16,6 +16,7 @@ import {
   hangup,
   minimize,
   addParticipant,
+  createInviteLink,
 } from "../lib/callController.js";
 
 function formatElapsed(sec) {
@@ -40,6 +41,25 @@ export async function CallScreenView(root, callId) {
   // tear down and restart playback every second.
   const remoteMediaEls = new Map(); // participantId -> { el, kind }
   let localVideoEl = null;
+  let linkStatus = null; // null | "copying" | "copied" | error message
+
+  async function inviteByLink() {
+    if (!me.isPremium) return navigate("/settings/premium");
+    linkStatus = "copying";
+    render(getCallState());
+    try {
+      const url = await createInviteLink();
+      await navigator.clipboard.writeText(url).catch(() => {});
+      linkStatus = "copied";
+    } catch (err) {
+      linkStatus = err.message || "Не удалось создать ссылку";
+    }
+    render(getCallState());
+    setTimeout(() => {
+      linkStatus = null;
+      render(getCallState());
+    }, 2000);
+  }
 
   function render(s) {
     if (!s || s.call.id !== callId) return;
@@ -134,10 +154,22 @@ export async function CallScreenView(root, callId) {
             el("p", { class: "call-header-title" }, s.chatTitle),
             el("p", { class: "call-header-timer mono" }, label),
           ]),
-          el("div", { class: "call-header-spacer" }),
+          el("button", {
+            class: "call-header-btn",
+            html: iconSvg("Copy", 18),
+            title: me.isPremium ? "Пригласить по ссылке" : "Ссылка на звонок — только с Shalter Premium",
+            onclick: inviteByLink,
+          }),
         ]),
         s.mediaError ? el("p", { class: "call-media-error" }, s.mediaError) : null,
         s.connectionError ? el("p", { class: "call-media-error" }, s.connectionError) : null,
+        linkStatus
+          ? el(
+              "p",
+              { class: "call-media-error link" },
+              linkStatus === "copying" ? "Создаём ссылку…" : linkStatus === "copied" ? "Ссылка скопирована ✓" : linkStatus
+            )
+          : null,
         el("div", { class: "call-tiles-grid", style: { gridTemplateColumns: `repeat(${Math.min(s.others.length, 2) || 1}, minmax(0,1fr))` } }, tiles),
         localPip,
         el("div", { class: "call-controls" }, [

@@ -155,6 +155,26 @@ async function boot() {
     withCleanup(mainSlot);
     await CallScreenView(mainSlot, params.id);
   });
+  // Where a Premium invite link (callScreen.js's "Пригласить по ссылке")
+  // lands — joins the call server-side (server/routes/calls.js's
+  // /join/:token), then hands off to the normal call screen the same as any
+  // other call, just via a replace() so "back" doesn't return to this
+  // one-shot redirect.
+  route("/call-join/:token", async (params) => {
+    withCleanup(mainSlot);
+    try {
+      const { call } = await api.joinCallByLink(params.token);
+      navigate(`/call/${call.id}`, { replace: true });
+    } catch (err) {
+      mount(
+        mainSlot,
+        el("div", { class: "empty-chat" }, [
+          el("p", { class: "empty-chat-title" }, "Ссылка недействительна"),
+          el("p", { class: "empty-hint" }, err.message || "Звонок уже завершён, или ссылка устарела."),
+        ])
+      );
+    }
+  });
   route("/contacts", async () => {
     withCleanup(mainSlot);
     await ContactsView(mainSlot);

@@ -306,4 +306,17 @@ if (!existingChatColumns.has("votes")) db.exec("ALTER TABLE chats ADD COLUMN vot
 // since it needs to mean the same thing to everyone in the chat.
 if (!existingChatColumns.has("autoDeleteSeconds")) db.exec("ALTER TABLE chats ADD COLUMN autoDeleteSeconds INTEGER");
 
+const existingCallColumns = new Set(db.prepare("PRAGMA table_info(calls)").all().map((c) => c.name));
+// Premium's "invite by link" (server/routes/calls.js's /:id/invite-link and
+// /join/:token) — a random token that lets whoever has the link join this
+// call's mesh without needing to already be a member of the underlying chat.
+// Null until generated; unique once set so a token only ever resolves to one
+// call.
+if (!existingCallColumns.has("joinToken")) db.exec("ALTER TABLE calls ADD COLUMN joinToken TEXT");
+try {
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_calls_join_token ON calls(joinToken) WHERE joinToken IS NOT NULL");
+} catch (err) {
+  console.error("Could not create unique call join-token index:", err.message);
+}
+
 module.exports = db;

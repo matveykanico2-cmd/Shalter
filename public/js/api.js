@@ -93,6 +93,8 @@ export const api = {
   patchCall: (id, patch) => req(`/api/calls/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   addCallParticipant: (id, userId) =>
     req(`/api/calls/${id}/participants`, { method: "POST", body: JSON.stringify({ userId }) }),
+  createCallInviteLink: (id) => req(`/api/calls/${id}/invite-link`, { method: "POST" }),
+  joinCallByLink: (token) => req(`/api/calls/join/${token}`, { method: "POST" }),
   sendSignal: (callId, toUserId, kind, data) =>
     req(`/api/calls/${callId}/signal`, { method: "POST", body: JSON.stringify({ toUserId, kind, data }) }),
   pollSignals: (callId, after) => req(`/api/calls/${callId}/signal?after=${after}`),

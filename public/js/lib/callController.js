@@ -280,14 +280,22 @@ async function join({ call, chatTitle, chatType, participants, me }) {
 
 // Call participants are `call.participantIds`, not the full chat member list
 // (group calls start with just the caller — see server/routes/calls.js).
-function resolveParticipants(call, members) {
-  return call.participantIds.map((id) => members.find((m) => m.id === id)).filter((m) => m !== undefined);
+// Anyone who joined via a Premium invite link (server/routes/calls.js's
+// /join/:token) deliberately isn't added to the chat itself, so they won't
+// be in `members` at all — fetch those individually so the original members
+// still get them as a peer tile instead of silently dropping them.
+async function resolveParticipants(call, members) {
+  const resolved = await Promise.all(
+    call.participantIds.map((id) => members.find((m) => m.id === id) ?? api.getUser(id).then((r) => r.user).catch(() => undefined))
+  );
+  return resolved.filter((m) => m !== undefined);
 }
 
 export async function placeCall(chatId, kind, me) {
   const { call } = await api.placeCall(chatId, kind);
   const { chat, members } = await api.getChat(chatId);
-  await join({ call, chatTitle: chat.title, chatType: chat.type, participants: resolveParticipants(call, members), me });
+  const participants = await resolveParticipants(call, members);
+  await join({ call, chatTitle: chat.title, chatType: chat.type, participants, me });
   navigate(`/call/${call.id}`);
 }
 
@@ -296,8 +304,34 @@ export async function joinCallById(callId, me) {
   const { calls } = await api.listCalls();
   const call = calls.find((c) => c.id === callId);
   if (!call) return;
-  const { chat, members } = await api.getChat(call.chatId);
-  await join({ call, chatTitle: chat.title, chatType: chat.type, participants: resolveParticipants(call, members), me });
+  let chatTitle = "Звонок";
+  let chatType = "dm";
+  let participants;
+  try {
+    const { chat, members } = await api.getChat(call.chatId);
+    chatTitle = chat.title;
+    chatType = chat.type;
+    participants = await resolveParticipants(call, members);
+  } catch {
+    // Joined via a Premium invite link (server/routes/calls.js's
+    // /join/:token) without being a member of the underlying chat — build
+    // the roster from the call's own participants instead of the chat's
+    // member list, which a non-member can't fetch. chatType stays "dm" (no
+    // "add participant" capability) since an outsider shouldn't be adding
+    // people to a group they aren't in.
+    const users = await Promise.all(call.participantIds.map((id) => api.getUser(id).then((r) => r.user).catch(() => null)));
+    participants = users.filter(Boolean);
+  }
+  await join({ call, chatTitle, chatType, participants, me });
+}
+
+// Premium's "invite by link" (see server/routes/calls.js's /:id/invite-link)
+// — returns a shareable URL that lets whoever opens it join this call's mesh
+// even if they aren't a member of the underlying chat.
+export async function createInviteLink() {
+  if (!state) throw new Error("Нет активного звонка");
+  const { url } = await api.createCallInviteLink(state.call.id);
+  return url;
 }
 
 export function toggleMute() {

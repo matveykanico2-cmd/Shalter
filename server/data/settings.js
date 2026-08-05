@@ -19,6 +19,11 @@ const DEFAULT_SETTINGS = {
     // "Who can add me to groups/channels without an invite link" — enforced
     // in the /:id/members "add" branch (server/routes/chats.js).
     invites: "everyone",
+    // "Who can call me" — same everyone/contacts/nobody shape, enforced in
+    // POST /api/calls and POST /api/calls/:id/participants (server/routes/
+    // calls.js). Defaults to "everyone" so this is non-breaking for every
+    // account that existed before this setting did.
+    calls: "everyone",
   },
   chatWallpaper: "default",
   // Only meaningful when chatWallpaper === "custom" — a data URL, same

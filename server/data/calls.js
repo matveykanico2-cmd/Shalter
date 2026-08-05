@@ -13,6 +13,7 @@ function rowToCall(row) {
     startedAt: row.startedAt,
     durationSec: row.durationSec,
     participantIds,
+    joinToken: row.joinToken ?? undefined,
   };
 }
 
@@ -63,4 +64,13 @@ async function addParticipant(id, userId) {
   return getCall(id);
 }
 
-module.exports = { listCalls, getCall, createCall, updateCall, addParticipant };
+async function setJoinToken(id, token) {
+  db.prepare("UPDATE calls SET joinToken = ? WHERE id = ?").run(token, id);
+  return getCall(id);
+}
+
+async function findCallByJoinToken(token) {
+  return rowToCall(db.prepare("SELECT * FROM calls WHERE joinToken = ?").get(token));
+}
+
+module.exports = { listCalls, getCall, createCall, updateCall, addParticipant, setJoinToken, findCallByJoinToken };

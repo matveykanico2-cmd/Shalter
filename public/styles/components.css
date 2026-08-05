@@ -3679,6 +3679,9 @@
   font-size: 13px;
   color: #fff;
 }
+.call-media-error.link {
+  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
 .call-tiles-grid {
   display: grid;
   flex: 1;
