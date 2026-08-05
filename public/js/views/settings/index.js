@@ -320,9 +320,9 @@ async function renderPremium(root) {
               el(
                 "div",
                 { class: "gifts-grid" },
-                gifts.map((g) =>
+                gifts.map((g, i) =>
                   el("div", { class: "gift-card" }, [
-                    el("span", { class: "gift-card-emoji" }, g.emoji),
+                    el("span", { class: "gift-card-emoji", style: `--gift-delay: ${(i % 8) * 0.15}s` }, g.emoji),
                     el("p", { class: "gift-card-name" }, g.name),
                     el("p", { class: "mono gift-card-price" }, `${g.priceRub}₽`),
                     el(

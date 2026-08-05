@@ -15,6 +15,8 @@ function rowToMessage(row) {
     forwardedFrom: row.forwardedFrom ? JSON.parse(row.forwardedFrom) : undefined,
     attachments: row.attachments ? JSON.parse(row.attachments) : undefined,
     keyboard: row.keyboard ? JSON.parse(row.keyboard) : undefined,
+    gift: row.gift ? JSON.parse(row.gift) : undefined,
+    sticker: row.sticker ? JSON.parse(row.sticker) : undefined,
     reactions: JSON.parse(row.reactions),
     readByIds: JSON.parse(row.readByIds),
     deletedForIds: JSON.parse(row.deletedForIds),
@@ -46,8 +48,8 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, reactions, readByIds, deletedForIds, anchorForPostId, discussionAnchorId, views, commentCount)
-     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @reactions, @readByIds, @deletedForIds, @anchorForPostId, @discussionAnchorId, @views, @commentCount)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, reactions, readByIds, deletedForIds, anchorForPostId, discussionAnchorId, views, commentCount)
+     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @reactions, @readByIds, @deletedForIds, @anchorForPostId, @discussionAnchorId, @views, @commentCount)`
   ).run({
     id: message.id,
     chatId: message.chatId,
@@ -61,6 +63,8 @@ async function addMessage(message) {
     forwardedFrom: message.forwardedFrom ? JSON.stringify(message.forwardedFrom) : null,
     attachments: message.attachments ? JSON.stringify(message.attachments) : null,
     keyboard: message.keyboard ? JSON.stringify(message.keyboard) : null,
+    gift: message.gift ? JSON.stringify(message.gift) : null,
+    sticker: message.sticker ? JSON.stringify(message.sticker) : null,
     reactions: JSON.stringify(message.reactions ?? []),
     readByIds: JSON.stringify(message.readByIds ?? []),
     deletedForIds: JSON.stringify(message.deletedForIds ?? []),

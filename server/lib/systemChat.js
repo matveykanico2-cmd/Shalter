@@ -24,7 +24,7 @@ async function findOrCreateDm(userIdA, userIdB) {
   });
 }
 
-async function sendMessageAndBroadcast(chat, senderId, text) {
+async function sendMessageAndBroadcast(chat, senderId, text, extra = {}) {
   const message = await addMessage({
     id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     chatId: chat.id,
@@ -32,6 +32,7 @@ async function sendMessageAndBroadcast(chat, senderId, text) {
     type: "text",
     text,
     createdAt: new Date().toISOString(),
+    ...extra,
   });
   broadcastToUsers(chat.memberIds, { type: "message:new", chatId: chat.id, message });
   return message;

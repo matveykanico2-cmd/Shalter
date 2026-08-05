@@ -5,6 +5,7 @@ import { startRecording, isRecordingSupported, MAX_RECORD_SEC } from "../lib/rec
 import { fileToImageDataUrl, fileToDataUrl } from "../lib/image.js";
 import { openPollDialog } from "./pollDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
+import { STICKERS } from "../lib/stickers.js";
 
 const EMOJI = ["😀", "😂", "😍", "👍", "🙏", "🔥", "🎉", "😢", "😮", "❤️", "👏", "🤔"];
 const TYPING_PING_MS = 2500; // well under the server's 4s typing-presence expiry
@@ -220,6 +221,44 @@ export function Composer({ chatId, replyingTo, editingMessage, onCancelReply, on
     });
     const emojiSlot = el("div", { class: "composer-attach-slot" }, [emojiBtn]);
 
+    // Sticker picker — sends immediately on tap (like Telegram), not
+    // inserted into the text field, so it's its own message rather than
+    // text-plus-emoji.
+    let stickerMenuEl = null;
+    const stickerBtn = el("button", {
+      class: "composer-icon-btn",
+      title: "Стикеры",
+      html: iconSvg("Sticker", 19),
+      onclick: () => {
+        if (stickerMenuEl) {
+          stickerMenuEl.remove();
+          stickerMenuEl = null;
+          return;
+        }
+        stickerMenuEl = el(
+          "div",
+          { class: "composer-emoji-picker sticker-picker" },
+          STICKERS.map((s) =>
+            el(
+              "button",
+              {
+                class: "sticker-picker-item",
+                title: s.name,
+                onclick: () => {
+                  stickerMenuEl.remove();
+                  stickerMenuEl = null;
+                  onSend("", [], { sticker: { emoji: s.emoji, name: s.name, anim: s.anim } });
+                },
+              },
+              s.emoji
+            )
+          )
+        );
+        stickerSlot.appendChild(stickerMenuEl);
+      },
+    });
+    const stickerSlot = el("div", { class: "composer-attach-slot" }, [stickerBtn]);
+
     const trailingSlot = el("div", { class: "composer-trailing" });
     function updateTrailingButtons() {
       clear(trailingSlot);
@@ -246,7 +285,7 @@ export function Composer({ chatId, replyingTo, editingMessage, onCancelReply, on
       );
     }
 
-    const row = el("div", { class: "composer-row" }, [attachSlot, textarea, emojiSlot, trailingSlot]);
+    const row = el("div", { class: "composer-row" }, [attachSlot, textarea, stickerSlot, emojiSlot, trailingSlot]);
     bodySlot.appendChild(row);
     updateTrailingButtons();
 

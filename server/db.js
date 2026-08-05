@@ -234,4 +234,15 @@ if (!existingBotColumns.has("code")) db.exec("ALTER TABLE bots ADD COLUMN code T
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_bots_token ON bots(token) WHERE token IS NOT NULL");
 db.exec("CREATE INDEX IF NOT EXISTS idx_bots_owner ON bots(ownerId)");
 
+// A delivered gift (server/routes/gifts.js's /deliver) used to be posted as
+// a plain text message with the emoji inlined — this column lets it carry
+// its real data (emoji/name/price/premiumDays) so the client can render an
+// actual animated gift card (see messageBubble.js) instead of plain text.
+const existingMessageColumns = new Set(db.prepare("PRAGMA table_info(messages)").all().map((c) => c.name));
+if (!existingMessageColumns.has("gift")) db.exec("ALTER TABLE messages ADD COLUMN gift TEXT");
+// A sent sticker (public/js/lib/stickers.js's catalog + composer.js's picker)
+// — same shape as gift above: { emoji, name, anim } so the client can render
+// a big, uniquely-animated sticker instead of plain text.
+if (!existingMessageColumns.has("sticker")) db.exec("ALTER TABLE messages ADD COLUMN sticker TEXT");
+
 module.exports = db;

@@ -101,12 +101,12 @@ export async function ChatView(root, chatId) {
     if (grew) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
   }
 
-  async function handleSend(text, attachments) {
+  async function handleSend(text, attachments, extra) {
     const replyToId = replyingTo?.id ?? null;
     replyingTo = null;
     try {
       if (isChannel) await api.publishPost(chat.id, text, attachments);
-      else await api.sendMessage(chat.id, text, { replyToId, attachments });
+      else await api.sendMessage(chat.id, text, { replyToId, attachments, ...extra });
     } catch (err) {
       alert(err.message || "Не удалось отправить сообщение");
     }

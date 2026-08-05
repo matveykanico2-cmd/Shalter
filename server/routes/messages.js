@@ -107,7 +107,7 @@ router.post(
     }
 
     const body = req.body ?? {};
-    if (!body.text?.trim() && !body.attachments?.length) {
+    if (!body.text?.trim() && !body.attachments?.length && !body.sticker) {
       return res.status(400).json({ error: "empty message" });
     }
 
@@ -123,7 +123,7 @@ router.post(
       id: `m_${Date.now()}`,
       chatId: req.params.id,
       senderId: req.uid,
-      type: "text",
+      type: body.sticker ? "sticker" : "text",
       text: body.text ?? "",
       createdAt: new Date().toISOString(),
       pinned: false,
@@ -131,6 +131,7 @@ router.post(
       replyToId: body.replyToId ?? null,
       attachments: body.attachments,
       forwardedFrom: body.forwardedFrom,
+      sticker: body.sticker,
       readByIds: [req.uid],
     });
     broadcastToOtherMembers(chat, req.uid, { type: "message:new", chatId: req.params.id, message });

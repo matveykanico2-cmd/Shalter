@@ -70,10 +70,14 @@ router.post(
 
     const duration = durationLabel(gift.premiumDays);
     const chat = await findOrCreateDm(req.uid, recipient.id);
+    // type: "gift" + a real gift payload lets the client render an actual
+    // animated gift card (messageBubble.js) — the text is kept as a plain
+    // fallback for previews/notifications that just read message.text.
     await sendMessageAndBroadcast(
       chat,
       req.uid,
-      `🎁 Вам подарили: ${gift.emoji} «${gift.name}»!${duration ? ` ${duration} активирован.` : ""}`
+      `🎁 Вам подарили: ${gift.emoji} «${gift.name}»!${duration ? ` ${duration} активирован.` : ""}`,
+      { type: "gift", gift: { emoji: gift.emoji, name: gift.name, priceRub: gift.priceRub, premiumDays: gift.premiumDays, durationLabel: duration } }
     );
     res.json({ user: publicUser(await getUser(recipient.id)) });
   })

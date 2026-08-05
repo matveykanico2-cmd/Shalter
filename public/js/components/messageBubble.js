@@ -42,6 +42,38 @@ function LocationAttachment(a) {
   ]);
 }
 
+// Delivered gift (server/routes/gifts.js's /deliver, message type "gift") —
+// a big animated card instead of a plain bubble, same "special, centered,
+// not a normal chat bubble" treatment as .system-message. The sparkle burst
+// is a one-shot entrance (CSS animation, no infinite loop) so it reads as
+// "a gift just arrived" without permanently distracting from the rest of
+// the chat every time this message scrolls into view.
+const SPARKLE_ANGLES = [0, 60, 120, 180, 240, 300];
+function GiftMessage(gift) {
+  return el("div", { class: "gift-message" }, [
+    el("div", { class: "gift-message-burst" }, [
+      el("div", { class: "gift-message-glow" }),
+      ...SPARKLE_ANGLES.map((deg, i) =>
+        el("span", { class: "gift-message-sparkle", style: `--angle: ${deg}deg; --delay: ${i * 0.05}s` }, "✨")
+      ),
+      el("div", { class: "gift-message-emoji" }, gift.emoji),
+    ]),
+    el("p", { class: "gift-message-name" }, gift.name),
+    gift.durationLabel ? el("p", { class: "gift-message-duration" }, gift.durationLabel) : null,
+    el("p", { class: "mono gift-message-price" }, `${gift.priceRub}₽`),
+  ]);
+}
+
+// A sent sticker (public/js/lib/stickers.js) — no bubble/background, just a
+// big emoji playing its own named animation (see .sticker-<anim> in
+// components.css), same "not a normal chat bubble" slot as .system-message/
+// .gift-message.
+function StickerMessage(sticker) {
+  return el("div", { class: "sticker-message" }, [
+    el("span", { class: `sticker-message-emoji sticker-${sticker.anim}` }, sticker.emoji),
+  ]);
+}
+
 function ContactAttachment(a) {
   const { name, phone } = a.meta ?? {};
   return el("div", { class: "contact-attachment" }, [
@@ -165,6 +197,14 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
 
   if (message.type === "system") {
     return el("div", { class: "system-message" }, message.text);
+  }
+
+  if (message.type === "gift" && message.gift) {
+    return GiftMessage(message.gift);
+  }
+
+  if (message.type === "sticker" && message.sticker) {
+    return StickerMessage(message.sticker);
   }
 
   const bubbleInner = [];
