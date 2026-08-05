@@ -102,6 +102,16 @@ function pageWrap(title, subtitle, children) {
   ]);
 }
 
+// Groups related rows into a rounded card with an optional purple caption
+// above it — the "Sound Effects" / "Privacy" / "Color theme" grouping
+// Telegram uses throughout Settings, instead of one long flat list.
+function section(title, children) {
+  return el("div", { class: "settings-section-group" }, [
+    title ? el("p", { class: "settings-section-title" }, title) : null,
+    el("div", { class: "settings-section" }, children),
+  ]);
+}
+
 async function renderProfile(root) {
   const me = getState().user;
   let name = me.name;
@@ -151,33 +161,35 @@ async function renderProfile(root) {
             el("p", { class: "mono settings-profile-sub" }, me.phone || me.email),
           ]),
         ]),
-        el("label", { class: "settings-field" }, [
-          el("span", { class: "settings-field-label" }, "Имя"),
-          el("input", { class: "settings-input", value: name, oninput: (e) => (name = e.target.value) }),
-        ]),
-        el("label", { class: "settings-field" }, [
-          el("span", { class: "settings-field-label" }, "Юзернейм"),
-          el("input", { class: "settings-input", value: username, oninput: (e) => (username = e.target.value.replace(/[^a-zA-Z0-9_]/g, "")) }),
-        ]),
-        el("label", { class: "settings-field" }, [
-          el("span", { class: "settings-field-label" }, "Телефон"),
-          el("input", {
-            class: "settings-input",
-            type: "tel",
-            value: phone,
-            oninput: (e) => {
-              phone = formatPhoneInput(e.target.value);
-              e.target.value = phone;
-            },
-          }),
-        ]),
-        el("label", { class: "settings-field" }, [
-          el("span", { class: "settings-field-label" }, "О себе"),
-          el("textarea", { class: "settings-input", rows: 3, value: bio, oninput: (e) => (bio = e.target.value) }),
-        ]),
-        el("label", { class: "settings-field" }, [
-          el("span", { class: "settings-field-label" }, "Дата рождения"),
-          el("input", { class: "settings-input", type: "date", value: birthday, oninput: (e) => (birthday = e.target.value) }),
+        section(null, [
+          el("label", { class: "settings-field" }, [
+            el("span", { class: "settings-field-label" }, "Имя"),
+            el("input", { class: "settings-input", value: name, oninput: (e) => (name = e.target.value) }),
+          ]),
+          el("label", { class: "settings-field" }, [
+            el("span", { class: "settings-field-label" }, "Юзернейм"),
+            el("input", { class: "settings-input", value: username, oninput: (e) => (username = e.target.value.replace(/[^a-zA-Z0-9_]/g, "")) }),
+          ]),
+          el("label", { class: "settings-field" }, [
+            el("span", { class: "settings-field-label" }, "Телефон"),
+            el("input", {
+              class: "settings-input",
+              type: "tel",
+              value: phone,
+              oninput: (e) => {
+                phone = formatPhoneInput(e.target.value);
+                e.target.value = phone;
+              },
+            }),
+          ]),
+          el("label", { class: "settings-field" }, [
+            el("span", { class: "settings-field-label" }, "О себе"),
+            el("textarea", { class: "settings-input", rows: 3, value: bio, oninput: (e) => (bio = e.target.value) }),
+          ]),
+          el("label", { class: "settings-field" }, [
+            el("span", { class: "settings-field-label" }, "Дата рождения"),
+            el("input", { class: "settings-input", type: "date", value: birthday, oninput: (e) => (birthday = e.target.value) }),
+          ]),
         ]),
         profileError ? el("p", { class: "login-error" }, profileError) : null,
         el(
@@ -348,7 +360,7 @@ async function renderPremium(root) {
           ]),
           copied ? el("p", { class: "settings-toggle-hint" }, "Ссылка скопирована ✓") : null,
         ]),
-        el("p", { class: "settings-field-label" }, `Приглашено друзей — ${info.referrals.length}`),
+        el("p", { class: "settings-section-title" }, `Приглашено друзей — ${info.referrals.length}`),
         info.referrals.length === 0
           ? el("p", { class: "empty-hint" }, "Пока никто не зарегистрировался по вашему коду")
           : el(
@@ -364,7 +376,7 @@ async function renderPremium(root) {
             ),
         gifts.length
           ? el("div", { class: "gifts-section" }, [
-              el("p", { class: "settings-field-label" }, "Подарки"),
+              el("p", { class: "settings-section-title" }, "Подарки"),
               el(
                 "p",
                 { class: "settings-toggle-hint" },
@@ -539,7 +551,7 @@ async function renderBots(root) {
           el("a", { href: "/BOTS.md", target: "_blank", rel: "noreferrer", class: "text-link" }, "Открыть документацию по Bot API →"),
         ]),
         el("button", { class: "btn-accent", onclick: createBot }, [el("span", { html: iconSvg("Plus", 15) }), " Создать бота"]),
-        el("p", { class: "settings-field-label" }, `Ваши боты — ${bots.length}`),
+        el("p", { class: "settings-section-title" }, `Ваши боты — ${bots.length}`),
         bots.length === 0
           ? el("p", { class: "empty-hint" }, "У вас пока нет ботов")
           : el(
@@ -646,83 +658,97 @@ async function renderAppearance(root) {
     mount(
       root,
       pageWrap("Внешний вид", "Тема, акцентный цвет и фон переписки", [
-        el("p", { class: "settings-field-label" }, "Тема"),
-        el(
-          "div",
-          { class: "settings-chip-row" },
-          THEMES.map((t) =>
-            el(
-              "button",
-              { class: `settings-chip ${settings.theme === t.id ? "active" : ""}`, onclick: () => patch({ theme: t.id }) },
-              t.label
+        section("Настройки", [
+          el("div", { class: "settings-toggle-row no-divider" }, [
+            el("span", { class: "settings-toggle-title" }, "Размер шрифта сообщений"),
+            el("span", { class: "mono settings-toggle-hint" }, `${settings.fontSize}px`),
+          ]),
+          el("input", {
+            type: "range",
+            min: 13,
+            max: 19,
+            value: settings.fontSize,
+            class: "settings-range",
+            oninput: (e) => patch({ fontSize: Number(e.target.value) }),
+          }),
+        ]),
+        section("Тема", [
+          el(
+            "div",
+            { class: "settings-chip-row" },
+            THEMES.map((t) =>
+              el(
+                "button",
+                { class: `settings-chip ${settings.theme === t.id ? "active" : ""}`, onclick: () => patch({ theme: t.id }) },
+                t.label
+              )
             )
-          )
-        ),
-        el("p", { class: "settings-field-label" }, "Акцентный цвет"),
-        el(
-          "div",
-          { class: "settings-swatch-row" },
-          ACCENTS.map((hex) =>
-            el("button", {
-              class: `settings-swatch ${settings.accent === hex ? "active" : ""}`,
-              style: { background: hex },
-              onclick: () => patch({ accent: hex }),
-            })
-          )
-        ),
-        el("p", { class: "settings-field-label" }, `Размер шрифта сообщений — ${settings.fontSize}px`),
-        el("input", {
-          type: "range",
-          min: 13,
-          max: 19,
-          value: settings.fontSize,
-          class: "settings-range",
-          oninput: (e) => patch({ fontSize: Number(e.target.value) }),
-        }),
-        el("p", { class: "settings-field-label" }, "Фон чата"),
-        el(
-          "div",
-          { class: "settings-chip-row" },
-          WALLPAPERS.map((w) =>
+          ),
+        ]),
+        section("Акцентный цвет", [
+          el(
+            "div",
+            { class: "settings-swatch-row" },
+            ACCENTS.map((hex) =>
+              el("button", {
+                class: `settings-swatch ${settings.accent === hex ? "active" : ""}`,
+                style: { background: hex },
+                onclick: () => patch({ accent: hex }),
+              })
+            )
+          ),
+        ]),
+        section("Фон чата", [
+          el(
+            "div",
+            { class: "settings-chip-row" },
+            WALLPAPERS.map((w) =>
+              el(
+                "button",
+                {
+                  class: `settings-chip ${settings.chatWallpaper === w.id ? "active" : ""}`,
+                  onclick: () => (w.id === "custom" ? wallpaperFileInput.click() : patch({ chatWallpaper: w.id })),
+                },
+                w.label
+              )
+            )
+          ),
+          settings.chatWallpaper === "custom" && settings.chatWallpaperImage
+            ? el("div", { class: "settings-wallpaper-preview", style: `background-image: url(${settings.chatWallpaperImage})` })
+            : null,
+          wallpaperFileInput,
+          wallpaperError ? el("p", { class: "login-error" }, wallpaperError) : null,
+        ]),
+        section("Язык", [
+          el("div", { class: "settings-field" }, [
+            el("p", { class: "settings-field-label" }, "Перевод сообщений"),
             el(
-              "button",
+              "select",
+              { class: "settings-select", onchange: (e) => patch({ translateLanguage: e.target.value }) },
+              TRANSLATE_LANGUAGES.map((l) => el("option", { value: l.id, selected: settings.translateLanguage === l.id }, l.label))
+            ),
+            el("p", { class: "settings-toggle-hint" }, "Кнопка «Перевести» в меню сообщения переводит его на этот язык"),
+          ]),
+          el("div", { class: "settings-field" }, [
+            el("p", { class: "settings-field-label" }, "Язык интерфейса"),
+            el(
+              "select",
               {
-                class: `settings-chip ${settings.chatWallpaper === w.id ? "active" : ""}`,
-                onclick: () => (w.id === "custom" ? wallpaperFileInput.click() : patch({ chatWallpaper: w.id })),
+                class: "settings-select",
+                onchange: async (e) => {
+                  await api.patchSettings({ uiLanguage: e.target.value });
+                  window.location.reload();
+                },
               },
-              w.label
-            )
-          )
-        ),
-        settings.chatWallpaper === "custom" && settings.chatWallpaperImage
-          ? el("div", { class: "settings-wallpaper-preview", style: `background-image: url(${settings.chatWallpaperImage})` })
-          : null,
-        wallpaperFileInput,
-        wallpaperError ? el("p", { class: "login-error" }, wallpaperError) : null,
-        el("p", { class: "settings-field-label" }, "Язык перевода сообщений"),
-        el(
-          "select",
-          { class: "settings-select", onchange: (e) => patch({ translateLanguage: e.target.value }) },
-          TRANSLATE_LANGUAGES.map((l) => el("option", { value: l.id, selected: settings.translateLanguage === l.id }, l.label))
-        ),
-        el("p", { class: "settings-toggle-hint" }, "Кнопка «Перевести» в меню сообщения переводит его на этот язык"),
-        el("p", { class: "settings-field-label" }, "Язык интерфейса"),
-        el(
-          "select",
-          {
-            class: "settings-select",
-            onchange: async (e) => {
-              await api.patchSettings({ uiLanguage: e.target.value });
-              window.location.reload();
-            },
-          },
-          TRANSLATE_LANGUAGES.map((l) => el("option", { value: l.id, selected: settings.uiLanguage === l.id }, l.label))
-        ),
-        el(
-          "p",
-          { class: "settings-toggle-hint" },
-          "Переводит саму программу — кнопки, меню, надписи (не сообщения) — через Google Translate. Применяется после перезагрузки страницы."
-        ),
+              TRANSLATE_LANGUAGES.map((l) => el("option", { value: l.id, selected: settings.uiLanguage === l.id }, l.label))
+            ),
+            el(
+              "p",
+              { class: "settings-toggle-hint" },
+              "Переводит саму программу — кнопки, меню, надписи (не сообщения) — через Google Translate. Применяется после перезагрузки страницы."
+            ),
+          ]),
+        ]),
       ])
     );
   }
@@ -749,16 +775,18 @@ async function renderNotifications(root) {
     mount(
       root,
       pageWrap("Уведомления", "Как мессенджер сообщает о новых событиях", [
-        el("div", { class: "settings-toggle-row" }, [
-          el("div", {}, [
-            el("p", { class: "settings-toggle-title" }, "Показывать текст в превью"),
-            el("p", { class: "settings-toggle-hint" }, "Иначе — «Новое сообщение» без содержимого"),
+        section("Уведомления", [
+          el("div", { class: "settings-toggle-row" }, [
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, "Показывать текст в превью"),
+              el("p", { class: "settings-toggle-hint" }, "Иначе — «Новое сообщение» без содержимого"),
+            ]),
+            Toggle(settings.notifications.previewText, (v) => patch({ previewText: v })),
           ]),
-          Toggle(settings.notifications.previewText, (v) => patch({ previewText: v })),
-        ]),
-        el("div", { class: "settings-toggle-row" }, [
-          el("span", { class: "settings-toggle-title" }, "Звук"),
-          Toggle(settings.notifications.sound, (v) => patch({ sound: v })),
+          el("div", { class: "settings-toggle-row" }, [
+            el("span", { class: "settings-toggle-title" }, "Звук"),
+            Toggle(settings.notifications.sound, (v) => patch({ sound: v })),
+          ]),
         ]),
         el("div", { class: "settings-notice-box" }, [
           el("p", { class: "settings-toggle-title" }, "Уведомления браузера"),
@@ -835,26 +863,30 @@ async function renderPrivacy(root) {
     mount(
       root,
       pageWrap("Конфиденциальность", "Кто видит вашу информацию", [
-        row("Последний визит", "lastSeen"),
-        row("Номер телефона", "phone"),
-        row("Фото профиля", "photo"),
-        row("О себе", "bio"),
-        row("Дата рождения", "birthday"),
-        row("Ссылка при пересылке", "forwards"),
-        row("Кто добавляет меня в группы", "invites"),
-        el("div", { class: "settings-toggle-row" }, [
-          el("div", {}, [
-            el("p", { class: "settings-toggle-title" }, "Код-пароль"),
-            el("p", { class: "settings-toggle-hint" }, "Локальный PIN на этом устройстве — не связан с аккаунтом"),
-          ]),
-          passcodeOn
-            ? el("div", { class: "settings-passcode-actions" }, [
-                el("button", { class: "settings-danger-link", onclick: changePasscode }, "Изменить"),
-                el("button", { class: "settings-danger-link", onclick: disablePasscode }, "Отключить"),
-              ])
-            : el("button", { class: "settings-danger-link", onclick: changePasscode }, "Включить"),
+        section("Приватность", [
+          row("Последний визит", "lastSeen"),
+          row("Номер телефона", "phone"),
+          row("Фото профиля", "photo"),
+          row("О себе", "bio"),
+          row("Дата рождения", "birthday"),
+          row("Ссылка при пересылке", "forwards"),
+          row("Кто добавляет меня в группы", "invites"),
         ]),
-        el("p", { class: "settings-field-label" }, `Заблокированные пользователи (${blockedUsers.length})`),
+        section("Безопасность", [
+          el("div", { class: "settings-toggle-row" }, [
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, "Код-пароль"),
+              el("p", { class: "settings-toggle-hint" }, "Локальный PIN на этом устройстве — не связан с аккаунтом"),
+            ]),
+            passcodeOn
+              ? el("div", { class: "settings-passcode-actions" }, [
+                  el("button", { class: "settings-danger-link", onclick: changePasscode }, "Изменить"),
+                  el("button", { class: "settings-danger-link", onclick: disablePasscode }, "Отключить"),
+                ])
+              : el("button", { class: "settings-danger-link", onclick: changePasscode }, "Включить"),
+          ]),
+        ]),
+        el("p", { class: "settings-section-title" }, `Заблокированные пользователи (${blockedUsers.length})`),
         blockedUsers.length === 0
           ? el("p", { class: "empty-hint" }, "Никого не заблокировано")
           : el(
@@ -956,7 +988,7 @@ async function renderDevices(root) {
           : null,
         others.length
           ? el("div", { class: "settings-devices-list" }, [
-              el("p", { class: "settings-field-label" }, "Другие сеансы"),
+              el("p", { class: "settings-section-title" }, "Другие сеансы"),
               ...others.map((s) =>
                 el("div", { class: "settings-device-row" }, [
                   el("span", { html: iconSvg("Phone", 16) }),
@@ -1117,11 +1149,13 @@ async function renderData(root) {
     mount(
       root,
       pageWrap("Данные и память", "Автозагрузка медиа и локальный кэш", [
-        el("div", { class: "settings-toggle-row" }, [
-          el("div", {}, [el("p", { class: "settings-toggle-title" }, "Автозагрузка медиа"), el("p", { class: "settings-toggle-hint" }, "Загружать фото и файлы автоматически")]),
-          Toggle(settings.autoDownload, (v) => patch({ autoDownload: v })),
+        section("Автозагрузка", [
+          el("div", { class: "settings-toggle-row" }, [
+            el("div", {}, [el("p", { class: "settings-toggle-title" }, "Автозагрузка медиа"), el("p", { class: "settings-toggle-hint" }, "Загружать фото и файлы автоматически")]),
+            Toggle(settings.autoDownload, (v) => patch({ autoDownload: v })),
+          ]),
         ]),
-        el("p", { class: "settings-field-label" }, `Использовано места — ${(total / 1024).toFixed(2)} ГБ`),
+        el("p", { class: "settings-section-title" }, `Использовано места — ${(total / 1024).toFixed(2)} ГБ`),
         el(
           "div",
           { class: "settings-cache-list" },

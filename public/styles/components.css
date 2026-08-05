@@ -3022,6 +3022,40 @@
   color: var(--color-muted);
   margin: 0;
 }
+.settings-section-group {
+  margin-bottom: 20px;
+}
+.settings-section-title {
+  margin: 0 0 6px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+.settings-section {
+  border-radius: 10px;
+  background: var(--color-surface);
+  padding: 0 12px;
+}
+.settings-section > .settings-toggle-row:last-child,
+.settings-toggle-row.no-divider {
+  border-bottom: none;
+}
+.settings-section .settings-field {
+  padding: 12px 0;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.settings-section .settings-field:last-child {
+  border-bottom: none;
+}
+.settings-section .settings-chip-row,
+.settings-section .settings-swatch-row {
+  margin: 0;
+  padding: 12px 0;
+}
+.settings-section .settings-range {
+  margin: 0 0 4px;
+}
 .settings-field {
   display: block;
   margin-bottom: 16px;
@@ -3070,12 +3104,12 @@
   margin-bottom: 20px;
 }
 .settings-swatch {
-  height: 36px;
-  width: 36px;
-  border-radius: 999px;
+  height: 34px;
+  width: 44px;
+  border-radius: 10px;
 }
 .settings-swatch.active {
-  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent);
 }
 .settings-range {
   width: 100%;
