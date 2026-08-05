@@ -4,7 +4,8 @@ import { Avatar } from "../../components/avatar.js";
 import { api } from "../../api.js";
 import { getState, setState } from "../../state.js";
 import { navigate } from "../../router.js";
-import { fileToAvatarDataUrl, fileToImageDataUrl } from "../../lib/image.js";
+import { fileToAvatarDataUrl, fileToImageDataUrl, fileToDataUrl } from "../../lib/image.js";
+import { ImageAttachment, VideoAttachment, FileAttachment } from "../../components/attachments.js";
 import { requestPushPermission } from "../../lib/push.js";
 import { openContactPickerDialog } from "../../components/contactPickerDialog.js";
 import { openCreateBotDialog } from "../../components/createBotDialog.js";
@@ -413,6 +414,7 @@ async function renderAds(root) {
   let buyError = null;
   let saving = false;
   let saveStatus = null;
+  let attachment = info.adAttachment ?? null;
 
   async function buyAds() {
     buying = true;
@@ -434,8 +436,9 @@ async function renderAds(root) {
     saveStatus = null;
     render();
     try {
-      const { user } = await api.setAdContent(text, url);
-      info = { ...info, adText: user.adText, adUrl: user.adUrl };
+      const { user } = await api.setAdContent(text, url, attachment);
+      info = { ...info, adText: user.adText, adUrl: user.adUrl, adAttachment: user.adAttachment };
+      attachment = user.adAttachment ?? null;
       saveStatus = "Сохранено ✓";
     } catch (err) {
       saveStatus = err.message || "Не удалось сохранить";
@@ -448,6 +451,37 @@ async function renderAds(root) {
       }, 2000);
     }
   }
+
+  // Same file-input/data-URL approach as the chat composer (composer.js) —
+  // no separate upload endpoint, the attachment travels as client-authored
+  // JSON same as a message's, validated server-side in routes/ads.js.
+  const mediaFileInput = el("input", {
+    type: "file",
+    accept: "image/*,video/*",
+    class: "hidden-input",
+    onchange: async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      if (file.type.startsWith("image/")) {
+        attachment = { kind: "image", name: file.name, url: await fileToImageDataUrl(file, 1600) };
+      } else if (file.type.startsWith("video/")) {
+        attachment = { kind: "video", name: file.name, size: file.size, url: await fileToDataUrl(file) };
+      }
+      render();
+    },
+  });
+  const anyFileInput = el("input", {
+    type: "file",
+    class: "hidden-input",
+    onchange: async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      attachment = { kind: "file", name: file.name, size: file.size, url: await fileToDataUrl(file) };
+      render();
+    },
+  });
 
   function render() {
     const textInput = el("textarea", {
@@ -462,6 +496,21 @@ async function renderAds(root) {
       placeholder: "Ссылка (необязательно) — https://…",
       value: info.adUrl ?? "",
     });
+    const attachmentPreview = attachment
+      ? el("div", { class: "ad-attachment-preview" }, [
+          attachment.kind === "video" ? VideoAttachment(attachment) : attachment.kind === "image" ? ImageAttachment(attachment) : FileAttachment(attachment),
+          el("button", {
+            type: "button",
+            class: "icon-btn ad-attachment-remove",
+            title: "Удалить вложение",
+            html: iconSvg("X", 14),
+            onclick: () => {
+              attachment = null;
+              render();
+            },
+          }),
+        ])
+      : null;
     mount(
       root,
       pageWrap("Реклама", "Кабинет рекламы — покажите объявление на своей публичной странице профиля", [
@@ -497,6 +546,13 @@ async function renderAds(root) {
               el("p", { class: "settings-field-label" }, "Ваше объявление"),
               textInput,
               urlInput,
+              attachmentPreview,
+              el("div", { class: "ad-attach-row" }, [
+                el("button", { type: "button", class: "profile-action-btn", onclick: () => mediaFileInput.click() }, "Фото/видео"),
+                el("button", { type: "button", class: "profile-action-btn", onclick: () => anyFileInput.click() }, "Файл"),
+                mediaFileInput,
+                anyFileInput,
+              ]),
               el(
                 "button",
                 { class: "btn-accent", disabled: saving, onclick: () => saveContent(textInput.value.trim(), urlInput.value.trim()) },

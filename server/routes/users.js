@@ -5,7 +5,11 @@ const { listUsers, updateUser, getUser, setBlocked, findUserByUsername, findUser
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
+const { listChats } = require("../data/chats");
+const { listMessages } = require("../data/messages");
 const { PHONE_RE, USERNAME_RE, normalizePhone } = require("../lib/validators");
+
+const LINK_RE = /https?:\/\/\S+/;
 
 const router = express.Router();
 router.use(requireUserId);
@@ -72,6 +76,39 @@ router.get(
     }
 
     res.json({ user: visible, isContact });
+  })
+);
+
+// Media/Files/Links tabs on the profile view (profileDialog.js) — scoped to
+// whatever DM already exists between the viewer and this user. Deliberately
+// looks up (never creates) that DM: opening someone's profile shouldn't have
+// the side effect of starting a chat with them, the same way it doesn't in
+// Telegram. No DM yet (or no matching attachments) just means empty tabs.
+router.get(
+  "/:id/shared-media",
+  asyncRoute(async (req, res) => {
+    const empty = { media: [], files: [], links: [] };
+    if (req.params.id === req.uid) return res.json(empty);
+
+    const chat = (await listChats()).find(
+      (c) => c.type === "dm" && c.memberIds.includes(req.uid) && c.memberIds.includes(req.params.id)
+    );
+    if (!chat) return res.json(empty);
+
+    const messages = await listMessages(chat.id, req.uid);
+    const media = [];
+    const files = [];
+    const links = [];
+    for (const m of messages) {
+      for (const a of m.attachments ?? []) {
+        if (a.kind === "image" || a.kind === "video") media.push({ messageId: m.id, createdAt: m.createdAt, attachment: a });
+        else if (a.kind === "file") files.push({ messageId: m.id, createdAt: m.createdAt, attachment: a });
+      }
+      if (m.linkPreview || LINK_RE.test(m.text ?? "")) {
+        links.push({ messageId: m.id, createdAt: m.createdAt, text: m.text, linkPreview: m.linkPreview });
+      }
+    }
+    res.json({ media: media.reverse(), files: files.reverse(), links: links.reverse() });
   })
 );
 

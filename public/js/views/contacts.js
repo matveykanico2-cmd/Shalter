@@ -5,6 +5,7 @@ import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { getState, setState } from "../state.js";
 import { openProfileDialog } from "../components/profileDialog.js";
+import { statusLabel } from "../lib/presence.js";
 
 export async function ContactsView(root) {
   const { contacts: initialContacts } = await api.listContacts();
@@ -127,7 +128,11 @@ export async function ContactsView(root) {
                 Avatar({ name: user.name, color: user.avatarColor, image: user.avatarImage, online: user.online }),
                 el("div", { class: "contact-row-body" }, [
                   el("p", { class: "contact-row-name" }, user.name),
-                  el("p", { class: "contact-row-username" }, `@${user.username}`),
+                  el(
+                    "p",
+                    { class: `contact-row-status ${user.online ? "online" : ""}` },
+                    statusLabel(user) ?? (user.username ? `@${user.username}` : "недавно")
+                  ),
                 ]),
               ]),
               el("button", {
@@ -152,7 +157,6 @@ export async function ContactsView(root) {
                 onclick: async () => {
                   await api.removeContact(user.id);
                   contacts = contacts.filter((c) => c.userId !== user.id);
-                  candidates = [...candidates, user];
                   render();
                 },
               }),

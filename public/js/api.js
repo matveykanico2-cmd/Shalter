@@ -32,6 +32,7 @@ export const api = {
   getUser: (id) => req(`/api/users/${id}`),
   setBlocked: (userId, blocked) =>
     req(`/api/users/${userId}/block`, { method: "POST", body: JSON.stringify({ blocked }) }),
+  getSharedMedia: (userId) => req(`/api/users/${userId}/shared-media`),
 
   listChats: () => req("/api/chats"),
   getChat: (id) => req(`/api/chats/${id}`),
@@ -136,7 +137,7 @@ export const api = {
 
   getAdsInfo: () => req("/api/ads/me"),
   requestAds: () => req("/api/ads/request", { method: "POST" }),
-  setAdContent: (text, url) => req("/api/ads/content", { method: "PUT", body: JSON.stringify({ text, url }) }),
+  setAdContent: (text, url, attachment) => req("/api/ads/content", { method: "PUT", body: JSON.stringify({ text, url, attachment }) }),
   deliverGift: (giftId, recipientId) =>
     req("/api/gifts/deliver", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
 };

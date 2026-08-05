@@ -51,4 +51,4 @@ function sanitizeAttachments(attachments) {
   return cleaned.length ? cleaned : undefined;
 }
 
-module.exports = { sanitizeAttachments };
+module.exports = { sanitizeAttachments, isSafeUrl };

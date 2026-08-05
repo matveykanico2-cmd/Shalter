@@ -1907,23 +1907,107 @@
   font-weight: 600;
 }
 
-/* Profile dialog */
-.profile-dialog {
-  position: relative;
-  max-width: 340px;
-  padding: 32px 20px 20px;
+/* Profile panel (components/profileDialog.js) — a right-docked slide-in
+   view, same silhouette as Telegram's own profile/channel-info panel,
+   rather than a centered modal. Reuses .info-panel-header/.info-panel-body
+   for the header/scroll-body treatment so it matches the chat's InfoPanel. */
+.profile-panel-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.25);
 }
-.profile-dialog-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
+.profile-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  width: min(400px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  box-shadow: -8px 0 30px rgba(0, 0, 0, 0.25);
+  animation: profile-panel-in 0.22s ease both;
 }
-.profile-dialog-body {
+@keyframes profile-panel-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.profile-panel-body {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   gap: 2px;
+}
+.profile-tabs {
+  margin: 20px -16px 0;
+  display: flex;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+.profile-tab {
+  flex: 1;
+  padding: 10px 4px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-muted);
+  border-bottom: 2px solid transparent;
+}
+.profile-tab.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+.profile-tab-content {
+  width: 100%;
+  padding-top: 12px;
+}
+.profile-empty-tab {
+  padding: 24px 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.profile-media-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+}
+.profile-media-grid .image-attachment,
+.profile-media-grid .video-attachment {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  margin-bottom: 0;
+}
+.profile-files-list,
+.profile-links-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  text-align: left;
+}
+.profile-files-list .file-attachment {
+  width: 100%;
+}
+.profile-link-item {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-accent);
+  word-break: break-all;
+}
+.profile-link-item:hover {
+  background: var(--color-surface-alt);
 }
 .profile-loading-spinner {
   height: 88px;
@@ -2001,11 +2085,21 @@
   margin: 0;
   font-size: 13.5px;
 }
-.profile-gifts-block {
-  margin-top: 16px;
+.profile-ad-banner .image-attachment,
+.profile-ad-banner .video-attachment {
+  margin: 6px 0;
+  max-width: 100%;
 }
-.profile-gifts-block .settings-section-title {
-  margin: 0 0 6px;
+.profile-ad-banner .file-attachment {
+  margin: 6px 0;
+  width: 100%;
+}
+.profile-ad-link {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-accent);
 }
 .profile-gifts-row {
   display: flex;
@@ -2861,13 +2955,16 @@
   font-weight: 500;
   margin: 0;
 }
-.contact-row-username {
+.contact-row-status {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
   color: var(--color-muted);
   margin: 0;
+}
+.contact-row-status.online {
+  color: var(--color-accent);
 }
 
 /* Misc views */
@@ -3187,6 +3284,28 @@
   border: 1px solid var(--color-border);
   background: var(--color-surface-alt);
   padding: 14px;
+}
+.ad-attachment-preview {
+  position: relative;
+  display: inline-block;
+  margin-top: 10px;
+}
+.ad-attachment-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
+.ad-attach-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ad-attach-row .profile-action-btn {
+  width: auto;
+  flex: none;
+  border: 1px solid var(--color-border);
 }
 .settings-select {
   border-radius: 8px;

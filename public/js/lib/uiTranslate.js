@@ -32,7 +32,7 @@ const SKIP_SELECTOR = [
   ".chat-header-title",
   ".chat-header-subtitle",
   ".contact-row-name",
-  ".contact-row-username",
+  ".contact-row-status",
   ".contact-candidate-name",
   ".contact-candidate-username",
   ".profile-name",

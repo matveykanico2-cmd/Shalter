@@ -5,6 +5,23 @@ const { ADMIN_PHONE } = require("../config");
 const { getUser, findUserByPhone, grantAdsDays, revokeAds, updateUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
+const { isSafeUrl } = require("../lib/sanitizeAttachments");
+
+// Ads get one attachment, image/video/file only — no voice/video-note/
+// location/contact/poll, none of which make sense on a promotional banner.
+const AD_ATTACHMENT_KINDS = new Set(["image", "video", "file"]);
+
+// Same "never trust client-authored JSON" reasoning as sanitizeAttachments —
+// this is a standalone (rather than shared) check since ads only ever have
+// one attachment, not an array, and don't need the location/contact/poll
+// meta handling that function also does.
+function sanitizeAdAttachment(a) {
+  if (!a || !AD_ATTACHMENT_KINDS.has(a.kind) || !isSafeUrl(a.url)) return null;
+  const out = { kind: a.kind, url: a.url };
+  if (a.name !== undefined) out.name = String(a.name).slice(0, 300);
+  if (a.size !== undefined) out.size = Number.isFinite(a.size) ? a.size : undefined;
+  return out;
+}
 
 // "Кабинет рекламы" — 20₽/месяц, same no-payment-gateway trust model as
 // Premium (server/routes/premium.js): buying opens a DM with whoever holds
@@ -53,11 +70,16 @@ router.put(
     const me = await getUser(req.uid);
     if (!me.isAdsActive) return res.status(403).json({ error: "Кабинет рекламы не активен" });
 
-    const { text, url } = req.body ?? {};
+    const { text, url, attachment } = req.body ?? {};
     if (!text?.trim()) return res.status(400).json({ error: "Введите текст объявления" });
     if (url && !/^https?:\/\//.test(url)) return res.status(400).json({ error: "Ссылка должна начинаться с http:// или https://" });
+    if (attachment && !sanitizeAdAttachment(attachment)) return res.status(400).json({ error: "Неподдерживаемое вложение" });
 
-    const updated = await updateUser(req.uid, { adText: text.trim().slice(0, AD_TEXT_MAX), adUrl: url?.trim() || null });
+    const updated = await updateUser(req.uid, {
+      adText: text.trim().slice(0, AD_TEXT_MAX),
+      adUrl: url?.trim() || null,
+      adAttachment: attachment ? sanitizeAdAttachment(attachment) : null,
+    });
     res.json({ user: publicUser(updated) });
   })
 );

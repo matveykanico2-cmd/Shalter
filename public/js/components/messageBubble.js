@@ -5,63 +5,13 @@ import { openDropdownMenu } from "./dropdownMenu.js";
 import { formatText } from "../lib/formatText.js";
 import { api } from "../api.js";
 import { openReportDialog } from "./reportDialog.js";
-import { openInAppBrowser } from "./inAppBrowser.js";
 import { openProfileDialog } from "./profileDialog.js";
+import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard, LocationAttachment } from "./attachments.js";
 
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
 
 function timeLabel(iso) {
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-}
-
-function ImageAttachment(a) {
-  return el("img", { src: a.url, alt: a.name || "photo", class: "image-attachment" });
-}
-
-function VideoAttachment(a) {
-  return el("video", { src: a.url, controls: true, class: "video-attachment" });
-}
-
-function FileAttachment(a) {
-  return el("a", { href: a.url, download: a.name || "file", class: "file-attachment" }, [
-    el("span", { html: iconSvg("Download", 18) }),
-    el("div", { class: "file-attachment-info" }, [
-      el("p", { class: "file-attachment-name" }, a.name || "Файл"),
-      el("p", { class: "mono file-attachment-size" }, a.size ? `${(a.size / 1024).toFixed(0)} КБ` : ""),
-    ]),
-  ]);
-}
-
-// Rendered from message.linkPreview (server/lib/linkPreview.js, fetched
-// server-side after send — see routes/messages.js). Opens via the in-app
-// browser rather than a new tab, same as inline links in formatText.js.
-function LinkPreviewCard(p) {
-  if (!p.title && !p.description && !p.image && !p.warning) return null;
-  return el(
-    "button",
-    { class: "link-preview-card", onclick: () => openInAppBrowser(p.url, { unsafe: p.unsafe, warning: p.warning }) },
-    [
-      p.image ? el("img", { class: "link-preview-image", src: p.image, alt: "" }) : null,
-      el("div", { class: "link-preview-body" }, [
-        p.warning ? el("p", { class: `link-preview-warning ${p.unsafe ? "danger" : ""}` }, [el("span", { html: iconSvg("Info", 12) }), " ", p.warning]) : null,
-        p.siteName ? el("p", { class: "link-preview-site" }, p.siteName) : null,
-        p.title ? el("p", { class: "link-preview-title" }, p.title) : null,
-        p.description ? el("p", { class: "link-preview-desc" }, p.description) : null,
-      ]),
-    ]
-  );
-}
-
-function LocationAttachment(a) {
-  const { lat, lng } = a.meta ?? {};
-  const mapUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`;
-  return el("a", { href: mapUrl, target: "_blank", rel: "noreferrer", class: "location-attachment" }, [
-    el("span", { html: iconSvg("Pin", 18) }),
-    el("div", {}, [
-      el("p", {}, "Геолокация"),
-      el("p", { class: "mono location-coords" }, `${lat?.toFixed(5)}, ${lng?.toFixed(5)}`),
-    ]),
-  ]);
 }
 
 // Delivered gift (server/routes/gifts.js's /deliver, message type "gift") —

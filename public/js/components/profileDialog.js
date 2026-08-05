@@ -5,28 +5,39 @@ import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { getState, setState } from "../state.js";
 import { openReportDialog } from "./reportDialog.js";
+import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard } from "./attachments.js";
+import { statusLabel } from "../lib/presence.js";
 
-function statusLabel(user) {
-  if (user.online) return "в сети";
-  if (!user.lastSeen) return null; // hidden by their privacy settings, or never set
-  const d = new Date(user.lastSeen);
-  return `был(а) в сети ${d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })} в ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
-}
+// Bottom tab strip, same set/order as Telegram's own profile view. Content
+// for media/files/links comes from GET /api/users/:id/shared-media (scoped
+// to whatever DM already exists with this user — see server/routes/users.js);
+// gifts reuse the user object's own giftsReceived, already loaded with it.
+const TABS = [
+  { id: "media", label: "Медиа" },
+  { id: "gifts", label: "Подарки" },
+  { id: "files", label: "Файлы" },
+  { id: "links", label: "Ссылки" },
+];
 
 // Full profile view — reachable from Contacts and from a DM's info panel.
 // Unlike the compact InfoPanel (chat-scoped: mute/members/etc.), this is the
 // one place a user's bio/username/phone/status all show together, and the
 // one place server/routes/users.js's privacy-aware GET actually gets used.
+// Rendered as a right-docked slide-in panel (like Telegram's own profile/
+// channel-info view) rather than a centered modal.
 export async function openProfileDialog(userId) {
   const me = getState().user;
 
-  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
-  const body = el("div", { class: "profile-dialog-body" }, [el("div", { class: "profile-loading-spinner" })]);
-  const dialog = el("div", { class: "modal-dialog profile-dialog" }, [
-    el("button", { class: "icon-btn profile-dialog-close", html: iconSvg("X", 18), onclick: () => close() }),
+  const overlay = el("div", { class: "profile-panel-overlay", onclick: (e) => e.target === overlay && close() });
+  const body = el("div", { class: "info-panel-body profile-panel-body" }, [el("div", { class: "profile-loading-spinner" })]);
+  const panel = el("aside", { class: "profile-panel" }, [
+    el("div", { class: "info-panel-header" }, [
+      el("h2", {}, "Профиль"),
+      el("button", { class: "icon-btn", html: iconSvg("X", 18), onclick: () => close() }),
+    ]),
     body,
   ]);
-  overlay.appendChild(dialog);
+  overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
   function close() {
@@ -34,8 +45,17 @@ export async function openProfileDialog(userId) {
   }
 
   let user, isContact, isBlocked;
+  let sharedMedia = { media: [], files: [], links: [] };
+  let activeTab = "media";
+
   try {
-    const res = await api.getUser(userId);
+    const [res] = await Promise.all([
+      api.getUser(userId),
+      api
+        .getSharedMedia(userId)
+        .then((r) => (sharedMedia = r))
+        .catch(() => {}), // best-effort — tabs just render empty if this fails
+    ]);
     user = res.user;
     isContact = res.isContact;
     isBlocked = !!me.blockedUserIds?.includes(userId);
@@ -59,6 +79,46 @@ export async function openProfileDialog(userId) {
     const { chat } = await api.startDm(userId, user.name, user.avatarColor);
     close();
     navigate(`/chat/${chat.id}`);
+  }
+
+  function renderTabContent() {
+    if (activeTab === "gifts") {
+      const gifts = user.giftsReceived ?? [];
+      if (!gifts.length) return el("p", { class: "profile-empty-tab" }, "Подарков пока нет");
+      return el(
+        "div",
+        { class: "profile-gifts-row" },
+        gifts
+          .slice()
+          .reverse()
+          .map((g) => el("span", { class: "profile-gift-chip", title: g.name }, g.emoji))
+      );
+    }
+    if (activeTab === "media") {
+      if (!sharedMedia.media.length) return el("p", { class: "profile-empty-tab" }, "Медиа пока нет");
+      return el(
+        "div",
+        { class: "profile-media-grid" },
+        sharedMedia.media.map((m) => (m.attachment.kind === "video" ? VideoAttachment(m.attachment) : ImageAttachment(m.attachment)))
+      );
+    }
+    if (activeTab === "files") {
+      if (!sharedMedia.files.length) return el("p", { class: "profile-empty-tab" }, "Файлов пока нет");
+      return el("div", { class: "profile-files-list" }, sharedMedia.files.map((f) => FileAttachment(f.attachment)));
+    }
+    // links
+    if (!sharedMedia.links.length) return el("p", { class: "profile-empty-tab" }, "Ссылок пока нет");
+    return el(
+      "div",
+      { class: "profile-links-list" },
+      sharedMedia.links
+        .map((l) => {
+          if (l.linkPreview?.title || l.linkPreview?.description || l.linkPreview?.image) return LinkPreviewCard(l.linkPreview);
+          const url = l.text?.match(/https?:\/\/\S+/)?.[0];
+          return url ? el("a", { class: "profile-link-item", href: url, target: "_blank", rel: "noreferrer" }, url) : null;
+        })
+        .filter(Boolean)
+    );
   }
 
   function render() {
@@ -88,29 +148,23 @@ export async function openProfileDialog(userId) {
           ])
         : null,
       isContact ? el("p", { class: "profile-contact-tag" }, "В ваших контактах") : null,
-      user.giftsReceived?.length
-        ? el("div", { class: "profile-gifts-block" }, [
-            el("p", { class: "settings-section-title" }, `Подарки — ${user.giftsReceived.length}`),
-            el(
-              "div",
-              { class: "profile-gifts-row" },
-              user.giftsReceived
-                .slice()
-                .reverse()
-                .map((g) => el("span", { class: "profile-gift-chip", title: g.name }, g.emoji))
-            ),
-          ])
-        : null,
       // Ad cabinet (Settings → Реклама, server/routes/ads.js) — an active
       // subscriber's one promotional text/link, shown here rather than in
       // the chat itself since a profile view is a deliberate "look someone
       // up" action, not something to interrupt a conversation with.
       user.isAdsActive && user.adText
-        ? el(
-            user.adUrl ? "a" : "div",
-            { class: "profile-ad-banner", href: user.adUrl || undefined, target: user.adUrl ? "_blank" : undefined, rel: user.adUrl ? "noreferrer" : undefined },
-            [el("span", { class: "profile-ad-label" }, "Реклама"), el("p", { class: "profile-ad-text" }, user.adText)]
-          )
+        ? el("div", { class: "profile-ad-banner" }, [
+            el("span", { class: "profile-ad-label" }, "Реклама"),
+            user.adAttachment?.kind === "video"
+              ? VideoAttachment(user.adAttachment)
+              : user.adAttachment?.kind === "image"
+                ? ImageAttachment(user.adAttachment)
+                : user.adAttachment?.kind === "file"
+                  ? FileAttachment(user.adAttachment)
+                  : null,
+            el("p", { class: "profile-ad-text" }, user.adText),
+            user.adUrl ? el("a", { class: "profile-ad-link", href: user.adUrl, target: "_blank", rel: "noreferrer" }, "Перейти →") : null,
+          ])
         : null,
       el("div", { class: "profile-actions" }, [
         el("button", { class: "btn-accent", onclick: startChat }, [el("span", { html: iconSvg("Send", 16) }), " Написать"]),
@@ -125,6 +179,24 @@ export async function openProfileDialog(userId) {
           "Пожаловаться"
         ),
       ]),
+      el(
+        "div",
+        { class: "profile-tabs" },
+        TABS.map((t) =>
+          el(
+            "button",
+            {
+              class: `profile-tab ${activeTab === t.id ? "active" : ""}`,
+              onclick: () => {
+                activeTab = t.id;
+                render();
+              },
+            },
+            t.label
+          )
+        )
+      ),
+      el("div", { class: "profile-tab-content" }, [renderTabContent()]),
     ];
     body.append(...children.filter(Boolean));
   }
