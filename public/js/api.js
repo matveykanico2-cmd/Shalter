@@ -39,15 +39,18 @@ export const api = {
   deleteChatForMe: (id) => req(`/api/chats/${id}/delete-for-me`, { method: "POST" }),
   startDm: (userId, title, avatarColor) =>
     req("/api/chats", { method: "POST", body: JSON.stringify({ userId, title, avatarColor }) }),
-  createChannel: (title, avatarImage) =>
-    req("/api/chats/channels", { method: "POST", body: JSON.stringify({ title, avatarImage }) }),
-  createGroup: (title, memberIds, avatarImage) =>
-    req("/api/chats/groups", { method: "POST", body: JSON.stringify({ title, memberIds, avatarImage }) }),
+  createChannel: (title, avatarImage, memberIds, adminIds) =>
+    req("/api/chats/channels", { method: "POST", body: JSON.stringify({ title, avatarImage, memberIds, adminIds }) }),
+  createGroup: (title, memberIds, avatarImage, adminIds) =>
+    req("/api/chats/groups", { method: "POST", body: JSON.stringify({ title, memberIds, avatarImage, adminIds }) }),
   leaveChat: (id) => req(`/api/chats/${id}/leave`, { method: "POST" }),
   clearHistory: (id, forEveryone) =>
     req(`/api/chats/${id}/clear`, { method: "POST", body: JSON.stringify({ forEveryone: !!forEveryone }) }),
   setMemberRole: (id, userId, role) =>
     req(`/api/chats/${id}/members`, { method: "POST", body: JSON.stringify({ userId, role }) }),
+  restrictMember: (id, userId, until) =>
+    req(`/api/chats/${id}/restrict`, { method: "POST", body: JSON.stringify({ userId, until }) }),
+  voteForGroup: (id) => req(`/api/chats/${id}/vote`, { method: "POST" }),
 
   listMessages: (chatId) => req(`/api/chats/${chatId}/messages`),
   sendMessage: (chatId, text, opts) =>
@@ -128,6 +131,10 @@ export const api = {
   listGifts: () => req("/api/gifts"),
   requestGift: (giftId, recipientId) =>
     req("/api/gifts/request", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
+
+  getAdsInfo: () => req("/api/ads/me"),
+  requestAds: () => req("/api/ads/request", { method: "POST" }),
+  setAdContent: (text, url) => req("/api/ads/content", { method: "PUT", body: JSON.stringify({ text, url }) }),
   deliverGift: (giftId, recipientId) =>
     req("/api/gifts/deliver", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
 };

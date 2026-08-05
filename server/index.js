@@ -81,6 +81,7 @@ app.use("/api/reports", require("./routes/reports"));
 app.use("/api/stories", require("./routes/stories"));
 app.use("/api/premium", require("./routes/premium"));
 app.use("/api/gifts", require("./routes/gifts"));
+app.use("/api/ads", require("./routes/ads"));
 app.use("/api/translate", require("./routes/translate"));
 
 if (useBuilt) {

@@ -216,6 +216,13 @@ if (!existingUserColumns.has("referredBy")) db.exec("ALTER TABLE users ADD COLUM
 // column above is kept only as a legacy/compat field and is no longer read
 // (see rowToUser in server/data/users.js, which computes it from this instead).
 if (!existingUserColumns.has("premiumUntil")) db.exec("ALTER TABLE users ADD COLUMN premiumUntil TEXT");
+// "Ad cabinet" (Settings → Реклама, server/routes/ads.js) — same time-boxed-
+// subscription shape as premiumUntil above (20₽/month, same manual-transfer
+// trust model), plus the one promotional text/link it lets them set on their
+// public profile while active.
+if (!existingUserColumns.has("adsUntil")) db.exec("ALTER TABLE users ADD COLUMN adsUntil TEXT");
+if (!existingUserColumns.has("adText")) db.exec("ALTER TABLE users ADD COLUMN adText TEXT");
+if (!existingUserColumns.has("adUrl")) db.exec("ALTER TABLE users ADD COLUMN adUrl TEXT");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone <> ''");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referralCode) WHERE referralCode IS NOT NULL");
 
@@ -244,5 +251,22 @@ if (!existingMessageColumns.has("gift")) db.exec("ALTER TABLE messages ADD COLUM
 // — same shape as gift above: { emoji, name, anim } so the client can render
 // a big, uniquely-animated sticker instead of plain text.
 if (!existingMessageColumns.has("sticker")) db.exec("ALTER TABLE messages ADD COLUMN sticker TEXT");
+
+// Per-chat "restrict this member from posting" — { [userId]: isoTimestamp |
+// "forever" } (see server/routes/chats.js's /:id/restrict and the send-path
+// check in routes/messages.js). Same nested-JSON-on-parent-row pattern as
+// everything else here — restrictions are only ever read/written keyed by
+// this one chat, never queried across rows.
+const existingChatColumns = new Set(db.prepare("PRAGMA table_info(chats)").all().map((c) => c.name));
+if (!existingChatColumns.has("restrictions")) db.exec("ALTER TABLE chats ADD COLUMN restrictions TEXT");
+// Group "points" (server/routes/chats.js's /:id/vote) — Premium members can
+// vote once/day to level the group up; level unlocks are purely cosmetic
+// (a badge next to the group name) rather than mechanical feature gates,
+// since there's no other real "capability" in this app worth rationing.
+if (!existingChatColumns.has("points")) db.exec("ALTER TABLE chats ADD COLUMN points INTEGER NOT NULL DEFAULT 0");
+// { [userId]: isoTimestamp of their last vote } — caps voting at once/24h
+// per Premium member per group (see /:id/vote), without needing a separate
+// votes table for what's really just per-chat rate-limiting state.
+if (!existingChatColumns.has("votes")) db.exec("ALTER TABLE chats ADD COLUMN votes TEXT");
 
 module.exports = db;

@@ -35,6 +35,10 @@ function rowToUser(row) {
     premiumForever: row.premiumUntil === FOREVER || undefined,
     referralCode: row.referralCode ?? undefined,
     referredBy: row.referredBy ?? undefined,
+    isAdsActive: !!row.adsUntil && row.adsUntil > new Date().toISOString(),
+    adsUntil: row.adsUntil ?? undefined,
+    adText: row.adText ?? undefined,
+    adUrl: row.adUrl ?? undefined,
   };
 }
 
@@ -99,7 +103,7 @@ async function createUser(user) {
   return getUser(user.id);
 }
 
-const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "avatarColor", "avatarImage", "bio", "online", "lastSeen", "isBot", "premiumUntil"];
+const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "avatarColor", "avatarImage", "bio", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl"];
 
 // Extends (or starts) a Premium period — stacks on top of remaining time if
 // already active, the way a real subscription top-up would, rather than
@@ -117,6 +121,22 @@ async function grantPremiumDays(userId, days) {
 
 async function revokePremium(userId) {
   return updateUser(userId, { premiumUntil: null });
+}
+
+// Same stacking-top-up shape as grantPremiumDays above, for the ad cabinet
+// (20₽/month — see server/routes/ads.js). No "forever" tier for this one —
+// it's a plain recurring subscription, not something worth ever granting
+// permanently.
+async function grantAdsDays(userId, days) {
+  const user = await getUser(userId);
+  if (!user) return undefined;
+  const base = user.isAdsActive && user.adsUntil ? new Date(user.adsUntil) : new Date();
+  base.setUTCDate(base.getUTCDate() + days);
+  return updateUser(userId, { adsUntil: base.toISOString() });
+}
+
+async function revokeAds(userId) {
+  return updateUser(userId, { adsUntil: null });
 }
 
 async function updateUser(id, patch) {
@@ -165,4 +185,6 @@ module.exports = {
   setBlocked,
   grantPremiumDays,
   revokePremium,
+  grantAdsDays,
+  revokeAds,
 };

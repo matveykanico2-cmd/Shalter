@@ -1626,6 +1626,15 @@
 .info-panel-members {
   margin-top: 12px;
 }
+.info-panel-members-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 8px;
+}
+.info-panel-members-header .list-section-label {
+  padding-right: 0;
+}
 .info-panel-member-row {
   display: flex;
   align-items: center;
@@ -1656,11 +1665,64 @@
   font-size: 11px;
   color: var(--color-muted);
 }
+.info-panel-role-tag.restricted {
+  color: var(--color-danger);
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+.group-level-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #d9822e, #f0b74a);
+  color: #fff;
+  vertical-align: middle;
+}
+.group-vote-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  padding: 12px;
+  margin: 10px 0;
+}
 .member-picker-row {
   display: flex;
   align-items: center;
   gap: 10px;
   cursor: pointer;
+}
+.member-picker-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.member-picker-admin-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  width: 26px;
+  border-radius: 8px;
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+.member-picker-admin-toggle:hover {
+  background: var(--color-surface-alt);
+}
+.member-picker-admin-toggle.active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
 }
 
 /* Modal / dialog */
@@ -1760,6 +1822,29 @@
   margin: 10px 0 0;
   font-size: 12px;
   color: var(--color-muted);
+}
+.profile-ad-banner {
+  display: block;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+}
+.profile-ad-label {
+  display: inline-block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+  margin-bottom: 3px;
+}
+.profile-ad-text {
+  margin: 0;
+  font-size: 13.5px;
 }
 .profile-actions {
   margin-top: 20px;

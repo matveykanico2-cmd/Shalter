@@ -4,25 +4,52 @@ import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog } from "./profileDialog.js";
+import { openChoiceDialog } from "./confirmDialog.js";
+import { levelForPoints, pointsToNextLevel } from "../lib/groupLevels.js";
+
+const RESTRICT_DURATIONS = [
+  { label: "На 1 час", hours: 1 },
+  { label: "На 1 день", hours: 24 },
+  { label: "На 1 неделю", hours: 24 * 7 },
+  { label: "Навсегда", hours: null },
+];
 
 // Vanilla-JS port of components/chat/InfoPanel.tsx: chat/members, mute
 // toggle, block management, and — for group/channel owners/admins — member
-// role management (promote/demote/kick).
-export function InfoPanel({ chat, members, isBlocked, meId, isShalterAdmin, gifts, onClose, onToggleMute, onToggleBlock, onMemberAction, onTogglePremium, onDeliverGift }) {
+// role management (promote/demote/kick/restrict).
+export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalterAdmin, gifts, onClose, onToggleMute, onToggleBlock, onMemberAction, onTogglePremium, onDeliverGift, onAddMember, onRestrictMember, onVoteForGroup }) {
   const isDm = chat.type === "dm" || chat.type === "secret";
   const title = isDm ? (chat.otherUser?.name ?? chat.title) : chat.title;
   const isOwnerOrAdmin = chat.ownerId === meId || chat.adminIds?.includes(meId);
 
   function openMemberMenu(e, member) {
     const isAdmin = chat.adminIds?.includes(member.id);
-    openDropdownMenu({ x: e.clientX, y: e.clientY }, [
+    const isRestricted = !!chat.restrictions?.[member.id];
+    const items = [
       {
         icon: "Users",
         label: isAdmin ? "Снять права администратора" : "Сделать администратором",
         onClick: () => onMemberAction(member.id, isAdmin ? "demote" : "promote"),
       },
-      { icon: "X", label: "Исключить из чата", danger: true, onClick: () => onMemberAction(member.id, "kick") },
-    ]);
+    ];
+    if (isRestricted) {
+      items.push({ icon: "Check", label: "Разрешить писать", onClick: () => onRestrictMember(member.id, null) });
+    } else {
+      items.push({
+        icon: "Lock",
+        label: "Запретить писать",
+        onClick: (evt) =>
+          openChoiceDialog(
+            `Запретить писать: ${member.name}`,
+            RESTRICT_DURATIONS.map((d) => ({
+              label: d.label,
+              onClick: () => onRestrictMember(member.id, d.hours == null ? "forever" : new Date(Date.now() + d.hours * 3600_000).toISOString()),
+            }))
+          ),
+      });
+    }
+    items.push({ icon: "X", label: "Исключить из чата", danger: true, onClick: () => onMemberAction(member.id, "kick") });
+    openDropdownMenu({ x: e.clientX, y: e.clientY }, items);
   }
 
   return el("aside", { class: "info-panel" }, [
@@ -51,9 +78,27 @@ export function InfoPanel({ chat, members, isBlocked, meId, isShalterAdmin, gift
             title,
             isDm && chat.otherUser?.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
             isDm && chat.otherUser?.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 16) }) : null,
+            chat.type === "group" && levelForPoints(chat.points) > 0
+              ? el("span", { class: "group-level-badge", title: `${chat.points} баллов` }, `★ Ур. ${levelForPoints(chat.points)}`)
+              : null,
           ]),
         ]
       ),
+      chat.type === "group"
+        ? el("div", { class: "group-vote-row" }, [
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, `Баллы группы: ${chat.points ?? 0} (уровень ${levelForPoints(chat.points)})`),
+              el(
+                "p",
+                { class: "settings-toggle-hint" },
+                pointsToNextLevel(chat.points) != null ? `До следующего уровня: ${pointsToNextLevel(chat.points)}` : "Максимальный уровень"
+              ),
+            ]),
+            isMePremium
+              ? el("button", { class: "settings-add-account-btn", onclick: onVoteForGroup }, "Голосовать")
+              : el("span", { class: "settings-toggle-hint" }, "Только с Premium"),
+          ])
+        : null,
       isDm && chat.otherUser && isShalterAdmin
         ? el(
             "button",
@@ -94,9 +139,18 @@ export function InfoPanel({ chat, members, isBlocked, meId, isShalterAdmin, gift
             `Пожаловаться на ${chat.type === "channel" ? "канал" : "группу"}`
           )
         : null,
-      !isDm
+      // Channel subscriber lists are admin/owner-only (matches Telegram —
+      // a channel is broadcast, not a peer group, so regular subscribers
+      // don't get to see who else is subscribed); group member lists stay
+      // visible to every member, same as before.
+      !isDm && (chat.type !== "channel" || isOwnerOrAdmin)
         ? el("div", { class: "info-panel-members" }, [
-            el("p", { class: "list-section-label" }, `Участники (${members.length})`),
+            el("div", { class: "info-panel-members-header" }, [
+              el("p", { class: "list-section-label" }, `Участники (${members.length})`),
+              isOwnerOrAdmin
+                ? el("button", { class: "icon-btn", title: "Добавить участника", html: iconSvg("Plus", 15), onclick: onAddMember })
+                : null,
+            ]),
             ...members.map((m) => {
               const isMemberOwner = m.id === chat.ownerId;
               const isMemberAdmin = chat.adminIds?.includes(m.id);
@@ -107,6 +161,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isShalterAdmin, gift
                   el("span", { class: "info-panel-member-name" }, [
                     m.name,
                     isMemberOwner ? el("span", { class: "info-panel-role-tag" }, " владелец") : isMemberAdmin ? el("span", { class: "info-panel-role-tag" }, " админ") : null,
+                    chat.restrictions?.[m.id] ? el("span", { class: "info-panel-role-tag restricted", title: "Не может писать" }, [" ", el("span", { html: iconSvg("Lock", 11) })]) : null,
                   ]),
                 ]),
                 canManage

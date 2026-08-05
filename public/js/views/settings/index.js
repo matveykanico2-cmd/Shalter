@@ -14,6 +14,7 @@ import { openBotCodeDialog } from "../../components/botCodeDialog.js";
 const SECTIONS = [
   { id: "", label: "Профиль" },
   { id: "premium", label: "Premium и друзья" },
+  { id: "ads", label: "Реклама" },
   { id: "bots", label: "Боты" },
   { id: "appearance", label: "Внешний вид" },
   { id: "notifications", label: "Уведомления" },
@@ -54,6 +55,7 @@ export async function SettingsView(root, page) {
   const renderers = {
     "": renderProfile,
     premium: renderPremium,
+    ads: renderAds,
     bots: renderBots,
     appearance: renderAppearance,
     notifications: renderNotifications,
@@ -333,6 +335,106 @@ async function renderPremium(root) {
                   ])
                 )
               ),
+            ])
+          : null,
+      ])
+    );
+  }
+  render();
+}
+
+async function renderAds(root) {
+  let info = await api.getAdsInfo();
+  let buying = false;
+  let buyError = null;
+  let saving = false;
+  let saveStatus = null;
+
+  async function buyAds() {
+    buying = true;
+    buyError = null;
+    render();
+    try {
+      const { chatId } = await api.requestAds();
+      navigate(`/chat/${chatId}`);
+    } catch (err) {
+      buyError = err.message;
+    } finally {
+      buying = false;
+      render();
+    }
+  }
+
+  async function saveContent(text, url) {
+    saving = true;
+    saveStatus = null;
+    render();
+    try {
+      const { user } = await api.setAdContent(text, url);
+      info = { ...info, adText: user.adText, adUrl: user.adUrl };
+      saveStatus = "Сохранено ✓";
+    } catch (err) {
+      saveStatus = err.message || "Не удалось сохранить";
+    } finally {
+      saving = false;
+      render();
+      setTimeout(() => {
+        saveStatus = null;
+        render();
+      }, 2000);
+    }
+  }
+
+  function render() {
+    const textInput = el("textarea", {
+      class: "settings-input",
+      rows: 3,
+      maxlength: 200,
+      placeholder: "Текст объявления (до 200 символов)",
+      value: info.adText ?? "",
+    });
+    const urlInput = el("input", {
+      class: "login-input",
+      placeholder: "Ссылка (необязательно) — https://…",
+      value: info.adUrl ?? "",
+    });
+    mount(
+      root,
+      pageWrap("Реклама", "Кабинет рекламы — покажите объявление на своей публичной странице профиля", [
+        el("div", { class: `premium-status-card ${info.isAdsActive ? "active" : ""}` }, [
+          el("span", { class: "premium-status-icon", html: iconSvg("Zap", 26) }),
+          el("div", {}, [
+            el("p", { class: "premium-status-title" }, info.isAdsActive ? "Кабинет рекламы активен" : "Кабинет рекламы не активен"),
+            el(
+              "p",
+              { class: "premium-status-hint" },
+              info.isAdsActive && info.adsUntil ? `Активен до ${new Date(info.adsUntil).toLocaleDateString("ru-RU")}` : "Объявление увидят все, кто откроет ваш профиль"
+            ),
+          ]),
+        ]),
+        !info.isAdsActive
+          ? el("div", { class: "settings-notice-box" }, [
+              el("p", { class: "settings-toggle-title" }, `Купить кабинет рекламы на 30 дней — ${info.priceRub}₽`),
+              el(
+                "p",
+                { class: "settings-toggle-hint" },
+                "Оплата переводом администрации Shalter. Нажмите «Купить» — откроется чат, переведите сумму и дождитесь подтверждения."
+              ),
+              el("button", { class: "btn-accent", disabled: buying, onclick: buyAds }, buying ? "Открываем чат…" : "Купить кабинет рекламы"),
+              buyError ? el("p", { class: "login-error" }, buyError) : null,
+            ])
+          : null,
+        info.isAdsActive
+          ? el("div", { class: "settings-notice-box" }, [
+              el("p", { class: "settings-field-label" }, "Ваше объявление"),
+              textInput,
+              urlInput,
+              el(
+                "button",
+                { class: "btn-accent", disabled: saving, onclick: () => saveContent(textInput.value.trim(), urlInput.value.trim()) },
+                saving ? "Сохраняем…" : "Сохранить объявление"
+              ),
+              saveStatus ? el("p", { class: "settings-toggle-hint" }, saveStatus) : null,
             ])
           : null,
       ])

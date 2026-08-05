@@ -107,6 +107,15 @@ router.post(
       return res.status(404).json({ error: "not found" });
     }
 
+    // Owner/admin restrictions (server/routes/chats.js's /:id/restrict) —
+    // "forever" or a still-future ISO timestamp both block sending; an
+    // expired timestamp is treated as no restriction at all rather than
+    // needing a separate cleanup step.
+    const restrictedUntil = chat.restrictions?.[req.uid];
+    if (restrictedUntil && (restrictedUntil === "forever" || restrictedUntil > new Date().toISOString())) {
+      return res.status(403).json({ error: "Вам запрещено писать в этом чате" });
+    }
+
     const body = req.body ?? {};
     if (!body.text?.trim() && !body.attachments?.length && !body.sticker) {
       return res.status(400).json({ error: "empty message" });

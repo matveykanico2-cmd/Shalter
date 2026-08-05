@@ -5,7 +5,7 @@ const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser
 const { deleteMessagesForChat } = require("../data/messages");
 const { getSettings, setChatCleared, deleteChatForUser } = require("../data/settings");
 const { attachSummaries } = require("../data/chat-summary");
-const { listUsers } = require("../data/users");
+const { listUsers, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { markTyping, getTypingUserId } = require("../data/typing");
 const { broadcastToUsers } = require("../ws");
@@ -63,9 +63,15 @@ router.post(
 router.post(
   "/channels",
   asyncRoute(async (req, res) => {
-    const { title, avatarImage } = req.body ?? {};
+    const { title, avatarImage, memberIds, adminIds } = req.body ?? {};
     if (!title?.trim()) return res.status(400).json({ error: "Введите название канала" });
     const now = new Date().toISOString();
+    // Members/admins picked in the create dialog (see memberPickerDialog.js)
+    // — the creator is always included and is always an owner-level admin
+    // regardless of what the dialog sent, same defensive union pattern as
+    // /groups below.
+    const members = new Set([req.uid, ...(Array.isArray(memberIds) ? memberIds : [])]);
+    const admins = new Set([req.uid, ...(Array.isArray(adminIds) ? adminIds.filter((id) => members.has(id)) : [])]);
     const discussion = await createChat({
       id: `c_${Date.now()}_d`,
       type: "group",
@@ -85,9 +91,9 @@ router.post(
       title: title.trim(),
       avatarColor: "#D9822E",
       avatarImage: avatarImage || undefined,
-      memberIds: [req.uid],
+      memberIds: [...members],
       ownerId: req.uid,
-      adminIds: [req.uid],
+      adminIds: [...admins],
       isPublic: false,
       pinned: false,
       muted: false,
@@ -104,9 +110,10 @@ router.post(
 router.post(
   "/groups",
   asyncRoute(async (req, res) => {
-    const { title, memberIds, avatarImage } = req.body ?? {};
+    const { title, memberIds, avatarImage, adminIds } = req.body ?? {};
     if (!title?.trim()) return res.status(400).json({ error: "Введите название группы" });
     const members = new Set([req.uid, ...(Array.isArray(memberIds) ? memberIds : [])]);
+    const admins = new Set([req.uid, ...(Array.isArray(adminIds) ? adminIds.filter((id) => members.has(id)) : [])]);
     const chat = await createChat({
       id: `c_${Date.now()}`,
       type: "group",
@@ -115,7 +122,7 @@ router.post(
       avatarImage: avatarImage || undefined,
       memberIds: [...members],
       ownerId: req.uid,
-      adminIds: [req.uid],
+      adminIds: [...admins],
       pinned: false,
       muted: false,
       archived: false,
@@ -239,6 +246,20 @@ router.post(
     }
 
     const { userId, role } = req.body ?? {};
+
+    if (role === "add") {
+      if (chat.memberIds.includes(userId)) {
+        return res.status(400).json({ error: "Уже в чате" });
+      }
+      const user = await getUser(userId);
+      if (!user) return res.status(404).json({ error: "Пользователь не найден" });
+      const updated = await updateChat(req.params.id, { memberIds: [...chat.memberIds, userId] });
+      // The newly added member needs to see this chat show up in their own
+      // list right away, not just on their next poll.
+      broadcastToUsers([userId], { type: "chat:added", chat: updated });
+      return res.json({ chat: updated });
+    }
+
     if (userId === chat.ownerId) {
       return res.status(400).json({ error: "Нельзя изменить владельца" });
     }
@@ -263,6 +284,58 @@ router.post(
       return res.json({ chat: updated });
     }
     res.status(400).json({ error: "unknown role" });
+  })
+);
+
+// Restricts (or un-restricts) a member from posting — "until" is either an
+// ISO timestamp (temporary) or "forever" (permanent); omitting/null lifts an
+// existing restriction. Enforced on the actual send path in routes/messages.js.
+router.post(
+  "/:id/restrict",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    const isOwnerOrAdmin = chat.ownerId === req.uid || chat.adminIds?.includes(req.uid);
+    if (!isOwnerOrAdmin) return res.status(403).json({ error: "Недостаточно прав" });
+
+    const { userId, until } = req.body ?? {};
+    if (userId === chat.ownerId || chat.adminIds?.includes(userId)) {
+      return res.status(400).json({ error: "Нельзя ограничить владельца или администратора" });
+    }
+    if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "not found" });
+
+    const restrictions = { ...chat.restrictions };
+    if (until) restrictions[userId] = until;
+    else delete restrictions[userId];
+
+    const updated = await updateChat(req.params.id, { restrictions });
+    res.json({ chat: updated });
+  })
+);
+
+// Premium members vote a group up — one vote/24h each, +1 point per vote.
+// Crossing a threshold (see server/lib/groupLevels.js) levels the group up;
+// the level shows as a badge (see InfoPanel/chatView) — cosmetic only.
+router.post(
+  "/:id/vote",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (chat.type !== "group") return res.status(400).json({ error: "Голосование доступно только для групп" });
+
+    const me = await getUser(req.uid);
+    if (!me?.isPremium) return res.status(403).json({ error: "Голосовать могут только пользователи с Shalter Premium" });
+
+    const lastVote = chat.votes?.[req.uid];
+    if (lastVote && Date.now() - new Date(lastVote).getTime() < 24 * 3600_000) {
+      return res.status(429).json({ error: "Вы уже голосовали за эту группу сегодня" });
+    }
+
+    const updated = await updateChat(req.params.id, {
+      points: (chat.points ?? 0) + 1,
+      votes: { ...chat.votes, [req.uid]: new Date().toISOString() },
+    });
+    res.json({ chat: updated });
   })
 );
 

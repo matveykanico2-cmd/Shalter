@@ -82,6 +82,17 @@ export async function openProfileDialog(userId) {
         ? el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("Phone", 15) }), el("span", { class: "mono" }, user.phone)])
         : null,
       isContact ? el("p", { class: "profile-contact-tag" }, "В ваших контактах") : null,
+      // Ad cabinet (Settings → Реклама, server/routes/ads.js) — an active
+      // subscriber's one promotional text/link, shown here rather than in
+      // the chat itself since a profile view is a deliberate "look someone
+      // up" action, not something to interrupt a conversation with.
+      user.isAdsActive && user.adText
+        ? el(
+            user.adUrl ? "a" : "div",
+            { class: "profile-ad-banner", href: user.adUrl || undefined, target: user.adUrl ? "_blank" : undefined, rel: user.adUrl ? "noreferrer" : undefined },
+            [el("span", { class: "profile-ad-label" }, "Реклама"), el("p", { class: "profile-ad-text" }, user.adText)]
+          )
+        : null,
       el("div", { class: "profile-actions" }, [
         el("button", { class: "btn-accent", onclick: startChat }, [el("span", { html: iconSvg("Send", 16) }), " Написать"]),
         el(

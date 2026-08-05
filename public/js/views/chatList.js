@@ -34,11 +34,14 @@ async function openNewChatMenu(e) {
         label: "Новая группа",
         onClick: () => {
           openCreateChatDialog("group", (title, avatarImage) => {
-            openMemberPickerDialog(async (memberIds) => {
-              const { chat } = await api.createGroup(title, memberIds, avatarImage);
-              await api.listChats().then((r) => setState({ chats: r.chats }));
-              navigate(`/chat/${chat.id}`);
-            });
+            openMemberPickerDialog(
+              async ({ userIds, adminIds }) => {
+                const { chat } = await api.createGroup(title, userIds, avatarImage, adminIds);
+                await api.listChats().then((r) => setState({ chats: r.chats }));
+                navigate(`/chat/${chat.id}`);
+              },
+              { title: "Участники группы", submitLabel: "Создать группу", allowRoles: true }
+            );
           });
         },
       },
@@ -46,10 +49,15 @@ async function openNewChatMenu(e) {
         icon: "Send",
         label: "Новый канал",
         onClick: () => {
-          openCreateChatDialog("channel", async (title, avatarImage) => {
-            const { chat } = await api.createChannel(title, avatarImage);
-            await api.listChats().then((r) => setState({ chats: r.chats }));
-            navigate(`/chat/${chat.id}`);
+          openCreateChatDialog("channel", (title, avatarImage) => {
+            openMemberPickerDialog(
+              async ({ userIds, adminIds }) => {
+                const { chat } = await api.createChannel(title, avatarImage, userIds, adminIds);
+                await api.listChats().then((r) => setState({ chats: r.chats }));
+                navigate(`/chat/${chat.id}`);
+              },
+              { title: "Подписчики канала (необязательно)", submitLabel: "Создать канал", allowRoles: true }
+            );
           });
         },
       },
@@ -121,6 +129,10 @@ export function ChatListPane() {
   const unsubNew = onWsMessage("message:new", refetch);
   const unsubUpdated = onWsMessage("message:updated", refetch);
   const unsubDeleted = onWsMessage("message:deleted", refetch);
+  // Fires when an admin adds this user to an existing group/channel (see
+  // POST /api/chats/:id/members's "add" role) — without this the new chat
+  // would only appear once the 15s poll below happens to catch up.
+  const unsubAdded = onWsMessage("chat:added", refetch);
   const iv = setInterval(refetch, 15000);
   container._cleanup = () => {
     clearInterval(iv);
@@ -128,6 +140,7 @@ export function ChatListPane() {
     unsubNew();
     unsubUpdated();
     unsubDeleted();
+    unsubAdded();
   };
 
   return container;

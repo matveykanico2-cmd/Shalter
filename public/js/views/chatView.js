@@ -7,6 +7,7 @@ import { Composer } from "../components/composer.js";
 import { InfoPanel } from "../components/infoPanel.js";
 import { openForwardDialog } from "../components/forwardDialog.js";
 import { openChoiceDialog } from "../components/confirmDialog.js";
+import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
 import { api } from "../api.js";
 import { getState, setState } from "../state.js";
 import { navigate } from "../router.js";
@@ -183,6 +184,45 @@ export async function ChatView(root, chatId) {
     renderInfoPanel();
   }
 
+  async function handleRestrictMember(userId, until) {
+    await api.restrictMember(chat.id, userId, until);
+    const { chat: updated, members: refreshedMembers } = await api.getChat(chat.id);
+    Object.assign(chat, updated);
+    members = refreshedMembers;
+    renderInfoPanel();
+    renderComposer();
+  }
+
+  async function handleVoteForGroup() {
+    try {
+      const { chat: updated } = await api.voteForGroup(chat.id);
+      Object.assign(chat, updated);
+      renderInfoPanel();
+    } catch (err) {
+      alert(err.message || "Не удалось проголосовать");
+    }
+  }
+
+  function handleAddMember() {
+    openMemberPickerDialog(
+      async (userIds) => {
+        for (const userId of userIds) {
+          try {
+            await api.setMemberRole(chat.id, userId, "add");
+          } catch (err) {
+            alert(err.message || "Не удалось добавить участника");
+          }
+        }
+        const { chat: updated, members: refreshedMembers } = await api.getChat(chat.id);
+        Object.assign(chat, updated);
+        members = refreshedMembers;
+        renderHeader();
+        renderInfoPanel();
+      },
+      { title: "Добавить участников", submitLabel: "Добавить", excludeIds: chat.memberIds }
+    );
+  }
+
   function handleClearHistory() {
     openChoiceDialog("Очистить историю чата", [
       {
@@ -338,6 +378,10 @@ export async function ChatView(root, chatId) {
           onMemberAction: handleMemberAction,
           onTogglePremium: toggleOtherPremium,
           onDeliverGift: deliverGiftToOther,
+          onAddMember: handleAddMember,
+          onRestrictMember: handleRestrictMember,
+          isMePremium: me.isPremium,
+          onVoteForGroup: handleVoteForGroup,
         })
       );
     }
@@ -445,6 +489,17 @@ export async function ChatView(root, chatId) {
     }
     if (isChannel && !isChannelAdmin) {
       bodyBottomSlot.appendChild(el("p", { class: "channel-readonly-hint" }, "Публиковать в этот канал могут только администраторы"));
+      return;
+    }
+    const restrictedUntil = chat.restrictions?.[me.id];
+    if (restrictedUntil && (restrictedUntil === "forever" || restrictedUntil > new Date().toISOString())) {
+      bodyBottomSlot.appendChild(
+        el(
+          "p",
+          { class: "channel-readonly-hint" },
+          restrictedUntil === "forever" ? "Вам запрещено писать в этом чате" : `Вам запрещено писать в этом чате до ${new Date(restrictedUntil).toLocaleString("ru-RU")}`
+        )
+      );
       return;
     }
     composerSlot.appendChild(

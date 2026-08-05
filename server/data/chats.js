@@ -20,6 +20,9 @@ function rowToChat(row) {
     archived: !!row.archived,
     createdAt: row.createdAt,
     linkedDiscussionChatId: row.linkedDiscussionChatId ?? undefined,
+    restrictions: row.restrictions ? JSON.parse(row.restrictions) : {},
+    points: row.points ?? 0,
+    votes: row.votes ? JSON.parse(row.votes) : {},
   };
 }
 
@@ -48,8 +51,8 @@ const setMembers = db.transaction((chatId, memberIds, adminIds) => {
 
 async function createChat(chat) {
   db.prepare(
-    `INSERT INTO chats (id, type, title, description, username, isPublic, avatarColor, avatarImage, ownerId, pinned, muted, archived, createdAt, linkedDiscussionChatId)
-     VALUES (@id, @type, @title, @description, @username, @isPublic, @avatarColor, @avatarImage, @ownerId, @pinned, @muted, @archived, @createdAt, @linkedDiscussionChatId)`
+    `INSERT INTO chats (id, type, title, description, username, isPublic, avatarColor, avatarImage, ownerId, pinned, muted, archived, createdAt, linkedDiscussionChatId, restrictions, points, votes)
+     VALUES (@id, @type, @title, @description, @username, @isPublic, @avatarColor, @avatarImage, @ownerId, @pinned, @muted, @archived, @createdAt, @linkedDiscussionChatId, @restrictions, @points, @votes)`
   ).run({
     id: chat.id,
     type: chat.type,
@@ -65,6 +68,9 @@ async function createChat(chat) {
     archived: chat.archived ? 1 : 0,
     createdAt: chat.createdAt,
     linkedDiscussionChatId: chat.linkedDiscussionChatId ?? null,
+    restrictions: chat.restrictions ? JSON.stringify(chat.restrictions) : null,
+    points: chat.points ?? 0,
+    votes: chat.votes ? JSON.stringify(chat.votes) : null,
   });
   setMembers(chat.id, chat.memberIds ?? [], chat.adminIds ?? []);
   return getChat(chat.id);
@@ -72,7 +78,7 @@ async function createChat(chat) {
 
 const PATCHABLE_FIELDS = [
   "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage",
-  "ownerId", "pinned", "muted", "archived", "createdAt", "linkedDiscussionChatId",
+  "ownerId", "pinned", "muted", "archived", "createdAt", "linkedDiscussionChatId", "points",
 ];
 
 async function updateChat(id, patch) {
@@ -95,6 +101,14 @@ async function updateChat(id, patch) {
   if ("memberIds" in patch || "adminIds" in patch) {
     const current = rowToChat(db.prepare("SELECT * FROM chats WHERE id = ?").get(id));
     setMembers(id, patch.memberIds ?? current.memberIds, patch.adminIds ?? current.adminIds);
+  }
+  // A plain object, not a PATCHABLE_FIELDS scalar — stringified separately
+  // rather than going through the generic loop above.
+  if ("restrictions" in patch) {
+    db.prepare("UPDATE chats SET restrictions = ? WHERE id = ?").run(JSON.stringify(patch.restrictions ?? {}), id);
+  }
+  if ("votes" in patch) {
+    db.prepare("UPDATE chats SET votes = ? WHERE id = ?").run(JSON.stringify(patch.votes ?? {}), id);
   }
   return getChat(id);
 }
