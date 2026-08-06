@@ -14,7 +14,14 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
-RUN npm ci
+# npm_config_jobs=1 stops node-gyp from compiling native modules (better-
+# sqlite3) in parallel — concurrent compile jobs are what spike memory during
+# npm ci, not the install itself. --max-old-space-size=1024 here bounds npm's
+# own process during that install/build stage; it's separate from the
+# runtime stage's 384MB cap below, which is what actually ships.
+ENV NODE_OPTIONS="--max-old-space-size=1024"
+ENV npm_config_jobs=1
+RUN npm ci --no-audit --no-fund --maxsockets 3
 COPY . .
 RUN npm run build
 
