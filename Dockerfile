@@ -8,20 +8,30 @@
 # data/ — none of that carries the Debian toolchain into the final image.
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
-# better-sqlite3 is a native module (node-gyp) and requires Node >=22 — no
-# prebuilt binary matches otherwise, forcing a source compile, which needs
-# these build tools present.
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
-  && rm -rf /var/lib/apt/lists/*
+# This stage's only job is `npm run build` (scripts/build.js), which just
+# bundles public/ with esbuild — it never touches better-sqlite3, express, or
+# any other "dependencies" package, and its output (public/dist) is the only
+# thing copied out of this stage below. A plain `npm ci` still installs and
+# runs lifecycle scripts for *everything* in package.json regardless, which
+# on this project means node-gyp compiling better-sqlite3 from source (dead
+# weight — stage 2 recompiles its own copy from scratch against musl anyway,
+# see its comment below) *and* Electron's postinstall downloading and
+# unzipping its multi-hundred-MB runtime binary (electron/electron-builder
+# are devDependencies too, for the desktop-shell packaging flow, unrelated to
+# this build). That combination — a large g++ compile plus a large postinstall
+# download/extract, on top of npm's own memory use — is almost certainly what
+# was actually driving the container over its memory limit, not merely how
+# many jobs ran in parallel.
+#
+# --ignore-scripts skips every package's lifecycle scripts (so neither of
+# those happens), then esbuild's own install.js is run by hand afterwards —
+# it just copies the right platform binary out of the @esbuild/* optional
+# dependency npm already resolved, a fast, cheap step compared to what it
+# replaces. No python3/make/g++ needed in this stage at all any more, since
+# nothing here compiles anything from source.
 COPY package*.json ./
-# npm_config_jobs=1 stops node-gyp from compiling native modules (better-
-# sqlite3) in parallel — concurrent compile jobs are what spike memory during
-# npm ci, not the install itself. --max-old-space-size=1024 here bounds npm's
-# own process during that install/build stage; it's separate from the
-# runtime stage's 384MB cap below, which is what actually ships.
-ENV NODE_OPTIONS="--max-old-space-size=1024"
-ENV npm_config_jobs=1
-RUN npm ci --no-audit --no-fund --maxsockets 3
+RUN npm ci --ignore-scripts --no-audit --no-fund --maxsockets 3 \
+  && node node_modules/esbuild/install.js
 COPY . .
 RUN npm run build
 
@@ -36,7 +46,19 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN apk add --no-cache --virtual .build-deps python3 make g++
 COPY package*.json ./
-RUN npm ci --omit=dev && apk del .build-deps
+# This is the one native compile the app actually needs at runtime (better-
+# sqlite3, against musl) — unlike the build stage above, it can't just be
+# skipped. It's also the likelier of the two npm-ci steps to OOM: g++
+# compiling SQLite's amalgamated source (a single very large .c file bundled
+# inside better-sqlite3) is a genuinely memory-hungry compile, independent of
+# how many jobs run in parallel. -Os trades a little runtime performance for
+# a meaningfully smaller peak compiler memory footprint than the default -O2;
+# npm_config_jobs=1 has less to do here (there's only the one native package)
+# but costs nothing to keep for consistency with the build stage.
+ENV CFLAGS="-Os"
+ENV CXXFLAGS="-Os"
+ENV npm_config_jobs=1
+RUN npm ci --omit=dev --no-audit --no-fund --maxsockets 3 && apk del .build-deps
 COPY --from=build /app/server ./server
 COPY --from=build /app/public ./public
 # /app/data isn't in the repo or the build stage — it's a runtime mount point
