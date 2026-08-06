@@ -391,6 +391,7 @@
 /* Chat list item */
 .chat-list-item-wrap {
   position: relative;
+  padding: 0 8px;
 }
 .chat-list-item {
   display: flex;
@@ -398,14 +399,28 @@
   align-items: flex-start;
   gap: 12px;
   padding: 10px 12px;
+  border-radius: 10px;
   text-align: left;
   transition: background-color 0.1s;
 }
 .chat-list-item:hover {
   background: var(--color-surface-alt);
 }
+/* Telegram's own selected-row treatment: a solid accent fill rather than a
+   soft tint, with every child (title/preview/time/badges) flipped to the
+   accent's contrast color so it stays readable on top of it. */
 .chat-list-item.active {
-  background: var(--color-accent-soft);
+  background: var(--color-accent);
+}
+.chat-list-item.active .chat-list-item-title,
+.chat-list-item.active .chat-list-item-preview,
+.chat-list-item.active .chat-list-item-time,
+.chat-list-item.active .chat-list-item-badges {
+  color: var(--color-accent-contrast);
+}
+.chat-list-item.active .unread-badge {
+  background: var(--color-accent-contrast);
+  color: var(--color-accent);
 }
 .chat-list-item-body {
   min-width: 0;
@@ -622,8 +637,15 @@
    applyWallpaper()). "custom" only sets the class for background-size/
    position; the actual image comes from an inline style since it's per-user
    data, not something a static class can express. */
+/* Telegram's own chat background is instantly recognizable: a tiled doodle
+   pattern (plane, star, gift, heart...) at low opacity over the plain
+   surface color, rather than a flat fill. Baked as a static accent-purple
+   tint (data URIs can't read CSS custom properties) so it reads as a subtle
+   overlay in both themes instead of needing a separate light/dark asset. */
 .message-list.wallpaper-default {
-  background: var(--color-bg);
+  background-color: var(--color-bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Cg fill='none' stroke='%238774e1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' opacity='0.16'%3E%3Cg transform='translate(30,40) rotate(-15)'%3E%3Cpath d='M0 14 L28 0 L18 28 L14 16 Z'/%3E%3Cpath d='M14 16 L0 14'/%3E%3C/g%3E%3Cg transform='translate(140,20)'%3E%3Cpath d='M10 0 L12.5 7 L20 7 L14 11.5 L16 19 L10 14.5 L4 19 L6 11.5 L0 7 L7.5 7 Z'/%3E%3C/g%3E%3Cg transform='translate(230,50)'%3E%3Crect x='0' y='8' width='24' height='18' rx='2'/%3E%3Cpath d='M0 14 H24'/%3E%3Cpath d='M12 8 V26'/%3E%3Cpath d='M12 8 C6 8 6 0 12 3 C18 0 18 8 12 8 Z'/%3E%3C/g%3E%3Cg transform='translate(60,120)'%3E%3Cpath d='M10 20 C-6 8 0 -4 10 4 C20 -4 26 8 10 20 Z'/%3E%3C/g%3E%3Cg transform='translate(170,110)'%3E%3Cpath d='M4 20 a8 8 0 0 1 0 -16 a10 10 0 0 1 19 -2 a7 7 0 0 1 -2 18 Z'/%3E%3C/g%3E%3Cg transform='translate(250,150) rotate(10)'%3E%3Cellipse cx='10' cy='10' rx='9' ry='11'/%3E%3Cpath d='M10 21 L10 34'/%3E%3Cpath d='M10 21 L7 24 L10 27 L13 24 Z'/%3E%3C/g%3E%3Cg transform='translate(30,210)'%3E%3Cpath d='M18 10 A10 10 0 1 1 8 0 A8 8 0 0 0 18 10 Z'/%3E%3C/g%3E%3Cg transform='translate(120,220) rotate(20)'%3E%3Cpath d='M8 0 C14 4 14 16 8 22 C2 16 2 4 8 0 Z'/%3E%3Ccircle cx='8' cy='9' r='2.5'/%3E%3Cpath d='M8 22 L4 28 M8 22 L12 28'/%3E%3Cpath d='M2 14 L-4 18 M14 14 L20 18'/%3E%3C/g%3E%3Cg transform='translate(220,240)'%3E%3Cpath d='M8 0 L10 5.5 L16 5.5 L11 9 L13 15 L8 11.5 L3 15 L5 9 L0 5.5 L6 5.5 Z' transform='scale(0.8)'/%3E%3C/g%3E%3Cg transform='translate(90,260)'%3E%3Crect x='0' y='0' width='26' height='18' rx='2'/%3E%3Cpath d='M0 2 L13 12 L26 2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  background-size: 300px 300px;
 }
 .message-list.wallpaper-dots {
   background-color: var(--color-bg);
@@ -3061,9 +3083,12 @@
 .settings-nav-icon {
   display: flex;
   flex-shrink: 0;
+  width: 28px;
+  height: 28px;
   align-items: center;
   justify-content: center;
-  color: var(--color-muted);
+  border-radius: 8px;
+  color: #fff;
 }
 @media (min-width: 768px) {
   .settings-view {

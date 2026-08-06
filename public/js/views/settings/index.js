@@ -15,18 +15,22 @@ import { formatPhoneInput } from "../../lib/phoneFormat.js";
 import { hasPasscode } from "../../lib/passcodeLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 
+// `color` gives each row's icon its own chip background (Telegram's own
+// settings menu — every row's icon sits in a small colored square, not a
+// flat muted icon) — fixed hex rather than a theme var since these chips
+// stay the same color regardless of light/dark theme, same as Telegram's own.
 const SECTIONS = [
   { id: "", label: "Профиль" },
-  { id: "premium", label: "Premium и друзья", icon: "Star" },
-  { id: "ads", label: "Реклама", icon: "Zap" },
-  { id: "bots", label: "Боты", icon: "Code" },
-  { id: "appearance", label: "Внешний вид", icon: "Settings" },
-  { id: "notifications", label: "Уведомления", icon: "Bell" },
-  { id: "privacy", label: "Конфиденциальность", icon: "Lock" },
-  { id: "devices", label: "Устройства", icon: "Phone" },
-  { id: "accounts", label: "Аккаунты", icon: "Accounts" },
-  { id: "folders", label: "Папки", icon: "Archive" },
-  { id: "data", label: "Данные и память", icon: "Download" },
+  { id: "premium", label: "Premium и друзья", icon: "Star", color: "#f0a83c" },
+  { id: "ads", label: "Реклама", icon: "Zap", color: "#ef6f6f" },
+  { id: "bots", label: "Боты", icon: "Code", color: "#3ec2c2" },
+  { id: "appearance", label: "Внешний вид", icon: "Settings", color: "#8774e1" },
+  { id: "notifications", label: "Уведомления", icon: "Bell", color: "#f2637f" },
+  { id: "privacy", label: "Конфиденциальность", icon: "Lock", color: "#5b8def" },
+  { id: "devices", label: "Устройства", icon: "Phone", color: "#4cc98a" },
+  { id: "accounts", label: "Аккаунты", icon: "Accounts", color: "#c17fe0" },
+  { id: "folders", label: "Папки", icon: "Archive", color: "#f2b33b" },
+  { id: "data", label: "Данные и память", icon: "Download", color: "#58c4dc" },
 ];
 
 function Toggle(checked, onChange) {
@@ -70,7 +74,10 @@ export async function SettingsView(root, page) {
             "data-route": "1",
             class: `settings-nav-item ${section === s.id ? "active" : ""}`,
           },
-          [el("span", { class: "settings-nav-icon", html: iconSvg(s.icon, 20) }), el("span", { class: "settings-nav-label" }, s.label)]
+          [
+            el("span", { class: "settings-nav-icon", style: { background: s.color }, html: iconSvg(s.icon, 16) }),
+            el("span", { class: "settings-nav-label" }, s.label),
+          ]
         )
       )
     ),
