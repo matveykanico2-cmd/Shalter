@@ -58,6 +58,16 @@ COPY package*.json ./
 ENV CFLAGS="-Os"
 ENV CXXFLAGS="-Os"
 ENV npm_config_jobs=1
+# node-gyp needs Node's own header tarball to compile a native addon against
+# — on musl (this Alpine image) it defaults to fetching that from
+# unofficial-builds.nodejs.org instead of the regular dist site, and that
+# host isn't always reachable from a build sandbox's network policy (seen as
+# an ETIMEDOUT here). Pointing --dist-url at the official, virtually-always-
+# reachable nodejs.org/dist sidesteps that; the extra fetch-retries/timeout
+# just add resilience against an ordinary transient blip on top of that.
+ENV npm_config_disturl=https://nodejs.org/dist
+ENV npm_config_fetch_retries=5
+ENV npm_config_fetch_retry_maxtimeout=30000
 RUN npm ci --omit=dev --no-audit --no-fund --maxsockets 3 && apk del .build-deps
 COPY --from=build /app/server ./server
 COPY --from=build /app/public ./public
