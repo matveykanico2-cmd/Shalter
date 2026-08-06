@@ -45,11 +45,20 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:${PORT:-3000}/ >/dev/null || exit 1
 
-# --max-old-space-size=768 matches DEPLOY.md's sizing for a small (2GB-class)
-# host; raise it only alongside more RAM, not instead of it. Set via
-# NODE_OPTIONS (not a CMD flag) so the limit still applies even if the
-# hosting platform overrides CMD with its own start command.
-ENV NODE_OPTIONS="--max-old-space-size=768"
+# --max-old-space-size=384 targets a 512MB container: the V8 heap cap only
+# covers the old-space object heap, not the whole process — Node's own
+# baseline (new-space/code-space, native modules like better-sqlite3, socket
+# buffers, OS overhead) typically adds another 100-150MB of RSS on top, so
+# capping the heap at ~75% of the 512MB ceiling (rather than at 512 itself)
+# leaves that headroom instead of guaranteeing an OOM kill under load. This
+# only bounds the V8 heap, though — it does NOT make Docker enforce 512MB;
+# pair it with an actual container memory limit (`docker run -m 512m`,
+# compose's `mem_limit: 512m`, or Dokploy's resource-limit field) or nothing
+# stops the process from being killed by the *host's* OOM killer instead once
+# it exceeds whatever the host actually has free. Set via NODE_OPTIONS (not a
+# CMD flag) so the limit still applies even if the hosting platform overrides
+# CMD with its own start command.
+ENV NODE_OPTIONS="--max-old-space-size=384"
 CMD ["node", "server/index.js"]
 
 
