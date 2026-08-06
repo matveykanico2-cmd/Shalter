@@ -46,6 +46,16 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN apk add --no-cache --virtual .build-deps python3 make g++
 COPY package*.json ./
+# Deliberately placed here, before the heavy npm ci below, rather than after
+# it (where it's only actually needed) — BuildKit runs independent stages'
+# steps concurrently by default, and both stages run their own heavy npm ci
+# (stage 1's install, this stage's better-sqlite3 compile). Two of those at
+# once can outrun the build host's memory even though either alone fits;
+# a COPY --from=build this early makes this stage's remaining steps
+# (including the npm ci right below) wait on stage 1 finishing first, so
+# only one heavy install runs at a time.
+COPY --from=build /app/server ./server
+COPY --from=build /app/public ./public
 # This is the one native compile the app actually needs at runtime (better-
 # sqlite3, against musl) — unlike the build stage above, it can't just be
 # skipped. It's also the likelier of the two npm-ci steps to OOM: g++
@@ -69,8 +79,6 @@ ENV npm_config_disturl=https://nodejs.org/dist
 ENV npm_config_fetch_retries=5
 ENV npm_config_fetch_retry_maxtimeout=30000
 RUN npm ci --omit=dev --no-audit --no-fund --maxsockets 3 && apk del .build-deps
-COPY --from=build /app/server ./server
-COPY --from=build /app/public ./public
 # /app/data isn't in the repo or the build stage — it's a runtime mount point
 # (see DEPLOY.md: mount a persistent volume here for data/app.db). Just make
 # sure the directory exists so better-sqlite3 has somewhere to create the
