@@ -14,6 +14,7 @@ import { openBotCodeDialog } from "../../components/botCodeDialog.js";
 import { formatPhoneInput } from "../../lib/phoneFormat.js";
 import { hasPasscode } from "../../lib/passcodeLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
+import { openProfileQrDialog } from "../../components/profileQrDialog.js";
 
 // `color` gives each row's icon its own chip background (Telegram's own
 // settings menu — every row's icon sits in a small colored square, not a
@@ -31,6 +32,7 @@ const SECTIONS = [
   { id: "accounts", label: "Аккаунты", icon: "Accounts", color: "#c17fe0" },
   { id: "folders", label: "Папки", icon: "Archive", color: "#f2b33b" },
   { id: "data", label: "Данные и память", icon: "Download", color: "#58c4dc" },
+  { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", color: "#8a8f98" },
 ];
 
 function Toggle(checked, onChange) {
@@ -47,6 +49,14 @@ export async function SettingsView(root, page) {
     el("div", { class: "settings-nav-topbar" }, [
       el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
       el("span", { class: "settings-nav-topbar-title" }, "Настройки"),
+      me.username
+        ? el("button", {
+            class: "icon-btn settings-nav-topbar-qr",
+            title: "QR-код профиля",
+            html: iconSvg("Qrcode", 18),
+            onclick: () => openProfileQrDialog(me.username),
+          })
+        : null,
     ]),
     el(
       "a",
@@ -98,6 +108,7 @@ export async function SettingsView(root, page) {
     accounts: renderAccounts,
     folders: renderFolders,
     data: renderData,
+    shortcuts: renderShortcuts,
   };
   await (renderers[section] ?? renderProfile)(contentSlot);
 }
@@ -1048,11 +1059,38 @@ function openDeleteAccountDialog(onConfirm) {
 }
 
 async function renderDevices(root) {
-  const { sessions } = await api.listSessions();
+  let { sessions } = await api.listSessions();
+  let busyId = null;
 
   function timeLabel(iso) {
     const d = new Date(iso);
     return `${d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })}, ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+  }
+
+  async function terminate(deviceId) {
+    if (!confirm("Завершить этот сеанс? Устройство будет разлогинено.")) return;
+    busyId = deviceId;
+    render();
+    try {
+      await api.terminateSession(deviceId);
+      sessions = sessions.filter((s) => s.deviceId !== deviceId);
+    } finally {
+      busyId = null;
+      render();
+    }
+  }
+
+  async function terminateOthers() {
+    if (!confirm("Завершить все остальные сеансы? Все устройства, кроме этого, будут разлогинены.")) return;
+    busyId = "others";
+    render();
+    try {
+      await api.terminateOtherSessions();
+      sessions = sessions.filter((s) => s.current);
+    } finally {
+      busyId = null;
+      render();
+    }
   }
 
   function render() {
@@ -1070,11 +1108,19 @@ async function renderDevices(root) {
           : null,
         others.length
           ? el("div", { class: "settings-devices-list" }, [
-              el("p", { class: "settings-section-title" }, "Другие сеансы"),
+              el("div", { class: "settings-devices-list-header" }, [
+                el("p", { class: "settings-section-title" }, "Другие сеансы"),
+                el("button", { class: "settings-danger-link", disabled: busyId === "others", onclick: terminateOthers }, "Завершить все"),
+              ]),
               ...others.map((s) =>
                 el("div", { class: "settings-device-row" }, [
                   el("span", { html: iconSvg("Phone", 16) }),
                   el("div", { class: "settings-device-body" }, [el("p", {}, s.device), el("p", { class: "mono settings-toggle-hint" }, `${s.location} · ${timeLabel(s.lastActive)}`)]),
+                  el(
+                    "button",
+                    { class: "settings-danger-link", disabled: busyId === s.deviceId, onclick: () => terminate(s.deviceId) },
+                    busyId === s.deviceId ? "…" : "Завершить"
+                  ),
                 ])
               ),
             ])
@@ -1209,16 +1255,29 @@ async function renderFolders(root) {
   render();
 }
 
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} ГБ`;
+}
+
 async function renderData(root) {
   const { settings: initial } = await api.getSettings();
   let settings = initial;
-  const CACHE = [
-    { label: "Фото", mb: 128 },
-    { label: "Видео", mb: 640 },
-    { label: "Файлы", mb: 42 },
-    { label: "Голосовые", mb: 9 },
-  ];
-  const cleared = new Set();
+  let usage = null; // { bytesByBucket } once loaded
+  let usageError = null;
+
+  api
+    .getStorageUsage()
+    .then((r) => {
+      usage = r;
+      render();
+    })
+    .catch((err) => {
+      usageError = err.message || "Не удалось посчитать";
+      render();
+    });
 
   async function patch(p) {
     settings = { ...settings, ...p };
@@ -1226,35 +1285,80 @@ async function renderData(root) {
     await api.patchSettings(p);
   }
 
+  // Real, per-account totals computed server-side from actual attachment
+  // bytes (server/routes/settings.js's /storage) — this app has no separate
+  // device cache to measure (attachments live in the message row itself, see
+  // AGENTS.md), so unlike Telegram's own version of this screen there's
+  // nothing safe to "clear" here without deleting real chat history. Showing
+  // honest numbers with no clear button beats a clear button that either
+  // does nothing or silently deletes messages the user didn't ask to delete.
+  const BUCKETS = [
+    { key: "photos", label: "Фото" },
+    { key: "videos", label: "Видео" },
+    { key: "files", label: "Файлы" },
+    { key: "voice", label: "Голосовые" },
+  ];
+
   function render() {
-    const total = CACHE.reduce((a, c) => a + (cleared.has(c.label) ? 0 : c.mb), 0);
+    const total = usage ? Object.values(usage.bytesByBucket).reduce((a, b) => a + b, 0) : 0;
     mount(
       root,
-      pageWrap("Данные и память", "Автозагрузка медиа и локальный кэш", [
+      pageWrap("Данные и память", "Автозагрузка медиа и реальный объём вложений в переписке", [
         section("Автозагрузка", [
           el("div", { class: "settings-toggle-row" }, [
-            el("div", {}, [el("p", { class: "settings-toggle-title" }, "Автозагрузка медиа"), el("p", { class: "settings-toggle-hint" }, "Загружать фото и файлы автоматически")]),
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, "Автозагрузка медиа"),
+              el("p", { class: "settings-toggle-hint" }, "Выключено — фото и видео открываются по нажатию, а не сразу"),
+            ]),
             Toggle(settings.autoDownload, (v) => patch({ autoDownload: v })),
           ]),
         ]),
-        el("p", { class: "settings-section-title" }, `Использовано места — ${(total / 1024).toFixed(2)} ГБ`),
-        el(
-          "div",
-          { class: "settings-cache-list" },
-          CACHE.map((c) =>
-            el("div", { class: "settings-cache-row" }, [
-              el("span", {}, c.label),
-              el("span", { class: "mono settings-toggle-hint" }, cleared.has(c.label) ? "0 МБ" : `${c.mb} МБ`),
-              el(
-                "button",
-                { class: "settings-danger-link", disabled: cleared.has(c.label), onclick: () => { cleared.add(c.label); render(); } },
-                "Очистить"
+        el("p", { class: "settings-section-title" }, usage ? `Использовано места — ${formatBytes(total)}` : "Использовано места"),
+        usageError
+          ? el("p", { class: "empty-hint" }, usageError)
+          : !usage
+            ? el("p", { class: "empty-hint" }, "Считаем…")
+            : el(
+                "div",
+                { class: "settings-cache-list" },
+                BUCKETS.map((b) =>
+                  el("div", { class: "settings-cache-row" }, [
+                    el("span", {}, b.label),
+                    el("span", { class: "mono settings-toggle-hint" }, formatBytes(usage.bytesByBucket[b.key] ?? 0)),
+                  ])
+                )
               ),
-            ])
-          )
-        ),
       ])
     );
   }
   render();
+}
+
+function shortcutRow(label, keys) {
+  return el("div", { class: "settings-shortcut-row" }, [
+    el("span", {}, label),
+    el(
+      "span",
+      { class: "settings-shortcut-keys" },
+      keys.map((k) => el("kbd", { class: "kbd" }, k))
+    ),
+  ]);
+}
+
+// Only real, wired-up shortcuts (see lib/keyboardShortcuts.js) — listing ones
+// that don't actually do anything would just be misleading.
+async function renderShortcuts(root) {
+  const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
+  const mod = isMac ? "⌘" : "Ctrl";
+  mount(
+    root,
+    pageWrap("Горячие клавиши", null, [
+      section("Чат", [shortcutRow("Открыть поиск", [mod, "F"])]),
+      section("Навигация", [
+        shortcutRow("Следующий чат", ["Alt", "↓"]),
+        shortcutRow("Предыдущий чат", ["Alt", "↑"]),
+        shortcutRow("Закрыть чат / окно", ["Esc"]),
+      ]),
+    ])
+  );
 }

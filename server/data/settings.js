@@ -3,6 +3,9 @@ const db = require("../db");
 const DEFAULT_SETTINGS = {
   theme: "system",
   accent: "#2E56D9",
+  // "Отключить анимации" in the account menu (public/js/components/navRail.js)
+  // — toggles the html[data-reduce-motion] CSS rule in base.css.
+  reduceMotion: false,
   fontSize: 15,
   notifications: { previewText: true, sound: true, mutedChatIds: [] },
   privacy: {

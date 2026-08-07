@@ -16,6 +16,11 @@ const QR_POLL_MS = 1500;
 // for when a caller (again, qrLoginConfirm.js) supplies its own frame.
 export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   const refFromLink = new URLSearchParams(window.location.search).get("ref") ?? "";
+  // Landed here from api.js's req() after this device's session got
+  // terminated elsewhere (Settings → Устройства → «Завершить») — surfaced as
+  // a plain "why am I here" hint rather than leaving it looking like a random
+  // logout.
+  const revokedNotice = new URLSearchParams(window.location.search).get("reason") === "revoked";
   let mode = refFromLink ? "register" : "login"; // "login" | "register" | "qr" | "code"
   let name = "";
   let email = "";
@@ -323,6 +328,9 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             )
           : null,
         mode === "register" ? el("p", { class: "login-hint" }, "Пароль — не короче 6 символов, хранится только в виде хеша.") : null,
+        revokedNotice && mode === "login" && !error
+          ? el("p", { class: "login-hint" }, "Сеанс на этом устройстве был завершён — войдите снова.")
+          : null,
         error ? el("p", { class: "login-error" }, error) : null,
         el("button", { class: "login-submit", disabled: pending }, pending ? "Проверка…" : mode === "login" ? "Войти" : "Создать аккаунт"),
         el(

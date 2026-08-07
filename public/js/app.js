@@ -21,6 +21,7 @@ import { iconSvg } from "./icons.js";
 import { initUiTranslation } from "./lib/uiTranslate.js";
 import { hasPasscode } from "./lib/passcodeLock.js";
 import { showPasscodeLockScreen } from "./components/passcodeLockScreen.js";
+import { initKeyboardShortcuts } from "./lib/keyboardShortcuts.js";
 
 const root = document.getElementById("view-root");
 
@@ -72,6 +73,7 @@ async function boot() {
   setState({ user, accounts });
   startWsClient();
   mountIncomingCallWatcher();
+  initKeyboardShortcuts();
   // Starts observing before the shell below does its first render, so that
   // initial paint gets caught by the same pass as everything after it.
   api
@@ -79,6 +81,14 @@ async function boot() {
     .then(({ settings }) => {
       setState({ settings });
       initUiTranslation(settings.uiLanguage);
+      // Theme/accent/reduce-motion are also applied instantly when changed in
+      // Settings or the account menu (see views/settings/index.js,
+      // components/navRail.js) — restoring them here too is what makes a
+      // manually-picked theme/accent survive a hard reload instead of
+      // silently falling back to the OS default every time.
+      if (settings.theme && settings.theme !== "system") document.documentElement.setAttribute("data-theme", settings.theme);
+      if (settings.accent) document.documentElement.style.setProperty("--color-accent", settings.accent);
+      document.documentElement.toggleAttribute("data-reduce-motion", !!settings.reduceMotion);
     })
     .catch(() => {});
   // Register the service worker unconditionally — it's what makes the app
@@ -171,6 +181,26 @@ async function boot() {
         el("div", { class: "empty-chat" }, [
           el("p", { class: "empty-chat-title" }, "Ссылка недействительна"),
           el("p", { class: "empty-hint" }, err.message || "Звонок уже завершён, или ссылка устарела."),
+        ])
+      );
+    }
+  });
+  // Where a scanned profile QR code / shared @username link lands (see
+  // components/profileQrDialog.js) — resolves the account and starts a DM,
+  // same one-shot resolve-then-redirect shape as /call-join/:token above.
+  route("/u/:username", async (params) => {
+    withCleanup(mainSlot);
+    try {
+      const { user: found } = await api.findUserByUsername(params.username);
+      const { chat } = await api.startDm(found.id, found.name, found.avatarColor);
+      await api.listChats().then((r) => setState({ chats: r.chats }));
+      navigate(`/chat/${chat.id}`, { replace: true });
+    } catch (err) {
+      mount(
+        mainSlot,
+        el("div", { class: "empty-chat" }, [
+          el("p", { class: "empty-chat-title" }, "Пользователь не найден"),
+          el("p", { class: "empty-hint" }, err.message || `Аккаунта @${params.username} не существует.`),
         ])
       );
     }

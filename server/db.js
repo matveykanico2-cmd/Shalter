@@ -319,4 +319,14 @@ try {
   console.error("Could not create unique call join-token index:", err.message);
 }
 
+const existingSessionColumns = new Set(db.prepare("PRAGMA table_info(sessions)").all().map((c) => c.name));
+// "Terminate session" (Settings → Устройства, server/routes/sessions.js's
+// DELETE /:deviceId) — see server/middleware/auth.js's requireUserId for why
+// this is a separate explicit flag rather than just deleting the row: a row
+// that's merely *missing* (never recorded yet, or lost to some unrelated bug)
+// must never be treated as revoked, or a device can get silently, confusingly
+// logged out for no real reason (that's exactly what the old, removed version
+// of this feature did). Only an explicit terminate sets this.
+if (!existingSessionColumns.has("revokedAt")) db.exec("ALTER TABLE sessions ADD COLUMN revokedAt TEXT");
+
 module.exports = db;

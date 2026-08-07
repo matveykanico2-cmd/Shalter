@@ -7,8 +7,30 @@ import { api } from "../api.js";
 import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog } from "./profileDialog.js";
 import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard, LocationAttachment } from "./attachments.js";
+import { transcribeAudio, transcriptCache } from "../lib/transcribe.js";
+import { getState } from "../state.js";
 
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
+
+// Settings → Данные и память → «Автозагрузка медиа», turned off. There's no
+// separate download step to actually defer in this app (an attachment's
+// data: URL already arrived as part of the message payload — see AGENTS.md),
+// so "off" means deferring the *render* instead: a tap-to-reveal placeholder
+// rather than decoding/painting a potentially large image or video the
+// moment the message list scrolls it into view.
+function TapToLoad(kind, render) {
+  const label = kind === "video" ? "Нажмите, чтобы посмотреть видео" : "Нажмите, чтобы посмотреть фото";
+  let revealed = null;
+  const placeholder = el("button", { class: "tap-to-load", type: "button" }, [
+    el("span", { html: iconSvg(kind === "video" ? "Video" : "Download", 18) }),
+    el("span", {}, label),
+  ]);
+  placeholder.addEventListener("click", () => {
+    if (!revealed) revealed = render();
+    placeholder.replaceWith(revealed);
+  });
+  return placeholder;
+}
 
 function timeLabel(iso) {
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
@@ -206,13 +228,14 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
       )
     );
   }
+  const autoDownload = getState().settings?.autoDownload !== false;
   if (message.attachments?.length) {
     for (const a of message.attachments) {
       if (a.kind === "poll") bubbleInner.push(PollAttachment(message, a, me, onVote));
       else if (a.kind === "voice") bubbleInner.push(VoicePlayer(a));
       else if (a.kind === "video-note") bubbleInner.push(VideoNotePlayer(a));
-      else if (a.kind === "image") bubbleInner.push(ImageAttachment(a));
-      else if (a.kind === "video") bubbleInner.push(VideoAttachment(a));
+      else if (a.kind === "image") bubbleInner.push(autoDownload ? ImageAttachment(a) : TapToLoad("image", () => ImageAttachment(a)));
+      else if (a.kind === "video") bubbleInner.push(autoDownload ? VideoAttachment(a) : TapToLoad("video", () => VideoAttachment(a)));
       else if (a.kind === "file") bubbleInner.push(FileAttachment(a));
       else if (a.kind === "location") bubbleInner.push(LocationAttachment(a));
       else if (a.kind === "contact") bubbleInner.push(ContactAttachment(a));
@@ -254,6 +277,50 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
     } catch {
       translationEl.textContent = "Не удалось перевести";
     }
+  }
+
+  // Runs entirely in this tab (see lib/transcribe.js) — the first ever call
+  // on a given page load downloads the model, so that state's worth showing
+  // rather than leaving "Расшифровываем…" sitting there with no explanation
+  // for several seconds.
+  const voiceAttachment = message.attachments?.find((a) => a.kind === "voice" || a.kind === "video-note");
+  let transcriptEl = null;
+
+  function showTranscript(promise) {
+    transcriptEl = el("p", { class: "message-translation" }, "Расшифровываем…");
+    bubble.insertBefore(transcriptEl, meta);
+    promise.then(
+      (text) => {
+        if (transcriptEl) transcriptEl.textContent = text || "(тишина или не удалось разобрать речь)";
+      },
+      (err) => {
+        if (transcriptEl) transcriptEl.textContent = err.message || "Не удалось расшифровать";
+      }
+    );
+  }
+
+  // Restores an already-running (or already-finished) transcription this
+  // exact message started under a *previous* bubble instance — see
+  // transcriptCache's own comment for why that can happen well before this
+  // one ever finishes.
+  if (voiceAttachment && transcriptCache.has(message.id)) {
+    showTranscript(transcriptCache.get(message.id));
+  }
+
+  function toggleTranscription() {
+    if (transcriptEl) {
+      transcriptEl.remove();
+      transcriptEl = null;
+      transcriptCache.delete(message.id);
+      return;
+    }
+    const promise = transcribeAudio(voiceAttachment.url, (p) => {
+      if (p.status === "progress" && transcriptEl) {
+        transcriptEl.textContent = `Загружаем модель распознавания… ${Math.round(p.progress || 0)}%`;
+      }
+    });
+    transcriptCache.set(message.id, promise);
+    showTranscript(promise);
   }
 
   const hoverActions = el("div", { class: "bubble-actions" }, [
@@ -342,6 +409,9 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
     ];
     if (canTranslate) {
       items.push({ icon: "Globe", label: translationEl ? "Скрыть перевод" : "Перевести", onClick: toggleTranslation });
+    }
+    if (voiceAttachment) {
+      items.push({ icon: "Mic", label: transcriptEl ? "Скрыть расшифровку" : "Расшифровать", onClick: toggleTranscription });
     }
     if (mine) items.push({ icon: "Edit", label: "Изменить", onClick: () => onEdit(message) });
     else {

@@ -5,6 +5,12 @@ async function req(url, init) {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    // This device's session was terminated from elsewhere (Settings →
+    // Устройства → «Завершить», server/middleware/auth.js's requireUserId) —
+    // bounce to login instead of leaving every subsequent request failing
+    // silently. ?reason=revoked lets login.js show why, instead of it just
+    // looking like a random logout.
+    if (body.error === "session_revoked") window.location.href = "/login?reason=revoked";
     throw new Error(body.error ?? `Request failed: ${res.status}`);
   }
   return res.json();
@@ -85,8 +91,11 @@ export const api = {
 
   getSettings: () => req("/api/settings"),
   patchSettings: (patch) => req("/api/settings", { method: "PATCH", body: JSON.stringify(patch) }),
+  getStorageUsage: () => req("/api/settings/storage"),
 
   listSessions: () => req("/api/sessions"),
+  terminateSession: (deviceId) => req(`/api/sessions/${deviceId}`, { method: "DELETE" }),
+  terminateOtherSessions: () => req("/api/sessions/terminate-others", { method: "POST" }),
 
   listCalls: () => req("/api/calls"),
   placeCall: (chatId, kind) => req("/api/calls", { method: "POST", body: JSON.stringify({ chatId, kind }) }),
@@ -107,6 +116,7 @@ export const api = {
   saveBotCode: (id, code) => req(`/api/bots/${id}/code`, { method: "PUT", body: JSON.stringify({ code }) }),
   testBotCode: (id, code, text) => req(`/api/bots/${id}/test`, { method: "POST", body: JSON.stringify({ code, text }) }),
   getBotLogs: (id) => req(`/api/bots/${id}/logs`),
+  assistBot: (id, message, code) => req(`/api/bots/${id}/assist`, { method: "POST", body: JSON.stringify({ message, code }) }),
 
   search: (q) => req(`/api/search?q=${encodeURIComponent(q)}`),
 

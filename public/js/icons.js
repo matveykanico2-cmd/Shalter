@@ -55,6 +55,10 @@ const PATHS = {
   Shield: '<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/><path d="M9 12l2 2 4-4"/>',
   Sticker:
     '<path d="M4 6a2 2 0 0 1 2-2h8l6 6v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 4v4a2 2 0 0 0 2 2h4"/><circle cx="9" cy="13" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="13" r="1" fill="currentColor" stroke="none"/><path d="M8.5 16.5a4 4 0 0 0 6 0"/>',
+  Keyboard:
+    '<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01"/><path d="M9 14h6"/>',
+  Bug:
+    '<path d="M9 5a3 3 0 0 1 6 0"/><rect x="7" y="7" width="10" height="12" rx="5"/><path d="M12 7v12"/><path d="M3 10l4 1.5"/><path d="M21 10l-4 1.5"/><path d="M3 17l4-1.5"/><path d="M21 17l-4-1.5"/><path d="M7 9 5 6"/><path d="M17 9l2-3"/>',
 };
 
 export function iconSvg(name, size = 20, extraClass = "") {

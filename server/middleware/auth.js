@@ -1,5 +1,6 @@
 const { randomBytes } = require("crypto");
 const { asyncRoute } = require("./errors");
+const { getSession } = require("../data/sessions");
 
 const SESSIONS_COOKIE = "session_uids";
 const ACTIVE_COOKIE = "active_uid";
@@ -113,18 +114,25 @@ function clearAllSessions(req, res) {
 }
 
 // Express middleware: attaches req.uid, or short-circuits with 401. Trusts
-// the signed-cookie-derived uid alone — there used to also be a check here
-// against a per-device row in the sessions table (auto-logout if that row
-// was ever missing, e.g. from "Settings → Devices → terminate"), but that
-// forced-logout path is gone entirely now (both the manual button and this
-// automatic check): it caused real, confusing lockouts (a device losing its
-// session row for any reason, e.g. a stale/cleared DB, had no recovery
-// except a fresh login with no clear explanation why). Sessions (see
-// server/data/sessions.js) are still tracked for the read-only "Устройства"
-// list, just no longer enforced against.
+// the signed-cookie-derived uid for *identity*, but does check one thing
+// against the sessions table: whether this specific device was explicitly
+// revoked (Settings → Устройства → «Завершить», server/data/sessions.js's
+// revokeSession/revokeOtherSessions). An earlier version of this check used
+// to instead auto-logout whenever a device's session *row was missing at
+// all* — that caused real, confusing lockouts (a row could go missing for
+// reasons that had nothing to do with anyone terminating anything, e.g. a
+// stale/cleared DB, with no recovery except a fresh login and no explanation
+// why). This version only ever blocks on an *explicit* revokedAt flag, never
+// on absence — a missing row fails open (identity alone still governs),
+// exactly so that class of bug can't recur.
 const requireUserId = asyncRoute(async (req, res, next) => {
   const uid = getCurrentUserId(req);
   if (!uid) return res.status(401).json({ error: "unauthorized" });
+  const deviceId = req.cookies?.[DEVICE_COOKIE];
+  if (deviceId) {
+    const session = await getSession(uid, deviceId);
+    if (session?.revokedAt) return res.status(401).json({ error: "session_revoked" });
+  }
   req.uid = uid;
   next();
 });

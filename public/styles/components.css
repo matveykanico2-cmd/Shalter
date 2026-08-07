@@ -641,11 +641,17 @@
    pattern (plane, star, gift, heart...) at low opacity over the plain
    surface color, rather than a flat fill. Baked as a static accent-purple
    tint (data URIs can't read CSS custom properties) so it reads as a subtle
-   overlay in both themes instead of needing a separate light/dark asset. */
+   overlay in both themes instead of needing a separate light/dark asset.
+   40 distinct hand-drawn icon motifs (star, heart, plane, gift, cloud, bulb,
+   balloon, moon, cactus, envelope, camera, music note, umbrella, sun,
+   rainbow, key, bell, cup, anchor, feather, glasses, headphones, controller,
+   kite, diamond, crown, flower, leaf, paw, clock, snowflake, lightning, pin,
+   ribbon, magnet, telescope, satellite, planet, ghost, sparkle) scattered
+   across a 640px tile — generated via scripts/gen-doodle.js. */
 .message-list.wallpaper-default {
   background-color: var(--color-bg);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Cg fill='none' stroke='%238774e1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' opacity='0.16'%3E%3Cg transform='translate(30,40) rotate(-15)'%3E%3Cpath d='M0 14 L28 0 L18 28 L14 16 Z'/%3E%3Cpath d='M14 16 L0 14'/%3E%3C/g%3E%3Cg transform='translate(140,20)'%3E%3Cpath d='M10 0 L12.5 7 L20 7 L14 11.5 L16 19 L10 14.5 L4 19 L6 11.5 L0 7 L7.5 7 Z'/%3E%3C/g%3E%3Cg transform='translate(230,50)'%3E%3Crect x='0' y='8' width='24' height='18' rx='2'/%3E%3Cpath d='M0 14 H24'/%3E%3Cpath d='M12 8 V26'/%3E%3Cpath d='M12 8 C6 8 6 0 12 3 C18 0 18 8 12 8 Z'/%3E%3C/g%3E%3Cg transform='translate(60,120)'%3E%3Cpath d='M10 20 C-6 8 0 -4 10 4 C20 -4 26 8 10 20 Z'/%3E%3C/g%3E%3Cg transform='translate(170,110)'%3E%3Cpath d='M4 20 a8 8 0 0 1 0 -16 a10 10 0 0 1 19 -2 a7 7 0 0 1 -2 18 Z'/%3E%3C/g%3E%3Cg transform='translate(250,150) rotate(10)'%3E%3Cellipse cx='10' cy='10' rx='9' ry='11'/%3E%3Cpath d='M10 21 L10 34'/%3E%3Cpath d='M10 21 L7 24 L10 27 L13 24 Z'/%3E%3C/g%3E%3Cg transform='translate(30,210)'%3E%3Cpath d='M18 10 A10 10 0 1 1 8 0 A8 8 0 0 0 18 10 Z'/%3E%3C/g%3E%3Cg transform='translate(120,220) rotate(20)'%3E%3Cpath d='M8 0 C14 4 14 16 8 22 C2 16 2 4 8 0 Z'/%3E%3Ccircle cx='8' cy='9' r='2.5'/%3E%3Cpath d='M8 22 L4 28 M8 22 L12 28'/%3E%3Cpath d='M2 14 L-4 18 M14 14 L20 18'/%3E%3C/g%3E%3Cg transform='translate(220,240)'%3E%3Cpath d='M8 0 L10 5.5 L16 5.5 L11 9 L13 15 L8 11.5 L3 15 L5 9 L0 5.5 L6 5.5 Z' transform='scale(0.8)'/%3E%3C/g%3E%3Cg transform='translate(90,260)'%3E%3Crect x='0' y='0' width='26' height='18' rx='2'/%3E%3Cpath d='M0 2 L13 12 L26 2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-  background-size: 300px 300px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='640' viewBox='0 0 640 640'%3E%3Cg fill='none' stroke='%238774e1' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' opacity='0.15'%3E%3Cg transform='translate(34,51) rotate(14) scale(1.03)'%3E%3Cpath d='M10 0 L12.5 7 L20 7 L14 11.5 L16 19 L10 14.5 L4 19 L6 11.5 L0 7 L7.5 7 Z'/%3E%3C/g%3E%3Cg transform='translate(97,56) rotate(-9) scale(1.01)'%3E%3Cpath d='M6 0 L7.5 4.5 L12 6 L7.5 7.5 L6 12 L4.5 7.5 L0 6 L4.5 4.5 Z'/%3E%3C/g%3E%3Cg transform='translate(205,52) rotate(-10) scale(1.14)'%3E%3Cpath d='M10 20 C-6 8 0 -4 10 4 C20 -4 26 8 10 20 Z'/%3E%3C/g%3E%3Cg transform='translate(280,42) rotate(-12) scale(0.95)'%3E%3Cg%3E%3Cpath d='M0 14 L28 0 L18 28 L14 16 Z'/%3E%3Cpath d='M14 16 L0 14'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(357,61) rotate(-20) scale(0.94)'%3E%3Cg%3E%3Crect x='0' y='8' width='24' height='18' rx='2'/%3E%3Cpath d='M0 14 H24'/%3E%3Cpath d='M12 8 V26'/%3E%3Cpath d='M12 8 C6 8 6 0 12 3 C18 0 18 8 12 8 Z'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(443,25) rotate(4) scale(0.72)'%3E%3Cpath d='M4 20 a8 8 0 0 1 0 -16 a10 10 0 0 1 19 -2 a7 7 0 0 1 -2 18 Z'/%3E%3C/g%3E%3Cg transform='translate(501,26) rotate(-13) scale(1.09)'%3E%3Cg%3E%3Cpath d='M8 0 C14 4 14 16 8 22 C2 16 2 4 8 0 Z'/%3E%3Ccircle cx='8' cy='9' r='2.5'/%3E%3Cpath d='M8 22 L4 28 M8 22 L12 28'/%3E%3Cpath d='M2 14 L-4 18 M14 14 L20 18'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(591,24) rotate(-13) scale(1.12)'%3E%3Cg%3E%3Cellipse cx='10' cy='10' rx='9' ry='11'/%3E%3Cpath d='M10 21 L10 34'/%3E%3Cpath d='M10 21 L7 24 L10 27 L13 24 Z'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(30,202) rotate(-7) scale(0.92)'%3E%3Cpath d='M18 10 A10 10 0 1 1 8 0 A8 8 0 0 0 18 10 Z'/%3E%3C/g%3E%3Cg transform='translate(91,153) rotate(2) scale(1.00)'%3E%3Cg%3E%3Cpath d='M6 26 V6 a4 4 0 0 1 8 0 V26'/%3E%3Cpath d='M6 12 h-5 a3 3 0 0 0 0 8 h5'/%3E%3Cpath d='M14 16 h5 a3 3 0 0 1 0 8 h-5'/%3E%3Cpath d='M2 30 H18'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(180,191) rotate(-12) scale(0.85)'%3E%3Cg%3E%3Crect x='0' y='0' width='26' height='18' rx='2'/%3E%3Cpath d='M0 2 L13 12 L26 2'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(280,205) rotate(0) scale(0.80)'%3E%3Cg%3E%3Crect x='0' y='6' width='24' height='16' rx='2'/%3E%3Cpath d='M8 6 L10 2 H16 L18 6'/%3E%3Ccircle cx='12' cy='14' r='5'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(341,169) rotate(-17) scale(1.03)'%3E%3Cg%3E%3Ccircle cx='3' cy='20' r='3'/%3E%3Ccircle cx='16' cy='17' r='3'/%3E%3Cpath d='M6 20 V4 L19 1 V17'/%3E%3Cpath d='M6 6 L19 3'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(437,194) rotate(17) scale(0.74)'%3E%3Cg%3E%3Cpath d='M0 12 A12 12 0 0 1 24 12 C24 8 18 8 12 12 C6 8 0 8 0 12 Z'/%3E%3Cpath d='M12 12 V26 a3 3 0 0 1 -5 2'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(528,178) rotate(18) scale(0.77)'%3E%3Cg%3E%3Ccircle cx='10' cy='10' r='5'/%3E%3Cpath d='M10 0 V-4 M10 20 V24 M0 10 H-4 M20 10 H24 M3 3 L0 0 M17 3 L20 0 M3 17 L0 20 M17 17 L20 20'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(574,151) rotate(-6) scale(0.94)'%3E%3Cg%3E%3Cpath d='M0 20 A16 16 0 0 1 32 20'/%3E%3Cpath d='M6 20 A10 10 0 0 1 26 20'/%3E%3Cpath d='M12 20 A4 4 0 0 1 20 20'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(34,336) rotate(-17) scale(1.06)'%3E%3Cg%3E%3Ccircle cx='6' cy='6' r='6'/%3E%3Cpath d='M11 10 L24 23'/%3E%3Cpath d='M18 17 L22 13 M21 20 L25 16'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(127,296) rotate(8) scale(0.79)'%3E%3Cg%3E%3Cpath d='M2 18 C2 8 4 2 10 2 C16 2 18 8 18 18 H2 Z'/%3E%3Cpath d='M0 18 H20'/%3E%3Cpath d='M8 22 a2 2 0 0 0 4 0'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(191,331) rotate(-15) scale(1.20)'%3E%3Cg%3E%3Cpath d='M2 4 H18 L16 22 a2 2 0 0 1 -2 2 H8 a2 2 0 0 1 -2 -2 Z'/%3E%3Cpath d='M18 6 h4 a3 3 0 0 1 0 8 h-3'/%3E%3Cpath d='M0 4 H20'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(273,337) rotate(-3) scale(0.99)'%3E%3Cg%3E%3Ccircle cx='10' cy='4' r='3'/%3E%3Cpath d='M10 7 V26'/%3E%3Cpath d='M2 16 a8 8 0 0 0 16 0'/%3E%3Cpath d='M2 12 H18'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(343,316) rotate(-7) scale(1.06)'%3E%3Cg%3E%3Cpath d='M18 0 C18 12 8 22 0 24 C4 14 8 6 18 0 Z'/%3E%3Cpath d='M14 4 L2 16'/%3E%3Cpath d='M0 24 L4 20'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(422,307) rotate(14) scale(1.05)'%3E%3Cg%3E%3Ccircle cx='5' cy='10' r='5'/%3E%3Ccircle cx='19' cy='10' r='5'/%3E%3Cpath d='M10 10 H14'/%3E%3Cpath d='M0 8 H-3 M24 8 H27'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(530,335) rotate(-3) scale(0.97)'%3E%3Cg%3E%3Cpath d='M0 16 a10 10 0 0 1 20 0'/%3E%3Crect x='-2' y='14' width='6' height='9' rx='2'/%3E%3Crect x='16' y='14' width='6' height='9' rx='2'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(582,284) rotate(8) scale(0.86)'%3E%3Cg%3E%3Crect x='0' y='6' width='26' height='14' rx='7'/%3E%3Cpath d='M6 13 H10 M8 11 V15'/%3E%3Ccircle cx='18' cy='11' r='1.6'/%3E%3Ccircle cx='21' cy='14' r='1.6'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(41,464) rotate(-16) scale(0.94)'%3E%3Cg%3E%3Cpath d='M10 0 L20 10 L10 26 L0 10 Z'/%3E%3Cpath d='M0 10 H20'/%3E%3Cpath d='M10 0 V26'/%3E%3Cpath d='M10 26 L6 32 M10 26 L14 34'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(123,414) rotate(19) scale(0.79)'%3E%3Cpath d='M0 8 L6 0 H18 L24 8 L12 24 Z M0 8 H24 M6 0 L12 8 L18 0'/%3E%3C/g%3E%3Cg transform='translate(198,451) rotate(-11) scale(0.91)'%3E%3Cpath d='M0 22 L2 6 L8 14 L12 2 L16 14 L22 6 L24 22 Z'/%3E%3C/g%3E%3Cg transform='translate(257,448) rotate(-7) scale(0.80)'%3E%3Cg%3E%3Ccircle cx='10' cy='10' r='3'/%3E%3Ccircle cx='10' cy='2' r='3.5'/%3E%3Ccircle cx='18' cy='10' r='3.5'/%3E%3Ccircle cx='10' cy='18' r='3.5'/%3E%3Ccircle cx='2' cy='10' r='3.5'/%3E%3Cpath d='M10 21 V30'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(355,463) rotate(-7) scale(1.10)'%3E%3Cg%3E%3Cpath d='M0 20 C0 6 14 0 20 0 C20 12 12 20 0 20 Z'/%3E%3Cpath d='M0 20 L20 0'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(426,414) rotate(15) scale(0.88)'%3E%3Cg%3E%3Ccircle cx='10' cy='16' r='6'/%3E%3Ccircle cx='1' cy='7' r='2.6'/%3E%3Ccircle cx='8' cy='2' r='2.6'/%3E%3Ccircle cx='15' cy='2' r='2.6'/%3E%3Ccircle cx='20' cy='8' r='2.6'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(490,453) rotate(5) scale(1.14)'%3E%3Cg%3E%3Ccircle cx='10' cy='10' r='10'/%3E%3Cpath d='M10 4 V10 L15 13'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(606,419) rotate(4) scale(0.94)'%3E%3Cg%3E%3Cpath d='M10 0 V20 M0 10 H20 M2.5 2.5 L17.5 17.5 M2.5 17.5 L17.5 2.5'/%3E%3Cpath d='M10 0 L7 3 M10 0 L13 3 M10 20 L7 17 M10 20 L13 17'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(17,537) rotate(8) scale(1.05)'%3E%3Cpath d='M12 0 L2 14 H9 L6 24 L18 8 H11 Z'/%3E%3C/g%3E%3Cg transform='translate(102,552) rotate(-7) scale(0.71)'%3E%3Cg%3E%3Cpath d='M10 0 A8 8 0 0 1 18 8 C18 15 10 24 10 24 C10 24 2 15 2 8 A8 8 0 0 1 10 0 Z'/%3E%3Ccircle cx='10' cy='8' r='3'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(179,598) rotate(3) scale(1.19)'%3E%3Cg%3E%3Cpath d='M10 0 L18 6 L10 12 L2 6 Z'/%3E%3Cpath d='M6 9 L2 22 L10 18 L18 22 L14 9'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(257,545) rotate(2) scale(0.85)'%3E%3Cg%3E%3Cpath d='M2 0 V12 a8 8 0 0 0 16 0 V0'/%3E%3Cpath d='M2 0 H8 M12 0 H18'/%3E%3Cpath d='M2 5 H8 M12 5 H18'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(346,562) rotate(-3) scale(1.04)'%3E%3Cg%3E%3Cpath d='M0 10 L20 2 L23 9 L3 17 Z'/%3E%3Cpath d='M3 17 L0 26 M0 22 L6 24'/%3E%3Ccircle cx='20' cy='20' r='4'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(426,556) rotate(16) scale(0.86)'%3E%3Cg%3E%3Crect x='6' y='6' width='8' height='8' rx='1' transform='rotate(45 10 10)'/%3E%3Cpath d='M2 2 L6 6 M18 2 L14 6 M10 14 L4 24 M13 17 L18 22'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(510,573) rotate(2) scale(0.99)'%3E%3Cg%3E%3Ccircle cx='10' cy='10' r='6'/%3E%3Cellipse cx='10' cy='10' rx='14' ry='4' transform='rotate(-20 10 10)'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(579,555) rotate(-8) scale(0.86)'%3E%3Cg%3E%3Cpath d='M0 24 V10 a10 10 0 0 1 20 0 V24 L16 20 L12 24 L8 20 L4 24 Z'/%3E%3Ccircle cx='6' cy='9' r='1.4' fill='%238774e1'/%3E%3Ccircle cx='14' cy='9' r='1.4' fill='%238774e1'/%3E%3C/g%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  background-size: 320px 320px;
 }
 .message-list.wallpaper-dots {
   background-color: var(--color-bg);
@@ -1490,6 +1496,27 @@
   margin-bottom: 4px;
   background: #000;
 }
+.tap-to-load {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 220px;
+  height: 140px;
+  border-radius: 12px;
+  border: 1px dashed var(--color-border);
+  background: var(--color-surface-alt);
+  margin-bottom: 4px;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  text-align: center;
+  padding: 0 12px;
+}
+.tap-to-load:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
 .file-attachment {
   display: flex;
   align-items: center;
@@ -2216,6 +2243,17 @@
 .bot-code-test-row .login-input {
   flex: 1;
 }
+/* .settings-add-account-btn's own width:100% (meant for a full-width button
+   standing alone) fights flex:1 on the input next to it in this row — with
+   no basis of its own to shrink from, the button's 100% wins the space and
+   squeezes the input down to nothing. Give it back an intrinsic width here. */
+.bot-code-test-row .settings-add-account-btn {
+  width: auto;
+  flex: none;
+  padding-left: 18px;
+  padding-right: 18px;
+  white-space: nowrap;
+}
 .bot-code-output,
 .bot-code-logs {
   max-height: 140px;
@@ -2240,6 +2278,45 @@
 .bot-log-time {
   color: var(--color-muted);
   margin-right: 6px;
+}
+.bot-assist-log {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 8px;
+  background: var(--color-surface-alt);
+  padding: 8px 10px;
+  margin: 8px 0;
+}
+.bot-assist-msg {
+  max-width: 90%;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.bot-assist-msg p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.bot-assist-msg.user {
+  align-self: flex-end;
+  background: var(--color-accent-soft);
+}
+.bot-assist-msg.ai {
+  align-self: flex-start;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+.bot-assist-code-actions {
+  margin-top: 6px;
+}
+.bot-code-test-row .bot-assist-input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
 }
 
 .forward-list {
@@ -2549,6 +2626,27 @@
 }
 .qr-login-instructions.center {
   text-align: center;
+}
+.qr-profile-dialog {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.qr-profile-dialog .qr-login-code {
+  margin: 4px 0;
+}
+.qr-profile-username {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+.qr-profile-dialog .settings-toggle-hint {
+  text-align: center;
+}
+.qr-profile-dialog .btn-accent {
+  width: 100%;
 }
 .qr-login-spinner {
   width: 220px;
@@ -3030,6 +3128,9 @@
   font-size: 17px;
   font-weight: 600;
 }
+.settings-nav-topbar-qr {
+  margin-left: auto;
+}
 .settings-nav-profile {
   display: flex;
   align-items: center;
@@ -3208,6 +3309,36 @@
 }
 .settings-section .settings-range {
   margin: 0 0 4px;
+}
+.settings-section .settings-shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+}
+.settings-section .settings-shortcut-row:last-child {
+  border-bottom: none;
+}
+.settings-shortcut-keys {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--color-muted);
 }
 .settings-field {
   display: block;

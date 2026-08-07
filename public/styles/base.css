@@ -76,6 +76,19 @@
   box-sizing: border-box;
 }
 
+/* "Отключить анимации" in the account menu (see components/navRail.js) sets
+   this attribute — same blunt approach as prefers-reduced-motion, just
+   user-toggleable instead of OS-level. !important because per-component
+   transition/animation rules are scattered across components.css and would
+   otherwise need enumerating one by one. */
+html[data-reduce-motion] *,
+html[data-reduce-motion] *::before,
+html[data-reduce-motion] *::after {
+  transition-duration: 0.001ms !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+}
+
 html,
 body {
   height: 100%;

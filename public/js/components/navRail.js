@@ -3,7 +3,8 @@ import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { api } from "../api.js";
-import { getState } from "../state.js";
+import { getState, setState } from "../state.js";
+import { navigate } from "../router.js";
 
 function railButton(href, iconName, label, active) {
   return el(
@@ -65,6 +66,40 @@ export function NavRail() {
       // just fell through to notFound() and bounced straight back to "/".
       onClick: () => (window.location.href = "/login?add=1"),
     });
+    items.push({ separator: true });
+    items.push({ icon: "Settings", label: "Настройки", onClick: () => navigate("/settings") });
+    items.push({ separator: true });
+
+    const settings = getState().settings;
+    const theme = settings?.theme ?? "system";
+    const effectiveDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    items.push({
+      label: effectiveDark ? "Отключить тёмную тему" : "Включить тёмную тему",
+      onClick: async () => {
+        const next = effectiveDark ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", next);
+        setState({ settings: { ...getState().settings, theme: next } });
+        await api.patchSettings({ theme: next });
+      },
+    });
+    const reduceMotion = !!settings?.reduceMotion;
+    items.push({
+      label: reduceMotion ? "Включить анимации" : "Отключить анимации",
+      onClick: async () => {
+        const next = !reduceMotion;
+        document.documentElement.toggleAttribute("data-reduce-motion", next);
+        setState({ settings: { ...getState().settings, reduceMotion: next } });
+        await api.patchSettings({ reduceMotion: next });
+      },
+    });
+    items.push({ separator: true });
+    // The "Shalter" service account (server/data/systemBot.js) already
+    // delivers login codes/security alerts to every user — reusing it as the
+    // bug-report inbox means an actual person (whoever holds ADMIN_PHONE)
+    // reads it, not a form that goes nowhere. Routes through the same
+    // /u/:username deep link a scanned profile QR code uses.
+    items.push({ icon: "Bug", label: "Сообщить об ошибке", onClick: () => navigate("/u/shalter") });
+
     openDropdownMenu(pos, items);
   }
 

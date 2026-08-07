@@ -10,27 +10,39 @@ async function getSession(userId, deviceId) {
 
 // One row per (userId, deviceId) — logging in again from the same browser
 // refreshes the existing row (device label + lastActive) instead of piling
-// up duplicates every time. Also doubles as this account's *actual* list of
-// valid sessions (see server/middleware/auth.js's requireUserId) — deleting
-// a row here now really does log that device out, not just tidy up a list.
+// up duplicates every time. Also clears revokedAt: a fresh login is a
+// legitimate new session even on a device that was terminated before, same
+// as re-entering your password in Telegram after being kicked from a device.
 async function upsertSession({ userId, deviceId, device, location }) {
   const lastActive = new Date().toISOString();
   const existing = db.prepare("SELECT id FROM sessions WHERE userId = ? AND deviceId = ?").get(userId, deviceId);
   const id = existing?.id ?? `sess_${Date.now()}`;
   db.prepare(
-    `INSERT INTO sessions (id, userId, deviceId, device, location, lastActive) VALUES (@id, @userId, @deviceId, @device, @location, @lastActive)
-     ON CONFLICT(userId, deviceId) DO UPDATE SET device = @device, location = @location, lastActive = @lastActive`
+    `INSERT INTO sessions (id, userId, deviceId, device, location, lastActive, revokedAt) VALUES (@id, @userId, @deviceId, @device, @location, @lastActive, NULL)
+     ON CONFLICT(userId, deviceId) DO UPDATE SET device = @device, location = @location, lastActive = @lastActive, revokedAt = NULL`
   ).run({ id, userId, deviceId, device, location, lastActive });
   return { session: db.prepare("SELECT * FROM sessions WHERE userId = ? AND deviceId = ?").get(userId, deviceId), isNewDevice: !existing };
 }
 
-// Account deletion (server/lib/deleteAccount.js) only — this stays separate
-// from the removed manual "terminate session" feature (see the auth
-// middleware's history), which was specifically about forcing a *different*
-// device out from under someone. This one just cleans up after the account
-// itself is gone.
+// "Terminate session" (Settings → Устройства → «Завершить»). Sets a flag
+// rather than deleting the row — see server/middleware/auth.js's
+// requireUserId for why a *missing* row must never be treated the same as an
+// *explicitly revoked* one.
+async function revokeSession(userId, deviceId) {
+  db.prepare("UPDATE sessions SET revokedAt = ? WHERE userId = ? AND deviceId = ?").run(new Date().toISOString(), userId, deviceId);
+}
+
+// "Завершить все остальные сессии" — revokes every session for this account
+// except the one making the request.
+async function revokeOtherSessions(userId, exceptDeviceId) {
+  db.prepare("UPDATE sessions SET revokedAt = ? WHERE userId = ? AND deviceId <> ?").run(new Date().toISOString(), userId, exceptDeviceId);
+}
+
+// Account deletion (server/lib/deleteAccount.js) only — unlike revokeSession/
+// revokeOtherSessions above (kicking a *specific other* device while the
+// account keeps existing), this is cleanup after the account itself is gone.
 async function removeAllSessionsForUser(userId) {
   db.prepare("DELETE FROM sessions WHERE userId = ?").run(userId);
 }
 
-module.exports = { listSessions, getSession, upsertSession, removeAllSessionsForUser };
+module.exports = { listSessions, getSession, upsertSession, revokeSession, revokeOtherSessions, removeAllSessionsForUser };
