@@ -5,6 +5,8 @@ const { ADMIN_PHONE, PREMIUM_GRANT_DAYS } = require("../config");
 const { getUser, findUserByPhone, listReferrals, grantPremiumDays, revokePremium } = require("../data/users");
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
+const { isConnected: isDonationAlertsConnected, getDonationPageUrl } = require("../lib/donationAlerts");
+const { createPendingOrder } = require("../data/pendingOrders");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -41,13 +43,38 @@ router.post(
     if (!admin) {
       return res.status(503).json({ error: "Администрация Shalter ещё не зарегистрирована в приложении" });
     }
-    if (admin.id === req.uid) {
-      return res.status(400).json({ error: "Вы уже администратор Shalter" });
-    }
     const me = await getUser(req.uid);
     if (me.isPremium) {
       return res.status(400).json({ error: "У вас уже есть Shalter Premium" });
     }
+
+    // Same "nobody to ask" reasoning as gifts.js's /request — the admin
+    // grants themselves Premium immediately instead of messaging themselves
+    // to wait for their own confirmation. findOrCreateDm(req.uid, req.uid)
+    // is a real self-chat (deduped in systemChat.js), same one every other
+    // self-delivered grant lands in — not a special-cased dead end.
+    if (admin.id === req.uid) {
+      await grantPremiumDays(req.uid, PREMIUM_GRANT_DAYS);
+      const chat = await findOrCreateDm(req.uid, req.uid);
+      await sendMessageAndBroadcast(
+        chat,
+        req.uid,
+        `🎉 Вам выдан Shalter Premium на ${PREMIUM_GRANT_DAYS} дней! Спасибо, что поддерживаете проект.`
+      );
+      return res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE, delivered: true });
+    }
+
+    // Real automatic payment via DonationAlerts once the admin's connected
+    // it (see lib/donationAlerts.js) — a code to type into the donation
+    // message instead of a chat message asking the admin to confirm by hand.
+    if (isDonationAlertsConnected()) {
+      const donationUrl = getDonationPageUrl();
+      if (donationUrl) {
+        const order = await createPendingOrder({ userId: req.uid, kind: "premium", amountRub: 10 });
+        return res.json({ code: order.code, donationUrl, amountRub: 10 });
+      }
+    }
+
     const chat = await findOrCreateDm(req.uid, admin.id);
     await sendMessageAndBroadcast(
       chat,

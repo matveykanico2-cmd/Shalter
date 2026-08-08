@@ -1,4 +1,4 @@
-import { el } from "../lib/dom.js";
+import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
@@ -42,9 +42,35 @@ function timeLabel(iso) {
 // is a one-shot entrance (CSS animation, no infinite loop) so it reads as
 // "a gift just arrived" without permanently distracting from the rest of
 // the chat every time this message scrolls into view.
+// chatView.js's renderList() does a full clear()+rebuild on every 15s poll
+// and every WS message event *anywhere in the chat* (see its refreshMessages
+// setInterval) — with no vdom, that recreates every bubble's DOM node from
+// scratch each time. Without this, a gift/sticker's one-shot entrance
+// animation (the sparkle burst, the pop-in) would replay right along with
+// it, so a message sent minutes ago keeps re-flashing every time anyone else
+// in the chat sends something. Tracked here (not per-render state) so it
+// survives exactly as long as the tab does, same pattern as
+// lib/transcribe.js's transcriptCache.
+const seenEntranceIds = new Set();
+
+// Same time/views/read-check row a plain text bubble gets (see the
+// `meta` build below in MessageBubble) — gifts and stickers skipped it
+// entirely before, so they looked unlike every other message in the log:
+// no send time, no way to tell if the other side had seen it yet.
+function entranceMessageMeta(message, mine) {
+  return el("div", { class: "entrance-message-meta" }, [
+    el("span", { class: "mono" }, timeLabel(message.createdAt)),
+    typeof message.views === "number" ? el("span", { class: "mono" }, `· ${message.views} 👁`) : null,
+    mine ? el("span", { html: iconSvg(message.readByIds?.length > 1 ? "CheckCheck" : "Check", 13) }) : null,
+  ]);
+}
+
 const SPARKLE_ANGLES = [0, 60, 120, 180, 240, 300];
-function GiftMessage(gift) {
-  return el("div", { class: "gift-message" }, [
+function GiftMessage(message, mine) {
+  const gift = message.gift;
+  const isNew = !seenEntranceIds.has(message.id);
+  seenEntranceIds.add(message.id);
+  return el("div", { class: `gift-message ${isNew ? "" : "no-entrance"}` }, [
     el("div", { class: "gift-message-burst" }, [
       el("div", { class: "gift-message-glow" }),
       ...SPARKLE_ANGLES.map((deg, i) =>
@@ -55,6 +81,7 @@ function GiftMessage(gift) {
     el("p", { class: "gift-message-name" }, gift.name),
     gift.durationLabel ? el("p", { class: "gift-message-duration" }, gift.durationLabel) : null,
     el("p", { class: "mono gift-message-price" }, `${gift.priceRub}₽`),
+    entranceMessageMeta(message, mine),
   ]);
 }
 
@@ -62,10 +89,84 @@ function GiftMessage(gift) {
 // big emoji playing its own named animation (see .sticker-<anim> in
 // components.css), same "not a normal chat bubble" slot as .system-message/
 // .gift-message.
-function StickerMessage(sticker) {
-  return el("div", { class: "sticker-message" }, [
+function StickerMessage(message, mine) {
+  const sticker = message.sticker;
+  const isNew = !seenEntranceIds.has(message.id);
+  seenEntranceIds.add(message.id);
+  return el("div", { class: `sticker-message ${isNew ? "" : "no-entrance"}` }, [
     el("span", { class: `sticker-message-emoji sticker-${sticker.anim}` }, sticker.emoji),
+    entranceMessageMeta(message, mine),
   ]);
+}
+
+const REASON_LABELS = {
+  spam: "Спам",
+  scam: "Мошенничество",
+  violence: "Насилие или угрозы",
+  illegal: "Незаконный контент",
+  child_safety: "Угроза безопасности детей",
+  other: "Другое",
+};
+const REPORT_STATUS_LABELS = {
+  resolved_deleted: "✅ Удалено",
+  resolved_banned: "🚫 Пользователь заблокирован",
+  dismissed: "Отклонено",
+};
+
+// A new-report notification (server/routes/reports.js) — lands in the
+// admin's chat with the Shalter service bot same as login codes/security
+// alerts. Only the admin (me.isDeveloper — see data/sanitize.js's publicUser,
+// "whoever currently holds ADMIN_PHONE") sees the action buttons; everyone
+// else (there normally isn't anyone else in this chat) just sees the plain
+// summary. Buttons disappear once report.status moves off "open" — either
+// because *this* viewer just resolved it (local optimistic update) or a
+// poll/WS refresh picked up someone else having done so.
+function ReportMessage(message, mine, me) {
+  const report = message.report;
+  const isAdmin = !!me?.isDeveloper;
+  let resolving = false;
+  let status = report.status;
+
+  const wrap = el("div", { class: "report-message" });
+
+  async function resolve(action) {
+    if (resolving) return;
+    resolving = true;
+    render();
+    try {
+      const res = await api.resolveReport(report.reportId, action, message.id);
+      status = res.status;
+    } catch (err) {
+      alert(err.message || "Не удалось выполнить действие");
+    } finally {
+      resolving = false;
+      render();
+    }
+  }
+
+  function render() {
+    clear(wrap);
+    wrap.append(
+      el("p", { class: "report-message-title" }, `🚩 Жалоба: ${REASON_LABELS[report.reason] ?? report.reason}`),
+      el("p", { class: "report-message-summary" }, report.targetSummary),
+      status === "open"
+        ? isAdmin
+          ? el("div", { class: "report-message-actions" }, [
+              report.targetType !== "user"
+                ? el("button", { class: "report-action-btn danger", disabled: resolving, onclick: () => resolve("delete") }, "Удалить")
+                : null,
+              report.canBan
+                ? el("button", { class: "report-action-btn danger", disabled: resolving, onclick: () => resolve("ban") }, "Заблокировать")
+                : null,
+              el("button", { class: "report-action-btn", disabled: resolving, onclick: () => resolve("dismiss") }, "Отклонить"),
+            ])
+          : el("p", { class: "report-message-pending" }, "Ожидает решения администратора")
+        : el("p", { class: "report-message-resolved" }, REPORT_STATUS_LABELS[status] ?? status),
+      entranceMessageMeta(message, mine)
+    );
+  }
+  render();
+  return wrap;
 }
 
 function ContactAttachment(a) {
@@ -194,11 +295,15 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
   }
 
   if (message.type === "gift" && message.gift) {
-    return GiftMessage(message.gift);
+    return GiftMessage(message, mine);
   }
 
   if (message.type === "sticker" && message.sticker) {
-    return StickerMessage(message.sticker);
+    return StickerMessage(message, mine);
+  }
+
+  if (message.type === "report" && message.report) {
+    return ReportMessage(message, mine, me);
   }
 
   const bubbleInner = [];

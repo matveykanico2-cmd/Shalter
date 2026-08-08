@@ -11,6 +11,7 @@ const { attachWebSocketServer } = require("./ws");
 const { initPush } = require("./push");
 const { ensureSystemBot } = require("./data/systemBot");
 const { startAutoDeleteSweep } = require("./lib/autoDelete");
+const { startDonationAlertsSweep } = require("./lib/donationAlerts");
 
 ensureSystemBot();
 
@@ -83,6 +84,7 @@ app.use("/api/stories", require("./routes/stories"));
 app.use("/api/premium", require("./routes/premium"));
 app.use("/api/gifts", require("./routes/gifts"));
 app.use("/api/ads", require("./routes/ads"));
+app.use("/api/donation-alerts", require("./routes/donationAlerts"));
 app.use("/api/translate", require("./routes/translate"));
 
 if (useBuilt) {
@@ -109,6 +111,7 @@ const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 attachWebSocketServer(server);
 startAutoDeleteSweep();
+startDonationAlertsSweep();
 
 // VAPID key setup must finish before anything can subscribe/send push, but
 // must never block the server from coming up at all if it fails for some

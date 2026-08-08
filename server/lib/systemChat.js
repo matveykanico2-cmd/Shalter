@@ -12,11 +12,15 @@ async function findOrCreateDm(userIdA, userIdB) {
     (c) => c.type === "dm" && c.memberIds.includes(userIdA) && c.memberIds.includes(userIdB)
   );
   if (existing) return existing;
+  // Deduped: the admin self-delivering a gift/Premium to themselves (see
+  // routes/gifts.js, routes/premium.js) calls this with userIdA === userIdB
+  // — chat_members has a (chatId, userId) primary key, so a literal
+  // [id, id] would crash the insert with a constraint violation.
   return createChat({
     id: `c_${Date.now()}`,
     type: "dm",
     title: "",
-    memberIds: [userIdA, userIdB],
+    memberIds: [...new Set([userIdA, userIdB])],
     pinned: false,
     muted: false,
     archived: false,

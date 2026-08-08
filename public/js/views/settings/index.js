@@ -15,6 +15,7 @@ import { formatPhoneInput } from "../../lib/phoneFormat.js";
 import { hasPasscode } from "../../lib/passcodeLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 import { openProfileQrDialog } from "../../components/profileQrDialog.js";
+import { openDonationDialog } from "../../components/donationDialog.js";
 
 // `color` gives each row's icon its own chip background (Telegram's own
 // settings menu — every row's icon sits in a small colored square, not a
@@ -33,6 +34,7 @@ const SECTIONS = [
   { id: "folders", label: "Папки", icon: "Archive", color: "#f2b33b" },
   { id: "data", label: "Данные и память", icon: "Download", color: "#58c4dc" },
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", color: "#8a8f98" },
+  { id: "donations", label: "DonationAlerts", icon: "Zap", color: "#3ec2c2", adminOnly: true },
 ];
 
 function Toggle(checked, onChange) {
@@ -54,7 +56,7 @@ export async function SettingsView(root, page) {
             class: "icon-btn settings-nav-topbar-qr",
             title: "QR-код профиля",
             html: iconSvg("Qrcode", 18),
-            onclick: () => openProfileQrDialog(me.username),
+            onclick: () => openProfileQrDialog(me),
           })
         : null,
     ]),
@@ -76,7 +78,7 @@ export async function SettingsView(root, page) {
     el(
       "div",
       { class: "settings-nav-list" },
-      SECTIONS.filter((s) => s.id).map((s) =>
+      SECTIONS.filter((s) => s.id && (!s.adminOnly || me.isDeveloper)).map((s) =>
         el(
           "a",
           {
@@ -109,6 +111,7 @@ export async function SettingsView(root, page) {
     folders: renderFolders,
     data: renderData,
     shortcuts: renderShortcuts,
+    donations: renderDonations,
   };
   await (renderers[section] ?? renderProfile)(contentSlot);
 }
@@ -314,8 +317,9 @@ async function renderPremium(root) {
     buyError = null;
     render();
     try {
-      const { chatId } = await api.requestPremium();
-      navigate(`/chat/${chatId}`);
+      const res = await api.requestPremium();
+      if (res.donationUrl) openDonationDialog(res);
+      else navigate(`/chat/${res.chatId}`);
     } catch (err) {
       buyError = err.message;
     } finally {
@@ -329,8 +333,9 @@ async function renderPremium(root) {
     giftError = null;
     render();
     try {
-      const { chatId } = await api.requestGift(gift.id, recipient.id);
-      navigate(`/chat/${chatId}`);
+      const res = await api.requestGift(gift.id, recipient.id);
+      if (res.donationUrl) openDonationDialog(res);
+      else navigate(`/chat/${res.chatId}`);
     } catch (err) {
       giftError = err.message;
     } finally {
@@ -440,8 +445,9 @@ async function renderAds(root) {
     buyError = null;
     render();
     try {
-      const { chatId } = await api.requestAds();
-      navigate(`/chat/${chatId}`);
+      const res = await api.requestAds();
+      if (res.donationUrl) openDonationDialog(res);
+      else navigate(`/chat/${res.chatId}`);
     } catch (err) {
       buyError = err.message;
     } finally {
@@ -681,6 +687,9 @@ async function renderAppearance(root) {
     { id: "default", label: "По умолчанию" },
     { id: "dots", label: "Точки" },
     { id: "gradient", label: "Градиент" },
+    { id: "forest", label: "Лес" },
+    { id: "school", label: "Школа" },
+    { id: "university", label: "Универ" },
     { id: "custom", label: "Своё фото" },
   ];
   let wallpaperError = null;
@@ -1093,37 +1102,52 @@ async function renderDevices(root) {
     }
   }
 
+  // Layout matches Telegram Web's own Active Sessions screen: the current
+  // device sits alone under "Это устройство" with the red "terminate all
+  // others" action directly beneath it (plus a hint line under *that*, not
+  // inside the card), then every other session gets its own "Активные
+  // сеансы" group below.
   function render() {
     const current = sessions.find((s) => s.current);
     const others = sessions.filter((s) => !s.current);
     mount(
       root,
-      pageWrap("Устройства", "Активные сеансы вашего аккаунта", [
+      pageWrap("Устройства", null, [
         current
-          ? el("div", { class: "settings-current-device" }, [
-              el("p", { class: "settings-toggle-title" }, "Это устройство"),
-              el("p", {}, current.device),
-              el("p", { class: "mono settings-toggle-hint" }, `${current.location} · ${timeLabel(current.lastActive)}`),
+          ? section("Это устройство", [
+              el("div", { class: "settings-device-row current" }, [
+                el("div", { class: "settings-device-body" }, [
+                  el("p", { class: "settings-device-name" }, current.device),
+                  el("p", { class: "mono settings-toggle-hint" }, current.location),
+                ]),
+              ]),
+              others.length
+                ? el(
+                    "button",
+                    { class: "settings-danger-link with-icon", disabled: busyId === "others", onclick: terminateOthers },
+                    [el("span", { html: iconSvg("X", 14) }), "Завершить все остальные сеансы"]
+                  )
+                : null,
             ])
           : null,
+        others.length ? el("p", { class: "settings-toggle-hint device-list-hint" }, "Выйти на всех устройствах, кроме этого.") : null,
         others.length
-          ? el("div", { class: "settings-devices-list" }, [
-              el("div", { class: "settings-devices-list-header" }, [
-                el("p", { class: "settings-section-title" }, "Другие сеансы"),
-                el("button", { class: "settings-danger-link", disabled: busyId === "others", onclick: terminateOthers }, "Завершить все"),
-              ]),
-              ...others.map((s) =>
+          ? section(
+              "Активные сеансы",
+              others.map((s) =>
                 el("div", { class: "settings-device-row" }, [
-                  el("span", { html: iconSvg("Phone", 16) }),
-                  el("div", { class: "settings-device-body" }, [el("p", {}, s.device), el("p", { class: "mono settings-toggle-hint" }, `${s.location} · ${timeLabel(s.lastActive)}`)]),
+                  el("div", { class: "settings-device-body" }, [
+                    el("p", { class: "settings-device-name" }, [s.device, el("span", { class: "settings-device-time" }, timeLabel(s.lastActive))]),
+                    el("p", { class: "mono settings-toggle-hint" }, s.location),
+                  ]),
                   el(
                     "button",
-                    { class: "settings-danger-link", disabled: busyId === s.deviceId, onclick: () => terminate(s.deviceId) },
-                    busyId === s.deviceId ? "…" : "Завершить"
+                    { class: "icon-btn danger", title: "Завершить", disabled: busyId === s.deviceId, onclick: () => terminate(s.deviceId) },
+                    busyId === s.deviceId ? "…" : el("span", { html: iconSvg("X", 14) })
                   ),
                 ])
-              ),
-            ])
+              )
+            )
           : null,
       ])
     );
@@ -1359,6 +1383,44 @@ async function renderShortcuts(root) {
         shortcutRow("Предыдущий чат", ["Alt", "↑"]),
         shortcutRow("Закрыть чат / окно", ["Esc"]),
       ]),
+    ])
+  );
+}
+
+// Admin-only (see SECTIONS' adminOnly flag) — connects DonationAlerts so
+// Premium/Реклама/Gift purchases become real automatic payments instead of
+// the "message the admin, they confirm by hand" fallback (server/lib/
+// donationAlerts.js). Env vars (DONATIONALERTS_CLIENT_ID/SECRET/REDIRECT_URI)
+// have to be set on the server first — there's no UI for those since they're
+// app-wide OAuth app credentials, not something to type into a settings form.
+async function renderDonations(root) {
+  const params = new URLSearchParams(window.location.search);
+  let banner = params.get("connected") ? "connected" : params.get("error") ? "error" : null;
+  if (banner) window.history.replaceState(null, "", "/settings/donations");
+
+  let status = null;
+  let loadError = null;
+  try {
+    status = await api.getDonationAlertsStatus();
+  } catch (err) {
+    loadError = err.message;
+  }
+
+  mount(
+    root,
+    pageWrap("DonationAlerts", "Реальная автоматическая оплата Premium, рекламы и подарков вместо ручного подтверждения", [
+      banner === "connected" ? el("p", { class: "login-hint" }, "✅ DonationAlerts подключён.") : null,
+      banner === "error" ? el("p", { class: "login-error" }, "Не удалось подключить DonationAlerts — попробуйте ещё раз.") : null,
+      loadError ? el("p", { class: "login-error" }, loadError) : null,
+      status
+        ? section(null, [
+            !status.configured
+              ? el("p", { class: "settings-toggle-hint" }, "На сервере не заданы DONATIONALERTS_CLIENT_ID / DONATIONALERTS_CLIENT_SECRET / DONATIONALERTS_REDIRECT_URI — без них подключение недоступно.")
+              : status.connected
+                ? el("p", { class: "settings-toggle-title" }, `Подключено${status.username ? ` как @${status.username}` : ""} ✅`)
+                : el("a", { class: "btn-accent donation-link-btn", href: "/api/donation-alerts/connect" }, "Подключить DonationAlerts"),
+          ])
+        : null,
     ])
   );
 }

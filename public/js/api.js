@@ -11,6 +11,9 @@ async function req(url, init) {
     // silently. ?reason=revoked lets login.js show why, instead of it just
     // looking like a random logout.
     if (body.error === "session_revoked") window.location.href = "/login?reason=revoked";
+    // Banned by the admin from the reports moderation chat (routes/reports.js's
+    // /:id/ban) — same "bounce to login with an explanation" shape as above.
+    if (body.error === "banned") window.location.href = "/login?reason=banned";
     throw new Error(body.error ?? `Request failed: ${res.status}`);
   }
   return res.json();
@@ -129,6 +132,10 @@ export const api = {
 
   submitReport: (targetType, targetId, reason, details) =>
     req("/api/reports", { method: "POST", body: JSON.stringify({ targetType, targetId, reason, details }) }),
+  resolveReport: (reportId, action, messageId) =>
+    req(`/api/reports/${reportId}/resolve`, { method: "POST", body: JSON.stringify({ action, messageId }) }),
+
+  getDonationAlertsStatus: () => req("/api/donation-alerts/status"),
 
   listStories: () => req("/api/stories"),
   postStory: (kind, url) => req("/api/stories", { method: "POST", body: JSON.stringify({ kind, url }) }),

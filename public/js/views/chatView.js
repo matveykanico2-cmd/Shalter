@@ -18,7 +18,15 @@ import { onWsMessage } from "../lib/wsClient.js";
 // — "default"/"dots"/"gradient" are plain CSS classes (see components.css);
 // "custom" paints the user's own uploaded image via an inline style, since
 // that part can't be a static class.
-const WALLPAPER_CLASSES = ["wallpaper-default", "wallpaper-dots", "wallpaper-gradient", "wallpaper-custom"];
+const WALLPAPER_CLASSES = [
+  "wallpaper-default",
+  "wallpaper-dots",
+  "wallpaper-gradient",
+  "wallpaper-custom",
+  "wallpaper-forest",
+  "wallpaper-school",
+  "wallpaper-university",
+];
 function applyWallpaper(list) {
   const settings = getState().settings;
   const id = settings?.chatWallpaper ?? "default";
@@ -30,6 +38,28 @@ function applyWallpaper(list) {
     list.style.backgroundImage = "";
     list.classList.add(`wallpaper-${id === "custom" ? "default" : id}`);
   }
+}
+
+// Date dividers between messages from different calendar days (Telegram's
+// own "Сегодня"/"Вчера"/16 июля" pills above the day's first message) — pure
+// local-time comparison, same as timeLabel()'s toLocaleTimeString elsewhere
+// in this file, so a divider lands on the day the message actually shows
+// under, not its UTC day if that happens to differ near midnight.
+function sameDay(isoA, isoB) {
+  const a = new Date(isoA);
+  const b = new Date(isoB);
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+function dayLabel(iso) {
+  const now = new Date();
+  if (sameDay(iso, now)) return "Сегодня";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(iso, yesterday)) return "Вчера";
+  const d = new Date(iso);
+  const opts = { day: "numeric", month: "long" };
+  if (d.getFullYear() !== now.getFullYear()) opts.year = "numeric";
+  return d.toLocaleDateString("ru-RU", opts);
 }
 
 function lastSeenLabel(user) {
@@ -428,6 +458,9 @@ export async function ChatView(root, chatId) {
     }
     messages.forEach((m, i) => {
       const prev = messages[i - 1];
+      if (!prev || !sameDay(prev.createdAt, m.createdAt)) {
+        list.appendChild(el("div", { class: "date-divider" }, el("span", {}, dayLabel(m.createdAt))));
+      }
       const showSender = (chat.type === "group" || chat.type === "channel") && (!prev || prev.senderId !== m.senderId);
       const sender = members.find((u) => u.id === m.senderId);
       const replyToMessage = m.replyToId ? messages.find((x) => x.id === m.replyToId) : undefined;

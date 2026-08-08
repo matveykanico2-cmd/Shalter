@@ -6,6 +6,8 @@ const { getUser, findUserByPhone, grantAdsDays, revokeAds, updateUser } = requir
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
+const { isConnected: isDonationAlertsConnected, getDonationPageUrl } = require("../lib/donationAlerts");
+const { createPendingOrder } = require("../data/pendingOrders");
 
 // Ads get a small gallery of attachments, image/video/file only — no voice/
 // video-note/location/contact/poll, none of which make sense on a
@@ -65,7 +67,28 @@ router.post(
   asyncRoute(async (req, res) => {
     const admin = await findUserByPhone(ADMIN_PHONE);
     if (!admin) return res.status(503).json({ error: "Администрация Shalter ещё не зарегистрирована в приложении" });
-    if (admin.id === req.uid) return res.status(400).json({ error: "Вы уже администратор Shalter" });
+
+    // Same "nobody to ask" reasoning as premium.js/gifts.js's /request — the
+    // admin activates their own ad cabinet immediately instead of messaging
+    // themselves to wait for their own confirmation.
+    if (admin.id === req.uid) {
+      await grantAdsDays(req.uid, ADS_GRANT_DAYS);
+      const chat = await findOrCreateDm(req.uid, req.uid);
+      await sendMessageAndBroadcast(
+        chat,
+        req.uid,
+        `📢 Вам выдан кабинет рекламы на ${ADS_GRANT_DAYS} дней! Настройте объявление в Настройки → Реклама.`
+      );
+      return res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE, priceRub: ADS_PRICE_RUB, delivered: true });
+    }
+
+    if (isDonationAlertsConnected()) {
+      const donationUrl = getDonationPageUrl();
+      if (donationUrl) {
+        const order = await createPendingOrder({ userId: req.uid, kind: "ads", amountRub: ADS_PRICE_RUB });
+        return res.json({ code: order.code, donationUrl, amountRub: ADS_PRICE_RUB });
+      }
+    }
 
     const chat = await findOrCreateDm(req.uid, admin.id);
     await sendMessageAndBroadcast(

@@ -43,6 +43,7 @@ function rowToUser(row) {
     adAttachments: row.adAttachments ? JSON.parse(row.adAttachments) : [],
     birthday: row.birthday ?? undefined,
     giftsReceived: JSON.parse(row.giftsReceived ?? "[]"),
+    isBanned: !!row.isBanned,
   };
 }
 
@@ -184,6 +185,11 @@ async function listReferrals(userId) {
   return db.prepare("SELECT * FROM users WHERE referredBy = ?").all(userId).map(rowToUser);
 }
 
+async function setBanned(userId, banned) {
+  db.prepare("UPDATE users SET isBanned = ? WHERE id = ?").run(banned ? 1 : 0, userId);
+  return getUser(userId);
+}
+
 async function setBlocked(userId, targetId, blocked) {
   const row = db.prepare("SELECT blockedUserIds FROM users WHERE id = ?").get(userId);
   if (!row) return undefined;
@@ -218,6 +224,7 @@ module.exports = {
   createUser,
   updateUser,
   setBlocked,
+  setBanned,
   addReceivedGift,
   grantPremiumDays,
   revokePremium,

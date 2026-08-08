@@ -1,6 +1,7 @@
 const { randomBytes } = require("crypto");
 const { asyncRoute } = require("./errors");
 const { getSession } = require("../data/sessions");
+const { getUser } = require("../data/users");
 
 const SESSIONS_COOKIE = "session_uids";
 const ACTIVE_COOKIE = "active_uid";
@@ -133,6 +134,10 @@ const requireUserId = asyncRoute(async (req, res, next) => {
     const session = await getSession(uid, deviceId);
     if (session?.revokedAt) return res.status(401).json({ error: "session_revoked" });
   }
+  // Same "explicit flag, never inferred" shape as the revokedAt check above —
+  // set from the reports moderation chat (routes/reports.js's /:id/ban).
+  const user = await getUser(uid);
+  if (user?.isBanned) return res.status(403).json({ error: "banned" });
   req.uid = uid;
   next();
 });

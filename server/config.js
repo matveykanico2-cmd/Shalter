@@ -17,4 +17,24 @@ const PREMIUM_GRANT_DAYS = 30;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
 
-module.exports = { ADMIN_PHONE, PREMIUM_GRANT_DAYS, ANTHROPIC_API_KEY, ANTHROPIC_MODEL };
+// DonationAlerts OAuth app credentials (server/lib/donationAlerts.js) — from
+// https://www.donationalerts.com/application/clients, registered by whoever
+// holds ADMIN_PHONE. Unset by default: without these, Premium/Реклама/Gift
+// purchases fall back to the old "message the admin, they confirm by hand"
+// flow instead of real automatic payment — see the isConfigured() check
+// premium.js/ads.js/gifts.js's /request routes make before offering it.
+const DONATIONALERTS_CLIENT_ID = process.env.DONATIONALERTS_CLIENT_ID || "";
+const DONATIONALERTS_CLIENT_SECRET = process.env.DONATIONALERTS_CLIENT_SECRET || "";
+// Must exactly match a redirect URI registered on the DonationAlerts app —
+// e.g. https://your-domain.example/api/donation-alerts/callback.
+const DONATIONALERTS_REDIRECT_URI = process.env.DONATIONALERTS_REDIRECT_URI || "";
+
+module.exports = {
+  ADMIN_PHONE,
+  PREMIUM_GRANT_DAYS,
+  ANTHROPIC_API_KEY,
+  ANTHROPIC_MODEL,
+  DONATIONALERTS_CLIENT_ID,
+  DONATIONALERTS_CLIENT_SECRET,
+  DONATIONALERTS_REDIRECT_URI,
+};

@@ -92,6 +92,13 @@ router.post(
     ) {
       return res.status(401).json({ error: "Неверный email или пароль" });
     }
+    // Same ban set from the reports moderation chat (routes/reports.js's
+    // /:id/ban) that requireUserId checks on every request — checked here too
+    // so a banned account never even gets a session cookie in the first
+    // place, instead of logging in and then failing on the very next call.
+    if (user.isBanned) {
+      return res.status(403).json({ error: "Аккаунт заблокирован администрацией" });
+    }
 
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);

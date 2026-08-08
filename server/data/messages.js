@@ -18,6 +18,7 @@ function rowToMessage(row) {
     gift: row.gift ? JSON.parse(row.gift) : undefined,
     sticker: row.sticker ? JSON.parse(row.sticker) : undefined,
     linkPreview: row.linkPreview ? JSON.parse(row.linkPreview) : undefined,
+    report: row.report ? JSON.parse(row.report) : undefined,
     reactions: JSON.parse(row.reactions),
     readByIds: JSON.parse(row.readByIds),
     deletedForIds: JSON.parse(row.deletedForIds),
@@ -49,8 +50,8 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, reactions, readByIds, deletedForIds, anchorForPostId, discussionAnchorId, views, commentCount)
-     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @reactions, @readByIds, @deletedForIds, @anchorForPostId, @discussionAnchorId, @views, @commentCount)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, anchorForPostId, discussionAnchorId, views, commentCount)
+     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @anchorForPostId, @discussionAnchorId, @views, @commentCount)`
   ).run({
     id: message.id,
     chatId: message.chatId,
@@ -66,6 +67,7 @@ async function addMessage(message) {
     keyboard: message.keyboard ? JSON.stringify(message.keyboard) : null,
     gift: message.gift ? JSON.stringify(message.gift) : null,
     sticker: message.sticker ? JSON.stringify(message.sticker) : null,
+    report: message.report ? JSON.stringify(message.report) : null,
     reactions: JSON.stringify(message.reactions ?? []),
     readByIds: JSON.stringify(message.readByIds ?? []),
     deletedForIds: JSON.stringify(message.deletedForIds ?? []),
@@ -101,7 +103,7 @@ async function mutate(id, fn) {
     `UPDATE messages SET text = @text, editedAt = @editedAt, pinned = @pinned, forwardedFrom = @forwardedFrom,
        attachments = @attachments, keyboard = @keyboard, reactions = @reactions, readByIds = @readByIds,
        deletedForIds = @deletedForIds, anchorForPostId = @anchorForPostId, discussionAnchorId = @discussionAnchorId,
-       views = @views, commentCount = @commentCount, linkPreview = @linkPreview
+       views = @views, commentCount = @commentCount, linkPreview = @linkPreview, report = @report
      WHERE id = @id`
   ).run({
     id,
@@ -119,12 +121,20 @@ async function mutate(id, fn) {
     views: updated.views ?? 0,
     commentCount: updated.commentCount ?? 0,
     linkPreview: updated.linkPreview ? JSON.stringify(updated.linkPreview) : null,
+    report: updated.report ? JSON.stringify(updated.report) : null,
   });
   return getMessage(id);
 }
 
 function setLinkPreview(id, linkPreview) {
   return mutate(id, (m) => ({ ...m, linkPreview }));
+}
+
+// Flips a report-notification message's embedded status once the admin acts
+// on it from messageBubble.js's ReportMessage (see routes/reports.js's
+// /:id/resolve) — the buttons there disappear once status !== "open".
+function setReportMessageStatus(id, status) {
+  return mutate(id, (m) => (m.report ? { ...m, report: { ...m.report, status } } : m));
 }
 
 function editMessage(id, text) {
@@ -258,4 +268,5 @@ module.exports = {
   setAnchorForPost,
   setDiscussionAnchor,
   setLinkPreview,
+  setReportMessageStatus,
 };

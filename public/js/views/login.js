@@ -21,6 +21,10 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   // a plain "why am I here" hint rather than leaving it looking like a random
   // logout.
   const revokedNotice = new URLSearchParams(window.location.search).get("reason") === "revoked";
+  // Same idea, for an account banned from the reports moderation chat
+  // (routes/reports.js's /:id/ban) — surfaced here rather than a bare
+  // "неверный email или пароль" that'd make it look like a typo.
+  const bannedNotice = new URLSearchParams(window.location.search).get("reason") === "banned";
   let mode = refFromLink ? "register" : "login"; // "login" | "register" | "qr" | "code"
   let name = "";
   let email = "";
@@ -330,6 +334,9 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         mode === "register" ? el("p", { class: "login-hint" }, "Пароль — не короче 6 символов, хранится только в виде хеша.") : null,
         revokedNotice && mode === "login" && !error
           ? el("p", { class: "login-hint" }, "Сеанс на этом устройстве был завершён — войдите снова.")
+          : null,
+        bannedNotice && mode === "login" && !error
+          ? el("p", { class: "login-error" }, "Этот аккаунт заблокирован администрацией Shalter.")
           : null,
         error ? el("p", { class: "login-error" }, error) : null,
         el("button", { class: "login-submit", disabled: pending }, pending ? "Проверка…" : mode === "login" ? "Войти" : "Создать аккаунт"),

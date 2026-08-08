@@ -4,7 +4,7 @@ Real bots, like Telegram's — you create one in the app (Settings → Боты 
 Создать бота, optionally with an avatar). From there you have two ways to
 give it actual behavior:
 
-- **Write your own program, in any language, that runs wherever you want**
+- **Write your own program, in any language, that runs wherever ou want**
   (your laptop, a cheap VPS, a Raspberry Pi — it just needs outbound
   internet), using a token and the HTTP API described below. This is the
   rest of this document.

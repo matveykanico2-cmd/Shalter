@@ -22,6 +22,7 @@ import { initUiTranslation } from "./lib/uiTranslate.js";
 import { hasPasscode } from "./lib/passcodeLock.js";
 import { showPasscodeLockScreen } from "./components/passcodeLockScreen.js";
 import { initKeyboardShortcuts } from "./lib/keyboardShortcuts.js";
+import { WaveBearMascot } from "./components/mascot.js";
 
 const root = document.getElementById("view-root");
 
@@ -153,6 +154,7 @@ async function boot() {
   route("/", () => {
     withCleanup(mainSlot);
     mount(mainSlot, el("div", { class: "empty-chat" }, [
+      WaveBearMascot(),
       el("p", { class: "empty-chat-title" }, "Выберите чат"),
       el("p", { class: "empty-hint" }, "Или начните новый — найдите человека во вкладке «Контакты»."),
     ]));

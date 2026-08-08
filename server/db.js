@@ -201,6 +201,39 @@ CREATE TABLE IF NOT EXISTS vapid_keys (
   publicKey TEXT NOT NULL,
   privateKey TEXT NOT NULL
 );
+
+-- The admin's DonationAlerts OAuth connection (server/lib/donationAlerts.js)
+-- — a single row, same "id=1, upsert in place" shape as vapid_keys above.
+-- lastDonationId is the sweep's watermark (highest DonationAlerts donation
+-- id already processed), so a restart doesn't re-scan/re-fulfill everything.
+CREATE TABLE IF NOT EXISTS donation_alerts_auth (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  accessToken TEXT,
+  refreshToken TEXT,
+  expiresAt TEXT,
+  username TEXT,
+  lastDonationId INTEGER NOT NULL DEFAULT 0
+);
+
+-- A purchase started via /request (Premium, Реклама, or a Gift) while
+-- DonationAlerts is connected: real money hasn't landed yet, so the code
+-- below just remembers what was asked for and matches it to a donation
+-- later (server/lib/donationAlerts.js's poll sweep), same information
+-- premium.js/ads.js/gifts.js used to just drop straight into a chat message
+-- for the admin to read and act on by hand.
+CREATE TABLE IF NOT EXISTS pending_orders (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  giftId TEXT,
+  recipientId TEXT,
+  amountRub INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  createdAt TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_orders_code ON pending_orders(code);
+CREATE INDEX IF NOT EXISTS idx_pending_orders_user ON pending_orders(userId);
 `);
 
 // Ad-hoc migration for columns added after this db.js's CREATE TABLE
@@ -239,6 +272,11 @@ if (!existingUserColumns.has("birthday")) db.exec("ALTER TABLE users ADD COLUMN 
 // JSON column rather than its own table (same convention as reactions/
 // readByIds on messages — see AGENTS.md).
 if (!existingUserColumns.has("giftsReceived")) db.exec("ALTER TABLE users ADD COLUMN giftsReceived TEXT NOT NULL DEFAULT '[]'");
+// Set by the admin from the reports moderation chat (server/routes/reports.js's
+// /:id/ban) — checked in middleware/auth.js's requireUserId and the login
+// routes, same "explicit flag, never inferred" shape as the session-revoked
+// check right next to it.
+if (!existingUserColumns.has("isBanned")) db.exec("ALTER TABLE users ADD COLUMN isBanned INTEGER NOT NULL DEFAULT 0");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone <> ''");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referralCode) WHERE referralCode IS NOT NULL");
 // Case-insensitive (COLLATE NOCASE) — usernames are compared case-
@@ -283,6 +321,14 @@ if (!existingMessageColumns.has("sticker")) db.exec("ALTER TABLE messages ADD CO
 // message is already sent (see routes/messages.js), never blocking send on
 // a slow/unreachable external site.
 if (!existingMessageColumns.has("linkPreview")) db.exec("ALTER TABLE messages ADD COLUMN linkPreview TEXT");
+// A new-report notification (server/routes/reports.js) delivered to the
+// admin's chat with the "Shalter" service bot — same shape as gift/sticker
+// above ({ reportId, reason, reporterName, targetType, targetSummary,
+// status }), except status *does* change after send (open -> resolved_
+// deleted/resolved_banned/dismissed once the admin acts on it from
+// messageBubble.js's ReportMessage), which is why it also needs to be in
+// mutate()'s UPDATE below, unlike the immutable gift/sticker payloads.
+if (!existingMessageColumns.has("report")) db.exec("ALTER TABLE messages ADD COLUMN report TEXT");
 
 // Per-chat "restrict this member from posting" — { [userId]: isoTimestamp |
 // "forever" } (see server/routes/chats.js's /:id/restrict and the send-path

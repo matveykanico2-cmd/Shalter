@@ -1,6 +1,11 @@
-// Generates the 40-icon chat-wallpaper doodle tile as an SVG data URI,
-// matching Telegram's tiled line-art background style.
-const icons = {
+// Generates a chat-wallpaper doodle tile (Telegram's own tiled line-art
+// background style) as a CSS data URI. Parameterized by theme so the same
+// generator produces the default 40-icon mix and any themed variant (see
+// THEMES below) — public/styles/components.css's .wallpaper-<theme> classes
+// each embed one of these tiles' output verbatim.
+//
+// Usage: node scripts/gen-doodle.js [theme]   (default: "default")
+const ALL_ICONS = {
   star: `<path d="M10 0 L12.5 7 L20 7 L14 11.5 L16 19 L10 14.5 L4 19 L6 11.5 L0 7 L7.5 7 Z"/>`,
   sparkle: `<path d="M6 0 L7.5 4.5 L12 6 L7.5 7.5 L6 12 L4.5 7.5 L0 6 L4.5 4.5 Z"/>`,
   heart: `<path d="M10 20 C-6 8 0 -4 10 4 C20 -4 26 8 10 20 Z"/>`,
@@ -43,10 +48,62 @@ const icons = {
   ghost: `<g><path d="M0 24 V10 a10 10 0 0 1 20 0 V24 L16 20 L12 24 L8 20 L4 24 Z"/><circle cx="6" cy="9" r="1.4" fill="%238774e1"/><circle cx="14" cy="9" r="1.4" fill="%238774e1"/></g>`,
   book: `<g><path d="M10 4 C7 1 2 1 0 2 V22 C2 21 7 21 10 24 C13 21 18 21 20 22 V2 C18 1 13 1 10 4 Z"/><path d="M10 4 V24"/></g>`,
   rocket: `<g><path d="M10 0 C16 4 16 16 10 24 C4 16 4 4 10 0 Z"/><circle cx="10" cy="9" r="2.5"/><path d="M10 24 L6 30 M10 24 L14 30"/><path d="M4 16 L-2 20 M16 16 L22 20"/></g>`,
+
+  // Лес (forest)
+  pine: `<g><path d="M10 0 L18 12 H14 L20 22 H0 L6 12 H2 Z"/><path d="M8 22 V28 H12 V22"/></g>`,
+  mushroom: `<g><path d="M0 10 A10 10 0 0 1 20 10 Z"/><path d="M6 10 V22 a4 4 0 0 0 8 0 V10"/><circle cx="6" cy="5" r="1.4" fill="%238774e1"/><circle cx="13" cy="4" r="1.4" fill="%238774e1"/></g>`,
+  acorn: `<g><path d="M4 10 a6 6 0 0 1 12 0 C16 18 12 24 10 24 C8 24 4 18 4 10 Z"/><path d="M2 10 C2 4 6 2 10 2 C14 2 18 4 18 10 H2 Z"/></g>`,
+  owl: `<g><ellipse cx="10" cy="14" rx="10" ry="11"/><circle cx="6" cy="11" r="3.4"/><circle cx="14" cy="11" r="3.4"/><circle cx="6" cy="11" r="1.3" fill="%238774e1"/><circle cx="14" cy="11" r="1.3" fill="%238774e1"/><path d="M10 14 L8 18 H12 Z"/><path d="M2 4 L6 7 M18 4 L14 7"/></g>`,
+  campfire: `<g><path d="M0 24 H20"/><path d="M4 24 L8 18 M16 24 L12 18 M2 24 L6 20"/><path d="M10 4 C6 10 6 14 10 18 C14 14 14 10 10 4 Z"/><path d="M10 10 C8 13 8 15 10 17 C12 15 12 13 10 10 Z"/></g>`,
+  deerhead: `<g><path d="M10 8 a6 6 0 1 1 0 12 a6 6 0 0 1 0 -12 Z"/><path d="M6 6 C4 2 0 2 -1 -1 M6 6 C7 1 5 -2 3 -4 M14 6 C16 2 20 2 21 -1 M14 6 C13 1 15 -2 17 -4"/><circle cx="7" cy="12" r="1" fill="%238774e1"/><circle cx="13" cy="12" r="1" fill="%238774e1"/></g>`,
+  berry: `<g><circle cx="5" cy="14" r="4.5"/><circle cx="12" cy="10" r="4.5"/><circle cx="14" cy="17" r="4.5"/><path d="M10 4 C10 1 12 0 14 0"/><path d="M10 4 L8 8"/></g>`,
+  fox: `<g><path d="M10 22 C2 22 0 14 0 8 L6 12 L10 2 L14 12 L20 8 C20 14 18 22 10 22 Z"/><circle cx="7" cy="12" r="1.2" fill="%238774e1"/><circle cx="13" cy="12" r="1.2" fill="%238774e1"/><path d="M8 17 Q10 19 12 17"/></g>`,
+  hedgehog: `<g><path d="M2 18 C0 10 6 4 12 4 C18 4 20 12 18 18 Z"/><path d="M4 4 L6 8 M8 1 L9 6 M12 0 L12 6 M16 1 L15 6 M19 4 L17 8"/><circle cx="15" cy="10" r="1" fill="%238774e1"/></g>`,
+  wood_log: `<g><rect x="0" y="6" width="24" height="10" rx="5"/><ellipse cx="24" cy="11" rx="4" ry="5"/><circle cx="24" cy="11" r="2" fill="%238774e1"/></g>`,
+
+  // Школа (school)
+  pencil: `<g><path d="M2 22 L0 28 L6 26 L22 10 L18 6 Z"/><path d="M15 9 L19 13"/></g>`,
+  ruler: `<g><rect x="0" y="0" width="26" height="10" rx="1"/><path d="M4 0 V4 M8 0 V4 M12 0 V4 M16 0 V4 M20 0 V4"/></g>`,
+  apple2: `<g><path d="M10 6 C4 6 2 12 2 16 a6 6 0 0 0 12 0 C18 20 20 16 20 12 C20 8 16 5 12 8 C11 6 10 6 10 6 Z"/><path d="M11 6 C11 2 14 1 15 0"/></g>`,
+  backpack: `<g><rect x="1" y="8" width="18" height="16" rx="4"/><path d="M5 8 V4 a5 5 0 0 1 10 0 V8"/><rect x="6" y="12" width="8" height="5" rx="1"/><path d="M1 14 H-2 M19 14 H22"/></g>`,
+  alarm: `<g><circle cx="10" cy="12" r="9"/><path d="M10 7 V12 L14 15"/><path d="M3 3 L6 6 M17 3 L14 6"/><path d="M2 21 L5 23 M18 21 L15 23"/></g>`,
+  globe2: `<g><circle cx="10" cy="10" r="10"/><ellipse cx="10" cy="10" rx="4.5" ry="10"/><path d="M0 10 H20"/><path d="M2 5 H18 M2 15 H18"/></g>`,
+  notebook: `<g><rect x="0" y="0" width="18" height="24" rx="2"/><path d="M4 6 H14 M4 11 H14 M4 16 H10"/><path d="M0 4 h2 M0 9 h2 M0 14 h2 M0 19 h2"/></g>`,
+  palette: `<g><path d="M11 0 C3 0 -1 6 1 12 C2 15 5 15 6 13 C7 11 10 12 10 15 a5 5 0 0 0 5 5 C21 20 22 12 20 8 C18 3 15 0 11 0 Z"/><circle cx="5" cy="6" r="1.4" fill="%238774e1"/><circle cx="10" cy="4" r="1.4" fill="%238774e1"/><circle cx="15" cy="6" r="1.4" fill="%238774e1"/></g>`,
+  scissors: `<g><circle cx="3" cy="3" r="3"/><circle cx="3" cy="19" r="3"/><path d="M5 5 L21 19 M5 19 L21 3"/></g>`,
+  calculator: `<g><rect x="0" y="0" width="16" height="22" rx="2"/><rect x="3" y="3" width="10" height="5" rx="1"/><circle cx="4.5" cy="13" r="1.4"/><circle cx="8" cy="13" r="1.4"/><circle cx="11.5" cy="13" r="1.4"/><circle cx="4.5" cy="18" r="1.4"/><circle cx="8" cy="18" r="1.4"/><circle cx="11.5" cy="18" r="1.4"/></g>`,
+
+  // Универ (university)
+  gradcap: `<g><path d="M0 8 L16 2 L32 8 L16 14 Z"/><path d="M8 10 V16 C8 19 24 19 24 16 V10"/><path d="M28 8 V18"/><circle cx="28" cy="20" r="1.6" fill="%238774e1"/></g>`,
+  diploma: `<g><rect x="2" y="0" width="16" height="20" rx="1"/><path d="M0 4 a2 2 0 0 1 0 -4 M20 4 a2 2 0 0 0 0 -4 M0 4 V0 M20 4 V0"/><path d="M6 6 H14 M6 10 H14 M6 14 H10"/></g>`,
+  bookstack: `<g><rect x="0" y="16" width="22" height="5" rx="1"/><rect x="2" y="9" width="18" height="5" rx="1" transform="rotate(-2 11 11)"/><rect x="1" y="2" width="16" height="5" rx="1" transform="rotate(3 9 4)"/></g>`,
+  laptop: `<g><rect x="0" y="0" width="22" height="14" rx="1"/><path d="M-2 14 H24 L21 18 H1 Z"/><path d="M4 4 H18 V10 H4 Z"/></g>`,
+  microscope: `<g><path d="M6 24 H18"/><path d="M9 24 V18"/><rect x="4" y="16" width="10" height="3" rx="1"/><path d="M9 16 V8 L16 2"/><circle cx="17" cy="1" r="2.4"/><path d="M6 12 H14"/></g>`,
+  chart: `<g><path d="M0 22 H22"/><rect x="2" y="14" width="4" height="8"/><rect x="9" y="8" width="4" height="14"/><rect x="16" y="4" width="4" height="18"/></g>`,
+  compass2: `<g><circle cx="10" cy="10" r="10"/><path d="M13 6 L8 12 L7 14 L12 8 Z" fill="%238774e1" stroke="none"/></g>`,
 };
 
-const names = Object.keys(icons);
-// deterministic pseudo-random layout across a large tile, scattered like Telegram's doodle.
+const THEMES = {
+  default: [
+    "star", "sparkle", "heart", "plane", "gift", "cloud", "bulb", "balloon", "moon", "cactus",
+    "envelope", "camera", "music", "umbrella", "sun", "rainbow", "key", "bell", "cup", "anchor",
+    "feather", "glasses", "headphones", "controller", "kite", "diamond", "crown", "flower", "leaf", "paw",
+    "clock", "snowflake", "lightning", "pin", "ribbon", "magnet", "telescope", "satellite", "planet", "ghost",
+  ],
+  forest: [
+    "pine", "leaf", "mushroom", "acorn", "owl", "campfire", "deerhead", "berry", "fox", "hedgehog",
+    "moon", "star", "cloud", "wood_log", "feather", "snowflake", "sun", "pine", "mushroom", "leaf",
+  ],
+  school: [
+    "pencil", "ruler", "book", "apple2", "backpack", "alarm", "globe2", "notebook", "palette", "scissors",
+    "calculator", "bell", "star", "clock", "bulb", "pencil", "book", "ruler", "apple2", "notebook",
+  ],
+  university: [
+    "gradcap", "diploma", "bookstack", "laptop", "cup", "bulb", "owl", "pencil", "microscope", "clock",
+    "backpack", "chart", "star", "compass2", "gradcap", "bookstack", "diploma", "laptop", "cup", "bulb",
+  ],
+};
+
 function mulberry32(a) {
   return function () {
     a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -55,37 +112,42 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rand = mulberry32(42);
 
-const TILE = 640;
-const cols = 8, rows = 5;
-const cellW = TILE / cols, cellH = TILE / rows;
-let groups = "";
-let i = 0;
-for (let r = 0; r < rows; r++) {
-  for (let c = 0; c < cols; c++) {
-    const name = names[i % names.length];
-    i++;
-    const jitterX = (rand() - 0.5) * cellW * 0.5;
-    const jitterY = (rand() - 0.5) * cellH * 0.5;
-    const x = Math.round(c * cellW + cellW / 2 + jitterX - 10);
-    const y = Math.round(r * cellH + cellH / 2 + jitterY - 10);
-    const rot = Math.round((rand() - 0.5) * 40);
-    const scale = (0.7 + rand() * 0.5).toFixed(2);
-    groups += `<g transform="translate(${x},${y}) rotate(${rot}) scale(${scale})">${icons[name]}</g>`;
+function generate(themeName) {
+  const names = THEMES[themeName];
+  if (!names) throw new Error(`unknown theme "${themeName}" — options: ${Object.keys(THEMES).join(", ")}`);
+  const rand = mulberry32(themeName === "default" ? 42 : [...themeName].reduce((a, c) => a + c.charCodeAt(0), 0));
+
+  const TILE = 640;
+  const cols = 8, rows = Math.ceil(names.length / 8);
+  const cellW = TILE / cols, cellH = TILE / rows;
+  let groups = "";
+  let i = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (i >= names.length) break;
+      const name = names[i % names.length];
+      i++;
+      const jitterX = (rand() - 0.5) * cellW * 0.5;
+      const jitterY = (rand() - 0.5) * cellH * 0.5;
+      const x = Math.round(c * cellW + cellW / 2 + jitterX - 10);
+      const y = Math.round(r * cellH + cellH / 2 + jitterY - 10);
+      const rot = Math.round((rand() - 0.5) * 40);
+      const scale = (0.7 + rand() * 0.5).toFixed(2);
+      groups += `<g transform="translate(${x},${y}) rotate(${rot}) scale(${scale})">${ALL_ICONS[name]}</g>`;
+    }
   }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${TILE}" height="${TILE}" viewBox="0 0 ${TILE} ${TILE}"><g fill="none" stroke="%238774e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.15">${groups}</g></svg>`;
+  const encoded = svg.replace(/#/g, "%23").replace(/"/g, "'").replace(/</g, "%3C").replace(/>/g, "%3E");
+  return { encoded: "data:image/svg+xml," + encoded, count: i };
 }
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${TILE}" height="${TILE}" viewBox="0 0 ${TILE} ${TILE}"><g fill="none" stroke="%238774e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.15">${groups}</g></svg>`;
+if (require.main === module) {
+  const theme = process.argv[2] || "default";
+  const { encoded, count } = generate(theme);
+  console.error(`theme "${theme}": ${count} icons placed`);
+  process.stdout.write(encoded + "\n");
+}
 
-// Encode for embedding in a CSS `url("data:image/svg+xml,...")` string: single
-// quotes for SVG attrs (the outer CSS string already uses double quotes) and
-// percent-escape '#', '<', '>' so it's valid inside the url() token.
-const encoded = svg
-  .replace(/#/g, "%23")
-  .replace(/"/g, "'")
-  .replace(/</g, "%3C")
-  .replace(/>/g, "%3E");
-
-console.error(`used ${names.length} distinct icons, ${i} placed`);
-process.stdout.write("data:image/svg+xml," + encoded + "\n");
+module.exports = { generate, THEMES };
