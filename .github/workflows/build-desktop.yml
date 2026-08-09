@@ -11,6 +11,11 @@ on:
     tags:
       - "v*"
 
+# Needed to create/update the GitHub Release these artifacts get attached to
+# below — the default GITHUB_TOKEN is read-only otherwise.
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -56,3 +61,24 @@ jobs:
             dist-electron/*.dmg
             dist-electron/*.zip
           if-no-files-found: ignore
+
+      # Actions artifacts (above) need a GitHub login and expire after 90
+      # days — no good for a public "Скачать" page (public/download.html)
+      # that links straight to a file. A GitHub Release's assets are
+      # permanent, public, no-login URLs instead. package.json's build.*.
+      # artifactName overrides (Shalter.AppImage, Shalter-Setup.exe, ...)
+      # keep these filenames stable across versions, which is what lets
+      # download.html link to .../releases/latest/download/<name> once and
+      # never need editing again. Only runs on an actual `v*` tag push (not
+      # workflow_dispatch, which has no tag to attach a release to).
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-electron/*.AppImage
+            dist-electron/*.deb
+            dist-electron/*.exe
+            dist-electron/*.dmg
+            dist-electron/*.zip
+          fail_on_unmatched_files: false

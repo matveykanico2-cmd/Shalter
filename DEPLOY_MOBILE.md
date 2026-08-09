@@ -25,6 +25,43 @@ side-load today, and an iOS Simulator build that at least proves the native
 project compiles. Neither replaces the signed, store-ready builds below, but
 both get you something to actually run before you're at a Mac/Android Studio.
 
+## Android, take two: the PWABuilder TWA actually in use right now
+
+`public/download.html`'s Android button currently links to
+`public/downloads/Shalter.apk` — a real, signed APK generated via
+[PWABuilder](https://www.pwabuilder.com/) (a Trusted Web Activity: a thin
+wrapper that opens `https://shalter.ru` in a chromeless Chrome Custom Tab,
+not a Capacitor build). This is a **second, separate Android app identity**
+from the Capacitor one above:
+
+| | Capacitor (`android/`, this doc's main path) | PWABuilder TWA (in use now) |
+|---|---|---|
+| Package name | `ru.shalter.app` | `ru.shalter.twa` |
+| Built via | Android Studio / `build-android.yml` CI | pwabuilder.com, no local toolchain |
+| Native plugin access | Yes (push, camera, etc. via Capacitor plugins) | No — pure web view |
+
+These **can't be merged into one Play Store listing later** — a store
+submission is permanently tied to whichever package name it was first
+uploaded under. Pick one before actually publishing to a store; running both
+side by side (like right now, TWA live on the download page, Capacitor
+scaffolded but unused) is fine short-term, just don't let both end up on
+Google Play as two competing listings.
+
+The TWA needs `public/.well-known/assetlinks.json` (already in this repo,
+copied from the PWABuilder output) to be reachable at
+`https://shalter.ru/.well-known/assetlinks.json` — that's what lets Chrome
+verify the APK is allowed to open the domain chrome-free instead of falling
+back to a plain browser tab with a URL bar. `server/index.js` serves
+`/.well-known/` explicitly (Express's static middleware ignores dot-prefixed
+paths by default otherwise).
+
+**`signing.keystore` and `signing-key-info.txt`** (in the PWABuilder
+download, not committed to this repo) contain the real signing key and its
+password in plaintext — back them up somewhere durable outside this
+project (password manager, encrypted cloud storage). Losing them means
+starting a new Play Store listing from scratch if you ever update past this
+APK; leaking them lets someone else sign updates claiming to be this app.
+
 ## 1. Point it at your real server
 
 Edit `capacitor.config.json`:

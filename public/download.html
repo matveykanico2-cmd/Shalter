@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Скачать Shalter</title>
+<meta name="description" content="Скачать Shalter для Windows, macOS, Linux, Android и iOS." />
+<meta name="theme-color" content="#2e56d9" />
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+<link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<link rel="stylesheet" href="/styles/base.css" />
+<link rel="stylesheet" href="/styles/components.css" />
+<link rel="stylesheet" href="/styles/download.css" />
+</head>
+<body>
+<div class="login-page download-page">
+  <div class="login-bg">
+    <span class="login-orb login-orb-1"></span>
+    <span class="login-orb login-orb-2"></span>
+    <span class="login-orb login-orb-3"></span>
+  </div>
+
+  <div class="login-box download-box">
+    <div class="login-header">
+      <div class="login-logo"><span class="icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l17-8L4 4l0 6.5L15 12 4 13.5 4 20Z"/></svg></span></div>
+      <h1 class="login-brand">Shalter</h1>
+      <p class="login-subtitle">Мессенджер: чаты, группы, каналы, звонки — выберите платформу</p>
+    </div>
+
+    <div class="download-card download-card-featured" id="pwa-card">
+      <div class="download-card-body">
+        <p class="download-card-title">Открыть прямо сейчас — без установки</p>
+        <p class="download-card-desc">Shalter работает как полноценное приложение прямо в браузере — можно добавить на главный экран телефона или компьютера и пользоваться как обычным приложением, без магазинов и загрузок.</p>
+      </div>
+      <a class="btn-accent download-btn" href="/">Открыть Shalter</a>
+    </div>
+
+    <p class="download-section-label">Установить нативное приложение</p>
+
+    <div class="download-grid" id="platform-grid">
+      <a class="download-card" data-os="windows" href="https://github.com/matveykanico2-cmd/Shalter/releases/latest/download/Shalter-Setup.exe">
+        <span class="download-card-emoji">🪟</span>
+        <span class="download-card-body">
+          <span class="download-card-title">Windows</span>
+          <span class="download-card-desc">Установщик .exe</span>
+        </span>
+      </a>
+      <a class="download-card" data-os="mac" href="https://github.com/matveykanico2-cmd/Shalter/releases/latest/download/Shalter.dmg">
+        <span class="download-card-emoji">🍎</span>
+        <span class="download-card-body">
+          <span class="download-card-title">macOS</span>
+          <span class="download-card-desc">.dmg, Intel и Apple Silicon</span>
+        </span>
+      </a>
+      <a class="download-card" data-os="linux" href="https://github.com/matveykanico2-cmd/Shalter/releases/latest/download/Shalter.AppImage">
+        <span class="download-card-emoji">🐧</span>
+        <span class="download-card-body">
+          <span class="download-card-title">Linux</span>
+          <span class="download-card-desc">AppImage — запускается сразу, установка не нужна</span>
+        </span>
+      </a>
+      <a class="download-card" data-os="linux-deb" href="https://github.com/matveykanico2-cmd/Shalter/releases/latest/download/Shalter.deb">
+        <span class="download-card-emoji">📦</span>
+        <span class="download-card-body">
+          <span class="download-card-title">Linux (.deb)</span>
+          <span class="download-card-desc">Debian, Ubuntu и производные</span>
+        </span>
+      </a>
+      <a class="download-card" data-os="android" href="/downloads/Shalter.apk">
+        <span class="download-card-emoji">🤖</span>
+        <span class="download-card-body">
+          <span class="download-card-title">Android</span>
+          <span class="download-card-desc">.apk — разрешите установку из неизвестных источников</span>
+        </span>
+      </a>
+      <span class="download-card download-card-disabled" data-os="ios">
+        <span class="download-card-emoji">📱</span>
+        <span class="download-card-body">
+          <span class="download-card-title">iOS</span>
+          <span class="download-card-desc">Скоро в App Store — пока откройте сайт в Safari и добавьте на экран «Домой»</span>
+        </span>
+      </span>
+    </div>
+
+    <p class="download-footnote">Сборки для Windows и macOS пока не подписаны — при первом запуске система покажет предупреждение (SmartScreen / Gatekeeper), это ожидаемо для незарегистрированного разработчика.</p>
+  </div>
+</div>
+
+<script>
+  // Purely cosmetic — highlights the card matching the visitor's own OS so
+  // they don't have to read the whole grid, same idea as Signal/Telegram's
+  // own download pages. Never hides the others; just a border/order nudge.
+  (function () {
+    var ua = navigator.userAgent;
+    var os = null;
+    if (/Android/i.test(ua)) os = "android";
+    else if (/iPhone|iPad|iPod/i.test(ua)) os = "ios";
+    else if (/Mac OS X/i.test(ua) && !/Mobi/i.test(ua)) os = "mac";
+    else if (/Windows/i.test(ua)) os = "windows";
+    else if (/Linux/i.test(ua)) os = "linux";
+    if (!os) return;
+    var grid = document.getElementById("platform-grid");
+    var match = grid.querySelector('[data-os="' + os + '"]');
+    if (!match) return;
+    match.classList.add("download-card-match");
+    grid.insertBefore(match, grid.firstChild);
+  })();
+</script>
+</body>
+</html>

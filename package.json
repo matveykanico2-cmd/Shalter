@@ -60,7 +60,8 @@
       "target": [
         "nsis"
       ],
-      "icon": "electron/icon.png"
+      "icon": "electron/icon.png",
+      "artifactName": "Shalter-Setup.${ext}"
     },
     "linux": {
       "target": [
@@ -68,7 +69,8 @@
         "deb"
       ],
       "category": "Network",
-      "icon": "electron/icon.png"
+      "icon": "electron/icon.png",
+      "artifactName": "Shalter.${ext}"
     },
     "mac": {
       "target": [
@@ -76,6 +78,7 @@
         "zip"
       ],
       "icon": "electron/icon.png",
+      "artifactName": "Shalter.${ext}",
       "category": "public.app-category.social-networking"
     }
   }

@@ -30,6 +30,11 @@ on:
     tags:
       - "v*"
 
+# Needed to create/update the GitHub Release the signed APK gets attached to
+# below — the default GITHUB_TOKEN is read-only otherwise.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -99,3 +104,21 @@ jobs:
         with:
           name: shalter-android-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
+
+      # Actions artifacts (above) need a GitHub login and expire after 90
+      # days — no good for public/download.html, which links straight to a
+      # permanent, public, no-login file. Only the *signed* release APK is
+      # worth publishing this way (the debug one isn't store-quality and
+      # isn't what download.html should be handing out); renamed to a
+      # stable Shalter.apk so that link never needs updating between
+      # versions. Only runs on an actual `v*` tag push with signing secrets
+      # configured — never for a bare workflow_dispatch test run.
+      - name: Rename for release
+        if: steps.has_signing.outputs.configured == 'true' && startsWith(github.ref, 'refs/tags/v')
+        run: cp android/app/build/outputs/apk/release/app-release.apk Shalter.apk
+
+      - name: Publish to GitHub Release
+        if: steps.has_signing.outputs.configured == 'true' && startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Shalter.apk

@@ -96,6 +96,15 @@ if (useBuilt) {
   // middleware above, which is why /dist/ is excluded from it).
   app.use("/dist", expressStaticGzip(DIST_DIR, { enableBrotli: true, orderPreference: ["br", "gz"], serveStatic: { maxAge: "1y", immutable: true } }));
 }
+// express.static below defaults dotfiles to "ignore" (404s anything under a
+// dot-prefixed path) — fine for hiding stray .env-shaped files, but
+// /.well-known/ is a real, meant-to-be-public convention (Digital Asset
+// Links for the Android TWA app below, ACME/domain-verification files if
+// those ever get added later), so it needs its own explicit route before
+// the catch-all static handler rather than just flipping dotfiles to
+// "allow" for all of public/.
+app.use("/.well-known", express.static(path.join(PUBLIC_DIR, ".well-known"), { maxAge: "1h" }));
+
 // Static assets not covered by the build (favicon, anything added to public/
 // directly). No build step for these, so keep cache short-ish rather than
 // immutable — long enough to skip re-fetching on every navigation, short
