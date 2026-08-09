@@ -16,6 +16,7 @@ import { hasPasscode } from "../../lib/passcodeLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 import { openProfileQrDialog } from "../../components/profileQrDialog.js";
 import { openDonationDialog } from "../../components/donationDialog.js";
+import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
 
 // `color` gives each row's icon its own chip background (Telegram's own
 // settings menu — every row's icon sits in a small colored square, not a
@@ -683,15 +684,6 @@ async function renderAppearance(root) {
     { id: "system", label: "Системная" },
   ];
   const ACCENTS = ["#2E56D9", "#C6403B", "#1F9D63", "#B9791C", "#6E56C6", "#1C9BD9", "#D9822E"];
-  const WALLPAPERS = [
-    { id: "default", label: "По умолчанию" },
-    { id: "dots", label: "Точки" },
-    { id: "gradient", label: "Градиент" },
-    { id: "forest", label: "Лес" },
-    { id: "school", label: "Школа" },
-    { id: "university", label: "Универ" },
-    { id: "custom", label: "Своё фото" },
-  ];
   let wallpaperError = null;
   // Covers the world's most-spoken languages — Google Translate itself
   // supports 100+, but a dropdown of every ISO code is a worse UX than a
@@ -800,23 +792,37 @@ async function renderAppearance(root) {
           ),
         ]),
         section("Фон чата", [
-          el(
-            "div",
-            { class: "settings-chip-row" },
-            WALLPAPERS.map((w) =>
-              el(
-                "button",
-                {
-                  class: `settings-chip ${settings.chatWallpaper === w.id ? "active" : ""}`,
-                  onclick: () => (w.id === "custom" ? wallpaperFileInput.click() : patch({ chatWallpaper: w.id })),
-                },
-                w.label
+          el("p", { class: "settings-toggle-hint" }, "Общий фон по умолчанию — отдельный фон для конкретного чата задаётся в самом чате через меню «⋯» → «Фон чата»."),
+          ...WALLPAPER_GROUPS.flatMap((group) => [
+            el("p", { class: "wallpaper-picker-group-label" }, group.label),
+            el(
+              "div",
+              { class: "wallpaper-picker-grid" },
+              group.items.map((w) =>
+                el(
+                  "button",
+                  {
+                    class: `wallpaper-picker-swatch ${settings.chatWallpaper === w.id ? "active" : ""}`,
+                    title: w.label,
+                    onclick: () => (w.id === "custom" ? wallpaperFileInput.click() : patch({ chatWallpaper: w.id })),
+                  },
+                  [
+                    el("span", {
+                      class: `message-list wallpaper-picker-swatch-fill wallpaper-${w.id}`,
+                      style:
+                        w.id === "custom" && settings.chatWallpaper === "custom" && settings.chatWallpaperImage
+                          ? `background-image: url(${settings.chatWallpaperImage})`
+                          : undefined,
+                      html:
+                        w.id === "custom" && !(settings.chatWallpaper === "custom" && settings.chatWallpaperImage)
+                          ? iconSvg("Plus", 18, "wallpaper-picker-swatch-plus")
+                          : undefined,
+                    }),
+                  ]
+                )
               )
-            )
-          ),
-          settings.chatWallpaper === "custom" && settings.chatWallpaperImage
-            ? el("div", { class: "settings-wallpaper-preview", style: `background-image: url(${settings.chatWallpaperImage})` })
-            : null,
+            ),
+          ]),
           wallpaperFileInput,
           wallpaperError ? el("p", { class: "login-error" }, wallpaperError) : null,
         ]),

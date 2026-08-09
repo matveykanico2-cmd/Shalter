@@ -81,6 +81,42 @@ const ALL_ICONS = {
   microscope: `<g><path d="M6 24 H18"/><path d="M9 24 V18"/><rect x="4" y="16" width="10" height="3" rx="1"/><path d="M9 16 V8 L16 2"/><circle cx="17" cy="1" r="2.4"/><path d="M6 12 H14"/></g>`,
   chart: `<g><path d="M0 22 H22"/><rect x="2" y="14" width="4" height="8"/><rect x="9" y="8" width="4" height="14"/><rect x="16" y="4" width="4" height="18"/></g>`,
   compass2: `<g><circle cx="10" cy="10" r="10"/><path d="M13 6 L8 12 L7 14 L12 8 Z" fill="%238774e1" stroke="none"/></g>`,
+
+  // Снег (snow)
+  icicle: `<g><path d="M0 0 V0 H18"/><path d="M2 0 L2 14 L0 20 L4 16 Z"/><path d="M9 0 L9 18 L7 26 L11 20 Z"/><path d="M16 0 L16 12 L14 18 L18 15 Z"/></g>`,
+  mitten: `<g><path d="M2 20 V8 a6 6 0 0 1 12 0 V20 Z"/><path d="M2 12 h-4 a3 3 0 0 0 0 8 h4"/><path d="M0 20 H16"/></g>`,
+  sled: `<g><rect x="2" y="8" width="18" height="8" rx="1"/><path d="M2 8 C0 8 0 4 4 4 H16 C20 4 20 8 18 8"/><path d="M0 18 H22"/><path d="M2 18 L4 22 M20 18 L18 22"/></g>`,
+  pinecone: `<g><path d="M10 0 C4 0 2 8 2 14 C2 20 6 24 10 24 C14 24 18 20 18 14 C18 8 16 0 10 0 Z"/><path d="M4 6 H16 M3 11 H17 M3 16 H17 M5 21 H15"/></g>`,
+
+  // Зима (winter)
+  snowman: `<g><circle cx="10" cy="20" r="8"/><circle cx="10" cy="8" r="5.5"/><circle cx="8" cy="7" r="0.8" fill="%238774e1"/><circle cx="12" cy="7" r="0.8" fill="%238774e1"/><path d="M10 9 L14 10"/><path d="M4 20 H-1 M16 20 H21 M3 24 H-2 M17 24 H22"/></g>`,
+  scarf: `<g><path d="M0 4 H20"/><path d="M0 4 C0 10 4 8 4 14 C4 18 0 18 0 22"/><path d="M20 4 C20 10 16 8 16 14 C16 18 20 18 20 22"/><path d="M0 18 H4 M16 18 H20"/></g>`,
+  hotcocoa: `<g><path d="M2 10 H18 L16 22 a2 2 0 0 1 -2 2 H6 a2 2 0 0 1 -2 -2 Z"/><path d="M18 12 h3 a3 3 0 0 1 0 7 h-2"/><path d="M6 6 C6 3 9 3 8 0 M12 6 C12 3 15 3 14 0"/></g>`,
+  skis: `<g><path d="M2 24 L0 22 L2 4 a2 2 0 0 1 4 0 L4 22 L6 24"/><path d="M14 24 L12 22 L14 4 a2 2 0 0 1 4 0 L16 22 L18 24"/><rect x="0" y="10" width="6" height="4" rx="1"/><rect x="12" y="10" width="6" height="4" rx="1"/></g>`,
+
+  // Весна (spring)
+  tulip: `<g><path d="M10 20 V10"/><path d="M10 10 C4 10 4 2 10 4 C16 2 16 10 10 10 Z"/><path d="M10 14 C6 14 4 18 2 18 M10 14 C14 14 16 18 18 18"/></g>`,
+  butterfly: `<g><path d="M10 4 V20"/><path d="M10 8 C4 2 -2 6 2 12 C6 16 10 12 10 8 Z"/><path d="M10 8 C16 2 22 6 18 12 C14 16 10 12 10 8 Z"/><path d="M10 4 L8 1 M10 4 L12 1"/></g>`,
+  raindrop: `<path d="M8 0 C8 8 0 12 0 18 a8 8 0 0 0 16 0 C16 12 8 8 8 0 Z"/>`,
+  sprout: `<g><path d="M10 24 V12"/><path d="M10 12 C4 12 2 6 2 2 C8 2 10 8 10 12 Z"/><path d="M10 8 C16 8 18 3 18 0 C13 0 10 4 10 8 Z"/></g>`,
+
+  // Лето (summer)
+  icecream: `<g><path d="M4 8 a6 6 0 0 1 12 0 Z"/><path d="M4 8 L10 24 L16 8"/><path d="M4 8 H16"/></g>`,
+  beachball: `<g><circle cx="10" cy="10" r="10"/><path d="M10 0 C4 4 4 16 10 20 M10 0 C16 4 16 16 10 20 M0 10 H20"/></g>`,
+  watermelon: `<g><path d="M0 10 A10 10 0 0 1 20 10 Z"/><path d="M2 10 A8 8 0 0 1 18 10"/><circle cx="7" cy="7" r="0.8" fill="%238774e1"/><circle cx="13" cy="7" r="0.8" fill="%238774e1"/><circle cx="10" cy="4" r="0.8" fill="%238774e1"/></g>`,
+  seashell: `<g><path d="M10 0 C2 4 2 16 10 20 C18 16 18 4 10 0 Z"/><path d="M10 0 V20 M6 3 V17 M14 3 V17"/></g>`,
+
+  // Осень (autumn)
+  mapleleaf: `<g><path d="M10 0 L12 6 L18 4 L14 9 L20 11 L13 12 L15 18 L10 14 L5 18 L7 12 L0 11 L6 9 L2 4 L8 6 Z"/><path d="M10 14 V22"/></g>`,
+  pumpkin: `<g><path d="M2 14 C2 8 6 6 10 6 C14 6 18 8 18 14 C18 19 14 22 10 22 C6 22 2 19 2 14 Z"/><path d="M6 8 V20 M10 6 V22 M14 8 V20"/><path d="M10 6 C10 2 12 1 13 0"/></g>`,
+  chestnut: `<g><ellipse cx="10" cy="12" rx="8" ry="9"/><path d="M4 8 L16 8 M3 12 L17 12 M4 16 L16 16"/></g>`,
+
+  // Любовь (love)
+  rose: `<g><circle cx="10" cy="8" r="5"/><path d="M6 6 a4 4 0 0 1 8 0"/><path d="M10 13 V24"/><path d="M10 17 C6 17 4 19 2 19 M10 19 C14 19 16 21 18 21"/></g>`,
+  ring: `<g><circle cx="10" cy="14" r="6"/><path d="M10 8 L7 2 H13 Z"/></g>`,
+  loveletter: `<g><rect x="0" y="0" width="26" height="18" rx="2"/><path d="M0 2 L13 12 L26 2"/><path d="M13 5 C11 2 8 3 8 6 C8 8.5 13 11 13 11 C13 11 18 8.5 18 6 C18 3 15 2 13 5 Z" fill="%238774e1" stroke="none"/></g>`,
+  cupidarrow: `<g><circle cx="5" cy="5" r="5"/><path d="M8 8 L22 22"/><path d="M22 22 L16 22 M22 22 L22 16"/><path d="M14 14 L18 10 L20 12 Z"/></g>`,
+  dove: `<g><path d="M2 14 C2 8 8 4 14 6 C12 4 12 1 14 0 C16 3 16 6 14 8 C18 8 20 12 18 16 C14 14 10 14 8 16 C6 18 3 18 2 14 Z"/><circle cx="15" cy="6" r="0.9" fill="%238774e1"/></g>`,
 };
 
 const THEMES = {
@@ -102,6 +138,33 @@ const THEMES = {
     "gradcap", "diploma", "bookstack", "laptop", "cup", "bulb", "owl", "pencil", "microscope", "clock",
     "backpack", "chart", "star", "compass2", "gradcap", "bookstack", "diploma", "laptop", "cup", "bulb",
   ],
+
+  // 20 seasonal/mood wallpapers — Настройки → Внешний вид → «Фон чата», and
+  // the per-chat picker (chatView.js's "Фон чата" menu item). Several named
+  // variants per category share the same icon pool but get a different
+  // layout because generate()'s seed is derived from the theme name string
+  // itself (see mulberry32 call below) — "snow-1" vs "snow-2" hash to
+  // different seeds even with identical ALL_ICONS input.
+  "snow-1": ["snowflake", "icicle", "mitten", "sled", "pinecone", "cloud", "star", "snowflake", "icicle", "cloud"],
+  "snow-2": ["snowflake", "icicle", "mitten", "sled", "pinecone", "cloud", "star", "snowflake", "icicle", "cloud"],
+  "snow-3": ["snowflake", "icicle", "mitten", "sled", "pinecone", "cloud", "star", "snowflake", "icicle", "cloud"],
+  "winter-1": ["snowman", "scarf", "hotcocoa", "skis", "mitten", "snowflake", "star", "snowman", "scarf", "hotcocoa"],
+  "winter-2": ["snowman", "scarf", "hotcocoa", "skis", "mitten", "snowflake", "star", "snowman", "scarf", "hotcocoa"],
+  "winter-3": ["snowman", "scarf", "hotcocoa", "skis", "mitten", "snowflake", "star", "snowman", "scarf", "hotcocoa"],
+  "spring-1": ["tulip", "butterfly", "raindrop", "sprout", "flower", "umbrella", "rainbow", "tulip", "butterfly", "sprout"],
+  "spring-2": ["tulip", "butterfly", "raindrop", "sprout", "flower", "umbrella", "rainbow", "tulip", "butterfly", "sprout"],
+  "spring-3": ["tulip", "butterfly", "raindrop", "sprout", "flower", "umbrella", "rainbow", "tulip", "butterfly", "sprout"],
+  "summer-1": ["sun", "icecream", "beachball", "watermelon", "seashell", "glasses", "sun", "icecream", "beachball", "seashell"],
+  "summer-2": ["sun", "icecream", "beachball", "watermelon", "seashell", "glasses", "sun", "icecream", "beachball", "seashell"],
+  "summer-3": ["sun", "icecream", "beachball", "watermelon", "seashell", "glasses", "sun", "icecream", "beachball", "seashell"],
+  "summer-4": ["sun", "icecream", "beachball", "watermelon", "seashell", "glasses", "sun", "icecream", "beachball", "seashell"],
+  "autumn-1": ["mapleleaf", "pumpkin", "chestnut", "leaf", "acorn", "umbrella", "mushroom", "mapleleaf", "pumpkin", "leaf"],
+  "autumn-2": ["mapleleaf", "pumpkin", "chestnut", "leaf", "acorn", "umbrella", "mushroom", "mapleleaf", "pumpkin", "leaf"],
+  "autumn-3": ["mapleleaf", "pumpkin", "chestnut", "leaf", "acorn", "umbrella", "mushroom", "mapleleaf", "pumpkin", "leaf"],
+  "love-1": ["heart", "rose", "ring", "loveletter", "cupidarrow", "dove", "heart", "rose", "loveletter", "heart"],
+  "love-2": ["heart", "rose", "ring", "loveletter", "cupidarrow", "dove", "heart", "rose", "loveletter", "heart"],
+  "love-3": ["heart", "rose", "ring", "loveletter", "cupidarrow", "dove", "heart", "rose", "loveletter", "heart"],
+  "love-4": ["heart", "rose", "ring", "loveletter", "cupidarrow", "dove", "heart", "rose", "loveletter", "heart"],
 };
 
 function mulberry32(a) {
@@ -113,24 +176,40 @@ function mulberry32(a) {
   };
 }
 
+// A chat bubble can run up to 70% of the message column's width (see
+// components.css's .message-column max-width), starting flush from
+// whichever edge its sender's side hugs — so the two edges of the tile are
+// what actually stays visible behind bubbles, not the middle. Icons are
+// placed in a left and a right band only (each 30% of the tile), leaving
+// the center 40% empty, instead of the old even 8-column spread across the
+// whole width (which mostly ended up hidden under bubble text).
 function generate(themeName) {
   const names = THEMES[themeName];
   if (!names) throw new Error(`unknown theme "${themeName}" — options: ${Object.keys(THEMES).join(", ")}`);
   const rand = mulberry32(themeName === "default" ? 42 : [...themeName].reduce((a, c) => a + c.charCodeAt(0), 0));
 
   const TILE = 640;
-  const cols = 8, rows = Math.ceil(names.length / 8);
-  const cellW = TILE / cols, cellH = TILE / rows;
+  const cols = 2; // icon columns per band
+  const perRow = cols * 2; // left band + right band
+  const rows = Math.ceil(names.length / perRow);
+  const cellH = TILE / rows;
+  const bandW = TILE * 0.3;
+  const bandMargin = TILE * 0.015;
+  const bandX = [bandMargin, TILE - bandW - bandMargin]; // left band, right band
+  const cellW = bandW / cols;
+
   let groups = "";
   let i = 0;
   for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
+    for (let slot = 0; slot < perRow; slot++) {
       if (i >= names.length) break;
       const name = names[i % names.length];
       i++;
-      const jitterX = (rand() - 0.5) * cellW * 0.5;
+      const side = slot < cols ? 0 : 1;
+      const colInSide = slot < cols ? slot : slot - cols;
+      const jitterX = (rand() - 0.5) * cellW * 0.4;
       const jitterY = (rand() - 0.5) * cellH * 0.5;
-      const x = Math.round(c * cellW + cellW / 2 + jitterX - 10);
+      const x = Math.round(bandX[side] + colInSide * cellW + cellW / 2 + jitterX - 10);
       const y = Math.round(r * cellH + cellH / 2 + jitterY - 10);
       const rot = Math.round((rand() - 0.5) * 40);
       const scale = (0.7 + rand() * 0.5).toFixed(2);

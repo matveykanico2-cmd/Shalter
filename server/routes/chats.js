@@ -3,7 +3,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser } = require("../data/chats");
 const { deleteMessagesForChat } = require("../data/messages");
-const { getSettings, setChatCleared, deleteChatForUser } = require("../data/settings");
+const { getSettings, setChatCleared, deleteChatForUser, setChatWallpaper } = require("../data/settings");
 const { attachSummaries } = require("../data/chat-summary");
 const { listUsers, getUser } = require("../data/users");
 const { listContactsFor } = require("../data/contacts");
@@ -192,6 +192,21 @@ router.post(
       await setChatCleared(req.uid, req.params.id, new Date().toISOString());
     }
     res.json({ ok: true });
+  })
+);
+
+// Per-chat wallpaper override (Settings sets the global default; this is
+// the chat header's "…" → "Фон чата" picker overriding it for one
+// conversation only, same shape as chatClears/hiddenChats — private to
+// this account, stored in *this user's* settings row, not the chat itself).
+router.post(
+  "/:id/wallpaper",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    const { wallpaper } = req.body ?? {};
+    const settings = await setChatWallpaper(req.uid, req.params.id, wallpaper ?? null);
+    res.json({ settings });
   })
 );
 

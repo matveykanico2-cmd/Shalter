@@ -52,6 +52,13 @@ const DEFAULT_SETTINGS = {
   // a chat for yourself doesn't stop the other side from messaging you
   // again). See server/routes/chats.js.
   hiddenChats: {},
+  // Per-chat wallpaper override — { [chatId]: { id, image? } }, same
+  // id/image shape as the global chatWallpaper/chatWallpaperImage pair
+  // above, just scoped to one conversation (DM, group, or channel). A chat
+  // with no entry here falls back to the global wallpaper (see
+  // chatView.js's applyWallpaper()). Private to this account only, same as
+  // Telegram's own per-chat background — the other side isn't affected.
+  chatWallpapers: {},
 };
 
 async function getSettings(userId) {
@@ -84,4 +91,16 @@ async function deleteChatForUser(userId, chatId, iso) {
   });
 }
 
-module.exports = { getSettings, updateSettings, setChatCleared, deleteChatForUser, DEFAULT_SETTINGS };
+// Sets (or, with wallpaper === null, clears) this user's per-chat wallpaper
+// override — read-merge-write so patching one chat's entry doesn't clobber
+// every other chat's override (a plain updateSettings({chatWallpapers: {...}})
+// call from the route would replace the whole map).
+async function setChatWallpaper(userId, chatId, wallpaper) {
+  const current = await getSettings(userId);
+  const next = { ...current.chatWallpapers };
+  if (wallpaper) next[chatId] = wallpaper;
+  else delete next[chatId];
+  return updateSettings(userId, { chatWallpapers: next });
+}
+
+module.exports = { getSettings, updateSettings, setChatCleared, deleteChatForUser, setChatWallpaper, DEFAULT_SETTINGS };

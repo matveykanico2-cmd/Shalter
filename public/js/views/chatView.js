@@ -13,31 +13,17 @@ import { getState, setState } from "../state.js";
 import { navigate } from "../router.js";
 import { placeCall as placeCallController } from "../lib/callController.js";
 import { onWsMessage } from "../lib/wsClient.js";
+import { paintWallpaper } from "../lib/wallpapers.js";
+import { openWallpaperDialog } from "../components/wallpaperDialog.js";
 
-// Settings → Внешний вид → "Фон чата" (renderAppearance in settings/index.js)
-// — "default"/"dots"/"gradient" are plain CSS classes (see components.css);
-// "custom" paints the user's own uploaded image via an inline style, since
-// that part can't be a static class.
-const WALLPAPER_CLASSES = [
-  "wallpaper-default",
-  "wallpaper-dots",
-  "wallpaper-gradient",
-  "wallpaper-custom",
-  "wallpaper-forest",
-  "wallpaper-school",
-  "wallpaper-university",
-];
-function applyWallpaper(list) {
+// Settings → Внешний вид → "Фон чата" sets the global default; a chat's own
+// "…" → "Фон чата" (see openWallpaperDialog below) overrides it for just
+// that conversation via settings.chatWallpapers[chatId] — private to this
+// account, same as Telegram's own per-chat background.
+function applyWallpaper(list, chatId) {
   const settings = getState().settings;
-  const id = settings?.chatWallpaper ?? "default";
-  list.classList.remove(...WALLPAPER_CLASSES);
-  if (id === "custom" && settings?.chatWallpaperImage) {
-    list.classList.add("wallpaper-custom");
-    list.style.backgroundImage = `url(${settings.chatWallpaperImage})`;
-  } else {
-    list.style.backgroundImage = "";
-    list.classList.add(`wallpaper-${id === "custom" ? "default" : id}`);
-  }
+  const override = settings?.chatWallpapers?.[chatId];
+  paintWallpaper(list, override ?? { id: settings?.chatWallpaper ?? "default", image: settings?.chatWallpaperImage });
 }
 
 // Date dividers between messages from different calendar days (Telegram's
@@ -285,6 +271,18 @@ export async function ChatView(root, chatId) {
     ]);
   }
 
+  function handleChooseWallpaper() {
+    const settings = getState().settings;
+    openWallpaperDialog({
+      current: settings?.chatWallpapers?.[chat.id] ?? null,
+      onSelect: async (wallpaper) => {
+        const { settings: updated } = await api.setChatWallpaper(chat.id, wallpaper);
+        setState({ settings: updated });
+        applyWallpaper(list, chat.id);
+      },
+    });
+  }
+
   async function handleLeaveOrDelete() {
     const isGroupLike = chat.type === "group" || chat.type === "channel";
     const label = chat.type === "channel" ? "отписаться от канала" : isGroupLike ? "покинуть группу" : "удалить чат";
@@ -303,7 +301,7 @@ export async function ChatView(root, chatId) {
   const header = el("header", { class: "chat-header" });
   const pinnedBar = el("div", { class: "pinned-bar-slot" });
   const list = el("div", { class: "message-list" });
-  applyWallpaper(list);
+  applyWallpaper(list, chat.id);
   const composerSlot = el("div", { class: "composer-slot" });
   const bodyBottomSlot = el("div", { class: "body-bottom-slot" });
   const mainCol = el("div", { class: "chat-main-col" }, [header, pinnedBar, list, bodyBottomSlot, composerSlot]);
@@ -361,6 +359,7 @@ export async function ChatView(root, chatId) {
             openDropdownMenu({ x: e.clientX, y: e.clientY }, [
               { icon: chat.muted ? "Bell" : "BellOff", label: chat.muted ? "Включить уведомления" : "Отключить уведомления", onClick: toggleMute },
               { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
+              { icon: "Image", label: "Фон чата", onClick: handleChooseWallpaper },
               { icon: "Trash", label: "Очистить историю", onClick: handleClearHistory },
               {
                 icon: "X",
