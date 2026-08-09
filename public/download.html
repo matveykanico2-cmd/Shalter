@@ -39,34 +39,34 @@
     <p class="download-section-label">Установить нативное приложение</p>
 
     <div class="download-grid" id="platform-grid">
-      <a class="download-card" data-os="windows" href="https://github.com/matveykanico2-cmd/Shalter/releases/latest/download/Shalter-Setup.exe">
+      <a class="download-card" data-os="windows" href="/downloads/Shalter-Windows.zip">
         <span class="download-card-emoji">🪟</span>
         <span class="download-card-body">
           <span class="download-card-title">Windows</span>
-          <span class="download-card-desc">Установщик .exe</span>
+          <span class="download-card-desc">.zip — распакуйте и запустите install.ps1</span>
         </span>
       </a>
-      <a class="download-card" data-os="mac" href="https://github.com/matveykanico2-cmd/Shalter/releases/latest/download/Shalter.dmg">
-        <span class="download-card-emoji">🍎</span>
-        <span class="download-card-body">
-          <span class="download-card-title">macOS</span>
-          <span class="download-card-desc">.dmg, Intel и Apple Silicon</span>
-        </span>
-      </a>
-      <a class="download-card" data-os="linux" href="https://github.com/matveykanico2-cmd/Shalter/releases/latest/download/Shalter.AppImage">
+      <a class="download-card" data-os="linux" href="/downloads/Shalter.AppImage">
         <span class="download-card-emoji">🐧</span>
         <span class="download-card-body">
           <span class="download-card-title">Linux</span>
           <span class="download-card-desc">AppImage — запускается сразу, установка не нужна</span>
         </span>
       </a>
-      <a class="download-card" data-os="linux-deb" href="https://github.com/matveykanico2-cmd/Shalter/releases/latest/download/Shalter.deb">
+      <a class="download-card" data-os="linux-deb" href="/downloads/Shalter.deb">
         <span class="download-card-emoji">📦</span>
         <span class="download-card-body">
           <span class="download-card-title">Linux (.deb)</span>
           <span class="download-card-desc">Debian, Ubuntu и производные</span>
         </span>
       </a>
+      <span class="download-card download-card-disabled" data-os="mac">
+        <span class="download-card-emoji">🍎</span>
+        <span class="download-card-body">
+          <span class="download-card-title">macOS</span>
+          <span class="download-card-desc">Скоро — пока откройте сайт в Safari и добавьте на Dock</span>
+        </span>
+      </span>
       <a class="download-card" data-os="android" href="/downloads/Shalter.apk">
         <span class="download-card-emoji">🤖</span>
         <span class="download-card-body">
@@ -83,7 +83,7 @@
       </span>
     </div>
 
-    <p class="download-footnote">Сборки для Windows и macOS пока не подписаны — при первом запуске система покажет предупреждение (SmartScreen / Gatekeeper), это ожидаемо для незарегистрированного разработчика.</p>
+    <p class="download-footnote">Windows-пакет подписан тестовым сертификатом PWABuilder — install.ps1 сам добавит его в доверенные при установке, отдельных действий не требуется. Android — установка из неизвестных источников, разрешите её в настройках при первом запуске файла.</p>
   </div>
 </div>
 

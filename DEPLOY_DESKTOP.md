@@ -49,6 +49,39 @@ electron-builder tries to rebuild `better-sqlite3` (a *server*-only native
 dependency the desktop shell never touches) for Electron's ABI and fails
 without a C toolchain (`make`/`node-gyp`) installed.
 
+## Getting the builds onto the download page
+
+`public/download.html` (served at `/download.html`) links each platform to a
+file under `public/downloads/`. How each one gets there differs by size, and
+the split is not arbitrary:
+
+| File | Size | How it reaches the server |
+|---|---|---|
+| `Shalter.apk` | ~1MB | committed → arrives with `git pull` |
+| `Shalter-Windows.zip` | ~1MB | committed → arrives with `git pull` |
+| `Shalter.AppImage` | ~119MB | gitignored → `./scripts/upload-downloads.sh` |
+| `Shalter.deb` | ~82MB | gitignored → `./scripts/upload-downloads.sh` |
+
+The two Electron builds can't be committed: GitHub hard-rejects any file
+over 100MB (the AppImage is past it, so the `git push` itself would fail),
+and the .deb alone would permanently grow an 11MB repo by 8x — git history
+never drops a blob once it's in. So after building them:
+
+```bash
+npm run electron:build:linux
+./scripts/upload-downloads.sh            # rsyncs both to the server
+SERVER=user@host APP_DIR=/opt/shalter ./scripts/upload-downloads.sh   # or override
+```
+
+Until that runs, the Linux buttons on the download page 404 while Windows
+and Android work — worth checking after a fresh deploy to a new server.
+
+One caveat worth knowing: serving a 119MB file from the app itself puts that
+traffic through the same small box running the messenger (DEPLOY.md sizes it
+at 2 cores/2GB). Fine at a trickle, but if Linux downloads ever pick up,
+move those two files to GitHub Releases (2GB/file, free CDN) and point the
+page's `href` there instead — the page is plain HTML, it's a two-line edit.
+
 ## Windows
 
 Needs to run on Windows (or Linux/macOS with Wine installed — electron-builder
