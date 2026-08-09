@@ -4,6 +4,7 @@ const { getChat } = require("../data/chats");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 const {
   listMessages,
+  listThreadReplies,
   addMessage,
   getMessage,
   editMessage,
@@ -16,9 +17,10 @@ const {
   markChatRead,
   setLinkPreview,
 } = require("../data/messages");
-const { getUser } = require("../data/users");
+const { getUser, listUsers } = require("../data/users");
 const { getSettings } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
+const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled } = require("../data/scheduledMessages");
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
 const { broadcastToUsers } = require("../ws");
@@ -52,6 +54,22 @@ function messagePreview(message) {
   return ATTACHMENT_LABEL[message.attachments?.[0]?.kind] ?? "Новое сообщение";
 }
 
+// Resolves "@handle" tokens in the just-sent text against this chat's
+// actual members (not every user in the system — mentioning someone who
+// isn't in the chat shouldn't notify a stranger), computed once at send
+// time rather than re-parsed by every reader (see db.js's mentionedUserIds
+// column). Drives pushNewMessage's wording below and the chat list's
+// unread-mention badge (chat-summary.js).
+async function resolveMentions(text, memberIds, senderId) {
+  if (!text) return [];
+  const handles = new Set([...text.matchAll(/@(\w+)/g)].map((m) => m[1].toLowerCase()));
+  if (!handles.size) return [];
+  const users = await listUsers();
+  return users
+    .filter((u) => memberIds.includes(u.id) && u.id !== senderId && u.username && handles.has(u.username.toLowerCase()))
+    .map((u) => u.id);
+}
+
 // Real Web Push, on top of the WS broadcast above — WS only reaches a tab
 // that's already open; this is what reaches a closed tab/browser. Fire-and-
 // forget: sendPushToUser never rejects (see server/push.js), and delivery
@@ -59,17 +77,29 @@ function messagePreview(message) {
 async function pushNewMessage(chat, sender, message) {
   if (chat.muted) return;
   const isGroupLike = chat.type === "group" || chat.type === "channel";
-  const title = isGroupLike ? chat.title : sender?.name ?? "Новое сообщение";
+  // A secret chat's message.text is ciphertext (see e2e.js) — the server
+  // can't read it any more than an eavesdropper could, so the notification
+  // can't show a preview or even the sender's name in the body, same as
+  // Telegram's own secret-chat push notifications.
+  const isSecret = chat.type === "secret";
+  const title = isSecret ? "Shalter" : isGroupLike ? chat.title : sender?.name ?? "Новое сообщение";
   const preview = messagePreview(message);
   const recipients = chat.memberIds.filter((id) => id !== message.senderId);
   await Promise.all(
     recipients.map(async (uid) => {
       const settings = await getSettings(uid);
-      const body = !settings.notifications.previewText
+      const mentioned = message.mentionedUserIds?.includes(uid);
+      const body = isSecret
         ? "Новое сообщение"
-        : isGroupLike
-          ? `${sender?.name ?? "Кто-то"}: ${preview}`
-          : preview;
+        : !settings.notifications.previewText
+          ? mentioned
+            ? "Вас упомянули"
+            : "Новое сообщение"
+          : mentioned
+            ? `${sender?.name ?? "Кто-то"} упомянул(а) вас: ${preview}`
+            : isGroupLike
+              ? `${sender?.name ?? "Кто-то"}: ${preview}`
+              : preview;
       await sendPushToUser(uid, { title, body, url: `/chat/${chat.id}`, tag: `chat-${chat.id}` });
     })
   );
@@ -102,6 +132,127 @@ router.get(
   })
 );
 
+// Real threads (threadPanel.js) — everything replying into one root
+// message, kept out of the main list on purpose (see listMessages()'s own
+// comment) so this is the only place they're readable at all.
+router.get(
+  "/:messageId/thread",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    const root = await getMessage(req.params.messageId);
+    if (!root || root.chatId !== req.params.id) return res.status(404).json({ error: "not found" });
+    const replies = await listThreadReplies(req.params.messageId);
+    res.json({ root, replies });
+  })
+);
+
+// The actual "create + fan out" work for a message, shared by the live send
+// route below and server/lib/scheduledMessagesSweep.js's sweep (a fired
+// scheduled message goes through the exact same delivery — mentions, bot
+// dispatch, push, link preview — as one typed and sent live). Assumes the
+// caller already did request-shaped validation (empty-message check,
+// restrictions, block status) — this just delivers.
+async function deliverMessage(chat, senderId, body) {
+  // A secret chat's text is ciphertext (public/js/lib/e2e.js encrypts
+  // client-side before it ever reaches this request) — the server has no
+  // way to read @mentions or URLs out of it, so don't even try. Attachments
+  // in secret chats are *not* currently encrypted (v1 limitation, see
+  // e2e.js's header comment), so those still flow through normally.
+  const isSecret = chat.type === "secret";
+
+  let forwardedFrom = body.forwardedFrom;
+  if (forwardedFrom?.senderId) {
+    if (forwardedFrom.senderId === senderId) {
+      forwardedFrom = { ...forwardedFrom, linkAllowed: true };
+    } else {
+      const { privacy } = await getSettings(forwardedFrom.senderId);
+      let linkAllowed = privacy.forwards === "everyone";
+      if (privacy.forwards === "contacts") {
+        const contacts = await listContactsFor(forwardedFrom.senderId);
+        linkAllowed = contacts.some((c) => c.userId === senderId);
+      }
+      forwardedFrom = { ...forwardedFrom, linkAllowed };
+    }
+  }
+
+  const mentionedUserIds = isSecret ? [] : await resolveMentions(body.text, chat.memberIds, senderId);
+
+  const message = await addMessage({
+    id: `m_${Date.now()}`,
+    chatId: chat.id,
+    senderId,
+    type: body.sticker ? "sticker" : "text",
+    text: body.text ?? "",
+    createdAt: new Date().toISOString(),
+    pinned: false,
+    mentionedUserIds,
+    reactions: [],
+    replyToId: body.replyToId ?? null,
+    threadRootId: body.threadRootId ?? null,
+    attachments: sanitizeAttachments(body.attachments),
+    forwardedFrom,
+    sticker: body.sticker,
+    readByIds: [senderId],
+  });
+
+  if (message.threadRootId) {
+    // A thread reply never shows in the main timeline (listMessages()
+    // excludes threadRootId rows — see its comment), so there's no point
+    // broadcasting the normal message:new there'd trigger a pointless
+    // refetch for. Instead: bump the root's visible reply count, and tell
+    // whoever has this thread's panel open right now (threadPanel.js) so it
+    // updates live instead of only on next open.
+    const updatedRoot = await incrementCommentCount(message.threadRootId);
+    broadcastToUsers(chat.memberIds, { type: "thread:message", chatId: chat.id, rootId: message.threadRootId, message });
+    if (updatedRoot) broadcastToOtherMembers(chat, senderId, { type: "message:updated", chatId: chat.id, message: updatedRoot });
+  } else {
+    broadcastToOtherMembers(chat, senderId, { type: "message:new", chatId: chat.id, message });
+  }
+
+  // A chat with a bot only gets a reply if the bot's own program sends
+  // one back — either an external script polling GET /api/bot-api/updates
+  // and calling /sendMessage, or (for bots with code saved in the in-app
+  // editor) the sandboxed handleMessage below. Fire-and-forget: a slow or
+  // buggy bot script must never delay *this* response to the human sender.
+  for (const memberId of chat.memberIds) {
+    if (memberId === senderId) continue;
+    getBotByUserId(memberId)
+      .then((bot) => {
+        if (!bot?.code?.trim()) return;
+        return runBotCode(bot, bot.code, { id: message.id, chatId: chat.id, senderId, text: message.text, createdAt: message.createdAt });
+      })
+      .catch((err) => console.error(`bot sandbox dispatch failed for ${memberId}:`, err));
+  }
+
+  // A comment on a channel post is just a reply to that post's auto-forwarded
+  // anchor copy in the linked discussion chat (see server/routes/posts.js) —
+  // bump the post's visible comment count when one lands.
+  if (message.replyToId) {
+    const anchor = await getMessage(message.replyToId);
+    if (anchor?.anchorForPostId) await incrementCommentCount(anchor.anchorForPostId);
+  }
+
+  const sender = await getUser(senderId);
+  pushNewMessage(chat, sender, message).catch((err) => console.error("push notify failed:", err));
+
+  // Fire-and-forget, same as the bot dispatch above — fetching a link's
+  // metadata from a slow or unreachable site must never delay the actual
+  // send. Broadcasts an update once the preview lands so open chat views
+  // pick it up live instead of needing a refresh.
+  if (!isSecret && message.type === "text" && message.text) {
+    fetchLinkPreview(message.text)
+      .then(async (linkPreview) => {
+        if (!linkPreview) return;
+        const updated = await setLinkPreview(message.id, linkPreview);
+        broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+      })
+      .catch((err) => console.error("link preview fetch failed:", err));
+  }
+
+  return message;
+}
+
 router.post(
   "/",
   asyncRoute(async (req, res) => {
@@ -132,88 +283,79 @@ router.post(
       }
     }
 
-    // "Who can see a link back to me in forwarded messages" (Settings →
-    // Конфиденциальность) — stamped once, at forward time, into the
-    // forwardedFrom snapshot itself (same spot senderName/chatTitle already
-    // get captured), rather than re-checked on every future render for every
-    // viewer. "contacts" is evaluated against whoever is doing *this* forward
-    // (they're the one who could see the original message), not every
-    // eventual reader of the copy they create — a deliberate, contained
-    // approximation, same spirit as the profile-view privacy check in
-    // routes/users.js, not a claim that this is exact for every group member.
-    let forwardedFrom = body.forwardedFrom;
-    if (forwardedFrom?.senderId) {
-      if (forwardedFrom.senderId === req.uid) {
-        forwardedFrom = { ...forwardedFrom, linkAllowed: true };
-      } else {
-        const { privacy } = await getSettings(forwardedFrom.senderId);
-        let linkAllowed = privacy.forwards === "everyone";
-        if (privacy.forwards === "contacts") {
-          const contacts = await listContactsFor(forwardedFrom.senderId);
-          linkAllowed = contacts.some((c) => c.userId === req.uid);
-        }
-        forwardedFrom = { ...forwardedFrom, linkAllowed };
-      }
+    const message = await deliverMessage(chat, req.uid, body);
+    res.json({ message });
+  })
+);
+
+// Scheduled messages (composer.js's clock icon → time picker) — private to
+// the sender until they fire (server/lib/scheduledMessagesSweep.js's sweep turns
+// each into a real message via deliverMessage above, at which point every
+// other member sees it same as always). Nothing else in the chat can see
+// these list/create/edit/delete routes' results but the sender themself.
+router.get(
+  "/scheduled",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    const scheduled = await listScheduledFor(req.params.id, req.uid);
+    res.json({ scheduled });
+  })
+);
+
+router.post(
+  "/scheduled",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+
+    const body = req.body ?? {};
+    if (!body.text?.trim() && !body.attachments?.length) {
+      return res.status(400).json({ error: "empty message" });
+    }
+    if (!body.sendAt || body.sendAt <= new Date().toISOString()) {
+      return res.status(400).json({ error: "Время отправки должно быть в будущем" });
     }
 
-    const message = await addMessage({
-      id: `m_${Date.now()}`,
+    const scheduled = await addScheduled({
+      id: `sch_${Date.now()}`,
       chatId: req.params.id,
       senderId: req.uid,
-      type: body.sticker ? "sticker" : "text",
       text: body.text ?? "",
-      createdAt: new Date().toISOString(),
-      pinned: false,
-      reactions: [],
-      replyToId: body.replyToId ?? null,
       attachments: sanitizeAttachments(body.attachments),
-      forwardedFrom,
-      sticker: body.sticker,
-      readByIds: [req.uid],
+      replyToId: body.replyToId ?? null,
+      sendAt: body.sendAt,
+      createdAt: new Date().toISOString(),
     });
-    broadcastToOtherMembers(chat, req.uid, { type: "message:new", chatId: req.params.id, message });
+    res.json({ scheduled });
+  })
+);
 
-    // A chat with a bot only gets a reply if the bot's own program sends
-    // one back — either an external script polling GET /api/bot-api/updates
-    // and calling /sendMessage, or (for bots with code saved in the in-app
-    // editor) the sandboxed handleMessage below. Fire-and-forget: a slow or
-    // buggy bot script must never delay *this* response to the human sender.
-    for (const memberId of chat.memberIds) {
-      if (memberId === req.uid) continue;
-      getBotByUserId(memberId)
-        .then((bot) => {
-          if (!bot?.code?.trim()) return;
-          return runBotCode(bot, bot.code, { id: message.id, chatId: chat.id, senderId: req.uid, text: message.text, createdAt: message.createdAt });
-        })
-        .catch((err) => console.error(`bot sandbox dispatch failed for ${memberId}:`, err));
+router.patch(
+  "/scheduled/:scheduledId",
+  asyncRoute(async (req, res) => {
+    const existing = await getScheduled(req.params.scheduledId);
+    if (!existing || existing.senderId !== req.uid || existing.chatId !== req.params.id) {
+      return res.status(404).json({ error: "not found" });
     }
-
-    // A comment on a channel post is just a reply to that post's auto-forwarded
-    // anchor copy in the linked discussion chat (see server/routes/posts.js) —
-    // bump the post's visible comment count when one lands.
-    if (message.replyToId) {
-      const anchor = await getMessage(message.replyToId);
-      if (anchor?.anchorForPostId) await incrementCommentCount(anchor.anchorForPostId);
+    const body = req.body ?? {};
+    if (body.sendAt && body.sendAt <= new Date().toISOString()) {
+      return res.status(400).json({ error: "Время отправки должно быть в будущем" });
     }
+    const scheduled = await editScheduled(req.params.scheduledId, body);
+    res.json({ scheduled });
+  })
+);
 
-    res.json({ message });
-
-    const sender = await getUser(req.uid);
-    pushNewMessage(chat, sender, message).catch((err) => console.error("push notify failed:", err));
-
-    // Fire-and-forget, same as the bot dispatch above — fetching a link's
-    // metadata from a slow or unreachable site must never delay the actual
-    // send. Broadcasts an update once the preview lands so open chat views
-    // pick it up live instead of needing a refresh.
-    if (message.type === "text" && message.text) {
-      fetchLinkPreview(message.text)
-        .then(async (linkPreview) => {
-          if (!linkPreview) return;
-          const updated = await setLinkPreview(message.id, linkPreview);
-          broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
-        })
-        .catch((err) => console.error("link preview fetch failed:", err));
+router.delete(
+  "/scheduled/:scheduledId",
+  asyncRoute(async (req, res) => {
+    const existing = await getScheduled(req.params.scheduledId);
+    if (!existing || existing.senderId !== req.uid || existing.chatId !== req.params.id) {
+      return res.status(404).json({ error: "not found" });
     }
+    await deleteScheduled(req.params.scheduledId);
+    res.json({ ok: true });
   })
 );
 
@@ -297,4 +439,9 @@ router.post(
   })
 );
 
+// Attached onto the router export (not a separate module) so
+// server/lib/scheduledMessagesSweep.js's sweep can deliver a fired scheduled
+// message through the exact same path a live send uses — mentions, bot
+// dispatch, push, link preview — without a second copy of that logic.
 module.exports = router;
+module.exports.deliverMessage = deliverMessage;

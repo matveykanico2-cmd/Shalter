@@ -22,6 +22,8 @@ function rowToMessage(row) {
     reactions: JSON.parse(row.reactions),
     readByIds: JSON.parse(row.readByIds),
     deletedForIds: JSON.parse(row.deletedForIds),
+    mentionedUserIds: row.mentionedUserIds ? JSON.parse(row.mentionedUserIds) : [],
+    threadRootId: row.threadRootId ?? undefined,
     anchorForPostId: row.anchorForPostId ?? undefined,
     discussionAnchorId: row.discussionAnchorId ?? undefined,
     views: row.views,
@@ -41,7 +43,19 @@ async function listMessages(chatId, viewerId, clearedBefore) {
   let rows = db.prepare("SELECT * FROM messages WHERE chatId = ? ORDER BY createdAt ASC").all(chatId).map(rowToMessage);
   if (viewerId) rows = rows.filter((m) => !m.deletedForIds?.includes(viewerId));
   if (clearedBefore) rows = rows.filter((m) => m.createdAt > clearedBefore);
-  return rows;
+  // Thread replies (threadRootId set) live only in the thread panel
+  // (threadPanel.js's GET .../thread/:rootId below) — showing them here too
+  // would defeat the point of a thread (keeping the main timeline readable).
+  return rows.filter((m) => !m.threadRootId);
+}
+
+// The thread panel's own message list (public/js/components/threadPanel.js)
+// — everything replying *into* this root, in the order sent. No
+// deletedForIds/clearedBefore overlay here: threads are new enough in this
+// app that neither "clear history" nor "delete for me" needs to reach into
+// them for a first version.
+async function listThreadReplies(rootId) {
+  return db.prepare("SELECT * FROM messages WHERE threadRootId = ? ORDER BY createdAt ASC").all(rootId).map(rowToMessage);
 }
 
 async function getMessage(id) {
@@ -50,8 +64,8 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, anchorForPostId, discussionAnchorId, views, commentCount)
-     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @anchorForPostId, @discussionAnchorId, @views, @commentCount)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, anchorForPostId, discussionAnchorId, views, commentCount)
+     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @anchorForPostId, @discussionAnchorId, @views, @commentCount)`
   ).run({
     id: message.id,
     chatId: message.chatId,
@@ -71,6 +85,8 @@ async function addMessage(message) {
     reactions: JSON.stringify(message.reactions ?? []),
     readByIds: JSON.stringify(message.readByIds ?? []),
     deletedForIds: JSON.stringify(message.deletedForIds ?? []),
+    mentionedUserIds: JSON.stringify(message.mentionedUserIds ?? []),
+    threadRootId: message.threadRootId ?? null,
     anchorForPostId: message.anchorForPostId ?? null,
     discussionAnchorId: message.discussionAnchorId ?? null,
     views: message.views ?? 0,
@@ -251,6 +267,7 @@ function setDiscussionAnchor(id, anchorId) {
 module.exports = {
   listAllMessages,
   listMessages,
+  listThreadReplies,
   getMessage,
   addMessage,
   deleteMessagesForChat,

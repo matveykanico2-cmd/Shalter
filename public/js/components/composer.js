@@ -5,15 +5,51 @@ import { startRecording, isRecordingSupported, MAX_RECORD_SEC } from "../lib/rec
 import { fileToImageDataUrl, fileToDataUrl } from "../lib/image.js";
 import { openPollDialog } from "./pollDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
+import { openScheduleSendDialog } from "./scheduleSendDialog.js";
 import { STICKERS } from "../lib/stickers.js";
 
 const EMOJI = ["😀", "😂", "😍", "👍", "🙏", "🔥", "🎉", "😢", "😮", "❤️", "👏", "🤔"];
 const TYPING_PING_MS = 2500; // well under the server's 4s typing-presence expiry
+const DRAFT_SAVE_MS = 600; // debounce so we're not POSTing on every keystroke
 const MAX_IMAGE_DIMENSION = 1600;
 
-export function Composer({ chatId, replyingTo, editingMessage, onCancelReply, onCancelEdit, onSend, onSaveEdit }) {
+export function Composer({
+  chatId,
+  replyingTo,
+  editingMessage,
+  initialDraft,
+  members,
+  onCancelReply,
+  onCancelEdit,
+  onSend,
+  onSaveEdit,
+  onDraftChange,
+  onScheduled,
+  encryptOutgoing,
+  disableDraftSync,
+}) {
   let lastTypingPing = 0;
   let recordingHandle = null;
+  let draftSaveTimer = null;
+
+  // Saves to the server on a debounce (network call), but calls
+  // onDraftChange immediately every time so chatView.js can reflect the
+  // draft in the chat-list preview without waiting on the network.
+  // disableDraftSync (secret chats — see chatView.js) skips the network
+  // call entirely: syncing a plaintext draft server-side for a chat whose
+  // whole point is that the server never sees plaintext would defeat it.
+  function scheduleDraftSave(text) {
+    onDraftChange?.(text);
+    if (disableDraftSync) return;
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = setTimeout(() => api.setDraft(chatId, text).catch(() => {}), DRAFT_SAVE_MS);
+  }
+  function clearDraft() {
+    clearTimeout(draftSaveTimer);
+    onDraftChange?.("");
+    if (disableDraftSync) return;
+    api.setDraft(chatId, "").catch(() => {});
+  }
 
   const wrap = el("div", { class: "composer" });
   const banner = renderBanner();
@@ -45,19 +81,94 @@ export function Composer({ chatId, replyingTo, editingMessage, onCancelReply, on
       class: "composer-textarea",
       rows: 1,
       placeholder: "Сообщение",
-      value: editingMessage?.text ?? "",
+      value: editingMessage?.text ?? initialDraft ?? "",
     });
+
+    // @mention autocomplete — matches an "@" that starts at a word boundary
+    // and runs up to the cursor with no space in between (so "a@b" doesn't
+    // trigger it, but "hey @niko" does mid-word too).
+    const mentionMenu = el("div", { class: "composer-mention-menu hidden" });
+    let mentionMatches = [];
+    let mentionActiveIndex = 0;
+
+    function currentMentionQuery() {
+      const before = textarea.value.slice(0, textarea.selectionStart);
+      const m = before.match(/(?:^|\s)@(\w*)$/);
+      return m ? m[1] : null;
+    }
+    function renderMentionMenu() {
+      clear(mentionMenu);
+      mentionMatches.forEach((u, i) =>
+        mentionMenu.appendChild(
+          el(
+            "button",
+            {
+              class: `composer-mention-item ${i === mentionActiveIndex ? "active" : ""}`,
+              // mousedown (not click) + preventDefault so the textarea never
+              // blurs — a blur would run our own close-on-blur handler and
+              // rip this button out of the DOM before its click could fire.
+              onmousedown: (e) => {
+                e.preventDefault();
+                selectMention(u);
+              },
+            },
+            [el("span", { class: "composer-mention-name" }, u.name), el("span", { class: "composer-mention-username" }, `@${u.username}`)]
+          )
+        )
+      );
+    }
+    function updateMentionMenu() {
+      const query = currentMentionQuery();
+      const q = query?.toLowerCase();
+      mentionMatches =
+        q === undefined || q === null || !members?.length
+          ? []
+          : members
+              .filter((u) => u.username && (u.username.toLowerCase().startsWith(q) || u.name.toLowerCase().includes(q)))
+              .slice(0, 6);
+      if (!mentionMatches.length) {
+        mentionMenu.classList.add("hidden");
+        clear(mentionMenu);
+        return;
+      }
+      mentionActiveIndex = 0;
+      renderMentionMenu();
+      mentionMenu.classList.remove("hidden");
+    }
+    function closeMentionMenu() {
+      mentionMatches = [];
+      mentionMenu.classList.add("hidden");
+      clear(mentionMenu);
+    }
+    function selectMention(user) {
+      const pos = textarea.selectionStart;
+      const before = textarea.value.slice(0, pos).replace(/@(\w*)$/, `@${user.username} `);
+      textarea.value = before + textarea.value.slice(pos);
+      textarea.focus();
+      textarea.setSelectionRange(before.length, before.length);
+      closeMentionMenu();
+      autoResize();
+      updateTrailingButtons();
+      if (!editingMessage) scheduleDraftSave(textarea.value);
+    }
 
     function autoResize() {
       textarea.style.height = "auto";
       textarea.style.height = Math.min(textarea.scrollHeight, 240) + "px";
     }
 
-    function submit() {
+    async function submit() {
       const trimmed = textarea.value.trim();
       if (!trimmed) return;
-      if (editingMessage) onSaveEdit(trimmed);
-      else onSend(trimmed);
+      // Secret chats (chatView.js's encryptOutgoing) — encrypted right here,
+      // right before it leaves the composer, so nothing downstream (onSend,
+      // the api.* call) ever sees or transmits plaintext.
+      const outgoing = encryptOutgoing ? await encryptOutgoing(trimmed) : trimmed;
+      if (editingMessage) onSaveEdit(outgoing);
+      else {
+        onSend(outgoing);
+        clearDraft();
+      }
       textarea.value = "";
       autoResize();
     }
@@ -69,13 +180,42 @@ export function Composer({ chatId, replyingTo, editingMessage, onCancelReply, on
         lastTypingPing = Date.now();
         api.sendTyping(chatId).catch(() => {});
       }
+      if (!editingMessage) scheduleDraftSave(textarea.value);
+      updateMentionMenu();
     });
     textarea.addEventListener("keydown", (e) => {
+      if (mentionMatches.length) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          mentionActiveIndex = (mentionActiveIndex + 1) % mentionMatches.length;
+          renderMentionMenu();
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          mentionActiveIndex = (mentionActiveIndex - 1 + mentionMatches.length) % mentionMatches.length;
+          renderMentionMenu();
+          return;
+        }
+        if (e.key === "Enter" || e.key === "Tab") {
+          e.preventDefault();
+          selectMention(mentionMatches[mentionActiveIndex]);
+          return;
+        }
+        if (e.key === "Escape") {
+          closeMentionMenu();
+          return;
+        }
+      }
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         submit();
       }
     });
+    // Click elsewhere closes it too — menu items themselves prevent this
+    // blur (see the mousedown handler above), so this only fires for
+    // genuine "clicked away" cases.
+    textarea.addEventListener("blur", () => closeMentionMenu());
 
     // Attach menu — each item sends a real attachment (no more "[Label]" text stub).
     const mediaFileInput = el("input", {
@@ -210,6 +350,7 @@ export function Composer({ chatId, replyingTo, editingMessage, onCancelReply, on
                   textarea.value += e;
                   autoResize();
                   textarea.focus();
+                  if (!editingMessage) scheduleDraftSave(textarea.value);
                 },
               },
               e
@@ -259,6 +400,35 @@ export function Composer({ chatId, replyingTo, editingMessage, onCancelReply, on
     });
     const stickerSlot = el("div", { class: "composer-attach-slot" }, [stickerBtn]);
 
+    // "Send later" — queues whatever's currently typed instead of sending
+    // now (server/lib/scheduledMessagesSweep.js fires it at the chosen
+    // time). Doesn't apply while editing an existing message.
+    const scheduleSlot = editingMessage
+      ? null
+      : el("div", { class: "composer-attach-slot" }, [
+          el("button", {
+            class: "composer-icon-btn",
+            title: "Отправить позже",
+            html: iconSvg("Clock", 18),
+            onclick: () => {
+              if (!textarea.value.trim()) return;
+              openScheduleSendDialog(async (sendAt) => {
+                try {
+                  const outgoing = encryptOutgoing ? await encryptOutgoing(textarea.value.trim()) : textarea.value.trim();
+                  await api.scheduleMessage(chatId, { text: outgoing, replyToId: replyingTo?.id ?? null, sendAt });
+                  textarea.value = "";
+                  autoResize();
+                  updateTrailingButtons();
+                  clearDraft();
+                  onScheduled?.();
+                } catch (err) {
+                  alert(err.message || "Не удалось запланировать отправку");
+                }
+              });
+            },
+          }),
+        ]);
+
     const trailingSlot = el("div", { class: "composer-trailing" });
     function updateTrailingButtons() {
       clear(trailingSlot);
@@ -285,7 +455,7 @@ export function Composer({ chatId, replyingTo, editingMessage, onCancelReply, on
       );
     }
 
-    const row = el("div", { class: "composer-row" }, [attachSlot, textarea, stickerSlot, emojiSlot, trailingSlot]);
+    const row = el("div", { class: "composer-row" }, [mentionMenu, attachSlot, textarea, stickerSlot, scheduleSlot, emojiSlot, trailingSlot]);
     bodySlot.appendChild(row);
     updateTrailingButtons();
 

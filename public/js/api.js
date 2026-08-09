@@ -42,6 +42,8 @@ export const api = {
   setBlocked: (userId, blocked) =>
     req(`/api/users/${userId}/block`, { method: "POST", body: JSON.stringify({ blocked }) }),
   getSharedMedia: (userId) => req(`/api/users/${userId}/shared-media`),
+  uploadE2eKey: (userId, publicKey) =>
+    req(`/api/users/${userId}/e2e-key`, { method: "POST", body: JSON.stringify({ publicKey }) }),
 
   listChats: () => req("/api/chats"),
   getChat: (id) => req(`/api/chats/${id}`),
@@ -50,15 +52,21 @@ export const api = {
   deleteChatForMe: (id) => req(`/api/chats/${id}/delete-for-me`, { method: "POST" }),
   startDm: (userId, title, avatarColor) =>
     req("/api/chats", { method: "POST", body: JSON.stringify({ userId, title, avatarColor }) }),
+  startSecretChat: (userId) => req("/api/chats/secret", { method: "POST", body: JSON.stringify({ userId }) }),
   createChannel: (title, avatarImage, memberIds, adminIds) =>
     req("/api/chats/channels", { method: "POST", body: JSON.stringify({ title, avatarImage, memberIds, adminIds }) }),
   createGroup: (title, memberIds, avatarImage, adminIds) =>
     req("/api/chats/groups", { method: "POST", body: JSON.stringify({ title, memberIds, avatarImage, adminIds }) }),
+  setChannelPublic: (id, isPublic, username) =>
+    req(`/api/chats/${id}/public`, { method: "POST", body: JSON.stringify({ isPublic, username }) }),
+  discoverChannels: (q) => req(`/api/channels?q=${encodeURIComponent(q ?? "")}`),
+  subscribeChannel: (id) => req(`/api/channels/${id}/subscribe`, { method: "POST" }),
   leaveChat: (id) => req(`/api/chats/${id}/leave`, { method: "POST" }),
   clearHistory: (id, forEveryone) =>
     req(`/api/chats/${id}/clear`, { method: "POST", body: JSON.stringify({ forEveryone: !!forEveryone }) }),
   setChatWallpaper: (id, wallpaper) =>
     req(`/api/chats/${id}/wallpaper`, { method: "POST", body: JSON.stringify({ wallpaper }) }),
+  setDraft: (id, text) => req(`/api/chats/${id}/draft`, { method: "POST", body: JSON.stringify({ text }) }),
   setMemberRole: (id, userId, role) =>
     req(`/api/chats/${id}/members`, { method: "POST", body: JSON.stringify({ userId, role }) }),
   restrictMember: (id, userId, until) =>
@@ -81,8 +89,17 @@ export const api = {
     req(`/api/chats/${chatId}/messages/${messageId}/pin`, { method: "POST", body: JSON.stringify({ pinned }) }),
   votePoll: (chatId, messageId, optionIndex) =>
     req(`/api/chats/${chatId}/messages/${messageId}/vote`, { method: "POST", body: JSON.stringify({ optionIndex }) }),
+  getThread: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/thread`),
   sendTyping: (chatId) => req(`/api/chats/${chatId}/typing`, { method: "POST" }),
   getTyping: (chatId) => req(`/api/chats/${chatId}/typing`),
+
+  listScheduled: (chatId) => req(`/api/chats/${chatId}/messages/scheduled`),
+  scheduleMessage: (chatId, opts) =>
+    req(`/api/chats/${chatId}/messages/scheduled`, { method: "POST", body: JSON.stringify(opts) }),
+  editScheduled: (chatId, scheduledId, patch) =>
+    req(`/api/chats/${chatId}/messages/scheduled/${scheduledId}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteScheduled: (chatId, scheduledId) =>
+    req(`/api/chats/${chatId}/messages/scheduled/${scheduledId}`, { method: "DELETE" }),
 
   listFolders: () => req("/api/folders"),
   createFolder: (name, chatIds) => req("/api/folders", { method: "POST", body: JSON.stringify({ name, chatIds }) }),

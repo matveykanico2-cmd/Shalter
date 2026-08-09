@@ -15,6 +15,9 @@ import { placeCall as placeCallController } from "../lib/callController.js";
 import { onWsMessage } from "../lib/wsClient.js";
 import { paintWallpaper } from "../lib/wallpapers.js";
 import { openWallpaperDialog } from "../components/wallpaperDialog.js";
+import { openScheduledMessagesDialog } from "../components/scheduledMessagesDialog.js";
+import { openThreadPanel } from "../components/threadPanel.js";
+import { getSharedKey, encryptText, decryptText, isEncrypted } from "../lib/e2e.js";
 
 // Settings → Внешний вид → "Фон чата" sets the global default; a chat's own
 // "…" → "Фон чата" (see openWallpaperDialog below) overrides it for just
@@ -78,6 +81,7 @@ export async function ChatView(root, chatId) {
 
   let replyingTo = null;
   let editingMessage = null;
+  let draftText = chat.draft ?? "";
   let infoOpen = false;
   let pinIndex = 0;
   let typingUserId = null;
@@ -88,6 +92,34 @@ export async function ChatView(root, chatId) {
 
   const isDm = chat.type === "dm" || chat.type === "secret";
   const other = chat.otherUser;
+
+  // Real E2E (public/js/lib/e2e.js) — derive this device's shared AES key
+  // with `other` once, up front, so every render below (message list,
+  // composer) can use it synchronously. secretKeyError covers both "they
+  // haven't uploaded a key yet" and any Web Crypto failure — either way the
+  // composer gets disabled below rather than silently sending plaintext.
+  const isSecret = chat.type === "secret";
+  let secretSharedKey = null;
+  let secretKeyError = null;
+  if (isSecret && other) {
+    if (other.e2ePublicKey) {
+      try {
+        secretSharedKey = await getSharedKey(me.id, other.id, other.e2ePublicKey);
+      } catch {
+        secretKeyError = "Не удалось установить защищённое соединение";
+      }
+    } else {
+      secretKeyError = "У собеседника ещё нет ключа шифрования — попросите его открыть приложение";
+    }
+  }
+
+  async function decryptIncoming(msgs) {
+    if (!isSecret || !secretSharedKey) return msgs;
+    return Promise.all(
+      msgs.map(async (m) => (m.type === "text" && isEncrypted(m.text) ? { ...m, text: await decryptText(secretSharedKey, m.text) } : m))
+    );
+  }
+  messages = await decryptIncoming(messages);
 
   // Only DMs can ever show the grant-Premium/gift actions, so skip the extra
   // requests everywhere else — the real permission check is server-side
@@ -104,6 +136,7 @@ export async function ChatView(root, chatId) {
   }
   const isChannel = chat.type === "channel";
   const isChannelAdmin = isChannel && (chat.ownerId === me.id || chat.adminIds?.includes(me.id));
+  const isGroup = chat.type === "group";
 
   function jumpTo(id) {
     document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -112,7 +145,7 @@ export async function ChatView(root, chatId) {
   async function refreshMessages() {
     const res = await api.listMessages(chat.id);
     const grew = res.messages.length > messagesCount;
-    messages = res.messages;
+    messages = await decryptIncoming(res.messages);
     messagesCount = messages.length;
     renderList();
     if (grew) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
@@ -127,8 +160,21 @@ export async function ChatView(root, chatId) {
     } catch (err) {
       alert(err.message || "Не удалось отправить сообщение");
     }
+    draftText = "";
     renderComposer();
     await refreshMessages();
+  }
+
+  // Composer.js debounce-saves the draft server-side itself; this just
+  // keeps the chat-list preview (chatListItem.js's `chat.draft` check) in
+  // sync immediately, without waiting on that network round-trip or the
+  // next chat-list poll.
+  function handleDraftChange(text) {
+    draftText = text;
+    const { chats: sharedChats } = getState();
+    if (sharedChats.some((c) => c.id === chat.id)) {
+      setState({ chats: sharedChats.map((c) => (c.id === chat.id ? { ...c, draft: text } : c)) });
+    }
   }
 
   async function handleForward(message, targetChatId) {
@@ -360,6 +406,7 @@ export async function ChatView(root, chatId) {
               { icon: chat.muted ? "Bell" : "BellOff", label: chat.muted ? "Включить уведомления" : "Отключить уведомления", onClick: toggleMute },
               { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
               { icon: "Image", label: "Фон чата", onClick: handleChooseWallpaper },
+              { icon: "Clock", label: "Запланированные сообщения", onClick: () => openScheduledMessagesDialog(chat.id) },
               { icon: "Trash", label: "Очистить историю", onClick: handleClearHistory },
               {
                 icon: "X",
@@ -422,6 +469,15 @@ export async function ChatView(root, chatId) {
           isMePremium: me.isPremium,
           onVoteForGroup: handleVoteForGroup,
           onSetAutoDelete: handleSetAutoDelete,
+          // updateChat()'s response is the raw chat row — merge rather than
+          // replace so the extra fields attachSummaries() adds (lastMessage,
+          // unreadCount, draft, hasUnreadMention) survive a public/username
+          // change instead of vanishing until the next full refetch.
+          onChatUpdated: (updated) => {
+            chat = { ...chat, ...updated };
+            renderHeader();
+            renderInfoPanel();
+          },
         })
       );
     }
@@ -470,6 +526,7 @@ export async function ChatView(root, chatId) {
           sender,
           showSender,
           replyToMessage,
+          members,
           handlers: {
             onReply: (msg) => {
               replyingTo = msg;
@@ -499,6 +556,7 @@ export async function ChatView(root, chatId) {
             onForward: (msg) => openForwardDialog((targetChatId) => handleForward(msg, targetChatId)),
             onVote: handleVote,
             onKeyboardAction: (action) => handleSend(action, []),
+            onOpenThread: isGroup ? (msg) => openThreadPanel({ chat, rootMessage: msg, members, me, onReplySent: refreshMessages }) : undefined,
           },
         })
       );
@@ -511,6 +569,18 @@ export async function ChatView(root, chatId) {
               onclick: () => navigate(`/chat/${chat.linkedDiscussionChatId}`),
             },
             `💬 ${m.commentCount ?? 0} комментари${(m.commentCount ?? 0) === 1 ? "й" : "ев"}`
+          )
+        );
+      }
+      // Real threads (threadPanel.js) — group chats only (channels already
+      // have their own comment mechanism above via the linked discussion
+      // chat; DMs/secret chats are just two people, nothing to thread).
+      if (isGroup && m.type !== "system" && m.commentCount && !m.threadRootId) {
+        list.appendChild(
+          el(
+            "button",
+            { class: "post-comments-link", onclick: () => openThreadPanel({ chat, rootMessage: m, members, me, onReplySent: refreshMessages }) },
+            `💬 ${m.commentCount} ответ${m.commentCount === 1 ? "" : m.commentCount < 5 ? "а" : "ов"}`
           )
         );
       }
@@ -545,11 +615,25 @@ export async function ChatView(root, chatId) {
       );
       return;
     }
+    if (isSecret && secretKeyError) {
+      bodyBottomSlot.appendChild(el("p", { class: "channel-readonly-hint" }, secretKeyError));
+      return;
+    }
     composerSlot.appendChild(
       Composer({
         chatId: chat.id,
         replyingTo,
         editingMessage,
+        initialDraft: draftText,
+        members: members.filter((u) => u.id !== me.id),
+        // Secret-chat text only ever leaves this device already encrypted
+        // (see e2e.js) — the composer itself calls this right before
+        // sending or scheduling, so plaintext never touches an api.* call.
+        // Drafts of a secret chat aren't cloud-synced at all (disableDraftSync)
+        // rather than encrypting the draft too — same as real Telegram
+        // secret chats, which are device-local and don't sync anywhere.
+        encryptOutgoing: isSecret ? (text) => encryptText(secretSharedKey, text) : null,
+        disableDraftSync: isSecret,
         onCancelReply: () => {
           replyingTo = null;
           renderComposer();
@@ -560,6 +644,8 @@ export async function ChatView(root, chatId) {
         },
         onSend: handleSend,
         onSaveEdit: handleSaveEdit,
+        onDraftChange: handleDraftChange,
+        onScheduled: () => openScheduledMessagesDialog(chat.id),
       })
     );
   }

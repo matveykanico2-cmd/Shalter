@@ -1,9 +1,11 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser } = require("../data/chats");
+const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findChatByUsername } = require("../data/chats");
+const { findUserByUsername } = require("../data/users");
+const { USERNAME_RE } = require("../lib/validators");
 const { deleteMessagesForChat } = require("../data/messages");
-const { getSettings, setChatCleared, deleteChatForUser, setChatWallpaper } = require("../data/settings");
+const { getSettings, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft } = require("../data/settings");
 const { attachSummaries } = require("../data/chat-summary");
 const { listUsers, getUser } = require("../data/users");
 const { listContactsFor } = require("../data/contacts");
@@ -47,6 +49,43 @@ router.post(
       type: "dm",
       title,
       avatarColor,
+      memberIds: [req.uid, userId],
+      pinned: false,
+      muted: false,
+      archived: false,
+      createdAt: new Date().toISOString(),
+    });
+
+    res.json({ chat });
+  })
+);
+
+// Starts (or returns the existing) secret chat with someone — real E2E
+// (public/js/lib/e2e.js): the server only ever relays each side's public
+// key and, once messages flow, ciphertext it cannot read (see
+// routes/messages.js's skip-server-side-text-processing-for-secret-chats
+// guards). Needs the target to already have a public key uploaded — they
+// haven't opened a build with secret-chat support yet otherwise, and there
+// would be nothing to derive a shared key against.
+router.post(
+  "/secret",
+  asyncRoute(async (req, res) => {
+    const { userId } = req.body ?? {};
+    const other = await getUser(userId);
+    if (!other) return res.status(404).json({ error: "not found" });
+    if (!other.e2ePublicKey) {
+      return res.status(400).json({ error: "Собеседник ещё не поддерживает секретные чаты — попросите его открыть приложение" });
+    }
+
+    const existing = (await listChats()).find(
+      (c) => c.type === "secret" && c.memberIds.includes(req.uid) && c.memberIds.includes(userId)
+    );
+    if (existing) return res.json({ chat: existing });
+
+    const chat = await createChat({
+      id: `c_${Date.now()}`,
+      type: "secret",
+      title: "",
       memberIds: [req.uid, userId],
       pinned: false,
       muted: false,
@@ -167,6 +206,45 @@ router.patch(
   })
 );
 
+// Toggles a channel between public (listed in the directory — see
+// routes/channels.js — and joinable by @username without an invite) and
+// private. Owner/admin only, and validated/uniqueness-checked here rather
+// than left to the generic PATCH /:id above, which has no permission or
+// format checks at all — fine for pinned/muted/archived (harmless if any
+// member flips those), not fine for something that publishes a channel and
+// claims a global @username.
+router.post(
+  "/:id/public",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (chat.type !== "channel") return res.status(400).json({ error: "Публичными могут быть только каналы" });
+    const isOwnerOrAdmin = chat.ownerId === req.uid || chat.adminIds?.includes(req.uid);
+    if (!isOwnerOrAdmin) return res.status(403).json({ error: "Недостаточно прав" });
+
+    const { isPublic } = req.body ?? {};
+    if (!isPublic) {
+      const updated = await updateChat(req.params.id, { isPublic: false });
+      return res.json({ chat: updated });
+    }
+
+    const username = (req.body?.username ?? "").trim();
+    if (!USERNAME_RE.test(username)) {
+      return res.status(400).json({ error: "Юзернейм: 5-32 символов, латинские буквы, цифры и _" });
+    }
+    // One shared @handle namespace with real accounts (same rule
+    // routes/users.js's PATCH /:id enforces for people) — otherwise
+    // /u/:username and this channel's own public link could collide.
+    const [existingUser, existingChat] = await Promise.all([findUserByUsername(username), findChatByUsername(username)]);
+    if (existingUser || (existingChat && existingChat.id !== chat.id)) {
+      return res.status(409).json({ error: "Этот юзернейм уже занят" });
+    }
+
+    const updated = await updateChat(req.params.id, { isPublic: true, username });
+    res.json({ chat: updated });
+  })
+);
+
 router.delete(
   "/:id",
   asyncRoute(async (req, res) => {
@@ -207,6 +285,21 @@ router.post(
     const { wallpaper } = req.body ?? {};
     const settings = await setChatWallpaper(req.uid, req.params.id, wallpaper ?? null);
     res.json({ settings });
+  })
+);
+
+// Debounce-saved from the composer on every keystroke (see composer.js) —
+// deliberately not routed through the general PATCH /api/settings (that
+// does a shallow merge, so it'd clobber every other chat's draft on every
+// save; this does the same read-merge-write as /:id/wallpaper instead).
+router.post(
+  "/:id/draft",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    const { text } = req.body ?? {};
+    await setDraft(req.uid, req.params.id, typeof text === "string" ? text : "");
+    res.json({ ok: true });
   })
 );
 

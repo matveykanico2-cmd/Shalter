@@ -24,7 +24,12 @@ const ATTACHMENT_LABEL = {
 };
 
 function preview(chat, meId) {
-  if (chat.draft) return chat.draft;
+  // The list never derives a secret chat's E2E key just to decrypt a
+  // preview line (that's chatView.js's job, once you actually open it) —
+  // ciphertext isn't shown either, so this is the one line every secret
+  // chat's row always shows, whoever sent the last message.
+  if (chat.type === "secret") return "🔒 Секретный чат";
+  if (chat.draft) return `Черновик: ${chat.draft}`;
   const m = chat.lastMessage;
   if (!m) return "Нет сообщений";
   if (m.type === "system") return m.text;
@@ -77,6 +82,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete }) {
           el("span", { class: "chat-list-item-badges" }, [
             chat.pinned ? el("span", { html: iconSvg("Pin", 12) }) : null,
             chat.muted ? el("span", { html: iconSvg("BellOff", 12) }) : null,
+            chat.hasUnreadMention ? el("span", { class: "mention-badge" }, "@") : null,
             chat.unreadCount > 0
               ? el("span", { class: "unread-badge" }, chat.unreadCount > 99 ? "99+" : String(chat.unreadCount))
               : null,

@@ -12,6 +12,7 @@ const { initPush } = require("./push");
 const { ensureSystemBot } = require("./data/systemBot");
 const { startAutoDeleteSweep } = require("./lib/autoDelete");
 const { startDonationAlertsSweep } = require("./lib/donationAlerts");
+const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
 
 ensureSystemBot();
 
@@ -69,6 +70,7 @@ app.use("/api/auth/register-email", authLimiter);
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/chats", require("./routes/chats"));
+app.use("/api/channels", require("./routes/channels"));
 app.use("/api/contacts", require("./routes/contacts"));
 app.use("/api/folders", require("./routes/folders"));
 app.use("/api/calls", require("./routes/calls"));
@@ -112,6 +114,7 @@ const server = http.createServer(app);
 attachWebSocketServer(server);
 startAutoDeleteSweep();
 startDonationAlertsSweep();
+startScheduledMessagesSweep();
 
 // VAPID key setup must finish before anything can subscribe/send push, but
 // must never block the server from coming up at all if it fails for some

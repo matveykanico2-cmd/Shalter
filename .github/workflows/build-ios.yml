@@ -1,0 +1,48 @@
+name: Build iOS (simulator, unsigned)
+
+# macos-latest runners ship with Xcode preinstalled — the one hard
+# requirement DEPLOY_MOBILE.md calls out as impossible on the Linux dev
+# machine this repo was built on ("Xcode doesn't run there, and Apple
+# doesn't offer a cross-compilation path").
+#
+# This builds for the iOS *Simulator* only, unsigned — enough to catch a
+# broken native build before it reaches a real Mac. It is NOT a real,
+# submittable App Store build: that needs an actual Apple Developer Program
+# membership (paid) and a signing identity/provisioning profile configured
+# in Xcode, which no CI secret here can substitute for. See DEPLOY_MOBILE.md's
+# iOS section for that step — this workflow is a smoke test, not a shortcut
+# past it.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - run: npm run build
+
+      # ios/ is gitignored (same as android/) — regenerated fresh every run.
+      - run: npx cap add ios
+      - run: npx cap sync ios
+
+      - name: pod install
+        working-directory: ios/App
+        run: pod install
+
+      - name: Build for iOS Simulator (unsigned)
+        working-directory: ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -sdk iphonesimulator -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO build

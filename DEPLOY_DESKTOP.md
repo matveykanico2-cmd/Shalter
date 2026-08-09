@@ -81,20 +81,27 @@ you have Apple credentials configured locally.
 ## Building all three from one machine
 
 Not really possible correctly — Windows needs Wine (or a Windows box) and
-macOS needs an actual Mac. The standard fix is CI: a GitHub Actions workflow
-with a build matrix (`windows-latest`, `macos-latest`, `ubuntu-latest`) each
-running its own `npm run electron:build:*`, uploading the three artifacts.
-Not set up in this repo — worth doing once you're ready to publish
-regularly, not needed just to try the app locally.
+macOS needs an actual Mac. The fix is CI: **`.github/workflows/build-desktop.yml`**
+is exactly that — a build matrix (`windows-latest`, `macos-latest`,
+`ubuntu-latest`) each running its own `npm run electron:build:*` on GitHub's
+own machines (which actually have Wine and a real Mac, unlike this repo's own
+dev environment) and uploading the three artifacts. Trigger it from the
+Actions tab (workflow_dispatch) or by pushing a `v*` tag; download the
+`shalter-desktop-*` artifacts from the run once it's green. These builds are
+unsigned (see the signing notes above) — fine for testing, not for handing to
+real users yet.
 
 ## What's already done vs. what's still yours to do
 
 Done: `electron/main.js`, the icon, the `build` config in `package.json`,
-the npm scripts, and a verified working Linux package.
+the npm scripts, a verified working Linux package (both `.AppImage` and
+`.deb`, built and tested in this repo), and the
+`.github/workflows/build-desktop.yml` CI matrix that gets you unsigned
+Windows/macOS/Linux builds without needing that hardware yourself.
 
 Still needed: an icon at each platform's preferred format if you want
 something sharper than electron-builder's auto-generated one (`.ico` for
 Windows, `.icns` for macOS — currently generated on the fly from
-`electron/icon.png`), code signing for both Windows and macOS, and actually
-running the Windows/macOS builds on the right hardware (or setting up the CI
-matrix above).
+`electron/icon.png`), and code signing for both Windows and macOS once
+you're ready to distribute past your own testing (SmartScreen/Gatekeeper
+otherwise warn on first launch).

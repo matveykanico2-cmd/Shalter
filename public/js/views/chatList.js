@@ -74,6 +74,11 @@ async function openNewChatMenu(e) {
           });
         },
       },
+      {
+        icon: "Search",
+        label: "Публичные каналы",
+        onClick: () => navigate("/discover-channels"),
+      },
     ]
   );
 }

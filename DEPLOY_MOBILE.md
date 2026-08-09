@@ -9,12 +9,21 @@ real domain and TLS first; you need that *before* any of this). The shell is
 the repo root), one Android project and one Xcode project, both loading the
 same live URL.
 
-This repo has the config and npm scripts wired up (`@capacitor/core` and
-`@capacitor/cli` are already in `devDependencies`), but the actual native
-projects (`android/`, `ios/`) aren't generated here — that step needs Android
-Studio / Xcode installed locally, which this environment doesn't have. Nothing
-below is push-button; each platform needs its own machine and its own store
-account.
+This repo has the config and npm scripts wired up (`@capacitor/core`,
+`@capacitor/cli`, `@capacitor/android`, `@capacitor/ios` are all in
+`devDependencies`), and `npx cap add android`/`add ios` do successfully
+generate the native projects — verified in this repo. Actually *compiling*
+them needs Android Studio / Xcode installed locally, which this environment
+doesn't have, so that step (and everything past it — signing, store
+submission) is still yours to do on the right hardware. Nothing below is
+push-button; each platform needs its own machine and its own store account.
+
+**Don't have that hardware yet?** `.github/workflows/build-android.yml` and
+`.github/workflows/build-ios.yml` build both from GitHub's own runners (which
+do have the SDK/Xcode preinstalled) — an unsigned debug APK you can
+side-load today, and an iOS Simulator build that at least proves the native
+project compiles. Neither replaces the signed, store-ready builds below, but
+both get you something to actually run before you're at a Mac/Android Studio.
 
 ## 1. Point it at your real server
 
@@ -32,6 +41,11 @@ shown.
 
 ## Android (works for both RuStore and Google Play — same APK/AAB)
 
+Two ways to get a **signed** release APK (RuStore/Google Play both reject an
+unsigned or debug one):
+
+### Option A — Android Studio locally
+
 Needs: Android Studio (which bundles the Android SDK + a JDK) installed
 locally.
 
@@ -44,6 +58,36 @@ From Android Studio: **Build → Generate Signed Bundle / APK**. Create a
 keystore the first time (back it up — losing it means you can never update
 the app under the same listing again) and build an AAB for Google Play or an
 APK for RuStore (RuStore's console also accepts AAB).
+
+### Option B — signed builds from CI, no local Android Studio needed
+
+`.github/workflows/build-android.yml` builds a signed release APK
+automatically once these four repo secrets are set (repo → Settings →
+Secrets and variables → Actions → New repository secret):
+
+| Secret | Value |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | your keystore file, base64-encoded (`base64 -w0 release.keystore`) |
+| `ANDROID_KEYSTORE_PASSWORD` | the keystore's password |
+| `ANDROID_KEY_ALIAS` | the key alias inside it |
+| `ANDROID_KEY_PASSWORD` | that key's password |
+
+No keystore already? Generate one anywhere with a JDK (works fine in
+Termux, no Android Studio needed):
+
+```bash
+keytool -genkeypair -v -keystore release.keystore -alias shalter \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+**Back up `release.keystore` and both passwords somewhere durable outside
+this repo before anything else** — this file's whole job is proving future
+updates come from you; losing it means starting a brand-new store listing
+from scratch. Once the four secrets are set, every push of a `v*` tag (or a
+manual run from the Actions tab) uploads a `shalter-android-release-apk`
+artifact ready to hand straight to RuStore/Google Play.
+
+### Submitting
 
 - **RuStore**: submit via [RuStore Console](https://console.rustore.ru/) — a
   RuStore developer account is required, separate from Google's.

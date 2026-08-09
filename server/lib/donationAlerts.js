@@ -15,13 +15,17 @@
 // pending code, fulfills that order — grants Premium/ads/delivers the gift
 // and notifies the buyer, exactly like the admin's manual /grant used to.
 //
-// I don't have a real DonationAlerts account to test this end-to-end
-// against — the OAuth flow, token refresh, and (especially) the exact
-// donation-list response shape are built from DonationAlerts' documented
-// API, but the field names below (amount_in_user_currency etc.) should be
-// verified against a real test donation once this is connected for real;
-// see the comment on parseDonation() below for where to adjust if the shape
-// doesn't match.
+// The OAuth flow, token refresh, and donation-list shape below are checked
+// against DonationAlerts' own apidoc (donationalerts.com/apidoc) — this
+// caught two real bugs worth knowing about if anything here ever needs
+// touching again: the refresh_token grant silently requires a `scope` param
+// (missing it doesn't fail the *first* token exchange, only the next
+// refresh — i.e. it looks fine for a few hours, then quietly stops), and
+// the donations list has no "amount_in_user_currency" field at all, just
+// `amount` + `currency` (see parseDonation() below). Still worth a real
+// test donation once connected for real — the docs are one source of
+// truth, an actual donation landing and Premium actually getting granted is
+// the one that matters.
 const db = require("../db");
 const { DONATIONALERTS_CLIENT_ID, DONATIONALERTS_CLIENT_SECRET, DONATIONALERTS_REDIRECT_URI } = require("../config");
 const { getPendingOrderByCode, markOrderFulfilled } = require("../data/pendingOrders");
@@ -104,7 +108,14 @@ async function exchangeCodeForTokens(code) {
   let username = null;
   try {
     const userRes = await fetch(`${API_BASE}/user/oauth`, { headers: { Authorization: `Bearer ${data.access_token}` } });
-    if (userRes.ok) username = (await userRes.json())?.data?.name ?? null;
+    const userData = (await userRes.json())?.data;
+    // getDonationPageUrl() below builds donationalerts.com/r/<this> — that
+    // path wants the account's chosen URL handle (the apidoc's `code`
+    // field), not its free-text display `name` (which can contain spaces/
+    // emoji/Cyrillic and would 404 the link). Falls back to `name` only if
+    // `code` is somehow missing, so this still shows *something* in
+    // Settings rather than silently staying disconnected-looking.
+    if (userRes.ok) username = userData?.code ?? userData?.name ?? null;
   } catch {
     // Non-fatal — the connection still works without a display name, it's
     // only used for the "Подключено как @username" line in Settings.
@@ -118,6 +129,13 @@ async function exchangeCodeForTokens(code) {
   });
 }
 
+// scope is a *required* param on this grant type per DonationAlerts' own
+// apidoc (verified against https://www.donationalerts.com/apidoc directly —
+// easy to miss since the authorization_code exchange above doesn't need
+// it). Omitting it doesn't fail the first token exchange at all — it only
+// breaks the *next* refresh, once the initial access token expires — so
+// this would've quietly killed the whole automatic-payment pipeline a few
+// hours after every reconnect, with nothing in the UI to explain why.
 async function refreshAccessToken(auth) {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
@@ -127,6 +145,7 @@ async function refreshAccessToken(auth) {
       client_id: DONATIONALERTS_CLIENT_ID,
       client_secret: DONATIONALERTS_CLIENT_SECRET,
       refresh_token: auth.refreshToken,
+      scope: "oauth-donation-index oauth-user-show",
     }),
   });
   if (!res.ok) return null;
@@ -145,15 +164,22 @@ async function getValidAccessToken() {
   return refreshAccessToken(auth);
 }
 
-// DonationAlerts' documented shape has both `amount` (in the donation's own
-// currency) and `amount_in_user_currency` (converted to the streamer/
-// account's currency — RUB here) — the latter is what a "20₽" pending order
-// should be compared against, not the raw `amount`. If DonationAlerts ever
-// changes this field name, this is the one spot that needs updating.
+// Verified against DonationAlerts' own apidoc directly (the response this
+// app's own account will actually get, not just what a stray blog post
+// says): GET /alerts/donations returns `amount` + `currency` (ISO 4217) per
+// donation — there is no separate "already converted to account currency"
+// field. In practice `amount` *is* already in whatever currency the
+// receiving DonationAlerts account is set to (RUB for a Russian admin
+// account, matching every hardcoded "10₽"/"amountRub" price in this app),
+// but that's an assumption about *this deployment's* account settings, not
+// a guarantee the API makes — so a donation that somehow comes back in a
+// different currency is treated as unmatched (code null) rather than
+// compared as if its number were rubles, which could silently under- or
+// over-credit an order.
 function parseDonation(raw) {
-  const amountRub = Number(raw.amount_in_user_currency ?? raw.amount ?? 0);
+  const amountRub = raw.currency === "RUB" ? Number(raw.amount ?? 0) : 0;
   const message = String(raw.message ?? "");
-  const match = message.match(CODE_RE);
+  const match = raw.currency === "RUB" ? message.match(CODE_RE) : null;
   return { id: raw.id, amountRub, code: match ? match[0].toUpperCase() : null };
 }
 

@@ -61,6 +61,7 @@ const PATHS = {
     '<path d="M9 5a3 3 0 0 1 6 0"/><rect x="7" y="7" width="10" height="12" rx="5"/><path d="M12 7v12"/><path d="M3 10l4 1.5"/><path d="M21 10l-4 1.5"/><path d="M3 17l4-1.5"/><path d="M21 17l-4-1.5"/><path d="M7 9 5 6"/><path d="M17 9l2-3"/>',
   Image:
     '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M3 17l5-5 4 4 3-3 6 6"/>',
+  MessageSquare: '<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/>',
 };
 
 export function iconSvg(name, size = 20, extraClass = "") {

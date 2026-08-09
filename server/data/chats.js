@@ -42,6 +42,30 @@ async function getChat(id) {
   return rowToChat(db.prepare("SELECT * FROM chats WHERE id = ?").get(id));
 }
 
+// Case-insensitive (lower() comparison, same convention as
+// findUserByUsername) — usernames and channel usernames share one visible
+// @handle namespace (see routes/chats.js's /:id/public), even though they
+// live in separate columns on separate tables.
+async function findChatByUsername(username) {
+  const normalized = (username ?? "").trim().toLowerCase();
+  if (!normalized) return undefined;
+  return rowToChat(db.prepare("SELECT * FROM chats WHERE lower(username) = ? AND username IS NOT NULL").get(normalized));
+}
+
+// Public-channel directory (routes/channels.js) — title/username substring
+// match. SQLite's LIKE is already case-insensitive for ASCII by default
+// (case_sensitive_like pragma is off), so no lower()/COLLATE needed here
+// the way the exact-match lookup above needs it. Small-scale LIKE scan is
+// fine at this app's size (see AGENTS.md: single-process, not built for
+// horizontal scale); revisit with FTS5 if the channel count ever gets large.
+async function searchPublicChannels(query) {
+  const q = `%${(query ?? "").trim()}%`;
+  const rows = db
+    .prepare("SELECT * FROM chats WHERE type = 'channel' AND isPublic = 1 AND (title LIKE ? OR username LIKE ?) ORDER BY title ASC LIMIT 50")
+    .all(q, q);
+  return rows.map(rowToChat);
+}
+
 const setMembers = db.transaction((chatId, memberIds, adminIds) => {
   db.prepare("DELETE FROM chat_members WHERE chatId = ?").run(chatId);
   const insert = db.prepare("INSERT INTO chat_members (chatId, userId, isAdmin) VALUES (?, ?, ?)");
@@ -119,4 +143,4 @@ async function deleteChat(id) {
   db.prepare("DELETE FROM chats WHERE id = ?").run(id);
 }
 
-module.exports = { listChats, listChatsForUser, getChat, updateChat, createChat, deleteChat };
+module.exports = { listChats, listChatsForUser, getChat, updateChat, createChat, deleteChat, findChatByUsername, searchPublicChannels };

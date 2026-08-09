@@ -81,6 +81,19 @@ export async function openProfileDialog(userId) {
     navigate(`/chat/${chat.id}`);
   }
 
+  // Real E2E (public/js/lib/e2e.js) — needs the target to already have a
+  // public key uploaded, which the server checks (and error-messages) for
+  // us; nothing to pre-validate client-side beyond not double-submitting.
+  async function startSecretChat() {
+    try {
+      const { chat } = await api.startSecretChat(userId);
+      close();
+      navigate(`/chat/${chat.id}`);
+    } catch (err) {
+      alert(err.message || "Не удалось начать секретный чат");
+    }
+  }
+
   function renderTabContent() {
     if (activeTab === "gifts") {
       const gifts = user.giftsReceived ?? [];
@@ -168,6 +181,7 @@ export async function openProfileDialog(userId) {
         : null,
       el("div", { class: "profile-actions" }, [
         el("button", { class: "btn-accent", onclick: startChat }, [el("span", { html: iconSvg("Send", 16) }), " Написать"]),
+        el("button", { class: "profile-action-btn", onclick: startSecretChat }, [el("span", { html: iconSvg("Lock", 14) }), " Секретный чат"]),
         el(
           "button",
           { class: `profile-action-btn ${isBlocked ? "danger" : ""}`, onclick: toggleBlock },

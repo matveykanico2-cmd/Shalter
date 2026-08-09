@@ -5,6 +5,7 @@ import { openDropdownMenu } from "./dropdownMenu.js";
 import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog } from "./profileDialog.js";
 import { openChoiceDialog } from "./confirmDialog.js";
+import { openChannelPublicDialog } from "./channelPublicDialog.js";
 import { levelForPoints, pointsToNextLevel } from "../lib/groupLevels.js";
 
 const RESTRICT_DURATIONS = [
@@ -31,7 +32,7 @@ function autoDeleteLabel(seconds) {
 // Vanilla-JS port of components/chat/InfoPanel.tsx: chat/members, mute
 // toggle, block management, and — for group/channel owners/admins — member
 // role management (promote/demote/kick/restrict).
-export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalterAdmin, gifts, onClose, onToggleMute, onToggleBlock, onMemberAction, onTogglePremium, onDeliverGift, onAddMember, onRestrictMember, onVoteForGroup, onSetAutoDelete }) {
+export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalterAdmin, gifts, onClose, onToggleMute, onToggleBlock, onMemberAction, onTogglePremium, onDeliverGift, onAddMember, onRestrictMember, onVoteForGroup, onSetAutoDelete, onChatUpdated }) {
   const isDm = chat.type === "dm" || chat.type === "secret";
   const title = isDm ? (chat.otherUser?.name ?? chat.title) : chat.title;
   const isOwnerOrAdmin = chat.ownerId === meId || chat.adminIds?.includes(meId);
@@ -157,6 +158,13 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
                 ),
             },
             `Автоудаление сообщений: ${autoDeleteLabel(chat.autoDeleteSeconds)}`
+          )
+        : null,
+      chat.type === "channel" && isOwnerOrAdmin
+        ? el(
+            "button",
+            { class: "info-panel-row", onclick: () => openChannelPublicDialog(chat, onChatUpdated) },
+            chat.isPublic ? `Публичный канал: @${chat.username}` : "Сделать канал публичным"
           )
         : null,
       isDm ? el("button", { class: "info-panel-row danger", onclick: onToggleBlock }, isBlocked ? "Разблокировать" : "Заблокировать") : null,

@@ -2,7 +2,7 @@
   "name": "shalter",
   "version": "0.2.0",
   "description": "Shalter messenger — desktop shell",
-  "author": "Shalter",
+  "author": "Shalter <mtvniko@gmail.com>",
   "private": true,
   "main": "electron/main.js",
   "engines": {
@@ -34,8 +34,10 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.6.8",
     "@capacitor/cli": "^7.6.8",
     "@capacitor/core": "^7.6.8",
+    "@capacitor/ios": "^7.6.8",
     "electron": "^32.3.3",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.28.1",
@@ -55,16 +57,24 @@
     ],
     "icon": "electron/icon.png",
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "electron/icon.png"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Network",
       "icon": "electron/icon.png"
     },
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "electron/icon.png",
       "category": "public.app-category.social-networking"
     }

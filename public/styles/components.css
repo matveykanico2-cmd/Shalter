@@ -481,6 +481,22 @@
   font-weight: 500;
   color: var(--color-accent-contrast);
 }
+/* Someone @mentioned you — shown even when the chat is otherwise quiet
+   (e.g. a muted group), same idea as Telegram's own unread-mention pill,
+   distinct from the plain numeric .unread-badge above. */
+.mention-badge {
+  display: flex;
+  height: 18px;
+  min-width: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-danger);
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+}
 
 /* Dropdown menu */
 .dropdown-menu {
@@ -872,6 +888,40 @@
 .wallpaper-dialog-footer .modal-cancel {
   flex: 1;
 }
+/* Scheduled-messages list (components/scheduledMessagesDialog.js) — reuses
+   .wallpaper-dialog-body for the same scrollable-list-inside-a-capped-modal
+   shape as the wallpaper picker. */
+.scheduled-msg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--color-border);
+}
+.scheduled-msg-row:last-child {
+  border-bottom: none;
+}
+.scheduled-msg-body {
+  min-width: 0;
+}
+.scheduled-msg-text {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.scheduled-msg-time {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.scheduled-msg-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
 .message-row {
   display: flex;
   gap: 8px;
@@ -949,6 +999,18 @@
 .mention {
   font-weight: 500;
   color: var(--color-accent);
+}
+.mention-link {
+  /* Resolved mentions render as a <button> (see formatText.js) so they're
+     clickable — strip button chrome back down to plain inline text. */
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.mention-link:hover {
+  text-decoration: underline;
 }
 .text-link {
   color: var(--color-accent);
@@ -1651,6 +1713,45 @@
 .composer-emoji-picker button:hover {
   background: var(--color-surface-alt);
 }
+.composer-mention-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  margin-bottom: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.composer-mention-menu.hidden {
+  display: none;
+}
+.composer-mention-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  border-radius: 8px;
+  padding: 7px 10px;
+  text-align: left;
+}
+.composer-mention-item:hover,
+.composer-mention-item.active {
+  background: var(--color-surface-alt);
+}
+.composer-mention-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+.composer-mention-username {
+  font-size: 12.5px;
+  color: var(--color-muted);
+}
 
 /* Recording bar */
 .composer-recording-bar {
@@ -2310,6 +2411,46 @@
   text-align: center;
   gap: 2px;
 }
+/* Thread panel (components/threadPanel.js) — same profile-panel/info-panel
+   shell as ProfileDialog/InfoPanel above, just with its own row styling for
+   the root message + flat reply list, and a live Composer docked under
+   .thread-panel-body (that's why .thread-panel itself needs no extra flex
+   rules beyond what .profile-panel already sets — header/body/composer
+   stack the same way chatView.js's own header/list/composer do). */
+.thread-panel-body {
+  align-items: stretch;
+  text-align: left;
+  gap: 0;
+}
+.thread-root {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+.thread-replies-label {
+  margin-bottom: 8px;
+}
+.thread-reply-row {
+  padding: 8px 0;
+}
+.thread-reply-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.thread-reply-name {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.thread-reply-time {
+  font-size: 11.5px;
+  color: var(--color-muted);
+}
+.thread-reply-text {
+  margin-left: 34px;
+  font-size: 14px;
+}
 .profile-tabs {
   margin: 20px -16px 0;
   display: flex;
@@ -2663,6 +2804,9 @@
 }
 .modal-cancel:hover {
   background: var(--color-surface-alt);
+}
+.modal-cancel.danger {
+  color: var(--color-danger);
 }
 .choice-dialog-btn {
   display: block;

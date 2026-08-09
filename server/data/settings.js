@@ -59,6 +59,13 @@ const DEFAULT_SETTINGS = {
   // chatView.js's applyWallpaper()). Private to this account only, same as
   // Telegram's own per-chat background — the other side isn't affected.
   chatWallpapers: {},
+  // Per-chat unsent-message draft — { [chatId]: text }. Private to this
+  // account (same as chatWallpapers), read back into the composer on open
+  // and shown in the chat list preview (chatListItem.js's `chat.draft`
+  // check — that field was dead code until attachSummaries started
+  // populating it from here). Debounce-saved as the user types (see
+  // composer.js), cleared the moment a message actually sends.
+  drafts: {},
 };
 
 async function getSettings(userId) {
@@ -103,4 +110,22 @@ async function setChatWallpaper(userId, chatId, wallpaper) {
   return updateSettings(userId, { chatWallpapers: next });
 }
 
-module.exports = { getSettings, updateSettings, setChatCleared, deleteChatForUser, setChatWallpaper, DEFAULT_SETTINGS };
+// Sets (or, with an empty/falsy text, clears) this user's draft for one
+// chat — same read-merge-write shape as setChatWallpaper.
+async function setDraft(userId, chatId, text) {
+  const current = await getSettings(userId);
+  const next = { ...current.drafts };
+  if (text) next[chatId] = text;
+  else delete next[chatId];
+  return updateSettings(userId, { drafts: next });
+}
+
+module.exports = {
+  getSettings,
+  updateSettings,
+  setChatCleared,
+  deleteChatForUser,
+  setChatWallpaper,
+  setDraft,
+  DEFAULT_SETTINGS,
+};

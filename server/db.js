@@ -188,6 +188,27 @@ CREATE TABLE IF NOT EXISTS stories (
 );
 CREATE INDEX IF NOT EXISTS idx_stories_user ON stories(userId);
 
+-- A message queued to send later (composer.js's clock icon → time picker,
+-- server/lib/scheduledMessagesSweep.js's sweep). Deliberately its own table
+-- rather than a sendAt column on messages — a not-yet-sent
+-- message shouldn't show up in message lists, count toward unread, or need
+-- read-receipt/reaction columns at all, so keeping it out of that table
+-- until the sweep fires (turning it into a real row via the normal
+-- addMessage()) avoids every existing messages query needing a "not yet
+-- due" filter.
+CREATE TABLE IF NOT EXISTS scheduled_messages (
+  id TEXT PRIMARY KEY,
+  chatId TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  senderId TEXT NOT NULL,
+  text TEXT NOT NULL DEFAULT '',
+  attachments TEXT,
+  replyToId TEXT,
+  sendAt TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_scheduled_messages_sendAt ON scheduled_messages(sendAt);
+CREATE INDEX IF NOT EXISTS idx_scheduled_messages_chat ON scheduled_messages(chatId);
+
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id TEXT PRIMARY KEY,
   userId TEXT NOT NULL,
@@ -277,6 +298,15 @@ if (!existingUserColumns.has("giftsReceived")) db.exec("ALTER TABLE users ADD CO
 // routes, same "explicit flag, never inferred" shape as the session-revoked
 // check right next to it.
 if (!existingUserColumns.has("isBanned")) db.exec("ALTER TABLE users ADD COLUMN isBanned INTEGER NOT NULL DEFAULT 0");
+// This account's ECDH (P-256) public key, JWK-encoded — public/js/lib/e2e.js
+// generates the matching private key client-side and never uploads it. The
+// server only ever relays this public half, used by the *other* side of a
+// secret chat (server/routes/chats.js's /:id/secret create route) to derive
+// a shared AES-GCM key locally; the server itself can never derive it (it
+// only ever sees one half of each ECDH pair) and stores/relays ciphertext
+// only for secret-chat messages (see routes/messages.js's skip-server-side-
+// text-processing-for-secret-chats guards).
+if (!existingUserColumns.has("e2ePublicKey")) db.exec("ALTER TABLE users ADD COLUMN e2ePublicKey TEXT");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone <> ''");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referralCode) WHERE referralCode IS NOT NULL");
 // Case-insensitive (COLLATE NOCASE) — usernames are compared case-
@@ -329,6 +359,27 @@ if (!existingMessageColumns.has("linkPreview")) db.exec("ALTER TABLE messages AD
 // messageBubble.js's ReportMessage), which is why it also needs to be in
 // mutate()'s UPDATE below, unlike the immutable gift/sticker payloads.
 if (!existingMessageColumns.has("report")) db.exec("ALTER TABLE messages ADD COLUMN report TEXT");
+// @username tokens in the message text resolved (at send time, against the
+// chat's member list) to real user ids — server/routes/messages.js computes
+// this once on send rather than every reader re-parsing the text client-side.
+// Drives the push-notification wording and the chat list's unread-mention
+// "@" badge (chat-summary.js), same immutable-at-send-time shape as
+// gift/sticker above.
+if (!existingMessageColumns.has("mentionedUserIds")) db.exec("ALTER TABLE messages ADD COLUMN mentionedUserIds TEXT NOT NULL DEFAULT '[]'");
+// Real threads (Slack-style, not just flat reply-to) — a message with
+// threadRootId set is a reply *inside* a thread, one level deep, always
+// pointing at the same root. Deliberately separate from the existing
+// replyToId (a plain inline quote-reply, shown right in the main
+// timeline): a thread reply is instead hidden from the main list entirely
+// (see chatView.js's render filter) and only shows in the dedicated thread
+// panel (threadPanel.js), which is what actually keeps a busy group's main
+// timeline readable — the whole reason Slack/Telegram Topics threads exist
+// instead of just flat replies. The root message's own commentCount column
+// (already used for channel-post comments) doubles as "reply count" here
+// too — same concept (how many replies point at this message), never
+// queried in a way that needs to tell the two apart.
+if (!existingMessageColumns.has("threadRootId")) db.exec("ALTER TABLE messages ADD COLUMN threadRootId TEXT");
+db.exec("CREATE INDEX IF NOT EXISTS idx_messages_threadRoot ON messages(threadRootId)");
 
 // Per-chat "restrict this member from posting" — { [userId]: isoTimestamp |
 // "forever" } (see server/routes/chats.js's /:id/restrict and the send-path

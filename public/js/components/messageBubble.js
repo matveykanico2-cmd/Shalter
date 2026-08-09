@@ -286,8 +286,8 @@ function VideoNotePlayer(a) {
   return wrap;
 }
 
-export function MessageBubble({ message, me, sender, showSender, replyToMessage, handlers }) {
-  const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onKeyboardAction } = handlers;
+export function MessageBubble({ message, me, sender, showSender, replyToMessage, members, handlers }) {
+  const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onKeyboardAction, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
 
   if (message.type === "system") {
@@ -347,7 +347,7 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
     }
   }
   if (!message.attachments?.some((a) => a.kind === "poll")) {
-    bubbleInner.push(el("span", { class: "message-text" }, formatText(message.text)));
+    bubbleInner.push(el("span", { class: "message-text" }, formatText(message.text, members)));
   }
   if (message.linkPreview) {
     bubbleInner.push(LinkPreviewCard(message.linkPreview));
@@ -512,6 +512,13 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
       { icon: "Pin", label: message.pinned ? "Открепить" : "Закрепить", onClick: () => onPin(message) },
       { icon: "Forward", label: "Переслать", onClick: () => onForward(message) },
     ];
+    // Group-chat threads (threadPanel.js) — a nested sub-conversation kept
+    // out of the main timeline, unlike a plain "Ответить" quote-reply above.
+    // Not offered on a message that's already itself a thread reply (see
+    // db.js's threadRootId comment: threads are one level deep, not nested).
+    if (onOpenThread && !message.threadRootId) {
+      items.push({ icon: "MessageSquare", label: "Ответить в теме", onClick: () => onOpenThread(message) });
+    }
     if (canTranslate) {
       items.push({ icon: "Globe", label: translationEl ? "Скрыть перевод" : "Перевести", onClick: toggleTranslation });
     }

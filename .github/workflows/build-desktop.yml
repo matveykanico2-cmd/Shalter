@@ -1,0 +1,58 @@
+name: Build desktop apps
+
+# Runs the exact npm run electron:build:* scripts from DEPLOY_DESKTOP.md, one
+# per OS in the build matrix — this is the "CI matrix" that doc's own "Building
+# all three from one machine" section says is the real fix for Windows/macOS,
+# since neither can be cross-built from the Linux dev machine this repo was
+# built in (no Wine, no Mac).
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: electron-builder (Linux)
+        if: runner.os == 'Linux'
+        run: npm run electron:build:linux
+
+      - name: electron-builder (Windows)
+        if: runner.os == 'Windows'
+        run: npm run electron:build:win
+
+      - name: electron-builder (macOS)
+        if: runner.os == 'macOS'
+        run: npm run electron:build:mac
+
+      # Unsigned: macOS artifacts will hit Gatekeeper, Windows will hit
+      # SmartScreen, on first launch — see DEPLOY_DESKTOP.md's "code signing"
+      # notes for what removing those warnings actually requires (a paid
+      # cert/Apple Developer membership) once this is ready for real users,
+      # not just local testing.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shalter-desktop-${{ matrix.os }}
+          path: |
+            dist-electron/*.AppImage
+            dist-electron/*.deb
+            dist-electron/*.exe
+            dist-electron/*.dmg
+            dist-electron/*.zip
+          if-no-files-found: ignore

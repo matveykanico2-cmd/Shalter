@@ -8,6 +8,7 @@ import { LoginView } from "./views/login.js";
 import { QrLoginConfirmView } from "./views/qrLoginConfirm.js";
 import { ChatView } from "./views/chatView.js";
 import { ContactsView } from "./views/contacts.js";
+import { DiscoverChannelsView } from "./views/discoverChannels.js";
 import { CallScreenView } from "./views/callScreen.js";
 import { CallsView } from "./views/calls.js";
 import { ArchiveView } from "./views/archive.js";
@@ -23,6 +24,7 @@ import { hasPasscode } from "./lib/passcodeLock.js";
 import { showPasscodeLockScreen } from "./components/passcodeLockScreen.js";
 import { initKeyboardShortcuts } from "./lib/keyboardShortcuts.js";
 import { WaveBearMascot } from "./components/mascot.js";
+import { ensureKeypair } from "./lib/e2e.js";
 
 const root = document.getElementById("view-root");
 
@@ -102,6 +104,11 @@ async function boot() {
   // session (e.g. browser restart) — does nothing if it wasn't, so this is
   // safe to call unconditionally on every boot.
   ensurePushSubscribed().catch(() => {});
+  // Secret chats (public/js/lib/e2e.js) — generates this device's ECDH
+  // keypair and uploads the public half on every boot, not just the first
+  // time a secret chat is opened, so someone else can start one with this
+  // account without having to wait for it to happen lazily first.
+  ensureKeypair(user.id).catch((err) => console.error("e2e keypair init failed:", err));
 
   const shell = el("div", { class: "shell" });
   const listCol = el("div", { class: "shell-list-col" });
@@ -210,6 +217,10 @@ async function boot() {
   route("/contacts", async () => {
     withCleanup(mainSlot);
     await ContactsView(mainSlot);
+  });
+  route("/discover-channels", async () => {
+    withCleanup(mainSlot);
+    await DiscoverChannelsView(mainSlot);
   });
   route("/calls", async () => {
     withCleanup(mainSlot);

@@ -1,0 +1,101 @@
+name: Build Android APK
+
+# ubuntu-latest GitHub Actions runners ship with a Java JDK and the Android
+# SDK/build-tools preinstalled — the one thing the local dev machine this repo
+# was built on doesn't have (see DEPLOY_MOBILE.md: "needs Android Studio...
+# which this environment doesn't have"). That's the only reason this workflow
+# can build an APK at all without any extra setup steps.
+#
+# Always produces a *debug* APK — installable directly on a device for
+# testing (side-load), never store-ready. If these four repo secrets are set
+# (Settings → Secrets and variables → Actions), it *also* produces a signed
+# *release* APK — the one RuStore/Google Play actually accept:
+#   ANDROID_KEYSTORE_BASE64    the .jks/.keystore file, base64-encoded
+#                              (`base64 -w0 your.keystore` to produce it)
+#   ANDROID_KEYSTORE_PASSWORD  the keystore's own password
+#   ANDROID_KEY_ALIAS          the key alias inside it
+#   ANDROID_KEY_PASSWORD       that key's password (often same as the
+#                              keystore password, but not always)
+#
+# No keystore is generated or committed here — losing it means you can never
+# update an already-published RuStore/Play listing under the same app again,
+# so generate it yourself once (`keytool -genkeypair -v -keystore
+# release.keystore -alias shalter -keyalg RSA -keysize 2048 -validity 10000`
+# works fine from any machine with a JDK, including Termux) and keep the
+# file + passwords somewhere durable *outside* this repo before wiring up
+# the secrets above.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - run: npm run build
+
+      # android/ is gitignored (see .gitignore's Capacitor comment) —
+      # regenerated fresh every run, same as any other machine would.
+      - run: npx cap add android
+      - run: npx cap sync android
+
+      - name: Assemble debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shalter-android-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Check for release-signing secrets
+        id: has_signing
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Decode keystore
+        if: steps.has_signing.outputs.configured == 'true'
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+
+      - name: Write keystore.properties
+        if: steps.has_signing.outputs.configured == 'true'
+        run: |
+          cat > android/keystore.properties <<EOF
+          storeFile=app/release.keystore
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      # Patches android/app/build.gradle with a release signingConfig that
+      # reads keystore.properties above — see scripts/ci-sign-android.js's
+      # own header comment for why this has to happen here (in CI, post-cap-
+      # add) rather than as a one-time edit to a committed file.
+      - name: Wire up release signing
+        if: steps.has_signing.outputs.configured == 'true'
+        run: node scripts/ci-sign-android.js
+
+      - name: Assemble signed release APK
+        if: steps.has_signing.outputs.configured == 'true'
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        if: steps.has_signing.outputs.configured == 'true'
+        with:
+          name: shalter-android-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk

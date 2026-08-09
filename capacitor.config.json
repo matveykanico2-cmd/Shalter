@@ -3,7 +3,7 @@
   "appName": "Shalter",
   "webDir": "public/dist",
   "server": {
-    "url": "https://REPLACE-WITH-YOUR-DEPLOYED-DOMAIN.example",
+    "url": "https://shalter.ru",
     "cleartext": false
   },
   "android": {
