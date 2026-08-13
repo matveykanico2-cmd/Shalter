@@ -27,13 +27,47 @@ instead of Nixpacks, point it at this repo, and set the exposed port to
 
 Three things that matter and are easy to miss:
 
-1. **Mount a persistent volume at `/app/data`.** This app's entire database
-   is a single SQLite file (`data/app.db`, plus its `-wal`/`-shm` sidecar
-   files) in that directory. Without a volume, `/app/data` is just part of
-   the container's writable layer — the moment Dokploy rebuilds or recreates
-   the container (any redeploy), it resets to empty and **every user, chat,
-   and message is gone.** In Dokploy's UI this is a "Volume" / "Mount" entry:
-   host path (or a Dokploy-managed volume) → container path `/app/data`.
+1. **Mount a persistent volume at `/app/data`.** Everything that must survive
+   a redeploy lives in that one directory:
+   - `data/app.db` — the entire database, a single SQLite file, plus its
+     `-wal`/`-shm` sidecar files (WAL mode, see `server/db.js`).
+   - `data/uploads/` — every uploaded attachment, as a real file on disk (see
+     `server/routes/uploads.js`). Photos, videos and documents are *not* in
+     the database; the database only stores the `/uploads/<id>` URL pointing
+     here. A volume that covers `app.db` but not this directory leaves every
+     message pointing at a file that 404s.
+   - `data/vapidKeys.json` — the Web Push keypair. Losing it silently
+     invalidates every existing push subscription.
+
+   The path comes from `process.cwd()` (`server/db.js`, `routes/uploads.js`)
+   and the image's WORKDIR is `/app`, hence `/app/data`.
+
+   Without a volume, `/app/data` is just part of the container's writable
+   layer — the moment Dokploy rebuilds or recreates the container (any
+   redeploy), it resets to empty and **every user, chat, and message is
+   gone.** In Dokploy's UI this is a "Volume" / "Mount" entry: host path (or
+   a Dokploy-managed volume) → container path `/app/data`.
+
+   **Size it for media, not for the database.** The SQLite file stays small
+   (text and metadata); the uploads directory is what grows, and the per-file
+   ceilings are deliberately generous — 2 GB for a video, 1 GB for a photo,
+   500 MB for a document (`server/lib/uploadLimits.js`). A handful of users
+   sending video fills tens of gigabytes quickly, and there is no automatic
+   pruning or total-storage cap. Lower those limits if the volume is small.
+   Deleting a message "for everyone" does delete its files.
+
+   **Backing it up:** don't `cp data/app.db` on a running container. In WAL
+   mode the newest committed data can still be in the `-wal` file, so a plain
+   copy of just the `.db` can be a torn, older snapshot. Use SQLite's own
+   consistent-snapshot mechanism, which is safe while the app is running:
+
+   ```bash
+   sqlite3 /app/data/app.db ".backup '/backup/app.db'"   # or: "VACUUM INTO '/backup/app.db'"
+   ```
+
+   Back up `data/uploads/` separately with any ordinary file copy (`rsync`
+   etc.) — those files are written once and never modified, so there's no
+   consistency concern.
 2. **Exactly one replica.** SQLite's own locking (WAL mode, see
    `server/db.js`) makes concurrent access from multiple processes *safe* —
    it won't corrupt the database the way the old flat-JSON-file store's
