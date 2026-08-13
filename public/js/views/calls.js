@@ -32,7 +32,7 @@ export async function CallsView(root) {
             Avatar({ name: c.otherUser?.name ?? "?", color: c.otherUser?.avatarColor ?? "#8A8F98", image: c.otherUser?.avatarImage }),
             el("div", { class: "contact-row-body" }, [
               el("p", { class: `contact-row-name ${c.status === "missed" ? "missed-call" : ""}` }, c.otherUser?.name ?? "Неизвестно"),
-              el("p", { class: "contact-row-username" }, [
+              el("p", { class: "contact-row-status" }, [
                 el("span", { html: iconSvg(c.kind === "video" ? "Video" : "Phone", 12) }),
                 ` ${c.direction === "incoming" ? "Входящий" : "Исходящий"}`,
                 c.status === "missed" ? " · пропущен" : c.durationSec ? ` · ${durationLabel(c.durationSec)}` : "",

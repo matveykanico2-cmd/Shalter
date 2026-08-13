@@ -33,6 +33,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   let email = "";
   let password = "";
   let phone = "";
+  let username = "";
   let referralCode = refFromLink;
   let avatarImage = null;
   let error = null;
@@ -48,6 +49,14 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   let codeStep = "phone"; // "phone" | "code"
   let codeError = null;
   let codePending = false;
+
+  // Second factor (server/lib/totp.js). Set when a first factor succeeded on an
+  // account with 2FA on: the server withheld the session and handed back a
+  // ticket instead, so the only thing left to render is the code prompt.
+  let twoFactor = null; // { ticket, name }
+  let twoFactorCode = "";
+  let twoFactorError = null;
+  let twoFactorPending = false;
 
   function stopQrPolling() {
     clearInterval(qrPollTimer);
@@ -165,6 +174,75 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     ]);
   }
 
+  // Shown instead of the login form once the first factor is done and the
+  // account owes a code. Its own panel rather than a mode of the main form: at
+  // this point email/password/register are all irrelevant, and leaving them on
+  // screen invites re-submitting the first step and invalidating the ticket.
+  function renderTwoFactorPanel() {
+    const codeInput = el("input", {
+      class: "login-input login-code-input mono",
+      inputmode: "text",
+      placeholder: "······",
+      autofocus: true,
+      autocomplete: "one-time-code",
+      // Same reason as the login-code input below: oninput must not call
+      // render(), or the field is replaced mid-typing and loses focus. Recovery
+      // codes are letters and a dash, so this can't filter to digits only.
+      oninput: (e) => (twoFactorCode = e.target.value.trim()),
+    });
+
+    const form = el(
+      "form",
+      {
+        class: "login-form",
+        onsubmit: async (e) => {
+          e.preventDefault();
+          twoFactorError = null;
+          twoFactorPending = true;
+          render();
+          try {
+            const { user } = await api.twoFactorLogin(twoFactor.ticket, twoFactorCode);
+            (onSuccess ?? goToApp)(user);
+          } catch (err) {
+            twoFactorError = err.message;
+            twoFactorCode = "";
+            twoFactorPending = false;
+            render();
+          }
+        },
+      },
+      [
+        codeInput,
+        el("p", { class: "login-hint" }, "Код из приложения-аутентификатора. Можно ввести и код восстановления."),
+        twoFactorError ? el("p", { class: "login-error center" }, twoFactorError) : null,
+        el("button", { class: "login-submit", disabled: twoFactorPending }, twoFactorPending ? "Проверяем…" : "Подтвердить вход"),
+      ].filter(Boolean)
+    );
+
+    return el("div", { class: "qr-login-panel" }, [
+      el("p", { class: "qr-login-title" }, "Двухфакторная аутентификация"),
+      el("p", { class: "qr-login-instructions" }, `Вход в аккаунт${twoFactor.name ? ` ${twoFactor.name}` : ""} защищён вторым фактором — введите текущий код.`),
+      form,
+      el(
+        "button",
+        {
+          type: "button",
+          class: "login-link",
+          onclick: () => {
+            // Abandoning the ticket rather than reusing it: it's single-purpose
+            // and the server expires it anyway.
+            twoFactor = null;
+            twoFactorCode = "";
+            twoFactorError = null;
+            mode = "login";
+            render();
+          },
+        },
+        "Отмена"
+      ),
+    ]);
+  }
+
   function renderCodePanel() {
     const form = el(
       "form",
@@ -180,8 +258,14 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               await api.startCodeLogin(codePhone);
               codeStep = "code";
             } else {
-              const { user } = await api.verifyCodeLogin(codePhone, codeValue);
-              (onSuccess ?? goToApp)(user);
+              const res = await api.verifyCodeLogin(codePhone, codeValue);
+              if (res.twoFactorRequired) {
+                twoFactor = { ticket: res.ticket, name: res.name };
+                codePending = false;
+                render();
+                return;
+              }
+              (onSuccess ?? goToApp)(res.user);
             }
           } catch (err) {
             codeError = err.message;
@@ -254,6 +338,76 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     ]);
   }
 
+  // The @handle field. Registration asks for one because it's the only way to
+  // find anyone here — contacts are added by typing an exact @username (see
+  // views/contacts.js) — so an account created without one can't be reached by
+  // anybody until its owner goes looking for the setting.
+  //
+  // Built once, outside render(), and updated in place. render() replaces the
+  // whole form DOM (see the code-input comment above), so a field that called
+  // it on every keystroke would hand the user a fresh, unfocused <input> after
+  // the first character — the same bug the contacts search had.
+  const usernameStatus = el("p", { class: "login-hint username-status" });
+  let usernameCheckTimer = null;
+  let usernameCheckSeq = 0;
+  const usernameEl = el("input", {
+    class: "login-input mono",
+    placeholder: "@юзернейм",
+    autocapitalize: "off",
+    autocorrect: "off",
+    spellcheck: false,
+    autocomplete: "username",
+    oninput: (e) => {
+      // Normalize as they type: drop a pasted leading @, keep only what the
+      // server's USERNAME_RE accepts, cap at 32. Doing it here means the field
+      // can't hold something the server will reject for a reason the user can't
+      // see — and the caret stays put because the value only changes when the
+      // filter actually removed something.
+      const cleaned = e.target.value.replace(/^@+/, "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 32);
+      if (cleaned !== e.target.value) {
+        const caret = e.target.selectionStart - (e.target.value.length - cleaned.length);
+        e.target.value = cleaned;
+        e.target.setSelectionRange(Math.max(0, caret), Math.max(0, caret));
+      }
+      username = cleaned;
+      clearTimeout(usernameCheckTimer);
+      if (username.length < 5) {
+        setUsernameStatus(username.length === 0 ? "" : "Минимум 5 символов", "");
+        return;
+      }
+      setUsernameStatus("Проверяем…", "");
+      usernameCheckTimer = setTimeout(checkUsername, 400);
+    },
+  });
+
+  function setUsernameStatus(text, kind) {
+    usernameStatus.textContent = text;
+    usernameStatus.className = `login-hint username-status ${kind}`;
+  }
+
+  async function checkUsername() {
+    // A response for an abandoned value must never overwrite the current one —
+    // these come back out of order the moment someone types quickly.
+    const seq = ++usernameCheckSeq;
+    const asked = username;
+    try {
+      const res = await api.checkUsername(asked);
+      if (seq !== usernameCheckSeq || asked !== username) return;
+      setUsernameStatus(res.available ? "Свободен ✓" : res.error || "Занят", res.available ? "ok" : "taken");
+    } catch {
+      if (seq !== usernameCheckSeq) return;
+      setUsernameStatus("Не удалось проверить — попробуем при регистрации", "");
+    }
+  }
+
+  function usernameField() {
+    usernameEl.value = username;
+    return el("div", { class: "login-username-field" }, [
+      usernameEl,
+      usernameStatus.textContent ? usernameStatus : el("p", { class: "login-hint" }, "По нему вас смогут найти и добавить — латиница, цифры и _"),
+    ]);
+  }
+
   function render() {
     const subtitle = mode === "login" ? "Рады видеть вас снова" : "Быстро, красиво и по-настоящему безопасно";
 
@@ -283,6 +437,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             },
           })
         : null;
+    const usernameInput = mode === "register" ? usernameField() : null;
     const passwordInput = el("input", {
       class: "login-input",
       type: "password",
@@ -313,10 +468,19 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           try {
             let user;
             if (mode === "register") {
-              ({ user } = await api.registerEmail(name, email, password, phone, referralCode));
+              ({ user } = await api.registerEmail(name, email, password, phone, username, referralCode));
               if (avatarImage) await api.updateProfile(user.id, { avatarImage });
             } else {
-              ({ user } = await api.loginEmail(email, password));
+              const res = await api.loginEmail(email, password);
+              // Password was right, but the account has 2FA on — no session was
+              // created, so hand over to the code step instead of continuing.
+              if (res.twoFactorRequired) {
+                twoFactor = { ticket: res.ticket, name: res.name };
+                pending = false;
+                render();
+                return;
+              }
+              user = res.user;
             }
             (onSuccess ?? goToApp)(user);
           } catch (err) {
@@ -332,6 +496,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         nameInput,
         emailInput,
         phoneInput,
+        usernameInput,
         passwordInput,
         referralInput,
         mode === "register"
@@ -404,7 +569,15 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       ]
     );
 
-    const content = mode === "qr" ? renderQrPanel() : mode === "code" ? renderCodePanel() : card;
+    // The 2FA prompt outranks `mode`: once a ticket exists, the first factor is
+    // already spent and nothing else on this screen is actionable.
+    const content = twoFactor
+      ? renderTwoFactorPanel()
+      : mode === "qr"
+        ? renderQrPanel()
+        : mode === "code"
+          ? renderCodePanel()
+          : card;
 
     if (embedded) {
       mount(root, content);

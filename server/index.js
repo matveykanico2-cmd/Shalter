@@ -10,13 +10,11 @@ const { apiLimiter, authLimiter } = require("./middleware/rateLimit");
 const { attachWebSocketServer } = require("./ws");
 const { initPush } = require("./push");
 const { ensureSystemBot } = require("./data/systemBot");
-const { ensureKugoAssistant } = require("./data/kugoAssistant");
 const { startAutoDeleteSweep } = require("./lib/autoDelete");
 const { startDonationAlertsSweep } = require("./lib/donationAlerts");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
 
 ensureSystemBot();
-ensureKugoAssistant();
 
 const app = express();
 // Deployed behind nginx (see DEPLOY.md/deploy/nginx.conf.example) — trust
@@ -68,6 +66,13 @@ app.use(express.json({ limit: "25mb" }));
 app.use("/api", apiLimiter);
 app.use("/api/auth/login-email", authLimiter);
 app.use("/api/auth/register-email", authLimiter);
+// These hand out sessions (or the codes that lead to one) just as much as
+// login-email does, and were covered only by the general apiLimiter's much
+// looser ceiling: /code/start can be triggered against any phone number, and
+// /code/verify and /2fa/login are guess-a-6-digit-code endpoints.
+app.use("/api/auth/code/start", authLimiter);
+app.use("/api/auth/code/verify", authLimiter);
+app.use("/api/auth/2fa/login", authLimiter);
 
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));
@@ -91,6 +96,7 @@ app.use("/api/gifts", require("./routes/gifts"));
 app.use("/api/ads", require("./routes/ads"));
 app.use("/api/donation-alerts", require("./routes/donationAlerts"));
 app.use("/api/translate", require("./routes/translate"));
+app.use("/api/uploads", require("./routes/uploads"));
 
 if (useBuilt) {
   // Serves whichever of app.js/app.js.br/app.js.gz the client's
@@ -113,6 +119,17 @@ app.use("/.well-known", express.static(path.join(PUBLIC_DIR, ".well-known"), { m
 // immutable — long enough to skip re-fetching on every navigation, short
 // enough that a deploy doesn't need a hard refresh.
 app.use(express.static(PUBLIC_DIR, { maxAge: "1h" }));
+
+// Uploaded attachments (data/uploads — see routes/uploads.js). Its own handler
+// rather than express.static because a large video needs real Range support and
+// these files are untrusted content served from this app's own origin, so the
+// Content-Type/Content-Disposition/nosniff decisions matter (see
+// lib/serveUpload.js). Must sit above the SPA catch-all below, which would
+// otherwise answer /uploads/... with index.html.
+const { UPLOAD_DIR } = require("./routes/uploads");
+const { serveUpload } = require("./lib/serveUpload");
+app.get("/uploads/:filename", serveUpload(UPLOAD_DIR));
+app.head("/uploads/:filename", serveUpload(UPLOAD_DIR));
 
 // Client-side router owns every non-API path — always serve the shell.
 app.get(/^\/(?!api|ws).*/, (req, res) => {

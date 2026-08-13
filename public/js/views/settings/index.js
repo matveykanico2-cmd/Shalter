@@ -14,6 +14,7 @@ import { openBotCodeDialog } from "../../components/botCodeDialog.js";
 import { formatPhoneInput } from "../../lib/phoneFormat.js";
 import { hasPasscode } from "../../lib/passcodeLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
+import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../components/twoFactorDialog.js";
 import { openProfileQrDialog } from "../../components/profileQrDialog.js";
 import { handlePurchaseResponse } from "../../lib/purchase.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
@@ -932,6 +933,16 @@ async function renderPrivacy(root) {
   let settings = initial;
   let blockedIds = new Set(getState().user.blockedUserIds ?? []);
   let passcodeOn = hasPasscode();
+  // Real 2FA (server/lib/totp.js), distinct from the local passcode below: the
+  // passcode locks this device's app, 2FA gates getting into the account at all.
+  let twoFactor = { enabled: false, recoveryCodesLeft: 0 };
+  api
+    .getTwoFactor()
+    .then((res) => {
+      twoFactor = res;
+      render();
+    })
+    .catch(() => {});
   const OPTIONS = [
     { value: "everyone", label: "Все" },
     { value: "contacts", label: "Мои контакты" },
@@ -983,6 +994,20 @@ async function renderPrivacy(root) {
     });
   }
 
+  function enableTwoFactor() {
+    openTwoFactorSetupDialog(async () => {
+      twoFactor = await api.getTwoFactor().catch(() => ({ enabled: true, recoveryCodesLeft: 0 }));
+      render();
+    });
+  }
+
+  function disableTwoFactor() {
+    openTwoFactorDisableDialog(() => {
+      twoFactor = { enabled: false, recoveryCodesLeft: 0 };
+      render();
+    });
+  }
+
   function render() {
     const blockedUsers = allUsers.filter((u) => blockedIds.has(u.id));
     mount(
@@ -999,6 +1024,21 @@ async function renderPrivacy(root) {
           row("Кто может мне звонить", "calls"),
         ]),
         section("Безопасность", [
+          el("div", { class: "settings-toggle-row" }, [
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, "Двухфакторная аутентификация"),
+              el(
+                "p",
+                { class: "settings-toggle-hint" },
+                twoFactor.enabled
+                  ? `Включена. Кодов восстановления осталось: ${twoFactor.recoveryCodesLeft}`
+                  : "Код из приложения-аутентификатора при каждом входе — знать пароль или ваш номер будет недостаточно"
+              ),
+            ]),
+            twoFactor.enabled
+              ? el("button", { class: "settings-danger-link", onclick: disableTwoFactor }, "Отключить")
+              : el("button", { class: "settings-danger-link", onclick: enableTwoFactor }, "Включить"),
+          ]),
           el("div", { class: "settings-toggle-row" }, [
             el("div", {}, [
               el("p", { class: "settings-toggle-title" }, "Код-пароль"),

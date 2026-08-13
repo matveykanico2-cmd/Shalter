@@ -13,6 +13,11 @@ function publicUser(user) {
   // server/db.js's comment on the column).
   delete rest.banReason;
   delete rest.bannedAt;
+  // The 2FA secret and the recovery-code hashes are credentials — they must
+  // never reach a client, not even the account's own. `twoFactorEnabled`
+  // (derived, a plain boolean) is what the UI actually needs, and it stays.
+  delete rest.totpSecret;
+  delete rest.totpRecoveryCodes;
   // Computed, not stored — "Developer" is just "whoever currently holds
   // ADMIN_PHONE" (same convention as the Premium-granting permission check
   // in server/routes/premium.js), not a role stored on the row. Exposing a

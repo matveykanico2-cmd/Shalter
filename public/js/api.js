@@ -25,8 +25,11 @@ async function req(url, init) {
 
 export const api = {
   session: () => req("/api/auth/session"),
-  registerEmail: (name, email, password, phone, referralCode) =>
-    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, referralCode }) }),
+  registerEmail: (name, email, password, phone, username, referralCode) =>
+    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, username, referralCode }) }),
+  // Live availability check for the registration form's @handle field.
+  // Unauthenticated, since it runs before the account exists.
+  checkUsername: (u) => req(`/api/auth/username-available?u=${encodeURIComponent(u)}`),
   loginEmail: (email, password) =>
     req("/api/auth/login-email", { method: "POST", body: JSON.stringify({ email, password }) }),
   switchAccount: (userId) => req("/api/auth/switch", { method: "POST", body: JSON.stringify({ userId }) }),
@@ -39,6 +42,15 @@ export const api = {
 
   startCodeLogin: (phone) => req("/api/auth/code/start", { method: "POST", body: JSON.stringify({ phone }) }),
   verifyCodeLogin: (phone, code) => req("/api/auth/code/verify", { method: "POST", body: JSON.stringify({ phone, code }) }),
+
+  // Two-factor authentication (TOTP — server/lib/totp.js). A login whose
+  // account has it on comes back as { twoFactorRequired, ticket } with no
+  // session; twoFactorLogin trades that ticket plus a code for one.
+  twoFactorLogin: (ticket, code) => req("/api/auth/2fa/login", { method: "POST", body: JSON.stringify({ ticket, code }) }),
+  getTwoFactor: () => req("/api/auth/2fa"),
+  setupTwoFactor: () => req("/api/auth/2fa/setup", { method: "POST" }),
+  enableTwoFactor: (code) => req("/api/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) }),
+  disableTwoFactor: (code) => req("/api/auth/2fa/disable", { method: "POST", body: JSON.stringify({ code }) }),
 
   updateProfile: (id, patch) => req(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   listUsers: () => req("/api/users"),
@@ -139,8 +151,6 @@ export const api = {
   saveBotCode: (id, code) => req(`/api/bots/${id}/code`, { method: "PUT", body: JSON.stringify({ code }) }),
   testBotCode: (id, code, text) => req(`/api/bots/${id}/test`, { method: "POST", body: JSON.stringify({ code, text }) }),
   getBotLogs: (id) => req(`/api/bots/${id}/logs`),
-  assistBot: (id, message, code) => req(`/api/bots/${id}/assist`, { method: "POST", body: JSON.stringify({ message, code }) }),
-
   search: (q) => req(`/api/search?q=${encodeURIComponent(q)}`),
 
   publishPost: (channelId, text, attachments) =>

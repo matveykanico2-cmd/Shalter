@@ -9,7 +9,7 @@ const {
   getOrCreateDeviceId,
   requireUserId,
 } = require("../middleware/auth");
-const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, grantPremiumDays } = require("../data/users");
+const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, grantPremiumDays, startTotpSetup, enableTotp, disableTotp, consumeRecoveryCode } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
 const { listSessions, upsertSession } = require("../data/sessions");
@@ -17,12 +17,14 @@ const { parseUserAgent } = require("../lib/userAgent");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { deleteAccount } = require("../lib/deleteAccount");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
-const { KUGO_AI_ID } = require("../data/kugoAssistant");
 const { PREMIUM_GRANT_DAYS } = require("../config");
 const qrLogins = require("../data/qrLogins");
 const codeLogins = require("../data/codeLogins");
 
 const { EMAIL_RE, PHONE_RE, normalizePhone } = require("../lib/validators");
+const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
+const totp = require("../lib/totp");
+const twoFactorTickets = require("../data/twoFactorTickets");
 
 const router = express.Router();
 
@@ -45,23 +47,6 @@ async function sendLoginAlert(userId, session) {
 
 // Tells the referrer (also via a plain DM — not the service chat, since this
 // is from the *person*, not the system) that their code was used.
-// Seeds a welcome DM from the Kugo AI assistant so a new account discovers it
-// immediately (rather than only via @kugo search). Best-effort — registration
-// must still succeed if this fails. The greeting is a plain seeded message,
-// not a model call, so it costs nothing and appears instantly.
-async function seedKugoWelcome(userId) {
-  try {
-    const chat = await findOrCreateDm(userId, KUGO_AI_ID);
-    await sendMessageAndBroadcast(
-      chat,
-      KUGO_AI_ID,
-      "👋 Привет! Я Kugo AI — встроенный ИИ-ассистент Shalter. Спросите меня о чём угодно: помогу с идеями, объясню, переведу, подскажу. Просто напишите вопрос."
-    );
-  } catch (err) {
-    console.error("Kugo welcome seed failed:", err);
-  }
-}
-
 async function notifyReferralBonus(referrerId, newUser) {
   try {
     const chat = await findOrCreateDm(referrerId, newUser.id);
@@ -81,23 +66,6 @@ async function notifyReferralBonus(referrerId, newUser) {
 // Fires the new-device alert above whenever this is a genuinely new device
 // *and* the account already had at least one other session (so a brand new
 // registration's very first device doesn't alert itself).
-// The ban set from the reports moderation chat (routes/reports.js's
-// /:id/resolve) or Settings → Модерация (routes/admin.js's /users/:id/ban) —
-// the same flag middleware/auth.js's requireUserId checks on every request,
-// re-checked at every point that hands out a session cookie so a banned
-// account never gets one in the first place instead of logging in and then
-// failing on the very next call. /code/verify and /qr/poll below used to skip
-// this entirely, so an SMS-code or QR login *did* hand a banned account a
-// session, dropping it into an app where every request 403'd with nothing on
-// screen explaining why.
-// Includes the recorded reason (server/data/users.js's setBanned), so the
-// login screen can say what the ban was actually for.
-function banError(user) {
-  return user.banReason
-    ? `Аккаунт заблокирован администрацией Shalter. Причина: ${user.banReason}`
-    : "Аккаунт заблокирован администрацией Shalter";
-}
-
 async function recordSession(req, res, userId) {
   const deviceId = getOrCreateDeviceId(req, res);
   const priorSessions = await listSessions(userId);
@@ -109,6 +77,39 @@ async function recordSession(req, res, userId) {
   });
   if (isNewDevice && priorSessions.length > 0) await sendLoginAlert(userId, session);
   return session;
+}
+
+// Called at the end of every path that has just verified a first factor
+// (password, or a login code delivered to an already-signed-in device). If the
+// account has 2FA on, it must NOT get a session yet — that would make the second
+// factor cosmetic, since the cookie is what actually grants access. Instead it
+// gets a short-lived ticket (data/twoFactorTickets.js) to trade for a session at
+// /2fa/login.
+async function finishLogin(req, res, user) {
+  if (user.twoFactorEnabled) {
+    const { ticket, expiresInSec } = twoFactorTickets.create(user.id);
+    return res.json({ twoFactorRequired: true, ticket, expiresInSec, name: user.name });
+  }
+  addAccountSession(req, res, user.id);
+  await recordSession(req, res, user.id);
+  return res.json({ user: publicUser(user) });
+}
+
+// The ban set from the reports moderation chat (routes/reports.js's
+// /:id/resolve) or Settings → Модерация (routes/admin.js's /users/:id/ban) —
+// the same flag middleware/auth.js's requireUserId checks on every request,
+// re-checked at every point that hands out a session cookie so a banned
+// account never gets one in the first place instead of logging in and then
+// failing on the very next call. /code/verify and /qr/poll used to skip this
+// entirely, so an SMS-code or QR login *did* hand a banned account a session,
+// dropping it into an app where every request 403'd with nothing on screen
+// explaining why.
+// Includes the recorded reason (server/data/users.js's setBanned), so the login
+// screen can say what the ban was actually for.
+function banError(user) {
+  return user.banReason
+    ? `Аккаунт заблокирован администрацией Shalter. Причина: ${user.banReason}`
+    : "Аккаунт заблокирован администрацией Shalter";
 }
 
 router.post(
@@ -131,22 +132,28 @@ router.post(
       return res.status(403).json({ error: banError(user) });
     }
 
-    addAccountSession(req, res, user.id);
-    await recordSession(req, res, user.id);
-    res.json({ user: publicUser(user) });
+    return finishLogin(req, res, user);
   })
 );
 
 router.post(
   "/register-email",
   asyncRoute(async (req, res) => {
-    const { name, email, password, phone, referralCode } = req.body ?? {};
+    const { name, email, password, phone, username, referralCode } = req.body ?? {};
 
     if (!name?.trim()) return res.status(400).json({ error: "Введите имя" });
     if (!EMAIL_RE.test(email ?? "")) return res.status(400).json({ error: "Некорректный email" });
     if (!password || password.length < 6) {
       return res.status(400).json({ error: "Пароль должен быть не короче 6 символов" });
     }
+    // Asked for at registration rather than left to a later trip through
+    // Settings → Профиль: the only way to add someone here is by their exact
+    // @handle (see public/js/views/contacts.js), so an account created without
+    // one is unreachable — nobody can look it up at all until its owner happens
+    // to go and set one.
+    const handle = normalizeUsername(username);
+    const usernameProblem = await checkUsername(handle);
+    if (usernameProblem) return res.status(usernameProblem.status).json({ error: usernameProblem.error });
     const normalizedPhone = normalizePhone(phone);
     if (!PHONE_RE.test(normalizedPhone)) {
       return res.status(400).json({ error: "Введите номер телефона в формате +79991234567" });
@@ -165,32 +172,53 @@ router.post(
     }
 
     const { hash, salt } = hashPassword(password);
-    const user = await createUser({
-      id: `u_${Date.now()}`,
-      name: name.trim(),
-      phone: normalizedPhone,
-      email: email.trim().toLowerCase(),
-      passwordHash: hash,
-      passwordSalt: salt,
-      avatarColor: "#2E56D9",
-      bio: "",
-      online: true,
-      lastSeen: new Date().toISOString(),
-      referredBy: referrer?.id,
-      // The referral bonus: both the new account and the friend who invited
-      // them get Premium, one-time, the moment registration completes.
-      premiumUntil: referrer ? new Date(Date.now() + PREMIUM_GRANT_DAYS * 86400000).toISOString() : undefined,
-    });
+    let user;
+    try {
+      user = await createUser({
+        id: `u_${Date.now()}`,
+        name: name.trim(),
+        username: handle,
+        phone: normalizedPhone,
+        email: email.trim().toLowerCase(),
+        passwordHash: hash,
+        passwordSalt: salt,
+        avatarColor: "#2E56D9",
+        bio: "",
+        online: true,
+        lastSeen: new Date().toISOString(),
+        referredBy: referrer?.id,
+        // The referral bonus: both the new account and the friend who invited
+        // them get Premium, one-time, the moment registration completes.
+        premiumUntil: referrer ? new Date(Date.now() + PREMIUM_GRANT_DAYS * 86400000).toISOString() : undefined,
+      });
+    } catch (err) {
+      // Two people registering the same handle at the same moment: both pass
+      // the check above, then the unique index on lower(username) rejects the
+      // second insert. That's a "занят", not a 500.
+      if (isUsernameConflict(err)) return res.status(409).json({ error: "Этот юзернейм уже занят" });
+      throw err;
+    }
 
     if (referrer) {
       await grantPremiumDays(referrer.id, PREMIUM_GRANT_DAYS);
       await notifyReferralBonus(referrer.id, user);
     }
-    await seedKugoWelcome(user.id);
 
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
     res.json({ user: publicUser(user) });
+  })
+);
+
+// Live "свободен / занят" feedback for the registration form. Unauthenticated
+// by necessity (it's used before an account exists) and harmless: handles are
+// public by design — you look people up by typing an exact one.
+router.get(
+  "/username-available",
+  asyncRoute(async (req, res) => {
+    const handle = normalizeUsername(req.query.u);
+    const problem = await checkUsername(handle);
+    res.json({ username: handle, available: !problem, error: problem?.error ?? null });
   })
 );
 
@@ -293,6 +321,11 @@ router.get(
     if (!user) return res.json({ status: "expired" });
     if (user.isBanned) return res.json({ status: "banned", error: banError(user) });
 
+    // Deliberately not routed through finishLogin(): a QR login is only ever
+    // confirmed *from an already-signed-in device* (see /qr/confirm below), so
+    // whoever completed it already holds a live session on this account. A TOTP
+    // prompt here would gate nothing an attacker hasn't already passed, while
+    // costing the owner a code on every desktop sign-in.
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
     res.json({ status: "confirmed", user: publicUser(user) });
@@ -348,6 +381,162 @@ router.post(
     if (user.isBanned) {
       return res.status(403).json({ error: banError(user) });
     }
+    return finishLogin(req, res, user);
+  })
+);
+
+// ── Two-factor authentication (RFC 6238 TOTP — see server/lib/totp.js) ──────
+//
+// The problem it solves: every other way into an account here leans on a phone
+// number somewhere, and a phone number isn't a secret — it's on profiles, it's
+// in people's contact lists, it gets reused across services. With 2FA on, an
+// attacker who has the number, the email, and even the password still can't get
+// in without the rotating code from the owner's own authenticator app.
+
+function currentUserOr401(req, res) {
+  const uid = getCurrentUserId(req);
+  if (!uid) {
+    res.status(401).json({ error: "unauthorized" });
+    return null;
+  }
+  return uid;
+}
+
+router.get(
+  "/2fa",
+  asyncRoute(async (req, res) => {
+    const uid = currentUserOr401(req, res);
+    if (!uid) return;
+    const me = await getUser(uid);
+    if (!me) return res.status(401).json({ error: "unauthorized" });
+    res.json({
+      enabled: !!me.twoFactorEnabled,
+      // A secret generated but never confirmed — the UI offers to resume rather
+      // than silently starting over with a different one.
+      pending: !!me.totpSecret && !me.totpEnabledAt,
+      recoveryCodesLeft: me.twoFactorEnabled ? (me.totpRecoveryCodes ?? []).length : 0,
+      enabledAt: me.totpEnabledAt ?? null,
+    });
+  })
+);
+
+// Step 1: mint a secret and hand back the otpauth:// URI for the QR code. Not
+// enabled yet — /2fa/enable below requires a working code first, so scanning the
+// QR and then closing the app can't leave the account needing a code nobody has.
+router.post(
+  "/2fa/setup",
+  asyncRoute(async (req, res) => {
+    const uid = currentUserOr401(req, res);
+    if (!uid) return;
+    const me = await getUser(uid);
+    if (!me) return res.status(401).json({ error: "unauthorized" });
+    if (me.twoFactorEnabled) return res.status(400).json({ error: "Двухфакторная аутентификация уже включена" });
+
+    const secret = totp.generateSecret();
+    await startTotpSetup(uid, secret);
+    res.json({ secret, otpauthUri: totp.otpauthUri(secret, me.username || me.phone || me.name) });
+  })
+);
+
+// Step 2: prove the authenticator app really has the secret, then turn it on and
+// show the recovery codes once. They're stored hashed, so this response is the
+// only time they exist in readable form.
+router.post(
+  "/2fa/enable",
+  asyncRoute(async (req, res) => {
+    const uid = currentUserOr401(req, res);
+    if (!uid) return;
+    const me = await getUser(uid);
+    if (!me) return res.status(401).json({ error: "unauthorized" });
+    if (me.twoFactorEnabled) return res.status(400).json({ error: "Двухфакторная аутентификация уже включена" });
+    if (!me.totpSecret) return res.status(400).json({ error: "Сначала отсканируйте QR-код" });
+    if (!totp.verifyCode(me.totpSecret, req.body?.code)) {
+      return res.status(400).json({ error: "Неверный код — проверьте, что время на устройстве точное, и попробуйте снова" });
+    }
+
+    const recoveryCodes = totp.generateRecoveryCodes();
+    await enableTotp(uid, recoveryCodes.map(totp.hashRecoveryCode));
+
+    // Same service-chat notification as a new-device login: turning 2FA on is a
+    // security-relevant change, and the owner should see it happen even if it
+    // wasn't them who did it.
+    try {
+      const chat = await findOrCreateDm(SYSTEM_BOT_ID, uid);
+      await sendMessageAndBroadcast(
+        chat,
+        SYSTEM_BOT_ID,
+        "🔐 На вашем аккаунте включена двухфакторная аутентификация. Если это были не вы — немедленно смените пароль."
+      );
+    } catch (err) {
+      console.error("2fa enable notification failed:", err);
+    }
+
+    res.json({ enabled: true, recoveryCodes });
+  })
+);
+
+// Turning it off requires a current code (or a recovery code) — otherwise
+// anyone who got hold of an open session could just switch the protection off,
+// which would leave 2FA protecting nothing.
+router.post(
+  "/2fa/disable",
+  asyncRoute(async (req, res) => {
+    const uid = currentUserOr401(req, res);
+    if (!uid) return;
+    const me = await getUser(uid);
+    if (!me) return res.status(401).json({ error: "unauthorized" });
+    if (!me.twoFactorEnabled) {
+      // A half-finished setup has nothing to confirm against, so it can just be
+      // dropped.
+      await disableTotp(uid);
+      return res.json({ enabled: false });
+    }
+
+    const code = String(req.body?.code ?? "");
+    const ok = totp.verifyCode(me.totpSecret, code) || (await consumeRecoveryCode(uid, totp.hashRecoveryCode(code)));
+    if (!ok) return res.status(400).json({ error: "Неверный код" });
+
+    await disableTotp(uid);
+    try {
+      const chat = await findOrCreateDm(SYSTEM_BOT_ID, uid);
+      await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, "🔓 Двухфакторная аутентификация отключена. Если это были не вы — срочно смените пароль.");
+    } catch (err) {
+      console.error("2fa disable notification failed:", err);
+    }
+    res.json({ enabled: false });
+  })
+);
+
+// The second step of logging in: trade a ticket from finishLogin() plus a code
+// for an actual session. Accepts a recovery code in the same field, since
+// someone reaching for one has lost access to the authenticator and shouldn't
+// have to find a different screen.
+router.post(
+  "/2fa/login",
+  asyncRoute(async (req, res) => {
+    const { ticket, code } = req.body ?? {};
+    const entry = twoFactorTickets.peek(ticket);
+    if (!entry) return res.status(400).json({ error: "Время на ввод кода истекло — войдите заново" });
+
+    const user = await getUser(entry.userId);
+    if (!user) return res.status(400).json({ error: "Время на ввод кода истекло — войдите заново" });
+    // Re-checked here, not just at the first step: a ban can land in between.
+    if (user.isBanned) {
+      twoFactorTickets.consume(ticket);
+      return res.status(403).json({ error: banError(user) });
+    }
+
+    const cleaned = String(code ?? "").trim();
+    const ok = totp.verifyCode(user.totpSecret, cleaned) || (await consumeRecoveryCode(user.id, totp.hashRecoveryCode(cleaned)));
+    if (!ok) {
+      const attemptsLeft = twoFactorTickets.countFailure(ticket);
+      return res.status(400).json({
+        error: attemptsLeft > 0 ? `Неверный код. Осталось попыток: ${attemptsLeft}` : "Слишком много неверных кодов — войдите заново",
+        attemptsLeft,
+      });
+    }
+
+    twoFactorTickets.consume(ticket);
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
     res.json({ user: publicUser(user) });

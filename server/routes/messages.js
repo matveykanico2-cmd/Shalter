@@ -23,10 +23,11 @@ const { listContactsFor } = require("../data/contacts");
 const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled } = require("../data/scheduledMessages");
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
-const { replyAsKugo, shouldKugoReply } = require("../lib/kugoAssistant");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser } = require("../push");
 const { fetchLinkPreview } = require("../lib/linkPreview");
+const { deleteUploadedFiles } = require("../lib/serveUpload");
+const { UPLOAD_DIR } = require("./uploads");
 
 const router = express.Router({ mergeParams: true });
 
@@ -212,15 +213,6 @@ async function deliverMessage(chat, senderId, body) {
       .catch((err) => console.error(`bot sandbox dispatch failed for ${memberId}:`, err));
   }
 
-  // Built-in "Kugo AI" assistant (server/lib/kugoAssistant.js) — a bot-shaped
-  // account with no user code, so the sandbox loop above skips it; it replies
-  // via a real Claude call instead. Same fire-and-forget contract: the human's
-  // send has already returned, so a slow model call can't block it. Skipped
-  // for Kugo's own messages (shouldKugoReply guards the self-reply loop).
-  if (message.type === "text" && message.text?.trim() && shouldKugoReply(chat, senderId)) {
-    replyAsKugo(chat, senderId).catch((err) => console.error("Kugo dispatch failed:", err));
-  }
-
   // A comment on a channel post is just a reply to that post's auto-forwarded
   // anchor copy in the linked discussion chat (see server/routes/posts.js) —
   // bump the post's visible comment count when one lands.
@@ -381,6 +373,11 @@ router.delete(
       // Only the sender can erase a message for everyone.
       if (existing.senderId !== req.uid) return res.status(403).json({ error: "forbidden" });
       await deleteMessage(req.params.messageId);
+      // The row is gone, so nothing points at its files any more — free the disk
+      // rather than leaving a 2GB video orphaned there forever. Only for
+      // "delete for everyone": a delete-for-me leaves the message (and its
+      // files) live for everyone else.
+      await deleteUploadedFiles(UPLOAD_DIR, existing.attachments);
       const chat = await getChat(req.params.id);
       if (chat) {
         broadcastToOtherMembers(chat, req.uid, {

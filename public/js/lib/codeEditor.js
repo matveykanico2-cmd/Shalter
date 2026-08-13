@@ -51,7 +51,6 @@ const COMPLETIONS = [
   { label: "msg.createdAt", type: "property", info: "ISO timestamp." },
   { label: "bot.send", type: "function", detail: "(text, opts?)", info: "Reply in the same chat as msg." },
   { label: "bot.sendTo", type: "function", detail: "(chatId, text, opts?)", info: "Send to a specific chat." },
-  { label: "bot.ai", type: "function", detail: "(prompt, opts?)", info: "Ask the server-configured AI and get back its text reply. opts: { system, maxTokens }." },
   { label: "console.log", type: "function" },
   { label: "console.error", type: "function" },
   { label: "fetch", type: "function", info: "Call an external API." },

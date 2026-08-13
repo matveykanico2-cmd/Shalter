@@ -66,10 +66,17 @@ async function searchPublicChannels(query) {
   return rows.map(rowToChat);
 }
 
+// De-duplicates because chat_members' primary key is (chatId, userId): a caller
+// passing the same id twice used to abort the whole transaction with a UNIQUE
+// constraint error and surface as a 500. The real case is a self-chat ("Saved
+// messages" — routes/chats.js's POST / with userId === req.uid builds
+// [uid, uid]), which is a legitimate chat that simply has one member; premium.js
+// already relies on findOrCreateDm(uid, uid) working. Falsy ids are dropped for
+// the same "one bad argument shouldn't fail the write" reason.
 const setMembers = db.transaction((chatId, memberIds, adminIds) => {
   db.prepare("DELETE FROM chat_members WHERE chatId = ?").run(chatId);
   const insert = db.prepare("INSERT INTO chat_members (chatId, userId, isAdmin) VALUES (?, ?, ?)");
-  for (const userId of memberIds) {
+  for (const userId of new Set((memberIds ?? []).filter(Boolean))) {
     insert.run(chatId, userId, adminIds?.includes(userId) ? 1 : 0);
   }
 });

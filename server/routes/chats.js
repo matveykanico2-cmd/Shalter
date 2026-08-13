@@ -1,9 +1,8 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findChatByUsername } = require("../data/chats");
-const { findUserByUsername } = require("../data/users");
-const { USERNAME_RE } = require("../lib/validators");
+const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser } = require("../data/chats");
+const { checkUsername, normalizeUsername } = require("../lib/username");
 const { deleteMessagesForChat } = require("../data/messages");
 const { getSettings, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft } = require("../data/settings");
 const { attachSummaries } = require("../data/chat-summary");
@@ -198,17 +197,11 @@ router.post(
       return res.json({ chat: updated });
     }
 
-    const username = (req.body?.username ?? "").trim();
-    if (!USERNAME_RE.test(username)) {
-      return res.status(400).json({ error: "Юзернейм: 5-32 символов, латинские буквы, цифры и _" });
-    }
-    // One shared @handle namespace with real accounts (same rule
-    // routes/users.js's PATCH /:id enforces for people) — otherwise
-    // /u/:username and this channel's own public link could collide.
-    const [existingUser, existingChat] = await Promise.all([findUserByUsername(username), findChatByUsername(username)]);
-    if (existingUser || (existingChat && existingChat.id !== chat.id)) {
-      return res.status(409).json({ error: "Этот юзернейм уже занят" });
-    }
+    // One shared @handle namespace with real accounts — see lib/username.js,
+    // which now owns this check for all three paths that claim a handle.
+    const username = normalizeUsername(req.body?.username);
+    const problem = await checkUsername(username, { forChatId: chat.id });
+    if (problem) return res.status(problem.status).json({ error: problem.error });
 
     const updated = await updateChat(req.params.id, { isPublic: true, username });
     res.json({ chat: updated });

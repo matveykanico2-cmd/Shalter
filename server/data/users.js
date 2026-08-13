@@ -48,6 +48,13 @@ function rowToUser(row) {
     bannedAt: row.bannedAt ?? undefined,
     safetyLabel: row.safetyLabel ?? undefined,
     safetyLabelAt: row.safetyLabelAt ?? undefined,
+    // 2FA (server/lib/totp.js). twoFactorEnabled is derived, never stored — a
+    // secret that was generated but never confirmed with a real code must not
+    // count as enabled, or a half-finished setup would lock the account out.
+    totpSecret: row.totpSecret ?? undefined,
+    totpEnabledAt: row.totpEnabledAt ?? undefined,
+    totpRecoveryCodes: row.totpRecoveryCodes ? JSON.parse(row.totpRecoveryCodes) : [],
+    twoFactorEnabled: !!(row.totpSecret && row.totpEnabledAt),
   };
 }
 
@@ -207,6 +214,40 @@ async function setBanned(userId, banned, reason) {
   return getUser(userId);
 }
 
+// Stores a not-yet-confirmed secret (totpEnabledAt stays null until a working
+// code proves the authenticator app actually has it).
+async function startTotpSetup(userId, secret) {
+  db.prepare("UPDATE users SET totpSecret = ?, totpEnabledAt = NULL, totpRecoveryCodes = NULL WHERE id = ?").run(secret, userId);
+  return getUser(userId);
+}
+
+async function enableTotp(userId, recoveryCodeHashes) {
+  db.prepare("UPDATE users SET totpEnabledAt = ?, totpRecoveryCodes = ? WHERE id = ?").run(
+    new Date().toISOString(),
+    JSON.stringify(recoveryCodeHashes ?? []),
+    userId
+  );
+  return getUser(userId);
+}
+
+async function disableTotp(userId) {
+  db.prepare("UPDATE users SET totpSecret = NULL, totpEnabledAt = NULL, totpRecoveryCodes = NULL WHERE id = ?").run(userId);
+  return getUser(userId);
+}
+
+// Single-use: a matching hash is removed as it's accepted, so the same recovery
+// code can't get someone in twice.
+async function consumeRecoveryCode(userId, hash) {
+  const user = await getUser(userId);
+  if (!user) return false;
+  const codes = user.totpRecoveryCodes ?? [];
+  const idx = codes.indexOf(hash);
+  if (idx === -1) return false;
+  const remaining = codes.filter((_, i) => i !== idx);
+  db.prepare("UPDATE users SET totpRecoveryCodes = ? WHERE id = ?").run(JSON.stringify(remaining), userId);
+  return true;
+}
+
 async function listBannedUsers() {
   return db.prepare("SELECT * FROM users WHERE isBanned = 1 ORDER BY bannedAt DESC").all().map(rowToUser);
 }
@@ -262,6 +303,10 @@ module.exports = {
   updateUser,
   setBlocked,
   setBanned,
+  startTotpSetup,
+  enableTotp,
+  disableTotp,
+  consumeRecoveryCode,
   listBannedUsers,
   setSafetyLabel,
   listLabeledUsers,

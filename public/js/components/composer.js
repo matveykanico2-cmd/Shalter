@@ -2,7 +2,9 @@ import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { startRecording, isRecordingSupported, MAX_RECORD_SEC } from "../lib/recorder.js";
-import { fileToImageDataUrl, fileToDataUrl } from "../lib/image.js";
+import { fileToImageDataUrl } from "../lib/image.js";
+import { uploadFile } from "../lib/upload.js";
+import { checkSize } from "../lib/uploadLimits.js";
 import { openPollDialog } from "./pollDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openScheduleSendDialog } from "./scheduleSendDialog.js";
@@ -206,33 +208,89 @@ export function Composer({
     // genuine "clicked away" cases.
     textarea.addEventListener("blur", () => closeMentionMenu());
 
+    // Progress line shown above the composer while a file is going up. A large
+    // file takes real time now that it's streamed rather than crammed into the
+    // message JSON, so "nothing appears to happen" isn't an acceptable state.
+    const uploadSlot = el("div", { class: "composer-upload-slot" });
+
+    function showUploadError(message) {
+      clear(uploadSlot);
+      uploadSlot.appendChild(
+        el("div", { class: "composer-upload-row error" }, [
+          el("span", { html: iconSvg("Info", 14) }),
+          el("span", { class: "composer-upload-label" }, message),
+          el("button", { class: "icon-btn", title: "Скрыть", html: iconSvg("X", 14), onclick: () => clear(uploadSlot) }),
+        ])
+      );
+    }
+
+    // Uploads the file (streaming, with a progress bar), then sends the message
+    // carrying a URL instead of the whole file. Images still get downscaled
+    // client-side first when they're small enough to decode safely — that's a
+    // deliberate product choice (chat photos, not archival originals); anything
+    // bigger goes up untouched, since a canvas can't decode a huge photo without
+    // taking the tab down with it. Send the original as a Файл to keep it exact.
+    const CANVAS_SAFE_IMAGE_BYTES = 20 * 1024 * 1024;
+
+    async function attachFile(file, kind) {
+      const sizeError = checkSize(file, kind);
+      if (sizeError) return showUploadError(sizeError);
+
+      if (kind === "image" && file.size <= CANVAS_SAFE_IMAGE_BYTES) {
+        try {
+          const url = await fileToImageDataUrl(file, MAX_IMAGE_DIMENSION);
+          onSend("", [{ kind: "image", name: file.name, mimeType: "image/jpeg", url }]);
+        } catch (err) {
+          showUploadError(err.message || "Не удалось обработать изображение");
+        }
+        return;
+      }
+
+      const bar = el("span", { class: "composer-upload-bar-fill" });
+      const pct = el("span", { class: "mono composer-upload-pct" }, "0%");
+      clear(uploadSlot);
+      uploadSlot.appendChild(
+        el("div", { class: "composer-upload-row" }, [
+          el("span", { class: "composer-upload-label" }, file.name),
+          el("span", { class: "composer-upload-bar" }, [bar]),
+          pct,
+        ])
+      );
+
+      try {
+        const attachment = await uploadFile(file, kind, (fraction) => {
+          const p = Math.round(fraction * 100);
+          bar.style.width = `${p}%`;
+          pct.textContent = `${p}%`;
+        });
+        clear(uploadSlot);
+        onSend("", [attachment]);
+      } catch (err) {
+        showUploadError(err.message || "Не удалось загрузить файл");
+      }
+    }
+
     // Attach menu — each item sends a real attachment (no more "[Label]" text stub).
     const mediaFileInput = el("input", {
       type: "file",
       accept: "image/*,video/*",
       class: "hidden-input",
-      onchange: async (e) => {
+      onchange: (e) => {
         const file = e.target.files?.[0];
         e.target.value = "";
         if (!file) return;
-        if (file.type.startsWith("image/")) {
-          const url = await fileToImageDataUrl(file, MAX_IMAGE_DIMENSION);
-          onSend("", [{ kind: "image", name: file.name, mimeType: "image/jpeg", url }]);
-        } else if (file.type.startsWith("video/")) {
-          const url = await fileToDataUrl(file);
-          onSend("", [{ kind: "video", name: file.name, size: file.size, mimeType: file.type, url }]);
-        }
+        if (file.type.startsWith("image/")) attachFile(file, "image");
+        else if (file.type.startsWith("video/")) attachFile(file, "video");
+        else attachFile(file, "file");
       },
     });
     const anyFileInput = el("input", {
       type: "file",
       class: "hidden-input",
-      onchange: async (e) => {
+      onchange: (e) => {
         const file = e.target.files?.[0];
         e.target.value = "";
-        if (!file) return;
-        const url = await fileToDataUrl(file);
-        onSend("", [{ kind: "file", name: file.name, size: file.size, mimeType: file.type, url }]);
+        if (file) attachFile(file, "file");
       },
     });
 
@@ -444,7 +502,7 @@ export function Composer({
     }
 
     const row = el("div", { class: "composer-row" }, [mentionMenu, attachSlot, textarea, stickerSlot, scheduleSlot, emojiSlot, trailingSlot]);
-    bodySlot.appendChild(row);
+    bodySlot.append(uploadSlot, row);
     updateTrailingButtons();
 
     queueMicrotask(() => {

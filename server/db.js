@@ -364,6 +364,34 @@ if (!existingUserColumns.has("bannedAt")) db.exec("ALTER TABLE users ADD COLUMN 
 // they hand over money — which a silent internal ban queue never does.
 if (!existingUserColumns.has("safetyLabel")) db.exec("ALTER TABLE users ADD COLUMN safetyLabel TEXT");
 if (!existingUserColumns.has("safetyLabelAt")) db.exec("ALTER TABLE users ADD COLUMN safetyLabelAt TEXT");
+// Two-factor authentication (RFC 6238 TOTP — server/lib/totp.js). The shared
+// secret, base32-encoded; a row with totpSecret set but totpEnabledAt null is a
+// setup in progress that hasn't been confirmed with a working code yet, and
+// counts as "2FA off". Recovery codes are a JSON array of SHA-256 hashes, never
+// the codes themselves. All three are stripped from every user object sent to a
+// client (see data/sanitize.js).
+if (!existingUserColumns.has("totpSecret")) db.exec("ALTER TABLE users ADD COLUMN totpSecret TEXT");
+if (!existingUserColumns.has("totpEnabledAt")) db.exec("ALTER TABLE users ADD COLUMN totpEnabledAt TEXT");
+if (!existingUserColumns.has("totpRecoveryCodes")) db.exec("ALTER TABLE users ADD COLUMN totpRecoveryCodes TEXT");
+
+// The built-in "Kugo AI" assistant is gone (the whole Claude integration was
+// removed — no ANTHROPIC_API_KEY, no bot.ai(), no assistant account). Its user
+// row was seeded at startup on older builds, so it's dropped here rather than
+// left in everyone's contact list as an account that looks like an assistant
+// and never answers. Any DM someone had with it goes too — a one-sided log of
+// questions to a bot that no longer exists.
+const kugoRow = db.prepare("SELECT id FROM users WHERE id = 'ai_kugo'").get();
+if (kugoRow) {
+  const kugoChats = db.prepare("SELECT chatId FROM chat_members WHERE userId = 'ai_kugo'").all().map((r) => r.chatId);
+  for (const chatId of kugoChats) {
+    db.prepare("DELETE FROM messages WHERE chatId = ?").run(chatId);
+    db.prepare("DELETE FROM chats WHERE id = ?").run(chatId); // chat_members cascades
+  }
+  db.prepare("DELETE FROM bots WHERE userId = 'ai_kugo'").run();
+  db.prepare("DELETE FROM users WHERE id = 'ai_kugo'").run();
+  console.log(`removed the retired Kugo AI assistant account (${kugoChats.length} chat(s))`);
+}
+
 // NOTE: an `e2ePublicKey` column may still exist on databases created before
 // secret chats were removed. Nothing reads or writes it any more — it's left
 // in place rather than dropped, since dropping a column rewrites the whole

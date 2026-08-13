@@ -22,15 +22,6 @@ function logLine(entry) {
   ]);
 }
 
-// Pulls the code block back out of the assistant's reply (server/routes/
-// bots.js's ASSIST_SYSTEM_PROMPT tells it to always answer with one full
-// ```js fenced block, not a fragment) so "Применить" can drop it straight
-// into the editor without the surrounding explanation text.
-const CODE_BLOCK_RE = /```(?:js|javascript)?\n([\s\S]*?)```/;
-function extractCodeBlock(text) {
-  return CODE_BLOCK_RE.exec(text)?.[1]?.trim() ?? null;
-}
-
 export function openBotCodeDialog(bot) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const editorSlot = el("div", { class: "bot-code-editor-slot" });
@@ -38,22 +29,6 @@ export function openBotCodeDialog(bot) {
   const outputSlot = el("div", { class: "bot-code-output" });
   const logsSlot = el("div", { class: "bot-code-logs" });
   const saveStatus = el("span", { class: "settings-toggle-hint" });
-  const assistLog = el("div", { class: "bot-assist-log" });
-  const assistInput = el("textarea", {
-    class: "settings-input bot-assist-input",
-    rows: 2,
-    placeholder: "Например: «добавь команду /help» или «почему бот не отвечает?»",
-    onkeydown: (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendAssistMessage();
-      }
-    },
-  });
-  const assistSendBtn = el("button", { class: "settings-add-account-btn", onclick: () => sendAssistMessage() }, "Спросить");
-  let assistMessages = []; // { role: "user" | "ai", text }
-  let assistBusy = false;
-
   const dialog = el("div", { class: "modal-dialog bot-code-dialog" }, [
     el("div", { class: "bot-code-header" }, [
       el("h2", { class: "modal-title" }, `Код бота «${bot.user?.name ?? bot.name ?? ""}»`),
@@ -62,22 +37,12 @@ export function openBotCodeDialog(bot) {
     el(
       "p",
       { class: "settings-toggle-hint" },
-      "Определите async function handleMessage(msg, bot) — она вызывается на каждое сообщение боту. bot.ai(prompt) даёт ИИ-ответ без своего API-ключа (если он настроен на сервере). Работает в песочнице: без доступа к файлам/процессу, с таймаутом 20с. Подробности — /BOTS.md."
+      "Определите async function handleMessage(msg, bot) — она вызывается на каждое сообщение боту. Работает в песочнице: без доступа к файлам, процессу и сети, с таймаутом 20с. Подробности — /BOTS.md."
     ),
     editorSlot,
     el("div", { class: "bot-code-actions" }, [
       el("button", { class: "btn-accent", onclick: save }, "Сохранить"),
       saveStatus,
-    ]),
-    el("div", { class: "bot-code-section" }, [
-      el("p", { class: "settings-field-label" }, "ИИ-помощник"),
-      el(
-        "p",
-        { class: "settings-toggle-hint" },
-        "Попросите написать код, объяснить ошибку или доработать логику — понимает именно эту песочницу (bot.send/bot.ai/и т.д.), не общий JS."
-      ),
-      assistLog,
-      el("div", { class: "bot-code-test-row" }, [assistInput, assistSendBtn]),
     ]),
     el("div", { class: "bot-code-section" }, [
       el("p", { class: "settings-field-label" }, "Тест"),
@@ -96,49 +61,6 @@ export function openBotCodeDialog(bot) {
   document.body.appendChild(overlay);
 
   const editor = createCodeEditor(editorSlot, { value: bot.code?.trim() ? bot.code : STARTER_CODE });
-
-  function renderAssistLog() {
-    clear(assistLog);
-    if (assistMessages.length === 0) {
-      assistLog.appendChild(el("p", { class: "empty-hint" }, "Пока ничего не спрашивали"));
-    }
-    for (const m of assistMessages) {
-      const code = m.role === "ai" ? extractCodeBlock(m.text) : null;
-      const textWithoutCode = code ? m.text.replace(CODE_BLOCK_RE, "").trim() : m.text;
-      assistLog.appendChild(
-        el("div", { class: `bot-assist-msg ${m.role}` }, [
-          textWithoutCode ? el("p", {}, textWithoutCode) : null,
-          code
-            ? el("div", { class: "bot-assist-code-actions" }, [
-                el("button", { class: "settings-danger-link", onclick: () => editor.setValue(code) }, "Применить в редактор"),
-              ])
-            : null,
-        ])
-      );
-    }
-    if (assistBusy) assistLog.appendChild(el("p", { class: "settings-toggle-hint" }, "Думаю…"));
-    assistLog.scrollTop = assistLog.scrollHeight;
-    assistSendBtn.disabled = assistBusy;
-  }
-
-  async function sendAssistMessage() {
-    const message = assistInput.value.trim();
-    if (!message || assistBusy) return;
-    assistMessages = [...assistMessages, { role: "user", text: message }];
-    assistInput.value = "";
-    assistBusy = true;
-    renderAssistLog();
-    try {
-      const { reply } = await api.assistBot(bot.id, message, editor.getValue());
-      assistMessages = [...assistMessages, { role: "ai", text: reply }];
-    } catch (err) {
-      assistMessages = [...assistMessages, { role: "ai", text: err.message || "Не удалось получить ответ" }];
-    } finally {
-      assistBusy = false;
-      renderAssistLog();
-    }
-  }
-  renderAssistLog();
 
   async function save() {
     saveStatus.textContent = "Сохраняем…";

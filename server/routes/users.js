@@ -7,7 +7,8 @@ const { getSettings } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
 const { listChats } = require("../data/chats");
 const { listMessages } = require("../data/messages");
-const { PHONE_RE, USERNAME_RE, normalizePhone } = require("../lib/validators");
+const { PHONE_RE, normalizePhone } = require("../lib/validators");
+const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 
 const LINK_RE = /https?:\/\/\S+/;
 
@@ -123,11 +124,14 @@ router.patch(
     }
 
     if ("username" in patch) {
-      if (!USERNAME_RE.test(patch.username ?? "")) {
-        return res.status(400).json({ error: "Юзернейм: 5-32 символов, латинские буквы, цифры и _" });
-      }
-      const existing = await findUserByUsername(patch.username);
-      if (existing && existing.id !== req.uid) return res.status(409).json({ error: "Этот юзернейм уже занят" });
+      // Shared with registration and with a channel claiming a public handle
+      // (lib/username.js). This branch used to check only the users table,
+      // while routes/chats.js's /:id/public checked both — so a person could
+      // take a handle a public channel already had, and /u/:username then
+      // resolved to whichever of the two the lookup happened to hit first.
+      patch.username = normalizeUsername(patch.username);
+      const problem = await checkUsername(patch.username, { forUserId: req.uid });
+      if (problem) return res.status(problem.status).json({ error: problem.error });
     }
     if ("phone" in patch) {
       const normalized = normalizePhone(patch.phone);
@@ -139,7 +143,13 @@ router.patch(
       patch.phone = normalized;
     }
 
-    const user = await updateUser(req.params.id, patch);
+    let user;
+    try {
+      user = await updateUser(req.params.id, patch);
+    } catch (err) {
+      if (isUsernameConflict(err)) return res.status(409).json({ error: "Этот юзернейм уже занят" });
+      throw err;
+    }
     res.json({ user: user ? publicUser(user) : null });
   })
 );

@@ -7,21 +7,34 @@
 const crypto = require("crypto");
 
 const TTL_MS = 5 * 60 * 1000;
+// A 6-digit code with no attempt ceiling is a 1,000,000-guess piñata that only
+// the global rate limiter was slowing down — and the whole point of this flow is
+// that knowing someone's phone number must not be enough to get in. Five wrong
+// guesses burns the code; the account owner just requests a new one.
+const MAX_ATTEMPTS = 5;
 const pending = new Map();
 
 function createCode(userId) {
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
-  pending.set(userId, { code, expiresAt: Date.now() + TTL_MS });
+  pending.set(userId, { code, expiresAt: Date.now() + TTL_MS, attempts: 0 });
   return code;
 }
 
-// One-time check: correct code consumes it immediately so it can't be reused.
+// One-time check: a correct code is consumed immediately so it can't be reused,
+// and a wrong one costs an attempt.
 function verify(userId, code) {
   const entry = pending.get(userId);
-  if (!entry || entry.expiresAt < Date.now()) return false;
-  if (entry.code !== code) return false;
+  if (!entry || entry.expiresAt < Date.now()) {
+    pending.delete(userId);
+    return false;
+  }
+  if (entry.code !== String(code ?? "").trim()) {
+    entry.attempts += 1;
+    if (entry.attempts >= MAX_ATTEMPTS) pending.delete(userId);
+    return false;
+  }
   pending.delete(userId);
   return true;
 }
 
-module.exports = { createCode, verify };
+module.exports = { createCode, verify, MAX_ATTEMPTS };

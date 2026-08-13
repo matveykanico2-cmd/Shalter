@@ -14,9 +14,16 @@ function jsonHandler(req, res) {
 // the chat list, message list, and typing indicator poll every 15s/15s/5s
 // per open tab (WS covers the live-update case; see chatView.js/chatList.js)
 // — so normal multi-tab usage stays well under this.
+// Both ceilings are env-overridable: what counts as "generous" depends on how
+// many people share an egress IP behind the deployment (an office or a mobile
+// carrier NAT all arrive as one client here), and an automated test suite
+// naturally blows through an auth limit meant for humans.
+const API_RATE_LIMIT = Number(process.env.API_RATE_LIMIT) || 300;
+const AUTH_RATE_LIMIT = Number(process.env.AUTH_RATE_LIMIT) || 20;
+
 const apiLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  limit: 300,
+  limit: API_RATE_LIMIT,
   standardHeaders: true,
   legacyHeaders: false,
   handler: jsonHandler,
@@ -27,7 +34,7 @@ const apiLimiter = rateLimit({
 // on top of the general ceiling above.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: AUTH_RATE_LIMIT,
   standardHeaders: true,
   legacyHeaders: false,
   handler: jsonHandler,

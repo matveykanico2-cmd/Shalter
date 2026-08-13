@@ -62,3 +62,5 @@ yarn-error.log*
 /data/*.db
 /data/*.db-wal
 /data/*.db-shm
+# Uploaded attachments (server/routes/uploads.js) — user data, and gigabytes of it.
+/data/uploads/
