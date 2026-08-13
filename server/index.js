@@ -97,6 +97,7 @@ app.use("/api/ads", require("./routes/ads"));
 app.use("/api/donation-alerts", require("./routes/donationAlerts"));
 app.use("/api/translate", require("./routes/translate"));
 app.use("/api/uploads", require("./routes/uploads"));
+app.use("/api/downloads", require("./routes/downloads"));
 
 if (useBuilt) {
   // Serves whichever of app.js/app.js.br/app.js.gz the client's
@@ -130,6 +131,12 @@ const { UPLOAD_DIR } = require("./routes/uploads");
 const { serveUpload } = require("./lib/serveUpload");
 app.get("/uploads/:filename", serveUpload(UPLOAD_DIR));
 app.head("/uploads/:filename", serveUpload(UPLOAD_DIR));
+
+// The download page is a standalone static page, not an SPA route — without
+// this, /download fell through to the catch-all below and served the app shell
+// instead (only /download.html worked, which is not a URL anyone types or a
+// link worth sharing).
+app.get("/download", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "download.html")));
 
 // Client-side router owns every non-API path — always serve the shell.
 app.get(/^\/(?!api|ws).*/, (req, res) => {

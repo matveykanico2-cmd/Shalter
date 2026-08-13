@@ -84,20 +84,31 @@ export async function SettingsView(root, page) {
     el(
       "div",
       { class: "settings-nav-list" },
-      SECTIONS.filter((s) => s.id && (!s.adminOnly || me.isDeveloper)).map((s) =>
-        el(
-          "a",
-          {
-            href: `/settings/${s.id}`,
-            "data-route": "1",
-            class: `settings-nav-item ${section === s.id ? "active" : ""}`,
-          },
-          [
-            el("span", { class: "settings-nav-icon", style: { background: s.color }, html: iconSvg(s.icon, 16) }),
-            el("span", { class: "settings-nav-label" }, s.label),
-          ]
-        )
-      )
+      [
+        ...SECTIONS.filter((s) => s.id && (!s.adminOnly || me.isDeveloper)).map((s) =>
+          el(
+            "a",
+            {
+              href: `/settings/${s.id}`,
+              "data-route": "1",
+              class: `settings-nav-item ${section === s.id ? "active" : ""}`,
+            },
+            [
+              el("span", { class: "settings-nav-icon", style: { background: s.color }, html: iconSvg(s.icon, 16) }),
+              el("span", { class: "settings-nav-label" }, s.label),
+            ]
+          )
+        ),
+        // The download page is a standalone static page, not an SPA route, so
+        // this is a plain link with no data-route — the router must let the
+        // browser navigate rather than trying to resolve it as a view. It sits
+        // in the same list as the rest so that on a phone, where this nav is a
+        // horizontal strip, it rides along instead of forming a second row.
+        el("a", { href: "/download", class: "settings-nav-item settings-nav-external" }, [
+          el("span", { class: "settings-nav-icon", style: { background: "#4cc98a" }, html: iconSvg("Download", 16) }),
+          el("span", { class: "settings-nav-label" }, "Скачать приложение"),
+        ]),
+      ]
     ),
   ]);
   const contentSlot = el("div", { class: "settings-content" });

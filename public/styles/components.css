@@ -508,7 +508,20 @@
   position: fixed;
   z-index: 50;
   min-width: 200px;
-  overflow: hidden;
+  /* Scrolls instead of being clipped. This menu is also the gift picker
+     (infoPanel.js / adminUserPanel.js), and the catalogue is 286 entries — with
+     `overflow: hidden` and no height cap that rendered a ~10000px-tall menu
+     whose contents were simply unreachable, on every device. The cap is
+     viewport-relative so it works the same on a phone and a desktop. */
+  max-height: min(60vh, 460px);
+  /* An explicit cap, because without one the menu's width is decided by how much
+     room is left to the right of wherever it was placed — so moving it left to
+     fit let it grow wider, which made it not fit again. A fixed ceiling breaks
+     that loop and keeps long gift labels readable. */
+  max-width: min(320px, calc(100vw - 16px));
+  overflow-y: auto;
+  /* Don't let the page behind the menu scroll once the menu hits its end. */
+  overscroll-behavior: contain;
   border-radius: 12px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -2904,14 +2917,34 @@
 
 /* Login */
 .login-page {
-  position: relative;
+  /* Its own scroll container, deliberately: #view-root is height:100vh with
+     overflow:hidden (the chat shell manages its own inner scroll areas and
+     depends on that), so a page taller than the screen simply got clipped there
+     with no way to reach the rest. On a 667px phone the registration form is
+     922px tall and the "Создать аккаунт" button rendered at y≈767 — off-screen
+     and unreachable, because nothing in the chain could scroll.
+     position:fixed + inset:0 also sidesteps the mobile 100vh problem (the value
+     doesn't shrink when the browser's address bar is showing). */
+  position: fixed;
+  inset: 0;
   display: flex;
-  min-height: 100vh;
-  align-items: center;
   justify-content: center;
-  padding: 0 16px;
-  overflow: hidden;
+  overflow-y: auto;
+  /* Vertical padding so the first and last controls aren't against the edge. */
+  padding: 24px 16px;
   background: var(--color-bg);
+}
+/* `margin: auto` rather than `align-items: center` on the parent. Both centre a
+   short form, but a flex item centred by align-items overflows *equally in both
+   directions* once it's taller than the container — the top half goes above the
+   scroll origin where it can never be scrolled to. Combined with the
+   `overflow: hidden` that used to be on .login-page (redundant: .login-bg
+   clips the decorative orbs itself), that made the "Создать аккаунт" button
+   unreachable on any phone shorter than ~900px: it rendered at y≈767 on a
+   667px screen and the page refused to scroll. */
+.login-box-outer,
+.login-page > .login-box {
+  margin: auto;
 }
 .login-bg {
   position: absolute;
@@ -3116,10 +3149,15 @@
   border-bottom: none;
   padding-bottom: 0;
 }
+/* Name, then the stated grounds, then the timestamp — one per line. These used
+   to share a row with the grounds pushed hard right, which works only for a
+   one-word reason: a real one ("Постановление ... по делу № 2-4471/2026") wrapped
+   to three right-aligned lines crammed beside the name. The grounds are the
+   whole point of an audit journal, so they get their own full-width line. */
 .legal-log-main {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 2px;
 }
 .legal-log-target {
   font-size: 14px;
@@ -3127,8 +3165,9 @@
 }
 .legal-log-reason {
   font-size: 13px;
+  line-height: 1.4;
   color: var(--color-muted);
-  text-align: right;
+  overflow-wrap: anywhere;
 }
 .legal-log-meta {
   margin-top: 2px;
@@ -3972,6 +4011,14 @@
   border-radius: 10px;
   background: var(--color-surface);
   padding: 0 12px;
+  /* The card has no vertical padding of its own (its rows bring their own), so
+     a child's top/bottom margin collapsed straight through the card's edge and
+     moved the whole card instead of creating space inside it — free-standing
+     controls ended up flush against the rounded corners. flow-root gives the
+     card its own block formatting context, which stops the collapsing without
+     changing anything for the row-based sections (those use padding, so nothing
+     was collapsing there in the first place). */
+  display: flow-root;
 }
 .settings-section > .settings-toggle-row:last-child,
 .settings-toggle-row.no-divider {
@@ -5304,3 +5351,49 @@
   padding: 10px 18px;
 }
 
+
+
+/* Free-standing controls dropped straight into a .settings-section card (the
+   lawful-request page does this with a search field and a button, rather than
+   the .settings-toggle-row shape the rest of Settings uses). The card only
+   supplies side padding — its rows normally bring their own vertical padding —
+   so without this the input sat flush against the card's top edge and the
+   button touched both the input and the bottom edge. Measured at 0px gap. */
+.settings-section > .settings-input,
+.settings-section > .btn-accent,
+.settings-section > .login-error,
+.settings-section > .login-hint,
+.settings-section > .settings-toggle-hint {
+  display: block;
+  margin: 12px 0;
+}
+.settings-section > .settings-input {
+  width: 100%;
+}
+/* An input directly followed by its action button reads as one control; keep
+   them closer to each other than to the rest of the card. */
+.settings-section > .settings-input + .btn-accent {
+  margin-top: 0;
+}
+
+/* Link to the standalone download page (public/download.html) from the login
+   screen — a first-time visitor has nowhere else to find the native builds. */
+.login-download-link {
+  display: block;
+  margin-top: 14px;
+  font-size: 12.5px;
+  text-decoration: none;
+}
+.login-download-link:hover {
+  text-decoration: underline;
+}
+/* The Settings nav's one external link. On a phone this nav is a horizontal
+   strip, so it just rides along with the rest; the separating rule only makes
+   sense in the desktop layout, where the nav is a vertical column. */
+@media (min-width: 768px) {
+  .settings-nav-external {
+    margin-top: 8px;
+    border-top: 1px solid var(--color-border);
+    padding-top: 10px;
+  }
+}

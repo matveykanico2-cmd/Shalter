@@ -566,6 +566,10 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               ),
             ])
           : null,
+        // A plain link, not a router link: /download is a standalone static page
+        // (see server/index.js), and this is the only place a first-time visitor
+        // would look for the desktop/Android build.
+        !embedded ? el("a", { class: "login-link muted login-download-link", href: "/download" }, "Скачать приложение для Windows, Linux и Android") : null,
       ]
     );
 
