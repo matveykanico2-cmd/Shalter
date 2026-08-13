@@ -260,7 +260,7 @@ function renderInto(container) {
   let list = chats.filter((c) => !c.archived);
   const folder = folders.find((f) => f.id === tab);
   if (folder) list = list.filter((c) => folder.chatIds.includes(c.id));
-  else if (tab === "personal") list = list.filter((c) => c.type === "dm" || c.type === "secret" || c.type === "bot");
+  else if (tab === "personal") list = list.filter((c) => c.type === "dm" || c.type === "bot");
   else if (tab === "groups") list = list.filter((c) => c.type === "group");
   else if (tab === "channels") list = list.filter((c) => c.type === "channel");
 

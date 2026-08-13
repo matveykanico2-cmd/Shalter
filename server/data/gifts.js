@@ -289,6 +289,24 @@ const GIFTS = [
   { id: "padayuschaya_zvezda_zhelaniy", emoji: "🌠", name: "Падающая звезда желаний", priceRub: 7500, premiumDays: 0 },
   { id: "disko_shar", emoji: "🪩", name: "Диско-шар", priceRub: 9000, premiumDays: 0 },
   { id: "petarda", emoji: "🧨", name: "Петарда", priceRub: 10000, premiumDays: 0 },
+
+  // Эксклюзивные подарки — the only ones in this catalog with a `supply`.
+  // That's what makes them exclusive rather than merely expensive: once
+  // `supply` copies are gone they can never be bought again, and each copy
+  // carries its own serial number ("#3 из 10") minted at delivery time by
+  // server/data/giftIssues.js. Everything above is unlimited (`supply`
+  // absent) and can be gifted forever.
+  //
+  // All of them grant Premium forever (premiumDays: null) — at these prices
+  // a purely decorative item would be a strange thing to sell, and it keeps
+  // the tier meaningfully different from the 10 000₽ ceiling above rather
+  // than just being a bigger number.
+  { id: "excl_platinum_star", emoji: "🌟", name: "Платиновая звезда", priceRub: 25000, premiumDays: null, supply: 50, exclusive: true },
+  { id: "excl_comet", emoji: "💫", name: "Комета", priceRub: 50000, premiumDays: null, supply: 25, exclusive: true },
+  { id: "excl_meteorite", emoji: "☄️", name: "Метеорит", priceRub: 100000, premiumDays: null, supply: 10, exclusive: true },
+  { id: "excl_trident", emoji: "🔱", name: "Трезубец", priceRub: 250000, premiumDays: null, supply: 5, exclusive: true },
+  { id: "excl_monument", emoji: "🗿", name: "Монумент", priceRub: 500000, premiumDays: null, supply: 3, exclusive: true },
+  { id: "excl_absolute", emoji: "💠", name: "Абсолют", priceRub: 1000000, premiumDays: null, supply: 1, exclusive: true },
 ];
 
 function listGifts() {

@@ -25,6 +25,9 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   // (routes/reports.js's /:id/ban) — surfaced here rather than a bare
   // "неверный email или пароль" that'd make it look like a typo.
   const bannedNotice = new URLSearchParams(window.location.search).get("reason") === "banned";
+  // The recorded ban reason, forwarded by api.js — a ban with no stated reason
+  // is indistinguishable from a bug from the user's side.
+  const bannedWhy = new URLSearchParams(window.location.search).get("why");
   let mode = refFromLink ? "register" : "login"; // "login" | "register" | "qr" | "code"
   let name = "";
   let email = "";
@@ -67,6 +70,13 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           if (poll.status === "confirmed") {
             stopQrPolling();
             (onSuccess ?? goToApp)(poll.user);
+          } else if (poll.status === "banned") {
+            // The scan itself worked — the account just isn't allowed in. Say
+            // so instead of silently minting a fresh code forever.
+            stopQrPolling();
+            mode = "login";
+            error = poll.error || "Аккаунт заблокирован администрацией Shalter";
+            render();
           } else if (poll.status === "expired") {
             startQrLogin(); // silently mint a fresh code so it never goes stale
           }
@@ -336,7 +346,13 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           ? el("p", { class: "login-hint" }, "Сеанс на этом устройстве был завершён — войдите снова.")
           : null,
         bannedNotice && mode === "login" && !error
-          ? el("p", { class: "login-error" }, "Этот аккаунт заблокирован администрацией Shalter.")
+          ? el(
+              "p",
+              { class: "login-error" },
+              bannedWhy
+                ? `Этот аккаунт заблокирован администрацией Shalter. Причина: ${bannedWhy}`
+                : "Этот аккаунт заблокирован администрацией Shalter."
+            )
           : null,
         error ? el("p", { class: "login-error" }, error) : null,
         el("button", { class: "login-submit", disabled: pending }, pending ? "Проверка…" : mode === "login" ? "Войти" : "Создать аккаунт"),

@@ -1,10 +1,20 @@
 import { el } from "../lib/dom.js";
 import { api } from "../api.js";
 
+// Kept in sync with server/routes/reports.js's REASON_LABELS (the server
+// rejects anything not in that set). The list is longer than "спам / другое"
+// on purpose: a report only helps if the admin reading it can tell scam from
+// terrorism from a fake account without opening the free-text field, and some
+// of these also drive the public safety label on the account (see
+// reports.js's REASON_TO_LABEL).
 const REASONS = [
   { value: "spam", label: "Спам" },
   { value: "scam", label: "Мошенничество" },
+  { value: "fake", label: "Поддельный аккаунт" },
   { value: "violence", label: "Насилие или угрозы" },
+  { value: "terrorism", label: "Терроризм" },
+  { value: "extremism", label: "Экстремизм" },
+  { value: "drugs", label: "Продажа наркотиков" },
   { value: "illegal", label: "Незаконный контент" },
   { value: "child_safety", label: "Угроза безопасности детей" },
   { value: "other", label: "Другое" },

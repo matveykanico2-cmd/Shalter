@@ -255,6 +255,57 @@ CREATE TABLE IF NOT EXISTS pending_orders (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_orders_code ON pending_orders(code);
 CREATE INDEX IF NOT EXISTS idx_pending_orders_user ON pending_orders(userId);
+
+-- One row per issued copy of a *limited* gift (server/data/gifts.js's
+-- entries carrying a supply) — the thing that makes those gifts actually
+-- exclusive rather than just expensive: only that many copies will ever
+-- exist, and each one carries its own serial ("#3 из 10").
+--
+-- Unlike users.giftsReceived (a JSON column — a user's own gift shelf, only
+-- ever read through that one row), this genuinely has to be queried across
+-- rows: "how many copies of this gift have been handed out?" is what every
+-- remaining/sold-out check asks. Per AGENTS.md that makes it a real table,
+-- not more nested JSON.
+--
+-- UNIQUE(giftId, serial) is the last line of defence against two buyers
+-- claiming the same serial: server/data/giftIssues.js already wraps the
+-- read-then-insert in a transaction, but the constraint means even a bug
+-- there can only ever fail loudly, never silently mint a duplicate #1.
+CREATE TABLE IF NOT EXISTS gift_issues (
+  id TEXT PRIMARY KEY,
+  giftId TEXT NOT NULL,
+  serial INTEGER NOT NULL,
+  recipientId TEXT NOT NULL,
+  fromId TEXT,
+  issuedAt TEXT NOT NULL,
+  UNIQUE (giftId, serial)
+);
+CREATE INDEX IF NOT EXISTS idx_gift_issues_gift ON gift_issues(giftId);
+CREATE INDEX IF NOT EXISTS idx_gift_issues_recipient ON gift_issues(recipientId);
+
+-- Audit log of lawful-request data exports (server/routes/admin.js's
+-- /export). The whole point of this feature is that it's transparent and
+-- accountable, not a silent backdoor: every time an admin exports a user's
+-- stored correspondence in response to a legal request, one row lands here
+-- recording who ran it, whose data, on what stated legal basis, when, and
+-- how many messages came out. This log is append-only in practice (no route
+-- deletes from it) so it can itself be shown to a regulator as proof the
+-- process is controlled.
+--
+-- Deliberately records only *metadata about the export action* — never the
+-- exported content itself (that would just be a second copy of private data
+-- sitting around). And it can't reach end-to-end secret-chat plaintext at
+-- all: the server has no keys, so those messages are exported as the
+-- ciphertext they're stored as, marked unreadable (see dataExport.js).
+CREATE TABLE IF NOT EXISTS data_exports (
+  id TEXT PRIMARY KEY,
+  adminId TEXT NOT NULL,
+  targetUserId TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  messageCount INTEGER NOT NULL DEFAULT 0,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_data_exports_created ON data_exports(createdAt);
 `);
 
 // Ad-hoc migration for columns added after this db.js's CREATE TABLE
@@ -298,15 +349,25 @@ if (!existingUserColumns.has("giftsReceived")) db.exec("ALTER TABLE users ADD CO
 // routes, same "explicit flag, never inferred" shape as the session-revoked
 // check right next to it.
 if (!existingUserColumns.has("isBanned")) db.exec("ALTER TABLE users ADD COLUMN isBanned INTEGER NOT NULL DEFAULT 0");
-// This account's ECDH (P-256) public key, JWK-encoded — public/js/lib/e2e.js
-// generates the matching private key client-side and never uploads it. The
-// server only ever relays this public half, used by the *other* side of a
-// secret chat (server/routes/chats.js's /:id/secret create route) to derive
-// a shared AES-GCM key locally; the server itself can never derive it (it
-// only ever sees one half of each ECDH pair) and stores/relays ciphertext
-// only for secret-chat messages (see routes/messages.js's skip-server-side-
-// text-processing-for-secret-chats guards).
-if (!existingUserColumns.has("e2ePublicKey")) db.exec("ALTER TABLE users ADD COLUMN e2ePublicKey TEXT");
+// Why the ban happened, and when — a ban used to be a bare 0/1 flag, which
+// meant nobody (least of all the banned person, who just got a dead login
+// screen) could tell what it was for, and an admin reviewing it later had
+// nothing to review. Shown on the login screen to the banned account and in
+// Settings → Модерация to the admin, who can lift it from there.
+if (!existingUserColumns.has("banReason")) db.exec("ALTER TABLE users ADD COLUMN banReason TEXT");
+if (!existingUserColumns.has("bannedAt")) db.exec("ALTER TABLE users ADD COLUMN bannedAt TEXT");
+// Public safety marker on an account, set by the admin (server/routes/
+// admin.js's /users/:id/label): "scam", "fake", "terrorism", "extremism" or
+// "drugs" — the same idea as Telegram's own SCAM/FAKE badges. Shown to
+// *everyone* who opens the profile or sees the chat row, so someone being
+// worked by a scammer gets a warning where they'll actually see it, before
+// they hand over money — which a silent internal ban queue never does.
+if (!existingUserColumns.has("safetyLabel")) db.exec("ALTER TABLE users ADD COLUMN safetyLabel TEXT");
+if (!existingUserColumns.has("safetyLabelAt")) db.exec("ALTER TABLE users ADD COLUMN safetyLabelAt TEXT");
+// NOTE: an `e2ePublicKey` column may still exist on databases created before
+// secret chats were removed. Nothing reads or writes it any more — it's left
+// in place rather than dropped, since dropping a column rewrites the whole
+// table and there's nothing to gain from it.
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone <> ''");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referralCode) WHERE referralCode IS NOT NULL");
 // Case-insensitive (COLLATE NOCASE) — usernames are compared case-
@@ -324,6 +385,17 @@ try {
 // Same ad-hoc migration for `bots` — real user-programmable bots (a token +
 // owner, see server/routes/botApi.js) were added after this table already
 // existed in deployed databases.
+// Who the report is actually *about* — stamped at report time (see
+// routes/reports.js's responsibleUserId) rather than re-derived later, so
+// "show me everything filed against this account" stays one indexed lookup
+// even after the reported message or chat has been deleted and there's
+// nothing left to resolve an owner from. Null for a reported DM, which has
+// no single responsible owner.
+const existingReportColumns = new Set(db.prepare("PRAGMA table_info(reports)").all().map((c) => c.name));
+if (!existingReportColumns.has("subjectUserId")) db.exec("ALTER TABLE reports ADD COLUMN subjectUserId TEXT");
+db.exec("CREATE INDEX IF NOT EXISTS idx_reports_subject ON reports(subjectUserId)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)");
+
 const existingBotColumns = new Set(db.prepare("PRAGMA table_info(bots)").all().map((c) => c.name));
 if (!existingBotColumns.has("ownerId")) db.exec("ALTER TABLE bots ADD COLUMN ownerId TEXT");
 if (!existingBotColumns.has("token")) db.exec("ALTER TABLE bots ADD COLUMN token TEXT");
@@ -359,6 +431,11 @@ if (!existingMessageColumns.has("linkPreview")) db.exec("ALTER TABLE messages AD
 // messageBubble.js's ReportMessage), which is why it also needs to be in
 // mutate()'s UPDATE below, unlike the immutable gift/sticker payloads.
 if (!existingMessageColumns.has("report")) db.exec("ALTER TABLE messages ADD COLUMN report TEXT");
+// NOTE: a `payment` column may exist on databases that briefly ran the Т-Банк
+// payment-card build. Nothing reads or writes it any more — paying is a plain
+// transfer now, and the admin grants the purchase from the buyer's profile
+// (see public/js/components/adminUserPanel.js). Left in place rather than
+// dropped, same as `e2ePublicKey` on users above.
 // @username tokens in the message text resolved (at send time, against the
 // chat's member list) to real user ids — server/routes/messages.js computes
 // this once on send rather than every reader re-parsing the text client-side.

@@ -10,11 +10,13 @@ const { apiLimiter, authLimiter } = require("./middleware/rateLimit");
 const { attachWebSocketServer } = require("./ws");
 const { initPush } = require("./push");
 const { ensureSystemBot } = require("./data/systemBot");
+const { ensureKugoAssistant } = require("./data/kugoAssistant");
 const { startAutoDeleteSweep } = require("./lib/autoDelete");
 const { startDonationAlertsSweep } = require("./lib/donationAlerts");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
 
 ensureSystemBot();
+ensureKugoAssistant();
 
 const app = express();
 // Deployed behind nginx (see DEPLOY.md/deploy/nginx.conf.example) — trust
@@ -82,6 +84,7 @@ app.use("/api/posts", require("./routes/posts"));
 app.use("/api/search", require("./routes/search"));
 app.use("/api/push", require("./routes/push"));
 app.use("/api/reports", require("./routes/reports"));
+app.use("/api/admin", require("./routes/admin"));
 app.use("/api/stories", require("./routes/stories"));
 app.use("/api/premium", require("./routes/premium"));
 app.use("/api/gifts", require("./routes/gifts"));

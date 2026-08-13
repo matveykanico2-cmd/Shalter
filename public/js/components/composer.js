@@ -25,8 +25,6 @@ export function Composer({
   onSaveEdit,
   onDraftChange,
   onScheduled,
-  encryptOutgoing,
-  disableDraftSync,
 }) {
   let lastTypingPing = 0;
   let recordingHandle = null;
@@ -35,19 +33,14 @@ export function Composer({
   // Saves to the server on a debounce (network call), but calls
   // onDraftChange immediately every time so chatView.js can reflect the
   // draft in the chat-list preview without waiting on the network.
-  // disableDraftSync (secret chats — see chatView.js) skips the network
-  // call entirely: syncing a plaintext draft server-side for a chat whose
-  // whole point is that the server never sees plaintext would defeat it.
   function scheduleDraftSave(text) {
     onDraftChange?.(text);
-    if (disableDraftSync) return;
     clearTimeout(draftSaveTimer);
     draftSaveTimer = setTimeout(() => api.setDraft(chatId, text).catch(() => {}), DRAFT_SAVE_MS);
   }
   function clearDraft() {
     clearTimeout(draftSaveTimer);
     onDraftChange?.("");
-    if (disableDraftSync) return;
     api.setDraft(chatId, "").catch(() => {});
   }
 
@@ -157,16 +150,12 @@ export function Composer({
       textarea.style.height = Math.min(textarea.scrollHeight, 240) + "px";
     }
 
-    async function submit() {
+    function submit() {
       const trimmed = textarea.value.trim();
       if (!trimmed) return;
-      // Secret chats (chatView.js's encryptOutgoing) — encrypted right here,
-      // right before it leaves the composer, so nothing downstream (onSend,
-      // the api.* call) ever sees or transmits plaintext.
-      const outgoing = encryptOutgoing ? await encryptOutgoing(trimmed) : trimmed;
-      if (editingMessage) onSaveEdit(outgoing);
+      if (editingMessage) onSaveEdit(trimmed);
       else {
-        onSend(outgoing);
+        onSend(trimmed);
         clearDraft();
       }
       textarea.value = "";
@@ -414,8 +403,7 @@ export function Composer({
               if (!textarea.value.trim()) return;
               openScheduleSendDialog(async (sendAt) => {
                 try {
-                  const outgoing = encryptOutgoing ? await encryptOutgoing(textarea.value.trim()) : textarea.value.trim();
-                  await api.scheduleMessage(chatId, { text: outgoing, replyToId: replyingTo?.id ?? null, sendAt });
+                  await api.scheduleMessage(chatId, { text: textarea.value.trim(), replyToId: replyingTo?.id ?? null, sendAt });
                   textarea.value = "";
                   autoResize();
                   updateTrailingButtons();

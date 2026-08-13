@@ -33,7 +33,7 @@ function autoDeleteLabel(seconds) {
 // toggle, block management, and — for group/channel owners/admins — member
 // role management (promote/demote/kick/restrict).
 export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalterAdmin, gifts, onClose, onToggleMute, onToggleBlock, onMemberAction, onTogglePremium, onDeliverGift, onAddMember, onRestrictMember, onVoteForGroup, onSetAutoDelete, onChatUpdated }) {
-  const isDm = chat.type === "dm" || chat.type === "secret";
+  const isDm = chat.type === "dm";
   const title = isDm ? (chat.otherUser?.name ?? chat.title) : chat.title;
   const isOwnerOrAdmin = chat.ownerId === meId || chat.adminIds?.includes(meId);
   // Either DM party can set the timer (it's a mutual chat property, same as
@@ -97,6 +97,13 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             title,
             isDm && chat.otherUser?.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
             isDm && chat.otherUser?.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 16) }) : null,
+            isDm && safetyLabelInfo(chat.otherUser?.safetyLabel)
+              ? el(
+                  "span",
+                  { class: `safety-badge safety-${chat.otherUser.safetyLabel}`, title: safetyLabelInfo(chat.otherUser.safetyLabel).hint },
+                  safetyLabelInfo(chat.otherUser.safetyLabel).short
+                )
+              : null,
             chat.type === "group" && levelForPoints(chat.points) > 0
               ? el("span", { class: "group-level-badge", title: `${chat.points} баллов` }, `★ Ур. ${levelForPoints(chat.points)}`)
               : null,

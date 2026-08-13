@@ -23,6 +23,7 @@ const { listContactsFor } = require("../data/contacts");
 const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled } = require("../data/scheduledMessages");
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
+const { replyAsKugo, shouldKugoReply } = require("../lib/kugoAssistant");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser } = require("../push");
 const { fetchLinkPreview } = require("../lib/linkPreview");
@@ -77,29 +78,22 @@ async function resolveMentions(text, memberIds, senderId) {
 async function pushNewMessage(chat, sender, message) {
   if (chat.muted) return;
   const isGroupLike = chat.type === "group" || chat.type === "channel";
-  // A secret chat's message.text is ciphertext (see e2e.js) — the server
-  // can't read it any more than an eavesdropper could, so the notification
-  // can't show a preview or even the sender's name in the body, same as
-  // Telegram's own secret-chat push notifications.
-  const isSecret = chat.type === "secret";
-  const title = isSecret ? "Shalter" : isGroupLike ? chat.title : sender?.name ?? "Новое сообщение";
+  const title = isGroupLike ? chat.title : sender?.name ?? "Новое сообщение";
   const preview = messagePreview(message);
   const recipients = chat.memberIds.filter((id) => id !== message.senderId);
   await Promise.all(
     recipients.map(async (uid) => {
       const settings = await getSettings(uid);
       const mentioned = message.mentionedUserIds?.includes(uid);
-      const body = isSecret
-        ? "Новое сообщение"
-        : !settings.notifications.previewText
-          ? mentioned
-            ? "Вас упомянули"
-            : "Новое сообщение"
-          : mentioned
-            ? `${sender?.name ?? "Кто-то"} упомянул(а) вас: ${preview}`
-            : isGroupLike
-              ? `${sender?.name ?? "Кто-то"}: ${preview}`
-              : preview;
+      const body = !settings.notifications.previewText
+        ? mentioned
+          ? "Вас упомянули"
+          : "Новое сообщение"
+        : mentioned
+          ? `${sender?.name ?? "Кто-то"} упомянул(а) вас: ${preview}`
+          : isGroupLike
+            ? `${sender?.name ?? "Кто-то"}: ${preview}`
+            : preview;
       await sendPushToUser(uid, { title, body, url: `/chat/${chat.id}`, tag: `chat-${chat.id}` });
     })
   );
@@ -154,13 +148,6 @@ router.get(
 // caller already did request-shaped validation (empty-message check,
 // restrictions, block status) — this just delivers.
 async function deliverMessage(chat, senderId, body) {
-  // A secret chat's text is ciphertext (public/js/lib/e2e.js encrypts
-  // client-side before it ever reaches this request) — the server has no
-  // way to read @mentions or URLs out of it, so don't even try. Attachments
-  // in secret chats are *not* currently encrypted (v1 limitation, see
-  // e2e.js's header comment), so those still flow through normally.
-  const isSecret = chat.type === "secret";
-
   let forwardedFrom = body.forwardedFrom;
   if (forwardedFrom?.senderId) {
     if (forwardedFrom.senderId === senderId) {
@@ -176,7 +163,7 @@ async function deliverMessage(chat, senderId, body) {
     }
   }
 
-  const mentionedUserIds = isSecret ? [] : await resolveMentions(body.text, chat.memberIds, senderId);
+  const mentionedUserIds = await resolveMentions(body.text, chat.memberIds, senderId);
 
   const message = await addMessage({
     id: `m_${Date.now()}`,
@@ -225,6 +212,15 @@ async function deliverMessage(chat, senderId, body) {
       .catch((err) => console.error(`bot sandbox dispatch failed for ${memberId}:`, err));
   }
 
+  // Built-in "Kugo AI" assistant (server/lib/kugoAssistant.js) — a bot-shaped
+  // account with no user code, so the sandbox loop above skips it; it replies
+  // via a real Claude call instead. Same fire-and-forget contract: the human's
+  // send has already returned, so a slow model call can't block it. Skipped
+  // for Kugo's own messages (shouldKugoReply guards the self-reply loop).
+  if (message.type === "text" && message.text?.trim() && shouldKugoReply(chat, senderId)) {
+    replyAsKugo(chat, senderId).catch((err) => console.error("Kugo dispatch failed:", err));
+  }
+
   // A comment on a channel post is just a reply to that post's auto-forwarded
   // anchor copy in the linked discussion chat (see server/routes/posts.js) —
   // bump the post's visible comment count when one lands.
@@ -240,7 +236,7 @@ async function deliverMessage(chat, senderId, body) {
   // metadata from a slow or unreachable site must never delay the actual
   // send. Broadcasts an update once the preview lands so open chat views
   // pick it up live instead of needing a refresh.
-  if (!isSecret && message.type === "text" && message.text) {
+  if (message.type === "text" && message.text) {
     fetchLinkPreview(message.text)
       .then(async (linkPreview) => {
         if (!linkPreview) return;

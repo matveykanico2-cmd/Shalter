@@ -53,10 +53,13 @@ function timeLabel(iso) {
 // lib/transcribe.js's transcriptCache.
 const seenEntranceIds = new Set();
 
-// Same time/views/read-check row a plain text bubble gets (see the
-// `meta` build below in MessageBubble) — gifts and stickers skipped it
-// entirely before, so they looked unlike every other message in the log:
-// no send time, no way to tell if the other side had seen it yet.
+// Same time/views/read-check row a plain text bubble gets (see the `meta`
+// build below in MessageBubble), for the message types that render as a
+// standalone card rather than a bubble: gifts, report cards and payment cards.
+// Those skipped it entirely before, so they looked unlike every other message
+// in the log — no send time, no way to tell if the other side had seen it.
+// (Stickers used to be in this group; they're normal bubbles now and use the
+// regular .message-meta.)
 function entranceMessageMeta(message, mine) {
   return el("div", { class: "entrance-message-meta" }, [
     el("span", { class: "mono" }, timeLabel(message.createdAt)),
@@ -70,7 +73,13 @@ function GiftMessage(message, mine) {
   const gift = message.gift;
   const isNew = !seenEntranceIds.has(message.id);
   seenEntranceIds.add(message.id);
-  return el("div", { class: `gift-message ${isNew ? "" : "no-entrance"}` }, [
+  // Limited gifts (server/data/gifts.js's `supply` tier) carry the serial
+  // they were minted with — the whole point of that tier, so it gets a
+  // gold-framed card and the "№3 из 10" badge rather than looking like any
+  // other gift.
+  const isExclusive = !!gift.exclusive && gift.serial != null;
+  return el("div", { class: `gift-message ${isExclusive ? "gift-message-exclusive" : ""} ${isNew ? "" : "no-entrance"}` }, [
+    isExclusive ? el("p", { class: "gift-message-badge" }, `№${gift.serial} из ${gift.supply}`) : null,
     el("div", { class: "gift-message-burst" }, [
       el("div", { class: "gift-message-glow" }),
       ...SPARKLE_ANGLES.map((deg, i) =>
@@ -79,30 +88,48 @@ function GiftMessage(message, mine) {
       el("div", { class: "gift-message-emoji" }, gift.emoji),
     ]),
     el("p", { class: "gift-message-name" }, gift.name),
+    isExclusive ? el("p", { class: "gift-message-exclusive-label" }, "Эксклюзивный подарок") : null,
     gift.durationLabel ? el("p", { class: "gift-message-duration" }, gift.durationLabel) : null,
-    el("p", { class: "mono gift-message-price" }, `${gift.priceRub}₽`),
+    el("p", { class: "mono gift-message-price" }, `${formatRub(gift.priceRub)}₽`),
     entranceMessageMeta(message, mine),
   ]);
 }
 
-// A sent sticker (public/js/lib/stickers.js) — no bubble/background, just a
-// big emoji playing its own named animation (see .sticker-<anim> in
-// components.css), same "not a normal chat bubble" slot as .system-message/
-// .gift-message.
-function StickerMessage(message, mine) {
+// 1000000 -> "1 000 000". Only ever applied to gift prices, which now span
+// 1₽ to a million — an unseparated "1000000₽" is genuinely hard to read at
+// a glance, and misreading a price by a factor of ten matters here.
+function formatRub(n) {
+  return Number(n).toLocaleString("ru-RU");
+}
+
+// A sent sticker (public/js/lib/stickers.js) — a big emoji playing its own
+// named animation (see .sticker-<anim> in components.css). This used to be a
+// standalone, centered block like .system-message/.gift-message, which meant
+// a sticker was the one message type you couldn't tell apart by sender (it
+// sat in the middle of the log regardless of who sent it) and couldn't reply
+// to, react to, forward or delete. It's a real message, so it now goes
+// through the normal bubble pipeline below (row → column → bubble-wrap) and
+// only drops the bubble's background/padding, keeping the left/right
+// alignment, avatar, sender name, hover actions and context menu every other
+// message has.
+function StickerBody(message) {
   const sticker = message.sticker;
   const isNew = !seenEntranceIds.has(message.id);
   seenEntranceIds.add(message.id);
   return el("div", { class: `sticker-message ${isNew ? "" : "no-entrance"}` }, [
     el("span", { class: `sticker-message-emoji sticker-${sticker.anim}` }, sticker.emoji),
-    entranceMessageMeta(message, mine),
   ]);
 }
 
+// Same set as reportDialog.js / server/routes/reports.js.
 const REASON_LABELS = {
   spam: "Спам",
   scam: "Мошенничество",
+  fake: "Поддельный аккаунт",
   violence: "Насилие или угрозы",
+  terrorism: "Терроризм",
+  extremism: "Экстремизм",
+  drugs: "Продажа наркотиков",
   illegal: "Незаконный контент",
   child_safety: "Угроза безопасности детей",
   other: "Другое",
@@ -298,14 +325,11 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
     return GiftMessage(message, mine);
   }
 
-  if (message.type === "sticker" && message.sticker) {
-    return StickerMessage(message, mine);
-  }
-
   if (message.type === "report" && message.report) {
     return ReportMessage(message, mine, me);
   }
 
+  const isSticker = message.type === "sticker" && !!message.sticker;
   const bubbleInner = [];
 
   if (message.forwardedFrom) {
@@ -346,14 +370,16 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
       else if (a.kind === "contact") bubbleInner.push(ContactAttachment(a));
     }
   }
-  if (!message.attachments?.some((a) => a.kind === "poll")) {
+  if (isSticker) {
+    bubbleInner.push(StickerBody(message));
+  } else if (!message.attachments?.some((a) => a.kind === "poll")) {
     bubbleInner.push(el("span", { class: "message-text" }, formatText(message.text, members)));
   }
   if (message.linkPreview) {
     bubbleInner.push(LinkPreviewCard(message.linkPreview));
   }
 
-  const meta = el("span", { class: "message-meta" }, [
+  const meta = el("span", { class: `message-meta ${isSticker ? "message-meta-sticker" : ""}` }, [
     message.editedAt ? el("span", {}, "изменено") : null,
     el("span", { class: "mono" }, timeLabel(message.createdAt)),
     typeof message.views === "number" ? el("span", { class: "mono" }, `· ${message.views} 👁`) : null,
@@ -363,9 +389,9 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
   ]);
   bubbleInner.push(meta);
 
-  const bubble = el("div", { class: `bubble ${mine ? "mine" : ""}` }, bubbleInner);
+  const bubble = el("div", { class: `bubble ${mine ? "mine" : ""} ${isSticker ? "bubble-sticker" : ""}` }, bubbleInner);
 
-  const canTranslate = !!message.text?.trim() && !message.attachments?.some((a) => a.kind === "poll");
+  const canTranslate = !isSticker && !!message.text?.trim() && !message.attachments?.some((a) => a.kind === "poll");
   let translationEl = null;
   async function toggleTranslation() {
     if (translationEl) {
@@ -525,7 +551,10 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
     if (voiceAttachment) {
       items.push({ icon: "Mic", label: transcriptEl ? "Скрыть расшифровку" : "Расшифровать", onClick: toggleTranscription });
     }
-    if (mine) items.push({ icon: "Edit", label: "Изменить", onClick: () => onEdit(message) });
+    // No "Изменить" for a sticker — it carries no text to edit (the composer
+    // would open with an empty draft and rewrite the sticker into a text
+    // message on save).
+    if (mine && !isSticker) items.push({ icon: "Edit", label: "Изменить", onClick: () => onEdit(message) });
     else {
       items.push({
         icon: "Info",
@@ -539,7 +568,7 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
   }
 
   const bubbleWrap = el("div", {
-    class: "bubble-wrap",
+    class: `bubble-wrap ${isSticker ? "bubble-wrap-sticker" : ""}`,
     oncontextmenu: (e) => {
       e.preventDefault();
       openMessageMenu({ x: e.clientX, y: e.clientY });

@@ -28,11 +28,8 @@
 // the one that matters.
 const db = require("../db");
 const { DONATIONALERTS_CLIENT_ID, DONATIONALERTS_CLIENT_SECRET, DONATIONALERTS_REDIRECT_URI } = require("../config");
-const { getPendingOrderByCode, markOrderFulfilled } = require("../data/pendingOrders");
-const { grantPremiumDays, grantAdsDays, addReceivedGift, getUser } = require("../data/users");
-const { getGift } = require("../data/gifts");
-const { SYSTEM_BOT_ID } = require("../data/systemBot");
-const { findOrCreateDm, sendMessageAndBroadcast } = require("./systemChat");
+const { getPendingOrderByCode } = require("../data/pendingOrders");
+const { fulfillOrder } = require("./fulfillOrder");
 
 const TOKEN_URL = "https://www.donationalerts.com/oauth/token";
 const AUTHORIZE_URL = "https://www.donationalerts.com/oauth/authorize";
@@ -181,46 +178,6 @@ function parseDonation(raw) {
   const message = String(raw.message ?? "");
   const match = raw.currency === "RUB" ? message.match(CODE_RE) : null;
   return { id: raw.id, amountRub, code: match ? match[0].toUpperCase() : null };
-}
-
-async function fulfillOrder(order) {
-  const buyer = await getUser(order.userId);
-  if (!buyer) return;
-  let text;
-  let extra;
-
-  if (order.kind === "premium") {
-    await grantPremiumDays(order.userId, 30);
-    text = "🎉 Оплата получена! Вам выдан Shalter Premium на 30 дней. Спасибо, что поддерживаете проект.";
-  } else if (order.kind === "ads") {
-    await grantAdsDays(order.userId, 30);
-    text = "📢 Оплата получена! Вам выдан кабинет рекламы на 30 дней. Настройте объявление в Настройки → Реклама.";
-  } else if (order.kind === "gift") {
-    const gift = getGift(order.giftId);
-    if (!gift) return;
-    const recipientId = order.recipientId || order.userId;
-    if (gift.premiumDays !== 0) await grantPremiumDays(recipientId, gift.premiumDays);
-    await addReceivedGift(recipientId, { emoji: gift.emoji, name: gift.name, fromId: order.userId, at: new Date().toISOString() });
-    const duration = gift.premiumDays === 0 ? null : gift.premiumDays == null ? "Premium навсегда" : `Premium на ${gift.premiumDays} дней`;
-    text = `🎁 Оплата получена! Вам подарили: ${gift.emoji} «${gift.name}»!${duration ? ` ${duration} активирован.` : ""}`;
-    extra = { type: "gift", gift: { emoji: gift.emoji, name: gift.name, priceRub: gift.priceRub, premiumDays: gift.premiumDays, durationLabel: duration } };
-    // Recipient gets the gift card; buyer (if gifting someone else) gets a
-    // separate plain confirmation so both sides see something.
-    const recipientChat = await findOrCreateDm(SYSTEM_BOT_ID, recipientId);
-    await sendMessageAndBroadcast(recipientChat, SYSTEM_BOT_ID, text, extra);
-    if (recipientId !== order.userId) {
-      const buyerChat = await findOrCreateDm(SYSTEM_BOT_ID, order.userId);
-      await sendMessageAndBroadcast(buyerChat, SYSTEM_BOT_ID, `✅ Оплата получена — подарок «${gift.name}» доставлен.`);
-    }
-    await markOrderFulfilled(order.id);
-    return;
-  } else {
-    return;
-  }
-
-  const chat = await findOrCreateDm(SYSTEM_BOT_ID, order.userId);
-  await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, text, extra);
-  await markOrderFulfilled(order.id);
 }
 
 async function pollOnce() {

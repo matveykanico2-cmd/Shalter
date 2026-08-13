@@ -44,7 +44,10 @@ function rowToUser(row) {
     birthday: row.birthday ?? undefined,
     giftsReceived: JSON.parse(row.giftsReceived ?? "[]"),
     isBanned: !!row.isBanned,
-    e2ePublicKey: row.e2ePublicKey ?? undefined,
+    banReason: row.banReason ?? undefined,
+    bannedAt: row.bannedAt ?? undefined,
+    safetyLabel: row.safetyLabel ?? undefined,
+    safetyLabelAt: row.safetyLabelAt ?? undefined,
   };
 }
 
@@ -117,7 +120,7 @@ async function createUser(user) {
   return getUser(user.id);
 }
 
-const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "avatarColor", "avatarImage", "bio", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "e2ePublicKey"];
+const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "avatarColor", "avatarImage", "bio", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday"];
 
 // Extends (or starts) a Premium period — stacks on top of remaining time if
 // already active, the way a real subscription top-up would, rather than
@@ -186,9 +189,42 @@ async function listReferrals(userId) {
   return db.prepare("SELECT * FROM users WHERE referredBy = ?").all(userId).map(rowToUser);
 }
 
-async function setBanned(userId, banned) {
-  db.prepare("UPDATE users SET isBanned = ? WHERE id = ?").run(banned ? 1 : 0, userId);
+// Banning records *why* and *when*, not just that it happened — the reason is
+// shown to the banned account on the login screen and to the admin reviewing
+// the ban later (server/routes/admin.js's /moderation). Unbanning clears both
+// so a lifted ban leaves no stale "reason" hanging around to be shown again
+// if the account is ever banned a second time.
+async function setBanned(userId, banned, reason) {
+  if (banned) {
+    db.prepare("UPDATE users SET isBanned = 1, banReason = ?, bannedAt = ? WHERE id = ?").run(
+      (reason ?? "").trim() || null,
+      new Date().toISOString(),
+      userId
+    );
+  } else {
+    db.prepare("UPDATE users SET isBanned = 0, banReason = NULL, bannedAt = NULL WHERE id = ?").run(userId);
+  }
   return getUser(userId);
+}
+
+async function listBannedUsers() {
+  return db.prepare("SELECT * FROM users WHERE isBanned = 1 ORDER BY bannedAt DESC").all().map(rowToUser);
+}
+
+// The public safety marker (see server/db.js's safetyLabel comment). A falsy
+// label clears it — validating the allowed set is the route's job
+// (routes/admin.js's SAFETY_LABELS), not this module's.
+async function setSafetyLabel(userId, label) {
+  db.prepare("UPDATE users SET safetyLabel = ?, safetyLabelAt = ? WHERE id = ?").run(
+    label || null,
+    label ? new Date().toISOString() : null,
+    userId
+  );
+  return getUser(userId);
+}
+
+async function listLabeledUsers() {
+  return db.prepare("SELECT * FROM users WHERE safetyLabel IS NOT NULL ORDER BY safetyLabelAt DESC").all().map(rowToUser);
 }
 
 async function setBlocked(userId, targetId, blocked) {
@@ -226,6 +262,9 @@ module.exports = {
   updateUser,
   setBlocked,
   setBanned,
+  listBannedUsers,
+  setSafetyLabel,
+  listLabeledUsers,
   addReceivedGift,
   grantPremiumDays,
   revokePremium,

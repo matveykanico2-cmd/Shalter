@@ -23,25 +23,80 @@ export async function ContactsView(root) {
   let searchTimer = null;
   let blockedIds = new Set(getState().user.blockedUserIds ?? []);
 
+  // Built once and reused by every render() below, never rebuilt from the
+  // current `query` — a fresh <input> node on each keystroke is exactly what
+  // broke this: render() runs on every oninput, mount() swapped in a brand
+  // new input, and the old one (the focused one) was discarded mid-typing, so
+  // the field went dead after the first character.
+  const searchInput = el("input", {
+    class: "login-input",
+    placeholder: "@юзернейм",
+    oninput: (e) => {
+      query = e.target.value;
+      searchResult = null;
+      searchError = null;
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => runSearch(query), 400);
+      renderCandidates();
+    },
+  });
+  const candidatesEl = el("div", { class: "contacts-candidates" });
+
   async function runSearch(q) {
     searchResult = null;
     searchError = null;
     const trimmed = q.trim().replace(/^@/, "");
     if (trimmed.length < 5) {
-      render();
+      renderCandidates();
       return;
     }
     searching = true;
-    render();
+    renderCandidates();
     try {
       const { user } = await api.findUserByUsername(trimmed);
+      // A stale response from a previous, longer/shorter query that resolved
+      // after the user kept typing must not overwrite the current one.
+      if (query.trim().replace(/^@/, "") !== trimmed) return;
       if (contacts.some((c) => c.userId === user.id)) searchError = "Уже в контактах";
       else searchResult = user;
     } catch {
+      if (query.trim().replace(/^@/, "") !== trimmed) return;
       searchError = "Пользователь не найден";
     } finally {
       searching = false;
-      render();
+      renderCandidates();
+    }
+  }
+
+  // Only the result slot under the input — the input itself stays mounted and
+  // focused, so typing is never interrupted.
+  function renderCandidates() {
+    clear(candidatesEl);
+    if (searching) candidatesEl.appendChild(el("p", { class: "empty-hint" }, "Ищем…"));
+    if (searchError) candidatesEl.appendChild(el("p", { class: "empty-hint" }, searchError));
+    if (searchResult) {
+      const u = searchResult;
+      candidatesEl.appendChild(
+        el(
+          "button",
+          {
+            class: "contact-candidate-row",
+            onclick: async () => {
+              await api.addContact(u.id);
+              contacts = [...contacts, { id: `ct_${u.id}`, userId: u.id, addedAt: new Date().toISOString(), user: u }];
+              adding = false;
+              query = "";
+              searchResult = null;
+              render();
+            },
+          },
+          [
+            Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 32 }),
+            el("span", { class: "contact-candidate-name" }, u.name),
+            el("span", { class: "contact-candidate-username" }, `@${u.username}`),
+          ]
+        )
+      );
     }
   }
 
@@ -62,58 +117,33 @@ export async function ContactsView(root) {
       el("p", { class: "view-title" }, "Контакты"),
       el(
         "button",
-        { class: "btn-accent-pill", onclick: () => { adding = !adding; searchResult = null; searchError = null; query = ""; render(); } },
+        {
+          class: "btn-accent-pill",
+          onclick: () => {
+            adding = !adding;
+            searchResult = null;
+            searchError = null;
+            query = "";
+            render();
+            // Explicit, not the `autofocus` attribute this used to carry —
+            // autofocus only applies to an element present at parse time, so
+            // it never fired for a panel mounted later by render().
+            if (adding) searchInput.focus();
+          },
+        },
         [el("span", { html: iconSvg("Plus", 15) }), " Добавить"]
       ),
     ]);
 
+    if (adding) {
+      searchInput.value = query;
+      renderCandidates();
+    }
     const addPanel = adding
       ? el("div", { class: "contacts-add-panel" }, [
           el("p", { class: "settings-toggle-hint" }, "Введите точный @юзернейм — по имени искать нельзя, чтобы случайно не добавить незнакомца."),
-          el("input", {
-            class: "login-input",
-            autofocus: true,
-            placeholder: "@юзернейм",
-            value: query,
-            oninput: (e) => {
-              query = e.target.value;
-              searchResult = null;
-              searchError = null;
-              clearTimeout(searchTimer);
-              searchTimer = setTimeout(() => runSearch(query), 400);
-              render();
-            },
-          }),
-          el(
-            "div",
-            { class: "contacts-candidates" },
-            [
-              searching ? el("p", { class: "empty-hint" }, "Ищем…") : null,
-              searchError ? el("p", { class: "empty-hint" }, searchError) : null,
-              searchResult
-                ? el(
-                    "button",
-                    {
-                      class: "contact-candidate-row",
-                      onclick: async () => {
-                        const u = searchResult;
-                        await api.addContact(u.id);
-                        contacts = [...contacts, { id: `ct_${u.id}`, userId: u.id, addedAt: new Date().toISOString(), user: u }];
-                        adding = false;
-                        query = "";
-                        searchResult = null;
-                        render();
-                      },
-                    },
-                    [
-                      Avatar({ name: searchResult.name, color: searchResult.avatarColor, image: searchResult.avatarImage, size: 32 }),
-                      el("span", { class: "contact-candidate-name" }, searchResult.name),
-                      el("span", { class: "contact-candidate-username" }, `@${searchResult.username}`),
-                    ]
-                  )
-                : null,
-            ].filter(Boolean)
-          ),
+          searchInput,
+          candidatesEl,
         ])
       : null;
 

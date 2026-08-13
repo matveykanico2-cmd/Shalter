@@ -17,6 +17,7 @@ const { parseUserAgent } = require("../lib/userAgent");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { deleteAccount } = require("../lib/deleteAccount");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
+const { KUGO_AI_ID } = require("../data/kugoAssistant");
 const { PREMIUM_GRANT_DAYS } = require("../config");
 const qrLogins = require("../data/qrLogins");
 const codeLogins = require("../data/codeLogins");
@@ -44,6 +45,23 @@ async function sendLoginAlert(userId, session) {
 
 // Tells the referrer (also via a plain DM — not the service chat, since this
 // is from the *person*, not the system) that their code was used.
+// Seeds a welcome DM from the Kugo AI assistant so a new account discovers it
+// immediately (rather than only via @kugo search). Best-effort — registration
+// must still succeed if this fails. The greeting is a plain seeded message,
+// not a model call, so it costs nothing and appears instantly.
+async function seedKugoWelcome(userId) {
+  try {
+    const chat = await findOrCreateDm(userId, KUGO_AI_ID);
+    await sendMessageAndBroadcast(
+      chat,
+      KUGO_AI_ID,
+      "👋 Привет! Я Kugo AI — встроенный ИИ-ассистент Shalter. Спросите меня о чём угодно: помогу с идеями, объясню, переведу, подскажу. Просто напишите вопрос."
+    );
+  } catch (err) {
+    console.error("Kugo welcome seed failed:", err);
+  }
+}
+
 async function notifyReferralBonus(referrerId, newUser) {
   try {
     const chat = await findOrCreateDm(referrerId, newUser.id);
@@ -63,6 +81,23 @@ async function notifyReferralBonus(referrerId, newUser) {
 // Fires the new-device alert above whenever this is a genuinely new device
 // *and* the account already had at least one other session (so a brand new
 // registration's very first device doesn't alert itself).
+// The ban set from the reports moderation chat (routes/reports.js's
+// /:id/resolve) or Settings → Модерация (routes/admin.js's /users/:id/ban) —
+// the same flag middleware/auth.js's requireUserId checks on every request,
+// re-checked at every point that hands out a session cookie so a banned
+// account never gets one in the first place instead of logging in and then
+// failing on the very next call. /code/verify and /qr/poll below used to skip
+// this entirely, so an SMS-code or QR login *did* hand a banned account a
+// session, dropping it into an app where every request 403'd with nothing on
+// screen explaining why.
+// Includes the recorded reason (server/data/users.js's setBanned), so the
+// login screen can say what the ban was actually for.
+function banError(user) {
+  return user.banReason
+    ? `Аккаунт заблокирован администрацией Shalter. Причина: ${user.banReason}`
+    : "Аккаунт заблокирован администрацией Shalter";
+}
+
 async function recordSession(req, res, userId) {
   const deviceId = getOrCreateDeviceId(req, res);
   const priorSessions = await listSessions(userId);
@@ -92,12 +127,8 @@ router.post(
     ) {
       return res.status(401).json({ error: "Неверный email или пароль" });
     }
-    // Same ban set from the reports moderation chat (routes/reports.js's
-    // /:id/ban) that requireUserId checks on every request — checked here too
-    // so a banned account never even gets a session cookie in the first
-    // place, instead of logging in and then failing on the very next call.
     if (user.isBanned) {
-      return res.status(403).json({ error: "Аккаунт заблокирован администрацией" });
+      return res.status(403).json({ error: banError(user) });
     }
 
     addAccountSession(req, res, user.id);
@@ -155,6 +186,7 @@ router.post(
       await grantPremiumDays(referrer.id, PREMIUM_GRANT_DAYS);
       await notifyReferralBonus(referrer.id, user);
     }
+    await seedKugoWelcome(user.id);
 
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
@@ -259,6 +291,7 @@ router.get(
     if (!consumed) return res.json({ status: "pending" }); // lost a race, try again
     const user = await getUser(consumed.confirmedUserId);
     if (!user) return res.json({ status: "expired" });
+    if (user.isBanned) return res.json({ status: "banned", error: banError(user) });
 
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
@@ -311,6 +344,9 @@ router.post(
     const code = String(req.body?.code ?? "").trim();
     if (!user || !codeLogins.verify(user.id, code)) {
       return res.status(401).json({ error: "Неверный или устаревший код" });
+    }
+    if (user.isBanned) {
+      return res.status(403).json({ error: banError(user) });
     }
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);

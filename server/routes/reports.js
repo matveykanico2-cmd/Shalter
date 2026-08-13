@@ -4,7 +4,7 @@ const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE } = require("../config");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { addReport, getReport, setReportStatus } = require("../data/reports");
-const { getUser, findUserByPhone, setBanned } = require("../data/users");
+const { getUser, findUserByPhone, setBanned, setSafetyLabel } = require("../data/users");
 const { getChat, deleteChat } = require("../data/chats");
 const { getMessage, deleteMessage, setReportMessageStatus } = require("../data/messages");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -12,19 +12,40 @@ const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat")
 const router = express.Router();
 router.use(requireUserId);
 
-const REASONS = new Set(["spam", "scam", "violence", "illegal", "child_safety", "other"]);
+// Kept in sync with public/js/components/reportDialog.js's own list and with
+// messageBubble.js's REASON_LABELS (the labels shown back on a report card in
+// the admin's chat).
 const REASON_LABELS = {
   spam: "Спам",
   scam: "Мошенничество",
+  fake: "Поддельный аккаунт",
   violence: "Насилие или угрозы",
+  terrorism: "Терроризм",
+  extremism: "Экстремизм",
+  drugs: "Продажа наркотиков",
   illegal: "Незаконный контент",
   child_safety: "Угроза безопасности детей",
   other: "Другое",
 };
+const REASONS = new Set(Object.keys(REASON_LABELS));
+
+// A report reason that, when acted on, also implies a public safety marker on
+// the account (see server/db.js's safetyLabel). Only a subset maps: "спам" or
+// "другое" say nothing durable about the account, while "мошенничество" or
+// "терроризм" are exactly what someone about to talk to that account needs
+// warning about. Applied on ban (below), never automatically on report —
+// otherwise anyone could label anyone by filing one.
+const REASON_TO_LABEL = {
+  scam: "scam",
+  fake: "fake",
+  terrorism: "terrorism",
+  extremism: "extremism",
+  drugs: "drugs",
+};
 
 function targetSummary(targetType, target) {
   if (targetType === "user") return `Пользователь: ${target.name}${target.username ? ` (@${target.username})` : ""}`;
-  if (targetType === "chat") return `${{ dm: "Чат", group: "Группа", channel: "Канал", secret: "Секретный чат", bot: "Бот-чат" }[target.type] ?? "Чат"}: ${target.title || "(без названия)"}`;
+  if (targetType === "chat") return `${{ dm: "Чат", group: "Группа", channel: "Канал", bot: "Бот-чат" }[target.type] ?? "Чат"}: ${target.title || "(без названия)"}`;
   return `Сообщение: «${(target.text || "[вложение]").slice(0, 200)}»`;
 }
 
@@ -74,11 +95,15 @@ router.post(
     }
 
     const reporter = await getUser(req.uid);
+    const subjectUserId = await responsibleUserId(targetType, target);
     const report = await addReport({
       id: `rp_${Date.now()}`,
       reporterId: req.uid,
       targetType,
       targetId,
+      // Stamped now, while the reported message/chat still exists to resolve
+      // an owner from — see server/db.js's subjectUserId comment.
+      subjectUserId,
       reason,
       details: (details ?? "").trim().slice(0, 2000),
       createdAt: new Date().toISOString(),
@@ -87,7 +112,7 @@ router.post(
 
     const admin = await findUserByPhone(ADMIN_PHONE);
     if (admin) {
-      const canBan = !!(await responsibleUserId(targetType, target));
+      const canBan = !!subjectUserId;
       const chat = await findOrCreateDm(SYSTEM_BOT_ID, admin.id);
       const summary = targetSummary(targetType, target);
       const details2 = report.details ? `\n«${report.details}»` : "";
@@ -143,9 +168,21 @@ router.post(
         return res.status(400).json({ error: "Пользователя нельзя удалить — только заблокировать" });
       }
     } else if (action === "ban") {
-      const userId = target ? await responsibleUserId(report.targetType, target) : null;
+      // report.subjectUserId first: it was stamped when the report came in, so
+      // banning still works after the reported message/chat itself is gone —
+      // which is exactly the case where the old "re-derive the owner from the
+      // live target" lookup came back null and the ban button silently failed.
+      const userId = report.subjectUserId ?? (target ? await responsibleUserId(report.targetType, target) : null);
       if (!userId) return res.status(400).json({ error: "Не удалось определить, кого блокировать" });
-      await setBanned(userId, true);
+      await setBanned(userId, true, `Жалоба: ${REASON_LABELS[report.reason] ?? report.reason}`);
+      // A ban for scam/fake/terrorism/extremism/drugs also marks the account
+      // publicly, so the next person it messages is warned up front instead of
+      // finding out the hard way. Never overwrites a label already set by hand.
+      const label = REASON_TO_LABEL[report.reason];
+      if (label) {
+        const banned = await getUser(userId);
+        if (banned && !banned.safetyLabel) await setSafetyLabel(userId, label);
+      }
       nextStatus = "resolved_banned";
     }
 

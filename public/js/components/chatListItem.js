@@ -4,6 +4,7 @@ import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { openChoiceDialog } from "./confirmDialog.js";
 import { navigate } from "../router.js";
+import { safetyLabelInfo } from "../lib/safetyLabels.js";
 
 function timeLabel(iso) {
   const d = new Date(iso);
@@ -24,16 +25,15 @@ const ATTACHMENT_LABEL = {
 };
 
 function preview(chat, meId) {
-  // The list never derives a secret chat's E2E key just to decrypt a
-  // preview line (that's chatView.js's job, once you actually open it) —
-  // ciphertext isn't shown either, so this is the one line every secret
-  // chat's row always shows, whoever sent the last message.
-  if (chat.type === "secret") return "🔒 Секретный чат";
   if (chat.draft) return `Черновик: ${chat.draft}`;
   const m = chat.lastMessage;
   if (!m) return "Нет сообщений";
   if (m.type === "system") return m.text;
   const who = m.senderId === meId ? "Вы: " : "";
+  // Stickers and gifts carry no text at all, so without these the row went
+  // blank ("Вы: ") after sending one.
+  if (m.type === "sticker") return `${who}${m.sticker?.emoji ?? ""} Стикер`.trim();
+  if (m.type === "gift") return `${who}🎁 ${m.gift?.name ?? "Подарок"}`;
   const att = m.attachments?.[0];
   if (att) {
     const label = att.kind === "poll" ? `📊 ${m.text}` : ATTACHMENT_LABEL[att.kind] ?? m.text;
@@ -43,8 +43,8 @@ function preview(chat, meId) {
 }
 
 export function ChatListItem({ chat, active, meId, onPatch, onDelete }) {
-  const title = chat.type === "dm" || chat.type === "secret" ? (chat.otherUser?.name ?? chat.title) : chat.title;
-  const online = (chat.type === "dm" || chat.type === "secret") && chat.otherUser?.online;
+  const title = chat.type === "dm" ? (chat.otherUser?.name ?? chat.title) : chat.title;
+  const online = chat.type === "dm" && chat.otherUser?.online;
 
   const wrap = el("div", { class: "chat-list-item-wrap" });
 
@@ -67,10 +67,21 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete }) {
       }),
       el("div", { class: "chat-list-item-body" }, [
         el("div", { class: "chat-list-item-row" }, [
-          chat.type === "secret" ? el("span", { html: iconSvg("Lock", 13, "text-accent") }) : null,
           el("span", { class: "chat-list-item-title" }, title),
           chat.otherUser?.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 13) }) : null,
           chat.otherUser?.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 13) }) : null,
+          // Safety marker (server/db.js's safetyLabel) right on the row — the
+          // warning has to be visible before the chat is even opened.
+          safetyLabelInfo(chat.otherUser?.safetyLabel)
+            ? el(
+                "span",
+                {
+                  class: `safety-badge safety-mini safety-${chat.otherUser.safetyLabel}`,
+                  title: safetyLabelInfo(chat.otherUser.safetyLabel).hint,
+                },
+                safetyLabelInfo(chat.otherUser.safetyLabel).short
+              )
+            : null,
           el(
             "span",
             { class: "chat-list-item-time" },
@@ -116,7 +127,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete }) {
         label: "Удалить чат",
         danger: true,
         onClick: () => {
-          const isDmLike = chat.type === "dm" || chat.type === "secret" || chat.type === "bot";
+          const isDmLike = chat.type === "dm" || chat.type === "bot";
           openChoiceDialog(
             "Удалить чат",
             isDmLike

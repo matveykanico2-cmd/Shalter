@@ -7,6 +7,8 @@ import { getState, setState } from "../state.js";
 import { openReportDialog } from "./reportDialog.js";
 import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard } from "./attachments.js";
 import { statusLabel } from "../lib/presence.js";
+import { SAFETY_LABELS, safetyLabelInfo } from "../lib/safetyLabels.js";
+import { openAdminUserPanel } from "./adminUserPanel.js";
 
 // Bottom tab strip, same set/order as Telegram's own profile view. Content
 // for media/files/links comes from GET /api/users/:id/shared-media (scoped
@@ -65,6 +67,13 @@ export async function openProfileDialog(userId) {
     return;
   }
 
+  // Ban/label changes made from the admin panel are reflected right here
+  // (badge, warning banner) instead of needing the profile reopened.
+  function onAdminChange(patch) {
+    user = { ...user, ...patch };
+    render();
+  }
+
   async function toggleBlock() {
     await api.setBlocked(userId, !isBlocked);
     isBlocked = !isBlocked;
@@ -81,19 +90,6 @@ export async function openProfileDialog(userId) {
     navigate(`/chat/${chat.id}`);
   }
 
-  // Real E2E (public/js/lib/e2e.js) — needs the target to already have a
-  // public key uploaded, which the server checks (and error-messages) for
-  // us; nothing to pre-validate client-side beyond not double-submitting.
-  async function startSecretChat() {
-    try {
-      const { chat } = await api.startSecretChat(userId);
-      close();
-      navigate(`/chat/${chat.id}`);
-    } catch (err) {
-      alert(err.message || "Не удалось начать секретный чат");
-    }
-  }
-
   function renderTabContent() {
     if (activeTab === "gifts") {
       const gifts = user.giftsReceived ?? [];
@@ -104,7 +100,17 @@ export async function openProfileDialog(userId) {
         gifts
           .slice()
           .reverse()
-          .map((g) => el("span", { class: "profile-gift-chip", title: g.name }, g.emoji))
+          // A limited gift (server/data/gifts.js's exclusive tier) carries
+          // the serial it was minted with — worth surfacing on the shelf
+          // too, since "#1 из 10" is the whole reason someone bought it.
+          .map((g) =>
+            g.serial != null
+              ? el("span", { class: "profile-gift-chip profile-gift-chip-exclusive", title: `${g.name} — №${g.serial} из ${g.supply}` }, [
+                  g.emoji,
+                  el("span", { class: "profile-gift-serial" }, `№${g.serial}`),
+                ])
+              : el("span", { class: "profile-gift-chip", title: g.name }, g.emoji)
+          )
       );
     }
     if (activeTab === "media") {
@@ -137,6 +143,7 @@ export async function openProfileDialog(userId) {
   function render() {
     clear(body);
     const status = statusLabel(user);
+    const safety = safetyLabelInfo(user.safetyLabel);
     // Plain Element.append() (unlike dom.js's el()/mount()) stringifies null
     // arguments into literal "null" text nodes — filter them out first.
     const children = [
@@ -147,7 +154,18 @@ export async function openProfileDialog(userId) {
         user.name || "Без имени",
         user.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
         user.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 16) }) : null,
+        safety ? el("span", { class: `safety-badge safety-${user.safetyLabel}`, title: safety.label }, safety.short) : null,
       ]),
+      // The warning itself, not just the badge — a three-letter tag next to a
+      // name is easy to skim past, and the person who most needs this is the
+      // one being actively worked by whoever owns the account.
+      safety
+        ? el("div", { class: `safety-warning safety-${user.safetyLabel}` }, [
+            el("span", { html: iconSvg("Info", 15) }),
+            el("div", {}, [el("p", { class: "safety-warning-title" }, safety.label), el("p", { class: "safety-warning-hint" }, safety.hint)]),
+          ])
+        : null,
+      user.isBanned ? el("p", { class: "safety-banned-note" }, "🚫 Аккаунт заблокирован администрацией Shalter") : null,
       user.username ? el("p", { class: "profile-username" }, `@${user.username}`) : null,
       status ? el("p", { class: "profile-status" }, status) : null,
       user.bio ? el("p", { class: "profile-bio" }, user.bio) : null,
@@ -181,7 +199,6 @@ export async function openProfileDialog(userId) {
         : null,
       el("div", { class: "profile-actions" }, [
         el("button", { class: "btn-accent", onclick: startChat }, [el("span", { html: iconSvg("Send", 16) }), " Написать"]),
-        el("button", { class: "profile-action-btn", onclick: startSecretChat }, [el("span", { html: iconSvg("Lock", 14) }), " Секретный чат"]),
         el(
           "button",
           { class: `profile-action-btn ${isBlocked ? "danger" : ""}`, onclick: toggleBlock },
@@ -193,6 +210,19 @@ export async function openProfileDialog(userId) {
           "Пожаловаться"
         ),
       ]),
+      // Admin tools, on the profile of whoever you're looking at rather than
+      // only on a separate Settings screen where you'd have to re-find the
+      // person by handle first. Gated on me.isDeveloper for the UI; every
+      // action behind it is gated again server-side (routes/admin.js).
+      me.isDeveloper && user.id !== me.id
+        ? el("div", { class: "profile-admin-block" }, [
+            el("p", { class: "profile-admin-title" }, [el("span", { html: iconSvg("Shield", 13) }), " Инструменты разработчика"]),
+            el("button", { class: "profile-action-btn", onclick: () => openAdminUserPanel(user, onAdminChange) }, [
+              el("span", { html: iconSvg("Shield", 14) }),
+              " Выдать покупку, модерация, данные",
+            ]),
+          ])
+        : null,
       el(
         "div",
         { class: "profile-tabs" },

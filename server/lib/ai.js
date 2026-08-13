@@ -81,4 +81,57 @@ async function askAI(botId, prompt, opts = {}) {
   return text || "";
 }
 
-module.exports = { askAI };
+// Multi-turn variant for the built-in "Kugo AI" assistant chat (see
+// server/lib/kugoAssistant.js). Unlike askAI's single prompt, this takes the
+// recent conversation history so the assistant remembers what was said
+// earlier in the DM — a chat assistant that forgets the previous turn is
+// useless. Same server-key + raw-fetch shape as askAI (this app has no
+// bundler, so no SDK — see AGENTS.md); rate limiting is the caller's job
+// here (per-user, in kugoAssistant.js) rather than per-bot.
+async function askAIConversation(messages, opts = {}) {
+  if (!ANTHROPIC_API_KEY) {
+    throw new Error("ИИ не настроен на этом сервере — администратору нужно задать ANTHROPIC_API_KEY");
+  }
+  if (!Array.isArray(messages) || messages.length === 0) {
+    throw new Error("askAIConversation: messages не может быть пустым");
+  }
+  const maxTokens = Math.min(Math.max(1, Number(opts.maxTokens) || DEFAULT_MAX_TOKENS), MAX_TOKENS_CEILING);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: maxTokens,
+        system: opts.system ? String(opts.system).slice(0, 4000) : undefined,
+        messages: messages.map((m) => ({ role: m.role, content: String(m.content).slice(0, 8000) })),
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err.name === "AbortError") throw new Error("ИИ не ответил вовремя");
+    throw new Error(`Не удалось обратиться к ИИ: ${err.message}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(`Ошибка ИИ (${res.status}): ${body?.error?.message || "неизвестная ошибка"}`);
+  }
+  return (body.content ?? [])
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("")
+    .trim();
+}
+
+module.exports = { askAI, askAIConversation };

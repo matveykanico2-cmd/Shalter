@@ -16,7 +16,7 @@ const { deleteUser } = require("../data/users");
 async function deleteAccount(userId) {
   const chats = await listChatsForUser(userId);
   for (const chat of chats) {
-    if (chat.type === "dm" || chat.type === "secret") {
+    if (chat.type === "dm") {
       await deleteMessagesForChat(chat.id);
       await deleteChat(chat.id);
       continue;

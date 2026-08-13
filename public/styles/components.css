@@ -1399,6 +1399,35 @@
   color: var(--color-muted);
   animation: gift-text-in 0.4s 0.4s ease both;
 }
+/* A received limited gift — the serial badge is the point, so the card gets
+   a gold frame to match the shop's .gift-card-exclusive treatment. */
+.gift-message-exclusive {
+  border-radius: 16px;
+  border: 1px solid #d9a441;
+  background: linear-gradient(160deg, color-mix(in srgb, #d9a441 12%, var(--color-surface)), var(--color-surface) 65%);
+  padding: 12px 16px 10px;
+}
+.gift-message-badge {
+  margin: 0;
+  align-self: center;
+  border-radius: 999px;
+  border: 1px solid #d9a441;
+  background: var(--color-surface);
+  padding: 2px 10px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #b8860b;
+}
+.gift-message-exclusive-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #b8860b;
+  animation: gift-text-in 0.4s 0.32s ease both;
+}
 /* Same time/views/read-check row a plain text bubble shows (.message-meta) —
    gifts and stickers have no bubble to anchor it to, so it's centered under
    the card/emoji instead of pinned to a bottom corner. */
@@ -1461,10 +1490,39 @@
    same two-layer approach as .gift-message-emoji above, so the chat log
    stays lively without every sticker moving identically. */
 .sticker-message {
-  margin: 10px auto;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+/* A sticker is a normal message (see StickerBody in messageBubble.js) — it
+   sits in the usual .bubble slot so it inherits the left/right alignment,
+   avatar, reply/reaction/forward actions and long-press menu, and only
+   drops the bubble's own frame so the emoji floats free the way a sticker
+   should. It used to be a centered standalone block instead, which is why
+   stickers were the one message type with no sender side and no actions. */
+/* Both `.mine` and incoming spelled out, because `.message-column.mine .bubble`
+   above sets the outgoing bubble colour at a higher specificity than a bare
+   `.bubble.bubble-sticker` — without this, a sticker *you* sent still painted
+   its full outgoing bubble behind the emoji while an incoming one came out
+   correctly transparent. */
+.message-column .bubble.bubble-sticker,
+.message-column.mine .bubble.bubble-sticker {
+  border: none;
+  border-radius: 0;
+  background: none;
+  padding: 2px 0;
+  box-shadow: none;
+}
+/* The time/checkmarks row still has to be readable over whatever the chat
+   wallpaper is, with no bubble behind it — so it gets its own small pill
+   instead of sitting directly on the background. */
+.message-meta.message-meta-sticker {
+  width: fit-content;
+  margin-left: auto;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+  padding: 1px 6px;
+  backdrop-filter: blur(3px);
 }
 .sticker-message-emoji {
   font-size: 84px;
@@ -1582,6 +1640,12 @@
   padding: 6px 12px;
   font-size: 14px;
   color: var(--color-accent-contrast);
+}
+/* Destructive variant — a ban is not something to paint in the same colour as
+   "Сохранить" (see components/adminUserPanel.js). */
+.btn-accent.danger {
+  background: var(--color-danger);
+  color: #fff;
 }
 .composer {
   border-top: 1px solid var(--color-border);
@@ -2134,6 +2198,11 @@
   background: var(--color-surface-alt);
 }
 .info-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
   font-weight: 500;
   font-size: 16px;
 }
@@ -2534,7 +2603,17 @@
 .profile-avatar-row {
   margin-bottom: 10px;
 }
+/* Name + its badges (developer / premium / safety label — see
+   components/profileDialog.js). This was a plain block, so every badge sat
+   directly against the last letter of the name and against each other
+   ("Иван⌨👑СКАМ"). It's a flex row with a real gap now, wrapping rather than
+   overflowing when a long name collects several badges. */
 .profile-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
   font-size: 18px;
   font-weight: 600;
   margin: 0;
@@ -2631,6 +2710,24 @@
   border-radius: 10px;
   background: var(--color-surface-alt);
   font-size: 18px;
+}
+/* A limited gift on someone's shelf — gold-framed with its serial tucked
+   under the emoji, so "#1 из 10" is visible without hovering for the title. */
+.profile-gift-chip-exclusive {
+  flex-direction: column;
+  gap: 0;
+  height: 40px;
+  width: 40px;
+  border: 1px solid #d9a441;
+  background: color-mix(in srgb, #d9a441 12%, var(--color-surface-alt));
+  font-size: 16px;
+  line-height: 1;
+}
+.profile-gift-serial {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  color: #b8860b;
 }
 .profile-actions {
   margin-top: 20px;
@@ -3022,6 +3119,40 @@
   color: var(--color-muted);
   margin: -8px 0 0;
 }
+/* Lawful-request export journal (settings/index.js's renderLegal) — a plain
+   transparency list, one row per past export. */
+.legal-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.legal-log-row {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 8px;
+}
+.legal-log-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.legal-log-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.legal-log-target {
+  font-size: 14px;
+  font-weight: 500;
+}
+.legal-log-reason {
+  font-size: 13px;
+  color: var(--color-muted);
+  text-align: right;
+}
+.legal-log-meta {
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--color-muted);
+}
 .login-link {
   font-size: 14px;
   color: var(--color-accent);
@@ -3266,6 +3397,7 @@
 }
 .premium-mini-badge {
   display: inline-flex;
+  flex-shrink: 0;
   color: #d9822e;
   filter: drop-shadow(0 0 0 rgba(217, 130, 46, 0));
   animation: premium-badge-pulse 2.4s ease-in-out infinite;
@@ -3273,6 +3405,7 @@
 }
 .developer-mini-badge {
   display: inline-flex;
+  flex-shrink: 0;
   color: #1c9bd9;
   filter: drop-shadow(0 0 0 rgba(28, 155, 217, 0));
   animation: developer-badge-pulse 2.4s ease-in-out infinite;
@@ -3475,6 +3608,39 @@
 }
 .gift-card-btn:disabled {
   opacity: 0.6;
+}
+/* Эксклюзивные подарки (server/data/gifts.js's `supply` tier) — limited
+   runs with per-copy serial numbers, so they get a gold frame instead of
+   the plain border every other gift card has. Deliberately a border/tint
+   change only: the card keeps the same size and layout as its neighbours
+   so the grid doesn't break up around them. */
+.gift-card-exclusive {
+  border-color: #d9a441;
+  background: linear-gradient(160deg, color-mix(in srgb, #d9a441 10%, var(--color-surface)), var(--color-surface) 60%);
+}
+.gift-card-supply {
+  margin: 0 0 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #b8860b;
+}
+.gift-card-sold-out {
+  opacity: 0.55;
+}
+.gift-card-sold-out .gift-card-supply {
+  color: var(--color-muted);
+}
+/* The idle float/hover-spin would read as "still available" — a sold-out
+   card should sit still. */
+.gift-card-sold-out .gift-card-emoji {
+  animation: none;
+  filter: grayscale(1);
+}
+.gift-card-sold-out:hover {
+  transform: none;
+  box-shadow: none;
 }
 .referral-card {
   border-radius: 14px;
@@ -3791,6 +3957,10 @@
   color: var(--color-accent-contrast);
 }
 .settings-profile-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
   font-family: var(--font-serif);
   font-size: 20px;
   font-weight: 600;
@@ -4564,4 +4734,398 @@
   border-radius: 999px;
   background: var(--color-danger);
   color: #fff;
+}
+
+/* ── Safety labels ────────────────────────────────────────────────────────────
+   The public "СКАМ"/"ФЕЙК"/"ТЕРРОРИЗМ" marker an admin can put on an account
+   (public/js/lib/safetyLabels.js, server/db.js's safetyLabel column). Loud on
+   purpose — its whole job is to interrupt someone mid-conversation with an
+   account that's been reported for fraud, so it deliberately does not blend in
+   with the premium/developer badges next to it. */
+.safety-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--color-danger);
+  color: #fff;
+}
+.safety-badge.safety-mini {
+  font-size: 8.5px;
+  padding: 1px 4px;
+}
+/* Terrorism/extremism read as a different class of warning than a scammer, so
+   they get the darker treatment rather than the same red as everything else. */
+.safety-badge.safety-terrorism,
+.safety-badge.safety-extremism {
+  background: #1f2430;
+  color: #ff9d9d;
+}
+.safety-badge.safety-fake {
+  background: #8a6d1f;
+}
+.safety-badge.safety-drugs {
+  background: #6d3fa0;
+}
+.safety-warning {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 45%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  padding: 10px 12px;
+  text-align: left;
+}
+.safety-warning > span {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-danger);
+}
+.safety-warning-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-danger);
+}
+.safety-warning-hint {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--color-text);
+}
+.safety-banned-note {
+  width: 100%;
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--color-muted);
+}
+
+/* ── Per-user admin panel (components/adminUserPanel.js) ─────────────────── */
+.profile-admin-block {
+  width: 100%;
+  margin-top: 18px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
+  text-align: left;
+}
+.profile-admin-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.admin-panel-dialog {
+  max-width: min(560px, 94vw);
+}
+.admin-panel-body {
+  display: flex;
+  max-height: min(62vh, 620px);
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  text-align: left;
+}
+.admin-panel-subtitle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 12.5px;
+  color: var(--color-muted);
+}
+.admin-panel-flag {
+  border-radius: 5px;
+  background: var(--color-surface-alt);
+  padding: 1px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.admin-panel-flag.danger {
+  background: color-mix(in srgb, var(--color-danger) 18%, transparent);
+  color: var(--color-danger);
+}
+.admin-panel-section-title {
+  margin: 14px 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.admin-label-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.admin-label-btn {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  padding: 5px 11px;
+  font-size: 12.5px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.admin-label-btn:hover:not(:disabled) {
+  background: var(--color-surface-alt);
+}
+.admin-label-btn.active {
+  border-color: transparent;
+  background: var(--color-accent);
+  color: #fff;
+}
+.admin-label-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.admin-reports-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.admin-report-row {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  padding: 8px 10px;
+}
+.admin-report-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.admin-report-reason {
+  font-size: 13px;
+  font-weight: 600;
+}
+.admin-report-date {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+.admin-report-meta {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--color-muted);
+}
+.admin-report-quote,
+.admin-report-details {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.admin-report-quote {
+  border-left: 2px solid var(--color-accent);
+  padding-left: 8px;
+  color: var(--color-muted);
+}
+
+/* ── Settings → Модерация (views/settings/index.js's renderModeration) ───── */
+.moderation-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% + 24px);
+  margin: 0 -12px;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: none;
+  padding: 11px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.settings-section > .moderation-row:last-child {
+  border-bottom: none;
+}
+.moderation-row:hover {
+  background: var(--color-surface-alt);
+}
+.moderation-row-body {
+  min-width: 0;
+  flex: 1;
+}
+.moderation-row-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.moderation-row-meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+/* The list chevron points *into* the row, so the shared ChevronLeft glyph is
+   flipped rather than adding a second icon just for this. */
+.moderation-row-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-muted);
+  transform: rotate(180deg);
+}
+.moderation-report {
+  border-bottom: 1px solid var(--color-border);
+  padding: 12px 0;
+}
+.settings-section > .moderation-report:last-child {
+  border-bottom: none;
+}
+.moderation-report-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+}
+.moderation-report-reason {
+  font-size: 14px;
+  font-weight: 600;
+}
+.moderation-report-date {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+/* A bare <p> inside .settings-section only gets the card's 12px side padding,
+   so it needs its own vertical padding or it sits flush against the rounded
+   edges with no breathing room. */
+.moderation-empty {
+  margin: 0;
+  padding: 14px 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.moderation-open-btn {
+  margin-top: 8px;
+  border: 1px solid var(--color-border);
+  padding: 8px;
+  font-size: 13px;
+}
+
+/* ── Т-Банк payment sheet (components/tbankDialog.js) ─────────────────────────
+   The sheet stacks an amount, an explanation, a copyable code, a pay link, a
+   phone and a confirm button. Its paragraphs use .settings-toggle-hint, whose
+   2px top margin is meant for a caption sitting under a form field — eight of
+   those in a row read as one solid block of text, so spacing is owned here by
+   a flex gap and the children's own margins are dropped. */
+.payment-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  text-align: left;
+}
+.payment-sheet > * {
+  margin: 0;
+}
+.payment-sheet-amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 8px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.payment-sheet-amount .mono {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.payment-sheet .btn-accent,
+.payment-sheet .donation-link-btn {
+  padding: 10px;
+  text-align: center;
+}
+
+/* Confirmation line in the per-user admin panel. Deliberately not .login-hint,
+   which carries a negative top margin (it's positioned to sit tight under a
+   login input) and pulled this text up into the button above it. */
+.admin-panel-notice {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--color-muted);
+}
+/* .admin-panel-body is a flex column with its own gap, so child margins stack
+   on top of it and made the spacing between sections uneven. Spacing is the
+   gap's job; only a section heading adds a little extra above itself. */
+.admin-panel-body > * {
+  margin: 0;
+}
+.admin-panel-body > .admin-panel-section-title {
+  margin-top: 8px;
+}
+
+/* .bubble-actions normally floats half-above the bubble's top edge, which works
+   against a bubble with a background but not against a sticker: the emoji is
+   84px tall and transparent, so the bar landed detached over its top corner.
+   Centring it on the sticker instead keeps it clearly attached to that
+   message. */
+.bubble-wrap-sticker .bubble-actions {
+  top: 50%;
+}
+
+/* Payment-confirmation card (messageBubble.js's PaymentMessage) — same shape as
+   the report card it borrows its inner classes from, in accent colour rather
+   than danger red. */
+.report-message.payment-message {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-surface));
+}
+
+/* .settings-section is rounded but doesn't clip its children, so a full-bleed
+   row's hover highlight squared off the card's top and bottom corners. */
+.settings-section > .moderation-row:first-child {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+.settings-section > .moderation-row:last-child {
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+/* "Выдать покупку" rows in the per-user admin panel — product name on the left,
+   its current state on the right (components/adminUserPanel.js). */
+.admin-grant-status {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.admin-grant-state {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-muted);
+}
+.admin-panel-body > .settings-danger-link {
+  align-self: flex-start;
+  font-size: 12.5px;
+}
+.admin-gift-btn {
+  margin-top: 10px;
+  border: 1px solid var(--color-border);
 }

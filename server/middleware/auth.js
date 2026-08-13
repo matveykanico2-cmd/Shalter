@@ -137,7 +137,9 @@ const requireUserId = asyncRoute(async (req, res, next) => {
   // Same "explicit flag, never inferred" shape as the revokedAt check above —
   // set from the reports moderation chat (routes/reports.js's /:id/ban).
   const user = await getUser(uid);
-  if (user?.isBanned) return res.status(403).json({ error: "banned" });
+  // banReason rides along so the login screen this bounces to (public/js/
+  // api.js) can say what the ban was for instead of a bare "заблокирован".
+  if (user?.isBanned) return res.status(403).json({ error: "banned", banReason: user.banReason ?? null });
   req.uid = uid;
   next();
 });

@@ -82,6 +82,7 @@ router.post(
       return res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE, priceRub: ADS_PRICE_RUB, delivered: true });
     }
 
+    // Same as premium.js's /request.
     if (isDonationAlertsConnected()) {
       const donationUrl = getDonationPageUrl();
       if (donationUrl) {
@@ -131,12 +132,16 @@ router.post(
     const me = await getUser(req.uid);
     if (me.phone !== ADMIN_PHONE) return res.status(403).json({ error: "Недостаточно прав" });
 
-    const { userId, active, days } = req.body ?? {};
+    const { userId, active, days, forever } = req.body ?? {};
     const target = await getUser(userId);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
 
     const grant = active !== false;
-    if (grant) await grantAdsDays(userId, days ?? ADS_GRANT_DAYS);
+    // Same `forever` handling (and the same fix) as premium.js's /grant —
+    // grantAdsDays reads null as permanent, which `days ?? ADS_GRANT_DAYS`
+    // used to make unreachable.
+    const dayCount = Number(days) > 0 ? Math.floor(Number(days)) : ADS_GRANT_DAYS;
+    if (grant) await grantAdsDays(userId, forever ? null : dayCount);
     else await revokeAds(userId);
 
     const chat = await findOrCreateDm(req.uid, userId);
@@ -144,7 +149,7 @@ router.post(
       chat,
       req.uid,
       grant
-        ? `📢 Вам выдан кабинет рекламы на ${days ?? ADS_GRANT_DAYS} дней! Настройте объявление в Настройки → Реклама.`
+        ? `📢 Вам выдан кабинет рекламы${forever ? " навсегда" : ` на ${dayCount} дней`}! Настройте объявление в Настройки → Реклама.`
         : "Ваш кабинет рекламы был отключён администрацией."
     );
     res.json({ user: publicUser(await getUser(userId)) });

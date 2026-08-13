@@ -17,7 +17,7 @@ import { paintWallpaper } from "../lib/wallpapers.js";
 import { openWallpaperDialog } from "../components/wallpaperDialog.js";
 import { openScheduledMessagesDialog } from "../components/scheduledMessagesDialog.js";
 import { openThreadPanel } from "../components/threadPanel.js";
-import { getSharedKey, encryptText, decryptText, isEncrypted } from "../lib/e2e.js";
+import { safetyLabelInfo } from "../lib/safetyLabels.js";
 
 // Settings → Внешний вид → "Фон чата" sets the global default; a chat's own
 // "…" → "Фон чата" (see openWallpaperDialog below) overrides it for just
@@ -90,36 +90,8 @@ export async function ChatView(root, chatId) {
   let isShalterAdmin = false;
   let gifts = [];
 
-  const isDm = chat.type === "dm" || chat.type === "secret";
+  const isDm = chat.type === "dm";
   const other = chat.otherUser;
-
-  // Real E2E (public/js/lib/e2e.js) — derive this device's shared AES key
-  // with `other` once, up front, so every render below (message list,
-  // composer) can use it synchronously. secretKeyError covers both "they
-  // haven't uploaded a key yet" and any Web Crypto failure — either way the
-  // composer gets disabled below rather than silently sending plaintext.
-  const isSecret = chat.type === "secret";
-  let secretSharedKey = null;
-  let secretKeyError = null;
-  if (isSecret && other) {
-    if (other.e2ePublicKey) {
-      try {
-        secretSharedKey = await getSharedKey(me.id, other.id, other.e2ePublicKey);
-      } catch {
-        secretKeyError = "Не удалось установить защищённое соединение";
-      }
-    } else {
-      secretKeyError = "У собеседника ещё нет ключа шифрования — попросите его открыть приложение";
-    }
-  }
-
-  async function decryptIncoming(msgs) {
-    if (!isSecret || !secretSharedKey) return msgs;
-    return Promise.all(
-      msgs.map(async (m) => (m.type === "text" && isEncrypted(m.text) ? { ...m, text: await decryptText(secretSharedKey, m.text) } : m))
-    );
-  }
-  messages = await decryptIncoming(messages);
 
   // Only DMs can ever show the grant-Premium/gift actions, so skip the extra
   // requests everywhere else — the real permission check is server-side
@@ -145,7 +117,7 @@ export async function ChatView(root, chatId) {
   async function refreshMessages() {
     const res = await api.listMessages(chat.id);
     const grew = res.messages.length > messagesCount;
-    messages = await decryptIncoming(res.messages);
+    messages = res.messages;
     messagesCount = messages.length;
     renderList();
     if (grew) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
@@ -387,7 +359,19 @@ export async function ChatView(root, chatId) {
               orbit: true,
             }),
             el("div", { class: "chat-header-titles" }, [
-              el("p", { class: "chat-header-title" }, [chat.type === "secret" ? el("span", { html: iconSvg("Lock", 13) }) : null, title]),
+              el("p", { class: "chat-header-title" }, [
+                title,
+                // Safety marker (server/db.js's safetyLabel) — shown in the
+                // header of the open chat too, so it's on screen while the
+                // conversation is actually happening, not only on the profile.
+                isDm && safetyLabelInfo(other?.safetyLabel)
+                  ? el(
+                      "span",
+                      { class: `safety-badge safety-mini safety-${other.safetyLabel}`, title: safetyLabelInfo(other.safetyLabel).hint },
+                      safetyLabelInfo(other.safetyLabel).short
+                    )
+                  : null,
+              ]),
               el("p", { class: "chat-header-subtitle" }, subtitle),
             ]),
           ]
@@ -574,7 +558,7 @@ export async function ChatView(root, chatId) {
       }
       // Real threads (threadPanel.js) — group chats only (channels already
       // have their own comment mechanism above via the linked discussion
-      // chat; DMs/secret chats are just two people, nothing to thread).
+      // chat; a DM is just two people, nothing to thread).
       if (isGroup && m.type !== "system" && m.commentCount && !m.threadRootId) {
         list.appendChild(
           el(
@@ -615,10 +599,6 @@ export async function ChatView(root, chatId) {
       );
       return;
     }
-    if (isSecret && secretKeyError) {
-      bodyBottomSlot.appendChild(el("p", { class: "channel-readonly-hint" }, secretKeyError));
-      return;
-    }
     composerSlot.appendChild(
       Composer({
         chatId: chat.id,
@@ -626,14 +606,6 @@ export async function ChatView(root, chatId) {
         editingMessage,
         initialDraft: draftText,
         members: members.filter((u) => u.id !== me.id),
-        // Secret-chat text only ever leaves this device already encrypted
-        // (see e2e.js) — the composer itself calls this right before
-        // sending or scheduling, so plaintext never touches an api.* call.
-        // Drafts of a secret chat aren't cloud-synced at all (disableDraftSync)
-        // rather than encrypting the draft too — same as real Telegram
-        // secret chats, which are device-local and don't sync anywhere.
-        encryptOutgoing: isSecret ? (text) => encryptText(secretSharedKey, text) : null,
-        disableDraftSync: isSecret,
         onCancelReply: () => {
           replyingTo = null;
           renderComposer();

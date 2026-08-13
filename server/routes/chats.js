@@ -60,42 +60,12 @@ router.post(
   })
 );
 
-// Starts (or returns the existing) secret chat with someone — real E2E
-// (public/js/lib/e2e.js): the server only ever relays each side's public
-// key and, once messages flow, ciphertext it cannot read (see
-// routes/messages.js's skip-server-side-text-processing-for-secret-chats
-// guards). Needs the target to already have a public key uploaded — they
-// haven't opened a build with secret-chat support yet otherwise, and there
-// would be nothing to derive a shared key against.
-router.post(
-  "/secret",
-  asyncRoute(async (req, res) => {
-    const { userId } = req.body ?? {};
-    const other = await getUser(userId);
-    if (!other) return res.status(404).json({ error: "not found" });
-    if (!other.e2ePublicKey) {
-      return res.status(400).json({ error: "Собеседник ещё не поддерживает секретные чаты — попросите его открыть приложение" });
-    }
-
-    const existing = (await listChats()).find(
-      (c) => c.type === "secret" && c.memberIds.includes(req.uid) && c.memberIds.includes(userId)
-    );
-    if (existing) return res.json({ chat: existing });
-
-    const chat = await createChat({
-      id: `c_${Date.now()}`,
-      type: "secret",
-      title: "",
-      memberIds: [req.uid, userId],
-      pinned: false,
-      muted: false,
-      archived: false,
-      createdAt: new Date().toISOString(),
-    });
-
-    res.json({ chat });
-  })
-);
+// Secret (E2E) chats used to live here as POST /secret. The whole feature is
+// gone — chat types are dm | group | channel | bot now. Anything that used to
+// branch on type "secret" (message text left unprocessed, drafts not synced,
+// no link previews/mentions/translation, an undecryptable data export) was a
+// second, quietly worse code path through the entire messaging stack, kept
+// alive for a mode nobody was actually using.
 
 // Creates a new channel with an auto-created, linked discussion group
 // (Telegram's real "channel + discussion group" pattern), so posts published

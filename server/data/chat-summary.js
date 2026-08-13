@@ -27,9 +27,7 @@ async function attachSummaries(chats, userId) {
     // unread-mention indicator, distinct from the plain numeric unread
     // count since a mention warrants attention even in a busy muted group.
     const hasUnreadMention = unread.some((m) => m.mentionedUserIds?.includes(userId));
-    const otherUserId =
-      (chat.type === "dm" || chat.type === "secret" || chat.type === "bot") &&
-      chat.memberIds.find((id) => id !== userId);
+    const otherUserId = (chat.type === "dm" || chat.type === "bot") && chat.memberIds.find((id) => id !== userId);
     const otherUserRaw = otherUserId ? users.find((u) => u.id === otherUserId) : undefined;
     const otherUser = otherUserRaw ? publicUser(otherUserRaw) : null;
 

@@ -144,24 +144,6 @@ router.patch(
   })
 );
 
-// Uploads this account's E2E public key (public/js/lib/e2e.js generates the
-// matching private key locally and never sends it here) — called once,
-// lazily, the first time this device needs one (see e2e.js's ensureKeypair).
-// Deliberately its own tiny route rather than folded into EDITABLE_FIELDS
-// above: that whitelist is validated/shaped for profile-editing-form
-// fields, not an automatic background upload with no format checks beyond
-// "is a string."
-router.post(
-  "/:id/e2e-key",
-  asyncRoute(async (req, res) => {
-    if (req.params.id !== req.uid) return res.status(403).json({ error: "forbidden" });
-    const { publicKey } = req.body ?? {};
-    if (typeof publicKey !== "string" || !publicKey) return res.status(400).json({ error: "missing publicKey" });
-    const user = await updateUser(req.uid, { e2ePublicKey: publicKey });
-    res.json({ user: user ? publicUser(user) : null });
-  })
-);
-
 router.post(
   "/:id/block",
   asyncRoute(async (req, res) => {

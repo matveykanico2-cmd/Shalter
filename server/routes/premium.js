@@ -64,9 +64,11 @@ router.post(
       return res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE, delivered: true });
     }
 
-    // Real automatic payment via DonationAlerts once the admin's connected
-    // it (see lib/donationAlerts.js) — a code to type into the donation
-    // message instead of a chat message asking the admin to confirm by hand.
+    // Two ways to pay. DonationAlerts, if the admin connected it, clears
+    // automatically (the donation feed carries the order code — see
+    // lib/donationAlerts.js). Otherwise it's a plain transfer to the admin's
+    // phone: this drops the request into their DM, and they hand Premium over
+    // from the buyer's profile (public/js/components/adminUserPanel.js).
     if (isDonationAlertsConnected()) {
       const donationUrl = getDonationPageUrl();
       if (donationUrl) {
@@ -87,9 +89,21 @@ router.post(
 
 // Grants (or revokes) Premium for another account — restricted to whoever
 // currently holds ADMIN_PHONE, checked fresh on every call (not cached: the
-// phone can move to a different account, e.g. on re-registration). `days`
-// defaults to the standard grant length; omit `premium` (or pass it as
-// `false`) to revoke instead.
+// phone can move to a different account, e.g. on re-registration). This is the
+// endpoint behind the "выдать" buttons on a user's profile
+// (public/js/components/adminUserPanel.js): the buyer transfers the money and
+// the admin hands the purchase over from there.
+//
+// `days`: a positive number of days, or omit for the standard grant length.
+// `forever: true` grants it permanently. `premium: false` revokes.
+//
+// The forever case needed fixing rather than just wiring up: data/users.js's
+// grantPremiumDays takes `days == null` to mean forever, but this route used to
+// collapse that with `days ?? PREMIUM_GRANT_DAYS`, so null arrived as 30 and
+// permanent Premium was simply unreachable through the API. Meanwhile the
+// message below had a branch that read `days === 0` as "навсегда" — and 0 days
+// sets premiumUntil to *now*, i.e. it announced permanent Premium while
+// actually leaving the account without any.
 router.post(
   "/grant",
   asyncRoute(async (req, res) => {
@@ -97,12 +111,13 @@ router.post(
     if (me.phone !== ADMIN_PHONE) {
       return res.status(403).json({ error: "Недостаточно прав" });
     }
-    const { userId, premium, days } = req.body ?? {};
+    const { userId, premium, days, forever } = req.body ?? {};
     const target = await getUser(userId);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
 
     const grant = premium !== false;
-    if (grant) await grantPremiumDays(userId, days ?? PREMIUM_GRANT_DAYS);
+    const dayCount = Number(days) > 0 ? Math.floor(Number(days)) : PREMIUM_GRANT_DAYS;
+    if (grant) await grantPremiumDays(userId, forever ? null : dayCount);
     else await revokePremium(userId);
 
     const chat = await findOrCreateDm(req.uid, userId);
@@ -110,7 +125,7 @@ router.post(
       chat,
       req.uid,
       grant
-        ? `🎉 Вам выдан Shalter Premium${days == null ? ` на ${PREMIUM_GRANT_DAYS} дней` : days ? ` на ${days} дней` : " навсегда"}! Спасибо, что поддерживаете проект.`
+        ? `🎉 Вам выдан Shalter Premium${forever ? " навсегда" : ` на ${dayCount} дней`}! Спасибо, что поддерживаете проект.`
         : "Ваш Shalter Premium был отключён администрацией."
     );
     res.json({ user: publicUser(await getUser(userId)) });

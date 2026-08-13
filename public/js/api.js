@@ -11,9 +11,13 @@ async function req(url, init) {
     // silently. ?reason=revoked lets login.js show why, instead of it just
     // looking like a random logout.
     if (body.error === "session_revoked") window.location.href = "/login?reason=revoked";
-    // Banned by the admin from the reports moderation chat (routes/reports.js's
-    // /:id/ban) — same "bounce to login with an explanation" shape as above.
-    if (body.error === "banned") window.location.href = "/login?reason=banned";
+    // Banned by the admin (routes/reports.js's /:id/resolve or Settings →
+    // Модерация) — same "bounce to login with an explanation" shape as above,
+    // carrying the recorded reason so the login screen can show it.
+    if (body.error === "banned") {
+      const why = body.banReason ? `&why=${encodeURIComponent(body.banReason)}` : "";
+      window.location.href = `/login?reason=banned${why}`;
+    }
     throw new Error(body.error ?? `Request failed: ${res.status}`);
   }
   return res.json();
@@ -42,8 +46,6 @@ export const api = {
   setBlocked: (userId, blocked) =>
     req(`/api/users/${userId}/block`, { method: "POST", body: JSON.stringify({ blocked }) }),
   getSharedMedia: (userId) => req(`/api/users/${userId}/shared-media`),
-  uploadE2eKey: (userId, publicKey) =>
-    req(`/api/users/${userId}/e2e-key`, { method: "POST", body: JSON.stringify({ publicKey }) }),
 
   listChats: () => req("/api/chats"),
   getChat: (id) => req(`/api/chats/${id}`),
@@ -52,7 +54,6 @@ export const api = {
   deleteChatForMe: (id) => req(`/api/chats/${id}/delete-for-me`, { method: "POST" }),
   startDm: (userId, title, avatarColor) =>
     req("/api/chats", { method: "POST", body: JSON.stringify({ userId, title, avatarColor }) }),
-  startSecretChat: (userId) => req("/api/chats/secret", { method: "POST", body: JSON.stringify({ userId }) }),
   createChannel: (title, avatarImage, memberIds, adminIds) =>
     req("/api/chats/channels", { method: "POST", body: JSON.stringify({ title, avatarImage, memberIds, adminIds }) }),
   createGroup: (title, memberIds, avatarImage, adminIds) =>
@@ -166,8 +167,12 @@ export const api = {
 
   getPremiumInfo: () => req("/api/premium/me"),
   requestPremium: () => req("/api/premium/request", { method: "POST" }),
-  grantPremium: (userId, premium = true) =>
-    req("/api/premium/grant", { method: "POST", body: JSON.stringify({ userId, premium }) }),
+  // Admin-only grants (server/routes/premium.js's and ads.js's /grant): pass a
+  // day count, or { forever: true } for permanent. premium/active false revokes.
+  grantPremium: (userId, premium = true, opts = {}) =>
+    req("/api/premium/grant", { method: "POST", body: JSON.stringify({ userId, premium, ...opts }) }),
+  grantAds: (userId, active = true, opts = {}) =>
+    req("/api/ads/grant", { method: "POST", body: JSON.stringify({ userId, active, ...opts }) }),
 
   listGifts: () => req("/api/gifts"),
   requestGift: (giftId, recipientId) =>
@@ -178,4 +183,22 @@ export const api = {
   setAdContent: (text, url, attachments) => req("/api/ads/content", { method: "PUT", body: JSON.stringify({ text, url, attachments }) }),
   deliverGift: (giftId, recipientId) =>
     req("/api/gifts/deliver", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
+
+  // Admin-only lawful-request data export (server/routes/admin.js). Gated
+  // server-side to the ADMIN_PHONE holder — these will 403 for anyone else.
+  adminLookupUser: (q) => req(`/api/admin/lookup?q=${encodeURIComponent(q)}`),
+  adminExportUser: (userId, reason) =>
+    req("/api/admin/export", { method: "POST", body: JSON.stringify({ userId, reason }) }),
+  adminListExports: () => req("/api/admin/exports"),
+
+
+  // Admin-only moderation (same 403 gate). Open reports + who's currently
+  // banned or carries a safety label, the reports filed against one account,
+  // and the two actions: ban/unban, set/clear label.
+  adminModeration: () => req("/api/admin/moderation"),
+  adminUserReports: (userId) => req(`/api/admin/users/${userId}/reports`),
+  adminSetBanned: (userId, banned, reason) =>
+    req(`/api/admin/users/${userId}/ban`, { method: "POST", body: JSON.stringify({ banned, reason }) }),
+  adminSetSafetyLabel: (userId, label) =>
+    req(`/api/admin/users/${userId}/label`, { method: "POST", body: JSON.stringify({ label }) }),
 };

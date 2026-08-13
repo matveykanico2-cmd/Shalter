@@ -15,8 +15,10 @@ import { formatPhoneInput } from "../../lib/phoneFormat.js";
 import { hasPasscode } from "../../lib/passcodeLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 import { openProfileQrDialog } from "../../components/profileQrDialog.js";
-import { openDonationDialog } from "../../components/donationDialog.js";
+import { handlePurchaseResponse } from "../../lib/purchase.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
+import { openAdminUserPanel } from "../../components/adminUserPanel.js";
+import { safetyLabelInfo } from "../../lib/safetyLabels.js";
 
 // `color` gives each row's icon its own chip background (Telegram's own
 // settings menu — every row's icon sits in a small colored square, not a
@@ -35,7 +37,9 @@ const SECTIONS = [
   { id: "folders", label: "Папки", icon: "Archive", color: "#f2b33b" },
   { id: "data", label: "Данные и память", icon: "Download", color: "#58c4dc" },
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", color: "#8a8f98" },
+  { id: "moderation", label: "Модерация", icon: "Shield", color: "#c6403b", adminOnly: true },
   { id: "donations", label: "DonationAlerts", icon: "Zap", color: "#3ec2c2", adminOnly: true },
+  { id: "legal", label: "Запросы органов", icon: "Shield", color: "#5b6370", adminOnly: true },
 ];
 
 function Toggle(checked, onChange) {
@@ -112,7 +116,9 @@ export async function SettingsView(root, page) {
     folders: renderFolders,
     data: renderData,
     shortcuts: renderShortcuts,
+    moderation: renderModeration,
     donations: renderDonations,
+    legal: renderLegal,
   };
   await (renderers[section] ?? renderProfile)(contentSlot);
 }
@@ -319,8 +325,7 @@ async function renderPremium(root) {
     render();
     try {
       const res = await api.requestPremium();
-      if (res.donationUrl) openDonationDialog(res);
-      else navigate(`/chat/${res.chatId}`);
+      handlePurchaseResponse(res);
     } catch (err) {
       buyError = err.message;
     } finally {
@@ -335,10 +340,13 @@ async function renderPremium(root) {
     render();
     try {
       const res = await api.requestGift(gift.id, recipient.id);
-      if (res.donationUrl) openDonationDialog(res);
-      else navigate(`/chat/${res.chatId}`);
+      handlePurchaseResponse(res);
     } catch (err) {
       giftError = err.message;
+      // A limited gift can sell out between this page loading and the
+      // button being pressed — refetch so the card immediately shows
+      // "распродан" instead of inviting another doomed attempt.
+      if (gift.supply) api.listGifts().then((r) => { gifts = r.gifts; render(); }).catch(() => {});
     } finally {
       giftPendingId = null;
       render();
@@ -405,24 +413,35 @@ async function renderPremium(root) {
               el(
                 "p",
                 { class: "settings-toggle-hint" },
-                "От розы за 1₽ до вечного Premium — как и с обычной покупкой, оплата переводом администрации Shalter, подарок приходит после подтверждения."
+                "От розы за 1₽ до эксклюзивов за миллион — как и с обычной покупкой, оплата переводом администрации Shalter, подарок приходит после подтверждения. Эксклюзивные подарки выпущены ограниченным тиражом: у каждого экземпляра свой номер, и когда тираж кончится, купить его больше будет нельзя."
               ),
               giftError ? el("p", { class: "login-error" }, giftError) : null,
               el(
                 "div",
                 { class: "gifts-grid" },
-                gifts.map((g, i) =>
-                  el("div", { class: "gift-card" }, [
+                gifts.map((g, i) => {
+                  // Limited gifts (server/data/gifts.js's exclusive tier)
+                  // come back from the API with a `remaining` count; every
+                  // other gift has no supply to run out of.
+                  const soldOut = g.supply != null && g.remaining <= 0;
+                  return el("div", { class: `gift-card ${g.exclusive ? "gift-card-exclusive" : ""} ${soldOut ? "gift-card-sold-out" : ""}` }, [
+                    g.supply != null
+                      ? el("p", { class: "gift-card-supply" }, soldOut ? "Распродан" : `Осталось ${g.remaining} из ${g.supply}`)
+                      : null,
                     el("span", { class: "gift-card-emoji", style: `--gift-delay: ${(i % 8) * 0.15}s` }, g.emoji),
                     el("p", { class: "gift-card-name" }, g.name),
-                    el("p", { class: "mono gift-card-price" }, `${g.priceRub}₽`),
+                    el("p", { class: "mono gift-card-price" }, `${Number(g.priceRub).toLocaleString("ru-RU")}₽`),
                     el(
                       "button",
-                      { class: "gift-card-btn", disabled: giftPendingId === g.id, onclick: () => pickRecipientAndSend(g) },
-                      giftPendingId === g.id ? "…" : "Подарить"
+                      {
+                        class: "gift-card-btn",
+                        disabled: giftPendingId === g.id || soldOut,
+                        onclick: () => pickRecipientAndSend(g),
+                      },
+                      soldOut ? "Распродан" : giftPendingId === g.id ? "…" : "Подарить"
                     ),
-                  ])
-                )
+                  ]);
+                })
               ),
             ])
           : null,
@@ -447,8 +466,7 @@ async function renderAds(root) {
     render();
     try {
       const res = await api.requestAds();
-      if (res.donationUrl) openDonationDialog(res);
-      else navigate(`/chat/${res.chatId}`);
+      handlePurchaseResponse(res);
     } catch (err) {
       buyError = err.message;
     } finally {
@@ -1399,6 +1417,245 @@ async function renderShortcuts(root) {
 // donationAlerts.js). Env vars (DONATIONALERTS_CLIENT_ID/SECRET/REDIRECT_URI)
 // have to be set on the server first — there's no UI for those since they're
 // app-wide OAuth app credentials, not something to type into a settings form.
+// Admin-only (SECTIONS' adminOnly flag → server also gates every /api/admin
+// route). The moderation ledger: what's still open, who is banned and why, and
+// who carries a public safety label. Reports also arrive as messages in the
+// admin's chat with the service bot (server/routes/reports.js) — but a chat
+// message scrolls away, so a ban set from one used to be unreviewable and,
+// worse, un-liftable. Every row here opens the per-user panel
+// (components/adminUserPanel.js), which is where unbanning, labelling, reading
+// the reports against an account and exporting its data actually happen.
+async function renderModeration(root) {
+  let data = null;
+  let error = null;
+
+  async function load() {
+    try {
+      data = await api.adminModeration();
+    } catch (err) {
+      error = err.message || "Не удалось загрузить данные модерации";
+    }
+    render();
+  }
+
+  // Reports name a user id, not a full user object — good enough for the panel,
+  // which reloads what it needs itself.
+  function openPanel(u) {
+    openAdminUserPanel(u, () => load());
+  }
+
+  function userRow(u, meta) {
+    const info = safetyLabelInfo(u.safetyLabel);
+    return el("button", { class: "moderation-row", onclick: () => openPanel(u) }, [
+      el("div", { class: "moderation-row-body" }, [
+        el("p", { class: "moderation-row-name" }, [
+          u.name,
+          info ? el("span", { class: `safety-badge safety-mini safety-${u.safetyLabel}` }, info.short) : null,
+        ]),
+        el("p", { class: "moderation-row-meta" }, meta),
+      ]),
+      el("span", { class: "moderation-row-chevron", html: iconSvg("ChevronLeft", 16) }),
+    ]);
+  }
+
+  function render() {
+    clear(root);
+    if (error) {
+      mount(root, pageWrap("Модерация", null, [el("p", { class: "login-error" }, error)]));
+      return;
+    }
+    if (!data) {
+      mount(root, pageWrap("Модерация", null, [el("p", { class: "settings-toggle-hint" }, "Загружаем…")]));
+      return;
+    }
+
+    // Built with section() like every other settings page — hand-rolling
+    // .settings-section-title + .settings-section as bare siblings (which this
+    // did at first) skips .settings-section-group's bottom margin entirely, so
+    // the three groups ran into each other with no gap and each heading hugged
+    // the card above it.
+    const empty = (text) => el("p", { class: "moderation-empty" }, text);
+
+    mount(
+      root,
+      pageWrap("Модерация", "Жалобы, блокировки и метки безопасности. Нажмите на строку, чтобы открыть карточку пользователя.", [
+        section(
+          `Открытые жалобы (${data.openReports.length})`,
+          data.openReports.length === 0
+            ? [empty("Необработанных жалоб нет")]
+            : data.openReports.map((r) =>
+                el("div", { class: "moderation-report" }, [
+                  el("p", { class: "moderation-report-head" }, [
+                    el("span", { class: "moderation-report-reason" }, r.reasonLabel),
+                    el("span", { class: "mono moderation-report-date" }, new Date(r.at).toLocaleString("ru-RU")),
+                  ]),
+                  el("p", { class: "moderation-row-meta" }, `На: ${r.subject ? r.subject.name : "—"} · от: ${r.reporter.name}`),
+                  r.quoted ? el("p", { class: "admin-report-quote" }, `«${r.quoted}»`) : null,
+                  r.details ? el("p", { class: "admin-report-details" }, `Пояснение: ${r.details}`) : null,
+                  r.subject
+                    ? el("button", { class: "profile-action-btn moderation-open-btn", onclick: () => openPanel(r.subject) }, "Открыть карточку")
+                    : null,
+                ])
+              )
+        ),
+        section(
+          `Заблокированные (${data.banned.length})`,
+          data.banned.length === 0
+            ? [empty("Заблокированных аккаунтов нет")]
+            : data.banned.map((u) =>
+                userRow(
+                  u,
+                  `${u.bannedAt ? new Date(u.bannedAt).toLocaleString("ru-RU") : "дата неизвестна"} · ${u.banReason || "причина не указана"}`
+                )
+              )
+        ),
+        section(
+          `С метками безопасности (${data.labeled.length})`,
+          data.labeled.length === 0
+            ? [empty("Помеченных аккаунтов нет")]
+            : data.labeled.map((u) => userRow(u, u.safetyLabelAt ? new Date(u.safetyLabelAt).toLocaleString("ru-RU") : ""))
+        ),
+      ])
+    );
+  }
+
+  render();
+  await load();
+}
+
+// Admin-only (SECTIONS' adminOnly flag → server also gates every /api/admin
+// route to the ADMIN_PHONE holder). Lawful-request compliance: export ONE
+// named user's stored correspondence in response to a legal basis, with the
+// action logged. Deliberately not a "read everyone" surface — you resolve a
+// specific person, state a reason, and get a file.
+async function renderLegal(root) {
+  let target = null; // resolved user, or null until looked up
+  let lookupError = null;
+  let exportError = null;
+  let busy = false;
+  let lastExport = null; // { exportId, at } confirmation after a run
+  let log = [];
+
+  const queryInput = el("input", { class: "settings-input", placeholder: "@username, +7… или id пользователя" });
+  const reasonInput = el("input", { class: "settings-input", placeholder: "Основание: № дела / реквизиты постановления" });
+
+  try {
+    ({ exports: log } = await api.adminListExports());
+  } catch (err) {
+    // Non-admin never reaches this renderer (nav hides it), but a 403 here
+    // would just mean an empty log, not a broken page.
+    log = [];
+  }
+
+  async function lookup() {
+    lookupError = null;
+    target = null;
+    const q = queryInput.value.trim();
+    if (!q) return;
+    busy = true;
+    render();
+    try {
+      ({ user: target } = await api.adminLookupUser(q));
+    } catch (err) {
+      lookupError = err.message || "Пользователь не найден";
+    } finally {
+      busy = false;
+      render();
+    }
+  }
+
+  async function runExport() {
+    exportError = null;
+    if (!target) {
+      exportError = "Сначала найдите пользователя";
+      return render();
+    }
+    const reason = reasonInput.value.trim();
+    if (!reason) {
+      exportError = "Укажите основание — оно записывается в журнал";
+      return render();
+    }
+    busy = true;
+    render();
+    try {
+      const { exportId, data } = await api.adminExportUser(target.id, reason);
+      // Turn the assembled JSON into a downloaded file entirely client-side
+      // (a Blob + object URL) — nothing extra to store on the server, and
+      // the file never lingers anywhere but the admin's own machine.
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = el("a", { href: url, download: `export_${target.username || target.id}_${exportId}.json` });
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      lastExport = { exportId, at: new Date().toISOString(), messageCount: data.stats.messageCount };
+      ({ exports: log } = await api.adminListExports());
+    } catch (err) {
+      exportError = err.message || "Не удалось выгрузить";
+    } finally {
+      busy = false;
+      render();
+    }
+  }
+
+  function render() {
+    mount(
+      root,
+      pageWrap("Запросы органов", "Адресная выгрузка хранимых данных одного пользователя по законному запросу", [
+        section(null, [
+          el(
+            "p",
+            { class: "settings-toggle-hint" },
+            "Выгружается только то, что хранится на сервере. Каждая выгрузка фиксируется в журнале ниже."
+          ),
+        ]),
+        section("Найти пользователя", [
+          queryInput,
+          el("button", { class: "btn-accent", disabled: busy, onclick: lookup }, "Найти"),
+          lookupError ? el("p", { class: "login-error" }, lookupError) : null,
+          target
+            ? el("div", { class: "settings-toggle-row no-divider" }, [
+                el("span", { class: "settings-toggle-title" }, `${target.name}${target.username ? ` · @${target.username}` : ""}`),
+                el("span", { class: "mono settings-toggle-hint" }, target.phone || target.id),
+              ])
+            : null,
+        ]),
+        target
+          ? section("Выгрузка", [
+              reasonInput,
+              exportError ? el("p", { class: "login-error" }, exportError) : null,
+              el("button", { class: "btn-accent", disabled: busy, onclick: runExport }, busy ? "Готовим файл…" : "Выгрузить файл переписки"),
+              lastExport
+                ? el("p", { class: "login-hint" }, `✅ Файл выгружен (${lastExport.messageCount} сообщений). Запись в журнале: ${lastExport.exportId}.`)
+                : null,
+            ])
+          : null,
+        section("Журнал выгрузок", [
+          log.length === 0
+            ? el("p", { class: "settings-toggle-hint" }, "Выгрузок ещё не было.")
+            : el(
+                "div",
+                { class: "legal-log" },
+                log.map((e) =>
+                  el("div", { class: "legal-log-row" }, [
+                    el("div", { class: "legal-log-main" }, [
+                      el("span", { class: "legal-log-target" }, `${e.target.name}${e.target.username ? ` @${e.target.username}` : ""}`),
+                      el("span", { class: "legal-log-reason" }, e.reason),
+                    ]),
+                    el("div", { class: "legal-log-meta mono" }, [
+                      `${new Date(e.at).toLocaleString("ru-RU")} · ${e.messageCount} сообщ. · ${e.admin.name}`,
+                    ]),
+                  ])
+                )
+              ),
+        ]),
+      ])
+    );
+  }
+  render();
+}
+
 async function renderDonations(root) {
   const params = new URLSearchParams(window.location.search);
   let banner = params.get("connected") ? "connected" : params.get("error") ? "error" : null;
