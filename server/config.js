@@ -21,7 +21,15 @@ const DONATIONALERTS_CLIENT_SECRET = process.env.DONATIONALERTS_CLIENT_SECRET ||
 // e.g. https://your-domain.example/api/donation-alerts/callback.
 const DONATIONALERTS_REDIRECT_URI = process.env.DONATIONALERTS_REDIRECT_URI || "";
 
+// "Hugo", the composer's writing checker (server/routes/hugo.js). Points at
+// LanguageTool. The public instance is the default so the feature works out of
+// the box; set this to a self-hosted container (e.g. the official
+// erikvl87/languagetool image) to keep draft text inside your own deployment —
+// nothing else has to change.
+const LANGUAGETOOL_URL = process.env.LANGUAGETOOL_URL || "https://api.languagetool.org/v2/check";
+
 module.exports = {
+  LANGUAGETOOL_URL,
   ADMIN_PHONE,
   PREMIUM_GRANT_DAYS,
   DONATIONALERTS_CLIENT_ID,

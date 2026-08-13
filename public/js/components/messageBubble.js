@@ -60,16 +60,16 @@ const seenEntranceIds = new Set();
 // in the log — no send time, no way to tell if the other side had seen it.
 // (Stickers used to be in this group; they're normal bubbles now and use the
 // regular .message-meta.)
-function entranceMessageMeta(message, mine) {
+function entranceMessageMeta(message, mine, isChannel) {
   return el("div", { class: "entrance-message-meta" }, [
     el("span", { class: "mono" }, timeLabel(message.createdAt)),
-    typeof message.views === "number" ? el("span", { class: "mono" }, `· ${message.views} 👁`) : null,
+    isChannel && typeof message.views === "number" ? el("span", { class: "mono" }, `${message.views} 👁`) : null,
     mine ? el("span", { html: iconSvg(message.readByIds?.length > 1 ? "CheckCheck" : "Check", 13) }) : null,
   ]);
 }
 
 const SPARKLE_ANGLES = [0, 60, 120, 180, 240, 300];
-function GiftMessage(message, mine) {
+function GiftMessage(message, mine, isChannel) {
   const gift = message.gift;
   const isNew = !seenEntranceIds.has(message.id);
   seenEntranceIds.add(message.id);
@@ -91,7 +91,7 @@ function GiftMessage(message, mine) {
     isExclusive ? el("p", { class: "gift-message-exclusive-label" }, "Эксклюзивный подарок") : null,
     gift.durationLabel ? el("p", { class: "gift-message-duration" }, gift.durationLabel) : null,
     el("p", { class: "mono gift-message-price" }, `${formatRub(gift.priceRub)}₽`),
-    entranceMessageMeta(message, mine),
+    entranceMessageMeta(message, mine, isChannel),
   ]);
 }
 
@@ -148,7 +148,7 @@ const REPORT_STATUS_LABELS = {
 // summary. Buttons disappear once report.status moves off "open" — either
 // because *this* viewer just resolved it (local optimistic update) or a
 // poll/WS refresh picked up someone else having done so.
-function ReportMessage(message, mine, me) {
+function ReportMessage(message, mine, me, isChannel) {
   const report = message.report;
   const isAdmin = !!me?.isDeveloper;
   let resolving = false;
@@ -189,7 +189,7 @@ function ReportMessage(message, mine, me) {
             ])
           : el("p", { class: "report-message-pending" }, "Ожидает решения администратора")
         : el("p", { class: "report-message-resolved" }, REPORT_STATUS_LABELS[status] ?? status),
-      entranceMessageMeta(message, mine)
+      entranceMessageMeta(message, mine, isChannel)
     );
   }
   render();
@@ -313,7 +313,7 @@ function VideoNotePlayer(a) {
   return wrap;
 }
 
-export function MessageBubble({ message, me, sender, showSender, replyToMessage, members, handlers }) {
+export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, replyToMessage, members, handlers }) {
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onKeyboardAction, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
 
@@ -322,11 +322,11 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
   }
 
   if (message.type === "gift" && message.gift) {
-    return GiftMessage(message, mine);
+    return GiftMessage(message, mine, isChannel);
   }
 
   if (message.type === "report" && message.report) {
-    return ReportMessage(message, mine, me);
+    return ReportMessage(message, mine, me, isChannel);
   }
 
   const isSticker = message.type === "sticker" && !!message.sticker;
@@ -382,7 +382,9 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
   const meta = el("span", { class: `message-meta ${isSticker ? "message-meta-sticker" : ""}` }, [
     message.editedAt ? el("span", {}, "изменено") : null,
     el("span", { class: "mono" }, timeLabel(message.createdAt)),
-    typeof message.views === "number" ? el("span", { class: "mono" }, `· ${message.views} 👁`) : null,
+    // Only channels get a view counter — Telegram shows one there and nowhere
+    // else, and "0 👁" under every private message is pure noise.
+    isChannel && typeof message.views === "number" ? el("span", { class: "mono" }, `${message.views} 👁`) : null,
     mine
       ? el("span", { html: iconSvg(message.readByIds.length > 1 ? "CheckCheck" : "Check", 13) })
       : null,
@@ -619,8 +621,24 @@ export function MessageBubble({ message, me, sender, showSender, replyToMessage,
     keyboardRows,
   ]);
 
-  return el("div", { class: `message-row ${mine ? "mine" : ""}`, id: `msg-${message.id}` }, [
-    !mine ? el("div", { class: "message-avatar-slot" }, showSender && sender ? Avatar({ name: sender.name, color: sender.avatarColor, image: sender.avatarImage, size: 28 }) : null) : null,
-    column,
-  ]);
+  // The avatar goes beside the *last* message of a run, not the first — that's
+  // where Telegram puts it, and it keeps the whole block visually anchored to
+  // the bottom where the newest message is.
+  return el(
+    "div",
+    {
+      class: `message-row ${mine ? "mine" : ""} ${groupStart ? "group-start" : ""} ${groupEnd ? "group-end" : ""}`,
+      id: `msg-${message.id}`,
+    },
+    [
+      !mine
+        ? el(
+            "div",
+            { class: "message-avatar-slot" },
+            groupEnd && sender ? Avatar({ name: sender.name, color: sender.avatarColor, image: sender.avatarImage, size: 30 }) : null
+          )
+        : null,
+      column,
+    ]
+  );
 }

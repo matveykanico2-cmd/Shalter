@@ -9,11 +9,22 @@ import { openPollDialog } from "./pollDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openScheduleSendDialog } from "./scheduleSendDialog.js";
 import { STICKERS } from "../lib/stickers.js";
+import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
 
 const EMOJI = ["😀", "😂", "😍", "👍", "🙏", "🔥", "🎉", "😢", "😮", "❤️", "👏", "🤔"];
 const TYPING_PING_MS = 2500; // well under the server's 4s typing-presence expiry
 const DRAFT_SAVE_MS = 600; // debounce so we're not POSTing on every keystroke
 const MAX_IMAGE_DIMENSION = 1600;
+
+// "1 ошибку / 2 ошибки / 5 ошибок" — a count next to an unagreed noun reads as
+// broken Russian, and Hugo's whole point is noticing exactly that.
+function plural(n, one, few, many) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return few;
+  return many;
+}
 
 export function Composer({
   chatId,
@@ -475,6 +486,142 @@ export function Composer({
           }),
         ]);
 
+    // ── Hugo: proofreading the draft ────────────────────────────────────────
+    // Explicitly triggered, never on typing: the draft is sent to a checking
+    // service (see server/routes/hugo.js), and doing that silently on every
+    // keystroke in a messenger would be the wrong default no matter how useful
+    // the feature is.
+    const hugoSlot = el("div", { class: "hugo-slot" });
+    let hugoMatches = [];
+    let hugoBusy = false;
+
+    function closeHugo() {
+      hugoMatches = [];
+      clear(hugoSlot);
+    }
+
+    function setDraft(text, caret) {
+      textarea.value = text;
+      autoResize();
+      updateTrailingButtons();
+      textarea.focus();
+      if (caret != null) textarea.setSelectionRange(caret, caret);
+    }
+
+    async function runHugo() {
+      const text = textarea.value;
+      if (!text.trim() || hugoBusy) return;
+      hugoBusy = true;
+      clear(hugoSlot);
+      hugoSlot.appendChild(el("div", { class: "hugo-panel" }, [el("span", { class: "hugo-status" }, "Hugo проверяет текст…")]));
+      try {
+        const { matches } = await checkText(text);
+        hugoMatches = matches;
+        renderHugo();
+      } catch (err) {
+        clear(hugoSlot);
+        hugoSlot.appendChild(
+          el("div", { class: "hugo-panel hugo-panel-error" }, [
+            el("span", { class: "hugo-status" }, err.message || "Не удалось проверить текст"),
+            el("button", { class: "icon-btn", title: "Закрыть", html: iconSvg("X", 14), onclick: closeHugo }),
+          ])
+        );
+      } finally {
+        hugoBusy = false;
+      }
+    }
+
+    function renderHugo() {
+      clear(hugoSlot);
+      const text = textarea.value;
+
+      if (hugoMatches.length === 0) {
+        hugoSlot.appendChild(
+          el("div", { class: "hugo-panel hugo-panel-clean" }, [
+            el("span", { class: "hugo-status" }, "Ошибок не нашлось"),
+            el("button", { class: "icon-btn", title: "Закрыть", html: iconSvg("X", 14), onclick: closeHugo }),
+          ])
+        );
+        return;
+      }
+
+      const list = el(
+        "div",
+        { class: "hugo-list" },
+        hugoMatches.map((m) =>
+          el("div", { class: `hugo-item hugo-${m.type}` }, [
+            el("div", { class: "hugo-item-body" }, [
+              el("p", { class: "hugo-item-head" }, [
+                el("span", { class: "hugo-wrong" }, fragment(text, m) || "—"),
+                m.replacements.length ? el("span", { class: "hugo-arrow" }, "→") : null,
+                m.replacements.length ? el("span", { class: "hugo-right" }, m.replacements[0]) : null,
+              ]),
+              el("p", { class: "hugo-item-msg" }, m.message),
+            ]),
+            m.replacements.length
+              ? el(
+                  "div",
+                  { class: "hugo-item-fixes" },
+                  // The first suggestion gets the primary button; the rest are
+                  // offered too, because a spell checker's top pick is regularly
+                  // not the word you meant.
+                  m.replacements.slice(0, 3).map((r, i) =>
+                    el(
+                      "button",
+                      {
+                        class: `hugo-fix-btn ${i === 0 ? "primary" : ""}`,
+                        onclick: () => {
+                          const res = applyFix(textarea.value, m, r);
+                          setDraft(res.text, res.caret);
+                          // Offsets after this one have shifted, so the rest of
+                          // the list is stale — re-check rather than show wrong
+                          // spans.
+                          runHugo();
+                        },
+                      },
+                      r
+                    )
+                  )
+                )
+              : null,
+          ])
+        )
+      );
+
+      const fixableCount = hugoMatches.filter((m) => m.replacements.length).length;
+      hugoSlot.appendChild(
+        el("div", { class: "hugo-panel" }, [
+          el("div", { class: "hugo-panel-head" }, [
+            el("span", { class: "hugo-status" }, `Hugo нашёл ${hugoMatches.length} ${plural(hugoMatches.length, "ошибку", "ошибки", "ошибок")}`),
+            fixableCount > 1
+              ? el(
+                  "button",
+                  {
+                    class: "hugo-fix-all",
+                    onclick: () => {
+                      const res = applyAll(textarea.value, hugoMatches);
+                      setDraft(res.text);
+                      closeHugo();
+                    },
+                  },
+                  "Исправить всё"
+                )
+              : null,
+            el("button", { class: "icon-btn", title: "Закрыть", html: iconSvg("X", 14), onclick: closeHugo }),
+          ]),
+          list,
+        ])
+      );
+    }
+
+    const hugoBtn = el("button", {
+      class: "composer-icon-btn",
+      title: "Проверить текст (Hugo)",
+      html: iconSvg("Check", 19),
+      onclick: runHugo,
+    });
+    const hugoSlotBtn = el("div", { class: "composer-attach-slot" }, [hugoBtn]);
+
     const trailingSlot = el("div", { class: "composer-trailing" });
     function updateTrailingButtons() {
       clear(trailingSlot);
@@ -501,8 +648,8 @@ export function Composer({
       );
     }
 
-    const row = el("div", { class: "composer-row" }, [mentionMenu, attachSlot, textarea, stickerSlot, scheduleSlot, emojiSlot, trailingSlot]);
-    bodySlot.append(uploadSlot, row);
+    const row = el("div", { class: "composer-row" }, [mentionMenu, attachSlot, textarea, hugoSlotBtn, stickerSlot, scheduleSlot, emojiSlot, trailingSlot]);
+    bodySlot.append(uploadSlot, hugoSlot, row);
     updateTrailingButtons();
 
     queueMicrotask(() => {

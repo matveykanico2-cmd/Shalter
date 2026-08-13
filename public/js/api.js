@@ -86,7 +86,15 @@ export const api = {
     req(`/api/chats/${id}/restrict`, { method: "POST", body: JSON.stringify({ userId, until }) }),
   voteForGroup: (id) => req(`/api/chats/${id}/vote`, { method: "POST" }),
 
-  listMessages: (chatId) => req(`/api/chats/${chatId}/messages`),
+  // Paged newest-first (server/routes/messages.js): omit `before` for the latest
+  // page, pass the oldest loaded message's createdAt to walk further back.
+  listMessages: (chatId, opts = {}) => {
+    const q = new URLSearchParams();
+    if (opts.limit) q.set("limit", String(opts.limit));
+    if (opts.before) q.set("before", opts.before);
+    const qs = q.toString();
+    return req(`/api/chats/${chatId}/messages${qs ? `?${qs}` : ""}`);
+  },
   sendMessage: (chatId, text, opts) =>
     req(`/api/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify({ text, ...opts }) }),
   editMessage: (chatId, messageId, text) =>
@@ -127,6 +135,11 @@ export const api = {
   // server-side — see server/routes/contacts.js's /match.
   matchContacts: (contacts) => req("/api/contacts/match", { method: "POST", body: JSON.stringify({ contacts }) }),
   removeContact: (userId) => req("/api/contacts", { method: "DELETE", body: JSON.stringify({ userId }) }),
+
+  // "Hugo" — the composer's writing checker (server/routes/hugo.js). Proxied
+  // server-side so the checking service never sees a user's IP and the endpoint
+  // stays swappable for a self-hosted one.
+  hugoCheck: (text) => req("/api/hugo/check", { method: "POST", body: JSON.stringify({ text }) }),
 
   getSettings: () => req("/api/settings"),
   patchSettings: (patch) => req("/api/settings", { method: "PATCH", body: JSON.stringify(patch) }),
@@ -189,6 +202,13 @@ export const api = {
     req("/api/ads/grant", { method: "POST", body: JSON.stringify({ userId, active, ...opts }) }),
 
   listGifts: () => req("/api/gifts"),
+  // Admin-only catalogue management (server/routes/gifts.js's /catalog routes):
+  // change a limited run's size, mint a new gift, remove one never issued.
+  adminGiftCatalog: () => req("/api/gifts/catalog"),
+  adminSetGiftSupply: (id, supply) =>
+    req(`/api/gifts/catalog/${encodeURIComponent(id)}/supply`, { method: "POST", body: JSON.stringify({ supply }) }),
+  adminCreateGift: (gift) => req("/api/gifts/catalog", { method: "POST", body: JSON.stringify(gift) }),
+  adminDeleteGift: (id) => req(`/api/gifts/catalog/${encodeURIComponent(id)}`, { method: "DELETE" }),
   requestGift: (giftId, recipientId) =>
     req("/api/gifts/request", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
 

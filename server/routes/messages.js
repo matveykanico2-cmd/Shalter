@@ -4,6 +4,7 @@ const { getChat } = require("../data/chats");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 const {
   listMessages,
+  listMessagesPage,
   listThreadReplies,
   addMessage,
   getMessage,
@@ -108,7 +109,13 @@ router.get(
       return res.status(404).json({ error: "not found" });
     }
     const settings = await getSettings(req.uid);
-    const messages = await listMessages(req.params.id, req.uid, settings.chatClears?.[req.params.id]);
+
+    // Paged: the newest `limit` messages, with `before` walking further back as
+    // the user scrolls up. Loading a whole chat at once meant a multi-megabyte
+    // response and a five-thousand-row DOM rebuild on every poll.
+    const limit = Math.min(Math.max(Number(req.query.limit) || 60, 1), 200);
+    const before = typeof req.query.before === "string" && req.query.before ? req.query.before : null;
+    const { messages, hasMore } = listMessagesPage(req.params.id, req.uid, settings.chatClears?.[req.params.id], { limit, before });
 
     // Fetching the message list means the viewer just looked at the chat —
     // mark anything unread by them as read (Telegram/WhatsApp-style implicit
@@ -123,7 +130,7 @@ router.get(
       });
     }
 
-    res.json({ messages });
+    res.json({ messages, hasMore });
   })
 );
 

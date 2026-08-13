@@ -940,10 +940,20 @@
   gap: 2px;
   flex-shrink: 0;
 }
+/* Telegram-style grouping. A run of messages from one person sits tight
+   together (2px) and gets real separation (10px) from the next person's run,
+   so the log reads as blocks of speech rather than an evenly spaced list.
+   Set by chatView.js — see its GROUP_WINDOW_MS comment. */
 .message-row {
   display: flex;
   gap: 8px;
-  padding: 2px 16px;
+  padding: 1px 16px;
+}
+.message-row.group-start {
+  margin-top: 10px;
+}
+.message-row.group-end {
+  margin-bottom: 2px;
 }
 .message-row.mine {
   flex-direction: row-reverse;
@@ -974,20 +984,60 @@
   position: relative;
   max-width: 100%;
 }
+/* No border, like Telegram's own bubbles — just a fill and a whisper of
+   shadow. It also makes a clean tail possible: a bordered bubble can't grow a
+   pseudo-element wedge without a visible seam where the border stops. */
 .bubble {
   border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
   background: var(--color-bubble-in);
-  padding: 8px 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 7px 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 .message-column.mine .bubble {
-  border-top-right-radius: 4px;
   background: var(--color-bubble-out);
 }
-.message-column:not(.mine) .bubble {
-  border-top-left-radius: 4px;
+/* The corner facing the rest of the run is squared off, and only the last
+   bubble keeps a full round corner + tail — the same shape language Telegram
+   uses to show "this is all one person talking". */
+.message-row:not(.group-start) .message-column.mine .bubble {
+  border-top-right-radius: 6px;
 }
+.message-row:not(.group-end) .message-column.mine .bubble {
+  border-bottom-right-radius: 6px;
+}
+.message-row:not(.group-start) .message-column:not(.mine) .bubble {
+  border-top-left-radius: 6px;
+}
+.message-row:not(.group-end) .message-column:not(.mine) .bubble {
+  border-bottom-left-radius: 6px;
+}
+/* The tail: a small triangle of the bubble's own colour at the bottom corner of
+   the last message in a run. Drawn with clip-path rather than the classic
+   border-triangle trick so it takes the fill from `background` and therefore
+   follows the light/dark theme without a second set of colour rules. */
+.message-row.group-end .bubble {
+  position: relative;
+}
+.message-row.group-end .bubble::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 9px;
+  height: 13px;
+}
+.message-row.group-end .message-column.mine .bubble::after {
+  right: -7px;
+  background: var(--color-bubble-out);
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+  border-bottom-left-radius: 2px;
+}
+.message-row.group-end .message-column:not(.mine) .bubble::after {
+  left: -7px;
+  background: var(--color-bubble-in);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  border-bottom-right-radius: 2px;
+}
+
 .message-text {
   display: block;
   white-space: pre-wrap;
@@ -5396,4 +5446,252 @@
     border-top: 1px solid var(--color-border);
     padding-top: 10px;
   }
+}
+
+/* ── Hugo: the composer's writing checker (components/composer.js) ────────────
+   Sits above the input row, between the upload progress and the composer
+   itself, so a found mistake is next to the text it's about. */
+.hugo-slot:empty {
+  display: none;
+}
+.hugo-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  padding: 10px 12px;
+}
+.hugo-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hugo-status {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+.hugo-panel-clean .hugo-status {
+  color: var(--color-success);
+}
+.hugo-panel-error .hugo-status {
+  color: var(--color-danger);
+}
+.hugo-panel-clean,
+.hugo-panel-error {
+  flex-direction: row;
+  align-items: center;
+}
+.hugo-fix-all {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--color-accent);
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+}
+/* Capped and scrollable: a long draft can produce a dozen findings, and the
+   panel must never push the input itself off the screen. */
+.hugo-list {
+  display: flex;
+  max-height: 210px;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.hugo-item {
+  border-left: 2px solid var(--color-warning);
+  padding-left: 8px;
+}
+/* LanguageTool's own issue types — a misspelling and a style nit deserve
+   different weight. */
+.hugo-item.misspelling,
+.hugo-item.typographical {
+  border-left-color: var(--color-danger);
+}
+.hugo-item.style,
+.hugo-item.whitespace {
+  border-left-color: var(--color-muted);
+}
+.hugo-item-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+.hugo-wrong {
+  font-weight: 500;
+  text-decoration: line-through;
+  text-decoration-color: var(--color-danger);
+  color: var(--color-text);
+}
+.hugo-arrow {
+  color: var(--color-muted);
+}
+.hugo-right {
+  font-weight: 600;
+  color: var(--color-success);
+}
+.hugo-item-msg {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-muted);
+}
+.hugo-item-fixes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.hugo-fix-btn {
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--color-text);
+}
+.hugo-fix-btn:hover {
+  border-color: var(--color-accent);
+}
+.hugo-fix-btn.primary {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+/* ── Admin gift catalogue (settings/index.js's renderGiftShop) ─────────────── */
+.gift-create-grid {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 8px;
+  padding: 12px 0;
+}
+.gift-create-grid > .settings-input {
+  width: 100%;
+  margin: 0;
+}
+/* Price and supply share the row below the name. */
+.gift-create-grid > .settings-input:nth-child(3),
+.gift-create-grid > .settings-input:nth-child(4) {
+  grid-column: span 1;
+}
+.gift-create-grid > .settings-input:nth-child(3) {
+  grid-column: 1 / 2;
+}
+.gift-emoji-input {
+  text-align: center;
+  font-size: 20px;
+}
+.gift-admin-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--color-border);
+  padding: 10px 0;
+}
+.gift-admin-row:last-child {
+  border-bottom: none;
+}
+.gift-admin-emoji {
+  width: 34px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 22px;
+}
+.gift-admin-body {
+  flex: 1;
+  min-width: 0;
+}
+.gift-admin-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.gift-admin-tag {
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  padding: 1px 7px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--color-accent);
+}
+.gift-admin-sub {
+  overflow: hidden;
+  margin: 2px 0 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--color-muted);
+}
+/* Wide enough for 1 000 000 without the number being clipped. */
+.gift-supply-input {
+  width: 116px;
+  flex-shrink: 0;
+  margin: 0;
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .gift-admin-row {
+    flex-wrap: wrap;
+  }
+  .gift-admin-body {
+    flex-basis: calc(100% - 44px);
+  }
+  .gift-supply-input {
+    flex: 1;
+  }
+}
+
+/* Top of a paged history (views/chatView.js). Older messages load on scroll;
+   the button is the explicit fallback for when the list is too short to
+   scroll at all, or a fetch failed and the user wants to retry. */
+.history-top {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+}
+.history-top-btn {
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 5px 14px;
+  font-size: 12.5px;
+  color: var(--color-muted);
+}
+.history-top-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* Brief highlight on the message a reply jumped to — without it you land in the
+   middle of the history with no idea which row you were sent to. */
+.message-row-flash .bubble {
+  animation: message-flash 1.2s ease-out;
+}
+@keyframes message-flash {
+  0%, 40% { background: color-mix(in srgb, var(--color-accent) 28%, var(--color-bubble-in)); }
+  100% { background: var(--color-bubble-in); }
+}
+.message-column.mine .message-row-flash .bubble,
+.message-row-flash .message-column.mine .bubble {
+  animation-name: message-flash-mine;
+}
+@keyframes message-flash-mine {
+  0%, 40% { background: color-mix(in srgb, var(--color-accent) 34%, var(--color-bubble-out)); }
+  100% { background: var(--color-bubble-out); }
 }

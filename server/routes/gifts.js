@@ -3,8 +3,8 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE } = require("../config");
 const { getUser, findUserByPhone } = require("../data/users");
-const { listGifts, getGift } = require("../data/gifts");
-const { remaining } = require("../data/giftIssues");
+const { listGifts, getGift, setSupply, createGift, deleteCustomGift, SUPPLY_MIN, SUPPLY_MAX } = require("../data/gifts");
+const { remaining, issuedCount } = require("../data/giftIssues");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { deliverGift } = require("../lib/deliverGift");
@@ -116,6 +116,126 @@ router.post(
       return res.status(410).json({ error: soldOutError(gift) });
     }
     res.json({ user: publicUser(await getUser(recipient.id)), serial: result.serial });
+  })
+);
+
+// ── Catalogue management (admin only) ───────────────────────────────────────
+// The shipped catalogue is code (server/data/gifts.js); these routes let
+// whoever holds ADMIN_PHONE change a limited run's size and mint new gifts,
+// without a redeploy.
+
+async function requireAdmin(req, res) {
+  const me = await getUser(req.uid);
+  if (me?.phone !== ADMIN_PHONE) {
+    res.status(403).json({ error: "Недостаточно прав" });
+    return null;
+  }
+  return me;
+}
+
+function parseSupply(value) {
+  const n = Number(value);
+  if (!Number.isInteger(n)) return { error: "Тираж должен быть целым числом" };
+  if (n < SUPPLY_MIN || n > SUPPLY_MAX) {
+    return { error: `Тираж эксклюзива — от ${SUPPLY_MIN.toLocaleString("ru-RU")} до ${SUPPLY_MAX.toLocaleString("ru-RU")}` };
+  }
+  return { value: n };
+}
+
+// The admin view: every gift with how many copies are already out, so a supply
+// can't be changed blind.
+router.get(
+  "/catalog",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const gifts = listGifts().map((g) => (g.supply ? { ...g, issued: issuedCount(g.id), remaining: remaining(g) } : g));
+    res.json({ gifts, supplyMin: SUPPLY_MIN, supplyMax: SUPPLY_MAX });
+  })
+);
+
+router.post(
+  "/catalog/:id/supply",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const gift = getGift(req.params.id);
+    if (!gift) return res.status(404).json({ error: "Подарок не найден" });
+    if (!gift.supply) return res.status(400).json({ error: "У этого подарка нет тиража — он безлимитный" });
+
+    const parsed = parseSupply(req.body?.supply);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+
+    // Lowering below what's already been handed out would leave real copies
+    // numbered above their own edition ("#4200 из 3000") and, worse, would let
+    // the same serial be minted twice later. The floor is what exists.
+    const issued = issuedCount(gift.id);
+    if (parsed.value < issued) {
+      return res.status(409).json({
+        error: `Уже выпущено ${issued.toLocaleString("ru-RU")} шт. — тираж нельзя опустить ниже этого числа`,
+      });
+    }
+
+    const updated = setSupply(gift.id, parsed.value);
+    res.json({ gift: { ...updated, issued, remaining: remaining(updated) } });
+  })
+);
+
+router.post(
+  "/catalog",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const { emoji, name, priceRub, premiumDays, supply, exclusive } = req.body ?? {};
+
+    if (!String(emoji ?? "").trim()) return res.status(400).json({ error: "Укажите эмодзи подарка" });
+    if (!String(name ?? "").trim()) return res.status(400).json({ error: "Укажите название подарка" });
+    const price = Number(priceRub);
+    if (!Number.isInteger(price) || price < 1) return res.status(400).json({ error: "Цена — целое число от 1₽" });
+
+    let supplyValue = null;
+    if (exclusive) {
+      const parsed = parseSupply(supply);
+      if (parsed.error) return res.status(400).json({ error: parsed.error });
+      supplyValue = parsed.value;
+    }
+
+    // Slug from the name so the id is readable in the DB and in exports, with a
+    // timestamp suffix guaranteeing uniqueness against the 286 built-ins and
+    // against anything minted earlier.
+    const slug =
+      String(name)
+        .toLowerCase()
+        .replace(/[^a-z0-9\u0430-\u044f\u0451]+/gi, "_")
+        .replace(/^_|_$/g, "")
+        .slice(0, 24) || "gift";
+    const id = `custom_${slug}_${Date.now().toString(36)}`;
+
+    const gift = createGift({
+      id,
+      emoji: String(emoji).trim().slice(0, 8),
+      name: String(name).trim().slice(0, 60),
+      priceRub: price,
+      // null means "Premium forever" (see data/users.js's grantPremiumDays);
+      // anything else is a day count, 0 for a purely decorative gift.
+      premiumDays: premiumDays === null ? null : Number.isInteger(Number(premiumDays)) ? Number(premiumDays) : 0,
+      supply: supplyValue,
+      exclusive: !!exclusive,
+    });
+    res.json({ gift });
+  })
+);
+
+router.delete(
+  "/catalog/:id",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    // A gift with copies in the wild keeps its catalogue entry — that entry is
+    // what gives the copies on people's profiles a name and an emoji.
+    if (issuedCount(req.params.id) > 0) {
+      return res.status(409).json({ error: "Подарок уже выпускался — его нельзя удалить, можно только изменить тираж" });
+    }
+    if (!deleteCustomGift(req.params.id)) {
+      return res.status(400).json({ error: "Удалять можно только подарки, созданные администратором" });
+    }
+    res.json({ ok: true });
   })
 );
 

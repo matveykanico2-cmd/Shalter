@@ -49,6 +49,44 @@ async function listMessages(chatId, viewerId, clearedBefore) {
   return rows.filter((m) => !m.threadRootId);
 }
 
+// One page of history, newest-first in SQL and returned oldest-first so the
+// caller can append it straight into a timeline.
+//
+// This exists because the un-paginated version above returned *every* message
+// in the chat on every open and on every 15s poll: measured on a 5000-message
+// chat that was a 1.6MB payload and ~130k DOM nodes, and it was rebuilt from
+// scratch each poll. LIMIT in SQL rather than slicing in JS, so a long history
+// costs the same as a short one.
+//
+// The per-viewer overlay (deleted-for-me, cleared-history) is applied inside the
+// query for the same reason — filtering afterwards would mean reading the whole
+// table again just to throw most of it away. `before` is an exclusive cursor on
+// createdAt; ids break ties so two messages in the same millisecond can't cause
+// a page to repeat or skip one.
+function listMessagesPage(chatId, viewerId, clearedBefore, { limit = 60, before = null } = {}) {
+  const params = { chatId, limit: limit + 1 }; // one extra row tells us if more exist
+  let sql = "SELECT * FROM messages WHERE chatId = @chatId AND threadRootId IS NULL";
+  if (clearedBefore) {
+    sql += " AND createdAt > @clearedBefore";
+    params.clearedBefore = clearedBefore;
+  }
+  if (before) {
+    sql += " AND createdAt < @before";
+    params.before = before;
+  }
+  sql += " ORDER BY createdAt DESC, id DESC LIMIT @limit";
+
+  let rows = db.prepare(sql).all(params).map(rowToMessage);
+  // deletedForIds is a JSON column, so this one stays in JS — it can't be
+  // indexed anyway, and it only ever runs over a single page now.
+  if (viewerId) rows = rows.filter((m) => !m.deletedForIds?.includes(viewerId));
+
+  const hasMore = rows.length > limit;
+  if (hasMore) rows = rows.slice(0, limit);
+  rows.reverse(); // oldest-first, the order a chat is read in
+  return { messages: rows, hasMore };
+}
+
 // The thread panel's own message list (public/js/components/threadPanel.js)
 // — everything replying *into* this root, in the order sent. No
 // deletedForIds/clearedBefore overlay here: threads are new enough in this
@@ -267,6 +305,7 @@ function setDiscussionAnchor(id, anchorId) {
 module.exports = {
   listAllMessages,
   listMessages,
+  listMessagesPage,
   listThreadReplies,
   getMessage,
   addMessage,

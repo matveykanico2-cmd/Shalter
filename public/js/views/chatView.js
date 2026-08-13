@@ -60,11 +60,20 @@ function lastSeenLabel(user) {
 export async function ChatView(root, chatId) {
   const me = getState().user;
   let chat, members, messages;
+  // History is paged (server/routes/messages.js): the newest PAGE_SIZE messages
+  // load immediately and older ones arrive as the user scrolls up. Loading a
+  // whole chat at once was a multi-megabyte response and, on a 5000-message
+  // chat, a 130k-node DOM rebuilt on every 15s poll.
+  const PAGE_SIZE = 60;
+  let hasMoreHistory = false;
+  let loadingHistory = false;
   try {
     const chatRes = await api.getChat(chatId);
     chat = chatRes.chat;
     members = chatRes.members;
-    messages = (await api.listMessages(chatId)).messages;
+    const first = await api.listMessages(chatId, { limit: PAGE_SIZE });
+    messages = first.messages;
+    hasMoreHistory = !!first.hasMore;
   } catch {
     mount(root, el("div", { class: "empty-chat" }, "Чат не найден"));
     return;
@@ -110,17 +119,98 @@ export async function ChatView(root, chatId) {
   const isChannelAdmin = isChannel && (chat.ownerId === me.id || chat.adminIds?.includes(me.id));
   const isGroup = chat.type === "group";
 
-  function jumpTo(id) {
-    document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  // Now that history is paged, the message a reply points at may simply not be
+  // loaded yet — this used to be a no-op in that case, silently doing nothing
+  // when someone tapped a quote. Walk back through older pages until it turns
+  // up, bounded so a reply to something thousands of messages back gives up
+  // instead of pulling the whole chat in.
+  async function jumpTo(id) {
+    for (let page = 0; page < 20; page++) {
+      const node = document.getElementById(`msg-${id}`);
+      if (node) {
+        node.scrollIntoView({ behavior: "smooth", block: "center" });
+        // A brief highlight, or landing in the middle of a wall of text leaves
+        // you hunting for which message you were sent to.
+        node.classList.add("message-row-flash");
+        setTimeout(() => node.classList.remove("message-row-flash"), 1200);
+        return;
+      }
+      if (!hasMoreHistory) return;
+      await loadOlder();
+    }
   }
 
+  // A refresh re-reads only the newest page and splices it onto whatever older
+  // history is already loaded, so scrolling back through a long chat isn't
+  // undone every time someone sends a message.
   async function refreshMessages() {
-    const res = await api.listMessages(chat.id);
-    const grew = res.messages.length > messagesCount;
-    messages = res.messages;
+    const res = await api.listMessages(chat.id, { limit: PAGE_SIZE });
+    const fresh = res.messages;
+    if (!fresh.length) {
+      messages = [];
+      messagesCount = 0;
+      renderList();
+      return;
+    }
+    const cutoff = fresh[0].createdAt;
+    const older = messages.filter((m) => m.createdAt < cutoff);
+    const merged = [...older, ...fresh];
+    const grew = merged.length > messagesCount;
+    // Nothing changed -> don't touch the DOM at all. This is the common case on
+    // a 15s poll, and rebuilding the whole list for it was the single most
+    // wasteful thing the chat view did.
+    if (!grew && sameMessages(messages, merged)) return;
+    messages = merged;
     messagesCount = messages.length;
+    if (!older.length) hasMoreHistory = !!res.hasMore;
     renderList();
     if (grew) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+  }
+
+  // Cheap identity check for "did this poll actually bring anything new?".
+  // Compares the fields the rendered list depends on, not the whole object.
+  function sameMessages(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      const x = a[i];
+      const y = b[i];
+      if (
+        x.id !== y.id ||
+        x.text !== y.text ||
+        x.editedAt !== y.editedAt ||
+        x.pinned !== y.pinned ||
+        x.views !== y.views ||
+        x.reactions?.length !== y.reactions?.length ||
+        x.readByIds?.length !== y.readByIds?.length
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Older history, fetched when the user reaches the top. The scroll position is
+  // restored afterwards by height difference — prepending rows would otherwise
+  // yank the view away from whatever they were reading.
+  async function loadOlder() {
+    if (loadingHistory || !hasMoreHistory || !messages.length) return;
+    loadingHistory = true;
+    const anchorHeight = list.scrollHeight;
+    const anchorTop = list.scrollTop;
+    try {
+      const res = await api.listMessages(chat.id, { limit: PAGE_SIZE, before: messages[0].createdAt });
+      if (res.messages.length) {
+        messages = [...res.messages, ...messages];
+        messagesCount = messages.length;
+        renderList();
+        list.scrollTop = anchorTop + (list.scrollHeight - anchorHeight);
+      }
+      hasMoreHistory = !!res.hasMore;
+    } catch {
+      /* a failed page just means the button/scroll can be tried again */
+    } finally {
+      loadingHistory = false;
+    }
   }
 
   async function handleSend(text, attachments, extra) {
@@ -490,8 +580,21 @@ export async function ChatView(root, chatId) {
     );
   }
 
+  // Reaching the top pulls in the previous page. 120px of slack so it starts
+  // fetching just before the user actually hits the edge.
+  list.addEventListener("scroll", () => {
+    if (list.scrollTop < 120) loadOlder();
+  });
+
   function renderList() {
     clear(list);
+    if (hasMoreHistory) {
+      list.appendChild(
+        el("div", { class: "history-top" }, [
+          el("button", { class: "history-top-btn", onclick: loadOlder }, loadingHistory ? "Загружаем…" : "Показать более ранние"),
+        ])
+      );
+    }
     if (!messages.length) {
       list.appendChild(el("p", { class: "empty-hint" }, "Сообщений пока нет — напишите первым"));
     }
@@ -500,7 +603,24 @@ export async function ChatView(root, chatId) {
       if (!prev || !sameDay(prev.createdAt, m.createdAt)) {
         list.appendChild(el("div", { class: "date-divider" }, el("span", {}, dayLabel(m.createdAt))));
       }
-      const showSender = (chat.type === "group" || chat.type === "channel") && (!prev || prev.senderId !== m.senderId);
+      // Telegram-style grouping: a run of messages from the same person, close
+      // together in time, reads as one block — tight spacing, the name only at
+      // the top of the run, the avatar only beside the last one, and the tail
+      // only on that last bubble. Five minutes is Telegram's own threshold;
+      // beyond it a new block starts even from the same sender, because a reply
+      // an hour later isn't part of the same breath.
+      const next = messages[i + 1];
+      const GROUP_WINDOW_MS = 5 * 60 * 1000;
+      const runsWith = (a, b) =>
+        !!a &&
+        !!b &&
+        a.senderId === b.senderId &&
+        a.type === b.type &&
+        sameDay(a.createdAt, b.createdAt) &&
+        Math.abs(new Date(b.createdAt) - new Date(a.createdAt)) < GROUP_WINDOW_MS;
+      const groupStart = !runsWith(prev, m);
+      const groupEnd = !runsWith(m, next);
+      const showSender = (chat.type === "group" || chat.type === "channel") && groupStart;
       const sender = members.find((u) => u.id === m.senderId);
       const replyToMessage = m.replyToId ? messages.find((x) => x.id === m.replyToId) : undefined;
       list.appendChild(
@@ -509,6 +629,9 @@ export async function ChatView(root, chatId) {
           me,
           sender,
           showSender,
+          groupStart,
+          groupEnd,
+          isChannel: chat.type === "channel",
           replyToMessage,
           members,
           handlers: {

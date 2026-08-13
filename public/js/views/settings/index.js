@@ -39,6 +39,7 @@ const SECTIONS = [
   { id: "data", label: "Данные и память", icon: "Download", color: "#58c4dc" },
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", color: "#8a8f98" },
   { id: "moderation", label: "Модерация", icon: "Shield", color: "#c6403b", adminOnly: true },
+  { id: "giftshop", label: "Каталог подарков", icon: "Gift", color: "#e0a84a", adminOnly: true },
   { id: "donations", label: "DonationAlerts", icon: "Zap", color: "#3ec2c2", adminOnly: true },
   { id: "legal", label: "Запросы органов", icon: "Shield", color: "#5b6370", adminOnly: true },
 ];
@@ -131,6 +132,7 @@ export async function SettingsView(root, page) {
     moderation: renderModeration,
     donations: renderDonations,
     legal: renderLegal,
+    giftshop: renderGiftShop,
   };
   await (renderers[section] ?? renderProfile)(contentSlot);
 }
@@ -1583,6 +1585,174 @@ async function renderModeration(root) {
 // named user's stored correspondence in response to a legal basis, with the
 // action logged. Deliberately not a "read everyone" surface — you resolve a
 // specific person, state a reason, and get a file.
+// Admin-only. The shipped catalogue is code (server/data/gifts.js) — this
+// screen edits the part that lives in the database: how big a limited run is,
+// and any gifts the admin mints themselves.
+async function renderGiftShop(root) {
+  let data = null;
+  let error = null;
+  let busyId = null;
+  let notice = null;
+  const draft = { emoji: "", name: "", priceRub: "", supply: "", exclusive: true, forever: true };
+
+  async function load() {
+    try {
+      data = await api.adminGiftCatalog();
+    } catch (err) {
+      error = err.message || "Не удалось загрузить каталог";
+    }
+    render();
+  }
+
+  const fmt = (n) => Number(n).toLocaleString("ru-RU");
+
+  async function saveSupply(gift, value) {
+    busyId = gift.id;
+    error = null;
+    notice = null;
+    render();
+    try {
+      await api.adminSetGiftSupply(gift.id, Number(value));
+      notice = `Тираж «${gift.name}» — теперь ${fmt(value)} шт.`;
+      data = await api.adminGiftCatalog();
+    } catch (err) {
+      error = err.message || "Не удалось изменить тираж";
+    } finally {
+      busyId = null;
+      render();
+    }
+  }
+
+  async function createGift() {
+    error = null;
+    notice = null;
+    try {
+      const { gift } = await api.adminCreateGift({
+        emoji: draft.emoji,
+        name: draft.name,
+        priceRub: Number(draft.priceRub),
+        premiumDays: draft.forever ? null : 0,
+        supply: draft.exclusive ? Number(draft.supply) : null,
+        exclusive: draft.exclusive,
+      });
+      notice = `Выпущен подарок ${gift.emoji} «${gift.name}»`;
+      draft.emoji = "";
+      draft.name = "";
+      draft.priceRub = "";
+      draft.supply = "";
+      data = await api.adminGiftCatalog();
+    } catch (err) {
+      error = err.message || "Не удалось создать подарок";
+    }
+    render();
+  }
+
+  async function removeGift(gift) {
+    error = null;
+    notice = null;
+    try {
+      await api.adminDeleteGift(gift.id);
+      notice = `Подарок «${gift.name}» удалён`;
+      data = await api.adminGiftCatalog();
+    } catch (err) {
+      error = err.message || "Не удалось удалить";
+    }
+    render();
+  }
+
+  function supplyRow(gift) {
+    // Uncontrolled input, read on submit: re-rendering on every keystroke would
+    // take the focus with it (the same trap as the contacts search).
+    const input = el("input", {
+      class: "settings-input gift-supply-input mono",
+      type: "number",
+      min: String(data.supplyMin),
+      max: String(data.supplyMax),
+      step: "1",
+      value: String(gift.supply),
+    });
+    return el("div", { class: "gift-admin-row" }, [
+      el("span", { class: "gift-admin-emoji" }, gift.emoji),
+      el("div", { class: "gift-admin-body" }, [
+        el("p", { class: "gift-admin-name" }, [gift.name, gift.custom ? el("span", { class: "gift-admin-tag" }, "свой") : null]),
+        el("p", { class: "gift-admin-sub mono" }, `${fmt(gift.priceRub)}₽ · выпущено ${fmt(gift.issued ?? 0)} · осталось ${fmt(gift.remaining ?? 0)}`),
+      ]),
+      input,
+      el(
+        "button",
+        { class: "btn-accent-pill", disabled: busyId === gift.id, onclick: () => saveSupply(gift, input.value) },
+        busyId === gift.id ? "…" : "Сохранить"
+      ),
+      gift.custom && (gift.issued ?? 0) === 0
+        ? el("button", { class: "icon-btn", title: "Удалить", html: iconSvg("Trash", 15), onclick: () => removeGift(gift) })
+        : null,
+    ]);
+  }
+
+  function render() {
+    if (error && !data) {
+      mount(root, pageWrap("Каталог подарков", null, [el("p", { class: "login-error" }, error)]));
+      return;
+    }
+    if (!data) {
+      mount(root, pageWrap("Каталог подарков", null, [el("p", { class: "settings-toggle-hint" }, "Загружаем…")]));
+      return;
+    }
+
+    const limited = data.gifts.filter((g) => g.supply);
+    const emojiInput = el("input", { class: "settings-input gift-emoji-input", placeholder: "🎁", value: draft.emoji, oninput: (e) => (draft.emoji = e.target.value) });
+    const nameInput = el("input", { class: "settings-input", placeholder: "Название", value: draft.name, oninput: (e) => (draft.name = e.target.value) });
+    const priceInput = el("input", { class: "settings-input mono", type: "number", min: "1", placeholder: "Цена, ₽", value: draft.priceRub, oninput: (e) => (draft.priceRub = e.target.value) });
+    const supplyInput = el("input", {
+      class: "settings-input mono",
+      type: "number",
+      min: String(data.supplyMin),
+      max: String(data.supplyMax),
+      placeholder: `Тираж ${fmt(data.supplyMin)}–${fmt(data.supplyMax)}`,
+      value: draft.supply,
+      oninput: (e) => (draft.supply = e.target.value),
+    });
+
+    mount(
+      root,
+      pageWrap("Каталог подарков", "Тиражи эксклюзивов и выпуск новых подарков", [
+        notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,
+        error ? el("p", { class: "login-error" }, error) : null,
+
+        section("Выпустить новый подарок", [
+          el("div", { class: "gift-create-grid" }, [emojiInput, nameInput, priceInput, supplyInput]),
+          el("div", { class: "settings-toggle-row no-divider" }, [
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, "Эксклюзив с тиражом"),
+              el("p", { class: "settings-toggle-hint" }, `Каждая копия получает свой номер. Тираж — от ${fmt(data.supplyMin)} до ${fmt(data.supplyMax)}.`),
+            ]),
+            Toggle(draft.exclusive, (v) => {
+              draft.exclusive = v;
+              render();
+            }),
+          ]),
+          el("div", { class: "settings-toggle-row no-divider" }, [
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, "Даёт Premium навсегда"),
+              el("p", { class: "settings-toggle-hint" }, "Иначе подарок чисто декоративный"),
+            ]),
+            Toggle(draft.forever, (v) => {
+              draft.forever = v;
+              render();
+            }),
+          ]),
+          el("button", { class: "btn-accent", onclick: createGift }, "Выпустить"),
+        ]),
+
+        section(`Тиражи (${limited.length})`, limited.length ? limited.map(supplyRow) : [el("p", { class: "moderation-empty" }, "Ограниченных подарков нет")]),
+      ])
+    );
+  }
+
+  render();
+  await load();
+}
+
 async function renderLegal(root) {
   let target = null; // resolved user, or null until looked up
   let lookupError = null;

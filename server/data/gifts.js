@@ -301,20 +301,111 @@ const GIFTS = [
   // a purely decorative item would be a strange thing to sell, and it keeps
   // the tier meaningfully different from the 10 000₽ ceiling above rather
   // than just being a bigger number.
-  { id: "excl_platinum_star", emoji: "🌟", name: "Платиновая звезда", priceRub: 25000, premiumDays: null, supply: 50, exclusive: true },
-  { id: "excl_comet", emoji: "💫", name: "Комета", priceRub: 50000, premiumDays: null, supply: 25, exclusive: true },
-  { id: "excl_meteorite", emoji: "☄️", name: "Метеорит", priceRub: 100000, premiumDays: null, supply: 10, exclusive: true },
-  { id: "excl_trident", emoji: "🔱", name: "Трезубец", priceRub: 250000, premiumDays: null, supply: 5, exclusive: true },
-  { id: "excl_monument", emoji: "🗿", name: "Монумент", priceRub: 500000, premiumDays: null, supply: 3, exclusive: true },
-  { id: "excl_absolute", emoji: "💠", name: "Абсолют", priceRub: 1000000, premiumDays: null, supply: 1, exclusive: true },
+  { id: "excl_platinum_star", emoji: "🌟", name: "Платиновая звезда", priceRub: 25000, premiumDays: null, supply: 1000000, exclusive: true },
+  { id: "excl_comet", emoji: "💫", name: "Комета", priceRub: 50000, premiumDays: null, supply: 250000, exclusive: true },
+  { id: "excl_meteorite", emoji: "☄️", name: "Метеорит", priceRub: 100000, premiumDays: null, supply: 50000, exclusive: true },
+  { id: "excl_trident", emoji: "🔱", name: "Трезубец", priceRub: 250000, premiumDays: null, supply: 10000, exclusive: true },
+  { id: "excl_monument", emoji: "🗿", name: "Монумент", priceRub: 500000, premiumDays: null, supply: 5000, exclusive: true },
+  { id: "excl_absolute", emoji: "💠", name: "Абсолют", priceRub: 1000000, premiumDays: null, supply: 1000, exclusive: true },
 ];
 
+// ── Admin-editable layer ────────────────────────────────────────────────────
+// The array above is the shipped catalogue, and it stays code: it's 286 fixed
+// entries that every deployment starts from. What the admin can change lives in
+// the database instead (the gift_catalog table, see server/db.js), in two forms:
+//
+//   * an override row for a built-in gift — currently just its supply, so a
+//     limited run can be extended or cut back after release;
+//   * a fully custom gift the admin minted, which has no counterpart in GIFTS.
+//
+// Merging happens on read so a deployment that has never touched the catalogue
+// pays only one cheap query, and the built-ins keep working if the table is
+// empty.
+const db = require("../db");
+
+const SUPPLY_MIN = 1000;
+const SUPPLY_MAX = 1000000;
+
+function rowToGift(row) {
+  return {
+    id: row.id,
+    emoji: row.emoji,
+    name: row.name,
+    priceRub: row.priceRub,
+    premiumDays: row.premiumDays === null ? null : row.premiumDays,
+    supply: row.supply ?? undefined,
+    exclusive: !!row.exclusive || undefined,
+    custom: true,
+  };
+}
+
+function overrides() {
+  const map = new Map();
+  for (const row of db.prepare("SELECT * FROM gift_catalog").all()) map.set(row.id, row);
+  return map;
+}
+
 function listGifts() {
-  return GIFTS;
+  const rows = overrides();
+  const merged = GIFTS.map((g) => {
+    const row = rows.get(g.id);
+    if (!row) return g;
+    // Only the fields an admin is allowed to change are taken from the row; the
+    // rest stays whatever shipped, so an override can't quietly rename a gift.
+    return { ...g, supply: row.supply ?? g.supply, edited: true };
+  });
+  for (const row of rows.values()) {
+    if (row.custom) merged.push(rowToGift(row));
+  }
+  return merged;
 }
 
 function getGift(id) {
-  return GIFTS.find((g) => g.id === id);
+  return listGifts().find((g) => g.id === id);
 }
 
-module.exports = { listGifts, getGift };
+// Built-in gifts keep their catalogue entry and get an override row; custom
+// ones are the row. Either way this is the single write path.
+function setSupply(id, supply) {
+  const builtin = GIFTS.find((g) => g.id === id);
+  const existing = db.prepare("SELECT * FROM gift_catalog WHERE id = ?").get(id);
+  if (!builtin && !existing) return undefined;
+  if (existing) {
+    db.prepare("UPDATE gift_catalog SET supply = ? WHERE id = ?").run(supply, id);
+  } else {
+    db.prepare(
+      `INSERT INTO gift_catalog (id, emoji, name, priceRub, premiumDays, supply, exclusive, custom, createdAt)
+       VALUES (@id, NULL, NULL, NULL, NULL, @supply, 0, 0, @createdAt)`
+    ).run({ id, supply, createdAt: new Date().toISOString() });
+  }
+  return getGift(id);
+}
+
+function createGift({ id, emoji, name, priceRub, premiumDays, supply, exclusive }) {
+  db.prepare(
+    `INSERT INTO gift_catalog (id, emoji, name, priceRub, premiumDays, supply, exclusive, custom, createdAt)
+     VALUES (@id, @emoji, @name, @priceRub, @premiumDays, @supply, @exclusive, 1, @createdAt)`
+  ).run({
+    id,
+    emoji,
+    name,
+    priceRub,
+    premiumDays: premiumDays === null ? null : premiumDays,
+    supply: supply ?? null,
+    exclusive: exclusive ? 1 : 0,
+    createdAt: new Date().toISOString(),
+  });
+  return getGift(id);
+}
+
+// Only ever a custom gift: a built-in can't be deleted, because copies of it
+// may already be sitting on people's profiles and the catalogue entry is what
+// gives those a name and an emoji.
+function deleteCustomGift(id) {
+  const row = db.prepare("SELECT * FROM gift_catalog WHERE id = ? AND custom = 1").get(id);
+  if (!row) return false;
+  db.prepare("DELETE FROM gift_catalog WHERE id = ?").run(id);
+  return true;
+}
+
+module.exports = { listGifts, getGift, setSupply, createGift, deleteCustomGift, SUPPLY_MIN, SUPPLY_MAX };

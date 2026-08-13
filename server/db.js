@@ -297,6 +297,27 @@ CREATE INDEX IF NOT EXISTS idx_gift_issues_recipient ON gift_issues(recipientId)
 -- sitting around). And it can't reach end-to-end secret-chat plaintext at
 -- all: the server has no keys, so those messages are exported as the
 -- ciphertext they're stored as, marked unreadable (see dataExport.js).
+-- Admin-editable layer over the shipped gift catalogue (server/data/gifts.js).
+-- Two kinds of row live here, told apart by the custom flag:
+--   custom = 0 — an override for a built-in gift. Only its supply is read; the
+--                other columns stay NULL so an override can't rename or reprice
+--                something that shipped.
+--   custom = 1 — a gift the admin minted, with no counterpart in the code
+--                catalogue, so every column is meaningful.
+-- Deliberately separate from gift_issues: that table records which serials have
+-- been handed out and must never be rewritten when a supply changes.
+CREATE TABLE IF NOT EXISTS gift_catalog (
+  id TEXT PRIMARY KEY,
+  emoji TEXT,
+  name TEXT,
+  priceRub INTEGER,
+  premiumDays INTEGER,
+  supply INTEGER,
+  exclusive INTEGER NOT NULL DEFAULT 0,
+  custom INTEGER NOT NULL DEFAULT 0,
+  createdAt TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS data_exports (
   id TEXT PRIMARY KEY,
   adminId TEXT NOT NULL,

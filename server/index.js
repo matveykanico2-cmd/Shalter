@@ -1,6 +1,17 @@
+const dns = require("dns");
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
+
+// Outbound HTTP from this process (link previews, translation, DonationAlerts,
+// the Hugo writing checker) goes through Node's fetch, which resolves a host to
+// both its A and AAAA records. On a host that has no working IPv6 route — common
+// on small VPSes and inside plenty of container networks — the AAAA attempt
+// stalls and the request fails with ETIMEDOUT, while curl on the same box
+// succeeds because it falls back to IPv4. Preferring IPv4 in the resolver avoids
+// that whole class of "works in the shell, times out in the app" failure.
+// Override with DNS_RESULT_ORDER=verbatim on an IPv6-only deployment.
+dns.setDefaultResultOrder(process.env.DNS_RESULT_ORDER === "verbatim" ? "verbatim" : "ipv4first");
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const compression = require("compression");
@@ -98,6 +109,7 @@ app.use("/api/donation-alerts", require("./routes/donationAlerts"));
 app.use("/api/translate", require("./routes/translate"));
 app.use("/api/uploads", require("./routes/uploads"));
 app.use("/api/downloads", require("./routes/downloads"));
+app.use("/api/hugo", require("./routes/hugo"));
 
 if (useBuilt) {
   // Serves whichever of app.js/app.js.br/app.js.gz the client's
