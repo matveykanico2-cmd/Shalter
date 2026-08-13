@@ -114,6 +114,11 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+  /* The inline style sets the real per-user colour; this is the floor for when a
+     call site has no colour to pass. The letter is white, so without a
+     background of some kind the whole avatar renders invisible (white on white)
+     rather than merely unstyled. */
+  background: var(--color-accent);
   color: #fff;
   font-weight: 500;
   user-select: none;
@@ -2167,6 +2172,11 @@
     width: 300px;
     flex-shrink: 0;
     border-left: 1px solid var(--color-border);
+    /* Its parent (.info-panel-slot in chatView.js) is a plain block element, so
+       a static child sizes to its content — without this the panel stopped
+       halfway down the window with the page background showing below it, and its
+       body never became the scroll container it's meant to be. */
+    height: 100%;
   }
 }
 .info-panel-header {
@@ -3666,6 +3676,13 @@
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
   padding: 12px 16px;
+}
+/* The header now carries two actions (import from contacts, add by handle).
+   Letting the title take the free space groups them together on the right
+   instead of leaving the icon stranded against the title. */
+.contacts-header .view-title {
+  flex: 1;
+  min-width: 0;
 }
 .view-title {
   font-family: var(--font-serif);
@@ -5182,3 +5199,108 @@
   white-space: normal;
   color: inherit;
 }
+
+/* ── Address-book import (components/importContactsDialog.js) ─────────────── */
+.import-contacts-dialog {
+  max-width: min(460px, 94vw);
+}
+.import-contacts-body {
+  display: flex;
+  max-height: min(64vh, 560px);
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  text-align: left;
+}
+.import-contacts-body > * {
+  margin: 0;
+}
+.import-contacts-body > .settings-section-title {
+  margin-top: 6px;
+}
+.import-vcf-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+}
+.import-contact-list {
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  padding: 0 10px;
+}
+.import-contact-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--color-border);
+  padding: 8px 0;
+}
+.import-contact-row:last-child {
+  border-bottom: none;
+}
+.import-contact-body {
+  flex: 1;
+  min-width: 0;
+}
+.import-contact-name {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+}
+.import-contact-sub {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.import-contact-sub:empty {
+  display: none;
+}
+/* Stand-in avatar for someone who has no account yet — same footprint as a real
+   avatar so the two lists line up with each other. */
+.import-contact-placeholder {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px dashed var(--color-border);
+  color: var(--color-muted);
+}
+.import-contact-done {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.import-contact-row .btn-accent-pill {
+  flex-shrink: 0;
+}
+.btn-accent-pill.muted {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+}
+/* Empty contacts list: the "import from your phone" route belongs right here,
+   since this is exactly the moment someone has nobody to talk to yet. */
+.contacts-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+}
+.contacts-empty .btn-accent {
+  padding: 10px 18px;
+}
+

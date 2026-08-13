@@ -36,8 +36,10 @@ Three things that matter and are easy to miss:
      the database; the database only stores the `/uploads/<id>` URL pointing
      here. A volume that covers `app.db` but not this directory leaves every
      message pointing at a file that 404s.
-   - `data/vapidKeys.json` — the Web Push keypair. Losing it silently
-     invalidates every existing push subscription.
+
+   (The Web Push keypair is *not* a separate file — it lives in the `vapid_keys`
+   table inside `app.db`, so it's covered by the same volume. Losing it would
+   silently invalidate every existing push subscription.)
 
    The path comes from `process.cwd()` (`server/db.js`, `routes/uploads.js`)
    and the image's WORKDIR is `/app`, hence `/app/data`.

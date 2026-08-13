@@ -1016,6 +1016,10 @@ async function renderPrivacy(root) {
         section("Приватность", [
           row("Последний визит", "lastSeen"),
           row("Номер телефона", "phone"),
+          // Distinct from the row above: that one is about who can *see* the
+          // number, this one about who can find the account *by* it (contact
+          // import — server/routes/contacts.js's /match).
+          row("Кто найдёт меня по номеру", "discoverByPhone"),
           row("Фото профиля", "photo"),
           row("О себе", "bio"),
           row("Дата рождения", "birthday"),

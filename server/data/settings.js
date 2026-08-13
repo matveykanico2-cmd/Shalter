@@ -11,6 +11,12 @@ const DEFAULT_SETTINGS = {
   privacy: {
     lastSeen: "everyone",
     phone: "contacts",
+    // "Кто может найти меня по номеру телефона" — enforced in
+    // routes/contacts.js's /match (contact import). Separate from `phone`
+    // above, which is about who can *see* the number on a profile: being
+    // findable by a number someone already has is a different question from
+    // handing the number out.
+    discoverByPhone: "everyone",
     photo: "everyone",
     bio: "everyone",
     birthday: "everyone",

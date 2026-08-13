@@ -147,7 +147,7 @@ startScheduledMessagesSweep();
 
 // VAPID key setup must finish before anything can subscribe/send push, but
 // must never block the server from coming up at all if it fails for some
-// reason (e.g. a corrupt data/vapidKeys.json) — push is additive, not core.
+// reason (the keypair lives in app.db's vapid_keys table) — push is additive, not core.
 initPush()
   .catch((err) => console.error("push init failed, push notifications disabled:", err))
   .finally(() => {

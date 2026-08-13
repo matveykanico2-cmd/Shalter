@@ -122,6 +122,10 @@ export const api = {
   listContacts: () => req("/api/contacts"),
   addContact: (userId) => req("/api/contacts", { method: "POST", body: JSON.stringify({ userId }) }),
   findUserByUsername: (username) => req(`/api/users/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
+  // Address-book import (components/importContactsDialog.js): send [{name, phone}],
+  // get back who's already registered and who can be invited. Nothing is stored
+  // server-side — see server/routes/contacts.js's /match.
+  matchContacts: (contacts) => req("/api/contacts/match", { method: "POST", body: JSON.stringify({ contacts }) }),
   removeContact: (userId) => req("/api/contacts", { method: "DELETE", body: JSON.stringify({ userId }) }),
 
   getSettings: () => req("/api/settings"),

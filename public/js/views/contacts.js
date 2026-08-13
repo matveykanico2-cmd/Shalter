@@ -6,6 +6,7 @@ import { navigate } from "../router.js";
 import { getState, setState } from "../state.js";
 import { openProfileDialog } from "../components/profileDialog.js";
 import { statusLabel } from "../lib/presence.js";
+import { openImportContactsDialog } from "../components/importContactsDialog.js";
 
 export async function ContactsView(root) {
   const { contacts: initialContacts } = await api.listContacts();
@@ -115,6 +116,17 @@ export async function ContactsView(root) {
     const header = el("header", { class: "contacts-header" }, [
       el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
       el("p", { class: "view-title" }, "Контакты"),
+      el("button", {
+        class: "icon-btn",
+        title: "Найти друзей из контактов телефона",
+        html: iconSvg("Users", 18),
+        onclick: () => openImportContactsDialog(async () => {
+            // A contact added from the dialog should show up behind it right
+            // away, not on the next visit to this screen.
+            ({ contacts } = await api.listContacts());
+            render();
+          }),
+      }),
       el(
         "button",
         {
@@ -141,7 +153,7 @@ export async function ContactsView(root) {
     }
     const addPanel = adding
       ? el("div", { class: "contacts-add-panel" }, [
-          el("p", { class: "settings-toggle-hint" }, "Введите точный @юзернейм — по имени искать нельзя, чтобы случайно не добавить незнакомца."),
+          el("p", { class: "settings-toggle-hint" }, "Введите точный @юзернейм — по имени искать нельзя, чтобы случайно не добавить незнакомца. Знакомых проще найти через контакты телефона — кнопка со значком людей вверху."),
           searchInput,
           candidatesEl,
         ])
@@ -151,7 +163,15 @@ export async function ContactsView(root) {
       "div",
       { class: "contacts-list" },
       sorted.length === 0
-        ? el("p", { class: "empty-hint" }, "Список контактов пуст")
+        ? el("div", { class: "contacts-empty" }, [
+            el("p", { class: "empty-hint" }, "Список контактов пуст"),
+            el("button", { class: "btn-accent", onclick: () => openImportContactsDialog(async () => {
+            // A contact added from the dialog should show up behind it right
+            // away, not on the next visit to this screen.
+            ({ contacts } = await api.listContacts());
+            render();
+          }) }, "Найти друзей из контактов"),
+          ])
         : sorted.map(({ user }) =>
             el("div", { class: "contact-row" }, [
               el("button", { class: "contact-row-profile-btn", onclick: () => openProfileDialog(user.id) }, [

@@ -7,6 +7,7 @@ import { openProfileDialog } from "./profileDialog.js";
 import { openChoiceDialog } from "./confirmDialog.js";
 import { openChannelPublicDialog } from "./channelPublicDialog.js";
 import { levelForPoints, pointsToNextLevel } from "../lib/groupLevels.js";
+import { safetyLabelInfo } from "../lib/safetyLabels.js";
 
 const RESTRICT_DURATIONS = [
   { label: "На 1 час", hours: 1 },
@@ -86,7 +87,10 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
         [
           Avatar({
             name: chat.otherUser?.name ?? title,
-            color: chat.avatarColor,
+            // Same fallback the image line below already had: a DM's own chat
+            // row carries no avatarColor, so passing it alone left the avatar
+            // with no background at all — a white letter on white, invisible.
+            color: chat.otherUser?.avatarColor ?? chat.avatarColor,
             image: chat.otherUser?.avatarImage ?? chat.avatarImage,
             size: 72,
             isPremium: isDm && chat.otherUser?.isPremium,

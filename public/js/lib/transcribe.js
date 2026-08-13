@@ -12,30 +12,52 @@
 // 2.17.2 is the last release under the old @xenova/transformers name — the
 // version the overwhelming majority of existing browser-Whisper demos still
 // use — and its onnxruntime-web pairing loads and runs cleanly.
-import { pipeline, env } from "https://esm.sh/@xenova/transformers@2.17.2";
-
-// Confirmed live: without this, transformers.js's default "try a local
-// model first" behavior checks `${origin}/models/Xenova/whisper-tiny/...` —
-// and on *this* app specifically that local check always looks like it
-// succeeds, because server/index.js's client-side-router catch-all serves
-// index.html (200 OK) for literally any unmatched path. transformers.js then
-// tries to parse that HTML as the model's config.json and fails with a
-// "Unexpected token '<' ... is not valid JSON" error, never reaching the
-// real fallback to Hugging Face's own CDN. Forcing remote-only sidesteps the
-// local check entirely instead of relying on it happening to 404.
-env.allowLocalModels = false;
-
+// Loaded with a *dynamic* import, only once someone actually asks for a
+// transcription. It used to be a static top-level import, and because
+// messageBubble.js imports this module statically in turn, that pulled
+// transformers.js and its onnxruntime-web bundle into **every** page load for
+// **every** user — several megabytes nobody asked for, plus two errors in the
+// console on startup every time ("module \"buffer\" not found", "module
+// \"long\" not found": onnxruntime-web reaching for Node builtins that don't
+// exist in a browser). Nothing here is needed until the "Расшифровать" menu
+// item is used, so nothing here loads until then.
 const MODEL = "Xenova/whisper-tiny";
+
+let transformersPromise = null;
+function loadTransformers() {
+  if (!transformersPromise) {
+    transformersPromise = import("https://esm.sh/@xenova/transformers@2.17.2")
+      .then((mod) => {
+        // Confirmed live: without this, transformers.js's default "try a local
+        // model first" behavior checks `${origin}/models/Xenova/whisper-tiny/...`
+        // — and on *this* app specifically that local check always looks like it
+        // succeeds, because server/index.js's client-side-router catch-all serves
+        // index.html (200 OK) for literally any unmatched path. transformers.js
+        // then tries to parse that HTML as the model's config.json and fails with
+        // a "Unexpected token '<' ... is not valid JSON" error, never reaching
+        // the real fallback to Hugging Face's own CDN. Forcing remote-only
+        // sidesteps the local check entirely instead of relying on it happening
+        // to 404.
+        mod.env.allowLocalModels = false;
+        return mod;
+      })
+      .catch((err) => {
+        transformersPromise = null; // don't cache a failed load forever
+        throw err;
+      });
+  }
+  return transformersPromise;
+}
 
 let transcriberPromise = null;
 function getTranscriber(onProgress) {
   if (!transcriberPromise) {
-    transcriberPromise = pipeline("automatic-speech-recognition", MODEL, {
-      progress_callback: onProgress,
-    }).catch((err) => {
-      transcriberPromise = null; // let a later call retry instead of caching the failure forever
-      throw err;
-    });
+    transcriberPromise = loadTransformers()
+      .then(({ pipeline }) => pipeline("automatic-speech-recognition", MODEL, { progress_callback: onProgress }))
+      .catch((err) => {
+        transcriberPromise = null; // let a later call retry instead of caching the failure forever
+        throw err;
+      });
   }
   return transcriberPromise;
 }

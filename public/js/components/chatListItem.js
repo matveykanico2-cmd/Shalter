@@ -61,7 +61,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete }) {
     [
       Avatar({
         name: chat.otherUser?.name ?? title,
-        color: chat.avatarColor,
+        color: chat.otherUser?.avatarColor ?? chat.avatarColor,
         image: chat.otherUser?.avatarImage ?? chat.avatarImage,
         online,
       }),

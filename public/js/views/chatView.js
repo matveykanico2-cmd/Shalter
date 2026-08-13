@@ -350,7 +350,7 @@ export async function ChatView(root, chatId) {
           [
             Avatar({
               name: other?.name ?? title,
-              color: chat.avatarColor,
+              color: (isDm ? other?.avatarColor : null) ?? chat.avatarColor,
               image: isDm ? other?.avatarImage : chat.avatarImage,
               size: 38,
               online: isDm ? other?.online : undefined,
