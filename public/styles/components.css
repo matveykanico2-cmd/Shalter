@@ -1919,14 +1919,50 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 .composer-attach-item {
-  display: block;
+  display: flex;
   width: 100%;
-  padding: 8px 12px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
   text-align: left;
   font-size: 14px;
 }
 .composer-attach-item:hover {
   background: var(--color-surface-alt);
+}
+.composer-attach-icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--color-muted);
+}
+
+/* On a phone the icon row beside the field was the whole problem: paperclip,
+   Hugo, stickers, schedule, emoji, video and mic is seven targets, ~250px of a
+   360px screen, and the text field got what was left — a slot too narrow to
+   read a sentence back in. Every one of those actions is in the paperclip menu
+   (see composer.js's attachActions), so on a narrow screen the shortcuts step
+   aside and the field takes the space.
+
+   Kept on screen: the paperclip (now the way into everything) and the trailing
+   voice/video buttons, which are one tap for the two things people send most
+   without typing. */
+@media (max-width: 620px) {
+  .composer-secondary {
+    display: none;
+  }
+  .composer-textarea {
+    min-width: 0;
+  }
+  .composer-attach-menu {
+    width: min(240px, calc(100vw - 24px));
+  }
+}
+/* Opened from the paperclip rather than from its own icon — the paperclip sits
+   at the left edge, so `right: 0` would push the picker off the side. */
+.composer-emoji-picker.anchored-left {
+  right: auto;
+  left: 0;
+  max-width: calc(100vw - 24px);
 }
 .composer-emoji-picker {
   position: absolute;

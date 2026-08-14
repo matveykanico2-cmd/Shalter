@@ -312,115 +312,127 @@ export function Composer({
       attachMenuEl?.remove();
       attachMenuEl = null;
     }
+    // Every composer action, in one list. The icon row beside the field is a set
+    // of shortcuts into this list, not a separate feature set — on a phone there
+    // is no room for seven icons next to a text field (they left it about
+    // 100px wide), so the shortcuts collapse and the paperclip is how you reach
+    // all of it. One definition, so the two never drift apart.
+    function attachActions() {
+      return [
+        { icon: "Image", label: "Фото или видео", run: () => mediaFileInput.click() },
+        { icon: "File", label: "Файл", run: () => anyFileInput.click() },
+        { icon: "Sticker", label: "Стикер", run: () => toggleStickers(attachSlot) },
+        { icon: "Smile", label: "Эмодзи", run: () => toggleEmoji(attachSlot) },
+        {
+          icon: "BarChart",
+          label: "Опрос",
+          run: () =>
+            openPollDialog((question, options) => {
+              onSend(question, [
+                { kind: "poll", meta: { options, votes: options.map(() => 0), voterIds: options.map(() => []) } },
+              ]);
+            }),
+        },
+        {
+          icon: "MapPin",
+          label: "Геолокация",
+          run: () => {
+            if (!navigator.geolocation) return alert("Геолокация не поддерживается в этом браузере");
+            navigator.geolocation.getCurrentPosition(
+              (pos) => onSend("", [{ kind: "location", meta: { lat: pos.coords.latitude, lng: pos.coords.longitude } }]),
+              () => alert("Не удалось получить местоположение")
+            );
+          },
+        },
+        {
+          icon: "Users",
+          label: "Контакт",
+          run: () =>
+            openContactPickerDialog((user) =>
+              onSend("", [{ kind: "contact", meta: { userId: user.id, name: user.name, phone: user.phone } }])
+            ),
+        },
+        // Recording needs a microphone/camera, and scheduling makes no sense
+        // while editing a message that has already been sent.
+        ...(isRecordingSupported()
+          ? [
+              { icon: "Mic", label: "Голосовое сообщение", run: () => beginRecording("voice") },
+              { icon: "Video", label: "Видео-сообщение", run: () => beginRecording("video-note") },
+            ]
+          : []),
+        { icon: "Check", label: "Проверить текст (Hugo)", run: () => runHugo() },
+        ...(editingMessage ? [] : [{ icon: "Clock", label: "Отправить позже", run: scheduleSend }]),
+      ];
+    }
+
     const attachBtn = el("button", {
       class: "composer-icon-btn",
       title: "Вложение",
       html: iconSvg("Paperclip", 19),
       onclick: () => {
         if (attachMenuEl) return closeAttachMenu();
-        attachMenuEl = el("div", { class: "composer-attach-menu" }, [
-          el(
-            "button",
-            {
-              class: "composer-attach-item",
-              onclick: () => {
-                closeAttachMenu();
-                mediaFileInput.click();
+        attachMenuEl = el(
+          "div",
+          { class: "composer-attach-menu" },
+          attachActions().map((a) =>
+            el(
+              "button",
+              {
+                class: "composer-attach-item",
+                onclick: () => {
+                  closeAttachMenu();
+                  a.run();
+                },
               },
-            },
-            "Фото или видео"
-          ),
-          el(
-            "button",
-            {
-              class: "composer-attach-item",
-              onclick: () => {
-                closeAttachMenu();
-                anyFileInput.click();
-              },
-            },
-            "Файл"
-          ),
-          el(
-            "button",
-            {
-              class: "composer-attach-item",
-              onclick: () => {
-                closeAttachMenu();
-                openPollDialog((question, options) => {
-                  onSend(question, [
-                    { kind: "poll", meta: { options, votes: options.map(() => 0), voterIds: options.map(() => []) } },
-                  ]);
-                });
-              },
-            },
-            "Опрос"
-          ),
-          el("button", {
-            class: "composer-attach-item",
-            onclick: () => {
-              closeAttachMenu();
-              if (!navigator.geolocation) return alert("Геолокация не поддерживается в этом браузере");
-              navigator.geolocation.getCurrentPosition(
-                (pos) =>
-                  onSend("", [{ kind: "location", meta: { lat: pos.coords.latitude, lng: pos.coords.longitude } }]),
-                () => alert("Не удалось получить местоположение")
-              );
-            },
-          }, "Геолокация"),
-          el(
-            "button",
-            {
-              class: "composer-attach-item",
-              onclick: () => {
-                closeAttachMenu();
-                openContactPickerDialog((user) =>
-                  onSend("", [{ kind: "contact", meta: { userId: user.id, name: user.name, phone: user.phone } }])
-                );
-              },
-            },
-            "Контакт"
-          ),
-        ]);
+              [el("span", { class: "composer-attach-icon", html: iconSvg(a.icon, 16) }), a.label]
+            )
+          )
+        );
         attachSlot.appendChild(attachMenuEl);
       },
     });
     const attachSlot = el("div", { class: "composer-attach-slot" }, [attachBtn, mediaFileInput, anyFileInput]);
 
-    // Emoji picker
+    // Emoji picker. Takes the element to hang off, because on a phone the icon
+    // that normally opens it isn't on screen — it's in the paperclip menu, and
+    // the picker has to anchor to the paperclip instead.
     let emojiMenuEl = null;
+    function toggleEmoji(host = emojiSlot) {
+      if (emojiMenuEl) {
+        emojiMenuEl.remove();
+        emojiMenuEl = null;
+        return;
+      }
+      emojiMenuEl = el(
+        "div",
+        // Opened from the paperclip (the only way in on a phone) it hangs off
+        // the left edge of the row, so it has to open rightwards or it lands
+        // off the side of the screen.
+        { class: `composer-emoji-picker ${host === attachSlot ? "anchored-left" : ""}` },
+        EMOJI.map((e) =>
+          el(
+            "button",
+            {
+              onclick: () => {
+                textarea.value += e;
+                autoResize();
+                textarea.focus();
+                if (!editingMessage) scheduleDraftSave(textarea.value);
+              },
+            },
+            e
+          )
+        )
+      );
+      host.appendChild(emojiMenuEl);
+    }
     const emojiBtn = el("button", {
       class: "composer-icon-btn",
       title: "Эмодзи",
       html: iconSvg("Smile", 19),
-      onclick: () => {
-        if (emojiMenuEl) {
-          emojiMenuEl.remove();
-          emojiMenuEl = null;
-          return;
-        }
-        emojiMenuEl = el(
-          "div",
-          { class: "composer-emoji-picker" },
-          EMOJI.map((e) =>
-            el(
-              "button",
-              {
-                onclick: () => {
-                  textarea.value += e;
-                  autoResize();
-                  textarea.focus();
-                  if (!editingMessage) scheduleDraftSave(textarea.value);
-                },
-              },
-              e
-            )
-          )
-        );
-        emojiSlot.appendChild(emojiMenuEl);
-      },
+      onclick: () => toggleEmoji(),
     });
-    const emojiSlot = el("div", { class: "composer-attach-slot" }, [emojiBtn]);
+    const emojiSlot = el("div", { class: "composer-attach-slot composer-secondary" }, [emojiBtn]);
 
     // Stickers are grouped into packs: the built-in set plus anything the user
     // assembled themselves (components/stickerPackDialog.js). Each one renders
@@ -466,57 +478,62 @@ export function Composer({
     // inserted into the text field, so it's its own message rather than
     // text-plus-emoji.
     let stickerMenuEl = null;
+    function toggleStickers(host = stickerSlot) {
+      if (stickerMenuEl) {
+        stickerMenuEl.remove();
+        stickerMenuEl = null;
+        return;
+      }
+      stickerMenuEl = el("div", { class: `composer-emoji-picker sticker-picker ${host === attachSlot ? "anchored-left" : ""}` });
+      renderStickerPicker();
+      host.appendChild(stickerMenuEl);
+      // Own packs load after the menu is already open, so the built-in set is
+      // usable instantly and a slow request never blocks the picker.
+      api
+        .listStickerPacks()
+        .then(({ packs }) => {
+          myPacks = packs;
+          if (stickerMenuEl) renderStickerPicker();
+        })
+        .catch(() => {});
+    }
     const stickerBtn = el("button", {
       class: "composer-icon-btn",
       title: "Стикеры",
       html: iconSvg("Sticker", 19),
-      onclick: () => {
-        if (stickerMenuEl) {
-          stickerMenuEl.remove();
-          stickerMenuEl = null;
-          return;
-        }
-        stickerMenuEl = el("div", { class: "composer-emoji-picker sticker-picker" });
-        renderStickerPicker();
-        stickerSlot.appendChild(stickerMenuEl);
-        // Own packs load after the menu is already open, so the built-in set is
-        // usable instantly and a slow request never blocks the picker.
-        api
-          .listStickerPacks()
-          .then(({ packs }) => {
-            myPacks = packs;
-            if (stickerMenuEl) renderStickerPicker();
-          })
-          .catch(() => {});
-      },
+      onclick: () => toggleStickers(),
     });
-    const stickerSlot = el("div", { class: "composer-attach-slot" }, [stickerBtn]);
+    const stickerSlot = el("div", { class: "composer-attach-slot composer-secondary" }, [stickerBtn]);
 
     // "Send later" — queues whatever's currently typed instead of sending
     // now (server/lib/scheduledMessagesSweep.js fires it at the chosen
     // time). Doesn't apply while editing an existing message.
+    function scheduleSend() {
+      if (!textarea.value.trim()) {
+        alert("Сначала напишите сообщение — запланировать можно только то, что уже набрано");
+        return;
+      }
+      openScheduleSendDialog(async (sendAt) => {
+        try {
+          await api.scheduleMessage(chatId, { text: textarea.value.trim(), replyToId: replyingTo?.id ?? null, sendAt });
+          textarea.value = "";
+          autoResize();
+          updateTrailingButtons();
+          clearDraft();
+          onScheduled?.();
+        } catch (err) {
+          alert(err.message || "Не удалось запланировать отправку");
+        }
+      });
+    }
     const scheduleSlot = editingMessage
       ? null
-      : el("div", { class: "composer-attach-slot" }, [
+      : el("div", { class: "composer-attach-slot composer-secondary" }, [
           el("button", {
             class: "composer-icon-btn",
             title: "Отправить позже",
             html: iconSvg("Clock", 18),
-            onclick: () => {
-              if (!textarea.value.trim()) return;
-              openScheduleSendDialog(async (sendAt) => {
-                try {
-                  await api.scheduleMessage(chatId, { text: textarea.value.trim(), replyToId: replyingTo?.id ?? null, sendAt });
-                  textarea.value = "";
-                  autoResize();
-                  updateTrailingButtons();
-                  clearDraft();
-                  onScheduled?.();
-                } catch (err) {
-                  alert(err.message || "Не удалось запланировать отправку");
-                }
-              });
-            },
+            onclick: scheduleSend,
           }),
         ]);
 
@@ -654,7 +671,7 @@ export function Composer({
       html: iconSvg("Check", 19),
       onclick: runHugo,
     });
-    const hugoSlotBtn = el("div", { class: "composer-attach-slot" }, [hugoBtn]);
+    const hugoSlotBtn = el("div", { class: "composer-attach-slot composer-secondary" }, [hugoBtn]);
 
     const trailingSlot = el("div", { class: "composer-trailing" });
     function updateTrailingButtons() {
