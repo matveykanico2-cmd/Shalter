@@ -361,7 +361,7 @@ function VideoNotePlayer(a) {
   return wrap;
 }
 
-export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, replyToMessage, members, handlers }) {
+export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, replyToMessage, members, handlers }) {
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onKeyboardAction, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
 
@@ -591,7 +591,10 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     const items = [
       { icon: "Reply", label: "Ответить", onClick: () => onReply(message) },
       { icon: "Smile", label: "Реакция", onClick: () => togglePicker(pos) },
-      { icon: "Pin", label: message.pinned ? "Открепить" : "Закрепить", onClick: () => onPin(message) },
+      // Hidden rather than shown-and-refused: in a group or channel only the
+      // people running it may pin (server/routes/messages.js's canPin), and an
+      // item that always answers 403 is worse than no item.
+      ...(canPin ? [{ icon: "Pin", label: message.pinned ? "Открепить" : "Закрепить", onClick: () => onPin(message) }] : []),
       { icon: "Forward", label: "Переслать", onClick: () => onForward(message) },
     ];
     // Group-chat threads (threadPanel.js) — a nested sub-conversation kept
@@ -705,7 +708,12 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     : null;
 
   const column = el("div", { class: `message-column ${mine ? "mine" : ""}` }, [
-    showSender && !mine && sender ? el("span", { class: "sender-name" }, sender.name) : null,
+    // The sender's name opens their profile, same as tapping their avatar
+    // below — in a group these two are the only things identifying who wrote a
+    // message, and neither did anything when tapped.
+    showSender && !mine && sender
+      ? el("button", { class: "sender-name", onclick: () => openProfileDialog(sender.id) }, sender.name)
+      : null,
     bubbleWrap,
     reactionsRow,
     keyboardRows,
@@ -725,7 +733,13 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         ? el(
             "div",
             { class: "message-avatar-slot" },
-            groupEnd && sender ? Avatar({ name: sender.name, color: sender.avatarColor, image: sender.avatarImage, size: 30 }) : null
+            groupEnd && sender
+              ? el(
+                  "button",
+                  { class: "message-avatar-btn", title: `Профиль: ${sender.name}`, onclick: () => openProfileDialog(sender.id) },
+                  [Avatar({ name: sender.name, color: sender.avatarColor, image: sender.avatarImage, size: 30 })]
+                )
+              : null
           )
         : null,
       column,

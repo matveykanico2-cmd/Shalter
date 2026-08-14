@@ -7,6 +7,14 @@ import { getState, setState } from "../state.js";
 import { openProfileDialog } from "../components/profileDialog.js";
 import { statusLabel } from "../lib/presence.js";
 import { openImportContactsDialog } from "../components/importContactsDialog.js";
+import { formatPhoneInput } from "../lib/phoneFormat.js";
+
+// Digits only, so "+7 999 123-45-67", "8 (999) 1234567" and "79991234567" are
+// one number when filtering. Mirrors server/lib/phoneMatch.js's phoneKey.
+function digits(raw) {
+  const d = String(raw ?? "").replace(/\D/g, "");
+  return d.length === 11 && d.startsWith("8") ? `7${d.slice(1)}` : d;
+}
 
 export async function ContactsView(root) {
   const { contacts: initialContacts } = await api.listContacts();
@@ -23,6 +31,34 @@ export async function ContactsView(root) {
   let searching = false;
   let searchTimer = null;
   let blockedIds = new Set(getState().user.blockedUserIds ?? []);
+  // "по номеру" first: it's how Telegram's own add-contact form works, and it's
+  // the one people can actually use — a phone number you already have written
+  // down, rather than a handle you'd have to be told.
+  let addMode = "phone";
+  let notRegistered = null; // { phone } — found nobody, offer an invite instead
+  let inviteLink = null;
+  let inviteCopied = false;
+
+  api
+    .getPremiumInfo()
+    .then((info) => {
+      if (info?.referralCode) inviteLink = `${window.location.origin}/login?ref=${info.referralCode}`;
+    })
+    .catch(() => {});
+
+  // Filters the list you already have. Separate from the add form below, which
+  // searches accounts you don't: mixing the two is how you end up "searching"
+  // and getting nothing because the person isn't a contact yet.
+  let filter = "";
+  const filterInput = el("input", {
+    class: "login-input contacts-filter",
+    type: "search",
+    placeholder: "Поиск по имени или номеру",
+    oninput: (e) => {
+      filter = e.target.value;
+      renderList();
+    },
+  });
 
   // Built once and reused by every render() below, never rebuilt from the
   // current `query` — a fresh <input> node on each keystroke is exactly what
@@ -36,12 +72,65 @@ export async function ContactsView(root) {
       query = e.target.value;
       searchResult = null;
       searchError = null;
+      notRegistered = null;
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => runSearch(query), 400);
       renderCandidates();
     },
   });
+
+  // The Telegram-shaped form: a name you choose and the number you have.
+  const nameInput = el("input", { class: "login-input", placeholder: "Имя (как записать у себя)" });
+  const phoneInput = el("input", {
+    class: "login-input mono",
+    type: "tel",
+    placeholder: "+7 999 123 45 67",
+    oninput: (e) => {
+      e.target.value = formatPhoneInput(e.target.value);
+      searchResult = null;
+      searchError = null;
+      notRegistered = null;
+      renderCandidates();
+    },
+    onkeydown: (e) => {
+      if (e.key === "Enter") lookUpPhone();
+    },
+  });
   const candidatesEl = el("div", { class: "contacts-candidates" });
+
+  // One number through the same endpoint the address-book import uses, so the
+  // privacy rules ("кто может найти меня по номеру") are enforced in exactly one
+  // place and a single lookup can't become a way around them. That endpoint
+  // reports a hidden account as simply not registered — which is the point, and
+  // why this screen can't tell the difference either.
+  async function lookUpPhone() {
+    const phone = phoneInput.value.trim();
+    searchResult = null;
+    searchError = null;
+    notRegistered = null;
+    if (digits(phone).length < 10) {
+      searchError = "Введите номер полностью";
+      renderCandidates();
+      return;
+    }
+    searching = true;
+    renderCandidates();
+    try {
+      const { found, notFound } = await api.matchContacts([{ phone, name: nameInput.value.trim() }]);
+      if (found.length) {
+        const entry = found[0];
+        if (entry.alreadyContact) searchError = "Уже в контактах";
+        else searchResult = entry.user;
+      } else {
+        notRegistered = { phone: notFound[0]?.phone ?? phone };
+      }
+    } catch (err) {
+      searchError = err.message || "Не удалось проверить номер";
+    } finally {
+      searching = false;
+      renderCandidates();
+    }
+  }
 
   async function runSearch(q) {
     searchResult = null;
@@ -69,6 +158,19 @@ export async function ContactsView(root) {
     }
   }
 
+  async function confirmAdd(u) {
+    const localName = nameInput.value.trim();
+    await api.addContact(u.id, localName || null);
+    ({ contacts } = await api.listContacts());
+    adding = false;
+    query = "";
+    searchResult = null;
+    notRegistered = null;
+    nameInput.value = "";
+    phoneInput.value = "";
+    render();
+  }
+
   // Only the result slot under the input — the input itself stays mounted and
   // focused, so typing is never interrupted.
   function renderCandidates() {
@@ -78,25 +180,42 @@ export async function ContactsView(root) {
     if (searchResult) {
       const u = searchResult;
       candidatesEl.appendChild(
+        el("button", { class: "contact-candidate-row", onclick: () => confirmAdd(u) }, [
+          Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 32 }),
+          el("span", { class: "contact-candidate-name" }, u.name),
+          u.username ? el("span", { class: "contact-candidate-username" }, `@${u.username}`) : null,
+        ].filter(Boolean))
+      );
+    }
+    // Nobody on that number. Telegram offers an SMS invite here; there's no SMS
+    // gateway in this app, so the invite is the referral link — which is also
+    // worth more to both sides than a plain "join me" would be.
+    if (notRegistered) {
+      candidatesEl.append(
+        el("p", { class: "empty-hint" }, `На номере ${notRegistered.phone} никого нет в Shalter`),
         el(
           "button",
           {
-            class: "contact-candidate-row",
+            class: "btn-accent",
             onclick: async () => {
-              await api.addContact(u.id);
-              contacts = [...contacts, { id: `ct_${u.id}`, userId: u.id, addedAt: new Date().toISOString(), user: u }];
-              adding = false;
-              query = "";
-              searchResult = null;
-              render();
+              const text = `Привет! Пишу тебе из Shalter — попробуй, там удобно.${inviteLink ? ` ${inviteLink}` : ""}`;
+              try {
+                if (navigator.share) await navigator.share({ text });
+                else await navigator.clipboard.writeText(text);
+                inviteCopied = true;
+              } catch {
+                inviteCopied = true; // sharing cancelled or clipboard blocked — the link is still on screen below
+              }
+              renderCandidates();
             },
           },
-          [
-            Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 32 }),
-            el("span", { class: "contact-candidate-name" }, u.name),
-            el("span", { class: "contact-candidate-username" }, `@${u.username}`),
-          ]
-        )
+          "Пригласить в Shalter"
+        ),
+        // filter(Boolean): native Element.append() turns a null argument into a
+        // literal "null" text node — it rendered as «Пригласить в Shalternull».
+        ...(inviteCopied
+          ? [el("p", { class: "settings-toggle-hint" }, `Приглашение скопировано${inviteLink ? `: ${inviteLink}` : ""}`)]
+          : [])
       );
     }
   }
@@ -110,8 +229,39 @@ export async function ContactsView(root) {
     render();
   }
 
+  function setMode(mode) {
+    addMode = mode;
+    searchResult = null;
+    searchError = null;
+    notRegistered = null;
+    render();
+    (mode === "phone" ? nameInput : searchInput).focus();
+  }
+
+  // What this contact is called here: your own label if you set one, otherwise
+  // the name on the account.
+  const displayName = (c) => c.localName || c.user.name;
+
+  function visibleContacts() {
+    const q = filter.trim().toLowerCase();
+    const sorted = [...contacts].sort((a, b) => displayName(a).localeCompare(displayName(b), "ru"));
+    if (!q) return sorted;
+    // Digits in the query mean "looking for a number" — matched against the
+    // number with its own formatting stripped, so how either side wrote the
+    // spaces and dashes doesn't matter.
+    const qDigits = digits(q);
+    return sorted.filter(
+      (c) =>
+        displayName(c).toLowerCase().includes(q) ||
+        c.user.name.toLowerCase().includes(q) ||
+        (c.user.username ?? "").toLowerCase().includes(q.replace(/^@/, "")) ||
+        (qDigits.length >= 3 && digits(c.user.phone).includes(qDigits))
+    );
+  }
+
+  const listEl = el("div", { class: "contacts-list" });
+
   function render() {
-    const sorted = [...contacts].sort((a, b) => a.user.name.localeCompare(b.user.name, "ru"));
 
     const header = el("header", { class: "contacts-header" }, [
       el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
@@ -151,70 +301,124 @@ export async function ContactsView(root) {
       searchInput.value = query;
       renderCandidates();
     }
+    const modeSwitch = el("div", { class: "contacts-add-modes" }, [
+      el("button", { class: `contacts-add-mode ${addMode === "phone" ? "active" : ""}`, onclick: () => setMode("phone") }, "По номеру"),
+      el("button", { class: `contacts-add-mode ${addMode === "username" ? "active" : ""}`, onclick: () => setMode("username") }, "По юзернейму"),
+    ]);
     const addPanel = adding
       ? el("div", { class: "contacts-add-panel" }, [
-          el("p", { class: "settings-toggle-hint" }, "Введите точный @юзернейм — по имени искать нельзя, чтобы случайно не добавить незнакомца. Знакомых проще найти через контакты телефона — кнопка со значком людей вверху."),
-          searchInput,
+          modeSwitch,
+          ...(addMode === "phone"
+            ? [
+                el("p", { class: "settings-toggle-hint" }, "Как в телефонной книге: имя, под которым записать, и номер. Имя видите только вы."),
+                nameInput,
+                el("div", { class: "contacts-phone-row" }, [
+                  phoneInput,
+                  el("button", { class: "btn-accent-pill", onclick: lookUpPhone }, "Найти"),
+                ]),
+              ]
+            : [
+                el("p", { class: "settings-toggle-hint" }, "Введите точный @юзернейм — по имени искать нельзя, чтобы случайно не добавить незнакомца."),
+                searchInput,
+              ]),
           candidatesEl,
         ])
       : null;
 
-    const list = el(
-      "div",
-      { class: "contacts-list" },
-      sorted.length === 0
-        ? el("div", { class: "contacts-empty" }, [
-            el("p", { class: "empty-hint" }, "Список контактов пуст"),
-            el("button", { class: "btn-accent", onclick: () => openImportContactsDialog(async () => {
-            // A contact added from the dialog should show up behind it right
-            // away, not on the next visit to this screen.
-            ({ contacts } = await api.listContacts());
-            render();
-          }) }, "Найти друзей из контактов"),
-          ])
-        : sorted.map(({ user }) =>
-            el("div", { class: "contact-row" }, [
-              el("button", { class: "contact-row-profile-btn", onclick: () => openProfileDialog(user.id) }, [
-                Avatar({ name: user.name, color: user.avatarColor, image: user.avatarImage, online: user.online }),
-                el("div", { class: "contact-row-body" }, [
-                  el("p", { class: "contact-row-name" }, user.name),
-                  el(
-                    "p",
-                    { class: `contact-row-status ${user.online ? "online" : ""}` },
-                    statusLabel(user) ?? (user.username ? `@${user.username}` : "недавно")
-                  ),
-                ]),
-              ]),
-              el("button", {
-                class: "icon-btn",
-                title: "Написать",
-                html: iconSvg("Send", 16),
-                onclick: async () => {
-                  const { chat } = await api.startDm(user.id, user.name, user.avatarColor);
-                  navigate(`/chat/${chat.id}`);
-                },
-              }),
-              el("button", {
-                class: `icon-btn ${blockedIds.has(user.id) ? "blocked-icon" : ""}`,
-                title: blockedIds.has(user.id) ? "Разблокировать" : "Заблокировать",
-                html: iconSvg("Lock", 16),
-                onclick: () => toggleBlocked(user.id),
-              }),
-              el("button", {
-                class: "icon-btn",
-                title: "Удалить из контактов",
-                html: iconSvg("Trash", 16),
-                onclick: async () => {
-                  await api.removeContact(user.id);
-                  contacts = contacts.filter((c) => c.userId !== user.id);
+    renderList();
+    mount(root, el("div", { class: "contacts-view" }, [header, addPanel, contacts.length ? filterInput : null, listEl].filter(Boolean)));
+  }
+
+  // Its own render so typing in the filter doesn't rebuild (and unfocus) the
+  // field doing the typing — the same trap the add form fell into once already.
+  function renderList() {
+    const sorted = visibleContacts();
+    clear(listEl);
+    if (contacts.length === 0) {
+      listEl.append(
+        el("div", { class: "contacts-empty" }, [
+          el("p", { class: "empty-hint" }, "Список контактов пуст"),
+          el(
+            "button",
+            {
+              class: "btn-accent",
+              onclick: () =>
+                openImportContactsDialog(async () => {
+                  ({ contacts } = await api.listContacts());
                   render();
-                },
-              }),
-            ])
-          )
+                }),
+            },
+            "Найти друзей из контактов"
+          ),
+        ])
+      );
+      return;
+    }
+    if (sorted.length === 0) {
+      listEl.appendChild(el("p", { class: "empty-hint" }, `По запросу «${filter.trim()}» никого нет`));
+      return;
+    }
+    listEl.append(
+      ...sorted.map((c) => {
+        const user = c.user;
+        return el("div", { class: "contact-row" }, [
+          el("button", { class: "contact-row-profile-btn", onclick: () => openProfileDialog(user.id) }, [
+            Avatar({ name: displayName(c), color: user.avatarColor, image: user.avatarImage, online: user.online }),
+            el("div", { class: "contact-row-body" }, [
+              el("p", { class: "contact-row-name" }, displayName(c)),
+              el(
+                "p",
+                { class: `contact-row-status ${user.online ? "online" : ""}` },
+                // When you've given them your own name, the account's own name
+                // is the useful second line — otherwise you'd lose track of who
+                // "Мама" actually is on the service.
+                c.localName && c.localName !== user.name
+                  ? user.name
+                  : statusLabel(user) ?? (user.username ? `@${user.username}` : "недавно")
+              ),
+            ]),
+          ]),
+          el("button", {
+            class: "icon-btn",
+            title: "Переименовать у себя",
+            html: iconSvg("Edit", 15),
+            onclick: async () => {
+              const next = prompt(`Как записать ${user.name}?`, c.localName ?? user.name);
+              if (next == null) return;
+              await api.renameContact(user.id, next.trim());
+              ({ contacts } = await api.listContacts());
+              renderList();
+            },
+          }),
+          el("button", {
+            class: "icon-btn",
+            title: "Написать",
+            html: iconSvg("Send", 16),
+            onclick: async () => {
+              const { chat } = await api.startDm(user.id, user.name, user.avatarColor);
+              navigate(`/chat/${chat.id}`);
+            },
+          }),
+          el("button", {
+            class: `icon-btn ${blockedIds.has(user.id) ? "blocked-icon" : ""}`,
+            title: blockedIds.has(user.id) ? "Разблокировать" : "Заблокировать",
+            html: iconSvg("Lock", 16),
+            onclick: () => toggleBlocked(user.id),
+          }),
+          el("button", {
+            class: "icon-btn",
+            title: "Удалить из контактов",
+            html: iconSvg("Trash", 16),
+            onclick: async () => {
+              await api.removeContact(user.id);
+              contacts = contacts.filter((x) => x.userId !== user.id);
+              render();
+            },
+          }),
+        ]);
+      })
     );
 
-    mount(root, el("div", { class: "contacts-view" }, [header, addPanel, list]));
   }
 
   render();

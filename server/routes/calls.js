@@ -124,6 +124,10 @@ router.post(
     const { userId } = req.body ?? {};
     const call = await getCall(req.params.id);
     if (!call) return res.status(404).json({ error: "not found" });
+    // Only from inside the call: without this anyone who knew a call id could
+    // pull a stranger into someone else's conversation.
+    if (!call.participantIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    if (call.participantIds.includes(userId)) return res.json({ call });
     if (!(await canCall(req.uid, userId))) {
       return res.status(403).json({ error: "Пользователь ограничил звонки" });
     }

@@ -74,10 +74,14 @@ export const api = {
   deleteChatForMe: (id) => req(`/api/chats/${id}/delete-for-me`, { method: "POST" }),
   startDm: (userId, title, avatarColor) =>
     req("/api/chats", { method: "POST", body: JSON.stringify({ userId, title, avatarColor }) }),
-  createChannel: (title, avatarImage, memberIds, adminIds) =>
-    req("/api/chats/channels", { method: "POST", body: JSON.stringify({ title, avatarImage, memberIds, adminIds }) }),
-  createGroup: (title, memberIds, avatarImage, adminIds) =>
-    req("/api/chats/groups", { method: "POST", body: JSON.stringify({ title, memberIds, avatarImage, adminIds }) }),
+  // `extra` carries what the create dialog now asks for up front: description,
+  // @username and whether it's public.
+  createChannel: (title, avatarImage, memberIds, adminIds, extra = {}) =>
+    req("/api/chats/channels", { method: "POST", body: JSON.stringify({ title, avatarImage, memberIds, adminIds, ...extra }) }),
+  createGroup: (title, memberIds, avatarImage, adminIds, extra = {}) =>
+    req("/api/chats/groups", { method: "POST", body: JSON.stringify({ title, memberIds, avatarImage, adminIds, ...extra }) }),
+  // The palette this chat's level has unlocked (server/lib/chatFeatures.js).
+  getChatFeatures: (id) => req(`/api/chats/${id}/features`),
   setChannelPublic: (id, isPublic, username) =>
     req(`/api/chats/${id}/public`, { method: "POST", body: JSON.stringify({ isPublic, username }) }),
   discoverChannels: (q) => req(`/api/channels?q=${encodeURIComponent(q ?? "")}`),
@@ -139,7 +143,8 @@ export const api = {
   deleteFolder: (id) => req(`/api/folders/${id}`, { method: "DELETE" }),
 
   listContacts: () => req("/api/contacts"),
-  addContact: (userId) => req("/api/contacts", { method: "POST", body: JSON.stringify({ userId }) }),
+  addContact: (userId, localName) => req("/api/contacts", { method: "POST", body: JSON.stringify({ userId, localName }) }),
+  renameContact: (userId, localName) => req("/api/contacts/rename", { method: "POST", body: JSON.stringify({ userId, localName }) }),
   findUserByUsername: (username) => req(`/api/users/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
   // Address-book import (components/importContactsDialog.js): send [{name, phone}],
   // get back who's already registered and who can be invited. Nothing is stored

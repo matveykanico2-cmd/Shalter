@@ -57,18 +57,29 @@ async function findChatByUsername(username) {
   return rowToChat(db.prepare("SELECT * FROM chats WHERE lower(username) = ? AND username IS NOT NULL").get(normalized));
 }
 
-// Public-channel directory (routes/channels.js) — title/username substring
-// match. SQLite's LIKE is already case-insensitive for ASCII by default
-// (case_sensitive_like pragma is off), so no lower()/COLLATE needed here
-// the way the exact-match lookup above needs it. Small-scale LIKE scan is
-// fine at this app's size (see AGENTS.md: single-process, not built for
-// horizontal scale); revisit with FTS5 if the channel count ever gets large.
+// Public-channel directory (routes/channels.js, and the main search box) —
+// title/username substring match.
+//
+// Matched in JS, not with SQL's LIKE. SQLite's LIKE folds case for ASCII only:
+// against a channel called «Новости Шалтера», `title LIKE '%новост%'` returns
+// nothing, because SQLite does not consider "н" and "Н" the same letter. On a
+// Russian-language app that meant most public channels could only be found by
+// typing their name with the capitalisation exactly right. JavaScript's
+// toLowerCase is Unicode-aware and gets this right.
+//
+// Small-scale scan is fine at this app's size (see AGENTS.md: single-process,
+// not built for horizontal scale); revisit with FTS5 if the channel count ever
+// gets large.
 async function searchPublicChannels(query) {
-  const q = `%${(query ?? "").trim()}%`;
+  const q = (query ?? "").trim().toLowerCase();
+  const handle = q.replace(/^@/, "");
   const rows = db
-    .prepare("SELECT * FROM chats WHERE type = 'channel' AND isPublic = 1 AND (title LIKE ? OR username LIKE ?) ORDER BY title ASC LIMIT 50")
-    .all(q, q);
-  return rows.map(rowToChat);
+    .prepare("SELECT * FROM chats WHERE type IN ('channel', 'group') AND isPublic = 1 ORDER BY title ASC")
+    .all();
+  return rows
+    .filter((r) => !q || (r.title ?? "").toLowerCase().includes(q) || (r.username ?? "").toLowerCase().includes(handle))
+    .slice(0, 50)
+    .map(rowToChat);
 }
 
 // De-duplicates because chat_members' primary key is (chatId, userId): a caller

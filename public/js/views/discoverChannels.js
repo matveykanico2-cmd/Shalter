@@ -11,7 +11,10 @@ import { setState } from "../state.js";
 // at all (see server/routes/channels.js) — that's the whole point of a
 // channel being public.
 export async function DiscoverChannelsView(root) {
-  let query = "";
+  // ?q= lets the main search hand a channel over to this screen with the search
+  // already run, instead of dumping the user on an empty discovery page and
+  // making them retype what they just typed.
+  let query = new URLSearchParams(window.location.search).get("q") ?? "";
   let channels = [];
   let loading = true;
   let searchTimer = null;
@@ -107,5 +110,5 @@ export async function DiscoverChannelsView(root) {
   }
 
   render();
-  search("");
+  search(query);
 }

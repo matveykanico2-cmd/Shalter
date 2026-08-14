@@ -17,6 +17,7 @@ import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../comp
 import { openStarsDialog } from "../../components/starsDialog.js";
 import { openGiftShopDialog } from "../../components/giftShopDialog.js";
 import { openAvatarViewer } from "../../components/avatarViewer.js";
+import { Toggle } from "../../components/toggle.js";
 import { openProfileQrDialog } from "../../components/profileQrDialog.js";
 import { handlePurchaseResponse } from "../../lib/purchase.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
@@ -46,12 +47,6 @@ const SECTIONS = [
   { id: "donations", label: "DonationAlerts", icon: "Zap", color: "#3ec2c2", adminOnly: true },
   { id: "legal", label: "Запросы органов", icon: "Shield", color: "#5b6370", adminOnly: true },
 ];
-
-function Toggle(checked, onChange) {
-  return el("button", { class: `settings-toggle ${checked ? "on" : ""}`, onclick: () => onChange(!checked) }, [
-    el("span", { class: "settings-toggle-knob" }),
-  ]);
-}
 
 export async function SettingsView(root, page) {
   const section = page ?? "";

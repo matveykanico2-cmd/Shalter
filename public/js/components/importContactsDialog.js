@@ -134,7 +134,10 @@ export function openImportContactsDialog(onAdded) {
     busyId = entry.user.id;
     render();
     try {
-      await api.addContact(entry.user.id);
+      // The name from the phone's address book, kept as the local name — it was
+      // already being read out of the vCard and thrown away, and it's the name
+      // this person is actually known by here.
+      await api.addContact(entry.user.id, entry.localName || null);
       addedIds.add(entry.user.id);
       onAdded?.();
     } catch (err) {

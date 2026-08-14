@@ -3,7 +3,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser } = require("../data/chats");
 const { checkUsername, normalizeUsername } = require("../lib/username");
-const { unlocked, lockedError, featureState } = require("../lib/chatFeatures");
+const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeatures");
 const { deleteMessagesForChat } = require("../data/messages");
 const { getSettings, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft } = require("../data/settings");
 const { attachSummaries } = require("../data/chat-summary");
@@ -67,6 +67,22 @@ router.post(
 // second, quietly worse code path through the entire messaging stack, kept
 // alive for a mode nobody was actually using.
 
+// Description and @handle, given at creation time. Both used to be
+// after-the-fact edits gated on the chat's level, so a new channel started
+// nameless and private and could only be published once its members had voted
+// it up — which they can't do before it exists. A handle claimed here goes
+// through exactly the same namespace check as /:id/public.
+async function resolveNewChatIdentity({ description, username, isPublic }) {
+  const desc = typeof description === "string" ? description.trim().slice(0, 500) : "";
+  if (!isPublic || !String(username ?? "").trim()) {
+    return { description: desc || null, username: null, isPublic: false };
+  }
+  const handle = normalizeUsername(username);
+  const problem = await checkUsername(handle);
+  if (problem) return { error: problem };
+  return { description: desc || null, username: handle, isPublic: true };
+}
+
 // Creates a new channel with an auto-created, linked discussion group
 // (Telegram's real "channel + discussion group" pattern), so posts published
 // to the channel (see server/routes/posts.js) have somewhere to be commented on.
@@ -75,6 +91,8 @@ router.post(
   asyncRoute(async (req, res) => {
     const { title, avatarImage, memberIds, adminIds } = req.body ?? {};
     if (!title?.trim()) return res.status(400).json({ error: "Введите название канала" });
+    const identity = await resolveNewChatIdentity(req.body ?? {});
+    if (identity.error) return res.status(identity.error.status).json({ error: identity.error.error });
     const now = new Date().toISOString();
     // Members/admins picked in the create dialog (see memberPickerDialog.js)
     // — the creator is always included and is always an owner-level admin
@@ -99,12 +117,14 @@ router.post(
       id: `c_${Date.now()}`,
       type: "channel",
       title: title.trim(),
+      description: identity.description,
+      username: identity.username,
       avatarColor: "#D9822E",
       avatarImage: avatarImage || undefined,
       memberIds: [...members],
       ownerId: req.uid,
       adminIds: [...admins],
-      isPublic: false,
+      isPublic: identity.isPublic,
       pinned: false,
       muted: false,
       archived: false,
@@ -122,12 +142,17 @@ router.post(
   asyncRoute(async (req, res) => {
     const { title, memberIds, avatarImage, adminIds } = req.body ?? {};
     if (!title?.trim()) return res.status(400).json({ error: "Введите название группы" });
+    const identity = await resolveNewChatIdentity(req.body ?? {});
+    if (identity.error) return res.status(identity.error.status).json({ error: identity.error.error });
     const members = new Set([req.uid, ...(Array.isArray(memberIds) ? memberIds : [])]);
     const admins = new Set([req.uid, ...(Array.isArray(adminIds) ? adminIds.filter((id) => members.has(id)) : [])]);
     const chat = await createChat({
       id: `c_${Date.now()}`,
       type: "group",
       title: title.trim(),
+      description: identity.description,
+      username: identity.username,
+      isPublic: identity.isPublic,
       avatarColor: "#2E56D9",
       avatarImage: avatarImage || undefined,
       memberIds: [...members],
@@ -184,17 +209,19 @@ router.patch(
     if (!chat) return;
     const patch = req.body ?? {};
 
-    // Customising a group or channel is gated on its level (lib/chatFeatures.js).
-    // Checked here rather than only in the UI, because this route is also what a
-    // bot or a hand-rolled request would use.
-    if (("avatarImage" in patch || "avatarColor" in patch) && !unlocked(chat, "avatar")) {
-      return res.status(403).json({ error: lockedError("avatar") });
+    // Only the palette is level-gated now (lib/chatFeatures.js) — a picture, a
+    // description and auto-delete are how a chat is run, not a reward. Checked
+    // here rather than only in the UI, because this route is also what a bot or
+    // a hand-rolled request would use.
+    if ("avatarColor" in patch && !colorUnlocked(chat, patch.avatarColor)) {
+      return res.status(403).json({ error: lockedColorError(patch.avatarColor) });
     }
-    if ("description" in patch && !unlocked(chat, "description")) {
-      return res.status(403).json({ error: lockedError("description") });
-    }
-    if ("autoDeleteSeconds" in patch && !unlocked(chat, "autoDelete")) {
-      return res.status(403).json({ error: lockedError("autoDelete") });
+    // Renaming, re-picturing and re-describing a group or channel is the
+    // owners' and admins' job — it used to be open to any member, so anyone in
+    // a group could rename it.
+    const EDITABLE_BY_STAFF = ["title", "description", "avatarImage", "avatarColor", "autoDeleteSeconds"];
+    if (chat.type !== "dm" && EDITABLE_BY_STAFF.some((k) => k in patch) && !isOwnerOrAdminOf(chat, req.uid)) {
+      return res.status(403).json({ error: "Менять настройки чата могут владельцы и админы" });
     }
 
     const updated = await updateChat(req.params.id, patch);
@@ -202,14 +229,15 @@ router.patch(
   })
 );
 
-// What this chat's level has unlocked, and what the next one adds. Its own route
-// so the info panel can show progress without duplicating the table client-side.
+// The palette this chat's level has unlocked, and what the next one adds. Its
+// own route so the info panel can show progress without duplicating the table
+// client-side.
 router.get(
   "/:id/features",
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    res.json({ features: featureState(chat), points: chat.points ?? 0 });
+    res.json({ colors: colorState(chat), points: chat.points ?? 0 });
   })
 );
 
@@ -225,10 +253,14 @@ router.post(
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    if (chat.type !== "channel") return res.status(400).json({ error: "Публичными могут быть только каналы" });
+    // Groups too, not just channels: a public group with an @link is an
+    // ordinary thing to want, and the handle namespace and directory already
+    // handle both.
+    if (chat.type !== "channel" && chat.type !== "group") {
+      return res.status(400).json({ error: "Публичными могут быть только группы и каналы" });
+    }
     const isOwnerOrAdmin = isOwnerOrAdminOf(chat, req.uid);
     if (!isOwnerOrAdmin) return res.status(403).json({ error: "Недостаточно прав" });
-    if (!unlocked(chat, "publicLink")) return res.status(403).json({ error: lockedError("publicLink") });
 
     const { isPublic } = req.body ?? {};
     if (!isPublic) {
@@ -247,11 +279,20 @@ router.post(
   })
 );
 
+// Deleting a chat for everyone. In a DM either side may (it's half theirs); a
+// group or channel belongs to whoever runs it — this used to accept any member,
+// so anyone in a group could delete it out from under everybody.
 router.delete(
   "/:id",
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
+    if (chat.type !== "dm" && !isOwnerOrAdminOf(chat, req.uid)) {
+      return res.status(403).json({ error: "Удалить чат для всех может только владелец или админ" });
+    }
+    // Everyone loses it from their list at once, rather than each person finding
+    // out by tapping a chat that 404s.
+    broadcastToUsers(chat.memberIds, { type: "chat:deleted", chatId: chat.id });
     await deleteMessagesForChat(req.params.id);
     await deleteChat(req.params.id);
     res.json({ ok: true });
@@ -450,9 +491,6 @@ router.post(
     if (role === "mod" || role === "unmod") {
       const isOwnerOrRealAdmin = isOwnerOrAdminOf(chat, req.uid);
       if (!isOwnerOrRealAdmin) return res.status(403).json({ error: "Недостаточно прав" });
-      if (role === "mod" && !unlocked(chat, "moderators")) {
-        return res.status(403).json({ error: lockedError("moderators") });
-      }
       if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "Пользователь не в чате" });
       const mods = new Set(chat.moderatorIds ?? []);
       if (role === "mod") mods.add(userId);

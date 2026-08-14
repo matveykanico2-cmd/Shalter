@@ -10,7 +10,7 @@ import { openChoiceDialog } from "../components/confirmDialog.js";
 import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
 import { api } from "../api.js";
 import { getState, setState } from "../state.js";
-import { isChatAdmin } from "../lib/chatRoles.js";
+import { isChatAdmin, isChatModerator } from "../lib/chatRoles.js";
 import { messagePreview } from "../lib/messagePreview.js";
 import { navigate } from "../router.js";
 import { placeCall as placeCallController } from "../lib/callController.js";
@@ -120,6 +120,11 @@ export async function ChatView(root, chatId) {
   const isChannel = chat.type === "channel";
   const isChannelAdmin = isChannel && isChatAdmin(chat, me.id);
   const isGroup = chat.type === "group";
+  // Mirrors the server's own check (routes/messages.js's canPin): your own
+  // conversation is yours to pin in; a group or channel belongs to whoever runs
+  // it. The server is the one that enforces it — this only decides whether to
+  // offer a button that would come back 403.
+  const canPin = isDm || isChatAdmin(chat, me.id) || isChatModerator(chat, me.id);
 
   // Now that history is paged, the message a reply points at may simply not be
   // loaded yet — this used to be a no-op in that case, silently doing nothing
@@ -563,25 +568,40 @@ export async function ChatView(root, chatId) {
     clear(pinnedBar);
     const pinned = messages.filter((m) => m.pinned && !m.deleted);
     if (!pinned.length) return;
+    const current = pinned[pinIndex % pinned.length];
     pinnedBar.appendChild(
-      el(
-        "button",
-        {
-          class: "pinned-bar",
-          onclick: () => {
-            jumpTo(pinned[pinIndex % pinned.length].id);
-            pinIndex++;
+      el("div", { class: "pinned-bar" }, [
+        el(
+          "button",
+          {
+            class: "pinned-bar-jump",
+            title: "Перейти к закреплённому",
+            onclick: () => {
+              jumpTo(current.id);
+              pinIndex++;
+            },
           },
-        },
-        [
-          el("span", { html: iconSvg("Pin", 14) }),
-          // messagePreview, not .text: a pinned sticker, gift, photo or voice
-          // message has no text, and printing it left the bar with an icon and
-          // an empty strip beside it — nothing to say what was pinned.
-          el("span", { class: "pinned-bar-text" }, messagePreview(pinned[pinIndex % pinned.length]) || "Сообщение"),
-          pinned.length > 1 ? el("span", { class: "mono pinned-bar-count" }, String(pinned.length)) : null,
-        ]
-      )
+          [
+            el("span", { html: iconSvg("Pin", 14) }),
+            // messagePreview, not .text: a pinned sticker, gift, photo or voice
+            // message has no text, and printing it left the bar with an icon and
+            // an empty strip beside it — nothing to say what was pinned.
+            el("span", { class: "pinned-bar-text" }, messagePreview(current) || "Сообщение"),
+            pinned.length > 1 ? el("span", { class: "mono pinned-bar-count" }, String(pinned.length)) : null,
+          ].filter(Boolean)
+        ),
+        // Unpinning lived only in the message's own menu, which meant scrolling
+        // back to find a message whose whole purpose is that you don't have to.
+        // The bar is where you notice the pin, so it's where you undo it.
+        canPin
+          ? el("button", {
+              class: "icon-btn pinned-bar-unpin",
+              title: "Открепить",
+              html: iconSvg("X", 15),
+              onclick: () => handlePin(current),
+            })
+          : null,
+      ].filter(Boolean))
     );
   }
 
@@ -638,6 +658,7 @@ export async function ChatView(root, chatId) {
           groupEnd,
           isChannel: chat.type === "channel",
           isDm,
+          canPin,
           replyToMessage,
           members,
           handlers: {

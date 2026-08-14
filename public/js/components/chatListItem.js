@@ -5,6 +5,7 @@ import { openDropdownMenu } from "./dropdownMenu.js";
 import { openChoiceDialog } from "./confirmDialog.js";
 import { navigate } from "../router.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
+import { isChatAdmin } from "../lib/chatRoles.js";
 import { messagePreview } from "../lib/messagePreview.js";
 
 function timeLabel(iso) {
@@ -26,7 +27,7 @@ function preview(chat, meId) {
   return `${who}${messagePreview(m)}`;
 }
 
-export function ChatListItem({ chat, active, meId, onPatch, onDelete }) {
+export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave }) {
   const title = chat.type === "dm" ? (chat.otherUser?.name ?? chat.title) : chat.title;
   const online = chat.type === "dm" && chat.otherUser?.online;
 
@@ -112,6 +113,11 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete }) {
         danger: true,
         onClick: () => {
           const isDmLike = chat.type === "dm" || chat.type === "bot";
+          const what = chat.type === "channel" ? "канал" : "группу";
+          // A group or channel used to offer only "удалить у меня", which hides
+          // it — and the first new message brought it straight back, so its own
+          // owner had no way to delete it at all. Now the people who run it can
+          // really delete it, and everyone else gets the honest option: leave.
           openChoiceDialog(
             "Удалить чат",
             isDmLike
@@ -119,7 +125,15 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete }) {
                   { label: "Удалить у меня", onClick: () => onDelete(chat.id, false) },
                   { label: "Удалить у всех", danger: true, onClick: () => onDelete(chat.id, true) },
                 ]
-              : [{ label: "Удалить у меня", danger: true, onClick: () => onDelete(chat.id, false) }]
+              : isChatAdmin(chat, meId)
+                ? [
+                    { label: "Скрыть у себя", onClick: () => onDelete(chat.id, false) },
+                    { label: `Удалить ${what} для всех`, danger: true, onClick: () => onDelete(chat.id, true) },
+                  ]
+                : [
+                    { label: "Скрыть у себя", onClick: () => onDelete(chat.id, false) },
+                    { label: `Выйти из ${what === "канал" ? "канала" : "группы"}`, danger: true, onClick: () => onLeave?.(chat.id) },
+                  ]
           );
         },
       },

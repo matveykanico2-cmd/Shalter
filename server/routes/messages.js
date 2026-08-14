@@ -457,13 +457,32 @@ router.delete(
   })
 );
 
+// Who may pin or unpin. In a one-to-one chat, either side — it's their
+// conversation. In a group or channel it's the people who run it: unpinning was
+// previously open to anyone in the chat, so any subscriber could take down the
+// owner's pinned post, and nothing recorded that they had.
+function canPin(chat, userId) {
+  if (!chat || !chat.memberIds.includes(userId)) return false;
+  if (chat.type === "dm") return true;
+  return (
+    chat.ownerId === userId ||
+    (chat.ownerIds ?? []).includes(userId) ||
+    (chat.adminIds ?? []).includes(userId) ||
+    (chat.moderatorIds ?? []).includes(userId)
+  );
+}
+
 router.post(
   "/:messageId/pin",
   asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    if (!canPin(chat, req.uid)) {
+      return res.status(403).json({ error: "Закреплять сообщения могут владельцы, админы и модераторы" });
+    }
     const { pinned } = req.body ?? {};
     const message = await togglePin(req.params.messageId, pinned);
-    const chat = await getChat(req.params.id);
-    if (chat) broadcastToOtherMembers(chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
+    broadcastToOtherMembers(chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
     res.json({ message });
   })
 );

@@ -725,15 +725,31 @@
     display: flex;
   }
 }
+/* A row, not a single button: the bar itself jumps to the pinned message and
+   the button on its right unpins it — which used to live only in that message's
+   own context menu, i.e. behind finding the message the pin exists to save you
+   from finding. */
 .pinned-bar {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-accent-soft);
-  padding: 6px 16px;
+  padding: 4px 8px 4px 16px;
+}
+.pinned-bar-jump {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
   text-align: left;
+}
+.pinned-bar-unpin {
+  flex-shrink: 0;
+  color: var(--color-muted);
 }
 .pinned-bar-text {
   overflow: hidden;
@@ -1059,12 +1075,25 @@
   align-items: flex-end;
   margin-left: auto;
 }
+/* A <button> now (it opens the sender's profile), so it has to be told to look
+   like the label it was — buttons come with their own alignment and font. */
 .sender-name {
+  display: block;
+  align-self: flex-start;
   margin-bottom: 2px;
   padding: 0 4px;
+  text-align: left;
   font-size: 12.5px;
   font-weight: 500;
   color: var(--color-accent);
+}
+.sender-name:hover {
+  text-decoration: underline;
+}
+.message-avatar-btn {
+  display: flex;
+  padding: 0;
+  border-radius: 999px;
 }
 .bubble-wrap {
   position: relative;
@@ -3830,9 +3859,50 @@
   color: var(--color-accent-contrast);
 }
 .contacts-add-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface-alt);
   padding: 12px 16px;
+}
+/* Two ways to add someone — by the number you already have, or by a handle you
+   were told. Segmented rather than two stacked forms: only one of them is ever
+   the one you want, and both on screen at once reads as "fill in everything". */
+.contacts-add-modes {
+  display: flex;
+  gap: 4px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  padding: 3px;
+}
+.contacts-add-mode {
+  flex: 1;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.contacts-add-mode.active {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+.contacts-phone-row {
+  display: flex;
+  gap: 8px;
+}
+.contacts-phone-row > .login-input {
+  flex: 1;
+  min-width: 0;
+}
+.contacts-phone-row > .btn-accent-pill {
+  flex-shrink: 0;
+}
+/* Filters the list you already have (not a search for new people — that's the
+   add panel above), so it sits directly over the list it filters. */
+.contacts-filter {
+  margin: 10px 16px 0;
+  width: calc(100% - 32px);
 }
 .contacts-candidates {
   margin-top: 8px;
@@ -6356,41 +6426,9 @@
 /* What a group's level has unlocked (components/infoPanel.js, gated in
    server/lib/chatFeatures.js). A locked row shows the level it needs instead of
    a tick, so the list doubles as "what am I voting towards". */
-.chat-features {
-  margin-top: 14px;
-}
-.chat-features-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 6px;
-}
-.chat-feature {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--color-muted);
-}
-.chat-feature-mark {
-  display: flex;
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--color-surface-alt);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-}
-.chat-feature.on {
-  color: var(--color-text);
-}
-.chat-feature.on .chat-feature-mark {
-  background: var(--color-success);
-  color: #fff;
-}
+/* The level-gated feature list (.chat-features…) is gone: levels buy colours
+   now, not features — see .chat-color-grid below and server/lib/chatFeatures.js. */
+
 
 /* An owner-set custom member label (components/infoPanel.js). Visually distinct
    from the built-in role tags: it's someone's words, not a system role, so it
@@ -6573,4 +6611,114 @@
   font-size: 10.5px;
   font-weight: 600;
   color: var(--color-accent-contrast);
+}
+
+/* Creating and editing a group or channel (createChatDialog.js /
+   editChatDialog.js) — name, picture, description and the public @link, all in
+   one place instead of scattered between creation and a level-gated info panel. */
+.create-chat-public {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+.create-chat-handle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  padding: 0 12px;
+}
+.create-chat-at {
+  color: var(--color-muted);
+}
+.create-chat-handle > .login-input {
+  border: none;
+  background: none;
+  padding-left: 0;
+}
+.create-chat-handle > .login-input:focus {
+  outline: none;
+}
+.edit-chat-dialog {
+  max-width: min(460px, 94vw);
+}
+.edit-chat-body {
+  display: flex;
+  max-height: min(64vh, 560px);
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  text-align: left;
+}
+.edit-chat-body > * {
+  margin: 0;
+}
+.edit-chat-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.edit-chat-avatar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.edit-chat-avatar-actions .profile-action-btn {
+  width: auto;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+/* The palette — the one thing a chat's level still buys. Locked swatches stay
+   visible with a padlock: hiding them would mean nobody learns there's anything
+   to earn. */
+.chat-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chat-color-swatch {
+  position: relative;
+  height: 30px;
+  width: 30px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+}
+.chat-color-swatch.active {
+  border-color: var(--color-text);
+}
+.chat-color-swatch.locked {
+  opacity: 0.4;
+}
+.chat-color-lock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #fff;
+}
+.info-panel-description {
+  margin: 0;
+  padding: 0 16px 8px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--color-muted);
+  white-space: pre-wrap;
+}
+.info-panel-handle {
+  margin: 0;
+  padding: 0 16px 8px;
+  font-size: 13px;
+  color: var(--color-accent);
+}
+/* inline-flex, not flex: .info-panel-row is a block, so a display:flex icon
+   became its own line above the label instead of sitting beside it. */
+.info-panel-row-icon {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 8px;
+  color: var(--color-muted);
 }

@@ -94,11 +94,16 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chatId, createdAt);
 
+-- localName: what the owner calls this person, as in Telegram's own contact
+-- form. Their account name is theirs to change; this is the name the person who
+-- added them recognises, and it's what the address-book import already read out
+-- of the vCard and had nowhere to put.
 CREATE TABLE IF NOT EXISTS contacts (
   id TEXT PRIMARY KEY,
   ownerId TEXT NOT NULL,
   userId TEXT NOT NULL,
-  addedAt TEXT NOT NULL
+  addedAt TEXT NOT NULL,
+  localName TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_contacts_owner ON contacts(ownerId);
 
@@ -469,6 +474,9 @@ const existingReportColumns = new Set(db.prepare("PRAGMA table_info(reports)").a
 if (!existingReportColumns.has("subjectUserId")) db.exec("ALTER TABLE reports ADD COLUMN subjectUserId TEXT");
 db.exec("CREATE INDEX IF NOT EXISTS idx_reports_subject ON reports(subjectUserId)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)");
+
+const existingContactCols = new Set(db.prepare("PRAGMA table_info(contacts)").all().map((c) => c.name));
+if (!existingContactCols.has("localName")) db.exec("ALTER TABLE contacts ADD COLUMN localName TEXT");
 
 // Several profile photos instead of one, and video avatars (lib/avatars.js).
 // The older `avatarImage` column stays and keeps its meaning — the current

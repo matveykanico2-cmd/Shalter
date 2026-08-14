@@ -9,13 +9,29 @@ async function listContactsFor(ownerId) {
 }
 
 async function addContact(contact) {
-  db.prepare("INSERT INTO contacts (id, ownerId, userId, addedAt) VALUES (?, ?, ?, ?)").run(
+  // Adding someone already in the list updates the name instead of inserting a
+  // duplicate row — the add form is reachable from several places and "add
+  // again" should mean "correct the name", not "list them twice".
+  const existing = db.prepare("SELECT id FROM contacts WHERE ownerId = ? AND userId = ?").get(contact.ownerId, contact.userId);
+  if (existing) {
+    if (contact.localName != null) {
+      db.prepare("UPDATE contacts SET localName = ? WHERE id = ?").run(contact.localName || null, existing.id);
+    }
+    return db.prepare("SELECT * FROM contacts WHERE id = ?").get(existing.id);
+  }
+  db.prepare("INSERT INTO contacts (id, ownerId, userId, addedAt, localName) VALUES (?, ?, ?, ?, ?)").run(
     contact.id,
     contact.ownerId,
     contact.userId,
-    contact.addedAt
+    contact.addedAt,
+    contact.localName || null
   );
   return contact;
+}
+
+async function renameContact(ownerId, userId, localName) {
+  db.prepare("UPDATE contacts SET localName = ? WHERE ownerId = ? AND userId = ?").run(localName || null, ownerId, userId);
+  return db.prepare("SELECT * FROM contacts WHERE ownerId = ? AND userId = ?").get(ownerId, userId);
 }
 
 async function removeContact(ownerId, userId) {
@@ -28,4 +44,4 @@ async function removeAllContactsInvolving(userId) {
   db.prepare("DELETE FROM contacts WHERE ownerId = ? OR userId = ?").run(userId, userId);
 }
 
-module.exports = { listAllContacts, listContactsFor, addContact, removeContact, removeAllContactsInvolving };
+module.exports = { listAllContacts, listContactsFor, addContact, renameContact, removeContact, removeAllContactsInvolving };

@@ -8,6 +8,7 @@ import { openContactPickerDialog } from "../components/contactPickerDialog.js";
 import { openCreateBotDialog } from "../components/createBotDialog.js";
 import { openBotTokenDialog } from "../components/botTokenDialog.js";
 import { StoriesBar } from "../components/storiesBar.js";
+import { Avatar } from "../components/avatar.js";
 import { api } from "../api.js";
 import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
@@ -33,10 +34,10 @@ async function openNewChatMenu(e) {
         icon: "Users",
         label: "Новая группа",
         onClick: () => {
-          openCreateChatDialog("group", (title, avatarImage) => {
+          openCreateChatDialog("group", (title, avatarImage, extra) => {
             openMemberPickerDialog(
               async ({ userIds, adminIds }) => {
-                const { chat } = await api.createGroup(title, userIds, avatarImage, adminIds);
+                const { chat } = await api.createGroup(title, userIds, avatarImage, adminIds, extra);
                 await api.listChats().then((r) => setState({ chats: r.chats }));
                 navigate(`/chat/${chat.id}`);
               },
@@ -49,10 +50,10 @@ async function openNewChatMenu(e) {
         icon: "Send",
         label: "Новый канал",
         onClick: () => {
-          openCreateChatDialog("channel", (title, avatarImage) => {
+          openCreateChatDialog("channel", (title, avatarImage, extra) => {
             openMemberPickerDialog(
               async ({ userIds, adminIds }) => {
-                const { chat } = await api.createChannel(title, avatarImage, userIds, adminIds);
+                const { chat } = await api.createChannel(title, avatarImage, userIds, adminIds, extra);
                 await api.listChats().then((r) => setState({ chats: r.chats }));
                 navigate(`/chat/${chat.id}`);
               },
@@ -138,6 +139,13 @@ export function ChatListPane() {
   // POST /api/chats/:id/members's "add" role) — without this the new chat
   // would only appear once the 15s poll below happens to catch up.
   const unsubAdded = onWsMessage("chat:added", refetch);
+  // Someone with the rights deleted a group/channel for everyone — drop it from
+  // the list now, and get out of it if that's the chat currently open, rather
+  // than leaving people looking at a conversation that no longer exists.
+  const unsubGone = onWsMessage("chat:deleted", ({ chatId }) => {
+    setState({ chats: getState().chats.filter((c) => c.id !== chatId) });
+    if (window.location.pathname === `/chat/${chatId}`) navigate("/");
+  });
   const iv = setInterval(refetch, 15000);
   container._cleanup = () => {
     clearInterval(iv);
@@ -146,6 +154,7 @@ export function ChatListPane() {
     unsubUpdated();
     unsubDeleted();
     unsubAdded();
+    unsubGone();
   };
 
   return container;
@@ -173,13 +182,22 @@ function renderInto(container) {
           }
           clearTimeout(container._searchDebounce);
           container._searchDebounce = setTimeout(async () => {
-            const r = await api.search(query.trim());
+            const typed = query.trim();
+            const r = await api.search(typed);
+            // The chat rows come from local state so they render with the same
+            // unread counts and last-message previews as the normal list; the
+            // rest is whatever the server matched.
+            const matchedIds = new Set(r.chats.map((c) => c.id));
             results = {
-              chats: chats.filter((c) => c.title.toLowerCase().includes(query.trim().toLowerCase())),
-              users: r.users,
-              messages: r.messages,
+              chats: chats.filter((c) => matchedIds.has(c.id)),
+              channels: r.channels ?? [],
+              users: r.users ?? [],
+              bots: r.bots ?? [],
+              messages: r.messages ?? [],
             };
-            renderInto(container);
+            // A late response from a shorter query must not replace the results
+            // for what's in the box now.
+            if (query.trim() === typed) renderInto(container);
           }, 150);
         },
       }),
@@ -195,35 +213,59 @@ function renderInto(container) {
 
   if (results) {
     const box = el("div", { class: "chat-list-scroll" });
-    if (!results.chats.length && !results.users.length && !results.messages.length) {
+    const total = results.chats.length + results.channels.length + results.users.length + results.bots.length + results.messages.length;
+    if (!total) {
       box.appendChild(el("p", { class: "empty-hint" }, "Ничего не найдено"));
     }
     if (results.chats.length) {
       box.appendChild(el("p", { class: "list-section-label" }, "Чаты"));
       for (const c of results.chats) {
-        box.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem }));
+        box.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem }));
       }
     }
-    if (results.users.length) {
-      box.appendChild(el("p", { class: "list-section-label" }, "Люди"));
-      for (const u of results.users) {
+    // Public channels you haven't joined. Tapping opens the channel rather than
+    // subscribing on the spot — joining something from a search result you
+    // haven't read yet is not what a tap means.
+    if (results.channels.length) {
+      box.appendChild(el("p", { class: "list-section-label" }, "Каналы"));
+      for (const c of results.channels) {
         box.appendChild(
-          el(
-            "button",
-            {
-              class: "search-user-row",
-              onclick: async () => {
-                const { chat } = await api.startDm(u.id, u.name, u.avatarColor);
-                query = "";
-                results = null;
-                await api.listChats().then((r) => setState({ chats: r.chats }));
-                navigate(`/chat/${chat.id}`);
-              },
-            },
-            [el("span", { class: "search-user-name" }, u.name), el("span", { class: "search-user-username" }, `@${u.username}`)]
-          )
+          el("button", { class: "search-user-row", onclick: () => navigate(`/discover-channels?q=${encodeURIComponent(c.username || c.title)}`) }, [
+            Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage, size: 30 }),
+            el("span", { class: "search-user-name" }, c.title),
+            el("span", { class: "search-user-username" }, c.username ? `@${c.username}` : `${c.subscriberCount} подписчиков`),
+          ])
         );
       }
+    }
+
+    const accountRow = (u) =>
+      el(
+        "button",
+        {
+          class: "search-user-row",
+          onclick: async () => {
+            const { chat } = await api.startDm(u.id, u.name, u.avatarColor);
+            query = "";
+            results = null;
+            await api.listChats().then((r) => setState({ chats: r.chats }));
+            navigate(`/chat/${chat.id}`);
+          },
+        },
+        [
+          Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 30 }),
+          el("span", { class: "search-user-name" }, u.name),
+          u.username ? el("span", { class: "search-user-username" }, `@${u.username}`) : null,
+        ].filter(Boolean)
+      );
+
+    if (results.users.length) {
+      box.appendChild(el("p", { class: "list-section-label" }, "Люди"));
+      for (const u of results.users) box.appendChild(accountRow(u));
+    }
+    if (results.bots.length) {
+      box.appendChild(el("p", { class: "list-section-label" }, "Боты"));
+      for (const u of results.bots) box.appendChild(accountRow(u));
     }
     if (results.messages.length) {
       box.appendChild(el("p", { class: "list-section-label" }, "Сообщения"));
@@ -274,7 +316,7 @@ function renderInto(container) {
   const scroll = el("div", { class: "chat-list-scroll" });
   if (!list.length) scroll.appendChild(el("p", { class: "empty-hint" }, "Чатов нет"));
   for (const c of list) {
-    scroll.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem }));
+    scroll.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem }));
   }
   container.appendChild(scroll);
 }
@@ -285,10 +327,29 @@ async function patchChat(id, patch) {
   await api.patchChat(id, patch);
 }
 
+async function leaveChatItem(id) {
+  const { chats } = getState();
+  setState({ chats: chats.filter((c) => c.id !== id) });
+  if (window.location.pathname === `/chat/${id}`) navigate("/");
+  try {
+    await api.leaveChat(id);
+  } catch (err) {
+    alert(err.message || "Не удалось выйти из чата");
+    await api.listChats().then((r) => setState({ chats: r.chats }));
+  }
+}
+
 async function deleteChatItem(id, forEveryone) {
   const { chats } = getState();
   setState({ chats: chats.filter((c) => c.id !== id) });
   if (window.location.pathname === `/chat/${id}`) navigate("/");
-  if (forEveryone) await api.deleteChat(id);
-  else await api.deleteChatForMe(id);
+  try {
+    if (forEveryone) await api.deleteChat(id);
+    else await api.deleteChatForMe(id);
+  } catch (err) {
+    // Put it back rather than leaving the list lying about what happened — the
+    // row was removed optimistically before the request went out.
+    alert(err.message || "Не удалось удалить чат");
+    await api.listChats().then((r) => setState({ chats: r.chats }));
+  }
 }

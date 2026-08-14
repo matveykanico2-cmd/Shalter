@@ -1,12 +1,13 @@
 import { el } from "../lib/dom.js";
+import { api } from "../api.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog } from "./profileDialog.js";
 import { openChoiceDialog } from "./confirmDialog.js";
-import { openChannelPublicDialog } from "./channelPublicDialog.js";
-import { levelForPoints, pointsToNextLevel, featuresFor } from "../lib/groupLevels.js";
+import { levelForPoints, pointsToNextLevel } from "../lib/groupLevels.js";
+import { openEditChatDialog } from "./editChatDialog.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { isChatOwner, isChatAdmin, memberRoleLabel } from "../lib/chatRoles.js";
 
@@ -188,22 +189,20 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
               : el("span", { class: "settings-toggle-hint" }, "Только с Premium"),
           ])
         : null,
-      // What the level has bought so far, and what the next one adds. Shown for
-      // groups and channels because points are what unlock these (see
-      // server/lib/chatFeatures.js) and there's otherwise no way to find out.
-      chat.type === "group" || chat.type === "channel"
-        ? el("div", { class: "chat-features" }, [
-            el("p", { class: "settings-field-label" }, "Возможности по уровню"),
-            el(
-              "div",
-              { class: "chat-features-list" },
-              featuresFor(chat.points ?? 0).map((f) =>
-                el("div", { class: `chat-feature ${f.unlocked ? "on" : ""}` }, [
-                  el("span", { class: "chat-feature-mark" }, f.unlocked ? "✓" : `${f.level}`),
-                  el("span", { class: "chat-feature-label" }, f.label),
-                ])
-              )
-            ),
+      // Description, if there is one — it's part of what a channel *is*, and
+      // until now it was stored and never shown anywhere.
+      !isDm && chat.description
+        ? el("p", { class: "info-panel-description" }, chat.description)
+        : null,
+      !isDm && chat.isPublic && chat.username
+        ? el("p", { class: "info-panel-handle mono" }, `@${chat.username}`)
+        : null,
+      // Editing the chat itself: name, picture, description, public link and
+      // the colour palette. Owners/admins only — the server checks again.
+      !isDm && isOwnerOrAdmin
+        ? el("button", { class: "info-panel-row", onclick: () => openEditChatDialog(chat, onChatUpdated) }, [
+            el("span", { class: "info-panel-row-icon", html: iconSvg("Edit", 15) }),
+            `Редактировать ${chat.type === "channel" ? "канал" : "группу"}`,
           ])
         : null,
       isDm && chat.otherUser && isShalterAdmin
@@ -249,13 +248,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             `Автоудаление сообщений: ${autoDeleteLabel(chat.autoDeleteSeconds)}`
           )
         : null,
-      chat.type === "channel" && isOwnerOrAdmin
-        ? el(
-            "button",
-            { class: "info-panel-row", onclick: () => openChannelPublicDialog(chat, onChatUpdated) },
-            chat.isPublic ? `Публичный канал: @${chat.username}` : "Сделать канал публичным"
-          )
-        : null,
+
       isDm ? el("button", { class: "info-panel-row danger", onclick: onToggleBlock }, isBlocked ? "Разблокировать" : "Заблокировать") : null,
       isDm && chat.otherUser
         ? el(

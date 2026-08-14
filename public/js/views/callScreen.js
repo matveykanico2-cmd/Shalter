@@ -2,6 +2,7 @@ import { el, mount, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
 import { openDropdownMenu } from "../components/dropdownMenu.js";
+import { openContactPickerDialog } from "../components/contactPickerDialog.js";
 import { api } from "../api.js";
 import { getState } from "../state.js";
 import { navigate } from "../router.js";
@@ -135,7 +136,9 @@ export async function CallScreenView(root, callId) {
           ])
         : null;
 
-    const canAddParticipant = ["group"].includes(s.chatType);
+    // Any call, not just a group one: adding a third person to a one-to-one
+    // call is exactly how a group call starts, and it was refused outright.
+    const canAddParticipant = true;
 
     mount(
       root,
@@ -208,16 +211,41 @@ export async function CallScreenView(root, callId) {
   }
 
   async function openAddParticipantMenu(e, s) {
-    const { chat, members } = await api.getChat(s.call.chatId);
-    const candidates = members.filter((m) => m.id !== me.id && !s.others.some((o) => o.id === m.id));
-    if (!candidates.length) {
-      openDropdownMenu({ x: e.clientX, y: e.clientY }, [{ label: "Все участники чата уже в звонке" }]);
-      return;
+    const inCall = (id) => id === me.id || s.others.some((o) => o.id === id);
+    let members = [];
+    try {
+      ({ members } = await api.getChat(s.call.chatId));
+    } catch {
+      // A call can outlive access to its chat; the contact route below still works.
     }
-    openDropdownMenu(
-      { x: e.clientX, y: e.clientY },
-      candidates.map((c) => ({ label: c.name, onClick: () => addParticipant(c.id) }))
-    );
+    const candidates = members.filter((m) => !inCall(m.id));
+
+    const fromContacts = {
+      icon: "Accounts",
+      label: "Из контактов…",
+      onClick: () =>
+        openContactPickerDialog((user) => {
+          if (inCall(user.id)) return;
+          addParticipant(user.id).catch((err) => alert(err.message || "Не удалось добавить участника"));
+        }, "Кого добавить в звонок"),
+    };
+
+    openDropdownMenu({ x: e.clientX, y: e.clientY }, [
+      // Chat members first — in a group call that's who you mean nine times out
+      // of ten. In a one-to-one call there are none left, so contacts is the
+      // whole menu rather than a dead "все уже в звонке" line.
+      ...(candidates.length
+        ? [
+            ...candidates.map((c) => ({
+              icon: "Accounts",
+              label: c.name,
+              onClick: () => addParticipant(c.id).catch((err) => alert(err.message || "Не удалось добавить участника")),
+            })),
+            { separator: true },
+          ]
+        : []),
+      fromContacts,
+    ]);
   }
 
   render(getCallState());

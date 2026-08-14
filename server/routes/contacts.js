@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { listContactsFor, addContact, removeContact } = require("../data/contacts");
+const { listContactsFor, addContact, renameContact, removeContact } = require("../data/contacts");
 const { listUsers, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
@@ -17,7 +17,7 @@ router.get(
     const resolved = contacts
       .map((c) => {
         const user = users.find((u) => u.id === c.userId);
-        return user ? { ...c, user: publicUser(user) } : null;
+        return user ? { ...c, localName: c.localName ?? null, user: publicUser(user) } : null;
       })
       .filter((c) => c !== null);
     res.json({ contacts: resolved });
@@ -27,8 +27,27 @@ router.get(
 router.post(
   "/",
   asyncRoute(async (req, res) => {
-    const { userId } = req.body ?? {};
-    const contact = await addContact({ id: `ct_${Date.now()}`, ownerId: req.uid, userId, addedAt: new Date().toISOString() });
+    const { userId, localName } = req.body ?? {};
+    if (!userId || userId === req.uid) return res.status(400).json({ error: "Некорректный контакт" });
+    if (!(await getUser(userId))) return res.status(404).json({ error: "Пользователь не найден" });
+    const contact = await addContact({
+      id: `ct_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      ownerId: req.uid,
+      userId,
+      addedAt: new Date().toISOString(),
+      localName: typeof localName === "string" ? localName.trim().slice(0, 80) : null,
+    });
+    res.json({ contact });
+  })
+);
+
+// Renaming a contact — your own label for them, visible only to you.
+router.post(
+  "/rename",
+  asyncRoute(async (req, res) => {
+    const { userId, localName } = req.body ?? {};
+    const contact = await renameContact(req.uid, userId, typeof localName === "string" ? localName.trim().slice(0, 80) : null);
+    if (!contact) return res.status(404).json({ error: "Контакт не найден" });
     res.json({ contact });
   })
 );
