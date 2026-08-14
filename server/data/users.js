@@ -44,6 +44,11 @@ function rowToUser(row) {
     birthday: row.birthday ?? undefined,
     giftsReceived: JSON.parse(row.giftsReceived ?? "[]"),
     isBanned: !!row.isBanned,
+    // Stars balance and the price this account charges strangers per DM
+    // (server/data/stars.js). The balance is stripped for everyone but the
+    // account itself — see data/sanitize.js.
+    stars: row.stars ?? 0,
+    messagePriceStars: row.messagePriceStars ?? 0,
     banReason: row.banReason ?? undefined,
     bannedAt: row.bannedAt ?? undefined,
     safetyLabel: row.safetyLabel ?? undefined,
@@ -285,10 +290,30 @@ async function addReceivedGift(userId, gift) {
   const row = db.prepare("SELECT giftsReceived FROM users WHERE id = ?").get(userId);
   if (!row) return undefined;
   const current = JSON.parse(row.giftsReceived ?? "[]");
-  current.push(gift);
+  // Each entry gets its own id so it can be removed later without relying on an
+  // array index — an index shifts the moment anything else on the shelf changes,
+  // and "delete gift #3" hitting the wrong gift is not an acceptable outcome.
+  current.push({ id: `rg_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`, ...gift });
   db.prepare("UPDATE users SET giftsReceived = ? WHERE id = ?").run(JSON.stringify(current), userId);
   return getUser(userId);
 }
+
+// Takes a gift off someone's shelf. Deliberately does NOT touch gift_issues: a
+// limited gift's serial stays claimed forever, because it *was* issued — hiding
+// a copy from a profile must not quietly free up a number for someone else and
+// let two people end up holding "№7 из 1000".
+const removeReceivedGift = db.transaction((userId, giftEntryId) => {
+  const row = db.prepare("SELECT giftsReceived FROM users WHERE id = ?").get(userId);
+  if (!row) return false;
+  const current = JSON.parse(row.giftsReceived ?? "[]");
+  // Entries created before ids existed are matched on their contents instead, so
+  // an older shelf is still cleanable rather than permanently stuck.
+  const idx = current.findIndex((g) => (g.id ? g.id === giftEntryId : `${g.emoji}|${g.at}` === giftEntryId));
+  if (idx === -1) return false;
+  current.splice(idx, 1);
+  db.prepare("UPDATE users SET giftsReceived = ? WHERE id = ?").run(JSON.stringify(current), userId);
+  return true;
+});
 
 module.exports = {
   listUsers,
@@ -311,6 +336,7 @@ module.exports = {
   setSafetyLabel,
   listLabeledUsers,
   addReceivedGift,
+  removeReceivedGift,
   grantPremiumDays,
   revokePremium,
   grantAdsDays,

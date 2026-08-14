@@ -6,8 +6,9 @@ import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog } from "./profileDialog.js";
 import { openChoiceDialog } from "./confirmDialog.js";
 import { openChannelPublicDialog } from "./channelPublicDialog.js";
-import { levelForPoints, pointsToNextLevel } from "../lib/groupLevels.js";
+import { levelForPoints, pointsToNextLevel, featuresFor } from "../lib/groupLevels.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
+import { isChatOwner, isChatAdmin, memberRoleLabel } from "../lib/chatRoles.js";
 
 const RESTRICT_DURATIONS = [
   { label: "На 1 час", hours: 1 },
@@ -36,22 +37,80 @@ function autoDeleteLabel(seconds) {
 export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalterAdmin, gifts, onClose, onToggleMute, onToggleBlock, onMemberAction, onTogglePremium, onDeliverGift, onAddMember, onRestrictMember, onVoteForGroup, onSetAutoDelete, onChatUpdated }) {
   const isDm = chat.type === "dm";
   const title = isDm ? (chat.otherUser?.name ?? chat.title) : chat.title;
-  const isOwnerOrAdmin = chat.ownerId === meId || chat.adminIds?.includes(meId);
+  const isOwnerOrAdmin = isChatAdmin(chat, meId);
   // Either DM party can set the timer (it's a mutual chat property, same as
   // Telegram); for groups/channels it's owner/admin-only, same bar as the
   // other chat-wide settings (restrict/points aren't member-settable either).
   const canSetAutoDelete = isDm || isOwnerOrAdmin;
 
+  // The label everyone in the chat sees next to this member. Owner-only, so it's
+  // a plain prompt rather than a whole dialog — it's one short string.
+  async function editTitle(member) {
+    const current = chat.memberTitles?.[member.id] ?? "";
+    const next = prompt(`Подпись для ${member.name} (видна всем). Пусто — вернуть обычную роль.`, current);
+    if (next === null) return;
+    try {
+      const { chat: updated } = await api.setMemberTitle(chat.id, member.id, next);
+      onChatUpdated?.(updated);
+    } catch (err) {
+      alert(err.message || "Не удалось изменить подпись");
+    }
+  }
+
   function openMemberMenu(e, member) {
     const isAdmin = chat.adminIds?.includes(member.id);
+    const isModerator = chat.moderatorIds?.includes(member.id);
+    const isOwner = isChatOwner(chat, member.id);
+    const iAmOwner = isChatOwner(chat, meId);
     const isRestricted = !!chat.restrictions?.[member.id];
+
+    // An owner's row still has actions — a co-owner can be demoted, and their
+    // title can be changed — so it isn't a dead end any more.
+    if (isOwner) {
+      const items = [];
+      if (iAmOwner) {
+        items.push({ icon: "Edit", label: "Изменить подпись", onClick: () => editTitle(member) });
+        const ownerCount = new Set([...(chat.ownerIds ?? []), chat.ownerId].filter(Boolean)).size;
+        if (ownerCount > 1 && member.id !== meId) {
+          items.push({
+            icon: "Users",
+            label: "Снять права владельца",
+            danger: true,
+            onClick: () => onMemberAction(member.id, "unowner"),
+          });
+        }
+      }
+      openDropdownMenu({ x: e.clientX, y: e.clientY }, items.length ? items : [{ icon: "Star", label: "Владелец чата", onClick: () => {} }]);
+      return;
+    }
+
     const items = [
       {
         icon: "Users",
         label: isAdmin ? "Снять права администратора" : "Сделать администратором",
         onClick: () => onMemberAction(member.id, isAdmin ? "demote" : "promote"),
       },
+      {
+        icon: "Shield",
+        label: isModerator ? "Снять модератора" : "Сделать модератором",
+        onClick: () => onMemberAction(member.id, isModerator ? "unmod" : "mod"),
+      },
     ];
+    if (iAmOwner) {
+      // A chat can have several owners, so this adds one rather than handing the
+      // chat over — it still asks, because an owner can do everything you can.
+      items.push({
+        icon: "Star",
+        label: "Сделать владельцем",
+        danger: true,
+        onClick: () => {
+          if (confirm(`Сделать ${member.name} владельцем чата? У него будут те же права, что у вас, включая назначение владельцев.`)) {
+            onMemberAction(member.id, "owner");
+          }
+        },
+      });
+      items.push({ icon: "Edit", label: "Изменить подпись", onClick: () => editTitle(member) });
+    }
     if (isRestricted) {
       items.push({ icon: "Check", label: "Разрешить писать", onClick: () => onRestrictMember(member.id, null) });
     } else {
@@ -129,6 +188,24 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
               : el("span", { class: "settings-toggle-hint" }, "Только с Premium"),
           ])
         : null,
+      // What the level has bought so far, and what the next one adds. Shown for
+      // groups and channels because points are what unlock these (see
+      // server/lib/chatFeatures.js) and there's otherwise no way to find out.
+      chat.type === "group" || chat.type === "channel"
+        ? el("div", { class: "chat-features" }, [
+            el("p", { class: "settings-field-label" }, "Возможности по уровню"),
+            el(
+              "div",
+              { class: "chat-features-list" },
+              featuresFor(chat.points ?? 0).map((f) =>
+                el("div", { class: `chat-feature ${f.unlocked ? "on" : ""}` }, [
+                  el("span", { class: "chat-feature-mark" }, f.unlocked ? "✓" : `${f.level}`),
+                  el("span", { class: "chat-feature-label" }, f.label),
+                ])
+              )
+            ),
+          ])
+        : null,
       isDm && chat.otherUser && isShalterAdmin
         ? el(
             "button",
@@ -145,9 +222,10 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
                 openDropdownMenu(
                   { x: e.clientX, y: e.clientY },
                   gifts.map((g) => ({
-                    label: `${g.emoji} ${g.name} — ${g.priceRub}₽`,
+                    label: `${g.emoji} ${g.name} — ⭐ ${g.priceStars}`,
                     onClick: () => onDeliverGift(g.id, chat.otherUser.id),
-                  }))
+                  })),
+                  { search: "Поиск подарка" }
                 ),
             },
             "🎁 Отправить подарок"
@@ -206,19 +284,31 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
                 : null,
             ]),
             ...members.map((m) => {
-              const isMemberOwner = m.id === chat.ownerId;
+              const isMemberOwner = isChatOwner(chat, m.id);
               const isMemberAdmin = chat.adminIds?.includes(m.id);
-              const canManage = isOwnerOrAdmin && !isMemberOwner && m.id !== meId;
+              // An owner's row is manageable by another owner now: co-owners can be
+              // demoted and every role can be re-titled.
+              const canManage = isOwnerOrAdmin && m.id !== meId && (!isMemberOwner || isChatOwner(chat, meId));
+              // The owner-set label wins over the real role — that's what it's for.
+              const roleLabel = memberRoleLabel(chat, m.id);
+              const customTitle = !!chat.memberTitles?.[m.id];
               return el("div", { class: "info-panel-member-row" }, [
                 el("button", { class: "info-panel-member-profile-btn", onclick: () => openProfileDialog(m.id) }, [
                   Avatar({ name: m.name, color: m.avatarColor, image: m.avatarImage, size: 32 }),
                   el("span", { class: "info-panel-member-name" }, [
                     m.name,
-                    isMemberOwner
-                      ? el("span", { class: "info-panel-role-tag owner" }, [el("span", { html: iconSvg("Crown", 11) }), " владелец"])
-                      : isMemberAdmin
-                        ? el("span", { class: "info-panel-role-tag admin" }, [el("span", { html: iconSvg("Shield", 11) }), " админ"])
-                        : null,
+                    roleLabel
+                      ? el(
+                          "span",
+                          {
+                            class: `info-panel-role-tag ${customTitle ? "custom" : isMemberOwner ? "owner" : isMemberAdmin ? "admin" : "mod"}`,
+                          },
+                          [
+                            customTitle ? null : el("span", { html: iconSvg(isMemberOwner ? "Crown" : "Shield", 11) }),
+                            ` ${roleLabel}`,
+                          ].filter(Boolean)
+                        )
+                      : null,
                     chat.restrictions?.[m.id] ? el("span", { class: "info-panel-role-tag restricted", title: "Не может писать" }, [" ", el("span", { html: iconSvg("Lock", 11) })]) : null,
                   ]),
                 ]),

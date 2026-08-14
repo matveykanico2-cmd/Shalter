@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shalter — мессенджер </title>
+<meta name="description" content="Shalter — мессенджер с чатами, каналами, звонками, ботами и звёздами. Страница для партнёров и коллабораций." />
+<meta name="theme-color" content="#2e56d9" />
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<!-- Open Graph, because this page exists to be *sent to someone*: a bare link
+     in a chat with no preview is a link nobody opens. -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Shalter — мессенджер для коллабораций" />
+<meta property="og:description" content="Чаты, каналы, звонки, боты, подарки и звёзды. Открыт для партнёрств и интеграций." />
+<meta property="og:image" content="/icons/apple-touch-icon.png" />
+<link rel="stylesheet" href="/styles/base.css" />
+<link rel="stylesheet" href="/styles/promo.css" />
+</head>
+<body>
+<div class="pr-page">
+  <div class="pr-bg" aria-hidden="true"><span class="pr-orb pr-orb-1"></span><span class="pr-orb pr-orb-2"></span></div>
+
+  <main class="pr-shell">
+    <header class="pr-hero">
+      <div class="pr-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l17-8L4 4l0 6.5L15 12 4 13.5 4 20Z"/></svg>
+      </div>
+      <p class="pr-kicker">Мессенджер</p>
+      <h1 class="pr-title">Shalter</h1>
+      <p class="pr-lead">Чаты, группы, каналы и звонки. Боты с собственным API, подарки, звёзды и Premium. Работает в браузере, на Windows, Linux и Android.</p>
+      <div class="pr-cta">
+        <a class="pr-btn pr-btn-primary" href="/">Открыть мессенджер</a>
+        <a class="pr-btn" href="/download">Скачать приложение</a>
+      </div>
+    </header>
+
+    <section class="pr-stats" aria-label="Коротко о продукте">
+      <div class="pr-stat"><span class="pr-stat-value" id="stat-gifts">—</span><span class="pr-stat-label">подарков в каталоге</span></div>
+      <div class="pr-stat"><span class="pr-stat-value" id="stat-platforms">—</span><span class="pr-stat-label">платформы</span></div>
+      <div class="pr-stat"><span class="pr-stat-value" id="stat-version">—</span><span class="pr-stat-label">текущая версия</span></div>
+    </section>
+
+    <h2 class="pr-section-title">Что внутри</h2>
+    <div class="pr-grid">
+      <article class="pr-card">
+        <h3>Чаты и каналы</h3>
+        <p>Личные переписки, группы с уровнями и правами, публичные каналы с обсуждениями, темы, папки, закреплённые сообщения и запланированная отправка.</p>
+      </article>
+      <article class="pr-card">
+        <h3>Звонки</h3>
+        <p>Голос и видео на WebRTC, сигналинг через WebSocket. Групповые звонки, картинка-в-картинке, приглашение по ссылке.</p>
+      </article>
+      <article class="pr-card">
+        <h3>Боты с открытым API</h3>
+        <p>Токен, polling-обновления, инлайн-клавиатуры — и редактор кода прямо в приложении, чтобы бот работал без своего хостинга. <a href="/BOTS.md">Документация</a>.</p>
+      </article>
+      <article class="pr-card">
+        <h3>Подарки и звёзды</h3>
+        <p>Каталог подарков с ограниченными тиражами и номерными экземплярами, внутренняя валюта — звёзды: платные сообщения от незнакомых, поднятие сообщений.</p>
+      </article>
+      <article class="pr-card">
+        <h3>Безопасность</h3>
+        <p>Двухфакторная аутентификация (TOTP), коды входа в служебный чат, управление сессиями, метки безопасности и модерация жалоб.</p>
+      </article>
+      <article class="pr-card">
+        <h3>Приватность</h3>
+        <p>Настройки видимости по каждому полю, поиск по номеру можно отключить, импорт контактов ничего не сохраняет на сервере.</p>
+      </article>
+    </div>
+
+    <section class="pr-collab" id="collab">
+      <h2>Коллаборации и партнёрства</h2>
+      <p>Открыты к совместным проектам: интеграции через Bot API, размещение у блогеров и в сообществах, кросс-промо с другими сервисами, совместные тематические стикерпаки и подарки к событиям.</p>
+      <div class="pr-collab-grid">
+        <div class="pr-collab-item"><h4>Интеграции</h4><p>Свой бот в Shalter с доступом к сообщениям, клавиатурам и рассылкам по подписчикам канала.</p></div>
+        <div class="pr-collab-item"><h4>Медиа и блогеры</h4><p>Свой канал, кабинет рекламы и реферальная программа: приглашённый и пригласивший получают Premium.</p></div>
+        <div class="pr-collab-item"><h4>Брендовые подарки</h4><p>Ограниченный тираж подарка с вашим оформлением — от 1 000 до 1 000 000 экземпляров, каждый со своим номером.</p></div>
+      </div>
+      <!-- Filled in from /api/downloads' admin contact if the deployment exposes
+           one; otherwise this stays a plain in-app route so the page never shows
+           a dead mailto. -->
+      <a class="pr-btn pr-btn-primary" href="/">Написать нам в Shalter</a>
+    </section>
+
+    <footer class="pr-footer">
+      <a href="/">Веб-версия</a><span aria-hidden="true">·</span>
+      <a href="/download">Скачать</a><span aria-hidden="true">·</span>
+      <a href="/BOTS.md">Bot API</a>
+    </footer>
+  </main>
+</div>
+
+<script>
+// Live numbers rather than hardcoded marketing ones: a promo page that claims
+// "286 подарков" after the catalogue changed is worse than no number at all.
+(function () {
+  fetch("/api/downloads")
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var available = (d.artifacts || []).filter(function (a) { return a.available; }).length;
+      document.getElementById("stat-platforms").textContent = available ? String(available) : "3";
+      if (d.version) document.getElementById("stat-version").textContent = d.version;
+    })
+    .catch(function () {});
+  // The gift catalogue is behind auth, so this only fills in for a signed-in
+  // visitor; anonymous ones keep the dash rather than seeing a wrong number.
+  fetch("/api/gifts")
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d && d.gifts) document.getElementById("stat-gifts").textContent = String(d.gifts.length); })
+    .catch(function () {});
+})();
+</script>
+</body>
+</html>

@@ -506,7 +506,16 @@
 /* Dropdown menu */
 .dropdown-menu {
   position: fixed;
-  z-index: 50;
+  /* Above every surface that can open one. It used to sit at 50, below the
+     modal overlay (60) and the profile panel (61) — so the gift picker opened
+     from adminUserPanel.js appeared *behind* the dialog's dim backdrop: visibly
+     greyed out, and unclickable, because the overlay swallowed the click and
+     closed the panel instead. Anything that spawns an anchored popover has to be
+     under it, which means clearing the story viewer and in-app browser (80) too.
+     Only the passcode lock (100) stays higher — nothing may cover that. */
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
   min-width: 200px;
   /* Scrolls instead of being clipped. This menu is also the gift picker
      (infoPanel.js / adminUserPanel.js), and the catalogue is 286 entries — with
@@ -519,14 +528,53 @@
      fit let it grow wider, which made it not fit again. A fixed ceiling breaks
      that loop and keeps long gift labels readable. */
   max-width: min(320px, calc(100vw - 16px));
-  overflow-y: auto;
-  /* Don't let the page behind the menu scroll once the menu hits its end. */
-  overscroll-behavior: contain;
+  /* The list inside is the scroller, so the search field stays put at the top
+     instead of scrolling away with the items. */
+  overflow: hidden;
   border-radius: 12px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
-  padding: 6px 0;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.dropdown-list {
+  min-height: 0;
+  overflow-y: auto;
+  /* Don't let the page behind the menu scroll once the list hits its end. */
+  overscroll-behavior: contain;
+  padding: 6px 0;
+}
+/* Filter field for the long menus (see openDropdownMenu's `search` option). */
+.dropdown-search {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border);
+  padding: 8px;
+}
+.dropdown-search-input {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  padding: 7px 10px;
+  font-size: 13.5px;
+}
+.dropdown-search-input:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 0;
+}
+.dropdown-empty {
+  margin: 0;
+  padding: 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+/* `display: flex` below is an author rule, so it beats the UA stylesheet's
+   `[hidden] { display: none }` — without this, filtering set the attribute and
+   changed nothing on screen: every gift stayed visible while the code (and a
+   test asking `.hidden`) believed it was hiding them. */
+.dropdown-item[hidden],
+.dropdown-empty[hidden] {
+  display: none;
 }
 .dropdown-item {
   display: flex;
@@ -1435,10 +1483,24 @@
   background: radial-gradient(circle, var(--color-accent-soft), transparent 70%);
   animation: gift-glow-pulse 2.2s ease-in-out infinite;
 }
+/* The gift's emoji is an animated scene now (lib/animScenes.js), and the scene
+   owns its motion. This element used to run its own entrance + endless float on
+   top of that, so the two fought each other: the whole thing bobbed up and down
+   while the scene's parts were trying to play their own timed sequence, and the
+   accent layers — positioned from this box's centre — drifted with it.
+   Keeps position/size only. */
 .gift-message-emoji {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 52px;
   line-height: 1;
+}
+/* Older gift messages, sent before scenes existed, have a bare emoji here with
+   no .anim-scene inside — they keep the original entrance so they don't become
+   the only completely static thing in the log. */
+.gift-message-emoji:not(:has(.anim-scene)) {
   animation: gift-emoji-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both, gift-emoji-float 2.6s 0.6s ease-in-out infinite;
 }
 .gift-message-sparkle {
@@ -1468,7 +1530,7 @@
   animation: gift-text-in 0.4s 0.4s ease both;
 }
 /* A received limited gift — the serial badge is the point, so the card gets
-   a gold frame to match the shop's .gift-card-exclusive treatment. */
+   a gold frame to match the shop's .gs-card-rare treatment. */
 .gift-message-exclusive {
   border-radius: 16px;
   border: 1px solid #d9a441;
@@ -1658,9 +1720,15 @@
   0%, 100% { transform: scale(1); filter: brightness(1); }
   50% { transform: scale(1.08); filter: brightness(1.15); }
 }
+/* The sticker picker is now a list of packs, each with its own grid inside —
+   so it overrides the emoji picker's own grid rather than inheriting it. Left as
+   a grid, the pack sections laid out as *columns* and everything past the first
+   was pushed off the edge of the screen. */
 .composer-emoji-picker.sticker-picker {
-  width: 280px;
-  grid-template-columns: repeat(6, 1fr);
+  display: flex;
+  flex-direction: column;
+  width: 292px;
+  max-width: calc(100vw - 24px);
 }
 .sticker-picker-item {
   font-size: 26px;
@@ -3605,113 +3673,10 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
   animation: premium-orbit-counter-spin 14s linear infinite;
 }
-.gifts-section {
-  margin-top: 24px;
-}
-.gifts-grid {
-  margin-top: 12px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
-}
-.gift-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  border-radius: 12px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  padding: 14px 8px 10px;
-  text-align: center;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.gift-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
-}
-.gift-card-emoji {
-  font-size: 30px;
-  line-height: 1.2;
-  display: inline-block;
-  animation: gift-card-idle 3.2s ease-in-out infinite;
-  animation-delay: var(--gift-delay, 0s);
-}
-.gift-card:hover .gift-card-emoji {
-  animation: gift-card-hover-spin 0.5s ease-in-out;
-}
-@keyframes gift-card-idle {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-4px) rotate(-6deg); }
-}
-@keyframes gift-card-hover-spin {
-  0% { transform: scale(1) rotate(0deg); }
-  50% { transform: scale(1.25) rotate(12deg); }
-  100% { transform: scale(1) rotate(0deg); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .gift-card-emoji { animation: none; }
-}
-.gift-card-name {
-  margin: 2px 0 0;
-  font-size: 12.5px;
-  font-weight: 500;
-}
-.gift-card-price {
-  margin: 0;
-  font-size: 12px;
-  color: var(--color-muted);
-}
-.gift-card-btn {
-  margin-top: 6px;
-  width: 100%;
-  border-radius: 8px;
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
-  font-size: 12.5px;
-  font-weight: 500;
-  padding: 6px 0;
-}
-.gift-card-btn:hover {
-  background: var(--color-accent);
-  color: var(--color-accent-contrast);
-}
-.gift-card-btn:disabled {
-  opacity: 0.6;
-}
-/* Эксклюзивные подарки (server/data/gifts.js's `supply` tier) — limited
-   runs with per-copy serial numbers, so they get a gold frame instead of
-   the plain border every other gift card has. Deliberately a border/tint
-   change only: the card keeps the same size and layout as its neighbours
-   so the grid doesn't break up around them. */
-.gift-card-exclusive {
-  border-color: #d9a441;
-  background: linear-gradient(160deg, color-mix(in srgb, #d9a441 10%, var(--color-surface)), var(--color-surface) 60%);
-}
-.gift-card-supply {
-  margin: 0 0 2px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: #b8860b;
-}
-.gift-card-sold-out {
-  opacity: 0.55;
-}
-.gift-card-sold-out .gift-card-supply {
-  color: var(--color-muted);
-}
-/* The idle float/hover-spin would read as "still available" — a sold-out
-   card should sit still. */
-.gift-card-sold-out .gift-card-emoji {
-  animation: none;
-  filter: grayscale(1);
-}
-.gift-card-sold-out:hover {
-  transform: none;
-  box-shadow: none;
-}
+/* The rouble-priced gift grid this page used to render (.gifts-grid /
+   .gift-card…) is gone — the shop dialog (.gs-grid / .gs-card, star prices,
+   balance in the header, filters) replaced it, and keeping a second grid of the
+   same catalogue around meant two different prices for the same rose. */
 .referral-card {
   border-radius: 14px;
   border: 1px solid var(--color-border);
@@ -5169,6 +5134,16 @@
   margin-top: 10px;
   border: 1px solid var(--color-border);
 }
+/* A height-capped scrolling body ends mid-content by design, so whatever row
+   happens to be at the boundary gets sliced — and a half-drawn "Заблокировать"
+   button reads as a layout bug rather than "there's more below". A rule under
+   the scroll area makes the last button a footer and the cut an edge. */
+.admin-panel-dialog > .modal-cancel,
+.gs-dialog > .modal-cancel {
+  margin-top: 8px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 12px;
+}
 
 /* Registration's @handle field (views/login.js) — the input plus its live
    "свободен / занят" line, which replaces the static hint once there's
@@ -5694,4 +5669,673 @@
 @keyframes message-flash-mine {
   0%, 40% { background: color-mix(in srgb, var(--color-accent) 34%, var(--color-bubble-out)); }
   100% { background: var(--color-bubble-out); }
+}
+
+/* ── Animated scenes (lib/animScenes.js) ─────────────────────────────────────
+   A sticker or gift is a small cast of emoji layered over each other, each with
+   its own motion and start delay, looping together as one performance. Accent
+   layers are absolutely positioned inside the box; the base layer fills it. */
+.anim-scene {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  user-select: none;
+}
+.scene-part {
+  display: inline-block;
+  line-height: 1;
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+  animation-timing-function: ease-in-out;
+  will-change: transform, opacity;
+}
+/* The pop-in belongs on the container, not on the base layer. Putting it on the
+   layer meant overriding that layer's `animation-name` — which replaced the
+   scene's actual motion with the entrance, so a freshly sent sticker popped in
+   and then sat perfectly still until something re-rendered it. On the container
+   the two are independent. Only the first appearance plays it; a re-render of an
+   old message doesn't (see messageBubble.js's seenEntranceIds). */
+.anim-scene:not(.no-entrance) {
+  animation: scene-pop-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes scene-pop-in {
+  from { opacity: 0; transform: scale(0.4); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Base motions */
+.scene-wave { animation-name: scene-wave; animation-duration: 1.6s; transform-origin: 70% 80%; }
+@keyframes scene-wave {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  15% { transform: rotate(16deg); }
+  30% { transform: rotate(-10deg); }
+  45% { transform: rotate(14deg); }
+}
+.scene-wiggle { animation-name: scene-wiggle; animation-duration: 1.6s; }
+@keyframes scene-wiggle {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+.scene-beat { animation-name: scene-beat; animation-duration: 1.1s; }
+@keyframes scene-beat {
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.18); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.12); }
+}
+.scene-float { animation-name: scene-float; animation-duration: 2.6s; }
+@keyframes scene-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+.scene-tada { animation-name: scene-tada; animation-duration: 1.4s; }
+@keyframes scene-tada {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  10% { transform: scale(0.92) rotate(-4deg); }
+  30% { transform: scale(1.14) rotate(4deg); }
+  50% { transform: scale(1.08) rotate(-3deg); }
+  70% { transform: scale(1.04) rotate(2deg); }
+}
+.scene-swing { animation-name: scene-swing; animation-duration: 1.8s; transform-origin: 50% 0; }
+@keyframes scene-swing {
+  0%, 100% { transform: rotate(-7deg); }
+  50% { transform: rotate(7deg); }
+}
+.scene-flicker { animation-name: scene-flicker; animation-duration: 0.9s; }
+@keyframes scene-flicker {
+  0%, 100% { transform: scale(1) rotate(-2deg); opacity: 1; }
+  40% { transform: scale(1.08) rotate(3deg); opacity: 0.86; }
+  70% { transform: scale(0.97) rotate(-1deg); opacity: 1; }
+}
+/* Deliberately almost still — for the rock, whose joke is that it does nothing
+   but blink. */
+.scene-settle { animation-name: scene-settle; animation-duration: 3.2s; }
+@keyframes scene-settle {
+  0%, 92%, 100% { transform: translateY(0) rotate(0deg); }
+  96% { transform: translateY(-2px) rotate(-1.5deg); }
+}
+.scene-breathe { animation-name: scene-breathe; animation-duration: 2.8s; }
+@keyframes scene-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.scene-launch { animation-name: scene-launch; animation-duration: 2.6s; }
+@keyframes scene-launch {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  55% { transform: translate(14px, -22px) rotate(8deg); }
+  70% { transform: translate(18px, -30px) rotate(10deg); opacity: 1; }
+  85% { transform: translate(26px, -46px) rotate(12deg); opacity: 0; }
+  86%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+}
+
+/* Accent motions — these run on the layers that arrive later in a scene, so
+   their delay is what turns a pile of emoji into a sequence. */
+.scene-rise { animation-name: scene-rise; animation-duration: 2.1s; }
+@keyframes scene-rise {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  25% { opacity: 1; transform: translate(-50%, -60%) scale(1); }
+  75% { opacity: 1; transform: translate(-50%, -75%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -95%) scale(0.9); }
+}
+/* The spoon: comes down into the jar, lifts back out. */
+.scene-dip { animation-name: scene-dip; animation-duration: 1.4s; }
+@keyframes scene-dip {
+  0% { opacity: 0; transform: translate(-50%, -110%) rotate(-25deg); }
+  20% { opacity: 1; transform: translate(-50%, -80%) rotate(-15deg); }
+  50% { opacity: 1; transform: translate(-50%, -35%) rotate(0deg); }
+  80% { opacity: 1; transform: translate(-50%, -85%) rotate(-18deg); }
+  100% { opacity: 0; transform: translate(-50%, -110%) rotate(-25deg); }
+}
+.scene-blink { animation-name: scene-blink; animation-duration: 2s; }
+@keyframes scene-blink {
+  0%, 44%, 52%, 100% { opacity: 1; transform: translate(-50%, -50%) scaleY(1); }
+  48% { opacity: 1; transform: translate(-50%, -50%) scaleY(0.1); }
+}
+.scene-steam { animation-name: scene-steam; animation-duration: 2.2s; }
+@keyframes scene-steam {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); }
+  30% { opacity: 0.75; }
+  100% { opacity: 0; transform: translate(-50%, -130%) scale(1.3); }
+}
+.scene-twinkle { animation-name: scene-twinkle; animation-duration: 1.6s; }
+@keyframes scene-twinkle {
+  0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(0deg); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(45deg); }
+}
+.scene-burst { animation-name: scene-burst; animation-duration: 1.8s; }
+@keyframes scene-burst {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  30% { opacity: 1; transform: translate(-50%, -70%) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -100%) scale(0.8) rotate(30deg); }
+}
+.scene-roll { animation-name: scene-roll; animation-duration: 2.4s; }
+@keyframes scene-roll {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(0deg); }
+  20% { opacity: 1; }
+  100% { opacity: 1; transform: translate(-20%, -50%) rotate(360deg); }
+}
+.scene-fall { animation-name: scene-fall; animation-duration: 2.2s; }
+@keyframes scene-fall {
+  0% { opacity: 0; transform: translate(-50%, -90%) rotate(-20deg); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, 60%) rotate(25deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-part {
+    animation: none !important;
+  }
+}
+
+/* ── Sticker picker with packs (composer.js) ─────────────────────────────── */
+.sticker-picker {
+  max-height: min(56vh, 380px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.sticker-pack-section + .sticker-pack-section {
+  margin-top: 10px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
+}
+.sticker-pack-heading {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+}
+.sticker-pack-items {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.sticker-manage-btn {
+  width: 100%;
+  margin-top: 10px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 10px;
+  font-size: 12.5px;
+  color: var(--color-accent);
+}
+
+/* ── Pack manager (components/stickerPackDialog.js) ───────────────────────── */
+.sticker-pack-dialog {
+  max-width: min(420px, 94vw);
+}
+.sticker-pack-body {
+  display: flex;
+  max-height: min(64vh, 520px);
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  text-align: left;
+}
+.sticker-pack-body > * {
+  margin: 0;
+}
+.sticker-pack-list {
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  padding: 0 10px;
+}
+.sticker-pack-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-border);
+  padding: 8px 0;
+}
+.sticker-pack-row:last-child {
+  border-bottom: none;
+}
+.sticker-pack-open {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+.sticker-pack-preview {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+.sticker-pack-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.sticker-pack-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+}
+.sticker-pack-count {
+  font-size: 11.5px;
+  color: var(--color-muted);
+}
+.sticker-pack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 6px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  padding: 8px;
+}
+.sticker-pack-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 6px;
+}
+.sticker-pack-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: #fff;
+}
+.sticker-add-row {
+  display: flex;
+  gap: 8px;
+}
+.sticker-add-row > .settings-input,
+.sticker-add-row > .settings-select {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.sticker-emoji-input {
+  max-width: 84px;
+  text-align: center;
+  font-size: 20px;
+}
+
+/* Who the gift is from, on the gift card (messageBubble.js). */
+.gift-message-from {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+/* ── Stars (components/starsDialog.js, server/routes/stars.js) ────────────── */
+.stars-dialog {
+  max-width: min(440px, 94vw);
+}
+.stars-body {
+  display: flex;
+  max-height: min(66vh, 560px);
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  text-align: left;
+}
+.stars-body > * {
+  margin: 0;
+}
+.stars-balance {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #e0b33b 14%, var(--color-surface));
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.stars-balance-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.stars-pack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.stars-pack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 10px;
+  text-align: left;
+}
+.stars-pack:hover {
+  border-color: var(--color-accent);
+}
+.stars-pack-amount {
+  font-size: 15px;
+  font-weight: 600;
+}
+.stars-pack-price {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.stars-costs {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-muted);
+}
+.stars-price-row,
+.admin-stars-row {
+  display: flex;
+  gap: 8px;
+}
+.stars-price-row > .settings-input,
+.admin-stars-row > .settings-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.stars-price-input {
+  text-align: right;
+}
+/* A message boosted with stars stays visibly lifted until its time runs out. */
+.bubble-boosted {
+  box-shadow: 0 0 0 2px #e0b33b, 0 6px 18px color-mix(in srgb, #e0b33b 35%, transparent);
+}
+
+/* Remove-from-shelf button on a gift chip (profileDialog.js). Only shown on your
+   own profile; sits in the chip's corner and appears on hover so the shelf stays
+   a display first and a management surface second. */
+.profile-gift-chip {
+  position: relative;
+}
+.profile-gift-remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.profile-gift-chip:hover .profile-gift-remove,
+.profile-gift-remove:focus-visible {
+  opacity: 1;
+}
+/* No hover on a touchscreen — there the button is simply always visible. */
+@media (hover: none) {
+  .profile-gift-remove {
+    opacity: 1;
+  }
+}
+
+/* ── Gift shop (components/giftShopDialog.js) ─────────────────────────────────
+   Star prices, the balance in the header, filter tabs and a card grid. */
+.gs-dialog {
+  max-width: min(480px, 94vw);
+}
+.gs-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gs-head .modal-title {
+  flex: 1;
+  min-width: 0;
+}
+/* The balance is a button, not a label: running out of stars mid-browse is the
+   most likely reason to want the top-up, so it's one tap from here. */
+.gs-balance {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  padding: 4px 10px;
+}
+.gs-balance-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+}
+.gs-balance-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+}
+.gs-body {
+  display: flex;
+  max-height: min(64vh, 540px);
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  text-align: left;
+}
+.gs-body > * {
+  margin: 0;
+}
+.gs-recipient {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.gs-recipient > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gs-recipient-btn {
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--color-accent);
+}
+/* Horizontally scrollable: five filters plus four price shortcuts don't fit a
+   phone's width, and wrapping them to three rows pushes the grid off screen. */
+.gs-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.gs-tabs::-webkit-scrollbar {
+  display: none;
+}
+.gs-tab {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  padding: 5px 12px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  color: var(--color-muted);
+}
+.gs-tab.active {
+  background: var(--color-accent);
+  color: #fff;
+}
+.gs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+}
+.gs-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 12px 8px 10px;
+}
+.gs-card:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+.gs-card:disabled {
+  opacity: 0.5;
+}
+.gs-card-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+}
+.gs-card-name {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+}
+.gs-card-price {
+  border-radius: 999px;
+  background: color-mix(in srgb, #e0b33b 18%, transparent);
+  padding: 2px 9px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+/* Priced above the current balance — visible but clearly out of reach, rather
+   than looking identical to something affordable. */
+.gs-card-price.short {
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+}
+.gs-card-supply {
+  font-size: 10.5px;
+  color: var(--color-muted);
+}
+.gs-card-rare {
+  border-color: color-mix(in srgb, #e0b33b 55%, var(--color-border));
+}
+.gs-rare-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-bottom-left-radius: 8px;
+  background: #e0b33b;
+  padding: 1px 7px;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #3a2c00;
+}
+
+/* Keep-or-convert actions on a received gift's card in the chat. */
+.gift-message-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.gift-card-action {
+  border-radius: 8px;
+  background: var(--color-accent);
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #fff;
+}
+.gift-card-action.muted {
+  background: var(--color-surface-alt);
+  color: var(--color-accent);
+}
+
+/* What a group's level has unlocked (components/infoPanel.js, gated in
+   server/lib/chatFeatures.js). A locked row shows the level it needs instead of
+   a tick, so the list doubles as "what am I voting towards". */
+.chat-features {
+  margin-top: 14px;
+}
+.chat-features-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+.chat-feature {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.chat-feature-mark {
+  display: flex;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-surface-alt);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+.chat-feature.on {
+  color: var(--color-text);
+}
+.chat-feature.on .chat-feature-mark {
+  background: var(--color-success);
+  color: #fff;
+}
+
+/* An owner-set custom member label (components/infoPanel.js). Visually distinct
+   from the built-in role tags: it's someone's words, not a system role, so it
+   gets no icon and a neutral colour. */
+.info-panel-role-tag.custom {
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+}
+.info-panel-role-tag.mod {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+}
+
+/* Paste-the-numbers box in the contact import dialog — the path that works on
+   iOS, where Safari gives a page no access to the address book at all. */
+.import-paste {
+  width: 100%;
+  margin: 0;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
 }

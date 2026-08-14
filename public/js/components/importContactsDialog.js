@@ -2,7 +2,7 @@ import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { api } from "../api.js";
-import { isContactPickerSupported, pickPhoneContacts, readVCardFile } from "../lib/phoneContacts.js";
+import { isContactPickerSupported, pickPhoneContacts, readVCardFiles, parsePastedContacts, isIos } from "../lib/phoneContacts.js";
 
 // "Найти друзей по контактам" — the alternative to typing an exact @handle for
 // every person you already know, which was the only way to add anyone before
@@ -49,15 +49,17 @@ export function openImportContactsDialog(onAdded) {
   const fileInput = el("input", {
     type: "file",
     accept: ".vcf,text/vcard,text/x-vcard",
+    // iOS shares one .vcf per contact, so importing there means many files.
+    multiple: true,
     class: "hidden-input",
     onchange: async (e) => {
-      const file = e.target.files?.[0];
+      const files = [...(e.target.files ?? [])];
       e.target.value = "";
-      if (!file) return;
+      if (!files.length) return;
       try {
-        const entries = await readVCardFile(file);
+        const entries = await readVCardFiles(files);
         if (!entries.length) {
-          error = "В файле не нашлось ни одного номера телефона";
+          error = "В файлах не нашлось ни одного номера телефона";
           step = "pick";
           render();
           return;
@@ -70,6 +72,24 @@ export function openImportContactsDialog(onAdded) {
       }
     },
   });
+
+  // The path that works on every platform, iPhone included: paste or type the
+  // numbers. A plain textarea read on submit — re-rendering per keystroke would
+  // take the focus with it.
+  const pasteInput = el("textarea", {
+    class: "settings-input import-paste",
+    rows: 3,
+    placeholder: "+7 999 111-22-33\nМама +7 900 000 00 00",
+  });
+
+  async function matchPasted() {
+    const entries = parsePastedContacts(pasteInput.value);
+    if (!entries.length) {
+      error = "Не нашлось ни одного номера — по одному в строке или через запятую";
+      return render();
+    }
+    await match(entries);
+  }
 
   async function match(entries) {
     step = "loading";
@@ -228,7 +248,7 @@ export function openImportContactsDialog(onAdded) {
         isContactPickerSupported() ? el("button", { class: "btn-accent", onclick: usePicker }, "Выбрать из контактов телефона") : null,
         el("button", { class: "profile-action-btn import-vcf-btn", onclick: () => fileInput.click() }, [
           el("span", { html: iconSvg("Download", 15) }),
-          " Загрузить файл контактов (.vcf)",
+          " Выбрать файлы контактов (.vcf)",
         ]),
         fileInput,
         el(
@@ -236,8 +256,13 @@ export function openImportContactsDialog(onAdded) {
           { class: "settings-toggle-hint" },
           isContactPickerSupported()
             ? "Файл подойдёт, если хотите проверить контакты с другого устройства."
-            : "Ваш браузер не даёт странице доступ к адресной книге напрямую. Экспортируйте контакты в файл .vcf (Android: Контакты → Экспорт; iPhone: Настройки → Контакты → Экспорт) и выберите его здесь."
+            : isIos()
+              ? "На iPhone Safari не даёт странице доступ к адресной книге — это ограничение самой iOS, а не приложения. Два рабочих способа: в «Контактах» выделите людей → «Поделиться» → сохраните карточки в «Файлы» и выберите их здесь (можно сразу несколько), либо просто вставьте номера ниже."
+              : "Ваш браузер не даёт странице доступ к адресной книге напрямую. Экспортируйте контакты в файл .vcf (Android: Контакты → Экспорт) и выберите его здесь — или вставьте номера ниже."
         ),
+        el("p", { class: "settings-field-label" }, "Или вставьте номера"),
+        pasteInput,
+        el("button", { class: "profile-action-btn", onclick: matchPasted }, "Проверить эти номера"),
         error ? el("p", { class: "login-error" }, error) : null,
       ]);
       return;

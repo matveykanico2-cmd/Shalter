@@ -21,11 +21,13 @@ const { apiLimiter, authLimiter } = require("./middleware/rateLimit");
 const { attachWebSocketServer } = require("./ws");
 const { initPush } = require("./push");
 const { ensureSystemBot } = require("./data/systemBot");
+const { ensureSupportAccount } = require("./data/supportAccount");
 const { startAutoDeleteSweep } = require("./lib/autoDelete");
 const { startDonationAlertsSweep } = require("./lib/donationAlerts");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
 
 ensureSystemBot();
+ensureSupportAccount();
 
 const app = express();
 // Deployed behind nginx (see DEPLOY.md/deploy/nginx.conf.example) — trust
@@ -110,6 +112,9 @@ app.use("/api/translate", require("./routes/translate"));
 app.use("/api/uploads", require("./routes/uploads"));
 app.use("/api/downloads", require("./routes/downloads"));
 app.use("/api/hugo", require("./routes/hugo"));
+app.use("/api/stickers", require("./routes/stickers"));
+app.use("/api/stars", require("./routes/stars"));
+app.use("/api/support", require("./routes/support"));
 
 if (useBuilt) {
   // Serves whichever of app.js/app.js.br/app.js.gz the client's
@@ -131,7 +136,14 @@ app.use("/.well-known", express.static(path.join(PUBLIC_DIR, ".well-known"), { m
 // directly). No build step for these, so keep cache short-ish rather than
 // immutable — long enough to skip re-fetching on every navigation, short
 // enough that a deploy doesn't need a hard refresh.
-app.use(express.static(PUBLIC_DIR, { maxAge: "1h" }));
+//
+// In development this same handler serves the actual source — every module
+// under /js and every stylesheet — and an hour of `max-age` there means the
+// browser doesn't so much as ask whether app.js changed. Editing a file,
+// reloading and still seeing the old UI is not a stale-build mystery, it's this
+// header. maxAge 0 still sends an ETag, so an unchanged file costs a 304 rather
+// than a re-download.
+app.use(express.static(PUBLIC_DIR, { maxAge: useBuilt ? "1h" : 0 }));
 
 // Uploaded attachments (data/uploads — see routes/uploads.js). Its own handler
 // rather than express.static because a large video needs real Range support and
@@ -149,6 +161,9 @@ app.head("/uploads/:filename", serveUpload(UPLOAD_DIR));
 // instead (only /download.html worked, which is not a URL anyone types or a
 // link worth sharing).
 app.get("/download", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "download.html")));
+// The partner/collaboration page — same standalone-static-page treatment, and
+// the same reason: /promo is the URL anyone would actually share.
+app.get("/promo", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "promo.html")));
 
 // Client-side router owns every non-API path — always serve the shell.
 app.get(/^\/(?!api|ws).*/, (req, res) => {

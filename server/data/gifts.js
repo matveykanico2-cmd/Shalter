@@ -326,12 +326,32 @@ const db = require("../db");
 const SUPPLY_MIN = 1000;
 const SUPPLY_MAX = 1000000;
 
+// Gifts are priced in stars, and stars are what people actually buy (10 ⭐ per
+// ₽ — the rate of the cheapest pack in server/routes/stars.js). The ruble figure
+// stays on each entry as the reference price the catalogue was written with; the
+// star price is derived from it so the two can never drift apart.
+const STARS_PER_RUB = 10;
+
+function starPrice(gift) {
+  return Math.max(1, Math.round((gift.priceStars ?? gift.priceRub * STARS_PER_RUB)));
+}
+
+// What converting a received gift back pays out. Telegram returns the full
+// price; doing the same here keeps it simple and means a gift is never a trap —
+// you always get back exactly what it cost.
+function conversionValue(gift) {
+  return starPrice(gift);
+}
+
 function rowToGift(row) {
   return {
     id: row.id,
     emoji: row.emoji,
     name: row.name,
     priceRub: row.priceRub,
+    // Set for anything minted since gifts became star-priced; null on older
+    // rows, where starPrice() falls back to converting priceRub.
+    priceStars: row.priceStars ?? undefined,
     premiumDays: row.premiumDays === null ? null : row.premiumDays,
     supply: row.supply ?? undefined,
     exclusive: !!row.exclusive || undefined,
@@ -343,6 +363,10 @@ function overrides() {
   const map = new Map();
   for (const row of db.prepare("SELECT * FROM gift_catalog").all()) map.set(row.id, row);
   return map;
+}
+
+function withStars(g) {
+  return { ...g, priceStars: starPrice(g) };
 }
 
 function listGifts() {
@@ -357,7 +381,7 @@ function listGifts() {
   for (const row of rows.values()) {
     if (row.custom) merged.push(rowToGift(row));
   }
-  return merged;
+  return merged.map(withStars);
 }
 
 function getGift(id) {
@@ -381,15 +405,18 @@ function setSupply(id, supply) {
   return getGift(id);
 }
 
-function createGift({ id, emoji, name, priceRub, premiumDays, supply, exclusive }) {
+function createGift({ id, emoji, name, priceStars, premiumDays, supply, exclusive }) {
   db.prepare(
-    `INSERT INTO gift_catalog (id, emoji, name, priceRub, premiumDays, supply, exclusive, custom, createdAt)
-     VALUES (@id, @emoji, @name, @priceRub, @premiumDays, @supply, @exclusive, 1, @createdAt)`
+    `INSERT INTO gift_catalog (id, emoji, name, priceRub, priceStars, premiumDays, supply, exclusive, custom, createdAt)
+     VALUES (@id, @emoji, @name, @priceRub, @priceStars, @premiumDays, @supply, @exclusive, 1, @createdAt)`
   ).run({
     id,
     emoji,
     name,
-    priceRub,
+    // Kept alongside the star price purely so the row is readable next to the
+    // shipped catalogue's rouble figures and in data exports. Nothing charges it.
+    priceRub: Math.max(1, Math.round(priceStars / STARS_PER_RUB)),
+    priceStars,
     premiumDays: premiumDays === null ? null : premiumDays,
     supply: supply ?? null,
     exclusive: exclusive ? 1 : 0,
@@ -408,4 +435,4 @@ function deleteCustomGift(id) {
   return true;
 }
 
-module.exports = { listGifts, getGift, setSupply, createGift, deleteCustomGift, SUPPLY_MIN, SUPPLY_MAX };
+module.exports = { listGifts, getGift, setSupply, createGift, deleteCustomGift, starPrice, conversionValue, SUPPLY_MIN, SUPPLY_MAX, STARS_PER_RUB };

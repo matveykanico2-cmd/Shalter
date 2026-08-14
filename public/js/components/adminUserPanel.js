@@ -261,14 +261,44 @@ export function openAdminUserPanel(user, onChange) {
                 openDropdownMenu(
                   { x: e.clientX, y: e.clientY },
                   gifts.map((g) => ({
-                    label: `${g.emoji} ${g.name} — ${g.priceRub}₽${g.supply ? ` (осталось ${g.remaining})` : ""}`,
+                    // In stars, because that's the price the recipient would
+                    // have paid — the shop hasn't been priced in roubles since
+                    // stars became the currency.
+                    label: `${g.emoji} ${g.name} — ⭐ ${g.priceStars}${g.supply ? ` (осталось ${g.remaining})` : ""}`,
                     onClick: () => sendGift(g),
-                  }))
+                  })),
+                  { search: "Поиск подарка" }
                 ),
             },
             "🎁 Отправить подарок"
           )
         : null,
+
+      el("p", { class: "admin-panel-section-title" }, "Звёзды"),
+      el("p", { class: "settings-toggle-hint" }, "Начислить после перевода — или списать, указав отрицательное число."),
+      (() => {
+        // Uncontrolled input read on submit: the panel re-renders after every
+        // action, and a controlled field would lose focus mid-typing.
+        const input = el("input", { class: "settings-input mono", type: "number", step: "1", placeholder: "например 130" });
+        return el("div", { class: "admin-stars-row" }, [
+          input,
+          el(
+            "button",
+            {
+              class: "btn-accent-pill",
+              disabled: busy,
+              onclick: () =>
+                run(async () => {
+                  const amount = Number(input.value);
+                  if (!amount) throw new Error("Укажите количество звёзд");
+                  const { balance } = await api.grantStars(state.id, amount);
+                  return { notice: `Баланс: ${balance} ⭐` };
+                }, "Звёзды начислены"),
+            },
+            "Начислить"
+          ),
+        ]);
+      })(),
 
       el("p", { class: "admin-panel-section-title" }, "Метка безопасности"),
       el("p", { class: "settings-toggle-hint" }, "Видна всем, кто откроет профиль или увидит чат с этим аккаунтом — предупреждение до того, как человек переведёт деньги."),

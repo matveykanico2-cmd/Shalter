@@ -7,7 +7,7 @@
 // gifts it isn't, because a path that forgets to claim a serial would hand
 // out an untracked copy and quietly break the "only 10 will ever exist"
 // promise the shop makes.
-const { grantPremiumDays, addReceivedGift } = require("../data/users");
+const { grantPremiumDays, addReceivedGift, getUser } = require("../data/users");
 const { claimSerial } = require("../data/giftIssues");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("./systemChat");
 
@@ -26,6 +26,12 @@ function durationLabel(days) {
 // the buyer, refund-by-hand, log it) and none of them should treat it as a
 // crash. Nothing is granted in that case.
 async function deliverGift({ gift, recipientId, fromId, announceFromId }) {
+  // Who it's from, resolved once and stamped onto both the message card and the
+  // profile shelf. A gift with no visible sender is just an object appearing out
+  // of nowhere — the whole point is that someone gave it to you.
+  const sender = fromId ? await getUser(fromId) : null;
+  const fromName = sender?.name ?? null;
+
   let serial = null;
   if (gift.supply) {
     serial = claimSerial(gift, recipientId, fromId ?? null);
@@ -34,9 +40,16 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId }) {
 
   if (gift.premiumDays !== 0) await grantPremiumDays(recipientId, gift.premiumDays);
   await addReceivedGift(recipientId, {
+    // The catalogue id and star price are stored alongside the display fields so
+    // the gift can still be converted back into stars after the catalogue entry
+    // itself changes or is removed (routes/gifts.js's /convert).
+    giftId: gift.id,
+    priceRub: gift.priceRub,
+    priceStars: gift.priceStars,
     emoji: gift.emoji,
     name: gift.name,
     fromId: fromId ?? null,
+    fromName,
     at: new Date().toISOString(),
     // Only limited gifts carry these — the profile shelf uses them to show
     // the "#3 из 10" badge, and their absence is what marks an ordinary gift.
@@ -58,6 +71,9 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId }) {
         priceRub: gift.priceRub,
         premiumDays: gift.premiumDays,
         durationLabel: duration,
+        priceStars: gift.priceStars,
+        fromId: fromId ?? null,
+        fromName,
         ...(serial != null ? { serial, supply: gift.supply, exclusive: true } : {}),
       },
     }

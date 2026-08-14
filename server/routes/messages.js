@@ -2,6 +2,7 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { getChat } = require("../data/chats");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
+const { sanitizeSticker } = require("../lib/sanitizeSticker");
 const {
   listMessages,
   listMessagesPage,
@@ -19,6 +20,9 @@ const {
   setLinkPreview,
 } = require("../data/messages");
 const { getUser, listUsers } = require("../data/users");
+const { transferStars, balanceOf } = require("../data/stars");
+const { SYSTEM_BOT_ID } = require("../data/systemBot");
+const { ADMIN_PHONE } = require("../config");
 const { getSettings } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
 const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled } = require("../data/scheduledMessages");
@@ -187,7 +191,7 @@ async function deliverMessage(chat, senderId, body) {
     threadRootId: body.threadRootId ?? null,
     attachments: sanitizeAttachments(body.attachments),
     forwardedFrom,
-    sticker: body.sticker,
+    sticker: sanitizeSticker(body.sticker),
     readByIds: [senderId],
   });
 
@@ -270,16 +274,56 @@ router.post(
       return res.status(400).json({ error: "empty message" });
     }
 
+    let charged = 0;
     if (chat.type === "dm") {
       const otherId = chat.memberIds.find((m) => m !== req.uid);
       const other = otherId ? await getUser(otherId) : undefined;
       if (other?.blockedUserIds?.includes(req.uid)) {
         return res.status(403).json({ error: "Пользователь заблокировал вас" });
       }
+
+      // The Shalter service bot only ever talks *to* you: login codes, security
+      // alerts, delivered gifts. There is nothing at the other end to read a
+      // reply, so the chat is one-way rather than silently swallowing messages.
+      if (otherId === SYSTEM_BOT_ID) {
+        return res.status(403).json({ error: "Shalter — служебный чат, отвечать в нём нельзя" });
+      }
+      // Support (data/supportAccount.js) is deliberately not covered by that
+      // rule, nor by the admin-DM one below: it exists to be written to. It has
+      // no phone number, so the ADMIN_PHONE check can't catch it either.
+      // Same for the administration's own DM: purchase requests are posted there
+      // by the server itself (see routes/premium.js and friends), and those go
+      // through lib/systemChat.js rather than this route.
+      if (other?.phone && other.phone === ADMIN_PHONE) {
+        return res.status(403).json({ error: "В чат администрации нельзя писать напрямую — заявки на покупку создаются автоматически" });
+      }
+
+      // Paid DMs: an account can charge strangers stars to write to it. The
+      // charge is per message, not once — that's what actually prices cold
+      // outreach, and it's how Telegram's paid messages work too. Two ways out
+      // of it, both meaning "this isn't cold outreach any more": the recipient
+      // has the sender in their contacts, or they have replied at least once.
+      // From then on the conversation is free in both directions.
+      const price = other?.messagePriceStars ?? 0;
+      if (price > 0) {
+        const theirContacts = await listContactsFor(other.id);
+        const isContact = theirContacts.some((c) => c.userId === req.uid);
+        const everReplied = (await listMessages(chat.id, other.id)).some((m) => m.senderId === other.id);
+        if (!isContact && !everReplied) {
+          if (!transferStars(req.uid, other.id, price)) {
+            return res.status(402).json({
+              error: `Этот пользователь берёт ${price} ⭐ за сообщение от незнакомых — на балансе не хватает`,
+              needStars: price,
+              balance: balanceOf(req.uid),
+            });
+          }
+          charged = price;
+        }
+      }
     }
 
     const message = await deliverMessage(chat, req.uid, body);
-    res.json({ message });
+    res.json({ message, ...(charged ? { chargedStars: charged, balance: balanceOf(req.uid) } : {}) });
   })
 );
 

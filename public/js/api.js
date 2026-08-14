@@ -59,6 +59,9 @@ export const api = {
     req(`/api/users/${userId}/block`, { method: "POST", body: JSON.stringify({ blocked }) }),
   getSharedMedia: (userId) => req(`/api/users/${userId}/shared-media`),
 
+  // Opens (or returns) the DM with the support account.
+  openSupportChat: () => req("/api/support/chat", { method: "POST" }),
+
   listChats: () => req("/api/chats"),
   getChat: (id) => req(`/api/chats/${id}`),
   patchChat: (id, patch) => req(`/api/chats/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
@@ -82,6 +85,9 @@ export const api = {
   setDraft: (id, text) => req(`/api/chats/${id}/draft`, { method: "POST", body: JSON.stringify({ text }) }),
   setMemberRole: (id, userId, role) =>
     req(`/api/chats/${id}/members`, { method: "POST", body: JSON.stringify({ userId, role }) }),
+  // The label the whole chat sees next to a member — owner-only, empty clears it.
+  setMemberTitle: (id, userId, title) =>
+    req(`/api/chats/${id}/title`, { method: "POST", body: JSON.stringify({ userId, title }) }),
   restrictMember: (id, userId, until) =>
     req(`/api/chats/${id}/restrict`, { method: "POST", body: JSON.stringify({ userId, until }) }),
   voteForGroup: (id) => req(`/api/chats/${id}/vote`, { method: "POST" }),
@@ -201,7 +207,28 @@ export const api = {
   grantAds: (userId, active = true, opts = {}) =>
     req("/api/ads/grant", { method: "POST", body: JSON.stringify({ userId, active, ...opts }) }),
 
+  // User-made sticker packs (server/routes/stickers.js). The built-in set is
+  // client-side and isn't fetched.
+  listStickerPacks: () => req("/api/stickers/packs"),
+  createStickerPack: (pack) => req("/api/stickers/packs", { method: "POST", body: JSON.stringify(pack) }),
+  updateStickerPack: (id, patch) => req(`/api/stickers/packs/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteStickerPack: (id) => req(`/api/stickers/packs/${id}`, { method: "DELETE" }),
+
+  // Stars — the in-app currency (server/routes/stars.js).
+  getStars: () => req("/api/stars"),
+  requestStars: (packId) => req("/api/stars/request", { method: "POST", body: JSON.stringify({ packId }) }),
+  grantStars: (userId, stars) => req("/api/stars/grant", { method: "POST", body: JSON.stringify({ userId, stars }) }),
+  setMessagePrice: (stars) => req("/api/stars/price", { method: "POST", body: JSON.stringify({ stars }) }),
+  boostMessage: (messageId) => req(`/api/stars/boost/${messageId}`, { method: "POST" }),
+  paidDeleteMessage: (messageId) => req(`/api/stars/delete/${messageId}`, { method: "POST" }),
+
   listGifts: () => req("/api/gifts"),
+  // Buying a gift with stars — instant, no admin in the loop.
+  buyGift: (giftId, recipientId) => req("/api/gifts/buy", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
+  // Trading a received gift back for stars.
+  convertGift: (entryId) => req(`/api/gifts/received/${encodeURIComponent(entryId)}/convert`, { method: "POST" }),
+  // Takes a received gift off your own profile shelf.
+  removeReceivedGift: (entryId) => req(`/api/gifts/received/${encodeURIComponent(entryId)}`, { method: "DELETE" }),
   // Admin-only catalogue management (server/routes/gifts.js's /catalog routes):
   // change a limited run's size, mint a new gift, remove one never issued.
   adminGiftCatalog: () => req("/api/gifts/catalog"),

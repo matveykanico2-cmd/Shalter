@@ -10,6 +10,7 @@ import { openChoiceDialog } from "../components/confirmDialog.js";
 import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
 import { api } from "../api.js";
 import { getState, setState } from "../state.js";
+import { isChatAdmin } from "../lib/chatRoles.js";
 import { navigate } from "../router.js";
 import { placeCall as placeCallController } from "../lib/callController.js";
 import { onWsMessage } from "../lib/wsClient.js";
@@ -116,7 +117,7 @@ export async function ChatView(root, chatId) {
       .catch(() => {});
   }
   const isChannel = chat.type === "channel";
-  const isChannelAdmin = isChannel && (chat.ownerId === me.id || chat.adminIds?.includes(me.id));
+  const isChannelAdmin = isChannel && isChatAdmin(chat, me.id);
   const isGroup = chat.type === "group";
 
   // Now that history is paged, the message a reply points at may simply not be
@@ -632,6 +633,7 @@ export async function ChatView(root, chatId) {
           groupStart,
           groupEnd,
           isChannel: chat.type === "channel",
+          isDm,
           replyToMessage,
           members,
           handlers: {
@@ -660,6 +662,7 @@ export async function ChatView(root, chatId) {
             onReact: handleReact,
             onPin: handlePin,
             onJumpTo: jumpTo,
+          onRefresh: refreshMessages,
             onForward: (msg) => openForwardDialog((targetChatId) => handleForward(msg, targetChatId)),
             onVote: handleVote,
             onKeyboardAction: (action) => handleSend(action, []),
@@ -709,6 +712,19 @@ export async function ChatView(root, chatId) {
     }
     if (isChannel && !isChannelAdmin) {
       bodyBottomSlot.appendChild(el("p", { class: "channel-readonly-hint" }, "Публиковать в этот канал могут только администраторы"));
+      return;
+    }
+    // Service chats are one-way. The server refuses these sends too
+    // (routes/messages.js) — this just means the composer isn't offered at all,
+    // rather than accepting text and then rejecting it.
+    if (isDm && other?.isServiceBot) {
+      bodyBottomSlot.appendChild(el("p", { class: "channel-readonly-hint" }, "Shalter — служебный чат: сюда приходят коды входа и уведомления, отвечать в нём нельзя"));
+      return;
+    }
+    if (isDm && other?.isDeveloper) {
+      bodyBottomSlot.appendChild(
+        el("p", { class: "channel-readonly-hint" }, "В чат администрации нельзя писать напрямую — заявки на покупку создаются автоматически")
+      );
       return;
     }
     const restrictedUntil = chat.restrictions?.[me.id];

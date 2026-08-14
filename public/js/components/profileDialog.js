@@ -9,6 +9,7 @@ import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard } fro
 import { statusLabel } from "../lib/presence.js";
 import { SAFETY_LABELS, safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openAdminUserPanel } from "./adminUserPanel.js";
+import { renderScene } from "../lib/animScenes.js";
 
 // Bottom tab strip, same set/order as Telegram's own profile view. Content
 // for media/files/links comes from GET /api/users/:id/shared-media (scoped
@@ -74,6 +75,23 @@ export async function openProfileDialog(userId) {
     render();
   }
 
+  const isSelf = userId === me.id;
+
+  // Removing a gift is destructive and irreversible from the UI's point of view
+  // (the shelf entry is gone), so it asks first — and says plainly that the
+  // serial isn't freed, because that's the part someone might reasonably assume.
+  async function removeGift(entryId, gift) {
+    const serialNote = gift.serial != null ? ` Номер №${gift.serial} останется занятым.` : "";
+    if (!confirm(`Убрать ${gift.emoji} «${gift.name}» с вашей полки?${serialNote}`)) return;
+    try {
+      const { user: updated } = await api.removeReceivedGift(entryId);
+      user = { ...user, giftsReceived: updated.giftsReceived ?? [] };
+      render();
+    } catch (err) {
+      alert(err.message || "Не удалось убрать подарок");
+    }
+  }
+
   async function toggleBlock() {
     await api.setBlocked(userId, !isBlocked);
     isBlocked = !isBlocked;
@@ -103,14 +121,36 @@ export async function openProfileDialog(userId) {
           // A limited gift (server/data/gifts.js's exclusive tier) carries
           // the serial it was minted with — worth surfacing on the shelf
           // too, since "#1 из 10" is the whole reason someone bought it.
-          .map((g) =>
-            g.serial != null
-              ? el("span", { class: "profile-gift-chip profile-gift-chip-exclusive", title: `${g.name} — №${g.serial} из ${g.supply}` }, [
-                  g.emoji,
-                  el("span", { class: "profile-gift-serial" }, `№${g.serial}`),
-                ])
-              : el("span", { class: "profile-gift-chip", title: g.name }, g.emoji)
-          )
+          .map((g) => {
+            // The sender belongs in the tooltip: the shelf is a row of small
+            // chips, and "от кого" is the thing people actually want from it.
+            const from = g.fromName ? ` · от ${g.fromName}` : "";
+            // Entries added before shelf ids existed fall back to emoji+time,
+            // matching what the server accepts (see data/users.js).
+            const entryId = g.id ?? `${g.emoji}|${g.at}`;
+            const chip = el(
+              "span",
+              {
+                class: `profile-gift-chip ${g.serial != null ? "profile-gift-chip-exclusive" : ""}`,
+                title: g.serial != null ? `${g.name} — №${g.serial} из ${g.supply}${from}` : `${g.name}${from}`,
+              },
+              [
+                renderScene(g.emoji, { size: 22, replay: false }),
+                g.serial != null ? el("span", { class: "profile-gift-serial" }, `№${g.serial}`) : null,
+                // Only on your own shelf: a gift is part of your profile, and
+                // nobody else gets to tidy it.
+                isSelf
+                  ? el("button", {
+                      class: "profile-gift-remove",
+                      title: "Убрать с полки",
+                      html: iconSvg("X", 10),
+                      onclick: () => removeGift(entryId, g),
+                    })
+                  : null,
+              ]
+            );
+            return chip;
+          })
       );
     }
     if (activeTab === "media") {

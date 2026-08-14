@@ -121,6 +121,23 @@ button {
   background: var(--color-accent-soft);
 }
 
+/* Keyboard focus, in our own accent. Without this the browser falls back to the
+   OS focus ring, which on Linux is whatever the desktop's highlight colour is —
+   on an Ubuntu-flavoured system that's bright orange, so tabbing through a dialog
+   painted a stray orange frame around buttons in an otherwise purple app.
+   :focus-visible (not :focus) so a mouse click doesn't leave a ring behind. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* Fields already show focus through their own border colour, and an offset ring
+   around a full-width input just reads as a second border. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 0;
+}
+
 /* Light global polish pass: consistent, subtle motion on every interactive
    surface (Telegram-style tactile feedback) without touching any layout. */
 button,

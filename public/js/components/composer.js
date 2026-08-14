@@ -9,6 +9,8 @@ import { openPollDialog } from "./pollDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openScheduleSendDialog } from "./scheduleSendDialog.js";
 import { STICKERS } from "../lib/stickers.js";
+import { renderScene } from "../lib/animScenes.js";
+import { openStickerPackDialog } from "./stickerPackDialog.js";
 import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
 
 const EMOJI = ["😀", "😂", "😍", "👍", "🙏", "🔥", "🎉", "😢", "😮", "❤️", "👏", "🤔"];
@@ -420,6 +422,46 @@ export function Composer({
     });
     const emojiSlot = el("div", { class: "composer-attach-slot" }, [emojiBtn]);
 
+    // Stickers are grouped into packs: the built-in set plus anything the user
+    // assembled themselves (components/stickerPackDialog.js). Each one renders
+    // as its own animated scene rather than a flat emoji, so the picker shows
+    // exactly what will be sent.
+    let myPacks = [];
+
+    function sendSticker(s) {
+      stickerMenuEl?.remove();
+      stickerMenuEl = null;
+      onSend("", [], { sticker: { emoji: s.emoji, name: s.name, anim: s.anim, scene: s.scene } });
+    }
+
+    function packSection(title, stickers) {
+      return el("div", { class: "sticker-pack-section" }, [
+        el("p", { class: "sticker-pack-heading" }, title),
+        el(
+          "div",
+          { class: "sticker-pack-items" },
+          stickers.map((s) =>
+            el("button", { class: "sticker-picker-item", title: s.name || s.emoji, onclick: () => sendSticker(s) }, [
+              renderScene(s.emoji, { size: 30, preferred: s.scene, replay: false }),
+            ])
+          )
+        ),
+      ]);
+    }
+
+    function renderStickerPicker() {
+      clear(stickerMenuEl);
+      stickerMenuEl.append(
+        packSection("Стандартные", STICKERS),
+        ...myPacks.filter((p) => p.stickers.length).map((p) => packSection(p.name, p.stickers)),
+        el("button", { class: "sticker-manage-btn", onclick: () => {
+          stickerMenuEl?.remove();
+          stickerMenuEl = null;
+          openStickerPackDialog(() => {});
+        } }, "Мои стикерпаки")
+      );
+    }
+
     // Sticker picker — sends immediately on tap (like Telegram), not
     // inserted into the text field, so it's its own message rather than
     // text-plus-emoji.
@@ -434,26 +476,18 @@ export function Composer({
           stickerMenuEl = null;
           return;
         }
-        stickerMenuEl = el(
-          "div",
-          { class: "composer-emoji-picker sticker-picker" },
-          STICKERS.map((s) =>
-            el(
-              "button",
-              {
-                class: "sticker-picker-item",
-                title: s.name,
-                onclick: () => {
-                  stickerMenuEl.remove();
-                  stickerMenuEl = null;
-                  onSend("", [], { sticker: { emoji: s.emoji, name: s.name, anim: s.anim } });
-                },
-              },
-              s.emoji
-            )
-          )
-        );
+        stickerMenuEl = el("div", { class: "composer-emoji-picker sticker-picker" });
+        renderStickerPicker();
         stickerSlot.appendChild(stickerMenuEl);
+        // Own packs load after the menu is already open, so the built-in set is
+        // usable instantly and a slow request never blocks the picker.
+        api
+          .listStickerPacks()
+          .then(({ packs }) => {
+            myPacks = packs;
+            if (stickerMenuEl) renderStickerPicker();
+          })
+          .catch(() => {});
       },
     });
     const stickerSlot = el("div", { class: "composer-attach-slot" }, [stickerBtn]);

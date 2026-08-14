@@ -26,6 +26,8 @@ function rowToMessage(row) {
     threadRootId: row.threadRootId ?? undefined,
     anchorForPostId: row.anchorForPostId ?? undefined,
     discussionAnchorId: row.discussionAnchorId ?? undefined,
+    boostedUntil: row.boostedUntil ?? undefined,
+    boostedById: row.boostedById ?? undefined,
     views: row.views,
     commentCount: row.commentCount || undefined,
   };
@@ -180,6 +182,14 @@ async function mutate(id, fn) {
   return getMessage(id);
 }
 
+// Highlights a message until `until` passes (server/routes/stars.js). Stored
+// rather than derived so the highlight survives a reload and every viewer sees
+// the same thing.
+function setBoost(id, until, byId) {
+  db.prepare("UPDATE messages SET boostedUntil = ?, boostedById = ? WHERE id = ?").run(until, byId, id);
+  return getMessage(id);
+}
+
 function setLinkPreview(id, linkPreview) {
   return mutate(id, (m) => ({ ...m, linkPreview }));
 }
@@ -325,4 +335,5 @@ module.exports = {
   setDiscussionAnchor,
   setLinkPreview,
   setReportMessageStatus,
+  setBoost,
 };

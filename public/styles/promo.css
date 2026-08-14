@@ -1,0 +1,246 @@
+/* Collaboration/partner page (public/promo.html). Standalone like the download
+   page: it depends only on base.css's tokens, never on the SPA's component
+   styles, so a change inside the app can't quietly reflow a public landing page. */
+.pr-page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 56px 20px 72px;
+}
+.pr-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.pr-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+}
+.pr-orb-1 {
+  top: -160px;
+  left: -120px;
+  width: 480px;
+  height: 480px;
+  background: var(--color-accent);
+  opacity: 0.45;
+}
+.pr-orb-2 {
+  right: -140px;
+  bottom: -180px;
+  width: 520px;
+  height: 520px;
+  background: #1c9bd9;
+  opacity: 0.3;
+}
+.pr-shell {
+  position: relative;
+  z-index: 1;
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.pr-hero {
+  text-align: center;
+  margin-bottom: 44px;
+}
+.pr-logo {
+  display: inline-flex;
+  width: 68px;
+  height: 68px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22px;
+  background: var(--color-accent);
+  color: #fff;
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+.pr-logo svg {
+  width: 32px;
+  height: 32px;
+}
+.pr-kicker {
+  margin: 18px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-muted);
+}
+.pr-title {
+  margin: 6px 0 0;
+  font-family: var(--font-serif);
+  font-size: 52px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.pr-lead {
+  max-width: 620px;
+  margin: 14px auto 0;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--color-muted);
+}
+.pr-cta {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+.pr-btn {
+  border-radius: 11px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 500;
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.pr-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+.pr-btn-primary {
+  border-color: transparent;
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.pr-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 44px;
+}
+.pr-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 18px 12px;
+}
+.pr-stat-value {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 600;
+}
+.pr-stat-label {
+  font-size: 12.5px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.pr-section-title {
+  margin: 0 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+}
+.pr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 12px;
+}
+.pr-card {
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 18px;
+}
+.pr-card h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.pr-card p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--color-muted);
+}
+.pr-card a {
+  color: var(--color-accent);
+}
+
+.pr-collab {
+  margin-top: 48px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+  padding: 28px;
+}
+.pr-collab h2 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  font-weight: 600;
+}
+.pr-collab > p {
+  max-width: 720px;
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--color-muted);
+}
+.pr-collab-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 22px 0;
+}
+.pr-collab-item {
+  border-radius: 12px;
+  background: var(--color-surface);
+  padding: 14px;
+}
+.pr-collab-item h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.pr-collab-item p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-muted);
+}
+
+.pr-footer {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 40px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.pr-footer a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+.pr-footer a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .pr-page {
+    padding: 36px 16px 56px;
+  }
+  .pr-title {
+    font-size: 38px;
+  }
+  .pr-stats {
+    grid-template-columns: 1fr;
+  }
+  .pr-collab {
+    padding: 20px;
+  }
+}

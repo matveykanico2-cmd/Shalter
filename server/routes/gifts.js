@@ -2,8 +2,9 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE } = require("../config");
-const { getUser, findUserByPhone } = require("../data/users");
-const { listGifts, getGift, setSupply, createGift, deleteCustomGift, SUPPLY_MIN, SUPPLY_MAX } = require("../data/gifts");
+const { getUser, findUserByPhone, removeReceivedGift } = require("../data/users");
+const { balanceOf, spendStars, addStars } = require("../data/stars");
+const { listGifts, getGift, setSupply, createGift, deleteCustomGift, conversionValue, SUPPLY_MIN, SUPPLY_MAX } = require("../data/gifts");
 const { remaining, issuedCount } = require("../data/giftIssues");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -36,9 +37,12 @@ function soldOutError(gift) {
 // is a static module-level array shared by every caller.
 router.get(
   "/",
-  asyncRoute(async (_req, res) => {
+  asyncRoute(async (req, res) => {
     const gifts = listGifts().map((g) => (g.supply ? { ...g, remaining: remaining(g) } : g));
-    res.json({ gifts });
+    // The balance rides along with the catalogue so the picker can show it in its
+    // header without a second round trip — that header is where someone decides
+    // whether they can afford anything.
+    res.json({ gifts, balance: balanceOf(req.uid) });
   })
 );
 
@@ -119,6 +123,77 @@ router.post(
   })
 );
 
+// Buying a gift with stars: instant, self-serve, no admin in the loop. This is
+// the primary way to send a gift — the ruble/transfer path below stays for
+// someone who would rather pay money directly for an expensive one.
+router.post(
+  "/buy",
+  asyncRoute(async (req, res) => {
+    const gift = getGift(req.body?.giftId);
+    if (!gift) return res.status(404).json({ error: "Подарок не найден" });
+    const recipientId = req.body?.recipientId || req.uid;
+    const recipient = await getUser(recipientId);
+    if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
+    if (gift.supply && remaining(gift) <= 0) return res.status(410).json({ error: soldOutError(gift) });
+
+    const price = gift.priceStars;
+    if (!spendStars(req.uid, price)) {
+      return res.status(402).json({
+        error: `Не хватает звёзд — нужно ${price.toLocaleString("ru-RU")} ⭐`,
+        needStars: price,
+        balance: balanceOf(req.uid),
+      });
+    }
+
+    const result = await deliverGift({ gift, recipientId, fromId: req.uid, announceFromId: req.uid });
+    if (!result.ok) {
+      // The last copy went between the supply check and the claim — hand the
+      // stars back rather than keeping them for a gift that was never delivered.
+      addStars(req.uid, price);
+      return res.status(410).json({ error: soldOutError(gift), balance: balanceOf(req.uid) });
+    }
+    res.json({ chatId: result.chat.id, serial: result.serial, delivered: true, balance: balanceOf(req.uid) });
+  })
+);
+
+// Converting a received gift back into stars — Telegram's "обменять на звёзды".
+// The shelf entry goes and the stars land on the balance.
+router.post(
+  "/received/:entryId/convert",
+  asyncRoute(async (req, res) => {
+    const me = await getUser(req.uid);
+    const entry = (me?.giftsReceived ?? []).find((g) => (g.id ? g.id === req.params.entryId : `${g.emoji}|${g.at}` === req.params.entryId));
+    if (!entry) return res.status(404).json({ error: "Подарок не найден на вашей полке" });
+
+    // Priced from the catalogue when the gift is still there, and from what was
+    // stored on the shelf entry otherwise — a gift the admin has since removed
+    // from the catalogue must still be convertible.
+    const catalogGift = getGift(entry.giftId ?? "");
+    const value = conversionValue(catalogGift ?? { priceRub: entry.priceRub ?? 1, priceStars: entry.priceStars });
+    if (!removeReceivedGift(req.uid, req.params.entryId)) {
+      return res.status(404).json({ error: "Подарок не найден на вашей полке" });
+    }
+    const balance = addStars(req.uid, value);
+    res.json({ balance, gained: value, user: publicUser(await getUser(req.uid)) });
+  })
+);
+
+// Removing a gift from your own shelf. Only your own: a shelf is part of a
+// profile, and letting anyone clear someone else's would make the whole display
+// meaningless.
+//
+// The serial of a limited gift is *not* released — see data/users.js's
+// removeReceivedGift for why.
+router.delete(
+  "/received/:entryId",
+  asyncRoute(async (req, res) => {
+    if (!removeReceivedGift(req.uid, req.params.entryId)) {
+      return res.status(404).json({ error: "Подарок не найден на вашей полке" });
+    }
+    res.json({ user: publicUser(await getUser(req.uid)) });
+  })
+);
+
 // ── Catalogue management (admin only) ───────────────────────────────────────
 // The shipped catalogue is code (server/data/gifts.js); these routes let
 // whoever holds ADMIN_PHONE change a limited run's size and mint new gifts,
@@ -183,12 +258,12 @@ router.post(
   "/catalog",
   asyncRoute(async (req, res) => {
     if (!(await requireAdmin(req, res))) return;
-    const { emoji, name, priceRub, premiumDays, supply, exclusive } = req.body ?? {};
+    const { emoji, name, priceStars, premiumDays, supply, exclusive } = req.body ?? {};
 
     if (!String(emoji ?? "").trim()) return res.status(400).json({ error: "Укажите эмодзи подарка" });
     if (!String(name ?? "").trim()) return res.status(400).json({ error: "Укажите название подарка" });
-    const price = Number(priceRub);
-    if (!Number.isInteger(price) || price < 1) return res.status(400).json({ error: "Цена — целое число от 1₽" });
+    const price = Number(priceStars);
+    if (!Number.isInteger(price) || price < 1) return res.status(400).json({ error: "Цена — целое число от 1 звезды" });
 
     let supplyValue = null;
     if (exclusive) {
@@ -212,7 +287,7 @@ router.post(
       id,
       emoji: String(emoji).trim().slice(0, 8),
       name: String(name).trim().slice(0, 60),
-      priceRub: price,
+      priceStars: price,
       // null means "Premium forever" (see data/users.js's grantPremiumDays);
       // anything else is a day count, 0 for a purely decorative gift.
       premiumDays: premiumDays === null ? null : Number.isInteger(Number(premiumDays)) ? Number(premiumDays) : 0,

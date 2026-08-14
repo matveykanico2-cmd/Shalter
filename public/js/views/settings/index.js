@@ -7,7 +7,6 @@ import { navigate } from "../../router.js";
 import { fileToAvatarDataUrl, fileToImageDataUrl, fileToDataUrl } from "../../lib/image.js";
 import { ImageAttachment, VideoAttachment, FileAttachment } from "../../components/attachments.js";
 import { requestPushPermission } from "../../lib/push.js";
-import { openContactPickerDialog } from "../../components/contactPickerDialog.js";
 import { openCreateBotDialog } from "../../components/createBotDialog.js";
 import { openBotTokenDialog } from "../../components/botTokenDialog.js";
 import { openBotCodeDialog } from "../../components/botCodeDialog.js";
@@ -15,6 +14,8 @@ import { formatPhoneInput } from "../../lib/phoneFormat.js";
 import { hasPasscode } from "../../lib/passcodeLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../components/twoFactorDialog.js";
+import { openStarsDialog } from "../../components/starsDialog.js";
+import { openGiftShopDialog } from "../../components/giftShopDialog.js";
 import { openProfileQrDialog } from "../../components/profileQrDialog.js";
 import { handlePurchaseResponse } from "../../lib/purchase.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
@@ -28,6 +29,7 @@ import { safetyLabelInfo } from "../../lib/safetyLabels.js";
 const SECTIONS = [
   { id: "", label: "Профиль" },
   { id: "premium", label: "Premium и друзья", icon: "Star", color: "#f0a83c" },
+  { id: "stars", label: "Звёзды", icon: "Zap", color: "#e0b33b" },
   { id: "ads", label: "Реклама", icon: "Zap", color: "#ef6f6f" },
   { id: "bots", label: "Боты", icon: "Code", color: "#3ec2c2" },
   { id: "appearance", label: "Внешний вид", icon: "Settings", color: "#8774e1" },
@@ -105,6 +107,20 @@ export async function SettingsView(root, page) {
         // browser navigate rather than trying to resolve it as a view. It sits
         // in the same list as the rest so that on a phone, where this nav is a
         // horizontal strip, it rides along instead of forming a second row.
+        el("button", {
+          class: "settings-nav-item",
+          onclick: async () => {
+            try {
+              const { chatId } = await api.openSupportChat();
+              navigate(`/chat/${chatId}`);
+            } catch (err) {
+              alert(err.message || "Не удалось открыть поддержку");
+            }
+          },
+        }, [
+          el("span", { class: "settings-nav-icon", style: { background: "#1f9d63" }, html: iconSvg("Info", 16) }),
+          el("span", { class: "settings-nav-label" }, "Поддержка"),
+        ]),
         el("a", { href: "/download", class: "settings-nav-item settings-nav-external" }, [
           el("span", { class: "settings-nav-icon", style: { background: "#4cc98a" }, html: iconSvg("Download", 16) }),
           el("span", { class: "settings-nav-label" }, "Скачать приложение"),
@@ -132,6 +148,7 @@ export async function SettingsView(root, page) {
     moderation: renderModeration,
     donations: renderDonations,
     legal: renderLegal,
+    stars: renderStars,
     giftshop: renderGiftShop,
   };
   await (renderers[section] ?? renderProfile)(contentSlot);
@@ -301,18 +318,9 @@ function premiumOrbit() {
 
 async function renderPremium(root) {
   let info = await api.getPremiumInfo();
-  let gifts = [];
-  try {
-    ({ gifts } = await api.listGifts());
-  } catch {
-    // Gift catalog is a nice-to-have on this page — Premium status/referrals
-    // above still work fine even if this call fails for some reason.
-  }
   let copied = false;
   let buying = false;
   let buyError = null;
-  let giftPendingId = null;
-  let giftError = null;
 
   function referralLink() {
     return `${window.location.origin}/login?ref=${info.referralCode}`;
@@ -346,29 +354,6 @@ async function renderPremium(root) {
       buying = false;
       render();
     }
-  }
-
-  async function sendGift(gift, recipient) {
-    giftPendingId = gift.id;
-    giftError = null;
-    render();
-    try {
-      const res = await api.requestGift(gift.id, recipient.id);
-      handlePurchaseResponse(res);
-    } catch (err) {
-      giftError = err.message;
-      // A limited gift can sell out between this page loading and the
-      // button being pressed — refetch so the card immediately shows
-      // "распродан" instead of inviting another doomed attempt.
-      if (gift.supply) api.listGifts().then((r) => { gifts = r.gifts; render(); }).catch(() => {});
-    } finally {
-      giftPendingId = null;
-      render();
-    }
-  }
-
-  function pickRecipientAndSend(gift) {
-    openContactPickerDialog((user) => sendGift(gift, user), `Кому подарить «${gift.name}»?`);
   }
 
   function render() {
@@ -421,44 +406,18 @@ async function renderPremium(root) {
                 ])
               )
             ),
-        gifts.length
-          ? el("div", { class: "gifts-section" }, [
-              el("p", { class: "settings-section-title" }, "Подарки"),
-              el(
-                "p",
-                { class: "settings-toggle-hint" },
-                "От розы за 1₽ до эксклюзивов за миллион — как и с обычной покупкой, оплата переводом администрации Shalter, подарок приходит после подтверждения. Эксклюзивные подарки выпущены ограниченным тиражом: у каждого экземпляра свой номер, и когда тираж кончится, купить его больше будет нельзя."
-              ),
-              giftError ? el("p", { class: "login-error" }, giftError) : null,
-              el(
-                "div",
-                { class: "gifts-grid" },
-                gifts.map((g, i) => {
-                  // Limited gifts (server/data/gifts.js's exclusive tier)
-                  // come back from the API with a `remaining` count; every
-                  // other gift has no supply to run out of.
-                  const soldOut = g.supply != null && g.remaining <= 0;
-                  return el("div", { class: `gift-card ${g.exclusive ? "gift-card-exclusive" : ""} ${soldOut ? "gift-card-sold-out" : ""}` }, [
-                    g.supply != null
-                      ? el("p", { class: "gift-card-supply" }, soldOut ? "Распродан" : `Осталось ${g.remaining} из ${g.supply}`)
-                      : null,
-                    el("span", { class: "gift-card-emoji", style: `--gift-delay: ${(i % 8) * 0.15}s` }, g.emoji),
-                    el("p", { class: "gift-card-name" }, g.name),
-                    el("p", { class: "mono gift-card-price" }, `${Number(g.priceRub).toLocaleString("ru-RU")}₽`),
-                    el(
-                      "button",
-                      {
-                        class: "gift-card-btn",
-                        disabled: giftPendingId === g.id || soldOut,
-                        onclick: () => pickRecipientAndSend(g),
-                      },
-                      soldOut ? "Распродан" : giftPendingId === g.id ? "…" : "Подарить"
-                    ),
-                  ]);
-                })
-              ),
-            ])
-          : null,
+        // One way into the gift catalogue, not two. This page used to render its
+        // own grid of the same 286 gifts below — priced in roubles and wired to
+        // the old "переведите и дождитесь подтверждения" flow, so the same rose
+        // was 1₽ here and ⭐10 in the shop, and only one of the two buttons
+        // actually delivered anything. The shop dialog is the real one.
+        el("div", { class: "settings-toggle-row no-divider" }, [
+          el("div", {}, [
+            el("p", { class: "settings-toggle-title" }, "Магазин подарков"),
+            el("p", { class: "settings-toggle-hint" }, "Цены в звёздах, отправка мгновенная"),
+          ]),
+          el("button", { class: "btn-accent-pill", onclick: () => openGiftShopDialog({}) }, "Открыть"),
+        ]),
       ])
     );
   }
@@ -1485,6 +1444,10 @@ async function renderShortcuts(root) {
 async function renderModeration(root) {
   let data = null;
   let error = null;
+  // Kept apart from `error`: that one means "the screen couldn't load" and
+  // replaces the whole page, while a failed lookup should leave the reports and
+  // lists exactly where they were and just say the handle wasn't found.
+  let lookupError = null;
 
   async function load() {
     try {
@@ -1526,6 +1489,24 @@ async function renderModeration(root) {
       return;
     }
 
+    // Any account, by handle / phone / id. The moderation screen previously only
+    // listed accounts that were *already* banned or labelled, so acting on
+    // anyone else meant finding their profile in a chat first — which for a
+    // reported stranger is exactly what you can't do.
+    const lookupInput = el("input", { class: "settings-input", placeholder: "@юзернейм, +7… или id" });
+    async function lookup() {
+      const q = lookupInput.value.trim();
+      lookupError = null;
+      if (!q) return;
+      try {
+        const { user } = await api.adminLookupUser(q);
+        openPanel(user);
+      } catch (err) {
+        lookupError = err.message || "Пользователь не найден";
+        render();
+      }
+    }
+
     // Built with section() like every other settings page — hand-rolling
     // .settings-section-title + .settings-section as bare siblings (which this
     // did at first) skips .settings-section-group's bottom margin entirely, so
@@ -1536,6 +1517,16 @@ async function renderModeration(root) {
     mount(
       root,
       pageWrap("Модерация", "Жалобы, блокировки и метки безопасности. Нажмите на строку, чтобы открыть карточку пользователя.", [
+        section("Найти любой аккаунт", [
+          lookupInput,
+          el("button", { class: "btn-accent", onclick: lookup }, "Открыть карточку"),
+          lookupError ? el("p", { class: "login-error" }, lookupError) : null,
+          el(
+            "p",
+            { class: "settings-toggle-hint" },
+            "В карточке — выдача Premium, рекламы, звёзд и подарков, метка безопасности, блокировка и разблокировка, жалобы и выгрузка данных."
+          ),
+        ]),
         section(
           `Открытые жалобы (${data.openReports.length})`,
           data.openReports.length === 0
@@ -1588,12 +1579,37 @@ async function renderModeration(root) {
 // Admin-only. The shipped catalogue is code (server/data/gifts.js) — this
 // screen edits the part that lives in the database: how big a limited run is,
 // and any gifts the admin mints themselves.
+// The stars screen is the dialog — one place that knows about balances, packs
+// and the per-account message price, rather than two copies drifting apart.
+async function renderStars(root) {
+  let info = null;
+  try {
+    info = await api.getStars();
+  } catch {
+    /* the dialog reports its own errors */
+  }
+  mount(
+    root,
+    pageWrap("Звёзды", "Внутренняя валюта: платные сообщения, поднятие и удаление", [
+      section(null, [
+        el("div", { class: "settings-toggle-row no-divider" }, [
+          el("div", {}, [
+            el("p", { class: "settings-toggle-title" }, info ? `${info.balance} ⭐ на балансе` : "Звёзды"),
+            el("p", { class: "settings-toggle-hint" }, "Купить, посмотреть расценки и настроить плату за сообщения вам"),
+          ]),
+          el("button", { class: "btn-accent-pill", onclick: () => openStarsDialog(() => renderStars(root)) }, "Открыть"),
+        ]),
+      ]),
+    ])
+  );
+}
+
 async function renderGiftShop(root) {
   let data = null;
   let error = null;
   let busyId = null;
   let notice = null;
-  const draft = { emoji: "", name: "", priceRub: "", supply: "", exclusive: true, forever: true };
+  const draft = { emoji: "", name: "", priceStars: "", supply: "", exclusive: true, forever: true };
 
   async function load() {
     try {
@@ -1630,7 +1646,7 @@ async function renderGiftShop(root) {
       const { gift } = await api.adminCreateGift({
         emoji: draft.emoji,
         name: draft.name,
-        priceRub: Number(draft.priceRub),
+        priceStars: Number(draft.priceStars),
         premiumDays: draft.forever ? null : 0,
         supply: draft.exclusive ? Number(draft.supply) : null,
         exclusive: draft.exclusive,
@@ -1638,7 +1654,7 @@ async function renderGiftShop(root) {
       notice = `Выпущен подарок ${gift.emoji} «${gift.name}»`;
       draft.emoji = "";
       draft.name = "";
-      draft.priceRub = "";
+      draft.priceStars = "";
       draft.supply = "";
       data = await api.adminGiftCatalog();
     } catch (err) {
@@ -1675,7 +1691,7 @@ async function renderGiftShop(root) {
       el("span", { class: "gift-admin-emoji" }, gift.emoji),
       el("div", { class: "gift-admin-body" }, [
         el("p", { class: "gift-admin-name" }, [gift.name, gift.custom ? el("span", { class: "gift-admin-tag" }, "свой") : null]),
-        el("p", { class: "gift-admin-sub mono" }, `${fmt(gift.priceRub)}₽ · выпущено ${fmt(gift.issued ?? 0)} · осталось ${fmt(gift.remaining ?? 0)}`),
+        el("p", { class: "gift-admin-sub mono" }, `⭐ ${fmt(gift.priceStars)} · выпущено ${fmt(gift.issued ?? 0)} · осталось ${fmt(gift.remaining ?? 0)}`),
       ]),
       input,
       el(
@@ -1702,7 +1718,7 @@ async function renderGiftShop(root) {
     const limited = data.gifts.filter((g) => g.supply);
     const emojiInput = el("input", { class: "settings-input gift-emoji-input", placeholder: "🎁", value: draft.emoji, oninput: (e) => (draft.emoji = e.target.value) });
     const nameInput = el("input", { class: "settings-input", placeholder: "Название", value: draft.name, oninput: (e) => (draft.name = e.target.value) });
-    const priceInput = el("input", { class: "settings-input mono", type: "number", min: "1", placeholder: "Цена, ₽", value: draft.priceRub, oninput: (e) => (draft.priceRub = e.target.value) });
+    const priceInput = el("input", { class: "settings-input mono", type: "number", min: "1", placeholder: "Цена, ⭐", value: draft.priceStars, oninput: (e) => (draft.priceStars = e.target.value) });
     const supplyInput = el("input", {
       class: "settings-input mono",
       type: "number",

@@ -137,3 +137,52 @@ export function readVCardFile(file) {
     reader.readAsText(file, "utf-8");
   });
 }
+
+// Several files at once. On iOS this is the realistic path: the share sheet hands
+// over one .vcf per contact, so importing an address book there means picking a
+// pile of files rather than a single export.
+export async function readVCardFiles(files) {
+  const all = [];
+  for (const file of files) {
+    try {
+      all.push(...(await readVCardFile(file)));
+    } catch {
+      // One unreadable card shouldn't abort the rest of the selection.
+    }
+  }
+  return dedupe(all);
+}
+
+// Free-typed or pasted text — the fallback that works on every platform,
+// including an iPhone with no Contact Picker and no export to hand. Accepts
+// anything people actually paste: one number per line, comma-separated, or a
+// "Имя +7 999 …" list copied out of a notes app.
+export function parsePastedContacts(text) {
+  const out = [];
+  for (const rawLine of String(text ?? "").split(/[\n,;]+/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    // The longest run of phone-ish characters in the line is the number; whatever
+    // is left of it is treated as the name.
+    const match = line.match(/\+?[\d][\d\s().-]{7,}\d/);
+    if (!match) continue;
+    const phone = match[0].trim();
+    // trim() first: the separator sits before the space that precedes the number,
+    // so stripping punctuation off the untrimmed string leaves "Вася:" and
+    // "Иван Петров —" with their tails.
+    const name = line
+      .slice(0, match.index)
+      .trim()
+      .replace(/[-–—:,]+$/, "")
+      .trim();
+    out.push({ name, phone });
+  }
+  return dedupe(out);
+}
+
+// iOS has no Contact Picker API at all (see the note at the top of this file), so
+// the UI needs to say something different there instead of offering a button that
+// can't exist.
+export function isIos() {
+  return typeof navigator !== "undefined" && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (/Mac/.test(navigator.userAgent) && "ontouchend" in document));
+}

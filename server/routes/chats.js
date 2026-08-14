@@ -3,6 +3,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser } = require("../data/chats");
 const { checkUsername, normalizeUsername } = require("../lib/username");
+const { unlocked, lockedError, featureState } = require("../lib/chatFeatures");
 const { deleteMessagesForChat } = require("../data/messages");
 const { getSettings, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft } = require("../data/settings");
 const { attachSummaries } = require("../data/chat-summary");
@@ -141,6 +142,17 @@ router.post(
   })
 );
 
+// Ownership is a list now (server/db.js's isOwner flag). chats.ownerId is kept as
+// the creator for compatibility, so both are consulted — otherwise a co-owner
+// would be silently powerless everywhere the old code compared ownerId directly.
+function isOwner(chat, userId) {
+  return chat?.ownerId === userId || (chat?.ownerIds ?? []).includes(userId);
+}
+
+function isOwnerOrAdminOf(chat, userId) {
+  return isOwner(chat, userId) || (chat?.adminIds ?? []).includes(userId);
+}
+
 async function requireMemberChat(req, res) {
   const chat = await getChat(req.params.id);
   if (!chat || !chat.memberIds.includes(req.uid)) {
@@ -170,8 +182,34 @@ router.patch(
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    const updated = await updateChat(req.params.id, req.body ?? {});
+    const patch = req.body ?? {};
+
+    // Customising a group or channel is gated on its level (lib/chatFeatures.js).
+    // Checked here rather than only in the UI, because this route is also what a
+    // bot or a hand-rolled request would use.
+    if (("avatarImage" in patch || "avatarColor" in patch) && !unlocked(chat, "avatar")) {
+      return res.status(403).json({ error: lockedError("avatar") });
+    }
+    if ("description" in patch && !unlocked(chat, "description")) {
+      return res.status(403).json({ error: lockedError("description") });
+    }
+    if ("autoDeleteSeconds" in patch && !unlocked(chat, "autoDelete")) {
+      return res.status(403).json({ error: lockedError("autoDelete") });
+    }
+
+    const updated = await updateChat(req.params.id, patch);
     res.json({ chat: updated });
+  })
+);
+
+// What this chat's level has unlocked, and what the next one adds. Its own route
+// so the info panel can show progress without duplicating the table client-side.
+router.get(
+  "/:id/features",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    res.json({ features: featureState(chat), points: chat.points ?? 0 });
   })
 );
 
@@ -188,8 +226,9 @@ router.post(
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
     if (chat.type !== "channel") return res.status(400).json({ error: "Публичными могут быть только каналы" });
-    const isOwnerOrAdmin = chat.ownerId === req.uid || chat.adminIds?.includes(req.uid);
+    const isOwnerOrAdmin = isOwnerOrAdminOf(chat, req.uid);
     if (!isOwnerOrAdmin) return res.status(403).json({ error: "Недостаточно прав" });
+    if (!unlocked(chat, "publicLink")) return res.status(403).json({ error: lockedError("publicLink") });
 
     const { isPublic } = req.body ?? {};
     if (!isPublic) {
@@ -291,6 +330,8 @@ router.post(
     if (!chat) return;
     const memberIds = chat.memberIds.filter((m) => m !== req.uid);
     const adminIds = chat.adminIds?.filter((m) => m !== req.uid);
+    const moderatorIds = chat.moderatorIds?.filter((m) => m !== req.uid);
+    let ownerIds = (chat.ownerIds ?? []).filter((m) => m !== req.uid);
 
     if (memberIds.length === 0) {
       await deleteMessagesForChat(req.params.id);
@@ -298,10 +339,19 @@ router.post(
       return res.json({ ok: true, deleted: true });
     }
 
+    // The chat must never be left without an owner — with nobody flagged, no one
+    // could appoint one again. When the last owner walks out, the longest-standing
+    // remaining member inherits it, which is what the old single-owner code did.
+    if (ownerIds.length === 0) ownerIds = [memberIds[0]];
+
     await updateChat(req.params.id, {
       memberIds,
       adminIds,
-      ownerId: chat.ownerId === req.uid ? memberIds[0] : chat.ownerId,
+      moderatorIds,
+      ownerIds,
+      // chats.ownerId is the creator field; it only moves when the creator is the
+      // one leaving, and then it follows whoever inherited ownership.
+      ownerId: chat.ownerId === req.uid ? ownerIds[0] : chat.ownerId,
     });
     res.json({ ok: true, deleted: false });
   })
@@ -312,12 +362,18 @@ router.post(
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    const isOwnerOrAdmin = chat.ownerId === req.uid || chat.adminIds?.includes(req.uid);
-    if (!isOwnerOrAdmin) {
+    const isOwnerOrAdmin = isOwnerOrAdminOf(chat, req.uid);
+    const isModerator = chat.moderatorIds?.includes(req.uid);
+    if (!isOwnerOrAdmin && !isModerator) {
       return res.status(403).json({ error: "Недостаточно прав" });
     }
 
     const { userId, role } = req.body ?? {};
+    // A moderator's remit is people, not structure: it can add and remove
+    // members, and nothing else.
+    if (!isOwnerOrAdmin && !["add", "kick"].includes(role)) {
+      return res.status(403).json({ error: "Модератор может только добавлять и удалять участников" });
+    }
 
     if (role === "add") {
       if (chat.memberIds.includes(userId)) {
@@ -348,14 +404,72 @@ router.post(
       return res.json({ chat: updated });
     }
 
-    if (userId === chat.ownerId) {
-      return res.status(400).json({ error: "Нельзя изменить владельца" });
+    // Handing the chat to someone else. Owner only — an admin promoting itself
+    // would make ownership meaningless. The previous owner stays an admin rather
+    // than being dropped to a plain member, which is almost never what someone
+    // transferring a group wants.
+    // A chat can have several owners. "owner" adds one, "unowner" removes one —
+    // both owner-only, because an admin able to appoint owners would make the
+    // distinction meaningless.
+    if (role === "owner" || role === "unowner") {
+      if (!isOwner(chat, req.uid)) return res.status(403).json({ error: "Управлять владельцами может только владелец" });
+      if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "Пользователь не в чате" });
+
+      const owners = new Set(chat.ownerIds ?? []);
+      if (chat.ownerId) owners.add(chat.ownerId);
+
+      if (role === "owner") {
+        owners.add(userId);
+      } else {
+        if (!owners.has(userId)) return res.status(400).json({ error: "Этот участник не владелец" });
+        // Never leave a chat ownerless: with nobody flagged, no one could ever
+        // appoint an owner again and the chat would be permanently stuck.
+        if (owners.size <= 1) return res.status(400).json({ error: "В чате должен остаться хотя бы один владелец" });
+        owners.delete(userId);
+      }
+
+      // Owners are admins too — every owner-level action goes through the
+      // owner-or-admin gate, and a co-owner who wasn't an admin would be unable
+      // to do the admin-level half of the job.
+      const admins = new Set(chat.adminIds ?? []);
+      if (role === "owner") admins.add(userId);
+      const updated = await updateChat(req.params.id, { ownerIds: [...owners], adminIds: [...admins] });
+      broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+      return res.json({ chat: updated });
+    }
+
+    // Everything below changes a *lower* role, so it must not be aimed at an
+    // owner. Removing owner rights goes through "unowner" above.
+    if (isOwner(chat, userId)) {
+      return res.status(400).json({ error: "Сначала снимите с участника права владельца" });
+    }
+
+    // Moderator: can mute and remove members, but cannot touch the chat's own
+    // settings or hand out roles. Only the owner and admins may appoint one, and
+    // the group has to have reached the level that unlocks the role at all.
+    if (role === "mod" || role === "unmod") {
+      const isOwnerOrRealAdmin = isOwnerOrAdminOf(chat, req.uid);
+      if (!isOwnerOrRealAdmin) return res.status(403).json({ error: "Недостаточно прав" });
+      if (role === "mod" && !unlocked(chat, "moderators")) {
+        return res.status(403).json({ error: lockedError("moderators") });
+      }
+      if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "Пользователь не в чате" });
+      const mods = new Set(chat.moderatorIds ?? []);
+      if (role === "mod") mods.add(userId);
+      else mods.delete(userId);
+      const updated = await updateChat(req.params.id, { moderatorIds: [...mods] });
+      broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+      return res.json({ chat: updated });
     }
 
     if (role === "kick") {
       const updated = await updateChat(req.params.id, {
         memberIds: chat.memberIds.filter((m) => m !== userId),
         adminIds: chat.adminIds?.filter((m) => m !== userId),
+        // Leaving a stale moderator flag behind would silently restore the role
+        // if the same person were ever added back.
+        moderatorIds: chat.moderatorIds?.filter((m) => m !== userId),
+        ownerIds: chat.ownerIds?.filter((m) => m !== userId),
       });
       return res.json({ chat: updated });
     }
@@ -375,6 +489,33 @@ router.post(
   })
 );
 
+// The label everyone sees next to a member instead of the default role word:
+// "владелец", "модератор", or whatever the owner types — "пользователь",
+// "дизайнер", anything. Owner-only, because it's shown to the whole chat and
+// letting members title themselves turns it into a second bio.
+router.post(
+  "/:id/title",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (!isOwner(chat, req.uid)) return res.status(403).json({ error: "Менять подписи может только владелец" });
+
+    const { userId, title } = req.body ?? {};
+    if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "Пользователь не в чате" });
+
+    const titles = { ...(chat.memberTitles ?? {}) };
+    const clean = String(title ?? "").trim().slice(0, 24);
+    // An empty title removes the override rather than storing "", so the member
+    // falls back to their real role word.
+    if (clean) titles[userId] = clean;
+    else delete titles[userId];
+
+    const updated = await updateChat(req.params.id, { memberTitles: titles });
+    broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+    res.json({ chat: updated });
+  })
+);
+
 // Restricts (or un-restricts) a member from posting — "until" is either an
 // ISO timestamp (temporary) or "forever" (permanent); omitting/null lifts an
 // existing restriction. Enforced on the actual send path in routes/messages.js.
@@ -383,7 +524,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    const isOwnerOrAdmin = chat.ownerId === req.uid || chat.adminIds?.includes(req.uid);
+    const isOwnerOrAdmin = isOwnerOrAdminOf(chat, req.uid);
     if (!isOwnerOrAdmin) return res.status(403).json({ error: "Недостаточно прав" });
 
     const { userId, until } = req.body ?? {};

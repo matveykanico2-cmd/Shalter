@@ -1,4 +1,5 @@
 const { ADMIN_PHONE } = require("../config");
+const { SYSTEM_BOT_ID } = require("./systemBot");
 
 function publicUser(user) {
   const rest = { ...user };
@@ -18,6 +19,9 @@ function publicUser(user) {
   // (derived, a plain boolean) is what the UI actually needs, and it stays.
   delete rest.totpSecret;
   delete rest.totpRecoveryCodes;
+  // How many stars someone has is their business. messagePriceStars stays:
+  // whoever is about to write to them has to know what it will cost.
+  delete rest.stars;
   // Computed, not stored — "Developer" is just "whoever currently holds
   // ADMIN_PHONE" (same convention as the Premium-granting permission check
   // in server/routes/premium.js), not a role stored on the row. Exposing a
@@ -25,6 +29,9 @@ function publicUser(user) {
   // numbers itself) also means it works even when the user's own privacy
   // settings hide their phone number from others.
   rest.isDeveloper = user.phone === ADMIN_PHONE || undefined;
+  // Marks the Shalter service account, so the client can present its chat as
+  // one-way instead of offering a composer the server will refuse.
+  rest.isServiceBot = user.id === SYSTEM_BOT_ID || undefined;
   return rest;
 }
 

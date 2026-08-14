@@ -297,6 +297,18 @@ CREATE INDEX IF NOT EXISTS idx_gift_issues_recipient ON gift_issues(recipientId)
 -- sitting around). And it can't reach end-to-end secret-chat plaintext at
 -- all: the server has no keys, so those messages are exported as the
 -- ciphertext they're stored as, marked unreadable (see dataExport.js).
+-- Sticker packs people build themselves (server/data/stickerPacks.js). The
+-- built-in set ships in the client and isn't here. Stickers are a JSON column
+-- because a pack is only ever read and written whole.
+CREATE TABLE IF NOT EXISTS sticker_packs (
+  id TEXT PRIMARY KEY,
+  ownerId TEXT NOT NULL,
+  name TEXT NOT NULL,
+  stickers TEXT NOT NULL DEFAULT '[]',
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sticker_packs_owner ON sticker_packs(ownerId);
+
 -- Admin-editable layer over the shipped gift catalogue (server/data/gifts.js).
 -- Two kinds of row live here, told apart by the custom flag:
 --   custom = 0 — an override for a built-in gift. Only its supply is read; the
@@ -306,11 +318,15 @@ CREATE INDEX IF NOT EXISTS idx_gift_issues_recipient ON gift_issues(recipientId)
 --                catalogue, so every column is meaningful.
 -- Deliberately separate from gift_issues: that table records which serials have
 -- been handed out and must never be rewritten when a supply changes.
+-- priceStars is the price actually charged (the shop has no rouble prices);
+-- priceRub is only still read for the shipped catalogue, whose entries predate
+-- stars and are converted at STARS_PER_RUB (see data/gifts.js's starPrice).
 CREATE TABLE IF NOT EXISTS gift_catalog (
   id TEXT PRIMARY KEY,
   emoji TEXT,
   name TEXT,
   priceRub INTEGER,
+  priceStars INTEGER,
   premiumDays INTEGER,
   supply INTEGER,
   exclusive INTEGER NOT NULL DEFAULT 0,
@@ -385,6 +401,15 @@ if (!existingUserColumns.has("bannedAt")) db.exec("ALTER TABLE users ADD COLUMN 
 // they hand over money — which a silent internal ban queue never does.
 if (!existingUserColumns.has("safetyLabel")) db.exec("ALTER TABLE users ADD COLUMN safetyLabel TEXT");
 if (!existingUserColumns.has("safetyLabelAt")) db.exec("ALTER TABLE users ADD COLUMN safetyLabelAt TEXT");
+// Stars — the in-app currency (server/data/stars.js). Bought with a real
+// transfer like everything else here, spent on paid DMs, boosting a message and
+// clearing one out of a conversation. An integer count, never money: the ruble
+// price lives in the purchase packs, not on the balance.
+if (!existingUserColumns.has("stars")) db.exec("ALTER TABLE users ADD COLUMN stars INTEGER NOT NULL DEFAULT 0");
+// 0 = anyone may write for free. Above 0, a stranger's first message into this
+// account's DM costs them that many stars, which land on this account.
+if (!existingUserColumns.has("messagePriceStars")) db.exec("ALTER TABLE users ADD COLUMN messagePriceStars INTEGER NOT NULL DEFAULT 0");
+
 // Two-factor authentication (RFC 6238 TOTP — server/lib/totp.js). The shared
 // secret, base32-encoded; a row with totpSecret set but totpEnabledAt null is a
 // setup in progress that hasn't been confirmed with a working code yet, and
@@ -444,6 +469,38 @@ const existingReportColumns = new Set(db.prepare("PRAGMA table_info(reports)").a
 if (!existingReportColumns.has("subjectUserId")) db.exec("ALTER TABLE reports ADD COLUMN subjectUserId TEXT");
 db.exec("CREATE INDEX IF NOT EXISTS idx_reports_subject ON reports(subjectUserId)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)");
+
+// Gifts an admin mints are priced in stars now — the currency they're bought
+// with. Rows written before this column existed keep their rouble price and are
+// converted on read, so an already-issued gift doesn't silently change price.
+const existingGiftCatalogCols = new Set(db.prepare("PRAGMA table_info(gift_catalog)").all().map((c) => c.name));
+if (!existingGiftCatalogCols.has("priceStars")) db.exec("ALTER TABLE gift_catalog ADD COLUMN priceStars INTEGER");
+
+// A message boosted with stars stays highlighted and pinned to the top of the
+// chat until this moment passes (server/routes/stars.js).
+const existingMessageCols = new Set(db.prepare("PRAGMA table_info(messages)").all().map((c) => c.name));
+if (!existingMessageCols.has("boostedUntil")) db.exec("ALTER TABLE messages ADD COLUMN boostedUntil TEXT");
+if (!existingMessageCols.has("boostedById")) db.exec("ALTER TABLE messages ADD COLUMN boostedById TEXT");
+
+// A role between member and admin: a moderator can mute and remove people, but
+// cannot change the chat itself or hand out roles (server/routes/chats.js).
+// Same per-membership shape as isAdmin rather than a JSON list on the chat.
+const existingMemberCols = new Set(db.prepare("PRAGMA table_info(chat_members)").all().map((c) => c.name));
+if (!existingMemberCols.has("isModerator")) db.exec("ALTER TABLE chat_members ADD COLUMN isModerator INTEGER NOT NULL DEFAULT 0");
+// A group can have more than one owner. chats.ownerId stays as the creator (it's
+// what every existing check and every chat created before this read), and this
+// flag is what actually grants owner rights — the creator is always set here too,
+// so "is an owner" is one lookup rather than "the column or the flag".
+if (!existingMemberCols.has("isOwner")) {
+  db.exec("ALTER TABLE chat_members ADD COLUMN isOwner INTEGER NOT NULL DEFAULT 0");
+  // Backfill: every existing chat's creator becomes its first flagged owner.
+  db.exec("UPDATE chat_members SET isOwner = 1 WHERE userId = (SELECT ownerId FROM chats WHERE chats.id = chat_members.chatId)");
+}
+// Per-member label shown to everyone instead of the default role word — "владелец",
+// "модератор", or anything the owner types ("пользователь", "дизайнер", …). A JSON
+// map of userId -> title on the chat, never queried across rows.
+const existingChatCols2 = new Set(db.prepare("PRAGMA table_info(chats)").all().map((c) => c.name));
+if (!existingChatCols2.has("memberTitles")) db.exec("ALTER TABLE chats ADD COLUMN memberTitles TEXT");
 
 const existingBotColumns = new Set(db.prepare("PRAGMA table_info(bots)").all().map((c) => c.name));
 if (!existingBotColumns.has("ownerId")) db.exec("ALTER TABLE bots ADD COLUMN ownerId TEXT");

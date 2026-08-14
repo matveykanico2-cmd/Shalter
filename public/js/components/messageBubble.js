@@ -9,6 +9,8 @@ import { openProfileDialog } from "./profileDialog.js";
 import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard, LocationAttachment } from "./attachments.js";
 import { transcribeAudio, transcriptCache } from "../lib/transcribe.js";
 import { getState } from "../state.js";
+import { renderScene } from "../lib/animScenes.js";
+import { openStarsDialog } from "./starsDialog.js";
 
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
 
@@ -68,6 +70,29 @@ function entranceMessageMeta(message, mine, isChannel) {
   ]);
 }
 
+// Trading a received gift for stars. The shelf entry is found by matching what
+// the card knows (emoji + arrival time) against the shelf, because the card
+// itself carries no shelf-entry id — the message predates the shelf row.
+async function convertGift(gift) {
+  const me = getState().user;
+  if (!confirm(`Обменять ${gift.emoji} «${gift.name}» на ${giftStars(gift)} ⭐? Подарок исчезнет с вашей полки.`)) return;
+  try {
+    const { user } = await api.getUser(me.id);
+    const entry = (user.giftsReceived ?? [])
+      .slice()
+      .reverse()
+      .find((g) => g.emoji === gift.emoji && (gift.serial == null || g.serial === gift.serial));
+    if (!entry) {
+      alert("Этот подарок уже не на полке");
+      return;
+    }
+    const res = await api.convertGift(entry.id ?? `${entry.emoji}|${entry.at}`);
+    alert(`Получено ${res.gained} ⭐. Баланс: ${res.balance} ⭐`);
+  } catch (err) {
+    alert(err.message || "Не удалось обменять подарок");
+  }
+}
+
 const SPARKLE_ANGLES = [0, 60, 120, 180, 240, 300];
 function GiftMessage(message, mine, isChannel) {
   const gift = message.gift;
@@ -85,14 +110,34 @@ function GiftMessage(message, mine, isChannel) {
       ...SPARKLE_ANGLES.map((deg, i) =>
         el("span", { class: "gift-message-sparkle", style: `--angle: ${deg}deg; --delay: ${i * 0.05}s` }, "✨")
       ),
-      el("div", { class: "gift-message-emoji" }, gift.emoji),
+      // The gift itself now performs a scene too, same system the stickers use.
+      el("div", { class: "gift-message-emoji" }, [renderScene(gift.emoji, { size: 56, replay: isNew })]),
     ]),
     el("p", { class: "gift-message-name" }, gift.name),
+    // Who it's from. A gift with no sender shown is just an object that
+    // appeared; the point is that a particular person sent it.
+    gift.fromName ? el("p", { class: "gift-message-from" }, `от ${gift.fromName}`) : null,
     isExclusive ? el("p", { class: "gift-message-exclusive-label" }, "Эксклюзивный подарок") : null,
     gift.durationLabel ? el("p", { class: "gift-message-duration" }, gift.durationLabel) : null,
-    el("p", { class: "mono gift-message-price" }, `${formatRub(gift.priceRub)}₽`),
+    el("p", { class: "mono gift-message-price" }, `⭐ ${formatRub(giftStars(gift))}`),
+    // Only on the card of a gift *you* received: keep it on the profile, or trade
+    // it back for stars (routes/gifts.js's /convert).
+    !mine
+      ? el("div", { class: "gift-message-actions" }, [
+          el("button", { class: "gift-card-action", onclick: () => openProfileDialog(getState().user.id) }, "Показать в профиле"),
+          el("button", { class: "gift-card-action muted", onclick: () => convertGift(gift) }, `Обменять на ${formatRub(giftStars(gift))} ⭐`),
+        ])
+      : null,
     entranceMessageMeta(message, mine, isChannel),
   ]);
+}
+
+// Gifts sent before star pricing existed only carry priceRub. Deriving the star
+// figure here at the same 10⭐/₽ rate the catalogue uses (see data/gifts.js)
+// keeps the chat log from showing some gifts in rubles and others in stars.
+const STARS_PER_RUB = 10;
+function giftStars(gift) {
+  return gift.priceStars ?? Math.max(1, Math.round((gift.priceRub ?? 0) * STARS_PER_RUB));
 }
 
 // 1000000 -> "1 000 000". Only ever applied to gift prices, which now span
@@ -116,8 +161,11 @@ function StickerBody(message) {
   const sticker = message.sticker;
   const isNew = !seenEntranceIds.has(message.id);
   seenEntranceIds.add(message.id);
+  // A multi-part scene rather than one wobbling emoji — see lib/animScenes.js.
+  // `sticker.scene` lets a sticker pack name the performance explicitly;
+  // without one the emoji picks its own.
   return el("div", { class: `sticker-message ${isNew ? "" : "no-entrance"}` }, [
-    el("span", { class: `sticker-message-emoji sticker-${sticker.anim}` }, sticker.emoji),
+    renderScene(sticker.emoji, { size: 84, preferred: sticker.scene, replay: isNew }),
   ]);
 }
 
@@ -313,7 +361,7 @@ function VideoNotePlayer(a) {
   return wrap;
 }
 
-export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, replyToMessage, members, handlers }) {
+export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, replyToMessage, members, handlers }) {
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onKeyboardAction, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
 
@@ -391,7 +439,13 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   ]);
   bubbleInner.push(meta);
 
-  const bubble = el("div", { class: `bubble ${mine ? "mine" : ""} ${isSticker ? "bubble-sticker" : ""}` }, bubbleInner);
+  // Boosted with stars: highlighted until boostedUntil passes.
+  const boosted = !!message.boostedUntil && message.boostedUntil > new Date().toISOString();
+  const bubble = el(
+    "div",
+    { class: `bubble ${mine ? "mine" : ""} ${isSticker ? "bubble-sticker" : ""} ${boosted ? "bubble-boosted" : ""}` },
+    bubbleInner
+  );
 
   const canTranslate = !isSticker && !!message.text?.trim() && !message.attachments?.some((a) => a.kind === "poll");
   let translationEl = null;
@@ -553,6 +607,14 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     if (voiceAttachment) {
       items.push({ icon: "Mic", label: transcriptEl ? "Скрыть расшифровку" : "Расшифровать", onClick: toggleTranscription });
     }
+    // Paid actions (server/routes/stars.js). Boost applies to your own message;
+    // paid deletion to someone else's, and only in a DM — see that route for why
+    // it isn't offered in groups.
+    if (mine) {
+      items.push({ icon: "Star", label: "Поднять за звёзды", onClick: () => boostForStars(message) });
+    } else if (isDm) {
+      items.push({ icon: "Trash", label: "Удалить за звёзды", danger: true, onClick: () => deleteForStars(message) });
+    }
     // No "Изменить" for a sticker — it carries no text to edit (the composer
     // would open with an empty draft and rewrite the sticker into a text
     // message on save).
@@ -567,6 +629,34 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     }
     items.push({ icon: "Trash", label: "Удалить", danger: true, onClick: () => onDelete(message) });
     openDropdownMenu(pos, items);
+  }
+
+  // A failed paid action is almost always "not enough stars" — offering the
+  // top-up right there beats an alert the user can only acknowledge.
+  async function runPaid(fn, fallbackMessage) {
+    try {
+      await fn();
+    } catch (err) {
+      if (/не хватает/i.test(err.message ?? "")) {
+        if (confirm(`${err.message}. Открыть покупку звёзд?`)) openStarsDialog();
+        return;
+      }
+      alert(err.message || fallbackMessage);
+    }
+  }
+
+  function boostForStars(msg) {
+    runPaid(async () => {
+      await api.boostMessage(msg.id);
+      handlers.onRefresh?.();
+    }, "Не удалось поднять сообщение");
+  }
+
+  function deleteForStars(msg) {
+    runPaid(async () => {
+      await api.paidDeleteMessage(msg.id);
+      handlers.onRefresh?.();
+    }, "Не удалось удалить сообщение");
   }
 
   const bubbleWrap = el("div", {

@@ -17,7 +17,10 @@ router.post(
   asyncRoute(async (req, res) => {
     const chat = await getChat(req.params.channelId);
     if (!chat || chat.type !== "channel") return res.status(404).json({ error: "not found" });
-    const isOwnerOrAdmin = chat.ownerId === req.uid || chat.adminIds?.includes(req.uid);
+    // Ownership is a list (see server/routes/chats.js's isOwner) — a co-owner
+    // must not be locked out of publishing.
+    const isOwnerOrAdmin =
+      chat.ownerId === req.uid || (chat.ownerIds ?? []).includes(req.uid) || chat.adminIds?.includes(req.uid);
     if (!isOwnerOrAdmin) return res.status(403).json({ error: "Публиковать могут только администраторы канала" });
 
     const body = req.body ?? {};

@@ -2,7 +2,7 @@ const db = require("../db");
 
 function rowToChat(row) {
   if (!row) return undefined;
-  const members = db.prepare("SELECT userId, isAdmin FROM chat_members WHERE chatId = ?").all(row.id);
+  const members = db.prepare("SELECT userId, isAdmin, isModerator, isOwner FROM chat_members WHERE chatId = ?").all(row.id);
   return {
     id: row.id,
     type: row.type,
@@ -14,6 +14,11 @@ function rowToChat(row) {
     avatarImage: row.avatarImage ?? undefined,
     ownerId: row.ownerId ?? undefined,
     adminIds: members.filter((m) => m.isAdmin).map((m) => m.userId),
+    moderatorIds: members.filter((m) => m.isModerator).map((m) => m.userId),
+    // Every owner. ownerId above is the creator and stays for compatibility; this
+    // is the list that actually decides owner rights (see server/db.js).
+    ownerIds: members.filter((m) => m.isOwner).map((m) => m.userId),
+    memberTitles: row.memberTitles ? JSON.parse(row.memberTitles) : {},
     memberIds: members.map((m) => m.userId),
     pinned: !!row.pinned,
     muted: !!row.muted,
@@ -73,11 +78,17 @@ async function searchPublicChannels(query) {
 // [uid, uid]), which is a legitimate chat that simply has one member; premium.js
 // already relies on findOrCreateDm(uid, uid) working. Falsy ids are dropped for
 // the same "one bad argument shouldn't fail the write" reason.
-const setMembers = db.transaction((chatId, memberIds, adminIds) => {
+const setMembers = db.transaction((chatId, memberIds, adminIds, moderatorIds, ownerIds) => {
   db.prepare("DELETE FROM chat_members WHERE chatId = ?").run(chatId);
-  const insert = db.prepare("INSERT INTO chat_members (chatId, userId, isAdmin) VALUES (?, ?, ?)");
+  const insert = db.prepare("INSERT INTO chat_members (chatId, userId, isAdmin, isModerator, isOwner) VALUES (?, ?, ?, ?, ?)");
   for (const userId of new Set((memberIds ?? []).filter(Boolean))) {
-    insert.run(chatId, userId, adminIds?.includes(userId) ? 1 : 0);
+    insert.run(
+      chatId,
+      userId,
+      adminIds?.includes(userId) ? 1 : 0,
+      moderatorIds?.includes(userId) ? 1 : 0,
+      ownerIds?.includes(userId) ? 1 : 0
+    );
   }
 });
 
@@ -104,7 +115,7 @@ async function createChat(chat) {
     points: chat.points ?? 0,
     votes: chat.votes ? JSON.stringify(chat.votes) : null,
   });
-  setMembers(chat.id, chat.memberIds ?? [], chat.adminIds ?? []);
+  setMembers(chat.id, chat.memberIds ?? [], chat.adminIds ?? [], chat.moderatorIds ?? [], chat.ownerIds ?? (chat.ownerId ? [chat.ownerId] : []));
   return getChat(chat.id);
 }
 
@@ -131,9 +142,20 @@ async function updateChat(id, patch) {
   // memberIds/adminIds are patched together (see server/routes/chats.js —
   // every caller that changes membership passes both) so the join table can
   // just be replaced wholesale rather than diffed.
-  if ("memberIds" in patch || "adminIds" in patch) {
+  if ("memberIds" in patch || "adminIds" in patch || "moderatorIds" in patch || "ownerIds" in patch) {
     const current = rowToChat(db.prepare("SELECT * FROM chats WHERE id = ?").get(id));
-    setMembers(id, patch.memberIds ?? current.memberIds, patch.adminIds ?? current.adminIds);
+    // Every list is passed, patched or not: setMembers replaces the whole
+    // membership table, so omitting one would wipe that role for everyone.
+    setMembers(
+      id,
+      patch.memberIds ?? current.memberIds,
+      patch.adminIds ?? current.adminIds,
+      patch.moderatorIds ?? current.moderatorIds,
+      patch.ownerIds ?? current.ownerIds
+    );
+  }
+  if ("memberTitles" in patch) {
+    db.prepare("UPDATE chats SET memberTitles = ? WHERE id = ?").run(JSON.stringify(patch.memberTitles ?? {}), id);
   }
   // A plain object, not a PATCHABLE_FIELDS scalar — stringified separately
   // rather than going through the generic loop above.
