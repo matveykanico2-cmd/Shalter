@@ -17,6 +17,13 @@ const UPLOAD_LIMITS = {
   file: 500 * MB,
   voice: 1 * GB,
   "video-note": 1 * GB,
+  // Profile photos and video avatars. Far tighter than the message kinds
+  // above on purpose: an avatar is fetched by everyone who opens the profile,
+  // it is never the point of the upload the way a shared 2GB video is, and
+  // without a separate kind a "photo" avatar would inherit the 1GB image
+  // ceiling.
+  avatar: 20 * MB,
+  "avatar-video": 60 * MB,
 };
 const DEFAULT_LIMIT = 1 * GB;
 
@@ -44,6 +51,8 @@ const KIND_LABEL = {
   file: "Файл",
   voice: "Голосовое сообщение",
   "video-note": "Видео-кружок",
+  avatar: "Фото профиля",
+  "avatar-video": "Видео-аватар",
 };
 
 function tooLargeError(kind) {

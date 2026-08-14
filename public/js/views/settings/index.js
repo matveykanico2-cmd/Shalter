@@ -4,7 +4,7 @@ import { Avatar } from "../../components/avatar.js";
 import { api } from "../../api.js";
 import { getState, setState } from "../../state.js";
 import { navigate } from "../../router.js";
-import { fileToAvatarDataUrl, fileToImageDataUrl, fileToDataUrl } from "../../lib/image.js";
+import { fileToImageDataUrl, fileToDataUrl } from "../../lib/image.js";
 import { ImageAttachment, VideoAttachment, FileAttachment } from "../../components/attachments.js";
 import { requestPushPermission } from "../../lib/push.js";
 import { openCreateBotDialog } from "../../components/createBotDialog.js";
@@ -16,6 +16,7 @@ import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../component
 import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../components/twoFactorDialog.js";
 import { openStarsDialog } from "../../components/starsDialog.js";
 import { openGiftShopDialog } from "../../components/giftShopDialog.js";
+import { openAvatarViewer } from "../../components/avatarViewer.js";
 import { openProfileQrDialog } from "../../components/profileQrDialog.js";
 import { handlePurchaseResponse } from "../../lib/purchase.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
@@ -119,7 +120,7 @@ export async function SettingsView(root, page) {
           },
         }, [
           el("span", { class: "settings-nav-icon", style: { background: "#1f9d63" }, html: iconSvg("Info", 16) }),
-          el("span", { class: "settings-nav-label" }, "Поддержка"),
+          el("span", { class: "settings-nav-label" }, "Поддержка — Hugo"),
         ]),
         el("a", { href: "/download", class: "settings-nav-item settings-nav-external" }, [
           el("span", { class: "settings-nav-icon", style: { background: "#4cc98a" }, html: iconSvg("Download", 16) }),
@@ -180,38 +181,43 @@ async function renderProfile(root) {
   let bio = me.bio;
   let birthday = me.birthday ?? "";
   let avatarImage = me.avatarImage;
+  let avatarImages = me.avatarImages ?? [];
   let saved = false;
   let profileError = null;
 
   function render() {
-    const fileInput = el("input", {
-      type: "file",
-      accept: "image/*",
-      class: "hidden-input",
-      onchange: async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        try {
-          avatarImage = await fileToAvatarDataUrl(file);
-          await api.updateProfile(me.id, { avatarImage });
-          setState({ user: { ...getState().user, avatarImage } });
-          render();
-        } catch {
-          alert("Не удалось загрузить фото");
-        }
+    // Opens the viewer rather than a bare file picker: it shows the photos
+    // already there, and adding, reordering and deleting all live in one place
+    // instead of the picker being the only thing this button could do.
+    const avatarBtn = el(
+      "button",
+      {
+        class: "settings-avatar-btn",
+        onclick: () =>
+          openAvatarViewer(
+            { ...me, avatarImage, avatarImages },
+            {
+              canEdit: true,
+              onChange: (updated) => {
+                avatarImage = updated.avatarImage ?? null;
+                avatarImages = updated.avatarImages ?? [];
+                render();
+              },
+            }
+          ),
       },
-    });
-    const avatarBtn = el("button", { class: "settings-avatar-btn", onclick: () => fileInput.click() }, [
-      Avatar({ name: name || "?", color: me.avatarColor, image: avatarImage, size: 72, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
-      el("span", { class: "settings-avatar-edit", html: iconSvg("Edit", 12) }),
-    ]);
+      [
+        Avatar({ name: name || "?", color: me.avatarColor, image: avatarImage, size: 72, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
+        el("span", { class: "settings-avatar-edit", html: iconSvg("Edit", 12) }),
+        avatarImages.length > 1 ? el("span", { class: "avatar-count-badge" }, String(avatarImages.length)) : null,
+      ].filter(Boolean)
+    );
 
     mount(
       root,
       pageWrap("", null, [
         el("div", { class: "settings-profile-header" }, [
           avatarBtn,
-          fileInput,
           el("div", {}, [
             el("p", { class: "settings-profile-name" }, [
               name || "Без имени",

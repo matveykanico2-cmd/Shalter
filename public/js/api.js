@@ -53,6 +53,11 @@ export const api = {
   disableTwoFactor: (code) => req("/api/auth/2fa/disable", { method: "POST", body: JSON.stringify({ code }) }),
 
   updateProfile: (id, patch) => req(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  // Profile photos — always your own, so no id: the session decides whose.
+  listAvatars: () => req("/api/avatars"),
+  addAvatar: (entry) => req("/api/avatars", { method: "POST", body: JSON.stringify(entry) }),
+  setMainAvatar: (index) => req(`/api/avatars/${index}/main`, { method: "POST" }),
+  removeAvatar: (index) => req(`/api/avatars/${index}`, { method: "DELETE" }),
   listUsers: () => req("/api/users"),
   getUser: (id) => req(`/api/users/${id}`),
   setBlocked: (userId, blocked) =>

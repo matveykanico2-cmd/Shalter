@@ -364,6 +364,44 @@
   font-size: 14px;
   color: var(--color-muted);
 }
+/* The app failed to start (see app.js's boot().catch) — this is the only thing
+   on screen, so it centres itself in the viewport rather than sitting as a line
+   of grey text at the top of an otherwise black window. */
+.boot-error {
+  display: flex;
+  height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+.boot-error h1 {
+  margin: 0;
+  font-size: 19px;
+}
+.boot-error p {
+  margin: 0;
+  max-width: 420px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+.boot-error-detail {
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  padding: 8px 12px;
+  font-size: 12.5px;
+  /* An error message can be long and unbroken (a URL, a stack frame) — let it
+     wrap rather than push the page sideways. */
+  overflow-wrap: anywhere;
+}
+.boot-error .btn-accent {
+  width: auto;
+  padding: 8px 22px;
+}
 .list-section-label {
   padding: 6px 12px;
   font-size: 11px;
@@ -6338,4 +6376,165 @@
   resize: vertical;
   font-family: var(--font-mono);
   font-size: 12.5px;
+}
+
+/* Full-screen avatar viewer (components/avatarViewer.js) — a profile photo
+   opened at full size, with the person's other photos behind it and, on your
+   own profile, the controls to manage the list.
+
+   Sits at 95: above the profile panel (61) and modals (60) it opens from, and
+   above dropdown menus (90), which is the layer that spawns nothing but is
+   spawned from everything. Only the passcode lock (100) stays higher. */
+.avatar-viewer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.85);
+}
+/* Sized to the photo, not to a fixed column: with a fixed width the name and
+   the close button sat at the far edges of an invisible 560px box while the
+   photo floated in the middle of it, so the chrome read as loose UI scattered
+   over the page rather than as one thing belonging to this picture. */
+.avatar-viewer {
+  display: flex;
+  width: fit-content;
+  min-width: min(320px, 100%);
+  max-width: min(560px, 100%);
+  max-height: 100%;
+  flex-direction: column;
+  gap: 10px;
+}
+.avatar-viewer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+}
+.avatar-viewer-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 600;
+}
+.avatar-viewer-head .icon-btn {
+  color: #fff;
+}
+/* The stage keeps the media centred and never taller than the viewport, so a
+   portrait photo doesn't push the controls off the bottom of the screen. */
+.avatar-viewer-stage {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+.avatar-viewer-media {
+  max-width: 100%;
+  max-height: min(70vh, 560px);
+  border-radius: 14px;
+  background: #000;
+  object-fit: contain;
+}
+.avatar-viewer-nav {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  width: 44px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+}
+.avatar-viewer-nav:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+.avatar-viewer-nav.prev {
+  left: 6px;
+}
+.avatar-viewer-nav.next {
+  right: 6px;
+}
+.avatar-viewer-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+.avatar-viewer-dot {
+  height: 7px;
+  width: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+}
+.avatar-viewer-dot.active {
+  background: #fff;
+}
+.avatar-viewer-empty,
+.avatar-viewer-busy {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+  text-align: center;
+}
+.avatar-viewer-error {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: #ff9b96;
+}
+.avatar-viewer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.avatar-viewer-bar .btn-accent,
+.avatar-viewer-bar .profile-action-btn {
+  width: auto;
+  padding: 8px 16px;
+}
+.avatar-viewer-bar .profile-action-btn {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+.avatar-viewer-bar .profile-action-btn.danger {
+  color: #ff9b96;
+}
+
+/* The avatar itself as a button, wherever tapping it opens the viewer. Padding
+   stays 0 so the circle keeps its exact size and nothing around it shifts. */
+.avatar-open-btn {
+  position: relative;
+  display: inline-flex;
+  padding: 0;
+  border-radius: 999px;
+}
+/* "3" in the corner — the only hint that there's more than one photo behind
+   this circle. Without it the viewer's paging is undiscoverable. */
+.avatar-count-badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid var(--color-surface);
+  background: var(--color-accent);
+  padding: 0 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--color-accent-contrast);
 }

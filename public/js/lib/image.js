@@ -27,6 +27,55 @@ export function fileToImageDataUrl(file, maxSize = 256) {
 
 export const fileToAvatarDataUrl = (file) => fileToImageDataUrl(file, 256);
 
+// One frame out of a video file, downscaled, as a data URL.
+//
+// A video avatar still needs a still: every avatar circle in the app — chat
+// list rows, message senders, push notifications — shows an <img>, and fifty
+// autoplaying <video> elements in a scrolling list is not a trade worth making
+// for a moving thumbnail. So the video plays in the viewer, and this frame
+// stands in everywhere else.
+//
+// Seeks a little past the start rather than using frame 0: the first frame of a
+// phone recording is very often black or half-exposed.
+export function videoPosterDataUrl(file, maxSize = 256) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+
+    const fail = (msg) => {
+      URL.revokeObjectURL(url);
+      reject(new Error(msg));
+    };
+    video.onerror = () => fail("Не удалось прочитать видео");
+    video.onloadeddata = () => {
+      // Some browsers fire loadeddata before a seek completes, so the draw
+      // happens in onseeked below; seeking to 0 wouldn't fire it at all.
+      video.currentTime = Math.min(0.25, (video.duration || 1) / 4);
+    };
+    video.onseeked = () => {
+      try {
+        const w0 = video.videoWidth;
+        const h0 = video.videoHeight;
+        if (!w0 || !h0) return fail("Видео без изображения");
+        const scale = Math.min(1, maxSize / Math.max(w0, h0));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(w0 * scale);
+        canvas.height = Math.round(h0 * scale);
+        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+        const poster = canvas.toDataURL("image/jpeg", 0.85);
+        URL.revokeObjectURL(url);
+        resolve(poster);
+      } catch {
+        fail("Не удалось получить кадр из видео");
+      }
+    };
+    video.src = url;
+  });
+}
+
 // Plain read-as-data-URL, no re-encoding — used for videos and generic files
 // where client-side transcoding isn't practical.
 export function fileToDataUrl(file) {

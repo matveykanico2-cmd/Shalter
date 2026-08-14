@@ -9,6 +9,7 @@ import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard } fro
 import { statusLabel } from "../lib/presence.js";
 import { SAFETY_LABELS, safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openAdminUserPanel } from "./adminUserPanel.js";
+import { openAvatarViewer } from "./avatarViewer.js";
 import { renderScene } from "../lib/animScenes.js";
 
 // Bottom tab strip, same set/order as Telegram's own profile view. Content
@@ -188,7 +189,29 @@ export async function openProfileDialog(userId) {
     // arguments into literal "null" text nodes — filter them out first.
     const children = [
       el("div", { class: "profile-avatar-row" }, [
-        Avatar({ name: user.name, color: user.avatarColor, image: user.avatarImage, size: 88, online: user.online, isPremium: user.isPremium, isDeveloper: user.isDeveloper, orbit: true }),
+        // Tapping opens it full-size, with any other photos this person has
+        // behind it. On your own profile the same viewer manages the list.
+        el(
+          "button",
+          {
+            class: "avatar-open-btn",
+            title: "Открыть фото",
+            onclick: () =>
+              openAvatarViewer(user, {
+                canEdit: isSelf,
+                onChange: (updated) => {
+                  user = { ...user, ...updated };
+                  render();
+                },
+              }),
+          },
+          [
+            Avatar({ name: user.name, color: user.avatarColor, image: user.avatarImage, size: 88, online: user.online, isPremium: user.isPremium, isDeveloper: user.isDeveloper, orbit: true }),
+            (user.avatarImages ?? []).length > 1
+              ? el("span", { class: "avatar-count-badge" }, String(user.avatarImages.length))
+              : null,
+          ].filter(Boolean)
+        ),
       ]),
       el("p", { class: "profile-name" }, [
         user.name || "Без имени",

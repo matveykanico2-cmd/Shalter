@@ -21,13 +21,13 @@ const { apiLimiter, authLimiter } = require("./middleware/rateLimit");
 const { attachWebSocketServer } = require("./ws");
 const { initPush } = require("./push");
 const { ensureSystemBot } = require("./data/systemBot");
-const { ensureSupportAccount } = require("./data/supportAccount");
+const { ensureHugoAccount } = require("./data/hugoBot");
 const { startAutoDeleteSweep } = require("./lib/autoDelete");
 const { startDonationAlertsSweep } = require("./lib/donationAlerts");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
 
 ensureSystemBot();
-ensureSupportAccount();
+ensureHugoAccount();
 
 const app = express();
 // Deployed behind nginx (see DEPLOY.md/deploy/nginx.conf.example) — trust
@@ -115,6 +115,7 @@ app.use("/api/hugo", require("./routes/hugo"));
 app.use("/api/stickers", require("./routes/stickers"));
 app.use("/api/stars", require("./routes/stars"));
 app.use("/api/support", require("./routes/support"));
+app.use("/api/avatars", require("./routes/avatars"));
 
 if (useBuilt) {
   // Serves whichever of app.js/app.js.br/app.js.gz the client's

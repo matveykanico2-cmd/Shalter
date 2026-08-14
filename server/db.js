@@ -470,6 +470,11 @@ if (!existingReportColumns.has("subjectUserId")) db.exec("ALTER TABLE reports AD
 db.exec("CREATE INDEX IF NOT EXISTS idx_reports_subject ON reports(subjectUserId)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)");
 
+// Several profile photos instead of one, and video avatars (lib/avatars.js).
+// The older `avatarImage` column stays and keeps its meaning — the current
+// avatar's still — so every existing reader of it is untouched.
+if (!existingUserColumns.has("avatarImages")) db.exec("ALTER TABLE users ADD COLUMN avatarImages TEXT NOT NULL DEFAULT '[]'");
+
 // Gifts an admin mints are priced in stars now — the currency they're bought
 // with. Rows written before this column existed keep their rouble price and are
 // converted on read, so an already-issued gift doesn't silently change price.

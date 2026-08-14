@@ -11,6 +11,7 @@ import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
 import { api } from "../api.js";
 import { getState, setState } from "../state.js";
 import { isChatAdmin } from "../lib/chatRoles.js";
+import { messagePreview } from "../lib/messagePreview.js";
 import { navigate } from "../router.js";
 import { placeCall as placeCallController } from "../lib/callController.js";
 import { onWsMessage } from "../lib/wsClient.js";
@@ -574,7 +575,10 @@ export async function ChatView(root, chatId) {
         },
         [
           el("span", { html: iconSvg("Pin", 14) }),
-          el("span", { class: "pinned-bar-text" }, pinned[pinIndex % pinned.length].text),
+          // messagePreview, not .text: a pinned sticker, gift, photo or voice
+          // message has no text, and printing it left the bar with an icon and
+          // an empty strip beside it — nothing to say what was pinned.
+          el("span", { class: "pinned-bar-text" }, messagePreview(pinned[pinIndex % pinned.length]) || "Сообщение"),
           pinned.length > 1 ? el("span", { class: "mono pinned-bar-count" }, String(pinned.length)) : null,
         ]
       )

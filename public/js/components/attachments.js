@@ -49,7 +49,7 @@ export function LocationAttachment(a) {
   const { lat, lng } = a.meta ?? {};
   const mapUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`;
   return el("a", { href: mapUrl, target: "_blank", rel: "noreferrer", class: "location-attachment" }, [
-    el("span", { html: iconSvg("Pin", 18) }),
+    el("span", { html: iconSvg("MapPin", 18) }),
     el("div", {}, [
       el("p", {}, "Геолокация"),
       el("p", { class: "mono location-coords" }, `${lat?.toFixed(5)}, ${lng?.toFixed(5)}`),

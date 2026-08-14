@@ -236,7 +236,30 @@ async function boot() {
   startRouter();
 }
 
+// Whatever went wrong, the screen has to say what it was. This used to print
+// one flat line — "Не удалось загрузить приложение." — with the actual cause
+// only in the console, which is unreachable in the desktop and mobile shells,
+// so the single most common case (the server is down or answering 502, and the
+// very first request, api.session(), throws) looked identical to a genuine
+// crash in the app's own code.
 boot().catch((err) => {
   console.error(err);
-  mount(root, el("div", { class: "empty-hint" }, "Не удалось загрузить приложение."));
+  // fetch() rejects with a TypeError and no status when the request never
+  // reached a server at all — offline, wrong address, backend not running.
+  const offline = !navigator.onLine || err instanceof TypeError;
+  mount(
+    root,
+    el("div", { class: "boot-error" }, [
+      el("h1", {}, offline ? "Нет связи с сервером" : "Не удалось загрузить приложение"),
+      el(
+        "p",
+        {},
+        offline
+          ? "Приложение открылось, но сервер Shalter не отвечает. Проверьте интернет — если он есть, значит сервер сейчас недоступен."
+          : "Приложение загрузилось, но упало при запуске. Текст ошибки ниже — с ним можно обратиться в поддержку."
+      ),
+      el("p", { class: "mono boot-error-detail" }, String(err?.message || err)),
+      el("button", { class: "btn-accent", onclick: () => window.location.reload() }, "Повторить"),
+    ])
+  );
 });

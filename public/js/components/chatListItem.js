@@ -5,6 +5,7 @@ import { openDropdownMenu } from "./dropdownMenu.js";
 import { openChoiceDialog } from "./confirmDialog.js";
 import { navigate } from "../router.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
+import { messagePreview } from "../lib/messagePreview.js";
 
 function timeLabel(iso) {
   const d = new Date(iso);
@@ -14,32 +15,15 @@ function timeLabel(iso) {
   return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
 }
 
-const ATTACHMENT_LABEL = {
-  image: "📷 Фото",
-  file: "📄 Файл",
-  voice: "🎤 Голосовое сообщение",
-  "video-note": "⏺ Видео-кружок",
-  poll: null,
-  location: "📍 Геолокация",
-  contact: "👤 Контакт",
-};
-
 function preview(chat, meId) {
   if (chat.draft) return `Черновик: ${chat.draft}`;
   const m = chat.lastMessage;
   if (!m) return "Нет сообщений";
   if (m.type === "system") return m.text;
+  // Stickers, gifts and attachments carry no text of their own — messagePreview
+  // names them, so the row doesn't go blank ("Вы: ") after sending one.
   const who = m.senderId === meId ? "Вы: " : "";
-  // Stickers and gifts carry no text at all, so without these the row went
-  // blank ("Вы: ") after sending one.
-  if (m.type === "sticker") return `${who}${m.sticker?.emoji ?? ""} Стикер`.trim();
-  if (m.type === "gift") return `${who}🎁 ${m.gift?.name ?? "Подарок"}`;
-  const att = m.attachments?.[0];
-  if (att) {
-    const label = att.kind === "poll" ? `📊 ${m.text}` : ATTACHMENT_LABEL[att.kind] ?? m.text;
-    return `${who}${label}`;
-  }
-  return `${who}${m.text}`;
+  return `${who}${messagePreview(m)}`;
 }
 
 export function ChatListItem({ chat, active, meId, onPatch, onDelete }) {

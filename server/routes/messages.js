@@ -28,6 +28,7 @@ const { listContactsFor } = require("../data/contacts");
 const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled } = require("../data/scheduledMessages");
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
+const { dispatchHugo } = require("../lib/hugoBot");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser } = require("../push");
 const { fetchLinkPreview } = require("../lib/linkPreview");
@@ -224,6 +225,12 @@ async function deliverMessage(chat, senderId, body) {
       .catch((err) => console.error(`bot sandbox dispatch failed for ${memberId}:`, err));
   }
 
+  // Hugo is built in rather than user-programmed, so it has no code row for the
+  // loop above to find — its replies come from the server (lib/hugoBot.js).
+  // Same fire-and-forget shape: proofreading calls an external service, and the
+  // person who pressed send must not wait for it.
+  dispatchHugo(chat.id, message);
+
   // A comment on a channel post is just a reply to that post's auto-forwarded
   // anchor copy in the linked discussion chat (see server/routes/posts.js) —
   // bump the post's visible comment count when one lands.
@@ -288,9 +295,9 @@ router.post(
       if (otherId === SYSTEM_BOT_ID) {
         return res.status(403).json({ error: "Shalter — служебный чат, отвечать в нём нельзя" });
       }
-      // Support (data/supportAccount.js) is deliberately not covered by that
-      // rule, nor by the admin-DM one below: it exists to be written to. It has
-      // no phone number, so the ADMIN_PHONE check can't catch it either.
+      // Hugo (data/hugoBot.js) is deliberately not covered by that rule, nor by
+      // the admin-DM one below: it exists to be written to, and it answers. It
+      // has no phone number, so the ADMIN_PHONE check can't catch it either.
       // Same for the administration's own DM: purchase requests are posted there
       // by the server itself (see routes/premium.js and friends), and those go
       // through lib/systemChat.js rather than this route.

@@ -30,7 +30,10 @@ const RESERVED = new Set([
   "logout",
   "register",
   "admin",
+  // @support stays reserved even though the account now answers as @hugo:
+  // nobody may claim the handle support used to hold and impersonate it.
   "support",
+  "hugo",
   "shalter",
   "shalter_bot",
   "shalter_support",

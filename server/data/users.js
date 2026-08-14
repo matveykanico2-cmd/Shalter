@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const db = require("../db");
+const { parseList, mainImage } = require("../lib/avatars");
 
 // Short, human-typeable codes (no 0/O/1/I — they're the ones people misread
 // when a friend reads a referral code aloud or types it from a screenshot).
@@ -22,6 +23,10 @@ function rowToUser(row) {
     passwordSalt: row.passwordSalt ?? undefined,
     avatarColor: row.avatarColor ?? undefined,
     avatarImage: row.avatarImage ?? undefined,
+    // The full list behind the avatar circle (lib/avatars.js). avatarImage
+    // above stays the current one's still, so nothing that only wants "a
+    // picture for this person" has to know this exists.
+    avatarImages: parseList(row.avatarImages),
     bio: row.bio,
     online: !!row.online,
     lastSeen: row.lastSeen ?? undefined,
@@ -197,6 +202,20 @@ async function updateUser(id, patch) {
   return getUser(id);
 }
 
+// The avatar list and the single `avatarImage` still are written together, in
+// one statement: they must never disagree, or the circle in a chat list would
+// show a photo the profile no longer has (or the other way round).
+async function setAvatars(userId, list) {
+  const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
+  if (!existing) return undefined;
+  db.prepare("UPDATE users SET avatarImages = ?, avatarImage = ? WHERE id = ?").run(
+    JSON.stringify(list),
+    mainImage(list),
+    userId
+  );
+  return getUser(userId);
+}
+
 async function listReferrals(userId) {
   return db.prepare("SELECT * FROM users WHERE referredBy = ?").all(userId).map(rowToUser);
 }
@@ -316,6 +335,7 @@ const removeReceivedGift = db.transaction((userId, giftEntryId) => {
 });
 
 module.exports = {
+  setAvatars,
   listUsers,
   getUser,
   findUserByEmail,

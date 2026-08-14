@@ -1,7 +1,16 @@
 // Vanilla-JS port of components/icons.tsx: same paths, plain SVG markup strings.
 const PATHS = {
   Search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
-  Pin: '<path d="M12 2l1.5 5.5L19 9l-4.5 3 1 6-3.5-3-3.5 3 1-6L5 9l5.5-1.5z"/>',
+  // An actual thumbtack. This used to be the same five-pointed star as `Star`
+  // below, so every "закреплено" marker in the app — the pinned-message bar, a
+  // pinned chat's badge, the message menu — was drawn as a star. Harmless when
+  // nothing else in the app was starred; actively misleading now that ⭐ is a
+  // currency and a boosted message is a real, different thing.
+  Pin: '<path d="M9 4h6"/><path d="M10 4l-.7 6.2L6 13h12l-3.3-2.8L14 4"/><path d="M12 13v7"/>',
+  // A map marker, for a location — the other thing "pin" means. Kept separate
+  // from Pin above so neither has to compromise: a thumbtack reads as "pinned",
+  // a teardrop reads as "a place".
+  MapPin: '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/>',
   Bell: '<path d="M6 9a6 6 0 1 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9Z"/><path d="M9.5 17a2.5 2.5 0 0 0 5 0"/>',
   BellOff:
     '<path d="M6 9a6 6 0 0 1 9.9-4.5M18 9c0 4 1.5 5.5 1.5 5.5H8"/><path d="M9.5 17a2.5 2.5 0 0 0 5 0"/><path d="M3 3l18 18"/>',
@@ -29,6 +38,7 @@ const PATHS = {
     '<path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/>',
   More: '<circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
   ChevronLeft: '<path d="M15 5l-7 7 7 7"/>',
+  ChevronRight: '<path d="M9 5l7 7-7 7"/>',
   X: '<path d="M6 6l12 12M18 6L6 18"/>',
   Plus: '<path d="M12 5v14M5 12h14"/>',
   Info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>',
