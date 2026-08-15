@@ -60,6 +60,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   let twoFactor = null; // { ticket, name, method }
   let recoverBy = "phone"; // "phone" | "email"
   let recoverStep = "email"; // the first step either way — address or number
+  let recoverVia = "email"; // where the code actually went — the server decides, not this screen
   let recoverPhone = "";
   let recoverPhoneField = null;
   let recoverEmail = "";
@@ -348,7 +349,13 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           try {
             if (recoverStep === "email") {
               if (recoverBy === "phone") await api.startPhoneRecovery(recoverPhone);
-              else await api.startRecovery(recoverEmail.trim());
+              else {
+                // The server may fall back to the Shalter chat when the letter
+                // can't be delivered (routes/auth.js) — the next screen has to
+                // say where the code actually went, not where it was meant to.
+                const started = await api.startRecovery(recoverEmail.trim());
+                recoverVia = started?.via === "chat" ? "chat" : "email";
+              }
               recoverStep = "code";
               recoverPending = false;
               render();
@@ -404,8 +411,8 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           ? recoverBy === "phone"
             ? "Введите номер телефона, указанный при регистрации."
             : "Введите адрес почты, указанный при регистрации."
-          : recoverBy === "phone"
-            ? "Код отправлен в чат Shalter. Введите его и придумайте новый пароль."
+          : recoverBy === "phone" || recoverVia === "chat"
+            ? `${recoverVia === "chat" && recoverBy !== "phone" ? "Письмо доставить не удалось, поэтому код отправлен" : "Код отправлен"} в чат Shalter — откройте его на устройстве, где вы ещё не вышли из аккаунта.`
             : `Код отправлен на ${recoverEmail.trim()}. Введите его и придумайте новый пароль.`
       ),
       form,

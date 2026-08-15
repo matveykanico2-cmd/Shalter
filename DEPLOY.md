@@ -248,12 +248,24 @@ sender. Measured from a machine with no reverse DNS on its address:
 | `@yandex.ru` | accepted (rejected only for a non-existent test mailbox) |
 | `@gmail.com` | **refused** — `550 5.7.26 ... #authentication` |
 
-Google refuses unauthenticated mail outright, so Gmail recipients cannot be
-reached this way regardless of the code. Two things fix that, and both are
-configuration rather than code: an `SMTP_URL` as above, or `SPF`/`DKIM` on the
-sending domain plus a `PTR` record for the server's IP (ask the hosting
-provider — most set one on request). Note `shalter.ru` currently publishes
-**no MX, SPF or DMARC record at all**.
+Google refuses unauthenticated mail outright: it wants proof that the domain's
+owner authorized this server, and only the domain's DNS can carry that proof.
+Every letter is already DKIM-signed (`server/lib/dkim.js` generates the keypair
+on first use and keeps it in the database), so the remaining half is publishing
+the matching records:
+
+```
+npm run mail-dns
+```
+
+That prints the three TXT records — SPF, DKIM, DMARC — with the real public key
+and the server's own IP already filled in, ready to paste into the DNS panel at
+the registrar. Also worth asking the hosting provider for a `PTR` (reverse DNS)
+record on the server's address; some receivers check it before anything else.
+
+Do not regenerate the DKIM key once its record is published — the private half
+lives in `data/app.db`'s `dkim_keys` table, and a new keypair invalidates every
+signature until DNS catches up. Copy the database, don't recreate it.
 
 Direct sending can be turned off with `MAIL_DIRECT=0` — worth doing once real
 SMTP is configured, since a failed direct attempt costs several seconds of

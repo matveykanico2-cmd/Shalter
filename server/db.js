@@ -228,6 +228,17 @@ CREATE TABLE IF NOT EXISTS vapid_keys (
   privateKey TEXT NOT NULL
 );
 
+-- The DKIM signing key for outgoing mail (server/lib/dkim.js), generated on
+-- first use and never regenerated: the matching public half lives in a DNS TXT
+-- record, so a new keypair would silently invalidate every letter until DNS is
+-- updated too. Same "id=1, upsert in place" shape as vapid_keys above.
+CREATE TABLE IF NOT EXISTS dkim_keys (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  selector TEXT NOT NULL,
+  publicKey TEXT NOT NULL,
+  privateKey TEXT NOT NULL
+);
+
 -- The admin's DonationAlerts OAuth connection (server/lib/donationAlerts.js)
 -- — a single row, same "id=1, upsert in place" shape as vapid_keys above.
 -- lastDonationId is the sweep's watermark (highest DonationAlerts donation

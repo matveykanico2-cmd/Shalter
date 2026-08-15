@@ -3,6 +3,7 @@ const net = require("net");
 const tls = require("tls");
 const os = require("os");
 const crypto = require("crypto");
+const dkim = require("./dkim");
 
 // Delivering a letter straight to the recipient's own mail server, with no
 // account anywhere in between.
@@ -50,18 +51,32 @@ function encodeHeader(text) {
 function buildMessage({ from, to, subject, text }) {
   const id = `<${crypto.randomBytes(12).toString("hex")}@${HELO}>`;
   const body = Buffer.from(String(text), "utf8").toString("base64").replace(/(.{76})/g, "$1\r\n");
-  return [
-    `From: ${from}`,
-    `To: ${to}`,
-    `Subject: ${encodeHeader(subject)}`,
-    `Date: ${new Date().toUTCString()}`,
-    `Message-ID: ${id}`,
-    "MIME-Version: 1.0",
-    "Content-Type: text/plain; charset=utf-8",
-    "Content-Transfer-Encoding: base64",
-    "",
-    body,
-  ].join("\r\n");
+  const headers = [
+    ["From", from],
+    ["To", to],
+    ["Subject", encodeHeader(subject)],
+    ["Date", new Date().toUTCString()],
+    ["Message-ID", id],
+    ["MIME-Version", "1.0"],
+    ["Content-Type", "text/plain; charset=utf-8"],
+    ["Content-Transfer-Encoding", "base64"],
+  ];
+
+  // Signed with the domain's own key (lib/dkim.js). Without this the letter is
+  // anonymous and strict receivers refuse it outright; with it — and the
+  // matching TXT record published — it is provably from this domain. Signing
+  // costs nothing when the record is missing, so it is unconditional.
+  const domain = (String(from).split("@")[1] || HELO).trim();
+  let signature = null;
+  try {
+    signature = dkim.sign({ headers, body, domain });
+  } catch (err) {
+    // A letter that goes unsigned still reaches lenient providers, so a signing
+    // failure must not become a failure to send.
+    console.warn("[dkim] подписать письмо не удалось:", err.message);
+  }
+
+  return [...(signature ? [signature] : []), ...headers.map(([name, value]) => `${name}: ${value}`), "", body].join("\r\n");
 }
 
 // One conversation with one server. Resolves with the final response, rejects
@@ -192,4 +207,7 @@ async function sendDirect({ from, to, subject, text }) {
   return { delivered: false, reason: errors.filter(Boolean).join(" | ") || "не удалось соединиться ни с одним сервером получателя" };
 }
 
-module.exports = { sendDirect };
+// __buildMessage is exported for testing only: a DKIM signature that is subtly
+// wrong is worse than none at all, and the only way to know it is right is to
+// verify the assembled message the way a receiver does.
+module.exports = { sendDirect, __buildMessage: buildMessage };

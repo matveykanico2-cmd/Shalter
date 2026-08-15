@@ -36,7 +36,12 @@ const configured = !!(SMTP_URL || SMTP_HOST);
 // because these files contain one-time codes in plain text and a production box
 // that can't send mail should say so rather than quietly spool secrets to disk.
 const OUTBOX_DIR = path.join(process.cwd(), "data", "outbox");
-const outboxAllowed = process.env.NODE_ENV !== "production" || process.env.MAIL_OUTBOX === "1";
+// MAIL_OUTBOX forces the answer either way: "1" allows it in production (a
+// deliberate choice for a box that genuinely has no mail route), "0" refuses it
+// in development — which is what makes the "nothing could deliver this letter"
+// path reachable from a test.
+const outboxAllowed =
+  process.env.MAIL_OUTBOX === "0" ? false : process.env.NODE_ENV !== "production" || process.env.MAIL_OUTBOX === "1";
 
 // The bare address out of MAIL_FROM ("Shalter <no-reply@shalter.ru>" →
 // "no-reply@shalter.ru") — SMTP envelopes take an address, not a display name.

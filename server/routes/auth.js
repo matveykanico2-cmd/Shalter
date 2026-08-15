@@ -444,18 +444,34 @@ router.post(
         `И включите двухфакторную аутентификацию: Настройки → Конфиденциальность.`,
     });
     if (!result.delivered) {
-      // Said plainly, because the person is otherwise stuck staring at a screen
-      // that claims a letter is on its way. The usual cause is not a
-      // misconfigured server but the *recipient's* provider refusing mail from
-      // an unvouched-for sender (Gmail always does — see lib/directMail.js), so
-      // the message points at the door that is still open rather than at an
-      // administrator who may have nothing to fix.
-      console.warn(`[recover] письмо на ${email} не ушло: ${result.reason}`);
-      return res.status(503).json({
-        error: "Не удалось доставить письмо на этот адрес — почтовый сервис его отклонил. Восстановите доступ по номеру телефона.",
-      });
+      // The letter was refused — and the usual reason is not a misconfigured
+      // server but the *recipient's* provider declining mail from a sender
+      // nothing vouches for. Gmail does this unconditionally until the domain
+      // publishes SPF/DKIM (see lib/dkim.js and scripts/mail-dns.js).
+      //
+      // A dead end here would be the wrong answer: the same code works whatever
+      // carries it, and the account has a second address of its own — its chat
+      // with Shalter, which needs no DNS, no provider and no configuration. So
+      // the code goes there instead and the caller is told which door to use.
+      console.warn(`[recover] письмо на ${email} не ушло (${result.reason}) — отправляю код в чат Shalter`);
+      try {
+        const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
+        await sendMessageAndBroadcast(
+          chat,
+          SYSTEM_BOT_ID,
+          `🔢 Код для смены пароля: ${code}\n\nПисьмо на ${email} доставить не удалось, поэтому код здесь.\n\nНикому не сообщайте его — даже сотрудникам Shalter. Действует 15 минут.`
+        );
+      } catch (err) {
+        console.error("recovery chat fallback failed:", err);
+        return res.status(503).json({ error: "Не удалось отправить код — обратитесь к администрации" });
+      }
+      // "via" tells the client which instruction to show. It also reveals that
+      // this address has an account — but so did the 503 that stood here
+      // before, and so does the 2FA answer above, so this changes nothing about
+      // what the endpoint discloses.
+      return res.json({ ...RECOVERY_SENT, via: "chat" });
     }
-    res.json(RECOVERY_SENT);
+    res.json({ ...RECOVERY_SENT, via: "email" });
   })
 );
 
