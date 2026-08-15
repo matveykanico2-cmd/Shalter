@@ -486,6 +486,12 @@ if (!existingContactCols.has("localName")) db.exec("ALTER TABLE contacts ADD COL
 const existingTwoFactorCols = new Set(db.prepare("PRAGMA table_info(users)").all().map((c) => c.name));
 if (!existingTwoFactorCols.has("twoFactorMethod")) db.exec("ALTER TABLE users ADD COLUMN twoFactorMethod TEXT");
 
+// A handle won at auction. Telegram calls these collectible: the point is that
+// it was *acquired*, not merely registered first, and that shows next to the
+// name. Stored as the auction it came from, so the claim is checkable rather
+// than a flag anyone could have set.
+if (!existingTwoFactorCols.has("usernameAuctionId")) db.exec("ALTER TABLE users ADD COLUMN usernameAuctionId TEXT");
+
 // The verified check (the badge next to a name). Set by whoever holds
 // ADMIN_PHONE — for accounts, bots, channels and groups alike, since a
 // pretend-official channel misleads exactly the same way a pretend-official
@@ -493,6 +499,40 @@ if (!existingTwoFactorCols.has("twoFactorMethod")) db.exec("ALTER TABLE users AD
 if (!existingTwoFactorCols.has("isVerified")) db.exec("ALTER TABLE users ADD COLUMN isVerified INTEGER NOT NULL DEFAULT 0");
 const existingChatVerifyCols2 = new Set(db.prepare("PRAGMA table_info(chats)").all().map((c) => c.name));
 if (!existingChatVerifyCols2.has("isVerified")) db.exec("ALTER TABLE chats ADD COLUMN isVerified INTEGER NOT NULL DEFAULT 0");
+
+// The username auction (server/routes/usernames.js). Short handles are scarce
+// and there is no market for them otherwise: whoever registers first keeps @abc
+// for ever. The administration puts a free handle up, people bid stars, and the
+// winner is charged and given it when it closes.
+//
+// Bids are stored as a list on the row rather than their own table: nothing ever
+// queries "every bid this person made across auctions", and the whole history of
+// one auction is read and written together — the same rule the rest of this
+// schema follows.
+db.exec(`
+CREATE TABLE IF NOT EXISTS username_auctions (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL,
+  startPriceStars INTEGER NOT NULL DEFAULT 0,
+  bids TEXT NOT NULL DEFAULT '[]',
+  endsAt TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  winnerId TEXT,
+  soldForStars INTEGER,
+  createdAt TEXT NOT NULL,
+  settledAt TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_username_auctions_status ON username_auctions(status);
+`);
+
+// Muting for a while rather than for ever — Telegram offers 1 hour / 8 hours /
+// 2 days / forever, and this app only had a permanent on/off switch. `muted`
+// stays as the forever flag so nothing that reads it changes.
+if (!existingChatVerifyCols2.has("mutedUntil")) db.exec("ALTER TABLE chats ADD COLUMN mutedUntil TEXT");
+
+// Slow mode: the minimum gap between one member's messages, in seconds. Group
+// only, staff exempt — the thing you reach for when a group gets loud.
+if (!existingChatVerifyCols2.has("slowModeSeconds")) db.exec("ALTER TABLE chats ADD COLUMN slowModeSeconds INTEGER");
 
 // What ordinary members of a group may do. Admins and owners are never bound by
 // it — the point of the list is to describe everyone else. Absent (NULL) means

@@ -9,10 +9,10 @@ const {
   getOrCreateDeviceId,
   requireUserId,
 } = require("../middleware/auth");
-const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode } = require("../data/users");
+const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, updateUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
-const { listSessions, upsertSession } = require("../data/sessions");
+const { listSessions, upsertSession, removeAllSessionsForUser } = require("../data/sessions");
 const { parseUserAgent } = require("../lib/userAgent");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { deleteAccount } = require("../lib/deleteAccount");
@@ -387,6 +387,67 @@ router.post(
       return res.status(403).json({ error: banError(user) });
     }
     return finishLogin(req, res, user);
+  })
+);
+
+// Recovering an account whose password has been forgotten.
+//
+// What it asks for: the e-mail and the phone number, both belonging to the same
+// account. Said plainly, because it decides how strong this is — neither of
+// those is a secret. Somebody who knows both can take an account this way. That
+// is the trade-off the feature carries by its nature: with no way to send mail
+// or SMS from this app, there is nothing else left to prove ownership with.
+//
+// Two things narrow it:
+//   * an account with two-factor authentication on cannot be reset here at all
+//     — the second factor is exactly the thing that survives a leaked e-mail and
+//     a known number, and letting a reset walk around it would make 2FA
+//     decorative;
+//   * every other session is terminated and the account is told in its Shalter
+//     chat, so a reset that wasn't you is visible rather than silent.
+router.post(
+  "/recover",
+  asyncRoute(async (req, res) => {
+    const email = String(req.body?.email ?? "").trim().toLowerCase();
+    const phone = normalizePhone(req.body?.phone);
+    const password = String(req.body?.password ?? "");
+
+    if (password.length < 6) return res.status(400).json({ error: "Пароль — не короче 6 символов" });
+
+    const user = await findUserByEmail(email);
+    // One generic answer whether the e-mail is unknown or the number doesn't
+    // match it — telling them apart turns this into a "which accounts exist"
+    // oracle for any e-mail address.
+    if (!user || normalizePhone(user.phone) !== phone) {
+      return res.status(404).json({ error: "Аккаунт с такой парой почты и номера не найден" });
+    }
+    if (user.isBanned) return res.status(403).json({ error: banError(user) });
+    if (user.twoFactorEnabled) {
+      return res.status(409).json({
+        error: "На аккаунте включена двухфакторная аутентификация — восстановление по почте и номеру недоступно. Войдите с кодом или используйте код восстановления.",
+      });
+    }
+
+    const { hash, salt } = hashPassword(password);
+    await updateUser(user.id, { passwordHash: hash, passwordSalt: salt });
+    // Everything signed in elsewhere is signed out: if this reset wasn't the
+    // owner, the attacker's other sessions die with it — and if it was, the
+    // stranger who knew the old password is out.
+    await removeAllSessionsForUser(user.id);
+
+    try {
+      const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
+      await sendMessageAndBroadcast(
+        chat,
+        SYSTEM_BOT_ID,
+        "🔐 Пароль от аккаунта восстановлен по почте и номеру телефона, все остальные сеансы завершены.\n\nЕсли это были не вы — смените пароль и включите двухфакторную аутентификацию: Настройки → Конфиденциальность."
+      );
+    } catch (err) {
+      console.error("recovery notice failed:", err);
+    }
+
+    const fresh = await getUser(user.id);
+    return finishLogin(req, res, fresh);
   })
 );
 

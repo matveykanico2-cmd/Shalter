@@ -86,6 +86,9 @@ app.use("/api/auth/register-email", authLimiter);
 app.use("/api/auth/code/start", authLimiter);
 app.use("/api/auth/code/verify", authLimiter);
 app.use("/api/auth/2fa/login", authLimiter);
+// Recovery takes an e-mail and a phone number and hands back a session — the
+// same shape as a login, so it gets the same tighter ceiling.
+app.use("/api/auth/recover", authLimiter);
 
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));
@@ -116,6 +119,7 @@ app.use("/api/stickers", require("./routes/stickers"));
 app.use("/api/stars", require("./routes/stars"));
 app.use("/api/support", require("./routes/support"));
 app.use("/api/avatars", require("./routes/avatars"));
+app.use("/api/usernames", require("./routes/usernames"));
 
 if (useBuilt) {
   // Serves whichever of app.js/app.js.br/app.js.gz the client's

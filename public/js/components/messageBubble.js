@@ -244,12 +244,35 @@ function ReportMessage(message, mine, me, isChannel) {
   return wrap;
 }
 
-function ContactAttachment(a) {
-  const { name, phone } = a.meta ?? {};
-  return el("div", { class: "contact-attachment" }, [
+// A contact someone sent. It used to be a card and nothing more: the name and
+// the number were there, and adding the person still meant copying the number
+// into the contacts screen by hand.
+function ContactAttachment(a, meId) {
+  const { name, phone, userId } = a.meta ?? {};
+  const wrap = el("div", { class: "contact-attachment" }, [
     el("span", { html: iconSvg("Users", 18) }),
-    el("div", {}, [el("p", { class: "contact-attachment-name" }, name || "Контакт"), el("p", { class: "mono" }, phone || "")]),
+    el("div", { class: "contact-attachment-body" }, [
+      el("p", { class: "contact-attachment-name" }, name || "Контакт"),
+      el("p", { class: "mono" }, phone || ""),
+    ]),
   ]);
+
+  // Only for a card that names a real account, and not for yourself.
+  if (!userId || userId === meId) return wrap;
+
+  const action = el("button", { class: "contact-attachment-add" }, "Добавить");
+  action.addEventListener("click", async () => {
+    action.disabled = true;
+    try {
+      await api.addContact(userId, name || null);
+      action.replaceWith(el("span", { class: "contact-attachment-done" }, "в контактах ✓"));
+    } catch (err) {
+      action.disabled = false;
+      alert(err.message || "Не удалось добавить контакт");
+    }
+  });
+  wrap.appendChild(action);
+  return wrap;
 }
 
 function PollAttachment(message, a, me, onVote) {
@@ -415,7 +438,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       else if (a.kind === "video") bubbleInner.push(autoDownload ? VideoAttachment(a) : TapToLoad("video", () => VideoAttachment(a)));
       else if (a.kind === "file") bubbleInner.push(FileAttachment(a));
       else if (a.kind === "location") bubbleInner.push(LocationAttachment(a));
-      else if (a.kind === "contact") bubbleInner.push(ContactAttachment(a));
+      else if (a.kind === "contact") bubbleInner.push(ContactAttachment(a, me.id));
     }
   }
   if (isSticker) {
@@ -785,8 +808,18 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       id: `msg-${message.id}`,
     },
     [
+      // A button, not a decoration: the tick is the obvious thing to aim at to
+      // take a message back out of the selection, and it did nothing.
       selection?.active
-        ? el("span", { class: `message-select-mark ${isSelected ? "on" : ""}`, html: isSelected ? iconSvg("Check", 13) : "" })
+        ? el("button", {
+            class: `message-select-mark ${isSelected ? "on" : ""}`,
+            title: isSelected ? "Убрать из выбранных" : "Выбрать",
+            html: isSelected ? iconSvg("Check", 13) : "",
+            onclick: (e) => {
+              e.stopPropagation();
+              selection.onToggle(message.id);
+            },
+          })
         : null,
       !mine
         ? el(

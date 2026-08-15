@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { fileToImageDataUrl } from "../lib/image.js";
 import { Toggle } from "./toggle.js";
 import { Avatar } from "./avatar.js";
+import { openChatPickerDialog } from "./chatPickerDialog.js";
 
 // Editing a group or channel after it exists: picture, name, description, and
 // the public @link. Owners and admins only — enforced on the server too
@@ -83,6 +84,24 @@ export function openEditChatDialog(chat, onSaved) {
       render();
     })
     .catch(() => {});
+
+  async function discussion(action, groupId) {
+    busy = true;
+    error = null;
+    notice = null;
+    render();
+    try {
+      const res = await api.setChatDiscussion(chat.id, action, groupId);
+      chat = { ...chat, ...res.chat };
+      notice = res.discussion ? `Обсуждение: «${res.discussion.title}»` : "Комментарии отключены";
+      onSaved?.(chat);
+    } catch (err) {
+      error = err.message || "Не удалось изменить обсуждение";
+    } finally {
+      busy = false;
+      render();
+    }
+  }
 
   async function save() {
     if (busy) return;
@@ -188,6 +207,90 @@ export function openEditChatDialog(chat, onSaved) {
                     }
                   }),
                 ])
+              ),
+            ])
+          : null,
+
+        // Comments under a channel's posts are just a linked group. It was
+        // created with the channel and could never be changed — no way to turn
+        // comments off, no way to point at a group people are already in.
+        isChannel
+          ? el("div", {}, [
+              el("p", { class: "settings-field-label" }, "Обсуждение"),
+              el(
+                "p",
+                { class: "settings-toggle-hint" },
+                chat.linkedDiscussionChatId
+                  ? "Под постами есть комментарии — они пишутся в связанной группе."
+                  : "Комментарии выключены. Свяжите канал с группой — и под каждым постом появится обсуждение."
+              ),
+              el("div", { class: "admin-label-grid" }, [
+                chat.linkedDiscussionChatId
+                  ? el(
+                      "button",
+                      {
+                        class: "admin-label-btn",
+                        disabled: busy,
+                        onclick: async () => {
+                          if (!confirm("Отключить комментарии? Группа обсуждения останется на месте со всей перепиской.")) return;
+                          await discussion("unlink");
+                        },
+                      },
+                      "Отключить комментарии"
+                    )
+                  : el("button", { class: "admin-label-btn", disabled: busy, onclick: () => discussion("create") }, "Создать группу обсуждения"),
+                el(
+                  "button",
+                  {
+                    class: "admin-label-btn",
+                    disabled: busy,
+                    onclick: () =>
+                      openChatPickerDialog(
+                        (groupId) => discussion("link", groupId),
+                        "Какую группу связать с каналом"
+                      ),
+                  },
+                  chat.linkedDiscussionChatId ? "Выбрать другую группу" : "Связать существующую"
+                ),
+              ]),
+            ])
+          : null,
+
+        // Slow mode — the gap a member has to wait between messages. Group
+        // only; staff are never held by it.
+        !isChannel
+          ? el("div", {}, [
+              el("p", { class: "settings-field-label" }, "Медленный режим"),
+              el("p", { class: "settings-toggle-hint" }, "Сколько ждать между сообщениями. Не касается владельцев, админов и модераторов."),
+              el(
+                "div",
+                { class: "admin-label-grid" },
+                [
+                  { label: "Выкл", seconds: 0 },
+                  { label: "10 с", seconds: 10 },
+                  { label: "30 с", seconds: 30 },
+                  { label: "1 мин", seconds: 60 },
+                  { label: "5 мин", seconds: 300 },
+                  { label: "15 мин", seconds: 900 },
+                ].map((o) =>
+                  el(
+                    "button",
+                    {
+                      class: `admin-label-btn ${(chat.slowModeSeconds ?? 0) === o.seconds ? "active" : ""}`,
+                      onclick: async () => {
+                        try {
+                          const res = await api.setSlowMode(chat.id, o.seconds);
+                          chat = { ...chat, slowModeSeconds: res.slowModeSeconds };
+                          notice = o.seconds ? `Медленный режим: ${o.label}` : "Медленный режим выключен";
+                        } catch (err) {
+                          error = err.message || "Не удалось изменить";
+                        }
+                        render();
+                      },
+                    },
+                    o.label
+                  )
+                )
               ),
             ])
           : null,

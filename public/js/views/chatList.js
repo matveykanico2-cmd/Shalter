@@ -184,6 +184,10 @@ export function ChatListPane() {
   return container;
 }
 
+// Both are created once for the lifetime of the pane, not per render.
+let searchInputEl = null;
+const bodySlot = el("div", { class: "chat-list-body" });
+
 function renderInto(container) {
   const { chats, folders, user } = getState();
   const currentId = (window.location.pathname.match(/^\/chat\/([^/]+)/) || [])[1];
@@ -193,15 +197,19 @@ function renderInto(container) {
   const searchBar = el("div", { class: "chat-search-bar" }, [
     el("div", { class: "chat-search-input-wrap" }, [
       el("span", { class: "chat-search-icon", html: iconSvg("Search", 16) }),
-      el("input", {
+      // Built once and reused by every renderInto() below — never rebuilt from
+      // `query`. This is the same bug the contacts search had: renderInto()
+      // clears the whole column, so the debounced search that fires after the
+      // first character replaced the focused <input> with a fresh one, and
+      // typing died after one letter.
+      (searchInputEl ??= el("input", {
         class: "chat-search-input",
-        placeholder: "Поиск",
-        value: query,
+        placeholder: "Поиск: чаты, люди, боты, каналы",
         oninput: (e) => {
           query = e.target.value;
           if (!query.trim()) {
             results = null;
-            renderInto(container);
+            renderResults(container);
             return;
           }
           clearTimeout(container._searchDebounce);
@@ -221,10 +229,12 @@ function renderInto(container) {
             };
             // A late response from a shorter query must not replace the results
             // for what's in the box now.
-            if (query.trim() === typed) renderInto(container);
+            // Only the results below are redrawn — the field the person is
+            // typing into stays exactly where it is.
+            if (query.trim() === typed) renderResults(container);
           }, 150);
         },
-      }),
+      })),
     ]),
     el("button", {
       class: "chat-new-channel-btn",
@@ -233,7 +243,20 @@ function renderInto(container) {
       onclick: (e) => openNewChatMenu(e),
     }),
   ]);
+  searchInputEl.value = query;
   container.appendChild(searchBar);
+  container.appendChild(bodySlot);
+  renderResults(container);
+}
+
+// Everything below the search field. Split out so that typing only redraws the
+// results — the field itself is never touched, which is what keeps the caret in
+// it (see the comment on searchInputEl above).
+function renderResults(container) {
+  const { chats, folders, user } = getState();
+  const currentId = (window.location.pathname.match(/^\/chat\/([^/]+)/) || [])[1];
+  clear(bodySlot);
+
 
   if (results) {
     const box = el("div", { class: "chat-list-scroll" });
@@ -301,7 +324,7 @@ function renderInto(container) {
         );
       }
     }
-    container.appendChild(box);
+    bodySlot.appendChild(box);
     return;
   }
 
@@ -323,7 +346,7 @@ function renderInto(container) {
       )
     )
   );
-  container.appendChild(tabsRow);
+  bodySlot.appendChild(tabsRow);
 
   let list = chats.filter((c) => !c.archived);
   const folder = folders.find((f) => f.id === tab);
@@ -344,7 +367,7 @@ function renderInto(container) {
   for (const c of list) {
     scroll.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem }));
   }
-  container.appendChild(scroll);
+  bodySlot.appendChild(scroll);
 }
 
 async function patchChat(id, patch) {

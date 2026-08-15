@@ -24,7 +24,9 @@ function rowToChat(row) {
     memberTitles: row.memberTitles ? JSON.parse(row.memberTitles) : {},
     memberIds: members.map((m) => m.userId),
     pinned: !!row.pinned,
-    muted: !!row.muted,
+    muted: !!row.muted || (!!row.mutedUntil && row.mutedUntil > new Date().toISOString()),
+    mutedUntil: row.mutedUntil ?? undefined,
+    slowModeSeconds: row.slowModeSeconds ?? undefined,
     archived: !!row.archived,
     createdAt: row.createdAt,
     linkedDiscussionChatId: row.linkedDiscussionChatId ?? undefined,
@@ -144,7 +146,7 @@ async function createChat(chat) {
 const PATCHABLE_FIELDS = [
   "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage",
   "ownerId", "pinned", "muted", "archived", "createdAt", "linkedDiscussionChatId", "points",
-  "autoDeleteSeconds", "isVerified", "inviteCode",
+  "autoDeleteSeconds", "isVerified", "inviteCode", "mutedUntil", "slowModeSeconds",
 ];
 
 async function updateChat(id, patch) {

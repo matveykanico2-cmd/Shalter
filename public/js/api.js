@@ -32,6 +32,9 @@ export const api = {
   checkUsername: (u) => req(`/api/auth/username-available?u=${encodeURIComponent(u)}`),
   loginEmail: (email, password) =>
     req("/api/auth/login-email", { method: "POST", body: JSON.stringify({ email, password }) }),
+  // Forgotten password: e-mail + phone of the same account, then a new one.
+  recoverAccount: (email, phone, password) =>
+    req("/api/auth/recover", { method: "POST", body: JSON.stringify({ email, phone, password }) }),
   switchAccount: (userId) => req("/api/auth/switch", { method: "POST", body: JSON.stringify({ userId }) }),
   logout: (uid) => req("/api/auth/logout", { method: "POST", body: JSON.stringify({ uid }) }),
   deleteAccount: (password) => req("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password }) }),
@@ -83,8 +86,27 @@ export const api = {
     req("/api/chats/channels", { method: "POST", body: JSON.stringify({ title, avatarImage, memberIds, adminIds, ...extra }) }),
   createGroup: (title, memberIds, avatarImage, adminIds, extra = {}) =>
     req("/api/chats/groups", { method: "POST", body: JSON.stringify({ title, memberIds, avatarImage, adminIds, ...extra }) }),
+  // The username auction (server/routes/usernames.js).
+  listUsernameAuctions: () => req("/api/usernames"),
+  createUsernameAuction: (username, startPriceStars, hours) =>
+    req("/api/usernames", { method: "POST", body: JSON.stringify({ username, startPriceStars, hours }) }),
+  bidUsername: (id, stars) => req(`/api/usernames/${id}/bid`, { method: "POST", body: JSON.stringify({ stars }) }),
+  closeUsernameAuction: (id) => req(`/api/usernames/${id}/close`, { method: "POST" }),
+  deleteUsernameAuction: (id) => req(`/api/usernames/${id}`, { method: "DELETE" }),
+  // By phone number — that's what the admin is given, not an internal id.
+  grantUsername: (phone, username) =>
+    req("/api/usernames/grant", { method: "POST", body: JSON.stringify({ phone, username }) }),
+  // Renaming a bot / changing its picture and description.
+  updateBot: (id, patch) => req(`/api/bots/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  removeCallParticipant: (callId, userId) => req(`/api/calls/${callId}/participants/${userId}`, { method: "DELETE" }),
   // The command list a bot advertises — what the composer's "/" menu shows.
   setBotCommands: (id, commands) => req(`/api/bots/${id}/commands`, { method: "PUT", body: JSON.stringify({ commands }) }),
+  // The discussion group behind a channel's comments: "create" | "link" | "unlink".
+  setChatDiscussion: (id, action, groupId) =>
+    req(`/api/chats/${id}/discussion`, { method: "POST", body: JSON.stringify({ action, groupId }) }),
+  // Muting for a period (Telegram's 1h/8h/2d/forever), and slow mode.
+  muteChat: (id, opts) => req(`/api/chats/${id}/mute`, { method: "POST", body: JSON.stringify(opts) }),
+  setSlowMode: (id, seconds) => req(`/api/chats/${id}/slow-mode`, { method: "POST", body: JSON.stringify({ seconds }) }),
   // What ordinary members of a group may do (server/lib/chatPermissions.js).
   getChatPermissions: (id) => req(`/api/chats/${id}/permissions`),
   setChatPermissions: (id, permissions) =>

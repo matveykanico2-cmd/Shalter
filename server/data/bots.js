@@ -66,6 +66,11 @@ async function deleteBot(id) {
   db.prepare("DELETE FROM bots WHERE id = ?").run(id);
 }
 
+async function updateBotDescription(id, description) {
+  db.prepare("UPDATE bots SET description = ? WHERE id = ?").run(description ?? null, id);
+  return getBot(id);
+}
+
 async function updateBotCommands(id, commands) {
   db.prepare("UPDATE bots SET commands = ? WHERE id = ?").run(JSON.stringify(commands ?? []), id);
   return getBot(id);
@@ -87,4 +92,5 @@ module.exports = {
   deleteBot,
   updateBotCode,
   updateBotCommands,
+  updateBotDescription,
 };

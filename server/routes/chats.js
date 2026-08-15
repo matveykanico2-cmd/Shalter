@@ -322,6 +322,106 @@ router.post(
   })
 );
 
+// The discussion group behind a channel's comments — creating one, pointing at
+// an existing group, or detaching it.
+//
+// A channel got a discussion group at creation and there was no way to change
+// that afterwards: no way to turn comments off, and no way to point the channel
+// at a group people were already in. Both are ordinary things to want.
+router.post(
+  "/:id/discussion",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (chat.type !== "channel") return res.status(400).json({ error: "Обсуждение есть только у каналов" });
+    if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
+
+    const action = req.body?.action;
+
+    if (action === "unlink") {
+      // The group itself is left alone. It has its own members and its own
+      // history — deleting somebody's group as a side effect of "turn comments
+      // off" would be destroying data nobody asked to lose.
+      const updated = await updateChat(chat.id, { linkedDiscussionChatId: null });
+      broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+      return res.json({ chat: updated, discussion: null });
+    }
+
+    if (action === "link") {
+      const group = await getChat(req.body?.groupId);
+      if (!group || group.type !== "group") return res.status(404).json({ error: "Группа не найдена" });
+      if (!isOwnerOrAdminOf(group, req.uid)) return res.status(403).json({ error: "Вы не администратор этой группы" });
+      // One discussion group per channel, and one channel per group: a group
+      // wired to two channels would collect two streams of comments with no way
+      // to tell them apart.
+      const taken = (await listChats()).find((c) => c.id !== chat.id && c.linkedDiscussionChatId === group.id);
+      if (taken) return res.status(409).json({ error: `Эта группа уже обсуждение канала «${taken.title}»` });
+
+      const updated = await updateChat(chat.id, { linkedDiscussionChatId: group.id });
+      broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+      return res.json({ chat: updated, discussion: group });
+    }
+
+    if (action === "create") {
+      const discussion = await createChat({
+        id: `c_${Date.now()}_d`,
+        type: "group",
+        title: `${chat.title} · Обсуждение`,
+        avatarColor: "#5C6473",
+        memberIds: [req.uid],
+        ownerId: req.uid,
+        adminIds: [req.uid],
+        pinned: false,
+        muted: false,
+        archived: false,
+        createdAt: new Date().toISOString(),
+      });
+      const updated = await updateChat(chat.id, { linkedDiscussionChatId: discussion.id });
+      broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+      return res.json({ chat: updated, discussion });
+    }
+
+    res.status(400).json({ error: "Неизвестное действие" });
+  })
+);
+
+// Muting for a period, the way Telegram offers it — the app only had a
+// permanent switch, so "quiet for an hour" meant remembering to turn it back on.
+router.post(
+  "/:id/mute",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    const hours = Number(req.body?.hours);
+    const patch =
+      req.body?.forever === true
+        ? { muted: true, mutedUntil: null }
+        : req.body?.off === true
+          ? { muted: false, mutedUntil: null }
+          : Number.isFinite(hours) && hours > 0
+            ? { muted: false, mutedUntil: new Date(Date.now() + hours * 3600_000).toISOString() }
+            : null;
+    if (!patch) return res.status(400).json({ error: "Укажите срок" });
+    const updated = await updateChat(chat.id, patch);
+    res.json({ chat: updated });
+  })
+);
+
+// Slow mode — group only, owners/admins set it.
+router.post(
+  "/:id/slow-mode",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (chat.type !== "group") return res.status(400).json({ error: "Медленный режим есть только у групп" });
+    if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
+    const seconds = Math.max(0, Math.min(3600, Math.trunc(Number(req.body?.seconds) || 0)));
+    const updated = await updateChat(chat.id, { slowModeSeconds: seconds || null });
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    res.json({ chat: updated, slowModeSeconds: updated.slowModeSeconds ?? 0 });
+  })
+);
+
 // ── Invite links ───────────────────────────────────────────────────────────
 //
 // How anyone joins a private group or channel. Before this the only way in was

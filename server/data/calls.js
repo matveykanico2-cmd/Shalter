@@ -64,6 +64,12 @@ async function addParticipant(id, userId) {
   return getCall(id);
 }
 
+// The counterpart of addParticipant: a call could grow but never shrink.
+async function removeParticipant(id, userId) {
+  db.prepare("DELETE FROM call_participants WHERE callId = ? AND userId = ?").run(id, userId);
+  return getCall(id);
+}
+
 async function setJoinToken(id, token) {
   db.prepare("UPDATE calls SET joinToken = ? WHERE id = ?").run(token, id);
   return getCall(id);
@@ -73,4 +79,4 @@ async function findCallByJoinToken(token) {
   return rowToCall(db.prepare("SELECT * FROM calls WHERE joinToken = ?").get(token));
 }
 
-module.exports = { listCalls, getCall, createCall, updateCall, addParticipant, setJoinToken, findCallByJoinToken };
+module.exports = { listCalls, getCall, createCall, updateCall, addParticipant, removeParticipant, setJoinToken, findCallByJoinToken };

@@ -8,7 +8,11 @@ import { joinCallById, decline } from "../lib/callController.js";
 import { startRingtone, stopRingtone } from "../lib/ringtone.js";
 import { navigate } from "../router.js";
 
-const POLL_MS = 2500;
+// The socket delivers "call:incoming" (see the handler below), so this poll is
+// only a catch-up for a dropped connection. At 2.5s it was 120 requests per tab
+// per 5 minutes — the single largest consumer of the rate-limit budget, for
+// something already being pushed.
+const POLL_MS = 20000;
 const seen = new Set();
 let primed = false;
 let banner = null;

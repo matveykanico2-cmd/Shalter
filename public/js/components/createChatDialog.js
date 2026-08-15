@@ -98,8 +98,8 @@ export function openCreateChatDialog(kind, onSubmit) {
           // private one that says otherwise. Checked here as well as on the
           // server so the whole member-picking step isn't spent on a name that
           // will be refused at the end of it.
-          if (isPublic && username.length < 5) {
-            return (errorSlot.textContent = "Для публичного нужен юзернейм — от 5 символов, латиница, цифры и _");
+          if (isPublic && username.length < 3) {
+            return (errorSlot.textContent = "Для публичного нужен юзернейм — от 3 символов, латиница, цифры и _");
           }
           close();
           onSubmit(title, avatarImage, {

@@ -38,9 +38,12 @@ router.get(
 
     // Your own chats, by title or by public @username — a channel you're in is
     // findable by the handle you'd share, not only by the name it shows.
-    const matchedChats = chats.filter(
-      (c) => c.title.toLowerCase().includes(q) || (c.username ?? "").toLowerCase().includes(handle)
-    );
+    const matchedChats = chats
+      .filter((c) => c.title.toLowerCase().includes(q) || (c.username ?? "").toLowerCase().includes(handle))
+      .sort((a, b) => {
+        const rank = (c) => ((c.username ?? "").toLowerCase().startsWith(handle) ? 0 : c.title.toLowerCase().startsWith(q) ? 1 : 2);
+        return rank(a) - rank(b);
+      });
 
     // Public channels you are *not* in. The ones you are in are already above,
     // and listing them twice under two headings is just noise.
@@ -60,12 +63,27 @@ router.get(
 
     // Bots are accounts too, but they're a different thing to be looking for:
     // one is a person you might message, the other a service you might use.
-    const matchedAccounts = users.filter(
-      (u) =>
-        u.id !== req.uid &&
-        !u.isBanned &&
-        (u.name.toLowerCase().includes(q) || (u.username ?? "").toLowerCase().includes(handle))
-    );
+    //
+    // Ranked, not just filtered: a @handle that *starts* with what was typed is
+    // what someone means by "@dur", and burying it under everyone whose name
+    // merely contains those letters makes the box feel broken.
+    const score = (u) => {
+      const name = (u.name ?? "").toLowerCase();
+      const uname = (u.username ?? "").toLowerCase();
+      if (uname === handle || name === q) return 0;
+      if (uname.startsWith(handle)) return 1;
+      if (name.startsWith(q)) return 2;
+      if (uname.includes(handle)) return 3;
+      return 4;
+    };
+    const matchedAccounts = users
+      .filter(
+        (u) =>
+          u.id !== req.uid &&
+          !u.isBanned &&
+          (u.name.toLowerCase().includes(q) || (u.username ?? "").toLowerCase().includes(handle))
+      )
+      .sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name, "ru"));
 
     const chatIds = new Set(chats.map((c) => c.id));
     const matchedMessages = messages

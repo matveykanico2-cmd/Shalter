@@ -231,7 +231,16 @@ export async function openProfileDialog(userId) {
           ])
         : null,
       user.isBanned ? el("p", { class: "safety-banned-note" }, "🚫 Аккаунт заблокирован администрацией Shalter") : null,
-      user.username ? el("p", { class: "profile-username" }, `@${user.username}`) : null,
+      user.username
+        ? el("p", { class: `profile-username ${user.isCollectibleUsername ? "collectible" : ""}` }, [
+            `@${user.username}`,
+            // Won at auction, not merely registered first — that's the whole
+            // point of a collectible handle, so it has to be visible.
+            user.isCollectibleUsername
+              ? el("span", { class: "collectible-badge", title: "Коллекционный юзернейм — выигран на аукционе" }, "💎")
+              : null,
+          ].filter(Boolean))
+        : null,
       status ? el("p", { class: "profile-status" }, status) : null,
       user.bio ? el("p", { class: "profile-bio" }, user.bio) : null,
       user.phone

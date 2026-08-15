@@ -10,6 +10,7 @@ import { requestPushPermission } from "../../lib/push.js";
 import { openCreateBotDialog } from "../../components/createBotDialog.js";
 import { openBotTokenDialog } from "../../components/botTokenDialog.js";
 import { openBotCodeDialog } from "../../components/botCodeDialog.js";
+import { openEditBotDialog } from "../../components/editBotDialog.js";
 import { PhoneField } from "../../components/phoneField.js";
 import { hasPasscode } from "../../lib/passcodeLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
@@ -43,6 +44,7 @@ const SECTIONS = [
   { id: "data", label: "Данные и память", icon: "Download", color: "#58c4dc" },
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", color: "#8a8f98" },
   { id: "moderation", label: "Модерация", icon: "Shield", color: "#c6403b", adminOnly: true },
+  { id: "usernames", label: "Аукцион юзернеймов", icon: "Star", color: "#5b8def" },
   { id: "giftshop", label: "Каталог подарков", icon: "Gift", color: "#e0a84a", adminOnly: true },
   { id: "donations", label: "DonationAlerts", icon: "Zap", color: "#3ec2c2", adminOnly: true },
   { id: "legal", label: "Запросы органов", icon: "Shield", color: "#5b6370", adminOnly: true },
@@ -146,6 +148,7 @@ export async function SettingsView(root, page) {
     legal: renderLegal,
     stars: renderStars,
     giftshop: renderGiftShop,
+    usernames: renderUsernames,
   };
   await (renderers[section] ?? renderProfile)(contentSlot);
 }
@@ -650,6 +653,16 @@ async function renderBots(root) {
                     el("p", {}, b.user.name),
                     el("p", { class: "mono settings-toggle-hint" }, `@${b.user.username}`),
                   ]),
+                  el("button", {
+                    class: "icon-btn",
+                    title: "Редактировать бота",
+                    html: iconSvg("Edit", 15),
+                    onclick: () =>
+                      openEditBotDialog(b, async () => {
+                        ({ bots } = await api.listBots());
+                        render();
+                      }),
+                  }),
                   el("button", { class: "icon-btn", title: "Код бота", html: iconSvg("Code", 15), onclick: () => openBotCodeDialog(b) }),
                   // The command list the "/" button in a chat with this bot
                   // offers. BotFather's own format, so anyone who has set up a
@@ -1628,6 +1641,176 @@ async function renderStars(root) {
       ]),
     ])
   );
+}
+
+// The username auction (server/routes/usernames.js). Visible to everyone —
+// bidding is the point — with the create/close/grant controls appearing only for
+// whoever holds ADMIN_PHONE, which the server reports rather than the client
+// guessing from a phone number.
+async function renderUsernames(root) {
+  let data = null;
+  let error = null;
+  let notice = null;
+  let busy = false;
+
+  async function load() {
+    try {
+      data = await api.listUsernameAuctions();
+    } catch (err) {
+      error = err.message || "Не удалось загрузить аукционы";
+    }
+    render();
+  }
+
+  async function act(fn, ok) {
+    if (busy) return;
+    busy = true;
+    error = null;
+    notice = null;
+    render();
+    try {
+      await fn();
+      notice = ok;
+      data = await api.listUsernameAuctions();
+    } catch (err) {
+      error = err.message || "Не получилось";
+    } finally {
+      busy = false;
+      render();
+    }
+  }
+
+  const left = (endsAt) => {
+    const ms = new Date(endsAt) - Date.now();
+    if (ms <= 0) return "завершается…";
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    return h ? `осталось ${h} ч ${m} мин` : `осталось ${m} мин`;
+  };
+
+  const STATUS = { open: "идёт", sold: "продан", unsold: "не продан", cancelled: "отменён" };
+
+  function auctionCard(a) {
+    const isTop = a.topBidderId && data.auctions.some((x) => x.id === a.id && x.myBid === a.topBid);
+    return el("div", { class: `auction-card ${a.status !== "open" ? "closed" : ""}` }, [
+      el("div", { class: "auction-head" }, [
+        el("span", { class: "mono auction-name" }, `@${a.username}`),
+        el("span", { class: "auction-status" }, a.status === "open" ? left(a.endsAt) : STATUS[a.status] ?? a.status),
+      ]),
+      el(
+        "p",
+        { class: "settings-toggle-hint" },
+        a.topBid == null
+          ? `Стартовая цена: ${a.startPriceStars} ⭐ — ставок пока нет`
+          : `Текущая ставка: ${a.topBid} ⭐ · ${a.topBidder?.name ?? "участник"}${isTop ? " (это вы)" : ""}`
+      ),
+      a.status === "sold" ? el("p", { class: "settings-toggle-hint" }, `Продан за ${a.soldForStars} ⭐`) : null,
+      a.myBid != null && a.status === "open"
+        ? el("p", { class: "settings-toggle-hint" }, `Ваша ставка: ${a.myBid} ⭐`)
+        : null,
+      a.status === "open"
+        ? (() => {
+            const floor = a.topBid == null ? a.startPriceStars : a.topBid + data.minStep;
+            const input = el("input", { class: "settings-input mono", type: "number", min: String(floor), value: String(floor) });
+            return el("div", { class: "auction-bid-row" }, [
+              input,
+              el(
+                "button",
+                { class: "btn-accent-pill", disabled: busy, onclick: () => act(() => api.bidUsername(a.id, Number(input.value)), "Ставка принята") },
+                "Поставить"
+              ),
+            ]);
+          })()
+        : null,
+      data.isAdmin && a.status === "open"
+        ? el("div", { class: "admin-label-grid" }, [
+            el("button", { class: "admin-label-btn", disabled: busy, onclick: () => act(() => api.closeUsernameAuction(a.id), "Аукцион завершён") }, "Завершить сейчас"),
+            el(
+              "button",
+              {
+                class: "admin-label-btn",
+                disabled: busy,
+                onclick: () => {
+                  if (confirm(`Отменить аукцион @${a.username}? Ставки аннулируются, звёзды не списывались.`)) {
+                    act(() => api.deleteUsernameAuction(a.id), "Аукцион отменён");
+                  }
+                },
+              },
+              "Отменить"
+            ),
+          ])
+        : null,
+    ].filter(Boolean));
+  }
+
+  function render() {
+    if (!data) {
+      mount(root, pageWrap("Аукцион юзернеймов", null, [el("p", { class: error ? "login-error" : "settings-toggle-hint" }, error ?? "Загружаем…")]));
+      return;
+    }
+
+    const nameInput = el("input", { class: "settings-input mono", placeholder: "юзернейм" });
+    const priceInput = el("input", { class: "settings-input mono", type: "number", min: "0", value: "100", placeholder: "Старт, ⭐" });
+    const hoursInput = el("input", { class: "settings-input mono", type: "number", min: "1", value: "24", placeholder: "Часов" });
+    const grantUser = el("input", { class: "settings-input mono", type: "tel", placeholder: "+7 999 123 45 67" });
+    const grantName = el("input", { class: "settings-input mono", placeholder: "юзернейм" });
+
+    const open = data.auctions.filter((a) => a.status === "open");
+    const done = data.auctions.filter((a) => a.status !== "open");
+
+    mount(
+      root,
+      pageWrap("Аукцион юзернеймов", "Короткие @имена — от 3 символов", [
+        notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,
+        error ? el("p", { class: "login-error" }, error) : null,
+        el("p", { class: "settings-toggle-hint" }, `На балансе: ${data.balance} ⭐. Звёзды списываются только у победителя и только в момент завершения — до этого баланс не блокируется.`),
+
+        data.isAdmin
+          ? section("Выставить юзернейм", [
+              el("div", { class: "gift-create-grid" }, [nameInput, priceInput, hoursInput]),
+              el(
+                "button",
+                {
+                  class: "btn-accent",
+                  disabled: busy,
+                  onclick: () =>
+                    act(
+                      () => api.createUsernameAuction(nameInput.value.trim(), Number(priceInput.value), Number(hoursInput.value)),
+                      "Аукцион создан"
+                    ),
+                },
+                "Выставить"
+              ),
+            ])
+          : null,
+
+        data.isAdmin
+          ? section("Выдать юзернейм напрямую", [
+              el("p", { class: "settings-toggle-hint" }, "Без аукциона — например, за заслуги или по договорённости. Найдём по номеру телефона."),
+              el("div", { class: "contacts-phone-row" }, [grantUser, grantName]),
+              el(
+                "button",
+                {
+                  class: "btn-accent",
+                  disabled: busy,
+                  onclick: () => act(() => api.grantUsername(grantUser.value.trim(), grantName.value.trim()), "Юзернейм выдан"),
+                },
+                "Выдать"
+              ),
+            ])
+          : null,
+
+        el("p", { class: "settings-section-title" }, `Идут торги (${open.length})`),
+        open.length ? el("div", { class: "auction-list" }, open.map(auctionCard)) : el("p", { class: "empty-hint" }, "Сейчас ничего не разыгрывается"),
+
+        done.length ? el("p", { class: "settings-section-title" }, "Завершённые") : null,
+        done.length ? el("div", { class: "auction-list" }, done.map(auctionCard)) : null,
+      ].filter(Boolean))
+    );
+  }
+
+  render();
+  load();
 }
 
 async function renderGiftShop(root) {

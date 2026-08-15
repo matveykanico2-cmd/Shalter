@@ -1,10 +1,10 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotCode, updateBotCommands } = require("../data/bots");
-const { createUser, getUser } = require("../data/users");
-const { generateBotUsername } = require("../lib/username");
+const { listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotCode, updateBotCommands, updateBotDescription } = require("../data/bots");
+const { createUser, getUser, updateUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
+const { checkUsername, normalizeUsername, generateBotUsername } = require("../lib/username");
 const { runBotCode } = require("../lib/botSandbox");
 const botLogs = require("../data/botLogs");
 const { listChats, createChat } = require("../data/chats");
@@ -84,6 +84,42 @@ router.delete(
     if (!bot) return;
     await deleteBot(bot.id);
     res.json({ ok: true });
+  })
+);
+
+// Renaming a bot, changing its picture or its description.
+//
+// The counterpart that was missing: a bot could be created and deleted, its
+// token rotated and its code edited, but its name and avatar were fixed at
+// creation. Getting either wrong meant deleting the bot — losing its @handle,
+// its token and every chat it was in — and starting again.
+router.patch(
+  "/:id",
+  asyncRoute(async (req, res) => {
+    const bot = await requireOwnedBot(req, res);
+    if (!bot) return;
+
+    const patch = {};
+    if (typeof req.body?.name === "string" && req.body.name.trim()) patch.name = req.body.name.trim().slice(0, 60);
+    if (typeof req.body?.avatarImage === "string") patch.avatarImage = req.body.avatarImage || null;
+
+    // The @handle too — the last thing about a bot that was fixed at creation.
+    // Same namespace check every other claim goes through, and the same "_bot"
+    // convention the generated ones follow, so a bot can't take a handle that
+    // reads like a person's.
+    if (typeof req.body?.username === "string" && req.body.username.trim()) {
+      const username = normalizeUsername(req.body.username);
+      if (!/_bot$/i.test(username)) return res.status(400).json({ error: "Юзернейм бота должен заканчиваться на _bot" });
+      const problem = await checkUsername(username, { forUserId: bot.userId });
+      if (problem) return res.status(problem.status).json({ error: problem.error });
+      patch.username = username;
+    }
+
+    if (Object.keys(patch).length) await updateUser(bot.userId, patch);
+
+    const description = typeof req.body?.description === "string" ? req.body.description.trim().slice(0, 300) : null;
+    const updated = description === null ? await getBot(bot.id) : await updateBotDescription(bot.id, description);
+    res.json({ bot: { ...updated, user: publicUser(await getUser(bot.userId)) } });
   })
 );
 

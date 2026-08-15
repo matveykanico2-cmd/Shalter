@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { listCalls, createCall, getCall, updateCall, addParticipant, setJoinToken, findCallByJoinToken } = require("../data/calls");
+const { listCalls, createCall, getCall, updateCall, addParticipant, setJoinToken, findCallByJoinToken, removeParticipant } = require("../data/calls");
 const { getChat } = require("../data/chats");
 const { listUsers, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
@@ -143,6 +143,30 @@ router.post(
     res.json({ call: updated });
 
     pushIncomingCall(updated, updated.callerId, [userId]).catch((err) => console.error("push notify failed:", err));
+  })
+);
+
+// Removing someone from a call. The counterpart of /participants above, which
+// could pull anyone in with no way to put them out — a call that someone joined
+// by a leaked link could only be escaped by everyone else hanging up.
+//
+// Only the person who started the call, and only on someone else: leaving your
+// own call is what PATCH /:id (status "ended") and simply hanging up already do.
+router.delete(
+  "/:id/participants/:userId",
+  asyncRoute(async (req, res) => {
+    const call = await getCall(req.params.id);
+    if (!call || !call.participantIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    if (call.callerId !== req.uid) return res.status(403).json({ error: "Убрать участника может только тот, кто начал звонок" });
+    if (req.params.userId === req.uid) return res.status(400).json({ error: "Чтобы выйти самому, завершите звонок" });
+    if (!call.participantIds.includes(req.params.userId)) return res.json({ call });
+
+    const updated = await removeParticipant(req.params.id, req.params.userId);
+    // The one removed is told so their call screen closes, and everyone still in
+    // it rebuilds their mesh without that peer.
+    broadcastToUsers([req.params.userId], { type: "call:updated", call: { ...updated, status: "ended" } });
+    broadcastToUsers(updated.participantIds, { type: "call:participants-updated", call: updated });
+    res.json({ call: updated });
   })
 );
 

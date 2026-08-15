@@ -29,7 +29,7 @@ const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getSched
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
 const { dispatchHugo } = require("../lib/hugoBot");
-const { can, DENIED } = require("../lib/chatPermissions");
+const { can, DENIED, isStaff } = require("../lib/chatPermissions");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser } = require("../push");
 const { fetchLinkPreview } = require("../lib/linkPreview");
@@ -322,6 +322,21 @@ router.post(
       if (!can(chat, req.uid, need)) return res.status(403).json({ error: DENIED[need] });
     }
 
+    // Slow mode: the minimum gap between one member's messages. Staff are
+    // exempt — it exists to calm a busy group, not to slow down the people
+    // moderating it.
+    if (chat.type === "group" && chat.slowModeSeconds > 0 && !isStaff(chat, req.uid)) {
+      const mine = (await listMessages(req.params.id, req.uid)).filter((m) => m.senderId === req.uid);
+      const last = mine[mine.length - 1];
+      if (last) {
+        const waited = (Date.now() - new Date(last.createdAt).getTime()) / 1000;
+        if (waited < chat.slowModeSeconds) {
+          const left = Math.ceil(chat.slowModeSeconds - waited);
+          return res.status(429).json({ error: `Медленный режим: следующее сообщение можно отправить через ${left} с`, retryAfter: left });
+        }
+      }
+    }
+
     let charged = 0;
     if (chat.type === "dm") {
       const otherId = chat.memberIds.find((m) => m !== req.uid);
@@ -469,9 +484,35 @@ router.delete(
     const forEveryone = !!(req.body ?? {}).forEveryone;
 
     if (forEveryone) {
-      // Only the sender can erase a message for everyone.
-      if (existing.senderId !== req.uid) return res.status(403).json({ error: "forbidden" });
+      // Your own message, always. Someone else's only if you run the chat:
+      // moderating a group means being able to remove what was posted in it, and
+      // until now an admin could delete a message only from their own view — the
+      // spam stayed up for everyone else.
+      const chatForDelete = await getChat(req.params.id);
+      const mine = existing.senderId === req.uid;
+      const staff = chatForDelete && chatForDelete.type !== "dm" && isStaff(chatForDelete, req.uid);
+      if (!mine && !staff) {
+        return res.status(403).json({ error: "Удалить чужое сообщение у всех могут владельцы, админы и модераторы" });
+      }
       await deleteMessage(req.params.messageId);
+      // A channel post also lives as an anchor message in the discussion group,
+      // which is what its comments hang off (routes/posts.js). Publishing
+      // created both; deleting removed only one, leaving a thread of comments
+      // under a post that no longer exists.
+      if (existing.discussionAnchorId) {
+        const anchor = await getMessage(existing.discussionAnchorId);
+        if (anchor) {
+          await deleteMessage(anchor.id);
+          const discussionChat = await getChat(anchor.chatId);
+          if (discussionChat) {
+            broadcastToUsers(discussionChat.memberIds, {
+              type: "message:deleted",
+              chatId: discussionChat.id,
+              id: anchor.id,
+            });
+          }
+        }
+      }
       // The row is gone, so nothing points at its files any more — free the disk
       // rather than leaving a 2GB video orphaned there forever. Only for
       // "delete for everyone": a delete-for-me leaves the message (and its

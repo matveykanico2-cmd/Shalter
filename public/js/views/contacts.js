@@ -136,7 +136,7 @@ export async function ContactsView(root) {
     searchResult = null;
     searchError = null;
     const trimmed = q.trim().replace(/^@/, "");
-    if (trimmed.length < 5) {
+    if (trimmed.length < 3) {
       renderCandidates();
       return;
     }

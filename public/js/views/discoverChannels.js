@@ -51,8 +51,27 @@ export async function DiscoverChannelsView(root) {
             [Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage }), rowBody(c)]
           )
         : el("div", { class: "contact-row-profile-btn" }, [Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage }), rowBody(c)]),
+      // "Подписаться" had no counterpart here: an already-subscribed row just
+      // said so, and unsubscribing meant finding the channel in the chat list
+      // first. Leaving is the same route the chat itself uses.
       c.isMember
-        ? el("span", { class: "settings-toggle-hint" }, "Вы подписаны")
+        ? el(
+            "button",
+            {
+              class: "profile-action-btn danger",
+              onclick: async () => {
+                if (!confirm(`Отписаться от «${c.title}»?`)) return;
+                try {
+                  await api.leaveChat(c.id);
+                  await api.listChats().then((r) => setState({ chats: r.chats }));
+                  search(query);
+                } catch (err) {
+                  alert(err.message || "Не удалось отписаться");
+                }
+              },
+            },
+            "Отписаться"
+          )
         : el("button", { class: "btn-accent-pill", onclick: () => subscribe(c) }, "Подписаться"),
     ]);
   }

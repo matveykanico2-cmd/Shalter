@@ -300,6 +300,18 @@ export async function ChatView(root, chatId) {
     await refreshMessages();
   }
 
+  async function setMute(opts) {
+    try {
+      const { chat: updated } = await api.muteChat(chat.id, opts);
+      chat = { ...chat, ...updated };
+      renderHeader();
+      renderInfoPanel();
+      await api.listChats().then((r) => setState({ chats: r.chats }));
+    } catch (err) {
+      alert(err.message || "Не удалось изменить уведомления");
+    }
+  }
+
   async function toggleMute() {
     chat.muted = !chat.muted;
     await api.patchChat(chat.id, { muted: chat.muted });
@@ -405,13 +417,49 @@ export async function ChatView(root, chatId) {
     });
   }
 
+  // Leaving and deleting are different actions with different consequences, and
+  // this offered only one of them: a group or channel *always* took the leave
+  // path, so its owner could not delete it from here at all — and the confirm
+  // said "покинуть группу" even in a channel.
   async function handleLeaveOrDelete() {
     const isGroupLike = chat.type === "group" || chat.type === "channel";
-    const label = chat.type === "channel" ? "отписаться от канала" : isGroupLike ? "покинуть группу" : "удалить чат";
-    if (!confirm(`Вы уверены, что хотите ${label}?`)) return;
-    if (isGroupLike) await api.leaveChat(chat.id);
-    else await api.deleteChat(chat.id);
-    navigate("/");
+    if (!isGroupLike) {
+      if (!confirm("Удалить этот чат?")) return;
+      await api.deleteChat(chat.id);
+      navigate("/");
+      return;
+    }
+
+    const what = chat.type === "channel" ? "канал" : "группу";
+    const leaveLabel = chat.type === "channel" ? "Отписаться от канала" : "Выйти из группы";
+    const options = [
+      {
+        label: leaveLabel,
+        danger: true,
+        onClick: async () => {
+          await api.leaveChat(chat.id);
+          navigate("/");
+        },
+      },
+    ];
+    // Only the people who run it can end it for everyone — the same bar the
+    // server enforces (routes/chats.js's DELETE).
+    if (isChatAdmin(chat, me.id)) {
+      options.push({
+        label: `Удалить ${what} для всех`,
+        danger: true,
+        onClick: async () => {
+          if (!confirm(`Удалить ${what} у всех участников? Это необратимо.`)) return;
+          try {
+            await api.deleteChat(chat.id);
+            navigate("/");
+          } catch (err) {
+            alert(err.message || "Не удалось удалить");
+          }
+        },
+      });
+    }
+    openChoiceDialog(chat.type === "channel" ? "Канал" : "Группа", options);
   }
 
   async function placeCall(kind) {
@@ -530,7 +578,11 @@ export async function ChatView(root, chatId) {
     clear(selectionBar);
     if (!selecting) return;
     const picked = selectedMessages();
-    const mineOnly = picked.every((m) => m.senderId === me.id);
+    // Same rule as a single message: your own always, anyone's if you run the
+    // chat. Selecting a run of someone's spam and clearing it is the case this
+    // exists for.
+    const canDeleteForAll =
+      picked.every((m) => m.senderId === me.id) || (!isDm && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id)));
     selectionBar.appendChild(
       el("div", { class: "selection-bar" }, [
         el("button", { class: "icon-btn", title: "Отменить", html: iconSvg("X", 18), onclick: clearSelection }),
@@ -577,7 +629,7 @@ export async function ChatView(root, chatId) {
               `Удалить сообщений: ${picked.length}`,
               [
                 { label: "Удалить только у себя", onClick: () => deleteMany(picked, false) },
-                ...(mineOnly ? [{ label: "Удалить у всех", danger: true, onClick: () => deleteMany(picked, true) }] : []),
+                ...(canDeleteForAll ? [{ label: "Удалить у всех", danger: true, onClick: () => deleteMany(picked, true) }] : []),
               ]
             );
           },
@@ -673,14 +725,29 @@ export async function ChatView(root, chatId) {
           onclick: (e) =>
             openDropdownMenu({ x: e.clientX, y: e.clientY }, [
               { icon: "Search", label: "Поиск по чату", onClick: () => openSearch() },
-              { icon: chat.muted ? "Bell" : "BellOff", label: chat.muted ? "Включить уведомления" : "Отключить уведомления", onClick: toggleMute },
+              {
+                icon: chat.muted ? "Bell" : "BellOff",
+                label: chat.muted ? "Включить уведомления" : "Отключить уведомления",
+                onClick: chat.muted
+                  ? () => setMute({ off: true })
+                  : // Telegram's own set of durations — "тихо на час" is the
+                    // common case, and a permanent switch made it a chore you
+                    // had to remember to undo.
+                    () =>
+                      openChoiceDialog("Отключить уведомления", [
+                        { label: "На 1 час", onClick: () => setMute({ hours: 1 }) },
+                        { label: "На 8 часов", onClick: () => setMute({ hours: 8 }) },
+                        { label: "На 2 дня", onClick: () => setMute({ hours: 48 }) },
+                        { label: "Навсегда", onClick: () => setMute({ forever: true }) },
+                      ]),
+              },
               { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
               { icon: "Image", label: "Фон чата", onClick: handleChooseWallpaper },
               { icon: "Clock", label: "Запланированные сообщения", onClick: () => openScheduledMessagesDialog(chat.id) },
               { icon: "Trash", label: "Очистить историю", onClick: handleClearHistory },
               {
                 icon: "X",
-                label: chat.type === "channel" ? "Отписаться от канала" : chat.type === "group" ? "Покинуть группу" : "Удалить чат",
+                label: chat.type === "channel" ? "Канал: выйти или удалить" : chat.type === "group" ? "Группа: выйти или удалить" : "Удалить чат",
                 danger: true,
                 onClick: handleLeaveOrDelete,
               },
@@ -870,7 +937,9 @@ export async function ChatView(root, chatId) {
               renderComposer();
             },
             onDelete: (msg) => {
-              const mine = msg.senderId === me.id;
+              // "Delete for everyone" is offered for your own message, and for
+              // anyone's if you run the chat (the same rule the server applies).
+              const mine = msg.senderId === me.id || (!isDm && isChatAdmin(chat, me.id)) || isChatModerator(chat, me.id);
               openChoiceDialog(
                 "Удалить сообщение",
                 mine
@@ -995,11 +1064,16 @@ export async function ChatView(root, chatId) {
   // the polling below only needs to catch up after a dropped/reconnecting
   // socket, so it can run at a much longer interval than before.
   const messagesIv = setInterval(refreshMessages, 15000);
+  // Typing already arrives over the socket (the "typing:update" handler further
+  // down), so this poll is only a catch-up for a dropped connection. At 5s it
+  // was 60 requests per tab per 5 minutes — a fifth of the whole rate-limit
+  // budget spent re-asking for something the socket had already delivered.
   const typingIv = setInterval(async () => {
     const r = await api.getTyping(chat.id);
+    if (r.typingUserId === typingUserId) return;
     typingUserId = r.typingUserId;
     renderHeader();
-  }, 5000);
+  }, 30000);
 
   const unsubPresence = onWsMessage("presence:update", (msg) => {
     if (!other || msg.userId !== other.id) return;

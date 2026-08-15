@@ -58,6 +58,11 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   let codePhoneField = null;
   let registerPhoneField = null;
   let twoFactor = null; // { ticket, name, method }
+  let recoverEmail = "";
+  let recoverPhone = "";
+  let recoverPassword = "";
+  let recoverError = null;
+  let recoverPending = false;
   let twoFactorCode = "";
   let twoFactorError = null;
   let twoFactorPending = false;
@@ -276,6 +281,53 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     ]);
   }
 
+  // Forgotten password: the e-mail and the phone of the same account, then a new
+  // password. See server/routes/auth.js's /recover for what this is and isn't
+  // worth — the screen says the same thing, because someone choosing it should
+  // know that turning on two-factor is what closes this door.
+  let recoverPhoneField = null;
+  function renderRecoverPanel() {
+    const emailInput = el("input", { class: "login-input", type: "email", placeholder: "you@example.com", value: recoverEmail, oninput: (e) => (recoverEmail = e.target.value) });
+    const passInput = el("input", { class: "login-input", type: "password", placeholder: "Новый пароль", value: recoverPassword, oninput: (e) => (recoverPassword = e.target.value) });
+    recoverPhoneField ??= PhoneField({ onChange: (v) => (recoverPhone = v) });
+
+    const form = el(
+      "form",
+      {
+        class: "login-form",
+        onsubmit: async (e) => {
+          e.preventDefault();
+          recoverError = null;
+          recoverPending = true;
+          render();
+          try {
+            const { user } = await api.recoverAccount(recoverEmail.trim(), recoverPhone, recoverPassword);
+            (onSuccess ?? goToApp)(user);
+          } catch (err) {
+            recoverError = err.message;
+            recoverPending = false;
+            render();
+          }
+        },
+      },
+      [
+        emailInput,
+        recoverPhoneField.el,
+        passInput,
+        el("p", { class: "login-hint" }, "Почта и номер должны быть от одного аккаунта. Все остальные сеансы будут завершены, а в чат Shalter придёт уведомление."),
+        recoverError ? el("p", { class: "login-error center" }, recoverError) : null,
+        el("button", { class: "login-submit", disabled: recoverPending }, recoverPending ? "Проверяем…" : "Восстановить доступ"),
+      ].filter(Boolean)
+    );
+
+    return el("div", { class: "qr-login-panel" }, [
+      el("p", { class: "qr-login-title" }, "Забыли пароль?"),
+      el("p", { class: "qr-login-instructions" }, "Введите почту и номер телефона аккаунта и придумайте новый пароль."),
+      form,
+      el("button", { type: "button", class: "login-link", onclick: () => { mode = "login"; recoverError = null; render(); } }, "Назад ко входу"),
+    ]);
+  }
+
   function renderCodePanel() {
     const form = el(
       "form",
@@ -401,8 +453,8 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       }
       username = cleaned;
       clearTimeout(usernameCheckTimer);
-      if (username.length < 5) {
-        setUsernameStatus(username.length === 0 ? "" : "Минимум 5 символов", "");
+      if (username.length < 3) {
+        setUsernameStatus(username.length === 0 ? "" : "Минимум 3 символа", "");
         return;
       }
       setUsernameStatus("Проверяем…", "");
@@ -585,6 +637,19 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
                 },
                 [el("span", { html: iconSvg("Send", 15) }), " Войти по коду из сообщения"]
               ),
+              el(
+                "button",
+                {
+                  type: "button",
+                  class: "login-link muted",
+                  onclick: () => {
+                    mode = "recover";
+                    error = null;
+                    render();
+                  },
+                },
+                "Забыли пароль?"
+              ),
             ])
           : null,
         // A plain link, not a router link: /download is a standalone static page
@@ -600,9 +665,11 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       ? renderTwoFactorPanel()
       : mode === "qr"
         ? renderQrPanel()
-        : mode === "code"
-          ? renderCodePanel()
-          : card;
+        : mode === "recover"
+          ? renderRecoverPanel()
+          : mode === "code"
+            ? renderCodePanel()
+            : card;
 
     if (embedded) {
       mount(root, content);

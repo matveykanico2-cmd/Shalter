@@ -10,15 +10,22 @@ function jsonHandler(req, res) {
   res.status(429).json({ error: "Слишком много запросов, попробуйте позже" });
 }
 
-// General ceiling across all API routes. Generous relative to real usage —
-// the chat list, message list, and typing indicator poll every 15s/15s/5s
-// per open tab (WS covers the live-update case; see chatView.js/chatList.js)
-// — so normal multi-tab usage stays well under this.
+// General ceiling across all API routes.
+//
+// It used to be 300 per 5 minutes, described as "generous relative to real
+// usage". It wasn't: one open tab spends ~220 of that on its own polls before
+// the user does anything (chat list 20, messages 20, typing 60, incoming calls
+// 120), so a second tab tripped "слишком много запросов" during ordinary use.
+// The polls themselves have been cut back to catch-up cadences now that the
+// socket carries typing and incoming calls, but the ceiling was also simply set
+// below what the app needs — a limiter that fires on normal use isn't
+// protecting anything, it's just breaking the product.
+//
 // Both ceilings are env-overridable: what counts as "generous" depends on how
 // many people share an egress IP behind the deployment (an office or a mobile
 // carrier NAT all arrive as one client here), and an automated test suite
 // naturally blows through an auth limit meant for humans.
-const API_RATE_LIMIT = Number(process.env.API_RATE_LIMIT) || 300;
+const API_RATE_LIMIT = Number(process.env.API_RATE_LIMIT) || 3000;
 const AUTH_RATE_LIMIT = Number(process.env.AUTH_RATE_LIMIT) || 20;
 
 const apiLimiter = rateLimit({

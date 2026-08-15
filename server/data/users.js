@@ -58,6 +58,11 @@ function rowToUser(row) {
     bannedAt: row.bannedAt ?? undefined,
     safetyLabel: row.safetyLabel ?? undefined,
     isVerified: !!row.isVerified || undefined,
+    // Set only by the auction (routes/usernames.js) and cleared whenever the
+    // handle changes — a collectible mark that outlived its handle would be a
+    // lie about a name somebody else now holds.
+    usernameAuctionId: row.usernameAuctionId ?? undefined,
+    isCollectibleUsername: !!row.usernameAuctionId || undefined,
     safetyLabelAt: row.safetyLabelAt ?? undefined,
     // 2FA (server/lib/totp.js). twoFactorEnabled is derived, never stored — a
     // secret that was generated but never confirmed with a real code must not
@@ -142,7 +147,7 @@ async function createUser(user) {
   return getUser(user.id);
 }
 
-const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "avatarColor", "avatarImage", "bio", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday"];
+const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday"];
 
 // Extends (or starts) a Premium period — stacks on top of remaining time if
 // already active, the way a real subscription top-up would, rather than
@@ -188,6 +193,12 @@ async function deleteUser(id) {
 async function updateUser(id, patch) {
   const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(id);
   if (!existing) return undefined;
+  // Changing the handle gives up the collectible mark, unless this very call is
+  // the auction awarding one. Otherwise winning @vip once would leave the badge
+  // attached to whatever the person renamed themselves to afterwards.
+  if ("username" in patch && !("usernameAuctionId" in patch)) {
+    db.prepare("UPDATE users SET usernameAuctionId = NULL WHERE id = ?").run(id);
+  }
   const fields = Object.keys(patch).filter((k) => PATCHABLE_FIELDS.includes(k));
   if (fields.length > 0) {
     const setClause = fields.map((f) => `${f} = @${f}`).join(", ");

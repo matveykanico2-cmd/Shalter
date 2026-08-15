@@ -5,7 +5,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?\d{10,15}$/;
 // Letters/digits/underscore, 5-32 chars — same shape as Telegram's own
 // username rules (a-z, 0-9, underscores; minimum length 5).
-const USERNAME_RE = /^[a-zA-Z0-9_]{5,32}$/;
+// Three characters, not five. Short handles are the scarce, desirable ones —
+// which is the whole premise of the auction (server/routes/usernames.js): there
+// is nothing to bid on if @abc can't exist.
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,32}$/;
 
 function normalizePhone(phone) {
   return (phone ?? "").trim().replace(/[\s()-]/g, "");

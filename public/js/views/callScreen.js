@@ -108,7 +108,25 @@ export async function CallScreenView(root, callId) {
                   s.call.kind === "audio" ? mediaEl : null,
                 ]),
             el("p", { class: "call-tile-status" }, s.phase === "ringing" ? "вызов…" : isConnected ? "" : "соединение…"),
-          ]);
+            // The counterpart of "add participant": whoever started the call can
+            // put someone out of it. Without this a call you could pull anyone
+            // into could only be escaped by everyone else hanging up.
+            s.call.callerId === me.id
+              ? el("button", {
+                  class: "icon-btn call-tile-remove",
+                  title: `Убрать из звонка: ${p.name}`,
+                  html: iconSvg("X", 15),
+                  onclick: async () => {
+                    if (!confirm(`Убрать ${p.name} из звонка?`)) return;
+                    try {
+                      await api.removeCallParticipant(s.call.id, p.id);
+                    } catch (err) {
+                      alert(err.message || "Не удалось убрать участника");
+                    }
+                  },
+                })
+              : null,
+          ].filter(Boolean));
           return tile;
         })
       : [el("p", { class: "call-empty-hint" }, "Ожидание участников…")];

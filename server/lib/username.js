@@ -51,7 +51,7 @@ async function checkUsername(raw, { forUserId, forChatId } = {}) {
   const username = String(raw ?? "").trim().replace(/^@/, "");
 
   if (!USERNAME_RE.test(username)) {
-    return { status: 400, error: "Юзернейм: 5–32 символа, латинские буквы, цифры и _" };
+    return { status: 400, error: "Юзернейм: 3–32 символа, латинские буквы, цифры и _" };
   }
   if (RESERVED.has(username.toLowerCase())) {
     return { status: 409, error: "Этот юзернейм зарезервирован — выберите другой" };
@@ -116,9 +116,9 @@ async function generateBotUsername(name) {
   if (!base) base = "bot"; // a name with nothing transliterable left in it
   base = base.slice(0, 24);
 
-  // USERNAME_RE's 5-char minimum, counting the suffix.
+  // USERNAME_RE's 3-char minimum, counting the suffix.
   let candidate = base.endsWith("_bot") ? base : `${base}_bot`;
-  if (candidate.length < 5) candidate = `${candidate}_bot`;
+  if (candidate.length < 3) candidate = `${candidate}_bot`;
 
   if (!(await checkUsername(candidate))) return candidate;
   // Taken (or reserved): walk suffixes rather than failing the bot creation.
