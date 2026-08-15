@@ -235,12 +235,36 @@ Any provider works — the domain's own mailbox (Yandex 360, Mail.ru for
 Business, Beget) is the least setup; a transactional service (Unisender Go,
 SendPulse) gives delivery statistics and higher limits.
 
-**With nothing configured**, `server/lib/mailer.js` writes letters to
-`data/outbox/*.eml` instead of sending them, so the flow can be walked on a
-development machine. That is refused when `NODE_ENV=production` — those files
-contain one-time codes in plain text, and a production box that cannot send
-mail should say so rather than quietly spool secrets to disk. Recovery then
-returns "отправка почты не настроена" until SMTP is set.
+**With nothing configured**, the server tries to deliver the letter itself
+(`server/lib/mailer.js` → `server/lib/directMail.js`): it looks up the
+recipient domain's MX record and speaks SMTP to it directly on port 25, with no
+account anywhere. This is how mail worked before relays, and it still works —
+but only where the receiving side is willing to take mail from an unvouched-for
+sender. Measured from a machine with no reverse DNS on its address:
+
+| Recipient | Result |
+| --- | --- |
+| `@mail.ru` | accepted (`250 Go ahead`) |
+| `@yandex.ru` | accepted (rejected only for a non-existent test mailbox) |
+| `@gmail.com` | **refused** — `550 5.7.26 ... #authentication` |
+
+Google refuses unauthenticated mail outright, so Gmail recipients cannot be
+reached this way regardless of the code. Two things fix that, and both are
+configuration rather than code: an `SMTP_URL` as above, or `SPF`/`DKIM` on the
+sending domain plus a `PTR` record for the server's IP (ask the hosting
+provider — most set one on request). Note `shalter.ru` currently publishes
+**no MX, SPF or DMARC record at all**.
+
+Direct sending can be turned off with `MAIL_DIRECT=0` — worth doing once real
+SMTP is configured, since a failed direct attempt costs several seconds of
+waiting on remote servers.
+
+**If that fails too**, letters are written to `data/outbox/*.eml` so the flow
+can be walked on a development machine. That is refused when
+`NODE_ENV=production` — those files contain one-time codes in plain text, and a
+production box that cannot send mail should say so rather than quietly spool
+secrets to disk. Recovery then reports the receiving server's own refusal, so
+the reason a code never arrived is visible in the logs.
 
 ## OS-level tuning
 

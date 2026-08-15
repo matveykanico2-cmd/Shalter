@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const nodemailer = require("nodemailer");
+const { sendDirect } = require("./directMail");
 
 // Outgoing e-mail. One place, so every letter this app ever sends is configured
 // and formatted the same way.
@@ -14,6 +15,11 @@ const nodemailer = require("nodemailer");
 // or, if a URL is awkward to quote:
 //
 //   SMTP_HOST=smtp.yandex.ru  SMTP_PORT=465  SMTP_USER=…  SMTP_PASS=…
+//
+// With none of it set, letters are not dropped: sendMail falls through to
+// lib/directMail.js, which delivers to the recipient's own mail server itself.
+// That reaches some providers and not others — see that file — so SMTP_URL is
+// still the configuration worth having.
 //
 // Deliverability is not decided here: without SPF, DKIM and DMARC on the
 // sending domain, a correctly sent letter still lands in spam. That's DNS work,
@@ -31,6 +37,12 @@ const configured = !!(SMTP_URL || SMTP_HOST);
 // that can't send mail should say so rather than quietly spool secrets to disk.
 const OUTBOX_DIR = path.join(process.cwd(), "data", "outbox");
 const outboxAllowed = process.env.NODE_ENV !== "production" || process.env.MAIL_OUTBOX === "1";
+
+// The bare address out of MAIL_FROM ("Shalter <no-reply@shalter.ru>" →
+// "no-reply@shalter.ru") — SMTP envelopes take an address, not a display name.
+function senderAddress() {
+  return (MAIL_FROM.match(/<([^>]+)>/) || [null, MAIL_FROM])[1].trim();
+}
 
 let transport = null;
 function getTransport() {
@@ -62,13 +74,34 @@ async function sendMail({ to, subject, text }) {
     }
   }
 
-  if (!outboxAllowed) return { delivered: false, reason: "not-configured" };
+  // Nothing configured: try to hand the letter to the recipient's own server
+  // ourselves (lib/directMail.js). No account, no key, no contract — but also
+  // nothing vouching for the sender, so strict providers refuse it. Worth
+  // attempting before giving up, because for some recipients it does arrive.
+  //
+  // MAIL_DIRECT=0 turns it off — a conversation with a remote mail server takes
+  // seconds, which is unwanted in an automated test run where the letter is
+  // going to be read out of the outbox anyway.
+  if (process.env.MAIL_DIRECT === "0") return outboxOrFail(to, subject, text, "direct-disabled");
+  const direct = await sendDirect({ from: senderAddress(), to, subject, text });
+  if (direct.delivered) {
+    console.log(`[mail] отправлено напрямую через ${direct.host}: ${direct.response}`);
+    return { delivered: true, direct: true };
+  }
+  console.warn(`[mail] прямая доставка на ${to} не удалась: ${direct.reason}`);
 
+  return outboxOrFail(to, subject, text, direct.reason);
+}
+
+// Last resort: write the letter to disk so a development machine can still walk
+// the flow. Refused in production — see OUTBOX_DIR above for why.
+function outboxOrFail(to, subject, text, reason) {
+  if (!outboxAllowed) return { delivered: false, reason };
   try {
     fs.mkdirSync(OUTBOX_DIR, { recursive: true });
     const file = path.join(OUTBOX_DIR, `${Date.now()}_${to.replace(/[^a-z0-9]/gi, "_")}.eml`);
     fs.writeFileSync(file, `To: ${to}\nFrom: ${MAIL_FROM}\nSubject: ${subject}\n\n${text}\n`, "utf8");
-    console.log(`[mail] SMTP не настроен — письмо для ${to} записано в ${file}`);
+    console.log(`[mail] письмо для ${to} записано в ${file}`);
     return { delivered: true, outbox: file };
   } catch (err) {
     console.error("mail outbox failed:", err.message);
@@ -76,4 +109,4 @@ async function sendMail({ to, subject, text }) {
   }
 }
 
-module.exports = { sendMail, isMailConfigured: () => configured || outboxAllowed };
+module.exports = { sendMail };

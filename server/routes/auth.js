@@ -445,8 +445,15 @@ router.post(
     });
     if (!result.delivered) {
       // Said plainly, because the person is otherwise stuck staring at a screen
-      // that claims a letter is on its way.
-      return res.status(503).json({ error: "Отправка почты не настроена на сервере — обратитесь к администрации" });
+      // that claims a letter is on its way. The usual cause is not a
+      // misconfigured server but the *recipient's* provider refusing mail from
+      // an unvouched-for sender (Gmail always does — see lib/directMail.js), so
+      // the message points at the door that is still open rather than at an
+      // administrator who may have nothing to fix.
+      console.warn(`[recover] письмо на ${email} не ушло: ${result.reason}`);
+      return res.status(503).json({
+        error: "Не удалось доставить письмо на этот адрес — почтовый сервис его отклонил. Восстановите доступ по номеру телефона.",
+      });
     }
     res.json(RECOVERY_SENT);
   })
