@@ -334,6 +334,14 @@ export const api = {
   // back and a reason for the journal.
   adminDeleteUser: (userId, confirm, reason) =>
     req(`/api/admin/users/${userId}`, { method: "DELETE", body: JSON.stringify({ confirm, reason }) }),
+  // Сброс чужого пароля — последняя дверь, когда все остальные закрыты
+  // (нет почты, нигде не выполнен вход). Требует того же, что и удаление:
+  // введённый юзернейм и основание для журнала.
+  adminResetPassword: (userId, { password, confirm, reason, disableTwoFactor }) =>
+    req(`/api/admin/users/${userId}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ password, confirm, reason, disableTwoFactor }),
+    }),
   adminSetSafetyLabel: (userId, label) =>
     req(`/api/admin/users/${userId}/label`, { method: "POST", body: JSON.stringify({ label }) }),
 };

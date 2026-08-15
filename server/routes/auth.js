@@ -12,7 +12,7 @@ const {
 const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, updateUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode } = require("../data/users");
 const { publicUser, selfUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
-const { listSessions, getSession, upsertSession, removeAllSessionsForUser, revokeOtherSessions } = require("../data/sessions");
+const { listSessions, getSession, upsertSession, revokeAllSessions, revokeOtherSessions } = require("../data/sessions");
 const { parseUserAgent } = require("../lib/userAgent");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { deleteAccount } = require("../lib/deleteAccount");
@@ -611,8 +611,9 @@ router.post(
     const { hash, salt } = hashPassword(password);
     await updateUser(user.id, { passwordHash: hash, passwordSalt: salt });
     // Everything signed in elsewhere is signed out: if the reset wasn't the
-    // owner, whoever knew the old password is out with it.
-    await removeAllSessionsForUser(user.id);
+    // owner, whoever knew the old password is out with it. Revoked, not deleted
+    // — see data/sessions.js for why deleting the rows changes nothing.
+    await revokeAllSessions(user.id);
 
     try {
       const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
@@ -683,7 +684,7 @@ router.post(
 
     const { hash, salt } = hashPassword(password);
     await updateUser(user.id, { passwordHash: hash, passwordSalt: salt });
-    await removeAllSessionsForUser(user.id);
+    await revokeAllSessions(user.id);
 
     try {
       const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);

@@ -11,7 +11,11 @@ const {
   setVerified,
   listBannedUsers,
   listLabeledUsers,
+  updateUser,
+  disableTotp,
 } = require("../data/users");
+const { hashPassword } = require("../security");
+const { revokeAllSessions } = require("../data/sessions");
 const { buildUserExport, logExport, listExports } = require("../data/dataExport");
 const { deleteAccount } = require("../lib/deleteAccount");
 const { listOpenReports, listReportsAboutUser } = require("../data/reports");
@@ -367,6 +371,69 @@ router.delete(
 
     await deleteAccount(target.id);
     res.json({ ok: true, deleted: { id: target.id, name: target.name, username: target.username } });
+  })
+);
+
+// Resetting somebody else's password. The last door into an account when every
+// other one is shut: no e-mail attached, no device still signed in, nothing to
+// receive a code on. That situation is not hypothetical — it is what happens to
+// the very first account on a fresh deployment.
+//
+// The power is real (this is account takeover by definition), so it carries the
+// same discipline as deletion above: the handle typed back, a mandatory reason,
+// a journal entry written before anything changes, and the owner told in their
+// own chat afterwards. Every session is signed out, so a reset cannot be used
+// to quietly ride along beside the owner.
+router.post(
+  "/users/:id/reset-password",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const target = await getUser(req.params.id);
+    if (!target) return res.status(404).json({ error: "Пользователь не найден" });
+    if (target.isBot) return res.status(400).json({ error: "У ботов нет пароля — им управляет владелец через токен" });
+
+    const confirm = String(req.body?.confirm ?? "").trim().replace(/^@/, "").toLowerCase();
+    const handle = (target.username || target.id).toLowerCase();
+    if (confirm !== handle) {
+      return res.status(400).json({ error: `Для подтверждения введите @${target.username || target.id}` });
+    }
+
+    const reason = String(req.body?.reason ?? "").trim().slice(0, 500);
+    if (!reason) return res.status(400).json({ error: "Укажите основание — оно попадёт в журнал" });
+
+    const password = String(req.body?.password ?? "");
+    if (password.length < 6) return res.status(400).json({ error: "Пароль — не короче 6 символов" });
+
+    // Two-factor authentication is *not* lifted by default: it exists precisely
+    // so that knowing the password isn't enough, and an administrator quietly
+    // stripping it would make it worthless. Lifting it is a separate, explicit
+    // choice, recorded separately in the journal.
+    const liftTwoFactor = req.body?.disableTwoFactor === true && target.twoFactorEnabled;
+
+    await logExport({
+      adminId: req.uid,
+      targetUserId: target.id,
+      reason: `СБРОС ПАРОЛЯ @${target.username || target.id} (${target.name})${liftTwoFactor ? " + СНЯТА 2FA" : ""}: ${reason}`,
+      messageCount: 0,
+    });
+
+    const { hash, salt } = hashPassword(password);
+    await updateUser(target.id, { passwordHash: hash, passwordSalt: salt });
+    if (liftTwoFactor) await disableTotp(target.id);
+    await revokeAllSessions(target.id);
+
+    try {
+      const chat = await findOrCreateDm(target.id, SYSTEM_BOT_ID);
+      await sendMessageAndBroadcast(
+        chat,
+        SYSTEM_BOT_ID,
+        `🔐 Администрация Shalter сбросила пароль вашего аккаунта.\nОснование: ${reason}\n\nВсе сеансы завершены.${liftTwoFactor ? "\nДвухфакторная аутентификация снята — включите её заново: Настройки → Конфиденциальность." : ""}\n\nЕсли вы этого не просили — немедленно смените пароль в настройках.`
+      );
+    } catch (err) {
+      console.error("password reset notice failed:", err);
+    }
+
+    res.json({ ok: true, twoFactorLifted: liftTwoFactor });
   })
 );
 

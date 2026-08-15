@@ -38,6 +38,20 @@ async function revokeOtherSessions(userId, exceptDeviceId) {
   db.prepare("UPDATE sessions SET revokedAt = ? WHERE userId = ? AND deviceId <> ?").run(new Date().toISOString(), userId, exceptDeviceId);
 }
 
+// Signs out every device, including the one asking. For a password reset or a
+// recovery: whoever knew the old password is out with it.
+//
+// Not the same as removeAllSessionsForUser below, and the difference is the
+// whole point. Deleting the rows does *not* sign anyone out: middleware/auth.js
+// deliberately treats a missing row as "no information" and lets the request
+// through, so only an explicit revokedAt closes a session. Recovery used the
+// deleting one and promised in writing that other sessions were terminated —
+// they were not, and a thief holding the account kept their session right
+// through the owner recovering it.
+async function revokeAllSessions(userId) {
+  db.prepare("UPDATE sessions SET revokedAt = ? WHERE userId = ?").run(new Date().toISOString(), userId);
+}
+
 // Account deletion (server/lib/deleteAccount.js) only — unlike revokeSession/
 // revokeOtherSessions above (kicking a *specific other* device while the
 // account keeps existing), this is cleanup after the account itself is gone.
@@ -45,4 +59,4 @@ async function removeAllSessionsForUser(userId) {
   db.prepare("DELETE FROM sessions WHERE userId = ?").run(userId);
 }
 
-module.exports = { listSessions, getSession, upsertSession, revokeSession, revokeOtherSessions, removeAllSessionsForUser };
+module.exports = { listSessions, getSession, upsertSession, revokeSession, revokeOtherSessions, revokeAllSessions, removeAllSessionsForUser };

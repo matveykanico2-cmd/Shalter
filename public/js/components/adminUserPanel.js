@@ -372,6 +372,40 @@ export function openAdminUserPanel(user, onChange) {
         " Экспорт данных",
       ]),
 
+      el("p", { class: "admin-panel-section-title" }, "Пароль"),
+      el(
+        "p",
+        { class: "settings-toggle-hint" },
+        "Задать новый пароль вместо забытого — когда к аккаунту не привязана почта и не осталось устройства, где выполнен вход. Все сеансы завершатся, владелец получит уведомление в чат Shalter."
+      ),
+      el(
+        "button",
+        {
+          class: "profile-action-btn",
+          disabled: busy,
+          onclick: () => {
+            const handle = state.username || state.id;
+            const password = prompt(`Новый пароль для ${state.name} (не короче 6 символов):`);
+            if (password == null || password.length < 6) return;
+            const typed = prompt(`Сбросить пароль ${state.name}?\n\nДля подтверждения введите @${handle}`);
+            if (typed == null) return;
+            const reason = prompt("Основание — оно попадёт в журнал администрации:");
+            if (reason == null || !reason.trim()) return;
+            // Asked separately, and only when it applies: 2FA exists so that
+            // knowing the password isn't enough, so lifting it is a second
+            // decision, not a side effect of the first.
+            const disableTwoFactor = state.twoFactorEnabled
+              ? confirm("У аккаунта включена двухфакторная аутентификация — без неё войти по новому паролю не выйдет.\n\nСнять её тоже?")
+              : false;
+            run(async () => {
+              const res = await api.adminResetPassword(state.id, { password, confirm: typed, reason: reason.trim(), disableTwoFactor });
+              return { notice: res.twoFactorLifted ? "Пароль сброшен, 2FA снята" : "Пароль сброшен" };
+            });
+          },
+        },
+        [el("span", { html: iconSvg("Lock", 14) }), " Сбросить пароль"]
+      ),
+
       el("p", { class: "admin-panel-section-title" }, "Удаление аккаунта"),
       el(
         "p",
