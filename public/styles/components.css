@@ -4341,6 +4341,36 @@
   color: var(--color-success, #1f9d63);
   margin-top: 10px;
 }
+/* Готовые к вставке DNS-записи в разделе «Отправка почты» (Модерация). Значение
+   в textarea, а не в <p>: его копируют целиком, и выделение по клику надёжнее
+   любой кнопки «скопировать», которая в неподдерживающем clipboard браузере
+   молча ничего не делает. */
+.mail-dns-record {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+.mail-dns-head {
+  font-size: 12px;
+  margin: 0 0 6px;
+  color: var(--color-muted);
+}
+.mail-dns-flag {
+  font-weight: 600;
+}
+.mail-dns-flag.ok {
+  color: var(--color-success, #1f9d63);
+}
+.mail-dns-flag.todo {
+  color: var(--color-danger, #c6403b);
+}
+.mail-dns-value {
+  width: 100%;
+  font-size: 12px;
+  resize: vertical;
+  word-break: break-all;
+}
 .settings-notice-box {
   margin-top: 16px;
   border-radius: 8px;

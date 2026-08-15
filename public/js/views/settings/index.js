@@ -1538,6 +1538,22 @@ async function renderModeration(root) {
   // replaces the whole page, while a failed lookup should leave the reports and
   // lists exactly where they were and just say the handle wasn't found.
   let lookupError = null;
+  // Проверка отправки почты — по кнопке, а не при открытии страницы: она
+  // подключается к чужому серверу и занимает секунды.
+  let mailStatus = null;
+  let mailBusy = false;
+
+  async function checkMail() {
+    mailBusy = true;
+    render();
+    try {
+      mailStatus = await api.adminMailStatus();
+    } catch (err) {
+      mailStatus = { from: "—", configured: true, ok: false, error: err.message || "не удалось проверить", directEnabled: false };
+    }
+    mailBusy = false;
+    render();
+  }
 
   async function load() {
     try {
@@ -1616,6 +1632,55 @@ async function renderModeration(root) {
             { class: "settings-toggle-hint" },
             "В карточке — выдача Premium, рекламы, звёзд и подарков, метка безопасности, блокировка и разблокировка, жалобы и выгрузка данных."
           ),
+        ]),
+        section("Отправка почты", [
+          el(
+            "p",
+            { class: "settings-toggle-hint" },
+            "Коды восстановления и подтверждение адреса уходят письмом. Проверка подключается к SMTP-серверу и входит под указанным ящиком — так видно, дело в пароле, в закрытом порте или в самом адресе."
+          ),
+          el("button", { class: "profile-action-btn", disabled: mailBusy, onclick: checkMail }, mailBusy ? "Проверяем…" : "Проверить отправку"),
+          mailStatus
+            ? el("div", {}, [
+                el("p", { class: "mono settings-toggle-hint" }, `Отправитель: ${mailStatus.from}`),
+                // Записи показываются здесь, потому что добавить их может только
+                // владелец домена — а консоли, где обычно запускают
+                // scripts/mail-dns.js, у него может не быть вовсе.
+                ...(mailStatus.dns?.records?.length
+                  ? [
+                      el(
+                        "p",
+                        { class: "settings-toggle-hint" },
+                        `DNS домена ${mailStatus.dns.domain}${mailStatus.dns.ip ? ` (адрес сервера ${mailStatus.dns.ip})` : ""} — добавьте в редакторе DNS у регистратора:`
+                      ),
+                      ...mailStatus.dns.records.map((r) =>
+                        el("div", { class: "mail-dns-record" }, [
+                          el("p", { class: "mail-dns-head" }, [
+                            el("span", { class: `mail-dns-flag ${r.published ? "ok" : "todo"}` }, r.published ? "✓ опубликована" : "нужно добавить"),
+                            el("span", { class: "mail-dns-kind" }, ` ${r.kind} · тип TXT · имя `),
+                            el("span", { class: "mono" }, r.name),
+                          ]),
+                          el("textarea", { class: "settings-input mono mail-dns-value", rows: 2, readonly: true, value: r.value, onclick: (e) => e.target.select() }),
+                          el("p", { class: "settings-toggle-hint" }, r.note),
+                        ])
+                      ),
+                    ]
+                  : []),
+                mailStatus.configured
+                  ? el(
+                      "p",
+                      { class: mailStatus.ok ? "settings-toggle-hint success" : "login-error" },
+                      mailStatus.ok ? "SMTP настроен, вход выполнен — письма уходят." : `SMTP отвечает отказом: ${mailStatus.error}`
+                    )
+                  : el(
+                      "p",
+                      { class: "settings-toggle-hint" },
+                      mailStatus.directEnabled
+                        ? "SMTP не задан. Письма отдаются серверу получателя напрямую — mail.ru и yandex принимают, gmail отказывает."
+                        : "SMTP не задан, прямая отправка выключена — письма никуда не уходят."
+                    ),
+              ])
+            : null,
         ]),
         section(
           `Открытые жалобы (${data.openReports.length})`,

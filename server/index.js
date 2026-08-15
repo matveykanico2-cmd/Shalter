@@ -1,3 +1,7 @@
+// Первой строкой и до всего остального: config.env/.env должны попасть в
+// process.env раньше, чем их прочитает хоть один модуль (см. lib/loadConfig.js —
+// там же про то, почему этого не делают флаги запуска).
+require("./lib/loadConfig");
 const dns = require("dns");
 const fs = require("fs");
 const path = require("path");
@@ -86,9 +90,9 @@ app.use("/api/auth/register-email", authLimiter);
 app.use("/api/auth/code/start", authLimiter);
 app.use("/api/auth/code/verify", authLimiter);
 app.use("/api/auth/2fa/login", authLimiter);
-// Recovery mails a one-time code and then hands back a session — the same shape
-// as a login, so both halves get the same tighter ceiling. /start is also what
-// would be hammered to mail-bomb an address.
+// Восстановление отдаёт сессию — та же по сути операция, что вход, поэтому и
+// потолок тот же. Для пары «почта + телефон» это ещё и единственное, что стоит
+// между аккаунтом и перебором пар: кода там нет, проверяется знание двух строк.
 app.use("/api/auth/recover", authLimiter);
 // Changing a password or an address: one guesses the current password, the
 // other mails a code to any address the caller names. Same reasons, same limit.

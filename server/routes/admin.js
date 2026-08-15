@@ -16,6 +16,8 @@ const {
 } = require("../data/users");
 const { hashPassword } = require("../security");
 const { revokeAllSessions } = require("../data/sessions");
+const { verifySmtp } = require("../lib/mailer");
+const { buildDnsAdvice } = require("../lib/mailDns");
 const { buildUserExport, logExport, listExports } = require("../data/dataExport");
 const { deleteAccount } = require("../lib/deleteAccount");
 const { listOpenReports, listReportsAboutUser } = require("../data/reports");
@@ -434,6 +436,32 @@ router.post(
     }
 
     res.json({ ok: true, twoFactorLifted: liftTwoFactor });
+  })
+);
+
+// Состояние отправки почты — «а работает ли вообще SMTP» без доступа к серверу.
+//
+// Обычно это выясняют командой в консоли (scripts/mail-test.js) и чтением
+// логов. Развёртывание, куда попадают только пушем, такой возможности не даёт:
+// человек видит «письмо не доставлено» и не может узнать, дело в пароле, в
+// закрытом порте или в самом адресе. Поэтому ответ сервера показывается здесь —
+// администратору, который и так видит куда более чувствительные вещи.
+router.get(
+  "/mail-status",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const [check, dnsAdvice] = await Promise.all([verifySmtp(), buildDnsAdvice()]);
+    res.json({
+      from: process.env.MAIL_FROM || "Shalter <no-reply@shalter.ru>",
+      configured: check.configured === true,
+      ok: check.ok === true,
+      error: check.error ?? null,
+      // Без SMTP письмо отдаётся почтовому серверу получателя напрямую. Тогда
+      // за отправителя ручаются не чужой провайдер, а записи в DNS самого
+      // домена — их и показываем ниже (lib/mailDns.js).
+      directEnabled: process.env.MAIL_DIRECT !== "0",
+      dns: dnsAdvice,
+    });
   })
 );
 

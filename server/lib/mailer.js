@@ -49,29 +49,66 @@ function senderAddress() {
   return (MAIL_FROM.match(/<([^>]+)>/) || [null, MAIL_FROM])[1].trim();
 }
 
+// Nodemailer waits two minutes to connect and ten more on a silent socket. That
+// is not a timeout, it is a hang: no reverse proxy waits that long, so a server
+// whose provider blocks outbound 465 answers the password-recovery request with
+// a bare 502 instead of "письмо не ушло" — and the fallback that would have put
+// the code in the user's Shalter chat never gets to run. Seconds, not minutes.
+const SMTP_TIMEOUTS = { connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 15000 };
+// На 587-м порту соединение начинается открытым и шифруется командой STARTTLS.
+// Без этого флага nodemailer, не увидев STARTTLS, спокойно продолжит и отправит
+// логин с паролем в открытом виде. Пусть лучше откажется отправлять.
+const SMTP_SECURITY = { requireTLS: true };
+// A ceiling over the whole conversation, since the three above bound only
+// individual phases and a slow server could still stack them past a proxy's
+// patience. Sized to stay under the usual 60-second gateway timeout.
+const SEND_DEADLINE_MS = 25000;
+
 let transport = null;
 function getTransport() {
   if (!configured) return null;
   if (!transport) {
     transport = SMTP_URL
-      ? nodemailer.createTransport(SMTP_URL)
+      ? nodemailer.createTransport({ url: SMTP_URL, ...SMTP_TIMEOUTS, ...SMTP_SECURITY })
       : nodemailer.createTransport({
           host: SMTP_HOST,
           port: Number(process.env.SMTP_PORT) || 587,
           secure: (Number(process.env.SMTP_PORT) || 587) === 465,
           auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+          ...SMTP_TIMEOUTS,
+          ...SMTP_SECURITY,
         });
   }
   return transport;
 }
 
+// Never leaves a request hanging on someone else's mail server, whatever the
+// library does internally.
+function withDeadline(promise, ms, what) {
+  let timer;
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${what}: сервер не ответил за ${Math.round(ms / 1000)} с`)), ms);
+    }),
+  ]);
+}
+
 // Never throws: a failed letter must not take down the request that triggered
 // it. The caller gets told whether it went, and decides what to say.
 async function sendMail({ to, subject, text }) {
-  const tx = getTransport();
+  let tx = null;
+  try {
+    // Building the transport can throw on its own — a malformed SMTP_URL is a
+    // typo in configuration, not a reason to fail the whole request with a 500.
+    tx = getTransport();
+  } catch (err) {
+    console.error("mail transport is misconfigured:", err.message);
+    return { delivered: false, reason: `настройки SMTP не разобрать: ${err.message}` };
+  }
   if (tx) {
     try {
-      await tx.sendMail({ from: MAIL_FROM, to, subject, text });
+      await withDeadline(tx.sendMail({ from: MAIL_FROM, to, subject, text }), SEND_DEADLINE_MS, "SMTP");
       return { delivered: true };
     } catch (err) {
       // The server's own words, not a label of ours: "535 Authentication

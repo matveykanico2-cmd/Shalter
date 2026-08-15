@@ -58,13 +58,10 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   let codePhoneField = null;
   let registerPhoneField = null;
   let twoFactor = null; // { ticket, name, method }
-  let recoverBy = "phone"; // "phone" | "email"
-  let recoverStep = "email"; // the first step either way — address or number
-  let recoverVia = "email"; // where the code actually went — the server decides, not this screen
+  let recoverStep = "email"; // "email" — пара почта+телефон, затем "code" — новый пароль
   let recoverPhone = "";
   let recoverPhoneField = null;
   let recoverEmail = "";
-  let recoverCode = "";
   let recoverPassword = "";
   let recoverError = null;
   let recoverPending = false;
@@ -286,27 +283,17 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     ]);
   }
 
-  // Forgotten password: a code mailed to the address on the account, then a new
-  // password. Two steps, because that's what the code is for — asking for the
-  // new password before the code is verified would mean typing it out for
-  // nothing whenever the code is wrong.
+  // Forgotten password: адрес почты и номер телефона этого аккаунта, затем
+  // новый пароль. Два шага, потому что пара проверяется до того, как спрашивать
+  // пароль — иначе его придумывают, а потом узнают, что номер не тот.
+  //
+  // Способ здесь ровно один. Раньше их было три (код в письме, код в чат по
+  // номеру, и вот этот), но два первых требуют доставки: письма могут не
+  // доходить вовсе, а код в чат Shalter читается только на устройстве, где вход
+  // ещё не потерян, — то есть именно тогда, когда восстановление и не нужно.
+  // Серверные пути под них остались (routes/auth.js) и работают, просто на этот
+  // экран больше не выведены.
   function renderRecoverPanel() {
-    // Two ways to be identified: the address on the account, or its number. The
-    // number path exists because an account's e-mail is private (and the server
-    // may have no mail set up at all) — see server/routes/auth.js's
-    // /recover/phone/start for why the code still has to arrive somewhere.
-    const modeRow = el("div", { class: "contacts-add-modes" }, [
-      el(
-        "button",
-        { type: "button", class: `contacts-add-mode ${recoverBy === "phone" ? "active" : ""}`, onclick: () => { recoverBy = "phone"; recoverStep = "email"; recoverError = null; render(); } },
-        "По номеру"
-      ),
-      el(
-        "button",
-        { type: "button", class: `contacts-add-mode ${recoverBy === "email" ? "active" : ""}`, onclick: () => { recoverBy = "email"; recoverStep = "email"; recoverError = null; render(); } },
-        "По почте"
-      ),
-    ]);
     recoverPhoneField ??= PhoneField({ onChange: (v) => (recoverPhone = v) });
 
     const emailInput = el("input", {
@@ -316,18 +303,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       value: recoverEmail,
       autofocus: recoverStep === "email",
       oninput: (e) => (recoverEmail = e.target.value),
-    });
-    const codeInput = el("input", {
-      class: "login-input login-code-input mono",
-      inputmode: "numeric",
-      maxlength: 6,
-      placeholder: "······",
-      autocomplete: "one-time-code",
-      value: recoverCode,
-      oninput: (e) => {
-        e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6);
-        recoverCode = e.target.value;
-      },
     });
     const passInput = el("input", {
       class: "login-input",
@@ -348,23 +323,15 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           render();
           try {
             if (recoverStep === "email") {
-              if (recoverBy === "phone") await api.startPhoneRecovery(recoverPhone);
-              else {
-                // The server may fall back to the Shalter chat when the letter
-                // can't be delivered (routes/auth.js) — the next screen has to
-                // say where the code actually went, not where it was meant to.
-                const started = await api.startRecovery(recoverEmail.trim());
-                recoverVia = started?.via === "chat" ? "chat" : "email";
-              }
+              // Проверка пары ничего не меняет и ничего не выдаёт — она только
+              // отвечает, есть ли такой аккаунт, чтобы не спрашивать пароль зря.
+              await api.checkRecoveryPair(recoverEmail.trim(), recoverPhone);
               recoverStep = "code";
               recoverPending = false;
               render();
               return;
             }
-            const { user } =
-              recoverBy === "phone"
-                ? await api.finishPhoneRecovery(recoverPhone, recoverCode, recoverPassword)
-                : await api.finishRecovery(recoverEmail.trim(), recoverCode, recoverPassword);
+            const { user } = await api.finishPairRecovery(recoverEmail.trim(), recoverPhone, recoverPassword);
             (onSuccess ?? goToApp)(user);
           } catch (err) {
             recoverError = err.message;
@@ -375,20 +342,13 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       },
       (recoverStep === "email"
         ? [
-            modeRow,
-            recoverBy === "phone" ? recoverPhoneField.el : emailInput,
-            el(
-              "p",
-              { class: "login-hint" },
-              recoverBy === "phone"
-                ? "Код придёт в ваш чат с Shalter — на устройство, где вы ещё не вышли из аккаунта."
-                : "Пришлём код на этот адрес, если на нём есть аккаунт."
-            ),
+            emailInput,
+            recoverPhoneField.el,
+            el("p", { class: "login-hint" }, "Адрес почты и номер телефона — оба как указаны в аккаунте. Кода не будет: сразу зададите новый пароль."),
           ]
         : [
-            codeInput,
             passInput,
-            el("p", { class: "login-hint" }, "Код действует 15 минут. Все остальные сеансы будут завершены."),
+            el("p", { class: "login-hint" }, "Все остальные сеансы будут завершены, а владельцу уйдёт уведомление в чат и на почту."),
           ]
       ).concat(
         [
@@ -396,7 +356,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           el(
             "button",
             { class: "login-submit", disabled: recoverPending },
-            recoverPending ? "Секунду…" : recoverStep === "email" ? "Прислать код" : "Задать новый пароль"
+            recoverPending ? "Секунду…" : recoverStep === "email" ? "Далее" : "Задать новый пароль"
           ),
         ].filter(Boolean)
       )
@@ -408,12 +368,8 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         "p",
         { class: "qr-login-instructions" },
         recoverStep === "email"
-          ? recoverBy === "phone"
-            ? "Введите номер телефона, указанный при регистрации."
-            : "Введите адрес почты, указанный при регистрации."
-          : recoverBy === "phone" || recoverVia === "chat"
-            ? `${recoverVia === "chat" && recoverBy !== "phone" ? "Письмо доставить не удалось, поэтому код отправлен" : "Код отправлен"} в чат Shalter — откройте его на устройстве, где вы ещё не вышли из аккаунта.`
-            : `Код отправлен на ${recoverEmail.trim()}. Введите его и придумайте новый пароль.`
+          ? "Введите адрес почты и номер телефона этого аккаунта."
+          : "Почта и телефон совпали. Придумайте новый пароль."
       ),
       form,
       recoverStep === "code"
@@ -424,12 +380,11 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               class: "login-link",
               onclick: () => {
                 recoverStep = "email";
-                recoverCode = "";
                 recoverError = null;
                 render();
               },
             },
-            recoverBy === "phone" ? "Другой номер" : "Другой адрес"
+            "Изменить данные"
           )
         : null,
       el(

@@ -204,11 +204,19 @@ The `/ws` location block matters — without it, WebSocket upgrade requests
 (call signaling, presence) get proxied as plain HTTP and silently fail to
 upgrade, and the app falls back to slower HTTP polling for everything.
 
-## Sending e-mail (password recovery)
+## Sending e-mail
 
-Recovery works by mailing a one-time code to the address on the account, so it
-needs an SMTP account. Set these in the Node process's environment
-(`ecosystem.config.js`'s `env` block, or Dokploy's env editor):
+Two things send mail: confirming a new address (Settings → Конфиденциальность →
+Почта, where the code goes to the address being claimed) and the notice that a
+password was reset. Recovery itself no longer needs a delivered letter — it asks
+for the address and the phone number on the account, both of which the owner
+already knows.
+
+Mail therefore only needs to work for *changing* an address. Configuration goes
+in `config.env` (committed, arrives with a `git pull`) or `.env` (gitignored,
+overrides it), and real environment variables override both — see
+`server/lib/loadConfig.js`, which the app reads itself rather than relying on
+launch flags:
 
 ```
 SMTP_URL=smtps://no-reply%40shalter.ru:APP_PASSWORD@smtp.yandex.ru:465

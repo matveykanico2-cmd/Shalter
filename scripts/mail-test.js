@@ -8,6 +8,9 @@
 // Separated from the app on purpose — when recovery mail doesn't arrive, the
 // question is always "are the credentials right or is the code wrong", and this
 // answers the first half on its own.
+// Те же config.env/.env, что читает сервер, — иначе проверка судила бы
+// о настройках, отличных от боевых.
+require("../server/lib/loadConfig");
 const { sendMail, verifySmtp } = require("../server/lib/mailer");
 
 const to = process.argv[2];

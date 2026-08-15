@@ -13,41 +13,33 @@
 // code-only substitute: they are a domain owner's signed statement that this
 // server may send as this domain, and only whoever controls the domain's DNS
 // can make it.
-const dns = require("dns").promises;
-const { publicRecord } = require("../server/lib/dkim");
+// Те же config.env/.env, что читает сервер, — иначе проверка судила бы
+// о настройках, отличных от боевых.
+require("../server/lib/loadConfig");
+const { buildDnsAdvice } = require("../server/lib/mailDns");
 
 const MAIL_FROM = process.env.MAIL_FROM || "Shalter <no-reply@shalter.ru>";
 const domain = ((MAIL_FROM.match(/<([^>]+)>/) || [null, MAIL_FROM])[1].split("@")[1] || "").trim();
 
 async function main() {
-  let ip = process.argv[2];
-  if (!ip) {
-    try {
-      [ip] = await dns.resolve4(domain);
-    } catch {
-      ip = null;
-    }
+  const advice = await buildDnsAdvice();
+  if (!advice.domain) {
+    console.error("MAIL_FROM не задан — непонятно, для какого домена считать записи.");
+    process.exit(1);
   }
-  const dkim = publicRecord();
 
-  console.log(`\nЗаписи для домена ${domain} (панель DNS у регистратора):\n`);
-  console.log("1. SPF — какие серверы вправе отправлять почту от имени домена");
-  console.log("   Тип: TXT   Имя: @ (сам домен)");
-  console.log(`   Значение: v=spf1 ${ip ? `ip4:${ip} ` : ""}~all\n`);
-  console.log("2. DKIM — открытая половина ключа, которым сервер подписывает письма");
-  console.log(`   Тип: TXT   Имя: ${dkim.name}`);
-  console.log(`   Значение: ${dkim.value}\n`);
-  console.log("3. DMARC — что делать с письмами, не прошедшими первые две проверки");
-  console.log("   Тип: TXT   Имя: _dmarc");
-  console.log(`   Значение: v=DMARC1; p=none; rua=mailto:postmaster@${domain}\n`);
-  if (!ip) {
-    console.log(`Внимание: у ${domain} нет A-записи, IP для SPF подставить не из чего — укажите его аргументом.\n`);
+  console.log(`\nЗаписи для домена ${advice.domain}${advice.ip ? ` (адрес сервера ${advice.ip})` : ""} — панель DNS у регистратора:\n`);
+  for (const r of advice.records) {
+    console.log(`${r.kind} — ${r.note}`);
+    console.log(`   Тип: TXT   Имя: ${r.name}`);
+    console.log(`   Значение: ${r.value}`);
+    console.log(`   Сейчас: ${r.published ? "опубликована" : r.current ? `другое значение — ${r.current}` : "нет записи"}\n`);
+  }
+  if (!advice.ip) {
+    console.log("Внешний адрес сервера определить не удалось — SPF показан без него.\n");
   }
   console.log("Плюс одно, что делается не в DNS: попросите хостера поставить PTR");
-  console.log(`(обратную запись) для ${ip || "IP сервера"} на ${domain}. Без неё часть провайдеров`);
-  console.log("отклоняет письма ещё до проверки подписи.\n");
-  console.log("Проверить, что записи разошлись (через несколько минут после добавления):");
-  console.log(`   dig +short TXT ${domain} && dig +short TXT ${dkim.name}.${domain}\n`);
+  console.log(`(обратную запись) для ${advice.ip || "IP сервера"} на ${advice.domain}.\n`);
 }
 
 main().catch((err) => {

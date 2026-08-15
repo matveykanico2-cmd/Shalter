@@ -85,6 +85,17 @@ RUN npm ci --omit=dev --no-audit --no-fund --maxsockets 3 && apk del .build-deps
 # DB file if no volume is mounted.
 RUN mkdir -p ./data
 
+# config.env — настройки развёртывания, которые едут вместе с репозиторием
+# (SMTP для писем восстановления). Копируется отдельно и в самом конце: выше
+# лежат npm ci и нативная сборка better-sqlite3, и попади этот файл туда, любая
+# правка настройки заново запускала бы весь этот компиляционный слой.
+#
+# Звёздочка не для красоты: COPY с шаблоном, который ничего не нашёл, ломает
+# сборку, а package.json рядом есть всегда — так строка переживает и отсутствие
+# config.env. Секреты в образ при этом не попадают: .dockerignore исключает
+# .env*, который читается позже и перекрывает этот файл.
+COPY package.json config.env* ./
+
 # Respect $PORT if the platform injects one (Dokploy/most PaaS do); server/index.js
 # already reads process.env.PORT and falls back to 3000 — this just documents it.
 EXPOSE 3000
@@ -106,6 +117,16 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # CMD flag) so the limit still applies even if the hosting platform overrides
 # CMD with its own start command.
 ENV NODE_OPTIONS="--max-old-space-size=384"
-CMD ["node", "server/index.js"]
+# Файлы настроек читаются только этими флагами, и передать их через NODE_OPTIONS
+# нельзя — node такое в нём запрещает ("--env-file-if-exists= is not allowed in
+# NODE_OPTIONS"). Поэтому они здесь, в CMD. Без них процесс поднимался с пустой
+# конфигурацией: SMTP считался ненастроенным, письма восстановления не уходили,
+# а админка честно показывала «SMTP не задан» — при том что config.env лежал
+# в репозитории.
+#
+# Порядок тот же, что и в npm start: config.env из репозитория, затем .env
+# (в образ не попадает, но может быть примонтирован), затем настоящие
+# переменные окружения — каждый следующий перекрывает предыдущий.
+CMD ["node", "--env-file-if-exists=config.env", "--env-file-if-exists=.env", "server/index.js"]
 
 

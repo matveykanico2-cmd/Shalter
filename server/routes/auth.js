@@ -25,7 +25,6 @@ const { EMAIL_RE, PHONE_RE, normalizePhone } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 const totp = require("../lib/totp");
 const twoFactorTickets = require("../data/twoFactorTickets");
-const recoveryCodes = require("../data/recoveryCodes");
 const emailChanges = require("../data/emailChanges");
 const { sendMail } = require("../lib/mailer");
 
@@ -511,124 +510,98 @@ router.post(
   })
 );
 
-// Recovering an account whose password has been forgotten: a code sent to the
-// e-mail address on the account.
+// Восстановление по паре «почта + телефон», без кода вообще.
 //
-// This replaces an earlier version that accepted the e-mail *and the phone
-// number* as proof. Neither of those is a secret — they sit on profiles and in
-// contact lists — so anyone who knew both could take an account. A code that
-// only arrives in the mailbox is proof of something the owner actually
-// controls, which is the whole difference.
+// Названо честно: это самый слабый из трёх путей, и вот почему. Ни почта, ни
+// номер не являются секретами — их знают магазины, банки, любой сервис, где
+// оставляли контакты, и попадают они в утечки чаще всего прочего. Пара из двух
+// несекретов остаётся несекретом, так что аккаунт достаётся тому, кто знает обе
+// строки. Остальные два пути (код в письме, код в чат Shalter) требуют доступа
+// к чему-то, а не знания о чём-то, — потому и надёжнее.
 //
-// Two things are kept from that version because they were right: an account
-// with two-factor authentication on cannot be reset this way at all, and every
-// other session dies on a successful reset with a notice in the Shalter chat.
-
-// Deliberately the same answer whether or not that address has an account. The
-// alternative turns this endpoint into "does X have a Shalter account", which
-// anyone could ask about anyone.
-const RECOVERY_SENT = { ok: true, sent: true };
-
+// Раз путь всё-таки нужен, цена ошибки снижена всем, чем можно: пара обязана
+// совпасть целиком и принадлежать одному аккаунту; аккаунт с двухфакторной
+// аутентификацией так не восстанавливается вовсе; все сеансы завершаются, чтобы
+// смена пароля не прошла незамеченной для того, кто в аккаунте сидит; владельцу
+// уходит уведомление и в чат, и на почту. Частота попыток ограничена authLimiter
+// (server/index.js) — перебор пар работать не должен.
 router.post(
-  "/recover/start",
+  "/recover/pair/check",
   asyncRoute(async (req, res) => {
-    const email = String(req.body?.email ?? "").trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Введите корректный адрес почты" });
-
-    const user = await findUserByEmail(email);
-    if (!user) return res.json(RECOVERY_SENT);
-    // A 2FA account is told the truth here rather than being sent a code that
-    // the next step would refuse — the owner needs to know which door to use.
-    if (user.twoFactorEnabled) {
-      return res.status(409).json({
-        error: "На аккаунте включена двухфакторная аутентификация — войдите с кодом из приложения или используйте код восстановления.",
-      });
-    }
-    if (user.isBanned) return res.json(RECOVERY_SENT);
-
-    const code = recoveryCodes.createCode(user.id);
-    const result = await sendMail({
-      to: email,
-      subject: "Восстановление доступа к Shalter",
-      text:
-        `Код для восстановления пароля: ${code}
-
-` +
-        `Он действует 15 минут и нужен только один раз.
-
-` +
-        `Если вы не запрашивали восстановление — просто не вводите этот код: без него пароль не изменится. ` +
-        `И включите двухфакторную аутентификацию: Настройки → Конфиденциальность.`,
-    });
-    if (!result.delivered) {
-      // The letter was refused — and the usual reason is not a misconfigured
-      // server but the *recipient's* provider declining mail from a sender
-      // nothing vouches for. Gmail does this unconditionally until the domain
-      // publishes SPF/DKIM (see lib/dkim.js and scripts/mail-dns.js).
-      //
-      // A dead end here would be the wrong answer: the same code works whatever
-      // carries it, and the account has a second address of its own — its chat
-      // with Shalter, which needs no DNS, no provider and no configuration. So
-      // the code goes there instead and the caller is told which door to use.
-      console.warn(`[recover] письмо на ${email} не ушло (${result.reason}) — отправляю код в чат Shalter`);
-      try {
-        const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
-        await sendMessageAndBroadcast(
-          chat,
-          SYSTEM_BOT_ID,
-          `🔢 Код для смены пароля: ${code}\n\nПисьмо на ${email} доставить не удалось, поэтому код здесь.\n\nНикому не сообщайте его — даже сотрудникам Shalter. Действует 15 минут.`
-        );
-      } catch (err) {
-        console.error("recovery chat fallback failed:", err);
-        return res.status(503).json({ error: "Не удалось отправить код — обратитесь к администрации" });
-      }
-      // "via" tells the client which instruction to show. It also reveals that
-      // this address has an account — but so did the 503 that stood here
-      // before, and so does the 2FA answer above, so this changes nothing about
-      // what the endpoint discloses.
-      return res.json({ ...RECOVERY_SENT, via: "chat" });
-    }
-    res.json({ ...RECOVERY_SENT, via: "email" });
+    const found = await findByPair(req.body);
+    if (!found.user) return res.status(found.status).json({ error: found.error });
+    res.json({ ok: true, name: found.user.name });
   })
 );
 
 router.post(
-  "/recover/verify",
+  "/recover/pair/reset",
   asyncRoute(async (req, res) => {
-    const email = String(req.body?.email ?? "").trim().toLowerCase();
     const password = String(req.body?.password ?? "");
     if (password.length < 6) return res.status(400).json({ error: "Пароль — не короче 6 символов" });
 
-    const user = await findUserByEmail(email);
-    // One message for a wrong code and for an address that never had one: the
-    // pair is what's being checked, and telling them apart leaks the address.
-    if (!user || !recoveryCodes.verify(user.id, req.body?.code)) {
-      return res.status(400).json({ error: "Неверный или устаревший код" });
-    }
-    if (user.isBanned) return res.status(403).json({ error: banError(user) });
-    if (user.twoFactorEnabled) return res.status(409).json({ error: "На аккаунте включена двухфакторная аутентификация" });
+    // Пара проверяется заново, а не «раз уж прошли первый шаг»: первый шаг
+    // ничего не выдаёт и ни к чему не обязывает, вся проверка живёт здесь.
+    const found = await findByPair(req.body);
+    if (!found.user) return res.status(found.status).json({ error: found.error });
+    const user = found.user;
 
     const { hash, salt } = hashPassword(password);
     await updateUser(user.id, { passwordHash: hash, passwordSalt: salt });
-    // Everything signed in elsewhere is signed out: if the reset wasn't the
-    // owner, whoever knew the old password is out with it. Revoked, not deleted
-    // — see data/sessions.js for why deleting the rows changes nothing.
     await revokeAllSessions(user.id);
 
+    const when = new Date().toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
     try {
       const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
       await sendMessageAndBroadcast(
         chat,
         SYSTEM_BOT_ID,
-        "🔐 Пароль восстановлен по коду из письма, все остальные сеансы завершены.\n\nЕсли это были не вы — смените пароль и включите двухфакторную аутентификацию: Настройки → Конфиденциальность."
+        `🔐 Пароль изменён через восстановление по почте и номеру телефона (${when}). Все сеансы завершены.\n\nЕсли это были не вы — восстановите доступ и включите двухфакторную аутентификацию: Настройки → Конфиденциальность. С ней этот способ восстановления не работает.`
       );
     } catch (err) {
-      console.error("recovery notice failed:", err);
+      console.error("pair recovery notice failed:", err);
+    }
+    // Письмо — второй, независимый канал: если аккаунт уводят, чат злоумышленник
+    // видит, а почту нет. Не обязано дойти, чтобы восстановление состоялось.
+    if (user.email) {
+      sendMail({
+        to: user.email,
+        subject: "Пароль в Shalter изменён",
+        text:
+          `Пароль вашего аккаунта Shalter изменён ${when} через восстановление по адресу почты и номеру телефона.\n\n` +
+          `Если это были не вы — войдите и смените пароль, а затем включите двухфакторную аутентификацию: Настройки → Конфиденциальность. С ней этот способ восстановления не работает.`,
+      }).catch((err) => console.error("pair recovery mail failed:", err));
     }
 
-    return finishLogin(req, res, await getUser(user.id));
+    addAccountSession(req, res, user.id);
+    await recordSession(req, res, user.id);
+    res.json({ user: selfUser(user) });
   })
 );
+
+// Общая проверка пары для обоих шагов выше. Возвращает либо пользователя, либо
+// готовый отказ.
+async function findByPair(body) {
+  const email = String(body?.email ?? "").trim().toLowerCase();
+  const phone = normalizePhone(body?.phone);
+  if (!EMAIL_RE.test(email)) return { status: 400, error: "Введите корректный адрес почты" };
+  if (!PHONE_RE.test(phone)) return { status: 400, error: "Введите номер телефона полностью" };
+
+  const user = await findUserByEmail(email);
+  // Одинаковый отказ на «нет такого адреса», «номер не тот» и «аккаунт без
+  // номера»: иначе эндпоинт превращается в справочную, где по разнице ответов
+  // выясняют, какой адрес существует и какой номер к нему привязан.
+  const MISMATCH = { status: 400, error: "Почта и телефон не совпадают ни с одним аккаунтом" };
+  if (!user || !user.phone || normalizePhone(user.phone) !== phone) return MISMATCH;
+  if (user.isBanned) return { status: 403, error: banError(user) };
+  if (user.twoFactorEnabled) {
+    return {
+      status: 409,
+      error: "На аккаунте включена двухфакторная аутентификация — этот способ для него отключён. Войдите с кодом или используйте код восстановления.",
+    };
+  }
+  return { user };
+}
 
 // The same thing by phone number instead of e-mail — for accounts whose address
 // is private, or where mail simply isn't set up on the server.

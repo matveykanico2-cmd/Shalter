@@ -3,14 +3,15 @@ const crypto = require("crypto");
 // A pending "change my e-mail to this address" request, waiting on the code
 // that was sent to the *new* address.
 //
-// Why the code goes to the new address and not the old one: the whole point of
-// the address is to receive a recovery code some day. An address that was never
-// proved reachable is worse than no address at all — a typo would leave the
-// account with a recovery route that silently goes nowhere, discovered on
-// exactly the day it is needed.
+// Код уходит на НОВЫЙ адрес, а не на прежний, и это важнее, чем кажется: адрес
+// теперь половина того, чем аккаунт восстанавливают (routes/auth.js,
+// /recover/pair/*). Непроверенный адрес хуже, чем никакого — опечатка оставляет
+// аккаунт с дверью, которая не откроется, и выясняется это ровно в тот день,
+// когда она понадобится.
 //
-// Same ephemeral in-memory shape as recoveryCodes.js: one pending change per
-// account, replaced by asking again, gone on restart.
+// Хранится в памяти процесса: одна ожидающая смена на аккаунт, повторный запрос
+// заменяет прежнюю, перезапуск стирает всё. Терять их при перезапуске правильно
+// — код, которым не воспользовались за пятнадцать минут, и не должен жить.
 const TTL_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const pending = new Map();

@@ -32,15 +32,11 @@ export const api = {
   checkUsername: (u) => req(`/api/auth/username-available?u=${encodeURIComponent(u)}`),
   loginEmail: (email, password) =>
     req("/api/auth/login-email", { method: "POST", body: JSON.stringify({ email, password }) }),
-  // Forgotten password: a code mailed to the address on the account, then a new
-  // password.
-  startRecovery: (email) => req("/api/auth/recover/start", { method: "POST", body: JSON.stringify({ email }) }),
-  // The same by phone: the code lands in the account's own Shalter chat.
+  // Забытый пароль: код в собственный чат аккаунта с Shalter. На экран входа
+  // не выведено — там остался единственный способ, пара «почта + телефон» ниже.
   startPhoneRecovery: (phone) => req("/api/auth/recover/phone/start", { method: "POST", body: JSON.stringify({ phone }) }),
   finishPhoneRecovery: (phone, code, password) =>
     req("/api/auth/recover/phone/verify", { method: "POST", body: JSON.stringify({ phone, code, password }) }),
-  finishRecovery: (email, code, password) =>
-    req("/api/auth/recover/verify", { method: "POST", body: JSON.stringify({ email, code, password }) }),
   switchAccount: (userId) => req("/api/auth/switch", { method: "POST", body: JSON.stringify({ userId }) }),
   logout: (uid) => req("/api/auth/logout", { method: "POST", body: JSON.stringify({ uid }) }),
   deleteAccount: (password) => req("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password }) }),
@@ -48,6 +44,11 @@ export const api = {
     req("/api/auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),
   // Two steps: the code goes to the new address, so it is that address being
   // proved, not merely typed (server/data/emailChanges.js).
+  // Восстановление по паре «почта + телефон», без кода. Два шага: проверка пары
+  // и собственно смена пароля — сервер проверяет пару в обоих (auth.js).
+  checkRecoveryPair: (email, phone) => req("/api/auth/recover/pair/check", { method: "POST", body: JSON.stringify({ email, phone }) }),
+  finishPairRecovery: (email, phone, password) =>
+    req("/api/auth/recover/pair/reset", { method: "POST", body: JSON.stringify({ email, phone, password }) }),
   startEmailChange: (password, email) => req("/api/auth/email/start", { method: "POST", body: JSON.stringify({ password, email }) }),
   confirmEmailChange: (code) => req("/api/auth/email/verify", { method: "POST", body: JSON.stringify({ code }) }),
 
@@ -342,6 +343,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ password, confirm, reason, disableTwoFactor }),
     }),
+  // Проверка отправки почты: логинится на SMTP-сервер и возвращает его ответ.
+  adminMailStatus: () => req("/api/admin/mail-status"),
   adminSetSafetyLabel: (userId, label) =>
     req(`/api/admin/users/${userId}/label`, { method: "POST", body: JSON.stringify({ label }) }),
 };

@@ -31,7 +31,15 @@ const dkim = require("./dkim");
 // gets past that check. Which of the two a given deployment is cannot be known
 // from here — hence the error is passed through verbatim to whoever is looking.
 
-const HELO = process.env.MAIL_HELO || "shalter.ru";
+// Имя, которым сервер представляется чужому SMTP (EHLO) и которым подписывает
+// Message-ID. Берётся из адреса отправителя, а не из константы: домен, от имени
+// которого шлём, может смениться (так и вышло — shalter.ru сменился на домен, к
+// DNS которого есть доступ), и представляться при этом чужим именем — верный
+// способ получить отказ у придирчивого получателя.
+const MAIL_FROM = process.env.MAIL_FROM || "Shalter <no-reply@shalter.ru>";
+const HELO =
+  process.env.MAIL_HELO ||
+  ((MAIL_FROM.match(/<([^>]+)>/) || [null, MAIL_FROM])[1].split("@")[1] || "shalter.ru").trim();
 const TIMEOUT_MS = 20000;
 
 function mxHostsFor(address) {
