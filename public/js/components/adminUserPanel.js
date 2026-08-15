@@ -229,6 +229,7 @@ export function openAdminUserPanel(user, onChange) {
         state.username ? `@${state.username}` : state.id,
         state.isBanned ? el("span", { class: "admin-panel-flag danger" }, "заблокирован") : null,
         state.safetyLabel ? el("span", { class: "admin-panel-flag" }, SAFETY_LABELS[state.safetyLabel]?.short ?? state.safetyLabel) : null,
+        state.isVerified ? el("span", { class: "admin-panel-flag" }, "верифицирован") : null,
       ]),
 
       // Выдача покупок. First section on purpose: this is the thing the admin
@@ -299,6 +300,22 @@ export function openAdminUserPanel(user, onChange) {
           ),
         ]);
       })(),
+
+      el("p", { class: "admin-panel-section-title" }, "Верификация"),
+      el("p", { class: "settings-toggle-hint" }, "Галочка рядом с именем — «мы проверили, кто за этим аккаунтом». Это не отметка о безопасности: для предупреждений есть метка ниже."),
+      el(
+        "button",
+        {
+          class: `btn-accent ${state.isVerified ? "danger" : ""}`,
+          disabled: busy,
+          onclick: () =>
+            run(async () => {
+              const { user: updated } = await api.adminSetVerified(state.id, !state.isVerified);
+              return { patch: { isVerified: !!updated.isVerified } };
+            }, state.isVerified ? "Галочка снята." : "Аккаунт верифицирован — пользователь уведомлён."),
+        },
+        state.isVerified ? "Снять галочку" : "Верифицировать"
+      ),
 
       el("p", { class: "admin-panel-section-title" }, "Метка безопасности"),
       el("p", { class: "settings-toggle-hint" }, "Видна всем, кто откроет профиль или увидит чат с этим аккаунтом — предупреждение до того, как человек переведёт деньги."),

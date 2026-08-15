@@ -104,19 +104,17 @@ export async function ChatView(root, chatId) {
   const isDm = chat.type === "dm";
   const other = chat.otherUser;
 
-  // Only DMs can ever show the grant-Premium/gift actions, so skip the extra
-  // requests everywhere else — the real permission check is server-side
-  // anyway (POST /api/premium/grant, /api/gifts/deliver), this only decides
-  // whether to show the buttons.
-  if (isDm && other) {
-    Promise.all([api.getPremiumInfo(), api.listGifts()])
-      .then(([info, giftsRes]) => {
-        isShalterAdmin = info.isAdmin;
-        gifts = giftsRes.gifts;
-        if (isShalterAdmin) renderInfoPanel();
-      })
-      .catch(() => {});
-  }
+  // "Am I the Shalter admin?" is asked for every chat type now, because a
+  // channel or group can be verified from its info panel too — it used to be
+  // fetched only for DMs, so that row could never appear. The gift catalogue is
+  // still DM-only: it powers the "send a gift" picker, which needs a recipient.
+  Promise.all([api.getPremiumInfo(), isDm && other ? api.listGifts() : Promise.resolve({ gifts: [] })])
+    .then(([info, giftsRes]) => {
+      isShalterAdmin = info.isAdmin;
+      gifts = giftsRes.gifts;
+      if (isShalterAdmin) renderInfoPanel();
+    })
+    .catch(() => {});
   const isChannel = chat.type === "channel";
   const isChannelAdmin = isChannel && isChatAdmin(chat, me.id);
   const isGroup = chat.type === "group";

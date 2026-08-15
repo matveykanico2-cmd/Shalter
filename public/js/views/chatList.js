@@ -9,6 +9,7 @@ import { openCreateBotDialog } from "../components/createBotDialog.js";
 import { openBotTokenDialog } from "../components/botTokenDialog.js";
 import { StoriesBar } from "../components/storiesBar.js";
 import { Avatar } from "../components/avatar.js";
+import { VerifiedBadge } from "../components/verifiedBadge.js";
 import { api } from "../api.js";
 import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
@@ -233,6 +234,7 @@ function renderInto(container) {
           el("button", { class: "search-user-row", onclick: () => navigate(`/discover-channels?q=${encodeURIComponent(c.username || c.title)}`) }, [
             Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage, size: 30 }),
             el("span", { class: "search-user-name" }, c.title),
+            VerifiedBadge(c, 13),
             el("span", { class: "search-user-username" }, c.username ? `@${c.username}` : `${c.subscriberCount} подписчиков`),
           ])
         );
@@ -255,6 +257,7 @@ function renderInto(container) {
         [
           Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 30 }),
           el("span", { class: "search-user-name" }, u.name),
+          VerifiedBadge(u, 13),
           u.username ? el("span", { class: "search-user-username" }, `@${u.username}`) : null,
         ].filter(Boolean)
       );

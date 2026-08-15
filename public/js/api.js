@@ -48,7 +48,10 @@ export const api = {
   // session; twoFactorLogin trades that ticket plus a code for one.
   twoFactorLogin: (ticket, code) => req("/api/auth/2fa/login", { method: "POST", body: JSON.stringify({ ticket, code }) }),
   getTwoFactor: () => req("/api/auth/2fa"),
-  setupTwoFactor: () => req("/api/auth/2fa/setup", { method: "POST" }),
+  // `method`: "totp" (authenticator app) or "chat" (code posted into the Shalter
+  // service chat).
+  setupTwoFactor: (method) => req("/api/auth/2fa/setup", { method: "POST", body: JSON.stringify({ method }) }),
+  sendTwoFactorCode: (ticket) => req("/api/auth/2fa/send-code", { method: "POST", body: JSON.stringify({ ticket }) }),
   enableTwoFactor: (code) => req("/api/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) }),
   disableTwoFactor: (code) => req("/api/auth/2fa/disable", { method: "POST", body: JSON.stringify({ code }) }),
 
@@ -270,6 +273,12 @@ export const api = {
   adminUserReports: (userId) => req(`/api/admin/users/${userId}/reports`),
   adminSetBanned: (userId, banned, reason) =>
     req(`/api/admin/users/${userId}/ban`, { method: "POST", body: JSON.stringify({ banned, reason }) }),
+  // The verified check — accounts, bots, channels and groups all go through
+  // these two (server/routes/admin.js).
+  adminSetVerified: (userId, verified) =>
+    req(`/api/admin/users/${userId}/verify`, { method: "POST", body: JSON.stringify({ verified }) }),
+  adminSetChatVerified: (chatId, verified) =>
+    req(`/api/admin/chats/${chatId}/verify`, { method: "POST", body: JSON.stringify({ verified }) }),
   adminSetSafetyLabel: (userId, label) =>
     req(`/api/admin/users/${userId}/label`, { method: "POST", body: JSON.stringify({ label }) }),
 };

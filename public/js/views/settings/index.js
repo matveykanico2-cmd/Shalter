@@ -10,7 +10,7 @@ import { requestPushPermission } from "../../lib/push.js";
 import { openCreateBotDialog } from "../../components/createBotDialog.js";
 import { openBotTokenDialog } from "../../components/botTokenDialog.js";
 import { openBotCodeDialog } from "../../components/botCodeDialog.js";
-import { formatPhoneInput } from "../../lib/phoneFormat.js";
+import { PhoneField } from "../../components/phoneField.js";
 import { hasPasscode } from "../../lib/passcodeLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../components/twoFactorDialog.js";
@@ -177,6 +177,7 @@ async function renderProfile(root) {
   let birthday = me.birthday ?? "";
   let avatarImage = me.avatarImage;
   let avatarImages = me.avatarImages ?? [];
+  let phoneField = null;
   let saved = false;
   let profileError = null;
 
@@ -233,15 +234,9 @@ async function renderProfile(root) {
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Телефон"),
-            el("input", {
-              class: "settings-input",
-              type: "tel",
-              value: phone,
-              oninput: (e) => {
-                phone = formatPhoneInput(e.target.value);
-                e.target.value = phone;
-              },
-            }),
+            // Kept across renders — the picker holds the chosen country, and a
+            // fresh one on each render would forget it mid-edit.
+            (phoneField ??= PhoneField({ value: phone, onChange: (v) => (phone = v) })).el,
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "О себе"),
@@ -1008,8 +1003,8 @@ async function renderPrivacy(root) {
                 "p",
                 { class: "settings-toggle-hint" },
                 twoFactor.enabled
-                  ? `Включена. Кодов восстановления осталось: ${twoFactor.recoveryCodesLeft}`
-                  : "Код из приложения-аутентификатора при каждом входе — знать пароль или ваш номер будет недостаточно"
+                  ? `Включена (${twoFactor.method === "chat" ? "код в чате Shalter" : "приложение-аутентификатор"}). Кодов восстановления осталось: ${twoFactor.recoveryCodesLeft}`
+                  : "Код при каждом входе — в чате Shalter или из приложения-аутентификатора. Знать пароль или ваш номер будет недостаточно"
               ),
             ]),
             twoFactor.enabled

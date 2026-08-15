@@ -16,7 +16,13 @@ import qrcode from "../lib/qrcode.js";
 // (public/js/lib/qrcode.js), so the secret is rendered locally and never goes
 // near a third-party chart service.
 export function openTwoFactorSetupDialog(onEnabled) {
-  let step = "loading"; // "loading" | "scan" | "recovery" | "error"
+  // "method" is the new first step: an authenticator app is a real barrier —
+  // it has to be installed and the QR has to be scannable — so the alternative
+  // is a code the Shalter service bot posts into your own chat, exactly like the
+  // login codes that already arrive there.
+  let step = "method"; // "method" | "loading" | "scan" | "recovery" | "error"
+  let method = "totp";
+  let resending = false;
   let secret = null;
   let otpauthUri = null;
   let recoveryCodes = [];
@@ -24,6 +30,12 @@ export function openTwoFactorSetupDialog(onEnabled) {
   let busy = false;
   let code = "";
   let copied = false;
+  // Focus is claimed at two moments only: when the scan step first appears, and
+  // after a rejected code (so the next attempt can be typed straight away).
+  // Grabbing it on *every* render fights whoever is typing — on a phone it
+  // re-snaps the caret mid-entry — and never grabbing it means a wrong code
+  // leaves focus on the button, so the keyboard goes nowhere. Both were real.
+  let wantFocus = true;
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const bodyEl = el("div", { class: "twofa-body" });
@@ -45,12 +57,16 @@ export function openTwoFactorSetupDialog(onEnabled) {
     return qr.createSvgTag({ cellSize: 5, margin: 10, scalable: true });
   }
 
-  async function start() {
+  async function start(chosen) {
+    method = chosen;
+    step = "loading";
+    render();
     try {
-      const res = await api.setupTwoFactor();
-      secret = res.secret;
-      otpauthUri = res.otpauthUri;
+      const res = await api.setupTwoFactor(chosen);
+      secret = res.secret ?? null;
+      otpauthUri = res.otpauthUri ?? null;
       step = "scan";
+      wantFocus = true;
     } catch (err) {
       error = err.message || "Не удалось начать настройку";
       step = "error";
@@ -70,6 +86,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
       onEnabled?.();
     } catch (err) {
       error = err.message || "Неверный код";
+      wantFocus = true;
     } finally {
       busy = false;
       render();
@@ -94,6 +111,22 @@ export function openTwoFactorSetupDialog(onEnabled) {
   function render() {
     clear(bodyEl);
 
+    if (step === "method") {
+      bodyEl.append(
+        el("p", { class: "settings-toggle-hint" }, "Выберите, как подтверждать вход. Второй фактор можно будет сменить, отключив и включив защиту заново."),
+        el("button", { class: "twofa-method-btn", onclick: () => start("chat") }, [
+          el("span", { class: "twofa-method-title" }, "💬 Код в чате Shalter"),
+          el("span", { class: "twofa-method-hint" }, "Код придёт сюда же, в служебный чат Shalter — как коды для входа. Ничего устанавливать не нужно."),
+        ]),
+        el("button", { class: "twofa-method-btn", onclick: () => start("totp") }, [
+          el("span", { class: "twofa-method-title" }, "📱 Приложение-аутентификатор"),
+          el("span", { class: "twofa-method-hint" }, "Google Authenticator, Aegis, 1Password. Надёжнее: код создаётся на вашем устройстве и не проходит через Shalter."),
+        ]),
+        el("button", { class: "modal-cancel", onclick: close }, "Отмена")
+      );
+      return;
+    }
+
     if (step === "loading") {
       bodyEl.append(el("div", { class: "qr-login-spinner" }));
       return;
@@ -108,35 +141,80 @@ export function openTwoFactorSetupDialog(onEnabled) {
     }
 
     if (step === "scan") {
+      // filter(Boolean) before append(): native Element.append() turns a null
+      // argument into a literal "null" text node, so the two conditional lines
+      // below printed the word "null" above and under the code field. It made
+      // the step look broken, which is exactly how it was reported.
+      const totpSteps =
+        method === "totp"
+          ? [
+              el("p", { class: "settings-toggle-hint" }, "Отсканируйте код в приложении-аутентификаторе (Google Authenticator, Aegis, 1Password, Bitwarden) и введите шестизначный код из него."),
+              el("div", { class: "twofa-qr", html: qrSvg(otpauthUri) }),
+              el("p", { class: "settings-toggle-hint" }, "Не получается отсканировать? Введите ключ вручную:"),
+              el("div", { class: "donation-code-row" }, [
+                el("span", { class: "mono twofa-secret" }, secret),
+                el("button", {
+                  class: "icon-btn",
+                  title: "Скопировать ключ",
+                  html: iconSvg("Copy", 16),
+                  onclick: async () => {
+                    try {
+                      await navigator.clipboard.writeText(secret);
+                      copied = true;
+                    } catch {
+                      copied = false;
+                    }
+                    render();
+                  },
+                }),
+              ]),
+              copied ? el("p", { class: "settings-toggle-hint" }, "Ключ скопирован ✓") : null,
+            ]
+          : [
+              el("p", { class: "settings-toggle-hint" }, "Код отправлен в ваш чат с Shalter — откройте его и введите шесть цифр. Код действует 5 минут."),
+              el(
+                "button",
+                {
+                  class: "profile-action-btn",
+                  disabled: resending,
+                  onclick: async () => {
+                    resending = true;
+                    error = null;
+                    render();
+                    try {
+                      await api.sendTwoFactorCode();
+                    } catch (err) {
+                      error = err.message || "Не удалось отправить код";
+                    }
+                    resending = false;
+                    wantFocus = true;
+                    render();
+                  },
+                },
+                resending ? "Отправляем…" : "Отправить код ещё раз"
+              ),
+            ];
       bodyEl.append(
-        el("p", { class: "settings-toggle-hint" }, "Отсканируйте код в приложении-аутентификаторе (Google Authenticator, Aegis, 1Password, Bitwarden) и введите шестизначный код из него."),
-        el("div", { class: "twofa-qr", html: qrSvg(otpauthUri) }),
-        el("p", { class: "settings-toggle-hint" }, "Не получается отсканировать? Введите ключ вручную:"),
-        el("div", { class: "donation-code-row" }, [
-          el("span", { class: "mono twofa-secret" }, secret),
-          el("button", {
-            class: "icon-btn",
-            title: "Скопировать ключ",
-            html: iconSvg("Copy", 16),
-            onclick: async () => {
-              try {
-                await navigator.clipboard.writeText(secret);
-                copied = true;
-              } catch {
-                copied = false;
-              }
-              render();
-            },
-          }),
-        ]),
-        copied ? el("p", { class: "settings-toggle-hint" }, "Ключ скопирован ✓") : null,
+        ...[
+        ...totpSteps,
         codeInput,
         error ? el("p", { class: "login-error" }, error) : null,
         el("button", { class: "btn-accent", disabled: busy, onclick: confirm }, busy ? "Проверяем…" : "Включить"),
-        el("button", { class: "modal-cancel", onclick: close }, "Отмена")
+        el("button", { class: "modal-cancel", onclick: close }, "Отмена"),
+        ].filter(Boolean)
       );
       codeInput.value = code;
-      codeInput.focus();
+      // Focused once, when the step first appears — not on every render. Calling
+      // focus() repeatedly fights the person using the field: on a phone it
+      // re-snaps the caret and can dismiss the keyboard mid-entry.
+      if (wantFocus) {
+        wantFocus = false;
+        codeInput.focus();
+        // The rejected code is selected rather than cleared: retyping replaces
+        // it, and it stays readable in case it was the right code entered a
+        // second too late.
+        codeInput.select();
+      }
       return;
     }
 
@@ -166,7 +244,6 @@ export function openTwoFactorSetupDialog(onEnabled) {
   }
 
   render();
-  start();
 }
 
 // Turning it off needs a current code (or a recovery code) — see the /2fa/disable

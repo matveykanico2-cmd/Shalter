@@ -9,7 +9,7 @@ const {
   getOrCreateDeviceId,
   requireUserId,
 } = require("../middleware/auth");
-const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, grantPremiumDays, startTotpSetup, enableTotp, disableTotp, consumeRecoveryCode } = require("../data/users");
+const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
 const { listSessions, upsertSession } = require("../data/sessions");
@@ -88,7 +88,12 @@ async function recordSession(req, res, userId) {
 async function finishLogin(req, res, user) {
   if (user.twoFactorEnabled) {
     const { ticket, expiresInSec } = twoFactorTickets.create(user.id);
-    return res.json({ twoFactorRequired: true, ticket, expiresInSec, name: user.name });
+    const method = user.twoFactorMethod ?? "totp";
+    // The code is sent as part of issuing the ticket, so the login screen has
+    // something to ask for the moment it appears rather than making people hunt
+    // for a "send me a code" button.
+    if (method === "chat") await sendTwoFactorCode(user.id).catch((err) => console.error("2fa code send failed:", err));
+    return res.json({ twoFactorRequired: true, ticket, expiresInSec, name: user.name, method });
   }
   addAccountSession(req, res, user.id);
   await recordSession(req, res, user.id);
@@ -393,6 +398,33 @@ router.post(
 // attacker who has the number, the email, and even the password still can't get
 // in without the rotating code from the owner's own authenticator app.
 
+// Posts a fresh confirmation code into the account's own Shalter service chat —
+// the same channel login codes and security alerts already use.
+//
+// What this is worth, stated plainly: it proves whoever is typing can read that
+// account's chats, i.e. already holds a signed-in device. Against someone who
+// has only the password (the common case: reused or leaked) that is a real
+// second factor. Against someone already inside a session it is not — an
+// authenticator app is stronger, which is why both are offered rather than this
+// one replacing it.
+async function sendTwoFactorCode(userId) {
+  const code = codeLogins.createCode(userId);
+  const chat = await findOrCreateDm(userId, SYSTEM_BOT_ID);
+  await sendMessageAndBroadcast(
+    chat,
+    SYSTEM_BOT_ID,
+    `🔢 Код подтверждения: ${code}\n\nНикому не сообщайте его — даже сотрудникам Shalter. Действует 5 минут.`
+  );
+}
+
+// One check for both methods, so every place that accepts a second factor
+// (enable, disable, login) treats them identically.
+async function verifySecondFactor(user, rawCode) {
+  const cleaned = String(rawCode ?? "").trim();
+  if (user.twoFactorMethod === "chat") return codeLogins.verify(user.id, cleaned);
+  return totp.verifyCode(user.totpSecret, cleaned);
+}
+
 function currentUserOr401(req, res) {
   const uid = getCurrentUserId(req);
   if (!uid) {
@@ -411,6 +443,7 @@ router.get(
     if (!me) return res.status(401).json({ error: "unauthorized" });
     res.json({
       enabled: !!me.twoFactorEnabled,
+      method: me.twoFactorMethod ?? "totp",
       // A secret generated but never confirmed — the UI offers to resume rather
       // than silently starting over with a different one.
       pending: !!me.totpSecret && !me.totpEnabledAt,
@@ -432,9 +465,39 @@ router.post(
     if (!me) return res.status(401).json({ error: "unauthorized" });
     if (me.twoFactorEnabled) return res.status(400).json({ error: "Двухфакторная аутентификация уже включена" });
 
+    // "chat" needs no secret and no QR: the code is minted per attempt and
+    // posted into the Shalter service chat, so setup is just "send me one".
+    if (req.body?.method === "chat") {
+      await startChatTwoFactor(uid);
+      await sendTwoFactorCode(uid);
+      return res.json({ method: "chat" });
+    }
+
     const secret = totp.generateSecret();
     await startTotpSetup(uid, secret);
-    res.json({ secret, otpauthUri: totp.otpauthUri(secret, me.username || me.phone || me.name) });
+    res.json({ method: "totp", secret, otpauthUri: totp.otpauthUri(secret, me.username || me.phone || me.name) });
+  })
+);
+
+// Re-send, for both the setup step and the login step. Separate from /setup so
+// asking for another code doesn't reset the method or invalidate a secret that
+// is already in someone's authenticator app.
+router.post(
+  "/2fa/send-code",
+  asyncRoute(async (req, res) => {
+    // Either an authenticated user (turning it on, or turning it off) or a
+    // half-finished login holding a ticket — the ticket names the account, so no
+    // session is needed and none is granted.
+    const ticketEntry = req.body?.ticket ? twoFactorTickets.peek(req.body.ticket) : null;
+    const uid = ticketEntry?.userId ?? getCurrentUserId(req);
+    if (!uid) return res.status(401).json({ error: "unauthorized" });
+    const me = await getUser(uid);
+    if (!me) return res.status(401).json({ error: "unauthorized" });
+    if ((me.twoFactorMethod ?? "totp") !== "chat") {
+      return res.status(400).json({ error: "Этот аккаунт подтверждает вход кодом из приложения-аутентификатора" });
+    }
+    await sendTwoFactorCode(uid);
+    res.json({ ok: true });
   })
 );
 
@@ -449,9 +512,14 @@ router.post(
     const me = await getUser(uid);
     if (!me) return res.status(401).json({ error: "unauthorized" });
     if (me.twoFactorEnabled) return res.status(400).json({ error: "Двухфакторная аутентификация уже включена" });
-    if (!me.totpSecret) return res.status(400).json({ error: "Сначала отсканируйте QR-код" });
-    if (!totp.verifyCode(me.totpSecret, req.body?.code)) {
-      return res.status(400).json({ error: "Неверный код — проверьте, что время на устройстве точное, и попробуйте снова" });
+    const byChat = me.twoFactorMethod === "chat";
+    if (!byChat && !me.totpSecret) return res.status(400).json({ error: "Сначала отсканируйте QR-код" });
+    if (!(await verifySecondFactor(me, req.body?.code))) {
+      return res.status(400).json({
+        error: byChat
+          ? "Неверный или устаревший код — запросите новый"
+          : "Неверный код — проверьте, что время на устройстве точное, и попробуйте снова",
+      });
     }
 
     const recoveryCodes = totp.generateRecoveryCodes();
@@ -527,7 +595,8 @@ router.post(
     }
 
     const cleaned = String(code ?? "").trim();
-    const ok = totp.verifyCode(user.totpSecret, cleaned) || (await consumeRecoveryCode(user.id, totp.hashRecoveryCode(cleaned)));
+    const ok =
+      (await verifySecondFactor(user, cleaned)) || (await consumeRecoveryCode(user.id, totp.hashRecoveryCode(cleaned)));
     if (!ok) {
       const attemptsLeft = twoFactorTickets.countFailure(ticket);
       return res.status(400).json({

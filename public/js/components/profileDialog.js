@@ -11,6 +11,7 @@ import { SAFETY_LABELS, safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openAdminUserPanel } from "./adminUserPanel.js";
 import { openAvatarViewer } from "./avatarViewer.js";
 import { renderScene } from "../lib/animScenes.js";
+import { VerifiedBadge } from "./verifiedBadge.js";
 
 // Bottom tab strip, same set/order as Telegram's own profile view. Content
 // for media/files/links comes from GET /api/users/:id/shared-media (scoped
@@ -215,6 +216,7 @@ export async function openProfileDialog(userId) {
       ]),
       el("p", { class: "profile-name" }, [
         user.name || "Без имени",
+        VerifiedBadge(user, 17),
         user.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
         user.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 16) }) : null,
         safety ? el("span", { class: `safety-badge safety-${user.safetyLabel}`, title: safety.label }, safety.short) : null,

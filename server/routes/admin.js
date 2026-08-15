@@ -8,15 +8,17 @@ const {
   findUserByUsername,
   setBanned,
   setSafetyLabel,
+  setVerified,
   listBannedUsers,
   listLabeledUsers,
 } = require("../data/users");
 const { buildUserExport, logExport, listExports } = require("../data/dataExport");
 const { listOpenReports, listReportsAboutUser } = require("../data/reports");
 const { getMessage } = require("../data/messages");
-const { getChat } = require("../data/chats");
+const { getChat, updateChat } = require("../data/chats");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
+const { broadcastToUsers } = require("../ws");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -267,6 +269,55 @@ router.post(
 
     const updated = await setSafetyLabel(target.id, label);
     res.json({ user: { ...userLabel(updated), safetyLabelAt: updated.safetyLabelAt || null } });
+  })
+);
+
+// The verified check. Deliberately covers accounts, bots, channels and groups
+// through one pair of routes: a fake "official" channel misleads exactly the
+// way a fake official account does, and having two half-features would mean one
+// of them quietly not existing.
+//
+// It is a claim by the administration, nothing more — it says "we checked who
+// runs this", not "this is safe". Which is why it sits next to the safety label
+// rather than replacing it.
+router.post(
+  "/users/:id/verify",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const target = await getUser(req.params.id);
+    if (!target) return res.status(404).json({ error: "Пользователь не найден" });
+    const verified = !!req.body?.verified;
+    const updated = await setVerified(target.id, verified);
+
+    // Told to the account, like every other administrative action here — a mark
+    // appearing on your profile without explanation is unsettling either way.
+    try {
+      const chat = await findOrCreateDm(SYSTEM_BOT_ID, target.id);
+      await sendMessageAndBroadcast(
+        chat,
+        SYSTEM_BOT_ID,
+        verified
+          ? "✅ Ваш аккаунт верифицирован — рядом с именем появилась галочка."
+          : "Отметка о верификации с вашего аккаунта снята."
+      );
+    } catch (err) {
+      console.error("verify notice failed:", err);
+    }
+
+    res.json({ user: { ...userLabel(updated), isVerified: !!updated.isVerified } });
+  })
+);
+
+router.post(
+  "/chats/:id/verify",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const chat = await getChat(req.params.id);
+    if (!chat) return res.status(404).json({ error: "Чат не найден" });
+    if (chat.type === "dm") return res.status(400).json({ error: "Верифицировать можно группы, каналы и аккаунты" });
+    const updated = await updateChat(chat.id, { isVerified: !!req.body?.verified });
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    res.json({ chat: updated });
   })
 );
 

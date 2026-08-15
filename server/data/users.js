@@ -57,6 +57,7 @@ function rowToUser(row) {
     banReason: row.banReason ?? undefined,
     bannedAt: row.bannedAt ?? undefined,
     safetyLabel: row.safetyLabel ?? undefined,
+    isVerified: !!row.isVerified || undefined,
     safetyLabelAt: row.safetyLabelAt ?? undefined,
     // 2FA (server/lib/totp.js). twoFactorEnabled is derived, never stored — a
     // secret that was generated but never confirmed with a real code must not
@@ -64,7 +65,11 @@ function rowToUser(row) {
     totpSecret: row.totpSecret ?? undefined,
     totpEnabledAt: row.totpEnabledAt ?? undefined,
     totpRecoveryCodes: row.totpRecoveryCodes ? JSON.parse(row.totpRecoveryCodes) : [],
-    twoFactorEnabled: !!(row.totpSecret && row.totpEnabledAt),
+    // "chat" needs no secret — the code is generated per attempt and delivered
+    // through the Shalter service chat — so "enabled" can't be defined by the
+    // presence of a secret alone.
+    twoFactorMethod: row.twoFactorMethod ?? "totp",
+    twoFactorEnabled: row.twoFactorMethod === "chat" ? !!row.totpEnabledAt : !!(row.totpSecret && row.totpEnabledAt),
   };
 }
 
@@ -241,7 +246,14 @@ async function setBanned(userId, banned, reason) {
 // Stores a not-yet-confirmed secret (totpEnabledAt stays null until a working
 // code proves the authenticator app actually has it).
 async function startTotpSetup(userId, secret) {
-  db.prepare("UPDATE users SET totpSecret = ?, totpEnabledAt = NULL, totpRecoveryCodes = NULL WHERE id = ?").run(secret, userId);
+  db.prepare("UPDATE users SET totpSecret = ?, totpEnabledAt = NULL, totpRecoveryCodes = NULL, twoFactorMethod = 'totp' WHERE id = ?").run(secret, userId);
+  return getUser(userId);
+}
+
+// The chat method: nothing to store up front but the choice itself. Codes are
+// minted per attempt (data/codeLogins.js) and posted to the service chat.
+async function startChatTwoFactor(userId) {
+  db.prepare("UPDATE users SET totpSecret = NULL, totpEnabledAt = NULL, totpRecoveryCodes = NULL, twoFactorMethod = 'chat' WHERE id = ?").run(userId);
   return getUser(userId);
 }
 
@@ -255,7 +267,7 @@ async function enableTotp(userId, recoveryCodeHashes) {
 }
 
 async function disableTotp(userId) {
-  db.prepare("UPDATE users SET totpSecret = NULL, totpEnabledAt = NULL, totpRecoveryCodes = NULL WHERE id = ?").run(userId);
+  db.prepare("UPDATE users SET totpSecret = NULL, totpEnabledAt = NULL, totpRecoveryCodes = NULL, twoFactorMethod = NULL WHERE id = ?").run(userId);
   return getUser(userId);
 }
 
@@ -279,6 +291,11 @@ async function listBannedUsers() {
 // The public safety marker (see server/db.js's safetyLabel comment). A falsy
 // label clears it — validating the allowed set is the route's job
 // (routes/admin.js's SAFETY_LABELS), not this module's.
+async function setVerified(userId, verified) {
+  db.prepare("UPDATE users SET isVerified = ? WHERE id = ?").run(verified ? 1 : 0, userId);
+  return getUser(userId);
+}
+
 async function setSafetyLabel(userId, label) {
   db.prepare("UPDATE users SET safetyLabel = ?, safetyLabelAt = ? WHERE id = ?").run(
     label || null,
@@ -336,6 +353,7 @@ const removeReceivedGift = db.transaction((userId, giftEntryId) => {
 
 module.exports = {
   setAvatars,
+  setVerified,
   listUsers,
   getUser,
   findUserByEmail,
@@ -349,6 +367,7 @@ module.exports = {
   setBlocked,
   setBanned,
   startTotpSetup,
+  startChatTwoFactor,
   enableTotp,
   disableTotp,
   consumeRecoveryCode,

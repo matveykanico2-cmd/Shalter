@@ -1,13 +1,14 @@
 import { el, mount, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
+import { VerifiedBadge } from "../components/verifiedBadge.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { getState, setState } from "../state.js";
 import { openProfileDialog } from "../components/profileDialog.js";
 import { statusLabel } from "../lib/presence.js";
 import { openImportContactsDialog } from "../components/importContactsDialog.js";
-import { formatPhoneInput } from "../lib/phoneFormat.js";
+import { PhoneField } from "../components/phoneField.js";
 
 // Digits only, so "+7 999 123-45-67", "8 (999) 1234567" and "79991234567" are
 // one number when filtering. Mirrors server/lib/phoneMatch.js's phoneKey.
@@ -81,20 +82,19 @@ export async function ContactsView(root) {
 
   // The Telegram-shaped form: a name you choose and the number you have.
   const nameInput = el("input", { class: "login-input", placeholder: "Имя (как записать у себя)" });
-  const phoneInput = el("input", {
-    class: "login-input mono",
-    type: "tel",
-    placeholder: "+7 999 123 45 67",
-    oninput: (e) => {
-      e.target.value = formatPhoneInput(e.target.value);
+  // Country picker in front of the number (components/phoneField.js) — the old
+  // single box was formatted for a Russian number and capped at 11 digits, so a
+  // foreign contact simply could not be typed in.
+  const phoneField = PhoneField({
+    onChange: () => {
       searchResult = null;
       searchError = null;
       notRegistered = null;
       renderCandidates();
     },
-    onkeydown: (e) => {
-      if (e.key === "Enter") lookUpPhone();
-    },
+  });
+  phoneField.el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.classList.contains("phone-number-input")) lookUpPhone();
   });
   const candidatesEl = el("div", { class: "contacts-candidates" });
 
@@ -104,7 +104,7 @@ export async function ContactsView(root) {
   // reports a hidden account as simply not registered — which is the point, and
   // why this screen can't tell the difference either.
   async function lookUpPhone() {
-    const phone = phoneInput.value.trim();
+    const phone = phoneField.value();
     searchResult = null;
     searchError = null;
     notRegistered = null;
@@ -167,7 +167,6 @@ export async function ContactsView(root) {
     searchResult = null;
     notRegistered = null;
     nameInput.value = "";
-    phoneInput.value = "";
     render();
   }
 
@@ -313,7 +312,7 @@ export async function ContactsView(root) {
                 el("p", { class: "settings-toggle-hint" }, "Как в телефонной книге: имя, под которым записать, и номер. Имя видите только вы."),
                 nameInput,
                 el("div", { class: "contacts-phone-row" }, [
-                  phoneInput,
+                  phoneField.el,
                   el("button", { class: "btn-accent-pill", onclick: lookUpPhone }, "Найти"),
                 ]),
               ]
@@ -365,7 +364,7 @@ export async function ContactsView(root) {
           el("button", { class: "contact-row-profile-btn", onclick: () => openProfileDialog(user.id) }, [
             Avatar({ name: displayName(c), color: user.avatarColor, image: user.avatarImage, online: user.online }),
             el("div", { class: "contact-row-body" }, [
-              el("p", { class: "contact-row-name" }, displayName(c)),
+              el("p", { class: "contact-row-name" }, [displayName(c), VerifiedBadge(user, 13)].filter(Boolean)),
               el(
                 "p",
                 { class: `contact-row-status ${user.online ? "online" : ""}` },

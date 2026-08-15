@@ -76,6 +76,10 @@ const PATHS = {
   // paperclip menu, which names every action instead of only drawing it.
   File: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/>',
   BarChart: '<path d="M6 20V10"/><path d="M12 20V4"/><path d="M18 20v-7"/>',
+  // The verified check: a scalloped seal with a tick, drawn filled so it reads
+  // at 13px next to a name rather than dissolving into three strokes.
+  Verified:
+    '<path d="M12 2.5l2.2 1.7 2.7-.3 1 2.6 2.4 1.3-.6 2.7.6 2.7-2.4 1.3-1 2.6-2.7-.3L12 21.5l-2.2-1.7-2.7.3-1-2.6L3.7 16l.6-2.7-.6-2.7 2.4-1.3 1-2.6 2.7.3Z" fill="currentColor" stroke="none"/><path d="M8.5 12.2l2.4 2.4 4.6-4.8" stroke="var(--color-surface)" stroke-width="2"/>',
 };
 
 export function iconSvg(name, size = 20, extraClass = "") {

@@ -7,6 +7,7 @@ import { navigate } from "../router.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { isChatAdmin } from "../lib/chatRoles.js";
 import { messagePreview } from "../lib/messagePreview.js";
+import { VerifiedBadge } from "./verifiedBadge.js";
 
 function timeLabel(iso) {
   const d = new Date(iso);
@@ -53,6 +54,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave })
       el("div", { class: "chat-list-item-body" }, [
         el("div", { class: "chat-list-item-row" }, [
           el("span", { class: "chat-list-item-title" }, title),
+          VerifiedBadge(chat.type === "dm" ? chat.otherUser : chat, 13),
           chat.otherUser?.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 13) }) : null,
           chat.otherUser?.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 13) }) : null,
           // Safety marker (server/db.js's safetyLabel) right on the row — the

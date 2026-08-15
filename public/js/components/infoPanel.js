@@ -10,6 +10,7 @@ import { levelForPoints, pointsToNextLevel } from "../lib/groupLevels.js";
 import { openEditChatDialog } from "./editChatDialog.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { isChatOwner, isChatAdmin, memberRoleLabel } from "../lib/chatRoles.js";
+import { VerifiedBadge } from "./verifiedBadge.js";
 
 const RESTRICT_DURATIONS = [
   { label: "На 1 час", hours: 1 },
@@ -159,6 +160,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
           }),
           el("p", { class: "info-panel-title" }, [
             title,
+            VerifiedBadge(isDm ? chat.otherUser : chat, 16),
             isDm && chat.otherUser?.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
             isDm && chat.otherUser?.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 16) }) : null,
             isDm && safetyLabelInfo(chat.otherUser?.safetyLabel)
@@ -204,6 +206,29 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             el("span", { class: "info-panel-row-icon", html: iconSvg("Edit", 15) }),
             `Редактировать ${chat.type === "channel" ? "канал" : "группу"}`,
           ])
+        : null,
+      // Verifying the chat itself — a channel or group, not a person. The
+      // per-account check lives on the profile (adminUserPanel.js); this is the
+      // only place a *chat* can be given one.
+      !isDm && isShalterAdmin
+        ? el(
+            "button",
+            {
+              class: "info-panel-row",
+              onclick: async () => {
+                try {
+                  const { chat: updated } = await api.adminSetChatVerified(chat.id, !chat.isVerified);
+                  onChatUpdated?.(updated);
+                } catch (err) {
+                  alert(err.message || "Не удалось изменить верификацию");
+                }
+              },
+            },
+            [
+              el("span", { class: "info-panel-row-icon", html: iconSvg("Verified", 15) }),
+              chat.isVerified ? "Снять галочку верификации" : `Верифицировать ${chat.type === "channel" ? "канал" : "группу"}`,
+            ]
+          )
         : null,
       isDm && chat.otherUser && isShalterAdmin
         ? el(

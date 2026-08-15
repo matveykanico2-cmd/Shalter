@@ -4,7 +4,7 @@ import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { fileToAvatarDataUrl } from "../lib/image.js";
 import qrcode from "../lib/qrcode.js";
-import { formatPhoneInput } from "../lib/phoneFormat.js";
+import { PhoneField } from "../components/phoneField.js";
 
 const QR_POLL_MS = 1500;
 
@@ -53,7 +53,11 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   // Second factor (server/lib/totp.js). Set when a first factor succeeded on an
   // account with 2FA on: the server withheld the session and handed back a
   // ticket instead, so the only thing left to render is the code prompt.
-  let twoFactor = null; // { ticket, name }
+  // The phone fields keep their own state (country + digits), so they are
+  // created once and reused across renders rather than rebuilt.
+  let codePhoneField = null;
+  let registerPhoneField = null;
+  let twoFactor = null; // { ticket, name, method }
   let twoFactorCode = "";
   let twoFactorError = null;
   let twoFactorPending = false;
@@ -213,7 +217,36 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       },
       [
         codeInput,
-        el("p", { class: "login-hint" }, "Код из приложения-аутентификатора. Можно ввести и код восстановления."),
+        el(
+          "p",
+          { class: "login-hint" },
+          twoFactor.method === "chat"
+            ? "Код отправлен в ваш чат с Shalter — откройте его на устройстве, где вы уже вошли. Можно ввести и код восстановления."
+            : "Код из приложения-аутентификатора. Можно ввести и код восстановления."
+        ),
+        // Only for the chat method: the code lives in a message that can be
+        // missed, expire, or arrive while the app is closed. A TOTP app always
+        // has a fresh code, so there is nothing to re-send.
+        twoFactor.method === "chat"
+          ? el(
+              "button",
+              {
+                type: "button",
+                class: "login-link",
+                onclick: async () => {
+                  twoFactorError = null;
+                  try {
+                    await api.sendTwoFactorCode(twoFactor.ticket);
+                    twoFactorError = "Новый код отправлен в чат Shalter";
+                  } catch (err) {
+                    twoFactorError = err.message || "Не удалось отправить код";
+                  }
+                  render();
+                },
+              },
+              "Отправить код ещё раз"
+            )
+          : null,
         twoFactorError ? el("p", { class: "login-error center" }, twoFactorError) : null,
         el("button", { class: "login-submit", disabled: twoFactorPending }, twoFactorPending ? "Проверяем…" : "Подтвердить вход"),
       ].filter(Boolean)
@@ -260,7 +293,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             } else {
               const res = await api.verifyCodeLogin(codePhone, codeValue);
               if (res.twoFactorRequired) {
-                twoFactor = { ticket: res.ticket, name: res.name };
+                twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp" };
                 codePending = false;
                 render();
                 return;
@@ -277,17 +310,14 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       },
       codeStep === "phone"
         ? [
-            el("input", {
-              class: "login-input",
-              type: "tel",
-              placeholder: "+7 999 123-45-67",
-              autofocus: true,
+            // Built once and cached on the closure: PhoneField holds its own
+            // state (chosen country, digits typed), so rebuilding it on every
+            // render would reset the picker mid-entry.
+            (codePhoneField ??= PhoneField({
               value: codePhone,
-              oninput: (e) => {
-                codePhone = formatPhoneInput(e.target.value);
-                e.target.value = codePhone;
-              },
-            }),
+              autofocus: true,
+              onChange: (v) => (codePhone = v),
+            })).el,
             el(
               "p",
               { class: "login-hint" },
@@ -426,16 +456,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     });
     const phoneInput =
       mode === "register"
-        ? el("input", {
-            class: "login-input",
-            type: "tel",
-            placeholder: "+7 999 123-45-67",
-            value: phone,
-            oninput: (e) => {
-              phone = formatPhoneInput(e.target.value);
-              e.target.value = phone;
-            },
-          })
+        ? (registerPhoneField ??= PhoneField({ value: phone, onChange: (v) => (phone = v) })).el
         : null;
     const usernameInput = mode === "register" ? usernameField() : null;
     const passwordInput = el("input", {
@@ -475,7 +496,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               // Password was right, but the account has 2FA on — no session was
               // created, so hand over to the code step instead of continuing.
               if (res.twoFactorRequired) {
-                twoFactor = { ticket: res.ticket, name: res.name };
+                twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp" };
                 pending = false;
                 render();
                 return;

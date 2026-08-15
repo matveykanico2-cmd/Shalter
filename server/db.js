@@ -478,6 +478,22 @@ db.exec("CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)");
 const existingContactCols = new Set(db.prepare("PRAGMA table_info(contacts)").all().map((c) => c.name));
 if (!existingContactCols.has("localName")) db.exec("ALTER TABLE contacts ADD COLUMN localName TEXT");
 
+// How the second factor is delivered: "totp" (authenticator app) or "chat" (a
+// code the Shalter service bot posts into the account's own service chat, the
+// same way login codes already arrive). The chat method exists because an
+// authenticator app is a real barrier — it has to be installed, the QR has to be
+// scannable, and if neither is true the whole feature is unusable.
+const existingTwoFactorCols = new Set(db.prepare("PRAGMA table_info(users)").all().map((c) => c.name));
+if (!existingTwoFactorCols.has("twoFactorMethod")) db.exec("ALTER TABLE users ADD COLUMN twoFactorMethod TEXT");
+
+// The verified check (the badge next to a name). Set by whoever holds
+// ADMIN_PHONE — for accounts, bots, channels and groups alike, since a
+// pretend-official channel misleads exactly the same way a pretend-official
+// account does.
+if (!existingTwoFactorCols.has("isVerified")) db.exec("ALTER TABLE users ADD COLUMN isVerified INTEGER NOT NULL DEFAULT 0");
+const existingChatVerifyCols = new Set(db.prepare("PRAGMA table_info(chats)").all().map((c) => c.name));
+if (!existingChatVerifyCols.has("isVerified")) db.exec("ALTER TABLE chats ADD COLUMN isVerified INTEGER NOT NULL DEFAULT 0");
+
 // Several profile photos instead of one, and video avatars (lib/avatars.js).
 // The older `avatarImage` column stays and keeps its meaning — the current
 // avatar's still — so every existing reader of it is untouched.

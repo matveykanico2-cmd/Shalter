@@ -3954,10 +3954,13 @@
   min-width: 0;
   flex: 1;
 }
+/* A flex row now that a verified check can sit beside the name — with the old
+   block layout the badge dropped onto its own line. */
 .contact-row-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-weight: 500;
   margin: 0;
 }
@@ -6721,4 +6724,132 @@
   vertical-align: -2px;
   margin-right: 8px;
   color: var(--color-muted);
+}
+
+/* Choosing how the second factor arrives (components/twoFactorDialog.js):
+   a code in the Shalter service chat, or an authenticator app. Two large
+   targets rather than a radio group — this is a one-time decision, and the
+   trade-off between them needs a sentence each to be made properly. */
+.twofa-method-btn {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  padding: 12px 14px;
+  text-align: left;
+}
+.twofa-method-btn:hover {
+  border-color: var(--color-accent);
+}
+.twofa-method-title {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.twofa-method-hint {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--color-muted);
+}
+
+/* Phone input with a country picker (components/phoneField.js). The country
+   sits inside the same bordered box as the number so the two read as one
+   field, not as a dropdown that happens to be next to an input. */
+.phone-field {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.phone-country-btn {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  padding: 0 10px;
+  font-size: 14px;
+}
+.phone-country-btn:hover {
+  border-color: var(--color-accent);
+}
+.phone-country-flag {
+  font-size: 18px;
+  line-height: 1;
+}
+.phone-country-dial {
+  color: var(--color-muted);
+}
+.phone-country-caret {
+  font-size: 10px;
+  color: var(--color-muted);
+}
+.phone-number-input {
+  flex: 1;
+  min-width: 0;
+}
+/* Above the dialog it may sit in, and tall enough to show a handful of
+   countries without becoming a page of its own. */
+.phone-country-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 92;
+  display: flex;
+  width: min(320px, 100%);
+  max-height: 300px;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 8px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+}
+.phone-country-search {
+  flex-shrink: 0;
+}
+.phone-country-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.phone-country-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 7px 8px;
+  text-align: left;
+  font-size: 14px;
+}
+.phone-country-row:hover {
+  background: var(--color-surface-alt);
+}
+.phone-country-row.active {
+  background: var(--color-accent-soft);
+}
+.phone-country-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The verified check (components/verifiedBadge.js). Blue, like every other
+   messenger's — this is one of the few places where matching the convention
+   matters more than matching the app, because the mark has to be recognised
+   instantly and not mistaken for decoration. */
+.verified-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  color: #4a9df8;
 }
