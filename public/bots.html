@@ -40,6 +40,11 @@
       <a href="#me">GET /me</a>
       <a href="#updates">GET /updates</a>
       <a href="#send">POST /sendMessage</a>
+      <a href="#media">Картинки и файлы</a>
+      <a href="#edit">Правка и удаление</a>
+      <a href="#pin">Закрепление</a>
+      <a href="#typing">Печатает…</a>
+      <a href="#who">Чаты и люди</a>
       <a href="#keyboard">Кнопки</a>
       <a href="#commands">Команды</a>
       <h4>Редактор в приложении</h4>
@@ -181,6 +186,81 @@ setInterval(() =&gt; tick().catch(console.error), 2000);</code></pre>
         превращался бы в право рассылки по всему мессенджеру.
       </p>
 
+      <h2 id="media">Картинки и файлы</h2>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendPhoto</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendDocument</div>
+      <p>
+        Вложение передаётся <strong>ссылкой</strong>, а не загрузкой файла: у бота уже есть где хранить свои
+        картинки, а второй путь загрузки на сервер тянул бы за собой свои лимиты, чистку и квоты.
+        Годится и <code>data:</code>-URL, если файл маленький и генерируется на лету.
+      </p>
+      <table class="doc-table">
+        <thead><tr><th>Поле</th><th>Тип</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td>chatId</td><td>строка</td><td>Обязательное.</td></tr>
+          <tr><td>url</td><td>строка</td><td>Обязательное. Адрес картинки или файла.</td></tr>
+          <tr><td>caption</td><td>строка</td><td>Подпись — она же становится текстом сообщения.</td></tr>
+          <tr><td>name</td><td>строка</td><td>Только для sendDocument: имя файла, которое увидит человек.</td></tr>
+          <tr><td>replyToId</td><td>строка</td><td>Ответить на сообщение.</td></tr>
+        </tbody>
+      </table>
+      <pre><code>await fetch(`${API}/sendPhoto`, {
+  method: "POST", headers: auth,
+  body: JSON.stringify({ chatId, url: "https://example.com/chart.png", caption: "Отчёт за неделю" }),
+});</code></pre>
+
+      <h2 id="edit">Правка и удаление</h2>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/editMessageText</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/deleteMessage</div>
+      <p>
+        Первый принимает <code>messageId</code> и новый <code>text</code>, второй — только
+        <code>messageId</code>. Изменения видны всем в чате сразу, без перезагрузки.
+      </p>
+      <p>
+        Бот может править и удалять <strong>только свои</strong> сообщения — чужое вернёт <code>403</code>.
+        Это не формальность: токен бота живёт на чьём-то сервере, и право стирать чужие слова там ему не нужно.
+      </p>
+      <pre><code>const { message } = await (await fetch(`${API}/sendMessage`, {
+  method: "POST", headers: auth, body: JSON.stringify({ chatId, text: "Считаю…" }),
+})).json();
+
+const result = await heavyWork();
+
+await fetch(`${API}/editMessageText`, {
+  method: "POST", headers: auth,
+  body: JSON.stringify({ messageId: message.id, text: `Готово: ${result}` }),
+});</code></pre>
+
+      <h2 id="pin">Закрепление</h2>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/pinChatMessage</div>
+      <p>
+        Принимает <code>messageId</code> и <code>pinned</code> (<code>true</code> по умолчанию,
+        <code>false</code> — открепить). Здесь правило другое, чем у правки: закрепить можно и чужое
+        сообщение, но только там, где бот <strong>администратор</strong>. Закреп видит весь чат — это
+        действие модератора, а не отправителя. В личном чате с ботом ограничения нет.
+      </p>
+
+      <h2 id="typing">Печатает…</h2>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendChatAction</div>
+      <p>
+        Принимает <code>chatId</code>. Показывает в чате, что бот думает над ответом — то, что отличает
+        занятого бота от зависшего. Живёт пять секунд, как и у людей: перед длинным шагом повторяйте,
+        а не ставьте один раз в начале.
+      </p>
+
+      <h2 id="who">Чаты и люди</h2>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getChats</div>
+      <p>Все чаты, где состоит бот: <code>id</code>, тип, название, число участников и признак админа.
+        Без него единственный способ узнать свой чат — дождаться, пока туда кто-нибудь напишет.</p>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getChat?chatId=…</div>
+      <p>Один чат подробно, вместе со списком участников.</p>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getUser?userId=…</div>
+      <p>
+        Кто написал. В сообщении приходит только <code>senderId</code>; отсюда берутся имя и юзернейм,
+        чтобы ответить «Спасибо, Аня», а не «Спасибо, u_1786…». Чужой адрес почты не отдаётся никогда —
+        ни здесь, ни где-либо ещё.
+      </p>
+
       <h2 id="keyboard">Кнопки</h2>
       <p>
         <code>keyboard</code> — массив рядов, каждый ряд — массив кнопок. Нажатие отправляет боту обычное
@@ -211,6 +291,19 @@ help - Что я умею</code></pre>
         Он показывается людям по кнопке «/» в чате с ботом. Сами команды приходят обычными сообщениями
         с текстом <code>/погода</code> — отдельного типа события для них нет.
       </p>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getMyCommands</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setMyCommands</div>
+      <p>
+        То же самое из программы — удобно обновлять список вместе с выкладкой новой версии бота, а не руками.
+        Ведущий слэш можно не писать, он всё равно срезается.
+      </p>
+      <pre><code>await fetch(`${API}/setMyCommands`, {
+  method: "POST", headers: auth,
+  body: JSON.stringify({ commands: [
+    { command: "start", description: "Начать" },
+    { command: "погода", description: "Прогноз на сегодня" },
+  ]}),
+});</code></pre>
 
       <h2 id="editor">Редактор внутри приложения</h2>
       <p>

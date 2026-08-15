@@ -6,7 +6,7 @@ const { getChat } = require("../data/chats");
 const { addMessage } = require("../data/messages");
 const { broadcastToUsers } = require("../ws");
 
-async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId } = {}) {
+async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId, attachments } = {}) {
   if (!text?.trim()) throw new Error("text is required");
 
   const chat = await getChat(chatId);
@@ -23,6 +23,9 @@ async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId } =
     createdAt: new Date().toISOString(),
     replyToId: replyToId ?? null,
     keyboard: Array.isArray(keyboard) ? keyboard : undefined,
+    // Картинки и файлы бот присылает ссылкой — своё хранилище у него уже есть,
+    // а второй путь загрузки на сервер тянул бы за собой свои лимиты и чистку.
+    attachments: Array.isArray(attachments) ? attachments : undefined,
     readByIds: [],
   });
   broadcastToUsers(chat.memberIds, { type: "message:new", chatId, message });
