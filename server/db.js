@@ -491,8 +491,17 @@ if (!existingTwoFactorCols.has("twoFactorMethod")) db.exec("ALTER TABLE users AD
 // pretend-official channel misleads exactly the same way a pretend-official
 // account does.
 if (!existingTwoFactorCols.has("isVerified")) db.exec("ALTER TABLE users ADD COLUMN isVerified INTEGER NOT NULL DEFAULT 0");
-const existingChatVerifyCols = new Set(db.prepare("PRAGMA table_info(chats)").all().map((c) => c.name));
-if (!existingChatVerifyCols.has("isVerified")) db.exec("ALTER TABLE chats ADD COLUMN isVerified INTEGER NOT NULL DEFAULT 0");
+const existingChatVerifyCols2 = new Set(db.prepare("PRAGMA table_info(chats)").all().map((c) => c.name));
+if (!existingChatVerifyCols2.has("isVerified")) db.exec("ALTER TABLE chats ADD COLUMN isVerified INTEGER NOT NULL DEFAULT 0");
+
+// The invite link — how someone joins a private group or channel. Until now the
+// only way in was an admin adding you by hand, which meant a private group had
+// no way to grow at all. One active code per chat, regenerable: revoking is the
+// point (a leaked link has to be killable), and several simultaneous links are
+// bookkeeping nobody here asked for.
+if (!existingChatVerifyCols2.has("inviteCode")) db.exec("ALTER TABLE chats ADD COLUMN inviteCode TEXT");
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_chats_invite ON chats(inviteCode) WHERE inviteCode IS NOT NULL");
+
 
 // Several profile photos instead of one, and video avatars (lib/avatars.js).
 // The older `avatarImage` column stays and keeps its meaning — the current

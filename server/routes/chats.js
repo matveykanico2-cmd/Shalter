@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser } = require("../data/chats");
+const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findChatByInviteCode } = require("../data/chats");
 const { checkUsername, normalizeUsername } = require("../lib/username");
 const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeatures");
 const { deleteMessagesForChat } = require("../data/messages");
@@ -275,6 +275,80 @@ router.post(
     if (problem) return res.status(problem.status).json({ error: problem.error });
 
     const updated = await updateChat(req.params.id, { isPublic: true, username });
+    res.json({ chat: updated });
+  })
+);
+
+// ── Invite links ───────────────────────────────────────────────────────────
+//
+// How anyone joins a private group or channel. Before this the only way in was
+// an admin adding you by id, so a private chat could not grow at all and a
+// public @link was the only self-service route — which forced groups to be
+// public just to be joinable.
+//
+// The code is a random 22-char token, not the chat id: an id is guessable from
+// any other chat's URL, and "anyone who can guess an id can walk in" is not an
+// invite system.
+const crypto = require("crypto");
+
+function newInviteCode() {
+  return crypto.randomBytes(16).toString("base64url").slice(0, 22);
+}
+
+// Returns the link, creating one on first ask. Owner/admin only — a link is a
+// standing invitation to everything said in the chat.
+router.post(
+  "/:id/invite",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (chat.type === "dm") return res.status(400).json({ error: "Пригласительная ссылка есть только у групп и каналов" });
+    if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
+
+    // `revoke` regenerates: the old code stops working the moment the new one is
+    // written, which is the entire reason to have this button.
+    const code = chat.inviteCode && !req.body?.revoke ? chat.inviteCode : newInviteCode();
+    const updated = chat.inviteCode === code ? chat : await updateChat(chat.id, { inviteCode: code });
+    res.json({ code, chat: updated });
+  })
+);
+
+// What's behind a link, before joining. Deliberately readable without being a
+// member — otherwise nobody could ever see what they're being invited to — but
+// it returns only what an invitation should show: name, picture, size.
+router.get(
+  "/invite/:code",
+  asyncRoute(async (req, res) => {
+    const chat = await findChatByInviteCode(req.params.code);
+    if (!chat) return res.status(404).json({ error: "Ссылка недействительна или отозвана" });
+    res.json({
+      chat: {
+        id: chat.id,
+        type: chat.type,
+        title: chat.title,
+        description: chat.description,
+        avatarColor: chat.avatarColor,
+        avatarImage: chat.avatarImage,
+        isVerified: chat.isVerified,
+        memberCount: chat.memberIds.length,
+        alreadyMember: chat.memberIds.includes(req.uid),
+      },
+    });
+  })
+);
+
+router.post(
+  "/invite/:code/join",
+  asyncRoute(async (req, res) => {
+    const chat = await findChatByInviteCode(req.params.code);
+    if (!chat) return res.status(404).json({ error: "Ссылка недействительна или отозвана" });
+    if (chat.memberIds.includes(req.uid)) return res.json({ chat });
+
+    const updated = await updateChat(chat.id, { memberIds: [...chat.memberIds, req.uid] });
+    // The chat appears for the joiner, and everyone already inside sees the
+    // member list change without waiting on a poll.
+    broadcastToUsers([req.uid], { type: "chat:added", chat: updated });
+    broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
     res.json({ chat: updated });
   })
 );

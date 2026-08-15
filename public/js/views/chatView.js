@@ -411,13 +411,126 @@ export async function ChatView(root, chatId) {
 
   const title = isDm ? (other?.name ?? chat.title) : chat.title;
 
+  // Selecting several messages at once — forward a conversation, delete a run of
+  // messages, copy a few lines. Every action here already existed for a single
+  // message; what was missing was doing them to more than one without repeating
+  // the same four taps per message.
+  const selected = new Set();
+  let selecting = false;
+
+  function toggleSelect(id) {
+    if (selected.has(id)) selected.delete(id);
+    else selected.add(id);
+    // Unticking the last one leaves selection mode, so there's no way to get
+    // stuck in a mode with nothing selected and no obvious way out.
+    if (!selected.size) selecting = false;
+    renderList();
+    renderSelectionBar();
+  }
+
+  function startSelecting(id) {
+    selecting = true;
+    selected.clear();
+    if (id) selected.add(id);
+    renderList();
+    renderSelectionBar();
+  }
+
+  function clearSelection() {
+    selecting = false;
+    selected.clear();
+    renderList();
+    renderSelectionBar();
+  }
+
+  function selectedMessages() {
+    return messages.filter((m) => selected.has(m.id));
+  }
+
+  const selectionBar = el("div", { class: "selection-bar-slot" });
+
+  function renderSelectionBar() {
+    clear(selectionBar);
+    if (!selecting) return;
+    const picked = selectedMessages();
+    const mineOnly = picked.every((m) => m.senderId === me.id);
+    selectionBar.appendChild(
+      el("div", { class: "selection-bar" }, [
+        el("button", { class: "icon-btn", title: "Отменить", html: iconSvg("X", 18), onclick: clearSelection }),
+        el("span", { class: "selection-count" }, `Выбрано: ${picked.length}`),
+        el("button", {
+          class: "icon-btn",
+          title: "Копировать",
+          html: iconSvg("Copy", 17),
+          onclick: async () => {
+            // Oldest first and with the sender's name, because a copied run of
+            // messages is almost always going somewhere it has to read as a
+            // conversation.
+            const text = picked
+              .map((m) => `${members.find((u) => u.id === m.senderId)?.name ?? ""}: ${messagePreview(m)}`.trim())
+              .join("\n");
+            try {
+              await navigator.clipboard.writeText(text);
+            } catch {
+              /* clipboard blocked — nothing useful to say, the messages are on screen */
+            }
+            clearSelection();
+          },
+        }),
+        el("button", {
+          class: "icon-btn",
+          title: "Переслать",
+          html: iconSvg("Forward", 17),
+          onclick: () => {
+            // Same dialog as a single forward — it hands back a destination,
+            // and the whole selection is sent there oldest-first so it arrives
+            // in the order it was written.
+            openForwardDialog(async (targetChatId) => {
+              for (const m of picked) await handleForward(m, targetChatId);
+              clearSelection();
+            });
+          },
+        }),
+        el("button", {
+          class: "icon-btn danger",
+          title: "Удалить",
+          html: iconSvg("Trash", 17),
+          onclick: () => {
+            openChoiceDialog(
+              `Удалить сообщений: ${picked.length}`,
+              [
+                { label: "Удалить только у себя", onClick: () => deleteMany(picked, false) },
+                ...(mineOnly ? [{ label: "Удалить у всех", danger: true, onClick: () => deleteMany(picked, true) }] : []),
+              ]
+            );
+          },
+        }),
+      ])
+    );
+  }
+
+  async function deleteMany(list, forEveryone) {
+    // Sequential rather than Promise.all: these all hit the same chat and the
+    // list is refetched once at the end, so parallelism would only race the
+    // broadcasts against each other.
+    for (const m of list) {
+      try {
+        await api.deleteMessage(chat.id, m.id, forEveryone);
+      } catch {
+        /* one failure shouldn't abandon the rest of the selection */
+      }
+    }
+    clearSelection();
+    await refreshMessages();
+  }
+
   const header = el("header", { class: "chat-header" });
   const pinnedBar = el("div", { class: "pinned-bar-slot" });
   const list = el("div", { class: "message-list" });
   applyWallpaper(list, chat.id);
   const composerSlot = el("div", { class: "composer-slot" });
   const bodyBottomSlot = el("div", { class: "body-bottom-slot" });
-  const mainCol = el("div", { class: "chat-main-col" }, [header, pinnedBar, list, bodyBottomSlot, composerSlot]);
+  const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, pinnedBar, list, bodyBottomSlot, composerSlot]);
   const infoSlot = el("div", { class: "info-panel-slot" });
   const wrap = el("div", { class: "chat-view" }, [mainCol, infoSlot]);
 
@@ -482,6 +595,7 @@ export async function ChatView(root, chatId) {
           html: iconSvg("More", 18),
           onclick: (e) =>
             openDropdownMenu({ x: e.clientX, y: e.clientY }, [
+              { icon: "Check", label: "Выбрать сообщения", onClick: () => startSelecting(null) },
               { icon: chat.muted ? "Bell" : "BellOff", label: chat.muted ? "Включить уведомления" : "Отключить уведомления", onClick: toggleMute },
               { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
               { icon: "Image", label: "Фон чата", onClick: handleChooseWallpaper },
@@ -657,6 +771,7 @@ export async function ChatView(root, chatId) {
           isChannel: chat.type === "channel",
           isDm,
           canPin,
+          selection: { active: selecting, ids: selected, onToggle: (id) => (selecting ? toggleSelect(id) : startSelecting(id)) },
           replyToMessage,
           members,
           handlers: {

@@ -6853,3 +6853,89 @@
   align-items: center;
   color: #4a9df8;
 }
+
+/* Invite link (components/editChatDialog.js) and the page it opens
+   (views/joinInvite.js). */
+.invite-link-row {
+  display: flex;
+  gap: 8px;
+}
+.invite-link-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+}
+.join-invite {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+.join-invite h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 22px;
+}
+.join-invite-description {
+  max-width: 420px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-muted);
+  white-space: pre-wrap;
+}
+.join-invite .btn-accent {
+  width: auto;
+  padding: 10px 24px;
+}
+
+/* Selecting several messages (views/chatView.js). The bar replaces nothing —
+   it sits under the header while selection is on, so the chat itself never
+   jumps or loses its place. */
+.selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-accent-soft);
+  padding: 6px 10px;
+}
+.selection-count {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.selection-bar .icon-btn.danger {
+  color: var(--color-danger);
+}
+/* The whole row becomes the target while selecting — a small checkbox is a
+   miss-prone tap on a phone, and Telegram does the same. */
+.message-row.selecting {
+  cursor: pointer;
+  border-radius: 8px;
+}
+.message-row.selected {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+.message-select-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  height: 20px;
+  width: 20px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-border);
+  color: var(--color-accent-contrast);
+}
+.message-select-mark.on {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}

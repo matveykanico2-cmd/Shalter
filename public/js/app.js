@@ -8,6 +8,7 @@ import { LoginView } from "./views/login.js";
 import { QrLoginConfirmView } from "./views/qrLoginConfirm.js";
 import { ChatView } from "./views/chatView.js";
 import { ContactsView } from "./views/contacts.js";
+import { JoinInviteView } from "./views/joinInvite.js";
 import { DiscoverChannelsView } from "./views/discoverChannels.js";
 import { CallScreenView } from "./views/callScreen.js";
 import { CallsView } from "./views/calls.js";
@@ -206,6 +207,13 @@ async function boot() {
         ])
       );
     }
+  });
+  // An invite link (server/routes/chats.js) — a full page, not a dialog: it's
+  // opened from outside the app, often by someone not signed in yet, and the
+  // router's own auth gate sends them to /login and back.
+  route("/join/:code", async (params) => {
+    withCleanup(mainSlot);
+    await JoinInviteView(mainSlot, params.code);
   });
   route("/contacts", async () => {
     withCleanup(mainSlot);

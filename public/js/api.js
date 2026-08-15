@@ -83,6 +83,10 @@ export const api = {
     req("/api/chats/channels", { method: "POST", body: JSON.stringify({ title, avatarImage, memberIds, adminIds, ...extra }) }),
   createGroup: (title, memberIds, avatarImage, adminIds, extra = {}) =>
     req("/api/chats/groups", { method: "POST", body: JSON.stringify({ title, memberIds, avatarImage, adminIds, ...extra }) }),
+  // Invite links — how anyone joins a private group or channel.
+  chatInviteLink: (id, revoke = false) => req(`/api/chats/${id}/invite`, { method: "POST", body: JSON.stringify({ revoke }) }),
+  inviteInfo: (code) => req(`/api/chats/invite/${encodeURIComponent(code)}`),
+  joinByInvite: (code) => req(`/api/chats/invite/${encodeURIComponent(code)}/join`, { method: "POST" }),
   // The palette this chat's level has unlocked (server/lib/chatFeatures.js).
   getChatFeatures: (id) => req(`/api/chats/${id}/features`),
   setChannelPublic: (id, isPublic, username) =>

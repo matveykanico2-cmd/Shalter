@@ -20,6 +20,7 @@ export function openEditChatDialog(chat, onSaved) {
   let avatarColor = chat.avatarColor ?? null;
   let isPublic = !!chat.isPublic;
   let colors = [];
+  let inviteLink = chat.inviteCode ? `${window.location.origin}/join/${chat.inviteCode}` : null;
   let busy = false;
   let error = null;
   let notice = null;
@@ -152,6 +153,52 @@ export function openEditChatDialog(chat, onSaved) {
                 )
               ),
             ])
+          : null,
+
+        // The invite link: how anyone joins a private chat. Shown for public
+        // ones too — a link works whether or not there's an @handle, and it's
+        // what gets pasted into a message.
+        el("p", { class: "settings-field-label" }, "Пригласительная ссылка"),
+        el("p", { class: "settings-toggle-hint" }, "По ней можно вступить без приглашения от админа. Отозвать — если ссылка утекла."),
+        el("div", { class: "invite-link-row" }, [
+          el("input", { class: "login-input mono invite-link-input", readOnly: true, value: inviteLink ?? "", placeholder: "Ссылка ещё не создана" }),
+          el(
+            "button",
+            {
+              class: "btn-accent-pill",
+              disabled: busy,
+              onclick: async () => {
+                try {
+                  const { code } = await api.chatInviteLink(chat.id, !!inviteLink);
+                  inviteLink = `${window.location.origin}/join/${code}`;
+                  notice = inviteLink && chat.inviteCode ? "Ссылка обновлена — старая больше не работает" : "Ссылка создана";
+                  chat = { ...chat, inviteCode: code };
+                } catch (err) {
+                  error = err.message || "Не удалось получить ссылку";
+                }
+                render();
+              },
+            },
+            inviteLink ? "Отозвать и создать новую" : "Создать ссылку"
+          ),
+        ]),
+        inviteLink
+          ? el(
+              "button",
+              {
+                class: "profile-action-btn",
+                onclick: async () => {
+                  try {
+                    await navigator.clipboard.writeText(inviteLink);
+                    notice = "Ссылка скопирована";
+                  } catch {
+                    notice = "Скопируйте ссылку вручную — буфер обмена недоступен";
+                  }
+                  render();
+                },
+              },
+              "Скопировать ссылку"
+            )
           : null,
 
         el("div", { class: "create-chat-public" }, [

@@ -11,6 +11,7 @@ function rowToChat(row) {
     username: row.username ?? undefined,
     isPublic: !!row.isPublic || undefined,
     isVerified: !!row.isVerified || undefined,
+    inviteCode: row.inviteCode ?? undefined,
     avatarColor: row.avatarColor ?? undefined,
     avatarImage: row.avatarImage ?? undefined,
     ownerId: row.ownerId ?? undefined,
@@ -52,6 +53,14 @@ async function getChat(id) {
 // findUserByUsername) — usernames and channel usernames share one visible
 // @handle namespace (see routes/chats.js's /:id/public), even though they
 // live in separate columns on separate tables.
+// Joining by link: the code is the only thing the joiner has, so it has to be
+// resolvable without membership.
+async function findChatByInviteCode(code) {
+  const c = String(code ?? "").trim();
+  if (!c) return undefined;
+  return rowToChat(db.prepare("SELECT * FROM chats WHERE inviteCode = ?").get(c));
+}
+
 async function findChatByUsername(username) {
   const normalized = (username ?? "").trim().toLowerCase();
   if (!normalized) return undefined;
@@ -134,7 +143,7 @@ async function createChat(chat) {
 const PATCHABLE_FIELDS = [
   "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage",
   "ownerId", "pinned", "muted", "archived", "createdAt", "linkedDiscussionChatId", "points",
-  "autoDeleteSeconds", "isVerified",
+  "autoDeleteSeconds", "isVerified", "inviteCode",
 ];
 
 async function updateChat(id, patch) {
@@ -184,4 +193,5 @@ async function deleteChat(id) {
   db.prepare("DELETE FROM chats WHERE id = ?").run(id);
 }
 
-module.exports = { listChats, listChatsForUser, getChat, updateChat, createChat, deleteChat, findChatByUsername, searchPublicChannels };
+module.exports = {
+  findChatByInviteCode, listChats, listChatsForUser, getChat, updateChat, createChat, deleteChat, findChatByUsername, searchPublicChannels };

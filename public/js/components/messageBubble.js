@@ -361,7 +361,7 @@ function VideoNotePlayer(a) {
   return wrap;
 }
 
-export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, replyToMessage, members, handlers }) {
+export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, members, handlers }) {
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onKeyboardAction, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
 
@@ -596,6 +596,16 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       // item that always answers 403 is worse than no item.
       ...(canPin ? [{ icon: "Pin", label: message.pinned ? "Открепить" : "Закрепить", onClick: () => onPin(message) }] : []),
       { icon: "Forward", label: "Переслать", onClick: () => onForward(message) },
+      // Copying the text was only possible by selecting it with the mouse, which
+      // on a phone means fighting the long-press menu.
+      ...(message.text?.trim()
+        ? [{
+            icon: "Copy",
+            label: "Копировать текст",
+            onClick: () => navigator.clipboard?.writeText(message.text).catch(() => {}),
+          }]
+        : []),
+      ...(selection ? [{ icon: "Check", label: "Выбрать", onClick: () => selection.onToggle(message.id) }] : []),
     ];
     // Group-chat threads (threadPanel.js) — a nested sub-conversation kept
     // out of the main timeline, unlike a plain "Ответить" quote-reply above.
@@ -666,8 +676,16 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     class: `bubble-wrap ${isSticker ? "bubble-wrap-sticker" : ""}`,
     oncontextmenu: (e) => {
       e.preventDefault();
+      // In selection mode the right-click/long-press gesture toggles the
+      // message instead of opening a menu — the menu's actions all apply to one
+      // message, which is the opposite of what selecting several is for.
+      if (selection?.active) {
+        selection.onToggle(message.id);
+        return;
+      }
       openMessageMenu({ x: e.clientX, y: e.clientY });
     },
+    onclick: selection?.active ? () => selection.onToggle(message.id) : null,
   }, [bubble, hoverActions]);
 
   const reactionsRow = message.reactions.length
@@ -722,13 +740,17 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   // The avatar goes beside the *last* message of a run, not the first — that's
   // where Telegram puts it, and it keeps the whole block visually anchored to
   // the bottom where the newest message is.
+  const isSelected = !!selection?.ids?.has(message.id);
   return el(
     "div",
     {
-      class: `message-row ${mine ? "mine" : ""} ${groupStart ? "group-start" : ""} ${groupEnd ? "group-end" : ""}`,
+      class: `message-row ${mine ? "mine" : ""} ${groupStart ? "group-start" : ""} ${groupEnd ? "group-end" : ""} ${selection?.active ? "selecting" : ""} ${isSelected ? "selected" : ""}`,
       id: `msg-${message.id}`,
     },
     [
+      selection?.active
+        ? el("span", { class: `message-select-mark ${isSelected ? "on" : ""}`, html: isSelected ? iconSvg("Check", 13) : "" })
+        : null,
       !mine
         ? el(
             "div",
