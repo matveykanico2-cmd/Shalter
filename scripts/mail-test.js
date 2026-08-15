@@ -8,7 +8,7 @@
 // Separated from the app on purpose — when recovery mail doesn't arrive, the
 // question is always "are the credentials right or is the code wrong", and this
 // answers the first half on its own.
-const { sendMail, isMailConfigured } = require("../server/lib/mailer");
+const { sendMail, verifySmtp } = require("../server/lib/mailer");
 
 const to = process.argv[2];
 if (!to) {
@@ -18,8 +18,26 @@ if (!to) {
 
 (async () => {
   if (!process.env.SMTP_URL && !process.env.SMTP_HOST) {
-    console.log("SMTP не задан — письмо будет записано в data/outbox вместо отправки.");
-    console.log("Для реальной отправки задайте SMTP_URL (или SMTP_HOST/PORT/USER/PASS).");
+    console.log("SMTP не задан — письмо уйдёт напрямую на сервер получателя, а если он откажет, ляжет в data/outbox.");
+    console.log("Для отправки через ящик задайте SMTP_URL (или SMTP_HOST/PORT/USER/PASS).");
+  } else {
+    // Connect and log in before sending: a wrong password and a blocked port
+    // both end as "письмо не ушло", but only one of them is fixed by editing
+    // the password.
+    const check = await verifySmtp();
+    if (check.ok) console.log("Подключение и вход на SMTP-сервер: успешно.");
+    else {
+      console.error(`Не удалось подключиться к SMTP-серверу: ${check.error}`);
+      if (/535|Authentication|credentials/i.test(check.error)) {
+        console.error("Похоже на неверный логин или пароль. Для Яндекса нужен ПАРОЛЬ ПРИЛОЖЕНИЯ, а не пароль от почты,");
+        console.error("и в SMTP_URL символ @ внутри логина пишется как %40.");
+      } else if (/ETIMEDOUT|ECONNREFUSED|EHOSTUNREACH/i.test(check.error)) {
+        console.error("Похоже, исходящее соединение на этот порт закрыто — проверьте фаервол хостера (587 и 465).");
+      } else if (/ENOTFOUND|EAI_AGAIN/i.test(check.error)) {
+        console.error("Не разрешается имя сервера — опечатка в SMTP_HOST?");
+      }
+      process.exit(1);
+    }
   }
   const res = await sendMail({
     to,

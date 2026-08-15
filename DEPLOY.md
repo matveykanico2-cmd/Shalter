@@ -223,6 +223,33 @@ Use an **app password**, never the mailbox's own password: it is stored in
 plain text in the process environment, and an app password can be revoked on
 its own.
 
+### Through an ordinary mailbox, with no DNS records at all
+
+This is the way out when the domain's DNS panel isn't reachable. Sending
+through a mailbox at Yandex/Mail.ru/Gmail means *their* domain signs the
+letter, so `shalter.ru` needs no SPF, DKIM or PTR of its own and Gmail accepts
+the result. Using Yandex as the example:
+
+1. Яндекс ID → Безопасность → **Пароли приложений** → «Почта» — this is not the
+   mailbox password, and it is the only thing SMTP will accept.
+2. Яндекс Почта → Настройки → **Почтовые программы** → allow access via
+   IMAP/SMTP.
+3. Two variables, and the address in both must be the **same** mailbox — a
+   provider signs only its own, and refuses a `From:` it did not authenticate:
+
+```
+SMTP_URL=smtps://shalter.mail%40yandex.ru:APP_PASSWORD@smtp.yandex.ru:465
+MAIL_FROM=Shalter <shalter.mail@yandex.ru>
+```
+
+4. `node scripts/mail-test.js you@gmail.com` — it logs in before sending, so a
+   wrong password, a blocked port and a rejected letter are three different
+   messages rather than one silent failure.
+
+The trade-off is the visible sender (`@yandex.ru` rather than `@shalter.ru`)
+and the provider's daily limit — a few hundred letters, far above what
+recovery codes need.
+
 **Deliverability is DNS, not code.** Without these three records on the sending
 domain, correctly sent mail still lands in spam:
 

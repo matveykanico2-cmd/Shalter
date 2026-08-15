@@ -74,8 +74,11 @@ async function sendMail({ to, subject, text }) {
       await tx.sendMail({ from: MAIL_FROM, to, subject, text });
       return { delivered: true };
     } catch (err) {
+      // The server's own words, not a label of ours: "535 Authentication
+      // failed" and "connect ETIMEDOUT" call for completely different fixes,
+      // and a caller that only ever hears "send-failed" cannot tell them apart.
       console.error("mail send failed:", err.message);
-      return { delivered: false, reason: "send-failed" };
+      return { delivered: false, reason: err.message };
     }
   }
 
@@ -114,4 +117,18 @@ function outboxOrFail(to, subject, text, reason) {
   }
 }
 
-module.exports = { sendMail };
+// Opens the connection and authenticates without sending anything — the half of
+// "is it my credentials or my code" that can be answered on its own
+// (scripts/mail-test.js).
+async function verifySmtp() {
+  const tx = getTransport();
+  if (!tx) return { configured: false };
+  try {
+    await tx.verify();
+    return { configured: true, ok: true };
+  } catch (err) {
+    return { configured: true, ok: false, error: err.message };
+  }
+}
+
+module.exports = { sendMail, verifySmtp };
