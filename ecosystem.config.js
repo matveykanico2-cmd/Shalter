@@ -12,10 +12,11 @@ module.exports = {
       script: "server/index.js",
       instances: 1,
       exec_mode: "fork",
-      // Secrets (SMTP credentials, admin phone) come from .env, which is
-      // gitignored — this file is committed and would publish them otherwise.
-      // "if-exists" so a deployment without the file still starts.
-      node_args: "--env-file-if-exists=.env --max-old-space-size=768",
+      // Configuration comes from two files, in this order: config.env, which is
+      // committed and therefore arrives with a git pull, then .env, which is
+      // gitignored and overrides it on a machine that needs different values.
+      // "if-exists" so a deployment missing either one still starts.
+      node_args: "--env-file-if-exists=config.env --env-file-if-exists=.env --max-old-space-size=768",
       env: {
         NODE_ENV: "production",
         PORT: 3000,
