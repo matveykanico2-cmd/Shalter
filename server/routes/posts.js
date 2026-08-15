@@ -1,9 +1,11 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { getChat } = require("../data/chats");
-const { addMessage, setAnchorForPost, setDiscussionAnchor } = require("../data/messages");
+const { getChat, updateChat } = require("../data/chats");
+const { addMessage, getMessage, listThreadReplies, setAnchorForPost, setDiscussionAnchor } = require("../data/messages");
 const { getUser } = require("../data/users");
+const { publicUsers } = require("../data/sanitize");
+const { deliverMessage } = require("./messages");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 
 const router = express.Router();
@@ -71,6 +73,80 @@ router.post(
     }
 
     res.json({ message: post });
+  })
+);
+
+// ── Комментарии к отдельному посту ──────────────────────────────────────────
+//
+// Под каждым постом канала — своя ветка, а не общий чат обсуждения. Раньше
+// ссылка «N комментариев» вела в связанную группу целиком, и комментарии к
+// разным постам лежали там вперемешку: чтобы прочитать обсуждение конкретного
+// поста, приходилось глазами выискивать его среди чужих.
+//
+// Устроено поверх уже имеющегося: у поста есть якорь — его копия в группе
+// обсуждения (см. публикацию выше), а комментарий это ответ в ветку этого
+// якоря (threadRootId). Ветки уже умеют всё нужное — свой список, свою
+// трансляцию по WebSocket, свой счётчик, — и переиспользовать их правильнее,
+// чем заводить второй механизм с тем же смыслом.
+async function resolveComments(postId, uid) {
+  const post = await getMessage(postId);
+  if (!post) return { status: 404, error: "Пост не найден" };
+  const channel = await getChat(post.chatId);
+  if (!channel) return { status: 404, error: "Канал не найден" };
+  // Читать комментарии может тот, кто видит сам пост: подписчик канала или
+  // любой, если канал публичный.
+  const canSee = channel.memberIds.includes(uid) || !!channel.username;
+  if (!canSee) return { status: 403, error: "Комментарии доступны подписчикам канала" };
+  if (!post.discussionAnchorId || !channel.linkedDiscussionChatId) {
+    return { status: 404, error: "У канала нет группы обсуждения — комментарии выключены" };
+  }
+  const discussion = await getChat(channel.linkedDiscussionChatId);
+  const anchor = await getMessage(post.discussionAnchorId);
+  if (!discussion || !anchor) return { status: 404, error: "Обсуждение недоступно" };
+  return { post, channel, discussion, anchor };
+}
+
+router.get(
+  "/:postId/comments",
+  asyncRoute(async (req, res) => {
+    const found = await resolveComments(req.params.postId, req.uid);
+    if (found.error) return res.status(found.status).json({ error: found.error });
+
+    const replies = await listThreadReplies(found.anchor.id);
+    const members = await Promise.all(found.discussion.memberIds.map((id) => getUser(id)));
+    res.json({
+      post: found.post,
+      anchor: found.anchor,
+      chat: { id: found.discussion.id, title: found.discussion.title },
+      // Автор комментария может уже покинуть группу — его всё равно надо
+      // подписать по имени, поэтому берём и участников, и авторов ответов.
+      members: publicUsers([...members, ...(await Promise.all(replies.map((r) => getUser(r.senderId))))].filter(Boolean)),
+      replies,
+      canComment: found.discussion.memberIds.includes(req.uid) || !!found.discussion.username || !!found.channel.username,
+    });
+  })
+);
+
+router.post(
+  "/:postId/comments",
+  asyncRoute(async (req, res) => {
+    const found = await resolveComments(req.params.postId, req.uid);
+    if (found.error) return res.status(found.status).json({ error: found.error });
+
+    // Вступление в группу обсуждения происходит само, первым комментарием —
+    // как в телеграме. Требовать «сначала вступите в группу» значит требовать
+    // действия, смысл которого человеку неочевиден: он хочет ответить на пост,
+    // а не присоединиться к чату, о существовании которого мог и не знать.
+    let discussion = found.discussion;
+    if (!discussion.memberIds.includes(req.uid)) {
+      discussion = await updateChat(discussion.id, { memberIds: [...discussion.memberIds, req.uid] });
+    }
+
+    const body = req.body ?? {};
+    if (!body.text?.trim() && !body.attachments?.length) return res.status(400).json({ error: "Напишите комментарий" });
+
+    const message = await deliverMessage(discussion, req.uid, { ...body, threadRootId: found.anchor.id });
+    res.json({ message });
   })
 );
 

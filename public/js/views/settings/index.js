@@ -16,6 +16,7 @@ import { hasPasscode } from "../../lib/passcodeLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../components/twoFactorDialog.js";
 import { openChangePasswordDialog, openChangeEmailDialog } from "../../components/credentialsDialog.js";
+import { VerifiedBadge } from "../../components/verifiedBadge.js";
 import { openStarsDialog } from "../../components/starsDialog.js";
 import { openGiftShopDialog } from "../../components/giftShopDialog.js";
 import { openAvatarViewer } from "../../components/avatarViewer.js";
@@ -651,7 +652,10 @@ async function renderBots(root) {
                 el("div", { class: "settings-device-row" }, [
                   Avatar({ name: b.user.name, color: b.user.avatarColor, image: b.user.avatarImage, size: 32 }),
                   el("div", { class: "settings-device-body" }, [
-                    el("p", {}, b.user.name),
+                    // Галочка видна и владельцу бота — иначе о том, что бота
+                    // верифицировали, он узнаёт только со стороны, глазами
+                    // чужого поиска.
+                    el("p", {}, [b.user.name, VerifiedBadge(b.user, 13)].filter(Boolean)),
                     el("p", { class: "mono settings-toggle-hint" }, `@${b.user.username}`),
                   ]),
                   el("button", {

@@ -19,6 +19,7 @@ import { paintWallpaper } from "../lib/wallpapers.js";
 import { openWallpaperDialog } from "../components/wallpaperDialog.js";
 import { openScheduledMessagesDialog } from "../components/scheduledMessagesDialog.js";
 import { openThreadPanel } from "../components/threadPanel.js";
+import { VerifiedBadge } from "../components/verifiedBadge.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 
 // Settings → Внешний вид → "Фон чата" sets the global default; a chat's own
@@ -698,6 +699,11 @@ export async function ChatView(root, chatId) {
             el("div", { class: "chat-header-titles" }, [
               el("p", { class: "chat-header-title" }, [
                 title,
+                // Галочка была всюду, кроме этого места: в списке чатов, в
+                // профиле, в панели информации и в поиске — а в шапке самого
+                // разговора нет. Именно здесь она и нужна больше всего: видно,
+                // с кем говоришь, пока говоришь, а не только пока выбираешь.
+                VerifiedBadge(isDm ? other : chat, 15),
                 // Safety marker (server/db.js's safetyLabel) — shown in the
                 // header of the open chat too, so it's on screen while the
                 // conversation is actually happening, not only on the profile.
@@ -967,9 +973,12 @@ export async function ChatView(root, chatId) {
             "button",
             {
               class: "post-comments-link",
-              onclick: () => navigate(`/chat/${chat.linkedDiscussionChatId}`),
+              // Ветка этого поста, а не группа обсуждения целиком. Раньше
+              // ссылка вела в группу, где комментарии ко всем постам лежат
+              // вперемешку, и найти обсуждение конкретного поста было нечем.
+              onclick: () => openPostComments(m),
             },
-            `💬 ${m.commentCount ?? 0} комментари${(m.commentCount ?? 0) === 1 ? "й" : "ев"}`
+            commentsLabel(m.commentCount ?? 0)
           )
         );
       }
@@ -987,6 +996,44 @@ export async function ChatView(root, chatId) {
       }
     });
     renderPinnedBar();
+  }
+
+  // «1 комментарий», «2 комментария», «5 комментариев» — русский счёт, а не
+  // «комментари(й/ев)» на глаз: 21 это «комментарий», 22 — «комментария».
+  function commentsLabel(n) {
+    const mod10 = n % 10;
+    const mod100 = n % 100;
+    if (!n) return "💬 Комментарии";
+    if (mod10 === 1 && mod100 !== 11) return `💬 ${n} комментарий`;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `💬 ${n} комментария`;
+    return `💬 ${n} комментариев`;
+  }
+
+  // Комментарии к одному посту. Всё нужное отдаёт сервер за один запрос — сам
+  // пост, его якорь в группе обсуждения, участников и уже написанные ответы, —
+  // так что открывать чат обсуждения и искать в нём ничего не приходится.
+  async function openPostComments(post) {
+    let data;
+    try {
+      data = await api.getPostComments(post.id);
+    } catch (err) {
+      alert(err.message || "Комментарии недоступны");
+      return;
+    }
+    openThreadPanel({
+      chat: data.chat,
+      rootMessage: data.anchor,
+      members: data.members,
+      me,
+      title: "Комментарии",
+      emptyHint: "Комментариев пока нет — напишите первым",
+      source: {
+        repliesLabel: "Комментарии",
+        load: () => api.getPostComments(post.id).then((r) => r.replies),
+        send: (text, attachments, extra) => api.sendPostComment(post.id, text, { attachments, ...extra }),
+      },
+      onReplySent: refreshMessages,
+    });
   }
 
   function renderComposer() {

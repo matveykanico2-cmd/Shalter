@@ -17,15 +17,24 @@ function timeLabel(iso) {
 // it are readable. Reuses the profile-panel/info-panel shell (same
 // right-docked slide-in look as ProfileDialog/InfoPanel) rather than
 // introducing a third panel style.
-export function openThreadPanel({ chat, rootMessage, members, me, onReplySent }) {
+// `source` подменяет две вещи — откуда брать ответы и куда отправлять новый.
+// По умолчанию это ветка сообщения в группе; комментарии к посту канала
+// (chatView.js) передают свой источник, потому что там всё то же самое, но
+// поверх /api/posts/:id/comments: он сам находит группу обсуждения и сам
+// вступает в неё за автора первого комментария. Панель от этого не меняется —
+// корень, список ответов, поле ввода, — а второй такой же компонент рядом был
+// бы копией с одной отличающейся строкой.
+export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, title = "Тема", emptyHint, source }) {
   let replies = [];
+  const load = source?.load ?? (() => api.getThread(chat.id, rootMessage.id).then((r) => r.replies));
+  const send = source?.send ?? ((text, attachments, extra) => api.sendMessage(chat.id, text, { threadRootId: rootMessage.id, attachments, ...extra }));
 
   const overlay = el("div", { class: "profile-panel-overlay", onclick: (e) => e.target === overlay && close() });
   const body = el("div", { class: "info-panel-body thread-panel-body" });
   const composerSlot = el("div", {});
   const panel = el("aside", { class: "profile-panel thread-panel" }, [
     el("div", { class: "info-panel-header" }, [
-      el("h2", {}, "Тема"),
+      el("h2", {}, title),
       el("button", { class: "icon-btn", html: iconSvg("X", 18), onclick: () => close() }),
     ]),
     body,
@@ -69,8 +78,8 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent })
     clear(body);
     body.append(
       el("div", { class: "thread-root" }, [personLine(rootMessage.senderId), el("div", { class: "message-text" }, formatText(rootMessage.text || "Медиа", members))]),
-      el("p", { class: "list-section-label thread-replies-label" }, `Ответы (${replies.length})`),
-      ...(replies.length ? replies.map(replyRow) : [el("p", { class: "empty-hint" }, "Пока нет ответов — начните тему первым")])
+      el("p", { class: "list-section-label thread-replies-label" }, `${source?.repliesLabel ?? "Ответы"} (${replies.length})`),
+      ...(replies.length ? replies.map(replyRow) : [el("p", { class: "empty-hint" }, emptyHint ?? "Пока нет ответов — начните тему первым")])
     );
     body.scrollTop = body.scrollHeight;
   }
@@ -86,7 +95,7 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent })
         // draft, and the two would otherwise stomp on each other.
         disableDraftSync: true,
         onSend: async (text, attachments, extra) => {
-          await api.sendMessage(chat.id, text, { threadRootId: rootMessage.id, attachments, ...extra });
+          await send(text, attachments, extra);
           // The sender's own reply doesn't come back over WS (see
           // routes/messages.js's broadcastToOtherMembers, which excludes
           // the actor) — refetch locally so it shows immediately instead of
@@ -104,8 +113,7 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent })
   }
 
   async function refreshFromServer() {
-    const res = await api.getThread(chat.id, rootMessage.id);
-    replies = res.replies;
+    replies = await load();
     renderBody();
   }
 

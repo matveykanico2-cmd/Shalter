@@ -232,6 +232,15 @@ async function deliverMessage(chat, senderId, body) {
     const updatedRoot = await incrementCommentCount(message.threadRootId);
     broadcastToUsers(chat.memberIds, { type: "thread:message", chatId: chat.id, rootId: message.threadRootId, message });
     if (updatedRoot) broadcastToOtherMembers(chat, senderId, { type: "message:updated", chatId: chat.id, message: updatedRoot });
+
+    // Если корень ветки — якорь поста канала (routes/posts.js), то счётчик
+    // нужен и на самом посте: подпись «N комментариев» читают в канале, а не в
+    // группе обсуждения, и без этого она осталась бы нулём навсегда.
+    if (updatedRoot?.anchorForPostId) {
+      const updatedPost = await incrementCommentCount(updatedRoot.anchorForPostId);
+      const channel = updatedPost ? await getChat(updatedPost.chatId) : null;
+      if (channel) broadcastToUsers(channel.memberIds, { type: "message:updated", chatId: channel.id, message: updatedPost });
+    }
   } else {
     broadcastToOtherMembers(chat, senderId, { type: "message:new", chatId: chat.id, message });
   }

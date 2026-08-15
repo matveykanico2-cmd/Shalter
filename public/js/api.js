@@ -181,6 +181,12 @@ export const api = {
   votePoll: (chatId, messageId, optionIndex) =>
     req(`/api/chats/${chatId}/messages/${messageId}/vote`, { method: "POST", body: JSON.stringify({ optionIndex }) }),
   getThread: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/thread`),
+  // Комментарии к отдельному посту канала — своя ветка на каждый пост
+  // (server/routes/posts.js). Вступление в группу обсуждения происходит само,
+  // первым отправленным комментарием.
+  getPostComments: (postId) => req(`/api/posts/${postId}/comments`),
+  sendPostComment: (postId, text, extra = {}) =>
+    req(`/api/posts/${postId}/comments`, { method: "POST", body: JSON.stringify({ text, ...extra }) }),
   sendTyping: (chatId) => req(`/api/chats/${chatId}/typing`, { method: "POST" }),
   getTyping: (chatId) => req(`/api/chats/${chatId}/typing`),
 
