@@ -235,7 +235,10 @@ the result. Using Yandex as the example:
 2. Яндекс Почта → Настройки → **Почтовые программы** → allow access via
    IMAP/SMTP.
 3. Two variables, and the address in both must be the **same** mailbox — a
-   provider signs only its own, and refuses a `From:` it did not authenticate:
+   provider signs only its own, and refuses a `From:` it did not authenticate.
+   Match the host to the mailbox's domain: `smtp.yandex.ru` for `@yandex.ru`,
+   `smtp.yandex.com` for `@yandex.com` (both answer, but the account lives on
+   one of them):
 
 ```
 SMTP_URL=smtps://shalter.mail%40yandex.ru:APP_PASSWORD@smtp.yandex.ru:465
