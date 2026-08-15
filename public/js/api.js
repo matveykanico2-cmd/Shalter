@@ -32,9 +32,15 @@ export const api = {
   checkUsername: (u) => req(`/api/auth/username-available?u=${encodeURIComponent(u)}`),
   loginEmail: (email, password) =>
     req("/api/auth/login-email", { method: "POST", body: JSON.stringify({ email, password }) }),
-  // Forgotten password: e-mail + phone of the same account, then a new one.
-  recoverAccount: (email, phone, password) =>
-    req("/api/auth/recover", { method: "POST", body: JSON.stringify({ email, phone, password }) }),
+  // Forgotten password: a code mailed to the address on the account, then a new
+  // password.
+  startRecovery: (email) => req("/api/auth/recover/start", { method: "POST", body: JSON.stringify({ email }) }),
+  // The same by phone: the code lands in the account's own Shalter chat.
+  startPhoneRecovery: (phone) => req("/api/auth/recover/phone/start", { method: "POST", body: JSON.stringify({ phone }) }),
+  finishPhoneRecovery: (phone, code, password) =>
+    req("/api/auth/recover/phone/verify", { method: "POST", body: JSON.stringify({ phone, code, password }) }),
+  finishRecovery: (email, code, password) =>
+    req("/api/auth/recover/verify", { method: "POST", body: JSON.stringify({ email, code, password }) }),
   switchAccount: (userId) => req("/api/auth/switch", { method: "POST", body: JSON.stringify({ userId }) }),
   logout: (uid) => req("/api/auth/logout", { method: "POST", body: JSON.stringify({ uid }) }),
   deleteAccount: (password) => req("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password }) }),
@@ -318,6 +324,10 @@ export const api = {
     req(`/api/admin/users/${userId}/verify`, { method: "POST", body: JSON.stringify({ verified }) }),
   adminSetChatVerified: (chatId, verified) =>
     req(`/api/admin/chats/${chatId}/verify`, { method: "POST", body: JSON.stringify({ verified }) }),
+  // Deleting somebody else's account — developer only, needs the handle typed
+  // back and a reason for the journal.
+  adminDeleteUser: (userId, confirm, reason) =>
+    req(`/api/admin/users/${userId}`, { method: "DELETE", body: JSON.stringify({ confirm, reason }) }),
   adminSetSafetyLabel: (userId, label) =>
     req(`/api/admin/users/${userId}/label`, { method: "POST", body: JSON.stringify({ label }) }),
 };

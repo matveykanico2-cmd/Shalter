@@ -10,7 +10,7 @@ const {
   requireUserId,
 } = require("../middleware/auth");
 const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, updateUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode } = require("../data/users");
-const { publicUser } = require("../data/sanitize");
+const { publicUser, selfUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
 const { listSessions, upsertSession, removeAllSessionsForUser } = require("../data/sessions");
 const { parseUserAgent } = require("../lib/userAgent");
@@ -25,6 +25,8 @@ const { EMAIL_RE, PHONE_RE, normalizePhone } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 const totp = require("../lib/totp");
 const twoFactorTickets = require("../data/twoFactorTickets");
+const recoveryCodes = require("../data/recoveryCodes");
+const { sendMail } = require("../lib/mailer");
 
 const router = express.Router();
 
@@ -97,7 +99,7 @@ async function finishLogin(req, res, user) {
   }
   addAccountSession(req, res, user.id);
   await recordSession(req, res, user.id);
-  return res.json({ user: publicUser(user) });
+  return res.json({ user: selfUser(user) });
 }
 
 // The ban set from the reports moderation chat (routes/reports.js's
@@ -211,7 +213,7 @@ router.post(
 
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
-    res.json({ user: publicUser(user) });
+    res.json({ user: selfUser(user) });
   })
 );
 
@@ -237,8 +239,10 @@ router.get(
     if (!uid) return res.json({ user: null, accounts: [] });
     const user = await getUser(uid);
     res.json({
-      user: user ? publicUser(user) : null,
-      accounts: accountUsers.map(publicUser),
+      user: user ? selfUser(user) : null,
+      // Every account signed in on this device — all of them are "yours" here,
+      // which is why the switcher may show their addresses.
+      accounts: accountUsers.map(selfUser),
     });
   })
 );
@@ -254,7 +258,7 @@ router.post(
     switchActiveAccount(req, res, userId);
     await recordSession(req, res, userId);
     const user = await getUser(userId);
-    res.json({ user: user ? publicUser(user) : null });
+    res.json({ user: user ? selfUser(user) : null });
   })
 );
 
@@ -333,7 +337,7 @@ router.get(
     // costing the owner a code on every desktop sign-in.
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
-    res.json({ status: "confirmed", user: publicUser(user) });
+    res.json({ status: "confirmed", user: selfUser(user) });
   })
 );
 
@@ -390,49 +394,84 @@ router.post(
   })
 );
 
-// Recovering an account whose password has been forgotten.
+// Recovering an account whose password has been forgotten: a code sent to the
+// e-mail address on the account.
 //
-// What it asks for: the e-mail and the phone number, both belonging to the same
-// account. Said plainly, because it decides how strong this is — neither of
-// those is a secret. Somebody who knows both can take an account this way. That
-// is the trade-off the feature carries by its nature: with no way to send mail
-// or SMS from this app, there is nothing else left to prove ownership with.
+// This replaces an earlier version that accepted the e-mail *and the phone
+// number* as proof. Neither of those is a secret — they sit on profiles and in
+// contact lists — so anyone who knew both could take an account. A code that
+// only arrives in the mailbox is proof of something the owner actually
+// controls, which is the whole difference.
 //
-// Two things narrow it:
-//   * an account with two-factor authentication on cannot be reset here at all
-//     — the second factor is exactly the thing that survives a leaked e-mail and
-//     a known number, and letting a reset walk around it would make 2FA
-//     decorative;
-//   * every other session is terminated and the account is told in its Shalter
-//     chat, so a reset that wasn't you is visible rather than silent.
+// Two things are kept from that version because they were right: an account
+// with two-factor authentication on cannot be reset this way at all, and every
+// other session dies on a successful reset with a notice in the Shalter chat.
+
+// Deliberately the same answer whether or not that address has an account. The
+// alternative turns this endpoint into "does X have a Shalter account", which
+// anyone could ask about anyone.
+const RECOVERY_SENT = { ok: true, sent: true };
+
 router.post(
-  "/recover",
+  "/recover/start",
   asyncRoute(async (req, res) => {
     const email = String(req.body?.email ?? "").trim().toLowerCase();
-    const phone = normalizePhone(req.body?.phone);
-    const password = String(req.body?.password ?? "");
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Введите корректный адрес почты" });
 
+    const user = await findUserByEmail(email);
+    if (!user) return res.json(RECOVERY_SENT);
+    // A 2FA account is told the truth here rather than being sent a code that
+    // the next step would refuse — the owner needs to know which door to use.
+    if (user.twoFactorEnabled) {
+      return res.status(409).json({
+        error: "На аккаунте включена двухфакторная аутентификация — войдите с кодом из приложения или используйте код восстановления.",
+      });
+    }
+    if (user.isBanned) return res.json(RECOVERY_SENT);
+
+    const code = recoveryCodes.createCode(user.id);
+    const result = await sendMail({
+      to: email,
+      subject: "Восстановление доступа к Shalter",
+      text:
+        `Код для восстановления пароля: ${code}
+
+` +
+        `Он действует 15 минут и нужен только один раз.
+
+` +
+        `Если вы не запрашивали восстановление — просто не вводите этот код: без него пароль не изменится. ` +
+        `И включите двухфакторную аутентификацию: Настройки → Конфиденциальность.`,
+    });
+    if (!result.delivered) {
+      // Said plainly, because the person is otherwise stuck staring at a screen
+      // that claims a letter is on its way.
+      return res.status(503).json({ error: "Отправка почты не настроена на сервере — обратитесь к администрации" });
+    }
+    res.json(RECOVERY_SENT);
+  })
+);
+
+router.post(
+  "/recover/verify",
+  asyncRoute(async (req, res) => {
+    const email = String(req.body?.email ?? "").trim().toLowerCase();
+    const password = String(req.body?.password ?? "");
     if (password.length < 6) return res.status(400).json({ error: "Пароль — не короче 6 символов" });
 
     const user = await findUserByEmail(email);
-    // One generic answer whether the e-mail is unknown or the number doesn't
-    // match it — telling them apart turns this into a "which accounts exist"
-    // oracle for any e-mail address.
-    if (!user || normalizePhone(user.phone) !== phone) {
-      return res.status(404).json({ error: "Аккаунт с такой парой почты и номера не найден" });
+    // One message for a wrong code and for an address that never had one: the
+    // pair is what's being checked, and telling them apart leaks the address.
+    if (!user || !recoveryCodes.verify(user.id, req.body?.code)) {
+      return res.status(400).json({ error: "Неверный или устаревший код" });
     }
     if (user.isBanned) return res.status(403).json({ error: banError(user) });
-    if (user.twoFactorEnabled) {
-      return res.status(409).json({
-        error: "На аккаунте включена двухфакторная аутентификация — восстановление по почте и номеру недоступно. Войдите с кодом или используйте код восстановления.",
-      });
-    }
+    if (user.twoFactorEnabled) return res.status(409).json({ error: "На аккаунте включена двухфакторная аутентификация" });
 
     const { hash, salt } = hashPassword(password);
     await updateUser(user.id, { passwordHash: hash, passwordSalt: salt });
-    // Everything signed in elsewhere is signed out: if this reset wasn't the
-    // owner, the attacker's other sessions die with it — and if it was, the
-    // stranger who knew the old password is out.
+    // Everything signed in elsewhere is signed out: if the reset wasn't the
+    // owner, whoever knew the old password is out with it.
     await removeAllSessionsForUser(user.id);
 
     try {
@@ -440,14 +479,84 @@ router.post(
       await sendMessageAndBroadcast(
         chat,
         SYSTEM_BOT_ID,
-        "🔐 Пароль от аккаунта восстановлен по почте и номеру телефона, все остальные сеансы завершены.\n\nЕсли это были не вы — смените пароль и включите двухфакторную аутентификацию: Настройки → Конфиденциальность."
+        "🔐 Пароль восстановлен по коду из письма, все остальные сеансы завершены.\n\nЕсли это были не вы — смените пароль и включите двухфакторную аутентификацию: Настройки → Конфиденциальность."
       );
     } catch (err) {
       console.error("recovery notice failed:", err);
     }
 
-    const fresh = await getUser(user.id);
-    return finishLogin(req, res, fresh);
+    return finishLogin(req, res, await getUser(user.id));
+  })
+);
+
+// The same thing by phone number instead of e-mail — for accounts whose address
+// is private, or where mail simply isn't set up on the server.
+//
+// Said plainly, because it decides the whole shape: a phone number alone cannot
+// be enough. Numbers are not secret — they are in the app, in people's contact
+// lists, on business cards — so "type a number, set a password" would hand every
+// account to anyone who knows one. What makes this recovery rather than a
+// giveaway is the code, and the code goes to the account's own Shalter chat.
+// That means it works when you are still signed in somewhere (another phone, a
+// desktop) and have only forgotten the password — which is what "I forgot my
+// password" usually is.
+router.post(
+  "/recover/phone/start",
+  asyncRoute(async (req, res) => {
+    const phone = normalizePhone(req.body?.phone);
+    if (!PHONE_RE.test(phone)) return res.status(400).json({ error: "Введите номер телефона полностью" });
+
+    const user = await findUserByPhone(phone);
+    // Same answer either way — otherwise this endpoint answers "does this number
+    // have a Shalter account" for any number anyone cares to try.
+    if (!user || user.isBanned) return res.json({ ok: true, sent: true });
+    if (user.twoFactorEnabled) {
+      return res.status(409).json({
+        error: "На аккаунте включена двухфакторная аутентификация — войдите с кодом из приложения или используйте код восстановления.",
+      });
+    }
+
+    const code = codeLogins.createCode(user.id);
+    const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
+    await sendMessageAndBroadcast(
+      chat,
+      SYSTEM_BOT_ID,
+      `🔢 Код для смены пароля: ${code}\n\nНикому не сообщайте его — даже сотрудникам Shalter. Действует 5 минут.\n\nЕсли вы не запрашивали смену пароля — просто не вводите код, пароль останется прежним.`
+    );
+    res.json({ ok: true, sent: true });
+  })
+);
+
+router.post(
+  "/recover/phone/verify",
+  asyncRoute(async (req, res) => {
+    const phone = normalizePhone(req.body?.phone);
+    const password = String(req.body?.password ?? "");
+    if (password.length < 6) return res.status(400).json({ error: "Пароль — не короче 6 символов" });
+
+    const user = await findUserByPhone(phone);
+    if (!user || !codeLogins.verify(user.id, req.body?.code)) {
+      return res.status(400).json({ error: "Неверный или устаревший код" });
+    }
+    if (user.isBanned) return res.status(403).json({ error: banError(user) });
+    if (user.twoFactorEnabled) return res.status(409).json({ error: "На аккаунте включена двухфакторная аутентификация" });
+
+    const { hash, salt } = hashPassword(password);
+    await updateUser(user.id, { passwordHash: hash, passwordSalt: salt });
+    await removeAllSessionsForUser(user.id);
+
+    try {
+      const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
+      await sendMessageAndBroadcast(
+        chat,
+        SYSTEM_BOT_ID,
+        "🔐 Пароль изменён по коду из этого чата, все остальные сеансы завершены.\n\nЕсли это были не вы — смените пароль и включите двухфакторную аутентификацию: Настройки → Конфиденциальность."
+      );
+    } catch (err) {
+      console.error("recovery notice failed:", err);
+    }
+
+    return finishLogin(req, res, await getUser(user.id));
   })
 );
 
@@ -669,7 +778,7 @@ router.post(
     twoFactorTickets.consume(ticket);
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
-    res.json({ user: publicUser(user) });
+    res.json({ user: selfUser(user) });
   })
 );
 

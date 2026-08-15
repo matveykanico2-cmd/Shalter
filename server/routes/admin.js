@@ -13,6 +13,7 @@ const {
   listLabeledUsers,
 } = require("../data/users");
 const { buildUserExport, logExport, listExports } = require("../data/dataExport");
+const { deleteAccount } = require("../lib/deleteAccount");
 const { listOpenReports, listReportsAboutUser } = require("../data/reports");
 const { getMessage } = require("../data/messages");
 const { getChat, updateChat } = require("../data/chats");
@@ -318,6 +319,54 @@ router.post(
     const updated = await updateChat(chat.id, { isVerified: !!req.body?.verified });
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     res.json({ chat: updated });
+  })
+);
+
+// Deleting somebody else's account. The developer's last resort — for the
+// accounts a ban isn't the right answer to: a bot farm, a duplicate, an account
+// created by mistake, or one whose owner asked for it to be removed and can no
+// longer sign in to do it themselves.
+//
+// It runs the same cascade as a person deleting their own account
+// (lib/deleteAccount.js): profile, messages, one-to-one chats, membership
+// everywhere else. Irreversible, so it asks for the account's @handle to be
+// typed back — an id in a URL is far too easy to be the wrong one — and it is
+// written into the export journal, because "the administration deleted an
+// account" is exactly the kind of act that should leave a trace.
+router.delete(
+  "/users/:id",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const target = await getUser(req.params.id);
+    if (!target) return res.status(404).json({ error: "Пользователь не найден" });
+    if (target.id === req.uid) {
+      return res.status(400).json({ error: "Свой аккаунт удаляется в настройках — там же, где у всех" });
+    }
+    if (target.isBot && target.id.startsWith("bot_")) {
+      return res.status(400).json({ error: "Служебные аккаунты Shalter удалять нельзя" });
+    }
+
+    // Typed confirmation, checked server-side rather than trusted from a dialog:
+    // this route is reachable without the dialog.
+    const confirm = String(req.body?.confirm ?? "").trim().replace(/^@/, "").toLowerCase();
+    const handle = (target.username || target.id).toLowerCase();
+    if (confirm !== handle) {
+      return res.status(400).json({ error: `Для подтверждения введите @${target.username || target.id}` });
+    }
+
+    const reason = String(req.body?.reason ?? "").trim().slice(0, 500);
+    if (!reason) return res.status(400).json({ error: "Укажите основание — оно попадёт в журнал" });
+
+    // Logged before the deletion, while the account still exists to be named.
+    await logExport({
+      adminId: req.uid,
+      targetUserId: target.id,
+      reason: `УДАЛЕНИЕ АККАУНТА @${target.username || target.id} (${target.name}): ${reason}`,
+      messageCount: 0,
+    });
+
+    await deleteAccount(target.id);
+    res.json({ ok: true, deleted: { id: target.id, name: target.name, username: target.username } });
   })
 );
 

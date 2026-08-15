@@ -58,8 +58,12 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   let codePhoneField = null;
   let registerPhoneField = null;
   let twoFactor = null; // { ticket, name, method }
-  let recoverEmail = "";
+  let recoverBy = "phone"; // "phone" | "email"
+  let recoverStep = "email"; // the first step either way — address or number
   let recoverPhone = "";
+  let recoverPhoneField = null;
+  let recoverEmail = "";
+  let recoverCode = "";
   let recoverPassword = "";
   let recoverError = null;
   let recoverPending = false;
@@ -281,15 +285,56 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     ]);
   }
 
-  // Forgotten password: the e-mail and the phone of the same account, then a new
-  // password. See server/routes/auth.js's /recover for what this is and isn't
-  // worth — the screen says the same thing, because someone choosing it should
-  // know that turning on two-factor is what closes this door.
-  let recoverPhoneField = null;
+  // Forgotten password: a code mailed to the address on the account, then a new
+  // password. Two steps, because that's what the code is for — asking for the
+  // new password before the code is verified would mean typing it out for
+  // nothing whenever the code is wrong.
   function renderRecoverPanel() {
-    const emailInput = el("input", { class: "login-input", type: "email", placeholder: "you@example.com", value: recoverEmail, oninput: (e) => (recoverEmail = e.target.value) });
-    const passInput = el("input", { class: "login-input", type: "password", placeholder: "Новый пароль", value: recoverPassword, oninput: (e) => (recoverPassword = e.target.value) });
+    // Two ways to be identified: the address on the account, or its number. The
+    // number path exists because an account's e-mail is private (and the server
+    // may have no mail set up at all) — see server/routes/auth.js's
+    // /recover/phone/start for why the code still has to arrive somewhere.
+    const modeRow = el("div", { class: "contacts-add-modes" }, [
+      el(
+        "button",
+        { type: "button", class: `contacts-add-mode ${recoverBy === "phone" ? "active" : ""}`, onclick: () => { recoverBy = "phone"; recoverStep = "email"; recoverError = null; render(); } },
+        "По номеру"
+      ),
+      el(
+        "button",
+        { type: "button", class: `contacts-add-mode ${recoverBy === "email" ? "active" : ""}`, onclick: () => { recoverBy = "email"; recoverStep = "email"; recoverError = null; render(); } },
+        "По почте"
+      ),
+    ]);
     recoverPhoneField ??= PhoneField({ onChange: (v) => (recoverPhone = v) });
+
+    const emailInput = el("input", {
+      class: "login-input",
+      type: "email",
+      placeholder: "you@example.com",
+      value: recoverEmail,
+      autofocus: recoverStep === "email",
+      oninput: (e) => (recoverEmail = e.target.value),
+    });
+    const codeInput = el("input", {
+      class: "login-input login-code-input mono",
+      inputmode: "numeric",
+      maxlength: 6,
+      placeholder: "······",
+      autocomplete: "one-time-code",
+      value: recoverCode,
+      oninput: (e) => {
+        e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6);
+        recoverCode = e.target.value;
+      },
+    });
+    const passInput = el("input", {
+      class: "login-input",
+      type: "password",
+      placeholder: "Новый пароль",
+      value: recoverPassword,
+      oninput: (e) => (recoverPassword = e.target.value),
+    });
 
     const form = el(
       "form",
@@ -301,7 +346,18 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           recoverPending = true;
           render();
           try {
-            const { user } = await api.recoverAccount(recoverEmail.trim(), recoverPhone, recoverPassword);
+            if (recoverStep === "email") {
+              if (recoverBy === "phone") await api.startPhoneRecovery(recoverPhone);
+              else await api.startRecovery(recoverEmail.trim());
+              recoverStep = "code";
+              recoverPending = false;
+              render();
+              return;
+            }
+            const { user } =
+              recoverBy === "phone"
+                ? await api.finishPhoneRecovery(recoverPhone, recoverCode, recoverPassword)
+                : await api.finishRecovery(recoverEmail.trim(), recoverCode, recoverPassword);
             (onSuccess ?? goToApp)(user);
           } catch (err) {
             recoverError = err.message;
@@ -310,22 +366,80 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           }
         },
       },
-      [
-        emailInput,
-        recoverPhoneField.el,
-        passInput,
-        el("p", { class: "login-hint" }, "Почта и номер должны быть от одного аккаунта. Все остальные сеансы будут завершены, а в чат Shalter придёт уведомление."),
-        recoverError ? el("p", { class: "login-error center" }, recoverError) : null,
-        el("button", { class: "login-submit", disabled: recoverPending }, recoverPending ? "Проверяем…" : "Восстановить доступ"),
-      ].filter(Boolean)
+      (recoverStep === "email"
+        ? [
+            modeRow,
+            recoverBy === "phone" ? recoverPhoneField.el : emailInput,
+            el(
+              "p",
+              { class: "login-hint" },
+              recoverBy === "phone"
+                ? "Код придёт в ваш чат с Shalter — на устройство, где вы ещё не вышли из аккаунта."
+                : "Пришлём код на этот адрес, если на нём есть аккаунт."
+            ),
+          ]
+        : [
+            codeInput,
+            passInput,
+            el("p", { class: "login-hint" }, "Код действует 15 минут. Все остальные сеансы будут завершены."),
+          ]
+      ).concat(
+        [
+          recoverError ? el("p", { class: "login-error center" }, recoverError) : null,
+          el(
+            "button",
+            { class: "login-submit", disabled: recoverPending },
+            recoverPending ? "Секунду…" : recoverStep === "email" ? "Прислать код" : "Задать новый пароль"
+          ),
+        ].filter(Boolean)
+      )
     );
 
     return el("div", { class: "qr-login-panel" }, [
       el("p", { class: "qr-login-title" }, "Забыли пароль?"),
-      el("p", { class: "qr-login-instructions" }, "Введите почту и номер телефона аккаунта и придумайте новый пароль."),
+      el(
+        "p",
+        { class: "qr-login-instructions" },
+        recoverStep === "email"
+          ? recoverBy === "phone"
+            ? "Введите номер телефона, указанный при регистрации."
+            : "Введите адрес почты, указанный при регистрации."
+          : recoverBy === "phone"
+            ? "Код отправлен в чат Shalter. Введите его и придумайте новый пароль."
+            : `Код отправлен на ${recoverEmail.trim()}. Введите его и придумайте новый пароль.`
+      ),
       form,
-      el("button", { type: "button", class: "login-link", onclick: () => { mode = "login"; recoverError = null; render(); } }, "Назад ко входу"),
-    ]);
+      recoverStep === "code"
+        ? el(
+            "button",
+            {
+              type: "button",
+              class: "login-link",
+              onclick: () => {
+                recoverStep = "email";
+                recoverCode = "";
+                recoverError = null;
+                render();
+              },
+            },
+            recoverBy === "phone" ? "Другой номер" : "Другой адрес"
+          )
+        : null,
+      el(
+        "button",
+        {
+          type: "button",
+          class: "login-link",
+          onclick: () => {
+            mode = "login";
+            recoverStep = "email";
+            recoverError = null;
+            render();
+          },
+        },
+        "Назад ко входу"
+      ),
+    ].filter(Boolean));
   }
 
   function renderCodePanel() {

@@ -19,6 +19,12 @@ function publicUser(user) {
   // (derived, a plain boolean) is what the UI actually needs, and it stays.
   delete rest.totpSecret;
   delete rest.totpRecoveryCodes;
+  // The e-mail address is the account's own business — it was going out with
+  // every profile lookup and every search hit, so anyone could read anyone's
+  // address by opening their profile. Nothing in the app shows other people's
+  // e-mail; it was simply never removed. The account's own responses use
+  // selfUser() below, which keeps it.
+  delete rest.email;
   // How many stars someone has is their business. messagePriceStars stays:
   // whoever is about to write to them has to know what it will cost.
   delete rest.stars;
@@ -35,8 +41,15 @@ function publicUser(user) {
   return rest;
 }
 
+// The same object as publicUser, plus the fields an account may see about
+// itself: currently the e-mail address. Used by every response that hands you
+// *your own* record — session, login, register, account switching, settings.
+function selfUser(user) {
+  return { ...publicUser(user), email: user.email ?? undefined };
+}
+
 function publicUsers(users) {
   return users.map(publicUser);
 }
 
-module.exports = { publicUser, publicUsers };
+module.exports = { publicUser, selfUser, publicUsers };

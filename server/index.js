@@ -86,8 +86,9 @@ app.use("/api/auth/register-email", authLimiter);
 app.use("/api/auth/code/start", authLimiter);
 app.use("/api/auth/code/verify", authLimiter);
 app.use("/api/auth/2fa/login", authLimiter);
-// Recovery takes an e-mail and a phone number and hands back a session — the
-// same shape as a login, so it gets the same tighter ceiling.
+// Recovery mails a one-time code and then hands back a session — the same shape
+// as a login, so both halves get the same tighter ceiling. /start is also what
+// would be hammered to mail-bomb an address.
 app.use("/api/auth/recover", authLimiter);
 
 app.use("/api/auth", require("./routes/auth"));

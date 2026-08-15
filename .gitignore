@@ -64,3 +64,6 @@ yarn-error.log*
 /data/*.db-shm
 # Uploaded attachments (server/routes/uploads.js) — user data, and gigabytes of it.
 /data/uploads/
+# Letters written when SMTP isn't configured (server/lib/mailer.js). They hold
+# one-time recovery codes in plain text — never commit them.
+/data/outbox/

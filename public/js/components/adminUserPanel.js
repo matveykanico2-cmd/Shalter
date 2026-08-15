@@ -372,6 +372,36 @@ export function openAdminUserPanel(user, onChange) {
         " Экспорт данных",
       ]),
 
+      el("p", { class: "admin-panel-section-title" }, "Удаление аккаунта"),
+      el(
+        "p",
+        { class: "settings-toggle-hint" },
+        "Необратимо: профиль, сообщения и личные чаты стираются, из групп аккаунт исчезает. Для блокировки есть кнопка выше — удаление нужно для ботоферм, дублей и просьб самого владельца."
+      ),
+      el(
+        "button",
+        {
+          class: "btn-accent danger",
+          disabled: busy,
+          onclick: () => {
+            const handle = state.username || state.id;
+            const typed = prompt(
+              `Удалить аккаунт ${state.name} безвозвратно?\n\nДля подтверждения введите @${handle}`
+            );
+            if (typed == null) return;
+            const reason = prompt("Основание — оно попадёт в журнал администрации:");
+            if (reason == null || !reason.trim()) return;
+            run(async () => {
+              await api.adminDeleteUser(state.id, typed, reason.trim());
+              onChange?.({ deleted: true });
+              close();
+              return { notice: "Аккаунт удалён" };
+            });
+          },
+        },
+        "Удалить аккаунт навсегда"
+      ),
+
       error ? el("p", { class: "login-error" }, error) : null,
       notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,
     ];

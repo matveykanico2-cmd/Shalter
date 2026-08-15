@@ -204,6 +204,44 @@ The `/ws` location block matters — without it, WebSocket upgrade requests
 (call signaling, presence) get proxied as plain HTTP and silently fail to
 upgrade, and the app falls back to slower HTTP polling for everything.
 
+## Sending e-mail (password recovery)
+
+Recovery works by mailing a one-time code to the address on the account, so it
+needs an SMTP account. Set these in the Node process's environment
+(`ecosystem.config.js`'s `env` block, or Dokploy's env editor):
+
+```
+SMTP_URL=smtps://no-reply%40shalter.ru:APP_PASSWORD@smtp.yandex.ru:465
+MAIL_FROM=Shalter <no-reply@shalter.ru>
+```
+
+`SMTP_URL` is a normal connection URL — note that the `@` inside the username
+has to be percent-encoded as `%40`. If quoting that is awkward, use the four
+separate variables instead: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`.
+
+Use an **app password**, never the mailbox's own password: it is stored in
+plain text in the process environment, and an app password can be revoked on
+its own.
+
+**Deliverability is DNS, not code.** Without these three records on the sending
+domain, correctly sent mail still lands in spam:
+
+- `SPF` — a TXT record naming the servers allowed to send as your domain;
+- `DKIM` — the signing key your mail provider gives you;
+- `DMARC` — a TXT record at `_dmarc.` saying what to do with mail failing the
+  first two.
+
+Any provider works — the domain's own mailbox (Yandex 360, Mail.ru for
+Business, Beget) is the least setup; a transactional service (Unisender Go,
+SendPulse) gives delivery statistics and higher limits.
+
+**With nothing configured**, `server/lib/mailer.js` writes letters to
+`data/outbox/*.eml` instead of sending them, so the flow can be walked on a
+development machine. That is refused when `NODE_ENV=production` — those files
+contain one-time codes in plain text, and a production box that cannot send
+mail should say so rather than quietly spool secrets to disk. Recovery then
+returns "отправка почты не настроена" until SMTP is set.
+
 ## OS-level tuning
 
 **Swap.** 30GB swap against 2GB RAM is a large safety margin, which is good

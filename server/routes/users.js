@@ -2,7 +2,7 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { listUsers, updateUser, getUser, setBlocked, findUserByUsername, findUserByPhone } = require("../data/users");
-const { publicUser, publicUsers } = require("../data/sanitize");
+const { publicUser, selfUser, publicUsers } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
 const { listChats } = require("../data/chats");
@@ -60,7 +60,8 @@ router.get(
     if (!user) return res.status(404).json({ error: "not found" });
 
     const isSelf = req.params.id === req.uid;
-    const visible = publicUser(user);
+    // Your own profile keeps the e-mail; everyone else's never carries it.
+    const visible = isSelf ? selfUser(user) : publicUser(user);
     // "contacts"-level privacy means "people *the target* has added" (same
     // sense as Telegram's "My Contacts") — so this checks the target's own
     // contact list for the viewer, not the other way around.
