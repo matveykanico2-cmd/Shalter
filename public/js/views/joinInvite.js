@@ -27,9 +27,17 @@ export async function JoinInviteView(root, code) {
     busy = true;
     render();
     try {
-      const { chat } = await api.joinByInvite(code);
+      const res = await api.joinByInvite(code);
+      // With approval on there is nothing to open yet — the answer comes later,
+      // as a chat appearing in the list.
+      if (res.pending) {
+        info = { ...info, requestPending: true };
+        busy = false;
+        render();
+        return;
+      }
       await api.listChats().then((r) => setState({ chats: r.chats }));
-      navigate(`/chat/${chat.id}`);
+      navigate(`/chat/${res.chat.id}`);
     } catch (err) {
       error = err.message || "Не удалось присоединиться";
       busy = false;
@@ -59,7 +67,16 @@ export async function JoinInviteView(root, code) {
         info.description ? el("p", { class: "join-invite-description" }, info.description) : null,
         info.alreadyMember
           ? el("button", { class: "btn-accent", onclick: () => navigate(`/chat/${info.id}`) }, "Открыть")
-          : el("button", { class: "btn-accent", disabled: busy, onclick: join }, busy ? "Присоединяемся…" : `Присоединиться к ${what}`),
+          : info.requestPending
+            ? el("p", { class: "settings-toggle-hint" }, "Заявка отправлена — администратор её рассмотрит, и чат появится в списке.")
+            : el(
+                "button",
+                { class: "btn-accent", disabled: busy, onclick: join },
+                busy ? "Отправляем…" : info.approveJoins ? "Подать заявку" : `Присоединиться к ${what}`
+              ),
+        !info.alreadyMember && info.approveJoins && !info.requestPending
+          ? el("p", { class: "settings-toggle-hint" }, "Вступление по заявке — админ должен её одобрить.")
+          : null,
         el("button", { class: "modal-cancel", onclick: () => navigate("/") }, "Не сейчас"),
       ].filter(Boolean))
     );

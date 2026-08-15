@@ -540,6 +540,29 @@ if (!existingChatVerifyCols2.has("slowModeSeconds")) db.exec("ALTER TABLE chats 
 // existing group changes behaviour on upgrade.
 if (!existingChatVerifyCols2.has("permissions")) db.exec("ALTER TABLE chats ADD COLUMN permissions TEXT");
 
+// Join requests. A link can either let people straight in or put them in a
+// queue for an admin — Telegram's "Approve new members". Without it an invite
+// link is all-or-nothing: the moment it leaks, anyone holding it is inside.
+if (!existingChatVerifyCols2.has("approveJoins")) db.exec("ALTER TABLE chats ADD COLUMN approveJoins INTEGER NOT NULL DEFAULT 0");
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS join_requests (
+  chatId TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  userId TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  PRIMARY KEY (chatId, userId)
+);
+CREATE INDEX IF NOT EXISTS idx_join_requests_chat ON join_requests(chatId);
+`);
+
+const existingMsgSignCols = new Set(db.prepare("PRAGMA table_info(messages)").all().map((c) => c.name));
+if (!existingMsgSignCols.has("signedBy")) db.exec("ALTER TABLE messages ADD COLUMN signedBy TEXT");
+
+// Posts signed with their author's name — a channel is written by people, and
+// in a busy one "who wrote this" is a real question. Off by default: an
+// unsigned channel speaks with one voice, which is the other half of the point.
+if (!existingChatVerifyCols2.has("signMessages")) db.exec("ALTER TABLE chats ADD COLUMN signMessages INTEGER NOT NULL DEFAULT 0");
+
 // The invite link — how someone joins a private group or channel. Until now the
 // only way in was an admin adding you by hand, which meant a private group had
 // no way to grow at all. One active code per chat, regenerable: revoking is the

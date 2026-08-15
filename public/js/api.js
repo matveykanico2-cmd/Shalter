@@ -107,6 +107,12 @@ export const api = {
   // Muting for a period (Telegram's 1h/8h/2d/forever), and slow mode.
   muteChat: (id, opts) => req(`/api/chats/${id}/mute`, { method: "POST", body: JSON.stringify(opts) }),
   setSlowMode: (id, seconds) => req(`/api/chats/${id}/slow-mode`, { method: "POST", body: JSON.stringify({ seconds }) }),
+  // Join requests — the queue an invite link feeds when approval is on.
+  listJoinRequests: (id) => req(`/api/chats/${id}/join-requests`),
+  answerJoinRequest: (id, userId, approve) =>
+    req(`/api/chats/${id}/join-requests/${userId}`, { method: "POST", body: JSON.stringify({ approve }) }),
+  // approveJoins / signMessages
+  setChatSettings: (id, patch) => req(`/api/chats/${id}/settings`, { method: "POST", body: JSON.stringify(patch) }),
   // What ordinary members of a group may do (server/lib/chatPermissions.js).
   getChatPermissions: (id) => req(`/api/chats/${id}/permissions`),
   setChatPermissions: (id, permissions) =>

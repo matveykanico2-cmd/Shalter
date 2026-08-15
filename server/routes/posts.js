@@ -41,6 +41,11 @@ router.post(
       readByIds: [req.uid],
       views: 0,
       commentCount: 0,
+      // A signed channel names the person who wrote each post; an unsigned one
+      // speaks with a single voice. Recorded on the message, not derived at read
+      // time, so turning the setting off later doesn't rewrite what was already
+      // published under someone's name.
+      signedBy: chat.signMessages ? (await getUser(req.uid))?.name ?? null : null,
     });
 
     if (chat.linkedDiscussionChatId) {

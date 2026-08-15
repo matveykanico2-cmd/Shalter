@@ -7137,3 +7137,12 @@
 .collectible-badge {
   font-size: 13px;
 }
+
+/* The author's name under a signed channel post. Quiet — it's attribution, not
+   a second sender line. */
+.message-signature {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--color-muted);
+}

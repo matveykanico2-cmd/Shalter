@@ -26,6 +26,7 @@ function rowToMessage(row) {
     threadRootId: row.threadRootId ?? undefined,
     anchorForPostId: row.anchorForPostId ?? undefined,
     discussionAnchorId: row.discussionAnchorId ?? undefined,
+    signedBy: row.signedBy ?? undefined,
     boostedUntil: row.boostedUntil ?? undefined,
     boostedById: row.boostedById ?? undefined,
     views: row.views,
@@ -104,8 +105,8 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, anchorForPostId, discussionAnchorId, views, commentCount)
-     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @anchorForPostId, @discussionAnchorId, @views, @commentCount)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, anchorForPostId, discussionAnchorId, signedBy, views, commentCount)
+     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount)`
   ).run({
     id: message.id,
     chatId: message.chatId,
@@ -129,6 +130,7 @@ async function addMessage(message) {
     threadRootId: message.threadRootId ?? null,
     anchorForPostId: message.anchorForPostId ?? null,
     discussionAnchorId: message.discussionAnchorId ?? null,
+    signedBy: message.signedBy ?? null,
     views: message.views ?? 0,
     commentCount: message.commentCount ?? 0,
   });

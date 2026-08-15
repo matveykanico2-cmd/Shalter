@@ -748,6 +748,13 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     for (const ev of ["pointerup", "pointercancel", "pointerleave"]) bubbleWrap.addEventListener(ev, cancel);
   }
 
+  // A signed channel post carries its author's name under the text — recorded
+  // when it was published (server/routes/posts.js), so it stays right even if
+  // the channel later stops signing.
+  if (message.signedBy) {
+    bubble.appendChild(el("p", { class: "message-signature" }, message.signedBy));
+  }
+
   const reactionsRow = message.reactions.length
     ? el(
         "div",

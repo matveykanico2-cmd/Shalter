@@ -12,6 +12,8 @@ function rowToChat(row) {
     isPublic: !!row.isPublic || undefined,
     isVerified: !!row.isVerified || undefined,
     inviteCode: row.inviteCode ?? undefined,
+    approveJoins: !!row.approveJoins || undefined,
+    signMessages: !!row.signMessages || undefined,
     permissions: row.permissions ? JSON.parse(row.permissions) : null,
     avatarColor: row.avatarColor ?? undefined,
     avatarImage: row.avatarImage ?? undefined,
@@ -147,6 +149,7 @@ const PATCHABLE_FIELDS = [
   "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage",
   "ownerId", "pinned", "muted", "archived", "createdAt", "linkedDiscussionChatId", "points",
   "autoDeleteSeconds", "isVerified", "inviteCode", "mutedUntil", "slowModeSeconds",
+  "approveJoins", "signMessages",
 ];
 
 async function updateChat(id, patch) {

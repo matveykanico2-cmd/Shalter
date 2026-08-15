@@ -21,6 +21,7 @@ export function openEditChatDialog(chat, onSaved) {
   let avatarColor = chat.avatarColor ?? null;
   let isPublic = !!chat.isPublic;
   let colors = [];
+  let requests = [];
   let permissions = null;
   let permFields = [];
   let inviteLink = chat.inviteCode ? `${window.location.origin}/join/${chat.inviteCode}` : null;
@@ -78,12 +79,54 @@ export function openEditChatDialog(chat, onSaved) {
   }
 
   api
+    .listJoinRequests(chat.id)
+    .then((res) => {
+      requests = res.requests ?? [];
+      render();
+    })
+    .catch(() => {});
+
+  api
     .getChatFeatures(chat.id)
     .then((res) => {
       colors = res.colors ?? [];
       render();
     })
     .catch(() => {});
+
+  async function saveSetting(patch) {
+    busy = true;
+    error = null;
+    notice = null;
+    render();
+    try {
+      const { chat: updated } = await api.setChatSettings(chat.id, patch);
+      chat = { ...chat, ...updated };
+      notice = "Сохранено";
+      onSaved?.(chat);
+    } catch (err) {
+      error = err.message || "Не удалось сохранить";
+    } finally {
+      busy = false;
+      render();
+    }
+  }
+
+  async function answer(userId, approve) {
+    busy = true;
+    error = null;
+    render();
+    try {
+      await api.answerJoinRequest(chat.id, userId, approve);
+      requests = requests.filter((r) => r.user.id !== userId);
+      notice = approve ? "Участник добавлен" : "Заявка отклонена";
+    } catch (err) {
+      error = err.message || "Не удалось обработать заявку";
+    } finally {
+      busy = false;
+      render();
+    }
+  }
 
   async function discussion(action, groupId) {
     busy = true;
@@ -253,6 +296,41 @@ export function openEditChatDialog(chat, onSaved) {
                   chat.linkedDiscussionChatId ? "Выбрать другую группу" : "Связать существующую"
                 ),
               ]),
+            ])
+          : null,
+
+        // Who gets in, and how posts are signed.
+        el("p", { class: "settings-field-label" }, "Вступление"),
+        el("div", { class: "create-chat-public" }, [
+          el("div", {}, [
+            el("p", { class: "settings-toggle-title" }, "Заявки на вступление"),
+            el("p", { class: "settings-toggle-hint" }, "По ссылке будут подавать заявку, а не входить сразу — утёкшая ссылка перестаёт быть пропуском."),
+          ]),
+          Toggle(!!chat.approveJoins, (v) => saveSetting({ approveJoins: v })),
+        ]),
+        isChannel
+          ? el("div", { class: "create-chat-public" }, [
+              el("div", {}, [
+                el("p", { class: "settings-toggle-title" }, "Подписывать посты"),
+                el("p", { class: "settings-toggle-hint" }, "Под постом будет имя автора. Уже опубликованные не меняются."),
+              ]),
+              Toggle(!!chat.signMessages, (v) => saveSetting({ signMessages: v })),
+            ])
+          : null,
+        requests.length
+          ? el("div", {}, [
+              el("p", { class: "settings-field-label" }, `Заявки (${requests.length})`),
+              ...requests.map((r) =>
+                el("div", { class: "settings-device-row" }, [
+                  Avatar({ name: r.user.name, color: r.user.avatarColor, image: r.user.avatarImage, size: 32 }),
+                  el("div", { class: "settings-device-body" }, [
+                    el("p", {}, r.user.name),
+                    r.user.username ? el("p", { class: "mono settings-toggle-hint" }, `@${r.user.username}`) : null,
+                  ].filter(Boolean)),
+                  el("button", { class: "btn-accent-pill", disabled: busy, onclick: () => answer(r.user.id, true) }, "Принять"),
+                  el("button", { class: "profile-action-btn danger", disabled: busy, onclick: () => answer(r.user.id, false) }, "Отклонить"),
+                ])
+              ),
             ])
           : null,
 

@@ -12,6 +12,7 @@ const { listUsers, getUser } = require("../data/users");
 const { listContactsFor } = require("../data/contacts");
 const { publicUser } = require("../data/sanitize");
 const { getBotByUserId } = require("../data/bots");
+const joinRequests = require("../data/joinRequests");
 const { markTyping, getTypingUserId } = require("../data/typing");
 const { broadcastToUsers } = require("../ws");
 const messagesRouter = require("./messages");
@@ -297,6 +298,61 @@ router.post(
   })
 );
 
+// The queue of people waiting to be let in, and the two answers to it.
+router.get(
+  "/:id/join-requests",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
+    const rows = joinRequests.listRequests(chat.id);
+    const users = await Promise.all(rows.map(async (r) => ({ ...r, user: publicUser(await getUser(r.userId)) })));
+    res.json({ requests: users.filter((r) => r.user) });
+  })
+);
+
+router.post(
+  "/:id/join-requests/:userId",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
+    if (!joinRequests.hasRequest(chat.id, req.params.userId)) return res.status(404).json({ error: "Заявка не найдена" });
+
+    const approve = req.body?.approve !== false;
+    joinRequests.removeRequest(chat.id, req.params.userId);
+    if (!approve) {
+      // Declining says nothing to the person: an invite-only chat that tells
+      // strangers "you were rejected" hands them a way to probe it.
+      return res.json({ ok: true, approved: false });
+    }
+
+    const updated = await updateChat(chat.id, { memberIds: [...chat.memberIds, req.params.userId] });
+    broadcastToUsers([req.params.userId], { type: "chat:added", chat: updated });
+    broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+    res.json({ ok: true, approved: true, chat: updated });
+  })
+);
+
+// Approval on/off, and whether posts carry their author's name. Both are
+// owner/admin switches on the chat itself.
+router.post(
+  "/:id/settings",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (chat.type === "dm") return res.status(400).json({ error: "Только для групп и каналов" });
+    if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
+    const patch = {};
+    if ("approveJoins" in (req.body ?? {})) patch.approveJoins = !!req.body.approveJoins;
+    if ("signMessages" in (req.body ?? {})) patch.signMessages = !!req.body.signMessages;
+    if (!Object.keys(patch).length) return res.status(400).json({ error: "Нечего менять" });
+    const updated = await updateChat(chat.id, patch);
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    res.json({ chat: updated });
+  })
+);
+
 // What ordinary members may do here (lib/chatPermissions.js). Groups only:
 // posting in a channel is already admin-only, and a second mechanism saying the
 // same thing is how two rules end up disagreeing.
@@ -475,6 +531,10 @@ router.get(
         isVerified: chat.isVerified,
         memberCount: chat.memberIds.length,
         alreadyMember: chat.memberIds.includes(req.uid),
+        approveJoins: !!chat.approveJoins,
+        // So the screen can say "заявка отправлена" instead of offering a
+        // button that would silently do nothing the second time.
+        requestPending: joinRequests.hasRequest(chat.id, req.uid),
       },
     });
   })
@@ -486,6 +546,19 @@ router.post(
     const chat = await findChatByInviteCode(req.params.code);
     if (!chat) return res.status(404).json({ error: "Ссылка недействительна или отозвана" });
     if (chat.memberIds.includes(req.uid)) return res.json({ chat });
+
+    // With approval on, the link buys a place in a queue rather than a seat.
+    // This is what makes a leaked link survivable: whoever has it still has to
+    // get past somebody.
+    if (chat.approveJoins) {
+      joinRequests.addRequest(chat.id, req.uid);
+      const who = await getUser(req.uid);
+      broadcastToUsers(
+        chat.memberIds.filter((id) => isOwnerOrAdminOf(chat, id)),
+        { type: "chat:join-request", chatId: chat.id, user: publicUser(who) }
+      );
+      return res.json({ pending: true, chat: { id: chat.id, title: chat.title, type: chat.type } });
+    }
 
     const updated = await updateChat(chat.id, { memberIds: [...chat.memberIds, req.uid] });
     // The chat appears for the joiner, and everyone already inside sees the
