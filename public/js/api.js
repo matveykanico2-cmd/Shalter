@@ -83,6 +83,13 @@ export const api = {
     req("/api/chats/channels", { method: "POST", body: JSON.stringify({ title, avatarImage, memberIds, adminIds, ...extra }) }),
   createGroup: (title, memberIds, avatarImage, adminIds, extra = {}) =>
     req("/api/chats/groups", { method: "POST", body: JSON.stringify({ title, memberIds, avatarImage, adminIds, ...extra }) }),
+  // The command list a bot advertises — what the composer's "/" menu shows.
+  setBotCommands: (id, commands) => req(`/api/bots/${id}/commands`, { method: "PUT", body: JSON.stringify({ commands }) }),
+  // What ordinary members of a group may do (server/lib/chatPermissions.js).
+  getChatPermissions: (id) => req(`/api/chats/${id}/permissions`),
+  setChatPermissions: (id, permissions) =>
+    req(`/api/chats/${id}/permissions`, { method: "POST", body: JSON.stringify({ permissions }) }),
+  searchInChat: (id, q) => req(`/api/chats/${id}/messages/search?q=${encodeURIComponent(q)}`),
   // Invite links — how anyone joins a private group or channel.
   chatInviteLink: (id, revoke = false) => req(`/api/chats/${id}/invite`, { method: "POST", body: JSON.stringify({ revoke }) }),
   inviteInfo: (code) => req(`/api/chats/invite/${encodeURIComponent(code)}`),

@@ -31,7 +31,21 @@ async function attachSummaries(chats, userId) {
     const otherUserRaw = otherUserId ? users.find((u) => u.id === otherUserId) : undefined;
     const otherUser = otherUserRaw ? publicUser(otherUserRaw) : null;
 
-    return { ...chat, lastMessage, unreadCount, hasUnreadMention, otherUser, draft: drafts[chat.id] ?? null };
+    // A chat with yourself — Telegram's "Избранное". It has no *other* user, so
+    // without this the row rendered with the account's own name and avatar and
+    // looked like a duplicate of the person themselves.
+    const isSaved = chat.type === "dm" && chat.memberIds.length === 1 && chat.memberIds[0] === userId;
+
+    return {
+      ...chat,
+      title: isSaved ? "Избранное" : chat.title,
+      isSaved: isSaved || undefined,
+      lastMessage,
+      unreadCount,
+      hasUnreadMention,
+      otherUser: isSaved ? null : otherUser,
+      draft: drafts[chat.id] ?? null,
+    };
   });
 }
 

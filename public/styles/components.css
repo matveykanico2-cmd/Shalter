@@ -6939,3 +6939,94 @@
   border-color: var(--color-accent);
   background: var(--color-accent);
 }
+
+/* "Непрочитанные сообщения" — where reading stopped last time (chatView.js).
+   A line rather than a pill: it marks a boundary between messages, not one
+   message, and the date dividers above already own the pill shape. */
+.unread-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px 6px;
+  font-size: 12px;
+  color: var(--color-accent);
+}
+.unread-divider::before,
+.unread-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+
+/* Search inside one chat (chatView.js's openSearch). Drops under the header,
+   pushing nothing — the message list keeps its scroll position. */
+.chat-search-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 8px 12px;
+}
+.chat-search-field {
+  flex: 1;
+  min-width: 0;
+}
+.chat-search-results {
+  width: 100%;
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.chat-search-hit {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 8px;
+  padding: 7px 8px;
+  text-align: left;
+}
+.chat-search-hit:hover {
+  background: var(--color-surface-alt);
+}
+.chat-search-hit-who {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+.chat-search-hit-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  color: var(--color-muted);
+}
+
+/* A bot's "/" command button and its menu (components/composer.js). The button
+   is a glyph rather than an icon because that's what it opens — the literal
+   character you'd otherwise have to type. */
+.composer-command-btn {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-accent);
+}
+.composer-command-menu {
+  width: min(280px, calc(100vw - 24px));
+}
+.composer-command-menu .composer-attach-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+.composer-command-name {
+  font-size: 13.5px;
+  color: var(--color-accent);
+}
+.composer-command-desc {
+  font-size: 12px;
+  color: var(--color-muted);
+}

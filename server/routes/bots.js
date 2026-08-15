@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotCode } = require("../data/bots");
+const { listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotCode, updateBotCommands } = require("../data/bots");
 const { createUser, getUser } = require("../data/users");
 const { generateBotUsername } = require("../lib/username");
 const { publicUser } = require("../data/sanitize");
@@ -84,6 +84,33 @@ router.delete(
     if (!bot) return;
     await deleteBot(bot.id);
     res.json({ ok: true });
+  })
+);
+
+// The command list a bot advertises — what the composer's "/" menu offers.
+//
+// The column has existed since bots did, and nothing could write to it: no
+// route here, nothing in the Bot API. So every bot's list was empty and the
+// feature was invisible. Same format BotFather uses ("command - description"
+// per line), because that's what anyone who has set up a Telegram bot will type.
+router.put(
+  "/:id/commands",
+  asyncRoute(async (req, res) => {
+    const bot = await requireOwnedBot(req, res);
+    if (!bot) return;
+
+    const raw = Array.isArray(req.body?.commands) ? req.body.commands : [];
+    const commands = raw
+      .map((c) => ({
+        // Telegram's own rule: lowercase letters, digits and underscores.
+        command: String(c?.command ?? "").trim().replace(/^\//, "").toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 32),
+        description: String(c?.description ?? "").trim().slice(0, 120),
+      }))
+      .filter((c) => c.command)
+      .slice(0, 100);
+
+    const updated = await updateBotCommands(bot.id, commands);
+    res.json({ bot: updated });
   })
 );
 

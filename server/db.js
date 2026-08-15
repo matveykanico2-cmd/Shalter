@@ -494,6 +494,12 @@ if (!existingTwoFactorCols.has("isVerified")) db.exec("ALTER TABLE users ADD COL
 const existingChatVerifyCols2 = new Set(db.prepare("PRAGMA table_info(chats)").all().map((c) => c.name));
 if (!existingChatVerifyCols2.has("isVerified")) db.exec("ALTER TABLE chats ADD COLUMN isVerified INTEGER NOT NULL DEFAULT 0");
 
+// What ordinary members of a group may do. Admins and owners are never bound by
+// it — the point of the list is to describe everyone else. Absent (NULL) means
+// "everything allowed", which is what every group did before this existed, so no
+// existing group changes behaviour on upgrade.
+if (!existingChatVerifyCols2.has("permissions")) db.exec("ALTER TABLE chats ADD COLUMN permissions TEXT");
+
 // The invite link — how someone joins a private group or channel. Until now the
 // only way in was an admin adding you by hand, which meant a private group had
 // no way to grow at all. One active code per chat, regenerable: revoking is the

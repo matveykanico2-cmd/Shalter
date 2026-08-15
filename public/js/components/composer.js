@@ -33,6 +33,10 @@ export function Composer({
   replyingTo,
   editingMessage,
   initialDraft,
+  // A bot's command list, when this chat has a bot in it (server/routes/chats.js
+  // returns it with the chat). Absent everywhere else, and the "/" button then
+  // isn't rendered at all.
+  botCommands = null,
   members,
   onCancelReply,
   onCancelEdit,
@@ -393,6 +397,50 @@ export function Composer({
     });
     const attachSlot = el("div", { class: "composer-attach-slot" }, [attachBtn, mediaFileInput, anyFileInput]);
 
+    // A bot's commands, the way Telegram's "/" button offers them. The list has
+    // been stored since bots existed and was shown nowhere, so using a bot meant
+    // already knowing what it answers to.
+    let commandMenuEl = null;
+    const commandSlot = botCommands?.length ? el("div", { class: "composer-attach-slot" }) : null;
+    if (commandSlot) {
+      const commandBtn = el("button", {
+        class: "composer-icon-btn composer-command-btn",
+        title: "Команды бота",
+        onclick: () => {
+          if (commandMenuEl) {
+            commandMenuEl.remove();
+            commandMenuEl = null;
+            return;
+          }
+          commandMenuEl = el(
+            "div",
+            { class: "composer-attach-menu composer-command-menu" },
+            botCommands.map((c) =>
+              el(
+                "button",
+                {
+                  class: "composer-attach-item",
+                  onclick: () => {
+                    commandMenuEl?.remove();
+                    commandMenuEl = null;
+                    // Sent straight away rather than typed into the field: a
+                    // command is the whole message, and Telegram sends it on tap.
+                    onSend(`/${String(c.command ?? c.name ?? "").replace(/^\//, "")}`, []);
+                  },
+                },
+                [
+                  el("span", { class: "composer-command-name mono" }, `/${String(c.command ?? c.name ?? "").replace(/^\//, "")}`),
+                  c.description ? el("span", { class: "composer-command-desc" }, c.description) : null,
+                ].filter(Boolean)
+              )
+            )
+          );
+          commandSlot.appendChild(commandMenuEl);
+        },
+      }, "/");
+      commandSlot.appendChild(commandBtn);
+    }
+
     // Emoji picker. Takes the element to hang off, because on a phone the icon
     // that normally opens it isn't on screen — it's in the paperclip menu, and
     // the picker has to anchor to the paperclip instead.
@@ -699,7 +747,7 @@ export function Composer({
       );
     }
 
-    const row = el("div", { class: "composer-row" }, [mentionMenu, attachSlot, textarea, hugoSlotBtn, stickerSlot, scheduleSlot, emojiSlot, trailingSlot]);
+    const row = el("div", { class: "composer-row" }, [mentionMenu, attachSlot, commandSlot, textarea, hugoSlotBtn, stickerSlot, scheduleSlot, emojiSlot, trailingSlot].filter(Boolean));
     bodySlot.append(uploadSlot, hugoSlot, row);
     updateTrailingButtons();
 

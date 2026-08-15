@@ -20,6 +20,8 @@ export function openEditChatDialog(chat, onSaved) {
   let avatarColor = chat.avatarColor ?? null;
   let isPublic = !!chat.isPublic;
   let colors = [];
+  let permissions = null;
+  let permFields = [];
   let inviteLink = chat.inviteCode ? `${window.location.origin}/join/${chat.inviteCode}` : null;
   let busy = false;
   let error = null;
@@ -63,6 +65,17 @@ export function openEditChatDialog(chat, onSaved) {
 
   // The palette is the one thing a chat's level still gates (see
   // server/lib/chatFeatures.js), so it's fetched rather than assumed.
+  if (!isChannel) {
+    api
+      .getChatPermissions(chat.id)
+      .then((res) => {
+        permissions = res.permissions;
+        permFields = res.fields ?? [];
+        render();
+      })
+      .catch(() => {});
+  }
+
   api
     .getChatFeatures(chat.id)
     .then((res) => {
@@ -151,6 +164,30 @@ export function openEditChatDialog(chat, onSaved) {
                     },
                   }, c.unlocked ? null : el("span", { class: "chat-color-lock", html: iconSvg("Lock", 11) }))
                 )
+              ),
+            ])
+          : null,
+
+        // Who may do what, for everyone who isn't staff. Groups only — posting
+        // in a channel is already admin-only.
+        !isChannel && permissions
+          ? el("div", {}, [
+              el("p", { class: "settings-field-label" }, "Права участников"),
+              el("p", { class: "settings-toggle-hint" }, "Не касается владельцев, админов и модераторов — у них права остаются полными."),
+              ...permFields.map((f) =>
+                el("div", { class: "settings-toggle-row no-divider" }, [
+                  el("p", { class: "settings-toggle-title" }, f.label),
+                  Toggle(permissions[f.id] !== false, async (v) => {
+                    permissions = { ...permissions, [f.id]: v };
+                    render();
+                    try {
+                      await api.setChatPermissions(chat.id, permissions);
+                    } catch (err) {
+                      error = err.message || "Не удалось сохранить права";
+                      render();
+                    }
+                  }),
+                ])
               ),
             ])
           : null,

@@ -29,6 +29,7 @@ const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getSched
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
 const { dispatchHugo } = require("../lib/hugoBot");
+const { can, DENIED } = require("../lib/chatPermissions");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser } = require("../push");
 const { fetchLinkPreview } = require("../lib/linkPreview");
@@ -122,6 +123,13 @@ router.get(
     const before = typeof req.query.before === "string" && req.query.before ? req.query.before : null;
     const { messages, hasMore } = listMessagesPage(req.params.id, req.uid, settings.chatClears?.[req.params.id], { limit, before });
 
+    // The first message this viewer hadn't read — computed *before* marking the
+    // chat read below, which is the only moment it still exists. The client
+    // draws its "непрочитанные" divider above it; without this the answer is
+    // always "none", because listing the messages is itself what marks them.
+    const firstUnreadId =
+      messages.find((m) => m.senderId !== req.uid && !(m.readByIds ?? []).includes(req.uid))?.id ?? null;
+
     // Fetching the message list means the viewer just looked at the chat —
     // mark anything unread by them as read (Telegram/WhatsApp-style implicit
     // read receipt, not a separate explicit action).
@@ -135,7 +143,25 @@ router.get(
       });
     }
 
-    res.json({ messages, hasMore });
+    res.json({ messages, hasMore, firstUnreadId });
+  })
+);
+
+// Searching inside one chat. The global search (routes/search.js) spans every
+// chat and caps at 20 hits, which is the wrong tool for "find that link Ivan
+// sent in this conversation".
+router.get(
+  "/search",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    const q = String(req.query.q ?? "").trim().toLowerCase();
+    if (!q) return res.json({ messages: [] });
+    const settings = await getSettings(req.uid);
+    const all = await listMessages(req.params.id, req.uid, settings.chatClears?.[req.params.id]);
+    // Newest first: looking for something you remember means looking backwards.
+    const found = all.filter((m) => !m.deleted && (m.text ?? "").toLowerCase().includes(q)).reverse().slice(0, 50);
+    res.json({ messages: found });
   })
 );
 
@@ -279,6 +305,21 @@ router.post(
     const body = req.body ?? {};
     if (!body.text?.trim() && !body.attachments?.length && !body.sticker) {
       return res.status(400).json({ error: "empty message" });
+    }
+
+    // Group permissions (lib/chatPermissions.js). Checked per kind of content,
+    // not once for the message as a whole: "may write" and "may post photos"
+    // are separate settings, and a group that allows text but not media has to
+    // actually behave that way.
+    const kinds = new Set((body.attachments ?? []).map((a) => a.kind));
+    const needs = [
+      "sendMessages",
+      ...(kinds.has("poll") ? ["sendPolls"] : []),
+      ...([...kinds].some((k) => k !== "poll") ? ["sendMedia"] : []),
+      ...(body.sticker ? ["sendStickers"] : []),
+    ];
+    for (const need of needs) {
+      if (!can(chat, req.uid, need)) return res.status(403).json({ error: DENIED[need] });
     }
 
     let charged = 0;
@@ -464,6 +505,9 @@ router.delete(
 function canPin(chat, userId) {
   if (!chat || !chat.memberIds.includes(userId)) return false;
   if (chat.type === "dm") return true;
+  // A group may hand pinning to everyone (lib/chatPermissions.js) — the staff
+  // check below is then just the floor, not the ceiling.
+  if (chat.type === "group" && can(chat, userId, "pinMessages")) return true;
   return (
     chat.ownerId === userId ||
     (chat.ownerIds ?? []).includes(userId) ||

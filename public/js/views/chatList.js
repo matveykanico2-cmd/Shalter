@@ -32,6 +32,20 @@ async function openNewChatMenu(e) {
         },
       },
       {
+        // Telegram's own "Избранное" — a chat with yourself, for notes, links
+        // and files you want to keep. The server already supported it (a DM
+        // whose two members are the same person, see data/chats.js's setMembers
+        // dedup); nothing in the UI ever opened one.
+        icon: "Archive",
+        label: "Избранное",
+        onClick: async () => {
+          const me = getState().user;
+          const { chat } = await api.startDm(me.id, "Избранное", me.avatarColor);
+          await api.listChats().then((r) => setState({ chats: r.chats }));
+          navigate(`/chat/${chat.id}`);
+        },
+      },
+      {
         icon: "Users",
         label: "Новая группа",
         onClick: () => {

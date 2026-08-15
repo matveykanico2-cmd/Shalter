@@ -69,13 +69,22 @@ export async function ChatView(root, chatId) {
   const PAGE_SIZE = 60;
   let hasMoreHistory = false;
   let loadingHistory = false;
+  let firstUnreadId = null;
+  let botCommands = null;
+  let searchQuery = "";
+  let searchResults = null;
   try {
     const chatRes = await api.getChat(chatId);
     chat = chatRes.chat;
     members = chatRes.members;
+    botCommands = chatRes.commands ?? null;
     const first = await api.listMessages(chatId, { limit: PAGE_SIZE });
     messages = first.messages;
     hasMoreHistory = !!first.hasMore;
+    // Only from this first load: every later refetch reports null, because by
+    // then the chat has been marked read. Keeping the original is what lets the
+    // divider stay put while you read instead of vanishing on the next poll.
+    firstUnreadId = first.firstUnreadId ?? null;
   } catch {
     mount(root, el("div", { class: "empty-chat" }, "Чат не найден"));
     return;
@@ -448,6 +457,74 @@ export async function ChatView(root, chatId) {
   }
 
   const selectionBar = el("div", { class: "selection-bar-slot" });
+  const searchBar = el("div", { class: "chat-search-slot" });
+
+  // Searching inside this conversation. Its own route rather than the global
+  // search box, which spans every chat and caps at 20 hits — the wrong tool for
+  // "find the link Ivan sent here".
+  function openSearch() {
+    clear(searchBar);
+    const input = el("input", {
+      class: "login-input chat-search-field",
+      type: "search",
+      placeholder: "Найти в этом чате",
+      oninput: (e) => {
+        searchQuery = e.target.value;
+        clearTimeout(searchBar._timer);
+        searchBar._timer = setTimeout(runSearch, 250);
+      },
+    });
+    const results = el("div", { class: "chat-search-results" });
+    searchBar.appendChild(
+      el("div", { class: "chat-search-panel" }, [
+        input,
+        el("button", { class: "icon-btn", title: "Закрыть поиск", html: iconSvg("X", 16), onclick: closeSearch }),
+        results,
+      ])
+    );
+    input.focus();
+
+    async function runSearch() {
+      const q = searchQuery.trim();
+      clear(results);
+      if (q.length < 2) return;
+      try {
+        const res = await api.searchInChat(chat.id, q);
+        searchResults = res.messages;
+      } catch {
+        searchResults = [];
+      }
+      clear(results);
+      if (!searchResults.length) {
+        results.appendChild(el("p", { class: "empty-hint" }, "Ничего не найдено"));
+        return;
+      }
+      results.append(
+        ...searchResults.map((m) =>
+          el(
+            "button",
+            {
+              class: "chat-search-hit",
+              onclick: () => {
+                closeSearch();
+                jumpTo(m.id);
+              },
+            },
+            [
+              el("span", { class: "chat-search-hit-who" }, members.find((u) => u.id === m.senderId)?.name ?? ""),
+              el("span", { class: "chat-search-hit-text" }, m.text),
+            ]
+          )
+        )
+      );
+    }
+  }
+
+  function closeSearch() {
+    searchQuery = "";
+    searchResults = null;
+    clear(searchBar);
+  }
 
   function renderSelectionBar() {
     clear(selectionBar);
@@ -530,7 +607,7 @@ export async function ChatView(root, chatId) {
   applyWallpaper(list, chat.id);
   const composerSlot = el("div", { class: "composer-slot" });
   const bodyBottomSlot = el("div", { class: "body-bottom-slot" });
-  const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, pinnedBar, list, bodyBottomSlot, composerSlot]);
+  const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, searchBar, pinnedBar, list, bodyBottomSlot, composerSlot]);
   const infoSlot = el("div", { class: "info-panel-slot" });
   const wrap = el("div", { class: "chat-view" }, [mainCol, infoSlot]);
 
@@ -595,6 +672,7 @@ export async function ChatView(root, chatId) {
           html: iconSvg("More", 18),
           onclick: (e) =>
             openDropdownMenu({ x: e.clientX, y: e.clientY }, [
+              { icon: "Search", label: "Поиск по чату", onClick: () => openSearch() },
               { icon: "Check", label: "Выбрать сообщения", onClick: () => startSelecting(null) },
               { icon: chat.muted ? "Bell" : "BellOff", label: chat.muted ? "Включить уведомления" : "Отключить уведомления", onClick: toggleMute },
               { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
@@ -740,6 +818,11 @@ export async function ChatView(root, chatId) {
       if (!prev || !sameDay(prev.createdAt, m.createdAt)) {
         list.appendChild(el("div", { class: "date-divider" }, el("span", {}, dayLabel(m.createdAt))));
       }
+      // Where reading stopped last time. Drawn once, above the first message
+      // that was unread when the chat was opened.
+      if (m.id === firstUnreadId) {
+        list.appendChild(el("div", { class: "unread-divider" }, el("span", {}, "Непрочитанные сообщения")));
+      }
       // Telegram-style grouping: a run of messages from the same person, close
       // together in time, reads as one block — tight spacing, the name only at
       // the top of the run, the avatar only beside the last one, and the tail
@@ -882,6 +965,7 @@ export async function ChatView(root, chatId) {
         replyingTo,
         editingMessage,
         initialDraft: draftText,
+        botCommands,
         members: members.filter((u) => u.id !== me.id),
         onCancelReply: () => {
           replyingTo = null;

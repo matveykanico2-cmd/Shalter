@@ -651,6 +651,36 @@ async function renderBots(root) {
                     el("p", { class: "mono settings-toggle-hint" }, `@${b.user.username}`),
                   ]),
                   el("button", { class: "icon-btn", title: "Код бота", html: iconSvg("Code", 15), onclick: () => openBotCodeDialog(b) }),
+                  // The command list the "/" button in a chat with this bot
+                  // offers. BotFather's own format, so anyone who has set up a
+                  // Telegram bot already knows what to type here.
+                  el("button", {
+                    class: "icon-btn",
+                    title: "Команды бота",
+                    html: iconSvg("BarChart", 15),
+                    onclick: async () => {
+                      const current = (b.commands ?? []).map((c) => `${c.command} - ${c.description ?? ""}`.trim()).join("\n");
+                      const next = prompt(
+                        "Команды бота, по одной в строке:\n\nstart - Начать\nhelp - Помощь",
+                        current
+                      );
+                      if (next === null) return;
+                      const commands = next
+                        .split("\n")
+                        .map((line) => {
+                          const [cmd, ...rest] = line.split(/\s*-\s*/);
+                          return { command: (cmd ?? "").trim(), description: rest.join(" - ").trim() };
+                        })
+                        .filter((c) => c.command);
+                      try {
+                        await api.setBotCommands(b.id, commands);
+                        ({ bots } = await api.listBots());
+                        render();
+                      } catch (err) {
+                        alert(err.message || "Не удалось сохранить команды");
+                      }
+                    },
+                  }),
                   el("button", { class: "icon-btn", title: "Обновить токен", html: iconSvg("Lock", 15), onclick: () => regenerate(b) }),
                   el("button", { class: "icon-btn", title: "Удалить бота", html: iconSvg("Trash", 15), onclick: () => remove(b) }),
                 ])

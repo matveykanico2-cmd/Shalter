@@ -4,12 +4,14 @@ const { requireUserId } = require("../middleware/auth");
 const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findChatByInviteCode } = require("../data/chats");
 const { checkUsername, normalizeUsername } = require("../lib/username");
 const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeatures");
+const { PERMISSIONS, permissionsOf, sanitizePermissions } = require("../lib/chatPermissions");
 const { deleteMessagesForChat } = require("../data/messages");
 const { getSettings, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft } = require("../data/settings");
 const { attachSummaries } = require("../data/chat-summary");
 const { listUsers, getUser } = require("../data/users");
 const { listContactsFor } = require("../data/contacts");
 const { publicUser } = require("../data/sanitize");
+const { getBotByUserId } = require("../data/bots");
 const { markTyping, getTypingUserId } = require("../data/typing");
 const { broadcastToUsers } = require("../ws");
 const messagesRouter = require("./messages");
@@ -39,8 +41,16 @@ router.post(
   asyncRoute(async (req, res) => {
     const { userId, title, avatarColor } = req.body ?? {};
 
-    const existing = (await listChats()).find(
-      (c) => c.type === "dm" && c.memberIds.includes(req.uid) && c.memberIds.includes(userId)
+    // A chat with yourself ("Избранное") has one member, so the two-way
+    // membership test below matches *every* DM you have — asking for it used to
+    // hand back whichever conversation happened to come first.
+    const self = userId === req.uid;
+    const existing = (await listChats()).find((c) =>
+      c.type !== "dm"
+        ? false
+        : self
+          ? c.memberIds.length === 1 && c.memberIds[0] === req.uid
+          : c.memberIds.includes(req.uid) && c.memberIds.includes(userId)
     );
     if (existing) return res.json({ chat: existing });
 
@@ -198,7 +208,15 @@ router.get(
       .map((mid) => users.find((u) => u.id === mid))
       .filter((u) => u !== undefined)
       .map(publicUser);
-    res.json({ chat: summary, members });
+
+    // A bot's command list, so the composer can offer them the way Telegram's
+    // "/" menu does. Stored since bots existed and shown nowhere until now —
+    // people had to already know a bot's commands to use it.
+    const botMember = members.find((u) => u.isBot && u.id !== req.uid);
+    const bot = botMember ? await getBotByUserId(botMember.id) : null;
+    const commands = bot?.commands?.length ? bot.commands : null;
+
+    res.json({ chat: summary, members, commands });
   })
 );
 
@@ -276,6 +294,31 @@ router.post(
 
     const updated = await updateChat(req.params.id, { isPublic: true, username });
     res.json({ chat: updated });
+  })
+);
+
+// What ordinary members may do here (lib/chatPermissions.js). Groups only:
+// posting in a channel is already admin-only, and a second mechanism saying the
+// same thing is how two rules end up disagreeing.
+router.get(
+  "/:id/permissions",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    res.json({ permissions: permissionsOf(chat), fields: PERMISSIONS });
+  })
+);
+
+router.post(
+  "/:id/permissions",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (chat.type !== "group") return res.status(400).json({ error: "Права участников есть только у групп" });
+    if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
+    const updated = await updateChat(chat.id, { permissions: sanitizePermissions(req.body?.permissions) });
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    res.json({ chat: updated, permissions: permissionsOf(updated) });
   })
 );
 

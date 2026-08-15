@@ -12,6 +12,7 @@ function rowToChat(row) {
     isPublic: !!row.isPublic || undefined,
     isVerified: !!row.isVerified || undefined,
     inviteCode: row.inviteCode ?? undefined,
+    permissions: row.permissions ? JSON.parse(row.permissions) : null,
     avatarColor: row.avatarColor ?? undefined,
     avatarImage: row.avatarImage ?? undefined,
     ownerId: row.ownerId ?? undefined,
@@ -173,6 +174,12 @@ async function updateChat(id, patch) {
       patch.adminIds ?? current.adminIds,
       patch.moderatorIds ?? current.moderatorIds,
       patch.ownerIds ?? current.ownerIds
+    );
+  }
+  if ("permissions" in patch) {
+    db.prepare("UPDATE chats SET permissions = ? WHERE id = ?").run(
+      patch.permissions ? JSON.stringify(patch.permissions) : null,
+      id
     );
   }
   if ("memberTitles" in patch) {
