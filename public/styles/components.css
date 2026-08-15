@@ -7030,3 +7030,13 @@
   font-size: 12px;
   color: var(--color-muted);
 }
+
+/* A message being held to select it. Long-press is invisible by nature — the
+   finger is already on the target — so the bubble reacts while the timer runs
+   rather than only when it fires. */
+.bubble-wrap {
+  touch-action: pan-y;
+}
+.message-row.selecting .bubble-wrap:active {
+  transform: scale(0.98);
+}

@@ -673,7 +673,6 @@ export async function ChatView(root, chatId) {
           onclick: (e) =>
             openDropdownMenu({ x: e.clientX, y: e.clientY }, [
               { icon: "Search", label: "Поиск по чату", onClick: () => openSearch() },
-              { icon: "Check", label: "Выбрать сообщения", onClick: () => startSelecting(null) },
               { icon: chat.muted ? "Bell" : "BellOff", label: chat.muted ? "Включить уведомления" : "Отключить уведомления", onClick: toggleMute },
               { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
               { icon: "Image", label: "Фон чата", onClick: handleChooseWallpaper },
@@ -854,6 +853,8 @@ export async function ChatView(root, chatId) {
           isChannel: chat.type === "channel",
           isDm,
           canPin,
+          // onToggle does double duty: the first hold starts selection with
+          // that message in it, every later tap adds or removes one.
           selection: { active: selecting, ids: selected, onToggle: (id) => (selecting ? toggleSelect(id) : startSelecting(id)) },
           replyToMessage,
           members,

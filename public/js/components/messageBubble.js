@@ -688,6 +688,43 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     onclick: selection?.active ? () => selection.onToggle(message.id) : null,
   }, [bubble, hoverActions]);
 
+  // Hold a message to start selecting — the gesture Telegram uses, and the only
+  // one that exists on a touchscreen, where there is no right-click and the
+  // hover toolbar never appears. Replaces the "Выбрать сообщения" item that used
+  // to live in the chat's own menu, two taps away from the messages it acts on.
+  if (selection) {
+    const HOLD_MS = 450;
+    // Enough movement to be a scroll rather than a hold. Without this, dragging
+    // the list on a phone would arm selection every time.
+    const SLOP = 10;
+    let timer = null;
+    let startX = 0;
+    let startY = 0;
+
+    const cancel = () => {
+      clearTimeout(timer);
+      timer = null;
+    };
+    bubbleWrap.addEventListener("pointerdown", (e) => {
+      // Left button / touch only: the right button already opens the menu.
+      if (e.button && e.button !== 0) return;
+      startX = e.clientX;
+      startY = e.clientY;
+      timer = setTimeout(() => {
+        timer = null;
+        selection.onToggle(message.id);
+        // A hold that has become a selection must not also fire the click that
+        // follows it, or the message would be selected and instantly unselected.
+        bubbleWrap.addEventListener("click", (ev) => ev.stopPropagation(), { capture: true, once: true });
+        navigator.vibrate?.(12);
+      }, HOLD_MS);
+    });
+    bubbleWrap.addEventListener("pointermove", (e) => {
+      if (timer && (Math.abs(e.clientX - startX) > SLOP || Math.abs(e.clientY - startY) > SLOP)) cancel();
+    });
+    for (const ev of ["pointerup", "pointercancel", "pointerleave"]) bubbleWrap.addEventListener(ev, cancel);
+  }
+
   const reactionsRow = message.reactions.length
     ? el(
         "div",

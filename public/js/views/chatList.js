@@ -4,6 +4,7 @@ import { ChatListItem } from "../components/chatListItem.js";
 import { openDropdownMenu } from "../components/dropdownMenu.js";
 import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
 import { openCreateChatDialog } from "../components/createChatDialog.js";
+import { openInviteLinkDialog } from "../components/inviteLinkDialog.js";
 import { openContactPickerDialog } from "../components/contactPickerDialog.js";
 import { openCreateBotDialog } from "../components/createBotDialog.js";
 import { openBotTokenDialog } from "../components/botTokenDialog.js";
@@ -55,6 +56,10 @@ async function openNewChatMenu(e) {
                 const { chat } = await api.createGroup(title, userIds, avatarImage, adminIds, extra);
                 await api.listChats().then((r) => setState({ chats: r.chats }));
                 navigate(`/chat/${chat.id}`);
+                // A private chat is born with no way in — hand over the invite
+                // link immediately, the way Telegram does, instead of leaving it
+                // two screens deep in settings.
+                if (!extra?.isPublic) openInviteLinkDialog(chat);
               },
               { title: "Участники группы", submitLabel: "Создать группу", allowRoles: true }
             );
@@ -71,6 +76,10 @@ async function openNewChatMenu(e) {
                 const { chat } = await api.createChannel(title, avatarImage, userIds, adminIds, extra);
                 await api.listChats().then((r) => setState({ chats: r.chats }));
                 navigate(`/chat/${chat.id}`);
+                // A private chat is born with no way in — hand over the invite
+                // link immediately, the way Telegram does, instead of leaving it
+                // two screens deep in settings.
+                if (!extra?.isPublic) openInviteLinkDialog(chat);
               },
               { title: "Подписчики канала (необязательно)", submitLabel: "Создать канал", allowRoles: true }
             );
