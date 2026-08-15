@@ -90,6 +90,10 @@ app.use("/api/auth/2fa/login", authLimiter);
 // as a login, so both halves get the same tighter ceiling. /start is also what
 // would be hammered to mail-bomb an address.
 app.use("/api/auth/recover", authLimiter);
+// Changing a password or an address: one guesses the current password, the
+// other mails a code to any address the caller names. Same reasons, same limit.
+app.use("/api/auth/change-password", authLimiter);
+app.use("/api/auth/email", authLimiter);
 
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));

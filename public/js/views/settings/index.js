@@ -15,6 +15,7 @@ import { PhoneField } from "../../components/phoneField.js";
 import { hasPasscode } from "../../lib/passcodeLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../components/twoFactorDialog.js";
+import { openChangePasswordDialog, openChangeEmailDialog } from "../../components/credentialsDialog.js";
 import { openStarsDialog } from "../../components/starsDialog.js";
 import { openGiftShopDialog } from "../../components/giftShopDialog.js";
 import { openAvatarViewer } from "../../components/avatarViewer.js";
@@ -1005,6 +1006,10 @@ async function renderPrivacy(root) {
     });
   }
 
+  // Shown under the security section after a password/e-mail change — the same
+  // "state changed, re-render" pattern the rest of this page uses.
+  let securityNotice = null;
+
   function enableTwoFactor() {
     openTwoFactorSetupDialog(async () => {
       twoFactor = await api.getTwoFactor().catch(() => ({ enabled: true, recoveryCodesLeft: 0 }));
@@ -1056,6 +1061,51 @@ async function renderPrivacy(root) {
           ]),
           el("div", { class: "settings-toggle-row" }, [
             el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, "Пароль"),
+              el("p", { class: "settings-toggle-hint" }, "Пароль от аккаунта. При смене все остальные сеансы завершаются"),
+            ]),
+            el(
+              "button",
+              {
+                class: "settings-danger-link",
+                onclick: () =>
+                  openChangePasswordDialog(() => {
+                    securityNotice = "Пароль изменён, остальные сеансы завершены";
+                    render();
+                  }),
+              },
+              "Изменить"
+            ),
+          ]),
+          el("div", { class: "settings-toggle-row" }, [
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, "Почта"),
+              el(
+                "p",
+                { class: "settings-toggle-hint" },
+                getState().user.email
+                  ? `${getState().user.email} — по этому адресу восстанавливают доступ`
+                  : "Не указана. По ней восстанавливают доступ, если забыт пароль"
+              ),
+            ]),
+            el(
+              "button",
+              {
+                class: "settings-danger-link",
+                onclick: () =>
+                  openChangeEmailDialog(getState().user.email, (user) => {
+                    // The address is on the state object the whole app reads, so
+                    // the hint above must not keep showing the old one.
+                    if (user) setState({ user: { ...getState().user, email: user.email } });
+                    securityNotice = "Адрес почты изменён";
+                    render();
+                  }),
+              },
+              getState().user.email ? "Изменить" : "Указать"
+            ),
+          ]),
+          el("div", { class: "settings-toggle-row" }, [
+            el("div", {}, [
               el("p", { class: "settings-toggle-title" }, "Код-пароль"),
               el("p", { class: "settings-toggle-hint" }, "Локальный PIN на этом устройстве — не связан с аккаунтом"),
             ]),
@@ -1066,6 +1116,7 @@ async function renderPrivacy(root) {
                 ])
               : el("button", { class: "settings-danger-link", onclick: changePasscode }, "Включить"),
           ]),
+          securityNotice ? el("p", { class: "settings-toggle-hint success" }, securityNotice) : null,
         ]),
         el("p", { class: "settings-section-title" }, `Заблокированные пользователи (${blockedUsers.length})`),
         blockedUsers.length === 0

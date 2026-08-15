@@ -12,7 +12,10 @@ module.exports = {
       script: "server/index.js",
       instances: 1,
       exec_mode: "fork",
-      node_args: "--max-old-space-size=768",
+      // Secrets (SMTP credentials, admin phone) come from .env, which is
+      // gitignored — this file is committed and would publish them otherwise.
+      // "if-exists" so a deployment without the file still starts.
+      node_args: "--env-file-if-exists=.env --max-old-space-size=768",
       env: {
         NODE_ENV: "production",
         PORT: 3000,

@@ -53,6 +53,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the template with no secrets in it belongs in the repo, otherwise
+# nobody deploying this knows which variables exist.
+!.env.example
 
 # runtime SQLite database — this is user data (accounts, messages, calls...),
 # not source; the old flat-JSON-file equivalents got committed by mistake in

@@ -4335,6 +4335,12 @@
   color: var(--color-muted);
   margin: 2px 0 0;
 }
+/* Confirmation under the security section — the same hint type, coloured to
+   read as "this happened" rather than as one more explanatory line. */
+.settings-toggle-hint.success {
+  color: var(--color-success, #1f9d63);
+  margin-top: 10px;
+}
 .settings-notice-box {
   margin-top: 16px;
   border-radius: 8px;

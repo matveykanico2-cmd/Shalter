@@ -9,10 +9,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "nodemon server/index.js",
+    "dev": "nodemon --exec \"node --env-file-if-exists=.env\" server/index.js",
     "build": "node scripts/build.js",
     "mail-dns": "node scripts/mail-dns.js",
-    "start": "NODE_ENV=production node --max-old-space-size=768 server/index.js",
+    "start": "NODE_ENV=production node --env-file-if-exists=.env --max-old-space-size=768 server/index.js",
     "cap:add:android": "npm run build && npx cap add android",
     "cap:add:ios": "npm run build && npx cap add ios",
     "cap:sync": "npm run build && npx cap sync",

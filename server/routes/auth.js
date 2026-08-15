@@ -12,7 +12,7 @@ const {
 const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, updateUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode } = require("../data/users");
 const { publicUser, selfUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
-const { listSessions, upsertSession, removeAllSessionsForUser } = require("../data/sessions");
+const { listSessions, getSession, upsertSession, removeAllSessionsForUser, revokeOtherSessions } = require("../data/sessions");
 const { parseUserAgent } = require("../lib/userAgent");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { deleteAccount } = require("../lib/deleteAccount");
@@ -26,6 +26,7 @@ const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib
 const totp = require("../lib/totp");
 const twoFactorTickets = require("../data/twoFactorTickets");
 const recoveryCodes = require("../data/recoveryCodes");
+const emailChanges = require("../data/emailChanges");
 const { sendMail } = require("../lib/mailer");
 
 const router = express.Router();
@@ -234,9 +235,21 @@ router.get(
   asyncRoute(async (req, res) => {
     const uid = getCurrentUserId(req);
     const ids = getSessionUserIds(req);
-    const accountUsers = (await Promise.all(ids.map((id) => getUser(id)))).filter((u) => u !== undefined);
 
-    if (!uid) return res.json({ user: null, accounts: [] });
+    // Revocation has to be honoured here too, not only in requireUserId. This
+    // is the endpoint the app asks "who am I" on every boot, and it answers
+    // from cookies alone — so a device whose session was terminated (Settings →
+    // Устройства, or a password change signing out everything else) kept
+    // getting its own name, phone and address back from here indefinitely,
+    // and kept rendering the app until some *other* request happened to 401.
+    // Revocation is per account per device, so each account is checked on its own.
+    const deviceId = getOrCreateDeviceId(req, res);
+    const revoked = new Set(
+      (await Promise.all(ids.map(async (id) => ((await getSession(id, deviceId))?.revokedAt ? id : null)))).filter(Boolean)
+    );
+    const accountUsers = (await Promise.all(ids.filter((id) => !revoked.has(id)).map((id) => getUser(id)))).filter((u) => u !== undefined);
+
+    if (!uid || revoked.has(uid)) return res.json({ user: null, accounts: accountUsers.map(selfUser) });
     const user = await getUser(uid);
     res.json({
       user: user ? selfUser(user) : null,
@@ -294,6 +307,110 @@ router.post(
     await deleteAccount(req.uid);
     removeAccountSession(req, res, req.uid);
     res.json({ ok: true });
+  })
+);
+
+// Changing the password from inside the app — the ordinary case, where you know
+// the current one and simply want a different one. (Forgetting it is what
+// /recover/* above is for.)
+//
+// Every other session is signed out. If the reason for changing a password is
+// that someone else might know it, leaving their session alive would defeat the
+// change entirely; and if the reason is routine, signing back in is cheap.
+router.post(
+  "/change-password",
+  requireUserId,
+  asyncRoute(async (req, res) => {
+    const user = await getUser(req.uid);
+    const current = String(req.body?.currentPassword ?? "");
+    const next = String(req.body?.newPassword ?? "");
+
+    if (!user?.passwordHash || !user?.passwordSalt || !verifyPassword(current, user.passwordHash, user.passwordSalt)) {
+      return res.status(401).json({ error: "Неверный текущий пароль" });
+    }
+    if (next.length < 6) return res.status(400).json({ error: "Новый пароль — не короче 6 символов" });
+    if (next === current) return res.status(400).json({ error: "Новый пароль совпадает со старым" });
+
+    const { hash, salt } = hashPassword(next);
+    await updateUser(req.uid, { passwordHash: hash, passwordSalt: salt });
+    await revokeOtherSessions(req.uid, getOrCreateDeviceId(req, res));
+
+    try {
+      const chat = await findOrCreateDm(req.uid, SYSTEM_BOT_ID);
+      await sendMessageAndBroadcast(
+        chat,
+        SYSTEM_BOT_ID,
+        "🔐 Пароль изменён. Все остальные сеансы завершены.\n\nЕсли это были не вы — восстановите доступ и включите двухфакторную аутентификацию: Настройки → Конфиденциальность."
+      );
+    } catch (err) {
+      console.error("password change notice failed:", err);
+    }
+    res.json({ ok: true });
+  })
+);
+
+// Changing the e-mail address, in two steps: the password proves it is you, and
+// a code sent to the *new* address proves the address exists and is yours. See
+// data/emailChanges.js for why the second half is not optional.
+router.post(
+  "/email/start",
+  requireUserId,
+  asyncRoute(async (req, res) => {
+    const user = await getUser(req.uid);
+    const email = String(req.body?.email ?? "").trim().toLowerCase();
+    const password = String(req.body?.password ?? "");
+
+    if (!user?.passwordHash || !user?.passwordSalt || !verifyPassword(password, user.passwordHash, user.passwordSalt)) {
+      return res.status(401).json({ error: "Неверный пароль" });
+    }
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Введите корректный адрес почты" });
+    if (email === (user.email ?? "").toLowerCase()) return res.status(400).json({ error: "Это уже ваш адрес" });
+
+    const taken = await findUserByEmail(email);
+    if (taken && taken.id !== req.uid) return res.status(409).json({ error: "Этот адрес уже привязан к другому аккаунту" });
+
+    const code = emailChanges.start(req.uid, email);
+    const result = await sendMail({
+      to: email,
+      subject: "Подтверждение адреса в Shalter",
+      text:
+        `Код для привязки этого адреса к аккаунту Shalter: ${code}\n\n` +
+        `Он действует 15 минут.\n\n` +
+        `Если вы не меняли адрес в Shalter — просто не вводите код, ничего не изменится.`,
+    });
+    if (!result.delivered) {
+      // Refusing here is the point, not a shortcoming: an address that cannot
+      // receive a letter today cannot receive a recovery code later either, and
+      // saving it would only hide that until the day it matters.
+      console.warn(`[email-change] код на ${email} не ушёл: ${result.reason}`);
+      return res.status(503).json({
+        error: "Не удалось доставить письмо на этот адрес — проверьте его или укажите другой.",
+      });
+    }
+    res.json({ ok: true, sent: true });
+  })
+);
+
+router.post(
+  "/email/verify",
+  requireUserId,
+  asyncRoute(async (req, res) => {
+    const email = emailChanges.confirm(req.uid, req.body?.code);
+    if (!email) return res.status(400).json({ error: "Неверный или устаревший код" });
+
+    // Re-checked at the last moment: the address was free when the code was
+    // sent, but fifteen minutes is long enough for someone else to claim it.
+    const taken = await findUserByEmail(email);
+    if (taken && taken.id !== req.uid) return res.status(409).json({ error: "Этот адрес уже привязан к другому аккаунту" });
+
+    const user = await updateUser(req.uid, { email });
+    try {
+      const chat = await findOrCreateDm(req.uid, SYSTEM_BOT_ID);
+      await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, `📧 Адрес почты изменён на ${email}.\n\nЕсли это были не вы — немедленно смените пароль.`);
+    } catch (err) {
+      console.error("email change notice failed:", err);
+    }
+    res.json({ user: selfUser(user) });
   })
 );
 
