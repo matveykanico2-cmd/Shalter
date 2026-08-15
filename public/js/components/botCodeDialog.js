@@ -37,7 +37,7 @@ export function openBotCodeDialog(bot) {
     el(
       "p",
       { class: "settings-toggle-hint" },
-      "Определите async function handleMessage(msg, bot) — она вызывается на каждое сообщение боту. Работает в песочнице: без доступа к файлам, процессу и сети, с таймаутом 20с. Подробности — /BOTS.md."
+      "Определите async function handleMessage(msg, bot) — она вызывается на каждое сообщение боту. Работает в песочнице: без доступа к файлам, процессу и сети, с таймаутом 20с (и 300мс на непрерывную работу процессора). Подробности — на странице /bots."
     ),
     editorSlot,
     el("div", { class: "bot-code-actions" }, [

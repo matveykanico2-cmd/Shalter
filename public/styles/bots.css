@@ -1,0 +1,261 @@
+/* Документация Bot API (public/bots.html).
+   Отдельный лист, а не часть components.css: это самостоятельная страница вне
+   приложения — у неё своя типографика длинного текста, и тащить ради неё стили
+   чатов незачем. Цвета берутся из base.css, поэтому тёмная тема работает сама. */
+
+.doc-page {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* Шапка липкая: в длинной документации «вернуться к оглавлению» нужно из любой
+   точки, а не только сверху. */
+.doc-top {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+.doc-top-logo {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent);
+  color: #fff;
+}
+.doc-top-logo svg {
+  width: 18px;
+  height: 18px;
+}
+.doc-top-title {
+  font-weight: 600;
+}
+.doc-top-sub {
+  font-size: 12.5px;
+  color: var(--color-muted);
+}
+.doc-top-spacer {
+  flex: 1;
+}
+.doc-top-link {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.doc-shell {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 32px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 20px 80px;
+}
+
+/* Оглавление тоже липкое и со своей прокруткой — разделов много. */
+.doc-nav {
+  position: sticky;
+  top: 74px;
+  align-self: start;
+  max-height: calc(100vh - 100px);
+  overflow: auto;
+  font-size: 13.5px;
+}
+.doc-nav h4 {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.doc-nav a {
+  display: block;
+  padding: 5px 10px;
+  border-radius: 7px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+.doc-nav a:hover {
+  background: var(--color-surface-alt);
+}
+
+.doc-body {
+  min-width: 0;
+}
+.doc-hero {
+  padding: 26px 0 6px;
+}
+.doc-hero h1 {
+  margin: 0 0 8px;
+  font-size: 34px;
+  line-height: 1.15;
+}
+.doc-hero p {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--color-muted);
+  font-size: 15.5px;
+}
+.doc-body h2 {
+  margin: 38px 0 10px;
+  font-size: 23px;
+  scroll-margin-top: 84px; /* якорь не должен уезжать под липкую шапку */
+}
+.doc-body h3 {
+  margin: 26px 0 8px;
+  font-size: 17px;
+  scroll-margin-top: 84px;
+}
+.doc-body p,
+.doc-body li {
+  line-height: 1.6;
+  font-size: 15px;
+}
+.doc-body p {
+  max-width: 68ch;
+}
+.doc-body code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--color-surface-alt);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.doc-body pre {
+  overflow-x: auto;
+  margin: 12px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+.doc-body pre code {
+  padding: 0;
+  background: none;
+  font-size: 12.8px;
+  line-height: 1.55;
+}
+
+/* Две дороги к боту — первое, что нужно выбрать, поэтому карточками, а не
+   абзацем. */
+.doc-ways {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 18px 0 6px;
+}
+.doc-way {
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+.doc-way h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+.doc-way p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+/* Метод API: строка «POST /путь» и что он делает. */
+.doc-method {
+  margin: 22px 0 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
+  border-radius: 10px;
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+}
+.doc-verb {
+  display: inline-block;
+  min-width: 46px;
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0 4px;
+  font-size: 14px;
+}
+.doc-table th,
+.doc-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+.doc-table th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+}
+.doc-table td:first-child {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Предупреждение о песочнице — не украшение: не прочитав его, человек ждёт от
+   vm защиты, которой там нет. */
+.doc-note {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border-left: 3px solid var(--color-warning, #d9822e);
+  background: var(--color-surface-alt);
+  font-size: 14.5px;
+}
+.doc-note strong {
+  display: block;
+  margin-bottom: 3px;
+}
+.doc-note.danger {
+  border-left-color: var(--color-danger, #c6403b);
+}
+
+.doc-foot {
+  margin-top: 46px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: 13.5px;
+}
+
+@media (max-width: 860px) {
+  .doc-shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .doc-nav {
+    position: static;
+    max-height: none;
+    margin-bottom: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .doc-hero h1 {
+    font-size: 27px;
+  }
+}

@@ -14,7 +14,7 @@ router.use(requireUserId);
 
 // "My bots" — management list (create/regenerate/delete), not a public bot
 // directory. Token is deliberately never included here (only ever returned
-// once, at creation, and again via /regenerate-token) — see BOTS.md.
+// once, at creation, and again via /regenerate-token) — see public/bots.html.
 router.get(
   "/",
   asyncRoute(async (req, res) => {

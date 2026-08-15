@@ -46,7 +46,7 @@ const SECTIONS = [
   { id: "data", label: "Данные и память", icon: "Download", color: "#58c4dc" },
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", color: "#8a8f98" },
   { id: "moderation", label: "Модерация", icon: "Shield", color: "#c6403b", adminOnly: true },
-  { id: "usernames", label: "Аукцион юзернеймов", icon: "Star", color: "#5b8def" },
+  { id: "usernames", label: "Юзернеймы: аукцион и рынок", icon: "Star", color: "#5b8def" },
   { id: "giftshop", label: "Каталог подарков", icon: "Gift", color: "#e0a84a", adminOnly: true },
   { id: "donations", label: "DonationAlerts", icon: "Zap", color: "#3ec2c2", adminOnly: true },
   { id: "legal", label: "Запросы органов", icon: "Shield", color: "#5b6370", adminOnly: true },
@@ -639,7 +639,7 @@ async function renderBots(root) {
             "1) Значок «</>» у бота — встроенный редактор кода с подсказками, код выполняется прямо на сервере Shalter. " +
               "2) Внешний скрипт (на любом языке) через Bot API и токен бота — см. документацию."
           ),
-          el("a", { href: "/BOTS.md", target: "_blank", rel: "noreferrer", class: "text-link" }, "Открыть документацию по Bot API →"),
+          el("a", { href: "/bots", target: "_blank", rel: "noreferrer", class: "text-link" }, "Открыть документацию по Bot API →"),
         ]),
         el("button", { class: "btn-accent", onclick: createBot }, [el("span", { html: iconSvg("Plus", 15) }), " Создать бота"]),
         el("p", { class: "settings-section-title" }, `Ваши боты — ${bots.length}`),
@@ -1773,9 +1773,12 @@ async function renderUsernames(root) {
   let notice = null;
   let busy = false;
 
+  let market = null;
+
   async function load() {
     try {
       data = await api.listUsernameAuctions();
+      market = await api.listUsernameMarket();
     } catch (err) {
       error = err.message || "Не удалось загрузить аукционы";
     }
@@ -1792,6 +1795,7 @@ async function renderUsernames(root) {
       await fn();
       notice = ok;
       data = await api.listUsernameAuctions();
+      market = await api.listUsernameMarket();
     } catch (err) {
       error = err.message || "Не получилось";
     } finally {
@@ -1884,6 +1888,60 @@ async function renderUsernames(root) {
         notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,
         error ? el("p", { class: "login-error" }, error) : null,
         el("p", { class: "settings-toggle-hint" }, `На балансе: ${data.balance} ⭐. Звёзды списываются только у победителя и только в момент завершения — до этого баланс не блокируется.`),
+
+        // Рынок перепродажи — рядом с аукционом, потому что предмет тот же, а
+        // отличается только то, кто продаёт: там администрация раздаёт
+        // свободный хендл, здесь человек продаёт свой.
+        section("Рынок юзернеймов", [
+          el(
+            "p",
+            { class: "settings-toggle-hint" },
+            "Хендлы, которые продают их владельцы. Покупка мгновенная: звёзды уходят продавцу, юзернейм — вам."
+          ),
+          ...(market?.listings?.length
+            ? market.listings.map((l) =>
+                el("div", { class: "auction-card" }, [
+                  el("div", { class: "auction-head" }, [
+                    el("span", { class: "mono auction-name" }, `@${l.username}`),
+                    el("span", { class: "auction-status" }, `${l.priceStars} ⭐`),
+                  ]),
+                  el("p", { class: "settings-toggle-hint" }, l.mine ? "Ваше объявление" : `Продавец: ${l.seller?.name ?? "—"}`),
+                  l.mine
+                    ? el(
+                        "button",
+                        { class: "settings-danger-link", disabled: busy, onclick: () => act(() => api.withdrawUsernameListing(l.id), "Объявление снято") },
+                        "Снять с продажи"
+                      )
+                    : el(
+                        "button",
+                        {
+                          class: "btn-accent",
+                          disabled: busy || (market.balance ?? 0) < l.priceStars,
+                          onclick: () => act(() => api.buyUsername(l.id), `@${l.username} теперь ваш`),
+                        },
+                        (market.balance ?? 0) < l.priceStars ? `Не хватает ${l.priceStars - (market.balance ?? 0)} ⭐` : `Купить за ${l.priceStars} ⭐`
+                      ),
+                ])
+              )
+            : [el("p", { class: "empty-hint" }, "Пока никто ничего не продаёт")]),
+          el("p", { class: "settings-section-title" }, "Продать свой"),
+          el(
+            "p",
+            { class: "settings-toggle-hint" },
+            "Продаётся тот юзернейм, который на вас сейчас. После покупки он перейдёт покупателю, а вы сможете занять новый."
+          ),
+          (() => {
+            const priceEl = el("input", { class: "settings-input mono", type: "number", min: "10", placeholder: "Цена, ⭐" });
+            return el("div", { class: "contacts-phone-row" }, [
+              priceEl,
+              el(
+                "button",
+                { class: "btn-accent", disabled: busy, onclick: () => act(() => api.sellUsername(Number(priceEl.value)), "Объявление размещено") },
+                "Выставить"
+              ),
+            ]);
+          })(),
+        ]),
 
         data.isAdmin
           ? section("Выставить юзернейм", [

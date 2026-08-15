@@ -39,7 +39,7 @@ import { javascript } from "https://esm.sh/@codemirror/lang-javascript@6.2.5?dep
 import { autocompletion } from "https://esm.sh/@codemirror/autocomplete@6.20.3?deps=@codemirror/state@6.7.1,@codemirror/view@6.43.7";
 
 // A curated completion list for the bot-programming surface specifically
-// (see BOTS.md) rather than full generic JS intellisense — this is a small,
+// (see the /bots documentation page) rather than full generic JS intellisense — this is a small,
 // focused scripting context (one handleMessage function), so "the bot API
 // plus common keywords" is more useful here than a general-purpose language
 // server would be.

@@ -11,6 +11,9 @@ import { SAFETY_LABELS, safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openAdminUserPanel } from "./adminUserPanel.js";
 import { openAvatarViewer } from "./avatarViewer.js";
 import { renderScene } from "../lib/animScenes.js";
+import { openGiftCardDialog } from "./giftCardDialog.js";
+import { openGiftShopDialog } from "./giftShopDialog.js";
+import { giftTraits } from "../lib/giftTraits.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 
 // Bottom tab strip, same set/order as Telegram's own profile view. Content
@@ -114,44 +117,43 @@ export async function openProfileDialog(userId) {
     if (activeTab === "gifts") {
       const gifts = user.giftsReceived ?? [];
       if (!gifts.length) return el("p", { class: "profile-empty-tab" }, "Подарков пока нет");
+      // Сетка карточек вместо строки крошечных фишек: подарок — вещь, у которой
+      // есть вид, номер и цена, а фишка размером с эмодзи не показывала ничего
+      // из этого. По нажатию открывается карточка экземпляра со свойствами
+      // (components/giftCardDialog.js).
       return el(
         "div",
-        { class: "profile-gifts-row" },
+        { class: "profile-gifts-grid" },
         gifts
           .slice()
           .reverse()
-          // A limited gift (server/data/gifts.js's exclusive tier) carries
-          // the serial it was minted with — worth surfacing on the shelf
-          // too, since "#1 из 10" is the whole reason someone bought it.
           .map((g) => {
-            // The sender belongs in the tooltip: the shelf is a row of small
-            // chips, and "от кого" is the thing people actually want from it.
             const from = g.fromName ? ` · от ${g.fromName}` : "";
-            // Entries added before shelf ids existed fall back to emoji+time,
-            // matching what the server accepts (see data/users.js).
             const entryId = g.id ?? `${g.emoji}|${g.at}`;
-            const chip = el(
-              "span",
+            const traits = giftTraits(g);
+            const [c1, c2] = traits.backdrop.colors;
+            return el(
+              "button",
               {
-                class: `profile-gift-chip ${g.serial != null ? "profile-gift-chip-exclusive" : ""}`,
+                class: `profile-gift-card ${g.serial != null ? "profile-gift-card-exclusive" : ""}`,
+                style: `--gift-from: ${c1}; --gift-to: ${c2}`,
                 title: g.serial != null ? `${g.name} — №${g.serial} из ${g.supply}${from}` : `${g.name}${from}`,
+                onclick: () =>
+                  openGiftCardDialog(g, {
+                    ownerName: user.name,
+                    // «Отправить такой же» — то, ради чего чаще всего и
+                    // открывают чужой подарок.
+                    onSend: () => openGiftShopDialog({ recipient: { id: user.id, name: user.name } }),
+                    onRemove: isSelf ? () => removeGift(entryId, g) : undefined,
+                  }),
               },
               [
-                renderScene(g.emoji, { size: 22, replay: false }),
-                g.serial != null ? el("span", { class: "profile-gift-serial" }, `№${g.serial}`) : null,
-                // Only on your own shelf: a gift is part of your profile, and
-                // nobody else gets to tidy it.
-                isSelf
-                  ? el("button", {
-                      class: "profile-gift-remove",
-                      title: "Убрать с полки",
-                      html: iconSvg("X", 10),
-                      onclick: () => removeGift(entryId, g),
-                    })
-                  : null,
-              ]
+                g.serial != null ? el("span", { class: "profile-gift-ribbon" }, `№${g.serial}`) : null,
+                el("span", { class: "profile-gift-art" }, [renderScene(g.emoji, { size: 44, replay: false })]),
+                el("span", { class: "profile-gift-title" }, g.name),
+                el("span", { class: "profile-gift-price" }, `⭐ ${Number(g.priceStars ?? 0).toLocaleString("ru-RU")}`),
+              ].filter(Boolean)
             );
-            return chip;
           })
       );
     }
@@ -273,6 +275,16 @@ export async function openProfileDialog(userId) {
         : null,
       el("div", { class: "profile-actions" }, [
         el("button", { class: "btn-accent", onclick: startChat }, [el("span", { html: iconSvg("Send", 16) }), " Написать"]),
+        // Подарок отправляют из профиля того, кому дарят, — там же, где на него
+        // и смотрят. Раньше до магазина надо было идти через меню чата, зная,
+        // что он там есть.
+        !isSelf
+          ? el(
+              "button",
+              { class: "profile-action-btn", onclick: () => openGiftShopDialog({ recipient: { id: user.id, name: user.name } }) },
+              [el("span", { html: iconSvg("Gift", 15) }), " Отправить подарок"]
+            )
+          : null,
         el(
           "button",
           { class: `profile-action-btn ${isBlocked ? "danger" : ""}`, onclick: toggleBlock },

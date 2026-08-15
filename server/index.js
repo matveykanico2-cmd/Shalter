@@ -178,6 +178,10 @@ app.get("/download", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "download
 // The partner/collaboration page — same standalone-static-page treatment, and
 // the same reason: /promo is the URL anyone would actually share.
 app.get("/promo", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "promo.html")));
+// Документация Bot API — тоже отдельная страница, а не экран приложения:
+// её открывают из редактора кода, из поиска и по ссылке в чужом чате, и /bots
+// это адрес, который не стыдно дать разработчику.
+app.get("/bots", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "bots.html")));
 
 // Client-side router owns every non-API path — always serve the shell.
 app.get(/^\/(?!api|ws).*/, (req, res) => {

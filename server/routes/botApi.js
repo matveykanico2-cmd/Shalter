@@ -7,7 +7,8 @@ const { listAllMessages } = require("../data/messages");
 const { publicUser } = require("../data/sanitize");
 const { sendBotMessage } = require("../lib/botMessaging");
 
-// The actual "program it however you want" surface — see BOTS.md. A bot's
+// The actual "program it however you want" surface — documented on /bots
+// (public/bots.html). A bot's
 // owner runs their own script anywhere (no public URL/webhook needed) that
 // polls GET /updates and replies with POST /sendMessage, authenticated by
 // the bot's token rather than a browser session.

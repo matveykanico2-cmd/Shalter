@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shalter Bot API — документация</title>
+<meta name="description" content="Документация Bot API Shalter: токен, получение сообщений, отправка, кнопки, встроенный редактор кода и пример бота на Node.js." />
+<meta name="theme-color" content="#2e56d9" />
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Shalter Bot API" />
+<meta property="og:description" content="Как написать бота для Shalter: HTTP API с токеном или код прямо в приложении." />
+<meta property="og:image" content="/icons/apple-touch-icon.png" />
+<link rel="stylesheet" href="/styles/base.css" />
+<link rel="stylesheet" href="/styles/bots.css" />
+</head>
+<body>
+<div class="doc-page">
+
+  <header class="doc-top">
+    <span class="doc-top-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l17-8L4 4l0 6.5L15 12 4 13.5 4 20Z"/></svg>
+    </span>
+    <span>
+      <div class="doc-top-title">Shalter Bot API</div>
+      <div class="doc-top-sub">Документация для разработчиков</div>
+    </span>
+    <span class="doc-top-spacer"></span>
+    <a class="doc-top-link" href="/">Открыть Shalter</a>
+  </header>
+
+  <div class="doc-shell">
+    <nav class="doc-nav">
+      <h4>Начало</h4>
+      <a href="#ways">Два способа</a>
+      <a href="#token">Токен</a>
+      <a href="#quickstart">Быстрый старт</a>
+      <h4>HTTP API</h4>
+      <a href="#auth">Авторизация</a>
+      <a href="#me">GET /me</a>
+      <a href="#updates">GET /updates</a>
+      <a href="#send">POST /sendMessage</a>
+      <a href="#keyboard">Кнопки</a>
+      <a href="#commands">Команды</a>
+      <h4>Редактор в приложении</h4>
+      <a href="#editor">Как это работает</a>
+      <a href="#handle">handleMessage</a>
+      <a href="#limits">Ограничения</a>
+      <a href="#vscode">Писать в VS Code</a>
+      <h4>Справка</h4>
+      <a href="#errors">Ошибки</a>
+      <a href="#objects">Объекты</a>
+    </nav>
+
+    <main class="doc-body">
+      <section class="doc-hero">
+        <h1>Bot API</h1>
+        <p>
+          Бот в Shalter — обычный аккаунт, которым управляет программа. Он состоит в чатах, пишет сообщения,
+          показывает кнопки. Программу можно держать где угодно и писать на чём угодно — или прямо в приложении,
+          без хостинга вообще.
+        </p>
+      </section>
+
+      <h2 id="ways">Два способа сделать бота</h2>
+      <div class="doc-ways">
+        <div class="doc-way">
+          <h3>Свой сервер, свой язык</h3>
+          <p>
+            Скрипт на вашей машине спрашивает у Shalter новые сообщения и отвечает на них. Нужен только
+            исходящий интернет — ни белого IP, ни домена, ни вебхуков. Любой язык, любые библиотеки,
+            своя база данных. Это и есть HTTP API ниже.
+          </p>
+        </div>
+        <div class="doc-way">
+          <h3>Редактор внутри Shalter</h3>
+          <p>
+            Функция на JavaScript, которая исполняется на сервере при каждом входящем сообщении.
+            Ни токена, ни хостинга, ни цикла опроса. Быстрее всего для небольшого бота — и заметно
+            ограниченнее, о чём честно сказано в разделе про ограничения.
+          </p>
+        </div>
+      </div>
+
+      <h2 id="token">Токен</h2>
+      <p>
+        Настройки → <strong>Боты</strong> → «Создать бота». У бота сразу появляется собственный аккаунт с
+        юзернеймом вида <code>@name_bot</code> и токен — длинная строка, которая и есть право говорить от его
+        имени. Токен виден там же, рядом с ботом; его можно перевыпустить, если он утёк.
+      </p>
+      <div class="doc-note danger">
+        <strong>Токен — это пароль бота.</strong>
+        Кто им владеет, тот и есть бот: читает его чаты и пишет от его имени. Не кладите его в публичный
+        репозиторий и не вставляйте в код фронтенда — только в переменные окружения на своей стороне.
+      </div>
+
+      <h2 id="quickstart">Быстрый старт</h2>
+      <p>Проверить, что токен рабочий, — одна команда:</p>
+      <pre><code>curl -H "Authorization: Bearer ВАШ_ТОКЕН" \
+  https://shalter.ru/api/bot-api/me</code></pre>
+      <p>В ответ придёт аккаунт бота. Дальше — рабочий бот целиком, на голом Node без единой зависимости:</p>
+      <pre><code>const TOKEN = process.env.SHALTER_TOKEN;
+const API = "https://shalter.ru/api/bot-api";
+const auth = { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" };
+
+let after = new Date().toISOString(); // начинаем с «сейчас», старое не разгребаем
+
+async function send(chatId, text) {
+  await fetch(`${API}/sendMessage`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ chatId, text }),
+  });
+}
+
+async function tick() {
+  const res = await fetch(`${API}/updates?after=${encodeURIComponent(after)}`, { headers: auth });
+  const { messages } = await res.json();
+  for (const msg of messages) {
+    after = msg.createdAt; // следующий опрос — строго после последнего разобранного
+    if (msg.text === "/start") await send(msg.chatId, "Привет! Я бот.");
+    else await send(msg.chatId, `Вы написали: ${msg.text}`);
+  }
+}
+
+setInterval(() =&gt; tick().catch(console.error), 2000);</code></pre>
+
+      <h2 id="auth">Авторизация</h2>
+      <p>
+        Все запросы к <code>/api/bot-api/*</code> требуют заголовка:
+      </p>
+      <pre><code>Authorization: Bearer ВАШ_ТОКЕН</code></pre>
+      <p>
+        Без него — <code>401</code> с текстом <code>Missing Authorization: Bearer &lt;token&gt;</code>,
+        с неверным — <code>401 Invalid bot token</code>. Куки и сессии здесь не используются: бот не человек,
+        он не «входит» в приложение.
+      </p>
+
+      <h2 id="me">Кто я</h2>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/me</div>
+      <p>Возвращает аккаунт бота — имя, юзернейм, аватар. Нужен, чтобы проверить токен и узнать свой <code>id</code>.</p>
+      <pre><code>{ "bot": { "id": "u_17…", "name": "Погодный", "username": "pogodnyy_bot", "isBot": true } }</code></pre>
+
+      <h2 id="updates">Новые сообщения</h2>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/updates?after=&lt;ISO-время&gt;</div>
+      <p>
+        Отдаёт сообщения из чатов бота, пришедшие <strong>после</strong> указанного времени. Свои собственные
+        сообщения бот в ответе не увидит — иначе он отвечал бы сам себе по кругу.
+      </p>
+      <table class="doc-table">
+        <thead><tr><th>Параметр</th><th>Тип</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td>after</td><td>строка, ISO 8601</td><td>Время последнего разобранного сообщения. Без него отдаётся всё с начала времён.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Сообщения отсортированы по возрастанию времени, поэтому следующее значение <code>after</code> —
+        это <code>messages.at(-1).createdAt</code>. За один запрос отдаётся не больше 200 сообщений:
+        разговорчивый бот не должен получить в ответ всю свою историю.
+      </p>
+      <div class="doc-note">
+        <strong>Опрос, а не вебхук — намеренно.</strong>
+        Вебхук требует публичного адреса и сертификата; опрос работает откуда угодно, включая ноутбук за NAT.
+        Раз в 1–2 секунды более чем достаточно.
+      </div>
+
+      <h2 id="send">Отправка</h2>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendMessage</div>
+      <table class="doc-table">
+        <thead><tr><th>Поле</th><th>Тип</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td>chatId</td><td>строка</td><td>Обязательное. Куда писать — берётся из <code>msg.chatId</code> входящего сообщения.</td></tr>
+          <tr><td>text</td><td>строка</td><td>Обязательное. Пустой текст отклоняется с <code>400</code>.</td></tr>
+          <tr><td>replyToId</td><td>строка</td><td>Ответить на конкретное сообщение — в чате будет видна цитата.</td></tr>
+          <tr><td>keyboard</td><td>массив рядов</td><td>Кнопки под сообщением, см. ниже.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Бот может писать только в те чаты, где он состоит: попытка написать в чужой чат вернёт
+        <code>404 Bot is not a member of this chat</code>. Это не формальность — иначе токен любого бота
+        превращался бы в право рассылки по всему мессенджеру.
+      </p>
+
+      <h2 id="keyboard">Кнопки</h2>
+      <p>
+        <code>keyboard</code> — массив рядов, каждый ряд — массив кнопок. Нажатие отправляет боту обычное
+        сообщение с текстом из <code>data</code>, так что обрабатывается оно там же, где и всё остальное.
+      </p>
+      <pre><code>await fetch(`${API}/sendMessage`, {
+  method: "POST",
+  headers: auth,
+  body: JSON.stringify({
+    chatId,
+    text: "Что показать?",
+    keyboard: [
+      [{ text: "Погода", data: "/погода" }, { text: "Курс", data: "/курс" }],
+      [{ text: "Помощь", data: "/help" }],
+    ],
+  }),
+});</code></pre>
+
+      <h2 id="commands">Команды</h2>
+      <p>
+        Список команд задаётся в приложении (Настройки → Боты → иконка списка) в формате BotFather —
+        по одной на строку:
+      </p>
+      <pre><code>start - Начать
+погода - Прогноз на сегодня
+help - Что я умею</code></pre>
+      <p>
+        Он показывается людям по кнопке «/» в чате с ботом. Сами команды приходят обычными сообщениями
+        с текстом <code>/погода</code> — отдельного типа события для них нет.
+      </p>
+
+      <h2 id="editor">Редактор внутри приложения</h2>
+      <p>
+        Настройки → Боты → иконка кода. Внутри — настоящий редактор (подсветка синтаксиса, автодополнение
+        по Bot API, парные скобки, поиск, отмена), кнопка «Запустить» для проверки на тестовом сообщении и
+        консоль с логами вашего бота.
+      </p>
+      <p>
+        Код исполняется <strong>на сервере</strong>, при каждом входящем сообщении. Токен, хостинг и цикл
+        опроса не нужны вовсе.
+      </p>
+
+      <h3 id="handle">handleMessage</h3>
+      <p>Единственное требование к коду — определить эту функцию:</p>
+      <pre><code>async function handleMessage(msg, bot) {
+  if (msg.text === "/start") {
+    return bot.send("Привет! Напишите что-нибудь.");
+  }
+
+  // Можно ходить в чужие API прямо отсюда
+  const res = await fetch("https://api.example.com/weather?city=Moscow");
+  const data = await res.json();
+
+  await bot.send(`Сейчас ${data.temp}°`, {
+    keyboard: [[{ text: "Обновить", data: "/погода" }]],
+  });
+}</code></pre>
+      <table class="doc-table">
+        <thead><tr><th>Что доступно</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td>msg</td><td>Входящее сообщение: <code>id</code>, <code>chatId</code>, <code>senderId</code>, <code>text</code>, <code>createdAt</code>.</td></tr>
+          <tr><td>bot.send(text, opts)</td><td>Ответить в тот же чат. <code>opts</code> — те же <code>keyboard</code> и <code>replyToId</code>.</td></tr>
+          <tr><td>bot.sendTo(chatId, text, opts)</td><td>Написать в другой чат, где бот состоит.</td></tr>
+          <tr><td>fetch</td><td>Обычный fetch — запросы к внешним сервисам.</td></tr>
+          <tr><td>console.log / warn / error</td><td>Пишет в консоль редактора и в журнал бота.</td></tr>
+          <tr><td>setTimeout / clearTimeout</td><td>Задержки внутри обработчика.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="limits">Ограничения — читать до того, как писать</h3>
+      <p>
+        Поверхность намеренно узкая: <code>require</code>, <code>process</code>, файловая система, модули npm
+        и глобальные объекты Node недоступны.
+      </p>
+      <ul>
+        <li><strong>Состояние не сохраняется.</strong> Каждый вызов начинается с чистого листа: переменные не переживают следующее сообщение. Нужна память — храните её во внешнем сервисе через <code>fetch</code>, или пишите бота на своём сервере.</li>
+        <li><strong>300 мс непрерывной работы процессора.</strong> Ожидание (fetch, отправка) сюда не считается — у него свой потолок в 20 секунд на весь вызов. Ограничение жёсткое по неприятной причине: сервер однопоточный, и пока ваш синхронный код крутится, приложение не отвечает никому.</li>
+        <li><strong>20 секунд на вызов целиком.</strong> Медленный внешний API успеет ответить, зависший — нет.</li>
+      </ul>
+      <div class="doc-note danger">
+        <strong>Песочница — не защита от чужого кода.</strong>
+        В документации Node про модуль <code>vm</code> сказано прямо: это не средство безопасности. Здесь он
+        ограничивает случайный ущерб от <em>вашего собственного</em> кода — опечатки, бесконечного цикла,
+        забытого await. Не вставляйте туда скрипт от незнакомца: это ровно то же самое, что запустить у себя
+        чужой шелл-скрипт.
+      </div>
+
+      <h3 id="vscode">Писать в VS Code</h3>
+      <p>
+        Встроенный редактор — это редактор одного файла, а не среда разработки: без дерева проекта, отладчика,
+        npm-пакетов, git и расширений. Если нужно всё это — пишите бота у себя в VS Code как обычную программу
+        и подключайте его по HTTP API из первой половины страницы. Тогда доступно ровно всё, к чему вы привыкли:
+        любые зависимости, точки останова, тесты, своя база, деплой куда угодно.
+      </p>
+      <p>
+        Разница только в том, где живёт программа. Формат сообщений и отправка одинаковые: <code>bot.send()</code>
+        в редакторе и <code>POST /sendMessage</code> снаружи — это один и тот же вызов внутри.
+      </p>
+
+      <h2 id="errors">Ошибки</h2>
+      <table class="doc-table">
+        <thead><tr><th>Код</th><th>Когда</th></tr></thead>
+        <tbody>
+          <tr><td>400</td><td>Пустой <code>text</code> в sendMessage.</td></tr>
+          <tr><td>401</td><td>Нет заголовка Authorization или токен недействителен.</td></tr>
+          <tr><td>404</td><td>Бот не состоит в этом чате либо чат не существует.</td></tr>
+          <tr><td>429</td><td>Слишком часто. Опрос раз в 1–2 секунды в лимиты укладывается с запасом.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Ошибка внутри кода в редакторе не роняет ни сервер, ни бота: она попадает в журнал бота
+        (Настройки → Боты → код → консоль), а следующее сообщение обрабатывается как ни в чём не бывало.
+      </p>
+
+      <h2 id="objects">Объекты</h2>
+      <h3>Message</h3>
+      <table class="doc-table">
+        <thead><tr><th>Поле</th><th>Тип</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td>id</td><td>строка</td><td>Идентификатор сообщения — годится для <code>replyToId</code>.</td></tr>
+          <tr><td>chatId</td><td>строка</td><td>Чат, куда отвечать.</td></tr>
+          <tr><td>senderId</td><td>строка</td><td>Кто написал.</td></tr>
+          <tr><td>text</td><td>строка</td><td>Текст. У сообщения с вложением может быть пустым.</td></tr>
+          <tr><td>createdAt</td><td>строка, ISO 8601</td><td>Время. Оно же — следующее значение <code>after</code>.</td></tr>
+        </tbody>
+      </table>
+      <h3>Кнопка</h3>
+      <table class="doc-table">
+        <thead><tr><th>Поле</th><th>Тип</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td>text</td><td>строка</td><td>Что написано на кнопке.</td></tr>
+          <tr><td>data</td><td>строка</td><td>Что придёт боту сообщением при нажатии.</td></tr>
+        </tbody>
+      </table>
+
+      <p class="doc-foot">
+        Адрес API на этом развёртывании — <code>/api/bot-api</code> от корня сайта.
+        Вопросы и заявки на интеграцию — через <a href="/promo">страницу для партнёров</a>.
+      </p>
+    </main>
+  </div>
+</div>
+</body>
+</html>

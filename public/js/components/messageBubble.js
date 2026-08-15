@@ -782,7 +782,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
             { class: "keyboard-row" },
             row.map((btn) =>
               // Real inline-keyboard behavior (matches Telegram, and what
-              // BOTS.md documents to bot authors): tapping sends the action
+              // documented to bot authors on /bots): tapping sends the action
               // immediately as a normal message — it doesn't just quote it
               // into the composer for the user to send themselves.
               el("button", { class: "keyboard-btn", onclick: () => onKeyboardAction(btn.action) }, btn.text)

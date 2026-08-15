@@ -35,6 +35,15 @@ function publicUser(user) {
   // numbers itself) also means it works even when the user's own privacy
   // settings hide their phone number from others.
   rest.isDeveloper = user.phone === ADMIN_PHONE || undefined;
+  // Тот же аккаунт всегда носит и галочку — выданную, а не проставленную
+  // руками в базе. Так она есть сразу и везде: в поиске, в профиле, в списке
+  // чатов и в шапке разговора, — переживает пересоздание базы и переезд на
+  // другой сервер, и не требует доступа к консоли, чтобы её поставить.
+  // Снять её с этого номера нельзя — и это осознанно, а не недосмотр:
+  // rowToUser отдаёт isVerified как true либо undefined (никогда false), так
+  // что «снять галочку» в админке вернёт строку к undefined, и подстановка
+  // сработает снова. Чтобы её убрать, номер должен перестать быть ADMIN_PHONE.
+  rest.isVerified = user.isVerified ?? (user.phone === ADMIN_PHONE || undefined);
   // Marks the Shalter service account, so the client can present its chat as
   // one-way instead of offering a composer the server will refuse.
   rest.isServiceBot = user.id === SYSTEM_BOT_ID || undefined;

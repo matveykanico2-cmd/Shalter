@@ -16,8 +16,19 @@ const botLogs = require("../data/botLogs");
 const { sendBotMessage } = require("./botMessaging");
 
 // Generous enough for a bot that calls out to a slow external API with fetch()
-// before replying, rather than killing it mid-request.
+// before replying, rather than killing it mid-request. Это потолок для всего
+// вызова целиком, включая ожидание ответа чужого сервера.
 const EXECUTION_TIMEOUT_MS = 20_000;
+
+// А это — потолок для *непрерывной* работы процессора внутри песочницы, и он
+// на два порядка меньше. Причина в том, что Node однопоточный: пока
+// синхронный код бота крутится, весь сервер стоит — не отвечает никому, не
+// отправляет сообщения, не принимает звонки. С общим таймаутом в 20 секунд
+// один `while(true){}` в чужом боте замораживал приложение на все двадцать;
+// замерено, а не предположено. Триста миллисекунд подряд не нужны никакому
+// разумному обработчику: любое ожидание в нём асинхронное (fetch, bot.send) и
+// под этот лимит не попадает — его считает Promise.race выше.
+const SYNC_TIMEOUT_MS = 300;
 
 function safeStringify(value) {
   if (typeof value === "string") return value;
@@ -71,7 +82,7 @@ async function runBotCode(bot, code, msg) {
     // bounds the *async* case (an awaited call that never resolves), which
     // vm's timeout alone can't reach since control has already returned to
     // Node's event loop by then.
-    const invocation = script.runInContext(context, { timeout: EXECUTION_TIMEOUT_MS });
+    const invocation = script.runInContext(context, { timeout: SYNC_TIMEOUT_MS });
     const result = await Promise.race([
       invocation,
       new Promise((_, reject) =>
@@ -86,4 +97,4 @@ async function runBotCode(bot, code, msg) {
   }
 }
 
-module.exports = { runBotCode, EXECUTION_TIMEOUT_MS };
+module.exports = { runBotCode, EXECUTION_TIMEOUT_MS, SYNC_TIMEOUT_MS };

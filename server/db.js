@@ -232,6 +232,18 @@ CREATE TABLE IF NOT EXISTS vapid_keys (
 -- first use and never regenerated: the matching public half lives in a DNS TXT
 -- record, so a new keypair would silently invalidate every letter until DNS is
 -- updated too. Same "id=1, upsert in place" shape as vapid_keys above.
+-- Кто уже видел пост канала (server/data/postViews.js). Отдельная таблица, а
+-- не список на самом сообщении: readByIds для этого не годится — открытие чата
+-- помечает всё прочитанным разом, ещё до того, как пост показался на экране,
+-- и счётчик просмотров, построенный на нём, не вырос бы никогда. Ключ из пары
+-- столбцов и делает всю работу: повторная вставка просто ничего не меняет.
+CREATE TABLE IF NOT EXISTS post_views (
+  postId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  viewedAt TEXT NOT NULL,
+  PRIMARY KEY (postId, userId)
+);
+
 CREATE TABLE IF NOT EXISTS dkim_keys (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   selector TEXT NOT NULL,
@@ -534,6 +546,23 @@ CREATE TABLE IF NOT EXISTS username_auctions (
   settledAt TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_username_auctions_status ON username_auctions(status);
+
+-- Перепродажа юзернеймов между людьми (server/data/usernameListings.js).
+-- Отдельно от аукционов выше, и вот почему: аукцион раздаёт свободный хендл от
+-- имени администрации и заканчивается по времени, а здесь один человек продаёт
+-- то, чем уже владеет, по назначенной им цене и до тех пор, пока не передумает.
+-- Общего у них только предмет торга.
+CREATE TABLE IF NOT EXISTS username_listings (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL,
+  sellerId TEXT NOT NULL,
+  priceStars INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  buyerId TEXT,
+  soldAt TEXT,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_username_listings_status ON username_listings(status);
 `);
 
 // Muting for a while rather than for ever — Telegram offers 1 hour / 8 hours /

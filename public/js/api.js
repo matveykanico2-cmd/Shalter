@@ -101,6 +101,12 @@ export const api = {
     req("/api/chats/groups", { method: "POST", body: JSON.stringify({ title, memberIds, avatarImage, adminIds, ...extra }) }),
   // The username auction (server/routes/usernames.js).
   listUsernameAuctions: () => req("/api/usernames"),
+  // Рынок перепродажи: владелец сам назначает цену, покупка мгновенная
+  // (в отличие от аукциона выше, где хендл раздаёт администрация).
+  listUsernameMarket: () => req("/api/usernames/market"),
+  sellUsername: (priceStars) => req("/api/usernames/market", { method: "POST", body: JSON.stringify({ priceStars }) }),
+  withdrawUsernameListing: (id) => req(`/api/usernames/market/${id}`, { method: "DELETE" }),
+  buyUsername: (id) => req(`/api/usernames/market/${id}/buy`, { method: "POST", body: "{}" }),
   createUsernameAuction: (username, startPriceStars, hours) =>
     req("/api/usernames", { method: "POST", body: JSON.stringify({ username, startPriceStars, hours }) }),
   bidUsername: (id, stars) => req(`/api/usernames/${id}/bid`, { method: "POST", body: JSON.stringify({ stars }) }),
@@ -184,6 +190,11 @@ export const api = {
   // Комментарии к отдельному посту канала — своя ветка на каждый пост
   // (server/routes/posts.js). Вступление в группу обсуждения происходит само,
   // первым отправленным комментарием.
+  // Один просмотр поста от текущего читателя. Сервер сам решает, засчитывать
+  // ли: повторные открытия и собственные посты не считаются.
+  viewPost: (postId) => req(`/api/posts/${postId}/view`, { method: "POST", body: "{}" }),
+  // Статистика канала — только для тех, кто им управляет (routes/channels.js).
+  getChannelStats: (chatId) => req(`/api/channels/${chatId}/stats`),
   getPostComments: (postId) => req(`/api/posts/${postId}/comments`),
   sendPostComment: (postId, text, extra = {}) =>
     req(`/api/posts/${postId}/comments`, { method: "POST", body: JSON.stringify({ text, ...extra }) }),

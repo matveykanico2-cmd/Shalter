@@ -11,6 +11,7 @@ import { openEditChatDialog } from "./editChatDialog.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { isChatOwner, isChatAdmin, memberRoleLabel } from "../lib/chatRoles.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
+import { openChannelStats } from "./channelStats.js";
 
 const RESTRICT_DURATIONS = [
   { label: "На 1 час", hours: 1 },
@@ -256,6 +257,12 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
           )
         : null,
       el("button", { class: "info-panel-row", onclick: onToggleMute }, chat.muted ? "Включить уведомления" : "Отключить уведомления"),
+      // Статистика — только тем, кто ведёт канал (сервер проверяет то же
+      // самое). Просмотры и комментарии копились и раньше, но посмотреть на
+      // них целиком было негде.
+      chat.type === "channel" && isOwnerOrAdmin
+        ? el("button", { class: "info-panel-row", onclick: () => openChannelStats(chat) }, "Статистика канала")
+        : null,
       canSetAutoDelete
         ? el(
             "button",

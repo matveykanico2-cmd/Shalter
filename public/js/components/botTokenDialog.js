@@ -30,7 +30,7 @@ export function openBotTokenDialog(botName, token) {
     copiedNote,
     el("p", { class: "settings-toggle-hint" }, [
       "Как этим пользоваться — ",
-      el("a", { href: "/BOTS.md", target: "_blank", rel: "noreferrer", class: "text-link" }, "документация по Bot API"),
+      el("a", { href: "/bots", target: "_blank", rel: "noreferrer", class: "text-link" }, "документация по Bot API"),
       ".",
     ]),
     el("button", { class: "modal-cancel", onclick: () => close() }, "Готово"),

@@ -2,7 +2,8 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { getChat, updateChat } = require("../data/chats");
-const { addMessage, getMessage, listThreadReplies, setAnchorForPost, setDiscussionAnchor } = require("../data/messages");
+const { addMessage, getMessage, listThreadReplies, setAnchorForPost, setDiscussionAnchor, incrementViews } = require("../data/messages");
+const { recordView } = require("../data/postViews");
 const { getUser } = require("../data/users");
 const { publicUsers } = require("../data/sanitize");
 const { deliverMessage } = require("./messages");
@@ -73,6 +74,36 @@ router.post(
     }
 
     res.json({ message: post });
+  })
+);
+
+// ── Просмотры поста ─────────────────────────────────────────────────────────
+//
+// Под каждым постом канала рисуется «N 👁» (components/messageBubble.js), и
+// число это всегда было нулём: столбец views существовал, функция
+// incrementViews в data/messages.js существовала, а вызывать её было некому.
+// Счётчик, который никогда не растёт, хуже отсутствующего — он выглядит как
+// правда и врёт.
+//
+// Считается по одному разу с человека, а не за каждое открытие — кто уже
+// засчитан, помнит data/postViews.js. Накрутить собственным перезаходом нельзя.
+router.post(
+  "/:postId/view",
+  asyncRoute(async (req, res) => {
+    const post = await getMessage(req.params.postId);
+    if (!post) return res.status(404).json({ error: "Пост не найден" });
+    const channel = await getChat(post.chatId);
+    if (!channel || channel.type !== "channel") return res.status(400).json({ error: "Просмотры считаются только у постов канала" });
+    if (!channel.memberIds.includes(req.uid) && !channel.username) {
+      return res.status(403).json({ error: "Пост недоступен" });
+    }
+    // Автор собственному посту просмотр не добавляет — иначе у любого поста
+    // сразу единица, и «сколько человек прочитало» перестаёт быть ответом.
+    if (post.senderId === req.uid) return res.json({ views: post.views ?? 0, counted: false });
+    if (!recordView(post.id, req.uid)) return res.json({ views: post.views ?? 0, counted: false });
+
+    const updated = await incrementViews(post.id);
+    res.json({ views: updated?.views ?? (post.views ?? 0) + 1, counted: true });
   })
 );
 

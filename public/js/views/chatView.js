@@ -915,8 +915,7 @@ export async function ChatView(root, chatId) {
       const showSender = (chat.type === "group" || chat.type === "channel") && groupStart;
       const sender = members.find((u) => u.id === m.senderId);
       const replyToMessage = m.replyToId ? messages.find((x) => x.id === m.replyToId) : undefined;
-      list.appendChild(
-        MessageBubble({
+      const bubble = MessageBubble({
           message: m,
           me,
           sender,
@@ -965,8 +964,15 @@ export async function ChatView(root, chatId) {
             onKeyboardAction: (action) => handleSend(action, []),
             onOpenThread: isGroup ? (msg) => openThreadPanel({ chat, rootMessage: msg, members, me, onReplySent: refreshMessages }) : undefined,
           },
-        })
-      );
+        });
+      list.appendChild(bubble);
+      // Просмотр засчитывается по факту появления поста на экране, поэтому
+      // наблюдатель вешается на сам пузырь. Свои посты и уже сосчитанные
+      // пропускаем здесь же, чтобы не тратить запрос на заведомый отказ.
+      if (isChannel && m.type !== "system" && m.senderId !== me.id && viewObserver && !countedViews.has(m.id)) {
+        bubble.dataset.postId = m.id;
+        viewObserver.observe(bubble);
+      }
       if (isChannel && m.type !== "system" && chat.linkedDiscussionChatId) {
         list.appendChild(
           el(
@@ -997,6 +1003,31 @@ export async function ChatView(root, chatId) {
     });
     renderPinnedBar();
   }
+
+  // Просмотры постов канала. Засчитываются, когда пост действительно показался
+  // на экране, а не когда чат открыли: пролистать сотню постов «прочитанными»
+  // сверху вниз — это не сто прочтений, и счётчик, который так считает, врёт
+  // ровно там, где на него смотрят. Сервер вдобавок отсеивает повторные
+  // просмотры и собственные посты (routes/posts.js).
+  const countedViews = new Set();
+  const viewObserver =
+    typeof IntersectionObserver === "function"
+      ? new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) continue;
+              const id = entry.target.dataset.postId;
+              viewObserver.unobserve(entry.target);
+              if (!id || countedViews.has(id)) continue;
+              countedViews.add(id);
+              // Молча: не сосчитанный просмотр — не повод показывать ошибку
+              // тому, кто просто читает канал.
+              api.viewPost(id).catch(() => {});
+            }
+          },
+          { threshold: 0.6 }
+        )
+      : null;
 
   // «1 комментарий», «2 комментария», «5 комментариев» — русский счёт, а не
   // «комментари(й/ев)» на глаз: 21 это «комментарий», 22 — «комментария».
@@ -1172,5 +1203,9 @@ export async function ChatView(root, chatId) {
     unsubMessageDeleted();
     unsubMessageRead();
     unsubTyping();
+    // Наблюдатель держит ссылки на пузыри ушедшего чата — без этого они не
+    // соберутся сборщиком мусора, а при переходах между чатами их накопятся
+    // сотни.
+    viewObserver?.disconnect();
   };
 }

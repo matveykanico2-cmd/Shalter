@@ -10,6 +10,7 @@ const { checkUsername, normalizeUsername } = require("../lib/username");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const auctions = require("../data/usernameAuctions");
+const listings = require("../data/usernameListings");
 
 // The username auction.
 //
@@ -29,6 +30,9 @@ const router = express.Router();
 router.use(requireUserId);
 
 const MIN_STEP_STARS = 10;
+// Нижняя цена объявления. Не ноль: бесплатное объявление — это способ раздать
+// хендл мимо аукциона, а заодно и мусор в списке.
+const MIN_LISTING_STARS = 10;
 
 async function requireAdmin(req, res) {
   const me = await getUser(req.uid);
@@ -220,6 +224,114 @@ router.post(
     const updated = await updateUser(target.id, { username });
     await tell(target.id, `Администрация Shalter выдала вам юзернейм @${username}.`);
     res.json({ user: publicUser(updated) });
+  })
+);
+
+// ── Рынок: перепродажа юзернеймов между людьми ──────────────────────────────
+//
+// Аукцион выше раздаёт свободные хендлы от имени администрации. Здесь другое:
+// человек продаёт то, чем уже владеет, по своей цене — и хендл, который иначе
+// просто лежал бы занятым на заброшенном аккаунте, возвращается в оборот.
+//
+// Владение живёт в users.username и больше нигде: объявление — это намерение
+// продать, а не запись о владении. Поэтому актуальность проверяется при каждом
+// чтении и ещё раз в момент покупки: между «выставил» и «купили» продавец мог
+// сменить юзернейм, и объявление обязано это заметить, а не продать воздух.
+async function marketView(uid) {
+  const open = listings.listOpen();
+  const alive = [];
+  for (const l of open) {
+    const seller = await getUser(l.sellerId);
+    // Продавец больше не держит этот хендл — объявление снимается само.
+    if (!seller || (seller.username ?? "").toLowerCase() !== l.username.toLowerCase()) {
+      listings.closeListing(l.id, { status: "withdrawn" });
+      continue;
+    }
+    alive.push({ ...l, seller: publicUser(seller), mine: l.sellerId === uid });
+  }
+  return alive;
+}
+
+router.get(
+  "/market",
+  asyncRoute(async (req, res) => {
+    res.json({ listings: await marketView(req.uid), balance: balanceOf(req.uid) });
+  })
+);
+
+router.post(
+  "/market",
+  asyncRoute(async (req, res) => {
+    const me = await getUser(req.uid);
+    const username = normalizeUsername(me?.username);
+    if (!username) return res.status(400).json({ error: "Сначала займите юзернейм — продавать нечего" });
+
+    const priceStars = Math.round(Number(req.body?.priceStars));
+    if (!Number.isFinite(priceStars) || priceStars < MIN_LISTING_STARS) {
+      return res.status(400).json({ error: `Цена — от ${MIN_LISTING_STARS} ⭐` });
+    }
+    if (listings.findOpenByUsername(username)) return res.status(409).json({ error: "Этот юзернейм уже выставлен" });
+    // Хендл, который прямо сейчас разыгрывается администрацией, продавать
+    // нельзя: иначе один и тот же @ уйдёт двум разным людям.
+    if (auctions.findOpenByUsername(username)) return res.status(409).json({ error: "Этот юзернейм сейчас на аукционе" });
+
+    const listing = listings.createListing({ username, sellerId: req.uid, priceStars });
+    res.json({ listing });
+  })
+);
+
+router.delete(
+  "/market/:id",
+  asyncRoute(async (req, res) => {
+    const listing = listings.getListing(req.params.id);
+    if (!listing || listing.status !== "open") return res.status(404).json({ error: "Объявление не найдено" });
+    if (listing.sellerId !== req.uid) return res.status(403).json({ error: "Снять объявление может только продавец" });
+    res.json({ listing: listings.closeListing(listing.id, { status: "withdrawn" }) });
+  })
+);
+
+router.post(
+  "/market/:id/buy",
+  asyncRoute(async (req, res) => {
+    const listing = listings.getListing(req.params.id);
+    if (!listing || listing.status !== "open") return res.status(404).json({ error: "Объявление не найдено" });
+    if (listing.sellerId === req.uid) return res.status(400).json({ error: "Это ваше объявление" });
+
+    const seller = await getUser(listing.sellerId);
+    if (!seller || (seller.username ?? "").toLowerCase() !== listing.username.toLowerCase()) {
+      listings.closeListing(listing.id, { status: "withdrawn" });
+      return res.status(410).json({ error: "Продавец больше не владеет этим юзернеймом" });
+    }
+    if (balanceOf(req.uid) < listing.priceStars) {
+      return res.status(402).json({ error: `Не хватает звёзд: нужно ${listing.priceStars} ⭐` });
+    }
+
+    // Порядок важен: сначала снять хендл с продавца, потом отдать покупателю.
+    // Наоборот нельзя — уникальный индекс по lower(username) не даст двум
+    // строкам держать один и тот же, и покупка упала бы на середине.
+    //
+    // Пустая строка, а не null: столбец объявлен NOT NULL DEFAULT '' (db.js), и
+    // «нет юзернейма» во всей базе выражается именно так.
+    await updateUser(seller.id, { username: "" });
+    await updateUser(req.uid, { username: listing.username });
+    spendStars(req.uid, listing.priceStars);
+    addStars(seller.id, listing.priceStars);
+    listings.closeListing(listing.id, { status: "sold", buyerId: req.uid });
+
+    const buyer = await getUser(req.uid);
+    for (const [userId, text] of [
+      [seller.id, `💰 Ваш юзернейм @${listing.username} продан за ${listing.priceStars} ⭐.\n\nЗвёзды уже на балансе. Новый юзернейм можно занять в настройках профиля.`],
+      [req.uid, `🎉 Юзернейм @${listing.username} теперь ваш — списано ${listing.priceStars} ⭐.`],
+    ]) {
+      try {
+        const chat = await findOrCreateDm(userId, SYSTEM_BOT_ID);
+        await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, text);
+      } catch (err) {
+        console.error("username sale notice failed:", err);
+      }
+    }
+
+    res.json({ ok: true, username: listing.username, user: publicUser(buyer), balance: balanceOf(req.uid) });
   })
 );
 
