@@ -19,6 +19,8 @@
 //   size   scale relative to the base emoji (1 = same size)
 //   dur    animation duration in seconds (defaults per animation)
 
+import { characterFor, renderCharacter } from "./characters.js";
+
 // Named scenes, keyed by the id used in the catalogue. `base` is a shorthand:
 // the first part always uses the item's own emoji unless it names its own.
 export const SCENES = {
@@ -115,6 +117,132 @@ export const SCENES = {
     ],
     loop: 3.2,
   },
+  // ── Второй набор: у каждой сцены есть сюжет, а не просто шевеление ────────
+  //
+  // Подарок — главная из них. Коробка вздрагивает, крышка отлетает, из неё
+  // поднимается содержимое, вокруг вспыхивают искры. Именно этот момент люди и
+  // ждут, открывая подарок, поэтому он разложен на четыре слоя с задержками, а
+  // не сведён к одному «подпрыгиванию».
+  gift_open: {
+    parts: [
+      { anim: "shake-hard", dur: 1.6 },
+      { e: "🎀", anim: "lid", delay: 0, y: -30, size: 0.4, dur: 1.6 },
+      { e: "✨", anim: "emerge", delay: 0, y: -6, size: 0.5, dur: 1.6 },
+      { e: "🌟", anim: "burst", delay: 1.05, x: 34, y: -26, size: 0.3, dur: 1 },
+      { e: "🌟", anim: "burst", delay: 1.2, x: -32, y: -18, size: 0.26, dur: 1 },
+    ],
+    loop: 2.6,
+  },
+  // «Hi» — рука машет, слово всплывает над ней и тает.
+  wave_hi: {
+    parts: [
+      { anim: "wave", dur: 1.5 },
+      { e: "Hi!", anim: "hi", delay: 0.35, x: 30, y: -34, size: 0.34, dur: 2.4 },
+    ],
+    loop: 2.6,
+  },
+  // Рот открывается: вертикальное растяжение лица плюс всплывающее «!».
+  gasp_open: {
+    parts: [
+      { anim: "gasp", dur: 1.8 },
+      { e: "❗", anim: "hi", delay: 0.8, x: 32, y: -30, size: 0.3, dur: 1.8 },
+    ],
+    loop: 2.2,
+  },
+  // Огонь с угольками, улетающими вверх.
+  flame_live: {
+    parts: [
+      { anim: "burn", dur: 1.1 },
+      { e: "✨", anim: "ember", delay: 0.2, x: 10, y: -10, size: 0.24, dur: 1.8 },
+      { e: "✨", anim: "ember", delay: 0.9, x: -14, y: -6, size: 0.2, dur: 1.8 },
+    ],
+    loop: 2.2,
+  },
+  laugh_tears: {
+    parts: [
+      { anim: "jump", dur: 1.5 },
+      { e: "💧", anim: "tears", delay: 0.5, x: -26, y: -8, size: 0.24, dur: 1.6 },
+      { e: "💧", anim: "tears", delay: 0.9, x: 26, y: -8, size: 0.24, dur: 1.6 },
+    ],
+    loop: 2.4,
+  },
+  cry_river: {
+    parts: [
+      { anim: "settle", dur: 2.4 },
+      { e: "💦", anim: "tears", delay: 0.2, x: -22, y: 0, size: 0.3, dur: 1.6 },
+      { e: "💦", anim: "tears", delay: 0.8, x: 22, y: 0, size: 0.3, dur: 1.6 },
+    ],
+    loop: 2.4,
+  },
+  thumbs_pop: {
+    parts: [
+      { anim: "pop", dur: 1.4 },
+      { e: "✨", anim: "burst", delay: 0.9, x: 30, y: -24, size: 0.3, dur: 1 },
+    ],
+    loop: 2,
+  },
+  clap_hands: {
+    parts: [
+      { anim: "pop", dur: 1 },
+      { e: "✨", anim: "burst", delay: 0.6, x: -28, y: -22, size: 0.26, dur: 0.9 },
+      { e: "✨", anim: "burst", delay: 0.75, x: 28, y: -22, size: 0.26, dur: 0.9 },
+    ],
+    loop: 1.8,
+  },
+  music_notes: {
+    parts: [
+      { anim: "swing", dur: 1.8 },
+      { e: "🎵", anim: "notes", delay: 0.2, x: 26, y: -10, size: 0.3, dur: 2.6 },
+      { e: "🎶", anim: "notes", delay: 1.2, x: -22, y: -6, size: 0.28, dur: 2.6 },
+    ],
+    loop: 3.2,
+  },
+  snow_fall: {
+    parts: [
+      { anim: "breathe", dur: 3 },
+      { e: "❄️", anim: "drift", delay: 0, x: -30, y: 0, size: 0.24, dur: 3.4 },
+      { e: "❄️", anim: "drift", delay: 1.2, x: 26, y: 0, size: 0.2, dur: 3.4 },
+      { e: "❄️", anim: "drift", delay: 2.2, x: 4, y: 0, size: 0.18, dur: 3.4 },
+    ],
+    loop: 3.6,
+  },
+  storm_flash: {
+    parts: [
+      { anim: "settle", dur: 1.5 },
+      { e: "⚡", anim: "flash", delay: 0, x: 0, y: 0, size: 0.9, dur: 1.5 },
+    ],
+    loop: 2.2,
+  },
+  boom: {
+    parts: [
+      { anim: "shake-hard", dur: 1.6 },
+      { e: "💥", anim: "flash", delay: 0.9, x: 0, y: -10, size: 1, dur: 1.5 },
+    ],
+    loop: 2.6,
+  },
+  rose_bloom: {
+    parts: [
+      { anim: "bloom", dur: 2.8 },
+      { e: "✨", anim: "twinkle", delay: 0.9, x: 28, y: -22, size: 0.26, dur: 1.8 },
+    ],
+    loop: 3,
+  },
+  ring_shine: {
+    parts: [
+      { anim: "spin", dur: 3.4 },
+      { e: "✨", anim: "twinkle", delay: 0.4, x: 26, y: -24, size: 0.3, dur: 1.6 },
+      { e: "💫", anim: "twinkle", delay: 1.4, x: -26, y: 18, size: 0.26, dur: 1.6 },
+    ],
+    loop: 3.4,
+  },
+  champagne_pop: {
+    parts: [
+      { anim: "shake-hard", dur: 1.6 },
+      { e: "🥂", anim: "emerge", delay: 0, x: 26, y: 10, size: 0.44, dur: 1.6 },
+      { e: "🎊", anim: "burst", delay: 1.1, x: -24, y: -26, size: 0.3, dur: 1 },
+    ],
+    loop: 2.6,
+  },
 };
 
 // Single-layer fallbacks, so an item with no scene still moves like something
@@ -155,6 +283,49 @@ const BY_EMOJI = {
   "💰": "money_rain",
   "💵": "money_rain",
   "🤑": "money_rain",
+
+  // Второй набор.
+  "🎁": "gift_open",
+  "🎀": "gift_open",
+  "📦": "gift_open",
+  "👋": "wave_hi",
+  "🤚": "wave_hi",
+  "🖐️": "wave_hi",
+  "😮": "gasp_open",
+  "😲": "gasp_open",
+  "😯": "gasp_open",
+  "🤯": "gasp_open",
+  "😱": "gasp_open",
+  "🔥": "flame_live",
+  "🕯️": "flame_live",
+  "😂": "laugh_tears",
+  "🤣": "laugh_tears",
+  "😹": "laugh_tears",
+  "😭": "cry_river",
+  "😢": "cry_river",
+  "👍": "thumbs_pop",
+  "🙌": "thumbs_pop",
+  "👏": "clap_hands",
+  "🎵": "music_notes",
+  "🎶": "music_notes",
+  "🎧": "music_notes",
+  "🎸": "music_notes",
+  "❄️": "snow_fall",
+  "☃️": "snow_fall",
+  "⛄": "snow_fall",
+  "⚡": "storm_flash",
+  "🌩️": "storm_flash",
+  "💥": "boom",
+  "💣": "boom",
+  "🌹": "rose_bloom",
+  "🌸": "rose_bloom",
+  "🌺": "rose_bloom",
+  "🌷": "rose_bloom",
+  "💍": "ring_shine",
+  "💐": "rose_bloom",
+  "🍾": "champagne_pop",
+  "🥂": "champagne_pop",
+  "🍷": "champagne_pop",
 };
 
 // Deterministic: the same emoji always gets the same motion.
@@ -179,6 +350,21 @@ export function sceneFor(emoji, preferred) {
 // No innerHTML: emoji come from user-creatable sticker packs, so they go in as
 // text nodes.
 export function renderScene(emoji, { size = 84, preferred, replay = true } = {}) {
+  // Нарисованный персонаж вместо системного эмодзи там, где он есть
+  // (lib/characters.js). Подстановка живёт здесь, а не у каждого вызывающего:
+  // стикеры, подарки, реакции и предпросмотр рисуются одной и той же функцией,
+  // и добавлять персонажа в четыре места по отдельности значит однажды забыть
+  // про одно из них.
+  const charId = characterFor(emoji, preferred);
+  if (charId) {
+    const node = renderCharacter(charId, { size });
+    if (node) {
+      if (!replay) node.classList.add("no-entrance");
+      else node.classList.add("anim-scene-entrance");
+      return node;
+    }
+  }
+
   const scene = sceneFor(emoji, preferred);
   const root = document.createElement("div");
   root.className = `anim-scene ${replay ? "" : "no-entrance"}`;
