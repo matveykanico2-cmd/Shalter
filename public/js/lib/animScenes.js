@@ -20,6 +20,7 @@
 //   dur    animation duration in seconds (defaults per animation)
 
 import { characterFor, renderCharacter } from "./characters.js";
+import { artFor, renderArt } from "./drawnArt.js";
 
 // Named scenes, keyed by the id used in the catalogue. `base` is a shorthand:
 // the first part always uses the item's own emoji unless it names its own.
@@ -355,6 +356,17 @@ export function renderScene(emoji, { size = 84, preferred, replay = true } = {})
   // стикеры, подарки, реакции и предпросмотр рисуются одной и той же функцией,
   // и добавлять персонажа в четыре места по отдельности значит однажды забыть
   // про одно из них.
+  // Нарисованные стикеры и подарки идут первыми: они и есть то, ради чего
+  // затевалось рисование, а персонажи (characters.js) — второй слой.
+  const artId = artFor(emoji, preferred);
+  if (artId) {
+    const node = renderArt(artId, { size });
+    if (node) {
+      node.classList.add(replay ? "anim-scene-entrance" : "no-entrance");
+      return node;
+    }
+  }
+
   const charId = characterFor(emoji, preferred);
   if (charId) {
     const node = renderCharacter(charId, { size });

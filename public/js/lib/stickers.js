@@ -3,6 +3,24 @@
 // motion so the set doesn't feel like one animation reused 30 times (same
 // idea as Telegram's sticker packs each having distinct character motion).
 // `anim` names a CSS animation defined in components.css (.sticker-<anim>).
+// Нарисованный набор — не эмодзи, а собственная векторная графика с раздельно
+// движущимися частями (lib/drawnArt.js). `scene` указывает, что именно рисовать;
+// `emoji` остаётся как запасной вариант и как подпись в уведомлениях.
+export const DRAWN_STICKERS = [
+  { id: "art_hello", emoji: "👋", name: "Привет", scene: "hello" },
+  { id: "art_love", emoji: "❤️", name: "Любовь", scene: "love" },
+  { id: "art_thanks", emoji: "🙏", name: "Спасибо", scene: "thanks" },
+  { id: "art_congrats", emoji: "🎉", name: "Поздравляю", scene: "congrats" },
+  { id: "art_laugh", emoji: "😂", name: "Смех", scene: "laugh" },
+  { id: "art_sad", emoji: "😢", name: "Грустно", scene: "sad" },
+  { id: "art_sleep", emoji: "😴", name: "Сплю", scene: "sleep" },
+  { id: "art_cool", emoji: "👍", name: "Класс", scene: "cool" },
+  { id: "art_rose", emoji: "🌹", name: "Роза", scene: "rose" },
+  { id: "art_teddy", emoji: "🧸", name: "Мишка", scene: "teddy" },
+  { id: "art_cake", emoji: "🎂", name: "Торт", scene: "cake" },
+  { id: "art_gift", emoji: "🎁", name: "Подарок", scene: "giftbox" },
+];
+
 export const STICKERS = [
   { id: "laugh", emoji: "😂", name: "Ржака", anim: "shake" },
   { id: "love", emoji: "😍", name: "Обожаю", anim: "heartbeat" },

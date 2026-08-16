@@ -8,7 +8,7 @@ import { checkSize } from "../lib/uploadLimits.js";
 import { openPollDialog } from "./pollDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openScheduleSendDialog } from "./scheduleSendDialog.js";
-import { STICKERS } from "../lib/stickers.js";
+import { STICKERS, DRAWN_STICKERS } from "../lib/stickers.js";
 import { renderScene } from "../lib/animScenes.js";
 import { openStickerPackDialog } from "./stickerPackDialog.js";
 import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
@@ -517,6 +517,9 @@ export function Composer({
     function renderStickerPicker() {
       clear(stickerMenuEl);
       stickerMenuEl.append(
+        // Нарисованный набор первым: он и есть лицо приложения, а эмодзи —
+        // запасной вариант на всё остальное.
+        packSection("Shalter", DRAWN_STICKERS),
         packSection("Стандартные", STICKERS),
         ...myPacks.filter((p) => p.stickers.length).map((p) => packSection(p.name, p.stickers)),
         el("button", { class: "sticker-manage-btn", onclick: () => {

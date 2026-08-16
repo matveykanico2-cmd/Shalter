@@ -45,6 +45,10 @@
       <a href="#pin">Закрепление</a>
       <a href="#typing">Печатает…</a>
       <a href="#who">Чаты и люди</a>
+      <a href="#history">История чата</a>
+      <a href="#more-send">Стикеры, опросы, реакции</a>
+      <a href="#admin">Права администратора</a>
+      <a href="#profile">Профиль бота</a>
       <a href="#keyboard">Кнопки</a>
       <a href="#commands">Команды</a>
       <h4>Редактор в приложении</h4>
@@ -254,11 +258,71 @@ await fetch(`${API}/editMessageText`, {
         Без него единственный способ узнать свой чат — дождаться, пока туда кто-нибудь напишет.</p>
       <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getChat?chatId=…</div>
       <p>Один чат подробно, вместе со списком участников.</p>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/resolveUsername?username=@handle</div>
+      <p>
+        Найти человека или канал по @юзернейму — то, чем бот ищет собеседника сам, а не ждёт, пока
+        напишут ему. Возвращает <code>kind</code> (<code>user</code>, <code>channel</code>, <code>group</code>)
+        и найденное.
+      </p>
+      <div class="doc-note danger">
+        <strong>Поиска по номеру телефона здесь нет и не будет.</strong>
+        Метод, отвечающий «есть ли аккаунт у этого номера», — это готовая телефонная книга: перебором
+        номеров он выдал бы, кто в мессенджере и как его зовут. @юзернейм — другое дело: он публичен по
+        своей сути, человек сам решил его завести.
+      </div>
       <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getUser?userId=…</div>
       <p>
         Кто написал. В сообщении приходит только <code>senderId</code>; отсюда берутся имя и юзернейм,
         чтобы ответить «Спасибо, Аня», а не «Спасибо, u_1786…». Чужой адрес почты не отдаётся никогда —
         ни здесь, ни где-либо ещё.
+      </p>
+
+      <h2 id="history">История чата</h2>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getMessages?chatId=…&amp;limit=60&amp;before=…</div>
+      <p>
+        Страница сообщений, свежие в конце. <code>before</code> — идентификатор сообщения, от которого идти
+        назад; в ответе есть <code>hasMore</code>. За раз не больше 200. Читаются только чаты, где бот состоит.
+      </p>
+
+      <h2 id="more-send">Стикеры, опросы, реакции</h2>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendSticker</div>
+      <p><code>chatId</code>, <code>emoji</code>, необязательные <code>name</code> и <code>scene</code>
+        (имя нарисованной сцены — см. набор «Shalter» в приложении).</p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendPoll</div>
+      <p><code>chatId</code>, <code>question</code> и <code>options</code> — от двух до восьми вариантов.
+        Голосуют люди, бот только создаёт.</p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendReaction</div>
+      <p><code>messageId</code> и <code>emoji</code>. Повторный вызов с тем же эмодзи снимает реакцию —
+        как и нажатие пальцем.</p>
+
+      <h2 id="admin">Права администратора</h2>
+      <p>
+        Всё в этом разделе требует, чтобы бота <strong>назначили администратором чата</strong>. Это то же
+        правило, что и для человека: права даёт владелец чата, а не наличие токена.
+      </p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/deleteAnyMessage</div>
+      <p>Удалить <em>чужое</em> сообщение — то, ради чего заводят бота-модератора. Своё бот удаляет методом
+        <code>deleteMessage</code> и без прав.</p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/restrictChatMember</div>
+      <p><code>chatId</code>, <code>userId</code>, <code>minutes</code> (до 30 дней). Временное молчание:
+        человек остаётся в чате и видит переписку.</p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/banChatMember</div>
+      <p>Убрать участника из чата.</p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setChatTitle</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setChatDescription</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/leaveChat</div>
+      <p>Уйти из чата — единственное здесь, что боту не нужно согласовывать.</p>
+      <div class="doc-note danger">
+        <strong>Владельца и других администраторов бот не тронет.</strong>
+        Попытка ограничить или выгнать их возвращает <code>400</code>. Иначе одним утёкшим токеном можно
+        было бы обезглавить чат.
+      </div>
+
+      <h2 id="profile">Профиль бота</h2>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setMyProfile</div>
+      <p>
+        <code>name</code> и <code>description</code> — как бот представляется. Удобно править вместе с
+        выкладкой новой версии, а не руками в настройках.
       </p>
 
       <h2 id="keyboard">Кнопки</h2>
