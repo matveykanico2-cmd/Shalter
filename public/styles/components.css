@@ -1851,6 +1851,7 @@
   color: #fff;
 }
 .composer {
+  position: relative; /* точка отсчёта для кружка, висящего над панелью */
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
 }
@@ -1884,12 +1885,41 @@
   padding: 4px;
   color: var(--color-muted);
 }
+/* Строка ввода собрана как одна «таблетка»: скрепка, поле и эмодзи внутри
+   общего скруглённого фона, а круглая синяя кнопка — снаружи справа. Раньше
+   поле было отдельной коробкой посреди ряда одинаковых иконок, и вся строка
+   читалась набором кнопок, а не местом, куда пишут. */
 .composer-row {
   position: relative;
   display: flex;
   align-items: flex-end;
-  gap: 6px;
-  padding: 8px 10px;
+  gap: 8px;
+  padding: 8px 12px;
+}
+.composer-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  border-radius: 22px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  padding: 2px 6px;
+}
+.composer-field:focus-within {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+}
+/* Внутри «таблетки» у поля своей рамки быть не должно — иначе видно коробку
+   в коробке. */
+.composer-field .composer-textarea {
+  border: none;
+  background: none;
+  border-radius: 0;
+  padding: 9px 4px;
+}
+.composer-field .composer-textarea:focus {
+  outline: none;
 }
 .composer-icon-btn {
   display: flex;
@@ -1928,6 +1958,17 @@
 }
 .composer-attach-slot {
   position: relative;
+}
+.composer-trailing .composer-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+  padding: 0;
 }
 .composer-trailing {
   display: flex;
@@ -2060,11 +2101,129 @@
 .composer-recording-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  /* Без «таблетки» вокруг: панель записи занимает ту же строку, что и обычное
+     поле ввода, и рамка вокруг неё только сужала волну и отделяла кнопки от
+     края. Ряд лежит прямо на фоне композера, как в привычных мессенджерах. */
+  background: none;
+  margin: 0;
+  padding: 8px 12px;
+}
+/* Кружок при записи видео-сообщения висит по центру НАД панелью ввода, то есть
+   поверх чата: он и есть то, что записывают. В панели ему не место — там он
+   размером с кнопку, и разглядеть себя невозможно. */
+.composer-round-overlay {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 14px);
+  transform: translateX(-50%);
+  z-index: 5;
+  pointer-events: none; /* клики по чату под кружком не перехватываются */
+}
+.composer-round-wrap {
+  position: relative;
+  width: 210px;
+  height: 210px;
+  pointer-events: auto;
+}
+.composer-round-preview {
+  width: 100%;
+  height: 100%;
   border-radius: 999px;
-  background: var(--color-surface-alt);
-  margin: 8px 10px;
-  padding: 8px 16px;
+  object-fit: cover;
+  background: #000;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  /* Своё изображение зеркалим — как в зеркале, иначе поднятая правая рука
+     уезжает влево и движение выглядит чужим. */
+  transform: scaleX(-1);
+}
+.composer-round-flip {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+@media (max-width: 620px) {
+  .composer-round-wrap {
+    width: 168px;
+    height: 168px;
+  }
+}
+
+/* Живая волна: полоски растут от громкости, новая приходит справа. */
+.composer-wave {
+  display: flex;
+  align-items: center; /* полоски растут от середины в обе стороны, а не от низа */
+  justify-content: flex-start;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  overflow: hidden;
+}
+.composer-wave-bar {
+  /* Ширина полоски постоянна, а число полосок подбирается под ширину панели
+     (composer.js) — так волна заполняет строку целиком на любом экране и не
+     превращается в частокол из широких столбов на узком. */
+  width: 3px;
+  flex: 0 0 3px;
+  height: 8%;
+  border-radius: 999px;
+  background: var(--color-accent);
+  transition: height 0.09s linear;
+}
+/* На паузе волна замирает и гаснет — видно, что запись остановлена. */
+.composer-recording-bar.paused .composer-wave-bar {
+  background: var(--color-muted);
+}
+.composer-recording-bar.paused .composer-recording-dot {
+  animation: none;
+  opacity: 0.4;
+}
+.composer-rec-time {
+  flex-shrink: 0;
+  /* Ширина фиксирована под «0:00,00»: без этого сотые дёргают соседние кнопки
+     по десять раз в секунду. */
+  min-width: 62px;
+  text-align: right;
+  font-size: 13.5px;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+.composer-rec-hint {
+  flex: 0 1 auto;
+  max-width: 40%;
+  font-size: 12px;
+  color: var(--color-danger);
+}
+.composer-round-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+}
+/* Красная точка «идёт запись» — крупнее и ближе к корзине, как в образце. */
+.composer-recording-bar .composer-recording-dot {
+  height: 9px;
+  width: 9px;
+  margin-left: -4px;
+}
+.composer-icon-btn.danger {
+  color: var(--color-danger);
 }
 .composer-recording-preview {
   height: 36px;

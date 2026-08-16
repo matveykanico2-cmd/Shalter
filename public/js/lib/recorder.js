@@ -27,7 +27,7 @@ function wireRecorder(stream, mimeType, onTick, extraStop) {
   };
 
   let sec = 0;
-  const tickTimer = setInterval(() => {
+  let tickTimer = setInterval(() => {
     sec++;
     onTick?.(sec);
   }, 1000);
@@ -62,7 +62,65 @@ function wireRecorder(stream, mimeType, onTick, extraStop) {
       cancelled = true;
       recorder.stop();
     },
+    // Пауза: MediaRecorder умеет её сам, наружу это просто не было выведено.
+    // Таймер тоже останавливается — иначе счётчик считает то, чего в записи нет.
+    pause: () => {
+      if (recorder.state !== "recording") return false;
+      recorder.pause();
+      clearInterval(tickTimer);
+      clearTimeout(autoStopTimer);
+      return true;
+    },
+    resume: () => {
+      if (recorder.state !== "paused") return false;
+      recorder.resume();
+      tickTimer = setInterval(() => {
+        sec++;
+        onTick?.(sec);
+      }, 1000);
+      // Остаток от общего лимита, а не полный лимит заново.
+      autoStopTimer = setTimeout(() => recorder.stop(), Math.max(1000, (MAX_RECORD_SEC - sec) * 1000));
+      return true;
+    },
+    isPaused: () => recorder.state === "paused",
     result,
+  };
+}
+
+// Уровень звука с микрофона — для живой волны в интерфейсе. Без него полоска
+// рисуется случайными палочками, а это видно сразу: она не совпадает с тем,
+// что человек говорит.
+export function createLevelMeter(stream) {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx || !stream.getAudioTracks().length) return null;
+  const ctx = new Ctx();
+  const source = ctx.createMediaStreamSource(stream);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  source.connect(analyser);
+  const buf = new Uint8Array(analyser.frequencyBinCount);
+  return {
+    // 0..1 — громкость в том виде, в каком её рисуют.
+    //
+    // Делитель и степень подобраны не на глаз: обычная речь даёт отклонение
+    // около 8–15 единиц из 128, и при простом делении на 40 полоски выходили
+    // ростом в десятую часть строки — волна выглядела плоской ниточкой.
+    // Корень поднимает тихое, не давая громкому упереться в потолок.
+    level() {
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (const v of buf) sum += Math.abs(v - 128);
+      const raw = Math.min(1, sum / buf.length / 22);
+      return Math.pow(raw, 0.62);
+    },
+    close() {
+      try {
+        source.disconnect();
+        ctx.close();
+      } catch {
+        // Контекст мог закрыться сам вместе с остановкой дорожки.
+      }
+    },
   };
 }
 

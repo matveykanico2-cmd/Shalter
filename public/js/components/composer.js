@@ -1,7 +1,7 @@
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
-import { startRecording, isRecordingSupported, MAX_RECORD_SEC } from "../lib/recorder.js";
+import { startRecording, isRecordingSupported, createLevelMeter, MAX_RECORD_SEC } from "../lib/recorder.js";
 import { fileToImageDataUrl } from "../lib/image.js";
 import { uploadFile } from "../lib/upload.js";
 import { checkSize } from "../lib/uploadLimits.js";
@@ -47,6 +47,11 @@ export function Composer({
 }) {
   let lastTypingPing = 0;
   let recordingHandle = null;
+  // Волна рисуется кадрами, а звук слушается через AudioContext — и то и другое
+  // надо остановить, когда запись кончилась: иначе кадры продолжают крутиться,
+  // а микрофонный контекст остаётся открытым.
+  let waveTimer = null;
+  let levelMeter = null;
   let draftSaveTimer = null;
 
   // Saves to the server on a debounce (network call), but calls
@@ -747,7 +752,11 @@ export function Composer({
       );
     }
 
-    const row = el("div", { class: "composer-row" }, [mentionMenu, attachSlot, commandSlot, textarea, hugoSlotBtn, stickerSlot, scheduleSlot, emojiSlot, trailingSlot].filter(Boolean));
+    // Скрепка, поле и вторичные кнопки — внутри одной «таблетки»; отправка и
+    // запись остаются снаружи справа, как круглая кнопка в привычных
+    // мессенджерах.
+    const field = el("div", { class: "composer-field" }, [attachSlot, commandSlot, textarea, hugoSlotBtn, stickerSlot, scheduleSlot, emojiSlot].filter(Boolean));
+    const row = el("div", { class: "composer-row" }, [mentionMenu, field, trailingSlot].filter(Boolean));
     bodySlot.append(uploadSlot, hugoSlot, row);
     updateTrailingButtons();
 
@@ -762,42 +771,150 @@ export function Composer({
     const recordingBar = el("div", { class: "composer-recording-bar" });
     bodySlot.appendChild(recordingBar);
 
+    // Панель записи собрана как в привычных мессенджерах: корзина слева,
+    // живая волна по центру, время, пауза и отправка. Прежняя строка «Запись
+    // голосового…» не сообщала ничего, кроме факта записи, — ни громкости, ни
+    // возможности приостановиться.
     let videoPreview = null;
+    let roundOverlay = null;
     if (mode === "video-note") {
-      videoPreview = el("video", { autoplay: true, muted: true, class: "composer-recording-preview" });
-      recordingBar.appendChild(videoPreview);
+      // Кружок висит по центру над чатом, а не сидит в панели ввода: он и есть
+      // то, что записывают, — на него смотрят, пока говорят, и разглядеть себя
+      // в кружке размером с кнопку невозможно. Панель внизу при этом остаётся
+      // такой же, как у голосового.
+      videoPreview = el("video", { autoplay: true, muted: true, playsinline: true, class: "composer-round-preview" });
+      const flipOnPreview = el("button", {
+        class: "composer-round-flip",
+        title: "Другая камера",
+        html: iconSvg("FlipCamera", 18),
+        onclick: async () => {
+          const res = await recordingHandle?.flipCamera?.();
+          if (res?.error) showHint(res.error);
+        },
+      });
+      roundOverlay = el("div", { class: "composer-round-overlay" }, [
+        el("div", { class: "composer-round-wrap" }, [videoPreview, flipOnPreview]),
+      ]);
+      wrap.appendChild(roundOverlay);
     }
+
     const dot = el("span", { class: "composer-recording-dot" });
-    const timeLabel = el("span", { class: "mono" }, `0s / ${MAX_RECORD_SEC}s`);
-    const hint = el("span", { class: "composer-recording-hint" }, mode === "voice" ? "Запись голосового…" : "Запись видео-сообщения…");
-    const flipBtn =
-      mode === "video-note"
-        ? el("button", {
-            class: "composer-icon-btn",
-            title: "Сменить камеру",
-            html: iconSvg("FlipCamera", 16),
-            onclick: async () => {
-              // Неудачу видно сразу: до этого кнопка молчала, и понять, что
-              // второй камеры нет, было нельзя.
-              const res = await recordingHandle?.flipCamera?.();
-              if (res?.error) {
-                const was = hint.textContent;
-                hint.textContent = res.error;
-                setTimeout(() => (hint.textContent = was), 3000);
-              }
-            },
-          })
-        : null;
-    const cancelBtn = el("button", { class: "composer-icon-btn", html: iconSvg("X", 16), onclick: cancelRecording });
-    const sendBtn = el("button", { class: "composer-recording-send", onclick: finishRecording }, "Отправить");
-    recordingBar.append(...[dot, timeLabel, hint, flipBtn, cancelBtn, sendBtn].filter(Boolean));
+    // Волна: новая громкость приходит справа и сдвигает остальные влево.
+    //
+    // Число полосок считается от ширины, а не задано числом. С фиксированными
+    // 34 полосками волна занимала свои полтораста пикселей, а дальше до самого
+    // таймера тянулась пустота — на широком экране это выглядело сломанной
+    // вёрсткой, чем и было.
+    const waveEl = el("div", { class: "composer-wave" });
+    let levels = [];
+    function buildWave() {
+      const width = waveEl.clientWidth || 260;
+      // Потолок в 96 полосок был ошибкой: на широком мониторе волна шириной
+      // 1592px рисовалась на 573px — заполнено 36%, остальное пустота. Число
+      // считается только от ширины; верхняя граница оставлена лишь как защита
+      // от абсурда, а не как рабочее ограничение.
+      const count = Math.max(24, Math.min(400, Math.floor(width / 6)));
+      if (count === levels.length) return;
+      const old = levels;
+      levels = new Array(count).fill(0.06);
+      // Переносим уже накопленное, чтобы волна не обнулялась при повороте
+      // экрана или изменении размера окна посреди записи.
+      for (let i = 1; i <= Math.min(old.length, count); i++) levels[count - i] = old[old.length - i];
+      clear(waveEl);
+      waveEl.append(...levels.map(() => el("span", { class: "composer-wave-bar" })));
+    }
+    function drawWave() {
+      const bars = waveEl.children;
+      for (let i = 0; i < levels.length; i++) {
+        // Минимум 14%, а не 8: полоска тишины должна читаться как полоска, а не
+        // как точка, — иначе вся волна в паузах между словами превращается в
+        // прерывистую линию.
+        if (bars[i]) bars[i].style.height = `${Math.max(14, Math.round(levels[i] * 100))}%`;
+      }
+    }
+
+    const timeLabel = el("span", { class: "mono composer-rec-time" }, "0:00,00");
+    // Сотые доли идут не от onTick (он раз в секунду), а от собственного
+    // отсчёта — и он останавливается на паузе, иначе после продолжения время
+    // прыгнуло бы вперёд на всю длину паузы.
+    let startedAt = Date.now();
+    let pausedAt = null;
+    function elapsedMs() {
+      return (pausedAt ?? Date.now()) - startedAt;
+    }
+    function drawTime() {
+      const ms = elapsedMs();
+      const mm = Math.floor(ms / 60000);
+      const ss = String(Math.floor((ms % 60000) / 1000)).padStart(2, "0");
+      const cs = String(Math.floor((ms % 1000) / 10)).padStart(2, "0");
+      timeLabel.textContent = `${mm}:${ss},${cs}`;
+    }
+    const hint = el("span", { class: "composer-recording-hint composer-rec-hint" }, "");
+    let hintTimer = null;
+    function showHint(text) {
+      hint.textContent = text;
+      clearTimeout(hintTimer);
+      hintTimer = setTimeout(() => (hint.textContent = ""), 3000);
+    }
+
+    const pauseBtn = el("button", {
+      class: "composer-icon-btn",
+      title: "Пауза",
+      html: iconSvg("Pause", 18),
+      onclick: () => {
+        if (!recordingHandle) return;
+        const paused = recordingHandle.isPaused?.();
+        const done = paused ? recordingHandle.resume?.() : recordingHandle.pause?.();
+        if (!done) return;
+        if (paused) {
+          // Продолжаем: сдвигаем точку отсчёта на длину паузы.
+          startedAt += Date.now() - (pausedAt ?? Date.now());
+          pausedAt = null;
+        } else {
+          pausedAt = Date.now();
+        }
+        pauseBtn.innerHTML = "";
+        pauseBtn.appendChild(el("span", { html: iconSvg(paused ? "Pause" : "Play", 18) }));
+        pauseBtn.title = paused ? "Пауза" : "Продолжить";
+        recordingBar.classList.toggle("paused", !paused);
+      },
+    });
+    const cancelBtn = el("button", { class: "composer-icon-btn danger", title: "Удалить", html: iconSvg("Trash", 17), onclick: cancelRecording });
+    const sendBtn = el("button", { class: "composer-round-send", title: "Отправить", html: iconSvg("Send", 17), onclick: finishRecording });
+    recordingBar.append(...[cancelBtn, dot, waveEl, timeLabel, hint, pauseBtn, sendBtn].filter(Boolean));
+    // Ширина известна только после вставки в документ.
+    buildWave();
+    drawWave();
+    const onResize = () => {
+      buildWave();
+      drawWave();
+    };
+    window.addEventListener("resize", onResize);
 
     try {
-      recordingHandle = await startRecording(mode, {
-        onTick: (sec) => (timeLabel.textContent = `${sec}s / ${MAX_RECORD_SEC}s`),
-      });
+      recordingHandle = await startRecording(mode, { onTick: () => drawTime() });
+      startedAt = Date.now();
       if (videoPreview) videoPreview.srcObject = recordingHandle.stream;
+
+      // Живая громкость. Без неё волна рисовалась бы случайными палочками — и
+      // это видно сразу: она не совпадает с тем, что человек говорит.
+      const meter = createLevelMeter(recordingHandle.stream);
+      if (meter) {
+        const step = () => {
+          if (!recordingHandle) return;
+          if (!recordingHandle.isPaused?.()) {
+            levels.push(meter.level());
+            levels.shift();
+            drawWave();
+            drawTime();
+          }
+          waveTimer = requestAnimationFrame(step);
+        };
+        waveTimer = requestAnimationFrame(step);
+        levelMeter = meter;
+      }
     } catch {
+      stopWave();
       clear(bodySlot);
       bodySlot.appendChild(el("p", { class: "composer-record-error" }, "Нет доступа к микрофону или камере"));
       setTimeout(renderIdleBody, 1500);
@@ -805,6 +922,9 @@ export function Composer({
     }
 
     recordingHandle.result.then((attachment) => {
+      // Запись могла кончиться сама — по лимиту времени, — а не только по
+      // кнопке: убирать кружок и гасить волну надо и в этом случае.
+      stopWave();
       if (attachment) {
         onSend("", [{ kind: mode, ...attachment }]);
       }
@@ -812,10 +932,21 @@ export function Composer({
       renderIdleBody();
     });
 
+    function stopWave() {
+      window.removeEventListener("resize", onResize);
+      roundOverlay?.remove();
+      roundOverlay = null;
+      if (waveTimer) cancelAnimationFrame(waveTimer);
+      waveTimer = null;
+      levelMeter?.close();
+      levelMeter = null;
+    }
     async function finishRecording() {
+      stopWave();
       recordingHandle?.stop();
     }
     async function cancelRecording() {
+      stopWave();
       recordingHandle?.cancel();
     }
   }
