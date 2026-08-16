@@ -9,7 +9,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "nodemon --exec \"node --env-file-if-exists=config.env --env-file-if-exists=.env\" server/index.js",
+    "dev": "USE_BUILD=0 nodemon --exec \"node --env-file-if-exists=config.env --env-file-if-exists=.env\" server/index.js",
     "build": "node scripts/build.js",
     "mail-dns": "node scripts/mail-dns.js",
     "start": "NODE_ENV=production node --env-file-if-exists=config.env --env-file-if-exists=.env --max-old-space-size=768 server/index.js",

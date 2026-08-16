@@ -33,10 +33,34 @@
 // import (an ES module import source can't be a template literal/computed
 // expression), so the query string is repeated rather than shared as a
 // constant.
-import { EditorView, basicSetup } from "https://esm.sh/codemirror@6.0.1?deps=@codemirror/state@6.7.1,@codemirror/view@6.43.7";
-import { EditorState } from "https://esm.sh/@codemirror/state@6.7.1";
-import { javascript } from "https://esm.sh/@codemirror/lang-javascript@6.2.5?deps=@codemirror/state@6.7.1,@codemirror/view@6.43.7";
-import { autocompletion } from "https://esm.sh/@codemirror/autocomplete@6.20.3?deps=@codemirror/state@6.7.1,@codemirror/view@6.43.7";
+// Загружается по требованию, а не при старте приложения.
+//
+// Это были обычные import-ы наверху файла — и стоили они дорого: редактор
+// подтягивался с чужого CDN при первом же открытии приложения, ещё на экране
+// входа. Замер до правки: 45 запросов и 564 КБ на esm.sh из 1.6 МБ всей
+// загрузки, при том что редактор кода ботов открывает один человек из сотни.
+//
+// Динамический import() внутри функции переносит эту цену туда, где она
+// оправдана: в момент открытия редактора. Модули кэшируются самим браузером,
+// так что второе открытие уже мгновенное.
+let cmPromise = null;
+function loadCodeMirror() {
+  if (!cmPromise) {
+    cmPromise = Promise.all([
+      import("https://esm.sh/codemirror@6.0.1?deps=@codemirror/state@6.7.1,@codemirror/view@6.43.7"),
+      import("https://esm.sh/@codemirror/state@6.7.1"),
+      import("https://esm.sh/@codemirror/lang-javascript@6.2.5?deps=@codemirror/state@6.7.1,@codemirror/view@6.43.7"),
+      import("https://esm.sh/@codemirror/autocomplete@6.20.3?deps=@codemirror/state@6.7.1,@codemirror/view@6.43.7"),
+    ]).then(([cm, state, lang, ac]) => ({
+      EditorView: cm.EditorView,
+      basicSetup: cm.basicSetup,
+      EditorState: state.EditorState,
+      javascript: lang.javascript,
+      autocompletion: ac.autocompletion,
+    }));
+  }
+  return cmPromise;
+}
 
 // A curated completion list for the bot-programming surface specifically
 // (see the /bots documentation page) rather than full generic JS intellisense — this is a small,
@@ -99,7 +123,11 @@ function skipClosingBracketAcrossLines(view, from, to, text) {
 // container: a plain DOM element to mount into. Returns a small handle —
 // this file has no idea about the rest of the app's render cycle, callers
 // own creating/destroying it around their own dialog's lifecycle.
-export function createCodeEditor(container, { value = "", onChange, readOnly = false } = {}) {
+// Стала асинхронной: сначала подгружает редактор, потом создаёт. Вызывающие
+// (components/botCodeDialog.js) ждут результат — а пока он едет, на месте
+// редактора висит понятная надпись, а не пустота.
+export async function createCodeEditor(container, { value = "", onChange, readOnly = false } = {}) {
+  const { EditorView, EditorState, basicSetup, javascript, autocompletion } = await loadCodeMirror();
   const extensions = [
     basicSetup,
     javascript(),

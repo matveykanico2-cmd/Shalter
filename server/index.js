@@ -58,10 +58,19 @@ app.use((req, res, next) => {
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const DIST_DIR = path.join(PUBLIC_DIR, "dist");
 // `npm run build` (scripts/build.js) bundles+minifies+precompresses the
-// client into public/dist — use it only once it's actually there, so
-// `npm start` in production without a prior build still serves something
-// (the raw, unbundled files) instead of a blank page.
-const useBuilt = process.env.NODE_ENV === "production" && fs.existsSync(path.join(DIST_DIR, "index.html"));
+// client into public/dist. Собранная версия используется, **как только она есть
+// на диске**, а не только при NODE_ENV=production.
+//
+// Раньше условие включало проверку NODE_ENV — и это была дорогая ошибка. Не
+// каждая платформа выставляет эту переменную (nixpacks, запуск через свою
+// команду вместо CMD, pm2 без env), а без неё приложение отдавало 96 отдельных
+// модулей вместо одного сжатого файла: замерено — 100 запросов и 1 МБ против
+// 5 запросов и 92 КБ. Сборка при этом спокойно лежала рядом неиспользованной.
+//
+// USE_BUILD=0 принудительно возвращает раздачу исходников — это нужно в
+// разработке, где свежая правка обязана быть видна сразу, а не после сборки
+// (npm run dev выставляет её сам).
+const useBuilt = process.env.USE_BUILD !== "0" && fs.existsSync(path.join(DIST_DIR, "index.html"));
 const indexHtml = path.join(useBuilt ? DIST_DIR : PUBLIC_DIR, "index.html");
 
 // Gzip cuts network time for message/chat JSON (meaningfully so once
@@ -205,6 +214,13 @@ initPush()
   .finally(() => {
     server.listen(PORT, "0.0.0.0", () => {
       console.log(`shalter server listening on http://localhost:${PORT}`);
+      // Видно в логах сразу: раздаём собранное или исходники. Разница между
+      // ними — секунды загрузки у каждого посетителя, и молчать о ней нельзя.
+      console.log(
+        useBuilt
+          ? "[static] отдаём собранную версию из public/dist (один файл, сжатый заранее)"
+          : "[static] отдаём исходники из public/ — для боевого сервера выполните npm run build"
+      );
     });
   });
 

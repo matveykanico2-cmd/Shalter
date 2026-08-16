@@ -60,11 +60,25 @@ export function openBotCodeDialog(bot) {
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
 
-  const editor = createCodeEditor(editorSlot, { value: bot.code?.trim() ? bot.code : STARTER_CODE });
+  // Редактор приезжает с CDN и потому создаётся асинхронно (lib/codeEditor.js).
+  // Пока он едет, в окне висит надпись, а не пустое место; кнопки «Сохранить» и
+  // «Запустить» до этого момента ничего не делают, а не падают на undefined.
+  let editor = null;
+  const loadingNote = el("p", { class: "settings-toggle-hint" }, "Загружаем редактор…");
+  editorSlot.appendChild(loadingNote);
+  createCodeEditor(editorSlot, { value: bot.code?.trim() ? bot.code : STARTER_CODE })
+    .then((made) => {
+      loadingNote.remove();
+      editor = made;
+    })
+    .catch(() => {
+      loadingNote.textContent = "Не удалось загрузить редактор — проверьте соединение";
+    });
 
   async function save() {
     saveStatus.textContent = "Сохраняем…";
     try {
+      if (!editor) return;
       await api.saveBotCode(bot.id, editor.getValue());
       saveStatus.textContent = "Сохранено ✓";
     } catch (err) {
@@ -77,6 +91,7 @@ export function openBotCodeDialog(bot) {
     clear(outputSlot);
     outputSlot.appendChild(el("p", { class: "settings-toggle-hint" }, "Выполняем…"));
     try {
+      if (!editor) return;
       const { logs, result, error } = await api.testBotCode(bot.id, editor.getValue(), testInput.value);
       clear(outputSlot);
       logs.forEach((l) => outputSlot.appendChild(logLine(l)));
