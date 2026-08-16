@@ -34,6 +34,42 @@ function rowToMessage(row) {
   };
 }
 
+// Новые сообщения в чатах бота — для опроса /api/bot-api/updates.
+//
+// Бот опрашивает сервер раз в одну-две секунды, а раньше этот маршрут читал
+// **всю** таблицу сообщений и фильтровал в памяти: один активный бот заставлял
+// сервер перебирать десятки тысяч строк каждую секунду. Здесь то же самое
+// делает индекс (chatId, createdAt).
+function listNewForChats(chatIds, { after, excludeSenderId, limit = 200 }) {
+  if (!chatIds.length) return [];
+  const ph = chatIds.map(() => "?").join(",");
+  return db
+    .prepare(
+      `SELECT * FROM messages
+        WHERE chatId IN (${ph}) AND createdAt > ? AND senderId <> ?
+        ORDER BY createdAt ASC LIMIT ?`
+    )
+    .all(...chatIds, after, excludeSenderId, limit)
+    .map(rowToMessage);
+}
+
+// Поиск по тексту в заданных чатах. LIKE с обеих сторон индекс не использует,
+// но перебирает базу сама SQLite — без выгрузки всех строк в память и без
+// создания объекта на каждое сообщение, которых потом выбрасывают 99.9%.
+function searchInChats(chatIds, query, { limit = 40 } = {}) {
+  if (!chatIds.length || !query) return [];
+  const ph = chatIds.map(() => "?").join(",");
+  return db
+    .prepare(
+      `SELECT * FROM messages
+        WHERE chatId IN (${ph}) AND lower(text) LIKE ?
+        ORDER BY createdAt DESC LIMIT ?`
+    )
+    .all(...chatIds, `%${String(query).toLowerCase()}%`, limit)
+    .map(rowToMessage)
+    .reverse();
+}
+
 function listAllMessages() {
   return db.prepare("SELECT * FROM messages").all().map(rowToMessage);
 }
@@ -222,6 +258,12 @@ function deleteMessageForMe(id, userId) {
   });
 }
 
+// Заменить клавиатуру под сообщением, не трогая текст — бот так обновляет
+// кнопки после нажатия (routes/botApi.js's editMessageKeyboard).
+function setKeyboard(id, keyboard) {
+  return mutate(id, (m) => ({ ...m, keyboard: Array.isArray(keyboard) && keyboard.length ? keyboard : undefined }));
+}
+
 function togglePin(id, pinned) {
   return mutate(id, (m) => ({ ...m, pinned }));
 }
@@ -315,7 +357,12 @@ function setDiscussionAnchor(id, anchorId) {
 }
 
 module.exports = {
+  // Нужен data/chat-summary.js: он читает строки своим запросом и превращает
+  // их в сообщения тем же способом, что и остальной код.
+  rowToMessage,
   listAllMessages,
+  listNewForChats,
+  searchInChats,
   listMessages,
   listMessagesPage,
   listThreadReplies,
@@ -327,6 +374,7 @@ module.exports = {
   deleteMessage,
   deleteMessageForMe,
   togglePin,
+  setKeyboard,
   toggleReaction,
   markRead,
   markChatRead,

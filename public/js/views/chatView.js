@@ -158,8 +158,44 @@ export async function ChatView(root, chatId) {
   // A refresh re-reads only the newest page and splices it onto whatever older
   // history is already loaded, so scrolling back through a long chat isn't
   // undone every time someone sends a message.
+  // Та же защита, что и в списке чатов: события по WebSocket идут пачками, и
+  // без склейки на каждое уходил свой запрос. Ответы возвращались вперемешку, и
+  // применялся последний пришедший, а не самый свежий — сообщения на мгновение
+  // «откатывались» к прошлому состоянию.
+  let msgSeq = 0;
+  let msgInFlight = false;
+  let msgPending = false;
+  let msgTimer = null;
+
+  function scheduleRefresh(delay = 200) {
+    clearTimeout(msgTimer);
+    msgTimer = setTimeout(() => refreshMessages(), delay);
+  }
+
   async function refreshMessages() {
+    if (msgInFlight) {
+      msgPending = true;
+      return;
+    }
+    msgInFlight = true;
+    const seq = ++msgSeq;
+    try {
+      await doRefreshMessages(seq);
+    } catch {
+      // Сеть моргнула — оставляем показанное. Пустой чат вместо переписки
+      // пугает сильнее, чем секунда несвежести.
+    } finally {
+      msgInFlight = false;
+      if (msgPending) {
+        msgPending = false;
+        scheduleRefresh(0);
+      }
+    }
+  }
+
+  async function doRefreshMessages(seq) {
     const res = await api.listMessages(chat.id, { limit: PAGE_SIZE });
+    if (seq !== msgSeq) return; // пока ответ ехал, ушёл более новый запрос
     const fresh = res.messages;
     if (!fresh.length) {
       messages = [];
@@ -664,6 +700,28 @@ export async function ChatView(root, chatId) {
   const infoSlot = el("div", { class: "info-panel-slot" });
   const wrap = el("div", { class: "chat-view" }, [mainCol, infoSlot]);
 
+  // «12 пользователей» вместо «в сети» у ботов. Просим один раз при открытии
+  // чата: число меняется медленно, дёргать сервер на каждую перерисовку незачем.
+  let botAudience = null;
+  function pluralUsers(n) {
+    const m10 = n % 10;
+    const m100 = n % 100;
+    if (m10 === 1 && m100 !== 11) return "пользователь";
+    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return "пользователя";
+    return "пользователей";
+  }
+  function loadBotAudience() {
+    const peer = chat.type === "dm" ? chat.otherUser : null;
+    if (!peer?.isBot) return;
+    api
+      .getBotAudience(peer.id)
+      .then((res) => {
+        botAudience = res.users;
+        renderHeader();
+      })
+      .catch(() => {});
+  }
+
   function renderHeader() {
     clear(header);
     const subtitle = (() => {
@@ -673,6 +731,12 @@ export async function ChatView(root, chatId) {
         if (typist) return `${typist.name} печатает…`;
       }
       if (chat.type === "bot") return "бот";
+      // У бота нет присутствия: программа не «заходила» и не «была недавно».
+      // Поэтому вместо статуса — сколько людей им пользуется; число приходит
+      // с сервера отдельно и до его прихода показывается просто «бот».
+      if (isDm && other?.isBot) {
+        return botAudience == null ? "бот" : `${botAudience} ${pluralUsers(botAudience)}`;
+      }
       if (isDm && other) return lastSeenLabel(other);
       if (chat.type === "group") return `${members.length} участников`;
       if (chat.type === "channel") return `${members.length} подписчиков`;
@@ -1135,6 +1199,7 @@ export async function ChatView(root, chatId) {
   renderList();
   renderComposer();
   renderInfoPanel();
+  loadBotAudience();
   mount(root, wrap);
   list.scrollTo({ top: list.scrollHeight });
 
@@ -1161,21 +1226,21 @@ export async function ChatView(root, chatId) {
   });
   const unsubMessageNew = onWsMessage("message:new", (msg) => {
     if (msg.chatId !== chat.id) return;
-    refreshMessages();
+    scheduleRefresh();
   });
   const unsubMessageUpdated = onWsMessage("message:updated", (msg) => {
     if (msg.chatId !== chat.id) return;
-    refreshMessages();
+    scheduleRefresh();
   });
   const unsubMessageDeleted = onWsMessage("message:deleted", (msg) => {
     if (msg.chatId !== chat.id) return;
-    refreshMessages();
+    scheduleRefresh();
   });
   // Someone else opened the chat and read our messages — refresh so the
   // sent/read checkmark (readByIds.length, see messageBubble.js) updates.
   const unsubMessageRead = onWsMessage("message:read", (msg) => {
     if (msg.chatId !== chat.id) return;
-    refreshMessages();
+    scheduleRefresh();
   });
   // The push only signals "typing started" (mirroring how the composer only
   // pings on keystrokes, not on stop) — the server's typing state self-expires
@@ -1197,6 +1262,7 @@ export async function ChatView(root, chatId) {
     clearInterval(messagesIv);
     clearInterval(typingIv);
     clearTimeout(typingClearTimer);
+    clearTimeout(msgTimer);
     unsubPresence();
     unsubMessageNew();
     unsubMessageUpdated();

@@ -668,6 +668,19 @@ async function renderBots(root) {
                         render();
                       }),
                   }),
+                  el("button", {
+                    class: "icon-btn",
+                    title: "Показать токен",
+                    html: iconSvg("Key", 15),
+                    onclick: async () => {
+                      try {
+                        const { token } = await api.getBotToken(b.id);
+                        openBotTokenDialog(b.user.name, token, { fresh: false });
+                      } catch (err) {
+                        alert(err.message || "Не удалось получить токен");
+                      }
+                    },
+                  }),
                   el("button", { class: "icon-btn", title: "Код бота", html: iconSvg("Code", 15), onclick: () => openBotCodeDialog(b) }),
                   // The command list the "/" button in a chat with this bot
                   // offers. BotFather's own format, so anyone who has set up a

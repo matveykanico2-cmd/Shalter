@@ -135,10 +135,51 @@ export function ChatListPane() {
 
   api.getSettings().then((r) => (settingsCache = r.settings));
 
+  // Обновление списка: не чаще, чем нужно, и без гонок.
+  //
+  // Раньше каждое событие по WebSocket дёргало refetch() напрямую. В оживлённом
+  // чате это давало лавину параллельных запросов, и применялся тот ответ, что
+  // пришёл последним, — а приходил он не обязательно самым свежим. Отсюда и
+  // «чаты иногда пропадают»: список на мгновение заменялся более старым
+  // снимком, где нового чата ещё нет.
+  //
+  // Три правила разом: запросы склеиваются в один (пачка сообщений — одно
+  // обновление), одновременно выполняется не больше одного, и ответ старее
+  // текущего просто выбрасывается.
+  let refetchTimer = null;
+  let inFlight = false;
+  let pending = false;
+  let latestSeq = 0;
+
   async function refetch() {
-    const [chatsRes, foldersRes] = await Promise.all([api.listChats(), api.listFolders()]);
-    notifyNewMessages(chatsRes.chats);
-    setState({ chats: chatsRes.chats, folders: foldersRes.folders });
+    if (inFlight) {
+      pending = true;
+      return;
+    }
+    inFlight = true;
+    const seq = ++latestSeq;
+    try {
+      const [chatsRes, foldersRes] = await Promise.all([api.listChats(), api.listFolders()]);
+      // Пока ответ ехал, успел уйти и вернуться более новый — этот уже неверен.
+      if (seq !== latestSeq) return;
+      notifyNewMessages(chatsRes.chats);
+      setState({ chats: chatsRes.chats, folders: foldersRes.folders });
+    } catch {
+      // Сеть моргнула или сервер ответил отказом — оставляем то, что уже
+      // показано. Пустой список вместо чатов хуже, чем список на секунду
+      // устаревший.
+    } finally {
+      inFlight = false;
+      if (pending) {
+        pending = false;
+        scheduleRefetch(0);
+      }
+    }
+  }
+
+  function scheduleRefetch(delay = 250) {
+    clearTimeout(refetchTimer);
+    refetchTimer = setTimeout(refetch, delay);
   }
 
   function notifyNewMessages(nextChats) {
@@ -156,13 +197,13 @@ export function ChatListPane() {
   // new message's preview/unread badge/ordering shows up without waiting on
   // the poll — that poll now only needs to run as a slow reconnect/catch-up
   // safety net, same as everywhere else this pattern is used.
-  const unsubNew = onWsMessage("message:new", refetch);
-  const unsubUpdated = onWsMessage("message:updated", refetch);
-  const unsubDeleted = onWsMessage("message:deleted", refetch);
+  const unsubNew = onWsMessage("message:new", () => scheduleRefetch());
+  const unsubUpdated = onWsMessage("message:updated", () => scheduleRefetch());
+  const unsubDeleted = onWsMessage("message:deleted", () => scheduleRefetch());
   // Fires when an admin adds this user to an existing group/channel (see
   // POST /api/chats/:id/members's "add" role) — without this the new chat
   // would only appear once the 15s poll below happens to catch up.
-  const unsubAdded = onWsMessage("chat:added", refetch);
+  const unsubAdded = onWsMessage("chat:added", () => scheduleRefetch());
   // Someone with the rights deleted a group/channel for everyone — drop it from
   // the list now, and get out of it if that's the chat currently open, rather
   // than leaving people looking at a conversation that no longer exists.
@@ -173,6 +214,7 @@ export function ChatListPane() {
   const iv = setInterval(refetch, 15000);
   container._cleanup = () => {
     clearInterval(iv);
+    clearTimeout(refetchTimer);
     unsubState();
     unsubNew();
     unsubUpdated();

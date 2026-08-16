@@ -2,8 +2,11 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireBotToken } = require("../middleware/botAuth");
 const { getUser, findUserByUsername, updateUser } = require("../data/users");
-const { listChatsForUser, getChat, updateChat, findChatByUsername } = require("../data/chats");
-const { listAllMessages, getMessage, editMessage, deleteMessage, togglePin, addMessage, listMessagesPage, toggleReaction } = require("../data/messages");
+const { listChatsForUser, getChat, updateChat, findChatByUsername, createChat } = require("../data/chats");
+const { listAllMessages, listNewForChats, listMessages, getMessage, editMessage, deleteMessage, togglePin, addMessage, listMessagesPage, toggleReaction, setKeyboard } = require("../data/messages");
+const { addScheduled, listScheduledFor, getScheduled, deleteScheduled } = require("../data/scheduledMessages");
+const { sanitizePermissions } = require("../lib/chatPermissions");
+const crypto = require("crypto");
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { broadcastToUsers } = require("../ws");
 const { markTyping } = require("../data/typing");
@@ -39,10 +42,11 @@ router.get(
     const myChats = await listChatsForUser(req.bot.userId);
     const myChatIds = new Set(myChats.map((c) => c.id));
 
-    const messages = (await listAllMessages())
-      .filter((m) => myChatIds.has(m.chatId) && m.senderId !== req.bot.userId && m.createdAt > after)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      .slice(0, 200);
+    const messages = listNewForChats([...myChatIds], {
+      after,
+      excludeSenderId: req.bot.userId,
+      limit: 200,
+    });
 
     res.json({ messages });
   })
@@ -479,6 +483,417 @@ router.post(
     if (description !== undefined) await updateBotDescription(req.bot.id, String(description).slice(0, 500));
     const user = await getUser(req.bot.userId);
     res.json({ bot: publicUser(user) });
+  })
+);
+
+// ── Третья партия: медиа, чаты, участники, расписание ───────────────────────
+//
+// Всё ниже — обёртки над тем, что приложение уже умеет. Ни одного метода,
+// который делает вид: если возможности нет в приложении, её нет и в API.
+
+// Общая проверка «бот в этом чате» — повторялась в каждом методе.
+async function botChat(req, res, chatId) {
+  const chat = await getChat(chatId);
+  if (!chat || !chat.memberIds.includes(req.bot.userId)) {
+    res.status(404).json({ error: "Bot is not a member of this chat" });
+    return null;
+  }
+  return chat;
+}
+
+// Отправка вложения одного вида — тело у всех методов одинаковое, отличается
+// только `kind`, поэтому делается одной функцией, а не пятью копиями.
+function mediaSender(kind, defaultText) {
+  return asyncRoute(async (req, res) => {
+    const { chatId, url, caption = "", name, replyToId } = req.body ?? {};
+    if (!url) return res.status(400).json({ error: "url is required" });
+    try {
+      const message = await sendBotMessage(req.bot.userId, chatId, caption || defaultText, {
+        replyToId,
+        attachments: [{ kind, url, name: name ? String(name).slice(0, 200) : undefined }],
+      });
+      res.json({ message });
+    } catch (err) {
+      res.status(404).json({ error: err.message });
+    }
+  });
+}
+
+router.post("/sendVideo", mediaSender("video", "🎬 Видео"));
+router.post("/sendVoice", mediaSender("voice", "🎤 Голосовое"));
+router.post("/sendVideoNote", mediaSender("video-note", "⭕ Кружок"));
+
+router.post(
+  "/sendLocation",
+  asyncRoute(async (req, res) => {
+    const { chatId, lat, lng, caption = "", replyToId } = req.body ?? {};
+    if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
+      return res.status(400).json({ error: "lat and lng are required" });
+    }
+    try {
+      const message = await sendBotMessage(req.bot.userId, chatId, caption || "📍 Место", {
+        replyToId,
+        attachments: [{ kind: "location", meta: { lat: Number(lat), lng: Number(lng) } }],
+      });
+      res.json({ message });
+    } catch (err) {
+      res.status(404).json({ error: err.message });
+    }
+  })
+);
+
+router.post(
+  "/sendContact",
+  asyncRoute(async (req, res) => {
+    const { chatId, name, phone, userId, replyToId } = req.body ?? {};
+    if (!name && !phone) return res.status(400).json({ error: "name or phone is required" });
+    try {
+      const message = await sendBotMessage(req.bot.userId, chatId, `👤 ${name ?? phone}`, {
+        replyToId,
+        attachments: [{ kind: "contact", meta: { name, phone, userId } }],
+      });
+      res.json({ message });
+    } catch (err) {
+      res.status(404).json({ error: err.message });
+    }
+  })
+);
+
+router.post(
+  "/forwardMessage",
+  asyncRoute(async (req, res) => {
+    const { messageId, toChatId } = req.body ?? {};
+    const source = await getMessage(messageId);
+    if (!source) return res.status(404).json({ error: "Message not found" });
+    const from = await botChat(req, res, source.chatId);
+    if (!from) return;
+    const to = await botChat(req, res, toChatId);
+    if (!to) return;
+    const author = await getUser(source.senderId);
+    const message = await addMessage({
+      id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      chatId: to.id,
+      senderId: req.bot.userId,
+      type: source.type ?? "text",
+      text: source.text ?? "",
+      createdAt: new Date().toISOString(),
+      attachments: source.attachments,
+      forwardedFrom: { chatId: from.id, chatTitle: from.title, senderId: source.senderId, senderName: author?.name ?? "—" },
+      readByIds: [],
+    });
+    broadcastToUsers(to.memberIds, { type: "message:new", chatId: to.id, message });
+    res.json({ message });
+  })
+);
+
+router.get(
+  "/getMessage",
+  asyncRoute(async (req, res) => {
+    const message = await getMessage(req.query.messageId);
+    if (!message) return res.status(404).json({ error: "Message not found" });
+    if (!(await botChat(req, res, message.chatId))) return;
+    res.json({ message });
+  })
+);
+
+router.get(
+  "/searchMessages",
+  asyncRoute(async (req, res) => {
+    const chat = await botChat(req, res, req.query.chatId);
+    if (!chat) return;
+    const q = String(req.query.q ?? "").trim().toLowerCase();
+    if (!q) return res.status(400).json({ error: "q is required" });
+    const all = await listMessages(chat.id, req.bot.userId);
+    const found = all.filter((m) => (m.text ?? "").toLowerCase().includes(q)).slice(-50);
+    res.json({ messages: found });
+  })
+);
+
+router.get(
+  "/getPinnedMessages",
+  asyncRoute(async (req, res) => {
+    const chat = await botChat(req, res, req.query.chatId);
+    if (!chat) return;
+    const all = await listMessages(chat.id, req.bot.userId);
+    res.json({ messages: all.filter((m) => m.pinned) });
+  })
+);
+
+router.post(
+  "/unpinChatMessage",
+  asyncRoute(async (req, res) => {
+    const message = await getMessage(req.body?.messageId);
+    if (!message) return res.status(404).json({ error: "Message not found" });
+    const chat = await botChat(req, res, message.chatId);
+    if (!chat) return;
+    if (!(chat.adminIds ?? []).includes(req.bot.userId) && chat.type !== "dm") {
+      return res.status(403).json({ error: "Bot must be an admin to unpin messages" });
+    }
+    const updated = await togglePin(message.id, false);
+    broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+    res.json({ message: updated });
+  })
+);
+
+router.post(
+  "/editMessageKeyboard",
+  asyncRoute(async (req, res) => {
+    const { messageId, keyboard } = req.body ?? {};
+    const found = await botOwns(req.bot.userId, messageId);
+    if (found.error) return res.status(found.status).json({ error: found.error });
+    const message = await setKeyboard(messageId, Array.isArray(keyboard) ? keyboard : []);
+    broadcastToUsers(found.chat.memberIds, { type: "message:updated", chatId: found.chat.id, message });
+    res.json({ message });
+  })
+);
+
+// ── Отложенная отправка ─────────────────────────────────────────────────────
+// Приложение умеет ставить сообщения в очередь; боту это нужно ровно затем же —
+// разослать объявление в назначенный час, а не будить программу ночью.
+router.post(
+  "/scheduleMessage",
+  asyncRoute(async (req, res) => {
+    const { chatId, text, sendAt } = req.body ?? {};
+    const chat = await botChat(req, res, chatId);
+    if (!chat) return;
+    if (!text?.trim()) return res.status(400).json({ error: "text is required" });
+    const when = new Date(sendAt);
+    if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+      return res.status(400).json({ error: "sendAt must be a future ISO date" });
+    }
+    const scheduled = await addScheduled({
+      id: `sm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      chatId: chat.id,
+      senderId: req.bot.userId,
+      text: String(text).slice(0, 4000),
+      attachments: undefined,
+      replyToId: null,
+      sendAt: when.toISOString(),
+      createdAt: new Date().toISOString(),
+    });
+    res.json({ scheduled });
+  })
+);
+
+router.get(
+  "/getScheduled",
+  asyncRoute(async (req, res) => {
+    const chat = await botChat(req, res, req.query.chatId);
+    if (!chat) return;
+    res.json({ scheduled: await listScheduledFor(chat.id, req.bot.userId) });
+  })
+);
+
+router.post(
+  "/cancelScheduled",
+  asyncRoute(async (req, res) => {
+    const item = await getScheduled(req.body?.scheduledId);
+    if (!item || item.senderId !== req.bot.userId) return res.status(404).json({ error: "Not found" });
+    await deleteScheduled(item.id);
+    res.json({ ok: true });
+  })
+);
+
+// ── Чаты и участники ────────────────────────────────────────────────────────
+router.post(
+  "/createGroup",
+  asyncRoute(async (req, res) => {
+    const { title, memberIds } = req.body ?? {};
+    if (!title?.trim()) return res.status(400).json({ error: "title is required" });
+    // Приглашать бот может только тех, с кем уже состоит в общем чате: иначе
+    // токен превращается в право затащить любого человека в любую группу.
+    const known = new Set();
+    for (const c of await listChatsForUser(req.bot.userId)) for (const id of c.memberIds) known.add(id);
+    const invited = (Array.isArray(memberIds) ? memberIds : []).filter((id) => known.has(id));
+    const now = new Date().toISOString();
+    const chat = await createChat({
+      id: `c_${Date.now()}`,
+      type: "group",
+      title: String(title).trim().slice(0, 120),
+      avatarColor: "#5b8def",
+      memberIds: [req.bot.userId, ...invited],
+      ownerId: req.bot.userId,
+      adminIds: [req.bot.userId],
+      pinned: false,
+      muted: false,
+      archived: false,
+      createdAt: now,
+    });
+    broadcastToUsers(chat.memberIds, { type: "chat:created", chat });
+    res.json({ chat: { id: chat.id, title: chat.title, memberCount: chat.memberIds.length } });
+  })
+);
+
+router.post(
+  "/addChatMember",
+  asyncRoute(async (req, res) => {
+    const { chatId, userId } = req.body ?? {};
+    const chat = await requireBotAdmin(req, res, chatId);
+    if (!chat) return;
+    const user = await getUser(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (chat.memberIds.includes(userId)) return res.json({ ok: true, alreadyMember: true });
+    const updated = await updateChat(chat.id, { memberIds: [...chat.memberIds, userId] });
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    res.json({ ok: true, memberCount: updated.memberIds.length });
+  })
+);
+
+router.post(
+  "/promoteChatMember",
+  asyncRoute(async (req, res) => {
+    const { chatId, userId, admin = true } = req.body ?? {};
+    const chat = await requireBotAdmin(req, res, chatId);
+    if (!chat) return;
+    // Владельца не разжаловать — он не «просто ещё один администратор».
+    if (userId === chat.ownerId) return res.status(400).json({ error: "Cannot change the owner" });
+    if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "User is not a member" });
+    const current = new Set(chat.adminIds ?? []);
+    admin ? current.add(userId) : current.delete(userId);
+    const updated = await updateChat(chat.id, { adminIds: [...current] });
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    res.json({ ok: true, adminIds: updated.adminIds });
+  })
+);
+
+router.get(
+  "/getChatAdmins",
+  asyncRoute(async (req, res) => {
+    const chat = await botChat(req, res, req.query.chatId);
+    if (!chat) return;
+    const admins = await Promise.all((chat.adminIds ?? []).map((id) => getUser(id)));
+    res.json({ ownerId: chat.ownerId, admins: publicUsers(admins.filter(Boolean)) });
+  })
+);
+
+router.get(
+  "/getChatMemberCount",
+  asyncRoute(async (req, res) => {
+    const chat = await botChat(req, res, req.query.chatId);
+    if (!chat) return;
+    res.json({ count: chat.memberIds.length });
+  })
+);
+
+router.get(
+  "/getChatMember",
+  asyncRoute(async (req, res) => {
+    const chat = await botChat(req, res, req.query.chatId);
+    if (!chat) return;
+    const user = await getUser(req.query.userId);
+    if (!user || !chat.memberIds.includes(user.id)) return res.status(404).json({ error: "User is not a member" });
+    res.json({
+      user: publicUser(user),
+      isAdmin: (chat.adminIds ?? []).includes(user.id),
+      isOwner: chat.ownerId === user.id,
+      restrictedUntil: chat.restrictions?.[user.id] ?? null,
+    });
+  })
+);
+
+router.post(
+  "/setChatPermissions",
+  asyncRoute(async (req, res) => {
+    const chat = await requireBotAdmin(req, res, req.body?.chatId);
+    if (!chat) return;
+    const clean = sanitizePermissions(req.body?.permissions);
+    if (!clean) return res.status(400).json({ error: "permissions object is required" });
+    const updated = await updateChat(chat.id, { permissions: { ...(chat.permissions ?? {}), ...clean } });
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    res.json({ permissions: updated.permissions });
+  })
+);
+
+router.post(
+  "/exportChatInviteLink",
+  asyncRoute(async (req, res) => {
+    const chat = await requireBotAdmin(req, res, req.body?.chatId);
+    if (!chat) return;
+    const code = chat.inviteCode && !req.body?.revoke ? chat.inviteCode : crypto.randomBytes(16).toString("base64url").slice(0, 22);
+    const updated = chat.inviteCode === code ? chat : await updateChat(chat.id, { inviteCode: code });
+    res.json({ code: updated.inviteCode, link: `/join/${updated.inviteCode}` });
+  })
+);
+
+// ── Люди ────────────────────────────────────────────────────────────────────
+router.get(
+  "/getUserStatus",
+  asyncRoute(async (req, res) => {
+    const user = await getUser(req.query.userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json({ online: !!user.online, lastSeen: user.lastSeen ?? null });
+  })
+);
+
+router.get(
+  "/getCommonChats",
+  asyncRoute(async (req, res) => {
+    const user = await getUser(req.query.userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    const chats = (await listChatsForUser(req.bot.userId)).filter((c) => c.memberIds.includes(user.id));
+    res.json({ chats: chats.map((c) => ({ id: c.id, type: c.type, title: c.title })) });
+  })
+);
+
+// ── Каналы ──────────────────────────────────────────────────────────────────
+router.post(
+  "/publishPost",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.body?.chatId);
+    if (!chat || chat.type !== "channel") return res.status(404).json({ error: "Channel not found" });
+    if (!(chat.adminIds ?? []).includes(req.bot.userId)) {
+      return res.status(403).json({ error: "Bot must be an admin of this channel" });
+    }
+    const { text = "", url } = req.body ?? {};
+    if (!text.trim() && !url) return res.status(400).json({ error: "text or url is required" });
+    const post = await addMessage({
+      id: `m_${Date.now()}`,
+      chatId: chat.id,
+      senderId: req.bot.userId,
+      type: "text",
+      text: String(text).slice(0, 4000),
+      createdAt: new Date().toISOString(),
+      attachments: url ? [{ kind: "image", url }] : undefined,
+      readByIds: [req.bot.userId],
+      views: 0,
+      commentCount: 0,
+    });
+    broadcastToUsers(chat.memberIds, { type: "message:new", chatId: chat.id, message: post });
+    res.json({ message: post });
+  })
+);
+
+router.get(
+  "/getChannelStats",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.query.chatId);
+    if (!chat || chat.type !== "channel") return res.status(404).json({ error: "Channel not found" });
+    if (!(chat.adminIds ?? []).includes(req.bot.userId)) {
+      return res.status(403).json({ error: "Bot must be an admin of this channel" });
+    }
+    const posts = (await listMessages(chat.id, req.bot.userId)).filter((m) => m.type !== "system");
+    res.json({
+      subscribers: chat.memberIds.length,
+      posts: posts.length,
+      views: posts.reduce((s, m) => s + (m.views ?? 0), 0),
+      comments: posts.reduce((s, m) => s + (m.commentCount ?? 0), 0),
+    });
+  })
+);
+
+// ── О себе ──────────────────────────────────────────────────────────────────
+router.get(
+  "/getMyStats",
+  asyncRoute(async (req, res) => {
+    const chats = await listChatsForUser(req.bot.userId);
+    const all = await listAllMessages();
+    const mine = all.filter((m) => m.senderId === req.bot.userId);
+    res.json({
+      chats: chats.length,
+      messagesSent: mine.length,
+      // С кем бот вообще общался — уникальные собеседники во всех его чатах.
+      people: new Set(chats.flatMap((c) => c.memberIds).filter((id) => id !== req.bot.userId)).size,
+    });
   })
 );
 

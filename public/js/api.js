@@ -251,6 +251,10 @@ export const api = {
   listBots: () => req("/api/bots"),
   createBot: (name, avatarImage, description) =>
     req("/api/bots", { method: "POST", body: JSON.stringify({ name, avatarImage, description }) }),
+  // Посмотреть токен ещё раз — без перевыпуска, который сломал бы работающего бота.
+  getBotToken: (id) => req(`/api/bots/${id}/token`),
+  // Сколько людей пользуется ботом — показывается в шапке его чата.
+  getBotAudience: (userId) => req(`/api/bots/audience/${userId}`),
   regenerateBotToken: (id) => req(`/api/bots/${id}/regenerate-token`, { method: "POST" }),
   deleteBot: (id) => req(`/api/bots/${id}`, { method: "DELETE" }),
   saveBotCode: (id, code) => req(`/api/bots/${id}/code`, { method: "PUT", body: JSON.stringify({ code }) }),

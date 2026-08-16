@@ -45,6 +45,8 @@ const PATHS = {
   Play: '<path d="M7 5l12 7-12 7V5Z"/>',
   // Пауза записи (composer.js) — раньше её не было вовсе, потому что и паузы не было.
   Pause: '<path d="M8 5v14M16 5v14"/>',
+  // Ключ — «показать токен бота» (settings/index.js).
+  Key: '<circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M17 6l2 2M14 9l2 2"/>',
   Download: '<path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/>',
   Accounts: '<circle cx="9" cy="9" r="5"/><path d="M15 6a5 5 0 0 1 0 9.8"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/>',
   FlipCamera:

@@ -32,6 +32,7 @@
   <div class="doc-shell">
     <nav class="doc-nav">
       <h4>Начало</h4>
+      <a href="#index">Все методы</a>
       <a href="#ways">Два способа</a>
       <a href="#token">Токен</a>
       <a href="#quickstart">Быстрый старт</a>
@@ -48,6 +49,11 @@
       <a href="#history">История чата</a>
       <a href="#more-send">Стикеры, опросы, реакции</a>
       <a href="#admin">Права администратора</a>
+      <a href="#media2">Видео, голос, место, контакт</a>
+      <a href="#msg-more">Работа с сообщениями</a>
+      <a href="#schedule">Отложенная отправка</a>
+      <a href="#members">Участники и права</a>
+      <a href="#channels">Каналы</a>
       <a href="#profile">Профиль бота</a>
       <a href="#keyboard">Кнопки</a>
       <a href="#commands">Команды</a>
@@ -70,6 +76,76 @@
           без хостинга вообще.
         </p>
       </section>
+
+      <h2 id="index">Все методы</h2>
+      <p>
+        53 методов. Все — по адресу <code>/api/bot-api</code>, все с заголовком
+        <code>Authorization: Bearer …</code>, все принимают и отдают JSON.
+      </p>
+      <table class="doc-table doc-index">
+        <tbody>
+        <tr><th colspan="2" class="doc-index-group">Сообщения</th></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendMessage</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendPhoto</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendDocument</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendVideo</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendVoice</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendVideoNote</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendSticker</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendPoll</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendLocation</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendContact</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/forwardMessage</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/editMessageText</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/editMessageKeyboard</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/deleteMessage</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendReaction</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getMessage</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getMessages</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/searchMessages</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getPinnedMessages</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/pinChatMessage</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/unpinChatMessage</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendChatAction</code></td><td></td></tr>
+        <tr><th colspan="2" class="doc-index-group">Отложенная отправка</th></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/scheduleMessage</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getScheduled</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/cancelScheduled</code></td><td></td></tr>
+        <tr><th colspan="2" class="doc-index-group">Чаты</th></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getChats</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getChat</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/createGroup</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/setChatTitle</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/setChatDescription</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/setChatPermissions</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/exportChatInviteLink</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/leaveChat</code></td><td></td></tr>
+        <tr><th colspan="2" class="doc-index-group">Участники</th></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getChatAdmins</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getChatMember</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getChatMemberCount</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/addChatMember</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/promoteChatMember</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/restrictChatMember</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/banChatMember</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/deleteAnyMessage</code></td><td></td></tr>
+        <tr><th colspan="2" class="doc-index-group">Люди</th></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/resolveUsername</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getUser</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getUserStatus</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getCommonChats</code></td><td></td></tr>
+        <tr><th colspan="2" class="doc-index-group">Каналы</th></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/publishPost</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getChannelStats</code></td><td></td></tr>
+        <tr><th colspan="2" class="doc-index-group">Бот</th></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/me</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/updates</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getMyCommands</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/setMyCommands</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/setMyProfile</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/getMyStats</code></td><td></td></tr>
+        </tbody>
+      </table>
 
       <h2 id="ways">Два способа сделать бота</h2>
       <div class="doc-ways">
@@ -95,7 +171,12 @@
       <p>
         Настройки → <strong>Боты</strong> → «Создать бота». У бота сразу появляется собственный аккаунт с
         юзернеймом вида <code>@name_bot</code> и токен — длинная строка, которая и есть право говорить от его
-        имени. Токен виден там же, рядом с ботом; его можно перевыпустить, если он утёк.
+        имени.
+      </p>
+      <p>
+        Потерять токен нестрашно: кнопка с ключом рядом с ботом показывает действующий в любой момент.
+        Перевыпуск (кнопка обновления) выдаёт новый и делает старый недействительным — работающая программа
+        со старым токеном сразу перестанет отвечать, так что перевыпускайте только если он утёк.
       </p>
       <div class="doc-note danger">
         <strong>Токен — это пароль бота.</strong>
@@ -318,12 +399,75 @@ await fetch(`${API}/editMessageText`, {
         было бы обезглавить чат.
       </div>
 
+      <h2 id="media2">Видео, голос, место, контакт</h2>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendVideo</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendVoice</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendVideoNote</div>
+      <p>Те же поля, что у <code>sendPhoto</code>: <code>chatId</code>, <code>url</code>, <code>caption</code>,
+        <code>replyToId</code>. Файл передаётся ссылкой — см. раздел «Картинки и файлы».</p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendLocation</div>
+      <p><code>lat</code> и <code>lng</code> — точка на карте.</p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendContact</div>
+      <p><code>name</code>, <code>phone</code>, необязательный <code>userId</code>.</p>
+
+      <h2 id="msg-more">Работа с сообщениями</h2>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/forwardMessage</div>
+      <p><code>messageId</code> и <code>toChatId</code> — оба чата должны быть чатами бота. В пересланном
+        видно, откуда и от кого оно.</p>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getMessage?messageId=…</div>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/searchMessages?chatId=…&amp;q=…</div>
+      <p>Поиск внутри одного чата, до 50 последних совпадений.</p>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getPinnedMessages?chatId=…</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/unpinChatMessage</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/editMessageKeyboard</div>
+      <p>Заменить кнопки под своим сообщением, не трогая текст — так бот обновляет клавиатуру после нажатия.</p>
+
+      <h2 id="schedule">Отложенная отправка</h2>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/scheduleMessage</div>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getScheduled?chatId=…</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/cancelScheduled</div>
+      <p>
+        <code>sendAt</code> — время в ISO 8601, обязательно будущее. Нужно затем же, зачем людям: разослать
+        объявление в назначенный час, а не будить программу ночью.
+      </p>
+
+      <h2 id="members">Участники и права</h2>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/createGroup</div>
+      <p>
+        <code>title</code> и <code>memberIds</code>. Бот становится владельцем созданной группы.
+      </p>
+      <div class="doc-note">
+        <strong>Позвать можно только знакомых.</strong>
+        В <code>memberIds</code> проходят лишь те, с кем бот уже состоит в общем чате — иначе токен
+        превращался бы в право затащить любого человека в любую группу.
+      </div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/addChatMember</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/promoteChatMember</div>
+      <p><code>admin: true｜false</code>. Владельца изменить нельзя — он не «ещё один администратор».</p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setChatPermissions</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/exportChatInviteLink</div>
+      <p><code>revoke: true</code> выпускает новую ссылку вместо старой.</p>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getChatAdmins?chatId=…</div>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getChatMember?chatId=…&amp;userId=…</div>
+      <p>Отдаёт человека, его права и срок ограничения, если он есть.</p>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getChatMemberCount?chatId=…</div>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getUserStatus?userId=…</div>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getCommonChats?userId=…</div>
+      <p>Общие чаты бота с этим человеком.</p>
+
+      <h2 id="channels">Каналы</h2>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/publishPost</div>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getChannelStats?chatId=…</div>
+      <p>Подписчики, посты, просмотры и комментарии. И то и другое — только для канала, где бот администратор.</p>
+
       <h2 id="profile">Профиль бота</h2>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setMyProfile</div>
       <p>
         <code>name</code> и <code>description</code> — как бот представляется. Удобно править вместе с
         выкладкой новой версии, а не руками в настройках.
       </p>
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getMyStats</div>
+      <p>Сколько у бота чатов, сколько он отправил сообщений и со сколькими людьми пересекается.</p>
 
       <h2 id="keyboard">Кнопки</h2>
       <p>

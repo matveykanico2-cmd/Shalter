@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotCode, updateBotCommands, updateBotDescription } = require("../data/bots");
+const { countBotAudience, getBotByUserId, getBotToken, listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotCode, updateBotCommands, updateBotDescription } = require("../data/bots");
 const { createUser, getUser, updateUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { checkUsername, normalizeUsername, generateBotUsername } = require("../lib/username");
@@ -66,6 +66,21 @@ async function requireOwnedBot(req, res) {
   }
   return bot;
 }
+
+// Показать токен ещё раз. Раньше его можно было только перевыпустить — а это
+// ломает уже работающего бота: старый токен перестаёт действовать, и программа
+// на чьём-то сервере молча перестаёт отвечать. Владелец, потерявший строку,
+// не должен платить за это простоем.
+router.get(
+  "/:id/token",
+  asyncRoute(async (req, res) => {
+    const bot = await requireOwnedBot(req, res);
+    if (!bot) return;
+    const token = getBotToken(bot.id);
+    if (!token) return res.status(404).json({ error: "Токен не найден" });
+    res.json({ token });
+  })
+);
 
 router.post(
   "/:id/regenerate-token",
@@ -211,6 +226,21 @@ router.get(
     const bot = await requireOwnedBot(req, res);
     if (!bot) return;
     res.json({ logs: botLogs.getLogs(bot.id) });
+  })
+);
+
+// Сколько людей пользуется ботом. Показывается в шапке чата с ботом вместо
+// «в сети»: у программы нет присутствия — она не «заходила» и не «была
+// недавно», — а число собеседников как раз говорит о боте что-то настоящее.
+//
+// Считается по join-таблице участников, а не перебором чатов в памяти: у
+// популярного бота их тысячи.
+router.get(
+  "/audience/:userId",
+  asyncRoute(async (req, res) => {
+    const bot = await getBotByUserId(req.params.userId);
+    if (!bot) return res.status(404).json({ error: "Это не бот" });
+    res.json({ users: countBotAudience(req.params.userId) });
   })
 );
 

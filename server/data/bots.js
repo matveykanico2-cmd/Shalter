@@ -34,6 +34,28 @@ async function getBotByUserId(userId) {
   return rowToBot(db.prepare("SELECT * FROM bots WHERE userId = ?").get(userId));
 }
 
+// Токен читается отдельным запросом и только по явному требованию: в rowToBot
+// его нет намеренно, иначе он попадал бы в каждый ответ со списком ботов, в
+// журналы и в отладочные распечатки.
+// Сколько разных людей состоят с ботом в одном чате. Один SQL-запрос по
+// join-таблице: перебирать чаты в памяти у популярного бота значит читать
+// тысячи строк ради одного числа.
+function countBotAudience(botUserId) {
+  const row = db
+    .prepare(
+      `SELECT COUNT(DISTINCT m.userId) AS n
+         FROM chat_members m
+        WHERE m.userId <> ?
+          AND m.chatId IN (SELECT chatId FROM chat_members WHERE userId = ?)`
+    )
+    .get(botUserId, botUserId);
+  return row?.n ?? 0;
+}
+
+function getBotToken(id) {
+  return db.prepare("SELECT token FROM bots WHERE id = ?").get(id)?.token ?? null;
+}
+
 async function getBotByToken(token) {
   return rowToBot(db.prepare("SELECT * FROM bots WHERE token = ?").get(token));
 }
@@ -87,6 +109,8 @@ module.exports = {
   getBot,
   getBotByUserId,
   getBotByToken,
+  getBotToken,
+  countBotAudience,
   createBot,
   regenerateToken,
   deleteBot,

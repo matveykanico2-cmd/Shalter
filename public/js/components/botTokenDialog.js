@@ -1,16 +1,26 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 
-// Shown once right after a bot is created (and again after "Обновить
-// токен") — the token is never shown anywhere else, so this is the only
-// chance to copy it before it's gone from view.
-export function openBotTokenDialog(botName, token) {
+// Показывается после создания бота, после перевыпуска токена и по кнопке
+// «Показать токен».
+//
+// `fresh` меняет только надпись, и это важно: раньше здесь стояло «второй раз
+// он нигде не показывается», и это было правдой — токен нельзя было посмотреть,
+// только перевыпустить, ломая работающего бота. Теперь можно, и обещать
+// обратное нельзя.
+export function openBotTokenDialog(botName, token, { fresh = true } = {}) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const copiedNote = el("p", { class: "settings-toggle-hint" });
 
   const dialog = el("div", { class: "modal-dialog" }, [
     el("h2", { class: "modal-title" }, `Токен бота «${botName}»`),
-    el("p", { class: "settings-toggle-hint" }, "Сохраните его сейчас — второй раз он нигде не показывается. Если потеряете, его можно обновить (старый перестанет работать)."),
+    el(
+      "p",
+      { class: "settings-toggle-hint" },
+      fresh
+        ? "Сохраните его. Посмотреть снова можно кнопкой с ключом рядом с ботом; перевыпуск делает старый токен недействительным."
+        : "Это действующий токен бота. Кто им владеет — тот и есть бот, поэтому не публикуйте его."
+    ),
     el("div", { class: "referral-code-row" }, [
       el("span", { class: "mono bot-token-value" }, token),
       el("button", {

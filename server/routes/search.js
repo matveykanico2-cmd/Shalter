@@ -2,7 +2,7 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { listChatsForUser, searchPublicChannels } = require("../data/chats");
-const { listAllMessages } = require("../data/messages");
+const { searchInChats } = require("../data/messages");
 const { listUsers } = require("../data/users");
 const { publicUsers } = require("../data/sanitize");
 
@@ -29,10 +29,9 @@ router.get(
     const handle = q.replace(/^@/, "");
     if (!q) return res.json({ chats: [], channels: [], users: [], bots: [], messages: [] });
 
-    const [chats, users, messages, publicChannels] = await Promise.all([
+    const [chats, users, publicChannels] = await Promise.all([
       listChatsForUser(req.uid),
       listUsers(),
-      listAllMessages(),
       searchPublicChannels(raw),
     ]);
 
@@ -85,10 +84,14 @@ router.get(
       )
       .sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name, "ru"));
 
-    const chatIds = new Set(chats.map((c) => c.id));
-    const matchedMessages = messages
-      .filter((m) => chatIds.has(m.chatId) && !m.deleted && m.text.toLowerCase().includes(q))
-      .slice(-LIMIT);
+    // Поиск по сообщениям делает база: раньше сюда выгружалась вся таблица
+    // целиком и фильтровалась в памяти — на живом аккаунте это десятки тысяч
+    // объектов, из которых показываются двадцать.
+    const matchedMessages = searchInChats(
+      chats.map((c) => c.id),
+      q,
+      { limit: LIMIT }
+    ).filter((m) => !m.deleted);
 
     res.json({
       chats: matchedChats,
