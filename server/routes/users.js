@@ -6,7 +6,7 @@ const { publicUser, selfUser, publicUsers } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
 const { listChats } = require("../data/chats");
-const { listMessages } = require("../data/messages");
+const { listMediaMessages, listMessages } = require("../data/messages");
 const { PHONE_RE, normalizePhone } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 
@@ -97,7 +97,8 @@ router.get(
     );
     if (!chat) return res.json(empty);
 
-    const messages = await listMessages(chat.id, req.uid);
+    // Только то, что может попасть в эти вкладки: вложения и ссылки.
+    const messages = listMediaMessages(chat.id, req.uid);
     const media = [];
     const files = [];
     const links = [];

@@ -4,6 +4,7 @@ const { getChat } = require("../data/chats");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 const { sanitizeSticker } = require("../lib/sanitizeSticker");
 const {
+  searchInChats,
   listMessages,
   listMessagesPage,
   listThreadReplies,
@@ -158,9 +159,13 @@ router.get(
     const q = String(req.query.q ?? "").trim().toLowerCase();
     if (!q) return res.json({ messages: [] });
     const settings = await getSettings(req.uid);
-    const all = await listMessages(req.params.id, req.uid, settings.chatClears?.[req.params.id]);
-    // Newest first: looking for something you remember means looking backwards.
-    const found = all.filter((m) => !m.deleted && (m.text ?? "").toLowerCase().includes(q)).reverse().slice(0, 50);
+    const clearedBefore = settings.chatClears?.[req.params.id];
+    // Тем же полнотекстовым указателем, что и общий поиск: читать весь чат ради
+    // одного слова незачем.
+    const found = searchInChats([req.params.id], q, { limit: 50 })
+      .filter((m) => !m.deleted && (!clearedBefore || m.createdAt > clearedBefore))
+      // Newest first: looking for something you remember means looking backwards.
+      .reverse();
     res.json({ messages: found });
   })
 );

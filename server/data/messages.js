@@ -53,19 +53,57 @@ function listNewForChats(chatIds, { after, excludeSenderId, limit = 200 }) {
     .map(rowToMessage);
 }
 
-// Поиск по тексту в заданных чатах. LIKE с обеих сторон индекс не использует,
-// но перебирает базу сама SQLite — без выгрузки всех строк в память и без
-// создания объекта на каждое сообщение, которых потом выбрасывают 99.9%.
+// Поиск по тексту — через полнотекстовый указатель (db.js, messages_fts).
+// LIKE '%слово%' индексом пользоваться не может в принципе и заставляет базу
+// читать каждую строку: замерено, 12.8 мс против доли миллисекунды на
+// шестидесяти тысячах сообщений.
+//
+// Последнее слово ищется как начало слова: человек в строке поиска ещё
+// печатает, и «сообщ» должно находить «сообщение», а не молчать до последней
+// буквы.
 function searchInChats(chatIds, query, { limit = 40 } = {}) {
   if (!chatIds.length || !query) return [];
+  const words = String(query)
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.replace(/["*^()]/g, ""))
+    .filter(Boolean);
+  if (!words.length) return [];
+  const match = words.map((w, i) => (i === words.length - 1 ? `"${w}"*` : `"${w}"`)).join(" AND ");
   const ph = chatIds.map(() => "?").join(",");
+  try {
+    return db
+      .prepare(
+        `SELECT m.* FROM messages_fts f
+           JOIN messages m ON m.rowid = f.rowid
+          WHERE messages_fts MATCH ? AND m.chatId IN (${ph})
+          ORDER BY m.createdAt DESC LIMIT ?`
+      )
+      .all(match, ...chatIds, limit)
+      .map(rowToMessage)
+      .reverse();
+  } catch {
+    // Запрос из одних знаков препинания FTS5 отвергает — это не повод отдавать
+    // ошибку тому, кто просто печатает в строке поиска.
+    return [];
+  }
+}
+
+// Сообщения с вложениями или ссылками — для вкладок «Медиа», «Файлы»,
+// «Ссылки» в профиле. Раньше туда читалась вся переписка целиком, а нужны из
+// неё единицы: в чате на две тысячи сообщений это две тысячи разобранных
+// строк JSON ради десятка картинок.
+function listMediaMessages(chatId, viewerId, { limit = 300 } = {}) {
   return db
     .prepare(
       `SELECT * FROM messages
-        WHERE chatId IN (${ph}) AND lower(text) LIKE ?
+        WHERE chatId = ?
+          AND deletedForIds NOT LIKE ?
+          AND threadRootId IS NULL
+          AND (attachments IS NOT NULL OR linkPreview IS NOT NULL OR text LIKE '%http%')
         ORDER BY createdAt DESC LIMIT ?`
     )
-    .all(...chatIds, `%${String(query).toLowerCase()}%`, limit)
+    .all(chatId, `%"${viewerId}"%`, limit)
     .map(rowToMessage)
     .reverse();
 }
@@ -292,8 +330,30 @@ function markRead(id, userId) {
 // Bulk version of markRead for "viewer opened this chat" — one transaction
 // instead of one mutate() per message. Returns the ids that actually changed
 // (so callers can skip broadcasting a no-op read receipt).
+// Отметка «всё до этого момента прочитано» — ради скорости подсчёта
+// непрочитанных (db.js, chat_reads). Ставится ровно там, где чат и правда
+// прочитан целиком.
+function setReadWatermark(chatId, userId, at) {
+  db.prepare(
+    `INSERT INTO chat_reads (chatId, userId, lastReadAt) VALUES (?, ?, ?)
+     ON CONFLICT(chatId, userId) DO UPDATE SET lastReadAt = excluded.lastReadAt
+     WHERE excluded.lastReadAt > chat_reads.lastReadAt`
+  ).run(chatId, userId, at);
+}
+
+function readWatermarksFor(userId) {
+  return new Map(
+    db.prepare("SELECT chatId, lastReadAt FROM chat_reads WHERE userId = ?").all(userId).map((r) => [r.chatId, r.lastReadAt])
+  );
+}
+
 async function markChatRead(chatId, viewerId) {
-  const rows = db.prepare("SELECT id, senderId, readByIds FROM messages WHERE chatId = ?").all(chatId);
+  // Читаем только непрочитанное этим человеком, а не весь чат. Раньше здесь
+  // выбирались все сообщения чата — на каждое открытие переписки в тысячу
+  // сообщений это тысяча строк ради двух изменённых.
+  const rows = db
+    .prepare("SELECT id, senderId, readByIds, createdAt FROM messages WHERE chatId = ? AND senderId <> ? AND readByIds NOT LIKE ?")
+    .all(chatId, viewerId, `%"${viewerId}"%`);
   const changedIds = [];
   const update = db.prepare("UPDATE messages SET readByIds = ? WHERE id = ?");
   const txn = db.transaction(() => {
@@ -307,6 +367,10 @@ async function markChatRead(chatId, viewerId) {
     }
   });
   txn();
+  // Граница прочитанного — по самому свежему сообщению чата, а не по времени
+  // вызова: часы клиента и сервера могут разойтись, а порядок строк — нет.
+  const newest = db.prepare("SELECT MAX(createdAt) AS at FROM messages WHERE chatId = ?").get(chatId)?.at;
+  if (newest) setReadWatermark(chatId, viewerId, newest);
   return changedIds;
 }
 
@@ -361,6 +425,7 @@ module.exports = {
   // их в сообщения тем же способом, что и остальной код.
   rowToMessage,
   listAllMessages,
+  listMediaMessages,
   listNewForChats,
   searchInChats,
   listMessages,
@@ -378,6 +443,8 @@ module.exports = {
   toggleReaction,
   markRead,
   markChatRead,
+  setReadWatermark,
+  readWatermarksFor,
   votePoll,
   incrementViews,
   incrementCommentCount,

@@ -1,5 +1,5 @@
 const db = require("../db");
-const { rowToMessage } = require("./messages");
+const { rowToMessage, readWatermarksFor } = require("./messages");
 const { getUser } = require("./users");
 const { publicUser } = require("./sanitize");
 const { getSettings } = require("./settings");
@@ -24,18 +24,12 @@ function jsonHas(id) {
   return `%"${id}"%`;
 }
 
-// SQLite не любит списки переменной длины — плейсхолдеры строятся под размер.
-function placeholders(n) {
-  return new Array(n).fill("?").join(",");
-}
-
 async function attachSummaries(chats, userId) {
   if (!chats.length) return [];
   const settings = await getSettings(userId);
   const chatClears = settings.chatClears ?? {};
   const drafts = settings.drafts ?? {};
   const ids = chats.map((c) => c.id);
-  const ph = placeholders(ids.length);
 
   // Последние сообщения — по маленькому запросу на чат.
   //
@@ -54,31 +48,24 @@ async function attachSummaries(chats, userId) {
   );
   const lastByChat = new Map(ids.map((id) => [id, lastOfChat.all(id, jsonHas(userId))]));
 
-  // Непрочитанные и упоминания — одним проходом по индексу (chatId, createdAt).
-  const unreadRows = db
-    .prepare(
-      `SELECT chatId,
-              COUNT(*) AS unread,
-              SUM(CASE WHEN mentionedUserIds LIKE ? THEN 1 ELSE 0 END) AS mentions,
-              MIN(createdAt) AS oldestUnread
-         FROM messages
-        WHERE chatId IN (${ph})
-          AND threadRootId IS NULL
-          AND senderId <> ?
-          AND readByIds NOT LIKE ?
-          AND deletedForIds NOT LIKE ?
-        GROUP BY chatId`
-    )
-    .all(jsonHas(userId), ...ids, userId, jsonHas(userId), jsonHas(userId));
-  const unreadByChat = new Map(unreadRows.map((r) => [r.chatId, r]));
-
-  // Очистка истории — редкая штука, поэтому для затронутых чатов считаем
-  // отдельным запросом, вместо того чтобы усложнять общий.
-  const clearedUnread = db.prepare(
+  // Непрочитанные и упоминания.
+  //
+  // Считаются только по сообщениям новее отметки прочтения (data/messages.js,
+  // chat_reads): всё, что старше, прочитано по определению — отметка ставится
+  // ровно в тот момент, когда чат прочитан целиком. Без неё приходилось
+  // проверять `readByIds NOT LIKE` у каждого сообщения чата, а это перебор всей
+  // переписки на каждое обновление списка.
+  //
+  // Отметки может не быть (чат ни разу не открывали, или база из прошлой
+  // версии) — тогда границей служит пустая строка, и запрос честно проходит по
+  // всему чату, как раньше.
+  const watermarks = readWatermarksFor(userId);
+  const unreadOfChat = db.prepare(
     `SELECT COUNT(*) AS unread, SUM(CASE WHEN mentionedUserIds LIKE ? THEN 1 ELSE 0 END) AS mentions
        FROM messages
       WHERE chatId = ? AND threadRootId IS NULL AND senderId <> ?
-        AND readByIds NOT LIKE ? AND deletedForIds NOT LIKE ? AND createdAt > ?`
+        AND createdAt > ?
+        AND readByIds NOT LIKE ? AND deletedForIds NOT LIKE ?`
   );
 
   // Собеседники — только те, что нужны этому списку, а не все пользователи базы.
@@ -100,17 +87,11 @@ async function attachSummaries(chats, userId) {
     const candidates = (lastByChat.get(chat.id) ?? []).filter((r) => !clearedBefore || r.createdAt > clearedBefore);
     const lastMessage = candidates.length ? rowToMessage(candidates[0]) : null;
 
-    let unreadCount = 0;
-    let hasUnreadMention = false;
-    if (clearedBefore) {
-      const row = clearedUnread.get(jsonHas(userId), chat.id, userId, jsonHas(userId), jsonHas(userId), clearedBefore);
-      unreadCount = row?.unread ?? 0;
-      hasUnreadMention = (row?.mentions ?? 0) > 0;
-    } else {
-      const row = unreadByChat.get(chat.id);
-      unreadCount = row?.unread ?? 0;
-      hasUnreadMention = (row?.mentions ?? 0) > 0;
-    }
+    // Граница — позднейшая из двух: до чего дочитали и до чего очистили.
+    const since = [watermarks.get(chat.id) ?? "", clearedBefore ?? ""].sort().pop();
+    const row = unreadOfChat.get(jsonHas(userId), chat.id, userId, since, jsonHas(userId), jsonHas(userId));
+    const unreadCount = row?.unread ?? 0;
+    const hasUnreadMention = (row?.mentions ?? 0) > 0;
 
     const otherUserId = (chat.type === "dm" || chat.type === "bot") && chat.memberIds.find((id) => id !== userId);
     const otherUser = otherUserId ? peers.get(otherUserId) ?? null : null;

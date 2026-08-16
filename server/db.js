@@ -232,6 +232,48 @@ CREATE TABLE IF NOT EXISTS vapid_keys (
 -- first use and never regenerated: the matching public half lives in a DNS TXT
 -- record, so a new keypair would silently invalidate every letter until DNS is
 -- updated too. Same "id=1, upsert in place" shape as vapid_keys above.
+-- Граница прочитанного: всё, что старше lastReadAt, в этом чате прочитано.
+--
+-- Нужна ради скорости, а не ради правды: правда по-прежнему в readByIds на
+-- каждом сообщении. Но пересчитывать непрочитанные, просматривая весь чат,
+-- дорого — на живом аккаунте это был один из двух самых тяжёлых запросов
+-- (12 мс на список чатов). С этой границей достаточно посмотреть на сообщения
+-- новее её, а их единицы.
+CREATE TABLE IF NOT EXISTS chat_reads (
+  chatId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  lastReadAt TEXT NOT NULL,
+  PRIMARY KEY (chatId, userId)
+);
+
+-- Полнотекстовый указатель по сообщениям.
+--
+-- Поиск через LIKE '%слово%' индексом пользоваться не может по своей природе:
+-- база вынуждена прочитать каждую строку. FTS5 хранит отдельный указатель
+-- слово → сообщение, и поиск становится обращением к нему, а не перебором.
+-- content='messages' означает, что тексты не дублируются: указатель ссылается
+-- на исходную таблицу.
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+  text,
+  content='messages',
+  content_rowid='rowid',
+  tokenize='unicode61 remove_diacritics 2'
+);
+
+-- Указатель поддерживается триггерами, а не руками в коде: любая запись мимо
+-- addMessage() иначе оставила бы его несогласованным, и поиск молча перестал
+-- бы находить часть переписки.
+CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
+  INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
+  INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+END;
+CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE OF text ON messages BEGIN
+  INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+  INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
+END;
+
 -- Кто уже видел пост канала (server/data/postViews.js). Отдельная таблица, а
 -- не список на самом сообщении: readByIds для этого не годится — открытие чата
 -- помечает всё прочитанным разом, ещё до того, как пост показался на экране,
@@ -755,5 +797,19 @@ const existingSessionColumns = new Set(db.prepare("PRAGMA table_info(sessions)")
 // logged out for no real reason (that's exactly what the old, removed version
 // of this feature did). Only an explicit terminate sets this.
 if (!existingSessionColumns.has("revokedAt")) db.exec("ALTER TABLE sessions ADD COLUMN revokedAt TEXT");
+
+// База, созданная до появления указателя, приходит с пустым messages_fts —
+// поиск в ней не нашёл бы ничего. Заполняем один раз, при первом запуске после
+// обновления; на пустой и на уже заполненной это ничего не стоит.
+try {
+  const indexed = db.prepare("SELECT COUNT(*) AS n FROM messages_fts").get().n;
+  const total = db.prepare("SELECT COUNT(*) AS n FROM messages").get().n;
+  if (total > 0 && indexed === 0) {
+    db.exec("INSERT INTO messages_fts(rowid, text) SELECT rowid, text FROM messages");
+    console.log(`[db] построен указатель поиска по ${total} сообщениям`);
+  }
+} catch (err) {
+  console.error("[db] не удалось построить указатель поиска:", err.message);
+}
 
 module.exports = db;
