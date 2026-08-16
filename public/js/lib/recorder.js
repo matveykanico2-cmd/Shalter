@@ -1,3 +1,4 @@
+import { getFlippedTrack } from "./cameraSwitch.js";
 // Extracted MediaRecorder logic (voice messages + round video-notes/"kruzhki")
 // from the original Composer.tsx — recorded clips are kept as inline base64
 // data URLs (no object storage), capped at MAX_RECORD_SEC to keep messages.json rows small.
@@ -126,20 +127,27 @@ async function startVideoNoteRecording(onTick) {
   const finalStream = new MediaStream([...canvasStream.getVideoTracks(), ...camStream.getAudioTracks()]);
 
   let facingBack = false;
+  // Переключение камеры — общей механикой из lib/cameraSwitch.js, той же, что в
+  // звонке. Раньше здесь стоял свой упрощённый вариант с теми же изъянами:
+  // мягкий facingMode (браузер вправе вернуть ту же камеру) и пустой catch,
+  // из-за которого кнопка молчала при любой неудаче.
   async function flipCamera() {
-    const nextFacing = !facingBack;
-    try {
-      const newCamStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 240, height: 240, facingMode: nextFacing ? "environment" : "user" },
-      });
-      camStream.getVideoTracks().forEach((t) => t.stop());
-      camStream = newCamStream;
-      camVideo.srcObject = newCamStream;
-      await camVideo.play().catch(() => {});
-      facingBack = nextFacing;
-    } catch {
-      // Camera unavailable/unsupported facing mode — keep current track.
-    }
+    const currentTrack = camStream.getVideoTracks()[0] ?? null;
+    const { track, error } = await getFlippedTrack({
+      currentTrack,
+      wantBack: !facingBack,
+      video: { width: 240, height: 240 },
+    });
+    if (!track) return { error };
+
+    // Звук берётся из прежнего потока: перезапрашивать микрофон посреди записи
+    // значит потерять уже записанное.
+    camStream.getVideoTracks().forEach((t) => t.stop());
+    camStream = new MediaStream([track, ...camStream.getAudioTracks()]);
+    camVideo.srcObject = camStream;
+    await camVideo.play().catch(() => {});
+    facingBack = !facingBack;
+    return { ok: true };
   }
 
   const rec = wireRecorder(finalStream, "video/webm", onTick, () => {

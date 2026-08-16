@@ -1,4 +1,5 @@
 import { api } from "../api.js";
+import { getFlippedTrack, cameraCount } from "./cameraSwitch.js";
 import { getState as getAppState } from "../state.js";
 import { onWsMessage, wsSend, isWsOpen } from "./wsClient.js";
 import { navigate } from "../router.js";
@@ -190,6 +191,11 @@ async function join({ call, chatTitle, chatType, participants, me }) {
     muted: false,
     cameraOn: call.kind === "video",
     facingBack: false,
+    // Текст последней неудачи переворота — показывается на экране звонка.
+    cameraError: null,
+    // Сколько камер у устройства: кнопку переворота нет смысла показывать,
+    // если камера одна. Заполняется асинхронно после старта.
+    cameraCount: 1,
     sharing: false,
     minimized: false,
     localStream: null,
@@ -260,6 +266,16 @@ async function join({ call, chatTitle, chatType, participants, me }) {
       return;
     }
     state.localStream = stream;
+    // Сколько камер у устройства — спрашиваем только теперь: до выдачи
+    // разрешения браузер отдаёт список устройств без опознавательных знаков.
+    cameraCount()
+      .then((n) => {
+        if (state) {
+          state.cameraCount = n;
+          notify();
+        }
+      })
+      .catch(() => {});
   } catch {
     // No mic/camera permission (or no device) — the call still proceeds:
     // createPeer() negotiates recvonly so we can at least hear/see the other
@@ -348,25 +364,48 @@ export function toggleCamera() {
   notify();
 }
 
+// Переворот камеры. Вся возня с тем, как вообще получить вторую камеру, живёт
+// в lib/cameraSwitch.js — здесь только замена дорожки в звонке.
 export async function flipCamera() {
   if (!state) return;
-  const nextFacing = !state.facingBack;
-  try {
-    const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: nextFacing ? "environment" : "user" } });
-    const newTrack = newStream.getVideoTracks()[0];
-    if (!newTrack || !state.localStream) return;
-    state.facingBack = nextFacing;
-    const oldTrack = state.localStream.getVideoTracks()[0];
-    if (oldTrack) {
-      state.localStream.removeTrack(oldTrack);
-      oldTrack.stop();
-    }
-    state.localStream.addTrack(newTrack);
-    state.peers.forEach((pc) => pc.getSenders().find((s) => s.track?.kind === "video")?.replaceTrack(newTrack));
+  // Во время демонстрации экрана переворачивать нечего: собеседники видят экран,
+  // и подмена дорожки у отправителя просто оборвала бы показ.
+  if (state.sharing) {
+    state.cameraError = "Сначала остановите показ экрана";
     notify();
-  } catch {
-    // Camera unavailable/unsupported facing mode — keep current track.
+    return;
   }
+
+  const oldTrack = state.localStream?.getVideoTracks()[0] ?? null;
+  const { track: newTrack, error } = await getFlippedTrack({ currentTrack: oldTrack, wantBack: !state.facingBack });
+  if (!newTrack) {
+    // Молчание было главной бедой прежней версии: кнопка нажималась, ничего не
+    // происходило, и понять почему было нельзя.
+    state.cameraError = error ?? "Не удалось переключить камеру";
+    notify();
+    setTimeout(() => {
+      if (state) {
+        state.cameraError = null;
+        notify();
+      }
+    }, 3000);
+    return;
+  }
+
+  state.facingBack = !state.facingBack;
+  state.cameraError = null;
+  // Выключенная камера должна остаться выключенной: новая дорожка приходит
+  // включённой, и без этой строки переворот сам собой включал видео.
+  newTrack.enabled = state.cameraOn;
+
+  if (oldTrack && state.localStream) {
+    state.localStream.removeTrack(oldTrack);
+    oldTrack.stop();
+  }
+  state.localStream?.addTrack(newTrack);
+  state.cameraTrack = newTrack;
+  state.peers.forEach((pc) => pc.getSenders().find((s) => s.track?.kind === "video")?.replaceTrack(newTrack));
+  notify();
 }
 
 // Real getDisplayMedia screen-share (the original app only toggled a UI flag).

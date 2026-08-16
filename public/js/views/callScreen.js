@@ -148,9 +148,13 @@ export async function CallScreenView(root, callId) {
                   return localVideoEl;
                 })()
               : el("div", { class: "call-local-avatar" }, [Avatar({ name: me.name, color: me.avatarColor, image: me.avatarImage, size: 48 })]),
-            s.cameraOn
-              ? el("button", { class: "call-flip-btn", html: iconSvg("FlipCamera", 14), onclick: flipCamera })
+            // Кнопка есть, пока камер больше одной: на ноутбуке с единственной
+            // вебкой переворачивать нечего, и кнопка там только обманывала.
+            s.cameraOn && (s.cameraCount ?? 1) > 1
+              ? el("button", { class: "call-flip-btn", html: iconSvg("FlipCamera", 14), title: "Другая камера", onclick: flipCamera })
               : null,
+            // Причина неудачи — прямо на видео, а не в консоли.
+            s.cameraError ? el("p", { class: "call-camera-error" }, s.cameraError) : null,
           ])
         : null;
 

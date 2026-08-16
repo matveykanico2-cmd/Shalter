@@ -776,7 +776,16 @@ export function Composer({
             class: "composer-icon-btn",
             title: "Сменить камеру",
             html: iconSvg("FlipCamera", 16),
-            onclick: () => recordingHandle?.flipCamera?.(),
+            onclick: async () => {
+              // Неудачу видно сразу: до этого кнопка молчала, и понять, что
+              // второй камеры нет, было нельзя.
+              const res = await recordingHandle?.flipCamera?.();
+              if (res?.error) {
+                const was = hint.textContent;
+                hint.textContent = res.error;
+                setTimeout(() => (hint.textContent = was), 3000);
+              }
+            },
           })
         : null;
     const cancelBtn = el("button", { class: "composer-icon-btn", html: iconSvg("X", 16), onclick: cancelRecording });
