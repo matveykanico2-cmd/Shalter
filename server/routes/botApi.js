@@ -3,7 +3,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireBotToken } = require("../middleware/botAuth");
 const { getUser, findUserByUsername, updateUser } = require("../data/users");
 const { listChatsForUser, getChat, updateChat, findChatByUsername, createChat } = require("../data/chats");
-const { listAllMessages, listNewForChats, listMessages, getMessage, editMessage, deleteMessage, togglePin, addMessage, listMessagesPage, toggleReaction, setKeyboard } = require("../data/messages");
+const { listAllMessages, listNewForBot, listMessages, getMessage, editMessage, deleteMessage, togglePin, addMessage, listMessagesPage, toggleReaction, setKeyboard } = require("../data/messages");
 const { addScheduled, listScheduledFor, getScheduled, deleteScheduled } = require("../data/scheduledMessages");
 const { sanitizePermissions } = require("../lib/chatPermissions");
 const crypto = require("crypto");
@@ -11,7 +11,7 @@ const { publicUser, publicUsers } = require("../data/sanitize");
 const { broadcastToUsers } = require("../ws");
 const { markTyping } = require("../data/typing");
 const { updateBotApp, updateBotCommands, updateBotDescription, getBotToken } = require("../data/bots");
-const { sendBotMessage } = require("../lib/botMessaging");
+const { sendBotMessage, normalizeKeyboard } = require("../lib/botMessaging");
 const { validateAppUrl, verifyInitData } = require("../lib/miniApp");
 
 // The actual "program it however you want" surface — documented on /bots
@@ -61,13 +61,11 @@ router.get(
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 200));
     const timeoutSec = Math.min(LONG_POLL_MAX_SEC, Math.max(0, Number(req.query.timeout) || 0));
 
-    // Список чатов бота читается один раз: за те же секунды ожидания бота
-    // могли добавить в новый чат, но сообщение оттуда подождёт следующего
-    // запроса — это дешевле, чем перечитывать членство четыре раза в секунду.
-    const myChats = await listChatsForUser(req.bot.userId);
-    const myChatIds = myChats.map((c) => c.id);
-
-    const read = () => listNewForChats(myChatIds, { after, excludeSenderId: req.bot.userId, limit });
+    // Членство и сообщения берутся одним запросом (data/messages.js), а не
+    // «сначала список чатов, потом сообщения по нему»: иначе за секунды
+    // ожидания успевает появиться новый диалог, и первое сообщение от нового
+    // собеседника бот увидит только после конца опроса.
+    const read = () => listNewForBot(req.bot.userId, { after, limit });
 
     let messages = read();
     if (messages.length || !timeoutSec) return res.json({ messages });
@@ -718,7 +716,7 @@ router.post(
     const { messageId, keyboard } = req.body ?? {};
     const found = await botOwns(req.bot.userId, messageId);
     if (found.error) return res.status(found.status).json({ error: found.error });
-    const message = await setKeyboard(messageId, Array.isArray(keyboard) ? keyboard : []);
+    const message = await setKeyboard(messageId, normalizeKeyboard(keyboard) ?? []);
     broadcastToUsers(found.chat.memberIds, { type: "message:updated", chatId: found.chat.id, message });
     res.json({ message });
   })

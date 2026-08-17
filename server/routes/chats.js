@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findChatByInviteCode } = require("../data/chats");
+const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findDmBetween, findChatByInviteCode } = require("../data/chats");
 const { checkUsername, normalizeUsername } = require("../lib/username");
 const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeatures");
 const { PERMISSIONS, permissionsOf, sanitizePermissions } = require("../lib/chatPermissions");
@@ -46,13 +46,9 @@ router.post(
     // membership test below matches *every* DM you have — asking for it used to
     // hand back whichever conversation happened to come first.
     const self = userId === req.uid;
-    const existing = (await listChats()).find((c) =>
-      c.type !== "dm"
-        ? false
-        : self
-          ? c.memberIds.length === 1 && c.memberIds[0] === req.uid
-          : c.memberIds.includes(req.uid) && c.memberIds.includes(userId)
-    );
+    // Один запрос по join-таблице вместо чтения всех чатов сервера вместе с
+    // их участниками — «написать человеку» дорожало с каждым чатом в базе.
+    const existing = await findDmBetween(req.uid, self ? req.uid : userId);
     if (existing) return res.json({ chat: existing });
 
     const chat = await createChat({

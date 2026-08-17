@@ -788,7 +788,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
               // doesn't just quote it into the composer for the user to send.
               btn.app
                 ? el("button", { class: "keyboard-btn keyboard-btn-app", onclick: () => onKeyboardApp?.(message, btn.app) }, btn.text)
-                : el("button", { class: "keyboard-btn", onclick: () => onKeyboardAction(btn.action) }, btn.text)
+                : el("button", { class: "keyboard-btn", onclick: () => onKeyboardAction(btn.action ?? btn.data) }, btn.text)
             )
           )
         )

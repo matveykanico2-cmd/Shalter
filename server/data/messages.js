@@ -34,22 +34,28 @@ function rowToMessage(row) {
   };
 }
 
-// Новые сообщения в чатах бота — для опроса /api/bot-api/updates.
+// Новые сообщения для бота — то, что отдаёт опрос /api/bot-api/updates.
 //
-// Бот опрашивает сервер раз в одну-две секунды, а раньше этот маршрут читал
-// **всю** таблицу сообщений и фильтровал в памяти: один активный бот заставлял
-// сервер перебирать десятки тысяч строк каждую секунду. Здесь то же самое
-// делает индекс (chatId, createdAt).
-function listNewForChats(chatIds, { after, excludeSenderId, limit = 200 }) {
-  if (!chatIds.length) return [];
-  const ph = chatIds.map(() => "?").join(",");
+// Раньше маршрут читал **всю** таблицу сообщений и фильтровал в памяти: один
+// активный бот заставлял сервер перебирать десятки тысяч строк каждую секунду.
+// Теперь работу делает индекс (chatId, createdAt) — и делает её за один
+// запрос, вместе с проверкой членства.
+//
+// Единый запрос здесь не ради красоты. Пока это были два шага (сначала список
+// чатов бота, потом сообщения по нему), длинный опрос спотыкался ровно на
+// самом важном случае: человек пишет боту ВПЕРВЫЕ, диалог создаётся уже во
+// время ожидания, и первое в жизни сообщение бот не видел до конца опроса.
+// Проверено — висело все 20 секунд и возвращало пусто. Здесь членство берётся
+// тем же запросом, что и сообщения, поэтому «сейчас» означает сейчас.
+function listNewForBot(botUserId, { after, limit = 200 }) {
   return db
     .prepare(
-      `SELECT * FROM messages
-        WHERE chatId IN (${ph}) AND createdAt > ? AND senderId <> ?
-        ORDER BY createdAt ASC LIMIT ?`
+      `SELECT m.* FROM messages m
+         JOIN chat_members cm ON cm.chatId = m.chatId AND cm.userId = ?
+        WHERE m.createdAt > ? AND m.senderId <> ?
+        ORDER BY m.createdAt ASC LIMIT ?`
     )
-    .all(...chatIds, after, excludeSenderId, limit)
+    .all(botUserId, after, botUserId, limit)
     .map(rowToMessage);
 }
 
@@ -426,7 +432,7 @@ module.exports = {
   rowToMessage,
   listAllMessages,
   listMediaMessages,
-  listNewForChats,
+  listNewForBot,
   searchInChats,
   listMessages,
   listMessagesPage,

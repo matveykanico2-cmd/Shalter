@@ -56,6 +56,7 @@
       <a href="#channels">Каналы</a>
       <a href="#profile">Профиль бота</a>
       <a href="#keyboard">Кнопки</a>
+      <a href="#apps">Мини-приложения</a>
       <a href="#commands">Команды</a>
       <h4>Редактор в приложении</h4>
       <a href="#editor">Как это работает</a>
@@ -241,6 +242,8 @@ setInterval(() =&gt; tick().catch(console.error), 2000);</code></pre>
         <thead><tr><th>Параметр</th><th>Тип</th><th>Описание</th></tr></thead>
         <tbody>
           <tr><td>after</td><td>строка, ISO 8601</td><td>Время последнего разобранного сообщения. Без него отдаётся всё с начала времён.</td></tr>
+          <tr><td>timeout</td><td>число, секунды (до 50)</td><td>Длинный опрос: сервер не отвечает пустотой сразу, а держит запрос до первого сообщения. С ним бот отвечает мгновенно.</td></tr>
+          <tr><td>limit</td><td>число (до 200)</td><td>Сколько сообщений отдать за раз. По умолчанию 200.</td></tr>
         </tbody>
       </table>
       <p>
@@ -249,9 +252,22 @@ setInterval(() =&gt; tick().catch(console.error), 2000);</code></pre>
         разговорчивый бот не должен получить в ответ всю свою историю.
       </p>
       <div class="doc-note">
+        <strong>Ставьте <code>timeout</code> — это и есть скорость бота.</strong>
+        Без него задержка ответа равна паузе в вашем цикле: спите две секунды между запросами — нажатая
+        кнопка молчит до двух секунд. С <code>timeout=30</code> запрос висит до появления сообщения и
+        возвращается в тот же миг, когда оно пришло, а пустой ответ через 30 секунд означает «просто спроси
+        снова» — паузы между запросами не нужно вовсе.
+      </div>
+      <pre><code>let after = new Date().toISOString();
+while (true) {
+  const res = await fetch(`${API}/updates?after=${after}&amp;timeout=30`, { headers: auth });
+  const { messages } = await res.json();
+  for (const m of messages) await handle(m);
+  if (messages.length) after = messages.at(-1).createdAt;
+}</code></pre>
+      <div class="doc-note">
         <strong>Опрос, а не вебхук — намеренно.</strong>
         Вебхук требует публичного адреса и сертификата; опрос работает откуда угодно, включая ноутбук за NAT.
-        Раз в 1–2 секунды более чем достаточно.
       </div>
 
       <h2 id="send">Отправка</h2>
@@ -473,6 +489,7 @@ await fetch(`${API}/editMessageText`, {
       <p>
         <code>keyboard</code> — массив рядов, каждый ряд — массив кнопок. Нажатие отправляет боту обычное
         сообщение с текстом из <code>data</code>, так что обрабатывается оно там же, где и всё остальное.
+        Поле можно назвать и <code>action</code> — сервер понимает обе формы.
       </p>
       <pre><code>await fetch(`${API}/sendMessage`, {
   method: "POST",
@@ -483,9 +500,109 @@ await fetch(`${API}/editMessageText`, {
     keyboard: [
       [{ text: "Погода", data: "/погода" }, { text: "Курс", data: "/курс" }],
       [{ text: "Помощь", data: "/help" }],
+      // Кнопка, открывающая мини-приложение бота, а не отправляющая ответ:
+      [{ text: "Открыть магазин", app: "https://example.com/app/shop" }],
     ],
   }),
 });</code></pre>
+      <p>
+        Кнопка с полем <code>app</code> открывает <a href="#apps">мини-приложение</a> бота — адрес должен
+        вести на тот же сайт, что указан в настройках приложения, иначе кнопка ничего не откроет.
+      </p>
+
+      <h2 id="apps">Мини-приложения</h2>
+      <p>
+        Мини-приложение — обычная веб-страница на вашем сервере, которая открывается прямо внутри Shalter,
+        поверх переписки, и <strong>знает, кто её открыл</strong>. Это способ дать боту настоящий интерфейс:
+        каталог, корзину, форму, игру — всё, для чего кнопок и текста мало.
+      </p>
+      <h3>Как включить</h3>
+      <p>
+        Настройки → Боты → ваш бот → Настройки бота → «Мини-приложение»: адрес страницы и надпись на кнопке.
+        Или из кода:
+      </p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setWebApp</div>
+      <pre><code>await fetch(`${API}/setWebApp`, {
+  method: "POST",
+  headers: auth,
+  body: JSON.stringify({ url: "https://example.com/app", name: "Магазин" }),
+});</code></pre>
+      <p>
+        Только <code>https</code> (<code>http</code> разрешён для <code>localhost</code> — на нём и
+        отлаживают). Пустой <code>url</code> убирает приложение. После этого кнопка появляется в шапке чата
+        с ботом, и её же можно поставить в <a href="#keyboard">клавиатуру сообщения</a>.
+      </p>
+
+      <h3>На странице</h3>
+      <pre><code>&lt;script src="https://<em>ваш-shalter</em>/js/shalter-web-app.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  const app = window.Shalter.WebApp;
+  app.ready();                                  // убрать индикатор загрузки
+  document.title = "Привет, " + app.user.name;  // кто открыл (без проверки — для вида)
+
+  app.MainButton.setText("Оформить заказ").show();
+  app.MainButton.onClick(async () =&gt; {
+    app.MainButton.showProgress();
+    await app.sendData(JSON.stringify({ items: 2 }));  // уйдёт боту, окно закроется
+  });
+&lt;/script&gt;</code></pre>
+      <table class="doc-table">
+        <thead><tr><th>Что есть</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td><code>initData</code></td><td>Подписанная строка — её и надо переслать боту для проверки. Целиком, не по частям.</td></tr>
+          <tr><td><code>user</code></td><td>Кто открыл: <code>id</code>, <code>name</code>, <code>username</code>, <code>isPremium</code>. Удобно для интерфейса, <strong>недостаточно для доверия</strong>.</td></tr>
+          <tr><td><code>colorScheme</code></td><td><code>"light"</code> или <code>"dark"</code> — тема, в которой человек сидит.</td></tr>
+          <tr><td><code>ready()</code></td><td>Сообщить, что страница отрисовалась.</td></tr>
+          <tr><td><code>close()</code></td><td>Закрыть окно.</td></tr>
+          <tr><td><code>sendData(данные)</code></td><td>Отправить данные боту и закрыть окно. До 4096 символов.</td></tr>
+          <tr><td><code>openLink(url)</code></td><td>Открыть внешнюю ссылку в настоящем браузере.</td></tr>
+          <tr><td><code>showAlert / showConfirm</code></td><td>Сообщение и вопрос «да/нет»; <code>showConfirm</code> возвращает промис с <code>true</code>/<code>false</code>.</td></tr>
+          <tr><td><code>MainButton</code></td><td>Нижняя кнопка на всю ширину: <code>setText</code>, <code>show</code>, <code>hide</code>, <code>enable</code>, <code>disable</code>, <code>showProgress</code>, <code>hideProgress</code>, <code>onClick</code>.</td></tr>
+        </tbody>
+      </table>
+      <div class="doc-note">
+        <strong><code>sendData</code> устроен честнее, чем в Telegram.</strong>
+        Там такое сообщение видит только бот, у человека в переписке не появляется ничего. Здесь это обычное
+        сообщение от самого человека — он видит в чате, что именно отправило приложение от его имени, а бот
+        получает его тем же <code>/updates</code>, что и всё остальное.
+      </div>
+
+      <h3>Проверка, кто открыл</h3>
+      <p>
+        <code>initData</code> — строка вида <code>user=…&amp;chat_id=…&amp;bot_id=…&amp;auth_date=…&amp;hash=…</code>.
+        Всё, кроме <code>hash</code>, подписано ключом, который знают только Shalter и ваш токен, поэтому
+        подделать имя нельзя, а поверить содержимому без проверки — можно только зря. Алгоритм тот же, что в
+        Telegram Mini Apps:
+      </p>
+      <pre><code>import crypto from "node:crypto";
+
+function checkInitData(initData, token) {
+  const params = new URLSearchParams(initData);
+  const hash = params.get("hash");
+  const check = [...params.entries()]
+    .filter(([k]) =&gt; k !== "hash")
+    .sort(([a], [b]) =&gt; (a &lt; b ? -1 : 1))
+    .map(([k, v]) =&gt; `${k}=${v}`)
+    .join("\n");
+  const secret = crypto.createHmac("sha256", "ShalterWebAppData").update(token).digest();
+  const mine = crypto.createHmac("sha256", secret).update(check).digest("hex");
+  if (mine !== hash) return null;
+  return JSON.parse(params.get("user"));
+}</code></pre>
+      <p>Не хотите считать сами — отдайте строку серверу:</p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/checkWebAppData</div>
+      <pre><code>const res = await fetch(`${API}/checkWebAppData`, {
+  method: "POST",
+  headers: auth,
+  body: JSON.stringify({ initData }),
+});
+const { ok, user, chatId } = await res.json();   // ok: false — подпись не сошлась</code></pre>
+      <div class="doc-note">
+        <strong>Проверяйте на своём сервере, а не в браузере.</strong>
+        Проверка в самой странице бессмысленна: тот, кто подделывает <code>initData</code>, подделает и её
+        результат. Подпись действительна сутки — старую, подсмотренную в чужой истории браузера, сервер
+        отвергнет.
+      </div>
 
       <h2 id="commands">Команды</h2>
       <p>

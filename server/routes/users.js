@@ -5,7 +5,7 @@ const { listUsers, updateUser, getUser, setBlocked, findUserByUsername, findUser
 const { publicUser, selfUser, publicUsers } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
-const { listChats } = require("../data/chats");
+const { listChats, findDmBetween } = require("../data/chats");
 const { listMediaMessages, listMessages } = require("../data/messages");
 const { PHONE_RE, normalizePhone } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
@@ -92,9 +92,9 @@ router.get(
     const empty = { media: [], files: [], links: [] };
     if (req.params.id === req.uid) return res.json(empty);
 
-    const chat = (await listChats()).find(
-      (c) => c.type === "dm" && c.memberIds.includes(req.uid) && c.memberIds.includes(req.params.id)
-    );
+    // Запросом по join-таблице, а не перебором всех чатов сервера: вкладки
+    // «медиа/файлы/ссылки» открываются на каждый просмотр профиля.
+    const chat = await findDmBetween(req.uid, req.params.id);
     if (!chat) return res.json(empty);
 
     // Только то, что может попасть в эти вкладки: вложения и ссылки.

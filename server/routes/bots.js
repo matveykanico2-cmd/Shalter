@@ -7,7 +7,7 @@ const { publicUser } = require("../data/sanitize");
 const { checkUsername, normalizeUsername, generateBotUsername } = require("../lib/username");
 const { runBotCode } = require("../lib/botSandbox");
 const botLogs = require("../data/botLogs");
-const { listChats, createChat, getChat } = require("../data/chats");
+const { listChats, createChat, getChat, findDmBetween } = require("../data/chats");
 const { buildInitData, buildAppUrl, validateAppUrl, sameApp } = require("../lib/miniApp");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 
@@ -295,9 +295,7 @@ router.post(
     const bot = await requireOwnedBot(req, res);
     if (!bot) return;
 
-    let chat = (await listChats()).find(
-      (c) => c.type === "dm" && c.memberIds.includes(req.uid) && c.memberIds.includes(bot.userId)
-    );
+    let chat = await findDmBetween(req.uid, bot.userId);
     if (!chat) {
       chat = await createChat({
         id: `c_${Date.now()}`,

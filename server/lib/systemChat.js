@@ -3,14 +3,15 @@
 // the Shalter service chat (login codes, new-device alerts). All of those
 // are the same shape: two users, an existing-or-new DM between them, one
 // system-authored message broadcast over WS.
-const { listChats, createChat } = require("../data/chats");
+const { findDmBetween, createChat } = require("../data/chats");
 const { addMessage } = require("../data/messages");
 const { broadcastToUsers } = require("../ws");
 
 async function findOrCreateDm(userIdA, userIdB) {
-  const existing = (await listChats()).find(
-    (c) => c.type === "dm" && c.memberIds.includes(userIdA) && c.memberIds.includes(userIdB)
-  );
+  // Поиск идёт запросом по join-таблице (data/chats.js), а не перебором всех
+  // чатов сервера в памяти, как было: перебор читал каждый чат вместе с его
+  // участниками ради одного диалога и дорожал с каждым чатом в базе.
+  const existing = await findDmBetween(userIdA, userIdB);
   if (existing) return existing;
   // Deduped: the admin self-delivering a gift/Premium to themselves (see
   // routes/gifts.js, routes/premium.js) calls this with userIdA === userIdB
