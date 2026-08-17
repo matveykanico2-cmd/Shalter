@@ -11,6 +11,9 @@ function rowToBot(row) {
     commands: JSON.parse(row.commands),
     createdAt: row.createdAt ?? undefined,
     code: row.code ?? undefined,
+    // Мини-приложение бота — см. server/lib/miniApp.js.
+    appUrl: row.appUrl ?? null,
+    appName: row.appName || null,
   };
 }
 
@@ -98,6 +101,13 @@ async function updateBotCommands(id, commands) {
   return getBot(id);
 }
 
+// Адрес мини-приложения и надпись на кнопке. Пустой appUrl — приложения нет, и
+// кнопка нигде не показывается (проверяется в routes/bots.js).
+async function updateBotApp(id, { appUrl, appName }) {
+  db.prepare("UPDATE bots SET appUrl = ?, appName = ? WHERE id = ?").run(appUrl || null, appName || null, id);
+  return getBot(id);
+}
+
 async function updateBotCode(id, code) {
   db.prepare("UPDATE bots SET code = ? WHERE id = ?").run(code ?? null, id);
   return getBot(id);
@@ -114,6 +124,7 @@ module.exports = {
   createBot,
   regenerateToken,
   deleteBot,
+  updateBotApp,
   updateBotCode,
   updateBotCommands,
   updateBotDescription,

@@ -700,6 +700,12 @@ if (!existingBotColumns.has("createdAt")) db.exec("ALTER TABLE bots ADD COLUMN c
 // restricted vm sandbox on every incoming message, as an alternative to
 // running an external script against the Bot API.
 if (!existingBotColumns.has("code")) db.exec("ALTER TABLE bots ADD COLUMN code TEXT");
+// Мини-приложение бота (server/lib/miniApp.js) — обычная веб-страница на
+// сервере автора, которая открывается прямо внутри Shalter во встроенном окне
+// и знает, кто её открыл. appUrl — адрес страницы, appName — надпись на
+// кнопке, которая её открывает.
+if (!existingBotColumns.has("appUrl")) db.exec("ALTER TABLE bots ADD COLUMN appUrl TEXT");
+if (!existingBotColumns.has("appName")) db.exec("ALTER TABLE bots ADD COLUMN appName TEXT");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_bots_token ON bots(token) WHERE token IS NOT NULL");
 db.exec("CREATE INDEX IF NOT EXISTS idx_bots_owner ON bots(ownerId)");
 

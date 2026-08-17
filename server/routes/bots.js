@@ -1,13 +1,15 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { countBotAudience, getBotByUserId, getBotToken, listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotCode, updateBotCommands, updateBotDescription } = require("../data/bots");
+const { countBotAudience, getBotByUserId, getBotToken, listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotApp, updateBotCode, updateBotCommands, updateBotDescription } = require("../data/bots");
 const { createUser, getUser, updateUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { checkUsername, normalizeUsername, generateBotUsername } = require("../lib/username");
 const { runBotCode } = require("../lib/botSandbox");
 const botLogs = require("../data/botLogs");
-const { listChats, createChat } = require("../data/chats");
+const { listChats, createChat, getChat } = require("../data/chats");
+const { buildInitData, buildAppUrl, validateAppUrl, sameApp } = require("../lib/miniApp");
+const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -132,9 +134,110 @@ router.patch(
 
     if (Object.keys(patch).length) await updateUser(bot.userId, patch);
 
+    // Мини-приложение (lib/miniApp.js). Адрес проверяется здесь, при
+    // сохранении: криво введённый должен ругаться владельцу сразу, а не
+    // открываться пустым окном у каждого, кто нажмёт кнопку.
+    if (typeof req.body?.appUrl === "string") {
+      const checked = validateAppUrl(req.body.appUrl);
+      if (checked.error) return res.status(400).json({ error: checked.error });
+      const appName = String(req.body?.appName ?? "").trim().slice(0, 40);
+      await updateBotApp(bot.id, { appUrl: checked.url, appName });
+    }
+
     const description = typeof req.body?.description === "string" ? req.body.description.trim().slice(0, 300) : null;
     const updated = description === null ? await getBot(bot.id) : await updateBotDescription(bot.id, description);
     res.json({ bot: { ...updated, user: publicUser(await getUser(bot.userId)) } });
+  })
+);
+
+// ── Мини-приложения ─────────────────────────────────────────────────────────
+// Открыть приложение бота может любой, кто на него наткнулся, — это две
+// следующие ручки, и владения ботом они не требуют (в отличие от всего выше).
+
+const APP_DATA_LIMIT = 4096;
+
+async function requireBotWithApp(req, res) {
+  const bot = await getBot(req.params.id);
+  if (!bot) {
+    res.status(404).json({ error: "Бот не найден" });
+    return null;
+  }
+  if (!bot.appUrl) {
+    res.status(404).json({ error: "У этого бота нет приложения" });
+    return null;
+  }
+  return bot;
+}
+
+// Выдаёт адрес, который встроенное окно откроет в iframe. Подпись ставится
+// здесь, на сервере, а не в браузере: ключ выводится из токена бота, и
+// показывать его клиенту нельзя — им отправляют сообщения от имени бота.
+router.post(
+  "/:id/app/open",
+  asyncRoute(async (req, res) => {
+    const bot = await requireBotWithApp(req, res);
+    if (!bot) return;
+
+    // Кнопка бота вправе открыть страницу внутри его же приложения, но не
+    // чужой сайт: иначе к любому адресу в интернете уезжала бы подписанная
+    // карточка нажавшего.
+    const requested = typeof req.body?.url === "string" && req.body.url.trim() ? req.body.url.trim() : null;
+    if (requested && !sameApp(bot.appUrl, requested)) {
+      return res.status(403).json({ error: "Кнопка ведёт за пределы приложения бота" });
+    }
+
+    const token = getBotToken(bot.id);
+    if (!token) return res.status(409).json({ error: "У бота нет токена — приложение нечем подписать" });
+
+    // chat_id попадает в подпись, только если чат действительно общий: иначе
+    // приложение получило бы «пользователь X пишет из чата Y» про чат, к
+    // которому ни он, ни бот отношения не имеют.
+    const chat = req.body?.chatId ? await getChat(req.body.chatId) : null;
+    const sharedChat = chat && chat.memberIds.includes(req.uid) && chat.memberIds.includes(bot.userId) ? chat : null;
+
+    const user = await getUser(req.uid);
+    const initData = buildInitData({ token, user, chat: sharedChat, botUserId: bot.userId });
+    const theme = req.body?.theme === "dark" ? "dark" : "light";
+    const botUser = await getUser(bot.userId);
+
+    res.json({
+      url: buildAppUrl(requested || bot.appUrl, initData, { theme }),
+      name: bot.appName || botUser?.name || "Приложение",
+      botId: bot.userId,
+    });
+  })
+);
+
+// Приложение отправляет данные обратно боту (Shalter.WebApp.sendData).
+//
+// Отличие от Telegram, и оно намеренное: там такое сообщение боту видит только
+// бот, у человека в переписке не появляется ничего. Здесь это обычное
+// сообщение от самого человека — видимое ему же. Приложение действует от его
+// имени, и то, что оно отправило, должно остаться у него перед глазами, а не
+// уйти в невидимый канал.
+router.post(
+  "/:id/app/data",
+  asyncRoute(async (req, res) => {
+    const bot = await requireBotWithApp(req, res);
+    if (!bot) return;
+
+    const data = String(req.body?.data ?? "").trim();
+    if (!data) return res.status(400).json({ error: "Пустые данные" });
+    if (data.length > APP_DATA_LIMIT) return res.status(400).json({ error: `Не длиннее ${APP_DATA_LIMIT} символов` });
+
+    const chat = await findOrCreateDm(req.uid, bot.userId);
+    const message = await sendMessageAndBroadcast(chat, req.uid, data, { readByIds: [] });
+
+    // Тот же запуск кода бота, что и у обычного сообщения (routes/messages.js):
+    // для бота это и есть обычное сообщение, и отвечать на него он должен так
+    // же. Без ожидания — медленный бот не должен задерживать ответ приложению.
+    if (bot.code?.trim()) {
+      runBotCode(bot, bot.code, { id: message.id, chatId: chat.id, senderId: req.uid, text: message.text, createdAt: message.createdAt }).catch((err) =>
+        console.error(`bot sandbox dispatch failed for ${bot.userId}:`, err)
+      );
+    }
+
+    res.json({ ok: true, chatId: chat.id, message });
   })
 );
 
@@ -240,7 +343,13 @@ router.get(
   asyncRoute(async (req, res) => {
     const bot = await getBotByUserId(req.params.userId);
     if (!bot) return res.status(404).json({ error: "Это не бот" });
-    res.json({ users: countBotAudience(req.params.userId) });
+    res.json({
+      users: countBotAudience(req.params.userId),
+      // Есть ли у бота мини-приложение — здесь, а не отдельным запросом:
+      // шапка чата с ботом всё равно спрашивает про аудиторию при открытии, и
+      // кнопке «Открыть приложение» больше ничего не нужно, кроме надписи.
+      app: bot.appUrl ? { name: bot.appName || "Приложение" } : null,
+    });
   })
 );
 

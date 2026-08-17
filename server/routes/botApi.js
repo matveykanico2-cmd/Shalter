@@ -10,8 +10,9 @@ const crypto = require("crypto");
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { broadcastToUsers } = require("../ws");
 const { markTyping } = require("../data/typing");
-const { updateBotCommands, updateBotDescription } = require("../data/bots");
+const { updateBotApp, updateBotCommands, updateBotDescription, getBotToken } = require("../data/bots");
 const { sendBotMessage } = require("../lib/botMessaging");
+const { validateAppUrl, verifyInitData } = require("../lib/miniApp");
 
 // The actual "program it however you want" surface — documented on /bots
 // (public/bots.html). A bot's
@@ -25,7 +26,9 @@ router.get(
   "/me",
   asyncRoute(async (req, res) => {
     const user = await getUser(req.bot.userId);
-    res.json({ bot: publicUser(user) });
+    // app — назначенное мини-приложение (setWebApp ниже), чтобы выкладка новой
+    // версии могла проверить, на какой адрес бот сейчас показывает.
+    res.json({ bot: publicUser(user), app: req.bot.appUrl ? { url: req.bot.appUrl, name: req.bot.appName } : null });
   })
 );
 
@@ -483,6 +486,45 @@ router.post(
     if (description !== undefined) await updateBotDescription(req.bot.id, String(description).slice(0, 500));
     const user = await getUser(req.bot.userId);
     res.json({ bot: publicUser(user) });
+  })
+);
+
+// ── Мини-приложение ─────────────────────────────────────────────────────────
+// Веб-страница бота, которая открывается внутри Shalter. Здесь два метода:
+// назначить её адрес и проверить подпись того, кто её открыл. Всё остальное
+// происходит в браузере пользователя — см. lib/miniApp.js и /bots#apps.
+
+router.post(
+  "/setWebApp",
+  asyncRoute(async (req, res) => {
+    const checked = validateAppUrl(req.body?.url ?? "");
+    if (checked.error) return res.status(400).json({ error: checked.error });
+    const name = String(req.body?.name ?? "").trim().slice(0, 40);
+    const bot = await updateBotApp(req.bot.id, { appUrl: checked.url, appName: name });
+    res.json({ app: bot.appUrl ? { url: bot.appUrl, name: bot.appName } : null });
+  })
+);
+
+// Проверка initData на стороне сервера — для тех, кто не хочет писать HMAC
+// сам. Считается ровно то же самое, что бот посчитал бы у себя (алгоритм
+// описан на /bots#apps): метод удобство, а не единственный способ, и работать
+// без него можно полностью.
+router.post(
+  "/checkWebAppData",
+  asyncRoute(async (req, res) => {
+    const token = getBotToken(req.bot.id);
+    const result = verifyInitData(token, req.body?.initData ?? "");
+    if (!result.ok) return res.status(400).json({ ok: false, error: result.error });
+    // Данные в подписи — снимок на момент открытия. Имя могли сменить минуту
+    // спустя, поэтому актуальную карточку отдаём из базы, а не из initData.
+    const user = await getUser(result.user?.id);
+    res.json({
+      ok: true,
+      user: user ? publicUser(user) : result.user,
+      chatId: result.chatId,
+      authDate: result.authDate,
+      ageSec: result.ageSec,
+    });
   })
 );
 
