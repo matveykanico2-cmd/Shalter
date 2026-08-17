@@ -12,6 +12,7 @@ import { api } from "../api.js";
 import { getState, setState } from "../state.js";
 import { isChatAdmin, isChatModerator } from "../lib/chatRoles.js";
 import { messagePreview } from "../lib/messagePreview.js";
+import { noteMessageInChatList } from "../lib/chatListSync.js";
 import { navigate } from "../router.js";
 import { placeCall as placeCallController } from "../lib/callController.js";
 import { onWsMessage } from "../lib/wsClient.js";
@@ -268,8 +269,13 @@ export async function ChatView(root, chatId) {
     const replyToId = replyingTo?.id ?? null;
     replyingTo = null;
     try {
-      if (isChannel) await api.publishPost(chat.id, text, attachments);
-      else await api.sendMessage(chat.id, text, { replyToId, attachments, ...extra });
+      // Отправленное сразу уходит и в строку списка чатов: обратно по сокету
+      // сервер его отправителю не шлёт, так что иначе превью там осталось бы
+      // прежним до следующего опроса — см. lib/chatListSync.js.
+      const { message } = isChannel
+        ? await api.publishPost(chat.id, text, attachments)
+        : await api.sendMessage(chat.id, text, { replyToId, attachments, ...extra });
+      noteMessageInChatList(chat.id, message);
     } catch (err) {
       alert(err.message || "Не удалось отправить сообщение");
     }

@@ -15,6 +15,7 @@ import { api } from "../api.js";
 import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
 import { onWsMessage } from "../lib/wsClient.js";
+import { noteMessageInChatList } from "../lib/chatListSync.js";
 
 async function openNewChatMenu(e) {
   const rect = e.currentTarget.getBoundingClientRect();
@@ -159,7 +160,14 @@ export function ChatListPane() {
     inFlight = true;
     const seq = ++latestSeq;
     try {
-      const [chatsRes, foldersRes] = await Promise.all([api.listChats(), api.listFolders()]);
+      // Гонка с таймаутом — не ради скорости, а чтобы «не больше одного
+      // запроса разом» не превратилось в «ни одного никогда». fetch сам по
+      // себе может висеть неограниченно долго (сервер принял соединение и
+      // замолчал), а пока висит он, inFlight остаётся поднятым: и сокет, и
+      // пятнадцатисекундный опрос упираются в него и молча уходят ни с чем.
+      // Список чатов в таком случае замирает на том, что успел показать, до
+      // перезагрузки страницы. Лучше признать попытку неудачной и повторить.
+      const [chatsRes, foldersRes] = await withTimeout(Promise.all([api.listChats(), api.listFolders()]));
       // Пока ответ ехал, успел уйти и вернуться более новый — этот уже неверен.
       if (seq !== latestSeq) return;
       notifyNewMessages(chatsRes.chats);
@@ -182,6 +190,20 @@ export function ChatListPane() {
     refetchTimer = setTimeout(refetch, delay);
   }
 
+  // Заметно больше любого нормального ответа (список чатов — это два запроса
+  // к своей же базе) и заметно меньше интервала опроса, чтобы зависший запрос
+  // не съедал следующие попытки.
+  const REFETCH_TIMEOUT_MS = 10000;
+  function withTimeout(promise) {
+    let timer = null;
+    return Promise.race([
+      promise.finally(() => clearTimeout(timer)),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("chat list refetch timed out")), REFETCH_TIMEOUT_MS);
+      }),
+    ]);
+  }
+
   function notifyNewMessages(nextChats) {
     const me = getState().user;
     for (const chat of nextChats) {
@@ -197,7 +219,14 @@ export function ChatListPane() {
   // new message's preview/unread badge/ordering shows up without waiting on
   // the poll — that poll now only needs to run as a slow reconnect/catch-up
   // safety net, same as everywhere else this pattern is used.
-  const unsubNew = onWsMessage("message:new", () => scheduleRefetch());
+  // Само превью при этом ставится на место сразу, из тела события: refetch
+  // едет четверть секунды плюс сеть, а если он не удался вовсе (429 от
+  // лимитера, моргнувшая сеть), строка чата иначе так и осталась бы со старым
+  // текстом — при том что сообщение уже пришло и отрисовано в самом чате.
+  const unsubNew = onWsMessage("message:new", (msg) => {
+    noteMessageInChatList(msg.chatId, msg.message);
+    scheduleRefetch();
+  });
   const unsubUpdated = onWsMessage("message:updated", () => scheduleRefetch());
   const unsubDeleted = onWsMessage("message:deleted", () => scheduleRefetch());
   // Fires when an admin adds this user to an existing group/channel (see
