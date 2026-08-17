@@ -30,6 +30,10 @@ export function openEditBotDialog(bot, onSaved) {
 
   const nameInput = el("input", { class: "login-input", value: bot.user.name ?? "" });
   const descInput = el("textarea", { class: "settings-input", rows: 3, value: bot.description ?? "" });
+  // Мини-приложение: адрес страницы и надпись на кнопке, которая её открывает
+  // (server/lib/miniApp.js, документация — /bots#apps).
+  const appUrlInput = el("input", { class: "login-input mono", placeholder: "https://example.com/app", value: bot.appUrl ?? "" });
+  const appNameInput = el("input", { class: "login-input", placeholder: "Открыть приложение", value: bot.appName ?? "" });
   const usernameInput = el("input", {
     class: "login-input mono",
     value: bot.user.username ?? "",
@@ -61,6 +65,8 @@ export function openEditBotDialog(bot, onSaved) {
         description: descInput.value.trim(),
         username: usernameInput.value.trim(),
         avatarImage,
+        appUrl: appUrlInput.value.trim(),
+        appName: appNameInput.value.trim(),
       });
       bot = { ...bot, ...res.bot };
       notice = "Сохранено";
@@ -92,6 +98,15 @@ export function openEditBotDialog(bot, onSaved) {
         el("p", { class: "settings-toggle-hint" }, "Должен заканчиваться на _bot — так его отличают от аккаунта человека."),
         el("p", { class: "settings-field-label" }, "Описание"),
         descInput,
+        el("p", { class: "settings-field-label" }, "Мини-приложение"),
+        appUrlInput,
+        el("p", { class: "settings-toggle-hint" }, [
+          "Адрес страницы, которая откроется внутри Shalter кнопкой в шапке чата. Страница узнает, кто её открыл, — ",
+          el("a", { href: "/bots#apps", target: "_blank", rel: "noreferrer" }, "как это устроено"),
+          ". Только https (http — для localhost). Пустое поле убирает кнопку.",
+        ]),
+        el("p", { class: "settings-field-label" }, "Надпись на кнопке"),
+        appNameInput,
         error ? el("p", { class: "login-error" }, error) : null,
         notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,
         el("button", { class: "btn-accent", disabled: busy, onclick: save }, busy ? "Сохраняем…" : "Сохранить"),

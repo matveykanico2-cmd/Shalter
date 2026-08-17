@@ -22,6 +22,7 @@ import { openScheduledMessagesDialog } from "../components/scheduledMessagesDial
 import { openThreadPanel } from "../components/threadPanel.js";
 import { VerifiedBadge } from "../components/verifiedBadge.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
+import { openMiniApp } from "../components/miniApp.js";
 
 // Settings → Внешний вид → "Фон чата" sets the global default; a chat's own
 // "…" → "Фон чата" (see openWallpaperDialog below) overrides it for just
@@ -709,6 +710,9 @@ export async function ChatView(root, chatId) {
   // «12 пользователей» вместо «в сети» у ботов. Просим один раз при открытии
   // чата: число меняется медленно, дёргать сервер на каждую перерисовку незачем.
   let botAudience = null;
+  // Мини-приложение бота, если оно у него есть: { name }. Приходит тем же
+  // запросом, что и аудитория (server/routes/bots.js).
+  let botApp = null;
   function pluralUsers(n) {
     const m10 = n % 10;
     const m100 = n % 100;
@@ -723,6 +727,7 @@ export async function ChatView(root, chatId) {
       .getBotAudience(peer.id)
       .then((res) => {
         botAudience = res.users;
+        botApp = res.app ?? null;
         renderHeader();
       })
       .catch(() => {});
@@ -789,6 +794,21 @@ export async function ChatView(root, chatId) {
             ]),
           ]
         ),
+        // Кнопка мини-приложения бота — на месте кнопки звонка, которой у бота
+        // всё равно нет. В Telegram она стоит у поля ввода; здесь в шапке,
+        // потому что именно там у бота пустует место, а не потому, что так
+        // красивее: приложение открывают до разговора, а не посреди него.
+        isDm && other?.isBot && botApp
+          ? el(
+              "button",
+              {
+                class: "icon-btn chat-header-app-btn",
+                title: botApp.name,
+                onclick: () => openMiniApp({ botId: other.id, botName: other.name, chatId: chat.id, appName: botApp.name }),
+              },
+              [el("span", { class: "chat-header-app-icon", html: iconSvg("Code", 15) }), el("span", { class: "chat-header-app-label" }, botApp.name)]
+            )
+          : null,
         isDm || chat.type === "group"
           ? el("button", { class: "icon-btn", title: "Позвонить", html: iconSvg("Phone", 18), onclick: () => placeCall("audio") })
           : null,
@@ -1032,6 +1052,11 @@ export async function ChatView(root, chatId) {
             onForward: (msg) => openForwardDialog((targetChatId) => handleForward(msg, targetChatId)),
             onVote: handleVote,
             onKeyboardAction: (action) => handleSend(action, []),
+            // Кнопка бота, открывающая его мини-приложение: { text, app: "…" }.
+            // Отправителем может быть только бот, и сервер всё равно проверит,
+            // что адрес ведёт в приложение этого же бота, а не на чужой сайт.
+            onKeyboardApp: (msg, appUrl) =>
+              openMiniApp({ botId: msg.senderId, botName: members.find((m) => m.id === msg.senderId)?.name, chatId: chat.id, url: appUrl }),
             onOpenThread: isGroup ? (msg) => openThreadPanel({ chat, rootMessage: msg, members, me, onReplySent: refreshMessages }) : undefined,
           },
         });

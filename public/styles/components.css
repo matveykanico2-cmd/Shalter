@@ -1423,6 +1423,18 @@
 .keyboard-btn:hover {
   background: var(--color-surface-alt);
 }
+/* Кнопка, открывающая мини-приложение бота, а не отправляющая ответ. Разница
+   существенная — одна пишет от вашего имени в чат, другая открывает окно, —
+   поэтому она и выглядит иначе, а не одинаково с обычной. */
+.keyboard-btn-app {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  font-weight: 500;
+}
+.keyboard-btn-app::before {
+  content: "▶ ";
+  opacity: 0.65;
+}
 .post-comments-link {
   display: block;
   margin: -4px 16px 8px 56px;
@@ -2827,6 +2839,130 @@
   flex: 1;
   width: 100%;
   border: none;
+}
+
+/* ── Мини-приложение бота (components/miniApp.js) ────────────────────────── */
+/* Тот же полноэкранный слой, что и у встроенного браузера, но с именем
+   приложения вместо адреса сайта и с нижней кнопкой под содержимым. */
+.mini-app-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+}
+.mini-app-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 8px 12px;
+}
+.mini-app-titles {
+  flex: 1;
+  min-width: 0;
+}
+.mini-app-title {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+.mini-app-subtitle {
+  margin: 1px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--color-muted);
+}
+/* Слот держит и сам iframe, и накладку с «Открываем…» / ошибкой: страница
+   грузится под ней, а не вместо неё — иначе перерисовка накладки перезапускала
+   бы загрузку. */
+.mini-app-frame-slot {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.mini-app-frame {
+  display: block;
+  border: none;
+  width: 100%;
+  height: 100%;
+}
+.mini-app-body {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.mini-app-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+  background: var(--color-bg);
+  pointer-events: auto;
+}
+/* Скрыта, пока приложение её не попросит показать (Shalter.WebApp.MainButton).
+   display:none, а не visibility — невидимая кнопка не должна занимать
+   двадцать пикселей под страницей. */
+.mini-app-main-btn {
+  display: none;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--color-accent);
+  padding: 15px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-accent-contrast);
+  cursor: pointer;
+}
+.mini-app-main-btn.shown {
+  display: block;
+}
+.mini-app-main-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+/* Кнопка приложения в шапке чата с ботом: с надписью, а не голая иконка —
+   «Магазин» и «Играть» это разные вещи, и человек должен видеть, куда идёт. */
+.chat-header-app-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  padding: 5px 12px 5px 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-accent);
+}
+.chat-header-app-icon {
+  display: inline-flex;
+}
+.chat-header-app-label {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* На узком экране от кнопки остаётся значок: рядом стоят «назад», аватар с
+   именем и меню — надпись выталкивала бы их за край. */
+@media (max-width: 520px) {
+  .chat-header-app-label {
+    display: none;
+  }
 }
 .modal-dialog {
   width: 100%;

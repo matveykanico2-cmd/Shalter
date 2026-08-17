@@ -38,20 +38,55 @@ router.get(
 // sorted ascending by createdAt, so `messages.at(-1).createdAt` is the next
 // `after` to pass. Capped at 200 per call so one poll can't return the
 // entire history for a very chatty bot.
+// `timeout` (в секундах) включает длинный опрос: запрос не отвечает пустотой
+// сразу, а висит до появления первого сообщения. Это и есть разница между
+// «бот отвечает через секунду-две» и «бот отвечает мгновенно»: без него
+// задержка ответа равна паузе в цикле самого бота, и нажатая кнопка молчит
+// ровно столько, сколько бот спит между опросами.
+//
+// Внутри — проверка базы раз в четверть секунды, а не подписка на событие.
+// Причина приземлённая: сообщение боту рождается в шести разных местах
+// (routes/messages.js, botMessaging, systemChat, приложение бота…), и
+// подписка означала бы «не забыть послать событие» в каждом из них — а
+// забытое место выглядит как «бот иногда не отвечает», что ищется днями.
+// Чтение из SQLite по индексу стоит доли миллисекунды, четыре раза в секунду
+// на бота — цена, которую видно только в этом комментарии.
+const LONG_POLL_MAX_SEC = 50;
+const LONG_POLL_STEP_MS = 250;
+
 router.get(
   "/updates",
   asyncRoute(async (req, res) => {
     const after = req.query.after || "1970-01-01T00:00:00.000Z";
-    const myChats = await listChatsForUser(req.bot.userId);
-    const myChatIds = new Set(myChats.map((c) => c.id));
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 200));
+    const timeoutSec = Math.min(LONG_POLL_MAX_SEC, Math.max(0, Number(req.query.timeout) || 0));
 
-    const messages = listNewForChats([...myChatIds], {
-      after,
-      excludeSenderId: req.bot.userId,
-      limit: 200,
+    // Список чатов бота читается один раз: за те же секунды ожидания бота
+    // могли добавить в новый чат, но сообщение оттуда подождёт следующего
+    // запроса — это дешевле, чем перечитывать членство четыре раза в секунду.
+    const myChats = await listChatsForUser(req.bot.userId);
+    const myChatIds = myChats.map((c) => c.id);
+
+    const read = () => listNewForChats(myChatIds, { after, excludeSenderId: req.bot.userId, limit });
+
+    let messages = read();
+    if (messages.length || !timeoutSec) return res.json({ messages });
+
+    // Оборванное соединение (бот перезапустился, сеть моргнула) не должно
+    // оставлять после себя таймер, который продолжает читать базу.
+    let alive = true;
+    res.on("close", () => {
+      alive = false;
     });
 
-    res.json({ messages });
+    const deadline = Date.now() + timeoutSec * 1000;
+    while (alive && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, LONG_POLL_STEP_MS));
+      if (!alive) return;
+      messages = read();
+      if (messages.length) return res.json({ messages });
+    }
+    if (alive) res.json({ messages: [] });
   })
 );
 

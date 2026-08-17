@@ -43,6 +43,43 @@ async function listChats() {
   return db.prepare("SELECT * FROM chats").all().map(rowToChat);
 }
 
+// Личный чат двоих — одним запросом по join-таблице.
+//
+// Раньше это писалось как `(await listChats()).find(...)` в шести местах: там,
+// где бот отвечает на данные из приложения, там, где приходит подарок, код
+// входа, уведомление о премиуме. Каждый такой поиск читал ВСЕ чаты сервера, и
+// на каждый из них rowToChat делал ещё один запрос за участниками — то есть
+// «отправить одно служебное сообщение» стоило тысячи запросов на живой базе и
+// дорожало с каждым новым чатом в системе. Здесь — два запроса, независимо от
+// размера базы.
+//
+// Чат с самим собой («Избранное») — это одна строка участия, и обычное
+// условие «оба состоят» нашло бы вместо него любой диалог, поэтому у него своя
+// ветка (та же оговорка, что в lib/systemChat.js).
+async function findDmBetween(userIdA, userIdB) {
+  const row =
+    userIdA === userIdB
+      ? db
+          .prepare(
+            `SELECT c.* FROM chats c
+               JOIN chat_members m ON m.chatId = c.id
+              WHERE c.type = 'dm' AND m.userId = ?
+              GROUP BY c.id HAVING COUNT(*) = 1
+              LIMIT 1`
+          )
+          .get(userIdA)
+      : db
+          .prepare(
+            `SELECT c.* FROM chats c
+               JOIN chat_members a ON a.chatId = c.id AND a.userId = ?
+               JOIN chat_members b ON b.chatId = c.id AND b.userId = ?
+              WHERE c.type = 'dm'
+              LIMIT 1`
+          )
+          .get(userIdA, userIdB);
+  return rowToChat(row);
+}
+
 async function listChatsForUser(userId) {
   const rows = db
     .prepare("SELECT c.* FROM chats c JOIN chat_members m ON m.chatId = c.id WHERE m.userId = ?")
@@ -206,4 +243,4 @@ async function deleteChat(id) {
 }
 
 module.exports = {
-  findChatByInviteCode, listChats, listChatsForUser, getChat, updateChat, createChat, deleteChat, findChatByUsername, searchPublicChannels };
+  findChatByInviteCode, listChats, listChatsForUser, findDmBetween, getChat, updateChat, createChat, deleteChat, findChatByUsername, searchPublicChannels };

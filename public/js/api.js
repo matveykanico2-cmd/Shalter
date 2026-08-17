@@ -253,8 +253,14 @@ export const api = {
     req("/api/bots", { method: "POST", body: JSON.stringify({ name, avatarImage, description }) }),
   // Посмотреть токен ещё раз — без перевыпуска, который сломал бы работающего бота.
   getBotToken: (id) => req(`/api/bots/${id}/token`),
-  // Сколько людей пользуется ботом — показывается в шапке его чата.
+  // Сколько людей пользуется ботом — показывается в шапке его чата. Заодно
+  // отвечает, есть ли у бота мини-приложение и как подписать кнопку.
   getBotAudience: (userId) => req(`/api/bots/audience/${userId}`),
+  // Мини-приложения (components/miniApp.js). Адрес подписывается на сервере —
+  // ключ выводится из токена бота, и в браузер он не попадает.
+  openBotApp: (botId, { url, chatId, theme } = {}) =>
+    req(`/api/bots/${botId}/app/open`, { method: "POST", body: JSON.stringify({ url, chatId, theme }) }),
+  sendBotAppData: (botId, data) => req(`/api/bots/${botId}/app/data`, { method: "POST", body: JSON.stringify({ data }) }),
   regenerateBotToken: (id) => req(`/api/bots/${id}/regenerate-token`, { method: "POST" }),
   deleteBot: (id) => req(`/api/bots/${id}`, { method: "DELETE" }),
   saveBotCode: (id, code) => req(`/api/bots/${id}/code`, { method: "PUT", body: JSON.stringify({ code }) }),

@@ -385,7 +385,7 @@ function VideoNotePlayer(a) {
 }
 
 export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, members, handlers }) {
-  const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onKeyboardAction, onOpenThread } = handlers;
+  const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onKeyboardAction, onKeyboardApp, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
 
   if (message.type === "system") {
@@ -781,11 +781,14 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
             "div",
             { class: "keyboard-row" },
             row.map((btn) =>
-              // Real inline-keyboard behavior (matches Telegram, and what
-              // documented to bot authors on /bots): tapping sends the action
-              // immediately as a normal message — it doesn't just quote it
-              // into the composer for the user to send themselves.
-              el("button", { class: "keyboard-btn", onclick: () => onKeyboardAction(btn.action) }, btn.text)
+              // Two kinds of button. `app` opens the bot's mini app
+              // (components/miniApp.js) — the counterpart of Telegram's
+              // web_app button. Everything else keeps the original behavior:
+              // tapping sends the action immediately as a normal message — it
+              // doesn't just quote it into the composer for the user to send.
+              btn.app
+                ? el("button", { class: "keyboard-btn keyboard-btn-app", onclick: () => onKeyboardApp?.(message, btn.app) }, btn.text)
+                : el("button", { class: "keyboard-btn", onclick: () => onKeyboardAction(btn.action) }, btn.text)
             )
           )
         )
