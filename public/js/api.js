@@ -366,6 +366,9 @@ export const api = {
     }),
   // Проверка отправки почты: логинится на SMTP-сервер и возвращает его ответ.
   adminMailStatus: () => req("/api/admin/mail-status"),
+  // Состояние машины: диск, процессор, память, размер базы и вложений
+  // (server/lib/serverStats.js). Опрашивается страницей «Сервер» по таймеру.
+  adminServerStats: () => req("/api/admin/server"),
   adminSetSafetyLabel: (userId, label) =>
     req(`/api/admin/users/${userId}/label`, { method: "POST", body: JSON.stringify({ label }) }),
 };

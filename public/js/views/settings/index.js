@@ -46,6 +46,7 @@ const SECTIONS = [
   { id: "data", label: "Данные и память", icon: "Download", color: "#58c4dc" },
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", color: "#8a8f98" },
   { id: "moderation", label: "Модерация", icon: "Shield", color: "#c6403b", adminOnly: true },
+  { id: "server", label: "Состояние сервера", icon: "BarChart", color: "#4c8dde", adminOnly: true },
   { id: "usernames", label: "Юзернеймы: аукцион и рынок", icon: "Star", color: "#5b8def" },
   { id: "giftshop", label: "Каталог подарков", icon: "Gift", color: "#e0a84a", adminOnly: true },
   { id: "donations", label: "DonationAlerts", icon: "Zap", color: "#3ec2c2", adminOnly: true },
@@ -146,6 +147,7 @@ export async function SettingsView(root, page) {
     data: renderData,
     shortcuts: renderShortcuts,
     moderation: renderModeration,
+    server: renderServer,
     donations: renderDonations,
     legal: renderLegal,
     stars: renderStars,
@@ -1735,6 +1737,213 @@ async function renderModeration(root) {
             ? [empty("Помеченных аккаунтов нет")]
             : data.labeled.map((u) => userRow(u, u.safetyLabelAt ? new Date(u.safetyLabelAt).toLocaleString("ru-RU") : ""))
         ),
+      ])
+    );
+  }
+
+  render();
+  await load();
+}
+
+// Секунды → «3 д 4 ч», «12 ч 40 мин», «40 мин 12 с» — до двух единиц, потому
+// что аптайм в 268 914 секундах не читается вообще.
+function formatUptime(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d) return `${d} д ${h} ч`;
+  if (h) return `${h} ч ${m} мин`;
+  if (m) return `${m} мин ${s % 60} с`;
+  return `${s} с`;
+}
+
+// Полоса заполнения. Цвет — по самому значению, а не по типу показателя: 91%
+// диска и 91% памяти одинаково означают «скоро всё встанет», и красная полоса
+// должна попасться на глаза раньше, чем это случится.
+function meter(label, percent, valueText, hint) {
+  const p = Math.min(100, Math.max(0, Number(percent) || 0));
+  const level = p >= 90 ? "danger" : p >= 75 ? "warn" : "ok";
+  return el("div", { class: "server-meter" }, [
+    el("div", { class: "server-meter-head" }, [
+      el("span", { class: "server-meter-label" }, label),
+      el("span", { class: `mono server-meter-value ${level}` }, `${p.toFixed(p < 10 ? 1 : 0)}%`),
+    ]),
+    el("div", { class: "server-meter-track" }, [el("div", { class: `server-meter-fill ${level}`, style: { width: `${p}%` } })]),
+    valueText ? el("p", { class: "mono server-meter-sub" }, valueText) : null,
+    hint ? el("p", { class: "settings-toggle-hint" }, hint) : null,
+  ]);
+}
+
+function statRow(label, value) {
+  return el("div", { class: "server-stat-row" }, [el("span", {}, label), el("span", { class: "mono settings-toggle-hint" }, value)]);
+}
+
+// Admin-only (SECTIONS' adminOnly flag → сервер тоже гейтит /api/admin/server).
+// То, что обычно смотрят по ssh: `df -h`, `top`, `du -sh data/`. К развёртыванию,
+// куда попадают только пушем (DEPLOY.md), консоли может не быть вовсе — а
+// «файлы перестали загружаться» почти всегда означает «кончилось место», и
+// узнать это иначе неоткуда. Данные читаются целиком в server/lib/serverStats.js.
+async function renderServer(root) {
+  let data = null;
+  let error = null;
+  let busy = false;
+  // Опрос по таймеру: загрузка процессора имеет смысл только как ряд значений,
+  // одиночный снимок ничего не говорит. Пять секунд — это ещё и окно, за
+  // которое сервер считает саму загрузку (разница между соседними запросами).
+  const REFRESH_MS = 5000;
+  let auto = true;
+  const TABLES_SHOWN = 12;
+  let allTables = false;
+
+  async function load() {
+    busy = true;
+    try {
+      data = await api.adminServerStats();
+      error = null;
+    } catch (err) {
+      error = err.message || "Не удалось получить состояние сервера";
+    }
+    busy = false;
+    render();
+  }
+
+  // Настройки не проходят через withCleanup (app.js чистит только mainSlot, а
+  // рисуем мы в его внутренний слот), поэтому таймер снимает себя сам, как
+  // только его узел ушёл из документа — при переходе на другой раздел.
+  const iv = setInterval(() => {
+    if (!document.body.contains(root)) {
+      clearInterval(iv);
+      return;
+    }
+    if (auto && !busy) load();
+  }, REFRESH_MS);
+
+  function render() {
+    clear(root);
+    if (error && !data) {
+      mount(root, pageWrap("Состояние сервера", null, [el("p", { class: "login-error" }, error)]));
+      return;
+    }
+    if (!data) {
+      mount(root, pageWrap("Состояние сервера", null, [el("p", { class: "settings-toggle-hint" }, "Считаем…")]));
+      return;
+    }
+
+    const { host, cpu, memory, disk, storage, db, realtime } = data;
+    const proc = data.process;
+
+    const toolbar = el("div", { class: "server-toolbar" }, [
+      el("span", { class: "mono settings-toggle-hint" }, `Обновлено в ${new Date(data.at).toLocaleTimeString("ru-RU")}`),
+      el("div", { class: "server-toolbar-actions" }, [
+        el("label", { class: "server-auto" }, [
+          el("input", {
+            type: "checkbox",
+            checked: auto,
+            onchange: (e) => {
+              auto = e.target.checked;
+            },
+          }),
+          el("span", {}, "каждые 5 с"),
+        ]),
+        el("button", { class: "profile-action-btn server-refresh-btn", disabled: busy, onclick: load }, busy ? "…" : "Обновить"),
+      ]),
+    ]);
+
+    mount(
+      root,
+      pageWrap("Состояние сервера", "Диск, процессор и память машины, на которой работает Shalter. Только чтение.", [
+        toolbar,
+        error ? el("p", { class: "login-error" }, error) : null,
+        section("Нагрузка", [
+          meter(
+            "Процессор",
+            cpu.usagePercent,
+            `${host.cores} ядер · ${host.cpuModel}`,
+            cpu.loadAvg
+              ? `Средняя нагрузка: ${cpu.loadAvg.map((v) => v.toFixed(2)).join(" · ")} (1 / 5 / 15 мин). Больше числа ядер (${host.cores}) — очередь на выполнение, сервер не успевает.`
+              : null
+          ),
+          // Ядра по отдельности: одно упёртое в 100% при общих 12% — это
+          // зациклившийся обработчик, и по средней цифре его не видно.
+          cpu.perCore?.length
+            ? el(
+                "div",
+                { class: "server-cores" },
+                cpu.perCore.map((p, i) =>
+                  el("div", { class: "server-core", title: `Ядро ${i + 1}: ${p.toFixed(0)}%` }, [
+                    el("div", {
+                      class: `server-core-fill ${p >= 90 ? "danger" : p >= 75 ? "warn" : "ok"}`,
+                      style: { height: `${Math.max(2, p)}%` },
+                    }),
+                  ])
+                )
+              )
+            : null,
+          meter(
+            "Оперативная память",
+            memory.usedPercent,
+            `${formatBytes(memory.used)} из ${formatBytes(memory.total)} · свободно ${formatBytes(memory.free)}`,
+            null
+          ),
+        ]),
+        section("Диск", [
+          disk.error
+            ? el("p", { class: "login-error" }, `Не удалось прочитать раздел: ${disk.error}`)
+            : meter(
+                "Раздел с данными",
+                disk.usedPercent,
+                `${formatBytes(disk.used)} занято · ${formatBytes(disk.free)} свободно из ${formatBytes(disk.total)}`,
+                disk.usedPercent >= 90
+                  ? "Места почти нет — загрузка вложений начнёт падать с ошибкой, а база перестанет писать."
+                  : `Раздел, где лежит ${disk.path}`
+              ),
+          statRow("База data/app.db", formatBytes(storage.db)),
+          // WAL — журнал упреждающей записи (AGENTS.md: база в режиме WAL). В
+          // норме он маленький; разросшийся означает, что чекпоинт не проходит.
+          statRow("Журнал WAL", `${formatBytes(storage.wal)}${storage.wal > 64 * 1024 * 1024 ? " — необычно много" : ""}`),
+          statRow(
+            "Вложения data/uploads",
+            `${formatBytes(storage.uploads)} · ${storage.uploadFiles} ${storage.uploadsTruncated ? "файлов (посчитаны не все)" : "файлов"}`
+          ),
+          statRow("Всего данных Shalter", formatBytes(storage.total)),
+        ]),
+        section("База данных", [
+          statRow("Размер по страницам", `${formatBytes(db.pageCount * db.pageSize)} · ${db.pageCount} × ${formatBytes(db.pageSize)}`),
+          // Освобождается только VACUUM — до него место занято, но не используется.
+          db.freeBytes > 0 ? statRow("Свободно внутри базы", `${formatBytes(db.freeBytes)} — вернёт VACUUM`) : null,
+          statRow("Всего строк", String(db.totalRows)),
+          // Таблицы отсортированы по числу строк, поэтому первых нескольких
+          // хватает на вопрос «от чего растёт база»; остальные два десятка —
+          // это в основном нули, и разворачиваются по нажатию.
+          ...db.tables.slice(0, allTables ? db.tables.length : TABLES_SHOWN).map((t) => statRow(t.name, String(t.rows))),
+          db.tables.length > TABLES_SHOWN
+            ? el(
+                "button",
+                {
+                  class: "profile-action-btn moderation-open-btn",
+                  onclick: () => {
+                    allTables = !allTables;
+                    render();
+                  },
+                },
+                allTables ? "Свернуть" : `Показать все таблицы (${db.tables.length})`
+              )
+            : null,
+        ]),
+        section("Процесс Shalter", [
+          statRow("Работает", formatUptime(proc.uptimeSec)),
+          statRow("Память процесса (RSS)", `${formatBytes(proc.rss)} · ${proc.sharePercent.toFixed(1)}% от всей памяти`),
+          statRow("Куча V8", `${formatBytes(proc.heapUsed)} из ${formatBytes(proc.heapTotal)}`),
+          statRow("PID", String(proc.pid)),
+          statRow("Соединений WebSocket", `${realtime.sockets} · ${realtime.onlineUsers} польз. в сети`),
+        ]),
+        section("Машина", [
+          statRow("Имя", host.hostname),
+          statRow("Система", `${host.platform} · ${host.arch}`),
+          statRow("Node.js", host.node),
+          statRow("Аптайм", formatUptime(host.uptimeSec)),
+        ]),
       ])
     );
   }

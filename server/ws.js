@@ -114,4 +114,14 @@ async function handleMessage(ws, raw) {
   }
 }
 
-module.exports = { attachWebSocketServer, broadcastToUsers };
+// Сколько сейчас живых соединений и сколько за ними людей — для страницы
+// состояния сервера (lib/serverStats.js). Счётчик в памяти процесса, как и всё
+// остальное присутствие: при нескольких процессах он покажет только свой (см.
+// AGENTS.md — приложение и не рассчитано на горизонтальное масштабирование).
+function wsStats() {
+  let sockets = 0;
+  for (const set of socketsByUser.values()) sockets += set.size;
+  return { onlineUsers: socketsByUser.size, sockets };
+}
+
+module.exports = { attachWebSocketServer, broadcastToUsers, wsStats };

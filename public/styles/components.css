@@ -5551,6 +5551,136 @@
   color: var(--color-muted);
 }
 
+/* ── Settings → Состояние сервера (views/settings/index.js's renderServer) ── */
+.server-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.server-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.server-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.server-refresh-btn {
+  min-width: 92px;
+  border: 1px solid var(--color-border);
+  padding: 7px 12px;
+  font-size: 13px;
+}
+/* Полоса ядер разрывает соседство двух .server-meter, поэтому отступ нужен и
+   после неё — иначе следующий показатель прилипает к столбикам. */
+.server-meter + .server-meter,
+.server-cores + .server-meter {
+  margin-top: 14px;
+}
+.server-meter-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.server-meter-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+.server-meter-value {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* Ниже 75% цифра остаётся обычным текстом: зелёная «всё хорошо» на каждом
+   показателе — это три ярких пятна, среди которых красное уже не выделяется. */
+.server-meter-value.warn {
+  color: var(--color-warning);
+}
+.server-meter-value.danger {
+  color: var(--color-danger);
+}
+.server-meter-track {
+  overflow: hidden;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  height: 8px;
+}
+.server-meter-fill {
+  border-radius: 999px;
+  background: var(--color-accent);
+  height: 100%;
+  transition: width 0.4s ease;
+}
+.server-meter-fill.warn {
+  background: var(--color-warning);
+}
+.server-meter-fill.danger {
+  background: var(--color-danger);
+}
+.server-meter-sub {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+/* Столбики по ядрам — растут снизу вверх, поэтому колонка выравнивается по
+   нижнему краю, а высота задаётся самому заполнению. */
+.server-cores {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  margin-top: 10px;
+  height: 34px;
+}
+.server-core {
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  flex: 1;
+  border-radius: 3px;
+  background: var(--color-surface-alt);
+  min-width: 4px;
+  height: 100%;
+}
+.server-core-fill {
+  border-radius: 3px;
+  background: var(--color-accent);
+  width: 100%;
+  transition: height 0.4s ease;
+}
+.server-core-fill.warn {
+  background: var(--color-warning);
+}
+.server-core-fill.danger {
+  background: var(--color-danger);
+}
+.server-stat-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 13.5px;
+}
+.server-stat-row + .server-stat-row {
+  border-top: 1px solid var(--color-border);
+}
+.server-stat-row > span:last-child {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
 /* ── Settings → Модерация (views/settings/index.js's renderModeration) ───── */
 .moderation-row {
   display: flex;

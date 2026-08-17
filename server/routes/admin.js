@@ -26,6 +26,7 @@ const { getChat, updateChat } = require("../data/chats");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { broadcastToUsers } = require("../ws");
+const { collectServerStats } = require("../lib/serverStats");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -462,6 +463,18 @@ router.get(
       directEnabled: process.env.MAIL_DIRECT !== "0",
       dns: dnsAdvice,
     });
+  })
+);
+
+// Состояние сервера: диск, процессор, память, размер базы и вложений
+// (lib/serverStats.js). Соседствует с проверкой почты выше по той же причине —
+// это вещи, которые иначе смотрят по ssh, а к развёртыванию, куда попадают
+// только пушем, консоли может не быть вовсе.
+router.get(
+  "/server",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    res.json(await collectServerStats());
   })
 );
 
