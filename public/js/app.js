@@ -108,6 +108,17 @@ async function boot() {
   // session (e.g. browser restart) — does nothing if it wasn't, so this is
   // safe to call unconditionally on every boot.
   ensurePushSubscribed().catch(() => {});
+  // Код переписки приезжает заранее, пока человек смотрит на список чатов.
+  //
+  // Он вынесен в отдельный кусок (см. маршрут /chat/:id ниже) — и при первом
+  // нажатии на чат браузер качал его прямо в этот момент, вместе с тем, что
+  // тянет он сам: четыре обращения к серверу подряд, почти секунда ожидания.
+  // Здесь мы просто просим его заранее, в свободное время: к нажатию он уже
+  // на месте, и открытие сводится к одному запросу за сообщениями.
+  const prefetchChat = () => import("./views/chatView.js").catch(() => {});
+  if ("requestIdleCallback" in window) requestIdleCallback(prefetchChat, { timeout: 3000 });
+  else setTimeout(prefetchChat, 1200);
+
   const shell = el("div", { class: "shell" });
   const listCol = el("div", { class: "shell-list-col" });
   const mainSlot = el("div", { class: "shell-main-col" });

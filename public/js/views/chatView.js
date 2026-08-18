@@ -78,7 +78,24 @@ export async function ChatView(root, chatId) {
   let botCommands = null;
   let searchQuery = "";
   let searchResults = null;
+  // Открывали этот чат раньше — показываем сразу, не дожидаясь сервера.
+  //
+  // Переписка уже лежит на устройстве с прошлого раза (lib/localCache.js), и
+  // ждать ответа сети, чтобы показать ровно то же самое, незачем: свежее
+  // приезжает следом и заменяет показанное. Разница видна именно на плохой
+  // связи — там между нажатием и первым словом проходила почти секунда.
+  const cached = readCache(`chat.${chatId}`, me.id);
+  let openedFromCache = false;
+  if (cached?.chat && cached.messages?.length) {
+    chat = cached.chat;
+    members = cached.members ?? [];
+    messages = cached.messages;
+    hasMoreHistory = false;
+    openedFromCache = true;
+  }
+
   try {
+    if (openedFromCache) throw new Error("показано сохранённое");
     // Оба запроса разом, а не один за другим: второй не зависит от первого, а
     // последовательно они складывались в двойную задержку перед тем, как на
     // экране появлялось хоть что-то.
@@ -96,19 +113,12 @@ export async function ChatView(root, chatId) {
     // чата она нарисуется мгновенно, ещё до ответа сервера.
     writeCache(`chat.${chatId}`, me.id, { chat, members, messages: messages.slice(-PAGE_SIZE) });
   } catch {
-    // Сети нет или сервер молчит — но эту переписку человек уже открывал, и
-    // показать её прошлый вид честнее, чем «чат не найден».
-    const cached = readCache(`chat.${chatId}`, me.id);
-    if (!cached?.chat) {
+    // Сюда попадаем в двух случаях: показали сохранённое (тогда просто идём
+    // дальше и обновимся ниже) или сеть не ответила и сохранённого нет.
+    if (!openedFromCache) {
       mount(root, el("div", { class: "empty-chat" }, "Чат не найден"));
       return;
     }
-    chat = cached.chat;
-    members = cached.members ?? [];
-    messages = cached.messages ?? [];
-    hasMoreHistory = false;
-    // Свежее подтянется само, как только сеть отзовётся.
-    setTimeout(() => scheduleRefresh(0), 1500);
   }
 
   // That listMessages() call just marked this chat's messages read on the
@@ -1414,6 +1424,21 @@ export async function ChatView(root, chatId) {
       renderHeader();
     }, 4000);
   });
+
+  // Показали сохранённое — теперь спрашиваем сервер и заменяем показанное
+  // свежим. Здесь, а не выше: к этому месту всё уже нарисовано, и обновлению
+  // есть что обновлять.
+  if (openedFromCache) {
+    api
+      .getChat(chatId)
+      .then((res) => {
+        chat = res.chat;
+        members = res.members;
+        botCommands = res.commands ?? null;
+      })
+      .catch(() => {});
+    scheduleRefresh(0);
+  }
 
   root._cleanup = () => {
     clearInterval(messagesIv);
