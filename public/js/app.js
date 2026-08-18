@@ -4,16 +4,6 @@ import { setState, getState } from "./state.js";
 import { route, notFound, startRouter, navigate } from "./router.js";
 import { NavRail } from "./components/navRail.js";
 import { ChatListPane } from "./views/chatList.js";
-import { LoginView } from "./views/login.js";
-import { QrLoginConfirmView } from "./views/qrLoginConfirm.js";
-import { ChatView } from "./views/chatView.js";
-import { ContactsView } from "./views/contacts.js";
-import { JoinInviteView } from "./views/joinInvite.js";
-import { DiscoverChannelsView } from "./views/discoverChannels.js";
-import { CallScreenView } from "./views/callScreen.js";
-import { CallsView } from "./views/calls.js";
-import { ArchiveView } from "./views/archive.js";
-import { SettingsView } from "./views/settings/index.js";
 import { mountIncomingCallWatcher, answerCall } from "./components/incomingCallWatcher.js";
 import { openMiniApp } from "./components/miniApp.js";
 import { startWsClient } from "./lib/wsClient.js";
@@ -45,6 +35,7 @@ async function boot() {
 
   if (path.startsWith("/login")) {
     const params = new URLSearchParams(window.location.search);
+    const { LoginView } = await import("./views/login.js");
     LoginView(root, { addMode: params.get("add") === "1" });
     return;
   }
@@ -54,6 +45,7 @@ async function boot() {
   // QrLoginConfirmView), so it deliberately sits outside the authenticated
   // app shell below.
   if (path === "/qr-login") {
+    const { QrLoginConfirmView } = await import("./views/qrLoginConfirm.js");
     await QrLoginConfirmView(root);
     return;
   }
@@ -75,19 +67,24 @@ async function boot() {
   });
 
   setState({ user, accounts });
-  // Без await: карточке контакта в переписке это нужно, но ждать ради неё
-  // показа приложения незачем — придёт через мгновение и перерисует.
-  api
-    .getContactIds()
-    .then(({ ids }) => setState({ contactIds: ids }))
-    .catch(() => {});
+  // Настройки, чаты, папки и контакты — одним ответом, который ушёл ещё из
+  // index.html одновременно с запросом сессии. Без await: приложение рисуется
+  // сразу, а пришедшее просто наполняет его.
+  const bootData = api
+    .bootstrap()
+    .then((data) => {
+      if (!data) return null;
+      setState({ contactIds: data.contactIds, chats: data.chats, folders: data.folders });
+      return data;
+    })
+    .catch(() => null);
   startWsClient();
   mountIncomingCallWatcher();
   initKeyboardShortcuts();
   // Starts observing before the shell below does its first render, so that
   // initial paint gets caught by the same pass as everything after it.
-  api
-    .getSettings()
+  bootData
+    .then((data) => (data ? { settings: data.settings } : api.getSettings()))
     .then(({ settings }) => {
       setState({ settings });
       initUiTranslation(settings.uiLanguage);
@@ -169,6 +166,11 @@ async function boot() {
   });
   route("/chat/:id", async (params) => {
     withCleanup(mainSlot);
+    // Сама переписка — тоже отдельным куском: на первом экране виден список
+    // чатов, а вместе с перепиской приезжают поле ввода, диктофон, стикеры и
+    // рисованные подарки. Это самая тяжёлая часть, и она не нужна, пока чат не
+    // открыли.
+    const { ChatView } = await import("./views/chatView.js");
     await ChatView(mainSlot, params.id);
   });
   route("/call/:id", async (params) => {
@@ -179,6 +181,7 @@ async function boot() {
       window.history.replaceState(null, "", `/call/${params.id}`);
       await answerCall(params.id).catch(() => {});
     }
+    const { CallScreenView } = await import("./views/callScreen.js");
     await CallScreenView(mainSlot, params.id);
   });
   // Where a Premium invite link (callScreen.js's "Пригласить по ссылке")
@@ -267,30 +270,37 @@ async function boot() {
   // router's own auth gate sends them to /login and back.
   route("/join/:code", async (params) => {
     withCleanup(mainSlot);
+    const { JoinInviteView } = await import("./views/joinInvite.js");
     await JoinInviteView(mainSlot, params.code);
   });
   route("/contacts", async () => {
     withCleanup(mainSlot);
+    const { ContactsView } = await import("./views/contacts.js");
     await ContactsView(mainSlot);
   });
   route("/discover-channels", async () => {
     withCleanup(mainSlot);
+    const { DiscoverChannelsView } = await import("./views/discoverChannels.js");
     await DiscoverChannelsView(mainSlot);
   });
   route("/calls", async () => {
     withCleanup(mainSlot);
+    const { CallsView } = await import("./views/calls.js");
     await CallsView(mainSlot);
   });
   route("/archive", async () => {
     withCleanup(mainSlot);
+    const { ArchiveView } = await import("./views/archive.js");
     await ArchiveView(mainSlot);
   });
   route("/settings", async () => {
     withCleanup(mainSlot);
+    const { SettingsView } = await import("./views/settings/index.js");
     await SettingsView(mainSlot, "");
   });
   route("/settings/:page", async (params) => {
     withCleanup(mainSlot);
+    const { SettingsView } = await import("./views/settings/index.js");
     await SettingsView(mainSlot, params.page);
   });
   notFound(() => navigate("/", { replace: true }));

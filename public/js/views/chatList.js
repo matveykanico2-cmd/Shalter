@@ -226,7 +226,11 @@ export function ChatListPane() {
     }
   }
 
-  refetch();
+  // Первый запрос нужен, только если общий ответ при входе (routes/bootstrap.js)
+  // ещё не наполнил состояние — иначе это была бы вторая поездка за тем же
+  // самым. Небольшая отсрочка на случай, когда он в пути.
+  if (getState().chats?.length) scheduleRefetch(1500);
+  else refetch();
   // WS push (any message event, anywhere) triggers an immediate refetch so a
   // new message's preview/unread badge/ordering shows up without waiting on
   // the poll — that poll now only needs to run as a slow reconnect/catch-up

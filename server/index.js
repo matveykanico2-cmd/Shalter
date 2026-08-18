@@ -166,6 +166,8 @@ app.use("/api/stars", require("./routes/stars"));
 app.use("/api/support", require("./routes/support"));
 app.use("/api/avatars", require("./routes/avatars"));
 app.use("/api/usernames", require("./routes/usernames"));
+// Один ответ вместо трёх поездок при входе — см. routes/bootstrap.js.
+app.use("/api/bootstrap", require("./routes/bootstrap"));
 
 if (useBuilt) {
   // Serves whichever of app.js/app.js.br/app.js.gz the client's

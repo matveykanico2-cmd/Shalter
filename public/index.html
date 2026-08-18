@@ -16,8 +16,27 @@
   <link rel="stylesheet" href="/styles/components.css" />
   <meta name="yandex-verification" content="5d613c81ddf70c98" />
   <meta name="google-site-verification" content="H5Gkar6C14mDnFw1EAZHJSq6fHveNpDeEzKUmDXUcDE" />
+<!-- Запросы стартуют здесь, а не в app.js.
+     На плохой связи браузер сначала полторы секунды качает и разбирает код и
+     только потом спрашивает сервер, кто вошёл и какие есть чаты. Отсюда оба
+     запроса уходят сразу — они едут одновременно со скачиванием кода, а
+     приложение потом просто забирает готовые обещания (см. js/api.js). -->
+<script>
+  // На странице входа спрашивать нечего: сессии ещё нет, и запрос вернул бы
+  // отказ — лишняя поездка и красная строка в консоли на ровном месте.
+  if (!/^\/(login|qr-login)/.test(location.pathname)) {
+    window.__boot = {
+      session: fetch("/api/auth/session", { credentials: "include" }).then((r) => r.json()).catch(() => null),
+      data: fetch("/api/bootstrap", { credentials: "include" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    };
+  }
+</script>
 <!-- Yandex.Metrika counter -->
 <script type="text/javascript">
+    // Счётчик поднимается после первой отрисовки: чужой домен — это отдельный
+    // поиск адреса и отдельное защищённое соединение, и на медленной сети они
+    // отнимают время у самого приложения.
+    window.addEventListener("load", function () {
     (function(m,e,t,r,i,k,a){
         m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
         m[i].l=1*new Date();
@@ -26,6 +45,7 @@
     })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=111690384', 'ym');
 
     ym(111690384, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+    });
 </script>
 <noscript><div><img src="https://mc.yandex.ru/watch/111690384" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
 <!-- /Yandex.Metrika counter -->

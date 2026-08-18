@@ -23,7 +23,14 @@ async function build() {
     minify: true,
     format: "esm",
     target: "es2022",
-    outfile: path.join(DIST_DIR, "app.js"),
+    // splitting — то, что делает динамические import() отдельными файлами:
+    // без него esbuild сложил бы всё обратно в один. Общий для нескольких
+    // экранов код он выносит в отдельный кусок сам, поэтому ничего не
+    // скачивается дважды.
+    splitting: true,
+    outdir: DIST_DIR,
+    entryNames: "app",
+    chunkNames: "chunk-[hash]",
     logLevel: "info",
     // lib/codeEditor.js imports CodeMirror straight from esm.sh (see that
     // file's comment) — esbuild has no business trying to fetch/bundle a
@@ -53,12 +60,23 @@ async function build() {
   const baseV = stamp(path.join(DIST_DIR, "styles", "base.css"));
   const compV = stamp(path.join(DIST_DIR, "styles", "components.css"));
 
+  // Куски, которые основному файлу нужны сразу, объявляем в самой странице.
+  //
+  // Без этого браузер узнаёт о них только когда скачает и разберёт app.js — и
+  // получается цепочка: страница → код → куски кода → и лишь потом запрос к
+  // серверу. На быстрой связи незаметно, на медленной каждое звено стоит своей
+  // задержки. Объявленные здесь, они едут одновременно с основным файлом.
+  const appSource = fs.readFileSync(path.join(DIST_DIR, "app.js"), "utf-8");
+  const eagerChunks = [...new Set([...appSource.matchAll(/from"\.\/(chunk-[A-Z0-9]+\.js)"/g)].map((m) => m[1]))];
+  const preloads = eagerChunks.map((c) => `  <link rel="modulepreload" href="/dist/${c}" />`).join("\n");
+
   // index.html is identical except it points at the built asset paths.
   const html = fs
     .readFileSync(path.join(PUBLIC_DIR, "index.html"), "utf-8")
     .replace('href="/styles/base.css"', `href="/dist/styles/base.css?v=${baseV}"`)
     .replace('href="/styles/components.css"', `href="/dist/styles/components.css?v=${compV}"`)
-    .replace('src="/js/app.js"', `src="/dist/app.js?v=${jsV}"`);
+    .replace('src="/js/app.js"', `src="/dist/app.js?v=${jsV}"`)
+    .replace("</head>", `${preloads}\n</head>`);
   fs.writeFileSync(path.join(DIST_DIR, "index.html"), html);
   // Метка сборки — по ней сервер понимает, что собранное отстало от исходников,
   // и по ней же служебный воркер отличает свежий набор файлов от старого.
@@ -67,7 +85,7 @@ async function build() {
     JSON.stringify({ version: jsV, builtAt: new Date().toISOString(), sourceStamp: sourceStamp() })
   );
 
-  precompress(path.join(DIST_DIR, "app.js"));
+  for (const f of fs.readdirSync(DIST_DIR)) if (f.endsWith(".js")) precompress(path.join(DIST_DIR, f));
   precompress(path.join(DIST_DIR, "styles", "base.css"));
   precompress(path.join(DIST_DIR, "styles", "components.css"));
   precompress(path.join(DIST_DIR, "index.html"));

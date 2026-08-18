@@ -24,7 +24,25 @@ async function req(url, init) {
 }
 
 export const api = {
-  session: () => req("/api/auth/session"),
+  // Запрос уже ушёл из index.html, ещё до того как этот файл скачался —
+  // забираем готовое обещание вместо второй поездки. Первый раз оно
+  // забирается один раз: после входа/выхода нужно спрашивать заново.
+  session: () => {
+    const early = window.__boot?.session;
+    if (early) {
+      window.__boot.session = null;
+      return early.then((r) => r ?? req("/api/auth/session"));
+    }
+    return req("/api/auth/session");
+  },
+  bootstrap: () => {
+    const early = window.__boot?.data;
+    if (early) {
+      window.__boot.data = null;
+      return early.then((r) => r ?? req("/api/bootstrap"));
+    }
+    return req("/api/bootstrap");
+  },
   registerEmail: (name, email, password, phone, username, referralCode) =>
     req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, username, referralCode }) }),
   // Live availability check for the registration form's @handle field.
