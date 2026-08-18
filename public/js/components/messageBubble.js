@@ -326,11 +326,50 @@ function votesWord(n) {
   return "голосов";
 }
 
+// Перемотка тягой по полосе — общая и для голосового, и для кружка.
+//
+// Слушать голосовое без перемотки — значит переслушивать его целиком ради
+// одной фразы. Считается по доле от ширины полосы, а не по величине шага,
+// поэтому одинаково работает и на узкой строке в телефоне, и на широкой на
+// мониторе. Указатель захватывается (setPointerCapture): палец или курсор,
+// уехавший за пределы полосы, продолжает перематывать, а не бросает тягу.
+function attachSeek(bar, media, durationOf) {
+  const seekTo = (event) => {
+    const rect = bar.getBoundingClientRect();
+    if (!rect.width) return;
+    const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const dur = durationOf();
+    if (Number.isFinite(dur) && dur > 0) media.currentTime = fraction * dur;
+  };
+  bar.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    bar.setPointerCapture(event.pointerId);
+    bar.classList.add("seeking");
+    seekTo(event);
+  });
+  bar.addEventListener("pointermove", (event) => {
+    if (bar.hasPointerCapture?.(event.pointerId)) seekTo(event);
+  });
+  const release = (event) => {
+    bar.classList.remove("seeking");
+    if (bar.hasPointerCapture?.(event.pointerId)) bar.releasePointerCapture(event.pointerId);
+  };
+  bar.addEventListener("pointerup", release);
+  bar.addEventListener("pointercancel", release);
+}
+
+// Секунды в «1:05» — на двух минутах записи «65s» уже не читается.
+function clockTime(sec) {
+  const s = Math.max(0, Math.floor(sec || 0));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
 function VoicePlayer(a) {
-  const audio = el("audio", { src: a.url, class: "hidden-audio" });
+  const audio = el("audio", { src: a.url, class: "hidden-audio", preload: "metadata" });
   const playBtn = el("button", { class: "voice-play-btn", html: iconSvg("Play", 14) });
   const barFill = el("div", { class: "voice-bar-fill" });
-  const timeLabelEl = el("p", { class: "voice-time mono" }, `0s / ${Math.round(a.durationSec ?? 0)}s`);
+  const timeLabelEl = el("p", { class: "voice-time mono" }, `0:00 / ${clockTime(a.durationSec ?? 0)}`);
   const speedBtn = el("button", { class: "voice-speed-btn" }, "1×");
   let playing = false;
   let speed = 1;
@@ -352,31 +391,70 @@ function VoicePlayer(a) {
     playing = false;
     playBtn.innerHTML = iconSvg("Play", 14);
   });
-  audio.addEventListener("timeupdate", () => {
-    const dur = audio.duration || a.durationSec || 1;
-    barFill.style.width = `${Math.min(100, (audio.currentTime / dur) * 100)}%`;
-    timeLabelEl.textContent = `${Math.floor(audio.currentTime)}s / ${Math.round(dur)}s`;
-  });
+  const bar = el("div", { class: "voice-bar seekable" }, [barFill, el("span", { class: "voice-bar-knob" })]);
+
+  // Длительность у записи из MediaRecorder часто приходит как Infinity, пока
+  // файл не проигран до конца — тогда берём ту, что посчитал сам диктофон.
+  const durationOf = () => {
+    const known = audio.duration;
+    return Number.isFinite(known) && known > 0 ? known : a.durationSec || 0;
+  };
+  const paint = () => {
+    const dur = durationOf() || 1;
+    const done = Math.min(100, (audio.currentTime / dur) * 100);
+    barFill.style.width = `${done}%`;
+    bar.style.setProperty("--voice-knob-left", `${done}%`);
+    timeLabelEl.textContent = `${clockTime(audio.currentTime)} / ${clockTime(dur)}`;
+  };
+  audio.addEventListener("timeupdate", paint);
+  audio.addEventListener("seeking", paint);
+  audio.addEventListener("loadedmetadata", paint);
   speedBtn.addEventListener("click", () => {
     speed = speed === 1 ? 1.5 : speed === 1.5 ? 2 : 1;
     audio.playbackRate = speed;
     speedBtn.textContent = `${speed}×`;
   });
 
+  attachSeek(bar, audio, durationOf);
+
   return el("div", { class: "voice-player" }, [
     audio,
     playBtn,
-    el("div", { class: "voice-progress" }, [el("div", { class: "voice-bar" }, [barFill]), timeLabelEl]),
+    el("div", { class: "voice-progress" }, [bar, timeLabelEl]),
     speedBtn,
   ]);
 }
 
 function VideoNotePlayer(a) {
-  const video = el("video", { src: a.url, class: "video-note-el", playsinline: true });
+  const video = el("video", { src: a.url, class: "video-note-el", playsinline: true, preload: "metadata" });
   const overlay = el("span", { class: "video-note-overlay", html: iconSvg("Play", 28) });
-  const wrap = el("button", { class: "video-note-player" }, [video, overlay]);
+
+  // Кольцо прогресса по краю кружка — как в Telegram. Обводка круга рисуется
+  // штрихом длиной во всю окружность, а сдвиг штриха и есть проигранная доля.
+  const RADIUS = 48;
+  const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+  const ring = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  ring.setAttribute("viewBox", "0 0 100 100");
+  ring.setAttribute("class", "video-note-ring");
+  ring.innerHTML =
+    `<circle cx="50" cy="50" r="${RADIUS}" class="video-note-ring-track"/>` +
+    `<circle cx="50" cy="50" r="${RADIUS}" class="video-note-ring-fill" stroke-dasharray="${CIRCUMFERENCE}" stroke-dashoffset="${CIRCUMFERENCE}"/>`;
+  const ringFill = ring.querySelector(".video-note-ring-fill");
+
+  // Полоса перемотки под кружком: тянуть по кольцу неудобно — палец закрывает
+  // само видео, — а по прямой полосе привычно и точно.
+  const barFill = el("div", { class: "voice-bar-fill" });
+  const bar = el("div", { class: "voice-bar seekable" }, [barFill, el("span", { class: "voice-bar-knob" })]);
+  const timeLabelEl = el("p", { class: "voice-time mono" }, `0:00 / ${clockTime(a.durationSec ?? 0)}`);
+  const durationOf = () => {
+    const known = video.duration;
+    return Number.isFinite(known) && known > 0 ? known : a.durationSec || 0;
+  };
+  attachSeek(bar, video, durationOf);
+
+  const circle = el("button", { class: "video-note-player" }, [video, ring, overlay]);
   let playing = false;
-  wrap.addEventListener("click", () => {
+  circle.addEventListener("click", () => {
     if (playing) video.pause();
     else video.play();
   });
@@ -392,7 +470,22 @@ function VideoNotePlayer(a) {
     playing = false;
     overlay.style.display = "flex";
   });
-  return wrap;
+  const paint = () => {
+    const dur = durationOf() || 1;
+    const done = Math.min(1, video.currentTime / dur);
+    ringFill.setAttribute("stroke-dashoffset", String(CIRCUMFERENCE * (1 - done)));
+    barFill.style.width = `${done * 100}%`;
+    bar.style.setProperty("--voice-knob-left", `${done * 100}%`);
+    timeLabelEl.textContent = `${clockTime(video.currentTime)} / ${clockTime(dur)}`;
+  };
+  video.addEventListener("timeupdate", paint);
+  video.addEventListener("seeking", paint);
+  video.addEventListener("loadedmetadata", paint);
+
+  return el("div", { class: "video-note-wrap" }, [
+    circle,
+    el("div", { class: "video-note-seek" }, [bar, timeLabelEl]),
+  ]);
 }
 
 export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, members, handlers }) {
@@ -467,8 +560,14 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     // Only channels get a view counter — Telegram shows one there and nowhere
     // else, and "0 👁" under every private message is pure noise.
     isChannel && typeof message.views === "number" ? el("span", { class: "mono" }, `${message.views} 👁`) : null,
+    // Часы вместо галочки, пока сообщение ещё едет на сервер (views/chatView.js
+    // ставит его в ленту сразу, не дожидаясь ответа). Так же это показывает
+    // Telegram, и по этому значку сразу видно, дошло уже или нет.
     mine
-      ? el("span", { html: iconSvg(message.readByIds.length > 1 ? "CheckCheck" : "Check", 13) })
+      ? el("span", {
+          class: message.pending ? "msg-status-pending" : "",
+          html: iconSvg(message.pending ? "Clock" : message.readByIds.length > 1 ? "CheckCheck" : "Check", 13),
+        })
       : null,
   ]);
   bubbleInner.push(meta);

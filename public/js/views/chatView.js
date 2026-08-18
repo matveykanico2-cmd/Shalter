@@ -13,6 +13,7 @@ import { getState, setState } from "../state.js";
 import { isChatAdmin, isChatModerator } from "../lib/chatRoles.js";
 import { messagePreview } from "../lib/messagePreview.js";
 import { noteMessageInChatList } from "../lib/chatListSync.js";
+import { readCache, writeCache } from "../lib/localCache.js";
 import { navigate } from "../router.js";
 import { placeCall as placeCallController } from "../lib/callController.js";
 import { onWsMessage } from "../lib/wsClient.js";
@@ -91,9 +92,23 @@ export async function ChatView(root, chatId) {
     // then the chat has been marked read. Keeping the original is what lets the
     // divider stay put while you read instead of vanishing on the next poll.
     firstUnreadId = first.firstUnreadId ?? null;
+    // Складываем последнюю страницу переписки: при следующем открытии этого
+    // чата она нарисуется мгновенно, ещё до ответа сервера.
+    writeCache(`chat.${chatId}`, me.id, { chat, members, messages: messages.slice(-PAGE_SIZE) });
   } catch {
-    mount(root, el("div", { class: "empty-chat" }, "Чат не найден"));
-    return;
+    // Сети нет или сервер молчит — но эту переписку человек уже открывал, и
+    // показать её прошлый вид честнее, чем «чат не найден».
+    const cached = readCache(`chat.${chatId}`, me.id);
+    if (!cached?.chat) {
+      mount(root, el("div", { class: "empty-chat" }, "Чат не найден"));
+      return;
+    }
+    chat = cached.chat;
+    members = cached.members ?? [];
+    messages = cached.messages ?? [];
+    hasMoreHistory = false;
+    // Свежее подтянется само, как только сеть отзовётся.
+    setTimeout(() => scheduleRefresh(0), 1500);
   }
 
   // That listMessages() call just marked this chat's messages read on the
@@ -209,8 +224,11 @@ export async function ChatView(root, chatId) {
       return;
     }
     const cutoff = fresh[0].createdAt;
-    const older = messages.filter((m) => m.createdAt < cutoff);
-    const merged = [...older, ...fresh];
+    const older = messages.filter((m) => m.createdAt < cutoff && !m.pending);
+    // Ещё не отправленные остаются в конце: сервер о них не знает, а человек
+    // их уже видит — исчезнуть они не должны.
+    const stillPending = messages.filter((m) => m.pending);
+    const merged = [...older, ...fresh, ...stillPending];
     const grew = merged.length > messagesCount;
     // Nothing changed -> don't touch the DOM at all. This is the common case on
     // a 15s poll, and rebuilding the whole list for it was the single most
@@ -269,9 +287,48 @@ export async function ChatView(root, chatId) {
     }
   }
 
+  // Отправка показывается сразу, не дожидаясь сервера.
+  //
+  // Раньше сообщение появлялось только после ответа сервера, а потом ещё и
+  // после полной перезагрузки списка сообщений — на медленной сети между
+  // нажатием и появлением проходила секунда и больше, и всё это время
+  // выглядело так, будто нажатие не сработало. Теперь сообщение встаёт в ленту
+  // мгновенно с пометкой «отправляется», а ответ сервера просто заменяет его
+  // настоящим.
+  let pendingSeq = 0;
   async function handleSend(text, attachments, extra) {
     const replyToId = replyingTo?.id ?? null;
     replyingTo = null;
+
+    const localId = `local_${++pendingSeq}_${Date.now()}`;
+    const optimistic = {
+      id: localId,
+      chatId: chat.id,
+      senderId: me.id,
+      type: "text",
+      text,
+      attachments: attachments ?? [],
+      replyToId,
+      createdAt: new Date().toISOString(),
+      reactions: [],
+      readByIds: [],
+      pending: true,
+      ...(extra ?? {}),
+    };
+    messages = [...messages, optimistic];
+    messagesCount = messages.length;
+    draftText = "";
+    renderList();
+    renderComposer();
+    // Прокрутка к своему сообщению — то же, что делает браузер при отправке в
+    // любом мессенджере: человек смотрит на то, что только что отправил.
+    list.scrollTop = list.scrollHeight;
+
+    const dropOptimistic = () => {
+      messages = messages.filter((m) => m.id !== localId);
+      messagesCount = messages.length;
+    };
+
     try {
       // Отправленное сразу уходит и в строку списка чатов: обратно по сокету
       // сервер его отправителю не шлёт, так что иначе превью там осталось бы
@@ -280,10 +337,19 @@ export async function ChatView(root, chatId) {
         ? await api.publishPost(chat.id, text, attachments)
         : await api.sendMessage(chat.id, text, { replyToId, attachments, ...extra });
       noteMessageInChatList(chat.id, message);
+      // Настоящее сообщение на месте временного — не в конец списка, иначе оно
+      // прыгнет мимо тех, что пришли, пока это ехало.
+      const at = messages.findIndex((m) => m.id === localId);
+      if (at >= 0) messages[at] = message;
+      else messages = [...messages, message];
+      renderList();
     } catch (err) {
+      dropOptimistic();
+      renderList();
       alert(err.message || "Не удалось отправить сообщение");
+      // Текст возвращается в поле ввода: он не отправлен, и терять его нельзя.
+      if (text) draftText = text;
     }
-    draftText = "";
     renderComposer();
     await refreshMessages();
   }

@@ -1,4 +1,5 @@
 import { el, mount, clear } from "../../lib/dom.js";
+import { clearCache } from "../../lib/localCache.js";
 import { iconSvg } from "../../icons.js";
 import { Avatar } from "../../components/avatar.js";
 import { api } from "../../api.js";
@@ -1333,12 +1334,16 @@ async function renderAccounts(root) {
     const label = uid === me.id ? "Выйти из этого аккаунта?" : "Выйти из этого аккаунта на этом устройстве?";
     if (!confirm(label)) return;
     const { remaining } = await api.logout(uid);
+    // Сохранённый для быстрой отрисовки список чатов и переписка — тоже
+    // содержимое аккаунта: на общем устройстве его надо стереть при выходе.
+    clearCache();
     if (remaining.length === 0) window.location.href = "/login";
     else window.location.reload();
   }
   async function logoutAll() {
     if (!confirm("Выйти из всех аккаунтов на этом устройстве?")) return;
     await api.logout();
+    clearCache();
     window.location.href = "/login";
   }
 

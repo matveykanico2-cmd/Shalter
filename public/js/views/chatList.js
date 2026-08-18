@@ -16,6 +16,7 @@ import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
 import { onWsMessage } from "../lib/wsClient.js";
 import { noteMessageInChatList } from "../lib/chatListSync.js";
+import { readCache, writeCache } from "../lib/localCache.js";
 
 async function openNewChatMenu(e) {
   const rect = e.currentTarget.getBoundingClientRect();
@@ -124,6 +125,14 @@ const lastMessageIds = new Map();
 
 export function ChatListPane() {
   const container = el("div", { class: "chat-list-pane" });
+  // Список из прошлого захода — до того, как сеть ответит. На быстрой связи
+  // разницы не видно, на медленной это разница между готовым приложением и
+  // пустым столбцом на несколько секунд. Свежий список приходит следом и
+  // заменяет показанное.
+  if (!getState().chats?.length) {
+    const cached = readCache("chats", getState().user?.id);
+    if (cached?.chats?.length) setState({ chats: cached.chats, folders: cached.folders ?? getState().folders ?? [] });
+  }
   // Mounted once, outside renderInto's clear-and-rebuild cycle — renderInto
   // runs on every poll/WS event, and re-creating the stories bar that often
   // would re-fetch stories constantly and drop any in-progress UI state in it.
@@ -172,6 +181,9 @@ export function ChatListPane() {
       if (seq !== latestSeq) return;
       notifyNewMessages(chatsRes.chats);
       setState({ chats: chatsRes.chats, folders: foldersRes.folders });
+      // Складываем показанное, чтобы следующий заход начинался с готового
+      // списка, а не с пустоты в ожидании сети.
+      writeCache("chats", getState().user?.id, { chats: chatsRes.chats, folders: foldersRes.folders });
     } catch {
       // Сеть моргнула или сервер ответил отказом — оставляем то, что уже
       // показано. Пустой список вместо чатов хуже, чем список на секунду

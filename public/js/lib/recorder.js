@@ -1,19 +1,17 @@
 import { getFlippedTrack } from "./cameraSwitch.js";
 // Extracted MediaRecorder logic (voice messages + round video-notes/"kruzhki")
-// from the original Composer.tsx — recorded clips are kept as inline base64
-// data URLs (no object storage), capped at MAX_RECORD_SEC to keep messages.json rows small.
-export const MAX_RECORD_SEC = 20;
+// from the original Composer.tsx.
+//
+// Запись отдаётся куском данных (Blob), а не base64-строкой внутри сообщения.
+// Так было раньше, и это стоило дорого: base64 больше исходника на треть, и вся
+// эта строка ехала внутри JSON самого сообщения — то есть сообщение не
+// появлялось у человека, пока не уедет целиком. Двухминутный кружок таким
+// способом отправить нельзя вовсе. Теперь запись уходит обычной загрузкой
+// файла (lib/upload.js), которая умеет показывать ход и не держит всё в памяти.
+export const MAX_RECORD_SEC = 120;
 
 export function isRecordingSupported() {
   return !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined";
-}
-
-function blobToDataUrl(blob) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.readAsDataURL(blob);
-  });
 }
 
 // Wires up the MediaRecorder timers/result-promise plumbing shared by both
@@ -48,8 +46,7 @@ function wireRecorder(stream, mimeType, onTick, extraStop) {
       // own codec info, so the outer Blob/data-URL only needs the base type.
       const baseType = (recorder.mimeType || mimeType).split(";")[0];
       const blob = new Blob(chunks, { type: baseType });
-      const url = await blobToDataUrl(blob);
-      resolve({ url, mimeType: blob.type, durationSec: sec });
+      resolve({ blob, mimeType: blob.type, durationSec: sec });
     };
   });
 
@@ -220,7 +217,7 @@ async function startVideoNoteRecording(onTick) {
 
 // mode: "voice" | "video-note". onTick(sec) fires once a second while recording.
 // Returns a handle: { stream, stop(), cancel(), result, flipCamera? } where
-// `result` is a promise that resolves to {url, mimeType, durationSec} — only
+// `result` is a promise that resolves to {blob, mimeType, durationSec} — only
 // if stop() (not cancel()) ends the recording. flipCamera is only present
 // for "video-note".
 export async function startRecording(mode, { onTick } = {}) {

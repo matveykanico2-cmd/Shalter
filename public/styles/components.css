@@ -8709,3 +8709,93 @@
     height: 40vh;
   }
 }
+
+/* Сообщение, которое ещё не дошло до сервера (views/chatView.js ставит его в
+   ленту сразу). Приглушено, чтобы отличалось от доставленного, но читалось. */
+.msg-status-pending {
+  opacity: 0.65;
+}
+.msg-status-pending svg {
+  animation: msg-pending-tick 1.6s linear infinite;
+}
+@keyframes msg-pending-tick {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+/* ── Перемотка голосового и кружка ─────────────────────────────────────────
+   Полоса тонкая, но тянуть надо пальцем: у неё есть невидимая область захвата
+   сверху и снизу (::before), иначе в четыре пикселя попадают только мышью. */
+.voice-bar.seekable {
+  position: relative;
+  cursor: pointer;
+  touch-action: none;
+}
+.voice-bar.seekable::before {
+  content: "";
+  position: absolute;
+  inset: -9px 0;
+}
+.voice-bar-knob {
+  position: absolute;
+  top: 50%;
+  left: var(--voice-knob-left, 0);
+  height: 10px;
+  width: 10px;
+  margin-left: -5px;
+  transform: translateY(-50%) scale(0);
+  border-radius: 999px;
+  background: var(--color-accent);
+  transition: transform 0.12s ease;
+  pointer-events: none;
+}
+.voice-bar.seekable:hover .voice-bar-knob,
+.voice-bar.seeking .voice-bar-knob {
+  transform: translateY(-50%) scale(1);
+}
+.voice-bar.seekable:hover,
+.voice-bar.seeking {
+  height: 6px;
+}
+.voice-bar.seekable:hover .voice-bar-fill,
+.voice-bar.seeking .voice-bar-fill {
+  height: 6px;
+}
+
+/* Кружок: кольцо прогресса по краю и полоса перемотки под ним. */
+.video-note-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 160px;
+}
+.video-note-ring {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  pointer-events: none;
+  /* Кольцо начинается сверху, а не справа: иначе прогресс идёт «с трёх часов»
+     и читается как сдвинутый. */
+  transform: rotate(-90deg);
+}
+.video-note-ring-track,
+.video-note-ring-fill {
+  fill: none;
+  stroke-width: 3;
+}
+.video-note-ring-track {
+  stroke: rgba(255, 255, 255, 0.25);
+}
+.video-note-ring-fill {
+  stroke: var(--color-accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.1s linear;
+}
+.video-note-seek {
+  padding: 0 4px;
+}
+.video-note-seek .voice-time {
+  margin-top: 3px;
+  text-align: center;
+}

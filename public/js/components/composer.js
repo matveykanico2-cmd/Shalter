@@ -924,15 +924,25 @@ export function Composer({
       return;
     }
 
-    recordingHandle.result.then((attachment) => {
+    recordingHandle.result.then(async (recorded) => {
       // Запись могла кончиться сама — по лимиту времени, — а не только по
       // кнопке: убирать кружок и гасить волну надо и в этом случае.
       stopWave();
-      if (attachment) {
-        onSend("", [{ kind: mode, ...attachment }]);
-      }
       recordingHandle = null;
       renderIdleBody();
+      if (!recorded) return;
+
+      // Запись уходит обычной загрузкой файла, потоком на диск — как видео из
+      // галереи. Раньше она ехала base64-строкой внутри самого сообщения: на
+      // треть больше байт, и сообщение не появлялось, пока всё не уедет.
+      const ext = (recorded.mimeType || "").includes("mp4") ? "mp4" : mode === "voice" ? "webm" : "webm";
+      const file = new File([recorded.blob], `${mode}-${Date.now()}.${ext}`, { type: recorded.mimeType });
+      try {
+        const attachment = await uploadFile(file, mode);
+        onSend("", [{ ...attachment, kind: mode, durationSec: recorded.durationSec }]);
+      } catch (err) {
+        alert(err.message || "Не удалось отправить запись");
+      }
     });
 
     function stopWave() {

@@ -70,6 +70,30 @@ const DIST_DIR = path.join(PUBLIC_DIR, "dist");
 // USE_BUILD=0 принудительно возвращает раздачу исходников — это нужно в
 // разработке, где свежая правка обязана быть видна сразу, а не после сборки
 // (npm run dev выставляет её сам).
+// Собранная версия — не «необязательная оптимизация», а разница между одним
+// сжатым файлом и сотней отдельных модулей: на медленном 3G это 1.3 с против
+// 12.3 с. Полагаться на то, что при выкладке кто-то помнит про `npm run build`,
+// нельзя — забыли один раз, и все заходят по худшему пути, ничего при этом не
+// ломается и никто не замечает. Поэтому сервер проверяет сам и собирает, если
+// собранное отстало от исходников.
+if (process.env.USE_BUILD !== "0") {
+  try {
+    const builder = require("../scripts/build");
+    if (builder.isStale()) {
+      console.log("[static] собранная версия устарела — пересобираю…");
+      const started = Date.now();
+      // Синхронно, до начала приёма запросов: иначе первые посетители успеют
+      // получить недособранное.
+      require("child_process").execFileSync(process.execPath, [path.join(__dirname, "..", "scripts", "build.js")], { stdio: "inherit" });
+      console.log(`[static] сборка готова за ${Date.now() - started} мс`);
+    }
+  } catch (err) {
+    // Не смогли собрать (нет esbuild, права на запись) — не повод не
+    // запускаться: приложение работает и на исходниках, просто медленнее.
+    console.error("[static] пересобрать не удалось, отдаю что есть:", err.message);
+  }
+}
+
 const useBuilt = process.env.USE_BUILD !== "0" && fs.existsSync(path.join(DIST_DIR, "index.html"));
 const indexHtml = path.join(useBuilt ? DIST_DIR : PUBLIC_DIR, "index.html");
 
@@ -170,7 +194,13 @@ app.use("/.well-known", express.static(path.join(PUBLIC_DIR, ".well-known"), { m
 // reloading and still seeing the old UI is not a stale-build mystery, it's this
 // header. maxAge 0 still sends an ETag, so an unchanged file costs a 304 rather
 // than a re-download.
-app.use(express.static(PUBLIC_DIR, { maxAge: useBuilt ? "1h" : 0 }));
+//
+// index: false — иначе express.static сам отдаёт public/index.html на «/», и это
+// перехватывает главный вход раньше catch-all ниже. В бою это значило: на
+// /login приходила собранная версия (один сжатый файл), а на «/» — исходная, из
+// 107 отдельных модулей. Замерено на медленном 3G: 12.3 с против 2.4 с. Адрес
+// «/» — тот, по которому заходят все, и именно он грузился по худшему пути.
+app.use(express.static(PUBLIC_DIR, { index: false, maxAge: useBuilt ? "1h" : 0 }));
 
 // Uploaded attachments (data/uploads — see routes/uploads.js). Its own handler
 // rather than express.static because a large video needs real Range support and

@@ -1,16 +1,91 @@
 // Registered unconditionally (see app.js) so the app is installable as a
 // PWA — a controlling service worker is required for that regardless of
 // push permission. It also is what makes the Push API work at all (it's
-// what receives the push event even when no tab is open). There's
-// deliberately no fetch handler: this app isn't trying to be a full
-// offline-capable PWA, just an installable one — no asset caching here.
+// what receives the push event even when no tab is open).
+//
+// Здесь же — хранение оболочки приложения. На плохой связи главная задержка не
+// в объёме, а в количестве обращений к сети: каждое стоит своей задержки,
+// сколько бы байт ни ехало. Поэтому то, что не меняется между заходами (сборка,
+// стили, значки), берётся с диска, а сеть спрашивается только про новое.
+
+const SHELL_CACHE = "shalter-shell-v1";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      // Наборы прошлых версий не нужны: адреса собранных файлов содержат метку
+      // содержимого, поэтому старые записи никогда больше не совпадут.
+      const names = await caches.keys();
+      await Promise.all(names.filter((n) => n.startsWith("shalter-") && n !== SHELL_CACHE).map((n) => caches.delete(n)));
+      await self.clients.claim();
+    })()
+  );
+});
+
+// Что храним: собранные файлы и значки. Всё это адресуется с меткой содержимого
+// или меняется крайне редко.
+function isShellAsset(url) {
+  return (
+    url.origin === self.location.origin &&
+    (url.pathname.startsWith("/dist/") || url.pathname.startsWith("/icons/") || url.pathname.startsWith("/styles/") || url.pathname === "/manifest.webmanifest")
+  );
+}
+
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+  let url;
+  try {
+    url = new URL(req.url);
+  } catch {
+    return;
+  }
+  // Ответы приложения (сообщения, чаты) не храним никогда: показать вчерашнюю
+  // переписку как сегодняшнюю хуже, чем показать, что связи нет.
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/uploads/")) return;
+
+  if (isShellAsset(url)) {
+    // Сначала с диска. Адрес содержит метку содержимого — если файл на диске
+    // есть, он ровно тот, что нужен, и спрашивать сеть незачем.
+    event.respondWith(
+      (async () => {
+        const cached = await caches.match(req);
+        if (cached) return cached;
+        const res = await fetch(req);
+        if (res.ok) {
+          const cache = await caches.open(SHELL_CACHE);
+          cache.put(req, res.clone());
+        }
+        return res;
+      })()
+    );
+    return;
+  }
+
+  // Сама страница: сначала сеть, но недолго. Если за полторы секунды не
+  // ответила — отдаём сохранённую и не заставляем смотреть в пустой экран;
+  // свежую при этом всё равно дожидаемся и кладём на её место.
+  if (req.mode === "navigate") {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(SHELL_CACHE);
+        const fromNetwork = fetch(req)
+          .then((res) => {
+            if (res.ok) cache.put(req, res.clone());
+            return res;
+          })
+          .catch(() => null);
+        const cached = await cache.match(req);
+        if (!cached) return (await fromNetwork) ?? Response.error();
+        const raced = await Promise.race([fromNetwork, new Promise((r) => setTimeout(() => r(null), 1500))]);
+        return raced ?? cached;
+      })()
+    );
+  }
 });
 
 self.addEventListener("push", (event) => {
