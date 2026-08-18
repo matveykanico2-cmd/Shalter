@@ -10,7 +10,7 @@ const crypto = require("crypto");
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { broadcastToUsers } = require("../ws");
 const { markTyping } = require("../data/typing");
-const { updateBotApp, updateBotCommands, updateBotDescription, getBotToken } = require("../data/bots");
+const { updateBotApp, updateBotAppCode, updateBotCommands, updateBotDescription, getBotToken } = require("../data/bots");
 const { sendBotMessage, normalizeKeyboard } = require("../lib/botMessaging");
 const { validateAppUrl, verifyInitData } = require("../lib/miniApp");
 
@@ -28,7 +28,7 @@ router.get(
     const user = await getUser(req.bot.userId);
     // app — назначенное мини-приложение (setWebApp ниже), чтобы выкладка новой
     // версии могла проверить, на какой адрес бот сейчас показывает.
-    res.json({ bot: publicUser(user), app: req.bot.appUrl ? { url: req.bot.appUrl, name: req.bot.appName } : null });
+    res.json({ bot: publicUser(user), app: botApp(req, req.bot, user) });
   })
 );
 
@@ -522,6 +522,16 @@ router.post(
   })
 );
 
+// Адрес приложения бота: либо чужой сервер (setWebApp), либо страница, которую
+// хранит и раздаёт сам Shalter (setWebAppCode → routes/miniAppHost.js).
+function botApp(req, bot, botUser) {
+  if (bot.appCode) {
+    const handle = botUser?.username || "";
+    return { url: `${req.protocol}://${req.get("host")}/app/${handle}`, name: bot.appName, hosted: true };
+  }
+  return bot.appUrl ? { url: bot.appUrl, name: bot.appName, hosted: false } : null;
+}
+
 // ── Мини-приложение ─────────────────────────────────────────────────────────
 // Веб-страница бота, которая открывается внутри Shalter. Здесь два метода:
 // назначить её адрес и проверить подпись того, кто её открыл. Всё остальное
@@ -534,7 +544,30 @@ router.post(
     if (checked.error) return res.status(400).json({ error: checked.error });
     const name = String(req.body?.name ?? "").trim().slice(0, 40);
     const bot = await updateBotApp(req.bot.id, { appUrl: checked.url, appName: name });
-    res.json({ app: bot.appUrl ? { url: bot.appUrl, name: bot.appName } : null });
+    res.json({ app: botApp(req, bot, await getUser(req.bot.userId)) });
+  })
+);
+
+// Приложение целиком через Bot API — без своего сервера, домена и сертификата.
+//
+// Присылается HTML страницы; Shalter хранит его и раздаёт по адресу
+// /app/<юзернейм бота>, сам подставляя скрипт моста. Дальше всё как у внешнего
+// приложения: та же подпись открывшего, та же кнопка, тот же sendData.
+//
+// Чужой код на нашем домене изолируется заголовком sandbox — почему именно так,
+// подробно написано в routes/miniAppHost.js.
+router.post(
+  "/setWebAppCode",
+  asyncRoute(async (req, res) => {
+    const code = String(req.body?.code ?? "");
+    if (code.length > 200_000) return res.status(400).json({ error: "Страница длиннее 200 000 символов" });
+    const botUser = await getUser(req.bot.userId);
+    if (code.trim() && !botUser?.username) {
+      return res.status(409).json({ error: "У бота нет юзернейма — по нему строится адрес приложения" });
+    }
+    const name = String(req.body?.name ?? req.bot.appName ?? "").trim().slice(0, 40);
+    const bot = await updateBotAppCode(req.bot.id, { appCode: code.trim() ? code : null, appName: name });
+    res.json({ app: botApp(req, bot, botUser) });
   })
 );
 

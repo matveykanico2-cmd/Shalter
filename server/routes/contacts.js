@@ -2,7 +2,7 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { listContactsFor, addContact, renameContact, removeContact } = require("../data/contacts");
-const { listUsers, getUser } = require("../data/users");
+const { listUsers, listUsersByIds, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
 const { phoneKey, indexUsersByPhone } = require("../lib/phoneMatch");
@@ -13,14 +13,32 @@ router.use(requireUserId);
 router.get(
   "/",
   asyncRoute(async (req, res) => {
-    const [contacts, users] = await Promise.all([listContactsFor(req.uid), listUsers()]);
+    // Читаются только те аккаунты, что есть в контактах, а не вся таблица.
+    const contacts = await listContactsFor(req.uid);
+    const users = await listUsersByIds(contacts.map((c) => c.userId));
+    const byId = new Map(users.map((u) => [u.id, u]));
     const resolved = contacts
       .map((c) => {
-        const user = users.find((u) => u.id === c.userId);
+        const user = byId.get(c.userId);
         return user ? { ...c, localName: c.localName ?? null, user: publicUser(user) } : null;
       })
       .filter((c) => c !== null);
     res.json({ contacts: resolved });
+  })
+);
+
+// Только идентификаторы — без имён и без аватаров.
+//
+// Нужно ровно для одного: карточка контакта, присланная в чат, должна знать,
+// есть ли уже этот человек у вас в списке, и писать «в контактах» вместо
+// «Добавить». Спрашивать это на каждую карточку — запрос на сообщение;
+// грузить весь список контактов с аватарами ради галочки — те же килобайты
+// картинок. Здесь несколько строк текста, один раз при запуске.
+router.get(
+  "/ids",
+  asyncRoute(async (req, res) => {
+    const contacts = await listContactsFor(req.uid);
+    res.json({ ids: contacts.map((c) => c.userId) });
   })
 );
 

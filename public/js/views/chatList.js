@@ -363,12 +363,25 @@ function renderResults(container) {
         "button",
         {
           class: "search-user-row",
-          onclick: async () => {
-            const { chat } = await api.startDm(u.id, u.name, u.avatarColor);
-            query = "";
-            results = null;
-            await api.listChats().then((r) => setState({ chats: r.chats }));
-            navigate(`/chat/${chat.id}`);
+          onclick: async (e) => {
+            // Переход — сразу, как только известен чат. Раньше здесь ещё
+            // дожидались полного списка чатов, и нажатие на найденного
+            // человека «залипало» на всё это время; список догоняет сам.
+            const btn = e.currentTarget;
+            if (btn.dataset.busy) return;
+            btn.dataset.busy = "1";
+            try {
+              const { chat } = await api.startDm(u.id, u.name, u.avatarColor);
+              query = "";
+              results = null;
+              navigate(`/chat/${chat.id}`);
+              api.listChats().then((r) => setState({ chats: r.chats })).catch(() => {});
+            } catch (err) {
+              // Молчащая кнопка — это и есть «ничего не открывается»: ошибку
+              // проглатывал невыполненный промис, и на экране не менялось ничего.
+              btn.dataset.busy = "";
+              alert(err.message || "Не удалось открыть чат");
+            }
           },
         },
         [

@@ -706,6 +706,10 @@ if (!existingBotColumns.has("code")) db.exec("ALTER TABLE bots ADD COLUMN code T
 // кнопке, которая её открывает.
 if (!existingBotColumns.has("appUrl")) db.exec("ALTER TABLE bots ADD COLUMN appUrl TEXT");
 if (!existingBotColumns.has("appName")) db.exec("ALTER TABLE bots ADD COLUMN appName TEXT");
+// Приложение, у которого нет своего сервера: HTML страницы лежит здесь, а
+// раздаёт его сам Shalter (server/routes/miniAppHost.js). Написать бота с
+// интерфейсом становится можно, не имея вообще ничего, кроме токена.
+if (!existingBotColumns.has("appCode")) db.exec("ALTER TABLE bots ADD COLUMN appCode TEXT");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_bots_token ON bots(token) WHERE token IS NOT NULL");
 db.exec("CREATE INDEX IF NOT EXISTS idx_bots_owner ON bots(ownerId)");
 
@@ -817,5 +821,49 @@ try {
 } catch (err) {
   console.error("[db] не удалось построить указатель поиска:", err.message);
 }
+
+// ── Эфиры в каналах (server/routes/live.js) ─────────────────────────────────
+//
+// Отдельные таблицы, а не kind='live' в calls, намеренно: звонок звонит.
+// Вся ветка входящего вызова (client incomingCallWatcher, рингтон, «принять/
+// отклонить») срабатывает на появление записи в calls — и эфир в канале на
+// тысячу подписчиков зазвонил бы у тысячи человек. Эфир не звонит: он идёт, о
+// нём сообщают плашкой в чате, зайти можно когда угодно.
+//
+// role: host | speaker | viewer. Разрешение говорить — это смена роли, а не
+// отдельный флаг: «может говорить» и «сейчас публикует звук» должны быть одним
+// и тем же, иначе они разъезжаются.
+db.exec(`
+CREATE TABLE IF NOT EXISTS live_streams (
+  id TEXT PRIMARY KEY,
+  chatId TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  hostId TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  withVideo INTEGER NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'live',
+  startedAt TEXT NOT NULL,
+  endedAt TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_live_streams_chat ON live_streams(chatId, status);
+
+CREATE TABLE IF NOT EXISTS live_participants (
+  streamId TEXT NOT NULL REFERENCES live_streams(id) ON DELETE CASCADE,
+  userId TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  handRaised INTEGER NOT NULL DEFAULT 0,
+  mutedByHost INTEGER NOT NULL DEFAULT 0,
+  joinedAt TEXT NOT NULL,
+  PRIMARY KEY (streamId, userId)
+);
+
+CREATE TABLE IF NOT EXISTS live_messages (
+  id TEXT PRIMARY KEY,
+  streamId TEXT NOT NULL REFERENCES live_streams(id) ON DELETE CASCADE,
+  userId TEXT NOT NULL,
+  text TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_live_messages_stream ON live_messages(streamId, createdAt);
+`);
 
 module.exports = db;

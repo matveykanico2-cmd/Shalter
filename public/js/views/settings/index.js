@@ -633,17 +633,26 @@ async function renderBots(root) {
     mount(
       root,
       pageWrap("Боты", "Настоящие боты, которых можно программировать как угодно", [
-        el("div", { class: "settings-notice-box" }, [
-          el("p", { class: "settings-toggle-title" }, "Два способа программировать бота" ),
-          el(
-            "p",
-            { class: "settings-toggle-hint" },
-            "1) Значок «</>» у бота — встроенный редактор кода с подсказками, код выполняется прямо на сервере Shalter. " +
-              "2) Внешний скрипт (на любом языке) через Bot API и токен бота — см. документацию."
-          ),
-          el("a", { href: "/bots", target: "_blank", rel: "noreferrer", class: "text-link" }, "Открыть документацию по Bot API →"),
+        // Раньше это был один абзац, где «1)» и «2)» шли подряд в сплошном
+        // тексте вместе с заголовком и ссылкой — прочитать, чем один способ
+        // отличается от другого, было нельзя, а именно за этим сюда и смотрят.
+        el("div", { class: "settings-notice-box bot-ways" }, [
+          el("p", { class: "settings-toggle-title" }, "Три вещи, которые можно сделать"),
+          el("div", { class: "bot-way" }, [
+            el("span", { class: "bot-way-icon", html: iconSvg("Code", 14) }),
+            el("p", {}, [el("strong", {}, "Код прямо здесь. "), "Значок «</>» у бота — встроенный редактор, программа выполняется на сервере Shalter."]),
+          ]),
+          el("div", { class: "bot-way" }, [
+            el("span", { class: "bot-way-icon", html: iconSvg("Globe", 14) }),
+            el("p", {}, [el("strong", {}, "Свой скрипт. "), "Любой язык, любой сервер — через Bot API и токен бота."]),
+          ]),
+          el("div", { class: "bot-way" }, [
+            el("span", { class: "bot-way-icon", html: iconSvg("Image", 14) }),
+            el("p", {}, [el("strong", {}, "Мини-приложение. "), "Страница с интерфейсом внутри Shalter — хостинг не нужен, код хранится здесь."]),
+          ]),
+          el("a", { href: "/bots", target: "_blank", rel: "noreferrer", class: "text-link" }, "Документация Bot API →"),
         ]),
-        el("button", { class: "btn-accent", onclick: createBot }, [el("span", { html: iconSvg("Plus", 15) }), " Создать бота"]),
+        el("button", { class: "btn-accent bot-create-btn", onclick: createBot }, [el("span", { html: iconSvg("Plus", 15) }), " Создать бота"]),
         el("p", { class: "settings-section-title" }, `Ваши боты — ${bots.length}`),
         bots.length === 0
           ? el("p", { class: "empty-hint" }, "У вас пока нет ботов")
@@ -659,6 +668,13 @@ async function renderBots(root) {
                     // чужого поиска.
                     el("p", {}, [b.user.name, VerifiedBadge(b.user, 13)].filter(Boolean)),
                     el("p", { class: "mono settings-toggle-hint" }, `@${b.user.username}`),
+                    // Что у бота уже настроено — видно из списка, а не только
+                    // после открытия каждого диалога по очереди.
+                    el("div", { class: "bot-badges" }, [
+                      b.code?.trim() ? el("span", { class: "bot-badge" }, "код") : null,
+                      b.appCode || b.appUrl ? el("span", { class: "bot-badge accent" }, "приложение") : null,
+                      b.commands?.length ? el("span", { class: "bot-badge" }, `${b.commands.length} команд`) : null,
+                    ]),
                   ]),
                   el("button", {
                     class: "icon-btn",

@@ -3,7 +3,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { listChatsForUser, searchPublicChannels } = require("../data/chats");
 const { searchInChats } = require("../data/messages");
-const { listUsers } = require("../data/users");
+const { searchUsers } = require("../data/users");
 const { publicUsers } = require("../data/sanitize");
 
 // One search box for everything the app has: your own chats, public channels you
@@ -29,9 +29,12 @@ router.get(
     const handle = q.replace(/^@/, "");
     if (!q) return res.json({ chats: [], channels: [], users: [], bots: [], messages: [] });
 
+    // Люди и боты ищутся запросом к базе, а не чтением всех аккаунтов сервера
+    // в память на каждое нажатие клавиши: у каждой строки users лежит аватар,
+    // и поиск по десяти буквам стоил чтения всех картинок разом.
     const [chats, users, publicChannels] = await Promise.all([
       listChatsForUser(req.uid),
-      listUsers(),
+      searchUsers(raw, { limit: LIMIT }),
       searchPublicChannels(raw),
     ]);
 

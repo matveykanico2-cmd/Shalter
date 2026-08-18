@@ -255,6 +255,24 @@ export const api = {
   getBotToken: (id) => req(`/api/bots/${id}/token`),
   // Сколько людей пользуется ботом — показывается в шапке его чата. Заодно
   // отвечает, есть ли у бота мини-приложение и как подписать кнопку.
+  // Эфиры в каналах и группах (server/routes/live.js). Медиа идёт мимо
+  // сервера — здесь только состояние: кто в эфире, у кого какая роль, чат.
+  startLive: (chatId, { title, withVideo } = {}) =>
+    req("/api/live", { method: "POST", body: JSON.stringify({ chatId, title, withVideo }) }),
+  getLiveForChat: (chatId) => req(`/api/live/chat/${chatId}`),
+  getLive: (id) => req(`/api/live/${id}`),
+  joinLive: (id) => req(`/api/live/${id}/join`, { method: "POST", body: "{}" }),
+  leaveLive: (id) => req(`/api/live/${id}/leave`, { method: "POST", body: "{}" }),
+  raiseLiveHand: (id, raised) => req(`/api/live/${id}/hand`, { method: "POST", body: JSON.stringify({ raised }) }),
+  setLiveRole: (id, userId, role) =>
+    req(`/api/live/${id}/participants/${userId}/role`, { method: "POST", body: JSON.stringify({ role }) }),
+  setLiveMuted: (id, userId, muted) =>
+    req(`/api/live/${id}/participants/${userId}/mute`, { method: "POST", body: JSON.stringify({ muted }) }),
+  stopLive: (id) => req(`/api/live/${id}/stop`, { method: "POST", body: "{}" }),
+  sendLiveMessage: (id, text) => req(`/api/live/${id}/messages`, { method: "POST", body: JSON.stringify({ text }) }),
+
+  // Кто уже в контактах — только идентификаторы, без аватаров.
+  getContactIds: () => req("/api/contacts/ids"),
   getBotAudience: (userId) => req(`/api/bots/audience/${userId}`),
   // Мини-приложения (components/miniApp.js). Адрес подписывается на сервере —
   // ключ выводится из токена бота, и в браузер он не попадает.

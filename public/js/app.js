@@ -14,7 +14,7 @@ import { CallScreenView } from "./views/callScreen.js";
 import { CallsView } from "./views/calls.js";
 import { ArchiveView } from "./views/archive.js";
 import { SettingsView } from "./views/settings/index.js";
-import { mountIncomingCallWatcher } from "./components/incomingCallWatcher.js";
+import { mountIncomingCallWatcher, answerCall } from "./components/incomingCallWatcher.js";
 import { startWsClient } from "./lib/wsClient.js";
 import { ensurePushSubscribed } from "./lib/push.js";
 import { subscribeCall, getCallState, minimize, restore } from "./lib/callController.js";
@@ -74,6 +74,12 @@ async function boot() {
   });
 
   setState({ user, accounts });
+  // Без await: карточке контакта в переписке это нужно, но ждать ради неё
+  // показа приложения незачем — придёт через мгновение и перерисует.
+  api
+    .getContactIds()
+    .then(({ ids }) => setState({ contactIds: ids }))
+    .catch(() => {});
   startWsClient();
   mountIncomingCallWatcher();
   initKeyboardShortcuts();
@@ -166,6 +172,12 @@ async function boot() {
   });
   route("/call/:id", async (params) => {
     withCleanup(mainSlot);
+    // Пришли по кнопке «Ответить» из уведомления — звонок принимается сразу,
+    // без второго нажатия уже внутри приложения (public/sw.js ставит ?answer=1).
+    if (new URLSearchParams(window.location.search).get("answer") === "1") {
+      window.history.replaceState(null, "", `/call/${params.id}`);
+      await answerCall(params.id).catch(() => {});
+    }
     await CallScreenView(mainSlot, params.id);
   });
   // Where a Premium invite link (callScreen.js's "Пригласить по ссылке")

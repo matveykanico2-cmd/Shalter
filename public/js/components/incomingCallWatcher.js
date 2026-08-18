@@ -1,4 +1,5 @@
 import { el } from "../lib/dom.js";
+import { Avatar } from "./avatar.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { getState } from "../state.js";
@@ -17,33 +18,59 @@ const seen = new Set();
 let primed = false;
 let banner = null;
 
+// Входящий звонок занимает весь экран, а не строчку сверху.
+//
+// Так это выглядит на любом телефоне, и по делу: звонок — единственное в
+// приложении, на что отвечают немедленно, и промахнуться мимо маленькой
+// кнопки в углу, пока телефон в руке, слишком легко. Здесь крупный аватар,
+// имя, вид звонка и две большие кнопки, до которых дотягивается большой палец.
 function showBanner(call) {
   banner?.remove();
-  banner = el("div", { class: "incoming-call-banner" }, [
-    el("div", { class: "incoming-call-info" }, [
-      el("p", { class: "incoming-call-title" }, call.otherUser?.name ?? "Звонок"),
-      el("p", { class: "incoming-call-subtitle" }, call.kind === "video" ? "Видеозвонок…" : "Звонит…"),
+  const other = call.otherUser ?? {};
+  banner = el("div", { class: "incoming-call-screen" }, [
+    el("div", { class: "incoming-call-card" }, [
+      el("p", { class: "incoming-call-kind" }, call.kind === "video" ? "Входящий видеозвонок" : "Входящий звонок"),
+      el("div", { class: "incoming-call-avatar" }, [
+        Avatar({ name: other.name ?? "?", color: other.avatarColor, image: other.avatarImage, size: 132 }),
+      ]),
+      el("p", { class: "incoming-call-name" }, other.name ?? "Звонок"),
+      el("p", { class: "incoming-call-hint" }, other.username ? `@${other.username}` : "Звонит…"),
+      el("div", { class: "incoming-call-actions" }, [
+        el("div", { class: "incoming-call-action" }, [
+          el("button", {
+            class: "incoming-call-btn decline",
+            title: "Отклонить",
+            html: iconSvg("Phone", 26, "rotate-135"),
+            onclick: async () => {
+              await decline(call);
+              dismiss();
+            },
+          }),
+          el("span", { class: "incoming-call-action-label" }, "Отклонить"),
+        ]),
+        el("div", { class: "incoming-call-action" }, [
+          el("button", {
+            class: "incoming-call-btn accept",
+            title: "Ответить",
+            html: iconSvg(call.kind === "video" ? "Video" : "Phone", 26),
+            onclick: () => answerCall(call.id),
+          }),
+          el("span", { class: "incoming-call-action-label" }, "Ответить"),
+        ]),
+      ]),
     ]),
-    el("button", {
-      class: "incoming-call-btn decline",
-      html: iconSvg("Phone", 18, "rotate-135"),
-      onclick: async () => {
-        await decline(call);
-        dismiss();
-      },
-    }),
-    el("button", {
-      class: "incoming-call-btn accept",
-      html: iconSvg("Phone", 18),
-      onclick: async () => {
-        dismiss();
-        await joinCallById(call.id, getState().user);
-        navigate(`/call/${call.id}`);
-      },
-    }),
   ]);
   document.body.appendChild(banner);
   startRingtone();
+}
+
+// Приём звонка — одним путём и для кнопки на экране, и для перехода из
+// уведомления (?answer=1, см. public/sw.js): иначе «ответить» из уведомления
+// открывало бы экран с ещё одной кнопкой «ответить».
+export async function answerCall(callId) {
+  dismiss();
+  await joinCallById(callId, getState().user);
+  navigate(`/call/${callId}`);
 }
 
 function dismiss() {

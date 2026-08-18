@@ -14,6 +14,8 @@ function rowToBot(row) {
     // Мини-приложение бота — см. server/lib/miniApp.js.
     appUrl: row.appUrl ?? null,
     appName: row.appName || null,
+    // Страница приложения, размещённая в самом Shalter (см. appCode в db.js).
+    appCode: row.appCode ?? null,
   };
 }
 
@@ -104,7 +106,15 @@ async function updateBotCommands(id, commands) {
 // Адрес мини-приложения и надпись на кнопке. Пустой appUrl — приложения нет, и
 // кнопка нигде не показывается (проверяется в routes/bots.js).
 async function updateBotApp(id, { appUrl, appName }) {
-  db.prepare("UPDATE bots SET appUrl = ?, appName = ? WHERE id = ?").run(appUrl || null, appName || null, id);
+  db.prepare("UPDATE bots SET appUrl = ?, appCode = NULL, appName = ? WHERE id = ?").run(appUrl || null, appName || null, id);
+  return getBot(id);
+}
+
+// Код страницы и внешний адрес — взаимоисключающие: приложение либо своё и
+// лежит на чужом сервере, либо здешнее. Хранить оба значит гадать, какое из
+// них откроется.
+async function updateBotAppCode(id, { appCode, appName }) {
+  db.prepare("UPDATE bots SET appCode = ?, appUrl = NULL, appName = ? WHERE id = ?").run(appCode || null, appName || null, id);
   return getBot(id);
 }
 
@@ -125,6 +135,7 @@ module.exports = {
   regenerateToken,
   deleteBot,
   updateBotApp,
+  updateBotAppCode,
   updateBotCode,
   updateBotCommands,
   updateBotDescription,

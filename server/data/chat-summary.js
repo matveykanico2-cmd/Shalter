@@ -2,7 +2,7 @@ const db = require("../db");
 const { rowToMessage, readWatermarksFor } = require("./messages");
 const { getUser } = require("./users");
 const { publicUser } = require("./sanitize");
-const { getSettings } = require("./settings");
+const { getSettings, mutedStateFor } = require("./settings");
 
 // Сводка для списка чатов: последнее сообщение, число непрочитанных, упоминания
 // и собеседник.
@@ -27,6 +27,9 @@ function jsonHas(id) {
 async function attachSummaries(chats, userId) {
   if (!chats.length) return [];
   const settings = await getSettings(userId);
+  // Беззвучность у каждого своя (data/settings.js) — накладываем её поверх
+  // записи чата, где раньше лежал один флаг на всех.
+  const mutedOf = (id) => mutedStateFor(settings, id);
   const chatClears = settings.chatClears ?? {};
   const drafts = settings.drafts ?? {};
   const ids = chats.map((c) => c.id);
@@ -102,6 +105,12 @@ async function attachSummaries(chats, userId) {
 
     return {
       ...chat,
+      // Беззвучность — из настроек читающего. Прежний общий флаг в записи чата
+      // остаётся запасным значением, чтобы у тех, кто заглушил чат до этой
+      // правки, он не «зазвучал» вдруг снова.
+      ...(mutedStateFor(settings, chat.id).muted || mutedStateFor(settings, chat.id).mutedUntil
+        ? mutedStateFor(settings, chat.id)
+        : { muted: !!chat.muted, mutedUntil: chat.mutedUntil ?? null }),
       title: isSaved ? "Избранное" : chat.title,
       isSaved: isSaved || undefined,
       lastMessage,

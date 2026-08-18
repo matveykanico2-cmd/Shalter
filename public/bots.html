@@ -567,6 +567,42 @@ await fetch(`${API}/editMessageText`, {
         получает его тем же <code>/updates</code>, что и всё остальное.
       </div>
 
+      <h3>Приложение без своего сервера</h3>
+      <p>
+        Хостинга может не быть вовсе — тогда страницу хранит и раздаёт сам Shalter. Присылаете HTML,
+        получаете работающее приложение по адресу <code>/app/&lt;юзернейм бота&gt;</code>; скрипт
+        <code>shalter-web-app.js</code> подставляется автоматически.
+      </p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setWebAppCode</div>
+      <pre><code>await fetch(`${API}/setWebAppCode`, {
+  method: "POST",
+  headers: auth,
+  body: JSON.stringify({
+    name: "Магазин",
+    code: `
+      &lt;h1&gt;Пиццерия&lt;/h1&gt;
+      &lt;button id="b"&gt;Заказать&lt;/button&gt;
+      &lt;script&gt;
+        const app = Shalter.WebApp;
+        app.ready();
+        document.getElementById("b").onclick = () =&gt; app.sendData("заказ: 1 пицца");
+      &lt;/script&gt;`,
+  }),
+});</code></pre>
+      <p>
+        Можно прислать и целый документ с <code>&lt;html&gt;</code>, и один фрагмент разметки — во втором
+        случае Shalter обернёт его сам. Пустой <code>code</code> убирает приложение. То же самое поле есть в
+        приложении: Настройки → Боты → Настройки бота → «Мини-приложение» → «Написать здесь».
+      </p>
+      <div class="doc-note">
+        <strong>Такая страница работает в песочнице.</strong>
+        Она отдаётся с адреса Shalter, поэтому её код специально лишён прав «своего»: ни сессионной куки, ни
+        доступа к <code>/api</code> от имени открывшего, ни общего с приложением хранилища
+        (<code>Content-Security-Policy: sandbox</code>). Всё, что ей нужно, она получает через
+        <code>Shalter.WebApp</code> — как и приложение на чужом домене. Свои запросы к своему серверу делать
+        можно: обычный <code>fetch</code> по абсолютному адресу с CORS.
+      </div>
+
       <h3>Проверка, кто открыл</h3>
       <p>
         <code>initData</code> — строка вида <code>user=…&amp;chat_id=…&amp;bot_id=…&amp;auth_date=…&amp;hash=…</code>.

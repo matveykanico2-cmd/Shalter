@@ -48,9 +48,26 @@ async function pushIncomingCall(call, callerId, recipientIds) {
           url: `/call/${call.id}`,
           tag: `call-${call.id}`,
           requireInteraction: true,
+          // По этим двум полям public/sw.js понимает, что показывать надо
+          // звонок: с вибрацией и кнопками «Ответить» / «Отклонить», которые
+          // работают, не открывая приложение.
+          kind: "call",
+          callId: call.id,
         })
       )
   );
+}
+
+// Кто звонит — вместе с самим звонком.
+//
+// Экран входящего показывает имя и аватар звонящего, а в записи звонка есть
+// только его идентификатор: без этого на весь экран было написано «Звонок» и
+// стояла заглушка вместо лица. Отдаём карточку прямо в событии, чтобы
+// принимающему не пришлось делать ещё один запрос ровно в тот момент, когда
+// на экране должно немедленно появиться, кто звонит.
+async function withCaller(call) {
+  const caller = await getUser(call.callerId);
+  return { ...call, otherUser: caller ? publicUser(caller) : undefined };
 }
 
 router.get(
@@ -97,7 +114,7 @@ router.post(
     });
     broadcastToUsers(call.participantIds.filter((id) => id !== req.uid), {
       type: "call:incoming",
-      call,
+      call: await withCaller(call),
     });
     res.json({ call });
 
@@ -105,10 +122,26 @@ router.post(
   })
 );
 
+// Изменение звонка — только его участником и только в тех полях, которые
+// звонку и принадлежат.
+//
+// Раньше тело запроса уходило в updateCall как есть и без единой проверки: имея
+// чужой идентификатор звонка, посторонний мог завершить чужой разговор, а
+// заодно переписать в записи любое поле. Проверку добавил здесь, а не в
+// клиенте, потому что сброс звонка теперь умеет делать и уведомление
+// (public/sw.js) — то есть запрос приходит вообще не из приложения.
 router.patch(
   "/:id",
   asyncRoute(async (req, res) => {
-    const call = await updateCall(req.params.id, req.body ?? {});
+    const existing = await getCall(req.params.id);
+    if (!existing || !existing.participantIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+
+    const patch = {};
+    if (req.body?.status === "ended" || req.body?.status === "ongoing" || req.body?.status === "missed") patch.status = req.body.status;
+    if (Number.isFinite(req.body?.durationSec)) patch.durationSec = Math.max(0, Math.floor(req.body.durationSec));
+    if (!Object.keys(patch).length) return res.json({ call: existing });
+
+    const call = await updateCall(req.params.id, patch);
     if (call) {
       broadcastToUsers(call.participantIds, { type: "call:updated", call });
     }
@@ -139,7 +172,7 @@ router.post(
     );
     // ...and the newcomer gets the same incoming-call prompt as a fresh call,
     // since they haven't joined a call controller yet.
-    broadcastToUsers([userId], { type: "call:incoming", call: updated });
+    broadcastToUsers([userId], { type: "call:incoming", call: await withCaller(updated) });
     res.json({ call: updated });
 
     pushIncomingCall(updated, updated.callerId, [userId]).catch((err) => console.error("push notify failed:", err));

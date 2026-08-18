@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { countBotAudience, getBotByUserId, getBotToken, listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotApp, updateBotCode, updateBotCommands, updateBotDescription } = require("../data/bots");
+const { countBotAudience, getBotByUserId, getBotToken, listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotApp, updateBotAppCode, updateBotCode, updateBotCommands, updateBotDescription } = require("../data/bots");
 const { createUser, getUser, updateUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { checkUsername, normalizeUsername, generateBotUsername } = require("../lib/username");
@@ -137,10 +137,18 @@ router.patch(
     // Мини-приложение (lib/miniApp.js). Адрес проверяется здесь, при
     // сохранении: криво введённый должен ругаться владельцу сразу, а не
     // открываться пустым окном у каждого, кто нажмёт кнопку.
-    if (typeof req.body?.appUrl === "string") {
+    const appName = String(req.body?.appName ?? "").trim().slice(0, 40);
+    // Приложение задаётся одним из двух способов, и они взаимоисключающие:
+    // либо страница лежит на своём сервере (appUrl), либо её код хранит Shalter
+    // (appCode → routes/miniAppHost.js). Что прислали, то и становится текущим.
+    if (typeof req.body?.appCode === "string" && req.body.appCode.trim()) {
+      if (req.body.appCode.length > 200_000) return res.status(400).json({ error: "Страница длиннее 200 000 символов" });
+      const botUser = await getUser(bot.userId);
+      if (!botUser?.username) return res.status(409).json({ error: "У бота нет юзернейма — по нему строится адрес приложения" });
+      await updateBotAppCode(bot.id, { appCode: req.body.appCode, appName });
+    } else if (typeof req.body?.appUrl === "string") {
       const checked = validateAppUrl(req.body.appUrl);
       if (checked.error) return res.status(400).json({ error: checked.error });
-      const appName = String(req.body?.appName ?? "").trim().slice(0, 40);
       await updateBotApp(bot.id, { appUrl: checked.url, appName });
     }
 
@@ -162,7 +170,7 @@ async function requireBotWithApp(req, res) {
     res.status(404).json({ error: "Бот не найден" });
     return null;
   }
-  if (!bot.appUrl) {
+  if (!bot.appUrl && !bot.appCode) {
     res.status(404).json({ error: "У этого бота нет приложения" });
     return null;
   }
@@ -181,8 +189,13 @@ router.post(
     // Кнопка бота вправе открыть страницу внутри его же приложения, но не
     // чужой сайт: иначе к любому адресу в интернете уезжала бы подписанная
     // карточка нажавшего.
+    // Приложение, размещённое здесь (setWebAppCode), живёт по адресу
+    // /app/<юзернейм> — его и подписываем; внешнее берётся как есть.
+    const botUser = await getUser(bot.userId);
+    const baseUrl = bot.appCode ? `${req.protocol}://${req.get("host")}/app/${botUser?.username ?? ""}` : bot.appUrl;
+
     const requested = typeof req.body?.url === "string" && req.body.url.trim() ? req.body.url.trim() : null;
-    if (requested && !sameApp(bot.appUrl, requested)) {
+    if (requested && !sameApp(baseUrl, requested)) {
       return res.status(403).json({ error: "Кнопка ведёт за пределы приложения бота" });
     }
 
@@ -198,10 +211,9 @@ router.post(
     const user = await getUser(req.uid);
     const initData = buildInitData({ token, user, chat: sharedChat, botUserId: bot.userId });
     const theme = req.body?.theme === "dark" ? "dark" : "light";
-    const botUser = await getUser(bot.userId);
 
     res.json({
-      url: buildAppUrl(requested || bot.appUrl, initData, { theme }),
+      url: buildAppUrl(requested || baseUrl, initData, { theme }),
       name: bot.appName || botUser?.name || "Приложение",
       botId: bot.userId,
     });
@@ -346,7 +358,7 @@ router.get(
       // Есть ли у бота мини-приложение — здесь, а не отдельным запросом:
       // шапка чата с ботом всё равно спрашивает про аудиторию при открытии, и
       // кнопке «Открыть приложение» больше ничего не нужно, кроме надписи.
-      app: bot.appUrl ? { name: bot.appName || "Приложение" } : null,
+      app: bot.appUrl || bot.appCode ? { name: bot.appName || "Приложение" } : null,
     });
   })
 );

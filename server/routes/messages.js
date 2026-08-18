@@ -24,7 +24,7 @@ const { getUser, listUsers } = require("../data/users");
 const { transferStars, balanceOf } = require("../data/stars");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { ADMIN_PHONE } = require("../config");
-const { getSettings } = require("../data/settings");
+const { getSettings, isQuietNow } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
 const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled } = require("../data/scheduledMessages");
 const { getBotByUserId } = require("../data/bots");
@@ -85,7 +85,6 @@ async function resolveMentions(text, memberIds, senderId) {
 // forget: sendPushToUser never rejects (see server/push.js), and delivery
 // latency to an external push service has no business blocking the response.
 async function pushNewMessage(chat, sender, message) {
-  if (chat.muted) return;
   const isGroupLike = chat.type === "group" || chat.type === "channel";
   const title = isGroupLike ? chat.title : sender?.name ?? "Новое сообщение";
   const preview = messagePreview(message);
@@ -93,6 +92,10 @@ async function pushNewMessage(chat, sender, message) {
   await Promise.all(
     recipients.map(async (uid) => {
       const settings = await getSettings(uid);
+      // Тишину проверяем у каждого получателя отдельно. Раньше здесь стояло
+      // `if (chat.muted) return` на весь чат сразу: один человек, отключивший
+      // уведомления в группе, отключал их всем остальным.
+      if (isQuietNow(settings, chat.id)) return;
       const mentioned = message.mentionedUserIds?.includes(uid);
       const body = !settings.notifications.previewText
         ? mentioned

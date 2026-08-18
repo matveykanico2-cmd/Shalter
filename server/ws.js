@@ -1,6 +1,7 @@
 const { WebSocketServer } = require("ws");
 const { getCurrentUserIdFromCookieHeader } = require("./middleware/auth");
 const { getCall } = require("./data/calls");
+const liveStreams = require("./data/liveStreams");
 const { addSignal } = require("./data/signals");
 const { updateUser } = require("./data/users");
 
@@ -99,6 +100,20 @@ async function handleMessage(ws, raw) {
   try {
     msg = JSON.parse(raw.toString());
   } catch {
+    return;
+  }
+
+  // Сигналы эфира (routes/live.js). Отдельный тип, а не тот же call:signal:
+  // проверка прав другая — участником эфира человек становится сам, войдя в
+  // него, а участников звонка назначает звонящий.
+  if (msg.type === "live:signal:send") {
+    const { streamId, toUserId, kind, data } = msg;
+    const stream = liveStreams.getStream(streamId);
+    if (!stream || stream.status !== "live") return;
+    // Оба конца обязаны быть в этом эфире — иначе через сигналинг можно было
+    // бы достучаться до любого пользователя, минуя сам эфир.
+    if (!liveStreams.getParticipant(streamId, ws.uid) || !liveStreams.getParticipant(streamId, toUserId)) return;
+    broadcastToUsers([toUserId], { type: "live:signal", streamId, fromUserId: ws.uid, kind, data });
     return;
   }
 

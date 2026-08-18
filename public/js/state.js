@@ -3,6 +3,9 @@ const state = {
   user: null,
   accounts: [],
   chats: [],
+  // Идентификаторы тех, кто уже в контактах (GET /api/contacts/ids). Нужны
+  // карточке контакта в чате, чтобы не предлагать добавить того, кто добавлен.
+  contactIds: [],
   folders: [],
   settings: null,
 };

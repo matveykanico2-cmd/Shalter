@@ -6,9 +6,9 @@ const { checkUsername, normalizeUsername } = require("../lib/username");
 const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeatures");
 const { PERMISSIONS, permissionsOf, sanitizePermissions } = require("../lib/chatPermissions");
 const { deleteMessagesForChat } = require("../data/messages");
-const { getSettings, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft } = require("../data/settings");
+const { getSettings, updateSettings, mutedStateFor, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft } = require("../data/settings");
 const { attachSummaries } = require("../data/chat-summary");
-const { listUsers, getUser } = require("../data/users");
+const { listUsers, listUsersByIds, getUser } = require("../data/users");
 const { listContactsFor } = require("../data/contacts");
 const { publicUser } = require("../data/sanitize");
 const { getBotByUserId } = require("../data/bots");
@@ -200,9 +200,12 @@ router.get(
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
     const [summary] = await attachSummaries([chat], req.uid);
-    const users = await listUsers();
+    // Только участники этого чата. Раньше здесь читались ВСЕ аккаунты сервера
+    // — вместе с аватарами — и по ним шёл поиск перебором на каждого участника.
+    const users = await listUsersByIds(chat.memberIds);
+    const byId = new Map(users.map((u) => [u.id, u]));
     const members = chat.memberIds
-      .map((mid) => users.find((u) => u.id === mid))
+      .map((mid) => byId.get(mid))
       .filter((u) => u !== undefined)
       .map(publicUser);
 
@@ -445,17 +448,26 @@ router.post(
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
     const hours = Number(req.body?.hours);
-    const patch =
+    const value =
       req.body?.forever === true
-        ? { muted: true, mutedUntil: null }
+        ? true
         : req.body?.off === true
-          ? { muted: false, mutedUntil: null }
+          ? null
           : Number.isFinite(hours) && hours > 0
-            ? { muted: false, mutedUntil: new Date(Date.now() + hours * 3600_000).toISOString() }
-            : null;
-    if (!patch) return res.status(400).json({ error: "Укажите срок" });
-    const updated = await updateChat(chat.id, patch);
-    res.json({ chat: updated });
+            ? new Date(Date.now() + hours * 3600_000).toISOString()
+            : undefined;
+    if (value === undefined) return res.status(400).json({ error: "Укажите срок" });
+
+    // Пишем в настройки того, кто попросил тишины, а не в общую запись чата:
+    // иначе один участник группы выключает уведомления всем остальным.
+    const settings = await getSettings(req.uid);
+    const mutedChats = { ...(settings.notifications?.mutedChats ?? {}) };
+    if (value === null) delete mutedChats[chat.id];
+    else mutedChats[chat.id] = value;
+    await updateSettings(req.uid, { notifications: { ...settings.notifications, mutedChats } });
+
+    const state = mutedStateFor({ notifications: { mutedChats } }, chat.id);
+    res.json({ chat: { ...chat, ...state } });
   })
 );
 

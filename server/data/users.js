@@ -78,6 +78,39 @@ function rowToUser(row) {
   };
 }
 
+// Только нужные люди, а не вся таблица.
+//
+// Повод: у каждой строки users лежит аватар — картинка, закодированная прямо в
+// поле (data:-URL, десятки килобайт). listUsers() читает их все, и «открыть
+// чат» на сервере с тысячей аккаунтов означало прочитать и разобрать тысячу
+// картинок ради имён пяти участников. Здесь читаются ровно те строки, что
+// нужны.
+async function listUsersByIds(ids) {
+  const unique = [...new Set(ids ?? [])].filter(Boolean);
+  if (!unique.length) return [];
+  const ph = unique.map(() => "?").join(",");
+  return db.prepare(`SELECT * FROM users WHERE id IN (${ph})`).all(...unique).map(rowToUser);
+}
+
+// Поиск людей и ботов — тоже запросом, а не перебором всех аккаунтов в памяти
+// на каждое нажатие клавиши в строке поиска. LIKE по name/username: их длина
+// измеряется десятками символов, в отличие от аватара в соседнем поле, поэтому
+// полный просмотр здесь стоит дёшево даже без отдельного индекса.
+async function searchUsers(query, { limit = 40 } = {}) {
+  const q = String(query ?? "").trim().toLowerCase().replace(/^@/, "");
+  if (!q) return [];
+  const like = `%${q.replace(/[%_]/g, (m) => "\\" + m)}%`;
+  return db
+    .prepare(
+      `SELECT * FROM users
+        WHERE (LOWER(name) LIKE ? ESCAPE '\\' OR LOWER(username) LIKE ? ESCAPE '\\')
+          AND COALESCE(isBanned, 0) = 0
+        LIMIT ?`
+    )
+    .all(like, like, limit * 3)
+    .map(rowToUser);
+}
+
 async function listUsers() {
   return db.prepare("SELECT * FROM users").all().map(rowToUser);
 }
@@ -366,6 +399,8 @@ module.exports = {
   setAvatars,
   setVerified,
   listUsers,
+  listUsersByIds,
+  searchUsers,
   getUser,
   findUserByEmail,
   findUserByPhone,

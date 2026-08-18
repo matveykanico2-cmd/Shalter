@@ -23,6 +23,7 @@ import { openThreadPanel } from "../components/threadPanel.js";
 import { VerifiedBadge } from "../components/verifiedBadge.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openMiniApp } from "../components/miniApp.js";
+import { openLiveScreen } from "../components/liveScreen.js";
 
 // Settings → Внешний вид → "Фон чата" sets the global default; a chat's own
 // "…" → "Фон чата" (see openWallpaperDialog below) overrides it for just
@@ -77,11 +78,13 @@ export async function ChatView(root, chatId) {
   let searchQuery = "";
   let searchResults = null;
   try {
-    const chatRes = await api.getChat(chatId);
+    // Оба запроса разом, а не один за другим: второй не зависит от первого, а
+    // последовательно они складывались в двойную задержку перед тем, как на
+    // экране появлялось хоть что-то.
+    const [chatRes, first] = await Promise.all([api.getChat(chatId), api.listMessages(chatId, { limit: PAGE_SIZE })]);
     chat = chatRes.chat;
     members = chatRes.members;
     botCommands = chatRes.commands ?? null;
-    const first = await api.listMessages(chatId, { limit: PAGE_SIZE });
     messages = first.messages;
     hasMoreHistory = !!first.hasMore;
     // Only from this first load: every later refetch reports null, because by
@@ -703,12 +706,36 @@ export async function ChatView(root, chatId) {
   applyWallpaper(list, chat.id);
   const composerSlot = el("div", { class: "composer-slot" });
   const bodyBottomSlot = el("div", { class: "body-bottom-slot" });
-  const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, searchBar, pinnedBar, list, bodyBottomSlot, composerSlot]);
+  const liveBar = el("div", { class: "live-bar-slot" });
+  const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, searchBar, liveBar, pinnedBar, list, bodyBottomSlot, composerSlot]);
   const infoSlot = el("div", { class: "info-panel-slot" });
   const wrap = el("div", { class: "chat-view" }, [mainCol, infoSlot]);
 
   // «12 пользователей» вместо «в сети» у ботов. Просим один раз при открытии
   // чата: число меняется медленно, дёргать сервер на каждую перерисовку незачем.
+  // Идущий эфир в этом чате (server/routes/live.js): плашка сверху и кнопка
+  // «Начать эфир» у того, кто вправе его вести.
+  let liveInfo = null;
+  async function loadLive() {
+    if (chat.type === "dm") return;
+    try {
+      liveInfo = await api.getLiveForChat(chat.id);
+    } catch {
+      liveInfo = null;
+    }
+    renderHeader();
+    renderLiveBar();
+  }
+  async function startLive() {
+    try {
+      const { stream } = await api.startLive(chat.id, { title: chat.title, withVideo: true });
+      await loadLive();
+      openLiveScreen(stream.id, { chatTitle: chat.title });
+    } catch (err) {
+      alert(err.message || "Не удалось начать эфир");
+    }
+  }
+
   let botAudience = null;
   // Мини-приложение бота, если оно у него есть: { name }. Приходит тем же
   // запросом, что и аудитория (server/routes/bots.js).
@@ -731,6 +758,24 @@ export async function ChatView(root, chatId) {
         renderHeader();
       })
       .catch(() => {});
+  }
+
+  // Плашка идущего эфира. Она же — приглашение: об эфире в канале узнают
+  // отсюда, а не по звонку, который разбудил бы всех подписчиков разом.
+  function renderLiveBar() {
+    clear(liveBar);
+    const stream = liveInfo?.stream;
+    if (!stream) return;
+    liveBar.appendChild(
+      el("div", { class: "live-bar" }, [
+        el("span", { class: "live-bar-dot" }),
+        el("div", { class: "live-bar-body" }, [
+          el("p", { class: "live-bar-title" }, stream.title || "Идёт эфир"),
+          el("p", { class: "live-bar-sub" }, `${liveInfo.viewers ?? 0} в эфире`),
+        ]),
+        el("button", { class: "live-bar-join", onclick: () => openLiveScreen(stream.id, { chatTitle: chat.title }) }, "Смотреть"),
+      ])
+    );
   }
 
   function renderHeader() {
@@ -808,6 +853,11 @@ export async function ChatView(root, chatId) {
               },
               [el("span", { class: "chat-header-app-icon", html: iconSvg("Code", 15) }), el("span", { class: "chat-header-app-label" }, botApp.name)]
             )
+          : null,
+        // Эфир — там, где он имеет смысл: в канале и в группе. Для двоих есть
+        // звонок, и вторая кнопка рядом с ним только запутывала бы.
+        !isDm && liveInfo?.canHost && !liveInfo?.stream
+          ? el("button", { class: "icon-btn", title: "Начать эфир", html: iconSvg("Video", 18), onclick: startLive })
           : null,
         isDm || chat.type === "group"
           ? el("button", { class: "icon-btn", title: "Позвонить", html: iconSvg("Phone", 18), onclick: () => placeCall("audio") })
@@ -1231,6 +1281,7 @@ export async function ChatView(root, chatId) {
   renderComposer();
   renderInfoPanel();
   loadBotAudience();
+  loadLive();
   mount(root, wrap);
   list.scrollTo({ top: list.scrollHeight });
 
@@ -1248,6 +1299,15 @@ export async function ChatView(root, chatId) {
     typingUserId = r.typingUserId;
     renderHeader();
   }, 30000);
+
+  // Эфир начался или закончился — плашка появляется и исчезает сама, без
+  // перезахода в чат.
+  const unsubLiveStarted = onWsMessage("live:started", (msg) => {
+    if (msg.chatId === chat.id) loadLive();
+  });
+  const unsubLiveEnded = onWsMessage("live:ended", (msg) => {
+    if (msg.chatId === chat.id) loadLive();
+  });
 
   const unsubPresence = onWsMessage("presence:update", (msg) => {
     if (!other || msg.userId !== other.id) return;
@@ -1294,6 +1354,8 @@ export async function ChatView(root, chatId) {
     clearInterval(typingIv);
     clearTimeout(typingClearTimer);
     clearTimeout(msgTimer);
+    unsubLiveStarted();
+    unsubLiveEnded();
     unsubPresence();
     unsubMessageNew();
     unsubMessageUpdated();

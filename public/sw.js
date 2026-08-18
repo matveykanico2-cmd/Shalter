@@ -20,8 +20,10 @@ self.addEventListener("push", (event) => {
   } catch {
     return;
   }
-  const { title, body, url, tag, requireInteraction } = payload;
+  const { title, body, url, tag, requireInteraction, kind, callId } = payload;
   if (!title) return;
+
+  const isCall = kind === "call";
 
   event.waitUntil(
     (async () => {
@@ -35,15 +37,59 @@ self.addEventListener("push", (event) => {
         body,
         tag,
         requireInteraction: !!requireInteraction,
-        data: { url: url || "/" },
+        // Звонок — единственное, что имеет право вибрировать и перебивать: на
+        // него отвечают сейчас или никогда. Ответ и сброс прямо в уведомлении,
+        // чтобы не открывать приложение ради «нет, не сейчас».
+        vibrate: isCall ? [300, 200, 300, 200, 300] : undefined,
+        renotify: isCall || undefined,
+        silent: false,
+        icon: "/icons/icon.svg",
+        badge: "/icons/icon.svg",
+        actions: isCall
+          ? [
+              { action: "answer", title: "Ответить" },
+              { action: "decline", title: "Отклонить" },
+            ]
+          : undefined,
+        data: { url: url || "/", kind, callId },
       });
     })()
   );
 });
 
+// Сброс звонка прямо из уведомления — тем же запросом, каким это делает само
+// приложение (PATCH статуса). credentials: "include" обязателен: без него
+// сессионная кука не уйдёт и сервер откажет.
+async function declineCall(callId) {
+  if (!callId) return;
+  try {
+    await fetch(`/api/calls/${callId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ status: "ended" }),
+    });
+  } catch {
+    // Сети нет — звонок и так не состоится; молчим, чтобы не падало
+    // необработанное отклонение промиса внутри воркера.
+  }
+}
+
 self.addEventListener("notificationclick", (event) => {
+  const data = event.notification.data || {};
   event.notification.close();
-  const url = event.notification.data?.url || "/";
+
+  if (event.action === "decline") {
+    event.waitUntil(declineCall(data.callId));
+    return;
+  }
+
+  // «Ответить» и обычное нажатие ведут в одно место, но с пометкой: открытое
+  // приложение по ней сразу принимает звонок, а не показывает ещё один экран с
+  // кнопкой «ответить» поверх уже нажатой.
+  const base = data.url || "/";
+  const url = event.action === "answer" && data.callId ? `/call/${data.callId}?answer=1` : base;
+
   event.waitUntil(
     (async () => {
       const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });

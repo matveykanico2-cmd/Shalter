@@ -94,7 +94,13 @@ export function openMiniApp({ botId, botName, chatId = null, url = null, appName
 
   function post(message) {
     if (!iframe?.contentWindow || !appOrigin) return;
-    iframe.contentWindow.postMessage({ source: "shalter", v: BRIDGE_VERSION, ...message }, appOrigin);
+    // У страницы в песочнице источник «пустой» (null), и адресовать сообщение
+    // конкретному домену нельзя — браузер его выбросит. Отправляем всем, а
+    // проверяем на приёме, что сообщение пришло именно из нашего окна
+    // (см. onMessage) — это и есть настоящая проверка, origin здесь ничего бы
+    // не добавил. Секретов в этих сообщениях нет.
+    const target = appOrigin === window.location.origin ? "*" : appOrigin;
+    iframe.contentWindow.postMessage({ source: "shalter", v: BRIDGE_VERSION, ...message }, target);
   }
 
   function reply(id, ok, valueOrError) {
@@ -196,13 +202,21 @@ export function openMiniApp({ botId, botName, chatId = null, url = null, appName
 
   function mountFrame(fullUrl) {
     iframe?.remove();
+    // Приложение, размещённое в самом Shalter (setWebAppCode), отдаётся с
+    // нашего же адреса — и allow-same-origin означал бы, что чужой код внутри
+    // считается «своим» для нашего домена: сессионная кука, наш /api, всё.
+    // Поэтому здесь его нет, а сервер дублирует запрет заголовком (см.
+    // routes/miniAppHost.js). Внешнему приложению он, наоборот, нужен: это его
+    // собственный домен, его хранилище и его куки.
+    const hosted = appOrigin === window.location.origin;
     iframe = el("iframe", {
       class: "mini-app-frame",
       src: fullUrl,
-      // Тот же набор, что у встроенного браузера, плюс allow-modals: alert() и
-      // confirm() внутри приложения иначе молча ничего не делают, и автор
-      // страницы долго ищет причину.
-      sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-modals",
+      // allow-modals — чтобы alert()/confirm() внутри приложения работали, а не
+      // молчали, заставляя автора искать несуществующую ошибку.
+      sandbox: hosted
+        ? "allow-scripts allow-forms allow-popups allow-modals"
+        : "allow-scripts allow-same-origin allow-forms allow-popups allow-modals",
       // Запасной путь: страница, не знающая про мост, никогда не пришлёт
       // ready — индикатор снимается по обычной загрузке.
       onload: () => {

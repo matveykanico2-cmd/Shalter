@@ -8,7 +8,7 @@ import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog } from "./profileDialog.js";
 import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard, LocationAttachment } from "./attachments.js";
 import { transcribeAudio, transcriptCache } from "../lib/transcribe.js";
-import { getState } from "../state.js";
+import { getState, setState } from "../state.js";
 import { renderScene } from "../lib/animScenes.js";
 import { openStarsDialog } from "./starsDialog.js";
 
@@ -260,11 +260,22 @@ function ContactAttachment(a, meId) {
   // Only for a card that names a real account, and not for yourself.
   if (!userId || userId === meId) return wrap;
 
+  // Присланный контакт, который у вас уже есть, предлагать добавить не нужно —
+  // раньше кнопка «Добавить» стояла на карточке всегда, и нажатие на неё
+  // добавляло второй раз того же человека.
+  if (getState().contactIds?.includes(userId)) {
+    wrap.appendChild(el("span", { class: "contact-attachment-done" }, "в контактах ✓"));
+    return wrap;
+  }
+
   const action = el("button", { class: "contact-attachment-add" }, "Добавить");
   action.addEventListener("click", async () => {
     action.disabled = true;
     try {
       await api.addContact(userId, name || null);
+      // Запоминаем сразу: остальные карточки этого же человека в переписке
+      // должны перестать предлагать добавление вместе с этой.
+      setState({ contactIds: [...(getState().contactIds ?? []), userId] });
       action.replaceWith(el("span", { class: "contact-attachment-done" }, "в контактах ✓"));
     } catch (err) {
       action.disabled = false;

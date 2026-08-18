@@ -7,7 +7,13 @@ const DEFAULT_SETTINGS = {
   // — toggles the html[data-reduce-motion] CSS rule in base.css.
   reduceMotion: false,
   fontSize: 15,
-  notifications: { previewText: true, sound: true, mutedChatIds: [] },
+  // mutedChats: { [chatId]: true | "ISO-время, до которого тихо" }.
+  //
+  // Здесь, а не в записи чата, потому что тишина — дело личное. Раньше
+  // «отключить уведомления» писалось в саму запись чата, одну на всех, и
+  // человек, заглушивший группу, заглушал её каждому участнику. Прежнее поле
+  // mutedChatIds было массивом, который никто ни разу не прочитал.
+  notifications: { previewText: true, sound: true, mutedChats: {} },
   privacy: {
     lastSeen: "everyone",
     phone: "contacts",
@@ -126,7 +132,27 @@ async function setDraft(userId, chatId, text) {
   return updateSettings(userId, { drafts: next });
 }
 
+// Заглушён ли чат для этого человека прямо сейчас. Срок «тихо на час»
+// проверяется здесь же: истёкшая тишина — это её отсутствие, а не отдельное
+// состояние, которое кто-то должен не забыть снять.
+function mutedStateFor(settings, chatId) {
+  const value = settings?.notifications?.mutedChats?.[chatId];
+  if (!value) return { muted: false, mutedUntil: null };
+  if (value === true) return { muted: true, mutedUntil: null };
+  const until = String(value);
+  if (new Date(until).getTime() > Date.now()) return { muted: false, mutedUntil: until };
+  return { muted: false, mutedUntil: null };
+}
+
+// «Не беспокоить сейчас» — и навсегда заглушённые, и те, у кого не истёк срок.
+function isQuietNow(settings, chatId) {
+  const state = mutedStateFor(settings, chatId);
+  return state.muted || (!!state.mutedUntil && new Date(state.mutedUntil).getTime() > Date.now());
+}
+
 module.exports = {
+  mutedStateFor,
+  isQuietNow,
   getSettings,
   updateSettings,
   setChatCleared,

@@ -34,6 +34,18 @@ export function openEditBotDialog(bot, onSaved) {
   // (server/lib/miniApp.js, документация — /bots#apps).
   const appUrlInput = el("input", { class: "login-input mono", placeholder: "https://example.com/app", value: bot.appUrl ?? "" });
   const appNameInput = el("input", { class: "login-input", placeholder: "Открыть приложение", value: bot.appName ?? "" });
+  const appCodeInput = el("textarea", {
+    class: "settings-input mono bot-app-code",
+    rows: 8,
+    spellcheck: false,
+    placeholder: '<h1>Мой магазин</h1>\n<script>\n  const app = Shalter.WebApp;\n  app.ready();\n<\/script>',
+    value: bot.appCode ?? "",
+  });
+  // Способ ровно один за раз — как и на сервере (routes/bots.js): либо страница
+  // на своём сервере, либо код, который хранит Shalter. Переключатель, а не два
+  // заполненных поля рядом, потому что «какое из них сейчас откроется» — это
+  // вопрос, которого у владельца бота возникать не должно.
+  let appMode = bot.appCode ? "code" : bot.appUrl ? "url" : "none";
   const usernameInput = el("input", {
     class: "login-input mono",
     value: bot.user.username ?? "",
@@ -65,8 +77,11 @@ export function openEditBotDialog(bot, onSaved) {
         description: descInput.value.trim(),
         username: usernameInput.value.trim(),
         avatarImage,
-        appUrl: appUrlInput.value.trim(),
         appName: appNameInput.value.trim(),
+        // Пустая строка в том поле, которое сейчас не выбрано, — это и есть
+        // «убрать приложение прежнего вида», а не «оставить как было».
+        appUrl: appMode === "url" ? appUrlInput.value.trim() : "",
+        appCode: appMode === "code" ? appCodeInput.value : "",
       });
       bot = { ...bot, ...res.bot };
       notice = "Сохранено";
@@ -98,15 +113,51 @@ export function openEditBotDialog(bot, onSaved) {
         el("p", { class: "settings-toggle-hint" }, "Должен заканчиваться на _bot — так его отличают от аккаунта человека."),
         el("p", { class: "settings-field-label" }, "Описание"),
         descInput,
-        el("p", { class: "settings-field-label" }, "Мини-приложение"),
-        appUrlInput,
-        el("p", { class: "settings-toggle-hint" }, [
-          "Адрес страницы, которая откроется внутри Shalter кнопкой в шапке чата. Страница узнает, кто её открыл, — ",
-          el("a", { href: "/bots#apps", target: "_blank", rel: "noreferrer" }, "как это устроено"),
-          ". Только https (http — для localhost). Пустое поле убирает кнопку.",
+        el("div", { class: "bot-app-block" }, [
+          el("p", { class: "bot-app-title" }, "Мини-приложение"),
+          el("p", { class: "settings-toggle-hint" }, [
+            "Страница с интерфейсом, которая открывается внутри Shalter кнопкой в шапке чата и знает, кто её открыл — ",
+            el("a", { href: "/bots#apps", target: "_blank", rel: "noreferrer" }, "как это устроено"),
+            ".",
+          ]),
+          el(
+            "div",
+            { class: "bot-app-modes" },
+            [
+              { id: "none", label: "Нет" },
+              { id: "code", label: "Написать здесь" },
+              { id: "url", label: "Свой сервер" },
+            ].map((m) =>
+              el(
+                "button",
+                {
+                  class: `bot-app-mode ${appMode === m.id ? "active" : ""}`,
+                  onclick: () => {
+                    appMode = m.id;
+                    render();
+                  },
+                },
+                m.label
+              )
+            )
+          ),
+          appMode === "code" ? appCodeInput : null,
+          appMode === "code"
+            ? el("p", { class: "settings-toggle-hint" }, [
+                "HTML и JavaScript страницы. Хостинг не нужен: Shalter сам раздаст её по адресу ",
+                el("span", { class: "mono" }, `/app/${bot.user.username ?? "…"}`),
+                " и подставит скрипт ",
+                el("span", { class: "mono" }, "Shalter.WebApp"),
+                ". То же самое умеет Bot API — метод setWebAppCode.",
+              ])
+            : null,
+          appMode === "url" ? appUrlInput : null,
+          appMode === "url"
+            ? el("p", { class: "settings-toggle-hint" }, "Адрес вашей страницы. Только https (http — для localhost).")
+            : null,
+          appMode !== "none" ? el("p", { class: "settings-field-label" }, "Надпись на кнопке") : null,
+          appMode !== "none" ? appNameInput : null,
         ]),
-        el("p", { class: "settings-field-label" }, "Надпись на кнопке"),
-        appNameInput,
         error ? el("p", { class: "login-error" }, error) : null,
         notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,
         el("button", { class: "btn-accent", disabled: busy, onclick: save }, busy ? "Сохраняем…" : "Сохранить"),

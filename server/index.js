@@ -131,6 +131,10 @@ app.use("/api/ads", require("./routes/ads"));
 app.use("/api/donation-alerts", require("./routes/donationAlerts"));
 app.use("/api/translate", require("./routes/translate"));
 app.use("/api/uploads", require("./routes/uploads"));
+app.use("/api/live", require("./routes/live"));
+// Страницы мини-приложений, размещённых в самом Shalter (routes/miniAppHost.js).
+// Не под /api: это обычная веб-страница, которую открывает браузер.
+app.use("/app", require("./routes/miniAppHost"));
 app.use("/api/downloads", require("./routes/downloads"));
 app.use("/api/hugo", require("./routes/hugo"));
 app.use("/api/stickers", require("./routes/stickers"));

@@ -5231,47 +5231,113 @@
 }
 
 /* Incoming call banner */
-.incoming-call-banner {
+/* Входящий звонок — на весь экран (components/incomingCallWatcher.js).
+   Раньше это была плашка сверху: на телефоне в неё нужно было попасть пальцем
+   между делом, а звонок — единственное, на что отвечают немедленно. */
+.incoming-call-screen {
   position: fixed;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 70;
+  inset: 0;
+  z-index: 95;
   display: flex;
   align-items: center;
-  gap: 12px;
-  border-radius: 16px;
-  background: var(--color-surface);
-  padding: 10px 14px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
-  border: 1px solid var(--color-border);
+  justify-content: center;
+  background: linear-gradient(180deg, #171b26 0%, #0c0e14 100%);
+  animation: incoming-call-in 0.18s ease-out;
 }
-.incoming-call-info {
-  min-width: 120px;
+@keyframes incoming-call-in {
+  from { opacity: 0; }
 }
-.incoming-call-title {
-  font-weight: 500;
+.incoming-call-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+  color: #fff;
+}
+.incoming-call-kind {
+  margin: 0 0 18px;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #98a0b3;
+}
+/* Пульсирующий ореол вокруг аватара — единственная анимация здесь: она и
+   показывает, что звонок сейчас идёт, а не висит со вчера. */
+.incoming-call-avatar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.incoming-call-avatar::before {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  background: rgba(135, 116, 225, 0.28);
+  animation: incoming-call-pulse 1.8s ease-out infinite;
+}
+@keyframes incoming-call-pulse {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+.incoming-call-name {
   margin: 0;
+  font-size: 26px;
+  font-weight: 600;
 }
-.incoming-call-subtitle {
-  font-size: 12px;
-  color: var(--color-muted);
-  margin: 0;
+.incoming-call-hint {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: #98a0b3;
+}
+.incoming-call-actions {
+  display: flex;
+  gap: 56px;
+  margin-top: 42px;
+}
+.incoming-call-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.incoming-call-action-label {
+  font-size: 12.5px;
+  color: #98a0b3;
 }
 .incoming-call-btn {
   display: flex;
-  height: 40px;
-  width: 40px;
+  height: 68px;
+  width: 68px;
   align-items: center;
   justify-content: center;
+  border: none;
   border-radius: 999px;
   color: #fff;
+  cursor: pointer;
+}
+.incoming-call-btn:active {
+  transform: scale(0.94);
 }
 .incoming-call-btn.decline {
   background: var(--color-danger);
 }
 .incoming-call-btn.accept {
   background: var(--color-success);
+  /* Слегка «дышит» — глаз сам находит кнопку ответа среди двух одинаковых. */
+  animation: incoming-call-breathe 1.6s ease-in-out infinite;
+}
+@keyframes incoming-call-breathe {
+  50% { transform: scale(1.06); }
+}
+@media (max-width: 420px) {
+  .incoming-call-actions {
+    gap: 40px;
+  }
 }
 
 /* Call PiP bubble (persistent, shown across navigation while minimized) */
@@ -8199,4 +8265,447 @@
   font-size: 11.5px;
   font-style: italic;
   color: var(--color-muted);
+}
+
+/* ── Настройки → Боты: вводная, признаки, блок мини-приложения ───────────── */
+/* Раньше «два способа» были одним сплошным абзацем — здесь каждый способ
+   отдельной строкой со значком, потому что читают их именно как список. */
+.bot-ways .bot-way {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}
+.bot-way-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  border-radius: 6px;
+  background: var(--color-accent-soft);
+  width: 22px;
+  height: 22px;
+  color: var(--color-accent);
+}
+.bot-way p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-muted);
+}
+.bot-way strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+.bot-ways .text-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 13px;
+}
+/* Кнопка стояла вплотную к заголовку списка ниже. */
+.bot-create-btn {
+  margin: 14px 0 4px;
+}
+.bot-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.bot-badge {
+  border-radius: 5px;
+  background: var(--color-surface-alt);
+  padding: 1px 6px;
+  font-size: 10.5px;
+  color: var(--color-muted);
+}
+.bot-badge.accent {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+/* Мини-приложение в настройках бота — свой блок, а не ещё три поля подряд
+   среди имени и описания: это отдельная вещь со своим выбором способа. */
+.bot-app-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+.bot-app-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.bot-app-modes {
+  display: flex;
+  gap: 6px;
+}
+.bot-app-mode {
+  flex: 1;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 7px 6px;
+  font-size: 12.5px;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.bot-app-mode:hover {
+  background: var(--color-surface-alt);
+}
+.bot-app-mode.active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  font-weight: 500;
+  color: var(--color-accent);
+}
+.bot-app-code {
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+
+/* ── Эфиры в каналах (components/liveScreen.js) ──────────────────────────── */
+.live-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 8px 14px;
+}
+.live-bar-dot {
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-danger);
+  width: 9px;
+  height: 9px;
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  50% { opacity: 0.3; }
+}
+.live-bar-body {
+  flex: 1;
+  min-width: 0;
+}
+.live-bar-title {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.live-bar-sub {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  color: var(--color-muted);
+}
+.live-bar-join {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-accent);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-accent-contrast);
+  cursor: pointer;
+}
+
+.live-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: #0b0d12;
+}
+.live-body {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+.live-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.live-stage {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  background: #000;
+}
+.live-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+.live-video.mirrored {
+  transform: scaleX(-1);
+}
+.live-stage-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  color: #cfd3dd;
+}
+.live-stage-top {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.live-badge {
+  border-radius: 4px;
+  background: var(--color-danger);
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.live-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+.live-count {
+  font-size: 12px;
+  opacity: 0.85;
+}
+/* Плитки тех, кому дали слово: поверх картинки ведущего, снизу справа. */
+.live-speakers {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 60%;
+}
+.live-speaker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  background: rgba(20, 23, 31, 0.85);
+  padding: 6px 10px 6px 6px;
+  font-size: 12px;
+  color: #fff;
+}
+.live-speaker.muted {
+  opacity: 0.55;
+}
+.live-speaker .live-video {
+  width: 92px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.live-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid #1e222c;
+  background: #11141b;
+  padding: 12px;
+}
+.live-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #262b36;
+  border-radius: 999px;
+  background: #191d26;
+  padding: 9px 16px;
+  font-size: 13px;
+  color: #e7e9f0;
+  cursor: pointer;
+}
+.live-ctl:hover {
+  background: #212633;
+}
+.live-ctl.on {
+  border-color: var(--color-accent);
+  color: #fff;
+  background: var(--color-accent);
+}
+.live-ctl.off {
+  opacity: 0.75;
+}
+.live-ctl.danger {
+  border-color: var(--color-danger);
+  color: #fff;
+  background: var(--color-danger);
+}
+.live-error {
+  margin: 8px 12px 0;
+  font-size: 12.5px;
+  color: var(--color-danger);
+}
+.live-side {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border-left: 1px solid #1e222c;
+  background: #12151d;
+  width: 320px;
+  color: #e7e9f0;
+}
+.live-panel-title {
+  margin: 0;
+  border-bottom: 1px solid #1e222c;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9aa1b1;
+}
+.live-people {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  max-height: 45%;
+}
+.live-person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+}
+.live-person-body {
+  flex: 1;
+  min-width: 0;
+}
+.live-person-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-size: 13px;
+}
+.live-person-role {
+  margin: 0;
+  font-size: 11px;
+  color: #8a92a4;
+}
+.live-person-actions {
+  display: flex;
+  gap: 4px;
+}
+.live-mini-btn {
+  border: 1px solid #2a3040;
+  border-radius: 7px;
+  background: #1a1f2a;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  color: #cfd4e0;
+  cursor: pointer;
+}
+.live-mini-btn.accent {
+  border-color: var(--color-accent);
+  color: #fff;
+  background: var(--color-accent);
+}
+.live-mini-btn.danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+.live-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid #1e222c;
+}
+.live-chat-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+}
+.live-chat-msg {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.live-chat-author {
+  font-weight: 600;
+  color: var(--color-accent);
+}
+.live-chat-empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: #8a92a4;
+}
+.live-chat-form {
+  display: flex;
+  gap: 6px;
+  border-top: 1px solid #1e222c;
+  padding: 8px;
+}
+.live-chat-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #2a3040;
+  border-radius: 8px;
+  background: #1a1f2a;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #e7e9f0;
+}
+.live-send-btn {
+  border: none;
+  border-radius: 8px;
+  background: var(--color-accent);
+  padding: 0 12px;
+  color: #fff;
+  cursor: pointer;
+}
+.live-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  color: #e7e9f0;
+}
+/* На телефоне участники и чат уходят под видео, а не в колонку сбоку. */
+@media (max-width: 820px) {
+  .live-body {
+    flex-direction: column;
+  }
+  .live-side {
+    border-left: none;
+    border-top: 1px solid #1e222c;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+  }
+  .live-stage {
+    flex: none;
+    height: 40vh;
+  }
 }
