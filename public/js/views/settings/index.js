@@ -1152,6 +1152,21 @@ async function renderPrivacy(root) {
                 ])
               : el("button", { class: "settings-danger-link", onclick: changePasscode }, "Включить"),
           ]),
+          // Пароль аккаунта при запуске — в отличие от код-пароля выше, это
+          // настоящий пароль, и проверяет его сервер. Нужен ровно от того, кто
+          // взял разблокированный телефон: вход уже выполнен, а приложение всё
+          // равно не открывается.
+          el("div", { class: "settings-toggle-row" }, [
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, "Пароль при запуске"),
+              el("p", { class: "settings-toggle-hint" }, "Спрашивать пароль от аккаунта каждый раз, даже если вход уже выполнен"),
+            ]),
+            Toggle(!!settings.requirePasswordOnLaunch, async (v) => {
+              settings = { ...settings, requirePasswordOnLaunch: v };
+              render();
+              await api.patchSettings({ requirePasswordOnLaunch: v });
+            }),
+          ]),
           securityNotice ? el("p", { class: "settings-toggle-hint success" }, securityNotice) : null,
         ]),
         el("p", { class: "settings-section-title" }, `Заблокированные пользователи (${blockedUsers.length})`),

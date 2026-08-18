@@ -1,7 +1,13 @@
 const db = require("../db");
 
+// Только живые сеансы.
+//
+// Раньше отдавались все строки подряд, вместе с завершёнными: человек нажимал
+// «Завершить», устройство честно теряло доступ — но оставалось в списке ровно
+// на прежнем месте. Со стороны это выглядит как «кнопка не работает», и именно
+// так об этом и сообщили. Завершённой сессии в списке сеансов делать нечего.
 async function listSessions(userId) {
-  return db.prepare("SELECT * FROM sessions WHERE userId = ?").all(userId);
+  return db.prepare("SELECT * FROM sessions WHERE userId = ? AND revokedAt IS NULL ORDER BY lastActive DESC").all(userId);
 }
 
 async function getSession(userId, deviceId) {

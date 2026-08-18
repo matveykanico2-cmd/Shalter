@@ -14,6 +14,7 @@ import { iconSvg } from "./icons.js";
 import { initUiTranslation } from "./lib/uiTranslate.js";
 import { hasPasscode } from "./lib/passcodeLock.js";
 import { showPasscodeLockScreen } from "./components/passcodeLockScreen.js";
+import { showPasswordLockScreen } from "./components/passwordLockScreen.js";
 import { initKeyboardShortcuts } from "./lib/keyboardShortcuts.js";
 import { WaveBearMascot } from "./components/mascot.js";
 
@@ -62,6 +63,17 @@ async function boot() {
   // tab comes back from being hidden, same trigger Telegram's own Passcode
   // Lock uses.
   if (hasPasscode()) await showPasscodeLockScreen();
+  // Пароль от аккаунта при запуске (Настройки → Конфиденциальность). Спрашиваем
+  // до отрисовки приложения, а не поверх него: накладка поверх готового экрана
+  // защищает только от нажатий, а не от чтения того, что под ней.
+  try {
+    const { settings: s } = await api.getSettings();
+    setState({ settings: s });
+    if (s?.requirePasswordOnLaunch) await showPasswordLockScreen(root);
+  } catch {
+    // Настройки не прочитались — не запирать же человека снаружи собственного
+    // приложения из-за сбоя сети.
+  }
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && hasPasscode()) showPasscodeLockScreen();
   });

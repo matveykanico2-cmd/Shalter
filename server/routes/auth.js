@@ -291,6 +291,21 @@ router.post(
 // cascade) — requires re-entering the password even though the session is
 // already authenticated, same "prove it's really you" bar as changing a
 // password would have, given how irreversible this is.
+// Проверить пароль, ничего не меняя. Нужен замку при запуске (см. настройку
+// requirePasswordOnLaunch): приложение уже вошло в аккаунт, но не пускает
+// дальше, пока не введён пароль — от того, кто взял разблокированный телефон.
+router.post(
+  "/verify-password",
+  requireUserId,
+  asyncRoute(async (req, res) => {
+    const user = await getUser(req.uid);
+    const ok =
+      !!user?.passwordHash && !!user?.passwordSalt && verifyPassword(String(req.body?.password ?? ""), user.passwordHash, user.passwordSalt);
+    if (!ok) return res.status(401).json({ error: "Неверный пароль" });
+    res.json({ ok: true });
+  })
+);
+
 router.post(
   "/delete-account",
   requireUserId,

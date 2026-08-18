@@ -13,6 +13,9 @@ const DEFAULT_SETTINGS = {
   // «отключить уведомления» писалось в саму запись чата, одну на всех, и
   // человек, заглушивший группу, заглушал её каждому участнику. Прежнее поле
   // mutedChatIds было массивом, который никто ни разу не прочитал.
+  // Спрашивать пароль аккаунта при каждом запуске приложения — даже когда
+  // вход уже выполнен (см. public/js/components/passwordLockScreen.js).
+  requirePasswordOnLaunch: false,
   notifications: { previewText: true, sound: true, mutedChats: {} },
   privacy: {
     lastSeen: "everyone",

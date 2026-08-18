@@ -13,36 +13,60 @@ const { removeAllContactsInvolving } = require("../data/contacts");
 const { listBotsByOwner, deleteBot } = require("../data/bots");
 const { deleteUser } = require("../data/users");
 
+// Каждый шаг — сам по себе.
+//
+// Раньше любая одна осечка (чат, который уже кто-то удалил секундой раньше;
+// бот, чья строка не сошлась) обрывала всю процедуру на середине: человек
+// видел «internal error», а аккаунт оставался наполовину удалённым — часть
+// чатов уже нет, сам аккаунт на месте, и повторная попытка спотыкалась о те же
+// остатки. Удаление обязано доходить до конца: последние три действия —
+// сессии, контакты и сама учётная запись — важнее любого промежуточного шага.
+async function step(what, fn) {
+  try {
+    await fn();
+  } catch (err) {
+    console.error(`удаление аккаунта: шаг «${what}» не выполнен:`, err.message);
+  }
+}
+
 async function deleteAccount(userId) {
-  const chats = await listChatsForUser(userId);
+  const chats = await listChatsForUser(userId).catch(() => []);
   for (const chat of chats) {
     if (chat.type === "dm") {
-      await deleteMessagesForChat(chat.id);
-      await deleteChat(chat.id);
+      await step(`личный чат ${chat.id}`, async () => {
+        await deleteMessagesForChat(chat.id);
+        await deleteChat(chat.id);
+      });
       continue;
     }
     const memberIds = chat.memberIds.filter((m) => m !== userId);
     const adminIds = chat.adminIds?.filter((m) => m !== userId);
-    if (memberIds.length === 0) {
-      await deleteMessagesForChat(chat.id);
-      await deleteChat(chat.id);
-    } else {
-      await updateChat(chat.id, {
-        memberIds,
-        adminIds,
-        ownerId: chat.ownerId === userId ? memberIds[0] : chat.ownerId,
-      });
-    }
+    await step(`чат ${chat.id}`, async () => {
+      if (memberIds.length === 0) {
+        await deleteMessagesForChat(chat.id);
+        await deleteChat(chat.id);
+      } else {
+        await updateChat(chat.id, {
+          memberIds,
+          adminIds,
+          ownerId: chat.ownerId === userId ? memberIds[0] : chat.ownerId,
+        });
+      }
+    });
   }
 
-  const bots = await listBotsByOwner(userId);
+  const bots = await listBotsByOwner(userId).catch(() => []);
   for (const bot of bots) {
-    await deleteBot(bot.id);
-    await deleteUser(bot.userId); // the bot's own `users` row (isBot: true)
+    await step(`бот ${bot.id}`, async () => {
+      await deleteBot(bot.id);
+      await deleteUser(bot.userId); // the bot's own `users` row (isBot: true)
+    });
   }
 
-  await removeAllSessionsForUser(userId);
-  await removeAllContactsInvolving(userId);
+  await step("сессии", () => removeAllSessionsForUser(userId));
+  await step("контакты", () => removeAllContactsInvolving(userId));
+  // А вот это уже без страховки: если не удалилась сама учётная запись, то
+  // аккаунт не удалён, и говорить об успехе нельзя.
   await deleteUser(userId);
 }
 
