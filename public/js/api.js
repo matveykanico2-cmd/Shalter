@@ -217,6 +217,9 @@ export const api = {
   listContacts: () => req("/api/contacts"),
   addContact: (userId, localName) => req("/api/contacts", { method: "POST", body: JSON.stringify({ userId, localName }) }),
   renameContact: (userId, localName) => req("/api/contacts/rename", { method: "POST", body: JSON.stringify({ userId, localName }) }),
+  // Публичный канал/группа по @хендлу — вторая половина ссылки /@имя: первым
+  // спрашивается человек или бот, и только если такого нет — чат.
+  findChatByUsername: (username) => req(`/api/chats/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
   findUserByUsername: (username) => req(`/api/users/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
   // Address-book import (components/importContactsDialog.js): send [{name, phone}],
   // get back who's already registered and who can be invited. Nothing is stored

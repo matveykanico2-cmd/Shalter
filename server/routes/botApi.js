@@ -1005,4 +1005,103 @@ router.get(
   })
 );
 
+// ── Остальные виды вложений и мелочи, которых не хватало ────────────────────
+//
+// Приложение умеет показывать видео, голосовые, кружки и альбомы из нескольких
+// файлов — а бот мог прислать только картинку и файл. То есть половина видов
+// сообщений была доступна человеку и недоступна программе, без всякой причины:
+// под всеми ими лежит одно и то же поле attachments.
+//
+// Файлы, как и раньше, передаются ссылкой: своё хранилище у бота уже есть, а
+// второй путь загрузки на сервер потянул бы за собой свои лимиты и чистку.
+const ATTACHMENT_KINDS = {
+  sendVideo: { kind: "video", fallback: "🎬 Видео", name: "video" },
+  sendVoice: { kind: "voice", fallback: "🎤 Голосовое сообщение", name: "voice" },
+  sendVideoNote: { kind: "video-note", fallback: "🎥 Видеосообщение", name: "video-note" },
+};
+
+for (const [method, spec] of Object.entries(ATTACHMENT_KINDS)) {
+  router.post(
+    `/${method}`,
+    asyncRoute(async (req, res) => {
+      const { chatId, url, caption = "", replyToId, durationSec } = req.body ?? {};
+      if (!url) return res.status(400).json({ error: "url is required" });
+      try {
+        const message = await sendBotMessage(req.bot.userId, chatId, caption || spec.fallback, {
+          replyToId,
+          // durationSec нужен голосовым и кружкам: без него плеер не знает
+          // длину дорожки и рисует пустую полосу вместо шкалы.
+          attachments: [{ kind: spec.kind, url, name: spec.name, meta: Number.isFinite(durationSec) ? { durationSec } : undefined }],
+        });
+        res.json({ message });
+      } catch (err) {
+        res.status(404).json({ error: err.message });
+      }
+    })
+  );
+}
+
+// Альбом: несколько файлов одним сообщением, как это делает человек, выбрав
+// сразу пять фотографий. Отдельными сообщениями это выглядит как спам.
+router.post(
+  "/sendMediaGroup",
+  asyncRoute(async (req, res) => {
+    const { chatId, items, caption = "", replyToId } = req.body ?? {};
+    const list = (Array.isArray(items) ? items : [])
+      .filter((i) => i && typeof i.url === "string" && i.url)
+      .slice(0, 10)
+      .map((i) => ({
+        kind: ["image", "video", "file", "voice", "video-note"].includes(i.kind) ? i.kind : "image",
+        url: i.url,
+        name: String(i.name ?? i.kind ?? "file").slice(0, 120),
+      }));
+    if (!list.length) return res.status(400).json({ error: "items is required" });
+    try {
+      const message = await sendBotMessage(req.bot.userId, chatId, caption || "🖼", { replyToId, attachments: list });
+      res.json({ message });
+    } catch (err) {
+      res.status(404).json({ error: err.message });
+    }
+  })
+);
+
+// Переслать без пометки «переслано» — то же, что «копировать» у Telegram.
+// Нужно ровно там, где forwardMessage не годится: бот раздаёт чужой текст как
+// свой собственный (рассылка, витрина), и подпись автора в шапке лишняя.
+router.post(
+  "/copyMessage",
+  asyncRoute(async (req, res) => {
+    const { chatId, messageId } = req.body ?? {};
+    const source = await getMessage(messageId);
+    if (!source) return res.status(404).json({ error: "Message not found" });
+    // Копировать можно только то, что бот и так вправе читать: сообщение из
+    // чата, где он состоит. Иначе по перебору идентификаторов можно было бы
+    // вытащить чужую переписку.
+    const sourceChat = await getChat(source.chatId);
+    if (!sourceChat || !sourceChat.memberIds.includes(req.bot.userId)) {
+      return res.status(404).json({ error: "Bot is not a member of that chat" });
+    }
+    try {
+      const message = await sendBotMessage(req.bot.userId, chatId, source.text || "📎", {
+        attachments: source.attachments,
+      });
+      res.json({ message });
+    } catch (err) {
+      res.status(404).json({ error: err.message });
+    }
+  })
+);
+
+// Аватар бота. Имя и описание менялись через setMyProfile с самого начала, а
+// картинка — единственное, что оставалось только в интерфейсе владельца.
+router.post(
+  "/setMyAvatar",
+  asyncRoute(async (req, res) => {
+    const image = req.body?.image;
+    if (typeof image !== "string") return res.status(400).json({ error: "image is required (URL или data:-строка)" });
+    await updateUser(req.bot.userId, { avatarImage: image || null });
+    res.json({ bot: publicUser(await getUser(req.bot.userId)) });
+  })
+);
+
 module.exports = router;

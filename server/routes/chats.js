@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findDmBetween, findChatByInviteCode } = require("../data/chats");
+const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findDmBetween, findChatByInviteCode, findChatByUsername } = require("../data/chats");
 const { checkUsername, normalizeUsername } = require("../lib/username");
 const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeatures");
 const { PERMISSIONS, permissionsOf, sanitizePermissions } = require("../lib/chatPermissions");
@@ -266,6 +266,31 @@ router.get(
 // format checks at all — fine for pinned/muted/archived (harmless if any
 // member flips those), not fine for something that publishes a channel and
 // claims a global @username.
+// Публичный канал или группа по @хендлу — чтобы ссылка вида /@shalter_news
+// открывалась у того, кто в нём ещё не состоит. Отдаётся только то, что и так
+// видно в поиске по каталогу: имя, описание, картинка и число участников.
+router.get(
+  "/by-username/:username",
+  asyncRoute(async (req, res) => {
+    const chat = await findChatByUsername(String(req.params.username).replace(/^@/, ""));
+    if (!chat || !chat.isPublic) return res.status(404).json({ error: "not found" });
+    res.json({
+      chat: {
+        id: chat.id,
+        type: chat.type,
+        title: chat.title,
+        username: chat.username,
+        description: chat.description ?? null,
+        avatarColor: chat.avatarColor,
+        avatarImage: chat.avatarImage,
+        isVerified: !!chat.isVerified,
+        subscribers: chat.memberIds.length,
+        isMember: chat.memberIds.includes(req.uid),
+      },
+    });
+  })
+);
+
 router.post(
   "/:id/public",
   asyncRoute(async (req, res) => {

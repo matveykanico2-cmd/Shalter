@@ -15,6 +15,7 @@ import { CallsView } from "./views/calls.js";
 import { ArchiveView } from "./views/archive.js";
 import { SettingsView } from "./views/settings/index.js";
 import { mountIncomingCallWatcher, answerCall } from "./components/incomingCallWatcher.js";
+import { openMiniApp } from "./components/miniApp.js";
 import { startWsClient } from "./lib/wsClient.js";
 import { ensurePushSubscribed } from "./lib/push.js";
 import { subscribeCall, getCallState, minimize, restore } from "./lib/callController.js";
@@ -203,23 +204,64 @@ async function boot() {
   // Where a scanned profile QR code / shared @username link lands (see
   // components/profileQrDialog.js) — resolves the account and starts a DM,
   // same one-shot resolve-then-redirect shape as /call-join/:token above.
-  route("/u/:username", async (params) => {
-    withCleanup(mainSlot);
+  // Ссылка на @хендл: человек, бот, канал или группа — одним адресом.
+  //
+  // Что понимает: /@имя и /u/имя (второе оставлено — такие ссылки уже
+  // разошлись в QR-кодах профилей), а для ботов ещё два параметра, знакомых
+  // всем по Telegram:
+  //   ?start=код  — открыть бота и сразу отправить ему «/start код», чтобы он
+  //                 знал, откуда пришёл человек (реферальная ссылка, товар,
+  //                 приглашение);
+  //   ?app=1      — открыть сразу мини-приложение бота, минуя переписку.
+  async function openByUsername(username, search) {
+    const params = new URLSearchParams(search || "");
+    const startPayload = params.get("start");
+    const wantsApp = params.get("app") === "1" || params.has("startapp");
+
     try {
-      const { user: found } = await api.findUserByUsername(params.username);
+      const { user: found } = await api.findUserByUsername(username);
       const { chat } = await api.startDm(found.id, found.name, found.avatarColor);
-      await api.listChats().then((r) => setState({ chats: r.chats }));
+      // Отправляем ДО перехода: свои же сообщения сервер обратно не
+      // рассылает (их показывает эхо в поле ввода), поэтому отправленное
+      // после открытия чата всплыло бы только через опрос, секунд через
+      // пятнадцать — и человек увидел бы пустую переписку с ботом.
+      if (found.isBot && startPayload) {
+        // Именно сообщением, а не скрытым параметром: бот получает его обычным
+        // способом, а человек видит в переписке, что было отправлено от его
+        // имени. Пробел важен — «/start» без кода это другая команда.
+        await api.sendMessage(chat.id, `/start ${startPayload}`.trim()).catch(() => {});
+      }
+      api.listChats().then((r) => setState({ chats: r.chats })).catch(() => {});
       navigate(`/chat/${chat.id}`, { replace: true });
+      if (found.isBot && wantsApp) openMiniApp({ botId: found.id, botName: found.name, chatId: chat.id });
+      return;
+    } catch {
+      // Не человек и не бот — возможно, публичный канал или группа.
+    }
+
+    try {
+      const { chat } = await api.findChatByUsername(username);
+      // Уже подписан — открываем сам чат; нет — показываем карточку в каталоге,
+      // где есть кнопка «Подписаться», а не подписываем молча по ссылке.
+      if (chat.isMember) navigate(`/chat/${chat.id}`, { replace: true });
+      else navigate(`/discover-channels?q=${encodeURIComponent(chat.username || chat.title)}`, { replace: true });
+      return;
     } catch (err) {
       mount(
         mainSlot,
         el("div", { class: "empty-chat" }, [
-          el("p", { class: "empty-chat-title" }, "Пользователь не найден"),
-          el("p", { class: "empty-hint" }, err.message || `Аккаунта @${params.username} не существует.`),
+          el("p", { class: "empty-chat-title" }, "Ничего не найдено"),
+          el("p", { class: "empty-hint" }, `@${username} — такого аккаунта, бота или канала нет.`),
         ])
       );
     }
+  }
+
+  route("/u/:username", async (params) => {
+    withCleanup(mainSlot);
+    await openByUsername(params.username, window.location.search);
   });
+
   // An invite link (server/routes/chats.js) — a full page, not a dialog: it's
   // opened from outside the app, often by someone not signed in yet, and the
   // router's own auth gate sends them to /login and back.
@@ -252,6 +294,13 @@ async function boot() {
     await SettingsView(mainSlot, params.page);
   });
   notFound(() => navigate("/", { replace: true }));
+
+  // /@имя — то, как ссылку на бота или канал пишут и вставляют люди. Роутер
+  // (router.js) умеет подставлять только целый сегмент пути, поэтому «@» не
+  // получится вписать в шаблон маршрута: приводим адрес к /u/имя до старта,
+  // сохраняя параметры (?start=…, ?app=1).
+  const handleInPath = window.location.pathname.match(/^\/@([A-Za-z0-9_]{1,64})\/?$/);
+  if (handleInPath) window.history.replaceState(null, "", `/u/${handleInPath[1]}${window.location.search}`);
 
   startRouter();
 }

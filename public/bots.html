@@ -50,6 +50,7 @@
       <a href="#more-send">Стикеры, опросы, реакции</a>
       <a href="#admin">Права администратора</a>
       <a href="#media2">Видео, голос, место, контакт</a>
+      <a href="#media3">Альбомы и копирование</a>
       <a href="#msg-more">Работа с сообщениями</a>
       <a href="#schedule">Отложенная отправка</a>
       <a href="#members">Участники и права</a>
@@ -509,6 +510,36 @@ await fetch(`${API}/editMessageText`, {
         Кнопка с полем <code>app</code> открывает <a href="#apps">мини-приложение</a> бота — адрес должен
         вести на тот же сайт, что указан в настройках приложения, иначе кнопка ничего не откроет.
       </p>
+
+      <h2 id="media3">Альбомы, кружки и копирование</h2>
+      <p>
+        Всё, что умеет показывать приложение, теперь умеет отправлять и бот. Файлы — ссылкой:
+        своё хранилище у бота уже есть, а второй путь загрузки тянул бы за собой свои лимиты и чистку.
+      </p>
+      <table class="doc-table">
+        <thead><tr><th>Метод</th><th>Поля</th><th>Что делает</th></tr></thead>
+        <tbody>
+          <tr><td><code>sendVideo</code></td><td>chatId, url, caption?, replyToId?</td><td>Видео с проигрывателем.</td></tr>
+          <tr><td><code>sendVoice</code></td><td>chatId, url, durationSec?, caption?</td><td>Голосовое сообщение. Без <code>durationSec</code> шкала будет пустой.</td></tr>
+          <tr><td><code>sendVideoNote</code></td><td>chatId, url, durationSec?</td><td>Круглое видеосообщение.</td></tr>
+          <tr><td><code>sendMediaGroup</code></td><td>chatId, items[], caption?</td><td>Альбом до 10 файлов одним сообщением: <code>[{ kind: "image", url }, …]</code>. Виды: image, video, file, voice, video-note.</td></tr>
+          <tr><td><code>copyMessage</code></td><td>chatId, messageId</td><td>Отправить содержимое чужого сообщения от своего имени, без пометки «переслано». Копировать можно только из чатов, где бот состоит.</td></tr>
+          <tr><td><code>setMyAvatar</code></td><td>image</td><td>Картинка бота — ссылкой или <code>data:</code>-строкой. Имя и описание меняет <code>setMyProfile</code>.</td></tr>
+        </tbody>
+      </table>
+      <pre><code>await fetch(`${API}/sendMediaGroup`, {
+  method: "POST",
+  headers: auth,
+  body: JSON.stringify({
+    chatId,
+    caption: "Новинки недели",
+    items: [
+      { kind: "image", url: "https://example.com/1.jpg" },
+      { kind: "image", url: "https://example.com/2.jpg" },
+      { kind: "video", url: "https://example.com/3.mp4" },
+    ],
+  }),
+});</code></pre>
 
       <h2 id="apps">Мини-приложения</h2>
       <p>
