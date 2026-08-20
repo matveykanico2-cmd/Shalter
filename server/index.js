@@ -148,6 +148,9 @@ app.use("/api/search", require("./routes/search"));
 app.use("/api/push", require("./routes/push"));
 app.use("/api/reports", require("./routes/reports"));
 app.use("/api/admin", require("./routes/admin"));
+// Каталог меток безопасности читают все: значок рядом с именем показывается
+// каждому, а не только администратору (правит его только он — /api/admin/labels).
+app.get("/api/labels", (req, res) => res.json({ labels: require("./data/safetyLabels").listLabels() }));
 app.use("/api/stories", require("./routes/stories"));
 app.use("/api/premium", require("./routes/premium"));
 app.use("/api/gifts", require("./routes/gifts"));

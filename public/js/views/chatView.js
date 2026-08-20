@@ -24,6 +24,7 @@ import { openThreadPanel } from "../components/threadPanel.js";
 import { VerifiedBadge } from "../components/verifiedBadge.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openMiniApp } from "../components/miniApp.js";
+import { openDeleteMessageDialog } from "../components/deleteMessageDialog.js";
 import { openLiveScreen } from "../components/liveScreen.js";
 
 // Settings → Внешний вид → "Фон чата" sets the global default; a chat's own
@@ -1161,15 +1162,15 @@ export async function ChatView(root, chatId) {
               // "Delete for everyone" is offered for your own message, and for
               // anyone's if you run the chat (the same rule the server applies).
               const mine = msg.senderId === me.id || (!isDm && isChatAdmin(chat, me.id)) || isChatModerator(chat, me.id);
-              openChoiceDialog(
-                "Удалить сообщение",
-                mine
-                  ? [
-                      { label: "Удалить только у себя", onClick: () => handleDelete(msg, false) },
-                      { label: "Удалить у всех", danger: true, onClick: () => handleDelete(msg, true) },
-                    ]
-                  : [{ label: "Удалить у себя", danger: true, onClick: () => handleDelete(msg, false) }]
-              );
+              // Чужое сообщение в личной переписке удаляется у обоих — так же,
+              // как это делает Telegram: разговор двоих принадлежит обоим. В
+              // группе и канале чужое убирает только тот, кто ими управляет,
+              // иначе один участник способен стереть всю историю чата.
+              openDeleteMessageDialog({
+                canDeleteForEveryone: mine || isDm || isChatAdmin(chat, me.id) || isChatModerator(chat, me.id),
+                someoneElses: !mine,
+                onDelete: (forEveryone) => handleDelete(msg, forEveryone),
+              });
             },
             onReact: handleReact,
             onPin: handlePin,

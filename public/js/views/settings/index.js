@@ -1610,6 +1610,12 @@ async function renderModeration(root) {
     render();
   }
 
+  // Вне render(): пересоздание полей на каждой перерисовке — ровно то, из-за
+  // чего в других местах приложения текст приходилось вводить по одной букве.
+  const newLabelShort = el("input", { class: "settings-input", placeholder: "СПАМ", maxlength: 16 });
+  const newLabelName = el("input", { class: "settings-input", placeholder: "Спам-рассылка" });
+  const newLabelHint = el("input", { class: "settings-input", placeholder: "Пояснение, которое увидит собеседник" });
+
   async function load() {
     try {
       data = await api.adminModeration();
@@ -1736,6 +1742,53 @@ async function renderModeration(root) {
                     ),
               ])
             : null,
+        ]),
+        // Свои метки. Пять встроенных лежат в той же таблице и удаляются так же:
+        // если администрации они не нужны, навязывать их незачем.
+        section("Метки безопасности", [
+          ...(data.labels ?? []).map((l) =>
+            el("div", { class: "settings-toggle-row" }, [
+              el("div", {}, [
+                el("p", { class: "settings-toggle-title" }, [
+                  el("span", { class: "safety-badge safety-mini", style: { background: l.color || "var(--color-danger)", color: "#fff" } }, l.short),
+                  ` ${l.label}`,
+                ]),
+                el("p", { class: "settings-toggle-hint" }, l.hint || "—"),
+              ]),
+              el("button", {
+                class: "settings-danger-link",
+                onclick: async () => {
+                  if (!confirm(`Удалить метку «${l.label}»? Она снимется со всех, кому поставлена.`)) return;
+                  await api.adminDeleteLabel(l.id);
+                  await load();
+                },
+              }, "Удалить"),
+            ])
+          ),
+          el("p", { class: "settings-field-label" }, "Новая метка"),
+          newLabelShort,
+          newLabelName,
+          newLabelHint,
+          el("button", {
+            class: "btn-accent",
+            onclick: async () => {
+              lookupError = null;
+              try {
+                await api.adminCreateLabel({
+                  id: newLabelShort.value,
+                  short: newLabelShort.value,
+                  label: newLabelName.value,
+                  hint: newLabelHint.value,
+                });
+                newLabelShort.value = newLabelName.value = newLabelHint.value = "";
+                await load();
+              } catch (err) {
+                lookupError = err.message || "Не удалось создать метку";
+                render();
+              }
+            },
+          }, "Добавить метку"),
+          el("p", { class: "settings-toggle-hint" }, "Короткая надпись — то, что видно рядом с именем (СКАМ, ФЕЙК). Латиницей задавать не нужно: идентификатор соберётся сам."),
         ]),
         section(
           `Открытые жалобы (${data.openReports.length})`,

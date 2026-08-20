@@ -866,4 +866,32 @@ CREATE TABLE IF NOT EXISTS live_messages (
 CREATE INDEX IF NOT EXISTS idx_live_messages_stream ON live_messages(streamId, createdAt);
 `);
 
+// Метки безопасности, которые администратор заводит сам.
+//
+// Пять встроенных (СКАМ, ФЕЙК и прочие) были зашиты в коде в двух местах
+// сразу — на сервере и в клиенте, — и добавить шестую значило выпускать новую
+// версию приложения. Теперь это строки в базе; встроенные просто засеяны при
+// первом запуске и ничем не отличаются от добавленных вручную.
+db.exec(`
+CREATE TABLE IF NOT EXISTS safety_labels (
+  id TEXT PRIMARY KEY,
+  short TEXT NOT NULL,
+  label TEXT NOT NULL,
+  hint TEXT NOT NULL DEFAULT '',
+  color TEXT,
+  createdAt TEXT NOT NULL
+);
+`);
+if (!db.prepare("SELECT COUNT(*) AS n FROM safety_labels").get().n) {
+  const seed = db.prepare("INSERT INTO safety_labels (id, short, label, hint, color, createdAt) VALUES (?, ?, ?, ?, ?, ?)");
+  const now = new Date().toISOString();
+  for (const row of [
+    ["scam", "СКАМ", "Мошенничество", "Аккаунт замечен в мошенничестве. Не переводите деньги и не сообщайте коды.", "#c6403b"],
+    ["fake", "ФЕЙК", "Поддельный аккаунт", "Аккаунт выдаёт себя за другого человека или организацию.", "#b9791c"],
+    ["terrorism", "ТЕРРОРИЗМ", "Терроризм", "Аккаунт связан с террористической деятельностью или её пропагандой.", "#c6403b"],
+    ["extremism", "ЭКСТРЕМИЗМ", "Экстремизм", "Аккаунт замечен в распространении экстремистских материалов.", "#c6403b"],
+    ["drugs", "НАРКОТИКИ", "Продажа наркотиков", "Аккаунт замечен в продаже запрещённых веществ.", "#1f9d63"],
+  ]) seed.run(...row, now);
+}
+
 module.exports = db;

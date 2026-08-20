@@ -127,7 +127,10 @@ router.get(
 
 // Must match server/db.js's safetyLabel comment and the client's own list in
 // public/js/lib/safetyLabels.js.
-const SAFETY_LABELS = new Set(["scam", "fake", "terrorism", "extremism", "drugs"]);
+// Список меток теперь в базе (server/data/safetyLabels.js): администратор
+// заводит свои, не дожидаясь новой версии приложения. Пять прежних просто
+// засеяны при первом запуске.
+const labelsData = require("../data/safetyLabels");
 
 const REASON_LABELS = {
   spam: "Спам",
@@ -200,7 +203,7 @@ router.get(
       openReports,
       banned: banned.map((u) => ({ ...userLabel(u), bannedAt: u.bannedAt || null, banReason: u.banReason || null })),
       labeled: labeled.map((u) => ({ ...userLabel(u), safetyLabelAt: u.safetyLabelAt || null })),
-      labels: [...SAFETY_LABELS],
+      labels: labelsData.listLabels(),
     });
   })
 );
@@ -273,7 +276,7 @@ router.post(
 
     const raw = req.body?.label;
     const label = raw ? String(raw) : "";
-    if (label && !SAFETY_LABELS.has(label)) return res.status(400).json({ error: "Неизвестная метка" });
+    if (label && !labelsData.getLabel(label)) return res.status(400).json({ error: "Неизвестная метка" });
 
     const updated = await setSafetyLabel(target.id, label);
     res.json({ user: { ...userLabel(updated), safetyLabelAt: updated.safetyLabelAt || null } });
@@ -470,6 +473,36 @@ router.get(
 // (lib/serverStats.js). Соседствует с проверкой почты выше по той же причине —
 // это вещи, которые иначе смотрят по ssh, а к развёртыванию, куда попадают
 // только пушем, консоли может не быть вовсе.
+// Управление каталогом меток. Удаление снимает метку со всех, кому она была
+// поставлена (data/safetyLabels.js) — значок, о происхождении которого никто
+// не помнит, хуже отсутствия значка.
+router.get(
+  "/labels",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    res.json({ labels: labelsData.listLabels() });
+  })
+);
+
+router.post(
+  "/labels",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const result = labelsData.createLabel(req.body ?? {});
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json({ label: result.label });
+  })
+);
+
+router.delete(
+  "/labels/:id",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    labelsData.deleteLabel(req.params.id);
+    res.json({ ok: true });
+  })
+);
+
 router.get(
   "/server",
   asyncRoute(async (req, res) => {

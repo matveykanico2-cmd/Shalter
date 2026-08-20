@@ -260,6 +260,31 @@ export async function ContactsView(root) {
 
   const listEl = el("div", { class: "contacts-list" });
 
+  // Перерисовка не должна выбивать курсор из поля.
+  //
+  // Поля здесь создаются один раз и переиспользуются, но mount() всё равно
+  // вынимает их из документа и вставляет обратно — а для браузера «вынули» это
+  // «потеряли фокус», даже если вставили тот же самый узел. Отсюда и «по одному
+  // символу»: после каждой буквы приходилось снова тыкать в поле. Запоминаем
+  // фокус и позицию курсора и возвращаем их после сборки.
+  function withKeptFocus(draw) {
+    const active = document.activeElement;
+    const canSelect = active && typeof active.selectionStart === "number";
+    const start = canSelect ? active.selectionStart : null;
+    const end = canSelect ? active.selectionEnd : null;
+    draw();
+    if (!active || !active.isConnected || active === document.body) return;
+    active.focus();
+    if (start != null) {
+      try {
+        active.setSelectionRange(start, end);
+      } catch {
+        // У input[type=search] и подобных выделение может быть недоступно —
+        // сам фокус важнее позиции курсора.
+      }
+    }
+  }
+
   function render() {
 
     const header = el("header", { class: "contacts-header" }, [
@@ -325,7 +350,7 @@ export async function ContactsView(root) {
       : null;
 
     renderList();
-    mount(root, el("div", { class: "contacts-view" }, [header, addPanel, contacts.length ? filterInput : null, listEl].filter(Boolean)));
+    withKeptFocus(() => mount(root, el("div", { class: "contacts-view" }, [header, addPanel, contacts.length ? filterInput : null, listEl].filter(Boolean))));
   }
 
   // Its own render so typing in the filter doesn't rebuild (and unfocus) the

@@ -14,6 +14,23 @@ export const SAFETY_LABELS = {
   drugs: { short: "НАРКОТИКИ", label: "Продажа наркотиков", hint: "Аккаунт замечен в продаже запрещённых веществ." },
 };
 
+// Метки, добавленные администратором (server/data/safetyLabels.js), приходят
+// с сервера — список выше остаётся запасным на случай, если каталог ещё не
+// загрузился: значок не должен пропадать с профиля из-за одного медленного
+// запроса.
+let catalogue = null;
+
+export async function loadSafetyLabels(api) {
+  try {
+    const { labels } = await api.getSafetyLabels();
+    catalogue = Object.fromEntries(labels.map((l) => [l.id, { short: l.short, label: l.label, hint: l.hint, color: l.color }]));
+  } catch {
+    catalogue = null;
+  }
+  return catalogue;
+}
+
 export function safetyLabelInfo(label) {
-  return label ? SAFETY_LABELS[label] ?? null : null;
+  if (!label) return null;
+  return catalogue?.[label] ?? SAFETY_LABELS[label] ?? null;
 }

@@ -57,6 +57,9 @@ export const api = {
     req("/api/auth/recover/phone/verify", { method: "POST", body: JSON.stringify({ phone, code, password }) }),
   switchAccount: (userId) => req("/api/auth/switch", { method: "POST", body: JSON.stringify({ userId }) }),
   logout: (uid) => req("/api/auth/logout", { method: "POST", body: JSON.stringify({ uid }) }),
+  getSafetyLabels: () => req("/api/labels"),
+  adminCreateLabel: (label) => req("/api/admin/labels", { method: "POST", body: JSON.stringify(label) }),
+  adminDeleteLabel: (id) => req(`/api/admin/labels/${encodeURIComponent(id)}`, { method: "DELETE" }),
   verifyPassword: (password) => req("/api/auth/verify-password", { method: "POST", body: JSON.stringify({ password }) }),
   deleteAccount: (password) => req("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password }) }),
   changePassword: (currentPassword, newPassword) =>

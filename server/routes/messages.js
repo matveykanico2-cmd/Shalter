@@ -508,7 +508,12 @@ router.delete(
       const chatForDelete = await getChat(req.params.id);
       const mine = existing.senderId === req.uid;
       const staff = chatForDelete && chatForDelete.type !== "dm" && isStaff(chatForDelete, req.uid);
-      if (!mine && !staff) {
+      // В личной переписке — любое сообщение, включая чужое: разговор двоих
+      // принадлежит обоим, и убрать из него сказанное вправе каждый из двоих.
+      // В группе и канале это по-прежнему право того, кто ими управляет: иначе
+      // один участник в состоянии стереть всю историю общего чата.
+      const inDm = chatForDelete?.type === "dm";
+      if (!mine && !staff && !inDm) {
         return res.status(403).json({ error: "Удалить чужое сообщение у всех могут владельцы, админы и модераторы" });
       }
       await deleteMessage(req.params.messageId);

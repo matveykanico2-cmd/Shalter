@@ -6,6 +6,7 @@ import { NavRail } from "./components/navRail.js";
 import { ChatListPane } from "./views/chatList.js";
 import { mountIncomingCallWatcher, answerCall } from "./components/incomingCallWatcher.js";
 import { openMiniApp } from "./components/miniApp.js";
+import { loadSafetyLabels } from "./lib/safetyLabels.js";
 import { startWsClient } from "./lib/wsClient.js";
 import { ensurePushSubscribed } from "./lib/push.js";
 import { subscribeCall, getCallState, minimize, restore } from "./lib/callController.js";
@@ -90,6 +91,9 @@ async function boot() {
       return data;
     })
     .catch(() => null);
+  // Каталог меток безопасности — один раз при запуске: значки рядом с именами
+  // рисуются по нему повсюду.
+  loadSafetyLabels(api).catch(() => {});
   startWsClient();
   mountIncomingCallWatcher();
   initKeyboardShortcuts();
