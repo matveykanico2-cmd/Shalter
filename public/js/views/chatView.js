@@ -248,8 +248,22 @@ export async function ChatView(root, chatId) {
     messages = merged;
     messagesCount = messages.length;
     if (!older.length) hasMoreHistory = !!res.hasMore;
+    // Замеряем ДО перерисовки: renderList() пересобирает ленту целиком, и после
+    // неё положение прокрутки уже не то, в котором человек читал. Именно из-за
+    // этого счётчик новых сообщений всегда оставался пустым — проверка «мы
+    // внизу?» выполнялась уже после сброса.
+    const wasAtBottom = atBottom();
+    const prevTop = list.scrollTop;
     renderList();
-    if (grew) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+    if (grew && wasAtBottom) {
+      list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+    } else {
+      // Читающего старое не дёргаем: возвращаем ленту туда, где он был, а о
+      // новом сообщении сообщаем счётчиком на кнопке — как в Telegram.
+      list.scrollTop = prevTop;
+      if (grew) missedWhileUp += 1;
+    }
+    updateScrollDown();
   }
 
   // Cheap identity check for "did this poll actually bring anything new?".
@@ -784,7 +798,37 @@ export async function ChatView(root, chatId) {
   const composerSlot = el("div", { class: "composer-slot" });
   const bodyBottomSlot = el("div", { class: "body-bottom-slot" });
   const liveBar = el("div", { class: "live-bar-slot" });
-  const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, searchBar, liveBar, pinnedBar, list, bodyBottomSlot, composerSlot]);
+  // Круглая кнопка «вниз» со счётчиком — как в Telegram. Появляется, когда
+  // лента прокручена вверх, и показывает, сколько сообщений пришло, пока вы
+  // читали старое. Без неё из середины длинной переписки к последнему
+  // сообщению можно было только долго крутить.
+  let missedWhileUp = 0;
+  const scrollDownBtn = el("button", {
+    class: "chat-scroll-down",
+    title: "К последним сообщениям",
+    html: iconSvg("ChevronLeft", 20),
+    onclick: () => {
+      missedWhileUp = 0;
+      list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+      updateScrollDown();
+    },
+  });
+  const scrollDownBadge = el("span", { class: "chat-scroll-down-badge" });
+  scrollDownBtn.appendChild(scrollDownBadge);
+
+  // «Внизу» — с запасом в 80 пикселей: дочитанной лента считается и тогда,
+  // когда до края осталась пара строк, иначе кнопка мигала бы при каждой
+  // мелкой прокрутке.
+  const atBottom = () => list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+  function updateScrollDown() {
+    const show = !atBottom();
+    scrollDownBtn.classList.toggle("shown", show);
+    if (!show) missedWhileUp = 0;
+    scrollDownBadge.textContent = missedWhileUp > 0 ? String(missedWhileUp) : "";
+    scrollDownBadge.classList.toggle("shown", missedWhileUp > 0);
+  }
+
+  const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, searchBar, liveBar, pinnedBar, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
   const infoSlot = el("div", { class: "info-panel-slot" });
   const wrap = el("div", { class: "chat-view" }, [mainCol, infoSlot]);
 
@@ -1088,6 +1132,7 @@ export async function ChatView(root, chatId) {
   // fetching just before the user actually hits the edge.
   list.addEventListener("scroll", () => {
     if (list.scrollTop < 120) loadOlder();
+    updateScrollDown();
   });
 
   function renderList() {

@@ -8998,3 +8998,122 @@
 .btn-accent.danger {
   background: var(--color-danger);
 }
+
+/* ── Жесты, принятые в мессенджерах (messageBubble.js, chatListItem.js) ──── */
+/* Свайп по сообщению вправо = ответить. Стрелка выезжает слева из-под
+   сообщения — она не отдельный узел, а ::before у строки: сообщений на экране
+   десятки, и лишний элемент у каждого стоит дороже, чем один псевдоэлемент. */
+.message-row {
+  transition: transform 0.18s ease;
+}
+.message-row::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -34px;
+  transform: translateY(-50%) scale(0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-surface-alt);
+  width: 26px;
+  height: 26px;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238774e1' stroke-width='2' stroke-linecap='round'><path d='M9 8 4 12l5 4'/><path d='M4 12h9a6 6 0 0 1 6 6v1'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.message-row.swipe-ready::before {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+/* Кнопка «к последним сообщениям» — круглая, над полем ввода, со счётчиком
+   пришедшего, пока читали выше. Скрыта, пока лента и так внизу. */
+.chat-scroll-down {
+  position: absolute;
+  right: 18px;
+  bottom: 84px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden;
+  transform: translateY(8px) rotate(-90deg);
+  opacity: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+  width: 42px;
+  height: 42px;
+  color: var(--color-muted);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.chat-scroll-down.shown {
+  visibility: visible;
+  transform: translateY(0) rotate(-90deg);
+  opacity: 1;
+}
+.chat-scroll-down-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  /* Значок висит на повёрнутой кнопке — разворачиваем его обратно, иначе
+     число лежит на боку. */
+  transform: rotate(90deg);
+  border-radius: 999px;
+  background: var(--color-accent);
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+}
+.chat-scroll-down-badge.shown {
+  display: flex;
+}
+
+/* Свайп по строке списка чатов: под строкой лежат подписи действий, сама
+   строка едет поверх них. */
+.chat-list-item-wrap {
+  position: relative;
+  overflow: hidden;
+}
+.chat-swipe-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  pointer-events: none;
+}
+.chat-swipe-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #fff;
+  text-align: center;
+}
+.chat-swipe-action.mute {
+  background: var(--color-warning);
+}
+.chat-swipe-action.archive {
+  background: var(--color-accent);
+}
+.chat-list-item {
+  transition: transform 0.18s ease;
+}
+.chat-list-item-wrap.swiping .chat-list-item {
+  transition: none;
+}

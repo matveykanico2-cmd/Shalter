@@ -921,11 +921,78 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   // where Telegram puts it, and it keeps the whole block visually anchored to
   // the bottom where the newest message is.
   const isSelected = !!selection?.ids?.has(message.id);
-  return el(
+
+  // Два жеста, без которых переписка не ощущается привычной.
+  //
+  // Потянуть сообщение вбок — ответить. Это главный жест мессенджера: ответить
+  // хочется в разговоре постоянно, а через меню это три действия вместо одного.
+  // Порог в 48 пикселей выбран так, чтобы обычная вертикальная прокрутка его не
+  // задевала: пока палец идёт больше вниз, чем вбок, жест не начинается вовсе.
+  //
+  // Двойное нажатие — сердечко. Тоже привычка: одобрить сообщение, не открывая
+  // панель реакций. Первое нажатие при этом ничего не делает, поэтому обычные
+  // нажатия по сообщению не ломаются.
+  const SWIPE_START_PX = 12;
+  const SWIPE_REPLY_PX = 48;
+  const DOUBLE_TAP_MS = 300;
+  let swipeX = 0;
+  let swipeY = 0;
+  let swiping = null; // null — ещё не решили, true/false — жест начат или отвергнут
+  let lastTapAt = 0;
+
+  const gestures = {
+    onpointerdown: (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      swipeX = e.clientX;
+      swipeY = e.clientY;
+      swiping = null;
+    },
+    onpointermove: (e) => {
+      if (swipeX === 0 || swiping === false) return;
+      const dx = e.clientX - swipeX;
+      const dy = Math.abs(e.clientY - swipeY);
+      if (swiping === null) {
+        if (Math.abs(dx) < SWIPE_START_PX && dy < SWIPE_START_PX) return;
+        // Решаем один раз: вертикальное движение — это прокрутка, и вмешиваться
+        // в неё нельзя, иначе лента начнёт «залипать» под пальцем.
+        swiping = Math.abs(dx) > dy && dx > 0;
+        if (!swiping) return;
+      }
+      const shift = Math.min(72, Math.max(0, dx));
+      row.style.transform = `translateX(${shift}px)`;
+      row.classList.toggle("swipe-ready", shift >= SWIPE_REPLY_PX);
+    },
+    onpointerup: (e) => {
+      const dx = e.clientX - swipeX;
+      swipeX = 0;
+      row.style.transform = "";
+      const wasSwipe = swiping === true;
+      row.classList.remove("swipe-ready");
+      swiping = null;
+      if (wasSwipe) {
+        if (dx >= SWIPE_REPLY_PX) onReply?.(message);
+        return;
+      }
+      const now = Date.now();
+      if (now - lastTapAt < DOUBLE_TAP_MS) {
+        lastTapAt = 0;
+        onReact?.(message, "❤️");
+      } else lastTapAt = now;
+    },
+    onpointercancel: () => {
+      swipeX = 0;
+      swiping = null;
+      row.style.transform = "";
+      row.classList.remove("swipe-ready");
+    },
+  };
+
+  const row = el(
     "div",
     {
       class: `message-row ${mine ? "mine" : ""} ${groupStart ? "group-start" : ""} ${groupEnd ? "group-end" : ""} ${selection?.active ? "selecting" : ""} ${isSelected ? "selected" : ""}`,
       id: `msg-${message.id}`,
+      ...gestures,
     },
     [
       // A button, not a decoration: the tick is the obvious thing to aim at to
@@ -957,4 +1024,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       column,
     ]
   );
+
+  // Полоска со стрелкой, выезжающая слева при свайпе, живёт в CSS —
+  // ::before у .message-row, чтобы не создавать узел на каждое сообщение.
+  return row;
 }

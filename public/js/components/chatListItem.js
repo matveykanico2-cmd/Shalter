@@ -33,6 +33,25 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave })
   const online = chat.type === "dm" && chat.otherUser?.online;
 
   const wrap = el("div", { class: "chat-list-item-wrap" });
+  const swipeHint = el("div", { class: "chat-swipe-actions" }, [
+    el("span", { class: "chat-swipe-action mute" }, chat.muted ? "Со звуком" : "Без звука"),
+    el("span", { class: "chat-swipe-action archive" }, chat.archived ? "Из архива" : "В архив"),
+  ]);
+
+  // Свайп по строке — как в мобильном Telegram: потянуть влево, чтобы убрать в
+  // архив или заглушить, не открывая меню. На мышке жест недоступен и не нужен:
+  // там для этого правая кнопка, поэтому обработчики срабатывают только для
+  // пальца и пера.
+  const SWIPE_ACTION_PX = 72;
+  let startX = 0;
+  let startY = 0;
+  let sliding = null;
+  function resetSlide() {
+    btn.style.transform = "";
+    wrap.classList.remove("swiping");
+    sliding = null;
+    startX = 0;
+  }
 
   const btn = el(
     "button",
@@ -43,6 +62,35 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave })
         e.preventDefault();
         openMenu({ x: e.clientX, y: e.clientY });
       },
+      onpointerdown: (e) => {
+        if (e.pointerType === "mouse") return;
+        startX = e.clientX;
+        startY = e.clientY;
+        sliding = null;
+      },
+      onpointermove: (e) => {
+        if (!startX || sliding === false) return;
+        const dx = e.clientX - startX;
+        const dy = Math.abs(e.clientY - startY);
+        if (sliding === null) {
+          if (Math.abs(dx) < 12 && dy < 12) return;
+          // Вертикаль — это прокрутка списка, и перехватывать её нельзя.
+          sliding = Math.abs(dx) > dy && dx < 0;
+          if (!sliding) return;
+          wrap.classList.add("swiping");
+        }
+        btn.style.transform = `translateX(${Math.max(-140, dx)}px)`;
+      },
+      onpointerup: (e) => {
+        if (sliding !== true) return resetSlide();
+        const dx = e.clientX - startX;
+        resetSlide();
+        // Дотянул до порога — сработало действие. Архив дальше по ходу жеста,
+        // чем «без звука», потому что убирают из списка чаще, чем глушат.
+        if (dx <= -SWIPE_ACTION_PX * 2) onPatch?.(chat.id, { archived: !chat.archived });
+        else if (dx <= -SWIPE_ACTION_PX) onPatch?.(chat.id, { muted: !chat.muted });
+      },
+      onpointercancel: resetSlide,
     },
     [
       Avatar({
@@ -89,7 +137,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave })
       ]),
     ]
   );
-  wrap.appendChild(btn);
+  wrap.append(swipeHint, btn);
 
   function openMenu(pos) {
     openDropdownMenu(pos, [
