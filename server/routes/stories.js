@@ -44,6 +44,33 @@ router.get(
   })
 );
 
+// Истории одного человека — для кнопки в его профиле. Границу видимости
+// повторяем ту же, что и в ленте выше: свои истории видно всегда, чужие —
+// если человек у вас в контактах. Иначе профиль стал бы обходным путём
+// смотреть истории тех, кто вам их не показывает.
+router.get(
+  "/user/:userId",
+  asyncRoute(async (req, res) => {
+    const targetId = req.params.userId;
+    const allowed = await visibleAuthorIds(req.uid);
+    if (!allowed.includes(targetId)) return res.json({ group: null });
+
+    const stories = await listStoriesForUsers([targetId]);
+    if (!stories.length) return res.json({ group: null });
+
+    const user = await getUser(targetId);
+    if (!user) return res.json({ group: null });
+    res.json({
+      group: {
+        user: publicUser(user),
+        stories: stories
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+          .map((st) => ({ ...st, viewed: st.viewedByIds.includes(req.uid) })),
+      },
+    });
+  })
+);
+
 router.post(
   "/",
   asyncRoute(async (req, res) => {
@@ -70,6 +97,18 @@ router.post(
   asyncRoute(async (req, res) => {
     const story = await markViewed(req.params.id, req.uid);
     res.json({ story });
+  })
+);
+
+// Кто смотрел историю. Только автору: список зрителей — это про того, кто
+// выложил, и посторонним знать, кто что смотрел, незачем.
+router.get(
+  "/:id/viewers",
+  asyncRoute(async (req, res) => {
+    const story = (await listStoriesForUsers([req.uid])).find((st) => st.id === req.params.id);
+    if (!story) return res.status(404).json({ error: "not found" });
+    const users = await Promise.all(story.viewedByIds.filter((id) => id !== req.uid).map((id) => getUser(id)));
+    res.json({ viewers: users.filter(Boolean).map(publicUser) });
   })
 );
 

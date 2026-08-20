@@ -212,61 +212,99 @@
 }
 
 /* Story viewer */
+/* ── Просмотр историй (components/storyViewer.js) ────────────────────────── */
+/* Устройство экрана то же, к которому приучил Telegram: тёмный фон, история
+   карточкой по центру, полоски сегментов и шапка поверх картинки, действия
+   внизу. На телефоне карточка занимает весь экран, на десктопе — стоит по
+   центру с закруглением, иначе фотография 9:16 растягивается на всю ширину. */
 .story-viewer-overlay {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 92;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 9, 13, 0.94);
+}
+.story-shell {
+  position: relative;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
   background: #000;
+  width: min(430px, 100vw);
+  height: min(92vh, 780px);
 }
 .story-progress-row {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 3;
   display: flex;
-  flex-shrink: 0;
-  gap: 4px;
-  padding: 8px 8px 0;
+  gap: 3px;
 }
 .story-progress-bar {
-  height: 2px;
-  flex: 1;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.3);
   overflow: hidden;
+  flex: 1;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  height: 2.5px;
 }
 .story-progress-fill {
-  height: 100%;
-  width: 0%;
-  border-radius: 999px;
+  border-radius: 2px;
   background: #fff;
+  width: 0;
+  height: 100%;
 }
 .story-progress-fill.done {
   width: 100%;
 }
-.story-progress-fill.active {
-  width: 100%;
-  transition: width 5s linear;
-}
+/* Шапка и низ лежат на градиентах, а не на сплошной плашке: на светлой
+   фотографии белый текст иначе пропадает, а плашка закрывает саму историю. */
 .story-header {
+  position: absolute;
+  top: 18px;
+  left: 0;
+  right: 0;
+  z-index: 3;
   display: flex;
-  flex-shrink: 0;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 10px;
+  padding: 8px 10px 22px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent);
   color: #fff;
 }
-.story-header-name {
+.story-header-titles {
   flex: 1;
+  min-width: 0;
+}
+.story-header-name {
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+}
+.story-header-time {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  opacity: 0.75;
 }
 .story-header-btn {
-  display: flex;
-  padding: 6px;
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  width: 32px;
+  height: 32px;
   color: #fff;
+  cursor: pointer;
 }
 .story-header-btn:hover {
   background: rgba(255, 255, 255, 0.15);
@@ -280,13 +318,141 @@
 }
 .story-tap-zones {
   position: absolute;
-  inset: 0;
+  top: 56px;
+  bottom: 64px;
+  left: 0;
+  right: 0;
+  z-index: 2;
   display: flex;
-  top: 44px;
 }
 .story-tap-zone {
   flex: 1;
-  height: 100%;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Пауза по удержанию: убираем всё лишнее с экрана, чтобы не мешало смотреть —
+   ровно то, ради чего палец и задержали. */
+.story-viewer-overlay.paused .story-header,
+.story-viewer-overlay.paused .story-progress-row,
+.story-viewer-overlay.paused .story-footer {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.story-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 12px 12px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.6), transparent);
+}
+.story-reply-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #fff;
+}
+.story-reply-input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+.story-send-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-accent);
+  width: 40px;
+  height: 40px;
+  color: #fff;
+  cursor: pointer;
+}
+.story-viewers-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #fff;
+  cursor: pointer;
+}
+.story-viewers-panel {
+  position: absolute;
+  bottom: 60px;
+  left: 10px;
+  right: 10px;
+  z-index: 4;
+  overflow-y: auto;
+  border-radius: 12px;
+  background: rgba(20, 23, 31, 0.96);
+  padding: 10px 12px;
+  max-height: 45%;
+  color: #fff;
+}
+.story-viewers-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #9aa1b1;
+}
+.story-viewer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  padding: 6px 0;
+  width: 100%;
+  font-size: 13.5px;
+  color: #fff;
+  cursor: pointer;
+}
+/* Соседний автор — стрелками по краям, как в веб-версии; на телефоне для этого
+   есть зоны нажатия, и стрелки только заняли бы место. */
+.story-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  width: 40px;
+  height: 40px;
+  color: #fff;
+  cursor: pointer;
+}
+.story-nav:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.story-nav.prev {
+  left: 16px;
+}
+.story-nav.next {
+  right: 16px;
+}
+@media (max-width: 520px) {
+  .story-shell {
+    border-radius: 0;
+    width: 100vw;
+    height: 100dvh;
+  }
+  .story-nav {
+    display: none;
+  }
 }
 .chat-search-bar {
   display: flex;

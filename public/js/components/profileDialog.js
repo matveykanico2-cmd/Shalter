@@ -13,6 +13,7 @@ import { openAvatarViewer } from "./avatarViewer.js";
 import { renderScene } from "../lib/animScenes.js";
 import { openGiftCardDialog } from "./giftCardDialog.js";
 import { openGiftShopDialog } from "./giftShopDialog.js";
+import { openStoryViewer } from "./storyViewer.js";
 import { giftTraits } from "../lib/giftTraits.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 
@@ -54,6 +55,17 @@ export async function openProfileDialog(userId) {
 
   let user, isContact, isBlocked;
   let sharedMedia = { media: [], files: [], links: [] };
+  // Истории этого человека. Грузятся отдельным запросом и не задерживают показ
+  // профиля: кнопка появляется, когда ответ придёт.
+  let storiesGroup = null;
+  async function loadStories() {
+    try {
+      ({ group: storiesGroup } = await api.getUserStories(userId));
+    } catch {
+      storiesGroup = null;
+    }
+    render();
+  }
   let activeTab = "media";
 
   try {
@@ -275,6 +287,21 @@ export async function openProfileDialog(userId) {
         : null,
       el("div", { class: "profile-actions" }, [
         el("button", { class: "btn-accent", onclick: startChat }, [el("span", { html: iconSvg("Send", 16) }), " Написать"]),
+        // Истории человека — здесь, а не только кружком в ленте наверху списка
+        // чатов. Кружок живёт до первого обновления и до конца суток; профиль —
+        // то место, куда идут, когда хотят посмотреть именно этого человека.
+        // Кнопка появляется, только если истории есть и их видно смотрящему
+        // (сервер сам решает — /api/stories/user/:id).
+        storiesGroup
+          ? el(
+              "button",
+              {
+                class: "profile-action-btn",
+                onclick: () => openStoryViewer([storiesGroup], 0, me.id, () => loadStories()),
+              },
+              [el("span", { html: iconSvg("Image", 15) }), ` Истории — ${storiesGroup.stories.length}`]
+            )
+          : null,
         // Подарок отправляют из профиля того, кому дарят, — там же, где на него
         // и смотрят. Раньше до магазина надо было идти через меню чата, зная,
         // что он там есть.
@@ -331,4 +358,5 @@ export async function openProfileDialog(userId) {
     body.append(...children.filter(Boolean));
   }
   render();
+  loadStories();
 }
