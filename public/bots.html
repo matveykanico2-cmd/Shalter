@@ -56,6 +56,7 @@
       <a href="#schedule">Отложенная отправка</a>
       <a href="#members">Участники и права</a>
       <a href="#channels">Каналы</a>
+      <a href="#discussion">Канал и обсуждение</a>
       <a href="#profile">Профиль бота</a>
       <a href="#keyboard">Кнопки</a>
       <a href="#apps">Мини-приложения</a>
@@ -525,6 +526,51 @@ await fetch(`${API}/editMessageText`, {
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/publishPost</div>
       <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getChannelStats?chatId=…</div>
       <p>Подписчики, посты, просмотры и комментарии. И то и другое — только для канала, где бот администратор.</p>
+
+      <h2 id="discussion">Канал и его обсуждение</h2>
+      <p>
+        Связка «канал + группа комментариев» собирается скриптом целиком: завести канал, прицепить к нему
+        обсуждение, опубликовать пост. Раньше это можно было сделать только руками через меню.
+      </p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/createChannel</div>
+      <pre><code>const { chat } = await (await fetch(`${API}/createChannel`, {
+  method: "POST",
+  headers: auth,
+  body: JSON.stringify({
+    title: "Пиццерия · новости",
+    description: "Акции и новинки",
+    username: "pizza_news",   // необязательно
+    isPublic: true,           // работает только вместе с username
+  }),
+})).json();</code></pre>
+      <p>
+        Владельцем канала становится не только бот, но и <strong>его хозяин</strong>: иначе канал,
+        созданный программой, принадлежал бы программе — сменился токен, и живой человек остался бы без
+        доступа к собственному каналу.
+      </p>
+
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setChatDiscussion</div>
+      <table class="doc-table">
+        <thead><tr><th>action</th><th>Что делает</th></tr></thead>
+        <tbody>
+          <tr><td><code>create</code></td><td>Заводит новую группу-обсуждение и сразу цепляет её к каналу. Можно передать свой <code>title</code>.</td></tr>
+          <tr><td><code>link</code></td><td>Цепляет уже существующую группу — по <code>groupId</code>. Бот должен быть администратором и канала, и группы.</td></tr>
+          <tr><td><code>unlink</code></td><td>Отцепляет обсуждение. Сама группа остаётся: у неё свои участники и своя переписка.</td></tr>
+        </tbody>
+      </table>
+      <pre><code>// Канал → обсуждение → первый пост, одним скриптом
+const ch = (await post("createChannel", { title: "Пиццерия · новости" })).chat;
+const d  = (await post("setChatDiscussion", { channelId: ch.id, action: "create" })).discussion;
+await post("publishPost", { chatId: ch.id, text: "Открылись! Первая пицца — в подарок." });
+// комментарии к посту прилетят в d.id обычными сообщениями через /updates</code></pre>
+
+      <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getChatDiscussion?channelId=…</div>
+      <p>Что сейчас прицеплено к каналу — чтобы скрипт мог проверить, а не гадать.</p>
+      <div class="doc-note">
+        <strong>Одна группа — одному каналу.</strong>
+        Группа, прицепленная к двум каналам, собирала бы два потока комментариев без всякой возможности их
+        различить, поэтому вторая привязка отвечает 409.
+      </div>
 
       <h2 id="profile">Профиль бота</h2>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setMyProfile</div>

@@ -16,6 +16,7 @@ const { findOrCreateDm } = require("../lib/systemChat");
 const { getSettings } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
 const { validateAppUrl, verifyInitData } = require("../lib/miniApp");
+const { checkUsername, normalizeUsername } = require("../lib/username");
 
 // The actual "program it however you want" surface — documented on /bots
 // (public/bots.html). A bot's
@@ -1183,6 +1184,146 @@ router.post(
     const chat = existing ?? (await findOrCreateDm(req.bot.userId, target.id));
     const message = await sendBotMessage(req.bot.userId, chat.id, text, { keyboard });
     res.json({ chatId: chat.id, message, user: publicUser(target) });
+  })
+);
+
+// ── Канал и его обсуждение ──────────────────────────────────────────────────
+//
+// Связка «канал + группа комментариев» в приложении уже есть, но собрать её
+// можно было только руками. Боту это нужно ровно там, где он и полезен: завёл
+// канал под проект, прицепил к нему обсуждение, опубликовал пост — и всё это
+// одним скриптом, без хождения по меню.
+//
+// Правило прав общее с человеческим экраном (routes/chats.js): распоряжается
+// каналом тот, кто им управляет. Для бота это значит — он должен быть
+// администратором и канала, и группы, которую к нему цепляют. Иначе через
+// токен можно было бы прицепить к своему каналу чужую группу и собирать
+// чужие комментарии.
+
+// Общая проверка: бот управляет этим чатом.
+async function botRunsChat(req, res, chatId, expectType) {
+  const chat = await getChat(chatId);
+  if (!chat || !chat.memberIds.includes(req.bot.userId)) {
+    res.status(404).json({ error: "Чат не найден или бот не состоит в нём" });
+    return null;
+  }
+  if (expectType && chat.type !== expectType) {
+    res.status(400).json({ error: expectType === "channel" ? "Это не канал" : "Это не группа" });
+    return null;
+  }
+  const staff = (chat.ownerIds ?? []).includes(req.bot.userId) || (chat.adminIds ?? []).includes(req.bot.userId) || chat.ownerId === req.bot.userId;
+  if (!staff) {
+    res.status(403).json({ error: "Бот не администратор этого чата" });
+    return null;
+  }
+  return chat;
+}
+
+router.post(
+  "/createChannel",
+  asyncRoute(async (req, res) => {
+    const { title, description, username, isPublic } = req.body ?? {};
+    if (!title?.trim()) return res.status(400).json({ error: "title is required" });
+
+    const now = new Date().toISOString();
+    let handle = null;
+    if (username) {
+      handle = normalizeUsername(username);
+      const problem = await checkUsername(handle);
+      if (problem) return res.status(problem.status).json({ error: problem.error });
+    }
+    const chat = await createChat({
+      id: `c_${Date.now()}`,
+      type: "channel",
+      title: String(title).trim().slice(0, 120),
+      description: String(description ?? "").trim().slice(0, 300),
+      username: handle,
+      isPublic: !!isPublic && !!handle,
+      avatarColor: "#5b8def",
+      // Владелец бота тоже становится владельцем канала. Иначе канал,
+      // созданный ботом, принадлежал бы только программе: сменился токен —
+      // и живой человек остался без доступа к собственному каналу.
+      memberIds: [req.bot.userId, req.bot.ownerId].filter(Boolean),
+      ownerId: req.bot.userId,
+      adminIds: [req.bot.userId, req.bot.ownerId].filter(Boolean),
+      pinned: false,
+      muted: false,
+      archived: false,
+      createdAt: now,
+    });
+    broadcastToUsers(chat.memberIds, { type: "chat:created", chat });
+    res.json({ chat: { id: chat.id, title: chat.title, username: chat.username, isPublic: !!chat.isPublic } });
+  })
+);
+
+// Обсуждение канала: создать новое, привязать существующую группу или
+// отвязать. Один маршрут на три действия — это одна и та же настройка канала.
+router.post(
+  "/setChatDiscussion",
+  asyncRoute(async (req, res) => {
+    const channel = await botRunsChat(req, res, req.body?.channelId, "channel");
+    if (!channel) return;
+    const action = req.body?.action ?? "create";
+
+    if (action === "unlink") {
+      // Саму группу не трогаем: у неё свои участники и своя переписка, и
+      // удалять её заодно с «выключить комментарии» значит уничтожать то,
+      // о чём никто не просил.
+      const updated = await updateChat(channel.id, { linkedDiscussionChatId: null });
+      broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+      return res.json({ chat: updated, discussion: null });
+    }
+
+    if (action === "link") {
+      const group = await botRunsChat(req, res, req.body?.groupId, "group");
+      if (!group) return;
+      // Одна группа — одному каналу: группа, прицепленная к двум каналам,
+      // собирала бы два потока комментариев без всякой возможности их
+      // различить.
+      const taken = (await listChatsForUser(req.bot.userId)).find(
+        (c) => c.id !== channel.id && c.linkedDiscussionChatId === group.id
+      );
+      if (taken) return res.status(409).json({ error: `Эта группа уже обсуждение канала «${taken.title}»` });
+
+      const updated = await updateChat(channel.id, { linkedDiscussionChatId: group.id });
+      broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+      return res.json({ chat: updated, discussion: { id: group.id, title: group.title } });
+    }
+
+    if (action === "create") {
+      const discussion = await createChat({
+        id: `c_${Date.now()}_d`,
+        type: "group",
+        title: String(req.body?.title ?? `${channel.title} · Обсуждение`).trim().slice(0, 120),
+        avatarColor: "#5C6473",
+        memberIds: [req.bot.userId, req.bot.ownerId].filter(Boolean),
+        ownerId: req.bot.userId,
+        adminIds: [req.bot.userId, req.bot.ownerId].filter(Boolean),
+        pinned: false,
+        muted: false,
+        archived: false,
+        createdAt: new Date().toISOString(),
+      });
+      const updated = await updateChat(channel.id, { linkedDiscussionChatId: discussion.id });
+      broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+      return res.json({ chat: updated, discussion: { id: discussion.id, title: discussion.title } });
+    }
+
+    res.status(400).json({ error: "action: create | link | unlink" });
+  })
+);
+
+// Что сейчас прицеплено к каналу — чтобы скрипт мог проверить, а не гадать.
+router.get(
+  "/getChatDiscussion",
+  asyncRoute(async (req, res) => {
+    const channel = await botRunsChat(req, res, req.query.channelId, "channel");
+    if (!channel) return;
+    const linked = channel.linkedDiscussionChatId ? await getChat(channel.linkedDiscussionChatId) : null;
+    res.json({
+      channel: { id: channel.id, title: channel.title },
+      discussion: linked ? { id: linked.id, title: linked.title, memberCount: linked.memberIds.length } : null,
+    });
   })
 );
 
