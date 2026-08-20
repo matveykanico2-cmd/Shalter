@@ -26,6 +26,7 @@ import { openProfileQrDialog } from "../../components/profileQrDialog.js";
 import { handlePurchaseResponse } from "../../lib/purchase.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
 import { openAdminUserPanel } from "../../components/adminUserPanel.js";
+import { PremiumStar, PremiumStarRow } from "../../components/premiumStar.js";
 import { safetyLabelInfo } from "../../lib/safetyLabels.js";
 
 // `color` gives each row's icon its own chip background (Telegram's own
@@ -226,7 +227,7 @@ async function renderProfile(root) {
             el("p", { class: "settings-profile-name" }, [
               name || "Без имени",
               me.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
-              me.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 16) }) : null,
+              me.isPremium ? PremiumStar({ size: 18, seed: me.id, title: "Shalter Premium" }) : null,
             ]),
             el("p", { class: "mono settings-profile-sub" }, me.phone || me.email),
           ]),
@@ -307,7 +308,10 @@ const ORBIT_ITEMS = [
 
 function premiumOrbit() {
   return el("div", { class: "premium-orbit" }, [
-    el("div", { class: "premium-orbit-core", html: iconSvg("Crown", 26) }),
+    // В середине — та же белая звезда, что и в значке у имени: знак Premium в
+    // приложении должен быть один. Корона здесь была третьей по счёту
+    // картинкой для одного и того же понятия.
+    el("div", { class: "premium-orbit-core" }, [PremiumStar({ size: 56, variant: "violet", title: "Shalter Premium" })]),
     el(
       "div",
       { class: "premium-orbit-ring" },
@@ -365,8 +369,11 @@ async function renderPremium(root) {
       root,
       pageWrap("Premium и друзья", "Реферальная программа, подписка Shalter Premium и подарки", [
         premiumOrbit(),
+        // Ряд значков с разными фонами: заодно объясняет, что знак Premium
+        // бывает разным, — раньше здесь была одна и та же корона трижды.
+        PremiumStarRow({ size: 42 }),
         el("div", { class: `premium-status-card ${info.isPremium ? "active" : ""}` }, [
-          el("span", { class: "premium-status-icon", html: iconSvg("Crown", 26) }),
+          el("span", { class: "premium-status-icon" }, [PremiumStar({ size: 34, variant: "gold", title: "Premium" })]),
           el("div", {}, [
             el("p", { class: "premium-status-title" }, info.isPremium ? "У вас Shalter Premium" : "Shalter Premium не активен"),
             el("p", { class: "premium-status-hint" }, formatPremiumUntil(info)),
@@ -406,7 +413,7 @@ async function renderPremium(root) {
                 el("div", { class: "settings-device-row" }, [
                   Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 28 }),
                   el("div", { class: "settings-device-body" }, [el("p", {}, u.name)]),
-                  u.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 14) }) : null,
+                  u.isPremium ? PremiumStar({ size: 16, seed: u.id, title: "Shalter Premium" }) : null,
                 ])
               )
             ),

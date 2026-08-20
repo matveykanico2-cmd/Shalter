@@ -1,4 +1,5 @@
 import { el, clear } from "../lib/dom.js";
+import { PremiumStar } from "./premiumStar.js";
 import { Avatar } from "./avatar.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -241,7 +242,7 @@ export async function openProfileDialog(userId) {
         user.name || "Без имени",
         VerifiedBadge(user, 17),
         user.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
-        user.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 16) }) : null,
+        user.isPremium ? PremiumStar({ size: 18, seed: user.id, title: "Shalter Premium" }) : null,
         safety ? el("span", { class: `safety-badge safety-${user.safetyLabel}`, title: safety.label }, safety.short) : null,
       ]),
       // The warning itself, not just the badge — a three-letter tag next to a

@@ -9309,3 +9309,281 @@
   color: #fff;
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
 }
+
+/* ── Нарисованные подарки: игра, а не вращение (lib/giftArt.js) ──────────── */
+/* Части фигур двигаются вокруг собственного центра, а не вокруг угла холста —
+   без fill-box любой поворот и сжатие внутри svg считаются от начала координат
+   и уводят деталь в сторону. */
+.g-art [class^="g-"],
+.g-art [class*=" g-"] {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.g-art {
+  overflow: visible;
+}
+
+/* Главное движение: присел — оттолкнулся — вытянулся — приземлился — сплющился
+   — отдача — покой. Между прыжками нарочно длинная пауза: подарок, который
+   прыгает без остановки, читается как дёргающаяся картинка. */
+@keyframes g-hop {
+  0%, 14% { transform: translateY(0) scale(1, 1); }
+  18% { transform: translateY(2px) scale(1.07, 0.9); }
+  26% { transform: translateY(-15px) scale(0.94, 1.1); }
+  33% { transform: translateY(-19px) scale(1, 1); }
+  41% { transform: translateY(0) scale(1.09, 0.87); }
+  47% { transform: translateY(-5px) scale(0.97, 1.05); }
+  53%, 100% { transform: translateY(0) scale(1, 1); }
+}
+.g-hop {
+  transform-origin: 50% 92%;
+  animation: g-hop 4.6s cubic-bezier(0.34, 1.2, 0.5, 1) infinite;
+}
+/* Звезда лёгкая — прыгает выше и висит в воздухе дольше. */
+@keyframes g-hop-high {
+  0%, 12% { transform: translateY(0) scale(1, 1); }
+  17% { transform: translateY(3px) scale(1.08, 0.88); }
+  27% { transform: translateY(-26px) scale(0.92, 1.12); }
+  36% { transform: translateY(-31px) scale(1, 1); }
+  46% { transform: translateY(0) scale(1.1, 0.86); }
+  52% { transform: translateY(-7px) scale(0.96, 1.06); }
+  60%, 100% { transform: translateY(0) scale(1, 1); }
+}
+.g-hop.g-hop-high {
+  animation: g-hop-high 5.2s cubic-bezier(0.34, 1.2, 0.5, 1) infinite;
+}
+/* В верхней точке — короткий доворот, а не постоянное вращение. */
+@keyframes g-spin-soft {
+  0%, 20% { transform: rotate(0deg); }
+  30% { transform: rotate(-12deg); }
+  40% { transform: rotate(10deg); }
+  50%, 100% { transform: rotate(0deg); }
+}
+.g-spin-soft {
+  animation: g-spin-soft 5.2s ease-in-out infinite;
+}
+
+/* Моргание. Два раза за цикл и не в момент прыжка — тогда это читается как
+   отдельная мысль, а не как часть движения. */
+@keyframes g-blink {
+  0%, 62%, 66%, 80%, 84%, 100% { transform: scaleY(1); }
+  64%, 82% { transform: scaleY(0.08); }
+}
+.g-eyes {
+  animation: g-blink 4.6s ease-in-out infinite;
+}
+/* Улыбка чуть растягивается на приземлении — вместе с корпусом. */
+@keyframes g-smile {
+  0%, 38%, 52%, 100% { transform: scale(1, 1); }
+  43% { transform: scale(1.12, 0.85); }
+}
+.g-smile {
+  animation: g-smile 4.6s ease-out infinite;
+}
+
+/* Пар: три струйки с разными задержками и своей скоростью — совпадающие
+   выглядят как одна толстая полоса. */
+@keyframes g-steam {
+  0% { opacity: 0; transform: translateY(6px) scaleY(0.6); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(-16px) scaleY(1.25); }
+}
+.g-steam-1, .g-steam-2, .g-steam-3 {
+  animation: g-steam 2.6s ease-out infinite;
+}
+.g-steam-2 { animation-delay: 0.6s; animation-duration: 3s; }
+.g-steam-3 { animation-delay: 1.2s; animation-duration: 2.2s; }
+
+/* Кофе плещется в момент приземления. */
+@keyframes g-liquid {
+  0%, 38%, 60%, 100% { transform: translateY(0) skewX(0deg); }
+  43% { transform: translateY(1.5px) skewX(4deg); }
+  50% { transform: translateY(-1px) skewX(-3deg); }
+}
+.g-liquid {
+  animation: g-liquid 4.6s ease-out infinite;
+}
+
+/* Искры вылетают ровно в момент касания земли и гаснут. */
+@keyframes g-spark {
+  0%, 42% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  48% { opacity: 1; transform: translate(0, -6px) scale(1); }
+  62%, 100% { opacity: 0; transform: translate(0, -16px) scale(0.5); }
+}
+.g-spark { animation: g-spark 5.2s ease-out infinite; }
+.g-spark-2 { animation-delay: 0.12s; }
+.g-spark-3 { animation-delay: 0.24s; }
+
+/* Блик по граням — узкая светлая полоса проходит поперёк камня. */
+@keyframes g-shine {
+  0%, 30% { transform: translateX(0) skewX(-18deg); }
+  55%, 100% { transform: translateX(150px) skewX(-18deg); }
+}
+.g-shine {
+  animation: g-shine 4.6s ease-in-out infinite;
+}
+@keyframes g-twinkle {
+  0%, 55%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  62% { opacity: 1; transform: scale(1) rotate(15deg); }
+  72% { opacity: 0; transform: scale(0.6) rotate(30deg); }
+}
+.g-twinkle { animation: g-twinkle 4.6s ease-out infinite; }
+.g-twinkle-2 { animation-delay: 0.5s; }
+
+/* Конфетти падает сверху в момент прыжка кубка. */
+@keyframes g-conf {
+  0%, 20% { opacity: 0; transform: translateY(-6px) rotate(0deg); }
+  26% { opacity: 1; }
+  70%, 100% { opacity: 0; transform: translateY(58px) rotate(220deg); }
+}
+.g-conf { animation: g-conf 4.6s ease-in infinite; }
+.g-conf-2 { animation-delay: 0.18s; }
+.g-conf-3 { animation-delay: 0.34s; }
+
+/* Бесконечность дышит, а бегунок по контуру ведёт сам svg (animateMotion). */
+@keyframes g-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.g-breathe { animation: g-breathe 3.4s ease-in-out infinite; }
+.g-runner { filter: drop-shadow(0 0 6px rgba(255, 246, 176, 0.9)); }
+
+/* Цветок качается на ветру: в сторону быстро, обратно медленно. */
+@keyframes g-sway {
+  0%, 100% { transform: rotate(-4deg); }
+  35% { transform: rotate(5deg); }
+  60% { transform: rotate(-1deg); }
+}
+.g-sway { transform-origin: 50% 90%; animation: g-sway 4s ease-in-out infinite; }
+@keyframes g-petal-fall {
+  0% { opacity: 0; transform: translate(0, -6px) rotate(0deg); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-14px, 62px) rotate(160deg); }
+}
+.g-petal { animation: g-petal-fall 4.2s ease-in infinite; }
+.g-petal-2 { animation-delay: 1.4s; animation-duration: 5s; }
+.g-petal-3 { animation-delay: 2.6s; animation-duration: 4.6s; }
+
+/* Листики дрожат вразнобой — одинаковая дрожь выглядит механической. */
+@keyframes g-leaf {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(-6deg); }
+  60% { transform: rotate(4deg); }
+}
+.g-leaf { animation: g-leaf 2.8s ease-in-out infinite; }
+.g-leaf-2 { animation-delay: 0.3s; }
+.g-leaf-3 { animation-delay: 0.6s; }
+.g-leaf-4 { animation-delay: 0.9s; }
+/* Искра удачи падает на клевер и гаснет. */
+@keyframes g-luck {
+  0%, 30% { opacity: 0; transform: translateY(-10px) scale(0.5); }
+  40% { opacity: 1; transform: translateY(0) scale(1); }
+  55%, 100% { opacity: 0; transform: translateY(8px) scale(0.6); }
+}
+.g-luck { animation: g-luck 4.6s ease-in infinite; }
+
+/* Тюльпан кивает: вниз резко, вверх плавно. */
+@keyframes g-nod {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-9deg); }
+  32% { transform: rotate(3deg); }
+  55% { transform: rotate(0deg); }
+}
+.g-nod { transform-origin: 50% 100%; animation: g-nod 3.6s ease-in-out infinite; }
+@keyframes g-stem-sway {
+  0%, 100% { transform: rotate(-2deg); }
+  45% { transform: rotate(3deg); }
+}
+.g-stem-sway { transform-origin: 50% 95%; animation: g-stem-sway 4.4s ease-in-out infinite; }
+
+/* Подсолнух поворачивается за солнцем: туда медленно, обратно быстрее. */
+@keyframes g-turn {
+  0%, 100% { transform: rotate(-7deg); }
+  55% { transform: rotate(7deg); }
+  75% { transform: rotate(-2deg); }
+}
+.g-turn { transform-origin: 50% 75%; animation: g-turn 6s ease-in-out infinite; }
+@keyframes g-petals-shiver {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+.g-petals-shiver { animation: g-petals-shiver 2.2s ease-in-out infinite; }
+
+/* Тем, кто просил систему уменьшить движение, всё это не показывается. */
+@media (prefers-reduced-motion: reduce) {
+  .g-art [class^="g-"],
+  .g-art [class*=" g-"] {
+    animation: none !important;
+  }
+}
+
+/* ── Знак Premium: белая звезда в квадрате (components/premiumStar.js) ───── */
+.premium-star {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  vertical-align: middle;
+  animation: ps-float 3.4s ease-in-out infinite;
+}
+.premium-star .ps-star {
+  width: 68%;
+  height: 68%;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+  animation: ps-pulse 3.4s ease-in-out infinite;
+}
+/* Блик — светлая полоса, проходящая по квадрату наискось. Она в отдельном
+   слое, а не тенью на звезде: по фону она читается, а по белой звезде нет. */
+.ps-shine {
+  position: absolute;
+  top: -40%;
+  left: -60%;
+  width: 40%;
+  height: 180%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  transform: rotate(18deg);
+  animation: ps-shine 3.4s ease-in-out infinite;
+}
+@keyframes ps-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  45% { transform: translateY(-1.5px) rotate(-3deg); }
+}
+@keyframes ps-pulse {
+  0%, 70%, 100% { transform: scale(1); }
+  78% { transform: scale(1.16); }
+  86% { transform: scale(0.97); }
+}
+@keyframes ps-shine {
+  0%, 55% { left: -60%; }
+  85%, 100% { left: 120%; }
+}
+/* Фоны. Разные не ради разнообразия: ими отличаются уровни подписки, и один
+   значок с шестью фонами дешевле шести разных значков. */
+.ps-violet { background: linear-gradient(135deg, #8f7bff, #5b3fd6); }
+.ps-gold { background: linear-gradient(135deg, #ffd76b, #e09a1e); }
+.ps-aqua { background: linear-gradient(135deg, #5be0e6, #1f8fd6); }
+.ps-sunset { background: linear-gradient(135deg, #ff9a6b, #e0455f); }
+.ps-rose { background: linear-gradient(135deg, #ff9ecb, #c2478f); }
+.ps-night { background: linear-gradient(135deg, #4a5578, #1c2238); }
+.premium-star-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .premium-star,
+  .premium-star .ps-star,
+  .ps-shine {
+    animation: none !important;
+  }
+}
+
+/* Звезда внутри орбиты рисует собственный фон, поэтому у самого ядра он больше
+   не нужен — иначе получается квадрат в круге другого цвета. */
+.premium-orbit-core:has(.premium-star) {
+  background: none;
+  box-shadow: none;
+}

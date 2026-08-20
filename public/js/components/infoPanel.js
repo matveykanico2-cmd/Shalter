@@ -1,4 +1,5 @@
 import { el } from "../lib/dom.js";
+import { PremiumStar } from "./premiumStar.js";
 import { api } from "../api.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
@@ -163,7 +164,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             title,
             VerifiedBadge(isDm ? chat.otherUser : chat, 16),
             isDm && chat.otherUser?.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
-            isDm && chat.otherUser?.isPremium ? el("span", { class: "premium-mini-badge", html: iconSvg("Crown", 16) }) : null,
+            isDm && chat.otherUser?.isPremium ? PremiumStar({ size: 18, seed: chat.otherUser.id, title: "Shalter Premium" }) : null,
             isDm && safetyLabelInfo(chat.otherUser?.safetyLabel)
               ? el(
                   "span",
