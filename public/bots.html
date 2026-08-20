@@ -41,6 +41,7 @@
       <a href="#me">GET /me</a>
       <a href="#updates">GET /updates</a>
       <a href="#send">POST /sendMessage</a>
+      <a href="#write-first">Написать первым</a>
       <a href="#media">Картинки и файлы</a>
       <a href="#edit">Правка и удаление</a>
       <a href="#pin">Закрепление</a>
@@ -287,6 +288,54 @@ while (true) {
         <code>404 Bot is not a member of this chat</code>. Это не формальность — иначе токен любого бота
         превращался бы в право рассылки по всему мессенджеру.
       </p>
+
+      <h2 id="write-first">Бот пишет первым</h2>
+      <p>
+        <code>sendMessage</code> отправляет в чат, где бот уже состоит. Чтобы начать разговор самому — найти
+        человека и написать ему, — есть отдельный метод. Ради него боты обычно и заводятся: напомнить о
+        доставке, прислать код, сообщить о заказе.
+      </p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendMessageToUser</div>
+      <pre><code>await fetch(`${API}/sendMessageToUser`, {
+  method: "POST",
+  headers: auth,
+  body: JSON.stringify({
+    username: "ivan",                  // или userId: "u_…"
+    text: "Заказ №42 приедет к 18:00",
+    keyboard: [[{ text: "Отследить", data: "/track 42" }]],
+  }),
+});
+// → { chatId, message, user }</code></pre>
+      <table class="doc-table">
+        <thead><tr><th>Поле</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td>username</td><td>@юзернейм получателя, с «@» или без.</td></tr>
+          <tr><td>userId</td><td>Идентификатор, если он у вас уже есть (например, из <code>/updates</code>).</td></tr>
+          <tr><td>text</td><td>Текст сообщения.</td></tr>
+          <tr><td>keyboard</td><td>Кнопки — как в <a href="#keyboard">обычной отправке</a>.</td></tr>
+        </tbody>
+      </table>
+      <div class="doc-note">
+        <strong>Поиска по номеру телефона здесь нет — и не будет.</strong>
+        Метод, принимающий номер, перебором превращается в телефонную книгу: по нему выяснили бы, у кого есть
+        аккаунт и как его зовут. @юзернейм — другое дело: человек сам решил его завести.
+      </div>
+      <p>Отказы, которые надо уметь обрабатывать:</p>
+      <table class="doc-table">
+        <thead><tr><th>Код</th><th>Когда</th></tr></thead>
+        <tbody>
+          <tr><td>403</td><td>Получатель запретил ботам писать первыми (Настройки → Конфиденциальность) или заблокировал этого бота.</td></tr>
+          <tr><td>404</td><td>Такого @юзернейма нет.</td></tr>
+          <tr><td>429</td><td>Больше 20 <em>новых</em> разговоров в час. Отвечать в уже открытых чатах можно без ограничений.</td></tr>
+        </tbody>
+      </table>
+      <div class="doc-note">
+        <strong>Почему ограничения именно такие.</strong>
+        Без них этот метод — готовая рассылка спама: нашёл всех подряд по юзернеймам и написал каждому.
+        Поэтому: человек может выключить такие сообщения одним переключателем, заблокировавшему бота не
+        пишут вовсе, а число новых разговоров в час ограничено. Продолжать уже начатую переписку это никак
+        не ограничивает.
+      </div>
 
       <h2 id="media">Картинки и файлы</h2>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendPhoto</div>

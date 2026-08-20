@@ -2,7 +2,7 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireBotToken } = require("../middleware/botAuth");
 const { getUser, findUserByUsername, updateUser } = require("../data/users");
-const { listChatsForUser, getChat, updateChat, findChatByUsername, createChat } = require("../data/chats");
+const { listChatsForUser, getChat, updateChat, findChatByUsername, createChat, findDmBetween } = require("../data/chats");
 const { listAllMessages, listNewForBot, listMessages, getMessage, editMessage, deleteMessage, togglePin, addMessage, listMessagesPage, toggleReaction, setKeyboard } = require("../data/messages");
 const { addScheduled, listScheduledFor, getScheduled, deleteScheduled } = require("../data/scheduledMessages");
 const { sanitizePermissions } = require("../lib/chatPermissions");
@@ -12,6 +12,9 @@ const { broadcastToUsers } = require("../ws");
 const { markTyping } = require("../data/typing");
 const { updateBotApp, updateBotAppCode, updateBotCommands, updateBotDescription, getBotToken } = require("../data/bots");
 const { sendBotMessage, normalizeKeyboard } = require("../lib/botMessaging");
+const { findOrCreateDm } = require("../lib/systemChat");
+const { getSettings } = require("../data/settings");
+const { listContactsFor } = require("../data/contacts");
 const { validateAppUrl, verifyInitData } = require("../lib/miniApp");
 
 // The actual "program it however you want" surface — documented on /bots
@@ -1101,6 +1104,85 @@ router.post(
     if (typeof image !== "string") return res.status(400).json({ error: "image is required (URL или data:-строка)" });
     await updateUser(req.bot.userId, { avatarImage: image || null });
     res.json({ bot: publicUser(await getUser(req.bot.userId)) });
+  })
+);
+
+// ── Бот сам находит человека и пишет ему первым ─────────────────────────────
+//
+// Раньше бот умел отвечать только там, где он уже состоит: чат должен был
+// существовать, а начать разговор мог лишь человек. Ради этого метода их и
+// заводят — напомнить о доставке, прислать код, сообщить о заказе, — но он же
+// и есть готовая рассылка спама, если оставить его без ограничений.
+//
+// Поэтому здесь их четыре, и каждое закрывает свою дыру:
+//
+//  1. Человека находим по @юзернейму или id — по номеру телефона нельзя (то
+//     же правило, что и у resolveUsername выше: перебор номеров превратил бы
+//     API в телефонную книгу).
+//  2. Уважается запрет получателя: Настройки → Конфиденциальность → «Боты
+//     могут писать первыми» (everyone | contacts | nobody).
+//  3. Заблокировавшему бота не пишем вовсе.
+//  4. Ограничение на число НОВЫХ разговоров в час. Отвечать в уже открытых
+//     чатах можно сколько угодно — рассылка начинается там, где бот пишет
+//     тем, кто его не знает.
+const NEW_DIALOGS_PER_HOUR = 20;
+const newDialogLog = new Map(); // botId -> массив меток времени
+
+function newDialogAllowed(botId) {
+  const now = Date.now();
+  const hourAgo = now - 3600_000;
+  const fresh = (newDialogLog.get(botId) ?? []).filter((t) => t > hourAgo);
+  if (fresh.length >= NEW_DIALOGS_PER_HOUR) {
+    newDialogLog.set(botId, fresh);
+    return false;
+  }
+  fresh.push(now);
+  newDialogLog.set(botId, fresh);
+  return true;
+}
+
+async function botMayWriteFirst(botUserId, targetId) {
+  const target = await getUser(targetId);
+  if (!target) return { ok: false, error: "Пользователь не найден" };
+  if (target.isBot) return { ok: false, error: "Ботам боты не пишут" };
+  if (target.blockedUserIds?.includes(botUserId)) return { ok: false, error: "Пользователь заблокировал этого бота" };
+
+  const { privacy } = await getSettings(targetId);
+  const setting = privacy?.botMessages ?? "everyone";
+  if (setting === "nobody") return { ok: false, error: "Пользователь запретил ботам писать первыми" };
+  if (setting === "contacts") {
+    const contacts = await listContactsFor(targetId);
+    if (!contacts.some((c) => c.userId === botUserId)) {
+      return { ok: false, error: "Пользователь разрешил писать первыми только ботам из своих контактов" };
+    }
+  }
+  return { ok: true, target };
+}
+
+router.post(
+  "/sendMessageToUser",
+  asyncRoute(async (req, res) => {
+    const { username, userId, text, keyboard } = req.body ?? {};
+    if (!text?.trim()) return res.status(400).json({ error: "text is required" });
+
+    const target = userId
+      ? await getUser(String(userId))
+      : await findUserByUsername(String(username ?? "").replace(/^@/, ""));
+    if (!target) return res.status(404).json({ error: "Пользователь не найден" });
+
+    const allowed = await botMayWriteFirst(req.bot.userId, target.id);
+    if (!allowed.ok) return res.status(403).json({ error: allowed.error });
+
+    // Уже открытый разговор — это не новый разговор: продолжать переписку
+    // ограничение не мешает, оно про первое сообщение незнакомому человеку.
+    const existing = await findDmBetween(req.bot.userId, target.id);
+    if (!existing && !newDialogAllowed(req.bot.id)) {
+      return res.status(429).json({ error: `Не больше ${NEW_DIALOGS_PER_HOUR} новых разговоров в час` });
+    }
+
+    const chat = existing ?? (await findOrCreateDm(req.bot.userId, target.id));
+    const message = await sendBotMessage(req.bot.userId, chat.id, text, { keyboard });
+    res.json({ chatId: chat.id, message, user: publicUser(target) });
   })
 );
 

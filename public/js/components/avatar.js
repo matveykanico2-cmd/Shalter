@@ -36,9 +36,17 @@ export function Avatar({ name, color, image, size = 44, online, className = "", 
     style: { width: `${size}px`, height: `${size}px` },
   });
   if (image) {
-    wrap.appendChild(
-      el("img", { src: image, alt: name, class: "avatar-img", style: { width: `${size}px`, height: `${size}px` } })
-    );
+    // Картинка может не загрузиться: у бота её задаёт владелец через Bot API
+    // обычной ссылкой, и ссылка бывает мёртвой. Без запасного варианта на
+    // экране оставался «сломанный файл» с текстом alt поперёк строки — видно
+    // было на списке ботов. Теперь такой аватар молча становится буквами.
+    const img = el("img", { src: image, alt: name, class: "avatar-img", style: { width: `${size}px`, height: `${size}px` } });
+    img.addEventListener("error", () => {
+      img.replaceWith(
+        el("div", { class: "avatar-fallback", style: { background: color, fontSize: `${size * 0.4}px` } }, initials(name) || "?")
+      );
+    });
+    wrap.appendChild(img);
   } else {
     wrap.appendChild(
       el(

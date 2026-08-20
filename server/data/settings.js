@@ -42,6 +42,15 @@ const DEFAULT_SETTINGS = {
     // calls.js). Defaults to "everyone" so this is non-breaking for every
     // account that existed before this setting did.
     calls: "everyone",
+    // «Кто из ботов может написать мне первым» — тот же набор значений, что и
+    // у остальных: everyone | contacts | nobody. Проверяется в Bot API
+    // (routes/botApi.js, метод sendMessageToUser).
+    //
+    // По умолчанию everyone, потому что бот, который сам пишет первым, — это и
+    // есть напоминание о доставке, код подтверждения и уведомление о заказе,
+    // ради которых боты и заводятся. Кому это не нужно — выключает одним
+    // переключателем, и тогда бот не сможет начать разговор вообще.
+    botMessages: "everyone",
   },
   chatWallpaper: "default",
   // Only meaningful when chatWallpaper === "custom" — a data URL, same

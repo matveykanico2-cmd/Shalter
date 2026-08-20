@@ -697,6 +697,22 @@ async function renderBots(root) {
                       b.commands?.length ? el("span", { class: "bot-badge" }, `${b.commands.length} команд`) : null,
                     ]),
                   ]),
+                  // Открыть переписку с ботом — первым действием: чаще всего с
+                  // ботом именно говорят, а не правят его. Раньше попасть в чат
+                  // с собственным ботом можно было только через поиск.
+                  el("button", {
+                    class: "icon-btn",
+                    title: "Открыть чат с ботом",
+                    html: iconSvg("Send", 15),
+                    onclick: async () => {
+                      try {
+                        const { chat } = await api.startDm(b.userId, b.user.name, b.user.avatarColor);
+                        navigate(`/chat/${chat.id}`);
+                      } catch (err) {
+                        alert(err.message || "Не удалось открыть чат");
+                      }
+                    },
+                  }),
                   el("button", {
                     class: "icon-btn",
                     title: "Редактировать бота",
@@ -1098,6 +1114,10 @@ async function renderPrivacy(root) {
           row("Ссылка при пересылке", "forwards"),
           row("Кто добавляет меня в группы", "invites"),
           row("Кто может мне звонить", "calls"),
+          // Боты умеют писать первыми (Bot API, метод sendMessageToUser) —
+          // это напоминания о доставке и коды подтверждения, но это же и
+          // возможная рассылка. Здесь она выключается одним движением.
+          row("Боты могут писать первыми", "botMessages"),
         ]),
         section("Безопасность", [
           el("div", { class: "settings-toggle-row" }, [

@@ -460,10 +460,18 @@
   right: 16px;
 }
 @media (max-width: 520px) {
+  /* На телефоне карточка прибивается к экрану, а не центрируется флексом.
+     Флекс-строка слоя почему-то оказывалась на 24 пикселя шире экрана, и
+     центрирование сдвигало карточку на 12 px влево — слева она вылезала за
+     край, справа оставалась чёрная полоса. Замерено: left был −12 при ширине
+     390. Абсолютное позиционирование от слоя во весь экран такого разночтения
+     не допускает. */
   .story-shell {
+    position: absolute;
+    inset: 0;
     border-radius: 0;
     width: 100%;
-    height: 100dvh;
+    height: 100%;
   }
   .story-nav {
     display: none;
@@ -1258,7 +1266,10 @@
 }
 /* A <button> now (it opens the sender's profile), so it has to be told to look
    like the label it was — buttons come with their own alignment and font. */
+/* Имя над сообщением открывает профиль — по строке в 14 пикселей пальцем не
+   попасть. Добавляем поле, а не размер шрифта: вид строки не меняется. */
 .sender-name {
+  padding: 3px 0;
   display: block;
   align-self: flex-start;
   margin-bottom: 2px;
@@ -9650,15 +9661,25 @@
 @media (max-width: 560px) {
   .settings-device-row {
     flex-wrap: wrap;
-    row-gap: 6px;
+    row-gap: 8px;
   }
-  .settings-device-row > .settings-device-body {
-    flex: 1 1 100%;
-    min-width: 0;
-    order: 2;
-  }
+  /* Аватар и имя остаются рядом — как в любой строке списка; на свою строку
+     уходят только действия. Первая попытка отправляла на отдельную строку имя,
+     и аватар оставался в одиночестве посреди пустоты. */
   .settings-device-row > .avatar {
     order: 1;
+  }
+  .settings-device-row > .settings-device-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    order: 1;
+  }
+  /* Пустая распорка во всю ширину — она и переносит действия на новую строку. */
+  .settings-device-row::after {
+    content: "";
+    flex-basis: 100%;
+    height: 0;
+    order: 2;
   }
   .settings-device-row > .icon-btn,
   .settings-device-row > button {
