@@ -77,35 +77,25 @@ export function openChangeEmailDialog(currentEmail, onDone) {
   const password = el("input", { class: "login-input", type: "password", placeholder: "Пароль", autofocus: true });
   const email = el("input", { class: "login-input", type: "email", placeholder: "Новый адрес почты", value: "" });
 
+  // Один шаг: пароль и новый адрес. Кода подтверждения больше нет — значит
+  // опечатка в адресе сохранится молча, и письмо для восстановления пароля
+  // уйдёт не туда. Поэтому адрес показывается в подсказке ещё раз и просьба
+  // проверить его стоит прямо перед кнопкой.
   overlayWith(
     "Смена почты",
-    currentEmail ? `Сейчас: ${currentEmail}. На новый адрес придёт код подтверждения.` : "На новый адрес придёт код подтверждения.",
+    currentEmail
+      ? `Сейчас: ${currentEmail}. Проверьте новый адрес: на него будет приходить восстановление доступа.`
+      : "Проверьте адрес: на него будет приходить восстановление доступа.",
     [password, email],
-    "Прислать код",
+    "Сменить почту",
     async ({ close, fail }) => {
       const address = email.value.trim();
       if (!address.includes("@")) return fail("Введите адрес почты");
-      await api.startEmailChange(password.value, address);
+      const { user } = await api.startEmailChange(password.value, address);
       close();
-      openConfirmEmailDialog(address, onDone);
+      onDone?.(user);
     }
   );
 }
 
-function openConfirmEmailDialog(address, onDone) {
-  const code = el("input", {
-    class: "login-input mono",
-    inputmode: "numeric",
-    maxlength: 6,
-    placeholder: "Код из письма",
-    autofocus: true,
-    oninput: (e) => (e.target.value = e.target.value.replace(/\D/g, "")),
-  });
 
-  overlayWith("Подтверждение адреса", `Код отправлен на ${address}. Действует 15 минут.`, [code], "Подтвердить", async ({ close, fail }) => {
-    if (code.value.length !== 6) return fail("Код состоит из шести цифр");
-    const { user } = await api.confirmEmailChange(code.value);
-    close();
-    onDone?.(user);
-  });
-}

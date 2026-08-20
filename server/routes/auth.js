@@ -363,9 +363,15 @@ router.post(
   })
 );
 
-// Changing the e-mail address, in two steps: the password proves it is you, and
-// a code sent to the *new* address proves the address exists and is yours. See
-// data/emailChanges.js for why the second half is not optional.
+// Смена адреса почты: пароль и новый адрес, без кода подтверждения.
+//
+// Так попросил владелец приложения, и это его решение — но у него есть цена,
+// поэтому она записана здесь, а не забыта: код на новый адрес подтверждал, что
+// адрес существует и принадлежит вам. Без него опечатка в адресе означает, что
+// письмо для восстановления пароля уйдёт в чужой или несуществующий ящик, и
+// узнается это в тот единственный день, когда доступ действительно нужен.
+// Поэтому адрес проверяется хотя бы по форме и на занятость, а владельцу
+// уходит уведомление в служебный чат.
 router.post(
   "/email/start",
   requireUserId,
@@ -383,50 +389,19 @@ router.post(
     const taken = await findUserByEmail(email);
     if (taken && taken.id !== req.uid) return res.status(409).json({ error: "Этот адрес уже привязан к другому аккаунту" });
 
-    const code = emailChanges.start(req.uid, email);
-    const result = await sendMail({
-      to: email,
-      subject: "Подтверждение адреса в Shalter",
-      text:
-        `Код для привязки этого адреса к аккаунту Shalter: ${code}\n\n` +
-        `Он действует 15 минут.\n\n` +
-        `Если вы не меняли адрес в Shalter — просто не вводите код, ничего не изменится.`,
-    });
-    if (!result.delivered) {
-      // Refusing here is the point, not a shortcoming: an address that cannot
-      // receive a letter today cannot receive a recovery code later either, and
-      // saving it would only hide that until the day it matters.
-      console.warn(`[email-change] код на ${email} не ушёл: ${result.reason}`);
-      return res.status(503).json({
-        error: "Не удалось доставить письмо на этот адрес — проверьте его или укажите другой.",
-      });
-    }
-    res.json({ ok: true, sent: true });
-  })
-);
-
-router.post(
-  "/email/verify",
-  requireUserId,
-  asyncRoute(async (req, res) => {
-    const email = emailChanges.confirm(req.uid, req.body?.code);
-    if (!email) return res.status(400).json({ error: "Неверный или устаревший код" });
-
-    // Re-checked at the last moment: the address was free when the code was
-    // sent, but fifteen minutes is long enough for someone else to claim it.
-    const taken = await findUserByEmail(email);
-    if (taken && taken.id !== req.uid) return res.status(409).json({ error: "Этот адрес уже привязан к другому аккаунту" });
-
-    const user = await updateUser(req.uid, { email });
+    const updated = await updateUser(req.uid, { email });
+    // Уведомление остаётся: смена почты — это смена того, куда придёт
+    // восстановление доступа, и след об этом должен быть виден владельцу.
     try {
       const chat = await findOrCreateDm(req.uid, SYSTEM_BOT_ID);
       await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, `📧 Адрес почты изменён на ${email}.\n\nЕсли это были не вы — немедленно смените пароль.`);
     } catch (err) {
       console.error("email change notice failed:", err);
     }
-    res.json({ user: selfUser(user) });
+    res.json({ user: selfUser(updated), changed: true });
   })
 );
+
 
 // QR login: a real, scannable QR code (see public/js/views/login.js) encodes
 // an absolute URL to /qr-login?token=... on *this* server. Any phone camera
