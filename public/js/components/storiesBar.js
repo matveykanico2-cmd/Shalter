@@ -38,10 +38,14 @@ export function StoriesBar() {
       type: "file",
       accept: "image/*,video/*",
       class: "hidden-input",
+      // Несколько историй за один выбор — и строго по очереди, а не разом:
+      // каждая уносит на сервер целую картинку в теле запроса, и десяток
+      // параллельных отправок кладёт и канал, и обработку на сервере.
+      multiple: true,
       onchange: async (e) => {
-        const file = e.target.files?.[0];
+        const files = [...(e.target.files ?? [])];
         e.target.value = "";
-        if (file) await postStory(file);
+        for (const file of files) await postStory(file);
       },
     });
 

@@ -293,26 +293,33 @@ export function Composer({
     }
 
     // Attach menu — each item sends a real attachment (no more "[Label]" text stub).
+    // multiple — потому что выбирают обычно не один файл: пять фотографий с
+    // прогулки прикреплялись по одной, через пять открытий проводника подряд.
+    // Сообщение и так умеет нести несколько вложений сразу (attachments —
+    // массив), одиночным было только само поле выбора.
     const mediaFileInput = el("input", {
       type: "file",
       accept: "image/*,video/*",
+      multiple: true,
       class: "hidden-input",
       onchange: (e) => {
-        const file = e.target.files?.[0];
+        const files = [...(e.target.files ?? [])];
         e.target.value = "";
-        if (!file) return;
-        if (file.type.startsWith("image/")) attachFile(file, "image");
-        else if (file.type.startsWith("video/")) attachFile(file, "video");
-        else attachFile(file, "file");
+        for (const file of files) {
+          if (file.type.startsWith("image/")) attachFile(file, "image");
+          else if (file.type.startsWith("video/")) attachFile(file, "video");
+          else attachFile(file, "file");
+        }
       },
     });
     const anyFileInput = el("input", {
       type: "file",
+      multiple: true,
       class: "hidden-input",
       onchange: (e) => {
-        const file = e.target.files?.[0];
+        const files = [...(e.target.files ?? [])];
         e.target.value = "";
-        if (file) attachFile(file, "file");
+        for (const file of files) attachFile(file, "file");
       },
     });
 
