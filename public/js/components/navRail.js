@@ -26,7 +26,11 @@ export function NavRail() {
   const nav = el("nav", { class: "nav-rail" });
 
   const accountBtn = el("button", { class: "nav-rail-account", title: "Аккаунты" }, [
-    Avatar({ name: user.name || user.phone, color: user.avatarColor, image: user.avatarImage, size: 40, online: true, isPremium: user.isPremium, isDeveloper: user.isDeveloper, orbit: true }),
+    // Без orbit: спутники вылетают за аватар на 14 пикселей в каждую
+    // сторону, а рельс узкий и прижат к краю окна — левый спутник просто
+    // срезался краем экрана на всех страницах сразу. Украшение остаётся там,
+    // где под него есть место: в профиле и в настройках.
+    Avatar({ name: user.name || user.phone, color: user.avatarColor, image: user.avatarImage, size: 40, online: true, isPremium: user.isPremium, isDeveloper: user.isDeveloper }),
   ]);
   accountBtn.addEventListener("click", (e) => {
     const rect = accountBtn.getBoundingClientRect();

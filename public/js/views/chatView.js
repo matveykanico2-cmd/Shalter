@@ -977,8 +977,15 @@ export async function ChatView(root, chatId) {
           : null,
         // Эфир — там, где он имеет смысл: в канале и в группе. Для двоих есть
         // звонок, и вторая кнопка рядом с ним только запутывала бы.
+        // Подписью, а не голым значком: рядом стоит кнопка видеозвонка с точно
+        // таким же значком камеры, и две одинаковые иконки подряд означали
+        // «угадай, какая из них эфир». На узком экране подпись прячется, но
+        // тогда и кнопки звонков рядом нет — в канале её не бывает.
         !isDm && liveInfo?.canHost && !liveInfo?.stream
-          ? el("button", { class: "icon-btn", title: "Начать эфир", html: iconSvg("Video", 18), onclick: startLive })
+          ? el("button", { class: "icon-btn chat-header-live-btn", title: "Начать эфир", onclick: startLive }, [
+              el("span", { class: "chat-header-live-dot" }),
+              el("span", { class: "chat-header-live-label" }, "Эфир"),
+            ])
           : null,
         isDm || chat.type === "group"
           ? el("button", { class: "icon-btn", title: "Позвонить", html: iconSvg("Phone", 18), onclick: () => placeCall("audio") })

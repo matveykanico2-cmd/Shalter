@@ -2871,6 +2871,10 @@
   color: #fff;
   vertical-align: middle;
 }
+/* Карточка баллов группы. Текст занимает всё оставшееся место, кнопка не
+   сжимается: раньше обе части делили ширину поровну, и в узкой панели
+   «Баллы группы: 2 (уровень 0)» переносилось на три строки при пустой
+   половине карточки справа. */
 .group-vote-row {
   display: flex;
   align-items: center;
@@ -2881,6 +2885,20 @@
   background: var(--color-surface-alt);
   padding: 12px;
   margin: 10px 0;
+}
+.group-vote-row > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+/* Та же ловушка, что описана выше у .bot-code-test-row: у
+   .settings-add-account-btn собственная ширина 100%, рассчитанная на кнопку во
+   всю строку. В этой карточке она забирала всё место, и текст слева сжимался в
+   колонку по одному слову. Возвращаем кнопке её собственный размер. */
+.group-vote-row > button,
+.group-vote-row > span {
+  flex: none;
+  width: auto;
+  white-space: nowrap;
 }
 .member-picker-row {
   display: flex;
@@ -9087,13 +9105,26 @@
   position: relative;
   overflow: hidden;
 }
+/* Подложка показывается только во время самого жеста.
+   Строка списка прозрачная (фон у неё появляется лишь под курсором и у
+   активной), поэтому цветные полосы под ней просвечивали всегда и закрывали
+   половину списка — было видно на первом же скриншоте. */
 .chat-swipe-actions {
   position: absolute;
   inset: 0;
   display: flex;
   justify-content: flex-end;
   align-items: stretch;
+  opacity: 0;
   pointer-events: none;
+}
+.chat-list-item-wrap.swiping .chat-swipe-actions {
+  opacity: 1;
+}
+/* Пока строку тянут, ей нужен непрозрачный фон — иначе полосы просвечивают
+   сквозь неё саму, а не открываются из-под края. */
+.chat-list-item-wrap.swiping .chat-list-item {
+  background: var(--color-bg);
 }
 .chat-swipe-action {
   display: flex;
@@ -9116,4 +9147,50 @@
 }
 .chat-list-item-wrap.swiping .chat-list-item {
   transition: none;
+}
+
+/* Кнопка «Эфир» в шапке — с подписью и красной точкой, чтобы не путалась с
+   кнопкой видеозвонка: значок камеры у них был один и тот же. */
+.chat-header-live-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  border: 1px solid var(--color-danger);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-danger);
+}
+.chat-header-live-dot {
+  border-radius: 50%;
+  background: var(--color-danger);
+  width: 8px;
+  height: 8px;
+}
+/* На узком экране подпись прячется, и кнопка становится кружком с красной
+   точкой — это привычный знак «идёт запись/эфир». Голая точка в широкой
+   пилюле выглядела как незаполненная кнопка. */
+@media (max-width: 520px) {
+  .chat-header-live-label {
+    display: none;
+  }
+  .chat-header-live-btn {
+    justify-content: center;
+    padding: 0;
+    width: 34px;
+    height: 34px;
+  }
+  .chat-header-live-dot {
+    width: 11px;
+    height: 11px;
+  }
+}
+
+/* Опрос не помещался в пузырь на телефоне: ширина была задана жёстко в 260px,
+   и на экране 390px он вылезал за край вместе с полосами голосов. */
+.poll-attachment {
+  width: min(260px, 100%);
+  max-width: 100%;
 }
