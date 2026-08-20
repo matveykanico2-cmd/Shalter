@@ -505,6 +505,11 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   }
 
   const isSticker = message.type === "sticker" && !!message.sticker;
+  // Кружок (видеосообщение) — такой же самостоятельный кадр, как стикер: он
+  // круглый, и прямоугольный цветной пузырь вокруг него смотрится коробкой,
+  // из которой торчит угол. Пузыря у него быть не должно, как и хвоста.
+  const isVideoNote =
+    !message.text?.trim() && message.attachments?.length === 1 && message.attachments[0]?.kind === "video-note";
   const bubbleInner = [];
 
   if (message.forwardedFrom) {
@@ -576,7 +581,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   const boosted = !!message.boostedUntil && message.boostedUntil > new Date().toISOString();
   const bubble = el(
     "div",
-    { class: `bubble ${mine ? "mine" : ""} ${isSticker ? "bubble-sticker" : ""} ${boosted ? "bubble-boosted" : ""}` },
+    { class: `bubble ${mine ? "mine" : ""} ${isSticker ? "bubble-sticker" : ""} ${isVideoNote ? "bubble-videonote" : ""} ${boosted ? "bubble-boosted" : ""}` },
     bubbleInner
   );
 

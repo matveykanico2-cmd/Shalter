@@ -1325,24 +1325,43 @@
 .message-row.group-end .bubble {
   position: relative;
 }
+/* Угол со стороны хвоста почти прямой.
+   Это и была причина «хвостов в разные стороны»: угол пузыря скруглён на 16
+   пикселей и уходит внутрь, а хвост стоял снаружи по краю прямоугольника — между
+   ними оставался просвет, и треугольник читался как отдельная фигура рядом с
+   сообщением, а не как его продолжение. Теперь хвост растёт из угла. */
+.message-row.group-end .message-column.mine .bubble {
+  border-bottom-right-radius: 4px;
+}
+.message-row.group-end .message-column:not(.mine) .bubble {
+  border-bottom-left-radius: 4px;
+}
+/* У прозрачного пузыря хвоста нет: стикер и кружок стоят сами по себе, а
+   треугольник рядом с ними висел цветным обрывком в пустоте. */
+.message-row.group-end .bubble.bubble-sticker::after,
+.message-row.group-end .bubble.bubble-videonote::after {
+  content: none;
+}
 .message-row.group-end .bubble::after {
   content: "";
   position: absolute;
   bottom: 0;
-  width: 9px;
-  height: 13px;
+  width: 8px;
+  height: 12px;
 }
+/* Вертикальная сторона треугольника прижата к боку пузыря, нижняя — к его
+   основанию: хвост оказывается ровно на той же линии, что и низ сообщения. */
 .message-row.group-end .message-column.mine .bubble::after {
   right: -7px;
   background: var(--color-bubble-out);
-  clip-path: polygon(0 0, 100% 100%, 0 100%);
-  border-bottom-left-radius: 2px;
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+  border-bottom-right-radius: 3px;
 }
 .message-row.group-end .message-column:not(.mine) .bubble::after {
   left: -7px;
   background: var(--color-bubble-in);
   clip-path: polygon(100% 0, 100% 100%, 0 100%);
-  border-bottom-right-radius: 2px;
+  border-bottom-left-radius: 3px;
 }
 
 .message-text {
@@ -1907,7 +1926,9 @@
    its full outgoing bubble behind the emoji while an incoming one came out
    correctly transparent. */
 .message-column .bubble.bubble-sticker,
-.message-column.mine .bubble.bubble-sticker {
+.message-column.mine .bubble.bubble-sticker,
+.message-column .bubble.bubble-videonote,
+.message-column.mine .bubble.bubble-videonote {
   border: none;
   border-radius: 0;
   background: none;
