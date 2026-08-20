@@ -18,6 +18,29 @@ export async function DiscoverChannelsView(root) {
   let channels = [];
   let loading = true;
   let searchTimer = null;
+  // Одно рекламное место на экране (server/routes/ads.js, placement=discover).
+  // Запрашивается один раз при открытии, а не на каждую перерисовку: каждый
+  // ответ — это оплаченный показ, и перерисовка списка не должна списывать
+  // деньги рекламодателя заново.
+  let ad = null;
+  api
+    .serveAd("discover")
+    .then((r) => {
+      ad = r.ad;
+      if (ad) render();
+    })
+    .catch(() => {});
+
+  // Переход по объявлению считается кликом и только потом открывает ссылку.
+  async function openAd() {
+    if (!ad) return;
+    try {
+      await api.clickAd(ad.id);
+    } catch {
+      // Счётчик — не причина не пустить человека по ссылке.
+    }
+    if (ad.url) window.open(ad.url, "_blank", "noreferrer");
+  }
 
   async function search(q) {
     loading = true;
@@ -103,6 +126,18 @@ export async function DiscoverChannelsView(root) {
           el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
           el("p", { class: "view-title" }, "Публичные каналы"),
         ]),
+        // Рекламная карточка — над списком и с прямой пометкой «Реклама»: без
+        // неё объявление выглядит как обычный канал, и это обман.
+        ad
+          ? el("button", { class: "discover-ad", onclick: openAd }, [
+              el("div", { class: "discover-ad-head" }, [
+                el("span", { class: "discover-ad-label" }, "РЕКЛАМА"),
+                ad.title ? el("span", { class: "discover-ad-title" }, ad.title) : null,
+              ]),
+              el("p", { class: "discover-ad-text" }, ad.text),
+              ad.url ? el("span", { class: "discover-ad-go" }, "Перейти →") : null,
+            ])
+          : null,
         el("div", { class: "contacts-add-panel" }, [
           el("input", {
             class: "settings-input",

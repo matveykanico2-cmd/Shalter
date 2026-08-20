@@ -5,6 +5,7 @@ const { ADMIN_PHONE } = require("../config");
 const { getUser, findUserByPhone, grantAdsDays, revokeAds, updateUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
+const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
 const { isConnected: isDonationAlertsConnected, getDonationPageUrl } = require("../lib/donationAlerts");
 const { createPendingOrder } = require("../data/pendingOrders");
@@ -153,6 +154,248 @@ router.post(
         : "Ваш кабинет рекламы был отключён администрацией."
     );
     res.json({ user: publicUser(await getUser(userId)) });
+  })
+);
+
+// ── Рекламный кабинет для бизнеса ───────────────────────────────────────────
+//
+// Что здесь есть и почему именно это.
+//
+// Кампании, а не одно объявление: у бизнеса обычно идёт несколько разных — на
+// новинку, на распродажу, на набор сотрудников, — и у каждой свои деньги и своя
+// статистика. Одно поле «текст рекламы» этого не выражает.
+//
+// Деньги — звёзды, уже существующая валюта приложения. Списывается за показы,
+// цена задаётся за тысячу (CPM): так объявление в маленьком канале стоит
+// столько, сколько стоит, а не «как повезёт».
+//
+// Модерация обязательна и до первого показа: реклама — единственное место, где
+// один человек платит за то, чтобы его текст увидели незнакомые люди, и пускать
+// это без проверки нельзя. Проверяет тот же администратор, что и жалобы.
+//
+// Чего здесь намеренно НЕТ: нацеливания на человека. Ни по переписке, ни по
+// контактам, ни по «интересам», собранным из поведения. Выбрать можно место
+// показа (каталог каналов или своя страница) — и всё. Это осознанное
+// ограничение, а не незаконченная работа: рекламный кабинет, который умеет
+// целиться в человека, требует слежки за ним, а мессенджер, который следит за
+// своими людьми, не нужен никому.
+const campaigns = require("../data/adCampaigns");
+const { balanceOf, spendStars } = require("../data/stars");
+
+const PLACEMENTS = { discover: "Каталог каналов", profile: "Своя страница профиля" };
+const MAX_TEXT = 200;
+
+function publicCampaign(c) {
+  return { id: c.id, title: c.title, text: c.text, url: c.url, imageUrl: c.imageUrl };
+}
+
+async function ownCampaign(req, res) {
+  const c = campaigns.get(req.params.id);
+  if (!c || c.ownerId !== req.uid) {
+    res.status(404).json({ error: "Кампания не найдена" });
+    return null;
+  }
+  return c;
+}
+
+// Список кампаний кабинета + баланс звёзд, чтобы экран не делал второй запрос
+// ради одной цифры.
+router.get(
+  "/campaigns",
+  asyncRoute(async (req, res) => {
+    res.json({
+      campaigns: campaigns.listByOwner(req.uid),
+      balanceStars: balanceOf(req.uid),
+      placements: PLACEMENTS,
+      cpmMin: campaigns.CPM_MIN,
+    });
+  })
+);
+
+router.post(
+  "/campaigns",
+  asyncRoute(async (req, res) => {
+    const text = String(req.body?.text ?? "").trim().slice(0, MAX_TEXT);
+    if (!text) return res.status(400).json({ error: "Напишите текст объявления" });
+    const placement = PLACEMENTS[req.body?.placement] ? req.body.placement : "discover";
+    const created = campaigns.create({
+      ownerId: req.uid,
+      title: String(req.body?.title ?? "").trim().slice(0, 60),
+      text,
+      url: String(req.body?.url ?? "").trim().slice(0, 300) || null,
+      imageUrl: String(req.body?.imageUrl ?? "").trim() || null,
+      placement,
+      cpmStars: Number(req.body?.cpmStars) || 20,
+    });
+    res.json({ campaign: created });
+  })
+);
+
+router.patch(
+  "/campaigns/:id",
+  asyncRoute(async (req, res) => {
+    const c = await ownCampaign(req, res);
+    if (!c) return;
+    // Изменённое объявление снова уходит на проверку: иначе одобренный текст
+    // можно было бы подменить на любой другой сразу после одобрения.
+    const patch = {};
+    if (typeof req.body?.title === "string") patch.title = req.body.title.trim().slice(0, 60);
+    if (typeof req.body?.text === "string") patch.text = req.body.text.trim().slice(0, MAX_TEXT);
+    if (typeof req.body?.url === "string") patch.url = req.body.url.trim().slice(0, 300) || null;
+    if (typeof req.body?.imageUrl === "string") patch.imageUrl = req.body.imageUrl.trim() || null;
+    if (PLACEMENTS[req.body?.placement]) patch.placement = req.body.placement;
+    if (Number.isFinite(Number(req.body?.cpmStars))) patch.cpmStars = Math.max(campaigns.CPM_MIN, Number(req.body.cpmStars));
+    const touchesCreative = "text" in patch || "url" in patch || "imageUrl" in patch;
+    if (touchesCreative && (c.status === "active" || c.status === "review")) {
+      patch.status = "review";
+      patch.rejectReason = null;
+    }
+    res.json({ campaign: campaigns.update(c.id, patch) });
+  })
+);
+
+router.delete(
+  "/campaigns/:id",
+  asyncRoute(async (req, res) => {
+    const c = await ownCampaign(req, res);
+    if (!c) return;
+    campaigns.remove(c.id);
+    res.json({ ok: true });
+  })
+);
+
+// Пополнение бюджета: звёзды уходят с баланса сразу. Возврата нет и он не
+// нужен — неизрасходованный бюджет остаётся в кампании и продолжает работать,
+// когда её снова включат.
+router.post(
+  "/campaigns/:id/budget",
+  asyncRoute(async (req, res) => {
+    const c = await ownCampaign(req, res);
+    if (!c) return;
+    const stars = Math.floor(Number(req.body?.stars) || 0);
+    if (stars <= 0) return res.status(400).json({ error: "Сколько звёзд добавить?" });
+    if (!spendStars(req.uid, stars)) return res.status(402).json({ error: "Не хватает звёзд на балансе" });
+    const updated = campaigns.update(c.id, { budgetStars: c.budgetStars + stars });
+    res.json({ campaign: updated, balanceStars: balanceOf(req.uid) });
+  })
+);
+
+// Запуск, пауза и отправка на проверку — одним маршрутом: это одно и то же
+// действие «поменять состояние», и разводить его по трём означало бы трижды
+// повторить проверки.
+router.post(
+  "/campaigns/:id/status",
+  asyncRoute(async (req, res) => {
+    const c = await ownCampaign(req, res);
+    if (!c) return;
+    const want = req.body?.status;
+
+    if (want === "review") {
+      if (!c.text.trim()) return res.status(400).json({ error: "Пустое объявление не проверяют" });
+      return res.json({ campaign: campaigns.update(c.id, { status: "review", rejectReason: null }) });
+    }
+    if (want === "paused") return res.json({ campaign: campaigns.update(c.id, { status: "paused" }) });
+    if (want === "active") {
+      // Включить можно только проверенное. Черновик и отклонённое сначала идут
+      // на проверку — на этом и держится смысл модерации.
+      if (c.status !== "paused" && c.status !== "finished") {
+        return res.status(400).json({ error: "Сначала отправьте объявление на проверку" });
+      }
+      if (c.remainingStars <= 0) return res.status(402).json({ error: "Бюджет израсходован — пополните его" });
+      return res.json({ campaign: campaigns.update(c.id, { status: "active" }) });
+    }
+    res.status(400).json({ error: "Неизвестное состояние" });
+  })
+);
+
+router.get(
+  "/campaigns/:id/stats",
+  asyncRoute(async (req, res) => {
+    const c = await ownCampaign(req, res);
+    if (!c) return;
+    res.json({ campaign: c, daily: campaigns.daily(c.id) });
+  })
+);
+
+// ── Показ ───────────────────────────────────────────────────────────────────
+// Что показать в этом месте. Каждый ответ — это показ: он считается и стоит
+// денег, поэтому запрос делается там, где объявление действительно появляется
+// на экране, а не «на всякий случай» при загрузке страницы.
+router.get(
+  "/serve",
+  asyncRoute(async (req, res) => {
+    const placement = PLACEMENTS[req.query.placement] ? req.query.placement : "discover";
+    // Своя же реклама себе не показывается: платить за собственный показ
+    // бессмысленно, а в статистике это выглядит как накрутка.
+    const c = campaigns.pickForPlacement(placement, req.uid);
+    if (!c) return res.json({ ad: null });
+    campaigns.recordImpression(c.id, c.cpmStars);
+    res.json({ ad: publicCampaign(c) });
+  })
+);
+
+router.post(
+  "/click/:id",
+  asyncRoute(async (req, res) => {
+    const c = campaigns.get(req.params.id);
+    if (!c) return res.status(404).json({ error: "not found" });
+    campaigns.recordClick(c.id);
+    res.json({ ok: true, url: c.url });
+  })
+);
+
+// ── Модерация (владелец ADMIN_PHONE) ────────────────────────────────────────
+async function requireAdmin(req, res) {
+  const me = await getUser(req.uid);
+  if (!me || me.phone !== ADMIN_PHONE) {
+    res.status(403).json({ error: "Недостаточно прав" });
+    return null;
+  }
+  return me;
+}
+
+router.get(
+  "/review",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const list = campaigns.listForReview();
+    const withOwners = await Promise.all(
+      list.map(async (c) => {
+        const owner = await getUser(c.ownerId);
+        return { ...c, owner: owner ? { id: owner.id, name: owner.name, username: owner.username || null } : { id: c.ownerId } };
+      })
+    );
+    res.json({ campaigns: withOwners });
+  })
+);
+
+router.post(
+  "/review/:id",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const c = campaigns.get(req.params.id);
+    if (!c) return res.status(404).json({ error: "Кампания не найдена" });
+    const approve = req.body?.approve !== false;
+    const reason = String(req.body?.reason ?? "").trim().slice(0, 300);
+    if (!approve && !reason) return res.status(400).json({ error: "Укажите причину отказа — её увидит рекламодатель" });
+
+    // Одобренная кампания встаёт на паузу, а не запускается сама: включает её
+    // владелец, когда сочтёт нужным, — и тогда же начинают тратиться деньги.
+    const updated = campaigns.update(c.id, approve ? { status: "paused", rejectReason: null } : { status: "rejected", rejectReason: reason });
+
+    try {
+      const chat = await findOrCreateDm(c.ownerId, SYSTEM_BOT_ID);
+      await sendMessageAndBroadcast(
+        chat,
+        SYSTEM_BOT_ID,
+        approve
+          ? `✅ Объявление «${c.title || c.text.slice(0, 30)}» проверено и допущено к показу.\n\nВключите его в кабинете рекламы, когда будете готовы.`
+          : `⛔ Объявление «${c.title || c.text.slice(0, 30)}» отклонено.\nПричина: ${reason}\n\nИсправьте текст и отправьте на проверку снова.`
+      );
+    } catch (err) {
+      console.error("ad review notice failed:", err);
+    }
+    res.json({ campaign: updated });
   })
 );
 

@@ -2030,12 +2030,24 @@
   background: var(--color-surface-alt);
   padding: 12px 16px;
 }
+/* Флекс-строка, а не просто текст: значок внутри кнопки лежит в <span> с
+   <svg>, а svg здесь блочный — «+ Создать бота» разъезжалось на две строки,
+   плюс сверху, подпись снизу. Та же причина, что была у кнопок профиля. */
 .btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   border-radius: 8px;
   background: var(--color-accent);
   padding: 6px 12px;
   font-size: 14px;
   color: var(--color-accent-contrast);
+}
+.btn-accent > span {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 /* Destructive variant — a ban is not something to paint in the same colour as
    "Сохранить" (see components/adminUserPanel.js). */
@@ -9587,3 +9599,309 @@
   background: none;
   box-shadow: none;
 }
+
+/* ── Телефон: размеры, за которые можно попасть пальцем ──────────────────── */
+/* Замерено обходом всех экранов: кнопки по 28–31 px в высоту, ссылки по 14 px
+   и значки-действия 30×30. Палец уверенно попадает примерно с 40 px — ниже
+   этого промахи начинаются на ровном месте, особенно у опасных действий вроде
+   «завершить сеанс». Меняем не размер шрифта, а поле вокруг: надписи остаются
+   прежними, растёт только область нажатия. */
+@media (max-width: 640px) {
+  .btn-accent,
+  .btn-accent-pill,
+  .profile-action-btn,
+  .settings-add-account-btn,
+  .modal-cancel {
+    min-height: 40px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+  .icon-btn {
+    min-width: 38px;
+    min-height: 38px;
+  }
+  /* Текстовые ссылки-действия: у них нет фона, поэтому увеличиваем поле, а не
+     сам блок — иначе в списке появятся дыры. */
+  .text-link,
+  .settings-danger-link {
+    display: inline-block;
+    padding: 10px 2px;
+  }
+  /* Переключатель остаётся прежнего вида, но ловит нажатие по всей строке. */
+  .settings-toggle {
+    min-width: 46px;
+    min-height: 28px;
+  }
+  .settings-chip {
+    min-height: 36px;
+  }
+  /* Орбита на странице Premium шире своего места (194 px в 148) и обрезалась
+     краями — на телефоне уменьшаем её целиком. */
+  .premium-orbit {
+    transform: scale(0.8);
+    margin-bottom: 6px;
+  }
+}
+
+/* Строка бота в списке: шесть значков-действий, имя, @юзернейм и метки не
+   помещаются в 390 px — тело строки сжималось до 40 px, аватар обрезался, а
+   @юзернейм налезал на кнопки. На узком экране действия уходят на свою
+   строку. */
+@media (max-width: 560px) {
+  .settings-device-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .settings-device-row > .settings-device-body {
+    flex: 1 1 100%;
+    min-width: 0;
+    order: 2;
+  }
+  .settings-device-row > .avatar {
+    order: 1;
+  }
+  .settings-device-row > .icon-btn,
+  .settings-device-row > button {
+    order: 3;
+  }
+}
+
+/* ── Рекламный кабинет (components/adCabinet.js) ─────────────────────────── */
+.ad-balance {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: var(--color-accent-soft);
+  padding: 10px 12px;
+  color: var(--color-accent);
+}
+.ad-balance p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text);
+}
+.ad-card {
+  margin-top: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  padding: 14px;
+}
+.ad-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ad-card-titles { min-width: 0; }
+.ad-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.ad-card-place {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+/* Состояние — словом и цветом сразу: «на проверке» и «идёт показ» различаются
+   деньгами, и путать их нельзя. */
+.ad-status {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ad-status.ok { background: rgba(31, 157, 99, 0.14); color: var(--color-success); }
+.ad-status.warn { background: rgba(185, 121, 28, 0.16); color: var(--color-warning); }
+.ad-status.danger { background: rgba(198, 64, 59, 0.14); color: var(--color-danger); }
+.ad-status.muted { background: var(--color-surface-alt); color: var(--color-muted); }
+.ad-card-text {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.ad-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.ad-stat {
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  padding: 8px 6px;
+  text-align: center;
+}
+.ad-stat-value {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ad-stat-label {
+  margin: 1px 0 0;
+  font-size: 10.5px;
+  color: var(--color-muted);
+}
+/* Полоса бюджета: видно, сколько уже съедено показами. */
+.ad-budget { margin-top: 10px; }
+.ad-budget-bar {
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  height: 6px;
+}
+.ad-budget-fill {
+  border-radius: 999px;
+  background: var(--color-accent);
+  height: 100%;
+  transition: width 0.4s ease;
+}
+.ad-card-actions,
+.ad-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.ad-card-actions .profile-action-btn,
+.ad-card-actions .btn-accent,
+.ad-form-actions .profile-action-btn {
+  width: auto;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+.ad-form {
+  margin-top: 12px;
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+.ad-placements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ad-placement {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.ad-placement.active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 500;
+}
+/* График по дням — столбики показов. */
+.ad-chart { margin-top: 12px; }
+.ad-chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 84px;
+}
+.ad-chart-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  flex: 1;
+  gap: 4px;
+  height: 100%;
+}
+.ad-chart-bar {
+  border-radius: 4px 4px 0 0;
+  background: var(--color-accent);
+  width: 100%;
+  min-height: 4px;
+}
+.ad-chart-day {
+  font-size: 10px;
+  color: var(--color-muted);
+}
+/* На телефоне четыре числа в ряд не помещаются — становятся два на два. */
+@media (max-width: 520px) {
+  .ad-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Рекламная карточка в каталоге каналов (views/discoverChannels.js) */
+.discover-ad {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 10px 12px 0;
+  border: 1px solid var(--color-accent);
+  border-radius: 14px;
+  background: var(--color-accent-soft);
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.discover-ad-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Пометка обязательна и не прячется: объявление, неотличимое от обычного
+   канала, — это обман, а не удачный дизайн. */
+.discover-ad-label {
+  border-radius: 4px;
+  background: var(--color-accent);
+  padding: 2px 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fff;
+}
+.discover-ad-title {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.discover-ad-text {
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.discover-ad-go {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-accent);
+}
+
+/* Довесок к мобильным размерам: то, что нашлось при повторном обходе. */
+@media (max-width: 640px) {
+  /* Фильтры списка чатов («Все / Личные / Группы») были 27 px в высоту. */
+  .chat-tab {
+    min-height: 34px;
+  }
+  /* Кнопки на пузыре сообщения и аватар-кнопка отправителя: 27 и 30 px — по
+     таким на ходу не попасть. */
+  .bubble-action-btn {
+    min-width: 34px;
+    min-height: 34px;
+  }
+  .message-avatar-btn {
+    min-width: 34px;
+    min-height: 34px;
+  }
+}
+/* Попытка вылечить пузырь через min-width: min-content откачена: короткое «ок»
+   она чинила, но пузырь с длинной цитатой в ответе растягивался до 878 px при
+   экране 390 — замерено. Разница в семь пикселей у самых коротких сообщений
+   того не стоит. */

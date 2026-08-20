@@ -60,6 +60,20 @@ export const api = {
   // Истории одного человека — кнопка «Истории» в его профиле.
   getStoryViewers: (id) => req(`/api/stories/${id}/viewers`),
   getUserStories: (userId) => req(`/api/stories/user/${userId}`),
+  // Рекламный кабинет (server/routes/ads.js): кампании, бюджет в звёздах,
+  // статистика показов и кликов, модерация объявлений.
+  listAdCampaigns: () => req("/api/ads/campaigns"),
+  createAdCampaign: (data) => req("/api/ads/campaigns", { method: "POST", body: JSON.stringify(data) }),
+  updateAdCampaign: (id, patch) => req(`/api/ads/campaigns/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteAdCampaign: (id) => req(`/api/ads/campaigns/${id}`, { method: "DELETE" }),
+  topUpAdCampaign: (id, stars) => req(`/api/ads/campaigns/${id}/budget`, { method: "POST", body: JSON.stringify({ stars }) }),
+  setAdCampaignStatus: (id, status) => req(`/api/ads/campaigns/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
+  adCampaignStats: (id) => req(`/api/ads/campaigns/${id}/stats`),
+  serveAd: (placement) => req(`/api/ads/serve?placement=${encodeURIComponent(placement)}`),
+  clickAd: (id) => req(`/api/ads/click/${id}`, { method: "POST", body: "{}" }),
+  adsForReview: () => req("/api/ads/review"),
+  reviewAd: (id, approve, reason) => req(`/api/ads/review/${id}`, { method: "POST", body: JSON.stringify({ approve, reason }) }),
+
   getSafetyLabels: () => req("/api/labels"),
   adminCreateLabel: (label) => req("/api/admin/labels", { method: "POST", body: JSON.stringify(label) }),
   adminDeleteLabel: (id) => req(`/api/admin/labels/${encodeURIComponent(id)}`, { method: "DELETE" }),

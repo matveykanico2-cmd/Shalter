@@ -27,6 +27,7 @@ import { handlePurchaseResponse } from "../../lib/purchase.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
 import { openAdminUserPanel } from "../../components/adminUserPanel.js";
 import { PremiumStar, PremiumStarRow } from "../../components/premiumStar.js";
+import { AdCabinet } from "../../components/adCabinet.js";
 import { safetyLabelInfo } from "../../lib/safetyLabels.js";
 
 // `color` gives each row's icon its own chip background (Telegram's own
@@ -436,6 +437,12 @@ async function renderPremium(root) {
 }
 
 async function renderAds(root) {
+  // Кабинет кампаний (components/adCabinet.js) — над прежней формой: та
+  // осталась для объявления на своей странице профиля, а кабинет отвечает за
+  // платные показы в каталоге. Разные вещи, но живут в одном разделе, потому
+  // что человек ищет их в одном месте.
+  const cabinetSlot = el("div", { class: "ad-cabinet-slot" });
+
   let info = await api.getAdsInfo();
   let buying = false;
   let buyError = null;
@@ -547,7 +554,10 @@ async function renderAds(root) {
       : null;
     mount(
       root,
-      pageWrap("Реклама", "Кабинет рекламы — покажите объявление на своей публичной странице профиля", [
+      pageWrap("Реклама", "Кабинет для бизнеса: кампании с бюджетом в звёздах, показы в каталоге каналов и объявление на своей странице", [
+        cabinetSlot,
+        el("p", { class: "settings-section-title" }, "Объявление на своей странице"),
+
         el("div", { class: `premium-status-card ${info.isAdsActive ? "active" : ""}` }, [
           el("span", { class: "premium-status-icon", html: iconSvg("Zap", 26) }),
           el("div", {}, [
@@ -610,6 +620,9 @@ async function renderAds(root) {
     );
   }
   render();
+  // Кабинет рисует себя сам и сам ходит на сервер — экрану настроек
+  // остаётся только дать ему место.
+  AdCabinet(cabinetSlot);
 }
 
 async function renderBots(root) {

@@ -894,4 +894,50 @@ if (!db.prepare("SELECT COUNT(*) AS n FROM safety_labels").get().n) {
   ]) seed.run(...row, now);
 }
 
+// ── Рекламный кабинет для бизнеса (server/routes/ads.js) ───────────────────
+//
+// Раньше «реклама» была одним объявлением, привязанным к профилю: текст, ссылка
+// и всё. Кабинет — это уже несколько кампаний, у каждой свои деньги, место
+// показа, состояние и счётчики.
+//
+// Деньги — звёзды, та же валюта, что и в подарках: заводить вторую значило бы
+// объяснять человеку, чем «рекламные рубли» отличаются от звёзд у него же на
+// балансе. Списание идёт за показы (цена за тысячу), поэтому в кампании
+// хранится и остаток бюджета, и потраченное.
+//
+// status: draft | review | active | paused | rejected | finished
+// placement: profile (своя публичная страница) | discover (каталог каналов)
+db.exec(`
+CREATE TABLE IF NOT EXISTS ad_campaigns (
+  id TEXT PRIMARY KEY,
+  ownerId TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  text TEXT NOT NULL DEFAULT '',
+  url TEXT,
+  imageUrl TEXT,
+  placement TEXT NOT NULL DEFAULT 'discover',
+  status TEXT NOT NULL DEFAULT 'draft',
+  rejectReason TEXT,
+  budgetStars INTEGER NOT NULL DEFAULT 0,
+  spentStars INTEGER NOT NULL DEFAULT 0,
+  cpmStars INTEGER NOT NULL DEFAULT 20,
+  impressions INTEGER NOT NULL DEFAULT 0,
+  clicks INTEGER NOT NULL DEFAULT 0,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ad_campaigns_owner ON ad_campaigns(ownerId);
+CREATE INDEX IF NOT EXISTS idx_ad_campaigns_status ON ad_campaigns(status, placement);
+
+-- По дням, чтобы в кабинете был график, а не одно число за всё время.
+CREATE TABLE IF NOT EXISTS ad_daily (
+  campaignId TEXT NOT NULL REFERENCES ad_campaigns(id) ON DELETE CASCADE,
+  day TEXT NOT NULL,
+  impressions INTEGER NOT NULL DEFAULT 0,
+  clicks INTEGER NOT NULL DEFAULT 0,
+  spentStars INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (campaignId, day)
+);
+`);
+
 module.exports = db;
