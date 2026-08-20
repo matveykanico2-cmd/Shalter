@@ -17,9 +17,12 @@ const IMAGE_DURATION_MS = 5000;
 // палец, и это движение здесь единственное, которое человек делает не глядя.
 //
 // groups: [{ user, stories: [{id, kind, url, viewed, createdAt}] }].
-export function openStoryViewer(groups, groupIndex, meId, onChanged) {
+export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex = 0) {
   let gi = groupIndex;
-  let si = 0;
+  // Открываемся ровно на той истории, по которой нажали: из сетки в профиле
+  // выбирают конкретный кадр, и начинать всегда с первого значило бы
+  // «нажми на третий, посмотри первый».
+  let si = Math.max(0, Math.min(startIndex, (groups[groupIndex]?.stories.length ?? 1) - 1));
   let timer = null;
   let startedAt = 0;
   let remainingMs = IMAGE_DURATION_MS;

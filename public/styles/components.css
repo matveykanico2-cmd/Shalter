@@ -229,11 +229,20 @@
 .story-shell {
   position: relative;
   display: flex;
+  /* flex: none обязательна. Слой-подложка — флекс-контейнер, и карточку он
+     ужимал: при заданной ширине в 100% она всё равно получалась 365px вместо
+     390px, и справа оставалась чёрная щель с просвечивающим приложением.
+     Замерено в браузере — со снятым сжатием ровно 390. */
+  flex: none;
   flex-direction: column;
   overflow: hidden;
   border-radius: 12px;
   background: #000;
-  width: min(430px, 100vw);
+  /* Проценты, а не vw: единица vw считается вместе с полосой прокрутки, и
+     карточка получалась уже экрана — справа оставалась чёрная щель, сквозь
+     которую просвечивало приложение. Здесь родитель — слой во весь экран,
+     поэтому 100% это ровно ширина экрана. */
+  width: min(430px, 100%);
   height: min(92vh, 780px);
 }
 .story-progress-row {
@@ -247,7 +256,10 @@
 }
 .story-progress-bar {
   overflow: hidden;
-  flex: 1;
+  /* min-width, иначе на пятнадцатой истории полоски превращаются в пунктир
+     толщиной в пиксель и перестают что-либо показывать. */
+  flex: 1 1 0;
+  min-width: 4px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.3);
   height: 2.5px;
@@ -313,7 +325,10 @@
   flex: 1;
   min-height: 0;
   width: 100%;
-  object-fit: contain;
+  /* cover, а не contain: история — вертикальный кадр во весь экран, и чёрные
+     поля сверху и снизу выглядят как незагрузившаяся картинка. Так же ведёт
+     себя Telegram: кадр заполняет экран, лишнее подрезается. */
+  object-fit: cover;
   background: #000;
 }
 .story-tap-zones {
@@ -447,7 +462,7 @@
 @media (max-width: 520px) {
   .story-shell {
     border-radius: 0;
-    width: 100vw;
+    width: 100%;
     height: 100dvh;
   }
   .story-nav {
@@ -3699,12 +3714,26 @@
   justify-content: center;
   gap: 6px;
 }
+/* Кнопка со значком и подписью в один ряд.
+   Раньше здесь было просто text-align: center, а значок лежит внутри <span> с
+   <svg> — svg в этом проекте display:block, поэтому значок уезжал на свою
+   строку, а подпись оставалась на следующей: в профиле «Отправить подарок» и
+   «Пожаловаться» выглядели разорванными пополам. */
 .profile-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
   border-radius: 8px;
   padding: 10px;
   text-align: center;
   font-size: 14px;
+}
+.profile-action-btn > span {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 .profile-action-btn:hover {
   background: var(--color-surface-alt);
@@ -9193,4 +9222,90 @@
 .poll-attachment {
   width: min(260px, 100%);
   max-width: 100%;
+}
+
+/* ── Истории в профиле (components/profileDialog.js) ─────────────────────── */
+.profile-stories {
+  margin: 14px 0 4px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
+}
+.profile-stories-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* Кружок с обводкой — тот же язык, что и в ленте наверху списка чатов:
+   непросмотренное обведено ярко, просмотренное — серым. */
+.profile-stories-circle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  width: 62px;
+  height: 62px;
+  cursor: pointer;
+}
+.profile-stories-circle .story-avatar-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+.profile-stories-thumb {
+  border-radius: 50%;
+  width: 54px;
+  height: 54px;
+  object-fit: cover;
+  background: var(--color-surface-alt);
+}
+.profile-stories-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.profile-stories-sub {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--color-muted);
+}
+/* Сетка плиток: вертикальные кадры 9:16, как сама история. Три в ряд на узком
+   экране и столько же в диалоге — плитка должна оставаться узнаваемой, а не
+   превращаться в марку. */
+.profile-stories-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+  margin-top: 12px;
+}
+.profile-story-cell {
+  position: relative;
+  overflow: hidden;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  padding: 0;
+  aspect-ratio: 9 / 16;
+  cursor: pointer;
+}
+.profile-story-cell-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* Просмотренные приглушены — по сетке сразу видно, что осталось. */
+.profile-story-cell.viewed .profile-story-cell-media {
+  opacity: 0.55;
+}
+.profile-story-cell-play {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  display: inline-flex;
+  color: #fff;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
 }

@@ -34,6 +34,15 @@ const TABS = [
 // one place server/routes/users.js's privacy-aware GET actually gets used.
 // Rendered as a right-docked slide-in panel (like Telegram's own profile/
 // channel-info view) rather than a centered modal.
+// «1 история», «2 истории», «5 историй» — иначе под кружком стоит «5 история».
+function storyWord(n) {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return "история";
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return "истории";
+  return "историй";
+}
+
 export async function openProfileDialog(userId) {
   const me = getState().user;
 
@@ -287,21 +296,6 @@ export async function openProfileDialog(userId) {
         : null,
       el("div", { class: "profile-actions" }, [
         el("button", { class: "btn-accent", onclick: startChat }, [el("span", { html: iconSvg("Send", 16) }), " Написать"]),
-        // Истории человека — здесь, а не только кружком в ленте наверху списка
-        // чатов. Кружок живёт до первого обновления и до конца суток; профиль —
-        // то место, куда идут, когда хотят посмотреть именно этого человека.
-        // Кнопка появляется, только если истории есть и их видно смотрящему
-        // (сервер сам решает — /api/stories/user/:id).
-        storiesGroup
-          ? el(
-              "button",
-              {
-                class: "profile-action-btn",
-                onclick: () => openStoryViewer([storiesGroup], 0, me.id, () => loadStories()),
-              },
-              [el("span", { html: iconSvg("Image", 15) }), ` Истории — ${storiesGroup.stories.length}`]
-            )
-          : null,
         // Подарок отправляют из профиля того, кому дарят, — там же, где на него
         // и смотрят. Раньше до магазина надо было идти через меню чата, зная,
         // что он там есть.
@@ -323,6 +317,55 @@ export async function openProfileDialog(userId) {
           "Пожаловаться"
         ),
       ]),
+      // Истории человека: сверху кружок с обводкой — как в ленте, — а сразу под
+      // ним все его истории плитками. Кружок открывает с первой, плитка — с
+      // той, по которой нажали.
+      storiesGroup
+        ? el("div", { class: "profile-stories" }, [
+            el("div", { class: "profile-stories-head" }, [
+              el(
+                "button",
+                {
+                  class: "profile-stories-circle",
+                  title: "Смотреть истории",
+                  onclick: () => openStoryViewer([storiesGroup], 0, me.id, () => loadStories()),
+                },
+                [
+                  el("span", {
+                    class: `story-avatar-ring ${storiesGroup.stories.some((st) => !st.viewed) ? "unseen" : "seen"}`,
+                  }),
+                  storiesGroup.stories[0].kind === "video"
+                    ? el("video", { class: "profile-stories-thumb", src: storiesGroup.stories[0].url, muted: true })
+                    : el("img", { class: "profile-stories-thumb", src: storiesGroup.stories[0].url, alt: "" }),
+                ]
+              ),
+              el("div", {}, [
+                el("p", { class: "profile-stories-title" }, "Истории"),
+                el("p", { class: "profile-stories-sub" }, `${storiesGroup.stories.length} ${storyWord(storiesGroup.stories.length)}`),
+              ]),
+            ]),
+            el(
+              "div",
+              { class: "profile-stories-grid" },
+              storiesGroup.stories.map((st, i) =>
+                el(
+                  "button",
+                  {
+                    class: `profile-story-cell ${st.viewed ? "viewed" : ""}`,
+                    onclick: () => openStoryViewer([storiesGroup], 0, me.id, () => loadStories(), i),
+                  },
+                  [
+                    st.kind === "video"
+                      ? el("video", { class: "profile-story-cell-media", src: st.url, muted: true })
+                      : el("img", { class: "profile-story-cell-media", src: st.url, alt: "" }),
+                    st.kind === "video" ? el("span", { class: "profile-story-cell-play", html: iconSvg("Play", 14) }) : null,
+                  ]
+                )
+              )
+            ),
+          ])
+        : null,
+
       // Admin tools, on the profile of whoever you're looking at rather than
       // only on a separate Settings screen where you'd have to re-find the
       // person by handle first. Gated on me.isDeveloper for the UI; every
