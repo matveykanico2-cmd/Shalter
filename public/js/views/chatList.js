@@ -17,6 +17,7 @@ import { navigate } from "../router.js";
 import { onWsMessage } from "../lib/wsClient.js";
 import { noteMessageInChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache } from "../lib/localCache.js";
+import { openSidebarMenu } from "../components/sidebarMenu.js";
 
 async function openNewChatMenu(e) {
   const rect = e.currentTarget.getBoundingClientRect();
@@ -137,8 +138,23 @@ export function ChatListPane() {
   // runs on every poll/WS event, and re-creating the stories bar that often
   // would re-fetch stories constantly and drop any in-progress UI state in it.
   const listSlot = el("div", { class: "chat-list-inner" });
-  container.append(StoriesBar(), listSlot);
+  // Порядок как в Telegram: поиск наверху, истории под ним, дальше сам список.
+  // Истории монтируются один раз, вне цикла renderInto: он перерисовывается на
+  // каждое событие сокета, и пересборка ленты историй так часто означала бы
+  // постоянные запросы за ними и потерю всего, что в ней успели открыть.
+  container.append(SidebarHeader(listSlot), StoriesBar(), listSlot);
   renderInto(listSlot);
+  // Круглая кнопка «написать» в нижнем правом углу панели, поверх списка. В
+  // шапке на её месте раньше стоял маленький «+», который делил строку с полем
+  // поиска и от этого был тесным на телефоне.
+  container.appendChild(
+    el("button", {
+      class: "sidebar-fab",
+      title: "Новый чат",
+      html: iconSvg("Edit", 22),
+      onclick: (e) => openNewChatMenu(e),
+    })
+  );
 
   const unsubState = subscribe(() => renderInto(listSlot));
   window.addEventListener("app:navigate", () => renderInto(listSlot));
@@ -276,19 +292,33 @@ let searchInputEl = null;
 const bodySlot = el("div", { class: "chat-list-body" });
 
 function renderInto(container) {
-  const { chats, folders, user } = getState();
-  const currentId = (window.location.pathname.match(/^\/chat\/([^/]+)/) || [])[1];
-
   clear(container);
+  container.appendChild(bodySlot);
+  renderResults(container);
+}
 
-  const searchBar = el("div", { class: "chat-search-bar" }, [
+// Шапка боковой панели: «☰» и поле поиска. Собирается один раз за жизнь
+// колонки, а не на каждую перерисовку списка, — так набранное в поиске
+// переживает и приход нового сообщения, и смену маршрута.
+function SidebarHeader(listSlot) {
+  return el("div", { class: "chat-search-bar" }, [
+    // Гамбургер слева от поиска — вход во всё остальное приложение (контакты,
+    // звонки, архив, аккаунты, настройки). До этого те же переходы стояли
+    // рельсом иконок вдоль края окна и занимали отдельную колонку.
+    el("button", {
+      class: "sidebar-menu-btn",
+      title: "Меню",
+      html: iconSvg("Menu", 20),
+      onclick: (e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        openSidebarMenu({ x: rect.left, y: rect.bottom + 6 });
+      },
+    }),
     el("div", { class: "chat-search-input-wrap" }, [
       el("span", { class: "chat-search-icon", html: iconSvg("Search", 16) }),
-      // Built once and reused by every renderInto() below — never rebuilt from
-      // `query`. This is the same bug the contacts search had: renderInto()
-      // clears the whole column, so the debounced search that fires after the
-      // first character replaced the focused <input> with a fresh one, and
-      // typing died after one letter.
+      // Built once and reused: renderInto() clears the column, so a field
+      // rebuilt from `query` would be replaced mid-typing by the debounced
+      // search and lose the caret after the first character.
       (searchInputEl ??= el("input", {
         class: "chat-search-input",
         placeholder: "Поиск: чаты, люди, боты, каналы",
@@ -296,11 +326,11 @@ function renderInto(container) {
           query = e.target.value;
           if (!query.trim()) {
             results = null;
-            renderResults(container);
+            renderResults(listSlot);
             return;
           }
-          clearTimeout(container._searchDebounce);
-          container._searchDebounce = setTimeout(async () => {
+          clearTimeout(listSlot._searchDebounce);
+          listSlot._searchDebounce = setTimeout(async () => {
             const typed = query.trim();
             const r = await api.search(typed);
             // The chat rows come from local state so they render with the same
@@ -308,32 +338,21 @@ function renderInto(container) {
             // rest is whatever the server matched.
             const matchedIds = new Set(r.chats.map((c) => c.id));
             results = {
-              chats: chats.filter((c) => matchedIds.has(c.id)),
+              chats: getState().chats.filter((c) => matchedIds.has(c.id)),
               channels: r.channels ?? [],
               users: r.users ?? [],
               bots: r.bots ?? [],
               messages: r.messages ?? [],
             };
             // A late response from a shorter query must not replace the results
-            // for what's in the box now.
-            // Only the results below are redrawn — the field the person is
-            // typing into stays exactly where it is.
-            if (query.trim() === typed) renderResults(container);
+            // for what's in the box now. Only the results below are redrawn —
+            // the field the person is typing into stays exactly where it is.
+            if (query.trim() === typed) renderResults(listSlot);
           }, 150);
         },
       })),
     ]),
-    el("button", {
-      class: "chat-new-channel-btn",
-      title: "Новый чат",
-      html: iconSvg("Plus", 16),
-      onclick: (e) => openNewChatMenu(e),
-    }),
   ]);
-  searchInputEl.value = query;
-  container.appendChild(searchBar);
-  container.appendChild(bodySlot);
-  renderResults(container);
 }
 
 // Everything below the search field. Split out so that typing only redraws the

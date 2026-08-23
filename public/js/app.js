@@ -18,6 +18,7 @@ import { showPasscodeLockScreen } from "./components/passcodeLockScreen.js";
 import { showPasswordLockScreen } from "./components/passwordLockScreen.js";
 import { initKeyboardShortcuts } from "./lib/keyboardShortcuts.js";
 import { WaveBearMascot } from "./components/mascot.js";
+import { paintWallpaper } from "./lib/wallpapers.js";
 
 const root = document.getElementById("view-root");
 
@@ -137,11 +138,38 @@ async function boot() {
 
   const shell = el("div", { class: "shell" });
   const listCol = el("div", { class: "shell-list-col" });
+  // Боковая панель — стопка из двух экранов, а не один список чатов: настройки
+  // в ней не отдельная страница на всю ширину, а второй слой поверх списка, как
+  // в Telegram. Оба живут в DOM одновременно, показывается тот, чей маршрут
+  // открыт (см. .shell.settings-open в components.css): список чатов при этом
+  // не пересобирается и не теряет ни прокрутку, ни свои подписки, а переписка
+  // справа остаётся открытой всё время, пока человек ходит по настройкам.
+  const sidebar = el("div", { class: "shell-sidebar" });
+  const sidebarSlot = el("div", { class: "shell-sidebar-panel" });
   const mainSlot = el("div", { class: "shell-main-col" });
   const callBubbleSlot = el("div", { class: "call-bubble-slot" });
   mount(root, shell);
   shell.append(listCol, mainSlot, callBubbleSlot);
-  listCol.append(NavRail(), ChatListPane());
+  sidebar.append(ChatListPane(), sidebarSlot);
+  listCol.append(NavRail(), sidebar);
+
+  // Заглушка «выберите чат» — она же то, что видно справа, когда настройки
+  // открыли с чистого листа (переход прямо по адресу /settings, перезагрузка).
+  //
+  // С тем же фоном, что и открытая переписка: без него на широком мониторе
+  // добрые две трети экрана оставались ровным тёмным полем, и приложение
+  // выглядело недогруженным, а не пустым. Фон делает эту часть окна такой же
+  // частью приложения, какой она станет, когда чат откроют.
+  function emptyChatPlaceholder() {
+    const s = getState().settings;
+    const box = el("div", { class: "empty-chat message-list" }, [
+      WaveBearMascot(),
+      el("p", { class: "empty-chat-title" }, "Выберите чат"),
+      el("p", { class: "empty-hint" }, "Или начните новый — найдите человека во вкладке «Контакты»."),
+    ]);
+    paintWallpaper(box, { id: s?.chatWallpaper ?? "default", image: s?.chatWallpaperImage });
+    return box;
+  }
 
   function renderCallBubble() {
     clear(callBubbleSlot);
@@ -163,6 +191,11 @@ async function boot() {
   subscribeCall(renderCallBubble);
   renderCallBubble();
 
+  // Настройки рисуются в боковую панель, а не в правую колонку, поэтому им
+  // нужен не "chat-open", а свой признак: на телефоне видимой должна остаться
+  // именно боковая панель, а не переписка под ней.
+  const isSidebarRoute = (p) => p === "/settings" || p.startsWith("/settings/");
+
   let prevPath = path;
   window.addEventListener("app:navigate", ({ detail }) => {
     // Any route other than the bare chat list renders into mainSlot — on
@@ -170,7 +203,9 @@ async function boot() {
     // components.css), so every one of those routes needs it, not just
     // /chat/ and /call/. Without this, Contacts/Calls/Archive/Settings were
     // rendering into a display:none column and looked like dead nav buttons.
-    const fullScreen = detail.path !== "/";
+    const inSidebar = isSidebarRoute(detail.path);
+    shell.classList.toggle("settings-open", inSidebar);
+    const fullScreen = detail.path !== "/" && !inSidebar;
     shell.classList.toggle("chat-open", fullScreen);
     // Leaving the call screen without explicitly minimizing (nav-rail click,
     // browser back) still needs the call to keep running in the background —
@@ -181,15 +216,12 @@ async function boot() {
     }
     prevPath = detail.path;
   });
-  shell.classList.toggle("chat-open", path !== "/");
+  shell.classList.toggle("settings-open", isSidebarRoute(path));
+  shell.classList.toggle("chat-open", path !== "/" && !isSidebarRoute(path));
 
   route("/", () => {
     withCleanup(mainSlot);
-    mount(mainSlot, el("div", { class: "empty-chat" }, [
-      WaveBearMascot(),
-      el("p", { class: "empty-chat-title" }, "Выберите чат"),
-      el("p", { class: "empty-hint" }, "Или начните новый — найдите человека во вкладке «Контакты»."),
-    ]));
+    mount(mainSlot, emptyChatPlaceholder());
   });
   route("/chat/:id", async (params) => {
     withCleanup(mainSlot);
@@ -320,16 +352,17 @@ async function boot() {
     const { ArchiveView } = await import("./views/archive.js");
     await ArchiveView(mainSlot);
   });
-  route("/settings", async () => {
-    withCleanup(mainSlot);
+  // Настройки — единственный маршрут, который не трогает правую колонку: он
+  // рисует в боковую панель поверх списка чатов, а открытая переписка так и
+  // остаётся справа. Если справа ещё ничего нет (зашли прямо по адресу), туда
+  // кладётся обычная заглушка, чтобы не зияла пустота.
+  async function openSettings(page) {
+    if (!mainSlot.firstChild) mount(mainSlot, emptyChatPlaceholder());
     const { SettingsView } = await import("./views/settings/index.js");
-    await SettingsView(mainSlot, "");
-  });
-  route("/settings/:page", async (params) => {
-    withCleanup(mainSlot);
-    const { SettingsView } = await import("./views/settings/index.js");
-    await SettingsView(mainSlot, params.page);
-  });
+    await SettingsView(sidebarSlot, page);
+  }
+  route("/settings", () => openSettings(""));
+  route("/settings/:page", (params) => openSettings(params.page));
   notFound(() => navigate("/", { replace: true }));
 
   // /@имя — то, как ссылку на бота или канал пишут и вставляют люди. Роутер

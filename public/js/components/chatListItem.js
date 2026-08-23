@@ -95,6 +95,9 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave })
     },
     [
       Avatar({
+        // 52px, а не 44: строка списка стала выше — имя, превью и время в ней
+        // читаются с одного взгляда, и аватар под них подогнан, как в Telegram.
+        size: 52,
         name: chat.otherUser?.name ?? title,
         color: chat.otherUser?.avatarColor ?? chat.avatarColor,
         image: chat.otherUser?.avatarImage ?? chat.avatarImage,

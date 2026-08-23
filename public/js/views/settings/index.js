@@ -29,115 +29,133 @@ import { openAdminUserPanel } from "../../components/adminUserPanel.js";
 import { PremiumStar, PremiumStarRow } from "../../components/premiumStar.js";
 import { AdCabinet } from "../../components/adCabinet.js";
 import { safetyLabelInfo } from "../../lib/safetyLabels.js";
+import { openDropdownMenu } from "../../components/dropdownMenu.js";
 
-// `color` gives each row's icon its own chip background (Telegram's own
-// settings menu — every row's icon sits in a small colored square, not a
-// flat muted icon) — fixed hex rather than a theme var since these chips
-// stay the same color regardless of light/dark theme, same as Telegram's own.
+// Разделы настроек, разложенные по карточкам так же, как в Telegram: сначала
+// то, что настраивают каждый день, потом платное и дополнительное, потом
+// инструменты администратора и в конце помощь. Значки — одноцветные, серые:
+// цветные плитки читаются как ярлыки приложений и в узкой колонке шумят.
 const SECTIONS = [
-  { id: "", label: "Профиль" },
-  { id: "premium", label: "Premium и друзья", icon: "Star", color: "#f0a83c" },
-  { id: "stars", label: "Звёзды", icon: "Zap", color: "#e0b33b" },
-  { id: "ads", label: "Реклама", icon: "Zap", color: "#ef6f6f" },
-  { id: "bots", label: "Боты", icon: "Code", color: "#3ec2c2" },
-  { id: "appearance", label: "Внешний вид", icon: "Settings", color: "#8774e1" },
-  { id: "notifications", label: "Уведомления", icon: "Bell", color: "#f2637f" },
-  { id: "privacy", label: "Конфиденциальность", icon: "Lock", color: "#5b8def" },
-  { id: "devices", label: "Устройства", icon: "Phone", color: "#4cc98a" },
-  { id: "accounts", label: "Аккаунты", icon: "Accounts", color: "#c17fe0" },
-  { id: "folders", label: "Папки", icon: "Archive", color: "#f2b33b" },
-  { id: "data", label: "Данные и память", icon: "Download", color: "#58c4dc" },
-  { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", color: "#8a8f98" },
-  { id: "moderation", label: "Модерация", icon: "Shield", color: "#c6403b", adminOnly: true },
-  { id: "server", label: "Состояние сервера", icon: "BarChart", color: "#4c8dde", adminOnly: true },
-  { id: "usernames", label: "Юзернеймы: аукцион и рынок", icon: "Star", color: "#5b8def" },
-  { id: "giftshop", label: "Каталог подарков", icon: "Gift", color: "#e0a84a", adminOnly: true },
-  { id: "donations", label: "DonationAlerts", icon: "Zap", color: "#3ec2c2", adminOnly: true },
-  { id: "legal", label: "Запросы органов", icon: "Shield", color: "#5b6370", adminOnly: true },
+  { id: "profile", label: "Изменить профиль", icon: "Edit" },
+  { id: "notifications", label: "Уведомления", icon: "Bell", group: "main" },
+  { id: "data", label: "Данные и память", icon: "Download", group: "main" },
+  { id: "privacy", label: "Конфиденциальность", icon: "Lock", group: "main" },
+  { id: "appearance", label: "Внешний вид", icon: "Settings", group: "main" },
+  { id: "folders", label: "Папки с чатами", icon: "Archive", group: "main" },
+  { id: "devices", label: "Устройства", icon: "Phone", group: "main" },
+  { id: "accounts", label: "Аккаунты", icon: "Accounts", group: "main" },
+  { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", group: "main" },
+  { id: "premium", label: "Premium и друзья", icon: "Star", group: "extra" },
+  { id: "stars", label: "Звёзды", icon: "Zap", group: "extra" },
+  { id: "usernames", label: "Аукцион юзернеймов", icon: "Globe", group: "extra" },
+  { id: "ads", label: "Реклама", icon: "BarChart", group: "extra" },
+  { id: "bots", label: "Боты", icon: "Code", group: "extra" },
+  { id: "moderation", label: "Модерация", icon: "Shield", group: "admin", adminOnly: true },
+  { id: "server", label: "Состояние сервера", icon: "BarChart", group: "admin", adminOnly: true },
+  { id: "giftshop", label: "Каталог подарков", icon: "Gift", group: "admin", adminOnly: true },
+  { id: "donations", label: "DonationAlerts", icon: "Zap", group: "admin", adminOnly: true },
+  { id: "legal", label: "Запросы органов", icon: "Shield", group: "admin", adminOnly: true },
 ];
+
+// Заголовок панели живёт в её шапке, а не в теле страницы, — но пишут его сами
+// разделы, через pageWrap() ниже. Ссылка на его узел держится здесь, чтобы не
+// пришлось править два десятка обращений к pageWrap в каждом разделе.
+let panelTitleEl = null;
+function setPanelTitle(title) {
+  if (panelTitleEl && title) panelTitleEl.textContent = title;
+}
+
+// Строка меню: значок, подпись, иногда значение справа. Ссылкой, когда ведёт на
+// свой раздел, — тогда работает и «открыть в новой вкладке», и средняя кнопка.
+function menuRow({ icon, label, value, href, onClick, danger }) {
+  const body = [
+    icon ? el("span", { class: "settings-row-icon", html: iconSvg(icon, 22) }) : null,
+    el("span", { class: "settings-row-label" }, label),
+    value != null && value !== "" ? el("span", { class: "settings-row-value" }, String(value)) : null,
+  ];
+  const cls = `settings-row${danger ? " danger" : ""}`;
+  return href
+    ? el("a", { class: cls, href, "data-route": "1" }, body)
+    : el("button", { class: cls, onclick: onClick }, body);
+}
+
+// Телефон и юзернейм в карточке под аватаром: значение крупно, подпись мелко
+// под ним. Нажатие копирует — ровно то, зачем в эту карточку и заходят.
+function copyRow({ icon, value, label }) {
+  const row = el("button", { class: "settings-row settings-row-copy" }, [
+    el("span", { class: "settings-row-icon", html: iconSvg(icon, 22) }),
+    el("span", { class: "settings-row-stack" }, [
+      el("span", { class: "settings-row-value-big" }, value),
+      el("span", { class: "settings-row-sublabel" }, label),
+    ]),
+  ]);
+  row.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      row.classList.add("copied");
+      setTimeout(() => row.classList.remove("copied"), 1200);
+    } catch {
+      // Буфер обмена может быть закрыт настройками браузера — молча ничего.
+    }
+  });
+  return row;
+}
 
 export async function SettingsView(root, page) {
   const section = page ?? "";
   const me = getState().user;
-  const shell = el("div", { class: "settings-view" });
-  const nav = el("div", { class: "settings-nav" }, [
-    el("div", { class: "settings-nav-topbar" }, [
-      el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
-      el("span", { class: "settings-nav-topbar-title" }, "Настройки"),
-      me.username
-        ? el("button", {
-            class: "icon-btn settings-nav-topbar-qr",
-            title: "QR-код профиля",
-            html: iconSvg("Qrcode", 18),
-            onclick: () => openProfileQrDialog(me),
-          })
-        : null,
-    ]),
-    el(
-      "a",
-      {
-        href: "/settings",
-        "data-route": "1",
-        class: `settings-nav-profile ${section === "" ? "active" : ""}`,
-      },
-      [
-        Avatar({ name: me.name || "?", color: me.avatarColor, image: me.avatarImage, size: 48, isPremium: me.isPremium, isDeveloper: me.isDeveloper }),
-        el("div", { class: "settings-nav-profile-info" }, [
-          el("p", { class: "settings-nav-profile-name" }, me.name || "Профиль"),
-          el("p", { class: "settings-nav-profile-sub" }, me.online ? "в сети" : "показать профиль"),
-        ]),
-      ]
-    ),
-    el(
-      "div",
-      { class: "settings-nav-list" },
-      [
-        ...SECTIONS.filter((s) => s.id && (!s.adminOnly || me.isDeveloper)).map((s) =>
-          el(
-            "a",
-            {
-              href: `/settings/${s.id}`,
-              "data-route": "1",
-              class: `settings-nav-item ${section === s.id ? "active" : ""}`,
+  const known = SECTIONS.find((s) => s.id === section);
+
+  const backTo = section === "" ? "/" : "/settings";
+  panelTitleEl = el("h2", { class: "settings-header-title" }, section === "" ? "Настройки" : known?.label ?? "Настройки");
+
+  const header = el("div", { class: "settings-header" }, [
+    el("button", {
+      class: "settings-header-back",
+      title: "Назад",
+      html: iconSvg("ChevronLeft", 22),
+      onclick: () => navigate(backTo),
+    }),
+    panelTitleEl,
+    section === ""
+      ? el("div", { class: "settings-header-actions" }, [
+          me.username
+            ? el("button", {
+                class: "icon-btn",
+                title: "QR-код профиля",
+                html: iconSvg("Qrcode", 19),
+                onclick: () => openProfileQrDialog(me),
+              })
+            : null,
+          el("button", {
+            class: "icon-btn",
+            title: "Изменить профиль",
+            html: iconSvg("Edit", 19),
+            onclick: () => navigate("/settings/profile"),
+          }),
+          el("button", {
+            class: "icon-btn",
+            title: "Ещё",
+            html: iconSvg("More", 19),
+            onclick: (e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              openDropdownMenu({ x: r.left - 140, y: r.bottom + 6 }, [
+                { icon: "Edit", label: "Изменить профиль", onClick: () => navigate("/settings/profile") },
+                { icon: "Accounts", label: "Аккаунты и выход", onClick: () => navigate("/settings/accounts") },
+                { icon: "Info", label: "Поддержка — Hugo", onClick: openSupport },
+              ]);
             },
-            [
-              el("span", { class: "settings-nav-icon", style: { background: s.color }, html: iconSvg(s.icon, 16) }),
-              el("span", { class: "settings-nav-label" }, s.label),
-            ]
-          )
-        ),
-        // The download page is a standalone static page, not an SPA route, so
-        // this is a plain link with no data-route — the router must let the
-        // browser navigate rather than trying to resolve it as a view. It sits
-        // in the same list as the rest so that on a phone, where this nav is a
-        // horizontal strip, it rides along instead of forming a second row.
-        el("button", {
-          class: "settings-nav-item",
-          onclick: async () => {
-            try {
-              const { chatId } = await api.openSupportChat();
-              navigate(`/chat/${chatId}`);
-            } catch (err) {
-              alert(err.message || "Не удалось открыть поддержку");
-            }
-          },
-        }, [
-          el("span", { class: "settings-nav-icon", style: { background: "#1f9d63" }, html: iconSvg("Info", 16) }),
-          el("span", { class: "settings-nav-label" }, "Поддержка — Hugo"),
-        ]),
-        el("a", { href: "/download", class: "settings-nav-item settings-nav-external" }, [
-          el("span", { class: "settings-nav-icon", style: { background: "#4cc98a" }, html: iconSvg("Download", 16) }),
-          el("span", { class: "settings-nav-label" }, "Скачать приложение"),
-        ]),
-      ]
-    ),
+          }),
+        ])
+      : null,
   ]);
+
   const contentSlot = el("div", { class: "settings-content" });
-  shell.append(nav, contentSlot);
-  mount(root, shell);
+  mount(root, el("div", { class: "settings-panel" }, [header, contentSlot]));
 
   const renderers = {
-    "": renderProfile,
+    "": renderMenu,
+    profile: renderProfile,
     premium: renderPremium,
     ads: renderAds,
     bots: renderBots,
@@ -157,12 +175,86 @@ export async function SettingsView(root, page) {
     giftshop: renderGiftShop,
     usernames: renderUsernames,
   };
-  await (renderers[section] ?? renderProfile)(contentSlot);
+  await (renderers[section] ?? renderMenu)(contentSlot);
+}
+
+async function openSupport() {
+  try {
+    const { chatId } = await api.openSupportChat();
+    navigate(`/chat/${chatId}`);
+  } catch (err) {
+    alert(err.message || "Не удалось открыть поддержку");
+  }
+}
+
+// Корневая страница настроек: аватар, карточка с телефоном и юзернеймом и
+// карточки разделов. Своего заголовка в теле нет — он стоит в шапке панели.
+function renderMenu(root) {
+  const me = getState().user;
+  const accounts = getState().accounts ?? [];
+  const groupOf = (g) => SECTIONS.filter((s) => s.group === g && (!s.adminOnly || me.isDeveloper));
+
+  const rowFor = (s) =>
+    menuRow({
+      icon: s.icon,
+      label: s.label,
+      href: `/settings/${s.id}`,
+      value: s.id === "accounts" && accounts.length > 1 ? accounts.length : null,
+    });
+
+  const admin = groupOf("admin");
+
+  mount(
+    root,
+    el("div", { class: "settings-page" }, [
+      el("div", { class: "settings-profile-header" }, [
+        el("button", {
+          class: "settings-avatar-btn",
+          onclick: () => (me.avatarImage ? openAvatarViewer(me) : navigate("/settings/profile")),
+        }, [
+          Avatar({ name: me.name || "?", color: me.avatarColor, image: me.avatarImage, size: 112, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
+        ]),
+        el("p", { class: "settings-profile-name" }, [me.name || "Профиль", me.isPremium ? PremiumStar({ size: 18, seed: me.id, title: "Shalter Premium" }) : null]),
+        el("p", { class: "settings-profile-sub online" }, "в сети"),
+      ]),
+      el("div", { class: "settings-section-group" }, [
+        el("div", { class: "settings-section rows" }, [
+          me.phone ? copyRow({ icon: "Phone", value: me.phone, label: "Телефон" }) : null,
+          me.username
+            ? copyRow({ icon: "At", value: `@${me.username}`, label: "Юзернейм" })
+            : menuRow({ icon: "At", label: "Добавить юзернейм", href: "/settings/profile" }),
+        ]),
+      ]),
+      el("div", { class: "settings-section-group" }, [
+        el("div", { class: "settings-section rows" }, groupOf("main").map(rowFor)),
+      ]),
+      el("div", { class: "settings-section-group" }, [
+        el("div", { class: "settings-section rows" }, groupOf("extra").map(rowFor)),
+      ]),
+      admin.length
+        ? el("div", { class: "settings-section-group" }, [
+            el("p", { class: "settings-section-title" }, "Администрирование"),
+            el("div", { class: "settings-section rows" }, admin.map(rowFor)),
+          ])
+        : null,
+      el("div", { class: "settings-section-group" }, [
+        el("div", { class: "settings-section rows" }, [
+          menuRow({ icon: "Info", label: "Поддержка — Hugo", onClick: openSupport }),
+          // Страница загрузок — обычная статическая, не маршрут приложения,
+          // поэтому ссылка без data-route: пусть браузер уходит туда сам.
+          el("a", { class: "settings-row", href: "/download" }, [
+            el("span", { class: "settings-row-icon", html: iconSvg("Download", 22) }),
+            el("span", { class: "settings-row-label" }, "Скачать приложение"),
+          ]),
+        ]),
+      ]),
+    ])
+  );
 }
 
 function pageWrap(title, subtitle, children) {
+  setPanelTitle(title);
   return el("div", { class: "settings-page" }, [
-    el("p", { class: "settings-page-title" }, title),
     subtitle ? el("p", { class: "settings-page-subtitle" }, subtitle) : null,
     ...children,
   ]);

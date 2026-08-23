@@ -1,6 +1,11 @@
 // Vanilla-JS port of components/icons.tsx: same paths, plain SVG markup strings.
 const PATHS = {
   Search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  // Гамбургер боковой панели и «@» в строке юзернейма — обе появились вместе с
+  // телеграмоподобной боковой панелью: меню приложения уехало под гамбургер, а
+  // юзернейм в настройках стоит строкой со своим значком, как телефон рядом.
+  Menu: '<path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/>',
+  At: '<circle cx="12" cy="12" r="4"/><path d="M16 8v5a2.5 2.5 0 0 0 5 0v-1a9 9 0 1 0-3.5 7.1"/>',
   // An actual thumbtack. This used to be the same five-pointed star as `Star`
   // below, so every "закреплено" marker in the app — the pinned-message bar, a
   // pinned chat's badge, the message menu — was drawn as a star. Harmless when
