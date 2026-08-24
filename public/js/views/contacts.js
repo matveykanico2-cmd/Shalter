@@ -382,6 +382,15 @@ export async function ContactsView(root) {
       listEl.appendChild(el("p", { class: "empty-hint" }, `По запросу «${filter.trim()}» никого нет`));
       return;
     }
+    // Заголовок с числом — как во вкладке «Звонки» и в разделе ботов: сколько
+    // человек в списке, видно сразу, а при поиске — сколько из них нашлось.
+    listEl.appendChild(
+      el(
+        "p",
+        { class: "list-section-label" },
+        filter.trim() ? `Найдено — ${sorted.length}` : `Контакты — ${sorted.length}`
+      )
+    );
     listEl.append(
       ...sorted.map((c) => {
         const user = c.user;

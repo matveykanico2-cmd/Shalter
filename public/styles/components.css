@@ -5422,12 +5422,30 @@
   flex: none;
   border: 1px solid var(--color-border);
 }
+/* Выпадающий список со своей стрелкой.
+   С нативным видом Chrome рисует стрелку сам и сам же назначает правое поле —
+   он ставил туда 2px независимо от того, что написано в padding, и последняя
+   буква длинного варианта («Мои контакты») оказывалась прямо под стрелкой.
+   Поэтому вид отключён, стрелка нарисована фоном, а место под неё отведено
+   честным padding-right, который уже никто не переопределит.
+   Цвет стрелки — один серый на обе темы: в фоновой картинке currentColor не
+   работает, а заводить ради галочки два набора правил (светлая/тёмная/системная)
+   ради двенадцати пикселей не стоит — этот тон читается и там, и там. */
 .settings-select {
+  appearance: none;
+  -webkit-appearance: none;
   border-radius: 8px;
   border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  padding: 6px 10px;
+  background-color: var(--color-surface);
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237b8496' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  padding: 6px 28px 6px 10px;
   font-size: 14px;
+  cursor: pointer;
+}
+.settings-select:hover {
+  border-color: var(--color-accent);
 }
 /* В карточке настроек выпадающий список — это правое значение строки, а не
    поле ввода: рамка и подложка на нём отнимали у подписи половину узкой
@@ -5437,15 +5455,22 @@
   max-width: 45%;
   border: none;
   border-radius: 6px;
-  background: transparent;
-  padding: 4px 2px 4px 6px;
+  /* Подложки нет, но стрелка нужна — поэтому background-image, а не background:
+     transparent целиком: короткая запись стирала и картинку тоже.
+     Правого поля здесь было 2px, и при длинном значении («Мои контакты»)
+     последняя буква оказывалась ровно под стрелкой. Теперь под стрелку отведено
+     место, которое браузеру уже не переопределить: свой вид у списка отключён
+     в базовом правиле выше. */
+  background-color: transparent;
+  padding: 4px 22px 4px 6px;
+  background-position: right 4px center;
   text-align: right;
   text-align-last: right;
   color: var(--color-muted);
   cursor: pointer;
 }
 .settings-section .settings-select:hover {
-  background: var(--color-surface-alt);
+  background-color: var(--color-surface-alt);
   color: var(--color-text);
 }
 .settings-devices-list-header {
@@ -10225,6 +10250,7 @@
 @media (min-width: 1100px) {
   .shell-main-col .contacts-list,
   .shell-main-col .chat-list-scroll,
+  .shell-main-col .calls-start-panel,
   .shell-main-col .contacts-add-panel,
   .shell-main-col .contacts-add-modes,
   .shell-main-col .contacts-candidates,
@@ -10284,6 +10310,15 @@
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
   color: var(--color-text);
+}
+/* Значение правила показывается целиком. Общее для карточки ограничение в 45%
+   ширины защищает подпись строки от списка вроде «Bahasa Indonesia», но здесь
+   вариантов всего три, и самый длинный из них — «Мои контакты» — в 45% вместе с
+   местом под стрелку уже не помещался и обрезался на середине слова. Подпись
+   слева при этом не страдает: она умеет переноситься, а строка — заворачивать
+   пару «список + кнопка» под себя (flex-wrap выше). */
+.privacy-row-controls .settings-select {
+  max-width: none;
 }
 @media (max-width: 520px) {
   .privacy-row-controls {
@@ -10426,4 +10461,95 @@
   font-size: 12px;
   font-weight: 500;
   color: var(--color-accent);
+}
+
+/* ── Вкладка «Звонки» ─────────────────────────────────────────────────────
+   Главное действие вкладки стоит отдельной строкой над списками: «позвонить
+   кому-то ещё» не должно начинаться с поиска этого человека глазами в журнале. */
+.calls-start-panel {
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+.calls-start-btn {
+  display: inline-flex;
+  width: auto;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 9px 20px;
+}
+/* Пара кнопок в конце строки — та же в журнале и в списке контактов, чтобы
+   строки заканчивались одинаково и рука попадала в них не глядя. */
+.call-row-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+.call-action-btn {
+  display: flex;
+  height: 36px;
+  width: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+}
+.call-action-btn:hover:not(:disabled) {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: #fff;
+}
+.call-action-btn.video:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+.call-action-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* Значок направления в строке журнала: у пропущенного он красный — по одному
+   этому признаку строка находится в списке, не читая текста. */
+.call-dir {
+  display: inline-flex;
+  vertical-align: -1px;
+  color: var(--color-muted);
+}
+.call-dir.missed {
+  color: var(--color-danger);
+}
+
+/* Кнопки в конце строки списка — один вид на все вкладки.
+   В «Контактах» и в каталоге каналов это были плоские значки без границ: на
+   тёмном фоне они читались как подпись, а не как то, на что можно нажать, — и
+   рядом со вкладкой «Звонки», где кнопки круглые и обведённые, выглядели
+   недоделанной половиной приложения. Размер и форма те же, что у .call-action-btn. */
+.contact-row .icon-btn {
+  height: 34px;
+  width: 34px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+}
+.contact-row .icon-btn:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+}
+/* Удаление — единственное действие в строке, которое нельзя отменить нажатием
+   ещё раз, и подсвечивается оно соответственно. */
+.contact-row .icon-btn[title^="Удалить"]:hover,
+.contact-row .icon-btn[title^="Заблокировать"]:hover {
+  border-color: var(--color-danger);
+  background: transparent;
+  color: var(--color-danger);
+}
+/* Строки во всех списках-вкладках ведут себя одинаково: подсветка под курсором
+   и закругление, как у строки чата. */
+.contact-row {
+  border-radius: 10px;
 }

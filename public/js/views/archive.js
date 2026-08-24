@@ -16,8 +16,14 @@ export async function ArchiveView(root) {
       "div",
       { class: "chat-list-scroll" },
       chats.length === 0
-        ? el("p", { class: "empty-hint" }, "В архиве пусто")
-        : chats.map((c) => ChatListItem({ chat: c, active: currentId === c.id, meId: me.id, onPatch: patchChat, onDelete: deleteChatItem }))
+        ? // Пустой архив объясняет, чем он вообще наполняется: до этой правки
+          // экран состоял из двух слов и не подсказывал, что делать.
+          el("p", { class: "empty-hint" }, "В архиве пусто — потяните строку чата влево, чтобы убрать его сюда")
+        : [
+            // Заголовок со счётчиком — тот же, что во всех остальных вкладках.
+            el("p", { class: "list-section-label" }, `В архиве — ${chats.length}`),
+            ...chats.map((c) => ChatListItem({ chat: c, active: currentId === c.id, meId: me.id, onPatch: patchChat, onDelete: deleteChatItem })),
+          ]
     );
     mount(
       root,
