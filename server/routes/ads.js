@@ -182,7 +182,11 @@ router.post(
 const campaigns = require("../data/adCampaigns");
 const { balanceOf, spendStars } = require("../data/stars");
 
-const PLACEMENTS = { discover: "Каталог каналов", profile: "Своя страница профиля" };
+// Куда объявление может попасть. "chats" — первая строка списка чатов, над
+// всеми разговорами. Показывается она лично: объявление приезжает запросом
+// самого читателя, нигде не хранится и ни в чей чужой список не попадает, —
+// поэтому её видит только тот, кому её показали, и стоит она ровно один показ.
+const PLACEMENTS = { chats: "Верх списка чатов", discover: "Каталог каналов", profile: "Своя страница профиля" };
 const MAX_TEXT = 200;
 
 function publicCampaign(c) {

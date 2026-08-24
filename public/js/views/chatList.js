@@ -161,6 +161,17 @@ export function ChatListPane() {
 
   api.getSettings().then((r) => (settingsCache = r.settings));
 
+  if (!sponsoredAd) {
+    api
+      .serveAd("chats")
+      .then((r) => {
+        if (!r.ad) return;
+        sponsoredAd = r.ad;
+        renderInto(listSlot);
+      })
+      .catch(() => {});
+  }
+
   // Обновление списка: не чаще, чем нужно, и без гонок.
   //
   // Раньше каждое событие по WebSocket дёргало refetch() напрямую. В оживлённом
@@ -300,6 +311,16 @@ const scrollSlot = el("div", { class: "chat-list-scroll" });
 // смысл сохранять только внутри одного и того же списка — при переключении
 // вкладки или входе в поиск она сбрасывается, как и должна.
 let lastShown = null;
+// Рекламная строка — первая в списке чатов, над всеми разговорами.
+//
+// Запрашивается ровно один раз за жизнь колонки: каждый ответ сервера
+// засчитывается как показ и списывается с бюджета кампании, а список
+// перерисовывается на каждое входящее сообщение — дёргать выдачу оттуда значило
+// бы списывать деньги за прокрутку.
+//
+// Показ личный: объявление приезжает запросом самого читателя, нигде не
+// сохраняется и в чужие списки не попадает.
+let sponsoredAd = null;
 // Последний отрисованный ряд фильтров — только чтобы забрать у него
 // горизонтальную прокрутку перед тем, как заменить его новым.
 let tabsRowEl = null;
@@ -530,6 +551,9 @@ function renderResults(container) {
   });
 
   const scroll = scrollSlot;
+  // Первой строкой — и до проверки на пустоту: объявление показывается и тогда,
+  // когда чатов ещё нет вовсе.
+  if (sponsoredAd) scroll.appendChild(SponsoredRow(sponsoredAd));
   // Пустая вкладка объясняет, почему она пустая. «Чатов нет» на вкладке
   // «Каналы» читается как «в приложении нет чатов» — хотя в соседней вкладке
   // их два десятка.
@@ -539,6 +563,43 @@ function renderResults(container) {
   }
   bodySlot.appendChild(scroll);
   scrollSlot.scrollTop = keepScroll;
+}
+
+// Объявление строкой списка — но так, чтобы его нельзя было принять за чат:
+// подпись «РЕКЛАМА» на месте времени, своя подложка и значок вместо аватара.
+// Оно не участвует ни в сортировке, ни в фильтрах: реклама не поднимается
+// «наверх» по свежести и не выдаёт себя за новое сообщение — она просто всегда
+// первая и всегда подписана.
+function SponsoredRow(ad) {
+  return el("div", { class: "chat-list-item-wrap sponsored-wrap" }, [
+    el(
+      "button",
+      {
+        class: "chat-list-item sponsored-row",
+        title: ad.url || "",
+        onclick: async () => {
+          // Переход засчитывается как клик и только потом открывает ссылку.
+          // Счётчик — не причина задерживать человека, поэтому ошибка здесь
+          // проглатывается.
+          await api.clickAd(ad.id).catch(() => {});
+          if (ad.url) window.open(ad.url, "_blank", "noreferrer");
+        },
+      },
+      [
+        el("span", { class: "sponsored-mark", html: iconSvg("Zap", 22) }),
+        el("div", { class: "chat-list-item-body" }, [
+          el("div", { class: "chat-list-item-row" }, [
+            el("span", { class: "chat-list-item-title" }, ad.title || "Реклама"),
+            el("span", { class: "sponsored-badge" }, "РЕКЛАМА"),
+          ]),
+          el("div", { class: "chat-list-item-row" }, [
+            el("span", { class: "chat-list-item-preview" }, ad.text || ""),
+            ad.url ? el("span", { class: "sponsored-go" }, "Перейти →") : null,
+          ]),
+        ]),
+      ]
+    ),
+  ]);
 }
 
 function emptyTextFor(tabId, folders) {

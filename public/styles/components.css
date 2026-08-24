@@ -10374,3 +10374,56 @@
   padding-left: 8px;
   color: var(--color-warning);
 }
+
+/* ── Рекламная строка в списке чатов ──────────────────────────────────────
+   Первая строка списка, над всеми разговорами. Устроена как обычная строка
+   чата — тот же рост, те же отступы, то же место под заголовок и превью, —
+   но выглядеть как чат не должна: подпись «РЕКЛАМА» стоит там, где у чата
+   время, вместо аватара знак, а под строкой лежит своя подложка. Человек
+   должен понимать, что это оплаченное место, ещё до того, как прочтёт текст. */
+.sponsored-wrap {
+  /* Отбивка от первого настоящего чата — чтобы граница между «оплачено» и
+     «ваши разговоры» читалась глазом, а не только по подписи. */
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--color-border);
+}
+.sponsored-row {
+  background: var(--color-accent-soft);
+}
+.sponsored-row:hover {
+  filter: brightness(1.06);
+  background: var(--color-accent-soft);
+}
+/* Знак вместо аватара: у объявления нет лица, и подставлять сюда букву из
+   названия — значит делать из него ещё один контакт. Размер тот же, что у
+   аватара строки (52px), иначе текст справа съезжает относительно чатов. */
+.sponsored-mark {
+  display: flex;
+  height: 52px;
+  width: 52px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px dashed var(--color-accent);
+  color: var(--color-accent);
+}
+.sponsored-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: var(--color-accent);
+  padding: 1px 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-accent-contrast);
+}
+.sponsored-go {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-accent);
+}
