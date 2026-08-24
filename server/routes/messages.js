@@ -200,12 +200,7 @@ async function deliverMessage(chat, senderId, body) {
     if (forwardedFrom.senderId === senderId) {
       forwardedFrom = { ...forwardedFrom, linkAllowed: true };
     } else {
-      const { privacy } = await getSettings(forwardedFrom.senderId);
-      let linkAllowed = privacy.forwards === "everyone";
-      if (privacy.forwards === "contacts") {
-        const contacts = await listContactsFor(forwardedFrom.senderId);
-        linkAllowed = contacts.some((c) => c.userId === senderId);
-      }
+      const linkAllowed = await allowsUser(forwardedFrom.senderId, "forwards", senderId);
       forwardedFrom = { ...forwardedFrom, linkAllowed };
     }
   }

@@ -1,4 +1,5 @@
 const { LANGUAGETOOL_URL } = require("../config");
+const { isUnsupportedLanguage, UNSUPPORTED_MESSAGE } = require("./unsupportedLanguages");
 
 // The proofreading call itself, shared by the two things that need it: the
 // composer's check button (routes/hugo.js) and the Hugo bot, which answers a
@@ -17,6 +18,19 @@ const { LANGUAGETOOL_URL } = require("../config");
 const MAX_TEXT = 4000;
 const TIMEOUT_MS = 12000;
 
+// Кириллица без украинских букв — это русский, и говорить об этом
+// LanguageTool надо прямо. На "auto" он регулярно принимал русскую фразу за
+// украинскую (языки близкие, а фраза в чате короткая) и присылал разбор
+// украинскими правилами, украинским же текстом, — из-за чего Hugo отвечал на
+// украинском на русское сообщение. Автоопределение остаётся там, где оно
+// действительно нужно: на латинице.
+const CYRILLIC = /[\u0400-\u04FF]/;
+
+function resolveLanguage(text, requested) {
+  if (requested && requested !== "auto" && !isUnsupportedLanguage(requested)) return requested;
+  return CYRILLIC.test(text) ? "ru" : "auto";
+}
+
 async function checkText(text, language = "auto") {
   if (!String(text ?? "").trim()) return { matches: [] };
   if (text.length > MAX_TEXT) {
@@ -25,11 +39,11 @@ async function checkText(text, language = "auto") {
   if (!LANGUAGETOOL_URL) return { error: "Проверка текста не настроена на сервере", status: 503 };
 
   const body = new URLSearchParams({
-    // "auto" so a Russian/English mix is handled without the user picking a
-    // language; preferredVariants only matters once auto-detection lands on one
-    // of these, and picking a variant avoids false positives.
+    // Автоопределение — только для латиницы (см. resolveLanguage выше);
+    // preferredVariants срабатывает, когда оно попадает на один из этих языков,
+    // и выбранный вариант убирает ложные срабатывания.
     text,
-    language,
+    language: resolveLanguage(text, language),
     preferredVariants: "en-US,de-DE,pt-BR",
   });
 
@@ -52,6 +66,12 @@ async function checkText(text, language = "auto") {
         : { error: "Сервис проверки текста сейчас недоступен", status: 502 };
     }
     const data = await upstream.json();
+    // Последняя проверка: если автоопределение всё же вышло на язык, которого в
+    // мессенджере нет, разбор возвращать нельзя — он придёт целиком на этом
+    // языке. Лучше честно сказать, что проверить не вышло, чем ответить на нём.
+    if (isUnsupportedLanguage(data.language?.code || data.language?.detectedLanguage?.code)) {
+      return { error: `${UNSUPPORTED_MESSAGE} — проверить этот текст не получится`, status: 422 };
+    }
     // Reshaped to only what the callers need: the raw response carries a lot of
     // rule metadata that would just be dead weight on the wire.
     return {

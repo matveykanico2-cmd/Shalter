@@ -45,12 +45,26 @@ export function StoriesBar() {
       onchange: async (e) => {
         const files = [...(e.target.files ?? [])];
         e.target.value = "";
-        for (const file of files) await postStory(file);
+        // Одна неудача не должна уносить с собой всю пачку: раньше исключение на
+        // втором файле обрывало цикл, и из пяти выбранных снимков выкладывался
+        // один — без единого слова о том, куда делись остальные.
+        const failed = [];
+        for (const file of files) {
+          try {
+            await postStory(file);
+          } catch {
+            failed.push(file.name || "файл");
+          }
+        }
+        if (failed.length) alert(`Не удалось выложить: ${failed.join(", ")}`);
       },
     });
 
     const myRing = myGroup?.stories.some((s) => !s.viewed) ? "unseen" : myGroup ? "seen" : "";
-    const myItem = el("button", { class: "story-item", onclick: () => (myGroup ? openStoryViewer(groups, myGroupIndex, me.id, render) : fileInput.click()) }, [
+    // После удаления лента перечитывается с сервера, а не перерисовывается по
+    // памяти: так на экране всегда то, что действительно осталось, — а не то,
+    // что клиент думает про свой массив.
+    const myItem = el("button", { class: "story-item", onclick: () => (myGroup ? openStoryViewer(groups, myGroupIndex, me.id, refetch) : fileInput.click()) }, [
       el("div", { class: `story-avatar-ring ${myRing}` }, [Avatar({ name: me.name, color: me.avatarColor, image: me.avatarImage, size: 52 })]),
       !myGroup ? el("span", { class: "story-add-badge", html: iconSvg("Plus", 12) }) : null,
       el("span", { class: "story-item-label" }, "Ваша история"),
@@ -62,7 +76,7 @@ export function StoriesBar() {
       if (g.user.id === me.id) return;
       const unseen = g.stories.some((s) => !s.viewed);
       container.appendChild(
-        el("button", { class: "story-item", onclick: () => openStoryViewer(groups, i, me.id, render) }, [
+        el("button", { class: "story-item", onclick: () => openStoryViewer(groups, i, me.id, refetch) }, [
           el("div", { class: `story-avatar-ring ${unseen ? "unseen" : "seen"}` }, [
             Avatar({ name: g.user.name, color: g.user.avatarColor, image: g.user.avatarImage, size: 52 }),
           ]),

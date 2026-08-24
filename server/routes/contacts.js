@@ -4,7 +4,7 @@ const { requireUserId } = require("../middleware/auth");
 const { listContactsFor, addContact, renameContact, removeContact } = require("../data/contacts");
 const { listUsers, listUsersByIds, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
-const { getSettings } = require("../data/settings");
+const { allowsUser } = require("../lib/privacyRules");
 const { phoneKey, indexUsersByPhone } = require("../lib/phoneMatch");
 
 const router = express.Router();
@@ -153,17 +153,11 @@ router.post(
         continue;
       }
 
-      const level = (await getSettings(user.id))?.privacy?.discoverByPhone ?? "everyone";
-      if (level === "nobody") {
+      // Уровень плюс поимённые исключения — «по номеру меня находят все, кроме
+      // вот этого» решается здесь же (см. server/lib/privacyRules.js).
+      if (!(await allowsUser(user.id, "discoverByPhone", req.uid))) {
         hide();
         continue;
-      }
-      if (level === "contacts") {
-        const theirContacts = await listContactsFor(user.id);
-        if (!theirContacts.some((c) => c.userId === req.uid)) {
-          hide();
-          continue;
-        }
       }
 
       found.push({

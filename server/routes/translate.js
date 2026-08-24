@@ -1,6 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
+const { isUnsupportedLanguage, UNSUPPORTED_MESSAGE } = require("../lib/unsupportedLanguages");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -51,6 +52,9 @@ router.post(
     const { text, target } = req.body ?? {};
     if (!text?.trim()) return res.status(400).json({ error: "Нечего переводить" });
     if (!target?.trim()) return res.status(400).json({ error: "Не указан язык перевода" });
+    // Языка нет в списке — значит, его нет и здесь. Иначе выбор убран из
+    // настроек, а перевести на него по-прежнему можно прямым запросом.
+    if (isUnsupportedLanguage(target)) return res.status(400).json({ error: UNSUPPORTED_MESSAGE });
 
     try {
       const result = await translateOne(text, target);
@@ -72,6 +76,10 @@ router.post(
     const { texts, target } = req.body ?? {};
     if (!Array.isArray(texts) || texts.length === 0) return res.status(400).json({ error: "texts must be a non-empty array" });
     if (!target?.trim()) return res.status(400).json({ error: "Не указан язык перевода" });
+    // Тот же запрет, что и у перевода одного сообщения: интерфейс переводить на
+    // язык, которого в мессенджере нет, нельзя — иначе на нём окажется вся
+    // программа целиком.
+    if (isUnsupportedLanguage(target)) return res.status(400).json({ error: UNSUPPORTED_MESSAGE });
     if (texts.length > 200) return res.status(400).json({ error: "Слишком много строк за один запрос (максимум 200)" });
 
     const capped = texts.map((t) => String(t ?? "").slice(0, 500));

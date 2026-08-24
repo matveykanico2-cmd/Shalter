@@ -280,6 +280,20 @@ router.put(
   })
 );
 
+// Один бот целиком, вместе с его кодом. Нужен редактору кода: список ботов он
+// получает один раз при открытии раздела, а сохранённый код после этого меняется
+// — и открытый второй раз редактор показывал бы то, что лежало в списке на
+// момент его загрузки, то есть предыдущую версию программы (а у бота, у которого
+// кода ещё не было, — шаблон вместо только что написанного).
+router.get(
+  "/:id",
+  asyncRoute(async (req, res) => {
+    const bot = await requireOwnedBot(req, res);
+    if (!bot) return;
+    res.json({ bot: { ...bot, user: publicUser(await getUser(bot.userId)) } });
+  })
+);
+
 // Saves the in-app "handleMessage" program (Settings → Боты → Код) — an
 // alternative to running an external script against the Bot API. See
 // server/lib/botSandbox.js for what actually executes it.

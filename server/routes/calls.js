@@ -7,26 +7,20 @@ const { getChat } = require("../data/chats");
 const { listUsers, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { addSignal, listSignalsFor } = require("../data/signals");
-const { getSettings } = require("../data/settings");
-const { listContactsFor } = require("../data/contacts");
+const { allowsUser } = require("../lib/privacyRules");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser } = require("../push");
 
 const router = express.Router();
 router.use(requireUserId);
 
-// "Who can call me" (Settings → Конфиденциальность) — same everyone/
-// contacts/nobody shape, checked against the *target's* own contact list
-// (same asymmetric sense as the invites check in routes/chats.js and the
-// profile-view privacy check in routes/users.js), not the caller's.
+// "Who can call me" (Settings → Конфиденциальность) — уровень «Все / Мои
+// контакты / Никто» плюс поимённые исключения, всё в server/lib/privacyRules.js.
+// Проверяется по контактам *того, кому звонят* (та же несимметричность, что у
+// добавления в чаты в routes/chats.js и у просмотра профиля в routes/users.js),
+// а не по контактам звонящего.
 async function canCall(callerId, targetId) {
-  if (callerId === targetId) return true;
-  const { privacy } = await getSettings(targetId);
-  const setting = privacy?.calls ?? "everyone";
-  if (setting === "everyone") return true;
-  if (setting === "nobody") return false;
-  const targetsContacts = await listContactsFor(targetId);
-  return targetsContacts.some((c) => c.userId === callerId);
+  return allowsUser(targetId, "calls", callerId);
 }
 
 // Real Web Push for the ring, same reasoning as pushNewMessage in

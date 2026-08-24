@@ -6,17 +6,24 @@ import { api } from "../api.js";
 import { getState, setState } from "../state.js";
 import { navigate } from "../router.js";
 
-function railButton(href, iconName, label, active) {
-  return el(
+// isActive — предикат, а не готовое «да/нет»: рельс создаётся один раз за всё
+// время работы приложения (см. app.js), а маршрут меняется постоянно, и подсветку
+// надо пересчитывать на каждый переход. Раньше здесь стоял вычисленный при
+// создании флаг — и подсвеченной навсегда оставалась та вкладка, с которой
+// приложение открыли: уходишь в контакты, а горят по-прежнему «Чаты».
+function railButton(href, iconName, label, isActive) {
+  const node = el(
     "a",
     {
       href,
       "data-route": "1",
       title: label,
-      class: `rail-btn ${active ? "active" : ""}`,
+      class: "rail-btn",
       html: iconSvg(iconName, 20),
     }
   );
+  node._isActive = isActive;
+  return node;
 }
 
 export function NavRail() {
@@ -37,15 +44,22 @@ export function NavRail() {
     showAccountSwitcher({ x: rect.right, y: rect.top });
   });
 
-  nav.append(
-    accountBtn,
-    railButton("/", "Send", "Чаты", path === "/" || path.startsWith("/chat")),
-    railButton("/contacts", "Users", "Контакты", path === "/contacts"),
-    railButton("/calls", "Phone", "Звонки", path === "/calls"),
-    railButton("/archive", "Archive", "Архив", path === "/archive"),
-    el("div", { class: "nav-rail-spacer" }),
-    railButton("/settings", "Settings", "Настройки", path.startsWith("/settings"))
-  );
+  const railButtons = [
+    railButton("/", "Send", "Чаты", (p) => p === "/" || p.startsWith("/chat")),
+    railButton("/contacts", "Users", "Контакты", (p) => p === "/contacts"),
+    railButton("/calls", "Phone", "Звонки", (p) => p === "/calls"),
+    railButton("/archive", "Archive", "Архив", (p) => p === "/archive"),
+  ];
+  const settingsBtn = railButton("/settings", "Settings", "Настройки", (p) => p.startsWith("/settings"));
+  railButtons.push(settingsBtn);
+
+  nav.append(accountBtn, ...railButtons.slice(0, 4), el("div", { class: "nav-rail-spacer" }), settingsBtn);
+
+  function paintActive(p) {
+    for (const b of railButtons) b.classList.toggle("active", b._isActive(p));
+  }
+  paintActive(path);
+  window.addEventListener("app:navigate", ({ detail }) => paintActive(detail.path));
 
   function showAccountSwitcher(pos) {
     const items = [{ label: "Аккаунты" }];

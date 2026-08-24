@@ -37,10 +37,9 @@
   }
 }
 
-/* Боковая панель: список чатов и настройки — две страницы одной колонки, а не
-   две колонки. Оба экрана всегда в DOM, видно тот, чей маршрут открыт: список
-   чатов при заходе в настройки не разбирается и не теряет ни прокрутку, ни
-   подписки на сокет, а обратно возвращается мгновенно. */
+/* Боковая панель — список чатов. Настройки в ней когда-то жили вторым слоем
+   поверх списка; теперь они, как контакты, звонки и архив, открываются на весь
+   экран, а панель на это время убирается (см. .shell.full-open ниже). */
 .shell-sidebar {
   position: relative;
   display: flex;
@@ -69,16 +68,16 @@
     width: 420px;
   }
 }
-.shell-sidebar-panel {
-  display: none;
-  min-height: 0;
-  flex: 1;
-}
-.shell.settings-open .shell-sidebar-panel {
-  display: flex;
-}
-.shell.settings-open .chat-list-pane {
-  display: none;
+/* Вкладки, которые открываются на весь экран (контакты, звонки, архив,
+   каталог каналов, настройки — см. FULL_PAGE_ROUTES в app.js). На телефоне их
+   и так видно одну за раз: "chat-open" убирает всю левую колонку. На широком
+   экране колонку со списком чатов надо убрать отдельно — иначе страница
+   настроек оставалась зажатой в остатке ширины, хотя список рядом с ней
+   ничего не делает. Рельс с вкладками остаётся на месте: он и есть навигация. */
+@media (min-width: 768px) {
+  .shell.full-open .shell-sidebar {
+    display: none;
+  }
 }
 
 /* Nav rail — a bottom tab bar on phone widths (thumb reach, native mobile
@@ -199,6 +198,12 @@
   padding: 10px 8px;
   overflow-x: auto;
   border-bottom: 1px solid var(--color-border);
+  /* Как и у ряда фильтров ниже: горизонтальная полоса прокрутки под лентой
+     историй съедала отступ и выглядела второй границей рядом с настоящей. */
+  scrollbar-width: none;
+}
+.stories-bar::-webkit-scrollbar {
+  display: none;
 }
 .stories-bar:empty {
   display: none;
@@ -582,32 +587,92 @@
 .chat-search-input:focus {
   outline: 2px solid var(--color-accent);
 }
+/* Ряд фильтров («Все / Личные / Группы / Каналы» + папки) между лентой историй
+   и самим списком.
+   Отступа сверху у него не было вовсе (padding: 0 12px 8px), и ряд стоял впритык
+   к границе ленты историй, а список начинался сразу под ним — обе щели были ровно
+   по нулю пикселей. Хуже того, overflow-x: auto заставляет браузер посчитать
+   overflow-y тоже не visible: при высоте ряда в 35px и чипе в 34px (мобильный
+   размер ниже) всё, что выходит за содержимое, — рамка фокуса, тень выбранного
+   чипа — обрезалось прямо по надписи.
+   Теперь у ряда есть свои поля сверху и снизу, места хватает и чипу, и рамке. */
 .chat-tabs-row {
   display: flex;
+  align-items: center;
+  /* Поля по бокам и между чипами — ровно настолько, чтобы четыре системных
+     фильтра со счётчиками помещались в колонку целиком и ряд не приходилось
+     прокручивать с первого же взгляда. Прокрутка остаётся для папок. */
   gap: 4px;
   overflow-x: auto;
-  padding: 0 12px 8px;
+  padding: 10px 8px;
+  /* Ряд прокручивается по горизонтали, как только появляется хотя бы одна
+     папка. Полоса прокрутки под ним (base.css включает тонкие полосы всему
+     подряд) занимала половину отступа до списка и читалась как лишняя
+     разделительная линия. Прокрутка остаётся — исчезает только полоса. */
+  scrollbar-width: none;
+}
+.chat-tabs-row::-webkit-scrollbar {
+  display: none;
 }
 .chat-tab {
   flex-shrink: 0;
+  /* Чтобы длинное название папки не сжималось в столбик из букв: у flex-строки
+     с overflow-x надпись обязана оставаться в одну строку. */
+  white-space: nowrap;
   border-radius: 999px;
-  padding: 6px 12px;
+  border: 1px solid transparent;
+  padding: 6px 10px;
   font-size: 13px;
   font-weight: 500;
   background: var(--color-surface-alt);
   color: var(--color-muted);
 }
 .chat-tab:hover {
+  border-color: var(--color-border);
   color: var(--color-text);
 }
 .chat-tab.active {
   background: var(--color-accent);
+  border-color: var(--color-accent);
   color: var(--color-accent-contrast);
+}
+/* Сколько разговоров на этой вкладке ждут ответа. Внутри самого чипа, а не
+   отдельной точкой рядом: цифра принадлежит фильтру и должна ездить вместе с
+   ним, когда ряд прокручивают. */
+.chat-tab-count {
+  display: inline-flex;
+  height: 16px;
+  min-width: 16px;
+  margin-left: 5px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-accent);
+  padding: 0 5px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--color-accent-contrast);
+}
+/* На выбранном чипе фон уже акцентный — цифра переворачивается, иначе она на
+   нём просто исчезает. */
+.chat-tab.active .chat-tab-count {
+  background: var(--color-accent-contrast);
+  color: var(--color-accent);
 }
 .chat-list-scroll {
   flex: 1;
   overflow-y: auto;
   padding-bottom: 8px;
+}
+/* В списке чатов поверх правого нижнего угла висит круглая кнопка «написать»
+   (.sidebar-fab, 54px + 16px от края). Она закрывала последнюю строку списка:
+   до времени и счётчика непрочитанных у самого нижнего чата было не дотянуться,
+   пока список не прокрутишь дальше — а прокручивать было уже некуда.
+   В «Архиве» и «Звонках» тот же блок используется без кнопки, поэтому отступ
+   добавляется только здесь. */
+.chat-list-pane .chat-list-scroll {
+  padding-bottom: 86px;
 }
 .empty-hint {
   padding: 24px 12px;
@@ -669,6 +734,19 @@
   gap: 8px;
   padding: 8px 12px;
   text-align: left;
+  /* Ничто в результатах поиска не имеет права быть выше одной строки: найденное
+     сообщение — это целый текст сообщения, и без этого одна найденная простыня
+     занимала весь экран, а остальные результаты уезжали под него. */
+  min-height: 46px;
+}
+.search-message-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--color-muted);
 }
 .search-user-row:hover,
 .search-message-row:hover {
@@ -676,6 +754,14 @@
 }
 .search-user-name {
   font-weight: 500;
+  /* Длинное имя выдавливало из строки юзернейм и галочку — а именно по ним
+     и отличают два похожих аккаунта друг от друга. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-user-username {
+  flex-shrink: 0;
 }
 .search-user-username {
   color: var(--color-muted);
@@ -714,9 +800,18 @@
 .chat-list-item.active .chat-list-item-badges {
   color: var(--color-accent-contrast);
 }
-.chat-list-item.active .unread-badge {
+.chat-list-item.active .unread-badge,
+/* Красная «@» на синей плашке выбранной строки — единственное место, где два
+   насыщенных цвета накладывались друг на друга; читалась она хуже всего
+   остального в строке. На выбранной строке она такая же светлая, как счётчик
+   непрочитанных рядом. */
+.chat-list-item.active .mention-badge {
   background: var(--color-accent-contrast);
   color: var(--color-accent);
+}
+.chat-list-item.active .chat-preview-draft {
+  color: var(--color-accent-contrast);
+  opacity: 0.85;
 }
 .chat-list-item-body {
   min-width: 0;
@@ -737,6 +832,16 @@
   font-size: 15px;
   font-weight: 500;
 }
+/* Галочка, звезда Premium, значок разработчика и метка безопасности стоят в
+   одной flex-строке с именем чата. Без этого длинное имя отбирало место не
+   только у себя (оно на то и обрезается), но и у них: значки сжимались в
+   несколько пикселей, а текстовая метка обрезалась на первой букве. */
+.chat-list-item-row > .verified-badge,
+.chat-list-item-row > .developer-mini-badge,
+.chat-list-item-row > .premium-star,
+.chat-list-item-row > .safety-badge {
+  flex-shrink: 0;
+}
 .chat-list-item-time {
   margin-left: auto;
   flex-shrink: 0;
@@ -753,7 +858,9 @@
   flex: 1;
   min-width: 0;
 }
-.chat-list-item-preview.draft {
+/* Только слово «Черновик:» — сам недописанный текст остаётся обычным превью
+   (см. components/chatListItem.js). */
+.chat-preview-draft {
   color: var(--color-danger);
 }
 .chat-list-item-badges {
@@ -3852,28 +3959,51 @@
 }
 
 /* Bot code editor */
+/* Окно редактора кода. Здесь пишут программу, а не заполняют форму, поэтому
+   оно занимает почти весь экран: 760px в ширину и «сколько получится» в высоту
+   давали редактор в треть страницы, под которым лежали тест и логи, — и всё это
+   вместе в 90vh не влезало. А прокрутки у окна не было вовсе (.modal-dialog —
+   просто flex-колонка), так что нижняя часть, вместе с кнопкой «Сохранить»,
+   на ноутбучном экране оказывалась за краем окна и была недоступна.
+   Теперь шапка и «Сохранить» закреплены по краям, а прокручивается только то,
+   что между ними. */
 .bot-code-dialog {
   width: 100%;
-  max-width: 760px;
-  max-height: 90vh;
+  max-width: 1100px;
+  height: 92vh;
+  max-height: 92vh;
 }
 .bot-code-header {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
 }
+.bot-code-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+/* Редактор забирает всю высоту, которая осталась от подсказки, теста и логов,
+   но не меньше 340px — иначе на низком экране от него остаётся полоска в
+   несколько строк, в которой не видно даже одной функции целиком. */
 .bot-code-editor-slot {
-  height: 320px;
-  margin: 10px 0;
+  flex: 1 0 340px;
+  min-height: 340px;
 }
 .bot-code-editor-slot .cm-editor {
   height: 100%;
 }
 .bot-code-actions {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 10px;
-  margin-bottom: 4px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 12px;
 }
 .bot-code-actions .btn-accent {
   width: auto;
@@ -3905,11 +4035,16 @@
 }
 .bot-code-output,
 .bot-code-logs {
-  max-height: 140px;
+  max-height: 180px;
   overflow-y: auto;
   border-radius: 8px;
   background: var(--color-surface-alt);
   padding: 8px 10px;
+}
+/* Пустая серая полоса под кнопкой «Запустить» до первого запуска читалась как
+   недогруженный блок. Пока выводить нечего — выводить нечего. */
+.bot-code-output:empty {
+  display: none;
 }
 .bot-code-logs-header {
   display: flex;
@@ -9297,10 +9432,15 @@
    половину списка — было видно на первом же скриншоте. */
 .chat-swipe-actions {
   position: absolute;
-  inset: 0;
+  /* Ровно под строкой, а не под всей обёрткой: у обёртки по бокам 8px отступа,
+     и полосы действий вылезали из-под строки к самому краю панели, да ещё и
+     прямыми углами против её закругления. */
+  inset: 0 8px;
   display: flex;
   justify-content: flex-end;
   align-items: stretch;
+  overflow: hidden;
+  border-radius: 10px;
   opacity: 0;
   pointer-events: none;
 }
@@ -10060,3 +10200,177 @@
    она чинила, но пузырь с длинной цитатой в ответе растягивался до 878 px при
    экране 390 — замерено. Разница в семь пикселей у самых коротких сообщений
    того не стоит. */
+
+/* ── Вкладки на весь экран ────────────────────────────────────────────────
+   Контакты, звонки, архив, каталог каналов и настройки открываются в правой
+   колонке, а колонка со списком чатов при них убирается (см. .shell.full-open
+   выше и FULL_PAGE_ROUTES в app.js). На ноутбуке это ровно то, что нужно; на
+   широком мониторе всю ширину получает список строк, у которых слева аватар,
+   а справа полтора метра пустоты — читать такую строку приходится, ведя глазом
+   через полэкрана.
+   Шапка остаётся во всю ширину (она и есть панель инструментов), а содержимое
+   под ней встаёт колонкой по центру — как на любой странице с текстом. */
+/* Кнопка «назад» в шапке этих страниц на широком экране была спрятана — рядом
+   всегда стоял список чатов, и уходить было некуда, кроме как щёлкнуть по чату.
+   Теперь список при них убран, и она снова единственный выход: без неё с
+   «Контактов» на широком мониторе было не выбраться вовсе.
+   В самой переписке (/chat/:id) она остаётся скрытой, как и была: там список
+   слева никуда не делся. */
+@media (min-width: 768px) {
+  .shell.full-open .chat-header-back {
+    display: flex;
+  }
+}
+
+@media (min-width: 1100px) {
+  .shell-main-col .contacts-list,
+  .shell-main-col .chat-list-scroll,
+  .shell-main-col .contacts-add-panel,
+  .shell-main-col .contacts-add-modes,
+  .shell-main-col .contacts-candidates,
+  .shell-main-col .contacts-filter,
+  .shell-main-col .contacts-empty,
+  .shell-main-col .discover-ad,
+  .settings-page {
+    width: 100%;
+    max-width: 820px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  /* У настроек колонка уже: это подписи с переключателями, а не строки с
+     аватарами, и растягивать надпись от «Последний визит» до выпадающего
+     списка через весь монитор незачем. */
+  .settings-page {
+    max-width: 720px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* ── Исключения из правил конфиденциальности ──────────────────────────────
+   Строка правила: слева название и, если исключения есть, сколько их; справа
+   выпадающий список с уровнем и кнопка «Исключения». На узком экране пара
+   «список + кнопка» переносится под название, а не сжимает его в столбик из
+   отдельных букв. */
+.privacy-row {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.privacy-row-label {
+  min-width: 0;
+  flex: 1;
+}
+.privacy-row-controls {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+.privacy-exceptions-link {
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.privacy-exceptions-link:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+/* У правила с исключениями кнопка выделена: иначе о них узнаёшь, только открыв
+   каждое правило по очереди. */
+.privacy-exceptions-link.active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+}
+@media (max-width: 520px) {
+  .privacy-row-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* Само окно исключений (components/privacyExceptionsDialog.js). */
+.privacy-exc-dialog {
+  max-width: 460px;
+}
+.privacy-exc-chosen,
+.privacy-exc-results {
+  max-height: 30vh;
+  overflow-y: auto;
+}
+.privacy-exc-group {
+  margin: 6px 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-muted);
+}
+.privacy-exc-group.allow {
+  color: var(--color-success);
+}
+.privacy-exc-group.deny {
+  color: var(--color-danger);
+}
+.privacy-exc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 6px 8px;
+}
+.privacy-exc-row:hover {
+  background: var(--color-surface-alt);
+}
+.privacy-exc-row-body {
+  min-width: 0;
+  flex: 1;
+}
+.privacy-exc-name {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+}
+.privacy-exc-row-body .settings-toggle-hint {
+  margin: 0;
+  font-size: 12px;
+}
+/* Два состояния — «всегда можно» и «никогда» — это переключатели, а не
+   отдельные кнопки «добавить»: одному человеку нельзя назначить оба сразу,
+   и нажатие на уже выбранное снимает его. Поэтому они выглядят как пара
+   рядом друг с другом, а не как действие и его отмена. */
+.privacy-exc-btn {
+  display: flex;
+  height: 30px;
+  width: 30px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+}
+.privacy-exc-btn.allow.active {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: #fff;
+}
+.privacy-exc-btn.deny.active {
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: #fff;
+}
+
+/* Пояснение под выбором языка — почему в списке нет одного из них. Отдельным
+   тоном от обычной подсказки: это не совет, а правило. */
+.unsupported-lang-note {
+  border-left: 2px solid var(--color-warning);
+  padding-left: 8px;
+  color: var(--color-warning);
+}

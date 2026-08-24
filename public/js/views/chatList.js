@@ -290,10 +290,29 @@ export function ChatListPane() {
 // Both are created once for the lifetime of the pane, not per render.
 let searchInputEl = null;
 const bodySlot = el("div", { class: "chat-list-body" });
+// Сам прокручиваемый блок — тоже один на всё время жизни колонки.
+// Раньше он создавался заново в renderResults, а renderResults вызывается на
+// каждое событие сокета: любое новое сообщение в любом чате возвращало
+// пролистанный список к самому верху. Теперь перерисовывается только его
+// содержимое, а прокрутка остаётся там, где её оставили.
+const scrollSlot = el("div", { class: "chat-list-scroll" });
+// Что было показано в прошлый раз: имя вкладки или "search". Прокрутку имеет
+// смысл сохранять только внутри одного и того же списка — при переключении
+// вкладки или входе в поиск она сбрасывается, как и должна.
+let lastShown = null;
+// Последний отрисованный ряд фильтров — только чтобы забрать у него
+// горизонтальную прокрутку перед тем, как заменить его новым.
+let tabsRowEl = null;
 
 function renderInto(container) {
-  clear(container);
-  container.appendChild(bodySlot);
+  // Не отцеплять bodySlot от колонки без нужды: элемент, вынутый из документа,
+  // теряет свою прокрутку (scrollTop обнуляется и обратной вставкой не
+  // возвращается) — а renderResults ниже как раз её и сохраняет. Пока bodySlot
+  // уже на месте, трогать нечего.
+  if (bodySlot.parentNode !== container) {
+    clear(container);
+    container.appendChild(bodySlot);
+  }
   renderResults(container);
 }
 
@@ -361,11 +380,16 @@ function SidebarHeader(listSlot) {
 function renderResults(container) {
   const { chats, folders, user } = getState();
   const currentId = (window.location.pathname.match(/^\/chat\/([^/]+)/) || [])[1];
+  const shown = results ? "search" : tab;
+  const keepScroll = shown === lastShown ? scrollSlot.scrollTop : 0;
+  lastShown = shown;
+  // Порядок важен: scrollTop снят выше, до того как блок опустеет, — у пустого
+  // блока прокручивать нечего, и браузер сбрасывает её сам.
   clear(bodySlot);
-
+  clear(scrollSlot);
 
   if (results) {
-    const box = el("div", { class: "chat-list-scroll" });
+    const box = scrollSlot;
     const total = results.chats.length + results.channels.length + results.users.length + results.bots.length + results.messages.length;
     if (!total) {
       box.appendChild(el("p", { class: "empty-hint" }, "Ничего не найдено"));
@@ -439,16 +463,41 @@ function renderResults(container) {
       box.appendChild(el("p", { class: "list-section-label" }, "Сообщения"));
       for (const m of results.messages) {
         box.appendChild(
-          el("button", { class: "search-message-row", onclick: () => navigate(`/chat/${m.chatId}`) }, m.text)
+          // Текст — отдельным элементом, а не голым текстовым узлом: обрезать
+          // по ширине можно только настоящий элемент, а найденное сообщение
+          // бывает длиной в экран.
+          el("button", { class: "search-message-row", onclick: () => navigate(`/chat/${m.chatId}`) }, [
+            el("span", { class: "search-message-text" }, m.text),
+          ])
         );
       }
     }
     bodySlot.appendChild(box);
+    scrollSlot.scrollTop = keepScroll;
     return;
   }
 
   const tabs = [...SYSTEM_TABS, ...folders.map((f) => ({ id: f.id, name: f.name }))];
-  const tabsRow = el(
+  // Одно правило отбора на всё: и на сам список ниже, и на счётчики у вкладок.
+  // Разойдись они — на вкладке горела бы цифра, а внутри было бы пусто.
+  const notArchived = chats.filter((c) => !c.archived);
+  const inTab = (tabId) => {
+    const f = folders.find((x) => x.id === tabId);
+    if (f) return notArchived.filter((c) => f.chatIds.includes(c.id));
+    if (tabId === "personal") return notArchived.filter((c) => c.type === "dm" || c.type === "bot");
+    if (tabId === "groups") return notArchived.filter((c) => c.type === "group");
+    if (tabId === "channels") return notArchived.filter((c) => c.type === "channel");
+    return notArchived;
+  };
+  // Считаем чаты с непрочитанным, а не сами сообщения: «3» на вкладке значит
+  // «три разговора ждут ответа» — по этому числу решают, куда заглянуть, а
+  // сумма сообщений во всех каналах сразу об этом ничего не говорит.
+  const unreadIn = (tabId) => inTab(tabId).filter((c) => c.unreadCount > 0).length;
+  // Ряд фильтров тоже пересобирается на каждое событие. С несколькими папками
+  // он прокручивается по горизонтали, и без этого выбранная папка уезжала из
+  // видимой части ряда, стоило прийти сообщению.
+  const tabsScrollLeft = tabsRowEl?.scrollLeft ?? 0;
+  const tabsRow = (tabsRowEl = el(
     "div",
     { class: "chat-tabs-row" },
     tabs.map((t) =>
@@ -461,18 +510,17 @@ function renderResults(container) {
             renderInto(container);
           },
         },
-        t.name
+        [
+          t.name,
+          unreadIn(t.id) ? el("span", { class: "chat-tab-count" }, String(unreadIn(t.id))) : null,
+        ]
       )
     )
-  );
+  ));
   bodySlot.appendChild(tabsRow);
+  tabsRow.scrollLeft = tabsScrollLeft;
 
-  let list = chats.filter((c) => !c.archived);
-  const folder = folders.find((f) => f.id === tab);
-  if (folder) list = list.filter((c) => folder.chatIds.includes(c.id));
-  else if (tab === "personal") list = list.filter((c) => c.type === "dm" || c.type === "bot");
-  else if (tab === "groups") list = list.filter((c) => c.type === "group");
-  else if (tab === "channels") list = list.filter((c) => c.type === "channel");
+  let list = inTab(tab);
 
   list = [...list].sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
@@ -481,12 +529,25 @@ function renderResults(container) {
     return bt.localeCompare(at);
   });
 
-  const scroll = el("div", { class: "chat-list-scroll" });
-  if (!list.length) scroll.appendChild(el("p", { class: "empty-hint" }, "Чатов нет"));
+  const scroll = scrollSlot;
+  // Пустая вкладка объясняет, почему она пустая. «Чатов нет» на вкладке
+  // «Каналы» читается как «в приложении нет чатов» — хотя в соседней вкладке
+  // их два десятка.
+  if (!list.length) scroll.appendChild(el("p", { class: "empty-hint" }, emptyTextFor(tab, folders)));
   for (const c of list) {
     scroll.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem }));
   }
   bodySlot.appendChild(scroll);
+  scrollSlot.scrollTop = keepScroll;
+}
+
+function emptyTextFor(tabId, folders) {
+  const folder = folders.find((f) => f.id === tabId);
+  if (folder) return `В папке «${folder.name}» пока нет чатов`;
+  if (tabId === "personal") return "Личных переписок пока нет";
+  if (tabId === "groups") return "Вы пока не состоите ни в одной группе";
+  if (tabId === "channels") return "Вы пока не подписаны ни на один канал";
+  return "Чатов нет — начните новый кнопкой в правом нижнем углу";
 }
 
 async function patchChat(id, patch) {

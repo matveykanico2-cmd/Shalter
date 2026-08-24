@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
@@ -80,7 +81,13 @@ router.post(
     }
     const now = Date.now();
     const story = await addStory({
-      id: `st_${now}`,
+      // Со случайным хвостом, а не голая миллисекунда: id — это PRIMARY KEY, а
+      // истории выкладывают пачкой (в ленте выбирают сразу несколько файлов, см.
+      // components/storiesBar.js). Две маленькие картинки успевают уехать внутри
+      // одной миллисекунды — вторая вставка падала на нарушении ключа, запрос
+      // отвечал 500, и цикл отправки обрывался: из пяти выбранных снимков
+      // выкладывался один, молча.
+      id: `st_${now}_${crypto.randomBytes(4).toString("hex")}`,
       userId: req.uid,
       kind,
       url,

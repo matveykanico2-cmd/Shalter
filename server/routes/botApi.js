@@ -13,8 +13,7 @@ const { markTyping } = require("../data/typing");
 const { updateBotApp, updateBotAppCode, updateBotCommands, updateBotDescription, getBotToken } = require("../data/bots");
 const { sendBotMessage, normalizeKeyboard } = require("../lib/botMessaging");
 const { findOrCreateDm } = require("../lib/systemChat");
-const { getSettings } = require("../data/settings");
-const { listContactsFor } = require("../data/contacts");
+const { allowsUser } = require("../lib/privacyRules");
 const { validateAppUrl, verifyInitData } = require("../lib/miniApp");
 const { checkUsername, normalizeUsername } = require("../lib/username");
 
@@ -1148,14 +1147,10 @@ async function botMayWriteFirst(botUserId, targetId) {
   if (target.isBot) return { ok: false, error: "Ботам боты не пишут" };
   if (target.blockedUserIds?.includes(botUserId)) return { ok: false, error: "Пользователь заблокировал этого бота" };
 
-  const { privacy } = await getSettings(targetId);
-  const setting = privacy?.botMessages ?? "everyone";
-  if (setting === "nobody") return { ok: false, error: "Пользователь запретил ботам писать первыми" };
-  if (setting === "contacts") {
-    const contacts = await listContactsFor(targetId);
-    if (!contacts.some((c) => c.userId === botUserId)) {
-      return { ok: false, error: "Пользователь разрешил писать первыми только ботам из своих контактов" };
-    }
+  // Уровень плюс поимённые исключения: «боты писать могут, но этот — нет»
+  // (или наоборот) — см. server/lib/privacyRules.js.
+  if (!(await allowsUser(targetId, "botMessages", botUserId))) {
+    return { ok: false, error: "Пользователь ограничил ботам возможность писать первыми" };
   }
   return { ok: true, target };
 }

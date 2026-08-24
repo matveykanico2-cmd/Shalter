@@ -7,9 +7,9 @@ const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeat
 const { PERMISSIONS, permissionsOf, sanitizePermissions } = require("../lib/chatPermissions");
 const { deleteMessagesForChat } = require("../data/messages");
 const { getSettings, updateSettings, mutedStateFor, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft } = require("../data/settings");
+const { allowsUser } = require("../lib/privacyRules");
 const { attachSummaries } = require("../data/chat-summary");
 const { listUsers, listUsersByIds, getUser } = require("../data/users");
-const { listContactsFor } = require("../data/contacts");
 const { publicUser } = require("../data/sanitize");
 const { getBotByUserId } = require("../data/bots");
 const joinRequests = require("../data/joinRequests");
@@ -747,18 +747,11 @@ router.post(
       if (!user) return res.status(404).json({ error: "Пользователь не найден" });
 
       // "Who can add me to groups/channels" (Settings → Конфиденциальность) —
-      // same everyone/contacts/nobody shape as phone/last-seen, checked
-      // against the *target's* contact list, not the adder's (same sense as
-      // the profile-view privacy check in routes/users.js).
-      const { privacy } = await getSettings(userId);
-      if (privacy.invites === "nobody") {
+      // уровень плюс поимённые исключения (server/lib/privacyRules.js),
+      // проверяется по контактам *того, кого добавляют*, а не добавляющего
+      // (та же несимметричность, что у просмотра профиля в routes/users.js).
+      if (!(await allowsUser(userId, "invites", req.uid))) {
         return res.status(403).json({ error: "Пользователь ограничил добавление в чаты" });
-      }
-      if (privacy.invites === "contacts") {
-        const targetsContacts = await listContactsFor(userId);
-        if (!targetsContacts.some((c) => c.userId === req.uid)) {
-          return res.status(403).json({ error: "Пользователь ограничил добавление в чаты" });
-        }
       }
 
       const updated = await updateChat(req.params.id, { memberIds: [...chat.memberIds, userId] });

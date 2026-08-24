@@ -138,19 +138,18 @@ async function boot() {
 
   const shell = el("div", { class: "shell" });
   const listCol = el("div", { class: "shell-list-col" });
-  // Боковая панель — стопка из двух экранов, а не один список чатов: настройки
-  // в ней не отдельная страница на всю ширину, а второй слой поверх списка, как
-  // в Telegram. Оба живут в DOM одновременно, показывается тот, чей маршрут
-  // открыт (см. .shell.settings-open в components.css): список чатов при этом
-  // не пересобирается и не теряет ни прокрутку, ни свои подписки, а переписка
-  // справа остаётся открытой всё время, пока человек ходит по настройкам.
+  // Боковая панель — только список чатов. Настройки в ней когда-то были вторым
+  // слоем поверх списка (как в Telegram), но в колонке шириной 340px разделам
+  // вроде «Конфиденциальность» или «Боты» тесно: половина строк там — это
+  // подпись и переключатель в одной строке. Теперь настройки, как контакты,
+  // звонки и архив, открываются на весь экран (см. isFullPage ниже), а список
+  // чатов на это время убирается — он и так не нужен, пока человек в них ходит.
   const sidebar = el("div", { class: "shell-sidebar" });
-  const sidebarSlot = el("div", { class: "shell-sidebar-panel" });
   const mainSlot = el("div", { class: "shell-main-col" });
   const callBubbleSlot = el("div", { class: "call-bubble-slot" });
   mount(root, shell);
   shell.append(listCol, mainSlot, callBubbleSlot);
-  sidebar.append(ChatListPane(), sidebarSlot);
+  sidebar.append(ChatListPane());
   listCol.append(NavRail(), sidebar);
 
   // Заглушка «выберите чат» — она же то, что видно справа, когда настройки
@@ -191,10 +190,16 @@ async function boot() {
   subscribeCall(renderCallBubble);
   renderCallBubble();
 
-  // Настройки рисуются в боковую панель, а не в правую колонку, поэтому им
-  // нужен не "chat-open", а свой признак: на телефоне видимой должна остаться
-  // именно боковая панель, а не переписка под ней.
-  const isSidebarRoute = (p) => p === "/settings" || p.startsWith("/settings/");
+  // Вкладки, которым нужен весь экран, а не колонка рядом со списком чатов:
+  // контакты, звонки, архив, каталог каналов и настройки. Это самостоятельные
+  // страницы, а не «что-то рядом с перепиской», — держать при них список чатов
+  // не для чего, зато места им нужно ровно столько, сколько есть.
+  //
+  // Переписка (/chat/:id) в этот список не входит намеренно: там список слева —
+  // это переключение между разговорами, и убирать его значит заставлять
+  // возвращаться назад после каждого сообщения.
+  const FULL_PAGE_ROUTES = ["/contacts", "/calls", "/archive", "/discover-channels", "/settings"];
+  const isFullPage = (p) => FULL_PAGE_ROUTES.some((r) => p === r || p.startsWith(`${r}/`));
 
   let prevPath = path;
   window.addEventListener("app:navigate", ({ detail }) => {
@@ -203,10 +208,11 @@ async function boot() {
     // components.css), so every one of those routes needs it, not just
     // /chat/ and /call/. Without this, Contacts/Calls/Archive/Settings were
     // rendering into a display:none column and looked like dead nav buttons.
-    const inSidebar = isSidebarRoute(detail.path);
-    shell.classList.toggle("settings-open", inSidebar);
-    const fullScreen = detail.path !== "/" && !inSidebar;
+    const fullScreen = detail.path !== "/";
     shell.classList.toggle("chat-open", fullScreen);
+    // На широком экране это ещё и убирает список чатов слева: "chat-open" сам
+    // по себе его оставляет (в переписке он нужен), поэтому признак отдельный.
+    shell.classList.toggle("full-open", isFullPage(detail.path));
     // Leaving the call screen without explicitly minimizing (nav-rail click,
     // browser back) still needs the call to keep running in the background —
     // implicitly minimize so the PiP bubble takes over.
@@ -216,8 +222,8 @@ async function boot() {
     }
     prevPath = detail.path;
   });
-  shell.classList.toggle("settings-open", isSidebarRoute(path));
-  shell.classList.toggle("chat-open", path !== "/" && !isSidebarRoute(path));
+  shell.classList.toggle("chat-open", path !== "/");
+  shell.classList.toggle("full-open", isFullPage(path));
 
   route("/", () => {
     withCleanup(mainSlot);
@@ -352,14 +358,10 @@ async function boot() {
     const { ArchiveView } = await import("./views/archive.js");
     await ArchiveView(mainSlot);
   });
-  // Настройки — единственный маршрут, который не трогает правую колонку: он
-  // рисует в боковую панель поверх списка чатов, а открытая переписка так и
-  // остаётся справа. Если справа ещё ничего нет (зашли прямо по адресу), туда
-  // кладётся обычная заглушка, чтобы не зияла пустота.
   async function openSettings(page) {
-    if (!mainSlot.firstChild) mount(mainSlot, emptyChatPlaceholder());
+    withCleanup(mainSlot);
     const { SettingsView } = await import("./views/settings/index.js");
-    await SettingsView(sidebarSlot, page);
+    await SettingsView(mainSlot, page);
   }
   route("/settings", () => openSettings(""));
   route("/settings/:page", (params) => openSettings(params.page));

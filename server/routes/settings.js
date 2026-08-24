@@ -2,6 +2,8 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { getSettings, updateSettings } = require("../data/settings");
+const { normalizePrivacy } = require("../lib/privacyRules");
+const { isUnsupportedLanguage, UNSUPPORTED_MESSAGE } = require("../lib/unsupportedLanguages");
 const { listChatsForUser } = require("../data/chats");
 const { listMessages } = require("../data/messages");
 
@@ -58,7 +60,19 @@ router.get(
 router.patch(
   "/",
   asyncRoute(async (req, res) => {
-    const settings = await updateSettings(req.uid, req.body ?? {});
+    const patch = { ...(req.body ?? {}) };
+    // Единственная часть настроек, которую нельзя принимать как есть: списки
+    // исключений решают, кому видно номер телефона и последний визит, а сюда
+    // приходит любой JSON, какой клиент пришлёт. Приводим к ожидаемой форме —
+    // строки, без повторов, с ограничением по длине (см. lib/privacyRules.js).
+    if (patch.privacy) patch.privacy = normalizePrivacy(patch.privacy);
+    // Язык, которого в мессенджере нет, нельзя и сохранить: убрать его из
+    // выпадающего списка мало — настройки патчатся обычным запросом, а записанный
+    // однажды язык интерфейса применяется при каждом заходе.
+    if (isUnsupportedLanguage(patch.uiLanguage) || isUnsupportedLanguage(patch.translateLanguage)) {
+      return res.status(400).json({ error: UNSUPPORTED_MESSAGE });
+    }
+    const settings = await updateSettings(req.uid, patch);
     res.json({ settings });
   })
 );

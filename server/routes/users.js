@@ -4,6 +4,7 @@ const { requireUserId } = require("../middleware/auth");
 const { listUsers, updateUser, getUser, setBlocked, findUserByUsername, findUserByPhone } = require("../data/users");
 const { publicUser, selfUser, publicUsers } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
+const { privacyAllows } = require("../lib/privacyRules");
 const { listContactsFor } = require("../data/contacts");
 const { listChats, findDmBetween } = require("../data/chats");
 const { listMediaMessages, listMessages } = require("../data/messages");
@@ -70,11 +71,23 @@ router.get(
 
     if (!isSelf) {
       const { privacy } = await getSettings(req.params.id);
-      const canSee = (level) => level === "everyone" || (level === "contacts" && isContact);
-      if (!canSee(privacy.phone)) delete visible.phone;
-      if (!canSee(privacy.lastSeen)) delete visible.lastSeen;
-      if (!canSee(privacy.bio)) delete visible.bio;
-      if (!canSee(privacy.birthday)) delete visible.birthday;
+      // Уровень («Все / Мои контакты / Никто») плюс поимённые исключения —
+      // см. server/lib/privacyRules.js.
+      const canSee = (key) => privacyAllows(privacy, key, req.uid, isContact);
+      if (!canSee("phone")) delete visible.phone;
+      if (!canSee("lastSeen")) delete visible.lastSeen;
+      if (!canSee("bio")) delete visible.bio;
+      if (!canSee("birthday")) delete visible.birthday;
+      // «Фото профиля» до сих пор было единственной настройкой из этого
+      // списка, которую нигде не читали: выставить «Никто» было можно, а
+      // аватар всё равно отдавался. Проверяется здесь же, вместе с остальными.
+      // Убирать надо оба поля: avatarImage — текущий снимок, avatarImages —
+      // вся галерея профиля (см. server/db.js), и второе без первого просто
+      // отдало бы то же самое фото другой дорогой.
+      if (!canSee("photo")) {
+        delete visible.avatarImage;
+        delete visible.avatarImages;
+      }
     }
 
     res.json({ user: visible, isContact });

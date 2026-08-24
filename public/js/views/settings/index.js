@@ -30,6 +30,12 @@ import { PremiumStar, PremiumStarRow } from "../../components/premiumStar.js";
 import { AdCabinet } from "../../components/adCabinet.js";
 import { safetyLabelInfo } from "../../lib/safetyLabels.js";
 import { openDropdownMenu } from "../../components/dropdownMenu.js";
+import { openPrivacyExceptionsDialog } from "../../components/privacyExceptionsDialog.js";
+
+// То же, что говорит сервер (server/lib/unsupportedLanguages.js), — написано
+// прямо под выбором языка, а не только в ответе на отклонённый запрос: человек
+// должен видеть, почему языка нет в списке, а не искать его там.
+const UNSUPPORTED_LANGUAGE_NOTE = "Украинский язык не поддерживается в нашем мессенджере.";
 
 // Разделы настроек, разложенные по карточкам так же, как в Telegram: сначала
 // то, что настраивают каждый день, потом платное и дополнительное, потом
@@ -828,7 +834,20 @@ async function renderBots(root) {
                       }
                     },
                   }),
-                  el("button", { class: "icon-btn", title: "Код бота", html: iconSvg("Code", 15), onclick: () => openBotCodeDialog(b) }),
+                  el("button", {
+                    class: "icon-btn",
+                    title: "Код бота",
+                    html: iconSvg("Code", 15),
+                    // Список ботов загружается один раз при входе в раздел —
+                    // после сохранения кода он обязан узнать об этом сам, иначе
+                    // метка «код» появляется у бота только после ухода со
+                    // страницы и возвращения назад.
+                    onclick: () =>
+                      openBotCodeDialog(b, (code) => {
+                        b.code = code;
+                        render();
+                      }),
+                  }),
                   // The command list the "/" button in a chat with this bot
                   // offers. BotFather's own format, so anyone who has set up a
                   // Telegram bot already knows what to type here.
@@ -883,6 +902,11 @@ async function renderAppearance(root) {
   // Covers the world's most-spoken languages — Google Translate itself
   // supports 100+, but a dropdown of every ISO code is a worse UX than a
   // curated list (same tradeoff Telegram's own translate picker makes).
+  //
+  // Украинского в списке нет намеренно — и не только в списке: сервер отклоняет
+  // его и в переводе, и в настройках, и в проверке текста (см.
+  // server/lib/unsupportedLanguages.js). Убрать пункт из выпадающего списка
+  // мало: язык выставляется и обычным запросом к API.
   const TRANSLATE_LANGUAGES = [
     { id: "ru", label: "Русский" },
     { id: "en", label: "English" },
@@ -898,7 +922,6 @@ async function renderAppearance(root) {
     { id: "tr", label: "Türkçe" },
     { id: "it", label: "Italiano" },
     { id: "pl", label: "Polski" },
-    { id: "uk", label: "Українська" },
     { id: "vi", label: "Tiếng Việt" },
     { id: "th", label: "ไทย" },
     { id: "id", label: "Bahasa Indonesia" },
@@ -1030,6 +1053,7 @@ async function renderAppearance(root) {
               TRANSLATE_LANGUAGES.map((l) => el("option", { value: l.id, selected: settings.translateLanguage === l.id }, l.label))
             ),
             el("p", { class: "settings-toggle-hint" }, "Кнопка «Перевести» в меню сообщения переводит его на этот язык"),
+            el("p", { class: "settings-toggle-hint unsupported-lang-note" }, UNSUPPORTED_LANGUAGE_NOTE),
           ]),
           el("div", { class: "settings-field" }, [
             el("p", { class: "settings-field-label" }, "Язык интерфейса"),
@@ -1049,6 +1073,7 @@ async function renderAppearance(root) {
               { class: "settings-toggle-hint" },
               "Переводит саму программу — кнопки, меню, надписи (не сообщения) — через Google Translate. Применяется после перезагрузки страницы."
             ),
+            el("p", { class: "settings-toggle-hint unsupported-lang-note" }, UNSUPPORTED_LANGUAGE_NOTE),
           ]),
         ]),
       ])
@@ -1138,14 +1163,47 @@ async function renderPrivacy(root) {
     render();
   }
 
+  // Исключения из одного правила: «номер видят все, кроме этого одного» или
+  // «последний визит скрыт от всех, кроме двоих». Хранятся рядом с самими
+  // правилами (settings.privacy.exceptions), проверяются на сервере в
+  // server/lib/privacyRules.js — там же и порядок старшинства.
+  function openExceptions(label, key) {
+    openPrivacyExceptionsDialog({
+      title: `Исключения — ${label}`,
+      users: allUsers.filter((u) => u.id !== getState().user.id),
+      value: settings.privacy?.exceptions?.[key],
+      onSave: (value) =>
+        patch({
+          exceptions: { ...(settings.privacy?.exceptions ?? {}), [key]: value },
+        }),
+    });
+  }
+
   function row(label, key) {
-    return el("div", { class: "settings-toggle-row" }, [
-      el("span", { class: "settings-toggle-title" }, label),
-      el(
-        "select",
-        { class: "settings-select", onchange: (e) => patch({ [key]: e.target.value }) },
-        OPTIONS.map((o) => el("option", { value: o.value, selected: settings.privacy[key] === o.value }, o.label))
-      ),
+    const exc = settings.privacy?.exceptions?.[key] ?? {};
+    const allowed = exc.allow?.length ?? 0;
+    const denied = exc.deny?.length ?? 0;
+    // Сколько исключений уже есть — прямо в строке. Правило, у которого их
+    // не видно, обманывает: в списке написано «Все», а кто-то из этих «всех»
+    // на самом деле ничего не видит.
+    const summary = [allowed ? `+${allowed}` : null, denied ? `−${denied}` : null].filter(Boolean).join(" · ");
+    return el("div", { class: "settings-toggle-row privacy-row" }, [
+      el("div", { class: "privacy-row-label" }, [
+        el("span", { class: "settings-toggle-title" }, label),
+        summary ? el("p", { class: "settings-toggle-hint" }, `Исключения: ${summary}`) : null,
+      ]),
+      el("div", { class: "privacy-row-controls" }, [
+        el(
+          "select",
+          { class: "settings-select", onchange: (e) => patch({ [key]: e.target.value }) },
+          OPTIONS.map((o) => el("option", { value: o.value, selected: settings.privacy[key] === o.value }, o.label))
+        ),
+        el(
+          "button",
+          { class: `privacy-exceptions-link ${summary ? "active" : ""}`, title: "Исключения из этого правила", onclick: () => openExceptions(label, key) },
+          summary ? `Исключения · ${allowed + denied}` : "Исключения"
+        ),
+      ]),
     ]);
   }
 

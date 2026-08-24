@@ -22,28 +22,28 @@ function logLine(entry) {
   ]);
 }
 
-export function openBotCodeDialog(bot) {
+// onSaved — чтобы список ботов, из которого редактор открыли, узнал о новой
+// версии кода: он загружается один раз при входе в раздел, и без этого метка
+// «код» у бота появлялась только после ухода со страницы и возвращения назад.
+export function openBotCodeDialog(bot, onSaved) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const editorSlot = el("div", { class: "bot-code-editor-slot" });
   const testInput = el("input", { class: "login-input", placeholder: "/start", value: "/start" });
   const outputSlot = el("div", { class: "bot-code-output" });
   const logsSlot = el("div", { class: "bot-code-logs" });
   const saveStatus = el("span", { class: "settings-toggle-hint" });
-  const dialog = el("div", { class: "modal-dialog bot-code-dialog" }, [
-    el("div", { class: "bot-code-header" }, [
-      el("h2", { class: "modal-title" }, `Код бота «${bot.user?.name ?? bot.name ?? ""}»`),
-      el("button", { class: "icon-btn", html: iconSvg("X", 18), onclick: () => close() }),
-    ]),
+  // Шапка и кнопка «Сохранить» стоят вне прокручиваемого тела: тело раньше
+  // было единственным содержимым окна с max-height: 90vh и без прокрутки — на
+  // ноутбучном экране редактор с тестом и логами в эту высоту не влезал, и
+  // нижняя часть окна просто обрезалась. Кнопка «Сохранить» оказывалась среди
+  // обрезанного.
+  const body = el("div", { class: "bot-code-body" }, [
     el(
       "p",
       { class: "settings-toggle-hint" },
       "Определите async function handleMessage(msg, bot) — она вызывается на каждое сообщение боту. Работает в песочнице: без доступа к файлам, процессу и сети, с таймаутом 20с (и 300мс на непрерывную работу процессора). Подробности — на странице /bots."
     ),
     editorSlot,
-    el("div", { class: "bot-code-actions" }, [
-      el("button", { class: "btn-accent", onclick: save }, "Сохранить"),
-      saveStatus,
-    ]),
     el("div", { class: "bot-code-section" }, [
       el("p", { class: "settings-field-label" }, "Тест"),
       el("div", { class: "bot-code-test-row" }, [testInput, el("button", { class: "settings-add-account-btn", onclick: runTest }, "Запустить")]),
@@ -57,6 +57,17 @@ export function openBotCodeDialog(bot) {
       logsSlot,
     ]),
   ]);
+  const dialog = el("div", { class: "modal-dialog bot-code-dialog" }, [
+    el("div", { class: "bot-code-header" }, [
+      el("h2", { class: "modal-title" }, `Код бота «${bot.user?.name ?? bot.name ?? ""}»`),
+      el("button", { class: "icon-btn", html: iconSvg("X", 18), onclick: () => close() }),
+    ]),
+    body,
+    el("div", { class: "bot-code-actions" }, [
+      el("button", { class: "btn-accent", onclick: save }, "Сохранить"),
+      saveStatus,
+    ]),
+  ]);
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
 
@@ -66,7 +77,16 @@ export function openBotCodeDialog(bot) {
   let editor = null;
   const loadingNote = el("p", { class: "settings-toggle-hint" }, "Загружаем редактор…");
   editorSlot.appendChild(loadingNote);
-  createCodeEditor(editorSlot, { value: bot.code?.trim() ? bot.code : STARTER_CODE })
+  // Код спрашивается у сервера, а не берётся из переданной записи бота. Запись
+  // приходит из списка в настройках, который загружается один раз при входе в
+  // раздел: написав и сохранив программу, редактор можно было закрыть и открыть
+  // заново — и увидеть прежнюю версию, а у нового бота вместо только что
+  // написанного кода снова шаблон. Ровно то место, где написанное «пропадало».
+  api
+    .getBot(bot.id)
+    .then((r) => r.bot)
+    .catch(() => bot)
+    .then((fresh) => createCodeEditor(editorSlot, { value: fresh?.code?.trim() ? fresh.code : STARTER_CODE }))
     .then((made) => {
       loadingNote.remove();
       editor = made;
@@ -76,11 +96,13 @@ export function openBotCodeDialog(bot) {
     });
 
   async function save() {
+    if (!editor) return;
     saveStatus.textContent = "Сохраняем…";
     try {
-      if (!editor) return;
-      await api.saveBotCode(bot.id, editor.getValue());
+      const code = editor.getValue();
+      await api.saveBotCode(bot.id, code);
       saveStatus.textContent = "Сохранено ✓";
+      onSaved?.(code);
     } catch (err) {
       saveStatus.textContent = err.message || "Не удалось сохранить";
     }
@@ -120,7 +142,11 @@ export function openBotCodeDialog(bot) {
   refreshLogs();
 
   function close() {
-    editor.destroy();
+    // Редактор приезжает с CDN — закрыть окно можно и до того, как он приедет
+    // (или если он не приедет вовсе). Безусловный destroy() в этом случае падал
+    // на undefined, и окно не закрывалось ни крестиком, ни щелчком по фону:
+    // единственным выходом была перезагрузка страницы.
+    editor?.destroy();
     overlay.remove();
   }
 }

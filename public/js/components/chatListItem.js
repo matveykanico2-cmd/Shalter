@@ -19,7 +19,7 @@ function timeLabel(iso) {
 }
 
 function preview(chat, meId) {
-  if (chat.draft) return `Черновик: ${chat.draft}`;
+  if (chat.draft) return chat.draft;
   const m = chat.lastMessage;
   if (!m) return "Нет сообщений";
   if (m.type === "system") return m.text;
@@ -128,7 +128,13 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave })
           ),
         ]),
         el("div", { class: "chat-list-item-row" }, [
-          el("span", { class: `chat-list-item-preview ${chat.draft ? "draft" : ""}` }, preview(chat, meId)),
+          // Красным помечается только слово «Черновик:», а не весь текст: сам
+          // набранный текст — обычное превью, и целиком красная строка читалась
+          // как ошибка, а не как «здесь недописанное сообщение».
+          el("span", { class: "chat-list-item-preview" }, [
+            chat.draft ? el("span", { class: "chat-preview-draft" }, "Черновик: ") : null,
+            preview(chat, meId),
+          ]),
           el("span", { class: "chat-list-item-badges" }, [
             chat.pinned ? el("span", { html: iconSvg("Pin", 12) }) : null,
             chat.muted ? el("span", { html: iconSvg("BellOff", 12) }) : null,
