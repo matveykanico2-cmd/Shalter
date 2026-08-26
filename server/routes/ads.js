@@ -9,6 +9,8 @@ const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
 const { isConnected: isDonationAlertsConnected, getDonationPageUrl } = require("../lib/donationAlerts");
 const { createPendingOrder } = require("../data/pendingOrders");
+// Очередь проверки общая с маркетом (routes/market.js → «Рекламировать»).
+const { notifyAdminOfReview } = require("../lib/adReview");
 
 // Ads get a small gallery of attachments, image/video/file only — no voice/
 // video-note/location/contact/poll, none of which make sense on a
@@ -231,6 +233,9 @@ router.post(
       placement,
       cpmStars: Number(req.body?.cpmStars) || 20,
     });
+    // Создана — значит уже на проверке (см. adCampaigns.create): отдельного
+    // «отправить на проверку» после создания больше нет.
+    await notifyAdminOfReview(created, req.uid);
     res.json({ campaign: created });
   })
 );
@@ -250,11 +255,13 @@ router.patch(
     if (PLACEMENTS[req.body?.placement]) patch.placement = req.body.placement;
     if (Number.isFinite(Number(req.body?.cpmStars))) patch.cpmStars = Math.max(campaigns.CPM_MIN, Number(req.body.cpmStars));
     const touchesCreative = "text" in patch || "url" in patch || "imageUrl" in patch;
-    if (touchesCreative && (c.status === "active" || c.status === "review")) {
+    if (touchesCreative && c.status !== "review") {
       patch.status = "review";
       patch.rejectReason = null;
     }
-    res.json({ campaign: campaigns.update(c.id, patch) });
+    const updated = campaigns.update(c.id, patch);
+    if (patch.status === "review") await notifyAdminOfReview(updated, req.uid);
+    res.json({ campaign: updated });
   })
 );
 
@@ -296,7 +303,9 @@ router.post(
 
     if (want === "review") {
       if (!c.text.trim()) return res.status(400).json({ error: "Пустое объявление не проверяют" });
-      return res.json({ campaign: campaigns.update(c.id, { status: "review", rejectReason: null }) });
+      const updated = campaigns.update(c.id, { status: "review", rejectReason: null });
+      await notifyAdminOfReview(updated, req.uid);
+      return res.json({ campaign: updated });
     }
     if (want === "paused") return res.json({ campaign: campaigns.update(c.id, { status: "paused" }) });
     if (want === "active") {
@@ -369,7 +378,9 @@ router.get(
         return { ...c, owner: owner ? { id: owner.id, name: owner.name, username: owner.username || null } : { id: c.ownerId } };
       })
     );
-    res.json({ campaigns: withOwners });
+    // Названия мест показа едут вместе с очередью: без них экран проверки
+    // показывал бы «discover» вместо «Каталог каналов».
+    res.json({ campaigns: withOwners, placements: PLACEMENTS });
   })
 );
 

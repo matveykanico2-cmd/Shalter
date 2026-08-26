@@ -40,6 +40,9 @@ export function openSidebarMenu(pos) {
   items.push({ icon: "Phone", label: "Звонки", onClick: () => navigate("/calls") });
   items.push({ icon: "Archive", label: "Архив", onClick: () => navigate("/archive") });
   items.push({ icon: "Globe", label: "Каталог каналов", onClick: () => navigate("/discover-channels") });
+  // На широком экране рельса скрыта совсем (см. .nav-rail в components.css),
+  // поэтому маркет обязан быть здесь: иначе на компьютере в него не попасть.
+  items.push({ icon: "Bag", label: "Маркет", onClick: () => navigate("/market") });
   items.push({ icon: "Settings", label: "Настройки", onClick: () => navigate("/settings") });
 
   items.push({ separator: true });

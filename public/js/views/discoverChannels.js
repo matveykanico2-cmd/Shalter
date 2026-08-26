@@ -4,6 +4,7 @@ import { Avatar } from "../components/avatar.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { setState } from "../state.js";
+import { openAd } from "../lib/adLink.js";
 
 // Public-channel directory (chatList.js's "+" menu → "Публичные каналы") —
 // mirrors ContactsView's shape (header + search + row list) but hits
@@ -30,17 +31,6 @@ export async function DiscoverChannelsView(root) {
       if (ad) render();
     })
     .catch(() => {});
-
-  // Переход по объявлению считается кликом и только потом открывает ссылку.
-  async function openAd() {
-    if (!ad) return;
-    try {
-      await api.clickAd(ad.id);
-    } catch {
-      // Счётчик — не причина не пустить человека по ссылке.
-    }
-    if (ad.url) window.open(ad.url, "_blank", "noreferrer");
-  }
 
   async function search(q) {
     loading = true;
@@ -129,7 +119,7 @@ export async function DiscoverChannelsView(root) {
         // Рекламная карточка — над списком и с прямой пометкой «Реклама»: без
         // неё объявление выглядит как обычный канал, и это обман.
         ad
-          ? el("button", { class: "discover-ad", onclick: openAd }, [
+          ? el("button", { class: "discover-ad", onclick: () => openAd(ad) }, [
               el("div", { class: "discover-ad-head" }, [
                 el("span", { class: "discover-ad-label" }, "РЕКЛАМА"),
                 ad.title ? el("span", { class: "discover-ad-title" }, ad.title) : null,

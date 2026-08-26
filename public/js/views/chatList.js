@@ -12,6 +12,7 @@ import { StoriesBar } from "../components/storiesBar.js";
 import { Avatar } from "../components/avatar.js";
 import { VerifiedBadge } from "../components/verifiedBadge.js";
 import { api } from "../api.js";
+import { openAd } from "../lib/adLink.js";
 import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
 import { onWsMessage } from "../lib/wsClient.js";
@@ -577,13 +578,7 @@ function SponsoredRow(ad) {
       {
         class: "chat-list-item sponsored-row",
         title: ad.url || "",
-        onclick: async () => {
-          // Переход засчитывается как клик и только потом открывает ссылку.
-          // Счётчик — не причина задерживать человека, поэтому ошибка здесь
-          // проглатывается.
-          await api.clickAd(ad.id).catch(() => {});
-          if (ad.url) window.open(ad.url, "_blank", "noreferrer");
-        },
+        onclick: () => openAd(ad),
       },
       [
         el("span", { class: "sponsored-mark", html: iconSvg("Zap", 22) }),

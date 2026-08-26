@@ -57,13 +57,18 @@ function pickForPlacement(placement, excludeOwnerId) {
   return rowToCampaign(rows);
 }
 
-function create({ ownerId, title, text, url, imageUrl, placement, cpmStars }) {
+// Новая кампания сразу встаёт в очередь на проверку, а не ложится черновиком:
+// объявление всё равно нельзя показать без проверки, а «создал и жду» — это
+// ровно то состояние, в котором она оказывается сразу после создания. Статус
+// всё же параметр: правка уже проверенного объявления возвращает его сюда же.
+function create({ ownerId, title, text, url, imageUrl, placement, cpmStars, status = "review" }) {
   const id = `ad_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   db.prepare(
     `INSERT INTO ad_campaigns (id, ownerId, title, text, url, imageUrl, placement, status, cpmStars, createdAt)
-     VALUES (@id, @ownerId, @title, @text, @url, @imageUrl, @placement, 'draft', @cpmStars, @createdAt)`
+     VALUES (@id, @ownerId, @title, @text, @url, @imageUrl, @placement, @status, @cpmStars, @createdAt)`
   ).run({
     id,
+    status,
     ownerId,
     title: title || "Без названия",
     text: text || "",

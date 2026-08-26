@@ -85,6 +85,9 @@ const PATHS = {
   // paperclip menu, which names every action instead of only drawing it.
   File: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/>',
   BarChart: '<path d="M6 20V10"/><path d="M12 20V4"/><path d="M18 20v-7"/>',
+  // Сумка — маркет: в рельсе навигации и на карточках магазинов. Ручка дугой,
+  // а не двумя палками, — иначе на 22 пикселях читается как коробка.
+  Bag: '<path d="M4 8h16l-1.2 11.2a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 8z"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/>',
   // The verified check: a scalloped seal with a tick, drawn filled so it reads
   // at 13px next to a name rather than dissolving into three strokes.
   Verified:

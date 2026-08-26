@@ -155,6 +155,8 @@ app.use("/api/stories", require("./routes/stories"));
 app.use("/api/premium", require("./routes/premium"));
 app.use("/api/gifts", require("./routes/gifts"));
 app.use("/api/ads", require("./routes/ads"));
+// Маркет: магазины продавцов, товары и заказы (routes/market.js).
+app.use("/api/market", require("./routes/market"));
 app.use("/api/donation-alerts", require("./routes/donationAlerts"));
 app.use("/api/translate", require("./routes/translate"));
 app.use("/api/uploads", require("./routes/uploads"));

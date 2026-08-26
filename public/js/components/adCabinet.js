@@ -10,7 +10,7 @@ import { api } from "../api.js";
 
 const STATUS = {
   draft: { label: "Черновик", tone: "muted", hint: "Ещё не отправлено на проверку" },
-  review: { label: "На проверке", tone: "warn", hint: "Администратор смотрит объявление" },
+  review: { label: "На проверке", tone: "warn", hint: "Администрация Shalter смотрит объявление — обычно это недолго" },
   active: { label: "Идёт показ", tone: "ok", hint: "Объявление показывается и тратит бюджет" },
   paused: { label: "На паузе", tone: "muted", hint: "Проверено, но показ выключен" },
   rejected: { label: "Отклонено", tone: "danger", hint: "Исправьте текст и отправьте снова" },
@@ -127,7 +127,7 @@ export function AdCabinet(root) {
                 editing = null;
               }),
           },
-          isNew ? "Создать кампанию" : "Сохранить"
+          isNew ? "Создать и отправить на проверку" : "Сохранить"
         ),
         el("button", { class: "profile-action-btn", onclick: () => { editing = null; render(); } }, "Отмена"),
       ]),
@@ -253,14 +253,14 @@ export function AdCabinet(root) {
             ]),
 
         data.campaigns.length === 0 && editing !== "new"
-          ? el("p", { class: "moderation-empty" }, "Кампаний пока нет. Создайте первую — она уйдёт на проверку, а потом её можно включить.")
+          ? el("p", { class: "moderation-empty" }, "Кампаний пока нет. Создайте первую — она сразу уйдёт на проверку, а после ответа администрации её можно включить.")
           : null,
         ...data.campaigns.map(campaignCard),
 
         el("div", { class: "settings-notice-box" }, [
           el("p", { class: "settings-toggle-title" }, "Как это устроено"),
           el("p", { class: "settings-toggle-hint" }, "Оплата — звёздами, за показы: цена задаётся за тысячу. Деньги списываются по мере показа, остаток всегда виден в карточке."),
-          el("p", { class: "settings-toggle-hint" }, "Каждое объявление проходит проверку до первого показа. Изменили текст — оно уходит на проверку снова."),
+          el("p", { class: "settings-toggle-hint" }, "Созданная кампания сразу уходит на проверку к администрации Shalter и до её ответа не показывается никому. Ответ придёт сообщением в чат: допущено или отклонено с причиной. Изменили текст — объявление уходит на проверку снова."),
           el("p", { class: "settings-toggle-hint" }, "Нацеливания на человека нет: выбрать можно только место показа. Реклама, которая целится в человека, требует слежки за ним, — этого в Shalter не будет."),
         ]),
       ])

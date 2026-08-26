@@ -28,6 +28,7 @@ import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
 import { openAdminUserPanel } from "../../components/adminUserPanel.js";
 import { PremiumStar, PremiumStarRow } from "../../components/premiumStar.js";
 import { AdCabinet } from "../../components/adCabinet.js";
+import { AdReviewQueue } from "../../components/adModeration.js";
 import { safetyLabelInfo } from "../../lib/safetyLabels.js";
 import { openDropdownMenu } from "../../components/dropdownMenu.js";
 import { openPrivacyExceptionsDialog } from "../../components/privacyExceptionsDialog.js";
@@ -1803,6 +1804,13 @@ async function renderModeration(root) {
   // Вне render(): пересоздание полей на каждой перерисовке — ровно то, из-за
   // чего в других местах приложения текст приходилось вводить по одной букве.
   const newLabelShort = el("input", { class: "settings-input", placeholder: "СПАМ", maxlength: 16 });
+
+  // Очередь проверки рекламы держит своё состояние (открытый ввод причины,
+  // текст в нём) и грузится своим запросом — поэтому узел создаётся один раз
+  // здесь, а не внутри render(): иначе каждая перерисовка страницы модерации
+  // сбрасывала бы наполовину набранную причину отказа.
+  const adReviewSlot = el("div", { class: "settings-section-group" });
+  AdReviewQueue(adReviewSlot);
   const newLabelName = el("input", { class: "settings-input", placeholder: "Спам-рассылка" });
   const newLabelHint = el("input", { class: "settings-input", placeholder: "Пояснение, которое увидит собеседник" });
 
@@ -1999,6 +2007,7 @@ async function renderModeration(root) {
                 ])
               )
         ),
+        adReviewSlot,
         section(
           `Заблокированные (${data.banned.length})`,
           data.banned.length === 0

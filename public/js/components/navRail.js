@@ -48,12 +48,14 @@ export function NavRail() {
     railButton("/", "Send", "Чаты", (p) => p === "/" || p.startsWith("/chat")),
     railButton("/contacts", "Users", "Контакты", (p) => p === "/contacts"),
     railButton("/calls", "Phone", "Звонки", (p) => p === "/calls"),
+    railButton("/market", "Bag", "Маркет", (p) => p.startsWith("/market")),
     railButton("/archive", "Archive", "Архив", (p) => p === "/archive"),
   ];
   const settingsBtn = railButton("/settings", "Settings", "Настройки", (p) => p.startsWith("/settings"));
   railButtons.push(settingsBtn);
 
-  nav.append(accountBtn, ...railButtons.slice(0, 4), el("div", { class: "nav-rail-spacer" }), settingsBtn);
+  // Всё, кроме настроек, — сверху; настройки прижаты к низу распоркой.
+  nav.append(accountBtn, ...railButtons.slice(0, -1), el("div", { class: "nav-rail-spacer" }), settingsBtn);
 
   function paintActive(p) {
     for (const b of railButtons) b.classList.toggle("active", b._isActive(p));

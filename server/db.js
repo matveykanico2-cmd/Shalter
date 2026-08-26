@@ -940,4 +940,74 @@ CREATE TABLE IF NOT EXISTS ad_daily (
 );
 `);
 
+// ── Маркет: магазины, товары, заказы ────────────────────────────────────────
+//
+// Зачем отдельные таблицы, а не «канал с постами-товарами»: у заказа есть
+// состояние и деньги, и то и другое надо потом показать обеим сторонам —
+// перепиской это не выражается.
+//
+// Магазин — один на аккаунт (ownerId UNIQUE). Двух магазинов у одного продавца
+// не бывает ни в одном сценарии, который тут нужен, а UNIQUE снимает целый
+// класс вопросов «какой из них показывать в рекламе».
+//
+// Оплата у товара своя: 'stars' — звёздами внутри приложения, 'cash' — деньгами
+// при встрече/доставке, о которых стороны договариваются в чате. Это выбор
+// продавца на каждый товар: цифровой товар без звёзд продать нельзя, а мешок
+// картошки за звёзды никто продавать не станет.
+db.exec(`
+CREATE TABLE IF NOT EXISTS shops (
+  id TEXT PRIMARY KEY,
+  ownerId TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  about TEXT NOT NULL DEFAULT '',
+  imageUrl TEXT,
+  city TEXT NOT NULL DEFAULT '',
+  isOpen INTEGER NOT NULL DEFAULT 1,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_shops_open ON shops(isOpen);
+
+CREATE TABLE IF NOT EXISTS shop_products (
+  id TEXT PRIMARY KEY,
+  shopId TEXT NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  imageUrl TEXT,
+  payKind TEXT NOT NULL DEFAULT 'stars',
+  priceStars INTEGER NOT NULL DEFAULT 0,
+  priceRub INTEGER NOT NULL DEFAULT 0,
+  -- -1 значит «сколько угодно»: у цифрового товара запаса нет вовсе, и
+  -- заставлять продавца писать туда выдуманное число незачем.
+  stock INTEGER NOT NULL DEFAULT -1,
+  isActive INTEGER NOT NULL DEFAULT 1,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_shop_products_shop ON shop_products(shopId, isActive);
+
+-- Название и цена скопированы в заказ, а не взяты ссылкой на товар: товар
+-- переименуют, подорожает или его удалят — а заказ должен читаться таким,
+-- каким его сделали.
+CREATE TABLE IF NOT EXISTS shop_orders (
+  id TEXT PRIMARY KEY,
+  shopId TEXT NOT NULL,
+  productId TEXT NOT NULL,
+  productTitle TEXT NOT NULL DEFAULT '',
+  buyerId TEXT NOT NULL,
+  sellerId TEXT NOT NULL,
+  qty INTEGER NOT NULL DEFAULT 1,
+  payKind TEXT NOT NULL DEFAULT 'stars',
+  amountStars INTEGER NOT NULL DEFAULT 0,
+  amountRub INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'new',
+  note TEXT NOT NULL DEFAULT '',
+  chatId TEXT,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_shop_orders_buyer ON shop_orders(buyerId, createdAt);
+CREATE INDEX IF NOT EXISTS idx_shop_orders_shop ON shop_orders(shopId, status);
+`);
+
 module.exports = db;
