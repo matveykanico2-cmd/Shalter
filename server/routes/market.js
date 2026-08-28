@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { getUser } = require("../data/users");
+const { getUser, findUserByUsername } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
@@ -84,10 +84,20 @@ router.get(
   })
 );
 
+// Ссылка на магазин бывает двух видов: /market/shop/sh_… (короткий
+// внутренний id) и /market/shop/@юзернейм владельца — вторую можно продиктовать
+// вслух и написать на визитке, поэтому магазин ищется и по ней.
+async function resolveShop(idOrHandle) {
+  const raw = String(idOrHandle ?? "");
+  if (!raw.startsWith("@")) return market.getShop(raw);
+  const owner = await findUserByUsername(raw.slice(1));
+  return owner ? market.getShopByOwner(owner.id) : undefined;
+}
+
 router.get(
   "/shops/:id",
   asyncRoute(async (req, res) => {
-    const shop = market.getShop(req.params.id);
+    const shop = await resolveShop(req.params.id);
     if (!shop) return res.status(404).json({ error: "Магазин не найден" });
     const isMine = shop.ownerId === req.uid;
     // Закрытый магазин видит только владелец — иначе ссылка из старой рекламы

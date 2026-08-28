@@ -8,7 +8,7 @@ const { privacyAllows } = require("../lib/privacyRules");
 const { listContactsFor } = require("../data/contacts");
 const { listChats, findDmBetween } = require("../data/chats");
 const { listMediaMessages, listMessages } = require("../data/messages");
-const { PHONE_RE, normalizePhone } = require("../lib/validators");
+const { PHONE_RE, normalizePhone, isValidBirthday } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 
 const LINK_RE = /https?:\/\/\S+/;
@@ -147,6 +147,14 @@ router.patch(
       patch.username = normalizeUsername(patch.username);
       const problem = await checkUsername(patch.username, { forUserId: req.uid });
       if (problem) return res.status(problem.status).json({ error: problem.error });
+    }
+    if ("birthday" in patch) {
+      // Пустое значение — «не указана»: так дату можно стереть, а не только
+      // заменить другой.
+      const value = String(patch.birthday ?? "").trim();
+      if (!value) patch.birthday = null;
+      else if (!isValidBirthday(value)) return res.status(400).json({ error: "Дата рождения указана неверно" });
+      else patch.birthday = value;
     }
     if ("phone" in patch) {
       const normalized = normalizePhone(patch.phone);

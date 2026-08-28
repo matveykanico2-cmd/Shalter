@@ -3,9 +3,21 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { TTL_MS, listStoriesForUsers, addStory, markViewed, deleteStory } = require("../data/stories");
-const { listContactsFor } = require("../data/contacts");
+const { listContactsFor, listOwnersOf } = require("../data/contacts");
 const { getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
+const { isSafeUrl } = require("../lib/sanitizeAttachments");
+const { broadcastToUsers } = require("../ws");
+
+const MAX_ITEMS = 10;
+
+// Кому рассказывать про эту историю: автору (он смотрит с нескольких устройств)
+// и всем, у кого автор в контактах, — ровно та же граница видимости, что и у
+// ленты выше. Без этого удалённая история оставалась висеть на чужих экранах до
+// перезагрузки, и автор не мог её убрать по-настоящему.
+function audienceOf(authorId) {
+  return [...new Set([authorId, ...listOwnersOf(authorId)])];
+}
 
 const router = express.Router();
 router.use(requireUserId);
@@ -76,9 +88,17 @@ router.post(
   "/",
   asyncRoute(async (req, res) => {
     const { kind, url } = req.body ?? {};
-    if (!["image", "video"].includes(kind) || !url) {
-      return res.status(400).json({ error: "invalid story" });
-    }
+    // Одна история — сколько угодно кадров. Раньше на каждый выбранный файл
+    // заводилась своя история, и десять снимков превращались в десять историй,
+    // которые автор потом удалял по одной. Старая форма запроса (kind + url)
+    // продолжает работать: это та же история из одного кадра.
+    const rawItems = Array.isArray(req.body?.items) && req.body.items.length ? req.body.items : [{ kind, url }];
+    const items = rawItems
+      .slice(0, MAX_ITEMS)
+      .filter((it) => it && ["image", "video"].includes(it.kind) && it.url && isSafeUrl(it.url))
+      .map((it) => ({ kind: it.kind, url: it.url }));
+    if (!items.length) return res.status(400).json({ error: "invalid story" });
+
     const now = Date.now();
     const story = await addStory({
       // Со случайным хвостом, а не голая миллисекунда: id — это PRIMARY KEY, а
@@ -89,12 +109,13 @@ router.post(
       // выкладывался один, молча.
       id: `st_${now}_${crypto.randomBytes(4).toString("hex")}`,
       userId: req.uid,
-      kind,
-      url,
+      items,
       createdAt: new Date(now).toISOString(),
       expiresAt: new Date(now + TTL_MS).toISOString(),
       viewedByIds: [],
     });
+    // Лента у остальных обновляется сама — тем же путём, что и удаление ниже.
+    broadcastToUsers(audienceOf(req.uid), { type: "story:new", storyId: story.id, userId: req.uid });
     res.json({ story });
   })
 );
@@ -124,6 +145,10 @@ router.delete(
   asyncRoute(async (req, res) => {
     const ok = await deleteStory(req.params.id, req.uid);
     if (!ok) return res.status(404).json({ error: "not found" });
+    // Удалили — значит у всех: у того, кто её сейчас смотрит, история
+    // закрывается, из ленты пропадает кружок. Иначе «удалено» означало лишь
+    // «удалено у меня», а чужие экраны продолжали её показывать.
+    broadcastToUsers(audienceOf(req.uid), { type: "story:deleted", storyId: req.params.id, userId: req.uid });
     res.json({ ok: true });
   })
 );

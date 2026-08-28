@@ -280,10 +280,15 @@ export async function leaveLive() {
   await api.leaveLive(id).catch(() => {});
 }
 
+// Ошибка завершения не проглатывается, в отличие от выхода: выйти можно
+// всегда — сам факт ухода не зависит от сервера, — а вот эфир после неудачного
+// «Завершить» продолжает идти. Раньше здесь стоял .catch(() => {}), и отказ
+// сервера выглядел на экране как успех: окно закрывалось, плашка «идёт эфир»
+// оставалась висеть в чате, и завершить эфир было уже нечем.
 export async function stopLive() {
   if (!state) return;
   const id = state.stream.id;
-  await api.stopLive(id).catch(() => {});
+  await api.stopLive(id);
   teardown();
 }
 

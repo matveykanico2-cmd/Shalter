@@ -24,7 +24,7 @@ function videoFor(key, stream, { muted = false, mirrored = false } = {}) {
   return node;
 }
 
-export function openLiveScreen(streamId, { chatTitle } = {}) {
+export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = {}) {
   const overlay = el("div", { class: "live-overlay" });
   const body = el("div", { class: "live-body" });
   overlay.appendChild(body);
@@ -72,7 +72,15 @@ export function openLiveScreen(streamId, { chatTitle } = {}) {
     lastState = s;
     clear(body);
     if (!s) {
-      body.append(el("div", { class: "live-message" }, [el("p", {}, "Эфир завершён"), el("button", { class: "btn-accent", onclick: close }, "Закрыть")]));
+      // Без состояния экран не знает, эфир кончился или войти не вышло, —
+      // поэтому текст берётся из ошибки, если она есть. Иначе «Эфир завершён»
+      // говорилось и про живой эфир, в который просто не пустили.
+      body.append(
+        el("div", { class: "live-message" }, [
+          el("p", {}, error || "Эфир завершён"),
+          el("button", { class: "btn-accent", onclick: close }, "Закрыть"),
+        ])
+      );
       return;
     }
     if (s.stream.status === "ended") {
@@ -81,6 +89,9 @@ export function openLiveScreen(streamId, { chatTitle } = {}) {
     }
 
     const isHost = s.myRole === "host";
+    // Завершить может ведущий или администратор чата (server/routes/live.js):
+    // эфир принадлежит чату, и брошенный эфир должен быть кому выключить.
+    const canStop = isHost || !!canStopStream;
     const canSpeak = s.myRole === "host" || s.myRole === "speaker";
     const host = s.participants.find((p) => p.role === "host");
     const speakers = s.participants.filter((p) => p.role === "speaker");
@@ -145,15 +156,21 @@ export function openLiveScreen(streamId, { chatTitle } = {}) {
             [el("span", {}, "✋"), el("span", {}, mine?.handRaised ? "Рука поднята" : "Попросить слово")]
           )
         : null,
-      isHost
+      // Ведущему выходить некуда — его уход и есть конец эфира (сервер так и
+      // делает), поэтому у него одна красная кнопка. Администратор чата, зашедший
+      // зрителем, получает обе: выйти самому и выключить брошенный эфир.
+      !isHost
+        ? el("button", { class: "live-ctl", onclick: () => act(async () => { await leaveLive(); close(); }) }, [
+            el("span", { html: iconSvg("LogOut", 18) }),
+            el("span", {}, "Выйти"),
+          ])
+        : null,
+      canStop
         ? el("button", { class: "live-ctl danger", onclick: () => act(async () => { await stopLive(); close(); }) }, [
             el("span", { html: iconSvg("X", 18) }),
             el("span", {}, "Завершить эфир"),
           ])
-        : el("button", { class: "live-ctl", onclick: () => act(async () => { await leaveLive(); close(); }) }, [
-            el("span", { html: iconSvg("LogOut", 18) }),
-            el("span", {}, "Выйти"),
-          ]),
+        : null,
     ]);
 
     // Участники: у ведущего рядом с каждым — то, что он может сделать. Поднятая

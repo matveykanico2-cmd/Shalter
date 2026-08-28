@@ -1,4 +1,5 @@
 import { el } from "./dom.js";
+import { navigate } from "../router.js";
 import { openInAppBrowser, checkLinkSafety } from "../components/inAppBrowser.js";
 import { openProfileDialog } from "../components/profileDialog.js";
 
@@ -48,6 +49,11 @@ function renderInline(text, members) {
           class: "text-link",
           onclick: (e) => {
             e.preventDefault();
+            // Ссылка на само приложение (магазин, канал, приглашение) открывается
+            // внутри него, а не в окне браузера поверх: там она показала бы вторую
+            // копию Shalter в рамке, со своим входом и своей навигацией.
+            const internal = internalPath(tok);
+            if (internal) return navigate(internal);
             const { unsafe, warning } = checkLinkSafety(tok);
             openInAppBrowser(tok, { unsafe, warning });
           },
@@ -57,6 +63,17 @@ function renderInline(text, members) {
     if (tok.startsWith("*") && tok.endsWith("*")) return el("i", {}, tok.slice(1, -1));
     return tok;
   });
+}
+
+// Путь внутри этого же приложения — или null, если ссылка ведёт наружу.
+function internalPath(href) {
+  try {
+    const url = new URL(href, window.location.origin);
+    if (url.origin !== window.location.origin) return null;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return null;
+  }
 }
 
 function spoiler(text) {

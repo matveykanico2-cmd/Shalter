@@ -360,7 +360,9 @@ export const api = {
   getDonationAlertsStatus: () => req("/api/donation-alerts/status"),
 
   listStories: () => req("/api/stories"),
-  postStory: (kind, url) => req("/api/stories", { method: "POST", body: JSON.stringify({ kind, url }) }),
+  // Одна история — список кадров: выбрали в галерее пять файлов, получилась
+  // одна история на пять кадров, а не пять историй.
+  postStory: (items) => req("/api/stories", { method: "POST", body: JSON.stringify({ items }) }),
   viewStory: (id) => req(`/api/stories/${id}/view`, { method: "POST" }),
   deleteStory: (id) => req(`/api/stories/${id}`, { method: "DELETE" }),
 

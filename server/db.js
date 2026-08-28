@@ -419,6 +419,13 @@ CREATE INDEX IF NOT EXISTS idx_data_exports_created ON data_exports(createdAt);
 // statements were first written — CREATE TABLE IF NOT EXISTS is a no-op on a
 // database file that already has the `users` table (from before Premium/
 // referrals existed), so those columns need to be bolted on separately here.
+// История из нескольких файлов — одна запись со списком кадров, а не по записи
+// на снимок: выбрали в галерее пять фотографий — это одна история на пять
+// кадров, и удаляется она целиком. Старые записи (одна картинка в kind/url)
+// продолжают читаться: items у них пустой, и слой данных подставляет kind/url.
+const existingStoryColumns = new Set(db.prepare("PRAGMA table_info(stories)").all().map((c) => c.name));
+if (!existingStoryColumns.has("items")) db.exec("ALTER TABLE stories ADD COLUMN items TEXT");
+
 const existingUserColumns = new Set(db.prepare("PRAGMA table_info(users)").all().map((c) => c.name));
 if (!existingUserColumns.has("isPremium")) db.exec("ALTER TABLE users ADD COLUMN isPremium INTEGER NOT NULL DEFAULT 0");
 if (!existingUserColumns.has("referralCode")) db.exec("ALTER TABLE users ADD COLUMN referralCode TEXT");

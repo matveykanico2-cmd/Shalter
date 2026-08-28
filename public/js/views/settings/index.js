@@ -13,6 +13,7 @@ import { openBotTokenDialog } from "../../components/botTokenDialog.js";
 import { openBotCodeDialog } from "../../components/botCodeDialog.js";
 import { openEditBotDialog } from "../../components/editBotDialog.js";
 import { PhoneField } from "../../components/phoneField.js";
+import { DateField } from "../../components/dateField.js";
 import { hasPasscode } from "../../lib/passcodeLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../components/twoFactorDialog.js";
@@ -284,6 +285,10 @@ async function renderProfile(root) {
   let phone = me.phone ?? "";
   let bio = me.bio;
   let birthday = me.birthday ?? "";
+  // null, пока в поле даты написано что-то несуразное, — сохранение об этом
+  // спрашивает у самого поля, чтобы не полагаться на порядок событий.
+  let birthdayError = null;
+  let birthdayField = null;
   let avatarImage = me.avatarImage;
   let avatarImages = me.avatarImages ?? [];
   let phoneField = null;
@@ -353,7 +358,21 @@ async function renderProfile(root) {
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Дата рождения"),
-            el("input", { class: "settings-input", type: "date", value: birthday, oninput: (e) => (birthday = e.target.value) }),
+            // Пишется руками (components/dateField.js), а не выбирается в
+            // календаре: родной календарь открывается на этом месяце, и до года
+            // рождения его пришлось бы листать десятилетиями.
+            // Живёт между перерисовками, как и поле телефона: пересозданное,
+            // оно теряло бы и курсор, и набранное.
+            (birthdayField ??= DateField({
+              value: birthday,
+              onChange: (iso, err) => {
+                birthday = iso;
+                birthdayError = err;
+              },
+            })).el,
+            birthdayError
+              ? el("span", { class: "login-error" }, birthdayError)
+              : el("span", { class: "settings-toggle-hint" }, "Например: 25.12.1990"),
           ]),
         ]),
         profileError ? el("p", { class: "login-error" }, profileError) : null,
@@ -363,6 +382,16 @@ async function renderProfile(root) {
             class: "btn-accent",
             onclick: async () => {
               profileError = null;
+              // Дата спрашивается у поля целиком: набрали «25.12» и сразу жмут
+              // «Сохранить» — половину даты сохранять нельзя, а молча выбрасывать
+              // набранное тем более.
+              const date = birthdayField ? birthdayField.read() : { iso: birthday, error: null };
+              if (date.error) {
+                profileError = `Дата рождения: ${date.error.toLowerCase()}`;
+                birthdayError = date.error;
+                return render();
+              }
+              birthday = date.iso;
               try {
                 const { user } = await api.updateProfile(me.id, { name, username, phone, bio, birthday });
                 setState({ user: { ...getState().user, name, username, phone: user.phone, bio, birthday } });

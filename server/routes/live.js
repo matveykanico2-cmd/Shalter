@@ -47,6 +47,15 @@ function requireHost(stream, req, res) {
   return true;
 }
 
+// Завершение — единственное действие, доступное не только ведущему: эфир
+// принадлежит чату, и тот, кто вправе его начать, вправе и выключить. Без
+// этого брошенный эфир (ведущий закрыл вкладку, ушёл из канала, начал его
+// второй администратор) висел «в эфире» навсегда, и снять плашку было некому:
+// остальное управление — слово, микрофоны — по-прежнему только у ведущего.
+function canStopStream(stream, chat, userId) {
+  return stream.hostId === userId || isStaff(chat, userId);
+}
+
 // Полное состояние: сам эфир, участники с карточками и хвост чата. Один
 // запрос, потому что клиенту при входе нужно всё сразу, а три отдельных
 // показали бы экран, собирающийся по частям.
@@ -115,7 +124,15 @@ router.get(
     const canHost = isStaff(chat, req.uid);
     const stream = live.getLiveStreamForChat(chat.id);
     if (!stream) return res.json({ stream: null, viewers: 0, canHost });
-    res.json({ stream, viewers: live.listParticipants(stream.id).length, canHost });
+    // canStop едет вместе с плашкой, чтобы завершить эфир можно было прямо из
+    // чата — не входя в него. Войти ради выключения значит спросить камеру и
+    // микрофон у человека, который хочет ровно обратного.
+    res.json({
+      stream,
+      viewers: live.listParticipants(stream.id).length,
+      canHost,
+      canStop: canStopStream(stream, chat, req.uid),
+    });
   })
 );
 
@@ -149,6 +166,15 @@ router.post(
     const found = await loadStream(req, res);
     if (!found) return;
     live.removeParticipant(found.stream.id, req.uid);
+
+    // Ушёл ведущий — эфира больше нет: говорить в нём некому, а плашка «идёт
+    // эфир» продолжала бы звать людей в пустую комнату.
+    if (found.stream.hostId === req.uid && found.stream.status === "live") {
+      const stream = live.endStream(found.stream.id);
+      broadcastToUsers(found.chat.memberIds, { type: "live:ended", chatId: stream.chatId, streamId: stream.id });
+      return res.json({ ok: true, ended: true });
+    }
+
     // Сообщаем и оставшимся, и самому вышедшему — его клиент по этому событию
     // закрывает соединения.
     broadcastToUsers([...live.listParticipants(found.stream.id).map((p) => p.userId), req.uid], {
@@ -212,7 +238,13 @@ router.post(
   "/:id/stop",
   asyncRoute(async (req, res) => {
     const found = await loadStream(req, res);
-    if (!found || !requireHost(found.stream, req, res)) return;
+    if (!found) return;
+    if (!canStopStream(found.stream, found.chat, req.uid)) {
+      return res.status(403).json({ error: "Завершить эфир может ведущий или администратор чата" });
+    }
+    // Уже завершённый эфир завершается «успешно»: кнопку могли нажать дважды
+    // или из двух мест сразу, и отказ здесь выглядел бы как «не выключается».
+    if (found.stream.status !== "live") return res.json({ stream: found.stream });
     const stream = live.endStream(found.stream.id);
     // Здесь рассылка снова всему чату: плашка «идёт эфир» висит у всех, и
     // снять её нужно у всех, а не только у тех, кто внутри.

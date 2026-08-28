@@ -348,21 +348,27 @@ export async function openProfileDialog(userId) {
             el(
               "div",
               { class: "profile-stories-grid" },
-              storiesGroup.stories.map((st, i) =>
-                el(
-                  "button",
-                  {
-                    class: `profile-story-cell ${st.viewed ? "viewed" : ""}`,
-                    onclick: () => openStoryViewer([storiesGroup], 0, me.id, () => loadStories(), i),
-                  },
-                  [
-                    st.kind === "video"
-                      ? el("video", { class: "profile-story-cell-media", src: st.url, muted: true })
-                      : el("img", { class: "profile-story-cell-media", src: st.url, alt: "" }),
-                    st.kind === "video" ? el("span", { class: "profile-story-cell-play", html: iconSvg("Play", 14) }) : null,
-                  ]
+              // По плитке на кадр, а не на историю: история теперь может быть
+              // из нескольких снимков, и показывать её одной обложкой значило
+              // бы прятать остальные. Просмотрщик листает те же кадры подряд,
+              // поэтому его начальный номер — это номер плитки в этой сетке.
+              storiesGroup.stories
+                .flatMap((st) => (st.items?.length ? st.items : [{ kind: st.kind, url: st.url }]).map((item) => ({ st, item })))
+                .map(({ st, item }, i) =>
+                  el(
+                    "button",
+                    {
+                      class: `profile-story-cell ${st.viewed ? "viewed" : ""}`,
+                      onclick: () => openStoryViewer([storiesGroup], 0, me.id, () => loadStories(), i),
+                    },
+                    [
+                      item.kind === "video"
+                        ? el("video", { class: "profile-story-cell-media", src: item.url, muted: true })
+                        : el("img", { class: "profile-story-cell-media", src: item.url, alt: "" }),
+                      item.kind === "video" ? el("span", { class: "profile-story-cell-play", html: iconSvg("Play", 14) }) : null,
+                    ]
+                  )
                 )
-              )
             ),
           ])
         : null,

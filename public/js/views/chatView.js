@@ -851,7 +851,10 @@ export async function ChatView(root, chatId) {
     try {
       const { stream } = await api.startLive(chat.id, { title: chat.title, withVideo: true });
       await loadLive();
-      openLiveScreen(stream.id, { chatTitle: chat.title });
+      // Тот, кто эфир начал, его и завершает — но canStop передаётся честно с
+      // сервера, а не выводится из «я нажал начать»: эфир мог уже идти и вести
+      // его мог другой администратор (см. already в routes/live.js).
+      openLiveScreen(stream.id, { chatTitle: chat.title, canStopStream: !!liveInfo?.canStop });
     } catch (err) {
       alert(err.message || "Не удалось начать эфир");
     }
@@ -881,6 +884,18 @@ export async function ChatView(root, chatId) {
       .catch(() => {});
   }
 
+  async function stopLiveFromBar(stream) {
+    if (!confirm("Завершить эфир для всех?")) return;
+    try {
+      await api.stopLive(stream.id);
+    } catch (err) {
+      alert(err.message || "Не удалось завершить эфир");
+    }
+    // Перечитываем в любом случае: если эфир к этому моменту уже кончился сам,
+    // плашка должна исчезнуть, а не остаться вместе с сообщением об ошибке.
+    await loadLive();
+  }
+
   // Плашка идущего эфира. Она же — приглашение: об эфире в канале узнают
   // отсюда, а не по звонку, который разбудил бы всех подписчиков разом.
   function renderLiveBar() {
@@ -894,7 +909,20 @@ export async function ChatView(root, chatId) {
           el("p", { class: "live-bar-title" }, stream.title || "Идёт эфир"),
           el("p", { class: "live-bar-sub" }, `${liveInfo.viewers ?? 0} в эфире`),
         ]),
-        el("button", { class: "live-bar-join", onclick: () => openLiveScreen(stream.id, { chatTitle: chat.title }) }, "Смотреть"),
+        el(
+          "button",
+          {
+            class: "live-bar-join",
+            onclick: () => openLiveScreen(stream.id, { chatTitle: chat.title, canStopStream: !!liveInfo.canStop }),
+          },
+          "Смотреть"
+        ),
+        // Завершение прямо отсюда — для брошенного эфира: ведущий закрыл
+        // вкладку, а плашка зовёт людей в пустую комнату. Входить ради
+        // выключения нельзя заставлять: вход спрашивает камеру и микрофон.
+        liveInfo.canStop
+          ? el("button", { class: "live-bar-stop", onclick: () => stopLiveFromBar(stream) }, "Завершить")
+          : null,
       ])
     );
   }

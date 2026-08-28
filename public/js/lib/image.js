@@ -27,6 +27,17 @@ export function fileToImageDataUrl(file, maxSize = 256) {
 
 export const fileToAvatarDataUrl = (file) => fileToImageDataUrl(file, 256);
 
+// То же уменьшение, но результат — файл, а не строка: его можно отдать
+// потоковой загрузке (lib/upload.js), вместо того чтобы тащить картинку внутри
+// JSON. Нужно там, где кадров может быть много (истории): десяток снимков в
+// base64 не влезает ни в предел тела запроса, ни в здравый смысл.
+export async function fileToImageUpload(file, maxSize = 1080) {
+  const dataUrl = await fileToImageDataUrl(file, maxSize);
+  const blob = await (await fetch(dataUrl)).blob();
+  const name = (file.name || "photo").replace(/\.[^.]+$/, "") + ".jpg";
+  return new File([blob], name, { type: "image/jpeg" });
+}
+
 // One frame out of a video file, downscaled, as a data URL.
 //
 // A video avatar still needs a still: every avatar circle in the app — chat

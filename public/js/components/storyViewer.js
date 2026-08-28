@@ -3,6 +3,7 @@ import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
+import { onWsMessage } from "../lib/wsClient.js";
 
 const IMAGE_DURATION_MS = 5000;
 
@@ -16,13 +17,18 @@ const IMAGE_DURATION_MS = 5000;
 // сама. Единственный способ дочитать подпись или разглядеть картинку — задержать
 // палец, и это движение здесь единственное, которое человек делает не глядя.
 //
-// groups: [{ user, stories: [{id, kind, url, viewed, createdAt}] }].
+// groups: [{ user, stories: [{id, items: [{kind,url}], viewed, createdAt}] }].
+//
+// История может состоять из нескольких кадров: выбрали в галерее пять файлов —
+// это одна история на пять кадров. Поэтому листается всё по кадрам, а полоска
+// сверху рисует сегмент на каждый кадр; удаление же снимает историю целиком,
+// со всеми её кадрами — по одному снимку из неё не вынуть.
 export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex = 0) {
   let gi = groupIndex;
-  // Открываемся ровно на той истории, по которой нажали: из сетки в профиле
+  // Открываемся ровно на том кадре, по которому нажали: из сетки в профиле
   // выбирают конкретный кадр, и начинать всегда с первого значило бы
   // «нажми на третий, посмотри первый».
-  let si = Math.max(0, Math.min(startIndex, (groups[groupIndex]?.stories.length ?? 1) - 1));
+  let si = Math.max(0, startIndex);
   let timer = null;
   let startedAt = 0;
   let remainingMs = IMAGE_DURATION_MS;
@@ -36,13 +42,25 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   document.body.appendChild(overlay);
 
   const currentGroup = () => groups[gi];
-  const currentStory = () => currentGroup()?.stories[si];
+
+  // Плоский список кадров текущего автора: история на три снимка даёт три
+  // кадра подряд — листаются они так же, как три отдельные истории раньше.
+  function frames() {
+    const group = currentGroup();
+    if (!group) return [];
+    return group.stories.flatMap((story) =>
+      (story.items?.length ? story.items : [{ kind: story.kind, url: story.url }]).map((item, index) => ({ story, item, index }))
+    );
+  }
+  const currentFrame = () => frames()[si];
+  const currentStory = () => currentFrame()?.story;
   const isMine = () => currentStory()?.userId === meId || currentGroup()?.user?.id === meId;
 
   function close() {
     clearTimeout(timer);
     videoEl?.pause();
     document.removeEventListener("keydown", onKey);
+    unsubDeleted?.();
     overlay.remove();
   }
 
@@ -56,8 +74,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   }
 
   function goNextStory() {
-    const group = currentGroup();
-    if (si < group.stories.length - 1) {
+    if (si < frames().length - 1) {
       si++;
       render();
     } else goNextGroup();
@@ -69,7 +86,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       render();
     } else if (gi > 0) {
       gi--;
-      si = groups[gi].stories.length - 1;
+      si = Math.max(0, frames().length - 1);
       render();
     }
   }
@@ -186,6 +203,37 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     }
   }
 
+  // История исчезла — своя после удаления или чужая, которую автор убрал прямо
+  // сейчас. Убираем все её кадры; кончились истории у автора — уходим к
+  // следующему, кончились и они — закрываемся.
+  function dropStory(storyId) {
+    const was = currentFrame();
+    for (const group of groups) group.stories = group.stories.filter((st) => st.id !== storyId);
+    for (let i = groups.length - 1; i >= 0; i--) {
+      if (groups[i].stories.length) continue;
+      groups.splice(i, 1);
+      if (i < gi) gi--;
+    }
+    if (!groups.length) return close();
+    if (gi >= groups.length) gi = groups.length - 1;
+
+    const list = frames();
+    if (!list.length) return close();
+    // Возвращаемся на тот же кадр, если он уцелел: удаление чужой истории не
+    // должно перематывать то, что человек сейчас смотрит.
+    const same = was ? list.findIndex((f) => f.story.id === was.story.id && f.index === was.index) : -1;
+    si = same >= 0 ? same : Math.min(si, list.length - 1);
+    render();
+  }
+
+  // Автор удалил историю у себя — у смотрящего она закрывается сама
+  // (server/routes/stories.js рассылает это всем, кто её видит).
+  const unsubDeleted = onWsMessage("story:deleted", ({ storyId }) => {
+    if (!groups.some((g) => g.stories.some((st) => st.id === storyId))) return;
+    dropStory(storyId);
+    onChanged?.();
+  });
+
   function onKey(e) {
     if (e.key === "Escape") return close();
     if (e.key === "ArrowRight") return goNextStory();
@@ -201,14 +249,15 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     clearTimeout(timer);
     videoEl?.pause();
     const group = currentGroup();
-    const story = currentStory();
+    const frame = currentFrame();
+    const story = frame?.story;
     if (!group || !story) return close();
 
     markViewedIfNeeded(story);
     const mine = isMine();
 
     const fills = [];
-    const bars = group.stories.map((s, i) => {
+    const bars = frames().map((f, i) => {
       const fill = el("div", { class: `story-progress-fill ${i < si ? "done" : ""}` });
       fills.push(fill);
       return el("div", { class: "story-progress-bar" }, [fill]);
@@ -216,9 +265,9 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     activeFill = fills[si];
 
     let media;
-    if (story.kind === "video") {
+    if (frame.item.kind === "video") {
       videoEl = el("video", {
-        src: story.url,
+        src: frame.item.url,
         class: "story-media",
         autoplay: true,
         playsinline: true,
@@ -229,7 +278,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       media = videoEl;
     } else {
       videoEl = null;
-      media = el("img", { src: story.url, class: "story-media" });
+      media = el("img", { src: frame.item.url, class: "story-media" });
     }
 
     // Ответ автору уходит обычным сообщением в личную переписку — так же, как
@@ -289,7 +338,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
             el("p", { class: "story-header-name" }, group.user.name),
             el("p", { class: "story-header-time" }, timeAgo(story.createdAt)),
           ]),
-          story.kind === "video"
+          frame.item.kind === "video"
             ? el("button", {
                 class: "story-header-btn",
                 title: muted ? "Включить звук" : "Выключить звук",
@@ -308,17 +357,16 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
                 html: iconSvg("Trash", 18),
                 onclick: async () => {
                   pause();
-                  if (!confirm("Удалить историю?")) return resume();
-                  await api.deleteStory(story.id).catch(() => {});
-                  group.stories.splice(si, 1);
+                  const count = story.items?.length ?? 1;
+                  if (!confirm(count > 1 ? `Удалить историю целиком — все ${count} кадра?` : "Удалить историю?")) return resume();
+                  try {
+                    await api.deleteStory(story.id);
+                  } catch (err) {
+                    alert(err.message || "Не удалось удалить историю");
+                    return resume();
+                  }
+                  dropStory(story.id);
                   onChanged?.();
-                  if (group.stories.length === 0) {
-                    groups.splice(gi, 1);
-                    if (groups.length === 0) return close();
-                    if (gi >= groups.length) gi = groups.length - 1;
-                    si = 0;
-                  } else if (si >= group.stories.length) si = group.stories.length - 1;
-                  render();
                 },
               })
             : null,
@@ -338,11 +386,16 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       ]),
       // Переход к соседнему автору — на широком экране стрелками по краям, как
       // в веб-версии Telegram. На телефоне их нет: там для этого зоны нажатия.
-      gi > 0 ? el("button", { class: "story-nav prev", html: iconSvg("ChevronLeft", 22), onclick: goPrevGroup }) : null,
-      gi < groups.length - 1 ? el("button", { class: "story-nav next", html: iconSvg("ChevronRight", 22), onclick: goNextGroup }) : null
+      ...[
+        gi > 0 ? el("button", { class: "story-nav prev", html: iconSvg("ChevronLeft", 22), onclick: goPrevGroup }) : null,
+        gi < groups.length - 1 ? el("button", { class: "story-nav next", html: iconSvg("ChevronRight", 22), onclick: goNextGroup }) : null,
+        // .filter(Boolean) обязателен: Element.append() — не el(), пустоту он не
+        // пропускает, а превращает null в текст «null». У первого автора стрелки
+        // «назад» нет, и это слово печаталось прямо поверх кадра.
+      ].filter(Boolean)
     );
 
-    if (story.kind !== "video") startTimer(IMAGE_DURATION_MS);
+    if (frame.item.kind !== "video") startTimer(IMAGE_DURATION_MS);
     else setBarAnimation(0, false);
   }
 

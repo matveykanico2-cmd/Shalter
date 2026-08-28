@@ -5,6 +5,7 @@ import { navigate } from "../router.js";
 import { getState } from "../state.js";
 import { fileToImageDataUrl } from "../lib/image.js";
 import { openOrderDialog } from "../components/orderDialog.js";
+import { openForwardDialog } from "../components/forwardDialog.js";
 
 // Маркет: витрина, магазин продавца и заказы.
 //
@@ -27,6 +28,40 @@ const TABS = [
 ];
 
 const fmt = (n) => new Intl.NumberFormat("ru-RU").format(n ?? 0);
+
+// Ссылка на магазин. По юзернейму владельца, если он есть: /market/shop/@marina
+// читается вслух и пишется на визитке, а sh_1787…_419l — нет. Сервер понимает
+// обе (server/routes/market.js, resolveShop).
+function shopLink(shop, owner) {
+  const handle = owner?.username ? `@${owner.username}` : shop.id;
+  return `${window.location.origin}/market/shop/${handle}`;
+}
+
+// Копирование с ответом на экране: без него нажатие «Скопировать» ничем не
+// отличается от нажатия в пустоту.
+async function copyLink(link, button) {
+  try {
+    await navigator.clipboard.writeText(link);
+    const was = button.textContent;
+    button.textContent = "Ссылка скопирована";
+    setTimeout(() => (button.textContent = was), 1500);
+  } catch {
+    prompt("Скопируйте ссылку:", link);
+  }
+}
+
+// Отправить ссылку в любой свой чат — тем же выбором, что и пересылка
+// сообщений, чтобы это было одно знакомое окно, а не второе такое же.
+function shareLink(link, title) {
+  openForwardDialog(async (chatId) => {
+    try {
+      await api.sendMessage(chatId, `${title}\n${link}`);
+      navigate(`/chat/${chatId}`);
+    } catch (err) {
+      alert(err.message || "Не удалось отправить");
+    }
+  });
+}
 
 // Цена товара одной строкой — она отвечает и на «сколько», и на «чем платят».
 function priceText(p) {
@@ -452,6 +487,14 @@ export async function MarketView(root, tab = "") {
         el("span", { html: iconSvg("Zap", 16) }),
         el("p", {}, [el("strong", {}, `⭐ ${fmt(mine.balanceStars)}`), " на балансе — сюда приходит оплата звёздами"]),
       ]),
+      // Ссылка на витрину прямо в кабинете: продавцу она нужна каждый раз, когда
+      // он о магазине кому-то рассказывает, и искать её на самой витрине — лишний
+      // круг.
+      el("div", { class: "market-link-row" }, [
+        el("span", { class: "mono market-link-text" }, shopLink(mine.shop, me)),
+        el("button", { class: "profile-action-btn", onclick: (e) => copyLink(shopLink(mine.shop, me), e.currentTarget) }, "Скопировать"),
+        el("button", { class: "profile-action-btn", onclick: () => shareLink(shopLink(mine.shop, me), `🛍 ${mine.shop.title}`) }, "Отправить в чат"),
+      ]),
       el("div", { class: "ad-card-actions" }, [
         el("button", { class: "profile-action-btn", onclick: () => navigate(`/market/shop/${mine.shop.id}`) }, "Открыть витрину"),
         el("button", {
@@ -565,6 +608,10 @@ export async function ShopView(root, shopId) {
               owner && owner.id !== me.id
                 ? el("button", { class: "profile-action-btn", onclick: () => navigate(owner.username ? `/u/${owner.username}` : "/market") }, `Продавец: ${owner.name}`)
                 : null,
+              // Ссылку даём всем, а не только владельцу: чаще магазин
+              // пересылают друг другу покупатели, а не хозяин.
+              el("button", { class: "profile-action-btn", onclick: (e) => copyLink(shopLink(shop, owner), e.currentTarget) }, "Скопировать ссылку"),
+              el("button", { class: "profile-action-btn", onclick: () => shareLink(shopLink(shop, owner), `🛍 ${shop.title}`) }, "Отправить в чат"),
               data.isMine ? el("button", { class: "btn-accent", onclick: () => navigate("/market/my") }, "Управлять магазином") : null,
             ]),
           ]),

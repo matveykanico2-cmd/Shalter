@@ -143,7 +143,8 @@ export function ChatListPane() {
   // Истории монтируются один раз, вне цикла renderInto: он перерисовывается на
   // каждое событие сокета, и пересборка ленты историй так часто означала бы
   // постоянные запросы за ними и потерю всего, что в ней успели открыть.
-  container.append(SidebarHeader(listSlot), StoriesBar(), listSlot);
+  const storiesBar = StoriesBar();
+  container.append(SidebarHeader(listSlot), storiesBar, listSlot);
   renderInto(listSlot);
   // Круглая кнопка «написать» в нижнем правом углу панели, поверх списка. В
   // шапке на её месте раньше стоял маленький «+», который делил строку с полем
@@ -288,6 +289,9 @@ export function ChatListPane() {
   container._cleanup = () => {
     clearInterval(iv);
     clearTimeout(refetchTimer);
+    // Лента историй слушает сокет сама (появилась/удалилась чужая история) —
+    // её подписки снимаются вместе с панелью.
+    storiesBar.cleanup?.();
     unsubState();
     unsubNew();
     unsubUpdated();
