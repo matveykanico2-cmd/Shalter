@@ -343,9 +343,19 @@ export function Composer({
           icon: "BarChart",
           label: "Опрос",
           run: () =>
-            openPollDialog((question, options) => {
+            openPollDialog((question, options, { correctIndex } = {}) => {
               onSend(question, [
-                { kind: "poll", meta: { options, votes: options.map(() => 0), voterIds: options.map(() => []) } },
+                {
+                  kind: "poll",
+                  meta: {
+                    options,
+                    votes: options.map(() => 0),
+                    voterIds: options.map(() => []),
+                    // null — обычный опрос; число — викторина с этим правильным
+                    // ответом (см. pollDialog.js).
+                    correctIndex: correctIndex ?? null,
+                  },
+                },
               ]);
             }),
         },

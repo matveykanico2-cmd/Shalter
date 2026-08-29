@@ -3,6 +3,8 @@ import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
 import { openDropdownMenu } from "../components/dropdownMenu.js";
 import { openContactPickerDialog } from "../components/contactPickerDialog.js";
+import { VolumeControl } from "../components/volumeControl.js";
+import { applyVolumeToAll } from "../lib/mediaVolume.js";
 import { api } from "../api.js";
 import { getState } from "../state.js";
 import { navigate } from "../router.js";
@@ -41,6 +43,10 @@ export async function CallScreenView(root, callId) {
   // no-op for an already-playing stream. Recreating the node instead would
   // tear down and restart playback every second.
   const remoteMediaEls = new Map(); // participantId -> { el, kind }
+  // По той же причине, что и <video> выше, ползунок громкости создаётся один
+  // раз: render() пересобирает дерево раз в секунду (таймер длительности), а
+  // ползунок, пересозданный под пальцем, бросает перетаскивание на полпути.
+  const volumeControl = VolumeControl();
   let localVideoEl = null;
   let linkStatus = null; // null | "copying" | "copied" | error message
 
@@ -214,10 +220,11 @@ export async function CallScreenView(root, callId) {
             : null,
           el("button", {
             class: `call-control-btn ${s.sharing ? "accent" : ""}`,
-            title: "Демонстрация экрана",
-            html: iconSvg("Download", 20),
+            title: s.sharing ? "Остановить показ экрана" : "Демонстрация экрана",
+            html: iconSvg("Monitor", 20),
             onclick: toggleScreenShare,
           }),
+          volumeControl,
           canAddParticipant
             ? el("button", {
                 class: "call-control-btn",
@@ -230,6 +237,10 @@ export async function CallScreenView(root, callId) {
         ]),
       ])
     );
+    // Новый участник — новый <video>, и он приходит с громкостью браузера по
+    // умолчанию. Прогоняем сохранённую громкость по всему, что сейчас на
+    // экране, после каждой сборки.
+    applyVolumeToAll();
   }
 
   async function openAddParticipantMenu(e, s) {

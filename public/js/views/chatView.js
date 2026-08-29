@@ -847,9 +847,9 @@ export async function ChatView(root, chatId) {
     renderHeader();
     renderLiveBar();
   }
-  async function startLive() {
+  async function startLive(source) {
     try {
-      const { stream } = await api.startLive(chat.id, { title: chat.title, withVideo: true });
+      const { stream } = await api.startLive(chat.id, { title: chat.title, withVideo: true, source });
       await loadLive();
       // Тот, кто эфир начал, его и завершает — но canStop передаётся честно с
       // сервера, а не выводится из «я нажал начать»: эфир мог уже идти и вести
@@ -858,6 +858,17 @@ export async function ChatView(root, chatId) {
     } catch (err) {
       alert(err.message || "Не удалось начать эфир");
     }
+  }
+
+  // Два разных эфира за одной кнопкой: из вкладки браузера и из внешней
+  // программы. Спрашиваем до создания, а не после: у эфира из OBS свой ключ и
+  // свой путь картинки (server/rtmp.js), и переключить одно в другое на ходу
+  // нельзя — это был бы уже другой эфир.
+  function askLiveSource() {
+    openChoiceDialog("Начать эфир", [
+      { label: "Из браузера — камера и экран", onClick: () => startLive("webrtc") },
+      { label: "Через OBS Studio или другую программу", onClick: () => startLive("rtmp") },
+    ]);
   }
 
   let botAudience = null;
@@ -1010,7 +1021,7 @@ export async function ChatView(root, chatId) {
         // «угадай, какая из них эфир». На узком экране подпись прячется, но
         // тогда и кнопки звонков рядом нет — в канале её не бывает.
         !isDm && liveInfo?.canHost && !liveInfo?.stream
-          ? el("button", { class: "icon-btn chat-header-live-btn", title: "Начать эфир", onclick: startLive }, [
+          ? el("button", { class: "icon-btn chat-header-live-btn", title: "Начать эфир", onclick: askLiveSource }, [
               el("span", { class: "chat-header-live-dot" }),
               el("span", { class: "chat-header-live-label" }, "Эфир"),
             ])

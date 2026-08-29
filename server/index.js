@@ -104,7 +104,28 @@ const indexHtml = path.join(useBuilt ? DIST_DIR : PUBLIC_DIR, "index.html");
 // If nginx sits in front and already gzips, set DISABLE_APP_GZIP=1 to skip
 // compressing twice.
 if (!process.env.DISABLE_APP_GZIP) {
-  app.use(compression({ level: 6, filter: (req) => !req.path.startsWith("/dist/") }));
+  app.use(
+    compression({
+      level: 6,
+      // Два условия, а не одно.
+      //
+      // Своё — не трогать /dist/: там уже лежат заранее сжатые файлы.
+      //
+      // Второе — compression.filter, стандартная проверка «а это вообще имеет
+      // смысл жать»: она смотрит на Content-Type и пропускает уже сжатое
+      // (картинки, видео) мимо. Раньше её здесь не было, и свой фильтр её
+      // молча заменял — то есть жалось всё подряд.
+      //
+      // Стоило это не только процессорного времени. На бесконечном ответе —
+      // картинке эфира из OBS (routes/live.js, feed.flv) — сжатие копит данные
+      // в буфере и не отдаёт их, пока ответ не закончится. А он не закончится
+      // никогда: это прямой эфир. Проверено: тот же запрос без Accept-Encoding
+      // отдаёт полтора мегабайта за пять секунд, с Accept-Encoding — ноль
+      // байт, и зритель смотрит на чёрный прямоугольник. Браузеры этот
+      // заголовок шлют всегда, поэтому эфир из OBS не показывался ни у кого.
+      filter: (req, res) => !req.path.startsWith("/dist/") && compression.filter(req, res),
+    })
+  );
 }
 
 app.use(cookieParser());
@@ -246,6 +267,36 @@ attachWebSocketServer(server);
 startAutoDeleteSweep();
 startDonationAlertsSweep();
 startScheduledMessagesSweep();
+
+// Приём эфиров из OBS и подобных программ (server/rtmp.js). Отдельный порт,
+// отдельный протокол — но тот же процесс.
+//
+// Падение здесь не должно ронять само приложение: занятый порт 1935 (а он
+// занят, если рядом уже крутится чей-то медиасервер) — повод остаться без
+// вещания из OBS, а не без мессенджера. Эфиры из браузера при этом продолжают
+// работать: они идут мимо этого сервера вообще.
+try {
+  const rtmp = require("./rtmp");
+  const { broadcastToUsers } = require("./ws");
+  const { getChat } = require("./data/chats");
+  rtmp.start({
+    // OBS подключился или отключился — зрителям надо перерисовать экран:
+    // «ведущий ещё не начал» сменяется картинкой и обратно.
+    onStreamChange: async (stream) => {
+      const chat = await getChat(stream.chatId).catch(() => null);
+      if (!chat) return;
+      broadcastToUsers(chat.memberIds, { type: "live:state", streamId: stream.id });
+    },
+  });
+  // Именно «поднимаем», а не «слушаем»: node-media-server занимает порт
+  // асинхронно и о неудаче (порт занят соседним медиасервером) сообщает только
+  // в собственный лог строкой «Node Media Rtmp Server Error». Утверждать здесь,
+  // что приём работает, значит врать в самом заметном месте — в первых строках
+  // после запуска.
+  console.log(`[rtmp] поднимаем приём эфиров из OBS на rtmp://0.0.0.0:${rtmp.RTMP_PORT}/live`);
+} catch (err) {
+  console.error("[rtmp] не поднялся, вещание из OBS недоступно:", err.message);
+}
 
 // VAPID key setup must finish before anything can subscribe/send push, but
 // must never block the server from coming up at all if it fails for some

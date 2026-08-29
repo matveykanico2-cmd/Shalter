@@ -6,12 +6,70 @@ const { publicUser, selfUser, publicUsers } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
 const { privacyAllows } = require("../lib/privacyRules");
 const { listContactsFor } = require("../data/contacts");
-const { listChats, findDmBetween } = require("../data/chats");
+const { listChats, listChatsForUser, getChat, findDmBetween } = require("../data/chats");
+const { isStaff } = require("../lib/chatPermissions");
+const { updateSettings } = require("../data/settings");
 const { listMediaMessages, listMessages } = require("../data/messages");
 const { PHONE_RE, normalizePhone, isValidBirthday } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 
 const LINK_RE = /https?:\/\/\S+/;
+
+// Закреплённые каналы в профиле — «вот что я веду».
+//
+// Условие ровно одно и оно важное: канал должен быть публичным. Профиль видят
+// посторонние, и закреплённый в нём закрытый канал означал бы, что название
+// частного канала (а с ним и сам факт его существования) читает кто угодно,
+// кто открыл профиль, — при том что зайти туда всё равно нельзя. Публичный
+// канал и так находится поиском, поэтому показывать его не риск, а ссылка.
+const MAX_PINNED_CHANNELS = 6;
+
+// Каналы, которые этот человек вправе закрепить: его собственные — те, где он
+// владелец или администратор, — и публичные.
+async function pinnableChannelsFor(userId) {
+  const chats = await listChatsForUser(userId);
+  return chats.filter((c) => c.type === "channel" && c.isPublic && isStaff(c, userId));
+}
+
+// Карточка канала для профиля: ничего лишнего, только то, чем он подписан на
+// экране, и username — по нему делается переход.
+function channelCard(chat, viewerId) {
+  return {
+    id: chat.id,
+    title: chat.title,
+    username: chat.username ?? null,
+    avatarColor: chat.avatarColor ?? null,
+    avatarImage: chat.avatarImage ?? null,
+    isVerified: !!chat.isVerified,
+    members: (chat.memberIds ?? []).length,
+    // Открыть канал может только тот, кто на него подписан: /api/chats/:id
+    // требует участия. Поэтому профиль должен знать заранее, что предложить —
+    // «Открыть» или «Подписаться», — а не выяснять это отказом сервера уже
+    // после нажатия.
+    isMember: (chat.memberIds ?? []).includes(viewerId),
+  };
+}
+
+// Что показать в профиле. Список хранится в настройках владельца профиля, но
+// проверяется на каждом чтении, а не только при сохранении: канал мог с тех пор
+// стать закрытым, его могли удалить, а самого человека — разжаловать из
+// администраторов. Закреплённая карточка пережила бы всё это и продолжала
+// висеть в профиле, ведя в никуда.
+//
+// Проверка здесь — не перестраховка, а единственная настоящая: pinnedChannelIds
+// лежит в общих настройках, а PATCH /api/settings принимает любые ключи как
+// есть. То есть записать в этот список чужой закрытый канал может кто угодно —
+// и не покажет его именно эта функция. Убрать её, положившись на проверку при
+// сохранении, значит открыть названия закрытых каналов всему свету.
+async function pinnedChannelsOf(userId, viewerId) {
+  const { pinnedChannelIds } = await getSettings(userId);
+  const ids = Array.isArray(pinnedChannelIds) ? pinnedChannelIds.slice(0, MAX_PINNED_CHANNELS) : [];
+  if (!ids.length) return [];
+  const chats = await Promise.all(ids.map((id) => getChat(id).catch(() => null)));
+  return chats
+    .filter((chat) => chat && chat.type === "channel" && chat.isPublic && isStaff(chat, userId))
+    .map((chat) => channelCard(chat, viewerId));
+}
 
 const router = express.Router();
 router.use(requireUserId);
@@ -90,7 +148,35 @@ router.get(
       }
     }
 
-    res.json({ user: visible, isContact });
+    res.json({ user: visible, isContact, pinnedChannels: await pinnedChannelsOf(req.params.id, req.uid) });
+  })
+);
+
+// Свои каналы, которые можно закрепить, — для окна выбора в собственном
+// профиле. Отдельным запросом, а не вместе с профилем: посторонним этот список
+// не нужен, а владельцу он нужен только когда он открыл выбор.
+router.get(
+  "/me/pinnable-channels",
+  asyncRoute(async (req, res) => {
+    const channels = await pinnableChannelsFor(req.uid);
+    res.json({ channels: channels.map((c) => channelCard(c, req.uid)), max: MAX_PINNED_CHANNELS });
+  })
+);
+
+// Сохранение выбора. Через отдельный маршрут, а не общим PATCH /api/settings:
+// тот принимает что прислали, и закрепить можно было бы любой чужой канал —
+// достаточно знать его идентификатор. Здесь список сверяется с тем, что человек
+// действительно вправе закрепить.
+router.put(
+  "/me/pinned-channels",
+  asyncRoute(async (req, res) => {
+    const requested = Array.isArray(req.body?.chatIds) ? req.body.chatIds.filter((id) => typeof id === "string") : [];
+    const allowed = new Set((await pinnableChannelsFor(req.uid)).map((c) => c.id));
+    // Порядок сохраняем тот, в котором прислали: в профиле карточки идут
+    // сверху вниз, и это единственный способ решить, какая из них первая.
+    const chatIds = [...new Set(requested)].filter((id) => allowed.has(id)).slice(0, MAX_PINNED_CHANNELS);
+    await updateSettings(req.uid, { pinnedChannelIds: chatIds });
+    res.json({ pinnedChannels: await pinnedChannelsOf(req.uid, req.uid) });
   })
 );
 

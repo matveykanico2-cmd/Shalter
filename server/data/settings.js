@@ -16,6 +16,10 @@ const DEFAULT_SETTINGS = {
   // Спрашивать пароль аккаунта при каждом запуске приложения — даже когда
   // вход уже выполнен (см. public/js/components/passwordLockScreen.js).
   requirePasswordOnLaunch: false,
+  // Каналы, закреплённые в профиле, — «вот что я веду». Здесь только
+  // идентификаторы и только порядок; всё остальное (и право их показывать)
+  // перепроверяется на каждом чтении профиля — см. routes/users.js.
+  pinnedChannelIds: [],
   notifications: { previewText: true, sound: true, mutedChats: {} },
   privacy: {
     lastSeen: "everyone",

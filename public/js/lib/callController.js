@@ -1,5 +1,6 @@
 import { api } from "../api.js";
 import { getFlippedTrack, cameraCount } from "./cameraSwitch.js";
+import { HD_VIDEO, HD_SCREEN, cameraConstraints, tunePeerVideo, hintScreenTrack } from "./mediaQuality.js";
 import { getState as getAppState } from "../state.js";
 import { onWsMessage, wsSend, isWsOpen } from "./wsClient.js";
 import { navigate } from "../router.js";
@@ -57,6 +58,10 @@ function createPeer(otherUserId) {
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
   if (state.localStream) {
     state.localStream.getTracks().forEach((t) => pc.addTrack(t, state.localStream));
+    // Битрейт и «чем жертвовать при нехватке канала» задаются на сендере, а не
+    // на дорожке, и сбрасываются вместе с соединением — поэтому здесь, на
+    // каждом новом peer, а не один раз при получении камеры.
+    tunePeerVideo(pc, { screen: state.sharing });
   } else {
     // No local mic/camera (denied permission or no device) — still negotiate
     // recvonly so the *other* side's audio/video reaches us. Without this,
@@ -259,7 +264,11 @@ async function join({ call, chatTitle, chatType, participants, me }) {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
-      video: call.kind === "video" ? { facingMode: "user" } : false,
+      // Раньше здесь стоял голый facingMode — то есть разрешение на усмотрение
+      // браузера, а он по умолчанию берёт 640×480 при 30 кадрах. Просим 1080p60
+      // (lib/mediaQuality.js), мягкими ideal-ограничениями: камера, которая так
+      // не умеет, отдаст своё лучшее вместо отказа.
+      video: call.kind === "video" ? cameraConstraints({ facingMode: "user" }) : false,
     });
     if (!state) {
       stream.getTracks().forEach((t) => t.stop());
@@ -377,7 +386,7 @@ export async function flipCamera() {
   }
 
   const oldTrack = state.localStream?.getVideoTracks()[0] ?? null;
-  const { track: newTrack, error } = await getFlippedTrack({ currentTrack: oldTrack, wantBack: !state.facingBack });
+  const { track: newTrack, error } = await getFlippedTrack({ currentTrack: oldTrack, wantBack: !state.facingBack, video: HD_VIDEO });
   if (!newTrack) {
     // Молчание было главной бедой прежней версии: кнопка нажималась, ничего не
     // происходило, и понять почему было нельзя.
@@ -404,7 +413,10 @@ export async function flipCamera() {
   }
   state.localStream?.addTrack(newTrack);
   state.cameraTrack = newTrack;
-  state.peers.forEach((pc) => pc.getSenders().find((s) => s.track?.kind === "video")?.replaceTrack(newTrack));
+  state.peers.forEach((pc) => {
+    pc.getSenders().find((s) => s.track?.kind === "video")?.replaceTrack(newTrack);
+    tunePeerVideo(pc);
+  });
   notify();
 }
 
@@ -414,12 +426,18 @@ export async function toggleScreenShare() {
   if (!state) return;
   if (!state.sharing) {
     try {
-      const display = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const display = await navigator.mediaDevices.getDisplayMedia(HD_SCREEN);
       const screenTrack = display.getVideoTracks()[0];
       if (!screenTrack) return;
+      hintScreenTrack(screenTrack);
       state.screenTrack = screenTrack;
       state.cameraTrack = state.localStream?.getVideoTracks()[0] ?? null;
-      state.peers.forEach((pc) => pc.getSenders().find((s) => s.track?.kind === "video")?.replaceTrack(screenTrack));
+      state.peers.forEach((pc) => {
+        pc.getSenders().find((s) => s.track?.kind === "video")?.replaceTrack(screenTrack);
+        // У экрана свой профиль: 60 кадров важнее чёткости, иначе прокрутка и
+        // игра превращаются в слайд-шоу.
+        tunePeerVideo(pc, { screen: true });
+      });
       screenTrack.onended = () => toggleScreenShare();
       state.sharing = true;
       notify();
@@ -429,7 +447,10 @@ export async function toggleScreenShare() {
   } else {
     const revertTrack = state.cameraTrack;
     if (revertTrack) {
-      state.peers.forEach((pc) => pc.getSenders().find((s) => s.track?.kind === "video")?.replaceTrack(revertTrack));
+      state.peers.forEach((pc) => {
+        pc.getSenders().find((s) => s.track?.kind === "video")?.replaceTrack(revertTrack);
+        tunePeerVideo(pc);
+      });
     }
     state.screenTrack?.stop();
     state.screenTrack = null;

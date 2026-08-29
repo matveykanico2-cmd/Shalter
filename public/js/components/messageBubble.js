@@ -293,28 +293,42 @@ function PollAttachment(message, a, me, onVote) {
   const totalVotes = votes.reduce((s, v) => s + v, 0);
   const denom = totalVotes || 1;
   const myVoteIdx = voterIds.findIndex((ids) => ids.includes(me.id));
+  // Викторина: у вопроса есть правильный ответ, и он объявляется сразу после
+  // голоса — до голоса не показывается ничего, иначе весь смысл теряется.
+  const correctIndex = Number.isInteger(a.meta?.correctIndex) ? a.meta.correctIndex : null;
+  const isQuiz = correctIndex !== null;
+  const answered = myVoteIdx >= 0;
+  const gotIt = isQuiz && answered && myVoteIdx === correctIndex;
 
-  return el("div", { class: "poll-attachment" }, [
-    el("p", { class: "poll-question" }, `📊 ${message.text}`),
+  return el("div", { class: `poll-attachment ${isQuiz ? "quiz" : ""}` }, [
+    el("p", { class: "poll-question" }, `${isQuiz ? "🧠" : "📊"} ${message.text}`),
     el(
       "div",
       { class: "poll-options" },
       options.map((opt, i) => {
         const pct = Math.round((votes[i] / denom) * 100);
+        // В викторине после ответа варианты подсвечиваются: верный — зелёным
+        // всегда, ошибочный — красным только тот, который выбрал сам человек.
+        const mark = !isQuiz || !answered ? "" : i === correctIndex ? "correct" : i === myVoteIdx ? "wrong" : "";
         return el(
           "button",
-          { class: `poll-option ${myVoteIdx === i ? "my-vote" : ""}`, onclick: () => onVote(message, i) },
+          { class: `poll-option ${myVoteIdx === i ? "my-vote" : ""} ${mark}`, onclick: () => onVote(message, i) },
           [
-            myVoteIdx >= 0 ? el("span", { class: "poll-option-fill", style: { width: `${pct}%` } }) : null,
+            answered ? el("span", { class: "poll-option-fill", style: { width: `${pct}%` } }) : null,
             el("span", { class: "poll-option-label" }, [
               opt,
-              myVoteIdx >= 0 ? el("span", { class: "mono poll-option-pct" }, `${pct}%`) : null,
+              mark === "correct" ? el("span", { class: "poll-mark" }, "✓") : null,
+              mark === "wrong" ? el("span", { class: "poll-mark" }, "✗") : null,
+              answered ? el("span", { class: "mono poll-option-pct" }, `${pct}%`) : null,
             ]),
           ]
         );
       })
     ),
-    el("p", { class: "mono poll-total" }, `${totalVotes} ${votesWord(totalVotes)}`),
+    isQuiz && answered
+      ? el("p", { class: `poll-quiz-result ${gotIt ? "ok" : "bad"}` }, gotIt ? "Верно!" : `Неверно. Правильный ответ: ${options[correctIndex]}`)
+      : null,
+    el("p", { class: "mono poll-total" }, `${totalVotes} ${votesWord(totalVotes)}${isQuiz && !answered ? " · выберите ответ" : ""}`),
   ]);
 }
 

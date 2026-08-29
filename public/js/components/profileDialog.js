@@ -17,6 +17,7 @@ import { openGiftShopDialog } from "./giftShopDialog.js";
 import { openStoryViewer } from "./storyViewer.js";
 import { giftTraits } from "../lib/giftTraits.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
+import { openPinnedChannelsDialog } from "./pinnedChannelsDialog.js";
 
 // Bottom tab strip, same set/order as Telegram's own profile view. Content
 // for media/files/links comes from GET /api/users/:id/shared-media (scoped
@@ -77,6 +78,9 @@ export async function openProfileDialog(userId) {
     render();
   }
   let activeTab = "media";
+  // Каналы, которые владелец профиля закрепил у себя. Приходят вместе с
+  // профилем и уже проверены сервером: чужие и закрытые сюда не попадают.
+  let pinnedChannels = [];
 
   try {
     const [res] = await Promise.all([
@@ -88,6 +92,7 @@ export async function openProfileDialog(userId) {
     ]);
     user = res.user;
     isContact = res.isContact;
+    pinnedChannels = res.pinnedChannels ?? [];
     isBlocked = !!me.blockedUserIds?.includes(userId);
   } catch (err) {
     clear(body);
@@ -117,6 +122,40 @@ export async function openProfileDialog(userId) {
     } catch (err) {
       alert(err.message || "Не удалось убрать подарок");
     }
+  }
+
+  // Канал, на который сейчас идёт подписка, — чтобы кнопка не принимала второе
+  // нажатие, пока первое не отработало.
+  let joiningChannelId = null;
+
+  function openChannel(channel) {
+    close();
+    navigate(`/chat/${channel.id}`);
+  }
+
+  async function joinChannel(channel) {
+    joiningChannelId = channel.id;
+    render();
+    try {
+      await api.subscribeChannel(channel.id);
+      const { chats } = await api.listChats();
+      setState({ chats });
+      openChannel(channel);
+    } catch (err) {
+      joiningChannelId = null;
+      render();
+      alert(err.message || "Не удалось подписаться");
+    }
+  }
+
+  function openChannelsPicker() {
+    openPinnedChannelsDialog({
+      pinned: pinnedChannels,
+      onSaved: (next) => {
+        pinnedChannels = next ?? [];
+        render();
+      },
+    });
   }
 
   async function toggleBlock() {
@@ -318,6 +357,49 @@ export async function openProfileDialog(userId) {
           "Пожаловаться"
         ),
       ]),
+      // Каналы человека. Показываются всем, кто открыл профиль, — в этом и
+      // смысл: «вот что я веду, подпишись». Свой профиль вдобавок показывает
+      // кнопку изменения — и её же, отдельной строкой-приглашением, когда
+      // закреплять ещё нечего.
+      pinnedChannels.length || isSelf
+        ? el("div", { class: "profile-channels" }, [
+            el("div", { class: "profile-channels-head" }, [
+              el("p", { class: "profile-section-title" }, "Каналы"),
+              isSelf
+                ? el(
+                    "button",
+                    { class: "profile-channels-edit", onclick: openChannelsPicker },
+                    pinnedChannels.length ? "Изменить" : "Выбрать"
+                  )
+                : null,
+            ]),
+            ...(pinnedChannels.length
+              ? pinnedChannels.map((c) =>
+                  el("div", { class: "profile-channel-row" }, [
+                    Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage, size: 38 }),
+                    el("div", { class: "profile-channel-body" }, [
+                      el("p", { class: "profile-channel-title" }, [c.title, c.isVerified ? VerifiedBadge(13) : null]),
+                      el("p", { class: "profile-channel-sub" }, c.username ? `@${c.username}` : `${c.members} подписчиков`),
+                    ]),
+                    // Подписчику — «Открыть», остальным — «Подписаться».
+                    // Просто вести всех на /chat/:id нельзя: этот адрес требует
+                    // участия в чате, и посторонний упирался бы в отказ сервера
+                    // уже после нажатия. Подписка здесь делает ровно то же, что
+                    // в каталоге каналов: подписывает и открывает.
+                    el(
+                      "button",
+                      {
+                        class: c.isMember ? "profile-channel-open" : "btn-accent-pill",
+                        disabled: joiningChannelId === c.id,
+                        onclick: () => (c.isMember ? openChannel(c) : joinChannel(c)),
+                      },
+                      c.isMember ? "Открыть" : joiningChannelId === c.id ? "Подписываем…" : "Подписаться"
+                    ),
+                  ])
+                )
+              : [el("p", { class: "settings-toggle-hint" }, "Закрепите свои публичные каналы — их увидит каждый, кто откроет ваш профиль.")]),
+          ])
+        : null,
       // Истории человека: сверху кружок с обводкой — как в ленте, — а сразу под
       // ним все его истории плитками. Кружок открывает с первой, плитка — с
       // той, по которой нажали.

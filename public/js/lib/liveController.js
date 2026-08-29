@@ -1,6 +1,7 @@
 import { api } from "../api.js";
 import { wsSend, onWsMessage, isWsOpen } from "./wsClient.js";
 import { getState } from "../state.js";
+import { HD_SCREEN, cameraConstraints, tunePeerVideo, hintScreenTrack } from "./mediaQuality.js";
 
 // Медиа эфира: кто кому и что отправляет.
 //
@@ -38,6 +39,10 @@ function view() {
   if (!state) return null;
   return {
     stream: state.stream,
+    // Адрес, по которому зритель забирает картинку эфира из OBS. Ключ потока
+    // сюда не попадает — прокси на сервере сам знает, за чем идти.
+    flvUrl: isRtmp() ? `/api/live/${state.stream.id}/feed.flv` : null,
+    ingest: state.ingest,
     participants: state.participants,
     messages: state.messages,
     me: state.me,
@@ -46,11 +51,18 @@ function view() {
     remoteStreams: state.remoteStreams,
     micOn: state.micOn,
     camOn: state.camOn,
+    sharing: state.sharing,
+    canShare: publishes(state.myRole),
     error: state.error,
   };
 }
 
-const publishes = (role) => role === "host" || role === "speaker";
+// Кто вещает из браузера. В эфире из OBS — никто: картинка и звук идут на
+// сервер по RTMP и раздаются потоком (server/rtmp.js), а браузер, включая
+// браузер ведущего, только смотрит. Поэтому здесь не поднимается ни одного
+// соединения и ни у кого не спрашивают камеру.
+const isRtmp = () => state?.stream?.source === "rtmp";
+const publishes = (role) => !isRtmp() && (role === "host" || role === "speaker");
 
 function sendSignal(toUserId, kind, data) {
   if (isWsOpen()) wsSend({ type: "live:signal:send", streamId: state.stream.id, toUserId, kind, data });
@@ -66,13 +78,27 @@ function shouldOffer(otherRole, otherId) {
 
 function createPeer(otherUserId) {
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const sending = new Set();
   if (state.localStream) {
-    state.localStream.getTracks().forEach((t) => pc.addTrack(t, state.localStream));
-  } else {
-    // Зритель не отправляет ничего, но обязан явно попросить приём — иначе
-    // предложение уйдёт пустым и в эфире будет тишина при живом соединении.
-    pc.addTransceiver("audio", { direction: "recvonly" });
-    pc.addTransceiver("video", { direction: "recvonly" });
+    state.localStream.getTracks().forEach((t) => {
+      pc.addTrack(t, state.localStream);
+      sending.add(t.kind);
+    });
+    // Потолок битрейта и приоритет «кадры или чёткость» держатся на сендере и
+    // умирают вместе с соединением, поэтому задаются на каждом новом peer.
+    tunePeerVideo(pc, { screen: state.sharing });
+  }
+  // Медиа-линия на приём для всего, что мы сами не отправляем.
+  //
+  // Зрителю это нужно очевидным образом: он не отправляет ничего, и без этих
+  // строк его предложение уходило бы пустым — живое соединение и тишина в нём.
+  // Но и вещающему тоже: у получившего слово есть только микрофон, и в его
+  // предложении была бы одна звуковая линия — видео ведущего класть некуда,
+  // и человек, которому дали слово, переставал видеть эфир, в котором говорит.
+  // Отвечающая сторона добавить линию не может, это делается только в
+  // предложении, — поэтому линии заводятся здесь, всегда обе.
+  for (const kind of ["audio", "video"]) {
+    if (!sending.has(kind)) pc.addTransceiver(kind, { direction: "recvonly" });
   }
   pc.onicecandidate = (e) => {
     if (e.candidate) sendSignal(otherUserId, "ice", e.candidate.toJSON());
@@ -118,7 +144,23 @@ async function handleSignal(msg) {
   const from = msg.fromUserId;
   try {
     if (msg.kind === "offer") {
-      const pc = state.peers.get(from) ?? createPeer(from);
+      const existing = state.peers.get(from);
+      if (existing) {
+        // Столкновение предложений: мы уже отправили своё и ждём ответа, а
+        // навстречу пришло чужое (обе стороны перезапустились разом — например,
+        // ведущий дал слово двоим сразу). Расходимся по тому же признаку, что
+        // решает, кто предлагает вообще: чей идентификатор меньше, тот не
+        // уступает и ждёт ответа на своё; чей больше — принимает чужое. Признак
+        // один и тот же с обеих сторон, поэтому уступает ровно один.
+        if (existing.signalingState !== "stable" && state.me.id < from) return;
+        // Предложение всегда приходит с заново созданного соединения (см.
+        // republish), а наше старое согласовано под другой набор дорожек — у
+        // него другое число медиа-линий, и браузер откажется применять к нему
+        // чужой SDP. Поэтому старое выбрасываем и принимаем предложение на
+        // чистое: предлагающая сторона здесь главная.
+        dropPeer(from);
+      }
+      const pc = createPeer(from);
       await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -141,19 +183,52 @@ async function handleSignal(msg) {
 // ничего. Просить камеру у зрителя значит спрашивать разрешение у человека,
 // который пришёл посмотреть.
 async function acquireMedia() {
+  if (isRtmp()) return null;
   const wantVideo = state.myRole === "host" && state.stream.withVideo;
   const wantAudio = publishes(state.myRole);
   if (!wantAudio && !wantVideo) return null;
   try {
-    return await navigator.mediaDevices.getUserMedia({ audio: wantAudio, video: wantVideo });
+    // 1080p60 мягкими ideal-ограничениями (lib/mediaQuality.js). Раньше здесь
+    // стояло `video: true` — то есть 640×480/30 на большинстве браузеров.
+    return await navigator.mediaDevices.getUserMedia({
+      audio: wantAudio,
+      video: wantVideo ? cameraConstraints() : false,
+    });
   } catch (err) {
     state.error = wantVideo ? "Нет доступа к камере или микрофону" : "Нет доступа к микрофону";
     return null;
   }
 }
 
+// То, что уходит зрителям, собирается из двух источников: звук всегда с
+// микрофона, а картинка — либо камера, либо экран. Держать их порознь
+// обязательно: иначе остановка показа экрана требовала бы заново спрашивать
+// камеру (второе разрешение, секунда чёрного кадра), а во время показа
+// микрофон бы отваливался вместе с камерой.
+function composeLocalStream() {
+  const out = new MediaStream();
+  state.camStream?.getAudioTracks().forEach((t) => out.addTrack(t));
+  const video = state.screenTrack ?? state.camStream?.getVideoTracks()[0] ?? null;
+  if (video) out.addTrack(video);
+  state.localStream = out.getTracks().length ? out : null;
+}
+
+function stopScreen() {
+  if (!state.screenTrack) return;
+  state.screenTrack.onended = null;
+  try {
+    state.screenTrack.stop();
+  } catch {
+    /* дорожка уже остановлена самим браузером */
+  }
+  state.screenTrack = null;
+  state.sharing = false;
+}
+
 function stopLocalMedia() {
-  state.localStream?.getTracks().forEach((t) => t.stop());
+  state.camStream?.getTracks().forEach((t) => t.stop());
+  state.camStream = null;
+  stopScreen();
   state.localStream = null;
 }
 
@@ -162,10 +237,50 @@ function stopLocalMedia() {
 // секунда переподключения ровно у того, кому дали слово.
 async function refreshPublishing() {
   stopLocalMedia();
+  // Соединения рвутся до запроса камеры, а не после, и это важнее, чем
+  // выглядит. Роль меняет сервер, его рассылку получают обе стороны, и вторая
+  // прямо сейчас шлёт нам offer. Если рвать соединения после await, offer
+  // успевает прийти в промежутке: мы отвечаем на него по старому соединению —
+  // и тут же его закрываем. Предлагать больше некому, и человек, которому
+  // только что дали слово, остаётся неслышимым до следующего изменения
+  // состава. Рвём сразу — тогда offer из промежутка попадает уже на новое
+  // соединение, которое мы и оставим.
   for (const id of [...state.peers.keys()]) dropPeer(id);
-  state.localStream = await acquireMedia();
+  state.camStream = await acquireMedia();
+  // Предлагаем всем сами — см. republish ниже. Соединение, которое успело
+  // завестись от чужого offer, пока мы ждали микрофон, там же и выбрасывается:
+  // оно родилось до того, как у нас появились дорожки, и умеет только
+  // принимать.
+  await republish();
+}
+
+// Пересобрать соединения под текущий набор дорожек.
+//
+// Почему целиком, а не заменой дорожки на лету: replaceTrack умеет заменить
+// видео только там, где видеосендер уже есть. У ведущего голосового эфира и у
+// получившего слово его нет вовсе, и первая же демонстрация экрана требует
+// нового согласования. Развилка «есть сендер — меняем, нет — пересогласуем»
+// даёт два пути, из которых второй почти не проверяется; здесь всегда второй.
+// Цена — та же секунда переподключения, что и при выдаче слова.
+// Пересборка своих соединений под сменившийся набор дорожек: сменилась роль
+// или включилась/выключилась демонстрация экрана.
+//
+// Предлагаем всем сами, а не по правилу «предлагает тот, чей id меньше».
+// Правило разводит две стороны, которые узнали новость одновременно, — но
+// здесь стороны не равны: набор дорожек изменился у меня, соединения оборвал
+// я, и у второй стороны может вообще ничего не произойти (показ экрана сервер
+// не рассылает). Ждать offer было бы не от кого.
+//
+// Вторая половина того же решения — в connectAll: он больше не предлагает
+// тем, с кем соединение уже есть. Иначе на смене роли предлагали бы обе
+// стороны разом, и предложения гасили бы друг друга.
+async function republish() {
+  for (const id of [...state.peers.keys()]) dropPeer(id);
+  composeLocalStream();
   applyMuteFlags();
-  await connectAll();
+  for (const p of state.participants) {
+    if (p.userId !== state.me.id) await offerTo(p.userId);
+  }
   notify();
 }
 
@@ -173,12 +288,32 @@ function applyMuteFlags() {
   const mine = state.participants.find((p) => p.userId === state.me.id);
   const forcedMute = !!mine?.mutedByHost;
   state.localStream?.getAudioTracks().forEach((t) => (t.enabled = state.micOn && !forcedMute));
-  state.localStream?.getVideoTracks().forEach((t) => (t.enabled = state.camOn));
+  // Кнопка «Камера» выключает камеру, а не показ экрана: пока идёт
+  // демонстрация, зрители смотрят экран, и гасить его выключателем камеры
+  // означало бы чёрный прямоугольник вместо показа.
+  state.localStream?.getVideoTracks().forEach((t) => {
+    t.enabled = t === state.screenTrack ? true : state.camOn;
+  });
 }
 
+// Предложения — только тем, с кем соединения ещё нет: это вход нового человека
+// в эфир. Пересогласование существующего соединения — забота той стороны, у
+// которой что-то изменилось (republish выше), и переспрашивать его отсюда
+// значило бы отвечать на чужое изменение своим встречным предложением.
 async function connectAll() {
   for (const p of state.participants) {
     if (p.userId === state.me.id) continue;
+    const existing = state.peers.get(p.userId);
+    // Отвалившееся соединение — исключение из правила выше: пересогласовывать
+    // на нём нечего, его нужно строить заново. Раньше на любое изменение
+    // состава предложение уходило всем подряд, и такие соединения иногда
+    // чинились сами собой; теперь чиним их здесь явно, а не как побочный
+    // эффект лишних предложений.
+    if (existing && (existing.connectionState === "failed" || existing.connectionState === "closed")) {
+      dropPeer(p.userId);
+    } else if (existing) {
+      continue;
+    }
     if (shouldOffer(p.role, p.userId)) await offerTo(p.userId);
   }
 }
@@ -217,18 +352,25 @@ export async function joinLive(streamId) {
     peers: new Map(),
     remoteStreams: {},
     localStream: null,
+    camStream: null,
+    screenTrack: null,
+    sharing: false,
     micOn: true,
     camOn: true,
+    ingest: null,
     error: null,
     unsubs: [],
   };
 
   const data = await api.joinLive(streamId);
   state.stream = data.stream;
+  // Куда вещать — приходит только ведущему rtmp-эфира (server/routes/live.js).
+  if (data.ingest) state.ingest = data.ingest;
   state.participants = data.participants;
   state.messages = data.messages;
   state.myRole = data.participants.find((p) => p.userId === me.id)?.role ?? "viewer";
-  state.localStream = await acquireMedia();
+  state.camStream = await acquireMedia();
+  composeLocalStream();
   applyMuteFlags();
 
   state.unsubs.push(onWsMessage("live:signal", handleSignal));
@@ -236,7 +378,9 @@ export async function joinLive(streamId) {
     onWsMessage("live:state", async (msg) => {
       if (!state || msg.streamId !== state.stream.id) return;
       try {
-        await applyState(await api.getLive(state.stream.id));
+        const next = await api.getLive(state.stream.id);
+        if (next.ingest) state.ingest = next.ingest;
+        await applyState(next);
       } catch {
         // Эфир мог закончиться между событием и запросом — это разберёт
         // live:ended ниже.
@@ -304,4 +448,44 @@ export function toggleCam() {
   state.camOn = !state.camOn;
   applyMuteFlags();
   notify();
+}
+
+// Демонстрация экрана в эфире. Доступна тем же, кто вообще вещает, — ведущему и
+// получившим слово: у зрителя нет исходящего потока, и показывать ему нечем.
+//
+// Экран занимает место камеры в исходящем видео, а не добавляется вторым
+// потоком: вторая дорожка означала бы второе видео у каждого зрителя, а схема
+// здесь «каждый с каждым» — то есть удвоенный исходящий канал у ведущего на
+// каждого смотрящего.
+export async function toggleScreenShare() {
+  if (!state || !publishes(state.myRole)) return;
+
+  if (state.sharing) {
+    stopScreen();
+    await republish();
+    return;
+  }
+
+  let display = null;
+  try {
+    display = await navigator.mediaDevices.getDisplayMedia(HD_SCREEN);
+  } catch {
+    // Окно выбора закрыли или браузер запретил — молча, это не ошибка эфира.
+    return;
+  }
+  const track = display.getVideoTracks()[0];
+  if (!track) return;
+
+  hintScreenTrack(track);
+  state.screenTrack = track;
+  state.sharing = true;
+  // «Остановить показ» в панели самого браузера — не наша кнопка, но эфир
+  // должен на неё реагировать так же, как на свою: иначе показ кончился, а
+  // зрители видят замерший кадр.
+  track.onended = () => {
+    if (!state || !state.sharing) return;
+    stopScreen();
+    republish();
+  };
+  await republish();
 }

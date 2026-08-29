@@ -1017,4 +1017,24 @@ CREATE INDEX IF NOT EXISTS idx_shop_orders_buyer ON shop_orders(buyerId, created
 CREATE INDEX IF NOT EXISTS idx_shop_orders_shop ON shop_orders(shopId, status);
 `);
 
+// Эфир из внешней программы (OBS Studio и любая другая, умеющая RTMP).
+//
+// source различает два совершенно разных пути картинки: "webrtc" — ведущий
+// вещает из браузера напрямую зрителям, "rtmp" — картинка приходит на сервер
+// по RTMP и раздаётся зрителям как поток (см. server/rtmp.js). Всё остальное у
+// эфира общее: тот же чат, те же участники, та же плашка в чате.
+//
+// streamKey — то, что вставляют в OBS в поле «Ключ потока». Он же пароль на
+// вещание, поэтому отдаётся только ведущему и никогда не попадает в адрес, по
+// которому смотрят зрители (те ходят через прокси в routes/live.js).
+//
+// rtmpLive — «программа сейчас на связи». Эфир может быть создан за минуту до
+// того, как ведущий нажмёт в OBS «Запустить трансляцию», и зрителю надо
+// показать «ведущий ещё не начал», а не чёрный квадрат.
+const existingLiveColumns = new Set(db.prepare("PRAGMA table_info(live_streams)").all().map((c) => c.name));
+if (!existingLiveColumns.has("source")) db.exec("ALTER TABLE live_streams ADD COLUMN source TEXT NOT NULL DEFAULT 'webrtc'");
+if (!existingLiveColumns.has("streamKey")) db.exec("ALTER TABLE live_streams ADD COLUMN streamKey TEXT");
+if (!existingLiveColumns.has("rtmpLive")) db.exec("ALTER TABLE live_streams ADD COLUMN rtmpLive INTEGER NOT NULL DEFAULT 0");
+db.exec("CREATE INDEX IF NOT EXISTS idx_live_streams_key ON live_streams(streamKey)");
+
 module.exports = db;

@@ -58,6 +58,11 @@ export const api = {
   switchAccount: (userId) => req("/api/auth/switch", { method: "POST", body: JSON.stringify({ userId }) }),
   logout: (uid) => req("/api/auth/logout", { method: "POST", body: JSON.stringify({ uid }) }),
   // Истории одного человека — кнопка «Истории» в его профиле.
+  // Закреплённые в профиле каналы (server/routes/users.js). Список для показа
+  // приходит вместе с самим профилем; эти два — про его изменение.
+  getPinnableChannels: () => req("/api/users/me/pinnable-channels"),
+  setPinnedChannels: (chatIds) =>
+    req("/api/users/me/pinned-channels", { method: "PUT", body: JSON.stringify({ chatIds }) }),
   getStoryViewers: (id) => req(`/api/stories/${id}/viewers`),
   getUserStories: (userId) => req(`/api/stories/user/${userId}`),
   // Рекламный кабинет (server/routes/ads.js): кампании, бюджет в звёздах,
@@ -316,8 +321,10 @@ export const api = {
   // отвечает, есть ли у бота мини-приложение и как подписать кнопку.
   // Эфиры в каналах и группах (server/routes/live.js). Медиа идёт мимо
   // сервера — здесь только состояние: кто в эфире, у кого какая роль, чат.
-  startLive: (chatId, { title, withVideo } = {}) =>
-    req("/api/live", { method: "POST", body: JSON.stringify({ chatId, title, withVideo }) }),
+  // source: "webrtc" — вещаем из браузера, "rtmp" — картинку пришлёт OBS или
+  // другая программа (server/rtmp.js).
+  startLive: (chatId, { title, withVideo, source } = {}) =>
+    req("/api/live", { method: "POST", body: JSON.stringify({ chatId, title, withVideo, source }) }),
   getLiveForChat: (chatId) => req(`/api/live/chat/${chatId}`),
   getLive: (id) => req(`/api/live/${id}`),
   joinLive: (id) => req(`/api/live/${id}/join`, { method: "POST", body: "{}" }),

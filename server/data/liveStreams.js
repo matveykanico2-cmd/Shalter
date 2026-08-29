@@ -14,6 +14,12 @@ function rowToStream(row) {
     hostId: row.hostId,
     title: row.title ?? "",
     withVideo: !!row.withVideo,
+    // "webrtc" — ведущий вещает из браузера, "rtmp" — картинку присылает
+    // внешняя программа вроде OBS (server/rtmp.js). streamKey сознательно не
+    // отдаётся отсюда наружу: это пароль на вещание, и его выдаёт только
+    // routes/live.js и только ведущему.
+    source: row.source ?? "webrtc",
+    rtmpLive: !!row.rtmpLive,
     status: row.status,
     startedAt: row.startedAt,
     endedAt: row.endedAt ?? null,
@@ -52,13 +58,38 @@ function listLiveStreamsForUser(userId) {
     .map(rowToStream);
 }
 
-function createStream({ chatId, hostId, title, withVideo }) {
+function createStream({ chatId, hostId, title, withVideo, source = "webrtc", streamKey = null }) {
   const id = `live_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const startedAt = new Date().toISOString();
   db.prepare(
-    "INSERT INTO live_streams (id, chatId, hostId, title, withVideo, status, startedAt) VALUES (?, ?, ?, ?, ?, 'live', ?)"
-  ).run(id, chatId, hostId, title ?? "", withVideo ? 1 : 0, startedAt);
-  setParticipant(id, hostId, { role: "host" });
+    "INSERT INTO live_streams (id, chatId, hostId, title, withVideo, status, startedAt, source, streamKey) VALUES (?, ?, ?, ?, ?, 'live', ?, ?, ?)"
+  ).run(id, chatId, hostId, title ?? "", withVideo ? 1 : 0, startedAt, source, streamKey);
+  // Ведущего эфира из OBS в участники не записываем: он может вообще не
+  // открывать страницу — вещает программа, а не вкладка браузера. Запись
+  // появится, когда он зайдёт посмотреть свой же эфир, как и у всех остальных.
+  if (source !== "rtmp") setParticipant(id, hostId, { role: "host" });
+  return getStream(id);
+}
+
+// Ключ потока читается ровно в двух местах: когда RTMP-сервер решает, пускать
+// ли вещание (server/rtmp.js), и когда прокси идёт за картинкой для зрителя
+// (server/routes/live.js). Наружу он не уходит ни из одного из них.
+function getStreamKey(id) {
+  return db.prepare("SELECT streamKey FROM live_streams WHERE id = ?").get(id)?.streamKey ?? null;
+}
+
+function getLiveStreamByKey(streamKey) {
+  if (!streamKey) return undefined;
+  return rowToStream(
+    db.prepare("SELECT * FROM live_streams WHERE streamKey = ? AND status = 'live'").get(streamKey)
+  );
+}
+
+// «Программа на связи» — включается, когда OBS начал вещать, и гаснет, когда
+// он отключился. Сам эфир при этом продолжает идти: ведущий мог перезапустить
+// программу, и терять из-за этого чат и собравшихся зрителей незачем.
+function setRtmpLive(id, live) {
+  db.prepare("UPDATE live_streams SET rtmpLive = ? WHERE id = ?").run(live ? 1 : 0, id);
   return getStream(id);
 }
 
@@ -125,6 +156,9 @@ function listMessages(streamId, { limit = 100 } = {}) {
 }
 
 module.exports = {
+  getStreamKey,
+  getLiveStreamByKey,
+  setRtmpLive,
   getStream,
   getLiveStreamForChat,
   listLiveStreamsForUser,

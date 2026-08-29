@@ -388,6 +388,12 @@ function votePoll(id, optionIndex, userId) {
       if (a.kind !== "poll") return a;
       const options = a.meta?.options ?? [];
       const voterIds = options.map((_, i) => [...(a.meta?.voterIds?.[i] ?? [])]);
+      // В викторине ответ даётся один раз и навсегда: иначе можно перебрать все
+      // варианты по очереди и «угадать» с гарантией, а вопрос «знал или нет»
+      // перестаёт что-либо значить. В обычном опросе голос по-прежнему
+      // переставляется и снимается.
+      const isQuiz = Number.isInteger(a.meta?.correctIndex);
+      if (isQuiz && voterIds.some((ids) => ids.includes(userId))) return a;
       let votedSameAgain = false;
       for (let i = 0; i < voterIds.length; i++) {
         if (voterIds[i].includes(userId)) {

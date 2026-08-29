@@ -10811,6 +10811,60 @@
 }
 /* Строка со ссылкой на магазин в кабинете продавца: сама ссылка занимает всё
    место и обрезается многоточием, кнопки не сжимаются. */
+/* Викторина (components/pollDialog.js + messageBubble.js). Правильный ответ
+   отмечается кнопкой слева от варианта, а после ответа вариант подсвечивается:
+   зелёным — верный, красным — ошибка самого отвечавшего. */
+.poll-quiz-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.poll-quiz-row .poll-option-input {
+  flex: 1;
+  min-width: 0;
+}
+.poll-quiz-mark {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1;
+  color: #fff;
+  cursor: pointer;
+}
+.poll-quiz-mark.active {
+  border-color: var(--color-success, #1f9d63);
+  background: var(--color-success, #1f9d63);
+}
+.poll-option.correct {
+  border-color: var(--color-success, #1f9d63);
+}
+.poll-option.correct .poll-option-fill {
+  background: rgba(31, 157, 99, 0.22);
+}
+.poll-option.wrong {
+  border-color: var(--color-danger);
+}
+.poll-option.wrong .poll-option-fill {
+  background: rgba(198, 64, 59, 0.2);
+}
+.poll-mark {
+  margin-left: 6px;
+  font-weight: 700;
+}
+.poll-option.correct .poll-mark { color: var(--color-success, #1f9d63); }
+.poll-option.wrong .poll-mark { color: var(--color-danger); }
+.poll-quiz-result {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.poll-quiz-result.ok { color: var(--color-success, #1f9d63); }
+.poll-quiz-result.bad { color: var(--color-danger); }
+
 .market-link-row {
   display: flex;
   align-items: center;
@@ -10864,4 +10918,293 @@
   margin: 12px 0 0;
   font-size: 15px;
   font-weight: 600;
+}
+
+/* Ползунок громкости входящего звука — общий для звонка и эфира
+   (components/volumeControl.js). Оба экрана тёмные, поэтому цвета заданы
+   прямо, а не через переменные светлой темы: в звонке фон — видео, в эфире —
+   почти чёрная панель. */
+.volume-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 6px 12px 6px 8px;
+  color: #fff;
+}
+.volume-control.muted {
+  opacity: 0.65;
+}
+.volume-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
+.volume-value {
+  min-width: 34px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.75);
+}
+/* Заливку левой части дорожки Chrome и Safari сами не рисуют, поэтому она
+   сделана градиентом по --volume-fill, который проставляет сам компонент. */
+.volume-slider {
+  width: 96px;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--color-accent) 0,
+    var(--color-accent) var(--volume-fill, 100%),
+    rgba(255, 255, 255, 0.25) var(--volume-fill, 100%),
+    rgba(255, 255, 255, 0.25) 100%
+  );
+  cursor: pointer;
+}
+.volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 14px;
+  width: 14px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.volume-slider::-moz-range-thumb {
+  height: 14px;
+  width: 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+/* В звонке кнопки управления круглые и крупные — ползунок встаёт с ними в один
+   ряд и должен быть той же высоты, иначе строка выглядит сломанной. */
+.call-controls .volume-control {
+  height: 48px;
+  padding: 0 14px 0 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border-color: transparent;
+}
+.call-controls .volume-slider {
+  width: 84px;
+}
+/* На узком экране в звонке ползунок уезжает под кнопки, а не выдавливает
+   «Завершить» за край. */
+@media (max-width: 560px) {
+  .call-controls {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .call-controls .volume-control {
+    order: 10;
+  }
+}
+.live-controls .volume-control {
+  border-color: #262b36;
+  background: #191d26;
+  padding: 7px 14px 7px 10px;
+}
+
+/* Эфир из внешней программы (OBS): панель с адресом и ключом, которую ведущий
+   переносит в настройки вещания. Видна только до подключения программы. */
+.live-obs-panel {
+  margin: 10px 12px 0;
+  border: 1px solid #262b36;
+  border-radius: 12px;
+  background: #141821;
+  padding: 12px 14px;
+}
+.live-obs-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e7e9f0;
+}
+.live-obs-sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: #8b93a7;
+}
+.live-obs-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.live-obs-label {
+  flex: 0 0 96px;
+  font-size: 12.5px;
+  color: #8b93a7;
+}
+.live-obs-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid #262b36;
+  border-radius: 8px;
+  background: #0f131a;
+  padding: 7px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  color: #e7e9f0;
+}
+.live-obs-copy {
+  flex: 0 0 auto;
+  border: 1px solid #262b36;
+  border-radius: 8px;
+  background: #191d26;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  color: #e7e9f0;
+  cursor: pointer;
+}
+.live-obs-copy:hover {
+  background: #212633;
+}
+.live-obs-hint {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: #8b93a7;
+}
+/* На телефоне поле и кнопка в одну строку не помещаются — ключ становится
+   нечитаемой полоской в два сантиметра. */
+@media (max-width: 560px) {
+  .live-obs-field {
+    flex-wrap: wrap;
+  }
+  .live-obs-label {
+    flex-basis: 100%;
+  }
+}
+
+/* Каналы, закреплённые в профиле (components/profileDialog.js), и окно их
+   выбора (components/pinnedChannelsDialog.js). */
+.profile-channels {
+  margin-top: 18px;
+}
+.profile-channels-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.profile-channels-edit {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+.profile-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 8px 6px;
+}
+.profile-channel-row:hover {
+  background: var(--color-surface-hover, rgba(127, 127, 127, 0.08));
+}
+.profile-channel-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.profile-channel-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-channel-sub {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+.profile-channel-open {
+  flex: 0 0 auto;
+  border: 0;
+  background: none;
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+.pinned-dialog {
+  width: min(420px, 92vw);
+}
+.pinned-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pinned-list {
+  display: flex;
+  max-height: 46vh;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+.pinned-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: none;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.pinned-row:hover {
+  background: var(--color-surface-hover, rgba(127, 127, 127, 0.08));
+}
+.pinned-row.on {
+  border-color: var(--color-accent);
+}
+.pinned-row-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pinned-row-title {
+  overflow: hidden;
+  font-size: 14.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pinned-row-sub {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+/* Номер вместо галочки — он же показывает порядок карточек в профиле. */
+.pinned-row-mark {
+  display: flex;
+  height: 22px;
+  width: 22px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.pinned-row.on .pinned-row-mark {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+.pinned-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }

@@ -1,3 +1,5 @@
+const crypto = require("crypto");
+const http = require("http");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
@@ -7,6 +9,7 @@ const { publicUser } = require("../data/sanitize");
 const { isStaff } = require("../lib/chatPermissions");
 const { broadcastToUsers } = require("../ws");
 const live = require("../data/liveStreams");
+const rtmp = require("../rtmp");
 
 // Эфиры в каналах и группах: ведущий вещает звук и видео, слушатели смотрят,
 // а кому-то из них ведущий может дать слово. Плюс чат внутри самого эфира.
@@ -59,6 +62,15 @@ function canStopStream(stream, chat, userId) {
 // Полное состояние: сам эфир, участники с карточками и хвост чата. Один
 // запрос, потому что клиенту при входе нужно всё сразу, а три отдельных
 // показали бы экран, собирающийся по частям.
+// Что показать ведущему для OBS. Только ему и только для rtmp-эфира: ключ —
+// это пароль на вещание, и лишний человек с ним подменит картинку в чужом
+// эфире. Хост берётся из заголовка запроса — сервер не знает, под каким именем
+// к нему приходят снаружи (см. rtmp.ingestUrlFor).
+function ingestFor(stream, req) {
+  if (stream.source !== "rtmp" || stream.hostId !== req.uid) return null;
+  return { url: rtmp.ingestUrlFor(req.headers.host), key: live.getStreamKey(stream.id) };
+}
+
 async function stateOf(stream) {
   const participants = live.listParticipants(stream.id);
   const users = await Promise.all(participants.map((p) => getUser(p.userId)));
@@ -95,18 +107,26 @@ router.post(
     if (!isStaff(chat, req.uid)) return res.status(403).json({ error: "Начать эфир может только администратор" });
 
     const already = live.getLiveStreamForChat(chat.id);
-    if (already) return res.json({ stream: already, already: true });
+    // Ведущему, который вернулся к своему же эфиру из OBS, ключ нужен снова —
+    // например, он перезапустил программу и настройки в ней потерялись.
+    if (already) return res.json({ stream: already, already: true, ingest: ingestFor(already, req) });
 
+    // "rtmp" — картинку пришлёт внешняя программа (OBS и подобные), и тогда
+    // эфиру нужен ключ: он же пароль на вещание. 16 случайных байт, потому что
+    // угадывание ключа — единственный способ влезть в чужой эфир.
+    const source = req.body?.source === "rtmp" ? "rtmp" : "webrtc";
     const stream = live.createStream({
       chatId: chat.id,
       hostId: req.uid,
       title: String(req.body?.title ?? "").trim().slice(0, 80),
       withVideo: req.body?.withVideo !== false,
+      source,
+      streamKey: source === "rtmp" ? crypto.randomBytes(16).toString("hex") : null,
     });
     // А вот о начале эфира знать должны все участники чата — это и есть
     // приглашение. Плашка в чате, без звонка.
     broadcastToUsers(chat.memberIds, { type: "live:started", chatId: chat.id, stream });
-    res.json({ stream });
+    res.json({ stream, ingest: ingestFor(stream, req) });
   })
 );
 
@@ -141,7 +161,52 @@ router.get(
   asyncRoute(async (req, res) => {
     const found = await loadStream(req, res);
     if (!found) return;
-    res.json(await stateOf(found.stream));
+    res.json({ ...(await stateOf(found.stream)), ingest: ingestFor(found.stream, req) });
+  })
+);
+
+// Картинка эфира из OBS — зрителю. Прокси, а не прямая ссылка на медиасервер, и
+// это главное здесь: RTMP-сервер слушает только петлю (server/rtmp.js), а
+// пускать или нет — решается тут, теми же правилами, что и вход в сам эфир.
+// Иначе эфир закрытого канала смотрел бы любой, кто раздобыл ключ.
+//
+// Поток бесконечный: ответ не заканчивается, пока зритель не закроет вкладку
+// или ведущий не остановит вещание.
+router.get(
+  "/:id/feed.flv",
+  asyncRoute(async (req, res) => {
+    const found = await loadStream(req, res);
+    if (!found) return;
+    if (found.stream.source !== "rtmp") return res.status(404).json({ error: "Этот эфир идёт не через OBS" });
+
+    const url = rtmp.internalFlvUrl(live.getStreamKey(found.stream.id));
+    if (!url) return res.status(404).json({ error: "Поток не найден" });
+
+    const upstream = http.get(url, (feed) => {
+      if (feed.statusCode !== 200) {
+        feed.resume();
+        // Программа ещё не подключилась — не ошибка сервера, а «пока нечего
+        // показывать»: клиент попробует снова через несколько секунд.
+        if (!res.headersSent) res.status(503).json({ error: "Вещание не идёт" });
+        return;
+      }
+      res.setHeader("Content-Type", "video/x-flv");
+      // no-transform — это ещё и прямой запрет посредникам что-либо делать с
+      // телом ответа. Сжатие бесконечного потока не заканчивается никогда:
+      // сжимающий копит данные и ждёт конца ответа, которого у эфира нет.
+      // Общий фильтр в server/index.js это уже учитывает, но здесь стоит
+      // отдельно — на случай nginx или другого посредника впереди, который про
+      // наш фильтр ничего не знает.
+      res.setHeader("Cache-Control", "no-store, no-transform");
+      feed.pipe(res);
+    });
+    upstream.on("error", () => {
+      if (!res.headersSent) res.status(503).json({ error: "Вещание не идёт" });
+      else res.end();
+    });
+    // Зритель ушёл — обрываем и забор потока. Без этого каждое закрытое окно
+    // оставляло бы за собой живое соединение с медиасервером.
+    res.on("close", () => upstream.destroy());
   })
 );
 
@@ -156,7 +221,7 @@ router.post(
     const role = found.stream.hostId === req.uid ? "host" : undefined;
     live.setParticipant(found.stream.id, req.uid, role ? { role } : {});
     broadcastState(found.stream);
-    res.json(await stateOf(found.stream));
+    res.json({ ...(await stateOf(found.stream)), ingest: ingestFor(found.stream, req) });
   })
 );
 
@@ -245,6 +310,10 @@ router.post(
     // Уже завершённый эфир завершается «успешно»: кнопку могли нажать дважды
     // или из двух мест сразу, и отказ здесь выглядел бы как «не выключается».
     if (found.stream.status !== "live") return res.json({ stream: found.stream });
+    // Эфир из OBS заканчивается и на стороне программы: без этого она продолжит
+    // заливать картинку в завершённый эфир, а ведущий, закрывший вкладку, об
+    // этом даже не узнает.
+    if (found.stream.source === "rtmp") rtmp.stopPublisher(live.getStreamKey(found.stream.id));
     const stream = live.endStream(found.stream.id);
     // Здесь рассылка снова всему чату: плашка «идёт эфир» висит у всех, и
     // снять её нужно у всех, а не только у тех, кто внутри.

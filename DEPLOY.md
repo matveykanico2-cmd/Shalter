@@ -133,8 +133,43 @@ sudo certbot --nginx -d YOUR-ACTUAL-DOMAIN   # obtains + wires in the cert, sets
 #    (nginx proxies to it — see deploy/nginx.conf.example's `upstream` block)
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
+# 1935/tcp only if you want streaming from OBS Studio (see "Эфиры из OBS" below).
+# Skip it and everything else still works — streams from the browser don't use it.
+sudo ufw allow 1935/tcp
 sudo ufw enable
 ```
+
+## Эфиры из OBS (RTMP)
+
+Кроме эфира из браузера, ведущий может вещать из OBS Studio и любой другой
+программы с «Custom RTMP». Приём работает в том же процессе Node
+(`server/rtmp.js`), отдельной службы ставить не нужно, ffmpeg не нужен —
+картинка не перекодируется.
+
+Что для этого нужно на сервере:
+
+- **Открыть порт 1935/tcp наружу** — в него OBS и вещает. Через nginx он не
+  идёт: RTMP это не HTTP. Если порт закрыт, приложение работает полностью, кроме
+  этой одной возможности; в интерфейсе ведущий увидит поля для OBS, а картинка
+  не появится.
+- **Порт 8010 наружу открывать не надо.** По нему сервер сам у себя забирает
+  картинку, чтобы отдать её зрителю через `/api/live/:id/feed.flv` — там же
+  проверяется, что зритель состоит в чате. Смотреть по 8010 с других машин
+  запрещено в самом медиасервере (`prePlay` в `server/rtmp.js`), но лишний
+  открытый порт всё равно ни к чему.
+- Оба порта меняются переменными `RTMP_PORT` и `RTMP_HTTP_PORT`, если 1935 уже
+  занят чем-то другим.
+
+Как этим пользуются: в чате канала или группы — «Начать эфир» → «Через OBS
+Studio или другую программу». Приложение покажет «Сервер» и «Ключ потока» — их
+вставляют в OBS в «Настройки → Вещание», выбрав сервис «Настраиваемый…». Ключ
+видит только ведущий; зрителям он не отдаётся, и подсматривать картинку по нему
+напрямую нельзя.
+
+Задержка — около одной-двух секунд. Оговорка: такой эфир не проигрывается в
+Safari на iPhone (там в обычной вкладке нет Media Source Extensions) — зритель
+на iPhone увидит об этом надпись, а не чёрный экран. Эфиры из браузера на iPhone
+работают как работали.
 
 At this point: `https://YOUR-ACTUAL-DOMAIN` should load the app. Do the OS
 tuning below (swappiness, log rotation) once, then treat "code changed" as

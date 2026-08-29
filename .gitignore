@@ -70,3 +70,5 @@ yarn-error.log*
 # Letters written when SMTP isn't configured (server/lib/mailer.js). They hold
 # one-time recovery codes in plain text — never commit them.
 /data/outbox/
+# рабочий каталог RTMP-сервера (эфиры из OBS, server/rtmp.js)
+/data/rtmp/

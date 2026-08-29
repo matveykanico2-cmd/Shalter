@@ -52,7 +52,27 @@ function sanitizeAttachments(attachments) {
           phone: typeof a.meta?.phone === "string" ? a.meta.phone.slice(0, 40) : undefined,
         };
       } else if (a.kind === "poll") {
-        out.meta = a.meta; // structure/voting already validated by routes/messages.js's vote handler
+        // Раньше здесь meta бралась как есть — с расчётом на то, что её проверит
+        // обработчик голосования. Он проверяет голоса, но не саму структуру:
+        // клиент мог прислать что угодно, и это легло бы в базу. Теперь опрос
+        // собирается заново из того, что в нём вообще может быть.
+        const options = (Array.isArray(a.meta?.options) ? a.meta.options : [])
+          .slice(0, 8)
+          .map((o) => String(o).slice(0, 200));
+        if (options.length < 2) return null;
+        const voterIds = options.map((_, i) =>
+          (Array.isArray(a.meta?.voterIds?.[i]) ? a.meta.voterIds[i] : []).filter((v) => typeof v === "string").slice(0, 5000)
+        );
+        // Правильный ответ викторины: номер варианта или null у обычного опроса.
+        // Проверяется тип, а не Number(): Number(null) — это ноль, и обычный
+        // опрос с correctIndex: null (а именно так его шлёт composer.js)
+        // превращался в викторину, где «правильным» оказывался первый вариант.
+        const rawCorrect = a.meta?.correctIndex;
+        const correctIndex =
+          typeof rawCorrect === "number" && Number.isInteger(rawCorrect) && rawCorrect >= 0 && rawCorrect < options.length
+            ? rawCorrect
+            : null;
+        out.meta = { options, voterIds, votes: voterIds.map((v) => v.length), correctIndex };
       }
       return out;
     })

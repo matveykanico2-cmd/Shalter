@@ -123,6 +123,15 @@ router.post(
 router.post(
   "/:id/view",
   asyncRoute(async (req, res) => {
+    // Та же граница видимости, что и у ленты: отметить просмотр можно только у
+    // той истории, которую вам вообще показывают. Раньше здесь не было ни одной
+    // проверки, а в ответ уезжала вся история целиком — со ссылками на кадры.
+    // То есть достаточно было знать id, чтобы вытащить историю человека, у
+    // которого ты не в контактах, в обход ленты и профиля.
+    const allowed = await visibleAuthorIds(req.uid);
+    const visible = (await listStoriesForUsers(allowed)).find((st) => st.id === req.params.id);
+    if (!visible) return res.status(404).json({ error: "not found" });
+
     const story = await markViewed(req.params.id, req.uid);
     res.json({ story });
   })
