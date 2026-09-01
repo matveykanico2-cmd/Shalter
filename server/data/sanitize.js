@@ -38,22 +38,19 @@ function publicUser(user) {
   // How many stars someone has is their business. messagePriceStars stays:
   // whoever is about to write to them has to know what it will cost.
   delete rest.stars;
-  // Computed, not stored — "Developer" is just "whoever currently holds
-  // ADMIN_PHONE" (same convention as the Premium-granting permission check
-  // in server/routes/premium.js), not a role stored on the row. Exposing a
-  // plain boolean here (rather than making every client compare phone
-  // numbers itself) also means it works even when the user's own privacy
-  // settings hide their phone number from others.
-  rest.isDeveloper = isAdminPhone(user.phone) || undefined;
-  // Тот же аккаунт всегда носит и галочку — выданную, а не проставленную
-  // руками в базе. Так она есть сразу и везде: в поиске, в профиле, в списке
-  // чатов и в шапке разговора, — переживает пересоздание базы и переезд на
-  // другой сервер, и не требует доступа к консоли, чтобы её поставить.
-  // Снять её с этого номера нельзя — и это осознанно, а не недосмотр:
-  // rowToUser отдаёт isVerified как true либо undefined (никогда false), так
-  // что «снять галочку» в админке вернёт строку к undefined, и подстановка
-  // сработает снова. Чтобы её убрать, номер должен перестать быть ADMIN_PHONE.
-  rest.isVerified = user.isVerified ?? (isAdminPhone(user.phone) || undefined);
+  // Администратор — обычный аккаунт, отличающийся только правами в модерации.
+  //
+  // Раньше отсюда автоматически подставлялись два признака: «разработчик» и
+  // галочка — обе выводились из номера телефона. Из-за этого владелец
+  // ADMIN_PHONE выглядел в приложении иначе, чем все остальные: значок в
+  // профиле, в поиске, в списке чатов и в шапке разговора, причём снять их
+  // было нельзя в принципе.
+  //
+  // Теперь оба признака — обычные поля: галочку выдаёт админка кому угодно,
+  // включая себя, а «разработчик» не выводится ниоткуда. Права на модерацию
+  // при этом никуда не делись, они проверяются отдельно (isAdminPhone в
+  // маршрутах) и внешне никак не проявляются.
+  rest.isVerified = user.isVerified || undefined;
   // Marks the Shalter service account, so the client can present its chat as
   // one-way instead of offering a composer the server will refuse.
   rest.isServiceBot = user.id === SYSTEM_BOT_ID || undefined;
