@@ -8,6 +8,8 @@ const { listUsersByIds, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { addSignal, listSignalsFor } = require("../data/signals");
 const { allowsUser } = require("../lib/privacyRules");
+const { listContactsFor } = require("../data/contacts");
+const { transferStars, balanceOf } = require("../data/stars");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser, CALL_PUSH, CALL_CANCEL_PUSH } = require("../push");
 
@@ -21,6 +23,35 @@ router.use(requireUserId);
 // а не по контактам звонящего.
 async function canCall(callerId, targetId) {
   return allowsUser(targetId, "calls", callerId);
+}
+
+// Звонок незнакомого человека — по той же цене, что и сообщение от него.
+//
+// Логика ровно как у платных сообщений (server/routes/messages.js): кто у
+// получателя в контактах — звонит бесплатно, у кого Premium — тоже, остальные
+// платят звёздами. Смысл один: холодный звонок должен чего-то стоить, а
+// знакомство или подписка это снимают.
+//
+// Отдельная функция, а не копия того куска: цена и правила должны меняться в
+// одном месте, иначе через полгода «писать» и «звонить» разъедутся.
+async function chargeForColdCall(callerId, target) {
+  const price = target?.messagePriceStars ?? 0;
+  if (price <= 0) return { ok: true, charged: 0 };
+
+  const theirContacts = await listContactsFor(target.id);
+  if (theirContacts.some((c) => c.userId === callerId)) return { ok: true, charged: 0 };
+
+  const caller = await getUser(callerId);
+  if (caller?.isPremium) return { ok: true, charged: 0 };
+
+  if (!transferStars(callerId, target.id, price)) {
+    return {
+      ok: false,
+      price,
+      balance: balanceOf(callerId),
+    };
+  }
+  return { ok: true, charged: price };
 }
 
 // Real Web Push for the ring, same reasoning as pushNewMessage in
@@ -125,6 +156,18 @@ router.post(
       const otherId = chat.memberIds.find((id) => id !== req.uid);
       if (otherId && !(await canCall(req.uid, otherId))) {
         return res.status(403).json({ error: "Пользователь ограничил звонки" });
+      }
+      if (otherId) {
+        const target = await getUser(otherId);
+        const charge = await chargeForColdCall(req.uid, target);
+        if (!charge.ok) {
+          return res.status(402).json({
+            error: `Этот пользователь берёт ${charge.price} ⭐ за звонок от незнакомых. Не хватает звёзд. С Premium звонить можно бесплатно`,
+            needStars: charge.price,
+            balance: charge.balance,
+            premiumHelps: true,
+          });
+        }
       }
     }
     // DM calls ring both members immediately. Group calls start with just the

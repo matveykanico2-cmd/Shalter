@@ -186,7 +186,11 @@ router.get(
 // dispatch, push, link preview — as one typed and sent live). Assumes the
 // caller already did request-shaped validation (empty-message check,
 // restrictions, block status) — this just delivers.
-async function deliverMessage(chat, senderId, body) {
+// paidStars — сколько звёзд списалось за это сообщение. Не для отчётности
+// (списание уже прошло), а для получателя: письмо, за которое незнакомый
+// человек заплатил, показывается иначе — печатается на экране (см.
+// components/messageBubble.js).
+async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   let forwardedFrom = body.forwardedFrom;
   if (forwardedFrom?.senderId) {
     if (forwardedFrom.senderId === senderId) {
@@ -215,6 +219,7 @@ async function deliverMessage(chat, senderId, body) {
     forwardedFrom,
     sticker: sanitizeSticker(body.sticker),
     readByIds: [senderId],
+    paidStars,
   });
 
   if (message.threadRootId) {
@@ -365,23 +370,32 @@ router.post(
         return res.status(403).json({ error: "В чат администрации нельзя писать напрямую — заявки на покупку создаются автоматически" });
       }
 
-      // Paid DMs: an account can charge strangers stars to write to it. The
-      // charge is per message, not once — that's what actually prices cold
-      // outreach, and it's how Telegram's paid messages work too. Two ways out
-      // of it, both meaning "this isn't cold outreach any more": the recipient
-      // has the sender in their contacts, or they have replied at least once.
-      // From then on the conversation is free in both directions.
+      // Платные личные сообщения: человек может брать звёзды с незнакомых.
+      // Плата за каждое сообщение, а не разовая, — именно это делает холодную
+      // рассылку дорогой, и так же устроены платные сообщения в Telegram.
+      //
+      // Четыре способа писать бесплатно, и все означают «это уже не холодное
+      // письмо»:
+      //   1) вы у получателя в контактах — он сам вас добавил;
+      //   2) он вам хоть раз ответил — дальше переписка бесплатна в обе стороны;
+      //   3) у вас Premium — подписка и покупается в том числе ради этого;
+      //   4) вы пишете сами себе (заметки).
       const price = other?.messagePriceStars ?? 0;
       if (price > 0) {
         const theirContacts = await listContactsFor(other.id);
         const isContact = theirContacts.some((c) => c.userId === req.uid);
         const everReplied = (await listMessages(chat.id, other.id)).some((m) => m.senderId === other.id);
-        if (!isContact && !everReplied) {
+        // Premium проверяем у отправителя и по сроку, а не по флагу из запроса:
+        // isPremium вычисляется из premiumUntil в data/users.js.
+        const me = await getUser(req.uid);
+        const senderHasPremium = !!me?.isPremium;
+        if (!isContact && !everReplied && !senderHasPremium) {
           if (!transferStars(req.uid, other.id, price)) {
             return res.status(402).json({
-              error: `Этот пользователь берёт ${price} ⭐ за сообщение от незнакомых — на балансе не хватает`,
+              error: `Этот пользователь берёт ${price} ⭐ за сообщение от незнакомых. Не хватает звёзд. С Premium писать можно бесплатно`,
               needStars: price,
               balance: balanceOf(req.uid),
+              premiumHelps: true,
             });
           }
           charged = price;
@@ -389,7 +403,7 @@ router.post(
       }
     }
 
-    const message = await deliverMessage(chat, req.uid, body);
+    const message = await deliverMessage(chat, req.uid, body, { paidStars: charged });
     res.json({ message, ...(charged ? { chargedStars: charged, balance: balanceOf(req.uid) } : {}) });
   })
 );

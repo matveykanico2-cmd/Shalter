@@ -502,6 +502,49 @@ function VideoNotePlayer(a) {
   ]);
 }
 
+// Какие платные сообщения уже «отпечатались». Модуль живёт столько же, сколько
+// вкладка, — этого хватает: смысл в том, чтобы анимация не повторялась на
+// каждой перерисовке ленты, а не в том, чтобы помнить её между запусками.
+const typedOut = new Set();
+
+// Посимвольная печать уже собранного узла.
+//
+// Разметку не трогаем: formatText мог сделать внутри ссылки и упоминания, и
+// печатать их как строку значило бы либо потерять разметку, либо вставлять
+// куски HTML по мере набора. Поэтому прячем настоящий текст и показываем его
+// целиком в конце, а пока набираем его копию обычными текстовыми узлами.
+function typeOutOnce(node, messageId) {
+  if (typedOut.has(messageId)) return;
+  typedOut.add(messageId);
+  const full = node.textContent ?? "";
+  if (!full || full.length > 400) return; // длинное письмо печатать — мучение
+
+  requestAnimationFrame(() => {
+    if (!node.isConnected) return;
+    const real = [...node.childNodes];
+    const ghost = document.createElement("span");
+    ghost.className = "message-text-typing";
+    node.textContent = "";
+    node.appendChild(ghost);
+
+    let i = 0;
+    // Скорость подобрана так, чтобы средняя фраза набралась примерно за
+    // секунду: медленнее — раздражает, быстрее — незаметно.
+    const step = Math.max(1, Math.round(full.length / 40));
+    const timer = setInterval(() => {
+      if (!node.isConnected) return clearInterval(timer);
+      i = Math.min(full.length, i + step);
+      ghost.textContent = full.slice(0, i);
+      if (i >= full.length) {
+        clearInterval(timer);
+        // Возвращаем настоящий узел с разметкой — со ссылками и упоминаниями.
+        node.textContent = "";
+        real.forEach((child) => node.appendChild(child));
+      }
+    }, 25);
+  });
+}
+
 export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, members, handlers }) {
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onKeyboardAction, onKeyboardApp, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
@@ -567,7 +610,14 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   if (isSticker) {
     bubbleInner.push(StickerBody(message));
   } else if (!message.attachments?.some((a) => a.kind === "poll")) {
-    bubbleInner.push(el("span", { class: "message-text" }, formatText(message.text, members)));
+    const textNode = el("span", { class: "message-text" }, formatText(message.text, members));
+    // Сообщение, за которое незнакомый человек заплатил звёздами, печатается
+    // на экране, а не появляется разом. Это не украшение: платное письмо — чья-
+    // то попытка достучаться, и отдельное движение сообщает об этом яснее, чем
+    // значок в углу. Показывается один раз — при первом появлении сообщения;
+    // при перерисовке списка (а он пересобирается часто) текст уже на месте.
+    if (message.paidStars && message.senderId !== me?.id) typeOutOnce(textNode, message.id);
+    bubbleInner.push(textNode);
   }
   if (message.linkPreview) {
     bubbleInner.push(LinkPreviewCard(message.linkPreview));

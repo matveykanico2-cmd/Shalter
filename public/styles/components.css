@@ -11475,3 +11475,14 @@
 .listing-photo img { height: 100%; width: 100%; object-fit: cover; }
 .listing-photo-remove { position: absolute; top: 2px; right: 2px; border: 0; border-radius: 999px; background: rgba(0,0,0,0.55); color: #fff; cursor: pointer; height: 20px; width: 20px; }
 .listing-photo-add { height: 72px; width: 72px; border: 1px dashed var(--color-border, rgba(127,127,127,0.4)); border-radius: 10px; background: none; color: var(--color-text-muted); cursor: pointer; }
+
+/* Печать платного сообщения (components/messageBubble.js): курсор в конце,
+   пока текст набирается. */
+.message-text-typing::after {
+  content: "▍";
+  animation: typing-caret 0.7s steps(1) infinite;
+  opacity: 0.7;
+}
+@keyframes typing-caret {
+  50% { opacity: 0; }
+}

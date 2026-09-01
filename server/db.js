@@ -797,6 +797,14 @@ db.exec("CREATE INDEX IF NOT EXISTS idx_bots_owner ON bots(ownerId)");
 // actual animated gift card (see messageBubble.js) instead of plain text.
 const existingMessageColumns = new Set(db.prepare("PRAGMA table_info(messages)").all().map((c) => c.name));
 if (!existingMessageColumns.has("gift")) db.exec("ALTER TABLE messages ADD COLUMN gift TEXT");
+// Сколько звёзд стоило это сообщение отправителю.
+//
+// Нужно не для бухгалтерии — списание уже произошло, — а получателю: письмо, за
+// которое незнакомый человек заплатил, стоит отличать от прочих. По этой метке
+// оно и печатается на экране посимвольно (см. components/messageBubble.js):
+// платное сообщение — это чья-то попытка достучаться, и появление его отдельным
+// движением говорит об этом лучше любого значка.
+if (!existingMessageColumns.has("paidStars")) db.exec("ALTER TABLE messages ADD COLUMN paidStars INTEGER NOT NULL DEFAULT 0");
 // A sent sticker (public/js/lib/stickers.js's catalog + composer.js's picker)
 // — same shape as gift above: { emoji, name, anim } so the client can render
 // a big, uniquely-animated sticker instead of plain text.

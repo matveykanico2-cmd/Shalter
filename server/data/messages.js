@@ -28,6 +28,9 @@ function rowToMessage(row) {
     discussionAnchorId: row.discussionAnchorId ?? undefined,
     signedBy: row.signedBy ?? undefined,
     boostedUntil: row.boostedUntil ?? undefined,
+    // Ноль не отдаём: обычных сообщений подавляющее большинство, и лишнее поле
+    // в каждом из них — это лишние байты в каждом ответе.
+    paidStars: row.paidStars || undefined,
     boostedById: row.boostedById ?? undefined,
     views: row.views,
     commentCount: row.commentCount || undefined,
@@ -185,12 +188,13 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, anchorForPostId, discussionAnchorId, signedBy, views, commentCount)
-     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars)
+     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars)`
   ).run({
     id: message.id,
     chatId: message.chatId,
     senderId: message.senderId,
+    paidStars: message.paidStars ?? 0,
     type: message.type ?? "text",
     text: message.text ?? "",
     createdAt: message.createdAt,
