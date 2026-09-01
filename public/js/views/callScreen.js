@@ -48,6 +48,19 @@ export async function CallScreenView(root, callId) {
   // ползунок, пересозданный под пальцем, бросает перетаскивание на полпути.
   const volumeControl = VolumeControl();
 
+  // Кто сейчас в большом окне, а кто в маленьком. Нажатие меняет их местами —
+  // так же, как в других мессенджерах: во время видеозвонка чаще нужно
+  // разглядеть себя (что попадает в кадр), чем собеседника, и наоборот.
+  let swapped = false;
+  // Ставится сразу после перетаскивания своего окна — чтобы отпускание пальца
+  // не сработало ещё и как нажатие.
+  let justDragged = false;
+  const toggleSwap = () => {
+    if (justDragged) return;
+    swapped = !swapped;
+    render(getCallState());
+  };
+
   // Своё окно камеры можно двигать пальцем.
   //
   // Оно висело в правом нижнем углу и накрывало собой кнопку «Завершить» —
@@ -104,6 +117,10 @@ export async function CallScreenView(root, callId) {
       node.removeEventListener("pointerup", up);
       node.removeEventListener("pointercancel", up);
       if (!moved) return;
+      // Окно тащили, а не нажимали: гасим ближайший клик, иначе каждое
+      // перетаскивание заодно меняло бы окна местами.
+      justDragged = true;
+      setTimeout(() => (justDragged = false), 250);
       try {
         localStorage.setItem(PIP_POS_KEY, JSON.stringify({ x: parseFloat(node.style.left), y: parseFloat(node.style.top) }));
       } catch {
@@ -151,7 +168,9 @@ export async function CallScreenView(root, callId) {
 
     const tiles = s.others.length
       ? s.others.map((p) => {
-          const remoteStream = s.remoteStreams[p.id] ?? null;
+          // При обмене местами в большой плитке показывается своя картинка, а
+          // картинка собеседника уезжает в маленькое окно.
+          const remoteStream = swapped && s.localStream ? s.localStream : s.remoteStreams[p.id] ?? null;
           const isConnected = !!s.connectedPeers[p.id];
           const showVideo = s.call.kind === "video" && remoteStream && remoteStream.getVideoTracks().length > 0;
           const kind = showVideo ? "video" : s.call.kind === "audio" ? "audio" : null;
@@ -200,6 +219,14 @@ export async function CallScreenView(root, callId) {
                 })
               : null,
           ].filter(Boolean));
+          tile.style.cursor = "pointer";
+          tile.title = swapped ? "Вернуть как было" : "Показать себя крупно";
+          tile.addEventListener("click", (e) => {
+            // Не перехватываем нажатия на кнопки внутри плитки (например,
+            // «убрать участника»).
+            if (e.target.closest("button")) return;
+            toggleSwap();
+          });
           return tile;
         })
       : [el("p", { class: "call-empty-hint" }, "Ожидание участников…")];
@@ -210,13 +237,16 @@ export async function CallScreenView(root, callId) {
 
     const localPip =
       s.call.kind === "video"
-        ? el("div", { class: "call-local-pip", onpointerdown: startPipDrag }, [
+        ? el("div", { class: "call-local-pip", onpointerdown: startPipDrag, onclick: toggleSwap, title: swapped ? "Вернуть как было" : "Показать себя крупно" }, [
             s.cameraOn
               ? (() => {
                   if (!localVideoEl) {
                     localVideoEl = el("video", { autoplay: true, muted: true, playsinline: true, class: "call-local-video" });
                   }
-                  if (localVideoEl.srcObject !== s.localStream) localVideoEl.srcObject = s.localStream;
+                  // При обмене местами здесь показывается собеседник, а своя
+                  // картинка уходит в большое окно.
+                  const pipStream = swapped ? s.remoteStreams[s.others[0]?.id] ?? s.localStream : s.localStream;
+                  if (localVideoEl.srcObject !== pipStream) localVideoEl.srcObject = pipStream;
                   localVideoEl.classList.toggle("mirrored", !s.facingBack);
                   return localVideoEl;
                 })()

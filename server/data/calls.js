@@ -17,7 +17,26 @@ function rowToCall(row) {
   };
 }
 
+// Звонок, который остался «идущим» навсегда.
+//
+// Завершение приходит от клиента (PATCH статуса), а он его не пришлёт, если
+// вкладку закрыли, связь пропала или браузер убили. Такие записи копятся, и
+// каждая из них — это «вам звонят» при следующем входе в приложение и мусор в
+// журнале звонков.
+//
+// Разговоров длиной в шесть часов не бывает, поэтому всё, что висит дольше,
+// закрывается как пропущенное. Уборка на чтении, а не по расписанию, — так же,
+// как срок жизни историй (data/stories.js): ничего в этом приложении не крутится
+// по таймеру, а звонок, повисший лишний час, никому не мешает.
+const STALE_CALL_MS = 6 * 60 * 60 * 1000;
+
+function closeStaleCalls() {
+  const cutoff = new Date(Date.now() - STALE_CALL_MS).toISOString();
+  db.prepare("UPDATE calls SET status = 'missed' WHERE status = 'ongoing' AND startedAt < ?").run(cutoff);
+}
+
 async function listCalls(userId) {
+  closeStaleCalls();
   const rows = db
     .prepare("SELECT c.* FROM calls c JOIN call_participants p ON p.callId = c.id WHERE p.userId = ? ORDER BY c.startedAt DESC")
     .all(userId);

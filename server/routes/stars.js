@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { ADMIN_PHONE } = require("../config");
+const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { getUser, findUserByPhone } = require("../data/users");
 const { getChat } = require("../data/chats");
 const { getMessage, deleteMessage, setBoost } = require("../data/messages");
@@ -86,7 +86,7 @@ router.post(
   "/grant",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    if (me?.phone !== ADMIN_PHONE) return res.status(403).json({ error: "Недостаточно прав" });
+    if (!isAdminPhone(me?.phone)) return res.status(403).json({ error: "Недостаточно прав" });
 
     const target = await getUser(req.body?.userId);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });

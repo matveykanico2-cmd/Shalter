@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { ADMIN_PHONE, PREMIUM_GRANT_DAYS } = require("../config");
+const { ADMIN_PHONE, PREMIUM_GRANT_DAYS, isAdminPhone } = require("../config");
 const { getUser, findUserByPhone, listReferrals, grantPremiumDays, revokePremium } = require("../data/users");
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -23,7 +23,7 @@ router.get(
       premiumUntil: me.premiumUntil,
       premiumForever: !!me.premiumForever,
       referralCode: me.referralCode,
-      isAdmin: me.phone === ADMIN_PHONE,
+      isAdmin: isAdminPhone(me.phone),
       referrals: publicUsers(referrals),
     });
   })
@@ -108,7 +108,7 @@ router.post(
   "/grant",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    if (me.phone !== ADMIN_PHONE) {
+    if (!isAdminPhone(me.phone)) {
       return res.status(403).json({ error: "Недостаточно прав" });
     }
     const { userId, premium, days, forever } = req.body ?? {};

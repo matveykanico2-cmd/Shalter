@@ -97,22 +97,42 @@ function createPeer(otherUserId) {
     state.remoteStreams = { ...state.remoteStreams, [otherUserId]: e.streams[0] };
     notify();
   };
-  pc.onconnectionstatechange = () => {
-    state.connectedPeers = { ...state.connectedPeers, [otherUserId]: pc.connectionState === "connected" };
+  // Соединение считается состоявшимся по двум признакам, а не по одному.
+  //
+  // connectionState — сводное состояние, и оно доходит до "connected" не
+  // всегда: у принимающей стороны оно застревает в "connecting", хотя ICE уже
+  // соединён и звук с картинкой идут. Замер на двух браузерах: у звонящего
+  // "connected/connected", у принявшего "connecting/connected" — и так и
+  // остаётся. Экран при этом висел на «Вызов…», таймер разговора не шёл, и со
+  // стороны это выглядело как «нажал ответить, а звонок не соединился».
+  //
+  // Поэтому смотрим ещё и на iceConnectionState: "connected" или "completed"
+  // означают, что путь для медиа найден и данные пошли. Этого достаточно, а
+  // ждать сводного состояния — значит ждать того, что может не наступить.
+  const looksConnected = () =>
+    pc.connectionState === "connected" || pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed";
+
+  const onStateChange = () => {
+    state.connectedPeers = { ...state.connectedPeers, [otherUserId]: looksConnected() };
     // Only a real connection ends the ring — not a fixed timer (that was
     // cosmetic and had nothing to do with whether media actually flowed).
-    if (pc.connectionState === "connected") {
+    if (looksConnected()) {
       clearTimeout(watchdog);
       state.connectionError = null;
       if (state.phase === "ringing") {
         state.phase = "connected";
         stopRingtone();
       }
-    } else if (pc.connectionState === "failed") {
+    } else if (pc.connectionState === "failed" || pc.iceConnectionState === "failed") {
       handleStuck();
     }
     notify();
   };
+  pc.onconnectionstatechange = onStateChange;
+  // Второе событие обязательно: у застрявшего в "connecting" соединения
+  // onconnectionstatechange больше не сработает, и без этой строки мы просто
+  // не узнаем, что связь уже есть.
+  pc.oniceconnectionstatechange = onStateChange;
   state.peers.set(otherUserId, pc);
   return pc;
 }

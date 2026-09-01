@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { ADMIN_PHONE } = require("../config");
+const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { getUser, updateUser, findUserByPhone } = require("../data/users");
 const { normalizePhone } = require("../lib/validators");
 const { publicUser } = require("../data/sanitize");
@@ -36,7 +36,7 @@ const MIN_LISTING_STARS = 10;
 
 async function requireAdmin(req, res) {
   const me = await getUser(req.uid);
-  if (me?.phone !== ADMIN_PHONE) {
+  if (!isAdminPhone(me?.phone)) {
     res.status(403).json({ error: "Недостаточно прав" });
     return null;
   }
@@ -117,7 +117,7 @@ router.get(
       auctions: withNames,
       balance: balanceOf(req.uid),
       minStep: MIN_STEP_STARS,
-      isAdmin: me?.phone === ADMIN_PHONE,
+      isAdmin: isAdminPhone(me?.phone),
     });
   })
 );

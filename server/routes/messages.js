@@ -7,7 +7,7 @@ const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMes
 const { getUser, findUserIdsByUsernames } = require("../data/users");
 const { transferStars, balanceOf } = require("../data/stars");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
-const { ADMIN_PHONE } = require("../config");
+const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { getSettings, isQuietNow } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
 const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled } = require("../data/scheduledMessages");
@@ -366,7 +366,7 @@ router.post(
       // Same for the administration's own DM: purchase requests are posted there
       // by the server itself (see routes/premium.js and friends), and those go
       // through lib/systemChat.js rather than this route.
-      if (other?.phone && other.phone === ADMIN_PHONE) {
+      if (other?.phone && isAdminPhone(other.phone)) {
         return res.status(403).json({ error: "В чат администрации нельзя писать напрямую — заявки на покупку создаются автоматически" });
       }
 

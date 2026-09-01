@@ -79,9 +79,21 @@ function dismiss() {
   stopRingtone();
 }
 
+// Сколько звонок считается «сейчас звонит». Дольше минуты не звонит ни один
+// телефон: всё, что старше, — это либо разговор, который уже идёт без нас,
+// либо след от закрытой вкладки, которую некому было завершить.
+const RINGING_WINDOW_MS = 60 * 1000;
+
 async function handleNewCall(call) {
   const me = getState().user;
   if (call.callerId === me.id || call.status !== "ongoing") return;
+  // Проверка по времени нужна именно при входе в приложение: там мы спрашиваем
+  // у сервера все свои звонки, и среди них попадаются зависшие в состоянии
+  // «идёт» — с ними никто никогда не связывался, потому что вкладку закрыли, а
+  // завершить звонок было некому. Без этой строки человек, открыв приложение,
+  // видел бы звонок недельной давности и, нажав «Ответить», попадал в пустоту.
+  const startedAt = new Date(call.startedAt ?? 0).getTime();
+  if (Number.isFinite(startedAt) && Date.now() - startedAt > RINGING_WINDOW_MS) return;
   // No foreground Notification here — the in-app banner below already
   // covers "app open and visible". A real Web Push (server/routes/calls.js)
   // covers the other cases (backgrounded tab, browser closed) via
@@ -105,12 +117,21 @@ export function mountIncomingCallWatcher() {
   });
 
   async function tick() {
-    if (isWsOpen()) return; // WS push covers it; poll is only the fallback
+    // Первая проверка идёт всегда, даже при живом сокете.
+    //
+    // Сокет приносит только те звонки, что начались, пока приложение открыто.
+    // Звонок, начавшийся раньше, событие уже отправил — и оно ушло в пустоту.
+    // Поэтому при запуске надо спросить сервер: не звонит ли кто-то прямо
+    // сейчас. Ровно этот случай и был сломан: человеку звонили, он открывал
+    // приложение — и не видел ничего.
+    if (primed && isWsOpen()) return; // дальше сокет справляется сам
     const { calls } = await api.listCalls();
     if (!primed) {
       primed = true;
-      calls.forEach((c) => seen.add(c.id));
-      return;
+      // Виденными помечаем только законченные. Раньше сюда попадали все
+      // подряд, включая идущий прямо сейчас звонок, — и он не показывался
+      // никогда.
+      for (const c of calls) if (c.status !== "ongoing") seen.add(c.id);
     }
     for (const call of calls) {
       if (seen.has(call.id)) continue;

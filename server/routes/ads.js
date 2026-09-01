@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { ADMIN_PHONE } = require("../config");
+const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { getUser, findUserByPhone, grantAdsDays, revokeAds, updateUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -133,7 +133,7 @@ router.post(
   "/grant",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    if (me.phone !== ADMIN_PHONE) return res.status(403).json({ error: "Недостаточно прав" });
+    if (!isAdminPhone(me.phone)) return res.status(403).json({ error: "Недостаточно прав" });
 
     const { userId, active, days, forever } = req.body ?? {};
     const target = await getUser(userId);
@@ -360,7 +360,7 @@ router.post(
 // ── Модерация (владелец ADMIN_PHONE) ────────────────────────────────────────
 async function requireAdmin(req, res) {
   const me = await getUser(req.uid);
-  if (!me || me.phone !== ADMIN_PHONE) {
+  if (!me || !isAdminPhone(me.phone)) {
     res.status(403).json({ error: "Недостаточно прав" });
     return null;
   }

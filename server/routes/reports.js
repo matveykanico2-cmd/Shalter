@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { ADMIN_PHONE } = require("../config");
+const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { addReport, getReport, setReportStatus } = require("../data/reports");
 const { getUser, findUserByPhone, setBanned, setSafetyLabel } = require("../data/users");
@@ -139,7 +139,7 @@ router.post(
   "/:id/resolve",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    if (me.phone !== ADMIN_PHONE) return res.status(403).json({ error: "Недостаточно прав" });
+    if (!isAdminPhone(me.phone)) return res.status(403).json({ error: "Недостаточно прав" });
 
     const { action, messageId } = req.body ?? {};
     if (!["delete", "ban", "dismiss"].includes(action)) {

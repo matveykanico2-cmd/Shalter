@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { ADMIN_PHONE } = require("../config");
+const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { getUser, findUserByPhone, removeReceivedGift } = require("../data/users");
 const { balanceOf, spendStars, addStars } = require("../data/stars");
 const { listGifts, getGift, setSupply, createGift, deleteCustomGift, conversionValue, SUPPLY_MIN, SUPPLY_MAX } = require("../data/gifts");
@@ -108,7 +108,7 @@ router.post(
   "/deliver",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    if (me.phone !== ADMIN_PHONE) return res.status(403).json({ error: "Недостаточно прав" });
+    if (!isAdminPhone(me.phone)) return res.status(403).json({ error: "Недостаточно прав" });
 
     const gift = getGift(req.body?.giftId);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
@@ -201,7 +201,7 @@ router.delete(
 
 async function requireAdmin(req, res) {
   const me = await getUser(req.uid);
-  if (me?.phone !== ADMIN_PHONE) {
+  if (!isAdminPhone(me?.phone)) {
     res.status(403).json({ error: "Недостаточно прав" });
     return null;
   }

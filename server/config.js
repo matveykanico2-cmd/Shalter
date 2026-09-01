@@ -4,6 +4,25 @@
 // a deployment doesn't have to hardcode a real phone number in source.
 const ADMIN_PHONE = process.env.PREMIUM_ADMIN_PHONE || "+79781827502";
 
+// Администраторов может быть несколько.
+//
+// ADMIN_PHONE остаётся «главным»: на него переводят деньги, от его имени идёт
+// чат администрации, его ищет findUserByPhone. А права — у любого номера из
+// списка, поэтому проверки прав идут через isAdminPhone, а не через сравнение
+// с одной строкой.
+//
+// Дополнительные номера задаются через PREMIUM_ADMIN_PHONES (через запятую);
+// без переменной берётся зашитый список.
+const EXTRA_ADMIN_PHONES = (process.env.PREMIUM_ADMIN_PHONES || "+79781824352")
+  .split(",")
+  .map((p) => p.trim())
+  .filter(Boolean);
+const ADMIN_PHONES = [...new Set([ADMIN_PHONE, ...EXTRA_ADMIN_PHONES])];
+
+function isAdminPhone(phone) {
+  return !!phone && ADMIN_PHONES.includes(phone);
+}
+
 // Default Premium grant length — the referral bonus and the plain "Купить
 // Premium — 10₽" purchase both use this. Longer/shorter durations are also
 // available individually through the Gifts catalog (server/data/gifts.js).
@@ -31,6 +50,8 @@ const LANGUAGETOOL_URL = process.env.LANGUAGETOOL_URL || "https://api.languageto
 module.exports = {
   LANGUAGETOOL_URL,
   ADMIN_PHONE,
+  ADMIN_PHONES,
+  isAdminPhone,
   PREMIUM_GRANT_DAYS,
   DONATIONALERTS_CLIENT_ID,
   DONATIONALERTS_CLIENT_SECRET,

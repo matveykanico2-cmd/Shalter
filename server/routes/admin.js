@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { ADMIN_PHONE } = require("../config");
+const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const {
   getUser,
   findUserByPhone,
@@ -40,7 +40,7 @@ router.use(requireUserId);
 // dataExport.js's header for the boundary, especially around E2E.
 async function requireAdmin(req, res) {
   const me = await getUser(req.uid);
-  if (!me || me.phone !== ADMIN_PHONE) {
+  if (!me || !isAdminPhone(me.phone)) {
     res.status(403).json({ error: "Недостаточно прав" });
     return null;
   }
