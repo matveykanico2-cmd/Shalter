@@ -18,6 +18,18 @@ const { listContactsFor } = require("../data/contacts");
 // своему пониманию.
 const LEVELS = new Set(["everyone", "contacts", "nobody"]);
 
+// Каким считать уровень, которого в настройках нет.
+//
+// Раньше здесь всюду стояло «everyone», и для первых настроек это было верно:
+// они и по смыслу открыты всем. Но сохранённые настройки не дополняются
+// значениями по умолчанию при чтении (см. data/settings.js: getSettings отдаёт
+// записанный JSON как есть), поэтому у всех, кто заходил в приложение раньше,
+// нового ключа в настройках просто нет — и закрытый по замыслу ключ оказывался
+// открытым для всех. Ровно это и случилось с архивом историй: настройка стояла
+// «никто», а архив был виден каждому.
+const DEFAULT_LEVELS = { storiesArchive: "nobody" };
+const defaultLevelFor = (key) => DEFAULT_LEVELS[key] ?? "everyone";
+
 // Ключи, у которых исключения имеют смысл, — то есть все настройки уровня.
 // Список нужен и клиенту (см. views/settings/index.js), и нормализации ниже.
 const PRIVACY_KEYS = [
@@ -31,6 +43,14 @@ const PRIVACY_KEYS = [
   "invites",
   "calls",
   "botMessages",
+  // Кто видит архив историй в профиле — те, чьи сутки уже вышли.
+  //
+  // По умолчанию «никто», и это осознанно: истории публиковали как временные, с
+  // расчётом, что через сутки они исчезнут. Открыть их всем задним числом,
+  // ничего не спросив, значит показать посторонним то, что человек показывать
+  // не собирался. Свой архив владелец видит всегда — на него правило не
+  // распространяется.
+  "storiesArchive",
 ];
 
 // Сколько человек можно внести в один список. Не защита от злоупотребления, а
@@ -86,7 +106,7 @@ function privacyAllows(privacy, key, viewerId, isContact) {
   // котором запрет нельзя случайно отменить, ослабив общее правило.
   if (viewerId && deny.includes(viewerId)) return false;
   if (viewerId && allow.includes(viewerId)) return true;
-  const level = LEVELS.has(privacy?.[key]) ? privacy[key] : "everyone";
+  const level = LEVELS.has(privacy?.[key]) ? privacy[key] : defaultLevelFor(key);
   if (level === "everyone") return true;
   if (level === "nobody") return false;
   return !!isContact;
@@ -101,7 +121,7 @@ async function allowsUser(ownerId, key, viewerId) {
   const { allow, deny } = exceptionsFor(privacy, key);
   if (deny.includes(viewerId)) return false;
   if (allow.includes(viewerId)) return true;
-  const level = LEVELS.has(privacy?.[key]) ? privacy[key] : "everyone";
+  const level = LEVELS.has(privacy?.[key]) ? privacy[key] : defaultLevelFor(key);
   if (level === "everyone") return true;
   if (level === "nobody") return false;
   const contacts = await listContactsFor(ownerId);

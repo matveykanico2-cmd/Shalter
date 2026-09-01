@@ -65,6 +65,9 @@ export const api = {
     req("/api/users/me/pinned-channels", { method: "PUT", body: JSON.stringify({ chatIds }) }),
   getStoryViewers: (id) => req(`/api/stories/${id}/viewers`),
   getUserStories: (userId) => req(`/api/stories/user/${userId}`),
+  // Архив: все истории человека, включая те, чьи сутки вышли. Свой архив виден
+  // всегда, чужой — если он открыт настройкой (server/routes/stories.js).
+  getStoriesArchive: (userId) => req(`/api/stories/user/${userId}/archive`),
   // Рекламный кабинет (server/routes/ads.js): кампании, бюджет в звёздах,
   // статистика показов и кликов, модерация объявлений.
   listAdCampaigns: () => req("/api/ads/campaigns"),

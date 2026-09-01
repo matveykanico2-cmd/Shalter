@@ -45,6 +45,23 @@ async function listStoriesForUsers(userIds) {
   return all.filter((s) => userIds.includes(s.userId));
 }
 
+// Архив: все истории человека, включая те, чьи сутки вышли.
+//
+// Отдельная функция, а не флаг у listAllStories: срок жизни истории — это её
+// суть, и место, где он не действует, должно быть ровно одно и называться так,
+// чтобы случайно им не воспользоваться. В ленте на «Чатах» и в кружках
+// по-прежнему только живые истории.
+//
+// Работает это только потому, что истёкшие истории физически остаются в базе:
+// срок проверяется при чтении, уборщика нет (см. listAllStories выше). То есть
+// архив ничего не сохраняет дополнительно — он показывает то, что и так лежит.
+async function listArchivedStoriesFor(userId) {
+  return db
+    .prepare("SELECT * FROM stories WHERE userId = ? ORDER BY createdAt DESC")
+    .all(userId)
+    .map(rowToStory);
+}
+
 async function addStory(story) {
   const items = story.items?.length ? story.items : [{ kind: story.kind, url: story.url }];
   db.prepare(
@@ -80,4 +97,4 @@ async function deleteStory(id, userId) {
   return result.changes > 0;
 }
 
-module.exports = { TTL_MS, listAllStories, listStoriesForUsers, addStory, markViewed, deleteStory };
+module.exports = { TTL_MS, listAllStories, listStoriesForUsers, listArchivedStoriesFor, addStory, markViewed, deleteStory };

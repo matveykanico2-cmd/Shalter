@@ -173,6 +173,11 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   }
 
   async function markViewedIfNeeded(story) {
+    // Истёкшую историю (её открыли из архива в профиле) сервер отмечать не даёт
+    // и правильно делает: «просмотрено» — это про ленту, а из ленты она давно
+    // ушла. Не пытаемся, чтобы не ставить локальную отметку, которой на сервере
+    // не будет.
+    if (story.expired) return;
     if (story.viewed || isMine()) return;
     story.viewed = true;
     onChanged?.();

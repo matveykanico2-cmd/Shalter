@@ -2,7 +2,9 @@ const crypto = require("crypto");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { TTL_MS, listStoriesForUsers, addStory, markViewed, deleteStory } = require("../data/stories");
+const { TTL_MS, listStoriesForUsers, listArchivedStoriesFor, addStory, markViewed, deleteStory } = require("../data/stories");
+const { getSettings } = require("../data/settings");
+const { privacyAllows } = require("../lib/privacyRules");
 const { listContactsFor, listOwnersOf } = require("../data/contacts");
 const { getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
@@ -84,6 +86,47 @@ router.get(
   })
 );
 
+// Архив историй в профиле: всё, что человек когда-либо выкладывал, включая
+// истёкшее. Лента на «Чатах» и кружки по-прежнему показывают только живые
+// истории — здесь ровно то место, где срок не действует.
+//
+// Кто это видит: сам человек — всегда, остальные — по настройке
+// «Архив историй» (по умолчанию «никто»). Прошедшие сутки истории задумывались
+// временными, и раздавать их посторонним без разрешения нельзя.
+router.get(
+  "/user/:userId/archive",
+  asyncRoute(async (req, res) => {
+    const targetId = req.params.userId;
+    const isSelf = targetId === req.uid;
+
+    if (!isSelf) {
+      // Та же граница, что и у живых историй: сначала «показывают ли вам этого
+      // человека вообще», и только потом — «открыт ли архив».
+      const allowed = await visibleAuthorIds(req.uid);
+      if (!allowed.includes(targetId)) return res.json({ stories: [], allowed: false });
+      const { privacy } = await getSettings(targetId);
+      const contacts = await listContactsFor(targetId);
+      const isContact = contacts.some((c) => c.userId === req.uid);
+      if (!privacyAllows(privacy, "storiesArchive", req.uid, isContact)) {
+        return res.json({ stories: [], allowed: false });
+      }
+    }
+
+    const all = await listArchivedStoriesFor(targetId);
+    const now = Date.now();
+    res.json({
+      allowed: true,
+      stories: all.map((st) => ({
+        ...st,
+        viewed: st.viewedByIds.includes(req.uid),
+        // Клиенту нужно отличать живую историю от архивной: первую можно
+        // открыть в просмотрщике как обычно, вторая — уже история из прошлого.
+        expired: new Date(st.expiresAt).getTime() <= now,
+      })),
+    });
+  })
+);
+
 router.post(
   "/",
   asyncRoute(async (req, res) => {
@@ -142,7 +185,11 @@ router.post(
 router.get(
   "/:id/viewers",
   asyncRoute(async (req, res) => {
-    const story = (await listStoriesForUsers([req.uid])).find((st) => st.id === req.params.id);
+    // По архиву, а не по живым историям: свои истории владелец открывает и из
+    // профиля, где они уже истекли, и вопрос «кто это видел» там осмыслен
+    // ровно так же. Список всё равно свой — listArchivedStoriesFor берёт
+    // истории одного человека, и это req.uid.
+    const story = (await listArchivedStoriesFor(req.uid)).find((st) => st.id === req.params.id);
     if (!story) return res.status(404).json({ error: "not found" });
     const users = await Promise.all(story.viewedByIds.filter((id) => id !== req.uid).map((id) => getUser(id)));
     res.json({ viewers: users.filter(Boolean).map(publicUser) });

@@ -11208,3 +11208,46 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* Вкладка «Истории» в профиле — архив: всё, что человек выкладывал, включая
+   истёкшее (components/profileDialog.js). */
+.profile-stories-grid {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(3, 1fr);
+}
+.profile-stories-grid .profile-story-cell {
+  position: relative;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: var(--color-surface-hover, rgba(127, 127, 127, 0.08));
+  padding: 0;
+  aspect-ratio: 9 / 16;
+  cursor: pointer;
+}
+.profile-stories-grid .profile-story-cell-media {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+/* Истёкшая история приглушена: она не в ленте, и по плитке это должно быть
+   видно сразу, без наведения на подсказку. */
+.profile-stories-grid .profile-story-cell.expired .profile-story-cell-media {
+  opacity: 0.62;
+}
+.profile-story-date {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  left: 4px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 2px 5px;
+  font-size: 11px;
+  color: #fff;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

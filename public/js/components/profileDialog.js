@@ -25,6 +25,10 @@ import { openPinnedChannelsDialog } from "./pinnedChannelsDialog.js";
 // gifts reuse the user object's own giftsReceived, already loaded with it.
 const TABS = [
   { id: "media", label: "Медиа" },
+  // Истории живут сутки и пропадают из ленты на «Чатах», но не из базы —
+  // здесь они остаются все. Свой архив человек видит всегда, чужой — если
+  // хозяин открыл его настройкой «Кто видит архив историй».
+  { id: "stories", label: "Истории" },
   { id: "gifts", label: "Подарки" },
   { id: "files", label: "Файлы" },
   { id: "links", label: "Ссылки" },
@@ -37,6 +41,15 @@ const TABS = [
 // Rendered as a right-docked slide-in panel (like Telegram's own profile/
 // channel-info view) rather than a centered modal.
 // «1 история», «2 истории», «5 историй» — иначе под кружком стоит «5 история».
+// Дата под плиткой архива. Год показывается только у прошлогодних: в архиве
+// за эту неделю «2026» на каждой плитке — четыре лишних знака и ничего больше.
+function storyDate(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: sameYear ? undefined : "numeric" });
+}
+
 function storyWord(n) {
   const m10 = n % 10;
   const m100 = n % 100;
@@ -81,6 +94,22 @@ export async function openProfileDialog(userId) {
   // Каналы, которые владелец профиля закрепил у себя. Приходят вместе с
   // профилем и уже проверены сервером: чужие и закрытые сюда не попадают.
   let pinnedChannels = [];
+  // Архив историй грузится не сразу, а когда откроют вкладку: у человека их
+  // могут быть сотни, и тянуть это на каждый просмотр профиля незачем.
+  let archive = null; // null — ещё не грузили, { allowed, stories } — ответ
+  let archiveLoading = false;
+
+  async function loadArchive() {
+    if (archive || archiveLoading) return;
+    archiveLoading = true;
+    try {
+      archive = await api.getStoriesArchive(userId);
+    } catch {
+      archive = { allowed: false, stories: [] };
+    }
+    archiveLoading = false;
+    render();
+  }
 
   try {
     const [res] = await Promise.all([
@@ -218,6 +247,57 @@ export async function openProfileDialog(userId) {
           })
       );
     }
+    if (activeTab === "stories") {
+      if (archiveLoading || archive === null) {
+        loadArchive();
+        return el("div", { class: "qr-login-spinner" });
+      }
+      if (!archive.allowed) {
+        return el("p", { class: "profile-empty-tab" }, "Архив историй закрыт");
+      }
+      if (!archive.stories.length) {
+        return el("p", { class: "profile-empty-tab" }, isSelf ? "Вы ещё не выкладывали историй" : "Историй пока нет");
+      }
+      // Плитка на каждый кадр, а не на историю: в одной истории их может быть
+      // до десяти, и показывать десять снимков одной обложкой значит прятать
+      // девять. Открывается просмотрщик с того кадра, по которому нажали.
+      const frames = archive.stories.flatMap((story) =>
+        (story.items?.length ? story.items : [{ kind: story.kind, url: story.url }]).map((item, index) => ({ story, item, index }))
+      );
+      return el("div", { class: "profile-stories-grid" }, [
+        ...frames.map(({ story, item, index }) =>
+          el(
+            "button",
+            {
+              class: `profile-story-cell ${story.expired ? "expired" : ""} ${story.viewed ? "viewed" : ""}`,
+              title: story.expired ? `Истекла ${storyDate(story.createdAt)}` : `Ещё в ленте · ${storyDate(story.createdAt)}`,
+              onclick: () =>
+                openStoryViewer(
+                  [{ user, stories: [story] }],
+                  0,
+                  me.id,
+                  () => {
+                    // Историю могли удалить прямо из просмотрщика — тогда
+                    // архив надо перечитать, а не оставлять плитку, за которой
+                    // уже ничего нет.
+                    archive = null;
+                    render();
+                  },
+                  index
+                ),
+            },
+            [
+              item.kind === "video"
+                ? el("video", { class: "profile-story-cell-media", src: item.url, muted: true })
+                : el("img", { class: "profile-story-cell-media", src: item.url, alt: "" }),
+              item.kind === "video" ? el("span", { class: "profile-story-cell-play", html: iconSvg("Play", 14) }) : null,
+              el("span", { class: "profile-story-date" }, storyDate(story.createdAt)),
+            ].filter(Boolean)
+          )
+        ),
+      ]);
+    }
+
     if (activeTab === "media") {
       if (!sharedMedia.media.length) return el("p", { class: "profile-empty-tab" }, "Медиа пока нет");
       return el(
