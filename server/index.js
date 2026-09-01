@@ -259,8 +259,36 @@ app.get(/^\/(?!api|ws).*/, (req, res) => {
   res.sendFile(indexHtml);
 });
 
+// Версия того, что сейчас отдаётся клиенту.
+//
+// По ней приложение понимает, что на сервере выложили новое, и обновляется само
+// (см. public/js/lib/appVersion.js). Без этого страница, открытая неделю назад,
+// продолжает работать со старым кодом и старым форматом ответов — отсюда
+// «глюки», которые чинятся перезагрузкой, о которой человек не догадывается.
+//
+// Отдельным маршрутом, а не чтением /dist/build.json с клиента: в режиме
+// разработки собранного файла нет вовсе, а знать версию надо в обоих режимах.
+app.get("/api/version", (req, res) => {
+  let version = "dev";
+  try {
+    if (fs.existsSync(path.join(DIST_DIR, "build.json"))) {
+      version = JSON.parse(fs.readFileSync(path.join(DIST_DIR, "build.json"), "utf-8")).version ?? "dev";
+    }
+  } catch {
+    // Файл битый или недоступен — считаем версию неизвестной, и клиент просто
+    // не станет ничего перезагружать. Это лучше, чем перезагрузка по кругу.
+  }
+  // Без кэша: смысл запроса — заметить изменение, а закэшированный ответ его
+  // как раз и скроет.
+  res.set("Cache-Control", "no-store");
+  res.json({ version, startedAt: SERVER_STARTED_AT });
+});
+
 app.use(errorHandler);
 
+// Когда процесс поднялся: клиенту это нужно, чтобы отличить выкладку новой
+// версии от простого перезапуска.
+const SERVER_STARTED_AT = new Date().toISOString();
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 attachWebSocketServer(server);

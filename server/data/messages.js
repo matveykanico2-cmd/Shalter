@@ -466,8 +466,49 @@ function attachmentBytesByKind(chatIds) {
   return Object.fromEntries(rows.filter((r) => r.kind).map((r) => [r.kind, r.bytes ?? 0]));
 }
 
+// Календарь переписки: в какие дни в этом чате вообще что-то писали.
+//
+// Даты считаются в часовом поясе того, кто смотрит: createdAt лежит в UTC, а
+// «30 августа» для человека в Москве и в Лиссабоне — разные отрезки времени.
+// Смещение приходит с клиента в минутах (как его отдаёт getTimezoneOffset, с
+// обратным знаком) и подставляется прямо в SQL — считать это перебором в
+// JavaScript значило бы вычитать из базы всю переписку ради списка дней.
+function listMessageDays(chatId, { month, tzOffsetMinutes = 0 } = {}) {
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT substr(datetime(createdAt, (@tz || ' minutes')), 1, 10) AS day
+         FROM messages
+        WHERE chatId = @chatId AND threadRootId IS NULL
+          AND substr(datetime(createdAt, (@tz || ' minutes')), 1, 7) = @month
+        ORDER BY day`
+    )
+    .all({ chatId, month, tz: tzOffsetMinutes });
+  return rows.map((r) => r.day);
+}
+
+// Первое сообщение выбранного дня — то, к которому нужно перепрыгнуть.
+// Если в этот день не писали, берётся ближайшее следующее: человек ткнул в
+// пустой день календаря, и показать ему «ничего нет» менее полезно, чем
+// перенести туда, где переписка продолжилась.
+function firstMessageOfDay(chatId, { day, tzOffsetMinutes = 0 } = {}) {
+  return (
+    db
+      .prepare(
+        `SELECT id, createdAt
+           FROM messages
+          WHERE chatId = @chatId AND threadRootId IS NULL
+            AND substr(datetime(createdAt, (@tz || ' minutes')), 1, 10) >= @day
+          ORDER BY createdAt ASC
+          LIMIT 1`
+      )
+      .get({ chatId, day, tz: tzOffsetMinutes }) ?? null
+  );
+}
+
 module.exports = {
   attachmentBytesByKind,
+  listMessageDays,
+  firstMessageOfDay,
   // Нужен data/chat-summary.js: он читает строки своим запросом и превращает
   // их в сообщения тем же способом, что и остальной код.
   rowToMessage,

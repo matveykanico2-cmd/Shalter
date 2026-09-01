@@ -6024,11 +6024,27 @@
 }
 .call-local-pip {
   position: absolute;
-  bottom: 112px;
+  /* Выше панели кнопок с запасом: на узком экране она переносится в две строки
+     и становится выше, а окно камеры накрывало собой «Завершить» — кнопка под
+     ним просто не нажималась. Окно к тому же можно отодвинуть пальцем
+     (views/callScreen.js), и тогда положение берётся оттуда. */
+  bottom: 168px;
   right: 24px;
   z-index: 20;
   height: 112px;
   width: 112px;
+  cursor: grab;
+  touch-action: none;
+}
+.call-local-pip:active {
+  cursor: grabbing;
+}
+@media (max-width: 560px) {
+  .call-local-pip {
+    bottom: 200px;
+    height: 96px;
+    width: 96px;
+  }
 }
 .call-local-video {
   height: 100%;
@@ -11251,3 +11267,211 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Календарь переписки (components/chatCalendarDialog.js): открывается нажатием
+   на разделитель даты в чате. */
+.date-divider-btn {
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.date-divider-btn:hover {
+  text-decoration: underline;
+}
+.calendar-dialog {
+  width: min(340px, 92vw);
+}
+.calendar-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.calendar-month {
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.calendar-nav {
+  display: inline-flex;
+  height: 30px;
+  width: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-surface-hover, rgba(127, 127, 127, 0.1));
+  color: inherit;
+  cursor: pointer;
+}
+.calendar-weekdays,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.calendar-weekdays span {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+.calendar-cell {
+  display: flex;
+  aspect-ratio: 1;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-size: 13px;
+  color: inherit;
+}
+.calendar-cell.empty {
+  visibility: hidden;
+}
+/* День с перепиской заметен и нажимается; пустой — приглушён и не кликается,
+   иначе выбор превращается в угадывание. */
+.calendar-cell.has {
+  background: var(--color-surface-hover, rgba(127, 127, 127, 0.12));
+  font-weight: 600;
+  cursor: pointer;
+}
+.calendar-cell.has:hover {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+.calendar-cell.none {
+  color: var(--color-text-muted);
+  opacity: 0.45;
+}
+.calendar-cell.today {
+  outline: 1px solid var(--color-accent);
+}
+.calendar-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Экран разрешений при первом входе (components/permissionsDialog.js). */
+.perm-dialog { width: min(400px, 92vw); }
+.perm-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.perm-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.perm-row-body { flex: 1 1 auto; min-width: 0; }
+.perm-row-title { font-size: 14.5px; font-weight: 500; }
+.perm-ok { font-size: 18px; color: var(--color-accent); }
+.perm-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
+
+/* Доска объявлений (views/marketListings.js) — «как Авито»: сетка карточек,
+   фильтры сверху, карточка объявления в окне. */
+.listing-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.listing-add { margin-left: auto; }
+.listing-filters {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin-bottom: 12px;
+}
+.listing-search, .listing-select, .listing-price {
+  border: 1px solid var(--color-border, rgba(127,127,127,0.25));
+  border-radius: 10px;
+  background: var(--color-surface, transparent);
+  padding: 8px 10px;
+  font-size: 13.5px;
+  color: inherit;
+}
+.listing-search { grid-column: 1 / -1; }
+.listing-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+.listing-card {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border, rgba(127,127,127,0.2));
+  border-radius: 14px;
+  background: var(--color-surface, transparent);
+}
+/* Проданное и снятое видно сразу, но остаётся читаемым — продавцу нужен свой
+   архив, а не серая мешанина. */
+.listing-card.closed { opacity: 0.62; }
+.listing-card-photo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: var(--color-surface-hover, rgba(127,127,127,0.08));
+  padding: 0;
+  aspect-ratio: 4 / 3;
+  cursor: pointer;
+}
+.listing-card-photo img { height: 100%; width: 100%; object-fit: cover; }
+.listing-card-nophoto { color: var(--color-text-muted); }
+.listing-card-body { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px; }
+.listing-card-title {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 13.5px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.listing-card-price { font-size: 15px; font-weight: 600; }
+.listing-card-meta, .listing-card-delivery { font-size: 12px; color: var(--color-text-muted); }
+.listing-card-actions { position: absolute; top: 6px; right: 6px; }
+.listing-mini-btn {
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.45);
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #fff;
+  cursor: pointer;
+}
+.listing-mini-btn.on { background: var(--color-accent); }
+
+/* Окно объявления и редактор */
+.listing-view, .listing-editor { width: min(520px, 94vw); }
+.listing-view-body, .listing-editor-body { display: flex; flex-direction: column; gap: 10px; max-height: 78vh; overflow-y: auto; }
+.listing-view-photo { width: 100%; border-radius: 12px; object-fit: cover; max-height: 340px; }
+.listing-view-thumbs { display: flex; gap: 6px; margin-top: 6px; overflow-x: auto; }
+.listing-view-thumb { height: 48px; width: 48px; flex: 0 0 auto; overflow: hidden; border: 2px solid transparent; border-radius: 8px; padding: 0; background: none; cursor: pointer; }
+.listing-view-thumb.active { border-color: var(--color-accent); }
+.listing-view-thumb img { height: 100%; width: 100%; object-fit: cover; }
+.listing-view-title { font-size: 18px; font-weight: 600; }
+.listing-view-price { font-size: 22px; font-weight: 700; }
+.listing-view-meta { font-size: 12.5px; color: var(--color-text-muted); }
+.listing-view-delivery { border-radius: 12px; background: var(--color-surface-hover, rgba(127,127,127,0.08)); padding: 10px 12px; }
+.listing-view-delivery-title { font-size: 14px; font-weight: 500; }
+.listing-view-description { white-space: pre-wrap; font-size: 14px; }
+.listing-view-seller { display: flex; align-items: center; gap: 10px; }
+.listing-view-seller-name { font-size: 14.5px; font-weight: 500; }
+.listing-view-actions, .listing-editor-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.listing-field { display: flex; flex-direction: column; gap: 4px; }
+.listing-textarea { min-height: 90px; resize: vertical; font-family: inherit; }
+.listing-price-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.listing-checkbox { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; }
+.listing-cdek { border-radius: 12px; background: var(--color-surface-hover, rgba(127,127,127,0.08)); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.listing-photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.listing-photo { position: relative; height: 72px; width: 72px; overflow: hidden; border-radius: 10px; }
+.listing-photo img { height: 100%; width: 100%; object-fit: cover; }
+.listing-photo-remove { position: absolute; top: 2px; right: 2px; border: 0; border-radius: 999px; background: rgba(0,0,0,0.55); color: #fff; cursor: pointer; height: 20px; width: 20px; }
+.listing-photo-add { height: 72px; width: 72px; border: 1px dashed var(--color-border, rgba(127,127,127,0.4)); border-radius: 10px; background: none; color: var(--color-text-muted); cursor: pointer; }

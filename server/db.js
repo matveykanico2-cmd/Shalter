@@ -53,6 +53,17 @@ db.pragma("busy_timeout = 5000");
 db.pragma("mmap_size = 268435456");
 db.pragma("temp_store = MEMORY");
 
+// Приведение к нижнему регистру, понимающее кириллицу.
+//
+// Встроенная в SQLite lower() работает только с латиницей: lower('Велосипед')
+// возвращает 'Велосипед' как есть. Из-за этого поиск по русским словам не
+// находил ничего — искали по 'велосипед', а в базе сравнивалось с 'Велосипед'.
+// Здесь та же операция, но средствами JavaScript, который Unicode знает.
+//
+// Индексам это не мешает: поиск по доске объявлений идёт через LIKE '%…%',
+// а такой запрос индексом не пользуется в любом случае.
+db.function("lower_ru", (value) => String(value ?? "").toLowerCase());
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
@@ -1096,5 +1107,60 @@ if (!existingLiveColumns.has("source")) db.exec("ALTER TABLE live_streams ADD CO
 if (!existingLiveColumns.has("streamKey")) db.exec("ALTER TABLE live_streams ADD COLUMN streamKey TEXT");
 if (!existingLiveColumns.has("rtmpLive")) db.exec("ALTER TABLE live_streams ADD COLUMN rtmpLive INTEGER NOT NULL DEFAULT 0");
 db.exec("CREATE INDEX IF NOT EXISTS idx_live_streams_key ON live_streams(streamKey)");
+
+// Объявления — доска в духе «Авито», рядом с магазинами, а не вместо них.
+//
+// Почему отдельная таблица, а не поля у shop_products: это разные вещи по
+// смыслу. Товар лежит в магазине, у него есть остаток, оплата звёздами и
+// эскроу. Объявление публикует любой человек про одну свою вещь, оплаты через
+// сервис нет вообще — договариваются в переписке, деньги и передача мимо нас.
+// Смешать это в одной таблице значило бы половину колонок держать пустыми и
+// на каждом запросе выяснять, что перед нами.
+//
+// Доставки здесь нет и не планируется. cdekPriceRub — просто число, которое
+// продавец написал: «отправлю СДЭК, доставка примерно столько». Никакого
+// вызова курьера, расчёта тарифа и отслеживания: отправляет продавец сам, а
+// поле существует, чтобы покупатель заранее знал цену вопроса и не спрашивал
+// об этом в каждой переписке.
+db.exec(`
+CREATE TABLE IF NOT EXISTS listings (
+  id TEXT PRIMARY KEY,
+  sellerId TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  category TEXT NOT NULL DEFAULT 'other',
+  -- "new" | "used": на доске объявлений это первое, что спрашивают.
+  condition TEXT NOT NULL DEFAULT 'used',
+  priceRub INTEGER NOT NULL DEFAULT 0,
+  -- Цену можно не ставить вовсе — «даром» и «договорная» это разные вещи,
+  -- поэтому отдельным флагом, а не нулём в цене.
+  isNegotiable INTEGER NOT NULL DEFAULT 0,
+  city TEXT NOT NULL DEFAULT '',
+  -- Фотографии — массив ссылок на /uploads (JSON). Не data:-строки: см.
+  -- комментарий про размер базы в components/composer.js.
+  photos TEXT NOT NULL DEFAULT '[]',
+  -- Сколько, по словам продавца, стоит отправка СДЭК. 0 или NULL — «не
+  -- отправляю, только самовывоз».
+  cdekPriceRub INTEGER,
+  -- "active" | "sold" | "archived"
+  status TEXT NOT NULL DEFAULT 'active',
+  views INTEGER NOT NULL DEFAULT 0,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_listings_seller ON listings(sellerId, createdAt);
+-- Лента и фильтры всегда идут по живым объявлениям: частичный индекс вчетверо
+-- меньше полного и не трогается, когда объявление закрыли.
+CREATE INDEX IF NOT EXISTS idx_listings_feed ON listings(category, createdAt) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_listings_city ON listings(city) WHERE status = 'active';
+
+CREATE TABLE IF NOT EXISTS listing_favorites (
+  userId TEXT NOT NULL,
+  listingId TEXT NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  createdAt TEXT NOT NULL,
+  PRIMARY KEY (userId, listingId)
+);
+CREATE INDEX IF NOT EXISTS idx_listing_favorites_user ON listing_favorites(userId, createdAt);
+`);
 
 module.exports = db;

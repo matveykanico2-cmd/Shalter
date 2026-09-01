@@ -241,6 +241,11 @@ export const api = {
     const qs = q.toString();
     return req(`/api/chats/${chatId}/messages${qs ? `?${qs}` : ""}`);
   },
+  // Календарь переписки: дни месяца с сообщениями и первое сообщение дня.
+  // tz — смещение часового пояса в минутах: «30 августа» зависит от того, кто
+  // смотрит, а createdAt лежит в UTC.
+  getChatMessageDays: (chatId, month, tz) => req(`/api/chats/${chatId}/messages/days?month=${month}&tz=${tz}`),
+  getChatMessageAt: (chatId, day, tz) => req(`/api/chats/${chatId}/messages/at?day=${day}&tz=${tz}`),
   sendMessage: (chatId, text, opts) =>
     req(`/api/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify({ text, ...opts }) }),
   editMessage: (chatId, messageId, text) =>
@@ -371,6 +376,25 @@ export const api = {
   getVapidPublicKey: () => req("/api/push/vapid-public-key"),
   subscribePush: (subscription) => req("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription }) }),
   unsubscribePush: (endpoint) => req("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) }),
+  // Что сервер знает про мои устройства — для диагностики «пуши не приходят».
+  listPushEndpoints: () => req("/api/push/endpoints"),
+  // Версия того, что сейчас отдаёт сервер — по ней приложение обновляет себя
+  // само (lib/appVersion.js).
+  getAppVersion: () => req("/api/version"),
+  // Доска объявлений (server/routes/market.js). Оплаты и доставки здесь нет:
+  // договариваются в переписке, стоимость отправки СДЭК продавец пишет сам.
+  listListings: (params = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "" && v != null));
+    return req(`/api/market/listings?${q.toString()}`);
+  },
+  myListings: () => req("/api/market/listings/mine"),
+  favoriteListings: () => req("/api/market/listings/favorites"),
+  getListing: (id) => req(`/api/market/listings/${id}`),
+  createListing: (data) => req("/api/market/listings", { method: "POST", body: JSON.stringify(data) }),
+  updateListing: (id, patch) => req(`/api/market/listings/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteListing: (id) => req(`/api/market/listings/${id}`, { method: "DELETE" }),
+  favoriteListing: (id, on) => req(`/api/market/listings/${id}/favorite`, { method: "POST", body: JSON.stringify({ on }) }),
+  contactSeller: (id) => req(`/api/market/listings/${id}/contact`, { method: "POST", body: "{}" }),
 
   submitReport: (targetType, targetId, reason, details) =>
     req("/api/reports", { method: "POST", body: JSON.stringify({ targetType, targetId, reason, details }) }),

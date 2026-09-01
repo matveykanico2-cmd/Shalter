@@ -49,6 +49,12 @@ async function pushCallCancelled(call, recipientIds) {
   );
 }
 
+// Все состояния, в которые звонок может перейти по запросу клиента.
+// «ongoing» — идёт; остальные означают, что он кончился, и различаются только
+// тем, что покажет журнал звонков.
+const ALLOWED_CALL_STATUSES = new Set(["ongoing", "ended", "missed", "completed", "declined"]);
+const FINISHED_CALL_STATUSES = new Set(["ended", "missed", "completed", "declined"]);
+
 async function pushIncomingCall(call, callerId, recipientIds) {
   const caller = await getUser(callerId);
   const title = caller?.name ?? "Входящий звонок";
@@ -160,7 +166,13 @@ router.patch(
     if (!existing || !existing.participantIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
 
     const patch = {};
-    if (req.body?.status === "ended" || req.body?.status === "ongoing" || req.body?.status === "missed") patch.status = req.body.status;
+    // Список должен совпадать с тем, что шлёт клиент, иначе изменение молча
+    // выбрасывается. Ровно это и происходило: «Сбросить» отправляет
+    // «completed», отклонение входящего — «declined», а сюда пропускались
+    // только три других значения. Статус оставался «ongoing», рассылка уходила
+    // со старым значением, и у второй стороны звонок не завершался никогда —
+    // экран висел до перезагрузки страницы.
+    if (ALLOWED_CALL_STATUSES.has(req.body?.status)) patch.status = req.body.status;
     if (Number.isFinite(req.body?.durationSec)) patch.durationSec = Math.max(0, Math.floor(req.body.durationSec));
     if (!Object.keys(patch).length) return res.json({ call: existing });
 
@@ -174,7 +186,7 @@ router.patch(
       // никогда и отмена не уходила ни разу. Лишний раз послать её безвредно:
       // у того, кто уже ответил, уведомление закрыто нажатием, и воркер просто
       // не найдёт, что закрывать.
-      if (patch.status === "ended" || patch.status === "missed") {
+      if (FINISHED_CALL_STATUSES.has(patch.status)) {
         pushCallCancelled(call, call.participantIds).catch((err) => console.error("push cancel failed:", err));
       }
     }

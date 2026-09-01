@@ -9,6 +9,7 @@ import { openMiniApp } from "./components/miniApp.js";
 import { loadSafetyLabels } from "./lib/safetyLabels.js";
 import { startWsClient } from "./lib/wsClient.js";
 import { ensurePushSubscribed } from "./lib/push.js";
+import { startVersionWatch } from "./lib/appVersion.js";
 import { subscribeCall, getCallState, minimize, restore } from "./lib/callController.js";
 import { Avatar } from "./components/avatar.js";
 import { iconSvg } from "./icons.js";
@@ -125,6 +126,21 @@ async function boot() {
   // session (e.g. browser restart) — does nothing if it wasn't, so this is
   // safe to call unconditionally on every boot.
   ensurePushSubscribed().catch(() => {});
+  // Разрешения — один раз, при первом входе. Не автоматическим запросом:
+  // браузер выдаёт камеру, микрофон и контакты только в ответ на нажатие, а
+  // запрос без нажатия молча отклоняет — и второй возможности уже не будет.
+  // Поэтому экран с кнопками (см. components/permissionsDialog.js).
+  import("./components/permissionsDialog.js")
+    .then(({ openPermissionsDialog, permissionsAlreadyAsked }) => {
+      if (permissionsAlreadyAsked()) return;
+      // Не в первую секунду загрузки: сначала человек должен увидеть, куда он
+      // попал, и только потом — просьбу о доступе.
+      setTimeout(() => openPermissionsDialog(), 1500);
+    })
+    .catch(() => {});
+  // Следим за версией на сервере: выложили новую — обновимся сами, но только
+  // когда это никому не помешает (см. lib/appVersion.js).
+  startVersionWatch();
   // Код переписки приезжает заранее, пока человек смотрит на список чатов.
   //
   // Он вынесен в отдельный кусок (см. маршрут /chat/:id ниже) — и при первом

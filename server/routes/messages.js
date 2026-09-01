@@ -3,23 +3,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { getChat } = require("../data/chats");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 const { sanitizeSticker } = require("../lib/sanitizeSticker");
-const {
-  searchInChats,
-  listMessages,
-  listMessagesPage,
-  listThreadReplies,
-  addMessage,
-  getMessage,
-  editMessage,
-  deleteMessage,
-  deleteMessageForMe,
-  togglePin,
-  toggleReaction,
-  incrementCommentCount,
-  votePoll,
-  markChatRead,
-  setLinkPreview,
-} = require("../data/messages");
+const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, markChatRead, setLinkPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
 const { getUser, findUserIdsByUsernames } = require("../data/users");
 const { transferStars, balanceOf } = require("../data/stars");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
@@ -623,5 +607,36 @@ router.post(
 // server/lib/scheduledMessagesSweep.js's sweep can deliver a fired scheduled
 // message through the exact same path a live send uses — mentions, bot
 // dispatch, push, link preview — without a second copy of that logic.
+// Календарь переписки: какие дни этого месяца в чате не пустые.
+//
+// Нужен разделителю даты в чате — по нажатию на «30 августа» открывается
+// месяц, где дни с сообщениями кликабельны, а пустые видно сразу.
+router.get(
+  "/days",
+  asyncRoute(async (req, res) => {
+    // Та же проверка, что и у остальных маршрутов этого файла: чат существует
+    // и человек в нём состоит.
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    const month = String(req.query.month ?? "").slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: "Нужен месяц в виде ГГГГ-ММ" });
+    const tz = Number(req.query.tz);
+    res.json({ days: listMessageDays(chat.id, { month, tzOffsetMinutes: Number.isFinite(tz) ? tz : 0 }) });
+  })
+);
+
+// К какому сообщению прыгать при выборе дня.
+router.get(
+  "/at",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    const day = String(req.query.day ?? "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return res.status(400).json({ error: "Нужна дата в виде ГГГГ-ММ-ДД" });
+    const tz = Number(req.query.tz);
+    res.json({ message: firstMessageOfDay(chat.id, { day, tzOffsetMinutes: Number.isFinite(tz) ? tz : 0 }) });
+  })
+);
+
 module.exports = router;
 module.exports.deliverMessage = deliverMessage;

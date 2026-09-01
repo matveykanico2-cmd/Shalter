@@ -1,4 +1,5 @@
 import { el, mount } from "../lib/dom.js";
+import { ListingsBoard } from "./marketListings.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
@@ -22,7 +23,10 @@ const ORDER_STATUS = {
 };
 
 const TABS = [
-  { id: "", label: "Витрина" },
+  // Доска объявлений идёт первой: продать свою вещь хочет любой, а магазин с
+  // оплатой звёздами заводят единицы.
+  { id: "", label: "Объявления" },
+  { id: "shops", label: "Магазины" },
   { id: "orders", label: "Мои заказы" },
   { id: "my", label: "Мой магазин" },
 ];
@@ -155,7 +159,7 @@ export async function MarketView(root, tab = "") {
 
   async function load() {
     try {
-      if (tab === "") data = await api.marketFeed(query);
+      if (tab === "shops") data = await api.marketFeed(query);
       else if (tab === "orders") orders = await api.myOrders();
       else mine = await api.myShop();
       error = null;
@@ -554,7 +558,9 @@ export async function MarketView(root, tab = "") {
         ),
         notice ? el("p", { class: "market-notice" }, notice) : null,
         error ? el("p", { class: "login-error" }, error) : null,
-        el("div", { class: "market-body" }, [tab === "" ? feed() : tab === "orders" ? buyerOrders() : cabinet()]),
+        el("div", { class: "market-body" }, [
+          tab === "" ? ListingsBoard() : tab === "shops" ? feed() : tab === "orders" ? buyerOrders() : cabinet(),
+        ]),
       ])
     );
   }

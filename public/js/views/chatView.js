@@ -7,6 +7,7 @@ import { Composer } from "../components/composer.js";
 import { InfoPanel } from "../components/infoPanel.js";
 import { openForwardDialog } from "../components/forwardDialog.js";
 import { openChoiceDialog } from "../components/confirmDialog.js";
+import { openChatCalendarDialog } from "../components/chatCalendarDialog.js";
 import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
 import { api } from "../api.js";
 import { getState, setState } from "../state.js";
@@ -1201,7 +1202,30 @@ export async function ChatView(root, chatId) {
     messages.forEach((m, i) => {
       const prev = messages[i - 1];
       if (!prev || !sameDay(prev.createdAt, m.createdAt)) {
-        list.appendChild(el("div", { class: "date-divider" }, el("span", {}, dayLabel(m.createdAt))));
+        // Разделитель даты — кнопка: по нажатию открывается календарь
+        // переписки, и оттуда можно перепрыгнуть к любому дню, а не листать
+        // историю руками.
+        list.appendChild(
+          el(
+            "div",
+            { class: "date-divider" },
+            el(
+              "button",
+              {
+                class: "date-divider-btn",
+                type: "button",
+                title: "Перейти к дате",
+                onclick: () =>
+                  openChatCalendarDialog({
+                    chatId: chat.id,
+                    around: m.createdAt,
+                    onPick: (messageId) => jumpTo(messageId),
+                  }),
+              },
+              dayLabel(m.createdAt)
+            )
+          )
+        );
       }
       // Where reading stopped last time. Drawn once, above the first message
       // that was unread when the chat was opened.

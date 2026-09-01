@@ -488,6 +488,8 @@ function cleanupSubscriptions() {
 // Local-only teardown (remote end, all peers left) — doesn't re-notify peers.
 function endLocally() {
   if (!state) return;
+  const chatId = state.call?.chatId ?? null;
+  const wasOnCallScreen = window.location.pathname.startsWith(`/call/${state.call?.id ?? ""}`);
   state.phase = "ended";
   stopRingtone();
   state.peers.forEach((pc) => pc.close());
@@ -498,6 +500,11 @@ function endLocally() {
   setTimeout(() => {
     state = null;
     notify();
+    // Уводим с экрана звонка — так же, как это делает hangup() у того, кто
+    // положил трубку сам. Раньше здесь этого не было: у второй стороны звонок
+    // заканчивался, а экран с ним оставался на месте, и выйти можно было
+    // только через «назад». Секунда на надпись «Звонок завершён» — и в чат.
+    if (wasOnCallScreen && chatId) navigate(`/chat/${chatId}`);
   }, 600);
 }
 

@@ -7,6 +7,8 @@ const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat")
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
 const { balanceOf } = require("../data/stars");
 const market = require("../data/market");
+const listings = require("../data/listings");
+const { listUsersByIds } = require("../data/users");
 const campaigns = require("../data/adCampaigns");
 const { notifyAdminOfReview } = require("../lib/adReview");
 
@@ -345,6 +347,195 @@ router.post(
     });
     await notifyAdminOfReview(campaign, req.uid);
     res.json({ campaign });
+  })
+);
+
+// ─── Объявления ───────────────────────────────────────────────────────────
+//
+// Доска в духе «Авито»: любой человек выкладывает свою вещь, покупатель пишет
+// ему в чат, дальше всё вне сервиса. Оплаты, эскроу и заказов здесь нет
+// намеренно — это магазины выше, у них своя механика.
+//
+// Доставки тоже нет. cdekPriceRub — число, которое написал продавец: «отправлю
+// СДЭК, доставка примерно столько». Никакой интеграции, вызова курьера и
+// отслеживания: отправляет он сам. Поле существует, чтобы покупатель видел
+// цену вопроса сразу, а не выяснял её в переписке.
+
+const MAX_PHOTOS = 8;
+const MAX_TITLE = 80;
+const MAX_DESCRIPTION = 3000;
+const MAX_PRICE = 100_000_000;
+
+// Карточки продавцов для списка объявлений — одним запросом на страницу.
+async function withSellers(items, viewerId) {
+  const ids = [...new Set(items.map((l) => l.sellerId))];
+  const users = await listUsersByIds(ids);
+  const byId = new Map(users.map((u) => [u.id, publicUser(u)]));
+  const favorites = viewerId ? listings.favoriteIdsFor(viewerId, items.map((l) => l.id)) : new Set();
+  return items.map((l) => ({ ...l, seller: byId.get(l.sellerId) ?? null, isFavorite: favorites.has(l.id) }));
+}
+
+function readListingBody(body, { partial = false } = {}) {
+  const out = {};
+  const has = (k) => Object.prototype.hasOwnProperty.call(body ?? {}, k);
+
+  if (!partial || has("title")) {
+    const title = String(body?.title ?? "").trim().slice(0, MAX_TITLE);
+    if (!title) return { error: "Без названия объявление не найдут" };
+    out.title = title;
+  }
+  if (!partial || has("description")) out.description = String(body?.description ?? "").trim().slice(0, MAX_DESCRIPTION);
+  if (!partial || has("category")) {
+    const category = String(body?.category ?? "other");
+    out.category = listings.CATEGORY_IDS.has(category) ? category : "other";
+  }
+  if (!partial || has("condition")) {
+    const condition = String(body?.condition ?? "used");
+    out.condition = listings.CONDITIONS.has(condition) ? condition : "used";
+  }
+  if (!partial || has("priceRub")) {
+    const price = Math.floor(Number(body?.priceRub ?? 0));
+    if (!Number.isFinite(price) || price < 0 || price > MAX_PRICE) return { error: "Некорректная цена" };
+    out.priceRub = price;
+  }
+  if (!partial || has("isNegotiable")) out.isNegotiable = !!body?.isNegotiable;
+  if (!partial || has("city")) out.city = String(body?.city ?? "").trim().slice(0, 60);
+  if (!partial || has("photos")) {
+    // Только файлы, которые загрузил сам сервер: чужая ссылка в объявлении —
+    // это запрос к чужому хосту у каждого, кто открыл доску.
+    const raw = Array.isArray(body?.photos) ? body.photos : [];
+    out.photos = raw.filter((u) => typeof u === "string" && isSafeUrl(u) && !u.startsWith("data:")).slice(0, MAX_PHOTOS);
+  }
+  if (!partial || has("cdekPriceRub")) {
+    const raw = body?.cdekPriceRub;
+    if (raw === null || raw === "" || raw === undefined) out.cdekPriceRub = null;
+    else {
+      const cdek = Math.floor(Number(raw));
+      if (!Number.isFinite(cdek) || cdek < 0 || cdek > 1_000_000) return { error: "Некорректная стоимость доставки" };
+      out.cdekPriceRub = cdek;
+    }
+  }
+  return { value: out };
+}
+
+router.get(
+  "/listings",
+  asyncRoute(async (req, res) => {
+    const num = (v) => (v === undefined || v === "" ? null : Number(v));
+    const items = listings.listListings({
+      q: String(req.query.q ?? "").slice(0, 80),
+      category: String(req.query.category ?? ""),
+      city: String(req.query.city ?? "").slice(0, 60),
+      condition: String(req.query.condition ?? ""),
+      priceMin: num(req.query.priceMin),
+      priceMax: num(req.query.priceMax),
+      sort: String(req.query.sort ?? "new"),
+      limit: Number(req.query.limit) || 40,
+      offset: Number(req.query.offset) || 0,
+    });
+    res.json({
+      listings: await withSellers(items, req.uid),
+      categories: listings.CATEGORIES,
+      cities: listings.listCities(),
+    });
+  })
+);
+
+router.get(
+  "/listings/mine",
+  asyncRoute(async (req, res) => {
+    res.json({ listings: await withSellers(listings.listMyListings(req.uid), req.uid) });
+  })
+);
+
+router.get(
+  "/listings/favorites",
+  asyncRoute(async (req, res) => {
+    res.json({ listings: await withSellers(listings.listFavorites(req.uid), req.uid) });
+  })
+);
+
+router.get(
+  "/listings/:id",
+  asyncRoute(async (req, res) => {
+    const listing = listings.getListing(req.params.id);
+    if (!listing) return res.status(404).json({ error: "Объявление не найдено" });
+    // Свои просмотры не считаем: иначе счётчик показывает, сколько раз продавец
+    // сам открыл свою страницу.
+    if (listing.sellerId !== req.uid) listings.bumpViews(listing.id);
+    const [withSeller] = await withSellers([listings.getListing(req.params.id)], req.uid);
+    res.json({ listing: withSeller });
+  })
+);
+
+router.post(
+  "/listings",
+  asyncRoute(async (req, res) => {
+    const { value, error } = readListingBody(req.body);
+    if (error) return res.status(400).json({ error });
+    const listing = listings.createListing({
+      id: `ls_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      sellerId: req.uid,
+      createdAt: new Date().toISOString(),
+      ...value,
+    });
+    res.json({ listing });
+  })
+);
+
+router.patch(
+  "/listings/:id",
+  asyncRoute(async (req, res) => {
+    const listing = listings.getListing(req.params.id);
+    if (!listing) return res.status(404).json({ error: "Объявление не найдено" });
+    if (listing.sellerId !== req.uid) return res.status(403).json({ error: "Это чужое объявление" });
+
+    const { value, error } = readListingBody(req.body, { partial: true });
+    if (error) return res.status(400).json({ error });
+    // Статус меняется тем же запросом: «продано» и «снять» — это те же
+    // изменения объявления, а не отдельные действия.
+    if (typeof req.body?.status === "string" && listings.STATUSES.has(req.body.status)) value.status = req.body.status;
+    res.json({ listing: listings.updateListing(listing.id, value) });
+  })
+);
+
+router.delete(
+  "/listings/:id",
+  asyncRoute(async (req, res) => {
+    if (!listings.deleteListing(req.params.id, req.uid)) {
+      return res.status(404).json({ error: "Объявление не найдено" });
+    }
+    res.json({ ok: true });
+  })
+);
+
+router.post(
+  "/listings/:id/favorite",
+  asyncRoute(async (req, res) => {
+    const listing = listings.getListing(req.params.id);
+    if (!listing) return res.status(404).json({ error: "Объявление не найдено" });
+    listings.setFavorite(req.uid, listing.id, req.body?.on !== false);
+    res.json({ ok: true, isFavorite: req.body?.on !== false });
+  })
+);
+
+// «Написать продавцу» — открывает личную переписку и сразу отправляет туда
+// карточку объявления, чтобы продавец понял, о чём речь: у него их может быть
+// десяток, а сообщение «здравствуйте, ещё продаёте?» само по себе бесполезно.
+router.post(
+  "/listings/:id/contact",
+  asyncRoute(async (req, res) => {
+    const listing = listings.getListing(req.params.id);
+    if (!listing) return res.status(404).json({ error: "Объявление не найдено" });
+    if (listing.sellerId === req.uid) return res.status(400).json({ error: "Это ваше собственное объявление" });
+
+    const chat = await findOrCreateDm(req.uid, listing.sellerId);
+    const price = listing.isNegotiable ? "цена договорная" : `${listing.priceRub} ₽`;
+    const text = `Здравствуйте! Пишу по объявлению «${listing.title}» (${price}). Ещё продаёте?`;
+    // Первым аргументом сам чат, а не его идентификатор: рассылка берёт из
+    // него список участников.
+    await sendMessageAndBroadcast(chat, req.uid, text);
+    res.json({ chatId: chat.id });
   })
 );
 

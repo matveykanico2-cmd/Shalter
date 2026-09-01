@@ -47,6 +47,73 @@ export async function CallScreenView(root, callId) {
   // раз: render() пересобирает дерево раз в секунду (таймер длительности), а
   // ползунок, пересозданный под пальцем, бросает перетаскивание на полпути.
   const volumeControl = VolumeControl();
+
+  // Своё окно камеры можно двигать пальцем.
+  //
+  // Оно висело в правом нижнем углу и накрывало собой кнопку «Завершить» —
+  // особенно на узком экране, где панель кнопок переносится в две строки и
+  // становится выше. Кнопка под окном не нажимается вовсе, то есть из звонка
+  // не выйти.
+  //
+  // Положение запоминается: человек один раз отодвинул — и оно там же в
+  // следующем звонке.
+  const PIP_POS_KEY = "shalter.callPipPos";
+  function readPipPos() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(PIP_POS_KEY) || "null");
+      return raw && Number.isFinite(raw.x) && Number.isFinite(raw.y) ? raw : null;
+    } catch {
+      return null;
+    }
+  }
+  function clampPip(node, x, y) {
+    const w = node.offsetWidth || 112;
+    const h = node.offsetHeight || 112;
+    // Не даём утащить окно за край экрана — вернуть его оттуда было бы нечем.
+    return {
+      x: Math.min(Math.max(8, x), Math.max(8, window.innerWidth - w - 8)),
+      y: Math.min(Math.max(8, y), Math.max(8, window.innerHeight - h - 8)),
+    };
+  }
+  function applyPipPos(node) {
+    const pos = readPipPos();
+    if (!pos) return; // не трогали — остаётся место по умолчанию из стилей
+    const { x, y } = clampPip(node, pos.x, pos.y);
+    node.style.left = `${x}px`;
+    node.style.top = `${y}px`;
+    node.style.right = "auto";
+    node.style.bottom = "auto";
+  }
+  function startPipDrag(e) {
+    const node = e.currentTarget;
+    const rect = node.getBoundingClientRect();
+    const dx = e.clientX - rect.left;
+    const dy = e.clientY - rect.top;
+    let moved = false;
+    node.setPointerCapture?.(e.pointerId);
+    const move = (ev) => {
+      moved = true;
+      const { x, y } = clampPip(node, ev.clientX - dx, ev.clientY - dy);
+      node.style.left = `${x}px`;
+      node.style.top = `${y}px`;
+      node.style.right = "auto";
+      node.style.bottom = "auto";
+    };
+    const up = () => {
+      node.removeEventListener("pointermove", move);
+      node.removeEventListener("pointerup", up);
+      node.removeEventListener("pointercancel", up);
+      if (!moved) return;
+      try {
+        localStorage.setItem(PIP_POS_KEY, JSON.stringify({ x: parseFloat(node.style.left), y: parseFloat(node.style.top) }));
+      } catch {
+        // Хранилище недоступно — окно всё равно останется где поставили, до конца звонка.
+      }
+    };
+    node.addEventListener("pointermove", move);
+    node.addEventListener("pointerup", up);
+    node.addEventListener("pointercancel", up);
+  }
   let localVideoEl = null;
   let linkStatus = null; // null | "copying" | "copied" | error message
 
@@ -143,7 +210,7 @@ export async function CallScreenView(root, callId) {
 
     const localPip =
       s.call.kind === "video"
-        ? el("div", { class: "call-local-pip" }, [
+        ? el("div", { class: "call-local-pip", onpointerdown: startPipDrag }, [
             s.cameraOn
               ? (() => {
                   if (!localVideoEl) {
@@ -241,6 +308,10 @@ export async function CallScreenView(root, callId) {
     // умолчанию. Прогоняем сохранённую громкость по всему, что сейчас на
     // экране, после каждой сборки.
     applyVolumeToAll();
+    // Запомненное положение своего окна — после сборки дерева, когда узел уже
+    // на экране и у него есть размеры.
+    const pip = root.querySelector(".call-local-pip");
+    if (pip) applyPipPos(pip);
   }
 
   async function openAddParticipantMenu(e, s) {

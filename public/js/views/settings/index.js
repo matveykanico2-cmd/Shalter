@@ -7,7 +7,7 @@ import { getState, setState, updateSelf } from "../../state.js";
 import { navigate } from "../../router.js";
 import { fileToImageDataUrl, fileToDataUrl } from "../../lib/image.js";
 import { ImageAttachment, VideoAttachment, FileAttachment } from "../../components/attachments.js";
-import { requestPushPermission } from "../../lib/push.js";
+import { requestPushPermission, pushDiagnostics, resubscribePush } from "../../lib/push.js";
 import { openCreateBotDialog } from "../../components/createBotDialog.js";
 import { openBotTokenDialog } from "../../components/botTokenDialog.js";
 import { openBotCodeDialog } from "../../components/botCodeDialog.js";
@@ -1127,6 +1127,31 @@ async function renderNotifications(root) {
     return { granted: "разрешены", denied: "запрещены", default: "не запрошены" }[Notification.permission];
   }
 
+  // Полная картина, а не одно только разрешение браузера. «Разрешены» ничего
+  // не говорит о том, дойдёт ли уведомление: подписка могла не создаться, могла
+  // протухнуть, могла не доехать до сервера. Каждое звено показывается отдельно,
+  // потому что чинятся они по-разному.
+  let diag = null;
+  let checking = false;
+  const refreshDiag = () => {
+    pushDiagnostics()
+      .then((d) => {
+        diag = d;
+        render();
+      })
+      .catch(() => {});
+  };
+  refreshDiag();
+
+  function chainRow(label, ok, hint) {
+    return el("div", { class: "settings-toggle-row" }, [
+      el("div", {}, [
+        el("p", { class: "settings-toggle-title" }, `${ok ? "✓" : "✕"} ${label}`),
+        hint ? el("p", { class: "settings-toggle-hint" }, hint) : null,
+      ]),
+    ]);
+  }
+
   function render() {
     const canRequest = typeof Notification !== "undefined" && Notification.permission === "default";
     mount(
@@ -1148,9 +1173,38 @@ async function renderNotifications(root) {
         el("div", { class: "settings-notice-box" }, [
           el("p", { class: "settings-toggle-title" }, "Уведомления браузера"),
           el("p", { class: "settings-toggle-hint" }, `Статус: ${permLabel()}`),
+          // Цепочка целиком: где именно она рвётся, там и чинить.
+          diag
+            ? el("div", {}, [
+                chainRow("Защищённый адрес (https)", diag.защищённыйАдрес, diag.защищённыйАдрес ? null : "Push работает только по https — по http браузер его не даёт вовсе"),
+                chainRow("Браузер поддерживает push", diag.поддержка, null),
+                chainRow("Разрешение выдано", diag.разрешение === "granted", diag.разрешение === "denied" ? "Запрещено в настройках браузера — снимите запрет для этого сайта" : null),
+                chainRow("Подписка создана в браузере", diag.подпискаВБраузере, null),
+                chainRow("Сервер знает это устройство", diag.подпискаНаСервере, null),
+                diag.ошибка ? el("p", { class: "login-error" }, diag.ошибка) : null,
+              ])
+            : el("p", { class: "settings-toggle-hint" }, "Проверяем…"),
           canRequest
-            ? el("button", { class: "btn-accent", onclick: async () => { await requestPushPermission(); render(); } }, "Разрешить уведомления")
+            ? el("button", { class: "btn-accent", onclick: async () => { await requestPushPermission().catch(() => {}); refreshDiag(); } }, "Разрешить уведомления")
             : null,
+          // Кнопка на случай «разрешение есть, а пуши не идут»: браузер отзывает
+          // подписки молча, и сама она не восстановится.
+          el(
+            "button",
+            {
+              class: "btn-secondary",
+              disabled: checking,
+              onclick: async () => {
+                checking = true;
+                render();
+                const res = await resubscribePush();
+                checking = false;
+                if (!res.ok) diag = { ...(diag ?? {}), ошибка: res.ошибка };
+                refreshDiag();
+              },
+            },
+            checking ? "Проверяем…" : "Переподключить уведомления"
+          ),
         ]),
       ])
     );
