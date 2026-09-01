@@ -432,7 +432,42 @@ function setDiscussionAnchor(id, anchorId) {
   return mutate(id, (m) => ({ ...m, discussionAnchorId: anchorId }));
 }
 
+// Сколько места занимают вложения в чатах человека — для экрана «Данные и
+// память».
+//
+// Считается в самой базе, а не в JavaScript. Прежний способ выгружал все
+// сообщения всех чатов в память и складывал длины там: замер на аккаунте с 212
+// чатами — 20 тысяч сообщений и 38 МБ вложений в памяти ради четырёх чисел, и
+// это на тестовой истории. У человека с перепиской за годы такой экран съедал
+// бы всю доступную память.
+//
+// json_each разбирает массив вложений средствами SQLite, наружу выходят только
+// итоговые суммы. Размер берётся так же, как раньше: явный size, а если его
+// нет — длина data:-URL, пересчитанная из base64 в байты (4 знака на 3 байта).
+function attachmentBytesByKind(chatIds) {
+  if (!chatIds?.length) return {};
+  const holes = chatIds.map(() => "?").join(",");
+  const rows = db
+    .prepare(
+      `SELECT json_extract(a.value, '$.kind') AS kind,
+              sum(
+                CASE
+                  WHEN json_extract(a.value, '$.size') IS NOT NULL THEN json_extract(a.value, '$.size')
+                  WHEN json_extract(a.value, '$.url') LIKE 'data:%' THEN
+                    (length(json_extract(a.value, '$.url')) - instr(json_extract(a.value, '$.url'), ',')) * 3 / 4
+                  ELSE 0
+                END
+              ) AS bytes
+         FROM messages m, json_each(m.attachments) a
+        WHERE m.chatId IN (${holes}) AND m.attachments IS NOT NULL AND m.attachments <> '[]'
+        GROUP BY kind`
+    )
+    .all(...chatIds);
+  return Object.fromEntries(rows.filter((r) => r.kind).map((r) => [r.kind, r.bytes ?? 0]));
+}
+
 module.exports = {
+  attachmentBytesByKind,
   // Нужен data/chat-summary.js: он читает строки своим запросом и превращает
   // их в сообщения тем же способом, что и остальной код.
   rowToMessage,

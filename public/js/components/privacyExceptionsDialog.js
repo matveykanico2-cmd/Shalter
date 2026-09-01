@@ -14,12 +14,22 @@ import { api } from "../api.js";
 // Запрет сильнее разрешения — тот же порядок, что и на сервере
 // (server/lib/privacyRules.js), и он же объяснён подписью в окне.
 //
-// users — список всех, кого можно выбрать (из api.listUsers()); value —
-// { allow, deny } с идентификаторами; onSave получает такую же пару.
-export function openPrivacyExceptionsDialog({ title, users, value, onSave }) {
+// value — { allow, deny } с идентификаторами; onSave получает такую же пару.
+//
+// Списка «всех, кого можно выбрать» здесь больше нет и быть не может: раньше
+// сюда передавали выкачанную с сервера таблицу пользователей целиком, и на
+// большой базе это стоило секунду и полгигабайта памяти на сервере. Теперь
+// сразу показываются контакты, а всё, что шире, ищется на сервере по запросу —
+// с ограничением на число ответов.
+export function openPrivacyExceptionsDialog({ title, users = [], value, onSave }) {
   const allow = new Set(value?.allow ?? []);
   const deny = new Set(value?.deny ?? []);
+  // Карточки для уже выбранных: их надо чем-то рисовать в списках «можно» и
+  // «нельзя». Пополняется и контактами, и найденным на сервере.
   const byId = new Map(users.map((u) => [u.id, u]));
+  const remember = (list) => {
+    for (const u of list ?? []) if (u?.id) byId.set(u.id, u);
+  };
 
   // Список контактов виден сразу, без единого нажатия по клавиатуре. Пустое
   // поле поиска на этом месте требовало угадать имя, прежде чем показать хоть
@@ -31,24 +41,26 @@ export function openPrivacyExceptionsDialog({ title, users, value, onSave }) {
     .listContacts()
     .then((r) => {
       contacts = (r.contacts ?? []).map((c) => c.user).filter(Boolean);
-      renderResults();
+      renderResults().catch(() => {});
     })
     .catch(() => {
       contacts = [];
-      renderResults();
+      renderResults().catch(() => {});
     });
 
   let query = "";
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const chosenSlot = el("div", { class: "privacy-exc-chosen" });
   const resultsSlot = el("div", { class: "privacy-exc-results" });
+  // renderResults стал асинхронным (поиск ушёл на сервер) — обработчик ввода
+  // это учитывает: ошибку внутри некому будет поймать.
   const search = el("input", {
     class: "settings-input",
     type: "search",
     placeholder: "Поиск по контактам и аккаунтам",
     oninput: (e) => {
       query = e.target.value;
-      renderResults();
+      renderResults().catch(() => {});
     },
   });
 
@@ -67,7 +79,7 @@ export function openPrivacyExceptionsDialog({ title, users, value, onSave }) {
       if (next === "allow") allow.add(u.id);
       if (next === "deny") deny.add(u.id);
       renderChosen();
-      renderResults();
+      renderResults().catch(() => {});
     };
     return el("div", { class: `privacy-exc-row ${state}` }, [
       Avatar({ name: nameOf(u), color: u.avatarColor, image: u.avatarImage, size: 32 }),
@@ -145,7 +157,7 @@ export function openPrivacyExceptionsDialog({ title, users, value, onSave }) {
   const notChosen = (u) => !allow.has(u.id) && !deny.has(u.id);
   const matches = (u, q) => nameOf(u).toLowerCase().includes(q) || (u.username ?? "").toLowerCase().includes(q);
 
-  function renderResults() {
+  async function renderResults() {
     clear(resultsSlot);
     const q = query.trim().toLowerCase();
 
@@ -175,9 +187,19 @@ export function openPrivacyExceptionsDialog({ title, users, value, onSave }) {
     // С запросом ищем шире контактов: в исключения вносят и тех, кого в
     // контактах нет, — именно ради них («номер видят все, кроме вот этого»).
     const contactIds = new Set((contacts ?? []).map((u) => u.id));
-    const found = users.filter(notChosen).filter((u) => matches(u, q));
-    const mine = found.filter((u) => contactIds.has(u.id));
-    const others = found.filter((u) => !contactIds.has(u.id)).slice(0, 30);
+    const mine = (contacts ?? []).filter(notChosen).filter((u) => matches(u, q));
+    // Всё, что шире контактов, спрашиваем у сервера: он и ищет, и ограничивает
+    // выдачу. Ответ мог прийти уже к другому запросу — сверяем.
+    const asked = q;
+    let others = [];
+    try {
+      const res = await api.search(q);
+      if (asked !== search.value.trim().toLowerCase()) return;
+      remember(res.users);
+      others = (res.users ?? []).filter(notChosen).filter((u) => !contactIds.has(u.id));
+    } catch {
+      // Поиск не ответил — контакты выше уже показаны, и это лучше пустого окна.
+    }
 
     if (!mine.length && !others.length) {
       resultsSlot.appendChild(el("p", { class: "empty-hint" }, "Никого не найдено — возможно, они уже в списках выше"));
@@ -223,6 +245,6 @@ export function openPrivacyExceptionsDialog({ title, users, value, onSave }) {
   }
 
   renderChosen();
-  renderResults();
+  renderResults().catch(() => {});
   document.body.appendChild(overlay);
 }

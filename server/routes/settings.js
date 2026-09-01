@@ -5,7 +5,7 @@ const { getSettings, updateSettings } = require("../data/settings");
 const { normalizePrivacy } = require("../lib/privacyRules");
 const { isUnsupportedLanguage, UNSUPPORTED_MESSAGE } = require("../lib/unsupportedLanguages");
 const { listChatsForUser } = require("../data/chats");
-const { listMessages } = require("../data/messages");
+const { attachmentBytesByKind } = require("../data/messages");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -44,14 +44,12 @@ router.get(
   asyncRoute(async (req, res) => {
     const chats = await listChatsForUser(req.uid);
     const bytesByBucket = { photos: 0, videos: 0, files: 0, voice: 0 };
-    for (const chat of chats) {
-      const messages = await listMessages(chat.id, req.uid);
-      for (const m of messages) {
-        for (const a of m.attachments ?? []) {
-          const bucket = BUCKET_BY_KIND[a.kind];
-          if (bucket) bytesByBucket[bucket] += estimateAttachmentBytes(a);
-        }
-      }
+    // Суммы считает база (см. attachmentBytesByKind): раньше сюда выгружалась
+    // вся переписка человека целиком, вместе с вложениями, ради четырёх чисел.
+    const byKind = attachmentBytesByKind(chats.map((c) => c.id));
+    for (const [kind, bytes] of Object.entries(byKind)) {
+      const bucket = BUCKET_BY_KIND[kind];
+      if (bucket) bytesByBucket[bucket] += bytes;
     }
     res.json({ bytesByBucket });
   })

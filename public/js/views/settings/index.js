@@ -1160,7 +1160,17 @@ async function renderNotifications(root) {
 
 async function renderPrivacy(root) {
   const { settings: initial } = await api.getSettings();
-  const { users: allUsers } = await api.listUsers();
+  // Только заблокированные, а не все аккаунты сервера: на большой базе полный
+  // список стоил секунду и полгигабайта памяти на сервере, а нужен он был ради
+  // нескольких строк.
+  let blockedUsers = [];
+  api
+    .getBlockedUsers()
+    .then((r) => {
+      blockedUsers = r.users ?? [];
+      render();
+    })
+    .catch(() => {});
   let settings = initial;
   let blockedIds = new Set(getState().user.blockedUserIds ?? []);
   let passcodeOn = hasPasscode();
@@ -1200,7 +1210,9 @@ async function renderPrivacy(root) {
   function openExceptions(label, key) {
     openPrivacyExceptionsDialog({
       title: `Исключения — ${label}`,
-      users: allUsers.filter((u) => u.id !== getState().user.id),
+      // Список выбора диалог собирает сам: контакты плюс поиск по серверу.
+      // Раньше сюда передавались все аккаунты разом.
+      users: [],
       value: settings.privacy?.exceptions?.[key],
       onSave: (value) =>
         patch({
@@ -1277,7 +1289,7 @@ async function renderPrivacy(root) {
   }
 
   function render() {
-    const blockedUsers = allUsers.filter((u) => blockedIds.has(u.id));
+    const blocked = blockedUsers.filter((u) => blockedIds.has(u.id));
     mount(
       root,
       pageWrap("Конфиденциальность", "Кто видит вашу информацию", [
@@ -1398,13 +1410,16 @@ async function renderPrivacy(root) {
           ]),
           securityNotice ? el("p", { class: "settings-toggle-hint success" }, securityNotice) : null,
         ]),
-        el("p", { class: "settings-section-title" }, `Заблокированные пользователи (${blockedUsers.length})`),
-        blockedUsers.length === 0
+        // Отсюда и ниже — `blocked`, а не загруженный с сервера `blockedUsers`:
+        // разблокировка меняет blockedIds на месте, и строка должна исчезать
+        // сразу, не дожидаясь повторного запроса.
+        el("p", { class: "settings-section-title" }, `Заблокированные пользователи (${blocked.length})`),
+        blocked.length === 0
           ? el("p", { class: "empty-hint" }, "Никого не заблокировано")
           : el(
               "div",
               { class: "settings-devices-list" },
-              blockedUsers.map((u) =>
+              blocked.map((u) =>
                 el("div", { class: "settings-device-row" }, [
                   Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 28 }),
                   el("div", { class: "settings-device-body" }, [el("p", {}, u.name)]),

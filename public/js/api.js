@@ -145,7 +145,9 @@ export const api = {
   addAvatar: (entry) => req("/api/avatars", { method: "POST", body: JSON.stringify(entry) }),
   setMainAvatar: (index) => req(`/api/avatars/${index}/main`, { method: "POST" }),
   removeAvatar: (index) => req(`/api/avatars/${index}`, { method: "DELETE" }),
-  listUsers: () => req("/api/users"),
+  // Заблокированные — точечно. Прежний listUsers() выкачивал всех
+  // пользователей сервера ради десятка нужных строк (см. server/routes/users.js).
+  getBlockedUsers: () => req("/api/users/blocked"),
   getUser: (id) => req(`/api/users/${id}`),
   setBlocked: (userId, blocked) =>
     req(`/api/users/${userId}/block`, { method: "POST", body: JSON.stringify({ blocked }) }),

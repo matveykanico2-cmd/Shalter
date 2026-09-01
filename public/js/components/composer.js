@@ -2,7 +2,7 @@ import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { startRecording, isRecordingSupported, createLevelMeter, MAX_RECORD_SEC } from "../lib/recorder.js";
-import { fileToImageDataUrl } from "../lib/image.js";
+import { fileToImageUpload } from "../lib/image.js";
 import { uploadFile } from "../lib/upload.js";
 import { checkSize } from "../lib/uploadLimits.js";
 import { openPollDialog } from "./pollDialog.js";
@@ -258,10 +258,24 @@ export function Composer({
       const sizeError = checkSize(file, kind);
       if (sizeError) return showUploadError(sizeError);
 
+      // Картинка уменьшается и уезжает файлом — тем же путём, что видео и
+      // документы, — а в сообщение попадает ссылка на него.
+      //
+      // Раньше уменьшенная картинка вкладывалась в сообщение строкой data: и
+      // так и оставалась в базе. Это дорого со всех сторон: base64 на треть
+      // толще самой картинки; строка лежит в колонке сообщения, поэтому едет в
+      // ответе всякий раз, когда читают историю чата, и занимает место в кэше
+      // базы, вытесняя оттуда то, что действительно нужно; резервная копия
+      // базы превращается в копию всех фотографий сразу. Файл на диске лишён
+      // всего этого и отдаётся отдельным запросом, который браузер закэширует.
+      //
+      // Старые сообщения с data: продолжают открываться как раньше — ничего
+      // переписывать не нужно, меняется только то, как кладутся новые.
       if (kind === "image" && file.size <= CANVAS_SAFE_IMAGE_BYTES) {
         try {
-          const url = await fileToImageDataUrl(file, MAX_IMAGE_DIMENSION);
-          onSend("", [{ kind: "image", name: file.name, mimeType: "image/jpeg", url }]);
+          const smaller = await fileToImageUpload(file, MAX_IMAGE_DIMENSION);
+          const attachment = await uploadFile(smaller, "image");
+          onSend("", [{ ...attachment, kind: "image", name: file.name }]);
         } catch (err) {
           showUploadError(err.message || "Не удалось обработать изображение");
         }

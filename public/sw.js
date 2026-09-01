@@ -112,6 +112,21 @@ self.addEventListener("push", (event) => {
     return;
   }
   const { title, body, url, tag, requireInteraction, kind, callId } = payload;
+
+  // Звонок отменили (не дозвонились, отменили, ответили с другого устройства).
+  // Показывать нечего — надо, наоборот, убрать висящее уведомление о нём:
+  // requireInteraction само его не погасит, и человек вернётся к телефону,
+  // увидит «вам звонят» и ответит на разговор, которого уже нет.
+  if (kind === "call-cancelled") {
+    event.waitUntil(
+      (async () => {
+        const shown = await self.registration.getNotifications({ tag });
+        for (const n of shown) n.close();
+      })()
+    );
+    return;
+  }
+
   if (!title) return;
 
   const isCall = kind === "call";

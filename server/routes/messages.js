@@ -20,7 +20,7 @@ const {
   markChatRead,
   setLinkPreview,
 } = require("../data/messages");
-const { getUser, listUsers } = require("../data/users");
+const { getUser, findUserIdsByUsernames } = require("../data/users");
 const { transferStars, balanceOf } = require("../data/stars");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { ADMIN_PHONE } = require("../config");
@@ -32,7 +32,7 @@ const { runBotCode } = require("../lib/botSandbox");
 const { dispatchHugo } = require("../lib/hugoBot");
 const { can, DENIED, isStaff } = require("../lib/chatPermissions");
 const { broadcastToUsers } = require("../ws");
-const { sendPushToUser } = require("../push");
+const { sendPushToUser, MESSAGE_PUSH } = require("../push");
 const { fetchLinkPreview } = require("../lib/linkPreview");
 const { deleteUploadedFiles } = require("../lib/serveUpload");
 const { UPLOAD_DIR } = require("./uploads");
@@ -72,11 +72,15 @@ function messagePreview(message) {
 // unread-mention badge (chat-summary.js).
 async function resolveMentions(text, memberIds, senderId) {
   if (!text) return [];
-  const handles = new Set([...text.matchAll(/@(\w+)/g)].map((m) => m[1].toLowerCase()));
-  if (!handles.size) return [];
-  const users = await listUsers();
-  return users
-    .filter((u) => memberIds.includes(u.id) && u.id !== senderId && u.username && handles.has(u.username.toLowerCase()))
+  const handles = [...new Set([...text.matchAll(/@(\w+)/g)].map((m) => m[1].toLowerCase()))];
+  if (!handles.length) return [];
+  // Запрос ровно по написанным именам, а не чтение всей таблицы с перебором в
+  // JavaScript: это выполняется на каждое сообщение с «@», и на 50 тысячах
+  // аккаунтов прежний вариант стоил 1.2 секунды и полгигабайта памяти
+  // (см. findUserIdsByUsernames в data/users.js).
+  const members = new Set(memberIds);
+  return findUserIdsByUsernames(handles)
+    .filter((u) => u.id !== senderId && members.has(u.id))
     .map((u) => u.id);
 }
 
@@ -106,7 +110,11 @@ async function pushNewMessage(chat, sender, message) {
           : isGroupLike
             ? `${sender?.name ?? "Кто-то"}: ${preview}`
             : preview;
-      await sendPushToUser(uid, { title, body, url: `/chat/${chat.id}`, tag: `chat-${chat.id}` });
+      // Срок жизни сутки: телефон был вне сети — покажем, когда вернётся; через
+      // сутки сообщение уже прочитано в самом приложении, и уведомление о нём
+      // только мешает. Срочность обычная: в отличие от звонка, сообщение может
+      // подождать, пока телефон проснётся сам (см. server/push.js).
+      await sendPushToUser(uid, { title, body, url: `/chat/${chat.id}`, tag: `chat-${chat.id}` }, MESSAGE_PUSH);
     })
   );
 }

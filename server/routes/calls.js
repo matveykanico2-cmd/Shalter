@@ -4,12 +4,12 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { listCalls, createCall, getCall, updateCall, addParticipant, setJoinToken, findCallByJoinToken, removeParticipant } = require("../data/calls");
 const { getChat } = require("../data/chats");
-const { listUsers, getUser } = require("../data/users");
+const { listUsersByIds, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { addSignal, listSignalsFor } = require("../data/signals");
 const { allowsUser } = require("../lib/privacyRules");
 const { broadcastToUsers } = require("../ws");
-const { sendPushToUser } = require("../push");
+const { sendPushToUser, CALL_PUSH, CALL_CANCEL_PUSH } = require("../push");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -28,6 +28,27 @@ async function canCall(callerId, targetId) {
 // open tab. requireInteraction keeps it on screen instead of auto-dismissing
 // like a normal notification, since a missed-call notice that vanishes in a
 // few seconds defeats the point.
+// Звонок кончился, а уведомление о нём висит на экране — оно с
+// requireInteraction и само не гаснет. В итоге человек возвращается к телефону,
+// видит «вам звонят» и жмёт «Ответить» на разговор, которого уже нет.
+//
+// Поэтому вдогонку уходит второе уведомление — с тем же тегом и пометкой
+// «отменено»: public/sw.js по ней закрывает висящее и ничего нового не
+// показывает.
+async function pushCallCancelled(call, recipientIds) {
+  await Promise.all(
+    recipientIds
+      .filter((id) => id !== call.callerId)
+      .map((uid) =>
+        sendPushToUser(
+          uid,
+          { title: "", kind: "call-cancelled", tag: `call-${call.id}`, callId: call.id },
+          CALL_CANCEL_PUSH
+        ).catch(() => {})
+      )
+  );
+}
+
 async function pushIncomingCall(call, callerId, recipientIds) {
   const caller = await getUser(callerId);
   const title = caller?.name ?? "Входящий звонок";
@@ -47,7 +68,7 @@ async function pushIncomingCall(call, callerId, recipientIds) {
           // работают, не открывая приложение.
           kind: "call",
           callId: call.id,
-        })
+        }, CALL_PUSH)
       )
   );
 }
@@ -67,9 +88,17 @@ async function withCaller(call) {
 router.get(
   "/",
   asyncRoute(async (req, res) => {
-    const [calls, users] = await Promise.all([listCalls(req.uid), listUsers()]);
+    const calls = await listCalls(req.uid);
+    // Только собеседники из этих звонков, а не вся таблица аккаунтов. Раньше
+    // здесь читались все пользователи сервера вместе с аватарами — на 50
+    // тысячах это секунда и полгигабайта памяти на один заход в «Звонки»
+    // (замер, см. data/users.js: findUserIdsByUsernames).
+    const otherIds = [...new Set(calls.flatMap((c) => c.participantIds).filter((id) => id !== req.uid))];
+    const users = await listUsersByIds(otherIds);
+    const byId = new Map(users.map((u) => [u.id, u]));
     const resolved = calls.map((call) => {
-      const other = users.find((u) => call.participantIds.includes(u.id) && u.id !== req.uid);
+      const otherId = call.participantIds.find((id) => id !== req.uid);
+      const other = otherId ? byId.get(otherId) : null;
       return { ...call, otherUser: other ? publicUser(other) : null };
     });
     res.json({ calls: resolved });
@@ -138,6 +167,16 @@ router.patch(
     const call = await updateCall(req.params.id, patch);
     if (call) {
       broadcastToUsers(call.participantIds, { type: "call:updated", call });
+      // Звонок закончился — снимаем висящее уведомление о нём.
+      //
+      // Без оговорок про прежний статус: звонок заводится сразу «ongoing» (см.
+      // data/calls.js), поэтому условие «а раньше он не шёл» не выполнялось
+      // никогда и отмена не уходила ни разу. Лишний раз послать её безвредно:
+      // у того, кто уже ответил, уведомление закрыто нажатием, и воркер просто
+      // не найдёт, что закрывать.
+      if (patch.status === "ended" || patch.status === "missed") {
+        pushCallCancelled(call, call.participantIds).catch((err) => console.error("push cancel failed:", err));
+      }
     }
     res.json({ call });
   })
