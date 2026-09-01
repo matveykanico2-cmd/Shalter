@@ -1,7 +1,7 @@
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
-import { getState, setState } from "../state.js";
+import { getState, setState, updateSelf } from "../state.js";
 import { uploadFile } from "../lib/upload.js";
 import { fileToAvatarDataUrl, videoPosterDataUrl } from "../lib/image.js";
 
@@ -137,7 +137,7 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
   }
 
   function applyUser(updated) {
-    if (getState().user?.id === updated.id) setState({ user: { ...getState().user, ...updated } });
+    if (getState().user?.id === updated.id) updateSelf(updated);
     onChange?.(updated);
   }
 

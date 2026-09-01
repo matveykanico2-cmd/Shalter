@@ -4,7 +4,7 @@ import { Avatar } from "./avatar.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
-import { getState, setState } from "../state.js";
+import { getState, setState, updateSelf } from "../state.js";
 import { openReportDialog } from "./reportDialog.js";
 import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard } from "./attachments.js";
 import { statusLabel } from "../lib/presence.js";
@@ -164,7 +164,7 @@ export async function openProfileDialog(userId) {
     const blockedUserIds = new Set(getState().user.blockedUserIds ?? []);
     if (isBlocked) blockedUserIds.add(userId);
     else blockedUserIds.delete(userId);
-    setState({ user: { ...getState().user, blockedUserIds: [...blockedUserIds] } });
+    updateSelf({ blockedUserIds: [...blockedUserIds] });
     render();
   }
 

@@ -278,6 +278,11 @@ export function ChatListPane() {
   // POST /api/chats/:id/members's "add" role) — without this the new chat
   // would only appear once the 15s poll below happens to catch up.
   const unsubAdded = onWsMessage("chat:added", () => scheduleRefetch());
+  // Чат переименовали, сменили ему фото или описание. Сервер рассылает это из
+  // доброго десятка мест (server/routes/chats.js), но слушать было некому: имя
+  // и аватар группы в списке оставались прежними до перезагрузки страницы — и у
+  // того, кто менял, тоже.
+  const unsubChatUpdated = onWsMessage("chat:updated", () => scheduleRefetch());
   // Someone with the rights deleted a group/channel for everyone — drop it from
   // the list now, and get out of it if that's the chat currently open, rather
   // than leaving people looking at a conversation that no longer exists.
@@ -293,6 +298,7 @@ export function ChatListPane() {
     // её подписки снимаются вместе с панелью.
     storiesBar.cleanup?.();
     unsubState();
+    unsubChatUpdated();
     unsubNew();
     unsubUpdated();
     unsubDeleted();

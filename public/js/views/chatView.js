@@ -604,7 +604,12 @@ export async function ChatView(root, chatId) {
     await placeCallController(chat.id, kind, me);
   }
 
-  const title = isDm ? (other?.name ?? chat.title) : chat.title;
+  // Функция, а не значение: название чата меняется, пока экран открыт — его
+  // переименовали, и `chat` уже обновился (см. подписку на chat:updated ниже).
+  // Раньше здесь стояла константа, посчитанная один раз при открытии, и шапка
+  // продолжала показывать старое имя даже после того, как список чатов слева
+  // показывал новое.
+  const chatTitle = () => (isDm ? (other?.name ?? chat.title) : chat.title);
 
   // Selecting several messages at once — forward a conversation, delete a run of
   // messages, copy a few lines. Every action here already existed for a single
@@ -967,7 +972,7 @@ export async function ChatView(root, chatId) {
           { class: "chat-header-info-btn", onclick: () => setInfoOpen(true) },
           [
             Avatar({
-              name: other?.name ?? title,
+              name: other?.name ?? chatTitle(),
               color: (isDm ? other?.avatarColor : null) ?? chat.avatarColor,
               image: isDm ? other?.avatarImage : chat.avatarImage,
               size: 38,
@@ -978,7 +983,7 @@ export async function ChatView(root, chatId) {
             }),
             el("div", { class: "chat-header-titles" }, [
               el("p", { class: "chat-header-title" }, [
-                title,
+                chatTitle(),
                 // Галочка была всюду, кроме этого места: в списке чатов, в
                 // профиле, в панели информации и в поиске — а в шапке самого
                 // разговора нет. Именно здесь она и нужна больше всего: видно,
@@ -1517,6 +1522,15 @@ export async function ChatView(root, chatId) {
     }, 4000);
   });
 
+  // Чат переименовали или сменили ему фото — свои же изменения из панели
+  // сведений приходят сюда тем же путём, что и чужие. Без этого шапка открытого
+  // чата показывала старое название до перезахода в него.
+  const unsubChatUpdated = onWsMessage("chat:updated", (msg) => {
+    if (msg.chat?.id !== chat.id) return;
+    chat = { ...chat, ...msg.chat };
+    renderHeader();
+  });
+
   // Показали сохранённое — теперь спрашиваем сервер и заменяем показанное
   // свежим. Здесь, а не выше: к этому месту всё уже нарисовано, и обновлению
   // есть что обновлять.
@@ -1545,6 +1559,7 @@ export async function ChatView(root, chatId) {
     unsubMessageDeleted();
     unsubMessageRead();
     unsubTyping();
+    unsubChatUpdated();
     // Наблюдатель держит ссылки на пузыри ушедшего чата — без этого они не
     // соберутся сборщиком мусора, а при переходах между чатами их накопятся
     // сотни.

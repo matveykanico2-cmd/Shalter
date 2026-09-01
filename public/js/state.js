@@ -21,6 +21,20 @@ export function setState(patch) {
   for (const fn of listeners) fn(state);
 }
 
+// Изменение собственного профиля — одной точкой.
+//
+// Своя запись лежит в состоянии дважды: в `user` (текущий аккаунт) и в
+// `accounts` (список для переключателя). Раньше каждое место правило только
+// первую, и вторая тихо расходилась: сменил имя — в переключателе осталось
+// старое, и починить это могла только перезагрузка страницы. Здесь обновляются
+// обе сразу, и все, кто подписан, узнают об этом немедленно.
+export function updateSelf(patch) {
+  const user = { ...state.user, ...patch };
+  const accounts = (state.accounts ?? []).map((a) => (a.id === user.id ? { ...a, ...patch } : a));
+  setState({ user, accounts });
+  return user;
+}
+
 export function subscribe(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);

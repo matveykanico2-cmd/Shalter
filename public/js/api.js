@@ -127,6 +127,14 @@ export const api = {
   sendTwoFactorCode: (ticket) => req("/api/auth/2fa/send-code", { method: "POST", body: JSON.stringify({ ticket }) }),
   enableTwoFactor: (code) => req("/api/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) }),
   disableTwoFactor: (code) => req("/api/auth/2fa/disable", { method: "POST", body: JSON.stringify({ code }) }),
+  // Облачный пароль — третий способ подтвердить вход (server/routes/auth.js).
+  // Пароль от аккаунта здесь обязателен: иначе его поставил бы любой, кто нашёл
+  // незапертое устройство с открытым Shalter.
+  setCloudPassword: ({ password, hint, accountPassword, currentPassword }) =>
+    req("/api/auth/2fa/cloud-password", {
+      method: "POST",
+      body: JSON.stringify({ password, hint, accountPassword, currentPassword }),
+    }),
 
   updateProfile: (id, patch) => req(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   // Profile photos — always your own, so no id: the session decides whose.

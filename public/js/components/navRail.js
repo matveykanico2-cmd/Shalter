@@ -3,7 +3,7 @@ import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { api } from "../api.js";
-import { getState, setState } from "../state.js";
+import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
 
 // isActive — предикат, а не готовое «да/нет»: рельс создаётся один раз за всё
@@ -27,18 +27,34 @@ function railButton(href, iconName, label, isActive) {
 }
 
 export function NavRail() {
-  const { user, accounts } = getState();
   const path = window.location.pathname;
 
   const nav = el("nav", { class: "nav-rail" });
 
-  const accountBtn = el("button", { class: "nav-rail-account", title: "Аккаунты" }, [
-    // Без orbit: спутники вылетают за аватар на 14 пикселей в каждую
-    // сторону, а рельс узкий и прижат к краю окна — левый спутник просто
-    // срезался краем экрана на всех страницах сразу. Украшение остаётся там,
-    // где под него есть место: в профиле и в настройках.
-    Avatar({ name: user.name || user.phone, color: user.avatarColor, image: user.avatarImage, size: 40, online: true, isPremium: user.isPremium, isDeveloper: user.isDeveloper }),
-  ]);
+  const accountBtn = el("button", { class: "nav-rail-account", title: "Аккаунты" });
+
+  // Рельс создаётся один раз за всё время работы приложения (см. app.js) и
+  // раньше рисовал аватар тоже один раз — по данным, какие были на момент
+  // запуска. Поэтому смена фото профиля не появлялась здесь никогда: человек
+  // менял аватар, везде он менялся, а в рельсе слева висело старое фото до
+  // перезагрузки страницы. То же и с именем, и со значком Premium.
+  //
+  // Перерисовывается только содержимое кнопки, а не сама кнопка: на ней висит
+  // обработчик и от неё же отсчитывается положение выпадающего меню.
+  function paintAccount() {
+    const { user } = getState();
+    if (!user) return;
+    accountBtn.textContent = "";
+    accountBtn.appendChild(
+      // Без orbit: спутники вылетают за аватар на 14 пикселей в каждую
+      // сторону, а рельс узкий и прижат к краю окна — левый спутник просто
+      // срезался краем экрана на всех страницах сразу. Украшение остаётся там,
+      // где под него есть место: в профиле и в настройках.
+      Avatar({ name: user.name || user.phone, color: user.avatarColor, image: user.avatarImage, size: 40, online: true, isPremium: user.isPremium, isDeveloper: user.isDeveloper })
+    );
+  }
+  paintAccount();
+  subscribe(paintAccount);
   accountBtn.addEventListener("click", (e) => {
     const rect = accountBtn.getBoundingClientRect();
     showAccountSwitcher({ x: rect.right, y: rect.top });
@@ -64,8 +80,12 @@ export function NavRail() {
   window.addEventListener("app:navigate", ({ detail }) => paintActive(detail.path));
 
   function showAccountSwitcher(pos) {
+    // Из состояния, а не из замыкания: список аккаунтов и текущий пользователь
+    // меняются, пока рельс живёт (переименование, вход вторым аккаунтом), а
+    // рельс создаётся один раз.
+    const { user, accounts } = getState();
     const items = [{ label: "Аккаунты" }];
-    for (const a of accounts) {
+    for (const a of accounts ?? []) {
       items.push({
         label: `${a.name || a.phone || a.email}`,
         icon: undefined,

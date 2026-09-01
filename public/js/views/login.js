@@ -190,16 +190,26 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   // this point email/password/register are all irrelevant, and leaving them on
   // screen invites re-submitting the first step and invalidating the ticket.
   function renderTwoFactorPanel() {
+    // Облачный пароль — не код: он длинный, произвольный и его не подставляет
+    // менеджер одноразовых кодов. Поэтому здесь другое поле: скрытый ввод,
+    // обычная ширина вместо разрядки под шесть цифр и подсказка автозаполнения
+    // «текущий пароль», а не «одноразовый код».
+    const byPassword = twoFactor.method === "password";
     const codeInput = el("input", {
-      class: "login-input login-code-input mono",
+      class: byPassword ? "login-input" : "login-input login-code-input mono",
+      type: byPassword ? "password" : "text",
       inputmode: "text",
-      placeholder: "······",
+      placeholder: byPassword ? "Облачный пароль" : "······",
       autofocus: true,
-      autocomplete: "one-time-code",
+      autocomplete: byPassword ? "current-password" : "one-time-code",
       // Same reason as the login-code input below: oninput must not call
       // render(), or the field is replaced mid-typing and loses focus. Recovery
       // codes are letters and a dash, so this can't filter to digits only.
-      oninput: (e) => (twoFactorCode = e.target.value.trim()),
+      //
+      // У пароля значение берётся как есть: пробел по краям — такой же знак,
+      // как любой другой, и срезать его молча значит не пустить человека с его
+      // собственным паролем.
+      oninput: (e) => (twoFactorCode = byPassword ? e.target.value : e.target.value.trim()),
     });
 
     const form = el(
@@ -227,9 +237,13 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         el(
           "p",
           { class: "login-hint" },
-          twoFactor.method === "chat"
-            ? "Код отправлен в ваш чат с Shalter — откройте его на устройстве, где вы уже вошли. Можно ввести и код восстановления."
-            : "Код из приложения-аутентификатора. Можно ввести и код восстановления."
+          byPassword
+            ? twoFactor.hint
+              ? `Подсказка: ${twoFactor.hint}`
+              : "Это отдельный пароль, который вы задали в настройках безопасности. Он не совпадает с паролем от аккаунта."
+            : twoFactor.method === "chat"
+              ? "Код отправлен в ваш чат с Shalter — откройте его на устройстве, где вы уже вошли. Можно ввести и код восстановления."
+              : "Код из приложения-аутентификатора. Можно ввести и код восстановления."
         ),
         // Only for the chat method: the code lives in a message that can be
         // missed, expire, or arrive while the app is closed. A TOTP app always
@@ -260,8 +274,14 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     );
 
     return el("div", { class: "qr-login-panel" }, [
-      el("p", { class: "qr-login-title" }, "Двухфакторная аутентификация"),
-      el("p", { class: "qr-login-instructions" }, `Вход в аккаунт${twoFactor.name ? ` ${twoFactor.name}` : ""} защищён вторым фактором — введите текущий код.`),
+      el("p", { class: "qr-login-title" }, byPassword ? "Облачный пароль" : "Двухфакторная аутентификация"),
+      el(
+        "p",
+        { class: "qr-login-instructions" },
+        byPassword
+          ? `Вход в аккаунт${twoFactor.name ? ` ${twoFactor.name}` : ""} защищён облачным паролем — введите его.`
+          : `Вход в аккаунт${twoFactor.name ? ` ${twoFactor.name}` : ""} защищён вторым фактором — введите текущий код.`
+      ),
       form,
       el(
         "button",
@@ -421,7 +441,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             } else {
               const res = await api.verifyCodeLogin(codePhone, codeValue);
               if (res.twoFactorRequired) {
-                twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp" };
+                twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp", hint: res.hint ?? null };
                 codePending = false;
                 render();
                 return;
@@ -624,7 +644,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               // Password was right, but the account has 2FA on — no session was
               // created, so hand over to the code step instead of continuing.
               if (res.twoFactorRequired) {
-                twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp" };
+                twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp", hint: res.hint ?? null };
                 pending = false;
                 render();
                 return;

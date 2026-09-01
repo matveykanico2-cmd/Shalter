@@ -3,7 +3,7 @@ import { clearCache } from "../../lib/localCache.js";
 import { iconSvg } from "../../icons.js";
 import { Avatar } from "../../components/avatar.js";
 import { api } from "../../api.js";
-import { getState, setState } from "../../state.js";
+import { getState, setState, updateSelf } from "../../state.js";
 import { navigate } from "../../router.js";
 import { fileToImageDataUrl, fileToDataUrl } from "../../lib/image.js";
 import { ImageAttachment, VideoAttachment, FileAttachment } from "../../components/attachments.js";
@@ -394,7 +394,7 @@ async function renderProfile(root) {
               birthday = date.iso;
               try {
                 const { user } = await api.updateProfile(me.id, { name, username, phone, bio, birthday });
-                setState({ user: { ...getState().user, name, username, phone: user.phone, bio, birthday } });
+                updateSelf({ name, username, phone: user.phone, bio, birthday });
                 saved = true;
                 render();
                 setTimeout(() => {
@@ -1189,7 +1189,7 @@ async function renderPrivacy(root) {
   async function unblock(userId) {
     await api.setBlocked(userId, false);
     blockedIds.delete(userId);
-    setState({ user: { ...getState().user, blockedUserIds: [...blockedIds] } });
+    updateSelf({ blockedUserIds: [...blockedIds] });
     render();
   }
 
@@ -1307,7 +1307,12 @@ async function renderPrivacy(root) {
                 "p",
                 { class: "settings-toggle-hint" },
                 twoFactor.enabled
-                  ? `Включена (${twoFactor.method === "chat" ? "код в чате Shalter" : "приложение-аутентификатор"}). Кодов восстановления осталось: ${twoFactor.recoveryCodesLeft}`
+                  ? twoFactor.method === "password"
+                    ? // У облачного пароля нет кодов восстановления: восстанавливать
+                      // нечего — пароль знает только его хозяин. Писать «осталось 0»
+                      // значило бы пугать нулём там, где счётчика вовсе нет.
+                      `Включена (облачный пароль)${twoFactor.cloudPasswordHint ? `. Подсказка: ${twoFactor.cloudPasswordHint}` : ""}`
+                    : `Включена (${twoFactor.method === "chat" ? "код в чате Shalter" : "приложение-аутентификатор"}). Кодов восстановления осталось: ${twoFactor.recoveryCodesLeft}`
                   : "Код при каждом входе — в чате Shalter или из приложения-аутентификатора. Знать пароль или ваш номер будет недостаточно"
               ),
             ]),
@@ -1352,7 +1357,7 @@ async function renderPrivacy(root) {
                   openChangeEmailDialog(getState().user.email, (user) => {
                     // The address is on the state object the whole app reads, so
                     // the hint above must not keep showing the old one.
-                    if (user) setState({ user: { ...getState().user, email: user.email } });
+                    if (user) updateSelf({ email: user.email });
                     securityNotice = "Адрес почты изменён";
                     render();
                   }),

@@ -95,7 +95,17 @@ async function finishLogin(req, res, user) {
     // something to ask for the moment it appears rather than making people hunt
     // for a "send me a code" button.
     if (method === "chat") await sendTwoFactorCode(user.id).catch((err) => console.error("2fa code send failed:", err));
-    return res.json({ twoFactorRequired: true, ticket, expiresInSec, name: user.name, method });
+    return res.json({
+      twoFactorRequired: true,
+      ticket,
+      expiresInSec,
+      name: user.name,
+      method,
+      // Подсказка к облачному паролю. Её видит тот, кто уже прошёл первый шаг,
+      // то есть знает пароль от аккаунта, — на этом месте она и нужна. Для
+      // остальных способов её нет и быть не может.
+      hint: method === "password" ? user.cloudPasswordHint || null : null,
+    });
   }
   addAccountSession(req, res, user.id);
   await recordSession(req, res, user.id);
@@ -694,6 +704,13 @@ async function sendTwoFactorCode(userId) {
 // One check for both methods, so every place that accepts a second factor
 // (enable, disable, login) treats them identically.
 async function verifySecondFactor(user, rawCode) {
+  // Облачный пароль сверяется как есть, без trim: пробел в начале или в конце —
+  // такой же знак пароля, как любой другой, и молча его срезать значит не
+  // пустить человека с его собственным паролем.
+  if (user.twoFactorMethod === "password") {
+    if (!user.cloudPasswordHash || !user.cloudPasswordSalt) return false;
+    return verifyPassword(String(rawCode ?? ""), user.cloudPasswordHash, user.cloudPasswordSalt);
+  }
   const cleaned = String(rawCode ?? "").trim();
   if (user.twoFactorMethod === "chat") return codeLogins.verify(user.id, cleaned);
   return totp.verifyCode(user.totpSecret, cleaned);
@@ -721,6 +738,9 @@ router.get(
       // A secret generated but never confirmed — the UI offers to resume rather
       // than silently starting over with a different one.
       pending: !!me.totpSecret && !me.totpEnabledAt,
+      // Подсказку своему же аккаунту показать можно и нужно: по ней человек
+      // проверяет, что она понятна ему и бесполезна остальным.
+      cloudPasswordHint: me.twoFactorMethod === "password" ? me.cloudPasswordHint || "" : "",
       recoveryCodesLeft: me.twoFactorEnabled ? (me.totpRecoveryCodes ?? []).length : 0,
       enabledAt: me.totpEnabledAt ?? null,
     });
@@ -772,6 +792,117 @@ router.post(
     }
     await sendTwoFactorCode(uid);
     res.json({ ok: true });
+  })
+);
+
+// Облачный пароль: задать, сменить и снять.
+//
+// Отдельные маршруты, а не общий /2fa/enable, потому что подтверждать тут
+// нечего: у аутентификатора есть секрет, который надо доказать кодом, а
+// облачный пароль человек придумывает сам — и «доказательством» служит то, что
+// он ввёл его дважды и знает пароль от аккаунта.
+//
+// Пароль от аккаунта спрашивается обязательно: без этого любой, кто добрался до
+// незапертого устройства с открытым Shalter, поставил бы свой облачный пароль и
+// запер владельца снаружи.
+const MIN_CLOUD_PASSWORD = 6;
+const MAX_CLOUD_HINT = 100;
+
+router.post(
+  "/2fa/cloud-password",
+  asyncRoute(async (req, res) => {
+    const uid = currentUserOr401(req, res);
+    if (!uid) return;
+    const me = await getUser(uid);
+    if (!me) return res.status(401).json({ error: "unauthorized" });
+
+    const accountPassword = String(req.body?.accountPassword ?? "");
+    if (!me.passwordHash || !me.passwordSalt || !verifyPassword(accountPassword, me.passwordHash, me.passwordSalt)) {
+      return res.status(403).json({ error: "Неверный пароль от аккаунта" });
+    }
+    // Смена уже установленного облачного пароля требует и старый: пароль от
+    // аккаунта мог остаться в чужой памяти с прошлого входа, а смысл второго
+    // шага в том, чтобы одного его не хватало.
+    if (me.twoFactorMethod === "password" && me.cloudPasswordHash) {
+      const current = String(req.body?.currentPassword ?? "");
+      if (!verifyPassword(current, me.cloudPasswordHash, me.cloudPasswordSalt)) {
+        return res.status(403).json({ error: "Неверный текущий облачный пароль" });
+      }
+    }
+    if (me.twoFactorEnabled && me.twoFactorMethod !== "password") {
+      return res.status(400).json({ error: "Сначала отключите текущий способ подтверждения входа" });
+    }
+
+    const password = String(req.body?.password ?? "");
+    if (password.length < MIN_CLOUD_PASSWORD) {
+      return res.status(400).json({ error: `Облачный пароль — не короче ${MIN_CLOUD_PASSWORD} знаков` });
+    }
+    if (password === accountPassword) {
+      return res.status(400).json({ error: "Облачный пароль должен отличаться от пароля аккаунта — иначе второй шаг ничего не добавляет" });
+    }
+    const hint = String(req.body?.hint ?? "").trim().slice(0, MAX_CLOUD_HINT);
+    // Подсказку видно до входа, поэтому она не должна быть самим паролем.
+    // Проверка нестрогая по регистру: «МойПароль» в подсказке выдаёт «мойпароль»
+    // ничуть не меньше.
+    if (hint && hint.toLowerCase() === password.toLowerCase()) {
+      return res.status(400).json({ error: "Подсказка не должна повторять сам пароль — её видно до входа" });
+    }
+
+    const { hash, salt } = hashPassword(password);
+    await updateUser(uid, {
+      cloudPasswordHash: hash,
+      cloudPasswordSalt: salt,
+      cloudPasswordHint: hint || null,
+      twoFactorMethod: "password",
+    });
+    // Второй шаг только что появился — на всех прочих устройствах он не
+    // спрашивался, и сессии там выданы без него. Оставить их — значит включить
+    // защиту, которая не защищает ровно от того, ради чего её включали.
+    await revokeOtherSessions(uid, req.cookies?.device_id ?? null).catch(() => {});
+
+    // Перечитываем и отвечаем тем, что получилось на самом деле, а не тем, что
+    // собирались сделать. Так уже было: updateUser молча выбрасывает поля не из
+    // своего белого списка, twoFactorMethod в него не входил — хэш записывался,
+    // способ нет, и маршрут бодро отвечал «включено», пока вход спрашивать
+    // пароль даже не начинал. Ответ, собранный из намерений, такую поломку
+    // прячет; собранный из состояния — показывает.
+    const saved = await getUser(uid);
+    if (!saved?.twoFactorEnabled || saved.twoFactorMethod !== "password") {
+      return res.status(500).json({ error: "Не удалось включить облачный пароль — попробуйте ещё раз" });
+    }
+    res.json({ ok: true, enabled: true, method: saved.twoFactorMethod, hint: saved.cloudPasswordHint || null });
+  })
+);
+
+router.post(
+  "/2fa/cloud-password/disable",
+  asyncRoute(async (req, res) => {
+    const uid = currentUserOr401(req, res);
+    if (!uid) return;
+    const me = await getUser(uid);
+    if (!me) return res.status(401).json({ error: "unauthorized" });
+    if (me.twoFactorMethod !== "password" || !me.cloudPasswordHash) {
+      return res.status(400).json({ error: "Облачный пароль не установлен" });
+    }
+    if (!verifyPassword(String(req.body?.password ?? ""), me.cloudPasswordHash, me.cloudPasswordSalt)) {
+      return res.status(403).json({ error: "Неверный облачный пароль" });
+    }
+    await updateUser(uid, { cloudPasswordHash: null, cloudPasswordSalt: null, cloudPasswordHint: null });
+    res.json({ ok: true, enabled: false });
+  })
+);
+
+// Подсказка к облачному паролю для экрана входа. По билету, а не по сессии:
+// сессии на этом шаге ещё нет и не должно быть. Билет уже доказывает, что
+// первый шаг пройден, — то есть пароль от аккаунта человек знает.
+router.post(
+  "/2fa/hint",
+  asyncRoute(async (req, res) => {
+    const entry = req.body?.ticket ? twoFactorTickets.peek(req.body.ticket) : null;
+    if (!entry) return res.status(400).json({ error: "Срок ожидания истёк — войдите заново" });
+    const user = await getUser(entry.userId);
+    if (!user || user.twoFactorMethod !== "password") return res.json({ hint: null });
+    res.json({ hint: user.cloudPasswordHint || null });
   })
 );
 
@@ -835,6 +966,20 @@ router.post(
     }
 
     const code = String(req.body?.code ?? "");
+    // Облачный пароль снимается тем же «Отключить», что и остальные способы, —
+    // человеку незачем знать, что внутри это разные механизмы. Проверяем сам
+    // пароль и чистим его поля: disableTotp ниже трогает только totp, и без
+    // этой ветки «отключено» означало бы, что вход по-прежнему спрашивает
+    // пароль, которого в настройках уже нет.
+    if (me.twoFactorMethod === "password") {
+      if (!verifyPassword(code, me.cloudPasswordHash, me.cloudPasswordSalt)) {
+        return res.status(400).json({ error: "Неверный облачный пароль" });
+      }
+      await updateUser(uid, { cloudPasswordHash: null, cloudPasswordSalt: null, cloudPasswordHint: null });
+      await disableTotp(uid);
+      return res.json({ enabled: false });
+    }
+
     const ok = totp.verifyCode(me.totpSecret, code) || (await consumeRecoveryCode(uid, totp.hashRecoveryCode(code)));
     if (!ok) return res.status(400).json({ error: "Неверный код" });
 

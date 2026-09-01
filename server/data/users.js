@@ -74,7 +74,23 @@ function rowToUser(row) {
     // through the Shalter service chat — so "enabled" can't be defined by the
     // presence of a secret alone.
     twoFactorMethod: row.twoFactorMethod ?? "totp",
-    twoFactorEnabled: row.twoFactorMethod === "chat" ? !!row.totpEnabledAt : !!(row.totpSecret && row.totpEnabledAt),
+    twoFactorEnabled:
+      row.twoFactorMethod === "password"
+        ? // Облачный пароль включён ровно тогда, когда он задан: подтверждать
+          // его отдельным шагом, как код из аутентификатора, нечего — сам факт
+          // того, что человек его придумал и повторил, и есть подтверждение.
+          !!(row.cloudPasswordHash && row.cloudPasswordSalt)
+        : row.twoFactorMethod === "chat"
+          ? !!row.totpEnabledAt
+          : !!(row.totpSecret && row.totpEnabledAt),
+    // Сам хэш нужен только проверке при входе (routes/auth.js). Наружу он не
+    // уходит: и publicUser, и selfUser собирают ответ из перечисленных полей,
+    // а этих в их списках нет.
+    cloudPasswordHash: row.cloudPasswordHash ?? undefined,
+    cloudPasswordSalt: row.cloudPasswordSalt ?? undefined,
+    // Подсказку, наоборот, показывают — но только на экране ввода этого пароля,
+    // и отдаёт её отдельный маршрут по билету, а не профиль.
+    cloudPasswordHint: row.cloudPasswordHint ?? "",
   };
 }
 
@@ -180,7 +196,7 @@ async function createUser(user) {
   return getUser(user.id);
 }
 
-const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday"];
+const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday"];
 
 // Extends (or starts) a Premium period — stacks on top of remaining time if
 // already active, the way a real subscription top-up would, rather than

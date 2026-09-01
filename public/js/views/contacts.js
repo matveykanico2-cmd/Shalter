@@ -4,7 +4,7 @@ import { Avatar } from "../components/avatar.js";
 import { VerifiedBadge } from "../components/verifiedBadge.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
-import { getState, setState } from "../state.js";
+import { getState, setState, updateSelf } from "../state.js";
 import { openProfileDialog } from "../components/profileDialog.js";
 import { statusLabel } from "../lib/presence.js";
 import { openImportContactsDialog } from "../components/importContactsDialog.js";
@@ -224,7 +224,7 @@ export async function ContactsView(root) {
     await api.setBlocked(userId, nextBlocked);
     if (nextBlocked) blockedIds.add(userId);
     else blockedIds.delete(userId);
-    setState({ user: { ...getState().user, blockedUserIds: [...blockedIds] } });
+    updateSelf({ blockedUserIds: [...blockedIds] });
     render();
   }
 

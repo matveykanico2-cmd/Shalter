@@ -19,6 +19,16 @@ function publicUser(user) {
   // (derived, a plain boolean) is what the UI actually needs, and it stays.
   delete rest.totpSecret;
   delete rest.totpRecoveryCodes;
+  // Облачный пароль — такие же учётные данные: его хэш и соль не должны уходить
+  // никому, включая сам аккаунт. Здесь список «что убрать», а не «что оставить»,
+  // поэтому каждое новое поле с секретом нужно вычёркивать вручную — забыть
+  // строку значит разослать хэш вместе с каждым профилем.
+  delete rest.cloudPasswordHash;
+  delete rest.cloudPasswordSalt;
+  // Подсказка тоже лишняя в общем ответе: её показывают только на экране ввода
+  // облачного пароля, и отдаёт её отдельный маршрут по билету входа. В профиле
+  // она была бы подсказкой к чужому паролю для всякого, кто открыл профиль.
+  delete rest.cloudPasswordHint;
   // The e-mail address is the account's own business — it was going out with
   // every profile lookup and every search hit, so anyone could read anyone's
   // address by opening their profile. Nothing in the app shows other people's

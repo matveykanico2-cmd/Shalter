@@ -557,6 +557,25 @@ if (!existingContactCols.has("localName")) db.exec("ALTER TABLE contacts ADD COL
 // scannable, and if neither is true the whole feature is unusable.
 const existingTwoFactorCols = new Set(db.prepare("PRAGMA table_info(users)").all().map((c) => c.name));
 if (!existingTwoFactorCols.has("twoFactorMethod")) db.exec("ALTER TABLE users ADD COLUMN twoFactorMethod TEXT");
+// Облачный пароль — третий способ подтвердить вход, рядом с кодом из
+// приложения-аутентификатора и кодом в чат Shalter.
+//
+// Зачем он, когда пароль у аккаунта уже есть: тот пароль — первый шаг, и его
+// знает всякий, кто когда-либо входил с чужого устройства или чей пароль утёк
+// вместе с почтой. Облачный — второй, отдельный, и спрашивается уже после
+// первого. Тем же он отличается от «спрашивать пароль при запуске»
+// (settings.requirePasswordOnLaunch): та настройка запирает приложение на уже
+// вошедшем устройстве, эта — не пускает внутрь чужого.
+//
+// Хранится так же, как основной: scrypt с личной солью (server/security.js),
+// в открытом виде нигде не лежит и наружу не отдаётся.
+//
+// Подсказка — необязательная строка, которую видно на экране входа. Она нужна
+// ровно для того, чтобы вспомнить свой пароль, и потому не должна быть им
+// самим; проверку на это делает маршрут установки.
+if (!existingTwoFactorCols.has("cloudPasswordHash")) db.exec("ALTER TABLE users ADD COLUMN cloudPasswordHash TEXT");
+if (!existingTwoFactorCols.has("cloudPasswordSalt")) db.exec("ALTER TABLE users ADD COLUMN cloudPasswordSalt TEXT");
+if (!existingTwoFactorCols.has("cloudPasswordHint")) db.exec("ALTER TABLE users ADD COLUMN cloudPasswordHint TEXT");
 
 // A handle won at auction. Telegram calls these collectible: the point is that
 // it was *acquired*, not merely registered first, and that shows next to the

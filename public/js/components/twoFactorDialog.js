@@ -20,7 +20,14 @@ export function openTwoFactorSetupDialog(onEnabled) {
   // it has to be installed and the QR has to be scannable — so the alternative
   // is a code the Shalter service bot posts into your own chat, exactly like the
   // login codes that already arrive there.
-  let step = "method"; // "method" | "loading" | "scan" | "recovery" | "error"
+  let step = "method"; // "method" | "loading" | "scan" | "recovery" | "cloud" | "error"
+  // Поля облачного пароля живут отдельно от `code`: там шесть цифр с фильтром,
+  // здесь произвольный текст, и смешивать их в одной переменной значит чистить
+  // чужой ввод чужими правилами.
+  let cloudPassword = "";
+  let cloudRepeat = "";
+  let cloudHint = "";
+  let accountPassword = "";
   let method = "totp";
   let resending = false;
   let secret = null;
@@ -108,6 +115,28 @@ export function openTwoFactorSetupDialog(onEnabled) {
     },
   });
 
+  // Совпадение паролей проверяется здесь, а не на сервере: сервер видит один
+  // пароль и о втором поле ничего не знает — это забота формы.
+  async function saveCloudPassword() {
+    error = null;
+    if (cloudPassword.length < 6) error = "Облачный пароль — не короче 6 знаков";
+    else if (cloudPassword !== cloudRepeat) error = "Пароли не совпадают";
+    else if (!accountPassword) error = "Введите пароль от аккаунта";
+    if (error) return render();
+
+    busy = true;
+    render();
+    try {
+      await api.setCloudPassword({ password: cloudPassword, hint: cloudHint, accountPassword });
+      onEnabled?.();
+      close();
+    } catch (err) {
+      error = err.message || "Не удалось включить";
+      busy = false;
+      render();
+    }
+  }
+
   function render() {
     clear(bodyEl);
 
@@ -122,7 +151,51 @@ export function openTwoFactorSetupDialog(onEnabled) {
           el("span", { class: "twofa-method-title" }, "📱 Приложение-аутентификатор"),
           el("span", { class: "twofa-method-hint" }, "Google Authenticator, Aegis, 1Password. Надёжнее: код создаётся на вашем устройстве и не проходит через Shalter."),
         ]),
+        el(
+          "button",
+          {
+            class: "twofa-method-btn",
+            onclick: () => {
+              method = "password";
+              step = "cloud";
+              render();
+            },
+          },
+          [
+            el("span", { class: "twofa-method-title" }, "🔐 Облачный пароль"),
+            el(
+              "span",
+              { class: "twofa-method-hint" },
+              "Отдельный пароль, который спрашивают при входе после обычного. Ничего устанавливать и никуда ходить за кодом не нужно — но и восстановить его, если забыть, нельзя."
+            ),
+          ]
+        ),
         el("button", { class: "modal-cancel", onclick: close }, "Отмена")
+      );
+      return;
+    }
+
+    if (step === "cloud") {
+      const field = (label, value, opts, onInput) =>
+        el("label", { class: "twofa-field" }, [
+          el("span", { class: "settings-toggle-hint" }, label),
+          el("input", { class: "login-input", value, ...opts, oninput: (e) => onInput(e.target.value) }),
+        ]);
+      bodyEl.append(
+        el(
+          "p",
+          { class: "settings-toggle-hint" },
+          "Этот пароль спросят при каждом входе с нового устройства — после обычного пароля. Забыть его нельзя: восстановления нет, поэтому придумайте подсказку."
+        ),
+        field("Облачный пароль", cloudPassword, { type: "password", autocomplete: "new-password", placeholder: "Не короче 6 знаков" }, (v) => (cloudPassword = v)),
+        field("Ещё раз", cloudRepeat, { type: "password", autocomplete: "new-password" }, (v) => (cloudRepeat = v)),
+        field("Подсказка (необязательно)", cloudHint, { type: "text", maxlength: 100, placeholder: "Её видно до входа" }, (v) => (cloudHint = v)),
+        field("Пароль от аккаунта", accountPassword, { type: "password", autocomplete: "current-password", placeholder: "Чтобы это точно были вы" }, (v) => (accountPassword = v)),
+        error ? el("p", { class: "login-error" }, error) : null,
+        el("div", { class: "twofa-actions" }, [
+          el("button", { class: "modal-cancel", onclick: close }, "Отмена"),
+          el("button", { class: "btn-accent", disabled: busy, onclick: saveCloudPassword }, busy ? "Сохраняем…" : "Включить"),
+        ])
       );
       return;
     }
