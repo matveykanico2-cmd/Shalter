@@ -8,7 +8,20 @@ import { openInAppBrowser } from "./inAppBrowser.js";
 // have to import from a file that itself imports openProfileDialog, which
 // would make the two modules circularly dependent on each other.
 export function ImageAttachment(a) {
-  return el("img", { src: a.url, alt: a.name || "photo", class: "image-attachment" });
+  const img = el("img", { src: a.url, alt: a.name || "photo", class: "image-attachment" });
+  // Полной картинки может уже не быть на сервере: когда её получили все, она
+  // оттуда убирается (server/lib/orphanSweep.js), а живёт дальше на устройствах
+  // тех, кто её открывал. Если здесь её нет ни там, ни в кэше — показываем
+  // эскиз, который хранится всегда. Так старый чат не превращается в набор
+  // серых квадратов.
+  if (a.thumbUrl) {
+    img.addEventListener("error", () => {
+      if (img.src.endsWith(a.thumbUrl)) return; // эскиз тоже не открылся — больше нечего пробовать
+      img.src = a.thumbUrl;
+      img.classList.add("image-attachment-thumb");
+    });
+  }
+  return img;
 }
 
 export function VideoAttachment(a) {

@@ -213,6 +213,8 @@ async function join({ call, chatTitle, chatType, participants, me }) {
     me,
     phase: "ringing",
     elapsed: 0,
+    // Таймер «никто не ответил» заводится вместе со звонком — см. armNoAnswerTimer.
+
     muted: false,
     cameraOn: call.kind === "video",
     facingBack: false,
@@ -240,6 +242,10 @@ async function join({ call, chatTitle, chatType, participants, me }) {
   // Only the caller hears a ringback — the callee already decided to join by
   // clicking "Accept" (see incomingCallWatcher.js, which rings *before* that).
   if (call.callerId === me.id) startRingback();
+  // Ждём ответа ограниченное время: не ответили — кладём трубку сами. Заводим
+  // только у звонящего; у принимающего звонок и так либо соединится, либо
+  // закончится по сигналу с той стороны.
+  if (call.callerId === me.id) armNoAnswerTimer();
 
   ticker = setInterval(() => {
     if (state && state.phase === "connected") {
@@ -528,7 +534,25 @@ function endLocally() {
   }, 600);
 }
 
+// Сколько ждать ответа, прежде чем положить трубку самому.
+//
+// Без этого звонок звонил вечно: не ответили — а он всё «идёт», занимая
+// микрофон у звонящего и оставаясь в базе активным. Сорок пять секунд — это
+// примерно семь гудков, столько же ждёт обычный телефон.
+const NO_ANSWER_MS = 45 * 1000;
+let noAnswerTimer = null;
+
+function armNoAnswerTimer() {
+  clearTimeout(noAnswerTimer);
+  noAnswerTimer = setTimeout(() => {
+    // Ответили — таймер уже не нужен, разговор идёт своим чередом.
+    if (!state || state.phase !== "ringing") return;
+    hangup();
+  }, NO_ANSWER_MS);
+}
+
 export async function hangup() {
+  clearTimeout(noAnswerTimer);
   if (!state) return;
   const { call, others, elapsed } = state;
   others.forEach((p) => sendSignal(p.id, "end", null));

@@ -8,6 +8,7 @@ const { listUsersByIds, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { addSignal, listSignalsFor } = require("../data/signals");
 const { allowsUser } = require("../lib/privacyRules");
+const { sendMessageAndBroadcast } = require("../lib/systemChat");
 const { listContactsFor } = require("../data/contacts");
 const { transferStars, balanceOf } = require("../data/stars");
 const { broadcastToUsers } = require("../ws");
@@ -66,16 +67,32 @@ async function chargeForColdCall(callerId, target) {
 // Поэтому вдогонку уходит второе уведомление — с тем же тегом и пометкой
 // «отменено»: public/sw.js по ней закрывает висящее и ничего нового не
 // показывает.
-async function pushCallCancelled(call, recipientIds) {
+async function pushCallCancelled(call, recipientIds, { missed = false, callerName = "" } = {}) {
   await Promise.all(
     recipientIds
       .filter((id) => id !== call.callerId)
       .map((uid) =>
-        sendPushToUser(
-          uid,
-          { title: "", kind: "call-cancelled", tag: `call-${call.id}`, callId: call.id },
-          CALL_CANCEL_PUSH
-        ).catch(() => {})
+        missed
+          ? // Не дозвонились — вместо того чтобы просто убрать «вам звонят»,
+            // оставляем след: иначе человек, отошедший от телефона, не узнает о
+            // звонке вовсе. Тег тот же, поэтому новое уведомление встаёт на
+            // место звонящего, а не добавляется вторым.
+            sendPushToUser(
+              uid,
+              {
+                title: callerName || "Пропущенный звонок",
+                body: callerName ? "Пропущенный звонок" : "Вам звонили",
+                url: `/chat/${call.chatId}`,
+                tag: `call-${call.id}`,
+                kind: "call-missed",
+              },
+              CALL_CANCEL_PUSH
+            ).catch(() => {})
+          : sendPushToUser(
+              uid,
+              { title: "", kind: "call-cancelled", tag: `call-${call.id}`, callId: call.id },
+              CALL_CANCEL_PUSH
+            ).catch(() => {})
       )
   );
 }
@@ -229,8 +246,40 @@ router.patch(
       // никогда и отмена не уходила ни разу. Лишний раз послать её безвредно:
       // у того, кто уже ответил, уведомление закрыто нажатием, и воркер просто
       // не найдёт, что закрывать.
+      // Запись о звонке в самой переписке.
+      //
+      // Раньше звонки жили только во вкладке «Звонки», и в чате не оставалось
+      // ни следа: открываешь переписку — а того, что человек звонил полчаса
+      // назад и не дозвонился, там нет. Теперь каждый законченный звонок
+      // оставляет строку, как в любом мессенджере.
+      //
+      // Пишется один раз: условие выше пропускает сюда только переход из
+      // «идёт» в конечное состояние, а повторный запрос второй стороны такого
+      // перехода уже не даёт.
+      if (FINISHED_CALL_STATUSES.has(patch.status) && existing.status === "ongoing") {
+        const answered = patch.status === "completed" && (patch.durationSec ?? 0) > 0;
+        const mins = Math.floor((patch.durationSec ?? 0) / 60);
+        const secs = (patch.durationSec ?? 0) % 60;
+        const label = answered
+          ? `📞 ${call.kind === "video" ? "Видеозвонок" : "Звонок"} · ${mins}:${String(secs).padStart(2, "0")}`
+          : patch.status === "declined"
+            ? "📞 Звонок отклонён"
+            : "📞 Пропущенный звонок";
+        const chat = await getChat(call.chatId).catch(() => null);
+        if (chat) {
+          // От имени звонившего: строка встаёт в переписке на его сторону, и
+          // сразу видно, кто кому звонил.
+          await sendMessageAndBroadcast(chat, call.callerId, label).catch(() => {});
+        }
+      }
       if (FINISHED_CALL_STATUSES.has(patch.status)) {
-        pushCallCancelled(call, call.participantIds).catch((err) => console.error("push cancel failed:", err));
+        // Пропущенный и отклонённый — разные вещи: об отклонённом звонивший
+        // знает сам, а о пропущенном должен узнать тот, кому звонили.
+        const missed = patch.status === "missed";
+        const caller = missed ? await getUser(call.callerId).catch(() => null) : null;
+        pushCallCancelled(call, call.participantIds, { missed, callerName: caller?.name ?? "" }).catch((err) =>
+          console.error("push cancel failed:", err)
+        );
       }
     }
     res.json({ call });

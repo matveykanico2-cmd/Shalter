@@ -1432,12 +1432,10 @@ export async function ChatView(root, chatId) {
       bodyBottomSlot.appendChild(el("p", { class: "channel-readonly-hint" }, "Shalter — служебный чат: сюда приходят коды входа и уведомления, отвечать в нём нельзя"));
       return;
     }
-    if (isDm && other?.isDeveloper) {
-      bodyBottomSlot.appendChild(
-        el("p", { class: "channel-readonly-hint" }, "В чат администрации нельзя писать напрямую — заявки на покупку создаются автоматически")
-      );
-      return;
-    }
+    // Администратору пишут как любому другому человеку — поле ввода тут было
+    // спрятано, и на сервере лежал такой же запрет. Сервер уже пропускает, а
+    // эта половина оставалась и продолжала прятать композитор: со стороны это
+    // выглядело как «ничего не изменилось».
     const restrictedUntil = chat.restrictions?.[me.id];
     if (restrictedUntil && (restrictedUntil === "forever" || restrictedUntil > new Date().toISOString())) {
       bodyBottomSlot.appendChild(

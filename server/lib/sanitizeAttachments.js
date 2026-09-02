@@ -37,6 +37,14 @@ function sanitizeAttachments(attachments) {
         if (!isSafeUrl(a.url)) return null;
         out.url = a.url;
       }
+      // Эскиз — второй, крошечный файл рядом с картинкой. Он остаётся на
+      // сервере навсегда, даже когда полную картинку уберут как доставленную
+      // (см. lib/orphanSweep.js), поэтому чат не пустеет на новом устройстве.
+      // Проверяется так же строго, как и основная ссылка.
+      if (a.thumbUrl !== undefined) {
+        if (!isSafeUrl(a.thumbUrl)) return null;
+        out.thumbUrl = a.thumbUrl;
+      }
       if (a.name !== undefined) out.name = String(a.name).slice(0, 300);
       if (a.mimeType !== undefined) out.mimeType = String(a.mimeType).slice(0, 120);
       if (a.size !== undefined) out.size = Number.isFinite(a.size) ? a.size : undefined;

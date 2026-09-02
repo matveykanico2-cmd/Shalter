@@ -16,7 +16,16 @@ import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
 const EMOJI = ["😀", "😂", "😍", "👍", "🙏", "🔥", "🎉", "😢", "😮", "❤️", "👏", "🤔"];
 const TYPING_PING_MS = 2500; // well under the server's 4s typing-presence expiry
 const DRAFT_SAVE_MS = 600; // debounce so we're not POSTing on every keystroke
+// 1600 точек по длинной стороне — нормальное качество: фотография остаётся
+// фотографией, текст на снимке документа читается.
+//
+// Место это больше не съедает так, как раньше: картинки хранятся в webp,
+// одинаковые файлы лежат на диске в одном экземпляре, а полный файл убирается
+// с сервера после того, как его получили все, — вместо него остаётся эскиз.
+// Экономия теперь достигается этим, а не порчей снимков.
 const MAX_IMAGE_DIMENSION = 1600;
+// Эскиз: его задача — быть узнаваемым, а не разглядываемым.
+const THUMB_DIMENSION = 240;
 
 // "1 ошибку / 2 ошибки / 5 ошибок" — a count next to an unagreed noun reads as
 // broken Russian, and Hugo's whole point is noticing exactly that.
@@ -275,7 +284,21 @@ export function Composer({
         try {
           const smaller = await fileToImageUpload(file, MAX_IMAGE_DIMENSION);
           const attachment = await uploadFile(smaller, "image");
-          onSend("", [{ ...attachment, kind: "image", name: file.name }]);
+          // Второй, крошечный файл — эскиз.
+          //
+          // Он нужен, чтобы уборка на сервере (lib/orphanSweep.js) могла
+          // удалять полную картинку, когда её уже все получили, и при этом
+          // ничего не пропадало: полный файл живёт у людей на устройствах, а
+          // здесь остаётся то, что видно с любого нового телефона. Весит он
+          // считанные килобайты, поэтому хранится всегда.
+          let thumbUrl;
+          try {
+            const thumb = await fileToImageUpload(file, THUMB_DIMENSION);
+            thumbUrl = (await uploadFile(thumb, "image")).url;
+          } catch {
+            // Эскиз не сделался — не повод не отправлять само сообщение.
+          }
+          onSend("", [{ ...attachment, kind: "image", name: file.name, thumbUrl }]);
         } catch (err) {
           showUploadError(err.message || "Не удалось обработать изображение");
         }

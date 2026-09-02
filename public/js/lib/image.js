@@ -59,7 +59,9 @@ function supportsWebp() {
 //   и так избыточна для экрана телефона.
 export async function fileToImageUpload(file, maxSize = 1080) {
   const webp = supportsWebp();
-  const dataUrl = await fileToImageDataUrl(file, maxSize, webp ? "image/webp" : "image/jpeg", 0.8);
+  // Качество 0.85 — то, при котором на глаз картинка неотличима от исходной.
+  // В webp это к тому же ощутимо легче, чем тот же уровень в jpeg.
+  const dataUrl = await fileToImageDataUrl(file, maxSize, webp ? "image/webp" : "image/jpeg", 0.85);
   const blob = await (await fetch(dataUrl)).blob();
   const ext = webp ? ".webp" : ".jpg";
   const name = (file.name || "photo").replace(/\.[^.]+$/, "") + ext;

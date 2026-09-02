@@ -295,6 +295,10 @@ attachWebSocketServer(server);
 startAutoDeleteSweep();
 startDonationAlertsSweep();
 startScheduledMessagesSweep();
+// Раз в сутки убираем загруженные файлы, на которые никто не ссылается:
+// выбрал фотографию и передумал отправлять, отправил и удалил сообщение — файл
+// оставался на диске навсегда (см. lib/orphanSweep.js).
+require("./lib/orphanSweep").startOrphanSweep();
 
 // Приём эфиров из OBS и подобных программ (server/rtmp.js). Отдельный порт,
 // отдельный протокол — но тот же процесс.

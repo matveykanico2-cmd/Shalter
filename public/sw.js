@@ -13,6 +13,31 @@
 // выбросить старый набор целиком и не отдавать больше ту застрявшую копию.
 const SHELL_CACHE = "shalter-shell-v2";
 
+// Вложения, осевшие на самом устройстве.
+//
+// Смысл отдельного хранилища: файл из переписки не меняется никогда — по
+// адресу /uploads/<отпечаток> лежит ровно одно содержимое и другого там не
+// будет (имя выводится из самого файла, см. routes/uploads.js). Значит,
+// скачав его один раз, спрашивать сервер больше не за чем.
+//
+// Что это даёт: повторные открытия чата не трогают сеть вовсе, а сервер
+// перестаёт отдавать одну и ту же картинку сто раз. Место на сервере при этом
+// не освобождается — файл там по-прежнему лежит, потому что его должен
+// получить и тот, кто ещё не заходил.
+const MEDIA_CACHE = "shalter-media-v1";
+// Браузер не даёт хранить сколько угодно и вычищает старое сам, когда на
+// устройстве кончается место. Свой предел нужен, чтобы не занимать чужую квоту
+// целиком: держим последние 300 файлов, остальное вытесняем сами.
+const MEDIA_CACHE_MAX = 300;
+
+async function trimMediaCache() {
+  const cache = await caches.open(MEDIA_CACHE);
+  const keys = await cache.keys();
+  if (keys.length <= MEDIA_CACHE_MAX) return;
+  // Записи лежат в порядке добавления — убираем самые старые.
+  await Promise.all(keys.slice(0, keys.length - MEDIA_CACHE_MAX).map((k) => cache.delete(k)));
+}
+
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
@@ -23,7 +48,9 @@ self.addEventListener("activate", (event) => {
       // Наборы прошлых версий не нужны: адреса собранных файлов содержат метку
       // содержимого, поэтому старые записи никогда больше не совпадут.
       const names = await caches.keys();
-      await Promise.all(names.filter((n) => n.startsWith("shalter-") && n !== SHELL_CACHE).map((n) => caches.delete(n)));
+      await Promise.all(
+        names.filter((n) => n.startsWith("shalter-") && n !== SHELL_CACHE && n !== MEDIA_CACHE).map((n) => caches.delete(n))
+      );
       await self.clients.claim();
     })()
   );
@@ -62,7 +89,30 @@ self.addEventListener("fetch", (event) => {
   }
   // Ответы приложения (сообщения, чаты) не храним никогда: показать вчерашнюю
   // переписку как сегодняшнюю хуже, чем показать, что связи нет.
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/uploads/")) return;
+  // Ответы приложения (сообщения, чаты) не храним никогда: показать вчерашнюю
+  // переписку как сегодняшнюю хуже, чем показать, что связи нет.
+  if (url.pathname.startsWith("/api/")) return;
+
+  // Вложения — наоборот, храним у себя: содержимое по такому адресу неизменно.
+  // Сначала смотрим на устройстве, в сеть идём только если там пусто.
+  if (url.pathname.startsWith("/uploads/")) {
+    event.respondWith(
+      (async () => {
+        const cached = await caches.match(req, { cacheName: MEDIA_CACHE });
+        if (cached) return cached;
+        const res = await fetch(req);
+        // Кладём только целые ответы: кусок файла (206) в хранилище бесполезен,
+        // а перемотка видео присылает именно такие.
+        if (res.ok && res.status === 200) {
+          const cache = await caches.open(MEDIA_CACHE);
+          await cache.put(req, res.clone());
+          trimMediaCache();
+        }
+        return res;
+      })()
+    );
+    return;
+  }
 
   if (isShellAsset(url)) {
     // Сначала с диска. Адрес содержит метку содержимого — если файл на диске
@@ -117,6 +167,9 @@ self.addEventListener("push", (event) => {
   // Показывать нечего — надо, наоборот, убрать висящее уведомление о нём:
   // requireInteraction само его не погасит, и человек вернётся к телефону,
   // увидит «вам звонят» и ответит на разговор, которого уже нет.
+  // "call-missed" приходит вместо гашения, когда до человека не дозвонились:
+  // это обычное уведомление и показывается обычным путём ниже. Отдельной ветки
+  // ему не нужно — важно лишь не спутать его с отменой.
   if (kind === "call-cancelled") {
     event.waitUntil(
       (async () => {
