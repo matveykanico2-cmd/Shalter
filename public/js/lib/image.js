@@ -1,6 +1,6 @@
 // Downscales an uploaded photo client-side before it's stored inline as a
 // data URL (no object storage in this app) — keeps the JSON store from bloating.
-export function fileToImageDataUrl(file, maxSize = 256) {
+export function fileToImageDataUrl(file, maxSize = 256, mime = "image/jpeg", quality = 0.85) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const reader = new FileReader();
@@ -17,7 +17,7 @@ export function fileToImageDataUrl(file, maxSize = 256) {
         const ctx = canvas.getContext("2d");
         if (!ctx) return reject(new Error("Canvas недоступен"));
         ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.85));
+        resolve(canvas.toDataURL(mime, quality));
       };
       img.src = reader.result;
     };
@@ -31,11 +31,39 @@ export const fileToAvatarDataUrl = (file) => fileToImageDataUrl(file, 256);
 // потоковой загрузке (lib/upload.js), вместо того чтобы тащить картинку внутри
 // JSON. Нужно там, где кадров может быть много (истории): десяток снимков в
 // base64 не влезает ни в предел тела запроса, ни в здравый смысл.
+// Поддерживает ли браузер webp на выходе. Проверяется один раз: canvas честно
+// отвечает jpeg, если формат ему не знаком, — поэтому смотрим на сам результат,
+// а не на строку в userAgent.
+let webpSupported = null;
+function supportsWebp() {
+  if (webpSupported !== null) return webpSupported;
+  try {
+    const probe = document.createElement("canvas");
+    probe.width = probe.height = 1;
+    webpSupported = probe.toDataURL("image/webp").startsWith("data:image/webp");
+  } catch {
+    webpSupported = false;
+  }
+  return webpSupported;
+}
+
+// Картинка, готовая к отправке файлом.
+//
+// Два решения ради места на диске — а его расходуют именно фотографии:
+//
+// - webp вместо jpeg там, где браузер умеет: при той же картинке файл меньше
+//   примерно на четверть-треть. Откат на jpeg остаётся, чтобы ничего не
+//   сломалось на старом браузере.
+// - качество 0.8 вместо 0.85: на фотографии разницы не видно, а вес падает
+//   заметно. Планка в 1600 пикселей по длинной стороне (её задаёт вызывающий)
+//   и так избыточна для экрана телефона.
 export async function fileToImageUpload(file, maxSize = 1080) {
-  const dataUrl = await fileToImageDataUrl(file, maxSize);
+  const webp = supportsWebp();
+  const dataUrl = await fileToImageDataUrl(file, maxSize, webp ? "image/webp" : "image/jpeg", 0.8);
   const blob = await (await fetch(dataUrl)).blob();
-  const name = (file.name || "photo").replace(/\.[^.]+$/, "") + ".jpg";
-  return new File([blob], name, { type: "image/jpeg" });
+  const ext = webp ? ".webp" : ".jpg";
+  const name = (file.name || "photo").replace(/\.[^.]+$/, "") + ext;
+  return new File([blob], name, { type: webp ? "image/webp" : "image/jpeg" });
 }
 
 // One frame out of a video file, downscaled, as a data URL.

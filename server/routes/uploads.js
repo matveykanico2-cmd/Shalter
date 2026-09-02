@@ -59,6 +59,9 @@ router.post(
     let written = 0;
     let aborted = false;
     const out = fs.createWriteStream(target);
+    // Отпечаток содержимого считается на лету, пока файл пишется, — второй раз
+    // читать его с диска ради этого не нужно.
+    const digest = crypto.createHash("sha256");
 
     // Cleans up the partial file on any failure — an aborted 2GB upload must not
     // leave 1.9GB of garbage on disk.
@@ -69,6 +72,7 @@ router.post(
         req.on("data", (chunk) => {
           if (aborted) return;
           written += chunk.length;
+          digest.update(chunk);
           // A lying or absent Content-Length is the case this covers: enforced
           // again against what actually arrives, and the connection is cut the
           // moment it goes over rather than after the whole file lands.
@@ -99,10 +103,42 @@ router.post(
       return res.status(400).json({ error: "Пустой файл" });
     }
 
+    // Один и тот же файл хранится один раз.
+    //
+    // Картинку, которую переслали сотне человек, раньше сервер записывал сотней
+    // одинаковых копий: имя файла складывалось из времени и случайных байт, и
+    // о совпадении содержимого никто не спрашивал. На пересылаемом — мемах,
+    // фотографиях из общих чатов, одном и том же документе — это и есть
+    // основной расход места.
+    //
+    // Теперь имя выводится из содержимого: у одинаковых файлов оно совпадает.
+    // Если такой файл уже лежит, только что записанный удаляется, а ссылка
+    // отдаётся на существующий. Формат имени прежний (см. isSafeUrl в
+    // lib/sanitizeAttachments.js), поэтому старые ссылки продолжают работать.
+    //
+    // Файл не удаляется, пока на него ссылается хоть одно сообщение, — а раз
+    // содержимое одинаковое, любая из ссылок ведёт к тому же самому.
+    const hash = digest.digest("hex").slice(0, 16);
+    const dedupName = `sha_${hash}${safeExtension(name)}`;
+    const dedupTarget = path.join(UPLOAD_DIR, dedupName);
+    let filenameFinal = dedupName;
+    try {
+      if (fs.existsSync(dedupTarget)) {
+        // Такой файл уже есть — свежую копию выбрасываем.
+        await fs.promises.unlink(target).catch(() => {});
+      } else {
+        await fs.promises.rename(target, dedupTarget);
+      }
+    } catch {
+      // Переименование не удалось (права, гонка) — оставляем как записали:
+      // потерять файл из-за неудавшейся экономии места нельзя.
+      filenameFinal = filename;
+    }
+
     res.json({
       // Relative on purpose: the app is same-origin, and a stored absolute URL
       // would break the moment the deployment's hostname or scheme changed.
-      url: `/uploads/${filename}`,
+      url: `/uploads/${filenameFinal}`,
       name,
       size: written,
       mimeType: String(req.query.mimeType ?? "").slice(0, 120) || undefined,

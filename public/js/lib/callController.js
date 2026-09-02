@@ -535,7 +535,15 @@ export async function hangup() {
   state.phase = "ended";
   stopRingtone();
   notify();
-  await api.patchCall(call.id, { status: "completed", durationSec: elapsed }).catch(() => {});
+  // Разговор состоялся или нет — разные записи в журнале.
+  //
+  // Раньше отсюда всегда уходило «completed», даже когда трубку сбросили на
+  // первом гудке. В журнале это выглядело как состоявшийся звонок нулевой
+  // длины, и отличить «не дозвонился» от «поговорили» было нельзя.
+  const answered = state.phase === "connected";
+  await api
+    .patchCall(call.id, { status: answered ? "completed" : "missed", durationSec: answered ? elapsed : 0 })
+    .catch(() => {});
   const chatId = call.chatId;
   cleanupSubscriptions();
   state.peers.forEach((pc) => pc.close());
