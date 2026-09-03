@@ -11621,3 +11621,14 @@
 .stars-transfer-candidate:hover {
   filter: brightness(1.1);
 }
+
+/* Плашка о платной переписке над полем ввода. */
+.composer-paid-hint {
+  margin: 0 0 6px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-dim, var(--text));
+  font-size: 12.5px;
+  line-height: 1.35;
+}

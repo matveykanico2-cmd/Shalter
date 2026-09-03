@@ -8,6 +8,7 @@ const { PERMISSIONS, permissionsOf, sanitizePermissions } = require("../lib/chat
 const { deleteMessagesForChat } = require("../data/messages");
 const { getSettings, updateSettings, mutedStateFor, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft } = require("../data/settings");
 const { allowsUser } = require("../lib/privacyRules");
+const { messageCost } = require("../lib/messagePrice");
 const { attachSummaries } = require("../data/chat-summary");
 const { listUsers, listUsersByIds, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
@@ -216,7 +217,18 @@ router.get(
     const bot = botMember ? await getBotByUserId(botMember.id) : null;
     const commands = bot?.commands?.length ? bot.commands : null;
 
-    res.json({ chat: summary, members, commands });
+    // Во что обойдётся сообщение в этой переписке — чтобы поле ввода могло
+    // сказать цену заранее, а не отказом после отправки (lib/messagePrice.js).
+    let paidMessages = null;
+    if (chat.type === "dm") {
+      const other = users.find((u) => u.id !== req.uid);
+      if (other && !other.isBot) {
+        const { price, mustPay } = await messageCost(req.uid, other, chat.id);
+        if (price > 0) paidMessages = { stars: price, youPay: mustPay };
+      }
+    }
+
+    res.json({ chat: summary, members, commands, paidMessages });
   })
 );
 

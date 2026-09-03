@@ -78,6 +78,8 @@ export async function ChatView(root, chatId) {
   let loadingHistory = false;
   let firstUnreadId = null;
   let botCommands = null;
+  // Плата за сообщение в этой переписке — приходит вместе с чатом.
+  let paidMessages = null;
   let searchQuery = "";
   let searchResults = null;
   // Открывали этот чат раньше — показываем сразу, не дожидаясь сервера.
@@ -105,6 +107,7 @@ export async function ChatView(root, chatId) {
     chat = chatRes.chat;
     members = chatRes.members;
     botCommands = chatRes.commands ?? null;
+    paidMessages = chatRes.paidMessages ?? null;
     messages = first.messages;
     hasMoreHistory = !!first.hasMore;
     // Only from this first load: every later refetch reports null, because by
@@ -1493,6 +1496,7 @@ export async function ChatView(root, chatId) {
         editingMessage,
         initialDraft: draftText,
         botCommands,
+        paidMessages,
         members: members.filter((u) => u.id !== me.id),
         onCancelReply: () => {
           replyingTo = null;
@@ -1602,6 +1606,8 @@ export async function ChatView(root, chatId) {
         chat = res.chat;
         members = res.members;
         botCommands = res.commands ?? null;
+        paidMessages = res.paidMessages ?? null;
+        renderComposer();
       })
       .catch(() => {});
     scheduleRefresh(0);

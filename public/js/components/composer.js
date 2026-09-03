@@ -1,4 +1,4 @@
-import { el, clear } from "../lib/dom.js";
+import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { startRecording, isRecordingSupported, createLevelMeter, MAX_RECORD_SEC } from "../lib/recorder.js";
@@ -46,6 +46,10 @@ export function Composer({
   // returns it with the chat). Absent everywhere else, and the "/" button then
   // isn't rendered at all.
   botCommands = null,
+  // Плата за сообщение в этой переписке: { stars, youPay } с сервера
+  // (server/lib/messagePrice.js). Цена известна до отправки, поэтому и сказать
+  // о ней надо до отправки — раньше человек узнавал о плате только из отказа.
+  paidMessages = null,
   members,
   onCancelReply,
   onCancelEdit,
@@ -106,7 +110,7 @@ export function Composer({
     const textarea = el("textarea", {
       class: "composer-textarea",
       rows: 1,
-      placeholder: "Сообщение",
+      placeholder: paidMessages?.youPay ? `Сообщение · ${paidMessages.stars} ⭐` : "Сообщение",
       value: editingMessage?.text ?? initialDraft ?? "",
     });
 
@@ -814,7 +818,12 @@ export function Composer({
     // мессенджерах.
     const field = el("div", { class: "composer-field" }, [attachSlot, commandSlot, textarea, hugoSlotBtn, stickerSlot, scheduleSlot, emojiSlot].filter(Boolean));
     const row = el("div", { class: "composer-row" }, [mentionMenu, field, trailingSlot].filter(Boolean));
-    bodySlot.append(uploadSlot, hugoSlot, row);
+    // Плашка о платной переписке — над полем ввода, там же, где ответ и
+    // изменение: это условие отправки, а не свойство собеседника.
+    const paidHint = paidMessages?.youPay
+      ? el("p", { class: "composer-paid-hint" }, `⭐ Этот пользователь принимает сообщения за ${paidMessages.stars} ⭐ — спишется за каждое отправленное`)
+      : null;
+    appendAll(bodySlot, paidHint, uploadSlot, hugoSlot, row);
     updateTrailingButtons();
 
     queueMicrotask(() => {

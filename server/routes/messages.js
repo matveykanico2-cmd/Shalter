@@ -11,6 +11,7 @@ const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { getSettings, isQuietNow } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
 const { allowsUser } = require("../lib/privacyRules");
+const { messageCost } = require("../lib/messagePrice");
 const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled } = require("../data/scheduledMessages");
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
@@ -360,9 +361,10 @@ router.post(
     }
 
     let charged = 0;
+    let other = undefined;
     if (chat.type === "dm") {
       const otherId = chat.memberIds.find((m) => m !== req.uid);
-      const other = otherId ? await getUser(otherId) : undefined;
+      other = otherId ? await getUser(otherId) : undefined;
       if (other?.blockedUserIds?.includes(req.uid)) {
         return res.status(403).json({ error: "Пользователь заблокировал вас" });
       }
@@ -421,33 +423,19 @@ router.post(
       // Платные личные сообщения: человек может брать звёзды с незнакомых.
       // Плата за каждое сообщение, а не разовая, — именно это делает холодную
       // рассылку дорогой, и так же устроены платные сообщения в Telegram.
-      //
-      // Четыре способа писать бесплатно, и все означают «это уже не холодное
-      // письмо»:
-      //   1) вы у получателя в контактах — он сам вас добавил;
-      //   2) он вам хоть раз ответил — дальше переписка бесплатна в обе стороны;
-      //   3) у вас Premium — подписка и покупается в том числе ради этого;
-      //   4) вы пишете сами себе (заметки).
-      const price = other?.messagePriceStars ?? 0;
-      if (price > 0) {
-        const theirContacts = await listContactsFor(other.id);
-        const isContact = theirContacts.some((c) => c.userId === req.uid);
-        const everReplied = (await listMessages(chat.id, other.id)).some((m) => m.senderId === other.id);
-        // Premium проверяем у отправителя и по сроку, а не по флагу из запроса:
-        // isPremium вычисляется из premiumUntil в data/users.js.
-        const me = await getUser(req.uid);
-        const senderHasPremium = !!me?.isPremium;
-        if (!isContact && !everReplied && !senderHasPremium) {
-          if (!transferStars(req.uid, other.id, price)) {
-            return res.status(402).json({
-              error: `Этот пользователь берёт ${price} ⭐ за сообщение от незнакомых. Не хватает звёзд. С Premium писать можно бесплатно`,
-              needStars: price,
-              balance: balanceOf(req.uid),
-              premiumHelps: true,
-            });
-          }
-          charged = price;
+      // Кто платит, а кто нет — считает lib/messagePrice.js: то же правило
+      // показывается в поле ввода до отправки.
+      const { price, mustPay } = await messageCost(req.uid, other, chat.id);
+      if (mustPay) {
+        if (!transferStars(req.uid, other.id, price)) {
+          return res.status(402).json({
+            error: `Этот пользователь берёт ${price} ⭐ за сообщение от незнакомых. Не хватает звёзд. С Premium писать можно бесплатно`,
+            needStars: price,
+            balance: balanceOf(req.uid),
+            premiumHelps: true,
+          });
         }
+        charged = price;
       }
     }
 
