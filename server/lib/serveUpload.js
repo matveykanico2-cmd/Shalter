@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { createDecryptStream, readHeader, HEADER_LEN } = require("./fileCrypto");
 
 // Serves an uploaded file (data/uploads — see routes/uploads.js).
 //
@@ -52,6 +53,22 @@ function serveUpload(uploadDir) {
     }
     if (!stat.isFile()) return res.status(404).end();
 
+    // Файл на диске зашифрован (lib/fileCrypto.js). Наружу отдаётся исходное
+    // содержимое, поэтому все размеры считаются без служебного заголовка, а
+    // поток пропускается через расшифровщик.
+    //
+    // Файлы, записанные до появления шифрования, метки не имеют и отдаются как
+    // есть — перешифровывать уже лежащее не требуется.
+    const dataDir = path.join(process.cwd(), "data");
+    const header = readHeader(filePath);
+    const contentSize = header ? stat.size - HEADER_LEN : stat.size;
+    const openAt = (start, end) => {
+      const from = header ? HEADER_LEN + start : start;
+      const to = header ? HEADER_LEN + end : end;
+      const raw = fs.createReadStream(filePath, { start: from, end: to });
+      return header ? raw.pipe(createDecryptStream(dataDir, header.iv, start)) : raw;
+    };
+
     const ext = path.extname(filename);
     const type = MIME[ext];
 
@@ -77,28 +94,28 @@ function serveUpload(uploadDir) {
         let end;
         if (hasStart) {
           start = Number(match[1]);
-          end = hasEnd ? Number(match[2]) : stat.size - 1;
+          end = hasEnd ? Number(match[2]) : contentSize - 1;
         } else if (hasEnd) {
           // "bytes=-500" means the *last* 500 bytes.
-          start = Math.max(0, stat.size - Number(match[2]));
-          end = stat.size - 1;
+          start = Math.max(0, contentSize - Number(match[2]));
+          end = contentSize - 1;
         }
-        if (start !== undefined && start < stat.size && end >= start) {
-          end = Math.min(end, stat.size - 1);
+        if (start !== undefined && start < contentSize && end >= start) {
+          end = Math.min(end, contentSize - 1);
           res.status(206);
-          res.setHeader("Content-Range", `bytes ${start}-${end}/${stat.size}`);
+          res.setHeader("Content-Range", `bytes ${start}-${end}/${contentSize}`);
           res.setHeader("Content-Length", end - start + 1);
           if (req.method === "HEAD") return res.end();
-          return fs.createReadStream(filePath, { start, end }).pipe(res);
+          return openAt(start, end).pipe(res);
         }
-        res.status(416).setHeader("Content-Range", `bytes */${stat.size}`);
+        res.status(416).setHeader("Content-Range", `bytes */${contentSize}`);
         return res.end();
       }
     }
 
-    res.setHeader("Content-Length", stat.size);
+    res.setHeader("Content-Length", contentSize);
     if (req.method === "HEAD") return res.end();
-    fs.createReadStream(filePath).pipe(res);
+    openAt(0, contentSize - 1).pipe(res);
   };
 }
 

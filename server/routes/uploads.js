@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const express = require("express");
+const { createEncryptStream } = require("../lib/fileCrypto");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { UPLOADABLE_KINDS, limitFor, tooLargeError, UPLOAD_LIMITS, DEFAULT_LIMIT } = require("../lib/uploadLimits");
@@ -59,6 +60,10 @@ router.post(
     let written = 0;
     let aborted = false;
     const out = fs.createWriteStream(target);
+    // Файл ложится на диск зашифрованным (см. lib/fileCrypto.js). Отпечаток для
+    // дедупликации считается по исходному содержимому, до шифрования, — иначе
+    // два одинаковых файла давали бы разные имена: у каждого свой вектор.
+    const cipher = createEncryptStream(path.join(process.cwd(), "data"), out);
     // Отпечаток содержимого считается на лету, пока файл пишется, — второй раз
     // читать его с диска ради этого не нужно.
     const digest = crypto.createHash("sha256");
@@ -90,8 +95,10 @@ router.post(
         });
         req.on("error", reject);
         out.on("error", reject);
+        cipher.on("error", reject);
         out.on("finish", resolve);
-        req.pipe(out);
+        cipher.pipe(out);
+        req.pipe(cipher);
       });
     } catch (err) {
       await discard();
