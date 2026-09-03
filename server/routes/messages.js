@@ -17,6 +17,7 @@ const { dispatchHugo } = require("../lib/hugoBot");
 const { can, DENIED, isStaff } = require("../lib/chatPermissions");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser, MESSAGE_PUSH } = require("../push");
+const { registerAttachments } = require("../lib/uploadAccess");
 const { fetchLinkPreview } = require("../lib/linkPreview");
 const { deleteUploadedFiles } = require("../lib/serveUpload");
 const { UPLOAD_DIR } = require("./uploads");
@@ -227,6 +228,11 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
     readByIds: [senderId],
     paidStars,
   });
+
+  // Кто вправе скачать приложенные файлы: те, кто в этом чате. Записывается
+  // здесь, на доставке, — в момент, когда вложение впервые появляется в
+  // переписке (см. lib/uploadAccess.js).
+  registerAttachments(chat.id, message.attachments);
 
   if (message.threadRootId) {
     // A thread reply never shows in the main timeline (listMessages()

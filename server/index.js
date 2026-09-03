@@ -23,6 +23,7 @@ const expressStaticGzip = require("express-static-gzip");
 const { errorHandler } = require("./middleware/errors");
 const { apiLimiter, authLimiter } = require("./middleware/rateLimit");
 const { attachWebSocketServer } = require("./ws");
+const { getCurrentUserId } = require("./middleware/auth");
 const { initPush } = require("./push");
 const { ensureSystemBot } = require("./data/systemBot");
 const { ensureHugoAccount } = require("./data/hugoBot");
@@ -238,8 +239,36 @@ app.use(express.static(PUBLIC_DIR, { index: false, maxAge: useBuilt ? "1h" : 0 }
 // otherwise answer /uploads/... with index.html.
 const { UPLOAD_DIR } = require("./routes/uploads");
 const { serveUpload } = require("./lib/serveUpload");
-app.get("/uploads/:filename", serveUpload(UPLOAD_DIR));
-app.head("/uploads/:filename", serveUpload(UPLOAD_DIR));
+// Вложения отдаются только тому, кто вошёл в приложение.
+//
+// Раньше этой проверки не было вовсе: файл по адресу /uploads/<имя> забирал
+// кто угодно из интернета — достаточно было знать ссылку. А ссылка живёт
+// дольше, чем кажется: она попадает в историю браузера, в журналы прокси, в
+// пересылку «посмотри, что мне прислали». Фотография из личной переписки
+// оказывалась доступна человеку, который в мессенджере и не зарегистрирован.
+//
+// Само имя файла остаётся секретом — оно выводится из содержимого и угадать
+// его нельзя, — но секрет в адресе не может быть единственной защитой.
+//
+// Ограничение честное: вошедший пользователь, знающий ссылку, файл получит,
+// даже если он не в том чате. Чтобы закрыть и это, нужно на каждый файл искать
+// сообщение, к которому он приложен, и проверять членство — заметно дороже, и
+// это отдельная работа. Нынешняя проверка отсекает главное: посторонних,
+// которых в системе нет вообще.
+const { canAccessUpload } = require("./lib/uploadAccess");
+const requireUserForUploads = (req, res, next) => {
+  const uid = getCurrentUserId(req);
+  if (!uid) return res.status(401).json({ error: "unauthorized" });
+  // Мало быть вошедшим: файл из чужой переписки не отдаётся и своему. Право
+  // проверяется по связи «файл — чат» (lib/uploadAccess.js).
+  //
+  // 404, а не 403: отвечать «доступ запрещён» значит подтверждать, что такой
+  // файл существует. Для чужой переписки это лишнее знание.
+  if (!canAccessUpload(uid, req.params.filename)) return res.status(404).json({ error: "not found" });
+  next();
+};
+app.get("/uploads/:filename", requireUserForUploads, serveUpload(UPLOAD_DIR));
+app.head("/uploads/:filename", requireUserForUploads, serveUpload(UPLOAD_DIR));
 
 // The download page is a standalone static page, not an SPA route — without
 // this, /download fell through to the catch-all below and served the app shell

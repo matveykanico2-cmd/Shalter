@@ -1171,4 +1171,41 @@ CREATE TABLE IF NOT EXISTS listing_favorites (
 CREATE INDEX IF NOT EXISTS idx_listing_favorites_user ON listing_favorites(userId, createdAt);
 `);
 
+// Кто вправе скачать вложение.
+//
+// Файл лежит по адресу /uploads/<имя>, и до сих пор единственной защитой была
+// неугадываемость этого имени. Для личной переписки этого мало: ссылку
+// пересылают, она остаётся в истории браузера и в журналах — и любой вошедший
+// в приложение человек по ней файл получал, даже не состоя в том чате.
+//
+// Здесь связь «файл — чат». Проверка при отдаче простая: состоит ли
+// спрашивающий хотя бы в одном чате, где это вложение появлялось. Один и тот
+// же файл может быть в нескольких чатах (пересылка, а после дедупликации ещё и
+// одинаковые файлы разных людей), поэтому связь именно многие-ко-многим.
+//
+// Чего здесь нет: аватаров, фотографий объявлений, обложек магазинов и историй.
+// Они видны всем и записывать их незачем — отдаются любому вошедшему.
+db.exec(`
+CREATE TABLE IF NOT EXISTS upload_access (
+  filename TEXT NOT NULL,
+  chatId TEXT NOT NULL,
+  PRIMARY KEY (filename, chatId)
+);
+CREATE INDEX IF NOT EXISTS idx_upload_access_file ON upload_access(filename);
+`);
+
+// Разовое заполнение по уже отправленным сообщениям: без него все прежние
+// вложения остались бы «ничьими» и отдавались бы любому вошедшему.
+if (!db.prepare("SELECT count(*) c FROM upload_access").get().c) {
+  const insert = db.prepare("INSERT OR IGNORE INTO upload_access (filename, chatId) VALUES (?, ?)");
+  const fill = db.transaction(() => {
+    for (const row of db.prepare("SELECT chatId, attachments FROM messages WHERE attachments LIKE '%/uploads/%'").all()) {
+      for (const m of String(row.attachments).matchAll(/\/uploads\/([a-z0-9]+_[a-f0-9]{16}(?:\.[a-z0-9]{1,12})?)/g)) {
+        insert.run(m[1], row.chatId);
+      }
+    }
+  });
+  fill();
+}
+
 module.exports = db;

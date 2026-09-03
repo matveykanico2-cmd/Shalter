@@ -211,9 +211,13 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
             { class: "live-speakers" },
             speakers.map((p) => {
               const stream = p.userId === s.me.id ? s.localStream : s.remoteStreams[p.userId];
-              return el("div", { class: `live-speaker ${p.mutedByHost ? "muted" : ""}` }, [
+              // Есть картинка — плитка становится настоящим видео-окном, а не
+              // строчкой с именем: в совместном эфире собеседников должно быть
+              // видно, а не подписано.
+              const hasVideo = !!stream?.getVideoTracks?.().some((t) => t.readyState === "live" && t.enabled);
+              return el("div", { class: `live-speaker ${hasVideo ? "with-video" : ""} ${p.mutedByHost ? "muted" : ""}` }, [
                 stream ? videoFor(`sp_${p.userId}`, stream, { muted: p.userId === s.me.id }) : null,
-                Avatar({ name: p.user.name, color: p.user.avatarColor, image: p.user.avatarImage, size: 34 }),
+                hasVideo ? null : Avatar({ name: p.user.name, color: p.user.avatarColor, image: p.user.avatarImage, size: 34 }),
                 el("span", { class: "live-speaker-name" }, p.user.name),
                 p.mutedByHost ? el("span", { class: "live-speaker-mute", html: iconSvg("BellOff", 12) }) : null,
               ]);
@@ -229,7 +233,9 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
             el("span", {}, mine?.mutedByHost ? "Заглушены" : s.micOn ? "Микрофон" : "Включить"),
           ])
         : null,
-      isHost && !viaObs && s.stream.withVideo
+      // Кнопка камеры — у всех, кто вещает: ведущий и получившие слово. Для
+      // совместного эфира это и есть главное: включить себя в кадр.
+      canSpeak && !viaObs && s.stream.withVideo
         ? el("button", { class: `live-ctl ${s.camOn ? "on" : "off"}`, onclick: toggleCam, title: "Камера" }, [
             el("span", { html: iconSvg("Video", 18) }),
             el("span", {}, s.camOn ? "Камера" : "Включить"),

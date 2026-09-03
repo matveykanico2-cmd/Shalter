@@ -184,7 +184,14 @@ async function handleSignal(msg) {
 // который пришёл посмотреть.
 async function acquireMedia() {
   if (isRtmp()) return null;
-  const wantVideo = state.myRole === "host" && state.stream.withVideo;
+  // Камера — и ведущему, и тем, кому дали слово: эфир может быть совместным,
+  // с несколькими людьми в кадре. Раньше видео брал только ведущий, а
+  // получивший слово оставался голосом за кадром — даже когда речь шла о
+  // разговоре вдвоём или втроём.
+  //
+  // Зрителя это не касается: у него камеру не спрашивают вовсе, пока ему не
+  // дали слово.
+  const wantVideo = publishes(state.myRole) && state.stream.withVideo;
   const wantAudio = publishes(state.myRole);
   if (!wantAudio && !wantVideo) return null;
   try {
@@ -330,6 +337,13 @@ async function applyState(data) {
   for (const id of [...state.peers.keys()]) if (!present.has(id)) dropPeer(id);
 
   if (state.myRole !== prevRole) {
+    // Слово только что дали — камеру не включаем сама собой.
+    //
+    // Человек согласился говорить, а не показываться: включённая без спроса
+    // камера в чужом эфире — это то, за что извиняются потом. Кнопка «Камера»
+    // рядом, и решение остаётся за ним. Ведущего это не касается: он эфир и
+    // начал, у него камера с самого начала.
+    if (prevRole === "viewer" && state.myRole === "speaker") state.camOn = false;
     await refreshPublishing();
     return;
   }
