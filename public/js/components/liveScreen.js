@@ -1,4 +1,4 @@
-import { el, mount, clear } from "../lib/dom.js";
+import { el, mount, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { Avatar } from "./avatar.js";
@@ -68,6 +68,38 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
   // экран пересобирается на каждое сообщение в чат, а ползунок, пересозданный
   // во время перетаскивания, бросает его на полпути.
   const volumeControl = VolumeControl();
+
+  // Развернуть эфир на весь экран — двойным нажатием по картинке, как в
+  // звонке. И на телефоне, и на компьютере.
+  function toggleFullscreen(node) {
+    const target = node?.closest(".live-overlay, .live-main") ?? node;
+    if (!target) return;
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    else target.requestFullscreen?.().catch(() => {});
+  }
+
+  // Плитку участника можно отодвинуть пальцем — она же накрывает картинку
+  // ведущего, и под ней может оказаться то, что нужно разглядеть.
+  function startTileDrag(e) {
+    const node = e.currentTarget;
+    const rect = node.getBoundingClientRect();
+    const dx = e.clientX - rect.left;
+    const dy = e.clientY - rect.top;
+    node.setPointerCapture?.(e.pointerId);
+    const move = (ev) => {
+      node.style.position = "fixed";
+      node.style.left = `${Math.min(Math.max(4, ev.clientX - dx), window.innerWidth - rect.width - 4)}px`;
+      node.style.top = `${Math.min(Math.max(4, ev.clientY - dy), window.innerHeight - rect.height - 4)}px`;
+      node.style.right = "auto";
+      node.style.bottom = "auto";
+    };
+    const up = () => {
+      node.removeEventListener("pointermove", move);
+      node.removeEventListener("pointerup", up);
+    };
+    node.addEventListener("pointermove", move);
+    node.addEventListener("pointerup", up);
+  }
   // Эфир из OBS: своё <video>, переживающее перерисовки (иначе поток
   // переподключался бы на каждое сообщение в чате), и статус подключения.
   let flvNode = null;
@@ -133,7 +165,7 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
       // Без состояния экран не знает, эфир кончился или войти не вышло, —
       // поэтому текст берётся из ошибки, если она есть. Иначе «Эфир завершён»
       // говорилось и про живой эфир, в который просто не пустили.
-      body.append(
+      appendAll(body, 
         el("div", { class: "live-message" }, [
           el("p", {}, error || "Эфир завершён"),
           el("button", { class: "btn-accent", onclick: close }, "Закрыть"),
@@ -142,7 +174,7 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
       return;
     }
     if (s.stream.status === "ended") {
-      body.append(el("div", { class: "live-message" }, [el("p", {}, "Эфир завершён"), el("button", { class: "btn-accent", onclick: close }, "Закрыть")]));
+      appendAll(body, el("div", { class: "live-message" }, [el("p", {}, "Эфир завершён"), el("button", { class: "btn-accent", onclick: close }, "Закрыть")]));
       return;
     }
 
@@ -178,7 +210,7 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
           ])
         : flvVideo(s.flvUrl);
 
-    const stage = el("div", { class: "live-stage" }, [
+    const stage = el("div", { class: "live-stage", ondblclick: (e) => { e.preventDefault(); toggleFullscreen(e.currentTarget); } }, [
       viaObs
         ? obsStage
         : // Картинка ведущего показывается, если эфир вообще с видео — или если в
@@ -215,7 +247,12 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
               // строчкой с именем: в совместном эфире собеседников должно быть
               // видно, а не подписано.
               const hasVideo = !!stream?.getVideoTracks?.().some((t) => t.readyState === "live" && t.enabled);
-              return el("div", { class: `live-speaker ${hasVideo ? "with-video" : ""} ${p.mutedByHost ? "muted" : ""}` }, [
+              return el("div", {
+                class: `live-speaker ${hasVideo ? "with-video" : ""} ${p.mutedByHost ? "muted" : ""}`,
+                onpointerdown: hasVideo ? startTileDrag : undefined,
+                ondblclick: (e) => { e.preventDefault(); toggleFullscreen(e.currentTarget); },
+                title: hasVideo ? "Перетащите, чтобы отодвинуть · двойное нажатие — на весь экран" : undefined,
+              }, [
                 stream ? videoFor(`sp_${p.userId}`, stream, { muted: p.userId === s.me.id }) : null,
                 hasVideo ? null : Avatar({ name: p.user.name, color: p.user.avatarColor, image: p.user.avatarImage, size: 34 }),
                 el("span", { class: "live-speaker-name" }, p.user.name),
@@ -342,7 +379,7 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
           ])
         : null;
 
-    body.append(
+    appendAll(body, 
       el("div", { class: "live-main" }, [
         stage,
         obsPanel,

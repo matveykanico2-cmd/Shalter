@@ -1,4 +1,4 @@
-import { el, mount, clear } from "../lib/dom.js";
+import { el, mount, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
 import { openDropdownMenu } from "../components/dropdownMenu.js";
@@ -972,7 +972,8 @@ export async function ChatView(root, chatId) {
       return "";
     })();
 
-    header.append(
+    appendAll(
+      header,
       ...[
         el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
         el(

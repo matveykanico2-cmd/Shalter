@@ -1,4 +1,4 @@
-import { el, clear } from "../lib/dom.js";
+import { el, clear, appendAll } from "../lib/dom.js";
 import { api } from "../api.js";
 import { Avatar } from "./avatar.js";
 import { getState } from "../state.js";
@@ -32,7 +32,7 @@ export function openListingDialog({ listingId, onContact, onFavorite, onChanged 
   function render() {
     clear(body);
     if (error) {
-      body.append(el("p", { class: "login-error" }, error), el("button", { class: "modal-cancel", onclick: close }, "Закрыть"));
+      appendAll(body, el("p", { class: "login-error" }, error), el("button", { class: "modal-cancel", onclick: close }, "Закрыть"));
       return;
     }
     if (!listing) {
@@ -43,7 +43,7 @@ export function openListingDialog({ listingId, onContact, onFavorite, onChanged 
     const mine = listing.sellerId === me?.id;
     const photos = listing.photos ?? [];
 
-    body.append(
+    appendAll(body, 
       photos.length
         ? el("div", { class: "listing-view-gallery" }, [
             el("img", { class: "listing-view-photo", src: photos[photoIndex], alt: "" }),

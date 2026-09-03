@@ -1,4 +1,4 @@
-import { el, clear } from "../lib/dom.js";
+import { el, clear, appendAll } from "../lib/dom.js";
 import { api } from "../api.js";
 import { uploadFile } from "../lib/upload.js";
 import { fileToImageUpload } from "../lib/image.js";
@@ -114,7 +114,7 @@ export function openListingEditor({ listing = null, categories = [], onSaved } =
       },
     });
 
-    body.append(
+    appendAll(body, 
       field("Что продаёте", el("input", { class: "login-input", maxlength: 80, value: form.title, oninput: (e) => (form.title = e.target.value) })),
       field(
         "Описание",

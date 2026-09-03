@@ -1,4 +1,4 @@
-import { el, clear } from "../lib/dom.js";
+import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { getState } from "../state.js";
@@ -171,7 +171,7 @@ export function ListingsBoard() {
 
   function render() {
     clear(wrap);
-    wrap.append(
+    appendAll(wrap, 
       el("div", { class: "listing-scopes" }, [
         ...[
           { id: "all", label: "Все объявления" },

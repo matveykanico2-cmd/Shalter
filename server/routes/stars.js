@@ -5,7 +5,7 @@ const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { getUser, findUserByPhone } = require("../data/users");
 const { getChat } = require("../data/chats");
 const { getMessage, deleteMessage, setBoost } = require("../data/messages");
-const { balanceOf, addStars, spendStars, setMessagePrice } = require("../data/stars");
+const { balanceOf, addStars, spendStars, setMessagePrice, transferStars } = require("../data/stars");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { broadcastToUsers } = require("../ws");
 const { publicUser } = require("../data/sanitize");
@@ -45,6 +45,7 @@ router.get(
     const me = await getUser(req.uid);
     res.json({
       balance: balanceOf(req.uid),
+      userId: req.uid,
       messagePriceStars: me?.messagePriceStars ?? 0,
       packs: STAR_PACKS,
       costs: { boost: BOOST_COST, boostMinutes: BOOST_MINUTES, delete: DELETE_COST, maxMessagePrice: MAX_MESSAGE_PRICE },
@@ -174,6 +175,47 @@ router.post(
     await deleteMessage(message.id);
     broadcastToUsers(chat.memberIds, { type: "message:deleted", chatId: chat.id, id: message.id });
     res.json({ ok: true, balance: balanceOf(req.uid) });
+  })
+);
+
+// Перевод звёзд другому человеку.
+//
+// Отдельно от покупки и от платных сообщений: там звёзды списываются за
+// действие, здесь просто передаются из рук в руки — как подарок или как
+// расчёт за что-то, о чём договорились в переписке.
+//
+// Списание и зачисление идут одной транзакцией (data/stars.js), поэтому
+// «списалось, но не дошло» невозможно даже при сбое посередине.
+router.post(
+  "/transfer",
+  asyncRoute(async (req, res) => {
+    const toId = String(req.body?.userId ?? "");
+    const amount = Math.floor(Number(req.body?.amount));
+
+    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: "Укажите сумму больше нуля" });
+    if (amount > 1_000_000) return res.status(400).json({ error: "Слишком большая сумма за один перевод" });
+    if (!toId || toId === req.uid) return res.status(400).json({ error: "Себе переводить незачем" });
+
+    const target = await getUser(toId);
+    if (!target) return res.status(404).json({ error: "Получатель не найден" });
+    if (target.isBot) return res.status(400).json({ error: "Боту звёзды не переведёшь" });
+
+    if (!transferStars(req.uid, toId, amount)) {
+      return res.status(402).json({ error: `Не хватает звёзд: на балансе ${balanceOf(req.uid)} ⭐`, balance: balanceOf(req.uid) });
+    }
+
+    // Получателю — сообщение в личный чат, иначе перевод остаётся незамеченным:
+    // баланс молча вырос, а кто и за что прислал — неизвестно.
+    const me = await getUser(req.uid);
+    const note = String(req.body?.note ?? "").trim().slice(0, 200);
+    try {
+      const chat = await findOrCreateDm(req.uid, toId);
+      await sendMessageAndBroadcast(chat, req.uid, `⭐ Перевод: ${amount} ⭐${note ? `\n${note}` : ""}`);
+    } catch {
+      // Сообщение — вежливость, а не часть перевода: звёзды уже переданы.
+    }
+
+    res.json({ ok: true, amount, balance: balanceOf(req.uid), to: publicUser(target), from: me?.name ?? "" });
   })
 );
 

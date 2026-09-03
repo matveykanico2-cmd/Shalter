@@ -55,6 +55,18 @@ export async function CallScreenView(root, callId) {
   // Ставится сразу после перетаскивания своего окна — чтобы отпускание пальца
   // не сработало ещё и как нажатие.
   let justDragged = false;
+  // Развернуть на весь экран — двойным нажатием по картинке. Работает и на
+  // телефоне, и на компьютере: браузеры принимают dblclick и там, и там.
+  //
+  // Разворачивается вся область звонка, а не один элемент: иначе кнопки
+  // управления и своё окно остались бы за кадром.
+  function toggleFullscreen(node) {
+    const target = node?.closest(".call-screen") ?? node;
+    if (!target) return;
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    else target.requestFullscreen?.().catch(() => {});
+  }
+
   const toggleSwap = () => {
     if (justDragged) return;
     swapped = !swapped;
@@ -71,10 +83,19 @@ export async function CallScreenView(root, callId) {
   // Положение запоминается: человек один раз отодвинул — и оно там же в
   // следующем звонке.
   const PIP_POS_KEY = "shalter.callPipPos";
+  // Позиция окна держится здесь, а не только в стилях узла.
+  //
+  // render() пересобирает дерево раз в секунду — по таймеру длительности
+  // разговора. Пока окно тащили, положение жило в style у старого узла, и
+  // очередная перерисовка создавала новый — без него. Окно прыгало на место по
+  // умолчанию, а если его успели утащить далеко, выглядело это как «пропало».
+  let pipPos = null;
   function readPipPos() {
+    if (pipPos) return pipPos;
     try {
       const raw = JSON.parse(localStorage.getItem(PIP_POS_KEY) || "null");
-      return raw && Number.isFinite(raw.x) && Number.isFinite(raw.y) ? raw : null;
+      pipPos = raw && Number.isFinite(raw.x) && Number.isFinite(raw.y) ? raw : null;
+      return pipPos;
     } catch {
       return null;
     }
@@ -91,6 +112,8 @@ export async function CallScreenView(root, callId) {
   function applyPipPos(node) {
     const pos = readPipPos();
     if (!pos) return; // не трогали — остаётся место по умолчанию из стилей
+    // Окно браузера могли уменьшить с прошлого раза — тогда сохранённая точка
+    // окажется за краем, и окно станет невидимым. clampPip возвращает его.
     const { x, y } = clampPip(node, pos.x, pos.y);
     node.style.left = `${x}px`;
     node.style.top = `${y}px`;
@@ -107,6 +130,9 @@ export async function CallScreenView(root, callId) {
     const move = (ev) => {
       moved = true;
       const { x, y } = clampPip(node, ev.clientX - dx, ev.clientY - dy);
+      // Запоминаем сразу, а не только когда отпустят: перерисовка может
+      // случиться посреди перетаскивания, и новый узел должен встать туда же.
+      pipPos = { x, y };
       node.style.left = `${x}px`;
       node.style.top = `${y}px`;
       node.style.right = "auto";
@@ -122,7 +148,7 @@ export async function CallScreenView(root, callId) {
       justDragged = true;
       setTimeout(() => (justDragged = false), 250);
       try {
-        localStorage.setItem(PIP_POS_KEY, JSON.stringify({ x: parseFloat(node.style.left), y: parseFloat(node.style.top) }));
+        localStorage.setItem(PIP_POS_KEY, JSON.stringify(pipPos ?? { x: parseFloat(node.style.left), y: parseFloat(node.style.top) }));
       } catch {
         // Хранилище недоступно — окно всё равно останется где поставили, до конца звонка.
       }
@@ -220,6 +246,10 @@ export async function CallScreenView(root, callId) {
               : null,
           ].filter(Boolean));
           tile.style.cursor = "pointer";
+          tile.addEventListener("dblclick", (e) => {
+            e.preventDefault();
+            toggleFullscreen(tile);
+          });
           tile.title = swapped ? "Вернуть как было" : "Показать себя крупно";
           tile.addEventListener("click", (e) => {
             // Не перехватываем нажатия на кнопки внутри плитки (например,
@@ -237,7 +267,13 @@ export async function CallScreenView(root, callId) {
 
     const localPip =
       s.call.kind === "video"
-        ? el("div", { class: "call-local-pip", onpointerdown: startPipDrag, onclick: toggleSwap, title: swapped ? "Вернуть как было" : "Показать себя крупно" }, [
+        ? el("div", {
+            class: "call-local-pip",
+            onpointerdown: startPipDrag,
+            onclick: toggleSwap,
+            ondblclick: (e) => { e.preventDefault(); toggleFullscreen(e.currentTarget); },
+            title: swapped ? "Вернуть как было" : "Показать себя крупно · двойное нажатие — на весь экран",
+          }, [
             s.cameraOn
               ? (() => {
                   if (!localVideoEl) {
@@ -298,7 +334,16 @@ export async function CallScreenView(root, callId) {
               linkStatus === "copying" ? "Создаём ссылку…" : linkStatus === "copied" ? "Ссылка скопирована ✓" : linkStatus
             )
           : null,
-        el("div", { class: "call-tiles-grid", style: { gridTemplateColumns: `repeat(${Math.min(s.others.length, 2) || 1}, minmax(0,1fr))` } }, tiles),
+        el(
+          "div",
+          {
+            // Один собеседник — картинка на всю площадь, а не окошко в
+            // четыреста точек посреди пустого экрана. Несколько — обычная сетка.
+            class: `call-tiles-grid ${s.others.length === 1 ? "solo" : ""}`,
+            style: { gridTemplateColumns: `repeat(${Math.min(s.others.length, 2) || 1}, minmax(0,1fr))` },
+          },
+          tiles
+        ),
         localPip,
         el("div", { class: "call-controls" }, [
           el("button", {

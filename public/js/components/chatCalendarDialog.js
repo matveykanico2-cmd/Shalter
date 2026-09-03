@@ -1,4 +1,4 @@
-import { el, clear } from "../lib/dom.js";
+import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 
@@ -109,7 +109,7 @@ export function openChatCalendarDialog({ chatId, around, onPick }) {
       );
     }
 
-    body.append(
+    appendAll(body, 
       el("div", { class: "calendar-head" }, [
         el("button", { class: "calendar-nav", type: "button", html: iconSvg("ChevronLeft", 18), onclick: () => shiftMonth(-1) }),
         el("span", { class: "calendar-month" }, `${MONTHS[shown.getMonth()]} ${shown.getFullYear()}`),

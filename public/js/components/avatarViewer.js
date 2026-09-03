@@ -1,4 +1,4 @@
-import { el, clear } from "../lib/dom.js";
+import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { getState, setState, updateSelf } from "../state.js";
@@ -43,7 +43,7 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
     },
   });
 
-  overlay.append(
+  appendAll(overlay, 
     el("div", { class: "avatar-viewer" }, [
       el("div", { class: "avatar-viewer-head" }, [
         el("span", { class: "avatar-viewer-name" }, user.name ?? ""),
@@ -183,7 +183,7 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
         : el("img", { class: "avatar-viewer-media", src: current.url, alt: user.name ?? "" })
     );
     if (avatars.length > 1) {
-      stage.append(
+      appendAll(stage, 
         el("button", { class: "avatar-viewer-nav prev", html: iconSvg("ChevronLeft", 26), onclick: () => go(-1) }),
         el("button", { class: "avatar-viewer-nav next", html: iconSvg("ChevronRight", 26), onclick: () => go(1) })
       );
@@ -197,7 +197,7 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
       return;
     }
     if (!canEdit) return;
-    bar.append(
+    appendAll(bar, 
       ...[
         el("button", { class: "btn-accent", onclick: () => fileInput.click() }, "Добавить фото или видео"),
         avatars.length > 1 && index !== 0
@@ -223,7 +223,7 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
     renderStage();
     clear(dots);
     if (avatars.length > 1) {
-      dots.append(
+      appendAll(dots, 
         ...avatars.map((_, i) =>
           el("button", {
             class: `avatar-viewer-dot ${i === index ? "active" : ""}`,

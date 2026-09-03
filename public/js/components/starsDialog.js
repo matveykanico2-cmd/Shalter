@@ -1,4 +1,4 @@
-import { el, clear } from "../lib/dom.js";
+import { el, clear, appendAll } from "../lib/dom.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
 
@@ -12,6 +12,9 @@ export function openStarsDialog(onChanged) {
   let error = null;
   let notice = null;
   let busy = false;
+  // Кому переводим: выбранный человек и найденные кандидаты.
+  let transferTo = null;
+  let found = [];
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const bodyEl = el("div", { class: "stars-body" });
@@ -79,15 +82,105 @@ export function openStarsDialog(onChanged) {
     render();
   }
 
+  // Поля перевода живут вне render() по той же причине, что и priceInput:
+  // перерисовка на каждой букве уводила бы фокус из строки поиска.
+  const toInput = el("input", { class: "settings-input", type: "text", placeholder: "Имя или @ник" });
+  const amountInput = el("input", { class: "settings-input mono", type: "number", min: "1", step: "1", placeholder: "Сколько ⭐" });
+
+  let searchTimer = null;
+  toInput.oninput = () => {
+    // Выбор сбрасывается, как только строку правят: иначе можно было бы
+    // выбрать одного, дописать другое имя и перевести не тому.
+    transferTo = null;
+    const q = toInput.value.trim();
+    clearTimeout(searchTimer);
+    if (q.length < 2) {
+      found = [];
+      renderFound();
+      return;
+    }
+    searchTimer = setTimeout(async () => {
+      try {
+        const res = await api.search(q);
+        found = (res.users || []).filter((u) => u.id !== data?.userId).slice(0, 4);
+      } catch {
+        found = [];
+      }
+      renderFound();
+    }, 250);
+  };
+
+  const foundEl = el("div", { class: "stars-transfer-found" });
+
+  function renderFound() {
+    clear(foundEl);
+    if (transferTo) {
+      appendAll(foundEl, el("p", { class: "settings-toggle-hint" }, `Получатель: ${transferTo.name}`));
+      return;
+    }
+    appendAll(
+      foundEl,
+      ...found.map((u) =>
+        el(
+          "button",
+          {
+            class: "stars-transfer-candidate",
+            onclick: () => {
+              transferTo = u;
+              toInput.value = u.name;
+              found = [];
+              renderFound();
+            },
+          },
+          u.username ? `${u.name} · @${u.username}` : u.name
+        )
+      )
+    );
+  }
+
+  async function sendTransfer() {
+    if (busy) return;
+    error = null;
+    notice = null;
+    const amount = Math.floor(Number(amountInput.value));
+    if (!transferTo) {
+      error = "Выберите получателя из списка";
+      render();
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      error = "Укажите сумму больше нуля";
+      render();
+      return;
+    }
+    busy = true;
+    render();
+    try {
+      const res = await api.transferStars(transferTo.id, amount);
+      notice = `Отправлено ${res.amount} ⭐ — ${transferTo.name}`;
+      data.balance = res.balance;
+      transferTo = null;
+      toInput.value = "";
+      amountInput.value = "";
+      onChanged?.();
+    } catch (err) {
+      error = err.message || "Не удалось перевести";
+    } finally {
+      busy = false;
+      render();
+      renderFound();
+    }
+  }
+
   function render() {
     clear(bodyEl);
     if (!data) {
-      bodyEl.append(el("p", { class: "settings-toggle-hint" }, error || "Загружаем…"));
+      appendAll(bodyEl, el("p", { class: "settings-toggle-hint" }, error || "Загружаем…"));
       return;
     }
     priceInput.value = String(data.messagePriceStars ?? 0);
 
-    bodyEl.append(
+    appendAll(bodyEl, 
       ...[
         el("p", { class: "stars-balance" }, [el("span", { class: "stars-balance-value" }, `${data.balance} ⭐`), el("span", {}, "на балансе")]),
         notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,
@@ -105,6 +198,15 @@ export function openStarsDialog(onChanged) {
           )
         ),
         el("p", { class: "settings-toggle-hint" }, "Оплата переводом администрации — заявка создастся автоматически, звёзды придут после подтверждения."),
+
+        el("p", { class: "settings-section-title" }, "Перевести"),
+        el("p", { class: "settings-toggle-hint" }, "Звёзды уйдут с вашего баланса, получателю придёт сообщение о переводе."),
+        toInput,
+        foundEl,
+        el("div", { class: "stars-price-row" }, [
+          amountInput,
+          el("button", { class: "btn-accent-pill", disabled: busy, onclick: sendTransfer }, "Отправить"),
+        ]),
 
         el("p", { class: "settings-section-title" }, "На что тратятся"),
         el("ul", { class: "stars-costs" }, [

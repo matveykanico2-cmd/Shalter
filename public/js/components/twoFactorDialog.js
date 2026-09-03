@@ -1,4 +1,4 @@
-import { el, clear } from "../lib/dom.js";
+import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import qrcode from "../lib/qrcode.js";
@@ -141,7 +141,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
     clear(bodyEl);
 
     if (step === "method") {
-      bodyEl.append(
+      appendAll(bodyEl, 
         el("p", { class: "settings-toggle-hint" }, "Выберите, как подтверждать вход. Второй фактор можно будет сменить, отключив и включив защиту заново."),
         el("button", { class: "twofa-method-btn", onclick: () => start("chat") }, [
           el("span", { class: "twofa-method-title" }, "💬 Код в чате Shalter"),
@@ -181,7 +181,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
           el("span", { class: "settings-toggle-hint" }, label),
           el("input", { class: "login-input", value, ...opts, oninput: (e) => onInput(e.target.value) }),
         ]);
-      bodyEl.append(
+      appendAll(bodyEl, 
         el(
           "p",
           { class: "settings-toggle-hint" },
@@ -201,12 +201,12 @@ export function openTwoFactorSetupDialog(onEnabled) {
     }
 
     if (step === "loading") {
-      bodyEl.append(el("div", { class: "qr-login-spinner" }));
+      appendAll(bodyEl, el("div", { class: "qr-login-spinner" }));
       return;
     }
 
     if (step === "error") {
-      bodyEl.append(
+      appendAll(bodyEl, 
         el("p", { class: "login-error" }, error),
         el("button", { class: "modal-cancel", onclick: close }, "Закрыть")
       );
@@ -214,7 +214,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
     }
 
     if (step === "scan") {
-      // filter(Boolean) before append(): native Element.append() turns a null
+      // filter(Boolean) before append(): native appendAll(Element, ) turns a null
       // argument into a literal "null" text node, so the two conditional lines
       // below printed the word "null" above and under the code field. It made
       // the step look broken, which is exactly how it was reported.
@@ -267,7 +267,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
                 resending ? "Отправляем…" : "Отправить код ещё раз"
               ),
             ];
-      bodyEl.append(
+      appendAll(bodyEl, 
         ...[
         ...totpSteps,
         codeInput,
@@ -292,7 +292,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
     }
 
     // step === "recovery"
-    bodyEl.append(
+    appendAll(bodyEl, 
       el("p", { class: "twofa-enabled-note" }, "✅ Двухфакторная аутентификация включена"),
       el(
         "p",

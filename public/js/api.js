@@ -433,6 +433,9 @@ export const api = {
   getStars: () => req("/api/stars"),
   requestStars: (packId) => req("/api/stars/request", { method: "POST", body: JSON.stringify({ packId }) }),
   grantStars: (userId, stars) => req("/api/stars/grant", { method: "POST", body: JSON.stringify({ userId, stars }) }),
+  // Перевод звёзд другому человеку (server/routes/stars.js).
+  transferStars: (userId, amount, note) =>
+    req("/api/stars/transfer", { method: "POST", body: JSON.stringify({ userId, amount, note }) }),
   setMessagePrice: (stars) => req("/api/stars/price", { method: "POST", body: JSON.stringify({ stars }) }),
   boostMessage: (messageId) => req(`/api/stars/boost/${messageId}`, { method: "POST" }),
   paidDeleteMessage: (messageId) => req(`/api/stars/delete/${messageId}`, { method: "POST" }),

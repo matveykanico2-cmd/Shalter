@@ -31,6 +31,16 @@ function append(node, child) {
   node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
 }
 
+// Вставка нескольких детей с той же защитой, что и внутри el().
+//
+// Нативный node.append() превращает null в текстовый узел со словом «null» —
+// именно так оно и появлялось на экранах: везде, где элемент рисуется по
+// условию («есть ошибка — покажи строку, нет — ничего»), в разметку попадало
+// слово null. Здесь пустые значения отбрасываются, как и везде в этом модуле.
+export function appendAll(node, ...children) {
+  for (const child of children) append(node, child);
+}
+
 export function clear(node) {
   while (node.firstChild) node.removeChild(node.firstChild);
 }

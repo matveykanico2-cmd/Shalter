@@ -1,4 +1,4 @@
-import { el, clear } from "../lib/dom.js";
+import { el, clear, appendAll } from "../lib/dom.js";
 import { api } from "../api.js";
 import { Avatar } from "./avatar.js";
 
@@ -56,14 +56,14 @@ export function openPinnedChannelsDialog({ pinned = [], onSaved } = {}) {
   function render() {
     clear(body);
     if (!channels.length) {
-      body.append(
+      appendAll(body, 
         el("p", { class: "settings-toggle-hint" }, "Здесь появятся ваши публичные каналы — те, где вы владелец или администратор."),
         el("p", { class: "settings-toggle-hint" }, "У закрытого канала сначала нужно включить публичную ссылку: посторонний всё равно не сможет по нему перейти."),
         el("div", { class: "pinned-dialog-actions" }, [el("button", { class: "btn-secondary", onclick: close }, "Закрыть")])
       );
       return;
     }
-    body.append(
+    appendAll(body, 
       el(
         "div",
         { class: "pinned-list" },
