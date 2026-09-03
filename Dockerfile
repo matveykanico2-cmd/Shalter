@@ -1,11 +1,10 @@
 # Multi-stage build.
 #
-# Stage 1 builds the client bundle with esbuild (a devDependency). esbuild
-# ships prebuilt native binaries linked against glibc — Alpine's musl libc
-# doesn't run them without extra compat packages, so the build stage uses a
-# Debian-slim base specifically to sidestep that. This stage's output is
-# thrown away except for server/, public/ (now containing public/dist), and
-# data/ — none of that carries the Debian toolchain into the final image.
+# Первый этап собирает клиент через esbuild (он в devDependencies). Основа —
+# Debian: esbuild привозит готовые двоичные файлы под glibc, и на Alpine они
+# без пакетов совместимости не запускаются. От этого этапа дальше едут только
+# server/ и public/ (уже с public/dist) — инструментарий сборки в итоговый
+# образ не попадает.
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 # This stage's only job is `npm run build` (scripts/build.js), which just
@@ -14,8 +13,8 @@ WORKDIR /app
 # thing copied out of this stage below. A plain `npm ci` still installs and
 # runs lifecycle scripts for *everything* in package.json regardless, which
 # on this project means node-gyp compiling better-sqlite3 from source (dead
-# weight — stage 2 recompiles its own copy from scratch against musl anyway,
-# see its comment below) *and* Electron's postinstall downloading and
+# weight — собирать его не нужно нигде: в пакете лежат готовые двоичные файлы,
+# см. комментарий ко второму этапу) *and* Electron's postinstall downloading and
 # unzipping its multi-hundred-MB runtime binary (electron/electron-builder
 # are devDependencies too, for the desktop-shell packaging flow, unrelated to
 # this build). That combination — a large g++ compile plus a large postinstall
@@ -35,50 +34,40 @@ RUN npm ci --ignore-scripts --no-audit --no-fund --maxsockets 3 \
 COPY . .
 RUN npm run build
 
-# Stage 2 is what actually ships: small Alpine base, production dependencies
-# only, plus the already-built output from stage 1. better-sqlite3's native
-# binary is glibc-linked when compiled in the (Debian-based) build stage, so
-# it can't just be copied into this musl-based image — it's recompiled here
-# against musl instead, then the build toolchain is removed to keep the
-# image small.
+# Второй этап — то, что уезжает на сервер: только рабочие зависимости плюс
+# уже собранный клиент из первого этапа. Основа снова Alpine, она вдвое легче
+# Debian.
+#
+# Здесь же исправление, из-за которого сборка падала.
+#
+# Раньше в этом этапе стояло `npm ci --omit=dev` без --ignore-scripts. У
+# better-sqlite3 есть binding.gyp, и npm в таком случае сам запускает
+# `node-gyp rebuild` — то есть собирает пакет из исходников, хотя собирать
+# нечего: в самом пакете лежат готовые двоичные файлы под все нужные системы,
+# включая musl (prebuilds/linuxmusl-x64.node), и загрузчик берёт их оттуда.
+#
+# Стоило это дорого. Ради компиляции ставились python3, make и g++ — только
+# эта установка занимала тринадцать минут. Сама сборка упиралась в память на
+# амальгамации SQLite. А node-gyp вдобавок лез в сеть за заголовками Node — и
+# ровно там всё и развалилось: соединение оборвалось посреди распаковки
+# архива (ECONNRESET).
+#
+# --ignore-scripts убирает всю эту ветку целиком. Из рабочих зависимостей
+# ничего другого в install-скриптах не нуждается: нативный пакет здесь один.
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apk add --no-cache --virtual .build-deps python3 make g++
 COPY package*.json ./
-# Deliberately placed here, before the heavy npm ci below, rather than after
-# it (where it's only actually needed) — BuildKit runs independent stages'
-# steps concurrently by default, and both stages run their own heavy npm ci
-# (stage 1's install, this stage's better-sqlite3 compile). Two of those at
-# once can outrun the build host's memory even though either alone fits;
-# a COPY --from=build this early makes this stage's remaining steps
-# (including the npm ci right below) wait on stage 1 finishing first, so
-# only one heavy install runs at a time.
+# Копирование из первого этапа стоит до установки намеренно: BuildKit
+# выполняет независимые этапы параллельно, и два тяжёлых npm ci разом
+# способны выесть память сборочной машины, хотя каждый по отдельности
+# помещается. Эта строка заставляет дождаться окончания первого этапа.
 COPY --from=build /app/server ./server
 COPY --from=build /app/public ./public
-# This is the one native compile the app actually needs at runtime (better-
-# sqlite3, against musl) — unlike the build stage above, it can't just be
-# skipped. It's also the likelier of the two npm-ci steps to OOM: g++
-# compiling SQLite's amalgamated source (a single very large .c file bundled
-# inside better-sqlite3) is a genuinely memory-hungry compile, independent of
-# how many jobs run in parallel. -Os trades a little runtime performance for
-# a meaningfully smaller peak compiler memory footprint than the default -O2;
-# npm_config_jobs=1 has less to do here (there's only the one native package)
-# but costs nothing to keep for consistency with the build stage.
-ENV CFLAGS="-Os"
-ENV CXXFLAGS="-Os"
-ENV npm_config_jobs=1
-# node-gyp needs Node's own header tarball to compile a native addon against
-# — on musl (this Alpine image) it defaults to fetching that from
-# unofficial-builds.nodejs.org instead of the regular dist site, and that
-# host isn't always reachable from a build sandbox's network policy (seen as
-# an ETIMEDOUT here). Pointing --dist-url at the official, virtually-always-
-# reachable nodejs.org/dist sidesteps that; the extra fetch-retries/timeout
-# just add resilience against an ordinary transient blip on top of that.
-ENV npm_config_disturl=https://nodejs.org/dist
+# Повторные попытки — на случай обычного сетевого сбоя при скачивании пакетов.
 ENV npm_config_fetch_retries=5
 ENV npm_config_fetch_retry_maxtimeout=30000
-RUN npm ci --omit=dev --no-audit --no-fund --maxsockets 3 && apk del .build-deps
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund --maxsockets 3
 # /app/data isn't in the repo or the build stage — it's a runtime mount point
 # (see DEPLOY.md: mount a persistent volume here for data/app.db). Just make
 # sure the directory exists so better-sqlite3 has somewhere to create the
