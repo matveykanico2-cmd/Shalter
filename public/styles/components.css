@@ -1900,13 +1900,43 @@
    message (see views/chatView.js's dayLabel/renderList). A translucent pill
    over the wallpaper reads clearly in both themes without needing separate
    light/dark colors, same idea as Telegram's own date dividers. */
+/* Разделители дат — обычные строки в потоке.
+   Липкими были все сразу, и при прокрутке они прилипали к верху вместе,
+   наезжая друг на друга. Роль «текущей даты» теперь у одной плавающей метки
+   ниже (.chat-floating-date). */
 .date-divider {
   display: flex;
   justify-content: center;
   margin: 12px 0;
-  position: sticky;
+}
+/* Одна дата поверх переписки: показывает, что сейчас на экране, и гаснет,
+   когда прокрутка остановилась, чтобы не закрывать сообщения. */
+.chat-floating-date {
+  position: absolute;
   top: 8px;
-  z-index: 1;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.chat-floating-date.visible {
+  opacity: 1;
+}
+.chat-floating-date span {
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 4px 12px;
+  font-size: 12.5px;
+  color: #fff;
+  backdrop-filter: blur(6px);
+}
+/* Колонка переписки становится точкой отсчёта для метки выше. */
+.chat-main-col {
+  position: relative;
 }
 .date-divider span {
   background: color-mix(in srgb, var(--color-surface) 75%, transparent);
@@ -11487,9 +11517,12 @@
   50% { opacity: 0; }
 }
 
-/* Картинка, от которой на сервере остался только эскиз: он мельче оригинала,
-   поэтому слегка размывается при растягивании — это честнее, чем показывать
-   пиксели, и понятнее, чем серый квадрат. */
+/* Пока показан эскиз — лёгкое размытие: так растянутая мелкая картинка
+   выглядит как «ещё грузится», а не как «прислали мыло». Когда придёт полная,
+   класс снимается и размытие уходит — переход мягкий, без рывка. */
 .image-attachment-thumb {
-  filter: blur(0.3px);
+  filter: blur(1.5px);
+}
+.image-attachment {
+  transition: filter 0.25s ease;
 }

@@ -800,6 +800,13 @@ export async function ChatView(root, chatId) {
   const header = el("header", { class: "chat-header" });
   const pinnedBar = el("div", { class: "pinned-bar-slot" });
   const list = el("div", { class: "message-list" });
+  // Одна плавающая дата над перепиской.
+  //
+  // Раньше липким был каждый разделитель сразу, и при прокрутке они
+  // прилипали к верху все вместе, наезжая друг на друга. Теперь разделители
+  // остаются обычными строками в потоке, а сверху висит одна метка, которая
+  // показывает дату того, что сейчас на экране, и меняется по мере прокрутки.
+  const floatingDate = el("div", { class: "chat-floating-date" }, el("span", {}, ""));
   applyWallpaper(list, chat.id);
   const composerSlot = el("div", { class: "composer-slot" });
   const bodyBottomSlot = el("div", { class: "body-bottom-slot" });
@@ -834,7 +841,7 @@ export async function ChatView(root, chatId) {
     scrollDownBadge.classList.toggle("shown", missedWhileUp > 0);
   }
 
-  const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, searchBar, liveBar, pinnedBar, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
+  const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, searchBar, liveBar, pinnedBar, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
   const infoSlot = el("div", { class: "info-panel-slot" });
   const wrap = el("div", { class: "chat-view" }, [mainCol, infoSlot]);
 
@@ -1182,9 +1189,35 @@ export async function ChatView(root, chatId) {
 
   // Reaching the top pulls in the previous page. 120px of slack so it starts
   // fetching just before the user actually hits the edge.
+  // Какой разделитель сейчас выше верхней границы списка — его дату и
+  // показываем. Считается на прокрутке, поэтому обходится дёшево: ищем среди
+  // разделителей, а их в загруженной странице десяток-другой.
+  let hideDateTimer = null;
+  function updateFloatingDate() {
+    const dividers = list.querySelectorAll(".date-divider");
+    if (!dividers.length) {
+      floatingDate.classList.remove("visible");
+      return;
+    }
+    const top = list.getBoundingClientRect().top;
+    let current = dividers[0];
+    for (const d of dividers) {
+      if (d.getBoundingClientRect().top - top <= 8) current = d;
+      else break;
+    }
+    const text = current.textContent.trim();
+    if (text && floatingDate.firstChild.textContent !== text) floatingDate.firstChild.textContent = text;
+    // Метка нужна во время движения, а не всегда: остановились — она уходит,
+    // чтобы не закрывать сообщения.
+    floatingDate.classList.add("visible");
+    clearTimeout(hideDateTimer);
+    hideDateTimer = setTimeout(() => floatingDate.classList.remove("visible"), 1200);
+  }
+
   list.addEventListener("scroll", () => {
     if (list.scrollTop < 120) loadOlder();
     updateScrollDown();
+    updateFloatingDate();
   });
 
   function renderList() {

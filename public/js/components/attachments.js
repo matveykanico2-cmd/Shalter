@@ -8,19 +8,27 @@ import { openInAppBrowser } from "./inAppBrowser.js";
 // have to import from a file that itself imports openProfileDialog, which
 // would make the two modules circularly dependent on each other.
 export function ImageAttachment(a) {
-  const img = el("img", { src: a.url, alt: a.name || "photo", class: "image-attachment" });
-  // Полной картинки может уже не быть на сервере: когда её получили все, она
-  // оттуда убирается (server/lib/orphanSweep.js), а живёт дальше на устройствах
-  // тех, кто её открывал. Если здесь её нет ни там, ни в кэше — показываем
-  // эскиз, который хранится всегда. Так старый чат не превращается в набор
-  // серых квадратов.
-  if (a.thumbUrl) {
-    img.addEventListener("error", () => {
-      if (img.src.endsWith(a.thumbUrl)) return; // эскиз тоже не открылся — больше нечего пробовать
-      img.src = a.thumbUrl;
-      img.classList.add("image-attachment-thumb");
-    });
-  }
+  // Картинка появляется в два шага: сначала эскиз, потом полная.
+  //
+  // Эскиз весит килобайты и рисуется мгновенно — переписка листается без
+  // серых дыр на месте фотографий. Полная подгружается следом и молча встаёт
+  // на её место, когда придёт. На быстрой связи это незаметно, на медленной —
+  // разница между «сразу видно что там» и «пусто, пока грузится».
+  //
+  // Если полной уже нет на сервере (её убрали как доставленную, см.
+  // server/lib/orphanSweep.js) и нет на этом устройстве — остаётся эскиз, и
+  // чат всё равно выглядит целым.
+  if (!a.thumbUrl) return el("img", { src: a.url, alt: a.name || "photo", class: "image-attachment" });
+
+  const img = el("img", { src: a.thumbUrl, alt: a.name || "photo", class: "image-attachment image-attachment-thumb" });
+  const full = new Image();
+  full.addEventListener("load", () => {
+    img.src = a.url;
+    img.classList.remove("image-attachment-thumb");
+  });
+  // Не загрузилась — молча остаёмся на эскизе, никаких сообщений об ошибке:
+  // человеку важна картинка, а не отчёт о том, где она хранится.
+  full.src = a.url;
   return img;
 }
 
