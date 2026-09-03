@@ -10,6 +10,7 @@ const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { getSettings, isQuietNow } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
+const { allowsUser } = require("../lib/privacyRules");
 const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled } = require("../data/scheduledMessages");
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
@@ -388,6 +389,34 @@ router.post(
       // Заявки это не ломает: их по-прежнему создаёт сервер сам, отдельным
       // путём (routes/premium.js и соседние шлют их через lib/systemChat.js),
       // а не этим маршрутом.
+
+      // Кто вообще может писать первым (Конфиденциальность → «Кто может мне
+      // писать»). Проверяется до платы: если человек закрыл личку, звёзды не
+      // должны служить отмычкой.
+      const writeAllowed = await allowsUser(other.id, "messages", req.uid);
+      if (!writeAllowed) {
+        const { privacy: theirPrivacy } = await getSettings(other.id);
+        const level = theirPrivacy?.messages ?? "everyone";
+        const deniedByName = (theirPrivacy?.exceptions?.messages?.deny ?? []).includes(req.uid);
+        // На уровне «Мои контакты» пробиваются Premium и переписка, которая уже
+        // была: если человек вам отвечал, он вас в личку и так пустил. Поимённый
+        // запрет сильнее и того, и другого.
+        let bypass = false;
+        if (level === "contacts" && !deniedByName) {
+          const sender = await getUser(req.uid);
+          bypass =
+            !!sender?.isPremium || (await listMessages(chat.id, other.id)).some((m) => m.senderId === other.id);
+        }
+        if (!bypass) {
+          return res.status(403).json({
+            error:
+              level === "nobody"
+                ? "Этот пользователь никому не разрешает писать первым"
+                : "Этот пользователь принимает сообщения только от своих контактов. С Premium писать можно",
+            privacyBlocked: true,
+          });
+        }
+      }
 
       // Платные личные сообщения: человек может брать звёзды с незнакомых.
       // Плата за каждое сообщение, а не разовая, — именно это делает холодную
