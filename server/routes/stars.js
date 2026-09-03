@@ -34,7 +34,7 @@ const DELETE_COST = 5;
 // The ceiling on what an account may charge strangers to write to it. Without
 // one, "paid DMs" becomes "nobody can ever reach me", which is what the block
 // list is for.
-const MAX_MESSAGE_PRICE = 500;
+const MAX_MESSAGE_PRICE = 90000;
 
 const router = express.Router();
 router.use(requireUserId);
