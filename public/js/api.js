@@ -408,6 +408,7 @@ export const api = {
   // Одна история — список кадров: выбрали в галерее пять файлов, получилась
   // одна история на пять кадров, а не пять историй.
   postStory: (items) => req("/api/stories", { method: "POST", body: JSON.stringify({ items }) }),
+  postChannelStory: (chatId, items) => req(`/api/stories/channel/${chatId}`, { method: "POST", body: JSON.stringify({ items }) }),
   viewStory: (id) => req(`/api/stories/${id}/view`, { method: "POST" }),
   deleteStory: (id) => req(`/api/stories/${id}`, { method: "DELETE" }),
 

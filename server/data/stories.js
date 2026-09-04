@@ -79,6 +79,10 @@ async function addStory(story) {
   return rowToStory(db.prepare("SELECT * FROM stories WHERE id = ?").get(story.id));
 }
 
+async function getStoryById(id) {
+  return rowToStory(db.prepare("SELECT * FROM stories WHERE id = ?").get(id));
+}
+
 async function markViewed(id, viewerId) {
   const row = db.prepare("SELECT viewedByIds FROM stories WHERE id = ?").get(id);
   if (!row) return undefined;
@@ -97,4 +101,4 @@ async function deleteStory(id, userId) {
   return result.changes > 0;
 }
 
-module.exports = { TTL_MS, listAllStories, listStoriesForUsers, listArchivedStoriesFor, addStory, markViewed, deleteStory };
+module.exports = { TTL_MS, listAllStories, listStoriesForUsers, listArchivedStoriesFor, addStory, getStoryById, markViewed, deleteStory };

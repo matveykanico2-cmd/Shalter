@@ -54,7 +54,10 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   }
   const currentFrame = () => frames()[si];
   const currentStory = () => currentFrame()?.story;
-  const isMine = () => currentStory()?.userId === meId || currentGroup()?.user?.id === meId;
+  // У истории канала userId — id канала, не автора клика: «своя» она для
+  // владельца/админа канала, а не для того, кто её выложил (сервер и решает,
+  // кто это, через canManage — server/routes/stories.js).
+  const isMine = () => currentStory()?.userId === meId || currentGroup()?.user?.id === meId || !!currentGroup()?.user?.canManage;
 
   function close() {
     clearTimeout(timer);

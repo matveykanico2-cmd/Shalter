@@ -1,7 +1,8 @@
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
-import { fileToImageDataUrl } from "../lib/image.js";
+import { fileToImageDataUrl, fileToImageUpload } from "../lib/image.js";
+import { uploadFile } from "../lib/upload.js";
 import { Toggle } from "./toggle.js";
 import { Avatar } from "./avatar.js";
 import { openChatPickerDialog } from "./chatPickerDialog.js";
@@ -58,6 +59,40 @@ export function openEditChatDialog(chat, onSaved) {
     }
     render();
   }
+
+  // Истории канала: тот же кадр-за-кадром поток, что и у личных историй
+  // (components/storiesBar.js), только адресован не себе, а каналу.
+  let storyProgress = null;
+  const storyInput = el("input", { type: "file", accept: "image/*,video/*", class: "hidden-input", multiple: true });
+  async function postChannelStory(files) {
+    const items = [];
+    for (const [i, file] of files.entries()) {
+      const isVideo = file.type.startsWith("video/");
+      storyProgress = `Загружаем ${i + 1} из ${files.length}…`;
+      render();
+      const upload = isVideo ? file : await fileToImageUpload(file, 1080);
+      const { url } = await uploadFile(upload, isVideo ? "video" : "image");
+      items.push({ kind: isVideo ? "video" : "image", url });
+    }
+    if (!items.length) return;
+    await api.postChannelStory(chat.id, items);
+    notice = "История опубликована";
+  }
+  storyInput.onchange = async (e) => {
+    const files = [...(e.target.files ?? [])];
+    e.target.value = "";
+    if (!files.length) return;
+    error = null;
+    notice = null;
+    try {
+      await postChannelStory(files);
+    } catch (err) {
+      error = err.message || "Не удалось выложить историю";
+    } finally {
+      storyProgress = null;
+      render();
+    }
+  };
 
   const titleInput = el("input", { class: "login-input", value: chat.title ?? "" });
   const descInput = el("textarea", { class: "settings-input", rows: 3, value: chat.description ?? "" });
@@ -386,6 +421,17 @@ export function openEditChatDialog(chat, onSaved) {
                   )
                 )
               ),
+            ])
+          : null,
+
+        // История канала — на 24 часа в ленте у всех подписчиков, тем же
+        // кружком, что и у людей (storiesBar.js её уже умеет рисовать).
+        isChannel
+          ? el("div", {}, [
+              el("p", { class: "settings-field-label" }, "История канала"),
+              el("p", { class: "settings-toggle-hint" }, "Появится в ленте историй у всех подписчиков на 24 часа."),
+              el("button", { class: "btn-accent-pill", disabled: busy || !!storyProgress, onclick: () => storyInput.click() }, storyProgress ?? "Добавить историю"),
+              storyInput,
             ])
           : null,
 
