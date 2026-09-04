@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findDmBetween, findChatByInviteCode, findChatByUsername } = require("../data/chats");
+const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findDmBetween, findChatByInviteCode, findChatByUsername, findChannelByDiscussionChatId } = require("../data/chats");
 const { checkUsername, normalizeUsername } = require("../lib/username");
 const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeatures");
 const { PERMISSIONS, permissionsOf, sanitizePermissions } = require("../lib/chatPermissions");
@@ -225,6 +225,16 @@ router.get(
       if (other && !other.isBot) {
         const { price, mustPay } = await messageCost(req.uid, other, chat.id);
         if (price > 0) paidMessages = { stars: price, youPay: mustPay };
+      }
+    } else if (chat.type === "group") {
+      // Группа обсуждения канала: та же цена, что и при отправке
+      // (server/routes/messages.js), — известна заранее, до отказа при отправке.
+      const channel = await findChannelByDiscussionChatId(chat.id);
+      const price = channel?.commentPriceStars ?? 0;
+      if (price > 0) {
+        const me = await getUser(req.uid);
+        const youPay = channel.ownerId !== req.uid && !isOwnerOrAdminOf(channel, req.uid) && !me?.isPremium;
+        paidMessages = { stars: price, youPay, kind: "comment" };
       }
     }
 
@@ -529,6 +539,22 @@ router.post(
     const updated = await updateChat(chat.id, { slowModeSeconds: seconds || null });
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     res.json({ chat: updated, slowModeSeconds: updated.slowModeSeconds ?? 0 });
+  })
+);
+
+// Плата звёздами за комментарий под постом канала — канал только, владелец/админ
+// задают цену. Списание при отправке — server/routes/messages.js.
+router.post(
+  "/:id/comment-price",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (chat.type !== "channel") return res.status(400).json({ error: "Платные комментарии есть только у каналов" });
+    if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
+    const stars = Math.max(0, Math.min(90000, Math.trunc(Number(req.body?.stars) || 0)));
+    const updated = await updateChat(chat.id, { commentPriceStars: stars });
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    res.json({ chat: updated, commentPriceStars: updated.commentPriceStars ?? 0 });
   })
 );
 

@@ -196,6 +196,7 @@ export const api = {
   // Muting for a period (Telegram's 1h/8h/2d/forever), and slow mode.
   muteChat: (id, opts) => req(`/api/chats/${id}/mute`, { method: "POST", body: JSON.stringify(opts) }),
   setSlowMode: (id, seconds) => req(`/api/chats/${id}/slow-mode`, { method: "POST", body: JSON.stringify({ seconds }) }),
+  setCommentPrice: (id, stars) => req(`/api/chats/${id}/comment-price`, { method: "POST", body: JSON.stringify({ stars }) }),
   // Join requests — the queue an invite link feeds when approval is on.
   listJoinRequests: (id) => req(`/api/chats/${id}/join-requests`),
   answerJoinRequest: (id, userId, approve) =>

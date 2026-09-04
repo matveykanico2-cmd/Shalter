@@ -29,6 +29,7 @@ function rowToChat(row) {
     muted: !!row.muted || (!!row.mutedUntil && row.mutedUntil > new Date().toISOString()),
     mutedUntil: row.mutedUntil ?? undefined,
     slowModeSeconds: row.slowModeSeconds ?? undefined,
+    commentPriceStars: row.commentPriceStars ?? 0,
     archived: !!row.archived,
     createdAt: row.createdAt,
     linkedDiscussionChatId: row.linkedDiscussionChatId ?? undefined,
@@ -109,6 +110,14 @@ async function findChatByUsername(username) {
   return rowToChat(db.prepare("SELECT * FROM chats WHERE lower(username) = ? AND username IS NOT NULL").get(normalized));
 }
 
+// Канал по его группе обсуждения. Индексированный запрос, а не
+// listChats().find(...) — этот путь идёт на каждую отправку сообщения в
+// группу (routes/messages.js), сканировать всю таблицу там дорого.
+async function findChannelByDiscussionChatId(discussionChatId) {
+  if (!discussionChatId) return undefined;
+  return rowToChat(db.prepare("SELECT * FROM chats WHERE linkedDiscussionChatId = ? AND type = 'channel'").get(discussionChatId));
+}
+
 // Public-channel directory (routes/channels.js, and the main search box) —
 // title/username substring match.
 //
@@ -185,7 +194,7 @@ async function createChat(chat) {
 const PATCHABLE_FIELDS = [
   "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage",
   "ownerId", "pinned", "muted", "archived", "createdAt", "linkedDiscussionChatId", "points",
-  "autoDeleteSeconds", "isVerified", "inviteCode", "mutedUntil", "slowModeSeconds",
+  "autoDeleteSeconds", "isVerified", "inviteCode", "mutedUntil", "slowModeSeconds", "commentPriceStars",
   "approveJoins", "signMessages",
 ];
 
@@ -243,4 +252,4 @@ async function deleteChat(id) {
 }
 
 module.exports = {
-  findChatByInviteCode, listChats, listChatsForUser, findDmBetween, getChat, updateChat, createChat, deleteChat, findChatByUsername, searchPublicChannels };
+  findChatByInviteCode, listChats, listChatsForUser, findDmBetween, getChat, updateChat, createChat, deleteChat, findChatByUsername, searchPublicChannels, findChannelByDiscussionChatId };

@@ -694,6 +694,11 @@ if (!existingChatVerifyCols2.has("mutedUntil")) db.exec("ALTER TABLE chats ADD C
 // only, staff exempt — the thing you reach for when a group gets loud.
 if (!existingChatVerifyCols2.has("slowModeSeconds")) db.exec("ALTER TABLE chats ADD COLUMN slowModeSeconds INTEGER");
 
+// Плата звёздами за комментарий под постом канала. Владелец/админ канала
+// задаёт цену (0 — бесплатно), платит каждый, кто не Premium и не входит в
+// администрацию канала; звёзды уходят владельцу канала (server/routes/messages.js).
+if (!existingChatVerifyCols2.has("commentPriceStars")) db.exec("ALTER TABLE chats ADD COLUMN commentPriceStars INTEGER NOT NULL DEFAULT 0");
+
 // What ordinary members of a group may do. Admins and owners are never bound by
 // it — the point of the list is to describe everyone else. Absent (NULL) means
 // "everything allowed", which is what every group did before this existed, so no

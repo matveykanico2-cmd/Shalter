@@ -110,7 +110,7 @@ export function Composer({
     const textarea = el("textarea", {
       class: "composer-textarea",
       rows: 1,
-      placeholder: paidMessages?.youPay ? `Сообщение · ${paidMessages.stars} ⭐` : "Сообщение",
+      placeholder: paidMessages?.youPay ? `${paidMessages.kind === "comment" ? "Комментарий" : "Сообщение"} · ${paidMessages.stars} ⭐` : "Сообщение",
       value: editingMessage?.text ?? initialDraft ?? "",
     });
 
@@ -821,7 +821,13 @@ export function Composer({
     // Плашка о платной переписке — над полем ввода, там же, где ответ и
     // изменение: это условие отправки, а не свойство собеседника.
     const paidHint = paidMessages?.youPay
-      ? el("p", { class: "composer-paid-hint" }, `⭐ Этот пользователь принимает сообщения за ${paidMessages.stars} ⭐ — спишется за каждое отправленное`)
+      ? el(
+          "p",
+          { class: "composer-paid-hint" },
+          paidMessages.kind === "comment"
+            ? `⭐ Комментарии в этом канале стоят ${paidMessages.stars} ⭐ — спишется за каждый`
+            : `⭐ Этот пользователь принимает сообщения за ${paidMessages.stars} ⭐ — спишется за каждое отправленное`
+        )
       : null;
     appendAll(bodySlot, paidHint, uploadSlot, hugoSlot, row);
     updateTrailingButtons();

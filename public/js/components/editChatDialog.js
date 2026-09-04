@@ -43,6 +43,22 @@ export function openEditChatDialog(chat, onSaved) {
     overlay.remove();
   }
 
+  // Плата звёздами за комментарий под постом канала — несохранённое значение
+  // же теряется при перерисовке render(), поэтому поле живёт здесь.
+  const commentPriceInput = el("input", { class: "settings-input mono", type: "number", min: "0", max: "90000", step: "1", value: String(chat.commentPriceStars ?? 0) });
+  async function saveCommentPrice() {
+    error = null;
+    notice = null;
+    try {
+      const res = await api.setCommentPrice(chat.id, Number(commentPriceInput.value));
+      chat = { ...chat, commentPriceStars: res.commentPriceStars };
+      notice = res.commentPriceStars > 0 ? `Комментарии стоят ${res.commentPriceStars} ⭐` : "Комментарии бесплатны";
+    } catch (err) {
+      error = err.message || "Не удалось сохранить";
+    }
+    render();
+  }
+
   const titleInput = el("input", { class: "login-input", value: chat.title ?? "" });
   const descInput = el("textarea", { class: "settings-input", rows: 3, value: chat.description ?? "" });
   const usernameInput = el("input", {
@@ -370,6 +386,19 @@ export function openEditChatDialog(chat, onSaved) {
                   )
                 )
               ),
+            ])
+          : null,
+
+        // Платные комментарии: цену задаёт владелец/админ канала, платит
+        // каждый, кто без Premium, звёзды идут владельцу.
+        isChannel
+          ? el("div", {}, [
+              el("p", { class: "settings-field-label" }, "Комментарии за звёзды"),
+              el("p", { class: "settings-toggle-hint" }, "Сколько звёзд платит читатель за каждый комментарий под постом. 0 — бесплатно. С Premium — всегда бесплатно."),
+              el("div", { class: "stars-price-row" }, [
+                commentPriceInput,
+                el("button", { class: "btn-accent-pill", disabled: busy, onclick: saveCommentPrice }, "Сохранить"),
+              ]),
             ])
           : null,
 

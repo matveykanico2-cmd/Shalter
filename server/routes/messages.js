@@ -1,6 +1,6 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
-const { getChat } = require("../data/chats");
+const { getChat, findChannelByDiscussionChatId } = require("../data/chats");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 const { sanitizeSticker } = require("../lib/sanitizeSticker");
 const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, markChatRead, setLinkPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
@@ -436,6 +436,27 @@ router.post(
           });
         }
         charged = price;
+      }
+    } else if (chat.type === "group") {
+      // Платные комментарии под постом канала: группа обсуждения привязана к
+      // каналу через linkedDiscussionChatId (routes/chats.js устанавливает эту
+      // связь при подключении обсуждения). Цену задаёт владелец/админ канала
+      // (comment-price маршрут там же), звёзды идут ему.
+      const channel = await findChannelByDiscussionChatId(chat.id);
+      const price = channel?.commentPriceStars ?? 0;
+      if (price > 0 && channel.ownerId !== req.uid && !isStaff(channel, req.uid)) {
+        const sender = await getUser(req.uid);
+        if (!sender?.isPremium) {
+          if (!transferStars(req.uid, channel.ownerId, price)) {
+            return res.status(402).json({
+              error: `Комментарии в этом канале стоят ${price} ⭐. Не хватает звёзд. С Premium — бесплатно`,
+              needStars: price,
+              balance: balanceOf(req.uid),
+              premiumHelps: true,
+            });
+          }
+          charged = price;
+        }
       }
     }
 
