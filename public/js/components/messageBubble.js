@@ -14,12 +14,11 @@ import { openStarsDialog } from "./starsDialog.js";
 
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
 
-// Settings → Данные и память → «Автозагрузка медиа», turned off. There's no
-// separate download step to actually defer in this app (an attachment's
-// data: URL already arrived as part of the message payload — see AGENTS.md),
-// so "off" means deferring the *render* instead: a tap-to-reveal placeholder
-// rather than decoding/painting a potentially large image or video the
-// moment the message list scrolls it into view.
+// Settings → Данные и память → «Автозагрузка медиа», turned off. Even with it
+// on, attachments.js never fetches full quality until the media viewer is
+// actually opened — this gate is one layer earlier: it holds back even the
+// thumbnail, for someone who'd rather not have images painting in at all
+// while they scroll a slow connection.
 function TapToLoad(kind, render) {
   const label = kind === "video" ? "Нажмите, чтобы посмотреть видео" : "Нажмите, чтобы посмотреть фото";
   let revealed = null;

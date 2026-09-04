@@ -1,6 +1,7 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { openInAppBrowser } from "./inAppBrowser.js";
+import { openMediaViewer } from "./mediaViewer.js";
 
 // Attachment/link-preview renderers shared between the chat's MessageBubble
 // and the profile dialog's Media/Files/Links tabs — kept in their own module
@@ -8,32 +9,33 @@ import { openInAppBrowser } from "./inAppBrowser.js";
 // have to import from a file that itself imports openProfileDialog, which
 // would make the two modules circularly dependent on each other.
 export function ImageAttachment(a) {
-  // Картинка появляется в два шага: сначала эскиз, потом полная.
-  //
-  // Эскиз весит килобайты и рисуется мгновенно — переписка листается без
-  // серых дыр на месте фотографий. Полная подгружается следом и молча встаёт
-  // на её место, когда придёт. На быстрой связи это незаметно, на медленной —
-  // разница между «сразу видно что там» и «пусто, пока грузится».
+  // В чате видна только миниатюра — килобайты, рисуется мгновенно, переписка
+  // листается без серых дыр на месте фотографий. Полное качество не
+  // подгружается само: оно запрашивается только при открытии просмотрщика
+  // (mediaViewer.js) по нажатию. Раньше полная картинка начинала качаться
+  // молча, стоило сообщению появиться на экране, — для каждой фотографии в
+  // истории чата, даже нераскрытой, и это и был расход трафика и места на
+  // устройстве, о котором просили не делать.
   //
   // Если полной уже нет на сервере (её убрали как доставленную, см.
-  // server/lib/orphanSweep.js) и нет на этом устройстве — остаётся эскиз, и
-  // чат всё равно выглядит целым.
-  if (!a.thumbUrl) return el("img", { src: a.url, alt: a.name || "photo", class: "image-attachment" });
-
-  const img = el("img", { src: a.thumbUrl, alt: a.name || "photo", class: "image-attachment image-attachment-thumb" });
-  const full = new Image();
-  full.addEventListener("load", () => {
-    img.src = a.url;
-    img.classList.remove("image-attachment-thumb");
-  });
-  // Не загрузилась — молча остаёмся на эскизе, никаких сообщений об ошибке:
-  // человеку важна картинка, а не отчёт о том, где она хранится.
-  full.src = a.url;
-  return img;
+  // server/lib/orphanSweep.js), просмотрщик покажет то, что успеет
+  // загрузиться, — а до открытия чат всё равно выглядит целым по эскизу.
+  const img = el("img", { src: a.thumbUrl || a.url, alt: a.name || "photo", class: "image-attachment" });
+  return el("button", { class: "image-attachment-btn", type: "button", onclick: () => openMediaViewer({ kind: "image", url: a.url, name: a.name }) }, [img]);
 }
 
 export function VideoAttachment(a) {
-  return el("video", { src: a.url, controls: true, class: "video-attachment" });
+  // Тот же принцип, что и у фото: ничего не качается, пока не нажали. Кадр
+  // видео — не миниатюра (её для видео не готовят, только для фото), поэтому
+  // тут просто чёрный экран с кнопкой воспроизведения до открытия.
+  return el(
+    "button",
+    { class: "video-attachment-btn", type: "button", onclick: () => openMediaViewer({ kind: "video", url: a.url, name: a.name }) },
+    [
+      a.thumbUrl ? el("img", { src: a.thumbUrl, alt: "", class: "video-attachment-poster" }) : el("div", { class: "video-attachment-poster" }),
+      el("span", { class: "video-attachment-play", html: iconSvg("Video", 28) }),
+    ]
+  );
 }
 
 export function FileAttachment(a) {
