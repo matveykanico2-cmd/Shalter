@@ -24,8 +24,9 @@ async function messageCost(senderId, other, chatId) {
   const sender = await getUser(senderId);
   if (sender?.isPremium) return { price, mustPay: false };
 
-  const everReplied = (await listMessages(chatId, other.id)).some((m) => m.senderId === other.id);
-  return { price, mustPay: !everReplied };
+  // Плата за каждое сообщение, без исключения для переписки: каждое письмо
+  // от незнакомца, даже если разговор уже идёт, имеет цену.
+  return { price, mustPay: true };
 }
 
 module.exports = { messageCost };
