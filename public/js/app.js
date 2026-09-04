@@ -23,6 +23,16 @@ import { paintWallpaper } from "./lib/wallpapers.js";
 
 const root = document.getElementById("view-root");
 
+// Заставка на запуск (index.html) — только на холодный старт: SPA-навигация
+// внутри приложения (router.js) никогда сюда не возвращается, потому что
+// весь этот код выполняется ровно один раз за загрузку страницы.
+function removeSplash() {
+  const splash = document.getElementById("boot-splash");
+  if (!splash) return;
+  splash.classList.add("boot-splash-hidden");
+  setTimeout(() => splash.remove(), 300);
+}
+
 function withCleanup(mainSlot) {
   if (mainSlot._cleanup) {
     mainSlot._cleanup();
@@ -41,6 +51,7 @@ async function boot() {
     const params = new URLSearchParams(window.location.search);
     const { LoginView } = await import("./views/login.js");
     LoginView(root, { addMode: params.get("add") === "1" });
+    removeSplash();
     return;
   }
 
@@ -51,6 +62,7 @@ async function boot() {
   if (path === "/qr-login") {
     const { QrLoginConfirmView } = await import("./views/qrLoginConfirm.js");
     await QrLoginConfirmView(root);
+    removeSplash();
     return;
   }
 
@@ -59,6 +71,10 @@ async function boot() {
     window.location.href = "/login";
     return;
   }
+  // Заставка снимается здесь, а не в конце boot(): дальше идут экраны кода
+  // доступа и пароля — они должны быть видны, чтобы в них можно было
+  // печатать, а не прятаться под заставкой до самого списка чатов.
+  removeSplash();
   // A local (this-device-only, see lib/passcodeLock.js) passcode lock, if
   // one's been set — blocks here, before anything from the actual app
   // renders, rather than showing the shell underneath and locking on top of
@@ -418,6 +434,7 @@ async function boot() {
 // crash in the app's own code.
 boot().catch((err) => {
   console.error(err);
+  removeSplash();
   // fetch() rejects with a TypeError and no status when the request never
   // reached a server at all — offline, wrong address, backend not running.
   const offline = !navigator.onLine || err instanceof TypeError;

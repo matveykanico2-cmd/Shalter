@@ -14,6 +14,32 @@
   <meta name="apple-mobile-web-app-title" content="Shalter" />
   <link rel="stylesheet" href="/styles/base.css" />
   <link rel="stylesheet" href="/styles/components.css" />
+  <!-- Заставка на запуск — своими стилями, не из components.css: тот файл
+       сейчас 250+ КБ, и ждать его ради экрана, который и существует только
+       чтобы прикрыть это ожидание, было бы бессмысленно. Живёт вне #view-root
+       и убирается из app.js, когда есть что показать взамен — экран входа,
+       код доступа или сам список чатов (см. removeSplash в app.js). -->
+  <style>
+    #boot-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: var(--color-bg, #f5f6f9);
+      transition: opacity 0.25s ease;
+    }
+    #boot-splash svg { width: 72px; height: 72px; }
+    #boot-splash span {
+      font: 500 13px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--color-muted, #8a8f98);
+      letter-spacing: 0.02em;
+    }
+    #boot-splash.boot-splash-hidden { opacity: 0; pointer-events: none; }
+  </style>
   <meta name="yandex-verification" content="5d613c81ddf70c98" />
   <meta name="google-site-verification" content="H5Gkar6C14mDnFw1EAZHJSq6fHveNpDeEzKUmDXUcDE" />
 <!-- Запросы стартуют здесь, а не в app.js.
@@ -51,6 +77,24 @@
 <!-- /Yandex.Metrika counter -->
 </head>
 <body>
+  <div id="boot-splash">
+    <svg viewBox="0 0 512 512" aria-hidden="true">
+      <circle cx="256" cy="256" r="256" fill="#3d6df0"/>
+      <path fill="#ffffff" d="M65 186L397 131L357 333L77 336Z"/>
+      <path fill="#a9c4fb" d="M397 131L250 235L357 333Z"/>
+      <path fill="#d3e0fd" d="M134 336L214 340L138 437Z"/>
+    </svg>
+    <span>by Matvey</span>
+  </div>
+  <script>
+    // Строго подстраховка: если app.js по какой-то причине не подхватит
+    // заставку сам (не догрузился, упал ещё до своего кода — см. app.js's
+    // removeSplash), она не должна закрывать экран вечно.
+    setTimeout(function () {
+      var s = document.getElementById("boot-splash");
+      if (s) s.remove();
+    }, 10000);
+  </script>
   <div id="view-root"></div>
   <script type="module" src="/js/app.js"></script>
 </body>
