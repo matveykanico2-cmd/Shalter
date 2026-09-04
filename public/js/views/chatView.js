@@ -1594,6 +1594,18 @@ export async function ChatView(root, chatId) {
     if (msg.chat?.id !== chat.id) return;
     chat = { ...chat, ...msg.chat };
     renderHeader();
+    // Цена за сообщение/комментарий (server/lib/messagePrice.js) не лежит на
+    // самом чате — её выше уже посчитал сервер, msg.chat её не несёт. Без
+    // этого запроса открытый композитор продолжал показывать старую цену (или
+    // её отсутствие) до перезахода в чат — ровно то, что владелец только что
+    // поменял в редакторе, оставалось невидимым у уже открытых собеседников.
+    api
+      .getChat(chat.id)
+      .then((res) => {
+        paidMessages = res.paidMessages ?? null;
+        renderComposer();
+      })
+      .catch(() => {});
   });
 
   // Показали сохранённое — теперь спрашиваем сервер и заменяем показанное

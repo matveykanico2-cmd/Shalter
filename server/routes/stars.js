@@ -3,7 +3,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { getUser, findUserByPhone } = require("../data/users");
-const { getChat } = require("../data/chats");
+const { getChat, listChatsForUser } = require("../data/chats");
 const { getMessage, deleteMessage, setBoost } = require("../data/messages");
 const { balanceOf, addStars, spendStars, setMessagePrice, transferStars } = require("../data/stars");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -117,6 +117,13 @@ router.post(
       return res.status(400).json({ error: `Цена — от 0 до ${MAX_MESSAGE_PRICE} звёзд` });
     }
     setMessagePrice(req.uid, price);
+    // Кто уже держит открытой переписку с вами, узнаёт новую цену сразу, а не
+    // при следующем заходе в чат: composer.js читает её из paidMessages, а это
+    // поле сервер кладёт только при открытии чата (lib/messagePrice.js) —
+    // без этого сообщения открытый у собеседника композитор молчал бы о
+    // цене до перезахода.
+    const dms = (await listChatsForUser(req.uid)).filter((c) => c.type === "dm");
+    for (const dm of dms) broadcastToUsers(dm.memberIds, { type: "chat:updated", chat: { id: dm.id } });
     res.json({ messagePriceStars: price });
   })
 );

@@ -554,6 +554,14 @@ router.post(
     const stars = Math.max(0, Math.min(90000, Math.trunc(Number(req.body?.stars) || 0)));
     const updated = await updateChat(chat.id, { commentPriceStars: stars });
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    // Композитор, который знает про цену, открыт не на канале, а на его группе
+    // обсуждения (id другой) — без этого второго сообщения тот, у кого сейчас
+    // открыты комментарии, увидел бы новую цену только перезайдя в чат
+    // (chatView.js сверяет msg.chat.id с id открытого чата, и там это id
+    // группы, а не канала).
+    if (updated.linkedDiscussionChatId) {
+      broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: { id: updated.linkedDiscussionChatId } });
+    }
     res.json({ chat: updated, commentPriceStars: updated.commentPriceStars ?? 0 });
   })
 );
