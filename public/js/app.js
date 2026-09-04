@@ -1,13 +1,13 @@
 import { el, mount, clear } from "./lib/dom.js";
 import { api } from "./api.js";
-import { setState, getState } from "./state.js";
+import { setState, getState, updateSelf } from "./state.js";
 import { route, notFound, startRouter, navigate } from "./router.js";
 import { NavRail } from "./components/navRail.js";
 import { ChatListPane } from "./views/chatList.js";
 import { mountIncomingCallWatcher, answerCall } from "./components/incomingCallWatcher.js";
 import { openMiniApp } from "./components/miniApp.js";
 import { loadSafetyLabels } from "./lib/safetyLabels.js";
-import { startWsClient } from "./lib/wsClient.js";
+import { startWsClient, onWsMessage } from "./lib/wsClient.js";
 import { ensurePushSubscribed } from "./lib/push.js";
 import { startVersionWatch } from "./lib/appVersion.js";
 import { subscribeCall, getCallState, minimize, restore } from "./lib/callController.js";
@@ -113,6 +113,13 @@ async function boot() {
   // рисуются по нему повсюду.
   loadSafetyLabels(api).catch(() => {});
   startWsClient();
+  // Собственный профиль поменяли не вы (администратор выдал/забрал Premium,
+  // например) — раньше это долетало только сообщением в чат, а сам значок
+  // (кольцо аватарки в navRail и везде, где читается state.user) оставался
+  // прежним до перезахода. updateSelf уведомляет всех подписчиков сразу.
+  onWsMessage("self:updated", (msg) => {
+    if (msg.user?.id === getState().user?.id) updateSelf(msg.user);
+  });
   mountIncomingCallWatcher();
   initKeyboardShortcuts();
   // Starts observing before the shell below does its first render, so that

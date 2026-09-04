@@ -3,7 +3,7 @@ import { clearCache } from "../../lib/localCache.js";
 import { iconSvg } from "../../icons.js";
 import { Avatar } from "../../components/avatar.js";
 import { api } from "../../api.js";
-import { getState, setState, updateSelf } from "../../state.js";
+import { getState, setState, updateSelf, subscribe } from "../../state.js";
 import { navigate } from "../../router.js";
 import { fileToImageDataUrl, fileToDataUrl } from "../../lib/image.js";
 import { ImageAttachment, VideoAttachment, FileAttachment } from "../../components/attachments.js";
@@ -184,6 +184,16 @@ export async function SettingsView(root, page) {
     usernames: renderUsernames,
   };
   await (renderers[section] ?? renderMenu)(contentSlot);
+
+  // Своё Premium-кольцо на этой странице — единственное место в настройках,
+  // которое рисуется один раз и больше не перечитывает state.user: если
+  // администратор выдал или забрал Premium, пока человек уже стоял на этом
+  // экране, кольцо оставалось прежним до перезахода в раздел. Меню — без
+  // полей ввода, его можно перерисовывать целиком; редактор профиля ниже
+  // трогать нельзя — там несохранённый текст, который так стереть.
+  if (section === "") {
+    root._cleanup = subscribe(() => renderMenu(contentSlot));
+  }
 }
 
 async function openSupport() {

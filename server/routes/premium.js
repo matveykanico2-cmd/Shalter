@@ -5,6 +5,7 @@ const { ADMIN_PHONE, PREMIUM_GRANT_DAYS, isAdminPhone } = require("../config");
 const { getUser, findUserByPhone, listReferrals, grantPremiumDays, revokePremium } = require("../data/users");
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
+const { broadcastToUsers } = require("../ws");
 const { isConnected: isDonationAlertsConnected, getDonationPageUrl } = require("../lib/donationAlerts");
 const { createPendingOrder } = require("../data/pendingOrders");
 
@@ -128,7 +129,14 @@ router.post(
         ? `🎉 Вам выдан Shalter Premium${forever ? " навсегда" : ` на ${dayCount} дней`}! Спасибо, что поддерживаете проект.`
         : "Ваш Shalter Premium был отключён администрацией."
     );
-    res.json({ user: publicUser(await getUser(userId)) });
+    const updatedUser = publicUser(await getUser(userId));
+    // Значок Premium держится в состоянии клиента (state.js's `user`, читает
+    // navRail и весь остальной интерфейс) и без явного толчка не узнаёт об
+    // изменении, пока человек не перезайдёт: сообщение выше долетает в чат, но
+    // сам профиль — нет. Раньше это и оставляло золотое кольцо на аватарке
+    // висеть до перезахода даже после того, как админ его отключил.
+    broadcastToUsers([userId], { type: "self:updated", user: updatedUser });
+    res.json({ user: updatedUser });
   })
 );
 
