@@ -3283,6 +3283,21 @@
   letter-spacing: 4px;
 }
 
+.passcode-lock-biometric {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.passcode-lock-biometric:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* In-app browser (components/inAppBrowser.js) — full-screen, above regular
    modals, since it hosts a whole embedded page rather than a small dialog. */
 .inapp-browser-overlay {
@@ -5398,6 +5413,10 @@
 }
 .settings-toggle.on {
   background: var(--color-accent);
+}
+.settings-toggle.disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 .settings-toggle-knob {
   position: absolute;
@@ -8348,7 +8367,10 @@
 .media-viewer-overlay {
   position: fixed;
   inset: 0;
-  z-index: 95;
+  /* Выше экрана звонка и его панели управления (95) — открытая на весь экран
+     картинка/видео должна перекрывать всё, кроме код-пароля (100). Иначе
+     кнопки звонка оставались поверх фото. */
+  z-index: 98;
   display: flex;
   align-items: center;
   justify-content: center;

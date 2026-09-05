@@ -6,8 +6,14 @@ import { el } from "../lib/dom.js";
 //
 // Stateless by design: it renders `checked` and reports the flip. Whoever owns
 // the state re-renders.
-export function Toggle(checked, onChange) {
-  return el("button", { class: `settings-toggle ${checked ? "on" : ""}`, onclick: () => onChange(!checked) }, [
-    el("span", { class: "settings-toggle-knob" }),
-  ]);
+export function Toggle(checked, onChange, { disabled = false } = {}) {
+  return el(
+    "button",
+    {
+      class: `settings-toggle ${checked ? "on" : ""} ${disabled ? "disabled" : ""}`,
+      disabled,
+      onclick: () => !disabled && onChange(!checked),
+    },
+    [el("span", { class: "settings-toggle-knob" })]
+  );
 }

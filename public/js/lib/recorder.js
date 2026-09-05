@@ -8,7 +8,15 @@ import { getFlippedTrack } from "./cameraSwitch.js";
 // появлялось у человека, пока не уедет целиком. Двухминутный кружок таким
 // способом отправить нельзя вовсе. Теперь запись уходит обычной загрузкой
 // файла (lib/upload.js), которая умеет показывать ход и не держит всё в памяти.
-export const MAX_RECORD_SEC = 120;
+export const MAX_RECORD_SEC = 180;
+
+// Кружок и голосовое пишутся сразу на пониженном битрейте, а не режутся потом.
+// Три минуты видео с телефонным битрейтом по умолчанию (несколько Мбит/с) —
+// это десятки мегабайт на одно сообщение; 240p-кружку столько не нужно.
+// ~700 кбит/с на картинку 240×240 хватает с запасом, речи хватает 32 кбит/с
+// opus. На выходе трёхминутный кружок весит ~16 МБ вместо ~60.
+const VIDEO_NOTE_BITRATES = { videoBitsPerSecond: 700_000, audioBitsPerSecond: 32_000 };
+const VOICE_BITRATES = { audioBitsPerSecond: 32_000 };
 
 export function isRecordingSupported() {
   return !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined";
@@ -17,8 +25,9 @@ export function isRecordingSupported() {
 // Wires up the MediaRecorder timers/result-promise plumbing shared by both
 // recording modes. `extraStop` runs alongside stopping `stream`'s own tracks
 // (video-notes need it to also release the camera feeding the canvas).
-function wireRecorder(stream, mimeType, onTick, extraStop) {
-  const recorder = new MediaRecorder(stream, MediaRecorder.isTypeSupported(mimeType) ? { mimeType } : undefined);
+function wireRecorder(stream, mimeType, onTick, extraStop, bitrates) {
+  const opts = MediaRecorder.isTypeSupported(mimeType) ? { mimeType, ...bitrates } : { ...bitrates };
+  const recorder = new MediaRecorder(stream, Object.keys(opts).length ? opts : undefined);
   const chunks = [];
   recorder.ondataavailable = (e) => {
     if (e.data.size > 0) chunks.push(e.data);
@@ -123,7 +132,7 @@ export function createLevelMeter(stream) {
 
 async function startVoiceRecording(onTick) {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const rec = wireRecorder(stream, "audio/webm", onTick);
+  const rec = wireRecorder(stream, "audio/webm", onTick, undefined, VOICE_BITRATES);
   return { stream, ...rec };
 }
 
@@ -210,7 +219,7 @@ async function startVideoNoteRecording(onTick) {
     camStream.getTracks().forEach((t) => t.stop());
     camVideo.pause();
     camVideo.srcObject = null;
-  });
+  }, VIDEO_NOTE_BITRATES);
 
   return { stream: finalStream, ...rec, flipCamera };
 }

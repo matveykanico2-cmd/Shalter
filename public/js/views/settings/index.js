@@ -15,6 +15,7 @@ import { openEditBotDialog } from "../../components/editBotDialog.js";
 import { PhoneField } from "../../components/phoneField.js";
 import { DateField } from "../../components/dateField.js";
 import { hasPasscode } from "../../lib/passcodeLock.js";
+import { hasBiometric, enableBiometric, removeBiometric, isBiometricAvailable } from "../../lib/biometricLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../components/twoFactorDialog.js";
 import { openChangePasswordDialog, openChangeEmailDialog } from "../../components/credentialsDialog.js";
@@ -1238,6 +1239,15 @@ async function renderPrivacy(root) {
   let settings = initial;
   let blockedIds = new Set(getState().user.blockedUserIds ?? []);
   let passcodeOn = hasPasscode();
+  let biometricOn = hasBiometric();
+  // Кнопку биометрии показываем только там, где на устройстве есть сканер
+  // (Face ID / отпечаток / Hello) — проверка асинхронная, до ответа считаем,
+  // что нет, потом перерисовываемся.
+  let biometricAvailable = false;
+  isBiometricAvailable().then((v) => {
+    biometricAvailable = v;
+    if (v) render();
+  });
   // Real 2FA (server/lib/totp.js), distinct from the local passcode below: the
   // passcode locks this device's app, 2FA gates getting into the account at all.
   let twoFactor = { enabled: false, recoveryCodesLeft: 0 };
@@ -1330,8 +1340,29 @@ async function renderPrivacy(root) {
   function disablePasscode() {
     openRemovePasscodeDialog(() => {
       passcodeOn = false;
+      // Биометрия — надстройка над код-паролем (он остаётся запасным способом
+      // снять замок). Убрали пароль — снимаем и её.
+      if (biometricOn) {
+        removeBiometric();
+        biometricOn = false;
+      }
       render();
     });
+  }
+
+  async function toggleBiometric(want) {
+    if (want) {
+      try {
+        await enableBiometric(getState().user.name || getState().user.username || "Shalter");
+        biometricOn = true;
+      } catch (err) {
+        alert(err?.message || "Не удалось включить биометрию");
+      }
+    } else {
+      removeBiometric();
+      biometricOn = false;
+    }
+    render();
   }
 
   // Shown under the security section after a password/e-mail change — the same
@@ -1461,6 +1492,22 @@ async function renderPrivacy(root) {
                 ])
               : el("button", { class: "settings-danger-link", onclick: changePasscode }, "Включить"),
           ]),
+          // Face ID / отпечаток — снимает тот же локальный замок, что и
+          // код-пароль. Требует включённого код-пароля: он остаётся запасным
+          // способом, если сканер не сработает.
+          biometricAvailable
+            ? el("div", { class: "settings-toggle-row" }, [
+                el("div", {}, [
+                  el("p", { class: "settings-toggle-title" }, "Face ID / отпечаток"),
+                  el(
+                    "p",
+                    { class: "settings-toggle-hint" },
+                    passcodeOn ? "Разблокировка биометрией вместо ввода код-пароля" : "Сначала включите код-пароль"
+                  ),
+                ]),
+                Toggle(biometricOn, toggleBiometric, { disabled: !passcodeOn }),
+              ])
+            : null,
           // Пароль аккаунта при запуске — в отличие от код-пароля выше, это
           // настоящий пароль, и проверяет его сервер. Нужен ровно от того, кто
           // взял разблокированный телефон: вход уже выполнен, а приложение всё

@@ -268,6 +268,23 @@ export function Composer({
     const CANVAS_SAFE_IMAGE_BYTES = 20 * 1024 * 1024;
 
     async function attachFile(file, kind) {
+      // Видео пережимается до отправки (см. lib/video.js) — и проверять размер
+      // надо уже по результату: с телефона ролик легко весит больше лимита,
+      // а после пережатия укладывается.
+      if (kind === "video") {
+        const label = el("span", { class: "composer-upload-label" }, "Сжатие видео…");
+        const bar = el("span", { class: "composer-upload-bar-fill" });
+        clear(uploadSlot);
+        uploadSlot.appendChild(el("div", { class: "composer-upload-row" }, [label, el("span", { class: "composer-upload-bar" }, [bar])]));
+        try {
+          const { compressVideoFile } = await import("../lib/video.js");
+          file = await compressVideoFile(file, (f) => (bar.style.width = `${Math.round(f * 100)}%`));
+        } catch {
+          // Пережать не вышло — отправим как есть, ниже сработает проверка размера.
+        }
+        clear(uploadSlot);
+      }
+
       const sizeError = checkSize(file, kind);
       if (sizeError) return showUploadError(sizeError);
 
