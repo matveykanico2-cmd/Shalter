@@ -12,7 +12,7 @@ const path = require("path");
 const fs = require("fs/promises");
 const db = require("../db");
 const { wsStats } = require("../ws");
-const { UPLOAD_DIR } = require("../routes/uploads");
+const { UPLOAD_DIR, isS3Enabled } = require("./storage");
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
@@ -215,6 +215,9 @@ async function collectServerStats() {
       uploads: uploads.bytes,
       uploadFiles: uploads.files,
       uploadsTruncated: !!uploads.truncated,
+      // Вложения лежат в S3, а не на этом диске — счётчик выше отражает
+      // только локальную папку (обычно пустую) и не значит, что файлов нет.
+      uploadsInS3: isS3Enabled,
       total: dbFile + walFile + shmFile + uploads.bytes,
     },
     db: dbStats(),

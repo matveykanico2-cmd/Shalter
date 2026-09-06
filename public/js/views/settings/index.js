@@ -2359,8 +2359,10 @@ async function renderServer(root) {
           // норме он маленький; разросшийся означает, что чекпоинт не проходит.
           statRow("Журнал WAL", `${formatBytes(storage.wal)}${storage.wal > 64 * 1024 * 1024 ? " — необычно много" : ""}`),
           statRow(
-            "Вложения data/uploads",
-            `${formatBytes(storage.uploads)} · ${storage.uploadFiles} ${storage.uploadsTruncated ? "файлов (посчитаны не все)" : "файлов"}`
+            "Вложения",
+            storage.uploadsInS3
+              ? "хранятся в S3 — размер считает само хранилище"
+              : `${formatBytes(storage.uploads)} · ${storage.uploadFiles} ${storage.uploadsTruncated ? "файлов (посчитаны не все)" : "файлов"}`
           ),
           statRow("Всего данных Shalter", formatBytes(storage.total)),
         ]),

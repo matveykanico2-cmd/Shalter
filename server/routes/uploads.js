@@ -1,4 +1,3 @@
-const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const express = require("express");
@@ -6,6 +5,7 @@ const { createEncryptStream } = require("../lib/fileCrypto");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { UPLOADABLE_KINDS, limitFor, tooLargeError, UPLOAD_LIMITS, DEFAULT_LIMIT } = require("../lib/uploadLimits");
+const storage = require("../lib/storage");
 
 // Real file uploads, streamed straight to disk.
 //
@@ -19,9 +19,6 @@ const { UPLOADABLE_KINDS, limitFor, tooLargeError, UPLOAD_LIMITS, DEFAULT_LIMIT 
 // old path read the whole file into a JS string in the browser, inflated it by
 // a third, and posted it inside the message JSON — which is why the effective
 // ceiling was ~25MB regardless of what any limit said.
-
-const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const router = express.Router();
 router.use(requireUserId);
@@ -55,22 +52,24 @@ router.post(
     const name = String(req.query.name ?? "file").slice(0, 300);
     const id = `${Date.now().toString(36)}_${crypto.randomBytes(8).toString("hex")}`;
     const filename = `${id}${safeExtension(name)}`;
-    const target = path.join(UPLOAD_DIR, filename);
 
     let written = 0;
     let aborted = false;
-    const out = fs.createWriteStream(target);
-    // Файл ложится на диск зашифрованным (см. lib/fileCrypto.js). Отпечаток для
-    // дедупликации считается по исходному содержимому, до шифрования, — иначе
-    // два одинаковых файла давали бы разные имена: у каждого свой вектор.
+    // Хранилище — диск или S3, смотря что настроено (lib/storage.js); отсюда
+    // и дальше код не знает, куда именно льются байты.
+    const { stream: out, done, abort } = storage.createWriteTarget(filename);
+    // Файл кладётся зашифрованным (см. lib/fileCrypto.js) вне зависимости от
+    // хранилища. Отпечаток для дедупликации считается по исходному
+    // содержимому, до шифрования, — иначе два одинаковых файла давали бы
+    // разные имена: у каждого свой вектор.
     const cipher = createEncryptStream(path.join(process.cwd(), "data"), out);
     // Отпечаток содержимого считается на лету, пока файл пишется, — второй раз
-    // читать его с диска ради этого не нужно.
+    // читать его ради этого не нужно.
     const digest = crypto.createHash("sha256");
 
     // Cleans up the partial file on any failure — an aborted 2GB upload must not
-    // leave 1.9GB of garbage on disk.
-    const discard = () => fs.promises.unlink(target).catch(() => {});
+    // leave 1.9GB of garbage sitting in storage.
+    const discard = () => storage.deleteObject(filename).catch(() => {});
 
     try {
       await new Promise((resolve, reject) => {
@@ -83,20 +82,19 @@ router.post(
           // moment it goes over rather than after the whole file lands.
           if (written > limit) {
             aborted = true;
-            out.destroy();
+            abort();
             req.destroy();
             reject(Object.assign(new Error(tooLargeError(kind)), { status: 413 }));
           }
         });
         req.on("aborted", () => {
           aborted = true;
-          out.destroy();
+          abort();
           reject(Object.assign(new Error("Загрузка прервана"), { status: 400 }));
         });
         req.on("error", reject);
-        out.on("error", reject);
         cipher.on("error", reject);
-        out.on("finish", resolve);
+        done().then(resolve, reject);
         cipher.pipe(out);
         req.pipe(cipher);
       });
@@ -127,20 +125,7 @@ router.post(
     // содержимое одинаковое, любая из ссылок ведёт к тому же самому.
     const hash = digest.digest("hex").slice(0, 16);
     const dedupName = `sha_${hash}${safeExtension(name)}`;
-    const dedupTarget = path.join(UPLOAD_DIR, dedupName);
-    let filenameFinal = dedupName;
-    try {
-      if (fs.existsSync(dedupTarget)) {
-        // Такой файл уже есть — свежую копию выбрасываем.
-        await fs.promises.unlink(target).catch(() => {});
-      } else {
-        await fs.promises.rename(target, dedupTarget);
-      }
-    } catch {
-      // Переименование не удалось (права, гонка) — оставляем как записали:
-      // потерять файл из-за неудавшейся экономии места нельзя.
-      filenameFinal = filename;
-    }
+    const filenameFinal = await storage.finalizeDedup(filename, dedupName);
 
     res.json({
       // Relative on purpose: the app is same-origin, and a stored absolute URL
@@ -155,4 +140,3 @@ router.post(
 );
 
 module.exports = router;
-module.exports.UPLOAD_DIR = UPLOAD_DIR;

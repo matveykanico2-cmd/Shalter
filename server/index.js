@@ -237,7 +237,6 @@ app.use(express.static(PUBLIC_DIR, { index: false, maxAge: useBuilt ? "1h" : 0 }
 // Content-Type/Content-Disposition/nosniff decisions matter (see
 // lib/serveUpload.js). Must sit above the SPA catch-all below, which would
 // otherwise answer /uploads/... with index.html.
-const { UPLOAD_DIR } = require("./routes/uploads");
 const { serveUpload } = require("./lib/serveUpload");
 // Вложения отдаются только тому, кто вошёл в приложение.
 //
@@ -267,8 +266,8 @@ const requireUserForUploads = (req, res, next) => {
   if (!canAccessUpload(uid, req.params.filename)) return res.status(404).json({ error: "not found" });
   next();
 };
-app.get("/uploads/:filename", requireUserForUploads, serveUpload(UPLOAD_DIR));
-app.head("/uploads/:filename", requireUserForUploads, serveUpload(UPLOAD_DIR));
+app.get("/uploads/:filename", requireUserForUploads, serveUpload());
+app.head("/uploads/:filename", requireUserForUploads, serveUpload());
 
 // The download page is a standalone static page, not an SPA route — without
 // this, /download fell through to the catch-all below and served the app shell

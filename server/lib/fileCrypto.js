@@ -85,6 +85,14 @@ function readHeader(filePath) {
   }
 }
 
+// То же самое, что readHeader, но по уже прочитанным байтам, а не по пути на
+// диске, — нужно для S3 (lib/storage.js): там первые HEADER_LEN байт
+// получаются отдельным ranged-запросом, файла на диске нет вовсе.
+function headerFromBuffer(buf) {
+  if (!buf || buf.length < HEADER_LEN || !buf.subarray(0, MAGIC.length).equals(MAGIC)) return null;
+  return { iv: buf.subarray(MAGIC.length, HEADER_LEN) };
+}
+
 // Счётчик для нужного байта: CTR шифрует блоками по 16, и чтобы начать с
 // середины, вектор увеличивается на число пройденных блоков.
 function counterAt(iv, byteOffset) {
@@ -109,4 +117,4 @@ function createDecryptStream(dataDir, iv, start) {
   return decipher;
 }
 
-module.exports = { createEncryptStream, createDecryptStream, readHeader, HEADER_LEN, loadKey };
+module.exports = { createEncryptStream, createDecryptStream, readHeader, headerFromBuffer, HEADER_LEN, loadKey };

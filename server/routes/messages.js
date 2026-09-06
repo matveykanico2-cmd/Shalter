@@ -22,7 +22,6 @@ const { sendPushToUser, MESSAGE_PUSH } = require("../push");
 const { registerAttachments } = require("../lib/uploadAccess");
 const { fetchLinkPreview } = require("../lib/linkPreview");
 const { deleteUploadedFiles } = require("../lib/serveUpload");
-const { UPLOAD_DIR } = require("./uploads");
 
 const router = express.Router({ mergeParams: true });
 
@@ -597,7 +596,7 @@ router.delete(
       // rather than leaving a 2GB video orphaned there forever. Only for
       // "delete for everyone": a delete-for-me leaves the message (and its
       // files) live for everyone else.
-      await deleteUploadedFiles(UPLOAD_DIR, existing.attachments);
+      await deleteUploadedFiles(existing.attachments);
       const chat = await getChat(req.params.id);
       if (chat) {
         broadcastToOtherMembers(chat, req.uid, {
