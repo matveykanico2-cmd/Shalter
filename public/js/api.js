@@ -145,6 +145,15 @@ export const api = {
   addAvatar: (entry) => req("/api/avatars", { method: "POST", body: JSON.stringify(entry) }),
   setMainAvatar: (index) => req(`/api/avatars/${index}/main`, { method: "POST" }),
   removeAvatar: (index) => req(`/api/avatars/${index}`, { method: "DELETE" }),
+  // Статус рядом с именем — свой набор (до 1 или 5 слотов, см. slotsFor) и
+  // read-only каталог готовых, который наполняет администратор.
+  getStatusCatalog: () => req("/api/status-catalog"),
+  listMyStatuses: () => req("/api/status/me"),
+  addMyStatus: (entry) => req("/api/status/me", { method: "POST", body: JSON.stringify(entry) }),
+  setActiveStatus: (id) => req("/api/status/me/active", { method: "POST", body: JSON.stringify({ id }) }),
+  removeMyStatus: (id) => req(`/api/status/me/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  adminCreateStatusCatalogItem: (item) => req("/api/admin/status-catalog", { method: "POST", body: JSON.stringify(item) }),
+  adminDeleteStatusCatalogItem: (id) => req(`/api/admin/status-catalog/${encodeURIComponent(id)}`, { method: "DELETE" }),
   // Заблокированные — точечно. Прежний listUsers() выкачивал всех
   // пользователей сервера ради десятка нужных строк (см. server/routes/users.js).
   getBlockedUsers: () => req("/api/users/blocked"),

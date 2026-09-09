@@ -839,6 +839,7 @@
 .chat-list-item-row > .verified-badge,
 .chat-list-item-row > .developer-mini-badge,
 .chat-list-item-row > .premium-star,
+.chat-list-item-row > .profile-status-badge,
 .chat-list-item-row > .safety-badge {
   flex-shrink: 0;
 }
@@ -7873,6 +7874,36 @@
   background: var(--color-danger);
   color: #fff;
 }
+/* ── Status wardrobe (components/profileStatusDialog.js) ─────────────────── */
+.status-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 6px;
+}
+.status-cell.active {
+  border-color: var(--color-accent);
+}
+.status-cell:disabled {
+  opacity: 0.6;
+}
+.status-cell-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  object-fit: cover;
+}
+.status-cell-none {
+  display: flex;
+  color: var(--color-muted);
+}
+.status-cell-wrap {
+  position: relative;
+}
+
 .sticker-add-row {
   display: flex;
   gap: 8px;
@@ -8676,6 +8707,15 @@
   flex-shrink: 0;
   align-items: center;
   color: #4a9df8;
+}
+
+/* Значок статуса рядом с именем (components/profileStatusBadge.js). */
+.profile-status-badge {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+  border-radius: 4px;
+  object-fit: cover;
 }
 
 /* Invite link (components/editChatDialog.js) and the page it opens

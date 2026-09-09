@@ -54,6 +54,23 @@ function rowToUser(row) {
     // account itself — see data/sanitize.js.
     stars: row.stars ?? 0,
     messagePriceStars: row.messagePriceStars ?? 0,
+    // Only the currently *equipped* badge goes out here, never the whole
+    // wardrobe (statusItems) — that would hand everyone a list of every icon
+    // this account owns but isn't wearing. The full list is for the account
+    // itself, through getStatusState below.
+    //
+    // `null`, not `undefined`, when there's none: JSON.stringify drops
+    // undefined keys entirely, and the client merges a patch onto its
+    // existing user object (state.js's updateSelf) — a dropped key would
+    // leave a just-cleared badge showing forever instead of disappearing.
+    statusIcon: (() => {
+      if (!row.activeStatusId) return null;
+      try {
+        return JSON.parse(row.statusItems ?? "[]").find((i) => i.id === row.activeStatusId)?.image ?? null;
+      } catch {
+        return null;
+      }
+    })(),
     banReason: row.banReason ?? undefined,
     bannedAt: row.bannedAt ?? undefined,
     safetyLabel: row.safetyLabel ?? undefined,
@@ -302,6 +319,32 @@ async function setAvatars(userId, list) {
   return getUser(userId);
 }
 
+// The account's own full wardrobe — every status it owns, equipped or not —
+// read straight off the row rather than through rowToUser's public projection
+// (see statusIcon there for why the two must stay separate).
+function getStatusState(userId) {
+  const row = db.prepare("SELECT statusItems, activeStatusId FROM users WHERE id = ?").get(userId);
+  if (!row) return undefined;
+  let items;
+  try {
+    items = JSON.parse(row.statusItems ?? "[]");
+  } catch {
+    items = [];
+  }
+  return { items, activeStatusId: row.activeStatusId ?? null };
+}
+
+async function setStatusState(userId, items, activeStatusId) {
+  const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
+  if (!existing) return undefined;
+  db.prepare("UPDATE users SET statusItems = ?, activeStatusId = ? WHERE id = ?").run(
+    JSON.stringify(items),
+    activeStatusId ?? null,
+    userId
+  );
+  return getUser(userId);
+}
+
 async function listReferrals(userId) {
   return db.prepare("SELECT * FROM users WHERE referredBy = ?").all(userId).map(rowToUser);
 }
@@ -434,6 +477,8 @@ const removeReceivedGift = db.transaction((userId, giftEntryId) => {
 
 module.exports = {
   setAvatars,
+  getStatusState,
+  setStatusState,
   setVerified,
   listUsers,
   listUsersByIds,

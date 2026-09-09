@@ -23,6 +23,7 @@ import { openWallpaperDialog } from "../components/wallpaperDialog.js";
 import { openScheduledMessagesDialog } from "../components/scheduledMessagesDialog.js";
 import { openThreadPanel } from "../components/threadPanel.js";
 import { VerifiedBadge } from "../components/verifiedBadge.js";
+import { ProfileStatusBadge } from "../components/profileStatusBadge.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openMiniApp } from "../components/miniApp.js";
 import { openDeleteMessageDialog } from "../components/deleteMessageDialog.js";
@@ -1001,6 +1002,7 @@ export async function ChatView(root, chatId) {
                 // разговора нет. Именно здесь она и нужна больше всего: видно,
                 // с кем говоришь, пока говоришь, а не только пока выбираешь.
                 VerifiedBadge(isDm ? other : chat, 15),
+                isDm ? ProfileStatusBadge(other, 15) : null,
                 // Safety marker (server/db.js's safetyLabel) — shown in the
                 // header of the open chat too, so it's on screen while the
                 // conversation is actually happening, not only on the profile.

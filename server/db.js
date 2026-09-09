@@ -526,6 +526,17 @@ if (!existingUserColumns.has("stars")) db.exec("ALTER TABLE users ADD COLUMN sta
 // 0 = anyone may write for free. Above 0, a stranger's first message into this
 // account's DM costs them that many stars, which land on this account.
 if (!existingUserColumns.has("messagePriceStars")) db.exec("ALTER TABLE users ADD COLUMN messagePriceStars INTEGER NOT NULL DEFAULT 0");
+// The status badge shown next to a name (server/lib/profileStatus.js,
+// server/routes/profileStatus.js) — Telegram-style "emoji status", except each
+// entry is a small image rather than an emoji, either picked from the catalog
+// below or uploaded by the account itself. `statusItems` is the person's own
+// small wardrobe (one slot without Premium, five with — see slotsFor); a
+// wardrobe entry copies the catalog item's image at pick time rather than
+// referencing it, so deleting a catalog entry later doesn't blank out
+// everyone already wearing it. `activeStatusId` names which entry (if any) is
+// currently shown — null/absent means no badge, same as an empty avatar.
+if (!existingUserColumns.has("statusItems")) db.exec("ALTER TABLE users ADD COLUMN statusItems TEXT NOT NULL DEFAULT '[]'");
+if (!existingUserColumns.has("activeStatusId")) db.exec("ALTER TABLE users ADD COLUMN activeStatusId TEXT");
 
 // Two-factor authentication (RFC 6238 TOTP — server/lib/totp.js). The shared
 // secret, base32-encoded; a row with totpSecret set but totpEnabledAt null is a
@@ -984,6 +995,19 @@ if (!db.prepare("SELECT COUNT(*) AS n FROM safety_labels").get().n) {
     ["drugs", "НАРКОТИКИ", "Продажа наркотиков", "Аккаунт замечен в продаже запрещённых веществ.", "#1f9d63"],
   ]) seed.run(...row, now);
 }
+
+// Ready-made status badges (server/data/profileStatuses.js), the "готовые"
+// half of the status feature — the other half is a person's own upload. Same
+// shape as safety_labels just above: an empty table nobody has to seed, that
+// the admin fills in from Settings → Модерация rather than a code release.
+db.exec(`
+CREATE TABLE IF NOT EXISTS profile_statuses (
+  id TEXT PRIMARY KEY,
+  image TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  createdAt TEXT NOT NULL
+);
+`);
 
 // ── Рекламный кабинет для бизнеса (server/routes/ads.js) ───────────────────
 //

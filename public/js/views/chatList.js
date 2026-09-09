@@ -11,6 +11,7 @@ import { openBotTokenDialog } from "../components/botTokenDialog.js";
 import { StoriesBar } from "../components/storiesBar.js";
 import { Avatar } from "../components/avatar.js";
 import { VerifiedBadge } from "../components/verifiedBadge.js";
+import { ProfileStatusBadge } from "../components/profileStatusBadge.js";
 import { api } from "../api.js";
 import { openAd } from "../lib/adLink.js";
 import { getState, setState, subscribe } from "../state.js";
@@ -479,6 +480,7 @@ function renderResults(container) {
           Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 30 }),
           el("span", { class: "search-user-name" }, u.name),
           VerifiedBadge(u, 13),
+          ProfileStatusBadge(u, 13),
           u.username ? el("span", { class: "search-user-username" }, `@${u.username}`) : null,
         ].filter(Boolean)
       );

@@ -2,6 +2,7 @@ import { el, mount, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
 import { VerifiedBadge } from "../components/verifiedBadge.js";
+import { ProfileStatusBadge } from "../components/profileStatusBadge.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { getState, setState, updateSelf } from "../state.js";
@@ -398,7 +399,7 @@ export async function ContactsView(root) {
           el("button", { class: "contact-row-profile-btn", onclick: () => openProfileDialog(user.id) }, [
             Avatar({ name: displayName(c), color: user.avatarColor, image: user.avatarImage, online: user.online }),
             el("div", { class: "contact-row-body" }, [
-              el("p", { class: "contact-row-name" }, [displayName(c), VerifiedBadge(user, 13)].filter(Boolean)),
+              el("p", { class: "contact-row-name" }, [displayName(c), VerifiedBadge(user, 13), ProfileStatusBadge(user, 13)].filter(Boolean)),
               el(
                 "p",
                 { class: `contact-row-status ${user.online ? "online" : ""}` },

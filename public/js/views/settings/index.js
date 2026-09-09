@@ -20,9 +20,11 @@ import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../component
 import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../components/twoFactorDialog.js";
 import { openChangePasswordDialog, openChangeEmailDialog } from "../../components/credentialsDialog.js";
 import { VerifiedBadge } from "../../components/verifiedBadge.js";
+import { ProfileStatusBadge } from "../../components/profileStatusBadge.js";
 import { openStarsDialog } from "../../components/starsDialog.js";
 import { openGiftShopDialog } from "../../components/giftShopDialog.js";
 import { openAvatarViewer } from "../../components/avatarViewer.js";
+import { openProfileStatusDialog } from "../../components/profileStatusDialog.js";
 import { Toggle } from "../../components/toggle.js";
 import { openProfileQrDialog } from "../../components/profileQrDialog.js";
 import { handlePurchaseResponse } from "../../lib/purchase.js";
@@ -233,7 +235,7 @@ function renderMenu(root) {
         }, [
           Avatar({ name: me.name || "?", color: me.avatarColor, image: me.avatarImage, size: 112, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
         ]),
-        el("p", { class: "settings-profile-name" }, [me.name || "Профиль", me.isPremium ? PremiumStar({ size: 18, seed: me.id, title: "Shalter Premium" }) : null]),
+        el("p", { class: "settings-profile-name" }, [me.name || "Профиль", me.isPremium ? PremiumStar({ size: 18, seed: me.id, title: "Shalter Premium" }) : null, ProfileStatusBadge(me, 18)]),
         el("p", { class: "settings-profile-sub online" }, "в сети"),
       ]),
       el("div", { class: "settings-section-group" }, [
@@ -302,6 +304,7 @@ async function renderProfile(root) {
   let birthdayField = null;
   let avatarImage = me.avatarImage;
   let avatarImages = me.avatarImages ?? [];
+  let statusIcon = me.statusIcon;
   let phoneField = null;
   let saved = false;
   let profileError = null;
@@ -344,6 +347,7 @@ async function renderProfile(root) {
               name || "Без имени",
               me.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
               me.isPremium ? PremiumStar({ size: 18, seed: me.id, title: "Shalter Premium" }) : null,
+              statusIcon ? el("img", { class: "profile-status-badge", src: statusIcon, alt: "", style: { width: "18px", height: "18px" } }) : null,
             ]),
             el("p", { class: "mono settings-profile-sub" }, me.phone || me.email),
           ]),
@@ -384,6 +388,26 @@ async function renderProfile(root) {
             birthdayError
               ? el("span", { class: "login-error" }, birthdayError)
               : el("span", { class: "settings-toggle-hint" }, "Например: 25.12.1990"),
+          ]),
+        ]),
+        section("Статус", [
+          el("div", { class: "settings-toggle-row" }, [
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, "Значок рядом с именем"),
+              el("p", { class: "settings-toggle-hint" }, me.isPremium ? "До 5 своих статусов — свой или из готовых." : "1 слот — с Premium будет 5."),
+            ]),
+            el(
+              "button",
+              {
+                class: "profile-action-btn",
+                onclick: () =>
+                  openProfileStatusDialog(() => {
+                    statusIcon = getState().user?.statusIcon;
+                    render();
+                  }),
+              },
+              statusIcon ? "Изменить" : "Выбрать"
+            ),
           ]),
         ]),
         profileError ? el("p", { class: "login-error" }, profileError) : null,
@@ -1956,6 +1980,10 @@ async function renderModeration(root) {
   // подключается к чужому серверу и занимает секунды.
   let mailStatus = null;
   let mailBusy = false;
+  // Новый статус в каталоге: картинка выбирается и сжимается сразу по клику
+  // на файл, до отправки формы — та же последовательность, что у аватарки.
+  let newStatusImage = null;
+  let newStatusError = null;
 
   async function checkMail() {
     mailBusy = true;
@@ -1972,6 +2000,25 @@ async function renderModeration(root) {
   // Вне render(): пересоздание полей на каждой перерисовке — ровно то, из-за
   // чего в других местах приложения текст приходилось вводить по одной букве.
   const newLabelShort = el("input", { class: "settings-input", placeholder: "СПАМ", maxlength: 16 });
+
+  const newStatusName = el("input", { class: "settings-input", placeholder: "Название (необязательно)", maxlength: 40 });
+  const newStatusFileInput = el("input", {
+    type: "file",
+    accept: "image/*",
+    class: "hidden-input",
+    onchange: async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      newStatusError = null;
+      try {
+        newStatusImage = await fileToImageDataUrl(file, 96, "image/png", 0.92);
+      } catch (err) {
+        newStatusError = err.message || "Не удалось загрузить картинку";
+      }
+      render();
+    },
+  });
 
   // Очередь проверки рекламы держит своё состояние (открытый ввод причины,
   // текст в нём) и грузится своим запросом — поэтому узел создаётся один раз
@@ -2155,6 +2202,64 @@ async function renderModeration(root) {
             },
           }, "Добавить метку"),
           el("p", { class: "settings-toggle-hint" }, "Короткая надпись — то, что видно рядом с именем (СКАМ, ФЕЙК). Латиницей задавать не нужно: идентификатор соберётся сам."),
+        ]),
+        // Готовые статусы — та половина функции «статус рядом с именем»
+        // (Settings → Профиль → Статус), которую наполняет администрация, а не
+        // сам человек. Удаление ничего не ломает у тех, кто уже его выбрал —
+        // см. server/data/profileStatuses.js.
+        section("Готовые статусы", [
+          el("div", { class: "sticker-pack-grid" },
+            (data.statusCatalog ?? []).length
+              ? data.statusCatalog.map((s) =>
+                  el("div", { class: "sticker-pack-cell status-cell-wrap" }, [
+                    el("img", { class: "status-cell-img", src: s.image, alt: "", title: s.name || "" }),
+                    el(
+                      "button",
+                      {
+                        class: "sticker-pack-remove",
+                        title: "Удалить",
+                        onclick: async () => {
+                          if (!confirm(`Удалить статус «${s.name || "без названия"}»? У тех, кто уже его выбрал, он останется.`)) return;
+                          await api.adminDeleteStatusCatalogItem(s.id);
+                          await load();
+                        },
+                      },
+                      [el("span", { html: iconSvg("X", 10) })]
+                    ),
+                  ])
+                )
+              : [empty("Каталог пуст")]
+          ),
+          newStatusImage
+            ? el("img", { class: "status-cell-img", src: newStatusImage, alt: "", style: { width: "40px", height: "40px" } })
+            : null,
+          el("button", { class: "profile-action-btn", onclick: () => newStatusFileInput.click() }, newStatusImage ? "Заменить картинку" : "Загрузить картинку"),
+          newStatusFileInput,
+          newStatusName,
+          newStatusError ? el("p", { class: "login-error" }, newStatusError) : null,
+          el(
+            "button",
+            {
+              class: "btn-accent",
+              onclick: async () => {
+                if (!newStatusImage) {
+                  newStatusError = "Сначала выберите картинку";
+                  return render();
+                }
+                newStatusError = null;
+                try {
+                  await api.adminCreateStatusCatalogItem({ image: newStatusImage, name: newStatusName.value });
+                  newStatusImage = null;
+                  newStatusName.value = "";
+                  await load();
+                } catch (err) {
+                  newStatusError = err.message || "Не удалось добавить статус";
+                  render();
+                }
+              },
+            },
+            "Добавить в каталог"
+          ),
         ]),
         section(
           `Открытые жалобы (${data.openReports.length})`,

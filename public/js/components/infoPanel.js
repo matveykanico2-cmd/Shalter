@@ -12,6 +12,7 @@ import { openEditChatDialog } from "./editChatDialog.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { isChatOwner, isChatAdmin, memberRoleLabel } from "../lib/chatRoles.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
+import { ProfileStatusBadge } from "./profileStatusBadge.js";
 import { openChannelStats } from "./channelStats.js";
 
 const RESTRICT_DURATIONS = [
@@ -165,6 +166,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             VerifiedBadge(isDm ? chat.otherUser : chat, 16),
             isDm && chat.otherUser?.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
             isDm && chat.otherUser?.isPremium ? PremiumStar({ size: 18, seed: chat.otherUser.id, title: "Shalter Premium" }) : null,
+            isDm ? ProfileStatusBadge(chat.otherUser, 18) : null,
             isDm && safetyLabelInfo(chat.otherUser?.safetyLabel)
               ? el(
                   "span",

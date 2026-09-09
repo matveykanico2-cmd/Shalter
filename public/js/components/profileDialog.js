@@ -17,6 +17,7 @@ import { openGiftShopDialog } from "./giftShopDialog.js";
 import { openStoryViewer } from "./storyViewer.js";
 import { giftTraits } from "../lib/giftTraits.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
+import { ProfileStatusBadge } from "./profileStatusBadge.js";
 import { openPinnedChannelsDialog } from "./pinnedChannelsDialog.js";
 
 // Bottom tab strip, same set/order as Telegram's own profile view. Content
@@ -362,6 +363,7 @@ export async function openProfileDialog(userId) {
         VerifiedBadge(user, 17),
         user.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
         user.isPremium ? PremiumStar({ size: 18, seed: user.id, title: "Shalter Premium" }) : null,
+        ProfileStatusBadge(user, 18),
         safety ? el("span", { class: `safety-badge safety-${user.safetyLabel}`, title: safety.label }, safety.short) : null,
       ]),
       // The warning itself, not just the badge — a three-letter tag next to a

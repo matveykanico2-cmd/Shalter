@@ -131,6 +131,7 @@ router.get(
 // заводит свои, не дожидаясь новой версии приложения. Пять прежних просто
 // засеяны при первом запуске.
 const labelsData = require("../data/safetyLabels");
+const statusCatalogData = require("../data/profileStatuses");
 
 const REASON_LABELS = {
   spam: "Спам",
@@ -204,6 +205,7 @@ router.get(
       banned: banned.map((u) => ({ ...userLabel(u), bannedAt: u.bannedAt || null, banReason: u.banReason || null })),
       labeled: labeled.map((u) => ({ ...userLabel(u), safetyLabelAt: u.safetyLabelAt || null })),
       labels: labelsData.listLabels(),
+      statusCatalog: statusCatalogData.listCatalog(),
     });
   })
 );
@@ -499,6 +501,29 @@ router.delete(
   asyncRoute(async (req, res) => {
     if (!(await requireAdmin(req, res))) return;
     labelsData.deleteLabel(req.params.id);
+    res.json({ ok: true });
+  })
+);
+
+// Управление каталогом готовых статусов — тот же приём, что и с метками
+// выше: удаление ничего не трогает в users.statusItems (см. lib/
+// profileStatuses.js), потому что выданный кем-то статус — это своя копия
+// картинки, а не ссылка на каталог.
+router.post(
+  "/status-catalog",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const result = statusCatalogData.createCatalogItem(req.body ?? {});
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json({ item: result.item });
+  })
+);
+
+router.delete(
+  "/status-catalog/:id",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    statusCatalogData.deleteCatalogItem(req.params.id);
     res.json({ ok: true });
   })
 );

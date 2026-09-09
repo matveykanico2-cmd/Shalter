@@ -9,6 +9,7 @@ import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { isChatAdmin } from "../lib/chatRoles.js";
 import { messagePreview } from "../lib/messagePreview.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
+import { ProfileStatusBadge } from "./profileStatusBadge.js";
 
 function timeLabel(iso) {
   const d = new Date(iso);
@@ -109,6 +110,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave })
           VerifiedBadge(chat.type === "dm" ? chat.otherUser : chat, 13),
           chat.otherUser?.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 13) }) : null,
           chat.otherUser?.isPremium ? PremiumStar({ size: 15, seed: chat.otherUser.id, title: "Shalter Premium" }) : null,
+          ProfileStatusBadge(chat.type === "dm" ? chat.otherUser : chat, 15),
           // Safety marker (server/db.js's safetyLabel) right on the row — the
           // warning has to be visible before the chat is even opened.
           safetyLabelInfo(chat.otherUser?.safetyLabel)
