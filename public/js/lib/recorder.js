@@ -17,6 +17,15 @@ export const MAX_RECORD_SEC = 180;
 // opus. На выходе трёхминутный кружок весит ~16 МБ вместо ~60.
 const VIDEO_NOTE_BITRATES = { videoBitsPerSecond: 700_000, audioBitsPerSecond: 32_000 };
 const VOICE_BITRATES = { audioBitsPerSecond: 32_000 };
+// Видео-аватар пишется тем же квадратным захватом 240×240, что и кружок, но
+// живёт в профиле дольше одного сообщения, поэтому картинке даётся больше
+// битрейта; длительность — свой предел (см. components/avatarViewer.js).
+const AVATAR_VIDEO_BITRATES = { videoBitsPerSecond: 1_200_000, audioBitsPerSecond: 64_000 };
+export const MAX_AVATAR_VIDEO_SEC = 180;
+const SQUARE_CAPTURE_MODES = {
+  "video-note": { bitrates: VIDEO_NOTE_BITRATES, maxSec: MAX_RECORD_SEC },
+  "avatar-video": { bitrates: AVATAR_VIDEO_BITRATES, maxSec: MAX_AVATAR_VIDEO_SEC },
+};
 
 export function isRecordingSupported() {
   return !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined";
@@ -25,7 +34,7 @@ export function isRecordingSupported() {
 // Wires up the MediaRecorder timers/result-promise plumbing shared by both
 // recording modes. `extraStop` runs alongside stopping `stream`'s own tracks
 // (video-notes need it to also release the camera feeding the canvas).
-function wireRecorder(stream, mimeType, onTick, extraStop, bitrates) {
+function wireRecorder(stream, mimeType, onTick, extraStop, bitrates, maxSec = MAX_RECORD_SEC) {
   const opts = MediaRecorder.isTypeSupported(mimeType) ? { mimeType, ...bitrates } : { ...bitrates };
   const recorder = new MediaRecorder(stream, Object.keys(opts).length ? opts : undefined);
   const chunks = [];
@@ -60,7 +69,7 @@ function wireRecorder(stream, mimeType, onTick, extraStop, bitrates) {
   });
 
   recorder.start();
-  autoStopTimer = setTimeout(() => recorder.stop(), MAX_RECORD_SEC * 1000);
+  autoStopTimer = setTimeout(() => recorder.stop(), maxSec * 1000);
 
   return {
     stop: () => recorder.stop(),
@@ -85,7 +94,7 @@ function wireRecorder(stream, mimeType, onTick, extraStop, bitrates) {
         onTick?.(sec);
       }, 1000);
       // Остаток от общего лимита, а не полный лимит заново.
-      autoStopTimer = setTimeout(() => recorder.stop(), Math.max(1000, (MAX_RECORD_SEC - sec) * 1000));
+      autoStopTimer = setTimeout(() => recorder.stop(), Math.max(1000, (maxSec - sec) * 1000));
       return true;
     },
     isPaused: () => recorder.state === "paused",
@@ -136,15 +145,15 @@ async function startVoiceRecording(onTick) {
   return { stream, ...rec };
 }
 
-// video-note ("kruzhok") recording draws the live camera onto an off-DOM
-// canvas and records canvas.captureStream() rather than the raw camera
-// stream. MediaRecorder throws InvalidModificationError (and stops dead) if
+// Square 240×240 capture, shared by the video-note ("kruzhok") and the video
+// avatar. Draws the live camera onto an off-DOM canvas and records
+// canvas.captureStream() rather than the raw camera stream. MediaRecorder throws InvalidModificationError (and stops dead) if
 // a track is added to or removed from the stream it's actively recording —
 // confirmed by testing the naive "swap the video track in place" approach,
 // which killed the recording the instant the camera flipped. The canvas
 // gives MediaRecorder a video track whose identity never changes; only the
 // camera feeding pixels into the canvas changes underneath it.
-async function startVideoNoteRecording(onTick) {
+async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
   let camStream = await navigator.mediaDevices.getUserMedia({
     audio: true,
     video: { width: 240, height: 240, facingMode: "user" },
@@ -219,16 +228,17 @@ async function startVideoNoteRecording(onTick) {
     camStream.getTracks().forEach((t) => t.stop());
     camVideo.pause();
     camVideo.srcObject = null;
-  }, VIDEO_NOTE_BITRATES);
+  }, bitrates, maxSec);
 
   return { stream: finalStream, ...rec, flipCamera };
 }
 
-// mode: "voice" | "video-note". onTick(sec) fires once a second while recording.
-// Returns a handle: { stream, stop(), cancel(), result, flipCamera? } where
-// `result` is a promise that resolves to {blob, mimeType, durationSec} — only
-// if stop() (not cancel()) ends the recording. flipCamera is only present
-// for "video-note".
+// mode: "voice" | "video-note" | "avatar-video". onTick(sec) fires once a second
+// while recording. Returns a handle: { stream, stop(), cancel(), result,
+// flipCamera? } where `result` is a promise that resolves to {blob, mimeType,
+// durationSec} — only if stop() (not cancel()) ends the recording. flipCamera is
+// only present for the square video modes.
 export async function startRecording(mode, { onTick } = {}) {
-  return mode === "voice" ? startVoiceRecording(onTick) : startVideoNoteRecording(onTick);
+  if (mode === "voice") return startVoiceRecording(onTick);
+  return startSquareVideoRecording(onTick, SQUARE_CAPTURE_MODES[mode] ?? SQUARE_CAPTURE_MODES["video-note"]);
 }

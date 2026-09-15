@@ -10,7 +10,7 @@ const { sendDirect } = require("./directMail");
 // is simply off" style as LANGUAGETOOL_URL and the VAPID keys:
 //
 //   SMTP_URL=smtps://user%40domain:app-password@smtp.yandex.ru:465
-//   MAIL_FROM="Shalter <no-reply@shalter.ru>"
+//   MAIL_FROM="Shalter <no-reply@your-domain.example>"
 //
 // or, if a URL is awkward to quote:
 //
@@ -27,7 +27,7 @@ const { sendDirect } = require("./directMail");
 
 const SMTP_URL = process.env.SMTP_URL || "";
 const SMTP_HOST = process.env.SMTP_HOST || "";
-const MAIL_FROM = process.env.MAIL_FROM || "Shalter <no-reply@shalter.ru>";
+const MAIL_FROM = process.env.MAIL_FROM || "Shalter <no-reply@your-domain.example>";
 const configured = !!(SMTP_URL || SMTP_HOST);
 
 // Without SMTP configured, a letter is written to data/outbox instead of being
@@ -43,8 +43,8 @@ const OUTBOX_DIR = path.join(process.cwd(), "data", "outbox");
 const outboxAllowed =
   process.env.MAIL_OUTBOX === "0" ? false : process.env.NODE_ENV !== "production" || process.env.MAIL_OUTBOX === "1";
 
-// The bare address out of MAIL_FROM ("Shalter <no-reply@shalter.ru>" →
-// "no-reply@shalter.ru") — SMTP envelopes take an address, not a display name.
+// The bare address out of MAIL_FROM ("Shalter <no-reply@your-domain.example>" →
+// "no-reply@your-domain.example") — SMTP envelopes take an address, not a display name.
 function senderAddress() {
   return (MAIL_FROM.match(/<([^>]+)>/) || [null, MAIL_FROM])[1].trim();
 }

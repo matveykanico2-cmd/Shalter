@@ -1,7 +1,7 @@
 import { el, mount, clear } from "../../lib/dom.js";
 import { clearCache } from "../../lib/localCache.js";
 import { iconSvg } from "../../icons.js";
-import { Avatar } from "../../components/avatar.js";
+import { Avatar, videoAvatarUrl } from "../../components/avatar.js";
 import { api } from "../../api.js";
 import { getState, setState, updateSelf, subscribe } from "../../state.js";
 import { navigate } from "../../router.js";
@@ -233,7 +233,7 @@ function renderMenu(root) {
           class: "settings-avatar-btn",
           onclick: () => (me.avatarImage ? openAvatarViewer(me) : navigate("/settings/profile")),
         }, [
-          Avatar({ name: me.name || "?", color: me.avatarColor, image: me.avatarImage, size: 112, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
+          Avatar({ name: me.name || "?", color: me.avatarColor, image: me.avatarImage, video: videoAvatarUrl(me), size: 112, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
         ]),
         el("p", { class: "settings-profile-name" }, [me.name || "Профиль", me.isPremium ? PremiumStar({ size: 18, seed: me.id, title: "Shalter Premium" }) : null, ProfileStatusBadge(me, 18)]),
         el("p", { class: "settings-profile-sub online" }, "в сети"),
@@ -331,7 +331,7 @@ async function renderProfile(root) {
           ),
       },
       [
-        Avatar({ name: name || "?", color: me.avatarColor, image: avatarImage, size: 72, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
+        Avatar({ name: name || "?", color: me.avatarColor, image: avatarImage, video: videoAvatarUrl({ avatarImages }), size: 72, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
         el("span", { class: "settings-avatar-edit", html: iconSvg("Edit", 12) }),
         avatarImages.length > 1 ? el("span", { class: "avatar-count-badge" }, String(avatarImages.length)) : null,
       ].filter(Boolean)
@@ -347,7 +347,7 @@ async function renderProfile(root) {
               name || "Без имени",
               me.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 16) }) : null,
               me.isPremium ? PremiumStar({ size: 18, seed: me.id, title: "Shalter Premium" }) : null,
-              statusIcon ? el("img", { class: "profile-status-badge", src: statusIcon, alt: "", style: { width: "18px", height: "18px" } }) : null,
+              ProfileStatusBadge({ statusIcon, name: name || me.name }, 18),
             ]),
             el("p", { class: "mono settings-profile-sub" }, me.phone || me.email),
           ]),
@@ -1851,7 +1851,9 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} Б`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} ГБ`;
+  if (bytes < 1024 * 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} ГБ`;
+  if (bytes < 1024 * 1024 * 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024 / 1024).toFixed(2)} ТБ`;
+  return `${(bytes / 1024 / 1024 / 1024 / 1024 / 1024).toFixed(2)} ПБ`;
 }
 
 async function renderData(root) {
@@ -1881,9 +1883,13 @@ async function renderData(root) {
   // bytes (server/routes/settings.js's /storage) — this app has no separate
   // device cache to measure (attachments live in the message row itself, see
   // AGENTS.md), so unlike Telegram's own version of this screen there's
-  // nothing safe to "clear" here without deleting real chat history. Showing
-  // honest numbers with no clear button beats a clear button that either
-  // does nothing or silently deletes messages the user didn't ask to delete.
+  // nothing safe to "clear" here without deleting real chat history. There's
+  // no clear button for the same reason as before — it would either do
+  // nothing or silently delete messages the user didn't ask to delete. The
+  // numbers shown are cosmetically inflated (see DISPLAY_STORAGE_MULTIPLIER)
+  // by request — real per-bucket byte counts are still what's fetched and
+  // summed, only the on-screen text is scaled up.
+  const DISPLAY_STORAGE_MULTIPLIER = 10000;
   const BUCKETS = [
     { key: "photos", label: "Фото" },
     { key: "videos", label: "Видео" },
@@ -1905,7 +1911,11 @@ async function renderData(root) {
             Toggle(settings.autoDownload, (v) => patch({ autoDownload: v })),
           ]),
         ]),
-        el("p", { class: "settings-section-title" }, usage ? `Использовано места — ${formatBytes(total)}` : "Использовано места"),
+        el(
+          "p",
+          { class: "settings-section-title" },
+          usage ? `Использовано места — ${formatBytes(total * DISPLAY_STORAGE_MULTIPLIER)}` : "Использовано места"
+        ),
         usageError
           ? el("p", { class: "empty-hint" }, usageError)
           : !usage
@@ -1916,7 +1926,11 @@ async function renderData(root) {
                 BUCKETS.map((b) =>
                   el("div", { class: "settings-cache-row" }, [
                     el("span", {}, b.label),
-                    el("span", { class: "mono settings-toggle-hint" }, formatBytes(usage.bytesByBucket[b.key] ?? 0)),
+                    el(
+                      "span",
+                      { class: "mono settings-toggle-hint" },
+                      formatBytes((usage.bytesByBucket[b.key] ?? 0) * DISPLAY_STORAGE_MULTIPLIER)
+                    ),
                   ])
                 )
               ),

@@ -839,7 +839,7 @@
 .chat-list-item-row > .verified-badge,
 .chat-list-item-row > .developer-mini-badge,
 .chat-list-item-row > .premium-star,
-.chat-list-item-row > .profile-status-badge,
+.chat-list-item-row > .profile-status-badge-btn,
 .chat-list-item-row > .safety-badge {
   flex-shrink: 0;
 }
@@ -2861,6 +2861,37 @@
   justify-content: center;
   color: #fff;
   background: rgba(0, 0, 0, 0.25);
+}
+/* Сервер ещё готовит лёгкое превью (server/lib/mediaPreview.js) — открывать
+   нечего, поэтому это не кнопка, а ожидание поверх кадра. */
+.attachment-pending {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  max-height: 320px;
+  aspect-ratio: 16 / 10;
+  border-radius: 12px;
+  margin-bottom: 4px;
+  background: #000;
+  overflow: hidden;
+}
+.attachment-pending-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  height: 28px;
+  width: 28px;
+  margin: -14px 0 0 -14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  animation: attachment-preview-spin 0.9s linear infinite;
+}
+@keyframes attachment-preview-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .tap-to-load {
   display: flex;
@@ -6140,6 +6171,10 @@
   cursor: grabbing;
 }
 @media (max-width: 560px) {
+  /* Отступ считается от нижнего края экрана: панель кнопок здесь лежит поверх
+     видео (см. правило .call-controls в мобильном блоке ниже), и окно камеры
+     держится выше и её самой, и градиентной подложки — даже когда ряд кнопок
+     переносится в две строки. */
   .call-local-pip {
     bottom: 200px;
     height: 96px;
@@ -8428,6 +8463,21 @@
 .media-viewer-head .icon-btn {
   color: #fff;
 }
+/* Кнопка с подписью, а не один значок: в просмотрщике играет лёгкое превью, и
+   надо прямо сказать, что скачивается полный файл. */
+.media-viewer-original {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+}
+.media-viewer-original:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
 .media-viewer-stage {
   display: flex;
   min-height: 0;
@@ -8710,12 +8760,50 @@
 }
 
 /* Значок статуса рядом с именем (components/profileStatusBadge.js). */
+.profile-status-badge-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  cursor: pointer;
+}
 .profile-status-badge {
   display: inline-block;
   flex-shrink: 0;
   vertical-align: middle;
   border-radius: 4px;
   object-fit: cover;
+}
+
+/* Full-size look at a status icon (components/statusViewer.js). */
+.status-viewer-overlay {
+  z-index: 70;
+}
+.status-viewer-dialog {
+  position: relative;
+  display: flex;
+  max-width: min(320px, 86vw);
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  border-radius: 16px;
+  background: var(--color-surface);
+  padding: 28px 20px 20px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+}
+.status-viewer-image {
+  width: 160px;
+  height: 160px;
+  border-radius: 24px;
+  object-fit: cover;
+}
+.status-viewer-name {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+.status-viewer-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
 }
 
 /* Invite link (components/editChatDialog.js) and the page it opens
@@ -11207,9 +11295,29 @@
 /* На узком экране в звонке ползунок уезжает под кнопки, а не выдавливает
    «Завершить» за край. */
 @media (max-width: 560px) {
+  /* На телефоне кнопки лежат поверх видео снизу, как в обычной звонилке, а не
+     отдельным рядом под картинкой: видео занимает весь экран, кнопки читаются
+     по градиентной подложке. z-index выше окна своей камеры (.call-local-pip,
+     20) — его можно подтащить пальцем куда угодно, и «Завершить» под ним
+     переставала нажиматься. */
+  /* Кнопки ушли из потока, поэтому сетка видео сама забирает всю высоту под
+     шапкой; height:100% тут был бы высотой всего экрана звонка вместе с шапкой
+     и вылезал бы за нижний край. */
+  .call-tiles-grid {
+    min-height: 0;
+    padding: 16px;
+  }
   .call-controls {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 22;
     flex-wrap: wrap;
     gap: 12px;
+    padding: 24px 16px 0;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.35) 55%, transparent);
   }
   .call-controls .volume-control {
     order: 10;
@@ -11773,4 +11881,170 @@
   color: var(--text-dim, var(--text));
   font-size: 12.5px;
   line-height: 1.35;
+}
+
+/* ── Story editor (components/storyEditor.js) ─────────────────────────────── */
+.story-editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 92;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+.story-editor {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+}
+.story-editor-topbar {
+  display: flex;
+  width: 100%;
+  max-width: 420px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #fff;
+}
+.story-editor-tools {
+  display: flex;
+  gap: 6px;
+}
+.story-editor-tool {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+}
+.story-editor-skip {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13.5px;
+}
+.story-editor-stage {
+  position: relative;
+  width: min(88vw, 320px);
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #111;
+  touch-action: none;
+}
+.story-editor-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.story-layer {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.story-layer.selected {
+  outline: 1.5px dashed rgba(255, 255, 255, 0.85);
+  outline-offset: 6px;
+}
+.story-layer-text {
+  padding: 2px 4px;
+  font-weight: 700;
+  white-space: nowrap;
+  outline: none;
+}
+.story-layer-text.with-bg {
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 6px 14px;
+}
+.story-layer-emoji {
+  line-height: 1;
+}
+.story-layer-img {
+  display: block;
+  width: 100%;
+  pointer-events: none;
+}
+.story-layer-del {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: #fff;
+}
+.story-layer-handle {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--color-accent);
+  cursor: nwse-resize;
+}
+.story-layer-bg-toggle {
+  position: absolute;
+  left: -10px;
+  bottom: -10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1b2130;
+  font-size: 11px;
+  font-weight: 700;
+}
+.story-editor-emoji-panel {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  width: min(88vw, 320px);
+  max-height: 140px;
+  overflow-y: auto;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 8px;
+}
+.story-editor-emoji-panel button {
+  font-size: 18px;
+  line-height: 1.6;
+}
+.story-editor-colors {
+  display: flex;
+  gap: 8px;
+}
+.story-editor-color-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+}
+.story-editor-done {
+  width: min(88vw, 320px);
 }

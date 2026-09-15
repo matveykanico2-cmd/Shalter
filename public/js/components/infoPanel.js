@@ -2,7 +2,7 @@ import { el } from "../lib/dom.js";
 import { PremiumStar } from "./premiumStar.js";
 import { api } from "../api.js";
 import { iconSvg } from "../icons.js";
-import { Avatar } from "./avatar.js";
+import { Avatar, videoAvatarUrl } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog } from "./profileDialog.js";
@@ -156,6 +156,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             // with no background at all — a white letter on white, invisible.
             color: chat.otherUser?.avatarColor ?? chat.avatarColor,
             image: chat.otherUser?.avatarImage ?? chat.avatarImage,
+            video: videoAvatarUrl(chat.otherUser),
             size: 72,
             isPremium: isDm && chat.otherUser?.isPremium,
             isDeveloper: isDm && chat.otherUser?.isDeveloper,

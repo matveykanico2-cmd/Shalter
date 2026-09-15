@@ -1,9 +1,13 @@
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const crypto = require("crypto");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { getChat, findChannelByDiscussionChatId } = require("../data/chats");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 const { sanitizeSticker } = require("../lib/sanitizeSticker");
-const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, markChatRead, setLinkPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
+const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, markChatRead, setLinkPreview, setAttachmentPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
 const { getUser, findUserIdsByUsernames } = require("../data/users");
 const { transferStars, balanceOf } = require("../data/stars");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
@@ -21,7 +25,10 @@ const { broadcastToUsers } = require("../ws");
 const { sendPushToUser, MESSAGE_PUSH } = require("../push");
 const { registerAttachments } = require("../lib/uploadAccess");
 const { fetchLinkPreview } = require("../lib/linkPreview");
-const { deleteUploadedFiles } = require("../lib/serveUpload");
+const { deleteUploadedFiles, FILENAME_RE } = require("../lib/serveUpload");
+const { generateVideoPreview, generateImagePreview } = require("../lib/mediaPreview");
+const { createEncryptStream, createDecryptStream, HEADER_LEN } = require("../lib/fileCrypto");
+const storage = require("../lib/storage");
 
 const router = express.Router({ mergeParams: true });
 
@@ -188,6 +195,139 @@ router.get(
   })
 );
 
+// Облегчённая копия тяжёлого вложения — та, которую видно прямо в переписке,
+// пока оригинал лежит в хранилище и качается только по требованию
+// (lib/mediaPreview.js делает саму копию, здесь она попадает в хранилище и в
+// сообщение). Считается уже после отправки: перекодирование ролика идёт
+// минутами, а сообщение должно уйти сразу.
+const PREVIEWABLE_KINDS = new Set(["image", "video"]);
+const DATA_DIR = path.join(process.cwd(), "data");
+
+function uploadFilename(url) {
+  if (typeof url !== "string" || !url.startsWith("/uploads/")) return null;
+  const filename = url.slice("/uploads/".length);
+  return FILENAME_RE.test(filename) ? filename : null;
+}
+
+// Вложения, для которых превью имеет смысл: настоящий файл в хранилище и
+// превью ещё нет. Картинка с готовым эскизом (его мог прислать старый клиент,
+// пережимавший её сам) второй раз не пережимается.
+function needsPreview(attachment) {
+  if (!PREVIEWABLE_KINDS.has(attachment?.kind) || !uploadFilename(attachment.url)) return false;
+  return attachment.kind === "video" ? !attachment.previewUrl : !attachment.thumbUrl;
+}
+
+function markPendingPreviews(attachments) {
+  return attachments?.map((a) => (needsPreview(a) ? { ...a, previewPending: true } : a));
+}
+
+// Расшифрованная копия вложения во временном файле: ffmpeg и sharp читают файл
+// с диска, а в хранилище он лежит зашифрованным (lib/fileCrypto.js) и,
+// возможно, вообще не на этой машине (S3).
+async function fetchUploadToTemp(filename) {
+  const localPath = path.join(os.tmpdir(), `shalter_src_${crypto.randomBytes(8).toString("hex")}${path.extname(filename)}`);
+  const header = await storage.readHeader(filename);
+  const raw = await storage.readRange(filename, header ? HEADER_LEN : 0, undefined);
+  const source = header ? raw.pipe(createDecryptStream(DATA_DIR, header.iv, 0)) : raw;
+  try {
+    await new Promise((resolve, reject) => {
+      const out = fs.createWriteStream(localPath);
+      raw.on("error", reject);
+      source.on("error", reject);
+      out.on("error", reject);
+      out.on("finish", resolve);
+      source.pipe(out);
+    });
+  } catch (err) {
+    await fs.promises.unlink(localPath).catch(() => {});
+    throw err;
+  }
+  return localPath;
+}
+
+// Кладёт готовый временный файл в хранилище ровно так же, как это делает
+// routes/uploads.js с загруженным: шифрование, имя по содержимому, тот же вид
+// ссылки — чтобы превью ничем не отличалось от обычного вложения ни для
+// раздачи, ни для уборки.
+async function storeGeneratedFile(localPath) {
+  const ext = path.extname(localPath);
+  const tempName = `${Date.now().toString(36)}_${crypto.randomBytes(8).toString("hex")}${ext}`;
+  const { stream: out, done, abort } = storage.createWriteTarget(tempName);
+  const cipher = createEncryptStream(DATA_DIR, out);
+  const digest = crypto.createHash("sha256");
+  try {
+    await new Promise((resolve, reject) => {
+      const source = fs.createReadStream(localPath);
+      source.on("data", (chunk) => digest.update(chunk));
+      source.on("error", reject);
+      cipher.on("error", reject);
+      done().then(resolve, reject);
+      cipher.pipe(out);
+      source.pipe(cipher);
+    });
+  } catch (err) {
+    abort();
+    await storage.deleteObject(tempName).catch(() => {});
+    throw err;
+  }
+  const dedupName = `sha_${digest.digest("hex").slice(0, 16)}${ext}`;
+  return `/uploads/${await storage.finalizeDedup(tempName, dedupName)}`;
+}
+
+async function buildPreview(attachment, filename) {
+  const sourcePath = await fetchUploadToTemp(filename);
+  try {
+    if (attachment.kind === "image") {
+      const previewPath = await generateImagePreview(sourcePath);
+      try {
+        const previewUrl = await storeGeneratedFile(previewPath);
+        // thumbUrl — то же самое превью под старым именем: по нему картинка
+        // рисуется в переписке с тех пор, как эскизы делал ещё сам браузер.
+        return { previewUrl, thumbUrl: previewUrl };
+      } finally {
+        await fs.promises.unlink(previewPath).catch(() => {});
+      }
+    }
+    const { previewPath, posterPath, width, height, durationSec } = await generateVideoPreview(sourcePath);
+    try {
+      const previewUrl = await storeGeneratedFile(previewPath);
+      const posterUrl = await storeGeneratedFile(posterPath);
+      return { previewUrl, posterUrl, width, height, durationSec };
+    } finally {
+      await fs.promises.unlink(previewPath).catch(() => {});
+      await fs.promises.unlink(posterPath).catch(() => {});
+    }
+  } finally {
+    await fs.promises.unlink(sourcePath).catch(() => {});
+  }
+}
+
+// Fire-and-forget, как и разбор ссылки ниже: отправитель не ждёт ни секунды
+// перекодирования. Каждое готовое превью рассылается отдельным
+// message:updated — у ролика на десять минут и у картинки рядом с ним время
+// готовности разное, и ждать медленного ради быстрого незачем.
+//
+// Любая ошибка снимает previewPending, но ничего не проставляет: вложение
+// останется таким же, каким было до всей этой затеи, — с оригиналом по ссылке.
+// Заглохший навсегда «превью сейчас будет» был бы заметно хуже.
+async function attachPreviews(chat, message) {
+  for (const [index, attachment] of (message.attachments ?? []).entries()) {
+    const filename = needsPreview(attachment) ? uploadFilename(attachment.url) : null;
+    if (!filename) continue;
+    let preview = null;
+    try {
+      preview = await buildPreview(attachment, filename);
+    } catch (err) {
+      console.error(`preview generation failed for ${message.id}#${index}:`, err.message);
+    }
+    // Превью — часть той же переписки, что и оригинал, и доступно должно быть
+    // не шире её (lib/uploadAccess.js).
+    if (preview) registerAttachments(chat.id, [{ url: preview.previewUrl, thumbUrl: preview.posterUrl }]);
+    const updated = await setAttachmentPreview(message.id, index, preview ?? {});
+    if (updated) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+  }
+}
+
 // The actual "create + fan out" work for a message, shared by the live send
 // route below and server/lib/scheduledMessagesSweep.js's sweep (a fired
 // scheduled message goes through the exact same delivery — mentions, bot
@@ -223,7 +363,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
     reactions: [],
     replyToId: body.replyToId ?? null,
     threadRootId: body.threadRootId ?? null,
-    attachments: sanitizeAttachments(body.attachments),
+    attachments: markPendingPreviews(sanitizeAttachments(body.attachments)),
     forwardedFrom,
     sticker: sanitizeSticker(body.sticker),
     readByIds: [senderId],
@@ -289,6 +429,8 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
 
   const sender = await getUser(senderId);
   pushNewMessage(chat, sender, message).catch((err) => console.error("push notify failed:", err));
+
+  attachPreviews(chat, message).catch((err) => console.error("attachment preview failed:", err));
 
   // Fire-and-forget, same as the bot dispatch above — fetching a link's
   // metadata from a slow or unreachable site must never delay the actual

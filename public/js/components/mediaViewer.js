@@ -7,7 +7,10 @@ import { iconSvg } from "../icons.js";
 // кто действительно нажал «посмотреть». Раньше полное изображение начинало
 // качаться само, стоило сообщению появиться на экране, — и так для каждой
 // фотографии в истории чата, даже если её никто не открывал.
-export function openMediaViewer({ kind, url, name }) {
+// originalUrl — полный файл, когда `url` это лёгкое превью (240p-видео с
+// сервера): играем превью, а оригинал отдаём отдельной кнопкой, чтобы он
+// качался только по просьбе.
+export function openMediaViewer({ kind, url, name, originalUrl = null }) {
   const overlay = el("div", { class: "media-viewer-overlay", onclick: (e) => e.target === overlay && close() });
 
   const media =
@@ -22,7 +25,12 @@ export function openMediaViewer({ kind, url, name }) {
         el("span", { class: "media-viewer-spacer" }),
         // download, а не переход по ссылке: файл сохраняется рядом, вкладка
         // с чатом никуда не девается.
-        el("a", { class: "icon-btn", title: "Скачать", href: url, download: name || "file", html: iconSvg("Download", 20) }),
+        originalUrl
+          ? el("a", { class: "media-viewer-original", title: "Скачать оригинал", href: originalUrl, download: name || "file" }, [
+              el("span", { html: iconSvg("Download", 18) }),
+              el("span", {}, "Скачать оригинал"),
+            ])
+          : el("a", { class: "icon-btn", title: "Скачать", href: url, download: name || "file", html: iconSvg("Download", 20) }),
         el("button", { class: "icon-btn", title: "Закрыть", html: iconSvg("X", 20), onclick: () => close() }),
       ]),
       el("div", { class: "media-viewer-stage" }, [media]),

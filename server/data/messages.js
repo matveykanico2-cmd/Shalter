@@ -280,6 +280,24 @@ function setLinkPreview(id, linkPreview) {
   return mutate(id, (m) => ({ ...m, linkPreview }));
 }
 
+// Проставляет вложению облегчённую копию, досчитанную уже после отправки
+// (lib/mediaPreview.js). previewPending снимается в любом случае — в том числе
+// когда превью не получилось: висящий навсегда «сейчас будет» хуже, чем
+// вложение без превью, которое клиент покажет как раньше, оригиналом.
+function setAttachmentPreview(id, index, preview) {
+  return mutate(id, (m) => {
+    const attachments = m.attachments?.map((a, i) => {
+      if (i !== index) return a;
+      const next = { ...a, previewPending: undefined };
+      for (const [key, value] of Object.entries(preview ?? {})) {
+        if (value !== undefined && value !== null) next[key] = value;
+      }
+      return next;
+    });
+    return { ...m, attachments };
+  });
+}
+
 // Flips a report-notification message's embedded status once the admin acts
 // on it from messageBubble.js's ReportMessage (see routes/reports.js's
 // /:id/resolve) — the buttons there disappear once status !== "open".
@@ -543,6 +561,7 @@ module.exports = {
   setAnchorForPost,
   setDiscussionAnchor,
   setLinkPreview,
+  setAttachmentPreview,
   setReportMessageStatus,
   setBoost,
 };

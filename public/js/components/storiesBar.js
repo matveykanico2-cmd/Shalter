@@ -6,6 +6,7 @@ import { getState } from "../state.js";
 import { fileToImageUpload } from "../lib/image.js";
 import { uploadFile } from "../lib/upload.js";
 import { openStoryViewer } from "./storyViewer.js";
+import { openStoryEditor } from "./storyEditor.js";
 import { onWsMessage } from "../lib/wsClient.js";
 
 const MAX_STORY_DIMENSION = 1080;
@@ -38,11 +39,24 @@ export function StoriesBar() {
     const items = [];
     for (const [i, file] of files.entries()) {
       const isVideo = file.type.startsWith("video/");
+      let upload = file;
+      // The editor is photo-only (see storyEditor.js's header) — a video story
+      // still goes straight up untouched. Cancelling the editor on one photo
+      // (Escape / the ✕) just drops that photo rather than aborting the batch,
+      // same as picking one fewer file to begin with.
+      if (!isVideo) {
+        progress = `Редактируем ${i + 1} из ${files.length}…`;
+        render();
+        const edited = await openStoryEditor(file);
+        if (!edited) continue;
+        // "Пропустить" resolves with the original File untouched — still needs
+        // the usual downscale. A baked result is already 1080×1920 and skips it.
+        upload = edited === file ? await fileToImageUpload(file, MAX_STORY_DIMENSION) : edited;
+      }
       progress = `Загружаем ${i + 1} из ${files.length}…`;
       render();
       // По очереди, а не Promise.all: уменьшение картинки идёт в том же потоке,
       // что и отрисовка, а десяток параллельных отправок кладёт канал.
-      const upload = isVideo ? file : await fileToImageUpload(file, MAX_STORY_DIMENSION);
       const { url } = await uploadFile(upload, isVideo ? "video" : "image");
       items.push({ kind: isVideo ? "video" : "image", url });
     }

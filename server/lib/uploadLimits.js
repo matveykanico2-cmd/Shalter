@@ -11,19 +11,22 @@
 const MB = 1024 * 1024;
 const GB = 1024 * MB;
 
+// Один потолок на все тяжёлые вложения: что бы ни прислали, в переписке
+// показывается лёгкое превью, которое сервер делает сам (lib/mediaPreview.js),
+// а оригинал качается отдельно и по требованию. Разные числа для видео,
+// картинки и файла имели смысл, пока в чат лился сам оригинал.
 const UPLOAD_LIMITS = {
-  video: 2 * GB,
-  image: 1 * GB,
-  file: 500 * MB,
-  voice: 1 * GB,
-  "video-note": 1 * GB,
+  video: 5 * GB,
+  image: 5 * GB,
+  file: 5 * GB,
+  voice: 5 * GB,
+  "video-note": 5 * GB,
   // Profile photos and video avatars. Far tighter than the message kinds
   // above on purpose: an avatar is fetched by everyone who opens the profile,
-  // it is never the point of the upload the way a shared 2GB video is, and
-  // without a separate kind a "photo" avatar would inherit the 1GB image
-  // ceiling.
+  // it is never the point of the upload the way a shared 5GB video is, and
+  // without a separate kind a "photo" avatar would inherit the image ceiling.
   avatar: 20 * MB,
-  "avatar-video": 60 * MB,
+  "avatar-video": 3 * GB,
 };
 const DEFAULT_LIMIT = 1 * GB;
 

@@ -30,12 +30,36 @@ function orbitItemsFor(isPremium, isDeveloper) {
   return [];
 }
 
-export function Avatar({ name, color, image, size = 44, online, className = "", isPremium = false, isDeveloper = false, orbit = false }) {
+// Ссылка на видео-аватар, если текущая (первая в списке) аватарка — видео.
+// Передавать её в Avatar стоит только там, где аватарка крупная и одна на
+// экране: строка списка чатов с живым <video> в каждой строке — это десятки
+// декодеров разом.
+export function videoAvatarUrl(user) {
+  const main = user?.avatarImages?.[0];
+  return main?.kind === "video" ? main.url : null;
+}
+
+export function Avatar({ name, color, image, video = null, size = 44, online, className = "", isPremium = false, isDeveloper = false, orbit = false }) {
   const wrap = el("div", {
     class: `avatar ${className}`,
     style: { width: `${size}px`, height: `${size}px` },
   });
-  if (image) {
+  if (video) {
+    // Muted — иначе браузер просто не запустит автовоспроизведение; poster
+    // держит кадр, пока видео не начало играть.
+    wrap.appendChild(
+      el("video", {
+        class: "avatar-img",
+        src: video,
+        poster: image,
+        autoplay: true,
+        loop: true,
+        muted: true,
+        playsInline: true,
+        style: { width: `${size}px`, height: `${size}px` },
+      })
+    );
+  } else if (image) {
     // Картинка может не загрузиться: у бота её задаёт владелец через Bot API
     // обычной ссылкой, и ссылка бывает мёртвой. Без запасного варианта на
     // экране оставался «сломанный файл» с текстом alt поперёк строки — видно

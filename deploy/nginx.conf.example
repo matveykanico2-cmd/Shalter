@@ -21,7 +21,9 @@ http {
   # environment (see ecosystem.config.js) so responses aren't compressed twice.
 
   # Data-URL attachments (voice/video-note/image) ride inline in JSON bodies —
-  # match server/index.js's express.json({ limit: "25mb" }).
+  # match server/index.js's express.json({ limit: "25mb" }). Real file uploads
+  # are not this: they go to /api/uploads as a raw body and have their own,
+  # much larger limit in the location block below.
   client_max_body_size 25m;
 
   # First line of defense against request floods: rejecting excess requests
@@ -64,6 +66,27 @@ http {
     limit_conn perip 20;
 
     location / {
+      proxy_pass http://messenger_app;
+      proxy_http_version 1.1;
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Real file uploads (server/routes/uploads.js) stream the raw file as the
+    # request body, so the 25m above — sized for JSON message bodies — would
+    # reject them with a 413 long before Node's own per-kind ceiling
+    # (server/lib/uploadLimits.js, currently 5GB) ever applied. Keep this number
+    # just above that ceiling whenever it changes.
+    #
+    # proxy_request_buffering off matters as much as the size: without it nginx
+    # spools the entire upload to disk before Node sees a byte, which on a 30GB
+    # box means one 5GB upload can fill it.
+    location /api/uploads {
+      client_max_body_size 5100m;
+      proxy_request_buffering off;
+      proxy_read_timeout 3600s;  # a multi-gigabyte upload over a slow line
       proxy_pass http://messenger_app;
       proxy_http_version 1.1;
       proxy_set_header Host $host;

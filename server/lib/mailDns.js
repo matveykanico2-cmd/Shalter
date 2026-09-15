@@ -10,7 +10,7 @@ const { publicRecord } = require("./dkim");
 // уже стоит в DNS, и показать это администратору в самом приложении — потому что
 // консоли у него может не быть вовсе (см. routes/admin.js's /mail-status).
 
-const MAIL_FROM_DEFAULT = "Shalter <no-reply@shalter.ru>";
+const MAIL_FROM_DEFAULT = "Shalter <no-reply@your-domain.example>";
 
 function senderDomain() {
   const from = process.env.MAIL_FROM || MAIL_FROM_DEFAULT;

@@ -239,6 +239,24 @@ The `/ws` location block matters — without it, WebSocket upgrade requests
 (call signaling, presence) get proxied as plain HTTP and silently fail to
 upgrade, and the app falls back to slower HTTP polling for everything.
 
+The `/api/uploads` location block matters for the same reason: the global
+`client_max_body_size 25m` is sized for JSON message bodies, and a real file
+upload (a raw body, see `server/routes/uploads.js`) would be rejected with a
+413 by nginx long before Node's own per-kind limit applied. That block raises
+it to 5100m — just above the 5GB ceiling in `server/lib/uploadLimits.js` — and
+turns request buffering off so a multi-gigabyte upload isn't spooled to this
+box's disk in full before Node sees it. **Если конфиг nginx уже развёрнут,
+эту правку нужно перенести на сервер руками** — иначе большие файлы будут
+падать с 413 на прокси.
+
+Превью тяжёлых вложений (240p-копия видео, уменьшенная картинка) делает сам
+сервер через `ffmpeg-static` — отдельной установки ffmpeg в систему не нужно,
+бинарник приезжает с пакетом. Важно: `npm ci` на сервере должен выполнять
+install-скрипты пакета (именно они скачивают бинарник), иначе превью для видео
+тихо не будут получаться. Одновременно идёт не больше одного перекодирования
+(`server/lib/mediaPreview.js`) — на двух ядрах это защищает отзывчивость
+звонков.
+
 ## Sending e-mail
 
 Two things send mail: confirming a new address (Settings → Конфиденциальность →

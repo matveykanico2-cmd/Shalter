@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { getState, setState, updateSelf } from "../state.js";
 import { uploadFile } from "../lib/upload.js";
 import { fileToAvatarDataUrl, videoPosterDataUrl } from "../lib/image.js";
+import { startRecording, isRecordingSupported } from "../lib/recorder.js";
 
 // Full-screen avatar viewer: tap a profile picture anywhere and it opens at full
 // size, with the person's other photos behind it.
@@ -15,7 +16,7 @@ import { fileToAvatarDataUrl, videoPosterDataUrl } from "../lib/image.js";
 // On your own profile it doubles as the manager — add, reorder, delete — because
 // the alternative is a separate settings screen listing the same six pictures.
 
-const MAX_VIDEO_SECONDS = 30;
+const MAX_VIDEO_SECONDS = 180;
 
 export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
   let avatars = [...(user.avatarImages ?? [])];
@@ -25,6 +26,10 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
   let index = 0;
   let busy = null;
   let error = null;
+  // Запись видео-аватара: тот же квадратный захват, что у кружка в переписке
+  // (lib/recorder.js), только без его предела длительности.
+  let recording = null;
+  let recordSec = 0;
 
   const overlay = el("div", { class: "avatar-viewer-overlay", onclick: (e) => e.target === overlay && close() });
   const stage = el("div", { class: "avatar-viewer-stage" });
@@ -60,6 +65,9 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
 
   function close() {
     document.removeEventListener("keydown", onKey);
+    // Иначе камера останется включённой после закрытия окна.
+    recording?.cancel();
+    recording = null;
     overlay.remove();
   }
   function onKey(e) {
@@ -100,7 +108,9 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
       const poster = isVideo ? await videoPosterDataUrl(file) : await fileToAvatarDataUrl(file);
       if (isVideo) {
         const seconds = await durationOf(file);
-        if (seconds > MAX_VIDEO_SECONDS) {
+        // Infinite/NaN — не «слишком длинное»: свежая запись MediaRecorder
+        // часто отдаёт именно такую длительность, пока файл не перемотан.
+        if (Number.isFinite(seconds) && seconds > MAX_VIDEO_SECONDS) {
           throw new Error(`Видео-аватар — не длиннее ${MAX_VIDEO_SECONDS} секунд (у этого ${Math.round(seconds)})`);
         }
       }
@@ -118,6 +128,42 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
       busy = null;
       render();
     }
+  }
+
+  async function startVideo() {
+    error = null;
+    recordSec = 0;
+    try {
+      recording = await startRecording("avatar-video", {
+        onTick: (sec) => {
+          recordSec = sec;
+          renderBar();
+        },
+      });
+    } catch {
+      error = "Не удалось включить камеру";
+    }
+    render();
+  }
+
+  // Готовая запись уходит тем же путём, что и выбранный файл: add() уже умеет
+  // и постер снять, и длительность проверить, и загрузить.
+  async function stopVideo(keep) {
+    const handle = recording;
+    if (!handle) return;
+    recording = null;
+    if (!keep) {
+      handle.cancel();
+      render();
+      return;
+    }
+    handle.stop();
+    const res = await handle.result;
+    render();
+    if (!res?.blob) return;
+    const type = res.mimeType || "video/webm";
+    const ext = type.includes("mp4") ? "mp4" : "webm";
+    add(new File([res.blob], `avatar-${Date.now()}.${ext}`, { type }));
   }
 
   function durationOf(file) {
@@ -160,6 +206,12 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
 
   function renderStage() {
     clear(stage);
+    if (recording) {
+      const preview = el("video", { class: "avatar-viewer-media recording", autoplay: true, muted: true, playsInline: true });
+      preview.srcObject = recording.stream;
+      stage.appendChild(preview);
+      return;
+    }
     const current = avatars[index];
     if (!current) {
       stage.appendChild(el("p", { class: "avatar-viewer-empty" }, canEdit ? "Фото профиля пока нет" : "Нет фото профиля"));
@@ -192,14 +244,25 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
 
   function renderBar() {
     clear(bar);
+    if (recording) {
+      const mm = String(Math.floor(recordSec / 60)).padStart(2, "0");
+      const ss = String(recordSec % 60).padStart(2, "0");
+      appendAll(bar,
+        el("p", { class: "avatar-viewer-busy" }, `Запись… ${mm}:${ss}`),
+        el("button", { class: "btn-accent", onclick: () => stopVideo(true) }, "Готово"),
+        el("button", { class: "profile-action-btn", onclick: () => stopVideo(false) }, "Отмена")
+      );
+      return;
+    }
     if (busy) {
       bar.appendChild(el("p", { class: "avatar-viewer-busy" }, busy));
       return;
     }
     if (!canEdit) return;
-    appendAll(bar, 
+    appendAll(bar,
       ...[
         el("button", { class: "btn-accent", onclick: () => fileInput.click() }, "Добавить фото или видео"),
+        isRecordingSupported() ? el("button", { class: "profile-action-btn", onclick: () => startVideo() }, "Записать видео") : null,
         avatars.length > 1 && index !== 0
           ? el("button", { class: "profile-action-btn", onclick: () => act(() => api.setMainAvatar(index), "Сохраняем…") }, "Сделать основной")
           : null,

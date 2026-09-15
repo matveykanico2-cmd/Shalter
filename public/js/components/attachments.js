@@ -8,6 +8,15 @@ import { openMediaViewer } from "./mediaViewer.js";
 // (rather than exported from messageBubble.js) so the profile dialog doesn't
 // have to import from a file that itself imports openProfileDialog, which
 // would make the two modules circularly dependent on each other.
+// Сервер ещё готовит лёгкую копию (server/lib/mediaPreview.js): открывать пока
+// нечего — оригинал на несколько гигабайт для этого и не годится.
+function PendingPreview(poster) {
+  return el("div", { class: "attachment-pending" }, [
+    poster ? el("img", { src: poster, alt: "", class: "video-attachment-poster" }) : el("div", { class: "video-attachment-poster" }),
+    el("span", { class: "attachment-pending-spinner" }),
+  ]);
+}
+
 export function ImageAttachment(a) {
   // В чате видна только миниатюра — килобайты, рисуется мгновенно, переписка
   // листается без серых дыр на месте фотографий. Полное качество не
@@ -20,19 +29,32 @@ export function ImageAttachment(a) {
   // Если полной уже нет на сервере (её убрали как доставленную, см.
   // server/lib/orphanSweep.js), просмотрщик покажет то, что успеет
   // загрузиться, — а до открытия чат всё равно выглядит целым по эскизу.
+  // Пока сервер считает эскиз, показывать вместо него оригинал нельзя: это
+  // ровно тот полноразмерный файл, ради которого эскиз и делается.
+  if (a.previewPending && !a.thumbUrl) return PendingPreview(null);
   const img = el("img", { src: a.thumbUrl || a.url, alt: a.name || "photo", class: "image-attachment" });
   return el("button", { class: "image-attachment-btn", type: "button", onclick: () => openMediaViewer({ kind: "image", url: a.url, name: a.name }) }, [img]);
 }
 
 export function VideoAttachment(a) {
-  // Тот же принцип, что и у фото: ничего не качается, пока не нажали. Кадр
-  // видео — не миниатюра (её для видео не готовят, только для фото), поэтому
-  // тут просто чёрный экран с кнопкой воспроизведения до открытия.
+  // Тот же принцип, что и у фото: ничего не качается, пока не нажали. Постер и
+  // лёгкое 240p-превью готовит сервер после загрузки (server/lib/mediaPreview.js),
+  // поэтому сразу после отправки у вложения стоит previewPending — до прихода
+  // message:updated на месте кадра крутится ожидание, а не кнопка, открывающая
+  // оригинал на несколько гигабайт.
+  const poster = a.posterUrl || a.thumbUrl;
+  if (a.previewPending) return PendingPreview(poster);
   return el(
     "button",
-    { class: "video-attachment-btn", type: "button", onclick: () => openMediaViewer({ kind: "video", url: a.url, name: a.name }) },
+    {
+      class: "video-attachment-btn",
+      type: "button",
+      // Играет превью, а оригинал просмотрщик предлагает отдельной кнопкой
+      // «Скачать оригинал» — смотреть пятигигабайтный файл потоком незачем.
+      onclick: () => openMediaViewer({ kind: "video", url: a.previewUrl || a.url, name: a.name, originalUrl: a.previewUrl ? a.url : null }),
+    },
     [
-      a.thumbUrl ? el("img", { src: a.thumbUrl, alt: "", class: "video-attachment-poster" }) : el("div", { class: "video-attachment-poster" }),
+      poster ? el("img", { src: poster, alt: "", class: "video-attachment-poster" }) : el("div", { class: "video-attachment-poster" }),
       el("span", { class: "video-attachment-play", html: iconSvg("Video", 28) }),
     ]
   );

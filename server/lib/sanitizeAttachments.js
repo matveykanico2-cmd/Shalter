@@ -45,6 +45,12 @@ function sanitizeAttachments(attachments) {
         if (!isSafeUrl(a.thumbUrl)) return null;
         out.thumbUrl = a.thumbUrl;
       }
+      // previewUrl / posterUrl / previewPending в разрешённую форму входят, но
+      // приходят они не отсюда: их выставляет сам сервер, когда досчитает
+      // облегчённую копию (lib/mediaPreview.js, routes/messages.js). С клиента
+      // они молча отбрасываются — иначе кто угодно смог бы объявить превью
+      // чужого вложения чем угодно, включая уже удалённый или чужой файл, и
+      // мимо проверки из uploadAccess.js.
       if (a.name !== undefined) out.name = String(a.name).slice(0, 300);
       if (a.mimeType !== undefined) out.mimeType = String(a.mimeType).slice(0, 120);
       if (a.size !== undefined) out.size = Number.isFinite(a.size) ? a.size : undefined;

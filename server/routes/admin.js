@@ -458,7 +458,7 @@ router.get(
     if (!(await requireAdmin(req, res))) return;
     const [check, dnsAdvice] = await Promise.all([verifySmtp(), buildDnsAdvice()]);
     res.json({
-      from: process.env.MAIL_FROM || "Shalter <no-reply@shalter.ru>",
+      from: process.env.MAIL_FROM || "Shalter <no-reply@your-domain.example>",
       configured: check.configured === true,
       ok: check.ok === true,
       error: check.error ?? null,

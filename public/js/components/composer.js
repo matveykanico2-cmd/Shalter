@@ -2,7 +2,6 @@ import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { startRecording, isRecordingSupported, createLevelMeter, MAX_RECORD_SEC } from "../lib/recorder.js";
-import { fileToImageUpload } from "../lib/image.js";
 import { uploadFile } from "../lib/upload.js";
 import { checkSize } from "../lib/uploadLimits.js";
 import { openPollDialog } from "./pollDialog.js";
@@ -16,16 +15,6 @@ import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
 const EMOJI = ["😀", "😂", "😍", "👍", "🙏", "🔥", "🎉", "😢", "😮", "❤️", "👏", "🤔"];
 const TYPING_PING_MS = 2500; // well under the server's 4s typing-presence expiry
 const DRAFT_SAVE_MS = 600; // debounce so we're not POSTing on every keystroke
-// 1600 точек по длинной стороне — нормальное качество: фотография остаётся
-// фотографией, текст на снимке документа читается.
-//
-// Место это больше не съедает так, как раньше: картинки хранятся в webp,
-// одинаковые файлы лежат на диске в одном экземпляре, а полный файл убирается
-// с сервера после того, как его получили все, — вместо него остаётся эскиз.
-// Экономия теперь достигается этим, а не порчей снимков.
-const MAX_IMAGE_DIMENSION = 1600;
-// Эскиз: его задача — быть узнаваемым, а не разглядываемым.
-const THUMB_DIMENSION = 240;
 
 // "1 ошибку / 2 ошибки / 5 ошибок" — a count next to an unagreed noun reads as
 // broken Russian, and Hugo's whole point is noticing exactly that.
@@ -260,71 +249,18 @@ export function Composer({
     }
 
     // Uploads the file (streaming, with a progress bar), then sends the message
-    // carrying a URL instead of the whole file. Images still get downscaled
-    // client-side first when they're small enough to decode safely — that's a
-    // deliberate product choice (chat photos, not archival originals); anything
-    // bigger goes up untouched, since a canvas can't decode a huge photo without
-    // taking the tab down with it. Send the original as a Файл to keep it exact.
-    const CANVAS_SAFE_IMAGE_BYTES = 20 * 1024 * 1024;
-
+    // carrying a URL instead of the whole file.
+    //
+    // Ничего не пережимается в браузере: и картинка, и видео уезжают
+    // оригиналом, а лёгкое превью (эскиз для фото, 240p-прокси и кадр-постер
+    // для видео) делает сервер уже после загрузки и досылает его в сообщение
+    // событием message:updated. Раньше это считалось здесь — canvas не мог
+    // раскодировать крупный снимок, не уронив вкладку, а видео пережималось
+    // минутами до начала отправки; вдобавок картинка уходила двумя запросами
+    // (уменьшенная плюс эскиз).
     async function attachFile(file, kind) {
-      // Видео пережимается до отправки (см. lib/video.js) — и проверять размер
-      // надо уже по результату: с телефона ролик легко весит больше лимита,
-      // а после пережатия укладывается.
-      if (kind === "video") {
-        const label = el("span", { class: "composer-upload-label" }, "Сжатие видео…");
-        const bar = el("span", { class: "composer-upload-bar-fill" });
-        clear(uploadSlot);
-        uploadSlot.appendChild(el("div", { class: "composer-upload-row" }, [label, el("span", { class: "composer-upload-bar" }, [bar])]));
-        try {
-          const { compressVideoFile } = await import("../lib/video.js");
-          file = await compressVideoFile(file, (f) => (bar.style.width = `${Math.round(f * 100)}%`));
-        } catch {
-          // Пережать не вышло — отправим как есть, ниже сработает проверка размера.
-        }
-        clear(uploadSlot);
-      }
-
       const sizeError = checkSize(file, kind);
       if (sizeError) return showUploadError(sizeError);
-
-      // Картинка уменьшается и уезжает файлом — тем же путём, что видео и
-      // документы, — а в сообщение попадает ссылка на него.
-      //
-      // Раньше уменьшенная картинка вкладывалась в сообщение строкой data: и
-      // так и оставалась в базе. Это дорого со всех сторон: base64 на треть
-      // толще самой картинки; строка лежит в колонке сообщения, поэтому едет в
-      // ответе всякий раз, когда читают историю чата, и занимает место в кэше
-      // базы, вытесняя оттуда то, что действительно нужно; резервная копия
-      // базы превращается в копию всех фотографий сразу. Файл на диске лишён
-      // всего этого и отдаётся отдельным запросом, который браузер закэширует.
-      //
-      // Старые сообщения с data: продолжают открываться как раньше — ничего
-      // переписывать не нужно, меняется только то, как кладутся новые.
-      if (kind === "image" && file.size <= CANVAS_SAFE_IMAGE_BYTES) {
-        try {
-          const smaller = await fileToImageUpload(file, MAX_IMAGE_DIMENSION);
-          const attachment = await uploadFile(smaller, "image");
-          // Второй, крошечный файл — эскиз.
-          //
-          // Он нужен, чтобы уборка на сервере (lib/orphanSweep.js) могла
-          // удалять полную картинку, когда её уже все получили, и при этом
-          // ничего не пропадало: полный файл живёт у людей на устройствах, а
-          // здесь остаётся то, что видно с любого нового телефона. Весит он
-          // считанные килобайты, поэтому хранится всегда.
-          let thumbUrl;
-          try {
-            const thumb = await fileToImageUpload(file, THUMB_DIMENSION);
-            thumbUrl = (await uploadFile(thumb, "image")).url;
-          } catch {
-            // Эскиз не сделался — не повод не отправлять само сообщение.
-          }
-          onSend("", [{ ...attachment, kind: "image", name: file.name, thumbUrl }]);
-        } catch (err) {
-          showUploadError(err.message || "Не удалось обработать изображение");
-        }
-        return;
-      }
 
       const bar = el("span", { class: "composer-upload-bar-fill" });
       const pct = el("span", { class: "mono composer-upload-pct" }, "0%");

@@ -227,10 +227,14 @@ function collectReferencedExcept() {
 }
 
 // Отдельным проходом: эскизы лежат в тех же вложениях, но в своём поле, и
-// общий разбор строки их не отличает от полной картинки.
+// общий разбор строки их не отличает от полной картинки. Сюда же попадают
+// облегчённая копия видео и её кадр-обложка (lib/mediaPreview.js) — в
+// переписке показывается именно они, и пережить оригинал они обязаны.
 function keepThumbnails(keep) {
   try {
-    for (const row of db.prepare("SELECT attachments FROM messages WHERE attachments LIKE '%thumbUrl%'").all()) {
+    for (const row of db
+      .prepare("SELECT attachments FROM messages WHERE attachments LIKE '%thumbUrl%' OR attachments LIKE '%previewUrl%'")
+      .all()) {
       let list = [];
       try {
         list = JSON.parse(row.attachments || "[]");
@@ -238,8 +242,10 @@ function keepThumbnails(keep) {
         continue;
       }
       for (const a of list) {
-        const m = String(a?.thumbUrl ?? "").match(/\/uploads\/([a-z0-9]+_[a-f0-9]{16}(?:\.[a-z0-9]{1,12})?)/);
-        if (m) keep.add(m[1]);
+        for (const value of [a?.thumbUrl, a?.previewUrl, a?.posterUrl]) {
+          const m = String(value ?? "").match(/\/uploads\/([a-z0-9]+_[a-f0-9]{16}(?:\.[a-z0-9]{1,12})?)/);
+          if (m) keep.add(m[1]);
+        }
       }
     }
   } catch {

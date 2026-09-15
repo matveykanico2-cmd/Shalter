@@ -1,8 +1,13 @@
 // Whoever holds this phone number on their account is the Shalter
 // administrator/developer — see server/routes/premium.js and
-// server/data/sanitize.js (the "Разработчик" badge). Overridable via env so
-// a deployment doesn't have to hardcode a real phone number in source.
-const ADMIN_PHONE = process.env.PREMIUM_ADMIN_PHONE || "+79781827502";
+// server/data/sanitize.js (the "Разработчик" badge).
+//
+// No hardcoded fallback on purpose — this used to default to a real phone
+// number baked into source, which meant anyone who forked or bought this
+// codebase inherited the previous owner's number as the admin identity until
+// they noticed and overrode it. Now it comes only from .env (see
+// .env.example) — nothing personal ships in the code itself.
+const ADMIN_PHONE = process.env.PREMIUM_ADMIN_PHONE || "";
 
 // Администраторов может быть несколько.
 //
@@ -11,9 +16,9 @@ const ADMIN_PHONE = process.env.PREMIUM_ADMIN_PHONE || "+79781827502";
 // списка, поэтому проверки прав идут через isAdminPhone, а не через сравнение
 // с одной строкой.
 //
-// Дополнительные номера задаются через PREMIUM_ADMIN_PHONES (через запятую);
-// без переменной берётся зашитый список.
-const EXTRA_ADMIN_PHONES = (process.env.PREMIUM_ADMIN_PHONES || "+79781824352")
+// Дополнительные номера задаются через PREMIUM_ADMIN_PHONES (через запятую) —
+// см. .env.example. Без переменной список пуст, а не зашит в код.
+const EXTRA_ADMIN_PHONES = (process.env.PREMIUM_ADMIN_PHONES || "")
   .split(",")
   .map((p) => p.trim())
   .filter(Boolean);

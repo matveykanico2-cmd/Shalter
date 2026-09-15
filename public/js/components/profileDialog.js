@@ -1,6 +1,6 @@
 import { el, clear } from "../lib/dom.js";
 import { PremiumStar } from "./premiumStar.js";
-import { Avatar } from "./avatar.js";
+import { Avatar, videoAvatarUrl } from "./avatar.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
@@ -351,7 +351,7 @@ export async function openProfileDialog(userId) {
               }),
           },
           [
-            Avatar({ name: user.name, color: user.avatarColor, image: user.avatarImage, size: 88, online: user.online, isPremium: user.isPremium, isDeveloper: user.isDeveloper, orbit: true }),
+            Avatar({ name: user.name, color: user.avatarColor, image: user.avatarImage, video: videoAvatarUrl(user), size: 88, online: user.online, isPremium: user.isPremium, isDeveloper: user.isDeveloper, orbit: true }),
             (user.avatarImages ?? []).length > 1
               ? el("span", { class: "avatar-count-badge" }, String(user.avatarImages.length))
               : null,

@@ -6,6 +6,7 @@ import { uploadFile } from "../lib/upload.js";
 import { Toggle } from "./toggle.js";
 import { Avatar } from "./avatar.js";
 import { openChatPickerDialog } from "./chatPickerDialog.js";
+import { openStoryEditor } from "./storyEditor.js";
 
 // Editing a group or channel after it exists: picture, name, description, and
 // the public @link. Owners and admins only — enforced on the server too
@@ -68,9 +69,16 @@ export function openEditChatDialog(chat, onSaved) {
     const items = [];
     for (const [i, file] of files.entries()) {
       const isVideo = file.type.startsWith("video/");
+      let upload = file;
+      if (!isVideo) {
+        storyProgress = `Редактируем ${i + 1} из ${files.length}…`;
+        render();
+        const edited = await openStoryEditor(file);
+        if (!edited) continue;
+        upload = edited === file ? await fileToImageUpload(file, 1080) : edited;
+      }
       storyProgress = `Загружаем ${i + 1} из ${files.length}…`;
       render();
-      const upload = isVideo ? file : await fileToImageUpload(file, 1080);
       const { url } = await uploadFile(upload, isVideo ? "video" : "image");
       items.push({ kind: isVideo ? "video" : "image", url });
     }
