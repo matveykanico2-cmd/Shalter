@@ -15,10 +15,10 @@ export const UPLOAD_LIMITS = {
   file: 5 * GB,
   voice: 5 * GB,
   "video-note": 5 * GB,
-  avatar: 2 * MB,
+  avatar: 20 * MB,
   "avatar-video": 3 * GB,
 };
-const DEFAULT_LIMIT = 6 * MB;
+const DEFAULT_LIMIT = 1 * GB;
 
 export function limitFor(kind) {
   return UPLOAD_LIMITS[kind] ?? DEFAULT_LIMIT;
