@@ -28,6 +28,7 @@ import { openProfileStatusDialog } from "../../components/profileStatusDialog.js
 import { Toggle } from "../../components/toggle.js";
 import { openProfileQrDialog } from "../../components/profileQrDialog.js";
 import { handlePurchaseResponse } from "../../lib/purchase.js";
+import { uploadFile } from "../../lib/upload.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
 import { openAdminUserPanel } from "../../components/adminUserPanel.js";
 import { PremiumStar, PremiumStarRow } from "../../components/premiumStar.js";
@@ -2795,7 +2796,8 @@ async function renderGiftShop(root) {
   let error = null;
   let busyId = null;
   let notice = null;
-  const draft = { emoji: "", name: "", priceStars: "", supply: "", exclusive: true, forever: true };
+  let uploadingGif = false;
+  const draft = { emoji: "", name: "", priceStars: "", supply: "", exclusive: true, forever: true, gifFile: null, gifPreviewUrl: null };
 
   async function load() {
     try {
@@ -2829,6 +2831,16 @@ async function renderGiftShop(root) {
     error = null;
     notice = null;
     try {
+      // Гифка грузится обычным путём (как любое вложение), а вырезание фона
+      // (server/lib/giftMedia.js) сервер делает уже внутри /catalog — так
+      // неудачная обработка не оставляет в каталоге подарок без анимации.
+      let gifUrl;
+      if (draft.gifFile) {
+        uploadingGif = true;
+        render();
+        const uploaded = await uploadFile(draft.gifFile, "gift");
+        gifUrl = uploaded.url;
+      }
       const { gift } = await api.adminCreateGift({
         emoji: draft.emoji,
         name: draft.name,
@@ -2836,15 +2848,21 @@ async function renderGiftShop(root) {
         premiumDays: draft.forever ? null : 0,
         supply: draft.exclusive ? Number(draft.supply) : null,
         exclusive: draft.exclusive,
+        gifUrl,
       });
       notice = `Выпущен подарок ${gift.emoji} «${gift.name}»`;
       draft.emoji = "";
       draft.name = "";
       draft.priceStars = "";
       draft.supply = "";
+      if (draft.gifPreviewUrl) URL.revokeObjectURL(draft.gifPreviewUrl);
+      draft.gifFile = null;
+      draft.gifPreviewUrl = null;
       data = await api.adminGiftCatalog();
     } catch (err) {
       error = err.message || "Не удалось создать подарок";
+    } finally {
+      uploadingGif = false;
     }
     render();
   }
@@ -2914,6 +2932,34 @@ async function renderGiftShop(root) {
       value: draft.supply,
       oninput: (e) => (draft.supply = e.target.value),
     });
+    // Анимация подарка вместо статичного эмодзи: гифка грузится как есть, а
+    // фон вырезается сервером (хромакей по цвету углов первого кадра — см.
+    // server/lib/giftMedia.js), поэтому фон у исходника лучше брать
+    // однотонным. Эмодзи всё равно нужен — он используется в текстовых
+    // уведомлениях ("🎁 Хочу подарить...", server/routes/gifts.js).
+    const gifInput = el("input", {
+      type: "file",
+      accept: "image/gif,video/*",
+      class: "hidden-input",
+      onchange: (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        if (!file) return;
+        if (draft.gifPreviewUrl) URL.revokeObjectURL(draft.gifPreviewUrl);
+        draft.gifFile = file;
+        draft.gifPreviewUrl = URL.createObjectURL(file);
+        render();
+      },
+    });
+    const gifPicker = el("div", { class: "gift-create-gif-picker" }, [
+      draft.gifPreviewUrl ? el("img", { src: draft.gifPreviewUrl, class: "gift-create-gif-preview" }) : null,
+      el(
+        "button",
+        { class: "btn-accent-pill", type: "button", disabled: uploadingGif, onclick: () => gifInput.click() },
+        draft.gifFile ? "Заменить гифку" : "Загрузить гифку (необязательно)"
+      ),
+      gifInput,
+    ].filter(Boolean));
 
     mount(
       root,
@@ -2923,6 +2969,7 @@ async function renderGiftShop(root) {
 
         section("Выпустить новый подарок", [
           el("div", { class: "gift-create-grid" }, [emojiInput, nameInput, priceInput, supplyInput]),
+          gifPicker,
           el("div", { class: "settings-toggle-row no-divider" }, [
             el("div", {}, [
               el("p", { class: "settings-toggle-title" }, "Эксклюзив с тиражом"),
@@ -2943,7 +2990,7 @@ async function renderGiftShop(root) {
               render();
             }),
           ]),
-          el("button", { class: "btn-accent", onclick: createGift }, "Выпустить"),
+          el("button", { class: "btn-accent", disabled: uploadingGif, onclick: createGift }, uploadingGif ? "Загружаем гифку…" : "Выпустить"),
         ]),
 
         section(`Тиражи (${limited.length})`, limited.length ? limited.map(supplyRow) : [el("p", { class: "moderation-empty" }, "Ограниченных подарков нет")]),

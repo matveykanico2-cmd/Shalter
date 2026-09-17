@@ -10,6 +10,7 @@ import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard, Loca
 import { transcribeAudio, transcriptCache } from "../lib/transcribe.js";
 import { getState, setState } from "../state.js";
 import { renderScene } from "../lib/animScenes.js";
+import { renderGiftArt } from "../lib/giftTraits.js";
 import { openStarsDialog } from "./starsDialog.js";
 
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
@@ -110,7 +111,7 @@ function GiftMessage(message, mine, isChannel) {
         el("span", { class: "gift-message-sparkle", style: `--angle: ${deg}deg; --delay: ${i * 0.05}s` }, "✨")
       ),
       // The gift itself now performs a scene too, same system the stickers use.
-      el("div", { class: "gift-message-emoji" }, [renderScene(gift.emoji, { size: 56, replay: isNew })]),
+      el("div", { class: "gift-message-emoji" }, [renderGiftArt(gift, { size: 56, replay: isNew })]),
     ]),
     el("p", { class: "gift-message-name" }, gift.name),
     // Who it's from. A gift with no sender shown is just an object that

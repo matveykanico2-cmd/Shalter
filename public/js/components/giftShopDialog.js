@@ -1,7 +1,7 @@
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
-import { renderScene } from "../lib/animScenes.js";
+import { renderGiftArt } from "../lib/giftTraits.js";
 import { openStarsDialog } from "./starsDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 
@@ -108,7 +108,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
       },
       [
         g.exclusive ? el("span", { class: "gs-rare-badge" }, "Редкий") : null,
-        el("span", { class: "gs-card-art" }, [renderScene(g.emoji, { size: 44, replay: false })]),
+        el("span", { class: "gs-card-art" }, [renderGiftArt(g, { size: 44, replay: false })]),
         el("span", { class: "gs-card-name" }, g.name),
         el("span", { class: `gs-card-price ${affordable ? "" : "short"}` }, `⭐ ${fmt(g.priceStars)}`),
         g.supply != null

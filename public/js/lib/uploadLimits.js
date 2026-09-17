@@ -17,6 +17,7 @@ export const UPLOAD_LIMITS = {
   "video-note": 5 * GB,
   avatar: 20 * MB,
   "avatar-video": 3 * GB,
+  gift: 20 * MB,
 };
 const DEFAULT_LIMIT = 1 * GB;
 
@@ -47,6 +48,7 @@ const KIND_LABEL = {
   "video-note": "Видео-кружок",
   avatar: "Фото профиля",
   "avatar-video": "Видео-аватар",
+  gift: "Гифка подарка",
 };
 
 // null when the file fits; an error string naming both sizes when it doesn't.

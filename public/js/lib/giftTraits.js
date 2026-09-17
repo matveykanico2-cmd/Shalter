@@ -45,6 +45,8 @@ const SYMBOLS = [
   { name: "Корона", rarity: 3, glyph: "👑" },
 ];
 
+import { renderScene } from "./animScenes.js";
+
 // Небольшая устойчивая хеш-функция: одна и та же строка всегда даёт одно и то
 // же число. Math.random() здесь не подходит принципиально — свойства должны
 // совпадать у отправителя и получателя, а не быть разными при каждом открытии.
@@ -76,4 +78,24 @@ export function giftTraits(gift) {
     backdrop: pick(BACKDROPS, hash(seed, 2)),
     symbol: pick(SYMBOLS, hash(seed, 3)),
   };
+}
+
+// Рисует подарок: своей гифкой (mediaUrl — уже с вырезанным фоном, см.
+// server/lib/giftMedia.js), если админ её загрузил при выпуске (см.
+// server/routes/gifts.js's /catalog), иначе — как раньше, анимацией по
+// эмодзи (lib/animScenes.js). Единая точка входа, чтобы переключение
+// эмодзи/гифка не пришлось повторять в каждом месте, где рисуется подарок
+// (полка в профиле, карточка, витрина магазина, сообщение в чате).
+export function renderGiftArt(gift, { size = 84, replay = true } = {}) {
+  if (gift?.mediaUrl) {
+    const img = document.createElement("img");
+    img.src = gift.mediaUrl;
+    img.alt = gift.name ?? "";
+    img.className = "gift-media-art";
+    img.style.width = `${size}px`;
+    img.style.height = `${size}px`;
+    if (!replay) img.classList.add("no-entrance");
+    return img;
+  }
+  return renderScene(gift?.emoji, { size, replay });
 }

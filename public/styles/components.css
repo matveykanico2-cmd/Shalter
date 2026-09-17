@@ -1540,6 +1540,7 @@
 .message-text {
   display: block;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-size: 14.5px;
   line-height: 1.5;
 }
@@ -7212,6 +7213,23 @@
 .gift-emoji-input {
   text-align: center;
   font-size: 20px;
+}
+.gift-media-art {
+  object-fit: contain;
+  display: block;
+}
+.gift-create-gif-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+.gift-create-gif-preview {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--color-surface-alt);
 }
 .gift-admin-row {
   display: flex;

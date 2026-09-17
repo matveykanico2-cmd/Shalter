@@ -1,7 +1,6 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
-import { renderScene } from "../lib/animScenes.js";
-import { giftTraits } from "../lib/giftTraits.js";
+import { giftTraits, renderGiftArt } from "../lib/giftTraits.js";
 
 // Карточка коллекционного подарка: сам подарок на своём фоне, владелец и
 // таблица свойств с редкостью.
@@ -31,7 +30,7 @@ export function openGiftCardDialog(gift, { ownerName, onSend, onRemove } = {}) {
       // Узор повторяется по всему фону, как в оригинале: он и делает экземпляр
       // узнаваемым с одного взгляда, ещё до чтения таблицы.
       el("div", { class: "gift-card-pattern" }, Array.from({ length: 18 }, () => el("span", {}, traits.symbol.glyph))),
-      el("div", { class: "gift-card-emoji" }, [renderScene(gift.emoji, { size: 96, replay: true })]),
+      el("div", { class: "gift-card-emoji" }, [renderGiftArt(gift, { size: 96, replay: true })]),
       el("p", { class: "gift-card-name" }, gift.name),
       el(
         "p",

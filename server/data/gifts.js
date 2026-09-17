@@ -355,6 +355,9 @@ function rowToGift(row) {
     premiumDays: row.premiumDays === null ? null : row.premiumDays,
     supply: row.supply ?? undefined,
     exclusive: !!row.exclusive || undefined,
+    // Гиф с уже вырезанным фоном (server/lib/giftMedia.js) — если есть,
+    // клиент рисует его вместо анимации по эмодзи (lib/animScenes.js).
+    mediaUrl: row.mediaUrl ?? undefined,
     custom: true,
   };
 }
@@ -405,10 +408,10 @@ function setSupply(id, supply) {
   return getGift(id);
 }
 
-function createGift({ id, emoji, name, priceStars, premiumDays, supply, exclusive }) {
+function createGift({ id, emoji, name, priceStars, premiumDays, supply, exclusive, mediaUrl }) {
   db.prepare(
-    `INSERT INTO gift_catalog (id, emoji, name, priceRub, priceStars, premiumDays, supply, exclusive, custom, createdAt)
-     VALUES (@id, @emoji, @name, @priceRub, @priceStars, @premiumDays, @supply, @exclusive, 1, @createdAt)`
+    `INSERT INTO gift_catalog (id, emoji, name, priceRub, priceStars, premiumDays, supply, exclusive, mediaUrl, custom, createdAt)
+     VALUES (@id, @emoji, @name, @priceRub, @priceStars, @premiumDays, @supply, @exclusive, @mediaUrl, 1, @createdAt)`
   ).run({
     id,
     emoji,
@@ -420,6 +423,7 @@ function createGift({ id, emoji, name, priceStars, premiumDays, supply, exclusiv
     premiumDays: premiumDays === null ? null : premiumDays,
     supply: supply ?? null,
     exclusive: exclusive ? 1 : 0,
+    mediaUrl: mediaUrl ?? null,
     createdAt: new Date().toISOString(),
   });
   return getGift(id);

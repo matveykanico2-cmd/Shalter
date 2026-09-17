@@ -11,11 +11,10 @@ import { statusLabel } from "../lib/presence.js";
 import { SAFETY_LABELS, safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openAdminUserPanel } from "./adminUserPanel.js";
 import { openAvatarViewer } from "./avatarViewer.js";
-import { renderScene } from "../lib/animScenes.js";
 import { openGiftCardDialog } from "./giftCardDialog.js";
 import { openGiftShopDialog } from "./giftShopDialog.js";
 import { openStoryViewer } from "./storyViewer.js";
-import { giftTraits } from "../lib/giftTraits.js";
+import { giftTraits, renderGiftArt } from "../lib/giftTraits.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 import { ProfileStatusBadge } from "./profileStatusBadge.js";
 import { openPinnedChannelsDialog } from "./pinnedChannelsDialog.js";
@@ -240,7 +239,7 @@ export async function openProfileDialog(userId) {
               },
               [
                 g.serial != null ? el("span", { class: "profile-gift-ribbon" }, `№${g.serial}`) : null,
-                el("span", { class: "profile-gift-art" }, [renderScene(g.emoji, { size: 44, replay: false })]),
+                el("span", { class: "profile-gift-art" }, [renderGiftArt(g, { size: 44, replay: false })]),
                 el("span", { class: "profile-gift-title" }, g.name),
                 el("span", { class: "profile-gift-price" }, `⭐ ${Number(g.priceStars ?? 0).toLocaleString("ru-RU")}`),
               ].filter(Boolean)

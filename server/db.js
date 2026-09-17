@@ -441,6 +441,7 @@ CREATE TABLE IF NOT EXISTS gift_catalog (
   supply INTEGER,
   exclusive INTEGER NOT NULL DEFAULT 0,
   custom INTEGER NOT NULL DEFAULT 0,
+  mediaUrl TEXT,
   createdAt TEXT NOT NULL
 );
 
@@ -758,6 +759,10 @@ if (!existingUserColumns.has("avatarImages")) db.exec("ALTER TABLE users ADD COL
 // converted on read, so an already-issued gift doesn't silently change price.
 const existingGiftCatalogCols = new Set(db.prepare("PRAGMA table_info(gift_catalog)").all().map((c) => c.name));
 if (!existingGiftCatalogCols.has("priceStars")) db.exec("ALTER TABLE gift_catalog ADD COLUMN priceStars INTEGER");
+// An animated gif for the gift's art, background already cut out by
+// server/lib/giftMedia.js, in place of the emoji-based animation
+// (public/js/lib/animScenes.js) — see server/routes/gifts.js's /catalog route.
+if (!existingGiftCatalogCols.has("mediaUrl")) db.exec("ALTER TABLE gift_catalog ADD COLUMN mediaUrl TEXT");
 
 // A message boosted with stars stays highlighted and pinned to the top of the
 // chat until this moment passes (server/routes/stars.js).

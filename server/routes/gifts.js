@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
@@ -11,6 +13,9 @@ const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat")
 const { deliverGift } = require("../lib/deliverGift");
 const { isConnected: isDonationAlertsConnected, getDonationPageUrl } = require("../lib/donationAlerts");
 const { createPendingOrder } = require("../data/pendingOrders");
+const { fetchUploadToTemp, storeGeneratedFile } = require("../lib/uploadTransfer");
+const { cutGifBackground } = require("../lib/giftMedia");
+const { FILENAME_RE } = require("../lib/serveUpload");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -254,11 +259,46 @@ router.post(
   })
 );
 
+// Имя файла из ссылки /uploads/<файл>, которую только что вернул обычный
+// POST /api/uploads?kind=gift — та же проверка, что на раздаче
+// (serveUpload.js), чтобы сюда нельзя было подсунуть путь наружу хранилища.
+function giftUploadFilename(url) {
+  if (typeof url !== "string" || !url.startsWith("/uploads/")) return null;
+  const filename = url.slice("/uploads/".length);
+  return FILENAME_RE.test(filename) ? filename : null;
+}
+
+// Гифка подарка сначала обычным путём кладётся в хранилище (POST
+// /api/uploads?kind=gift, как любое другое вложение), а здесь только
+// перерабатывается: расшифровывается во временный файл, прогоняется через
+// хромакей (lib/giftMedia.js) и кладётся обратно уже с прозрачным фоном.
+// Сама исходная (ещё с фоном) загрузка не удаляется — на неё ничего не
+// ссылается, а специальной уборки "ничьих" вложений в проекте пока нет нигде
+// (то же верно, например, для картинок статусов).
+async function processGiftGif(gifUrl) {
+  const filename = giftUploadFilename(gifUrl);
+  if (!filename) return { error: "Некорректная ссылка на гифку — загрузите файл заново" };
+
+  const sourcePath = await fetchUploadToTemp(filename);
+  try {
+    const cutPath = await cutGifBackground(sourcePath);
+    try {
+      return { mediaUrl: await storeGeneratedFile(cutPath) };
+    } finally {
+      await fs.promises.unlink(cutPath).catch(() => {});
+    }
+  } catch {
+    return { error: "Не удалось обработать гифку — проверьте, что это gif или короткое видео" };
+  } finally {
+    await fs.promises.unlink(sourcePath).catch(() => {});
+  }
+}
+
 router.post(
   "/catalog",
   asyncRoute(async (req, res) => {
     if (!(await requireAdmin(req, res))) return;
-    const { emoji, name, priceStars, premiumDays, supply, exclusive } = req.body ?? {};
+    const { emoji, name, priceStars, premiumDays, supply, exclusive, gifUrl } = req.body ?? {};
 
     if (!String(emoji ?? "").trim()) return res.status(400).json({ error: "Укажите эмодзи подарка" });
     if (!String(name ?? "").trim()) return res.status(400).json({ error: "Укажите название подарка" });
@@ -270,6 +310,15 @@ router.post(
       const parsed = parseSupply(supply);
       if (parsed.error) return res.status(400).json({ error: parsed.error });
       supplyValue = parsed.value;
+    }
+
+    // Вырезание фона идёт до записи в базу: неудачно обработанная гифка не
+    // должна оставить в каталоге подарок с битой ссылкой.
+    let mediaUrl;
+    if (gifUrl) {
+      const result = await processGiftGif(gifUrl);
+      if (result.error) return res.status(400).json({ error: result.error });
+      mediaUrl = result.mediaUrl;
     }
 
     // Slug from the name so the id is readable in the DB and in exports, with a
@@ -293,6 +342,7 @@ router.post(
       premiumDays: premiumDays === null ? null : Number.isInteger(Number(premiumDays)) ? Number(premiumDays) : 0,
       supply: supplyValue,
       exclusive: !!exclusive,
+      mediaUrl,
     });
     res.json({ gift });
   })

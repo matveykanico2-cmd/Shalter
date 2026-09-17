@@ -27,6 +27,9 @@ const UPLOAD_LIMITS = {
   // without a separate kind a "photo" avatar would inherit the image ceiling.
   avatar: 20 * MB,
   "avatar-video": 3 * GB,
+  // Исходная гифка подарка (server/lib/giftMedia.js её потом перекодирует) —
+  // тоже узкий потолок: это анимация-стикер, а не видео.
+  gift: 20 * MB,
 };
 const DEFAULT_LIMIT = 1 * GB;
 
@@ -56,6 +59,7 @@ const KIND_LABEL = {
   "video-note": "Видео-кружок",
   avatar: "Фото профиля",
   "avatar-video": "Видео-аватар",
+  gift: "Гифка подарка",
 };
 
 function tooLargeError(kind) {

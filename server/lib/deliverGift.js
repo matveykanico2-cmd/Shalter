@@ -48,6 +48,10 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId }) {
     priceStars: gift.priceStars,
     emoji: gift.emoji,
     name: gift.name,
+    // Гифка с уже вырезанным фоном (server/lib/giftMedia.js), если админ её
+    // прикрепил при выпуске — public/js/lib/giftTraits.js's renderGiftArt
+    // рисует её вместо анимации по эмодзи.
+    mediaUrl: gift.mediaUrl,
     fromId: fromId ?? null,
     fromName,
     at: new Date().toISOString(),
@@ -72,6 +76,7 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId }) {
         premiumDays: gift.premiumDays,
         durationLabel: duration,
         priceStars: gift.priceStars,
+        mediaUrl: gift.mediaUrl,
         fromId: fromId ?? null,
         fromName,
         ...(serial != null ? { serial, supply: gift.supply, exclusive: true } : {}),
