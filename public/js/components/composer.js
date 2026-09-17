@@ -248,41 +248,174 @@ export function Composer({
       );
     }
 
-    // Uploads the file (streaming, with a progress bar), then sends the message
-    // carrying a URL instead of the whole file.
-    //
-    // Ничего не пережимается в браузере: и картинка, и видео уезжают
-    // оригиналом, а лёгкое превью (эскиз для фото, 240p-прокси и кадр-постер
-    // для видео) делает сервер уже после загрузки и досылает его в сообщение
-    // событием message:updated. Раньше это считалось здесь — canvas не мог
-    // раскодировать крупный снимок, не уронив вкладку, а видео пережималось
-    // минутами до начала отправки; вдобавок картинка уходила двумя запросами
-    // (уменьшенная плюс эскиз).
-    async function attachFile(file, kind) {
-      const sizeError = checkSize(file, kind);
-      if (sizeError) return showUploadError(sizeError);
+    // A ring drawn as an SVG stroke-dashoffset — filled clockwise as the
+    // upload's XHR progress event advances. Built as a markup string (same
+    // style as icons.js) rather than through dom.js's el(), which only knows
+    // document.createElement and can't build SVG nodes in the right namespace.
+    const RING_R = 19;
+    const RING_C = 2 * Math.PI * RING_R;
+    function ringMarkup() {
+      return `<svg class="composer-upload-ring" viewBox="0 0 44 44">
+        <circle class="composer-upload-ring-track" cx="22" cy="22" r="${RING_R}"/>
+        <circle class="composer-upload-ring-fill" cx="22" cy="22" r="${RING_R}"
+          stroke-dasharray="${RING_C}" stroke-dashoffset="${RING_C}"/>
+      </svg>`;
+    }
 
-      const bar = el("span", { class: "composer-upload-bar-fill" });
-      const pct = el("span", { class: "mono composer-upload-pct" }, "0%");
+    // Best-effort poster frame for a video thumbnail — decodes just enough of
+    // the file in an offscreen <video> to grab one frame, without waiting for
+    // (or triggering) any real transcoding. Resolves null on anything that
+    // isn't picture-in-picture-able fast (corrupt file, exotic codec — the
+    // thumbnail just falls back to a plain icon then).
+    function captureVideoFrame(file) {
+      return new Promise((resolve) => {
+        const url = URL.createObjectURL(file);
+        const video = el("video", { src: url, muted: true, playsInline: true, preload: "metadata" });
+        const cleanup = () => URL.revokeObjectURL(url);
+        const fail = () => {
+          cleanup();
+          resolve(null);
+        };
+        const timeout = setTimeout(fail, 4000);
+        video.addEventListener("error", fail);
+        video.addEventListener("loadeddata", () => {
+          // A frame at 0:00 is often a black flash before real content —
+          // nudging in a bit (clamped to the clip's own length) gives a
+          // thumbnail that actually looks like the video.
+          video.currentTime = Math.min(0.3, (video.duration || 0) / 2);
+        });
+        video.addEventListener("seeked", () => {
+          clearTimeout(timeout);
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth || 1;
+            canvas.height = video.videoHeight || 1;
+            canvas.getContext("2d").drawImage(video, 0, 0);
+            canvas.toBlob((blob) => {
+              cleanup();
+              resolve(blob ? URL.createObjectURL(blob) : null);
+            });
+          } catch {
+            fail();
+          }
+        });
+      });
+    }
+
+    // Uploads a batch of files (usually picked together — a multi-select from
+    // the file dialog) in parallel, each shown as its own thumbnail tile with
+    // a filling progress ring, then sends everything as ONE message once every
+    // upload in the batch has settled — instead of the old one-request-per-file
+    // flow, where files raced each other for the single shared progress row
+    // and each landed as its own separate message the instant it finished
+    // (out of order, and N round trips to the server instead of one).
+    //
+    // Files stream to the server as-is (server/routes/uploads.js) — nothing is
+    // recompressed here, see the comment that used to sit on the old
+    // single-file version of this function for why.
+    //
+    // MAX_ATTACHMENTS in server/lib/sanitizeAttachments.js caps one message at
+    // 10 — chunking client-side means a 23-photo pick becomes 3 messages
+    // instead of silently losing the 11th photo onward.
+    const MAX_ATTACHMENTS_PER_MESSAGE = 10;
+
+    async function attachFiles(picks) {
+      const items = [];
+      for (const { file, kind } of picks) {
+        const sizeError = checkSize(file, kind);
+        if (sizeError) {
+          showUploadError(sizeError);
+          continue;
+        }
+        items.push({ file, kind });
+      }
+      if (!items.length) return;
+
       clear(uploadSlot);
-      uploadSlot.appendChild(
-        el("div", { class: "composer-upload-row" }, [
-          el("span", { class: "composer-upload-label" }, file.name),
-          el("span", { class: "composer-upload-bar" }, [bar]),
-          pct,
-        ])
+      const strip = el("div", { class: "composer-upload-strip" });
+      uploadSlot.appendChild(strip);
+
+      const tiles = items.map(({ file, kind }) => {
+        const ringHost = el("span", { class: "composer-upload-tile-ring", html: ringMarkup() });
+        const fillCircle = ringHost.querySelector(".composer-upload-ring-fill");
+        const preview = el("span", { class: "composer-upload-tile-preview" }, [
+          el("span", { class: "composer-upload-tile-icon", html: iconSvg(kind === "video" ? "Video" : kind === "image" ? "Image" : "File", 20) }),
+        ]);
+        let xhr = null;
+        const removeBtn = el("button", {
+          class: "composer-upload-tile-remove",
+          title: "Отменить",
+          html: iconSvg("X", 12),
+          onclick: () => {
+            xhr?.abort();
+            tile.remove();
+          },
+        });
+        const tile = el("div", { class: "composer-upload-tile", title: file.name }, [preview, ringHost, removeBtn]);
+        strip.appendChild(tile);
+        return {
+          file,
+          kind,
+          tile,
+          setProgress(fraction) {
+            fillCircle.style.strokeDashoffset = `${RING_C * (1 - fraction)}`;
+          },
+          setDone() {
+            ringHost.classList.add("done");
+          },
+          setError() {
+            ringHost.classList.add("error");
+            removeBtn.remove();
+          },
+          setXhr: (x) => (xhr = x),
+          setPreviewUrl(url) {
+            if (!tile.isConnected || !url) return;
+            preview.style.backgroundImage = `url("${url}")`;
+            preview.classList.add("has-image");
+          },
+        };
+      });
+
+      // Thumbnails are cosmetic and shouldn't hold up starting the uploads —
+      // fired off in parallel with them, not awaited first.
+      for (const t of tiles) {
+        if (t.kind === "image") t.setPreviewUrl(URL.createObjectURL(t.file));
+        else if (t.kind === "video") captureVideoFrame(t.file).then((url) => t.setPreviewUrl(url));
+      }
+
+      const results = await Promise.allSettled(
+        tiles.map((t) =>
+          uploadFile(
+            t.file,
+            t.kind,
+            (fraction) => t.setProgress(fraction),
+            (xhr) => t.setXhr(xhr)
+          )
+            .then((attachment) => {
+              t.setDone();
+              return attachment;
+            })
+            .catch((err) => {
+              t.setError();
+              throw err;
+            })
+        )
       );
 
-      try {
-        const attachment = await uploadFile(file, kind, (fraction) => {
-          const p = Math.round(fraction * 100);
-          bar.style.width = `${p}%`;
-          pct.textContent = `${p}%`;
-        });
-        clear(uploadSlot);
-        onSend("", [attachment]);
-      } catch (err) {
-        showUploadError(err.message || "Не удалось загрузить файл");
+      clear(uploadSlot);
+
+      const attachments = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+      const failedCount = results.length - attachments.length;
+
+      for (let i = 0; i < attachments.length; i += MAX_ATTACHMENTS_PER_MESSAGE) {
+        onSend("", attachments.slice(i, i + MAX_ATTACHMENTS_PER_MESSAGE));
+      }
+      if (failedCount > 0) {
+        showUploadError(
+          failedCount === results.length
+            ? "Не удалось загрузить файл" + (results.length > 1 ? "ы" : "")
+            : `Загружено ${attachments.length} из ${results.length} — часть файлов не отправилась`
+        );
       }
     }
 
@@ -299,11 +432,12 @@ export function Composer({
       onchange: (e) => {
         const files = [...(e.target.files ?? [])];
         e.target.value = "";
-        for (const file of files) {
-          if (file.type.startsWith("image/")) attachFile(file, "image");
-          else if (file.type.startsWith("video/")) attachFile(file, "video");
-          else attachFile(file, "file");
-        }
+        attachFiles(
+          files.map((file) => ({
+            file,
+            kind: file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : "file",
+          }))
+        );
       },
     });
     const anyFileInput = el("input", {
@@ -313,7 +447,7 @@ export function Composer({
       onchange: (e) => {
         const files = [...(e.target.files ?? [])];
         e.target.value = "";
-        for (const file of files) attachFile(file, "file");
+        attachFiles(files.map((file) => ({ file, kind: "file" })));
       },
     });
 

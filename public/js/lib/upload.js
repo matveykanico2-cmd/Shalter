@@ -9,7 +9,10 @@ import { checkSize } from "./uploadLimits.js";
 // upload progress in browsers. The file object is handed to xhr.send() directly,
 // so the browser streams it from disk; nothing reads it into memory the way the
 // old FileReader/base64 path did.
-export function uploadFile(file, kind, onProgress) {
+// onXhrReady, when given, is handed the live XMLHttpRequest the moment it's
+// created — the only way a caller can cancel an in-flight upload (e.g. a
+// user removing one thumbnail from a multi-file batch before it finishes).
+export function uploadFile(file, kind, onProgress, onXhrReady) {
   const sizeError = checkSize(file, kind);
   if (sizeError) return Promise.reject(new Error(sizeError));
 
@@ -40,6 +43,7 @@ export function uploadFile(file, kind, onProgress) {
     xhr.addEventListener("error", () => reject(new Error("Не удалось загрузить файл — проверьте соединение")));
     xhr.addEventListener("abort", () => reject(new Error("Загрузка отменена")));
 
+    onXhrReady?.(xhr);
     xhr.send(file);
   });
 }

@@ -6839,27 +6839,6 @@
   white-space: nowrap;
   color: var(--color-muted);
 }
-.composer-upload-bar {
-  width: 96px;
-  height: 4px;
-  flex-shrink: 0;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--color-border);
-}
-.composer-upload-bar-fill {
-  display: block;
-  width: 0;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--color-accent);
-  transition: width 0.15s linear;
-}
-.composer-upload-pct {
-  flex-shrink: 0;
-  font-size: 11px;
-  color: var(--color-muted);
-}
 .composer-upload-row.error {
   background: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
   color: var(--color-danger);
@@ -6867,6 +6846,85 @@
 .composer-upload-row.error .composer-upload-label {
   white-space: normal;
   color: inherit;
+}
+
+/* Multi-file picks: one thumbnail tile per file, each with its own filling
+   progress ring — replaces the old single shared progress bar that multiple
+   concurrent uploads used to fight over. */
+.composer-upload-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.composer-upload-tile {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  overflow: visible;
+}
+.composer-upload-tile-preview {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+  background-size: cover;
+  background-position: center;
+  color: var(--color-muted);
+}
+.composer-upload-tile-preview.has-image .composer-upload-tile-icon {
+  display: none;
+}
+.composer-upload-tile-ring {
+  position: absolute;
+  inset: -4px;
+  pointer-events: none;
+}
+.composer-upload-ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.composer-upload-ring-track {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-surface) 55%, transparent);
+  stroke-width: 2.5;
+}
+.composer-upload-ring-fill {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.12s linear;
+}
+.composer-upload-tile-ring.done .composer-upload-ring-fill {
+  stroke: var(--color-success);
+}
+.composer-upload-tile-ring.error .composer-upload-ring-fill {
+  stroke: var(--color-danger);
+  stroke-dashoffset: 0 !important;
+}
+.composer-upload-tile-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-danger);
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
 }
 
 /* ── Address-book import (components/importContactsDialog.js) ─────────────── */
