@@ -93,8 +93,20 @@ async function boot() {
     // Настройки не прочитались — не запирать же человека снаружи собственного
     // приложения из-за сбоя сети.
   }
+  // Открытие нативного пикера файлов (вложения в сообщение, аватар и т. д.)
+  // тоже прячет вкладку и потом возвращает её — visibilitychange срабатывает
+  // так же, как при сворачивании приложения. Различаем эти случаи по времени:
+  // короткое скрытие (< RELOCK_THRESHOLD_MS) не считается уходом из приложения.
+  const RELOCK_THRESHOLD_MS = 5000;
+  let hiddenAt = 0;
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && hasPasscode()) showPasscodeLockScreen();
+    if (document.visibilityState === "hidden") {
+      hiddenAt = Date.now();
+      return;
+    }
+    if (document.visibilityState === "visible" && hasPasscode() && Date.now() - hiddenAt >= RELOCK_THRESHOLD_MS) {
+      showPasscodeLockScreen();
+    }
   });
 
   setState({ user, accounts });
