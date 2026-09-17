@@ -533,50 +533,55 @@ router.post(
       // путём (routes/premium.js и соседние шлют их через lib/systemChat.js),
       // а не этим маршрутом.
 
-      // Кто вообще может писать первым (Конфиденциальность → «Кто может мне
-      // писать»). Проверяется до платы: если человек закрыл личку, звёзды не
-      // должны служить отмычкой.
-      const writeAllowed = await allowsUser(other.id, "messages", req.uid);
-      if (!writeAllowed) {
-        const { privacy: theirPrivacy } = await getSettings(other.id);
-        const level = theirPrivacy?.messages ?? "everyone";
-        const deniedByName = (theirPrivacy?.exceptions?.messages?.deny ?? []).includes(req.uid);
-        // На уровне «Мои контакты» пробиваются Premium и переписка, которая уже
-        // была: если человек вам отвечал, он вас в личку и так пустил. Поимённый
-        // запрет сильнее и того, и другого.
-        let bypass = false;
-        if (level === "contacts" && !deniedByName) {
-          const sender = await getUser(req.uid);
-          bypass =
-            !!sender?.isPremium || (await listMessages(chat.id, other.id)).some((m) => m.senderId === other.id);
+      // "Избранное" (сообщения самому себе) — тоже dm, но без собеседника
+      // (other остаётся undefined, см. выше): ни проверка приватности, ни
+      // платные сообщения тут не применимы — не с кем и не за что.
+      if (other) {
+        // Кто вообще может писать первым (Конфиденциальность → «Кто может мне
+        // писать»). Проверяется до платы: если человек закрыл личку, звёзды не
+        // должны служить отмычкой.
+        const writeAllowed = await allowsUser(other.id, "messages", req.uid);
+        if (!writeAllowed) {
+          const { privacy: theirPrivacy } = await getSettings(other.id);
+          const level = theirPrivacy?.messages ?? "everyone";
+          const deniedByName = (theirPrivacy?.exceptions?.messages?.deny ?? []).includes(req.uid);
+          // На уровне «Мои контакты» пробиваются Premium и переписка, которая уже
+          // была: если человек вам отвечал, он вас в личку и так пустил. Поимённый
+          // запрет сильнее и того, и другого.
+          let bypass = false;
+          if (level === "contacts" && !deniedByName) {
+            const sender = await getUser(req.uid);
+            bypass =
+              !!sender?.isPremium || (await listMessages(chat.id, other.id)).some((m) => m.senderId === other.id);
+          }
+          if (!bypass) {
+            return res.status(403).json({
+              error:
+                level === "nobody"
+                  ? "Этот пользователь никому не разрешает писать первым"
+                  : "Этот пользователь принимает сообщения только от своих контактов. С Premium писать можно",
+              privacyBlocked: true,
+            });
+          }
         }
-        if (!bypass) {
-          return res.status(403).json({
-            error:
-              level === "nobody"
-                ? "Этот пользователь никому не разрешает писать первым"
-                : "Этот пользователь принимает сообщения только от своих контактов. С Premium писать можно",
-            privacyBlocked: true,
-          });
-        }
-      }
 
-      // Платные личные сообщения: человек может брать звёзды с незнакомых.
-      // Плата за каждое сообщение, а не разовая, — именно это делает холодную
-      // рассылку дорогой, и так же устроены платные сообщения в Telegram.
-      // Кто платит, а кто нет — считает lib/messagePrice.js: то же правило
-      // показывается в поле ввода до отправки.
-      const { price, mustPay } = await messageCost(req.uid, other, chat.id);
-      if (mustPay) {
-        if (!transferStars(req.uid, other.id, price)) {
-          return res.status(402).json({
-            error: `Этот пользователь берёт ${price} ⭐ за сообщение от незнакомых. Не хватает звёзд. С Premium писать можно бесплатно`,
-            needStars: price,
-            balance: balanceOf(req.uid),
-            premiumHelps: true,
-          });
+        // Платные личные сообщения: человек может брать звёзды с незнакомых.
+        // Плата за каждое сообщение, а не разовая, — именно это делает холодную
+        // рассылку дорогой, и так же устроены платные сообщения в Telegram.
+        // Кто платит, а кто нет — считает lib/messagePrice.js: то же правило
+        // показывается в поле ввода до отправки.
+        const { price, mustPay } = await messageCost(req.uid, other, chat.id);
+        if (mustPay) {
+          if (!transferStars(req.uid, other.id, price)) {
+            return res.status(402).json({
+              error: `Этот пользователь берёт ${price} ⭐ за сообщение от незнакомых. Не хватает звёзд. С Premium писать можно бесплатно`,
+              needStars: price,
+              balance: balanceOf(req.uid),
+              premiumHelps: true,
+            });
+          }
+          charged = price;
         }
-        charged = price;
       }
     } else if (chat.type === "group") {
       // Платные комментарии под постом канала: группа обсуждения привязана к
