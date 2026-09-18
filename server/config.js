@@ -45,6 +45,19 @@ const DONATIONALERTS_CLIENT_SECRET = process.env.DONATIONALERTS_CLIENT_SECRET ||
 // e.g. https://your-domain.example/api/donation-alerts/callback.
 const DONATIONALERTS_REDIRECT_URI = process.env.DONATIONALERTS_REDIRECT_URI || "";
 
+// DonatePay (server/lib/donatePay.js) — no OAuth app here, just a static API
+// token from the account's own API page (donatepay.ru — "Настройки → API"
+// or similar, the exact wording moves around on their site). Same
+// "unset means fall back to manual transfer" story as DonationAlerts above,
+// and the two can be configured independently or both at once.
+const DONATEPAY_API_TOKEN = process.env.DONATEPAY_API_TOKEN || "";
+// DonatePay's API has no endpoint that returns the account's public donation
+// page — unlike DonationAlerts' /user/oauth, whose `code` field builds
+// donationalerts.com/r/<code> automatically (see donationAlerts.js). So this
+// has to be typed in once: whatever page a donor actually pays through,
+// e.g. https://donatepay.ru/YOUR-PAGE-NAME.
+const DONATEPAY_PAGE_URL = process.env.DONATEPAY_PAGE_URL || "";
+
 // "Hugo", the composer's writing checker (server/routes/hugo.js). Points at
 // LanguageTool. The public instance is the default so the feature works out of
 // the box; set this to a self-hosted container (e.g. the official
@@ -61,4 +74,6 @@ module.exports = {
   DONATIONALERTS_CLIENT_ID,
   DONATIONALERTS_CLIENT_SECRET,
   DONATIONALERTS_REDIRECT_URI,
+  DONATEPAY_API_TOKEN,
+  DONATEPAY_PAGE_URL,
 };

@@ -6,7 +6,7 @@ const { getUser, findUserByPhone, listReferrals, grantPremiumDays, revokePremium
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { broadcastToUsers } = require("../ws");
-const { isConnected: isDonationAlertsConnected, getDonationPageUrl } = require("../lib/donationAlerts");
+const { getActiveDonationLink } = require("../lib/autoPayment");
 const { createPendingOrder } = require("../data/pendingOrders");
 
 const router = express.Router();
@@ -65,17 +65,15 @@ router.post(
       return res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE, delivered: true });
     }
 
-    // Two ways to pay. DonationAlerts, if the admin connected it, clears
-    // automatically (the donation feed carries the order code — see
-    // lib/donationAlerts.js). Otherwise it's a plain transfer to the admin's
+    // Two ways to pay. DonationAlerts or DonatePay, whichever the admin has
+    // set up (lib/autoPayment.js), clears automatically — the donation feed
+    // carries the order code. Otherwise it's a plain transfer to the admin's
     // phone: this drops the request into their DM, and they hand Premium over
     // from the buyer's profile (public/js/components/adminUserPanel.js).
-    if (isDonationAlertsConnected()) {
-      const donationUrl = getDonationPageUrl();
-      if (donationUrl) {
-        const order = await createPendingOrder({ userId: req.uid, kind: "premium", amountRub: 10 });
-        return res.json({ code: order.code, donationUrl, amountRub: 10 });
-      }
+    const donation = getActiveDonationLink();
+    if (donation) {
+      const order = await createPendingOrder({ userId: req.uid, kind: "premium", amountRub: 10 });
+      return res.json({ code: order.code, donationUrl: donation.donationUrl, provider: donation.provider, amountRub: 10 });
     }
 
     const chat = await findOrCreateDm(req.uid, admin.id);

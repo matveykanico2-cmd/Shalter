@@ -3,7 +3,7 @@ const path = require("path");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { ADMIN_PHONE, isAdminPhone } = require("../config");
+const { ADMIN_PHONE } = require("../config");
 const { hasAdminSection } = require("../lib/adminAccess");
 const { getUser, findUserByPhone, removeReceivedGift, setGiftPinned } = require("../data/users");
 const { balanceOf, spendStars, addStars } = require("../data/stars");
@@ -12,7 +12,7 @@ const { remaining, issuedCount } = require("../data/giftIssues");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { deliverGift } = require("../lib/deliverGift");
-const { isConnected: isDonationAlertsConnected, getDonationPageUrl } = require("../lib/donationAlerts");
+const { getActiveDonationLink } = require("../lib/autoPayment");
 const { createPendingOrder } = require("../data/pendingOrders");
 const { fetchUploadToTemp, storeGeneratedFile } = require("../lib/uploadTransfer");
 const { cutGifBackground } = require("../lib/giftMedia");
@@ -86,14 +86,13 @@ router.post(
 
     const forSelf = recipientId === req.uid;
 
-    // Same as premium.js's /request — DonationAlerts if connected, otherwise a
-    // plain transfer that the admin fulfils from the buyer's profile.
-    if (isDonationAlertsConnected()) {
-      const donationUrl = getDonationPageUrl();
-      if (donationUrl) {
-        const order = await createPendingOrder({ userId: req.uid, kind: "gift", giftId: gift.id, recipientId, amountRub: gift.priceRub });
-        return res.json({ code: order.code, donationUrl, amountRub: gift.priceRub });
-      }
+    // Same as premium.js's /request — DonationAlerts/DonatePay if either is
+    // set up, otherwise a plain transfer that the admin fulfils from the
+    // buyer's profile.
+    const donation = getActiveDonationLink();
+    if (donation) {
+      const order = await createPendingOrder({ userId: req.uid, kind: "gift", giftId: gift.id, recipientId, amountRub: gift.priceRub });
+      return res.json({ code: order.code, donationUrl: donation.donationUrl, provider: donation.provider, amountRub: gift.priceRub });
     }
 
     const chat = await findOrCreateDm(req.uid, admin.id);

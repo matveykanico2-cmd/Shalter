@@ -11,6 +11,7 @@ const {
   getAuthorizeUrl,
   exchangeCodeForTokens,
 } = require("../lib/donationAlerts");
+const { isConfigured: isDonatePayConfigured } = require("../lib/donatePay");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -32,7 +33,16 @@ router.get(
   asyncRoute(async (req, res) => {
     if (!(await requireAdmin(req, res))) return;
     const auth = loadAuth();
-    res.json({ configured: isConfigured(), connected: isConnected(), username: auth?.username ?? null });
+    res.json({
+      configured: isConfigured(),
+      connected: isConnected(),
+      username: auth?.username ?? null,
+      // DonatePay has no OAuth step to complete — just an env var — so
+      // "configured" already means "active", unlike DonationAlerts' two-stage
+      // configured/connected. Bundled into this same response rather than a
+      // second endpoint since Settings → Donations shows both on one screen.
+      donatePayConfigured: isDonatePayConfigured(),
+    });
   })
 );
 

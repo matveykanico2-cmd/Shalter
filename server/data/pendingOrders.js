@@ -6,6 +6,13 @@ const db = require("../db");
 // mix-ups matter here even more than for a referral link.
 const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
+// What a generated code looks like, matched case-insensitively against a
+// donor's free-text message — shared by every poll sweep that scans a
+// donation feed for one (server/lib/donationAlerts.js, server/lib/
+// donatePay.js), so the two can't quietly drift out of sync with
+// generateOrderCode() below.
+const CODE_RE = /SHP-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}/i;
+
 function rowToOrder(row) {
   if (!row) return undefined;
   return { ...row };
@@ -47,4 +54,4 @@ async function markOrderFulfilled(id) {
   db.prepare("UPDATE pending_orders SET status = 'fulfilled' WHERE id = ?").run(id);
 }
 
-module.exports = { createPendingOrder, getPendingOrderByCode, markOrderFulfilled };
+module.exports = { createPendingOrder, getPendingOrderByCode, markOrderFulfilled, CODE_RE };

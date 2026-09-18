@@ -346,6 +346,14 @@ CREATE TABLE IF NOT EXISTS donation_alerts_auth (
   lastDonationId INTEGER NOT NULL DEFAULT 0
 );
 
+-- DonatePay (server/lib/donatePay.js) — a static API token instead of OAuth
+-- (see DONATEPAY_API_TOKEN in .env), so the only state to persist is the
+-- sweep's watermark, same role as donation_alerts_auth's lastDonationId.
+CREATE TABLE IF NOT EXISTS donate_pay_state (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  lastTransactionId INTEGER NOT NULL DEFAULT 0
+);
+
 -- A purchase started via /request (Premium, Реклама, or a Gift) while
 -- DonationAlerts is connected: real money hasn't landed yet, so the code
 -- below just remembers what was asked for and matches it to a donation

@@ -65,7 +65,7 @@ const SECTIONS = [
   { id: "moderation", label: "Модерация", icon: "Shield", group: "admin", adminOnly: true },
   { id: "server", label: "Состояние сервера", icon: "BarChart", group: "admin", adminOnly: true },
   { id: "giftshop", label: "Каталог подарков", icon: "Gift", group: "admin", adminOnly: true },
-  { id: "donations", label: "DonationAlerts", icon: "Zap", group: "admin", adminOnly: true },
+  { id: "donations", label: "Донаты", icon: "Zap", group: "admin", adminOnly: true },
   { id: "legal", label: "Запросы органов", icon: "Shield", group: "admin", adminOnly: true },
 ];
 
@@ -3221,17 +3221,28 @@ async function renderDonations(root) {
 
   mount(
     root,
-    pageWrap("DonationAlerts", "Реальная автоматическая оплата Premium, рекламы и подарков вместо ручного подтверждения", [
+    pageWrap("Донаты", "Реальная автоматическая оплата Premium, рекламы и подарков вместо ручного подтверждения — через DonationAlerts и/или DonatePay", [
       banner === "connected" ? el("p", { class: "login-hint" }, "✅ DonationAlerts подключён.") : null,
       banner === "error" ? el("p", { class: "login-error" }, "Не удалось подключить DonationAlerts — попробуйте ещё раз.") : null,
       loadError ? el("p", { class: "login-error" }, loadError) : null,
       status
-        ? section(null, [
+        ? section("DonationAlerts", [
             !status.configured
               ? el("p", { class: "settings-toggle-hint" }, "На сервере не заданы DONATIONALERTS_CLIENT_ID / DONATIONALERTS_CLIENT_SECRET / DONATIONALERTS_REDIRECT_URI — без них подключение недоступно.")
               : status.connected
                 ? el("p", { class: "settings-toggle-title" }, `Подключено${status.username ? ` как @${status.username}` : ""} ✅`)
                 : el("a", { class: "btn-accent donation-link-btn", href: "/api/donation-alerts/connect" }, "Подключить DonationAlerts"),
+          ])
+        : null,
+      status
+        ? section("DonatePay", [
+            status.donatePayConfigured
+              ? el("p", { class: "settings-toggle-title" }, "Настроен ✅")
+              : el(
+                  "p",
+                  { class: "settings-toggle-hint" },
+                  "На сервере не заданы DONATEPAY_API_TOKEN / DONATEPAY_PAGE_URL — без них DonatePay недоступен (см. .env.example). В отличие от DonationAlerts, отдельного шага «Подключить» здесь нет — достаточно переменных."
+                ),
           ])
         : null,
     ])

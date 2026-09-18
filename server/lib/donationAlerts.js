@@ -28,17 +28,12 @@
 // the one that matters.
 const db = require("../db");
 const { DONATIONALERTS_CLIENT_ID, DONATIONALERTS_CLIENT_SECRET, DONATIONALERTS_REDIRECT_URI } = require("../config");
-const { getPendingOrderByCode } = require("../data/pendingOrders");
+const { getPendingOrderByCode, CODE_RE } = require("../data/pendingOrders");
 const { fulfillOrder } = require("./fulfillOrder");
 
 const TOKEN_URL = "https://www.donationalerts.com/oauth/token";
 const AUTHORIZE_URL = "https://www.donationalerts.com/oauth/authorize";
 const API_BASE = "https://www.donationalerts.com/api/v1";
-// A pending code sits in the donor's free-text message, so it has to be
-// unmistakable — "SHP-XXXXXX", matched case-insensitively since donors will
-// paste/type it every which way.
-const CODE_RE = /SHP-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}/i;
-
 function isConfigured() {
   return !!(DONATIONALERTS_CLIENT_ID && DONATIONALERTS_CLIENT_SECRET && DONATIONALERTS_REDIRECT_URI);
 }

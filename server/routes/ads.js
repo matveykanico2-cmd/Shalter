@@ -8,7 +8,7 @@ const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
-const { isConnected: isDonationAlertsConnected, getDonationPageUrl } = require("../lib/donationAlerts");
+const { getActiveDonationLink } = require("../lib/autoPayment");
 const { createPendingOrder } = require("../data/pendingOrders");
 // Очередь проверки общая с маркетом (routes/market.js → «Рекламировать»).
 const { notifyAdminOfReview } = require("../lib/adReview");
@@ -87,12 +87,10 @@ router.post(
     }
 
     // Same as premium.js's /request.
-    if (isDonationAlertsConnected()) {
-      const donationUrl = getDonationPageUrl();
-      if (donationUrl) {
-        const order = await createPendingOrder({ userId: req.uid, kind: "ads", amountRub: ADS_PRICE_RUB });
-        return res.json({ code: order.code, donationUrl, amountRub: ADS_PRICE_RUB });
-      }
+    const donation = getActiveDonationLink();
+    if (donation) {
+      const order = await createPendingOrder({ userId: req.uid, kind: "ads", amountRub: ADS_PRICE_RUB });
+      return res.json({ code: order.code, donationUrl: donation.donationUrl, provider: donation.provider, amountRub: ADS_PRICE_RUB });
     }
 
     const chat = await findOrCreateDm(req.uid, admin.id);
