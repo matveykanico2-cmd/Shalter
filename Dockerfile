@@ -118,4 +118,3 @@ ENV NODE_OPTIONS="--max-old-space-size=384"
 # переменные окружения — каждый следующий перекрывает предыдущий.
 CMD ["node", "--env-file-if-exists=config.env", "--env-file-if-exists=.env", "server/index.js"]
 
-
