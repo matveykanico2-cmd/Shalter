@@ -171,6 +171,82 @@ Safari на iPhone (там в обычной вкладке нет Media Source 
 на iPhone увидит об этом надпись, а не чёрный экран. Эфиры из браузера на iPhone
 работают как работали.
 
+## TURN-сервер для звонков
+
+Звонки и эфиры из браузера — это WebRTC, а для него публичного STUN
+(`stun.l.google.com`, зашит в код и работает без настройки) достаточно не
+всегда. За симметричным NAT — обычная ситуация у мобильных операторов и части
+домашних роутеров — прямое соединение между двумя браузерами через один STUN
+не проходит вообще, и звонок просто не соединяется: экран «Вызов…» висит,
+пока не сработает таймаут. Тут нужен TURN — сервер-ретранслятор, через
+который идёт медиа, если напрямую пробиться не удалось.
+
+Своих кредов в код не зашито (раньше здесь был общий бесплатный демо-релей
+Open Relay Project — он нестабилен и не предназначен для реальной нагрузки).
+Вместо этого сервер сам выдаёт клиенту одноразовые TURN-креды на час,
+подписанные общим секретом — тем же механизмом, что у `turn-rest-api` в
+coturn (`server/lib/turnCredentials.js`, отдаётся через
+`GET /api/calls/ice-servers`). Значит нужен свой coturn и общий секрет,
+известный ему и приложению.
+
+**1. Поставить coturn** (на том же сервере, что и приложение, или на
+отдельном — главное, чтобы порты были открыты наружу):
+
+```bash
+sudo apt install coturn
+```
+
+**2. Сгенерировать секрет** и прописать его в `/etc/turnserver.conf`:
+
+```bash
+openssl rand -hex 32
+```
+
+```
+# /etc/turnserver.conf
+listening-port=3478
+tls-listening-port=5349
+fingerprint
+use-auth-secret
+static-auth-secret=ВСТАВИТЬ_СГЕНЕРИРОВАННЫЙ_СЕКРЕТ
+realm=ваш-домен.example
+# Сертификат — тот же, что у nginx (Let's Encrypt), если нужен turns:// (TLS):
+cert=/etc/letsencrypt/live/ваш-домен.example/fullchain.pem
+pkey=/etc/letsencrypt/live/ваш-домен.example/privkey.pem
+# Диапазон портов для самих медиа-релеев:
+min-port=49152
+max-port=65535
+no-cli
+```
+
+Включить и перезапустить:
+
+```bash
+sudo systemctl enable --now coturn
+sudo systemctl restart coturn
+```
+
+**3. Открыть порты наружу** (в фаерволе/у хостера): 3478/udp+tcp,
+5349/udp+tcp (если используете `turns:`), и весь диапазон `min-port`–`max-port`
+(UDP) — по нему идёт само медиа, сузить его нельзя без ограничения числа
+одновременных звонков.
+
+**4. Указать тот же секрет приложению** — в `.env` (см. `.env.example`):
+
+```
+TURN_URLS=turn:ваш-домен.example:3478,turns:ваш-домен.example:5349
+TURN_SECRET=ТОТ_ЖЕ_СЕКРЕТ_ЧТО_В_static-auth-secret
+```
+
+`pm2 restart shalter`, и следующий звонок уже получит свежие TURN-креды от
+`/api/calls/ice-servers`. Без этих двух переменных приложение работает как
+раньше — только на STUN, то есть звонки между сетями без симметричного NAT
+всё ещё соединяются, а с ним — нет.
+
+Проверить, что TURN действительно используется: в Chrome на
+`chrome://webrtc-internals` во время звонка ищите кандидатов с
+`relay` вместо `srflx`/`host`.
+
 At this point: `https://YOUR-ACTUAL-DOMAIN` should load the app. Do the OS
 tuning below (swappiness, log rotation) once, then treat "code changed" as
 `git pull && npm install && npm run build && pm2 restart shalter`.

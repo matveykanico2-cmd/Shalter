@@ -2,6 +2,7 @@ import { api } from "../api.js";
 import { wsSend, onWsMessage, isWsOpen } from "./wsClient.js";
 import { getState } from "../state.js";
 import { HD_SCREEN, cameraConstraints, tunePeerVideo, hintScreenTrack } from "./mediaQuality.js";
+import { fetchIceServers } from "./iceServers.js";
 
 // Медиа эфира: кто кому и что отправляет.
 //
@@ -16,7 +17,10 @@ import { HD_SCREEN, cameraConstraints, tunePeerVideo, hintScreenTrack } from "./
 // разваливается): предложение всегда отправляет вещающий. Если вещают оба —
 // ведущий и получивший слово, — предлагает тот, чей идентификатор меньше.
 
-const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
+// Set by joinLive() before any peer is created — see
+// server/lib/turnCredentials.js and lib/iceServers.js for where this
+// actually comes from.
+let iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
 
 let state = null;
 const listeners = new Set();
@@ -77,7 +81,7 @@ function shouldOffer(otherRole, otherId) {
 }
 
 function createPeer(otherUserId) {
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const pc = new RTCPeerConnection({ iceServers });
   const sending = new Set();
   if (state.localStream) {
     state.localStream.getTracks().forEach((t) => {
@@ -383,6 +387,7 @@ export async function joinLive(streamId) {
   state.participants = data.participants;
   state.messages = data.messages;
   state.myRole = data.participants.find((p) => p.userId === me.id)?.role ?? "viewer";
+  iceServers = await fetchIceServers();
   state.camStream = await acquireMedia();
   composeLocalStream();
   applyMuteFlags();

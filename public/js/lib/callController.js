@@ -5,20 +5,11 @@ import { getState as getAppState } from "../state.js";
 import { onWsMessage, wsSend, isWsOpen } from "./wsClient.js";
 import { navigate } from "../router.js";
 import { startRingback, stopRingtone } from "./ringtone.js";
+import { fetchIceServers } from "./iceServers.js";
 
-// Public STUN-only ICE traversal fails across restrictive/symmetric NATs —
-// added a public TURN relay (Open Relay Project demo credentials) so calls
-// actually connect on real-world networks. This is a shared/free relay, fine
-// for getting calls working now; swap for a dedicated TURN server (e.g.
-// self-hosted coturn) before relying on this for production privacy/scale.
-const ICE_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" },
-  {
-    urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turns:openrelay.metered.ca:443"],
-    username: "openrelayproject",
-    credential: "openrelayproject",
-  },
-];
+// Set by join() before any peer is created — see server/lib/turnCredentials.js
+// and lib/iceServers.js for where this actually comes from.
+let iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
 
 let state = null; // active call state, or null if no call in progress
 const listeners = new Set();
@@ -55,7 +46,7 @@ const CONNECT_TIMEOUT_MS = 20000;
 const RESTART_GRACE_MS = 10000;
 
 function createPeer(otherUserId) {
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const pc = new RTCPeerConnection({ iceServers });
   if (state.localStream) {
     state.localStream.getTracks().forEach((t) => pc.addTrack(t, state.localStream));
     // Битрейт и «чем жертвовать при нехватке канала» задаются на сендере, а не
@@ -239,6 +230,12 @@ async function join({ call, chatTitle, chatType, participants, me }) {
     resolveMediaReady = resolve;
   });
   notify();
+
+  // Fresh TURN credentials for this call — awaited here, before signal
+  // handlers below can trigger createPeer(), and well ahead of the
+  // getUserMedia permission prompt that follows, so it adds no perceptible
+  // delay.
+  iceServers = await fetchIceServers();
   // Only the caller hears a ringback — the callee already decided to join by
   // clicking "Accept" (see incomingCallWatcher.js, which rings *before* that).
   if (call.callerId === me.id) startRingback();

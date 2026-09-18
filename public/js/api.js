@@ -335,6 +335,7 @@ export const api = {
   sendSignal: (callId, toUserId, kind, data) =>
     req(`/api/calls/${callId}/signal`, { method: "POST", body: JSON.stringify({ toUserId, kind, data }) }),
   pollSignals: (callId, after) => req(`/api/calls/${callId}/signal?after=${after}`),
+  getIceServers: () => req("/api/calls/ice-servers"),
 
   listBots: () => req("/api/bots"),
   createBot: (name, avatarImage, description) =>

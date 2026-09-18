@@ -13,9 +13,21 @@ const { listContactsFor } = require("../data/contacts");
 const { transferStars, balanceOf } = require("../data/stars");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser, CALL_PUSH, CALL_CANCEL_PUSH } = require("../push");
+const { getIceServers } = require("../lib/turnCredentials");
 
 const router = express.Router();
 router.use(requireUserId);
+
+// Fresh, short-lived TURN credentials for the peer connection about to be
+// negotiated (see server/lib/turnCredentials.js). Behind auth like the rest
+// of this router — no reason to hand out relay credentials to logged-out
+// requests.
+router.get(
+  "/ice-servers",
+  asyncRoute(async (req, res) => {
+    res.json({ iceServers: getIceServers() });
+  })
+);
 
 // "Who can call me" (Settings → Конфиденциальность) — уровень «Все / Мои
 // контакты / Никто» плюс поимённые исключения, всё в server/lib/privacyRules.js.
