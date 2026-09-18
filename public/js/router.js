@@ -4,6 +4,14 @@
 const routes = [];
 let notFoundHandler = () => {};
 let currentPath = null;
+// Whether the view for currentPath actually finished mounting. Without this,
+// an exception anywhere during a route's render (e.g. an info-panel update
+// crashing while re-rendering after editing a chat's photo/description) left
+// currentPath pointing at that route forever — navigate()'s "already here"
+// guard below then silently no-op'd on every future click to that exact
+// chat, and only a full page reload (which resets this module) recovered.
+// That's the bug behind "clicking this chat does nothing now".
+let lastRenderOk = true;
 
 function toMatcher(pattern) {
   const keys = [];
@@ -34,21 +42,30 @@ export function notFound(render) {
 async function render() {
   const path = window.location.pathname;
   currentPath = path;
+  lastRenderOk = false;
   window.dispatchEvent(new CustomEvent("app:navigate", { detail: { path } }));
-  for (const r of routes) {
-    const m = r.regex.exec(path);
-    if (m) {
-      const params = {};
-      r.keys.forEach((k, i) => (params[k] = decodeURIComponent(m[i + 1])));
-      await r.render(params);
-      return;
+  try {
+    for (const r of routes) {
+      const m = r.regex.exec(path);
+      if (m) {
+        const params = {};
+        r.keys.forEach((k, i) => (params[k] = decodeURIComponent(m[i + 1])));
+        await r.render(params);
+        lastRenderOk = true;
+        return;
+      }
     }
+    await notFoundHandler();
+    lastRenderOk = true;
+  } catch (err) {
+    // Left as false on purpose — see lastRenderOk's comment above. Logged
+    // rather than swallowed so a broken mount is at least visible somewhere.
+    console.error("Не удалось открыть", path, err);
   }
-  await notFoundHandler();
 }
 
 export function navigate(path, { replace = false } = {}) {
-  if (path === currentPath) return;
+  if (path === currentPath && lastRenderOk) return;
   if (replace) window.history.replaceState(null, "", path);
   else window.history.pushState(null, "", path);
   render();
