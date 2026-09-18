@@ -11,13 +11,17 @@ const db = require("../db");
 // up by price rather than carrying a redundant packId column. Every price
 // here is unique for exactly that reason — don't add two packs at the same
 // priceRub, or this lookup becomes ambiguous.
+// ~2₽/звезду — курс, по которому Telegram сам продаёт Stars за рубли
+// (у них почти нет скидки за объём: и мелкий, и крупный пакет держатся в
+// районе 2-2.14₽/звезду), поэтому здесь тоже плоский курс, а не нарастающая
+// скидка, как было раньше.
 const STAR_PACKS = [
-  { id: "stars_10", stars: 10, priceRub: 1 },
-  { id: "stars_60", stars: 60, priceRub: 5 },
-  { id: "stars_130", stars: 130, priceRub: 10 },
-  { id: "stars_350", stars: 350, priceRub: 25 },
-  { id: "stars_750", stars: 750, priceRub: 50 },
-  { id: "stars_1600", stars: 1600, priceRub: 100 },
+  { id: "stars_50", stars: 50, priceRub: 100 },
+  { id: "stars_100", stars: 100, priceRub: 200 },
+  { id: "stars_250", stars: 250, priceRub: 500 },
+  { id: "stars_500", stars: 500, priceRub: 1000 },
+  { id: "stars_1000", stars: 1000, priceRub: 2000 },
+  { id: "stars_2500", stars: 2500, priceRub: 5000 },
 ];
 //
 // Every mutation goes through a transaction that re-reads the balance inside it.
