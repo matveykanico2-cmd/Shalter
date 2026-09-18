@@ -10,6 +10,8 @@
 const { grantPremiumDays, addReceivedGift, getUser } = require("../data/users");
 const { claimSerial } = require("../data/giftIssues");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("./systemChat");
+const { publicUser } = require("../data/sanitize");
+const { broadcastToUsers } = require("../ws");
 
 function durationLabel(days) {
   if (days === 0) return null;
@@ -59,6 +61,14 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId }) {
     // the "#3 из 10" badge, and their absence is what marks an ordinary gift.
     ...(serial != null ? { serial, supply: gift.supply } : {}),
   });
+
+  // The gift shelf and (for a Premium-granting gift) the Premium badge both
+  // live in the recipient's client-side state (state.js's `user`), which
+  // otherwise only learns about a change like this by re-fetching on login —
+  // the chat message below lands instantly, but a profile already open (their
+  // own, mid-session) stayed stale until a reload. Same fix as premium.js's
+  // /grant: push the fresh profile over the socket.
+  broadcastToUsers([recipientId], { type: "self:updated", user: publicUser(await getUser(recipientId)) });
 
   const duration = durationLabel(gift.premiumDays);
   const serialLabel = serial != null ? ` (№${serial} из ${gift.supply})` : "";

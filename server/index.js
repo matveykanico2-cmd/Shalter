@@ -192,6 +192,7 @@ app.use("/api/stickers", require("./routes/stickers"));
 app.use("/api/stars", require("./routes/stars"));
 app.use("/api/support", require("./routes/support"));
 app.use("/api/avatars", require("./routes/avatars"));
+app.use("/api/profile-track", require("./routes/profileTrack"));
 app.use("/api/status", require("./routes/profileStatus"));
 // Каталог готовых статусов читают все, тем же порядком что и /api/labels
 // выше (правит его только администратор — /api/admin/status-catalog).

@@ -1,4 +1,5 @@
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
+const { isPrimaryAdmin } = require("../lib/adminAccess");
 const { SYSTEM_BOT_ID } = require("./systemBot");
 
 function publicUser(user) {
@@ -64,7 +65,18 @@ function publicUser(user) {
 // itself: currently the e-mail address. Used by every response that hands you
 // *your own* record — session, login, register, account switching, settings.
 function selfUser(user) {
-  return { ...publicUser(user), email: user.email ?? undefined };
+  return {
+    ...publicUser(user),
+    email: user.email ?? undefined,
+    // Which admin screens were individually granted (server/lib/
+    // adminAccess.js) — meaningless for someone else's profile, so it only
+    // rides along on the account's own response.
+    adminSections: user.adminSections ?? [],
+    // Whether *this* account can grant those sections to others — only the
+    // single phone in PREMIUM_ADMIN_PHONE, not every full admin. Drives
+    // whether the client shows the grant UI in adminUserPanel.js.
+    isPrimaryAdmin: isPrimaryAdmin(user.phone) || undefined,
+  };
 }
 
 function publicUsers(users) {

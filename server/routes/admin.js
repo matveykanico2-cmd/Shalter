@@ -2,6 +2,7 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
+const { ADMIN_SECTIONS, hasAdminSection, isPrimaryAdmin } = require("../lib/adminAccess");
 const {
   getUser,
   findUserByPhone,
@@ -13,6 +14,7 @@ const {
   listLabeledUsers,
   updateUser,
   disableTotp,
+  setAdminSections,
 } = require("../data/users");
 const { hashPassword } = require("../security");
 const { revokeAllSessions } = require("../data/sessions");
@@ -31,16 +33,18 @@ const { collectServerStats } = require("../lib/serverStats");
 const router = express.Router();
 router.use(requireUserId);
 
-// Every route here is gated to whoever currently holds ADMIN_PHONE, checked
+// Every route here is gated per-section (server/lib/adminAccess.js), checked
 // fresh on each request (same convention as reports.js/premium.js — the
-// phone can move to a different account, so it's never cached). This is the
-// lawful-request compliance surface: a single admin, acting on a stated
-// legal basis, exporting one named user's stored data. It deliberately has
-// no "read everyone" or "live wiretap" capability — see server/data/
-// dataExport.js's header for the boundary, especially around E2E.
-async function requireAdmin(req, res) {
+// phone can move to a different account, so it's never cached). A full admin
+// (isAdminPhone) passes every section; a partial admin only the ones the
+// primary admin granted them. /export and /exports are the lawful-request
+// compliance surface: a single admin, acting on a stated legal basis,
+// exporting one named user's stored data. It deliberately has no "read
+// everyone" or "live wiretap" capability — see server/data/dataExport.js's
+// header for the boundary, especially around E2E.
+async function requireAdminSection(req, res, section) {
   const me = await getUser(req.uid);
-  if (!me || !isAdminPhone(me.phone)) {
+  if (!me || !hasAdminSection(me, section)) {
     res.status(403).json({ error: "Недостаточно прав" });
     return null;
   }
@@ -61,7 +65,7 @@ async function resolveTarget(query) {
 router.get(
   "/lookup",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "legal"))) return;
     const target = await resolveTarget(req.query.q);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
     res.json({ user: { id: target.id, name: target.name, username: target.username || null, phone: target.phone || null } });
@@ -75,7 +79,7 @@ router.get(
 router.post(
   "/export",
   asyncRoute(async (req, res) => {
-    const admin = await requireAdmin(req, res);
+    const admin = await requireAdminSection(req, res, "legal");
     if (!admin) return;
 
     const { userId, reason } = req.body ?? {};
@@ -97,7 +101,7 @@ router.post(
 router.get(
   "/exports",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "legal"))) return;
     const rows = listExports();
     const withLabels = await Promise.all(
       rows.map(async (r) => {
@@ -164,6 +168,11 @@ function userLabel(u, fallbackId) {
     isAdsActive: !!u.isAdsActive,
     adsUntil: u.adsUntil || null,
     adsForever: !!u.adsForever,
+    // Only meaningful to whoever can see the grant UI (isPrimaryAdmin, checked
+    // client-side) — riding along here is harmless either way, since this
+    // whole response already requires "moderation" section access to read.
+    adminSections: u.adminSections ?? [],
+    isDeveloper: isAdminPhone(u.phone) || undefined,
   };
 }
 
@@ -197,7 +206,7 @@ async function decorateReport(r) {
 router.get(
   "/moderation",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
     const [banned, labeled] = await Promise.all([listBannedUsers(), listLabeledUsers()]);
     const openReports = await Promise.all(listOpenReports().map(decorateReport));
     res.json({
@@ -215,7 +224,7 @@ router.get(
 router.get(
   "/users/:id/reports",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
     const target = await getUser(req.params.id);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
     const reports = await Promise.all(listReportsAboutUser(target.id).map(decorateReport));
@@ -233,7 +242,7 @@ router.get(
 router.post(
   "/users/:id/ban",
   asyncRoute(async (req, res) => {
-    const admin = await requireAdmin(req, res);
+    const admin = await requireAdminSection(req, res, "moderation");
     if (!admin) return;
 
     const target = await getUser(req.params.id);
@@ -272,7 +281,7 @@ router.post(
 router.post(
   "/users/:id/label",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
     const target = await getUser(req.params.id);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
 
@@ -296,7 +305,7 @@ router.post(
 router.post(
   "/users/:id/verify",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
     const target = await getUser(req.params.id);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
     const verified = !!req.body?.verified;
@@ -324,7 +333,7 @@ router.post(
 router.post(
   "/chats/:id/verify",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
     const chat = await getChat(req.params.id);
     if (!chat) return res.status(404).json({ error: "Чат не найден" });
     if (chat.type === "dm") return res.status(400).json({ error: "Верифицировать можно группы, каналы и аккаунты" });
@@ -348,7 +357,7 @@ router.post(
 router.delete(
   "/users/:id",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
     const target = await getUser(req.params.id);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
     if (target.id === req.uid) {
@@ -395,7 +404,7 @@ router.delete(
 router.post(
   "/users/:id/reset-password",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
     const target = await getUser(req.params.id);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
     if (target.isBot) return res.status(400).json({ error: "У ботов нет пароля — им управляет владелец через токен" });
@@ -455,7 +464,7 @@ router.post(
 router.get(
   "/mail-status",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "server"))) return;
     const [check, dnsAdvice] = await Promise.all([verifySmtp(), buildDnsAdvice()]);
     res.json({
       from: process.env.MAIL_FROM || "Shalter <no-reply@your-domain.example>",
@@ -481,7 +490,7 @@ router.get(
 router.get(
   "/labels",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
     res.json({ labels: labelsData.listLabels() });
   })
 );
@@ -489,7 +498,7 @@ router.get(
 router.post(
   "/labels",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
     const result = labelsData.createLabel(req.body ?? {});
     if (result.error) return res.status(400).json({ error: result.error });
     res.json({ label: result.label });
@@ -499,7 +508,7 @@ router.post(
 router.delete(
   "/labels/:id",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
     labelsData.deleteLabel(req.params.id);
     res.json({ ok: true });
   })
@@ -512,7 +521,7 @@ router.delete(
 router.post(
   "/status-catalog",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
     const result = statusCatalogData.createCatalogItem(req.body ?? {});
     if (result.error) return res.status(400).json({ error: result.error });
     res.json({ item: result.item });
@@ -522,7 +531,7 @@ router.post(
 router.delete(
   "/status-catalog/:id",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
     statusCatalogData.deleteCatalogItem(req.params.id);
     res.json({ ok: true });
   })
@@ -531,8 +540,30 @@ router.delete(
 router.get(
   "/server",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdminSection(req, res, "server"))) return;
     res.json(await collectServerStats());
+  })
+);
+
+// ── Частичный доступ к админке ──────────────────────────────────────────────
+// Выдаётся только главным администратором (isPrimaryAdmin — ровно тот номер,
+// что в PREMIUM_ADMIN_PHONE, а не любой из PREMIUM_ADMIN_PHONES) — иначе
+// "кто вообще может выдавать доступ" зависело бы от того, кто ещё когда-то
+// получил полный админский номер, а не от одной понятной переменной.
+router.post(
+  "/users/:id/admin-sections",
+  asyncRoute(async (req, res) => {
+    const me = await getUser(req.uid);
+    if (!me || !isPrimaryAdmin(me.phone)) {
+      return res.status(403).json({ error: "Недостаточно прав" });
+    }
+    const target = await getUser(req.params.id);
+    if (!target) return res.status(404).json({ error: "Пользователь не найден" });
+
+    const requested = Array.isArray(req.body?.sections) ? req.body.sections : [];
+    const sections = requested.filter((s) => ADMIN_SECTIONS.includes(s));
+    const updated = await setAdminSections(target.id, sections);
+    res.json({ user: { id: updated.id, adminSections: updated.adminSections } });
   })
 );
 

@@ -2724,6 +2724,7 @@
 .voice-player {
   display: flex;
   width: 224px;
+  max-width: 100%;
   align-items: center;
   gap: 10px;
   border-radius: 8px;
@@ -3623,6 +3624,19 @@
   border-color: #d9a441;
   box-shadow: 0 0 0 1px rgba(217, 164, 65, 0.5) inset;
 }
+.profile-gift-pin {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  height: 18px;
+  width: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  color: #1b1f2a;
+}
 .profile-gift-ribbon {
   position: absolute;
   top: 8px;
@@ -3955,6 +3969,23 @@
   gap: 8px;
   font-size: 14px;
   color: var(--color-text);
+}
+.profile-track-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.profile-track-icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+.profile-track-player {
+  height: 32px;
+  max-width: 100%;
+  flex: 1;
+  min-width: 0;
 }
 .profile-contact-tag {
   margin: 10px 0 0;

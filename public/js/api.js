@@ -140,6 +140,10 @@ export const api = {
     }),
 
   updateProfile: (id, patch) => req(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  // The one pinned track on your own profile (server/routes/profileTrack.js).
+  // `track` is the object POST /api/uploads returned (url/name/size/mimeType).
+  setProfileTrack: (track) => req("/api/profile-track", { method: "POST", body: JSON.stringify(track) }),
+  clearProfileTrack: () => req("/api/profile-track", { method: "DELETE" }),
   // Profile photos — always your own, so no id: the session decides whose.
   listAvatars: () => req("/api/avatars"),
   addAvatar: (entry) => req("/api/avatars", { method: "POST", body: JSON.stringify(entry) }),
@@ -459,6 +463,8 @@ export const api = {
   convertGift: (entryId) => req(`/api/gifts/received/${encodeURIComponent(entryId)}/convert`, { method: "POST" }),
   // Takes a received gift off your own profile shelf.
   removeReceivedGift: (entryId) => req(`/api/gifts/received/${encodeURIComponent(entryId)}`, { method: "DELETE" }),
+  setGiftPinned: (entryId, pinned) =>
+    req(`/api/gifts/received/${encodeURIComponent(entryId)}/pin`, { method: "POST", body: JSON.stringify({ pinned }) }),
   // Admin-only catalogue management (server/routes/gifts.js's /catalog routes):
   // change a limited run's size, mint a new gift, remove one never issued.
   adminGiftCatalog: () => req("/api/gifts/catalog"),
@@ -496,6 +502,10 @@ export const api = {
     req(`/api/admin/users/${userId}/verify`, { method: "POST", body: JSON.stringify({ verified }) }),
   adminSetChatVerified: (chatId, verified) =>
     req(`/api/admin/chats/${chatId}/verify`, { method: "POST", body: JSON.stringify({ verified }) }),
+  // Partial admin access grant — primary-admin-only, server side
+  // (server/lib/adminAccess.js's isPrimaryAdmin).
+  adminSetSections: (userId, sections) =>
+    req(`/api/admin/users/${userId}/admin-sections`, { method: "POST", body: JSON.stringify({ sections }) }),
   // Deleting somebody else's account — developer only, needs the handle typed
   // back and a reason for the journal.
   adminDeleteUser: (userId, confirm, reason) =>

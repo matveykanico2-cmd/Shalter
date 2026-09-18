@@ -153,6 +153,18 @@ export async function openProfileDialog(userId) {
     }
   }
 
+  // No cap on how many, unlike pinned messages — a pin here just moves the
+  // card to the front of the shelf, so there's nothing that needs limiting.
+  async function toggleGiftPin(entryId, gift) {
+    try {
+      const { user: updated } = await api.setGiftPinned(entryId, !gift.pinned);
+      user = { ...user, giftsReceived: updated.giftsReceived ?? [] };
+      render();
+    } catch (err) {
+      alert(err.message || "Не удалось закрепить подарок");
+    }
+  }
+
   // Канал, на который сейчас идёт подписка, — чтобы кнопка не принимала второе
   // нажатие, пока первое не отработало.
   let joiningChannelId = null;
@@ -211,13 +223,17 @@ export async function openProfileDialog(userId) {
       // есть вид, номер и цена, а фишка размером с эмодзи не показывала ничего
       // из этого. По нажатию открывается карточка экземпляра со свойствами
       // (components/giftCardDialog.js).
+      // Newest first within each group, but pinned gifts as a group come
+      // first — same idea as pinned messages, just with no limit on count
+      // (see toggleGiftPin above).
+      const ordered = gifts
+        .slice()
+        .reverse()
+        .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
       return el(
         "div",
         { class: "profile-gifts-grid" },
-        gifts
-          .slice()
-          .reverse()
-          .map((g) => {
+        ordered.map((g) => {
             const from = g.fromName ? ` · от ${g.fromName}` : "";
             const entryId = g.id ?? `${g.emoji}|${g.at}`;
             const traits = giftTraits(g);
@@ -235,9 +251,13 @@ export async function openProfileDialog(userId) {
                     // открывают чужой подарок.
                     onSend: () => openGiftShopDialog({ recipient: { id: user.id, name: user.name } }),
                     onRemove: isSelf ? () => removeGift(entryId, g) : undefined,
+                    onTogglePin: isSelf ? () => toggleGiftPin(entryId, g) : undefined,
                   }),
               },
               [
+                g.pinned
+                  ? el("span", { class: "profile-gift-pin", title: "Закреплён" }, [iconSvg("Pin", 12)])
+                  : null,
                 g.serial != null ? el("span", { class: "profile-gift-ribbon" }, `№${g.serial}`) : null,
                 el("span", { class: "profile-gift-art" }, [renderGiftArt(g, { size: 44, replay: false })]),
                 el("span", { class: "profile-gift-title" }, g.name),
@@ -387,6 +407,12 @@ export async function openProfileDialog(userId) {
         : null,
       status ? el("p", { class: "profile-status" }, status) : null,
       user.bio ? el("p", { class: "profile-bio" }, user.bio) : null,
+      user.profileTrack
+        ? el("div", { class: "profile-track-row" }, [
+            el("span", { class: "profile-track-icon", html: iconSvg("Volume", 15) }),
+            el("audio", { class: "profile-track-player", controls: true, preload: "none", src: user.profileTrack.url }),
+          ])
+        : null,
       user.phone
         ? el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("Phone", 15) }), el("span", { class: "mono" }, user.phone)])
         : null,

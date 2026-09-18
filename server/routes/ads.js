@@ -2,6 +2,7 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
+const { hasAdminSection } = require("../lib/adminAccess");
 const { getUser, findUserByPhone, grantAdsDays, revokeAds, updateUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -357,10 +358,13 @@ router.post(
   })
 );
 
-// ── Модерация (владелец ADMIN_PHONE) ────────────────────────────────────────
+// ── Модерация ────────────────────────────────────────────────────────────────
+// Embedded inside Settings → Модерация (public/js/components/adModeration.js),
+// so it's gated the same way as the rest of that screen — a partial admin
+// granted "moderation" gets this too, not just a full admin.
 async function requireAdmin(req, res) {
   const me = await getUser(req.uid);
-  if (!me || !isAdminPhone(me.phone)) {
+  if (!hasAdminSection(me, "moderation")) {
     res.status(403).json({ error: "Недостаточно прав" });
     return null;
   }

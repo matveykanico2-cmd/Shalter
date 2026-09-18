@@ -4,7 +4,8 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
-const { getUser, findUserByPhone, removeReceivedGift } = require("../data/users");
+const { hasAdminSection } = require("../lib/adminAccess");
+const { getUser, findUserByPhone, removeReceivedGift, setGiftPinned } = require("../data/users");
 const { balanceOf, spendStars, addStars } = require("../data/stars");
 const { listGifts, getGift, setSupply, createGift, deleteCustomGift, conversionValue, SUPPLY_MIN, SUPPLY_MAX } = require("../data/gifts");
 const { remaining, issuedCount } = require("../data/giftIssues");
@@ -113,7 +114,7 @@ router.post(
   "/deliver",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    if (!isAdminPhone(me.phone)) return res.status(403).json({ error: "Недостаточно прав" });
+    if (!hasAdminSection(me, "moderation")) return res.status(403).json({ error: "Недостаточно прав" });
 
     const gift = getGift(req.body?.giftId);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
@@ -199,6 +200,19 @@ router.delete(
   })
 );
 
+// Pinning is like a pinned message (public/js/components/chatView.js), just
+// for the gift shelf: no cap on how many, and only the owner can do it — same
+// "own shelf only" reasoning as removing one above.
+router.post(
+  "/received/:entryId/pin",
+  asyncRoute(async (req, res) => {
+    if (!setGiftPinned(req.uid, req.params.entryId, req.body?.pinned !== false)) {
+      return res.status(404).json({ error: "Подарок не найден на вашей полке" });
+    }
+    res.json({ user: publicUser(await getUser(req.uid)) });
+  })
+);
+
 // ── Catalogue management (admin only) ───────────────────────────────────────
 // The shipped catalogue is code (server/data/gifts.js); these routes let
 // whoever holds ADMIN_PHONE change a limited run's size and mint new gifts,
@@ -206,7 +220,7 @@ router.delete(
 
 async function requireAdmin(req, res) {
   const me = await getUser(req.uid);
-  if (!isAdminPhone(me?.phone)) {
+  if (!hasAdminSection(me, "giftshop")) {
     res.status(403).json({ error: "Недостаточно прав" });
     return null;
   }

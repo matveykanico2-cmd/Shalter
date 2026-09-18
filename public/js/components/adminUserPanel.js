@@ -3,6 +3,19 @@ import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { SAFETY_LABELS } from "../lib/safetyLabels.js";
+import { getState } from "../state.js";
+
+// Must match server/lib/adminAccess.js's ADMIN_SECTIONS and the admin group
+// in public/js/views/settings/index.js's SECTIONS — the id is what's sent to
+// POST /api/admin/users/:id/admin-sections and what unlocks the matching
+// settings tab for the granted account.
+const ADMIN_SECTIONS = [
+  { id: "moderation", label: "Модерация" },
+  { id: "server", label: "Состояние сервера" },
+  { id: "giftshop", label: "Каталог подарков" },
+  { id: "donations", label: "DonationAlerts" },
+  { id: "legal", label: "Запросы органов" },
+];
 
 // Premium durations offered on the profile. There's no payment gateway here
 // (see AGENTS.md): the buyer transfers the money and says so in chat, and the
@@ -49,6 +62,12 @@ const STATUS_LABELS = {
 // by re-typing the person's handle.
 export function openAdminUserPanel(user, onChange) {
   let state = { ...user };
+  // Only the primary admin sees/edits this — hasAdminSection lets a
+  // partially-granted admin open this same panel to ban/label/etc., but
+  // re-granting access is reserved for whoever holds PREMIUM_ADMIN_PHONE
+  // (server/lib/adminAccess.js's isPrimaryAdmin).
+  const canGrantSections = !!getState().user?.isPrimaryAdmin;
+  let pendingSections = new Set(state.adminSections ?? []);
   let reports = null; // null = not loaded yet
   let reportsError = null;
   let gifts = [];
@@ -105,6 +124,7 @@ export function openAdminUserPanel(user, onChange) {
       const res = await api.adminUserReports(state.id);
       reports = res.reports;
       state = { ...state, ...res.user };
+      pendingSections = new Set(state.adminSections ?? []);
     } catch (err) {
       reportsError = err.message || "Не удалось загрузить жалобы";
     }
@@ -316,6 +336,60 @@ export function openAdminUserPanel(user, onChange) {
         },
         state.isVerified ? "Снять галочку" : "Верифицировать"
       ),
+
+      canGrantSections
+        ? (() => {
+            if (state.isDeveloper) {
+              // A full admin already has every section (isAdminPhone) — a
+              // grant here would do nothing, and offering checkboxes that
+              // can't actually change anything is worse than not showing them.
+              return el("div", {}, [
+                el("p", { class: "admin-panel-section-title" }, "Доступ к разделам администрирования"),
+                el("p", { class: "settings-toggle-hint" }, "Этот аккаунт уже полный администратор — доступен весь раздел «Админ»."),
+              ]);
+            }
+            return el("div", {}, [
+              el("p", { class: "admin-panel-section-title" }, "Доступ к разделам администрирования"),
+              el(
+                "p",
+                { class: "settings-toggle-hint" },
+                "Откроет этому аккаунту выбранные вкладки в «Настройки → Админ» — без доступа ко всем остальным."
+              ),
+              el(
+                "div",
+                { class: "admin-label-grid" },
+                ADMIN_SECTIONS.map((s) =>
+                  el(
+                    "button",
+                    {
+                      class: `admin-label-btn ${pendingSections.has(s.id) ? "active" : ""}`,
+                      disabled: busy,
+                      onclick: () => {
+                        if (pendingSections.has(s.id)) pendingSections.delete(s.id);
+                        else pendingSections.add(s.id);
+                        render();
+                      },
+                    },
+                    s.label
+                  )
+                )
+              ),
+              el(
+                "button",
+                {
+                  class: "btn-accent",
+                  disabled: busy,
+                  onclick: () =>
+                    run(async () => {
+                      const { user: updated } = await api.adminSetSections(state.id, [...pendingSections]);
+                      return { patch: { adminSections: updated.adminSections } };
+                    }, "Доступ обновлён."),
+                },
+                "Сохранить доступ"
+              ),
+            ]);
+          })()
+        : null,
 
       el("p", { class: "admin-panel-section-title" }, "Метка безопасности"),
       el("p", { class: "settings-toggle-hint" }, "Видна всем, кто откроет профиль или увидит чат с этим аккаунтом — предупреждение до того, как человек переведёт деньги."),

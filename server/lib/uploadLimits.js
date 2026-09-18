@@ -30,6 +30,10 @@ const UPLOAD_LIMITS = {
   // Исходная гифка подарка (server/lib/giftMedia.js её потом перекодирует) —
   // тоже узкий потолок: это анимация-стикер, а не видео.
   gift: 20 * MB,
+  // Один закреплённый трек на профиле (routes/users.js's /me/track) — a song,
+  // not a voice message, but still just one file, so it gets its own tighter
+  // ceiling rather than inheriting voice's 5 GB.
+  "profile-track": 30 * MB,
 };
 const DEFAULT_LIMIT = 1 * GB;
 
@@ -60,6 +64,7 @@ const KIND_LABEL = {
   avatar: "Фото профиля",
   "avatar-video": "Видео-аватар",
   gift: "Гифка подарка",
+  "profile-track": "Трек профиля",
 };
 
 function tooLargeError(kind) {

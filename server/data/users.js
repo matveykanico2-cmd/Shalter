@@ -73,6 +73,15 @@ function rowToUser(row) {
     })(),
     banReason: row.banReason ?? undefined,
     bannedAt: row.bannedAt ?? undefined,
+    // Which admin screens this account was individually granted (see
+    // server/lib/adminAccess.js) — empty for everyone except accounts the
+    // primary admin picked. Irrelevant for a full admin (isAdminPhone already
+    // covers every section), but harmless to carry along regardless.
+    adminSections: row.adminSections ? JSON.parse(row.adminSections) : [],
+    // The one pinned track on the profile (routes/users.js's /me/track) —
+    // null when nothing's set, never undefined, for the same reason as
+    // statusIcon above: a patch merged client-side must be able to clear it.
+    profileTrack: row.profileTrack ? JSON.parse(row.profileTrack) : null,
     safetyLabel: row.safetyLabel ?? undefined,
     isVerified: !!row.isVerified || undefined,
     // Set only by the auction (routes/usernames.js) and cleared whenever the
@@ -319,6 +328,14 @@ async function setAvatars(userId, list) {
   return getUser(userId);
 }
 
+// Sets or clears (track === null) the one pinned track on the profile.
+async function setProfileTrack(userId, track) {
+  const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
+  if (!existing) return undefined;
+  db.prepare("UPDATE users SET profileTrack = ? WHERE id = ?").run(track ? JSON.stringify(track) : null, userId);
+  return getUser(userId);
+}
+
 // The account's own full wardrobe — every status it owns, equipped or not —
 // read straight off the row rather than through rowToUser's public projection
 // (see statusIcon there for why the two must stay separate).
@@ -420,6 +437,15 @@ async function setVerified(userId, verified) {
   return getUser(userId);
 }
 
+// Overwrites the whole set at once (not add/remove one) — the grant screen
+// shows and submits the complete list of checkboxes, so there's never a
+// partial update to reconcile with what's already stored.
+async function setAdminSections(userId, sections) {
+  const valid = Array.isArray(sections) ? [...new Set(sections.filter((s) => typeof s === "string"))] : [];
+  db.prepare("UPDATE users SET adminSections = ? WHERE id = ?").run(JSON.stringify(valid), userId);
+  return getUser(userId);
+}
+
 async function setSafetyLabel(userId, label) {
   db.prepare("UPDATE users SET safetyLabel = ?, safetyLabelAt = ? WHERE id = ?").run(
     label || null,
@@ -458,6 +484,21 @@ async function addReceivedGift(userId, gift) {
   return getUser(userId);
 }
 
+// Pins/unpins a gift on the shelf — like a pinned message, no cap on how many.
+// Stored on the entry itself (not a separate ordered list) so it survives the
+// shelf being re-read from anywhere without a second table to keep in sync.
+const setGiftPinned = db.transaction((userId, giftEntryId, pinned) => {
+  const row = db.prepare("SELECT giftsReceived FROM users WHERE id = ?").get(userId);
+  if (!row) return false;
+  const current = JSON.parse(row.giftsReceived ?? "[]");
+  const idx = current.findIndex((g) => (g.id ? g.id === giftEntryId : `${g.emoji}|${g.at}` === giftEntryId));
+  if (idx === -1) return false;
+  if (pinned) current[idx].pinned = true;
+  else delete current[idx].pinned;
+  db.prepare("UPDATE users SET giftsReceived = ? WHERE id = ?").run(JSON.stringify(current), userId);
+  return true;
+});
+
 // Takes a gift off someone's shelf. Deliberately does NOT touch gift_issues: a
 // limited gift's serial stays claimed forever, because it *was* issued — hiding
 // a copy from a profile must not quietly free up a number for someone else and
@@ -480,6 +521,9 @@ module.exports = {
   getStatusState,
   setStatusState,
   setVerified,
+  setAdminSections,
+  setGiftPinned,
+  setProfileTrack,
   listUsers,
   listUsersByIds,
   searchUsers,

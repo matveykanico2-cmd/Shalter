@@ -20,7 +20,7 @@ function row(label, value, rarity) {
   ]);
 }
 
-export function openGiftCardDialog(gift, { ownerName, onSend, onRemove } = {}) {
+export function openGiftCardDialog(gift, { ownerName, onSend, onRemove, onTogglePin } = {}) {
   const traits = giftTraits(gift);
   const [from, to] = traits.backdrop.colors;
 
@@ -48,6 +48,13 @@ export function openGiftCardDialog(gift, { ownerName, onSend, onRemove } = {}) {
       gift.priceStars ? row("Цена", `⭐ ${Number(gift.priceStars).toLocaleString("ru-RU")}`) : null,
     ].filter(Boolean)),
     onSend ? el("button", { class: "btn-accent gift-card-send", onclick: () => (close(), onSend()) }, "Отправить такой же") : null,
+    onTogglePin
+      ? el(
+          "button",
+          { class: "modal-cancel", onclick: () => (close(), onTogglePin()) },
+          gift.pinned ? "Открепить" : "Закрепить на профиле"
+        )
+      : null,
     onRemove
       ? el("button", { class: "modal-cancel danger", onclick: () => (close(), onRemove()) }, "Убрать с полки")
       : null,

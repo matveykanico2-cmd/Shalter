@@ -214,7 +214,12 @@ async function openSupport() {
 function renderMenu(root) {
   const me = getState().user;
   const accounts = getState().accounts ?? [];
-  const groupOf = (g) => SECTIONS.filter((s) => s.group === g && (!s.adminOnly || me.isDeveloper));
+  // A section's id doubles as the grant id (server/lib/adminAccess.js) — a
+  // partial admin (me.adminSections, set by the primary admin from the
+  // per-user panel) sees just the sections they were handed, same as a full
+  // admin (me.isDeveloper) sees all of them.
+  const groupOf = (g) =>
+    SECTIONS.filter((s) => s.group === g && (!s.adminOnly || me.isDeveloper || me.adminSections?.includes(s.id)));
 
   const rowFor = (s) =>
     menuRow({
@@ -309,6 +314,49 @@ async function renderProfile(root) {
   let phoneField = null;
   let saved = false;
   let profileError = null;
+  let profileTrack = me.profileTrack ?? null;
+  let trackBusy = false;
+  let trackError = null;
+
+  const trackFileInput = el("input", {
+    type: "file",
+    accept: "audio/*",
+    class: "hidden-input",
+    onchange: async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      trackError = null;
+      trackBusy = true;
+      render();
+      try {
+        const uploaded = await uploadFile(file, "profile-track");
+        const { user } = await api.setProfileTrack(uploaded);
+        profileTrack = user.profileTrack;
+        updateSelf({ profileTrack });
+      } catch (err) {
+        trackError = err.message || "Не удалось загрузить трек";
+      } finally {
+        trackBusy = false;
+        render();
+      }
+    },
+  });
+
+  async function removeTrack() {
+    trackBusy = true;
+    render();
+    try {
+      const { user } = await api.clearProfileTrack();
+      profileTrack = user.profileTrack;
+      updateSelf({ profileTrack });
+    } catch (err) {
+      trackError = err.message || "Не удалось убрать трек";
+    } finally {
+      trackBusy = false;
+      render();
+    }
+  }
 
   function render() {
     // Opens the viewer rather than a bare file picker: it shows the photos
@@ -410,6 +458,34 @@ async function renderProfile(root) {
               statusIcon ? "Изменить" : "Выбрать"
             ),
           ]),
+        ]),
+        section("Закреплённый трек", [
+          el("div", { class: "settings-toggle-row" }, [
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, profileTrack ? profileTrack.name : "Ничего не закреплено"),
+              el(
+                "p",
+                { class: "settings-toggle-hint" },
+                "Свой аудиофайл на профиле — виден всем, кто его открывает. Один трек, до 30 МБ."
+              ),
+            ]),
+            el(
+              "div",
+              { style: "display:flex; gap:8px;" },
+              [
+                el(
+                  "button",
+                  { class: "profile-action-btn", disabled: trackBusy, onclick: () => trackFileInput.click() },
+                  trackBusy ? "…" : profileTrack ? "Заменить" : "Загрузить"
+                ),
+                profileTrack
+                  ? el("button", { class: "profile-action-btn danger", disabled: trackBusy, onclick: removeTrack }, "Убрать")
+                  : null,
+              ].filter(Boolean)
+            ),
+          ]),
+          trackError ? el("p", { class: "login-error" }, trackError) : null,
+          trackFileInput,
         ]),
         profileError ? el("p", { class: "login-error" }, profileError) : null,
         el(

@@ -1242,4 +1242,19 @@ if (!db.prepare("SELECT count(*) c FROM upload_access").get().c) {
   fill();
 }
 
+// Partial admin access — the primary admin (ADMIN_PHONE) can hand specific
+// people access to only some of the admin screens (moderation, server
+// stats, giftshop, donations, legal exports) instead of all of them. A JSON
+// array of section ids, same convention as statusItems/giftsReceived above.
+// See server/lib/adminAccess.js for what's actually gated by this.
+const existingAdminSectionCols = new Set(db.prepare("PRAGMA table_info(users)").all().map((c) => c.name));
+if (!existingAdminSectionCols.has("adminSections"))
+  db.exec("ALTER TABLE users ADD COLUMN adminSections TEXT NOT NULL DEFAULT '[]'");
+
+// One pinned track on the profile — an uploaded audio file, not a link.
+// JSON ({url, name, size, mimeType, at}) rather than separate columns, same
+// convention as statusIcon/giftsReceived above: it's a single small object,
+// not something ever queried on its own.
+if (!existingAdminSectionCols.has("profileTrack")) db.exec("ALTER TABLE users ADD COLUMN profileTrack TEXT");
+
 module.exports = db;

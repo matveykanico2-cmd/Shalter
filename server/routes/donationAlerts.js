@@ -2,6 +2,7 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
+const { hasAdminSection } = require("../lib/adminAccess");
 const { getUser } = require("../data/users");
 const {
   isConfigured,
@@ -16,7 +17,7 @@ router.use(requireUserId);
 
 function requireAdmin(req, res) {
   return getUser(req.uid).then((me) => {
-    if (!isAdminPhone(me.phone)) {
+    if (!hasAdminSection(me, "donations")) {
       res.status(403).json({ error: "Недостаточно прав" });
       return null;
     }
@@ -43,7 +44,7 @@ router.get(
   "/connect",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    if (!isAdminPhone(me.phone)) return res.status(403).send("Недостаточно прав");
+    if (!hasAdminSection(me, "donations")) return res.status(403).send("Недостаточно прав");
     if (!isConfigured()) return res.status(503).send("DonationAlerts не настроен на сервере (нет client id/secret)");
     res.redirect(getAuthorizeUrl());
   })
@@ -55,7 +56,7 @@ router.get(
   "/callback",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    if (!isAdminPhone(me.phone)) return res.status(403).send("Недостаточно прав");
+    if (!hasAdminSection(me, "donations")) return res.status(403).send("Недостаточно прав");
     const { code, error } = req.query;
     if (error || !code) return res.redirect("/settings/donations?error=1");
     try {
