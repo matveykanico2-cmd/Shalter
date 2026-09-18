@@ -4678,6 +4678,14 @@
   text-decoration: none;
   box-sizing: border-box;
 }
+.donation-help-btn {
+  width: 100%;
+  text-align: center;
+  padding: 6px;
+  font-size: 13px;
+  color: var(--color-muted);
+  text-decoration: underline;
+}
 .qr-login-spinner {
   width: 220px;
   height: 220px;
@@ -8069,6 +8077,49 @@
   color: var(--color-muted);
 }
 
+/* ── Meme maker (components/memeDialog.js) ─────────────────────────────────── */
+.meme-dialog {
+  max-width: min(440px, 94vw);
+}
+.meme-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+.meme-preview {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+}
+.meme-preview-img {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+}
+.meme-preview-text {
+  position: absolute;
+  left: 4%;
+  width: 92%;
+  color: #fff;
+  -webkit-text-stroke: 1.5px #000;
+  paint-order: stroke fill;
+  font-weight: 900;
+  font-size: clamp(14px, 6vw, 28px);
+  text-align: center;
+  text-transform: uppercase;
+  line-height: 1.15;
+  word-break: break-word;
+}
+.meme-preview-top {
+  top: 6px;
+}
+.meme-preview-bottom {
+  bottom: 6px;
+}
+
 /* ── Stars (components/starsDialog.js, server/routes/stars.js) ────────────── */
 .stars-dialog {
   max-width: min(440px, 94vw);
@@ -8902,8 +8953,13 @@
   border-radius: 24px;
   object-fit: cover;
 }
+.status-viewer-caption {
+  margin: 12px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+}
 .status-viewer-name {
-  margin: 0;
+  margin: 2px 0 0;
   font-size: 14px;
   color: var(--color-muted);
 }

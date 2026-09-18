@@ -168,6 +168,8 @@ export const api = {
 
   // Opens (or returns) the DM with the support account.
   openSupportChat: () => req("/api/support/chat", { method: "POST" }),
+  getPartnerInfo: () => req("/api/partners/me"),
+  openPartnerChat: () => req("/api/partners/chat", { method: "POST" }),
 
   listChats: () => req("/api/chats"),
   getChat: (id) => req(`/api/chats/${id}`),

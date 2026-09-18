@@ -1,5 +1,7 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
+import { api } from "../api.js";
+import { navigate } from "../router.js";
 
 // Shown instead of navigating to a chat with the admin, once DonationAlerts
 // or DonatePay is connected (server/lib/autoPayment.js) — the buyer pays for
@@ -34,6 +36,23 @@ export function openDonationDialog({ donationUrl, code, amountRub, provider }) {
     copiedNote,
     el("a", { class: "btn-accent donation-link-btn", href: donationUrl, target: "_blank", rel: "noreferrer" }, "Перейти к оплате"),
     el("p", { class: "settings-toggle-hint" }, "Как только донат придёт — покупка активируется автоматически, обычно в течение минуты."),
+    el(
+      "button",
+      {
+        class: "donation-help-btn",
+        onclick: async () => {
+          try {
+            const { chatId } = await api.openSupportChat();
+            close();
+            navigate(`/chat/${chatId}`);
+          } catch {
+            // Support chat itself failed to open — nothing more useful to
+            // do than let them close and try again later.
+          }
+        },
+      },
+      "Оплата не прошла? Написать в поддержку"
+    ),
     el("button", { class: "modal-cancel", onclick: () => close() }, "Готово"),
   ]);
   overlay.appendChild(dialog);

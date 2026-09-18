@@ -20,7 +20,7 @@ export function ProfileStatusBadge(subject, size = 16) {
       class: "profile-status-badge-btn",
       role: "button",
       tabindex: "0",
-      title: "Статус",
+      title: subject.statusName || "Статус",
       onclick: (e) => {
         e.stopPropagation();
         openStatusViewer(subject);

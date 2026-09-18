@@ -5,6 +5,7 @@ import { startRecording, isRecordingSupported, createLevelMeter, MAX_RECORD_SEC 
 import { uploadFile } from "../lib/upload.js";
 import { checkSize } from "../lib/uploadLimits.js";
 import { openPollDialog } from "./pollDialog.js";
+import { openMemeDialog } from "./memeDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openScheduleSendDialog } from "./scheduleSendDialog.js";
 import { STICKERS, DRAWN_STICKERS } from "../lib/stickers.js";
@@ -467,6 +468,11 @@ export function Composer({
         { icon: "File", label: "Файл", run: () => anyFileInput.click() },
         { icon: "Sticker", label: "Стикер", run: () => toggleStickers(attachSlot) },
         { icon: "Smile", label: "Эмодзи", run: () => toggleEmoji(attachSlot) },
+        {
+          icon: "Zap",
+          label: "Мем",
+          run: () => openMemeDialog((file) => attachFiles([{ file, kind: "image" }])),
+        },
         {
           icon: "BarChart",
           label: "Опрос",

@@ -9,6 +9,7 @@ export function openStatusViewer(subject) {
   const dialog = el("div", { class: "status-viewer-dialog" }, [
     el("button", { class: "icon-btn status-viewer-close", title: "Закрыть", html: iconSvg("X", 20), onclick: () => close() }),
     el("img", { class: "status-viewer-image", src: subject.statusIcon, alt: "" }),
+    subject.statusName ? el("p", { class: "status-viewer-caption" }, subject.statusName) : null,
     subject.name ? el("p", { class: "status-viewer-name" }, subject.name) : null,
   ]);
   overlay.appendChild(dialog);

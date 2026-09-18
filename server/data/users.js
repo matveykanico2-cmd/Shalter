@@ -71,6 +71,19 @@ function rowToUser(row) {
         return null;
       }
     })(),
+    // The equipped status's own caption (from the catalog, or typed by the
+    // account itself for a custom upload — see routes/profileStatus.js's
+    // /me). Previously only the icon travelled out here, so a status badge
+    // next to any name just said generic "Статус" with nothing to say what
+    // it actually meant.
+    statusName: (() => {
+      if (!row.activeStatusId) return null;
+      try {
+        return JSON.parse(row.statusItems ?? "[]").find((i) => i.id === row.activeStatusId)?.name || null;
+      } catch {
+        return null;
+      }
+    })(),
     banReason: row.banReason ?? undefined,
     bannedAt: row.bannedAt ?? undefined,
     // Which admin screens this account was individually granted (see

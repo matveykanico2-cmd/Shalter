@@ -58,6 +58,7 @@ const SECTIONS = [
   { id: "accounts", label: "Аккаунты", icon: "Accounts", group: "main" },
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", group: "main" },
   { id: "premium", label: "Premium и друзья", icon: "Star", group: "extra" },
+  { id: "partners", label: "Партнёрка", icon: "Users", group: "extra" },
   { id: "stars", label: "Звёзды", icon: "Zap", group: "extra" },
   { id: "usernames", label: "Аукцион юзернеймов", icon: "Globe", group: "extra" },
   { id: "ads", label: "Реклама", icon: "BarChart", group: "extra" },
@@ -169,6 +170,7 @@ export async function SettingsView(root, page) {
     "": renderMenu,
     profile: renderProfile,
     premium: renderPremium,
+    partners: renderPartners,
     ads: renderAds,
     bots: renderBots,
     appearance: renderAppearance,
@@ -670,6 +672,76 @@ async function renderPremium(root) {
           ]),
           el("button", { class: "btn-accent-pill", onclick: () => openGiftShopDialog({}) }, "Открыть"),
         ]),
+      ])
+    );
+  }
+  render();
+}
+
+// Партнёрская программа: та же реферальная ссылка, что на экране Premium
+// (server/routes/partners.js's /me — просто отдаёт то же самое ещё раз, под
+// этим заголовком), плюс прямой чат с администрацией для обсуждения условий
+// сотрудничества — деловой вопрос, который решает человек, а не бот
+// поддержки.
+async function renderPartners(root) {
+  let info = null;
+  let loadError = null;
+  let opening = false;
+  let openError = null;
+  try {
+    info = await api.getPartnerInfo();
+  } catch (err) {
+    loadError = err.message;
+  }
+
+  async function openChat() {
+    opening = true;
+    openError = null;
+    render();
+    try {
+      const { chatId } = await api.openPartnerChat();
+      navigate(`/chat/${chatId}`);
+    } catch (err) {
+      openError = err.message || "Не удалось открыть чат";
+      opening = false;
+      render();
+    }
+  }
+
+  function referralLink() {
+    return `${window.location.origin}/login?ref=${info.referralCode}`;
+  }
+
+  function render() {
+    mount(
+      root,
+      pageWrap("Партнёрка", "Условия сотрудничества и связь с администрацией", [
+        loadError ? el("p", { class: "login-error" }, loadError) : null,
+        info
+          ? section("Тарифы", [el("p", { class: "settings-toggle-hint" }, info.tariffText)])
+          : null,
+        info
+          ? section("Ваша реферальная ссылка", [
+              el("div", { class: "referral-code-row" }, [
+                el("span", { class: "mono referral-code-value" }, referralLink()),
+                el("button", {
+                  class: "icon-btn",
+                  title: "Скопировать ссылку",
+                  html: iconSvg("Copy", 16),
+                  onclick: async () => {
+                    try {
+                      await navigator.clipboard.writeText(referralLink());
+                    } catch {
+                      // still visible on screen for manual copying
+                    }
+                  },
+                }),
+              ]),
+              el("p", { class: "settings-toggle-hint" }, `Приглашено: ${info.referrals.length}`),
+            ])
+          : null,
+        el("button", { class: "btn-accent", disabled: opening, onclick: openChat }, opening ? "Открываем чат…" : "Написать администратору"),
+        openError ? el("p", { class: "login-error" }, openError) : null,
       ])
     );
   }
