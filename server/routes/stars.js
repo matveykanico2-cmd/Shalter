@@ -5,26 +5,20 @@ const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { getUser, findUserByPhone } = require("../data/users");
 const { getChat, listChatsForUser } = require("../data/chats");
 const { getMessage, deleteMessage, setBoost } = require("../data/messages");
-const { balanceOf, addStars, spendStars, setMessagePrice, transferStars } = require("../data/stars");
+const { balanceOf, addStars, spendStars, setMessagePrice, transferStars, STAR_PACKS } = require("../data/stars");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { broadcastToUsers } = require("../ws");
 const { publicUser } = require("../data/sanitize");
+const { getActiveDonationLink } = require("../lib/autoPayment");
+const { createPendingOrder } = require("../data/pendingOrders");
 
 // Stars — the in-app currency.
 //
-// Bought the same way everything else here is: a real transfer to the admin, who
-// confirms it by hand (see AGENTS.md — there is no payment gateway). The packs
-// below span the 1₽–100₽ range, with the bigger ones giving progressively more
-// stars per ruble, which is the ordinary shape of this kind of thing.
-
-const STAR_PACKS = [
-  { id: "stars_10", stars: 10, priceRub: 1 },
-  { id: "stars_60", stars: 60, priceRub: 5 },
-  { id: "stars_130", stars: 130, priceRub: 10 },
-  { id: "stars_350", stars: 350, priceRub: 25 },
-  { id: "stars_750", stars: 750, priceRub: 50 },
-  { id: "stars_1600", stars: 1600, priceRub: 100 },
-];
+// Bought via DonationAlerts/DonatePay when connected (automatic), otherwise a
+// real transfer to the admin who confirms it by hand (see AGENTS.md — there
+// is no payment gateway). STAR_PACKS itself lives in data/stars.js now —
+// fulfillOrder.js needs the same list to credit the right amount once a
+// donation clears.
 
 // What the paid actions cost. Deliberately small next to the pack sizes: these
 // are meant to be used, not hoarded.
@@ -69,6 +63,15 @@ router.post(
       // same shortcut the gift shop takes.
       addStars(req.uid, pack.stars);
       return res.json({ balance: balanceOf(req.uid), granted: true });
+    }
+
+    // Same as premium.js's /request — DonationAlerts/DonatePay if either is
+    // set up, otherwise a plain transfer that the admin fulfils from the
+    // buyer's profile.
+    const donation = getActiveDonationLink();
+    if (donation) {
+      const order = await createPendingOrder({ userId: req.uid, kind: "stars", amountRub: pack.priceRub });
+      return res.json({ code: order.code, donationUrl: donation.donationUrl, provider: donation.provider, amountRub: pack.priceRub });
     }
 
     const chat = await findOrCreateDm(req.uid, admin.id);

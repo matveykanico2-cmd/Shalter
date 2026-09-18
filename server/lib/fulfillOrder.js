@@ -1,5 +1,6 @@
 const { getUser, grantPremiumDays, grantAdsDays } = require("../data/users");
 const { getGift } = require("../data/gifts");
+const { addStars, STAR_PACKS } = require("../data/stars");
 const { markOrderFulfilled } = require("../data/pendingOrders");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("./systemChat");
@@ -62,6 +63,16 @@ async function fulfillOrder(order) {
   } else if (order.kind === "ads") {
     await grantAdsDays(order.userId, 30);
     text = "📢 Оплата получена! Вам выдан кабинет рекламы на 30 дней. Настройте объявление в Настройки → Реклама.";
+  } else if (order.kind === "stars") {
+    // No packId column on pending_orders — the pack is found back by price,
+    // which is why STAR_PACKS (data/stars.js) requires every priceRub to be
+    // unique. A price that no longer matches any pack (catalogue changed
+    // after this order was created) fails closed rather than crediting an
+    // arbitrary amount.
+    const pack = STAR_PACKS.find((p) => p.priceRub === order.amountRub);
+    if (!pack) return { ok: false, reason: "unknown_pack" };
+    addStars(order.userId, pack.stars);
+    text = `⭐ Оплата получена! Начислено ${pack.stars} звёзд.`;
   } else {
     return { ok: false, reason: "unknown_kind" };
   }

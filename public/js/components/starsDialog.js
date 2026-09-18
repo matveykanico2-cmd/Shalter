@@ -1,12 +1,14 @@
 import { el, clear, appendAll } from "../lib/dom.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
+import { handlePurchaseResponse } from "../lib/purchase.js";
 
 // Buying stars and setting what strangers pay to write to you.
 //
-// Purchases follow the same route as everything else priced in this app: the
-// request lands in the administration's chat and the balance is credited once
-// the transfer arrives (see AGENTS.md — no payment gateway).
+// Purchases follow the same route as everything else priced in this app:
+// DonationAlerts/DonatePay if the admin connected one (automatic — see
+// lib/purchase.js), otherwise the request lands in the administration's
+// chat and the balance is credited once the transfer arrives.
 export function openStarsDialog(onChanged) {
   let data = null;
   let error = null;
@@ -51,6 +53,9 @@ export function openStarsDialog(onChanged) {
         notice = `Начислено ${pack.stars} ⭐`;
         data = await api.getStars();
         onChanged?.();
+      } else if (res.donationUrl) {
+        handlePurchaseResponse(res);
+        return;
       } else if (res.chatId) {
         close();
         navigate(`/chat/${res.chatId}`);
