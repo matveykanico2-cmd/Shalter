@@ -256,7 +256,7 @@ export async function openProfileDialog(userId) {
               },
               [
                 g.pinned
-                  ? el("span", { class: "profile-gift-pin", title: "Закреплён" }, [iconSvg("Pin", 12)])
+                  ? el("span", { class: "profile-gift-pin", title: "Закреплён", html: iconSvg("Pin", 12) })
                   : null,
                 g.serial != null ? el("span", { class: "profile-gift-ribbon" }, `№${g.serial}`) : null,
                 el("span", { class: "profile-gift-art" }, [renderGiftArt(g, { size: 44, replay: false })]),
