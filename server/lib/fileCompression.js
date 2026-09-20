@@ -28,13 +28,18 @@ const MAGIC = Buffer.from("SHCM1");
 // trusted, and being wrong here only costs compression ratio, never
 // correctness) rather than paying max-quality cost on something it'll never
 // pay back.
+// Tuned down a notch from the first pass — quality 11 turned out slow enough
+// to feel like a hang even on a small file (it's brotli's slowest level by
+// a wide margin, not "slightly slower than 10"). Ratio loss from 11→9 is
+// small; the latency difference is not — favour the upload actually
+// finishing quickly over squeezing out the last few percent.
 function qualityFor(sizeHint) {
-  if (!Number.isFinite(sizeHint) || sizeHint <= 0) return 7; // unknown size — a moderate default, not an assumption either way
+  if (!Number.isFinite(sizeHint) || sizeHint <= 0) return 5; // unknown size — a moderate default, not an assumption either way
   const MB = 1024 * 1024;
-  if (sizeHint <= 2 * MB) return 11;
-  if (sizeHint <= 20 * MB) return 9;
-  if (sizeHint <= 100 * MB) return 6;
-  return 4;
+  if (sizeHint <= 2 * MB) return 9;
+  if (sizeHint <= 20 * MB) return 6;
+  if (sizeHint <= 100 * MB) return 4;
+  return 2;
 }
 
 function compressStream(sizeHint) {
