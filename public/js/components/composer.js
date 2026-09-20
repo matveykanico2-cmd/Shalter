@@ -239,14 +239,17 @@ export function Composer({
     const uploadSlot = el("div", { class: "composer-upload-slot" });
 
     function showUploadError(message) {
-      clear(uploadSlot);
-      uploadSlot.appendChild(
-        el("div", { class: "composer-upload-row error" }, [
-          el("span", { html: iconSvg("Info", 14) }),
-          el("span", { class: "composer-upload-label" }, message),
-          el("button", { class: "icon-btn", title: "Скрыть", html: iconSvg("X", 14), onclick: () => clear(uploadSlot) }),
-        ])
-      );
+      // Appended, not clear(uploadSlot) — a rejected file (too big, say)
+      // while an *earlier* batch is still uploading used to wipe that
+      // batch's progress tiles off the screen along with the error, even
+      // though the earlier upload itself kept running in the background
+      // unaffected. The row removes only itself.
+      const row = el("div", { class: "composer-upload-row error" }, [
+        el("span", { html: iconSvg("Info", 14) }),
+        el("span", { class: "composer-upload-label" }, message),
+        el("button", { class: "icon-btn", title: "Скрыть", html: iconSvg("X", 14), onclick: () => row.remove() }),
+      ]);
+      uploadSlot.appendChild(row);
     }
 
     // A ring drawn as an SVG stroke-dashoffset — filled clockwise as the
@@ -332,7 +335,11 @@ export function Composer({
       }
       if (!items.length) return;
 
-      clear(uploadSlot);
+      // Appended alongside whatever's already in uploadSlot, not
+      // clear()-ed first — attaching a second batch while an earlier one
+      // is still uploading used to wipe the earlier batch's tiles from the
+      // screen (the upload itself kept running regardless, just invisibly);
+      // now each batch gets its own strip and only ever removes its own.
       const strip = el("div", { class: "composer-upload-strip" });
       uploadSlot.appendChild(strip);
 
@@ -403,7 +410,7 @@ export function Composer({
         )
       );
 
-      clear(uploadSlot);
+      strip.remove();
 
       const attachments = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
       const failedCount = results.length - attachments.length;
