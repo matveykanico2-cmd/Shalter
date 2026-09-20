@@ -10406,34 +10406,25 @@
   }
 }
 
-/* ── Знак Premium: белая звезда в квадрате (components/premiumStar.js) ───── */
+/* ── Знак Premium: золотая звезда, как в Telegram (components/premiumStar.js) ─
+   Раньше — белая звезда на одном из шести цветных квадратов; теперь просто
+   сама звезда, без фона, тем же золотисто-оранжевым цветом везде — see
+   premiumStar.js's header comment for why the six-colour variant idea got
+   dropped. */
 .premium-star {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  overflow: hidden;
   vertical-align: middle;
   animation: ps-float 3.4s ease-in-out infinite;
 }
 .premium-star .ps-star {
-  width: 68%;
-  height: 68%;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 1px 2px rgba(122, 46, 0, 0.35));
   animation: ps-pulse 3.4s ease-in-out infinite;
-}
-/* Блик — светлая полоса, проходящая по квадрату наискось. Она в отдельном
-   слое, а не тенью на звезде: по фону она читается, а по белой звезде нет. */
-.ps-shine {
-  position: absolute;
-  top: -40%;
-  left: -60%;
-  width: 40%;
-  height: 180%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
-  transform: rotate(18deg);
-  animation: ps-shine 3.4s ease-in-out infinite;
 }
 @keyframes ps-float {
   0%, 100% { transform: translateY(0) rotate(0deg); }
@@ -10444,37 +10435,16 @@
   78% { transform: scale(1.16); }
   86% { transform: scale(0.97); }
 }
-@keyframes ps-shine {
-  0%, 55% { left: -60%; }
-  85%, 100% { left: 120%; }
-}
-/* Фоны. Разные не ради разнообразия: ими отличаются уровни подписки, и один
-   значок с шестью фонами дешевле шести разных значков. */
-.ps-violet { background: linear-gradient(135deg, #8f7bff, #5b3fd6); }
-.ps-gold { background: linear-gradient(135deg, #ffd76b, #e09a1e); }
-.ps-aqua { background: linear-gradient(135deg, #5be0e6, #1f8fd6); }
-.ps-sunset { background: linear-gradient(135deg, #ff9a6b, #e0455f); }
-.ps-rose { background: linear-gradient(135deg, #ff9ecb, #c2478f); }
-.ps-night { background: linear-gradient(135deg, #4a5578, #1c2238); }
 .premium-star-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  justify-content: center;
   margin: 12px 0 4px;
 }
 @media (prefers-reduced-motion: reduce) {
   .premium-star,
-  .premium-star .ps-star,
-  .ps-shine {
+  .premium-star .ps-star {
     animation: none !important;
   }
-}
-
-/* Звезда внутри орбиты рисует собственный фон, поэтому у самого ядра он больше
-   не нужен — иначе получается квадрат в круге другого цвета. */
-.premium-orbit-core:has(.premium-star) {
-  background: none;
-  box-shadow: none;
 }
 
 /* ── Телефон: размеры, за которые можно попасть пальцем ──────────────────── */
