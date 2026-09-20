@@ -13,6 +13,8 @@ import { renderScene } from "../lib/animScenes.js";
 import { renderGiftArt } from "../lib/giftTraits.js";
 import { openStarsDialog } from "./starsDialog.js";
 import { navigate } from "../router.js";
+import { VerifiedBadge } from "./verifiedBadge.js";
+import { PremiumStar } from "./premiumStar.js";
 
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
 // Premium-only reactions — still plain emoji (reactions are stored as
@@ -1010,8 +1012,15 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     // The sender's name opens their profile, same as tapping their avatar
     // below — in a group these two are the only things identifying who wrote a
     // message, and neither did anything when tapped.
+    // Badges same as everywhere else a name shows (chat list, chat header,
+    // profile) — a group message previously had nothing here at all, so
+    // you couldn't tell who's Premium/verified without opening their profile.
     showSender && !mine && sender
-      ? el("button", { class: "sender-name", onclick: () => openProfileDialog(sender.id) }, sender.name)
+      ? el(
+          "button",
+          { class: "sender-name", onclick: () => openProfileDialog(sender.id) },
+          [sender.name, VerifiedBadge(sender, 12), sender.isPremium ? PremiumStar({ size: 13, seed: sender.id, title: "Shalter Premium" }) : null].filter(Boolean)
+        )
       : null,
     bubbleWrap,
     reactionsRow,

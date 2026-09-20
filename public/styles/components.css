@@ -1441,8 +1441,9 @@
 /* Имя над сообщением открывает профиль — по строке в 14 пикселей пальцем не
    попасть. Добавляем поле, а не размер шрифта: вид строки не меняется. */
 .sender-name {
-  padding: 3px 0;
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   align-self: flex-start;
   margin-bottom: 2px;
   padding: 0 4px;

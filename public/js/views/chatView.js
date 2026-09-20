@@ -23,6 +23,7 @@ import { openWallpaperDialog } from "../components/wallpaperDialog.js";
 import { openScheduledMessagesDialog } from "../components/scheduledMessagesDialog.js";
 import { openThreadPanel } from "../components/threadPanel.js";
 import { VerifiedBadge } from "../components/verifiedBadge.js";
+import { PremiumStar } from "../components/premiumStar.js";
 import { ProfileStatusBadge } from "../components/profileStatusBadge.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openMiniApp } from "../components/miniApp.js";
@@ -1002,6 +1003,13 @@ export async function ChatView(root, chatId) {
                 // разговора нет. Именно здесь она и нужна больше всего: видно,
                 // с кем говоришь, пока говоришь, а не только пока выбираешь.
                 VerifiedBadge(isDm ? other : chat, 15),
+                // Та же history — Premium-звезда и значок разработчика уже
+                // стоят в списке чатов, профиле и панели информации; здесь их
+                // не было вообще ни разу.
+                isDm && other?.isDeveloper
+                  ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 15) })
+                  : null,
+                isDm && other?.isPremium ? PremiumStar({ size: 16, seed: other.id, title: "Shalter Premium" }) : null,
                 isDm ? ProfileStatusBadge(other, 15) : null,
                 // Safety marker (server/db.js's safetyLabel) — shown in the
                 // header of the open chat too, so it's on screen while the
