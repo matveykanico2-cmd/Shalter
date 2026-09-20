@@ -34,6 +34,7 @@ const RESERVED = new Set([
   // nobody may claim the handle support used to hold and impersonate it.
   "support",
   "hugo",
+  "helper",
   "shalter",
   "shalter_bot",
   "shalter_support",

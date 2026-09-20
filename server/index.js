@@ -27,14 +27,17 @@ const { getCurrentUserId } = require("./middleware/auth");
 const { initPush } = require("./push");
 const { ensureSystemBot } = require("./data/systemBot");
 const { ensureHugoAccount } = require("./data/hugoBot");
+const { ensureHelperBotAccount } = require("./data/helperBot");
 const { startAutoDeleteSweep } = require("./lib/autoDelete");
 const { startDonationAlertsSweep } = require("./lib/donationAlerts");
 const { startDonatePaySweep } = require("./lib/donatePay");
 const { startBirthdaySweep } = require("./lib/birthdaySweep");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
+const { startReminderSweep } = require("./lib/reminderSweep");
 
 ensureSystemBot();
 ensureHugoAccount();
+ensureHelperBotAccount();
 
 const app = express();
 // Deployed behind nginx (see DEPLOY.md/deploy/nginx.conf.example) — trust
@@ -204,6 +207,9 @@ app.get("/api/status-catalog", (req, res) => res.json({ items: require("./data/p
 app.use("/api/usernames", require("./routes/usernames"));
 // Один ответ вместо трёх поездок при входе — см. routes/bootstrap.js.
 app.use("/api/bootstrap", require("./routes/bootstrap"));
+// /short (helperBot) redirect — not under /api: opened directly in a
+// browser, like the target URL itself (see routes/shortLinks.js).
+app.use("/s", require("./routes/shortLinks"));
 
 if (useBuilt) {
   // Serves whichever of app.js/app.js.br/app.js.gz the client's
@@ -334,6 +340,7 @@ startDonationAlertsSweep();
 startDonatePaySweep();
 startBirthdaySweep();
 startScheduledMessagesSweep();
+startReminderSweep();
 // Раз в сутки убираем загруженные файлы, на которые никто не ссылается:
 // выбрал фотографию и передумал отправлять, отправил и удалил сообщение — файл
 // оставался на диске навсегда (см. lib/orphanSweep.js).

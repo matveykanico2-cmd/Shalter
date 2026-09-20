@@ -527,7 +527,23 @@ function firstMessageOfDay(chatId, { day, tzOffsetMinutes = 0 } = {}) {
   );
 }
 
+// /stats and /top (server/lib/helperBot/moderation.js) — plain aggregate
+// queries, no need for a summary table given how infrequently these are asked.
+function chatMessageStats(chatId) {
+  const total = db.prepare("SELECT COUNT(*) c FROM messages WHERE chatId = ?").get(chatId).c;
+  const media = db.prepare("SELECT COUNT(*) c FROM messages WHERE chatId = ? AND attachments IS NOT NULL").get(chatId).c;
+  return { total, media };
+}
+
+function topSenders(chatId, limit = 10) {
+  return db
+    .prepare("SELECT senderId, COUNT(*) c FROM messages WHERE chatId = ? GROUP BY senderId ORDER BY c DESC LIMIT ?")
+    .all(chatId, limit);
+}
+
 module.exports = {
+  chatMessageStats,
+  topSenders,
   attachmentBytesByKind,
   listMessageDays,
   firstMessageOfDay,

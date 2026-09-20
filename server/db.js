@@ -955,6 +955,13 @@ if (!existingChatColumns.has("votes")) db.exec("ALTER TABLE chats ADD COLUMN vot
 // property (like Telegram's own auto-delete timer), not a per-user setting,
 // since it needs to mean the same thing to everyone in the chat.
 if (!existingChatColumns.has("autoDeleteSeconds")) db.exec("ALTER TABLE chats ADD COLUMN autoDeleteSeconds INTEGER");
+// /warn and /unwarn (server/lib/helperBot/moderation.js) — { [userId]: count }.
+// Same nested-JSON-on-parent-row pattern as restrictions above, for the same
+// reason: warnings are only ever read/written keyed by this one chat.
+if (!existingChatColumns.has("warnings")) db.exec("ALTER TABLE chats ADD COLUMN warnings TEXT");
+// /rules and /rules set (server/lib/helperBot/info.js) — plain text, set by
+// chat staff, shown to anyone who asks.
+if (!existingChatColumns.has("rules")) db.exec("ALTER TABLE chats ADD COLUMN rules TEXT");
 
 const existingCallColumns = new Set(db.prepare("PRAGMA table_info(calls)").all().map((c) => c.name));
 // Premium's "invite by link" (server/routes/calls.js's /:id/invite-link and
@@ -1320,5 +1327,45 @@ if (!existingAdminSectionCols.has("adminSections"))
 // convention as statusIcon/giftsReceived above: it's a single small object,
 // not something ever queried on its own.
 if (!existingAdminSectionCols.has("profileTrack")) db.exec("ALTER TABLE users ADD COLUMN profileTrack TEXT");
+
+// Инфраструктура встроенного slash-command бота (server/lib/helperBot):
+// короткие ссылки (/short), отложенные напоминания (/remind, доставляются
+// server/lib/reminderSweep.js) и личные заметки (/note). Каждая — свой
+// data/*.js модуль, тот же "модуль на домен", что и остальные таблицы здесь.
+db.exec(`
+CREATE TABLE IF NOT EXISTS short_links (
+  code TEXT PRIMARY KEY,
+  targetUrl TEXT NOT NULL,
+  creatorId TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  clicks INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS reminders (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL,
+  chatId TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  text TEXT NOT NULL,
+  dueAt TEXT NOT NULL,
+  sent INTEGER NOT NULL DEFAULT 0,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(dueAt) WHERE sent = 0;
+
+CREATE TABLE IF NOT EXISTS notes (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL,
+  text TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(userId, createdAt);
+
+-- /daily bonus claim guard — one row per user, "have they claimed in the last
+-- 24h" is a single comparison against lastClaimAt rather than a growing log.
+CREATE TABLE IF NOT EXISTS daily_claims (
+  userId TEXT PRIMARY KEY,
+  lastClaimAt TEXT NOT NULL
+);
+`);
 
 module.exports = db;

@@ -34,6 +34,8 @@ function rowToChat(row) {
     createdAt: row.createdAt,
     linkedDiscussionChatId: row.linkedDiscussionChatId ?? undefined,
     restrictions: row.restrictions ? JSON.parse(row.restrictions) : {},
+    warnings: row.warnings ? JSON.parse(row.warnings) : {},
+    rules: row.rules ?? undefined,
     points: row.points ?? 0,
     votes: row.votes ? JSON.parse(row.votes) : {},
     autoDeleteSeconds: row.autoDeleteSeconds ?? undefined,
@@ -195,7 +197,7 @@ const PATCHABLE_FIELDS = [
   "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage",
   "ownerId", "pinned", "muted", "archived", "createdAt", "linkedDiscussionChatId", "points",
   "autoDeleteSeconds", "isVerified", "inviteCode", "mutedUntil", "slowModeSeconds", "commentPriceStars",
-  "approveJoins", "signMessages",
+  "approveJoins", "signMessages", "rules",
 ];
 
 async function updateChat(id, patch) {
@@ -243,6 +245,9 @@ async function updateChat(id, patch) {
   }
   if ("votes" in patch) {
     db.prepare("UPDATE chats SET votes = ? WHERE id = ?").run(JSON.stringify(patch.votes ?? {}), id);
+  }
+  if ("warnings" in patch) {
+    db.prepare("UPDATE chats SET warnings = ? WHERE id = ?").run(JSON.stringify(patch.warnings ?? {}), id);
   }
   return getChat(id);
 }

@@ -17,6 +17,7 @@ const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getSched
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
 const { dispatchHugo } = require("../lib/hugoBot");
+const { dispatchHelperBot } = require("../lib/helperBot");
 const { can, DENIED, isStaff } = require("../lib/chatPermissions");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser, MESSAGE_PUSH } = require("../push");
@@ -360,6 +361,10 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   // Same fire-and-forget shape: proofreading calls an external service, and the
   // person who pressed send must not wait for it.
   dispatchHugo(chat.id, message);
+
+  // The slash-command bot (lib/helperBot.js) — works in any chat, unlike
+  // Hugo above, which only answers inside the one-to-one support chat.
+  dispatchHelperBot(chat, message);
 
   // A comment on a channel post is just a reply to that post's auto-forwarded
   // anchor copy in the linked discussion chat (see server/routes/posts.js) —
