@@ -75,7 +75,7 @@ router.post(
     // way — dedup and the size cap must reflect what was actually uploaded,
     // not the compressed size on disk.
     const compressing = kind === "file";
-    const compressor = compressing ? compressStream() : null;
+    const compressor = compressing ? compressStream(declared) : null;
 
     // Cleans up the partial file on any failure — an aborted 2GB upload must not
     // leave 1.9GB of garbage sitting in storage.

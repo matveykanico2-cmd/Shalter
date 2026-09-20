@@ -418,6 +418,18 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_oauth_tokens_client ON oauth_tokens(clientId);
 
+-- Кто кому уже отправил напоминание о дне рождения в этом году
+-- (server/lib/birthdaySweep.js) — без этого повторный проход подметальщика
+-- (перезапуск сервера, несколько тиков за день) слал бы одно и то же
+-- поздравление по кругу.
+CREATE TABLE IF NOT EXISTS birthday_greetings_sent (
+  ownerId TEXT NOT NULL,
+  birthdayUserId TEXT NOT NULL,
+  year INTEGER NOT NULL,
+  sentAt TEXT NOT NULL,
+  PRIMARY KEY (ownerId, birthdayUserId, year)
+);
+
 -- One row per issued copy of a *limited* gift (server/data/gifts.js's
 -- entries carrying a supply) — the thing that makes those gifts actually
 -- exclusive rather than just expensive: only that many copies will ever

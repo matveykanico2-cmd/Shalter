@@ -15,6 +15,7 @@ import { openStarsDialog } from "./starsDialog.js";
 import { navigate } from "../router.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 import { PremiumStar } from "./premiumStar.js";
+import { openGiftShopDialog } from "./giftShopDialog.js";
 
 // A message that's *only* 1-3 emoji (Telegram's own rule) renders them big
 // and lets them pop in, instead of the normal-size static text everything
@@ -276,6 +277,29 @@ function ReportMessage(message, mine, me, isChannel) {
   }
   render();
   return wrap;
+}
+
+// A birthday reminder from the service chat (server/lib/birthdaySweep.js —
+// one contact's birthday, sent once a day to everyone who has them added).
+// The point of the card is the one thing the text alone can't do: a single
+// tap straight into the gift shop for that exact person, instead of having
+// to go find their profile first.
+function BirthdayAttachment(a) {
+  const { userId, name, avatarImage } = a.meta ?? {};
+  return el("div", { class: "contact-attachment birthday-attachment" }, [
+    Avatar({ name, image: avatarImage, size: 36 }),
+    el("div", { class: "contact-attachment-body" }, [
+      el("p", { class: "contact-attachment-name" }, [el("span", {}, "🎂 "), name || "Друг"]),
+      el("p", { class: "settings-toggle-hint" }, "День рождения сегодня"),
+    ]),
+    userId
+      ? el(
+          "button",
+          { class: "contact-attachment-add", onclick: () => openGiftShopDialog({ recipient: { id: userId, name } }) },
+          "🎁 Подарить"
+        )
+      : null,
+  ]);
 }
 
 // A contact someone sent. It used to be a card and nothing more: the name and
@@ -639,6 +663,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       else if (a.kind === "file") bubbleInner.push(FileAttachment(a));
       else if (a.kind === "location") bubbleInner.push(LocationAttachment(a));
       else if (a.kind === "contact") bubbleInner.push(ContactAttachment(a, me.id));
+      else if (a.kind === "birthday") bubbleInner.push(BirthdayAttachment(a));
     }
   }
   if (isSticker) {

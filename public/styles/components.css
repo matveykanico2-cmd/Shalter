@@ -3018,6 +3018,13 @@
   padding: 10px 12px;
   margin-bottom: 4px;
 }
+/* Праздничный акцент поверх обычной карточки контакта — не переопределяя её
+   целиком, чтобы не заводить вторую копию layout-стилей. */
+.birthday-attachment {
+  width: 240px;
+  background: linear-gradient(135deg, rgba(255, 159, 26, 0.14), rgba(255, 122, 0, 0.08));
+  border: 1px solid rgba(255, 159, 26, 0.35);
+}
 .contact-attachment-name {
   font-size: 13px;
   font-weight: 500;

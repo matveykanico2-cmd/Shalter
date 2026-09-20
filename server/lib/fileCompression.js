@@ -18,12 +18,27 @@ const zlib = require("zlib");
 // impossible.
 const MAGIC = Buffer.from("SHCM1");
 
-// Quality 11 = brotli's max compression level. Worth paying for here: file
-// uploads (documents/code/text — the kind this is limited to) are the case
-// where compression actually pays off, and they're not the multi-GB media
-// uploads where a slow max-quality pass would be a real cost.
-function compressStream() {
-  return zlib.createBrotliCompress({ params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 } });
+// Quality 11 (brotli's max) is worth its cost for a typical document — but
+// "file" uploads go up to 5 GB (uploadLimits.js), and quality 11 on
+// something that large isn't "a bit slower", it's minutes of single-threaded
+// CPU time the upload request just sits blocked on. Brotli's own docs are
+// explicit that quality should scale down with input size for exactly this
+// reason; this picks a level from the declared upload size (a hint from
+// Content-Length — routes/uploads.js already treats it as advisory, not
+// trusted, and being wrong here only costs compression ratio, never
+// correctness) rather than paying max-quality cost on something it'll never
+// pay back.
+function qualityFor(sizeHint) {
+  if (!Number.isFinite(sizeHint) || sizeHint <= 0) return 7; // unknown size — a moderate default, not an assumption either way
+  const MB = 1024 * 1024;
+  if (sizeHint <= 2 * MB) return 11;
+  if (sizeHint <= 20 * MB) return 9;
+  if (sizeHint <= 100 * MB) return 6;
+  return 4;
+}
+
+function compressStream(sizeHint) {
+  return zlib.createBrotliCompress({ params: { [zlib.constants.BROTLI_PARAM_QUALITY]: qualityFor(sizeHint) } });
 }
 
 function decompressStream() {

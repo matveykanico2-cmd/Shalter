@@ -30,6 +30,7 @@ const { ensureHugoAccount } = require("./data/hugoBot");
 const { startAutoDeleteSweep } = require("./lib/autoDelete");
 const { startDonationAlertsSweep } = require("./lib/donationAlerts");
 const { startDonatePaySweep } = require("./lib/donatePay");
+const { startBirthdaySweep } = require("./lib/birthdaySweep");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
 
 ensureSystemBot();
@@ -331,6 +332,7 @@ attachWebSocketServer(server);
 startAutoDeleteSweep();
 startDonationAlertsSweep();
 startDonatePaySweep();
+startBirthdaySweep();
 startScheduledMessagesSweep();
 // Раз в сутки убираем загруженные файлы, на которые никто не ссылается:
 // выбрал фотографию и передумал отправлять, отправил и удалил сообщение — файл

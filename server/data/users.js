@@ -379,6 +379,19 @@ async function listReferrals(userId) {
   return db.prepare("SELECT * FROM users WHERE referredBy = ?").all(userId).map(rowToUser);
 }
 
+// Everyone whose birthday (month+day, year ignored — birthday is stored as a
+// full ISO date, but nobody's *age* is what this checks) is today, server
+// time. Used by lib/birthdaySweep.js to tell their contacts. SQLite's own
+// strftime does the month/day comparison so this is one query, not "list
+// every user and check in JS" — fine at this app's scale either way, but no
+// reason to do it the slow way.
+function listUsersWithBirthdayToday() {
+  return db
+    .prepare(`SELECT * FROM users WHERE birthday IS NOT NULL AND strftime('%m-%d', birthday) = strftime('%m-%d', 'now')`)
+    .all()
+    .map(rowToUser);
+}
+
 // Banning records *why* and *when*, not just that it happened — the reason is
 // shown to the banned account on the login screen and to the admin reviewing
 // the ban later (server/routes/admin.js's /moderation). Unbanning clears both
@@ -548,6 +561,7 @@ module.exports = {
   findUserByReferralCode,
   generateReferralCode,
   listReferrals,
+  listUsersWithBirthdayToday,
   createUser,
   updateUser,
   setBlocked,
