@@ -59,6 +59,7 @@ const SECTIONS = [
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", group: "main" },
   { id: "premium", label: "Premium и друзья", icon: "Star", group: "extra" },
   { id: "partners", label: "Партнёрка", icon: "Users", group: "extra" },
+  { id: "oauth", label: "Войти через Shalter", icon: "Lock", group: "extra" },
   { id: "stars", label: "Звёзды", icon: "Zap", group: "extra" },
   { id: "usernames", label: "Аукцион юзернеймов", icon: "Globe", group: "extra" },
   { id: "ads", label: "Реклама", icon: "BarChart", group: "extra" },
@@ -171,6 +172,7 @@ export async function SettingsView(root, page) {
     profile: renderProfile,
     premium: renderPremium,
     partners: renderPartners,
+    oauth: renderOAuthApps,
     ads: renderAds,
     bots: renderBots,
     appearance: renderAppearance,
@@ -742,6 +744,110 @@ async function renderPartners(root) {
           : null,
         el("button", { class: "btn-accent", disabled: opening, onclick: openChat }, opening ? "Открываем чат…" : "Написать администратору"),
         openError ? el("p", { class: "login-error" }, openError) : null,
+      ])
+    );
+  }
+  render();
+}
+
+// "Войти через Shalter" — registering a third-party app that can offer
+// Shalter as a login option (server/routes/oauth.js), same self-service
+// shape as Боты above: no admin approval, a secret shown once at creation.
+async function renderOAuthApps(root) {
+  let { apps } = await api.listOAuthApps();
+  let name = "";
+  let redirectUri = "";
+  let createError = null;
+  let creating = false;
+  let freshSecret = null; // { clientId, clientSecret } — shown once, right after creation
+
+  const nameInput = el("input", { class: "settings-input", placeholder: "Название приложения" });
+  const redirectInput = el("input", { class: "settings-input mono", placeholder: "https://ваш-сайт.example/callback" });
+  nameInput.addEventListener("input", () => (name = nameInput.value));
+  redirectInput.addEventListener("input", () => (redirectUri = redirectInput.value));
+
+  async function create() {
+    if (creating) return;
+    creating = true;
+    createError = null;
+    render();
+    try {
+      const { app } = await api.createOAuthApp(name.trim(), redirectUri.trim());
+      apps = [{ id: app.id, name: app.name, clientId: app.clientId, redirectUri: app.redirectUri, createdAt: app.createdAt }, ...apps];
+      freshSecret = { clientId: app.clientId, clientSecret: app.clientSecret };
+      name = "";
+      redirectUri = "";
+      nameInput.value = "";
+      redirectInput.value = "";
+    } catch (err) {
+      createError = err.message || "Не удалось создать приложение";
+    } finally {
+      creating = false;
+      render();
+    }
+  }
+
+  async function remove(app) {
+    if (!confirm(`Удалить приложение «${app.name}»? Все, кто вошёл через него, будут отключены.`)) return;
+    await api.deleteOAuthApp(app.id);
+    apps = apps.filter((a) => a.id !== app.id);
+    if (freshSecret?.clientId === app.clientId) freshSecret = null;
+    render();
+  }
+
+  function render() {
+    mount(
+      root,
+      pageWrap("Войти через Shalter", "Разрешите своему сайту принимать вход через Shalter — как «Войти через VK»", [
+        section("Новое приложение", [
+          nameInput,
+          redirectInput,
+          el(
+            "p",
+            { class: "settings-toggle-hint" },
+            "redirect_uri — адрес на вашем сайте, куда Shalter вернёт человека после входа (https://, кроме localhost для разработки)."
+          ),
+          createError ? el("p", { class: "login-error" }, createError) : null,
+          el("button", { class: "btn-accent", disabled: creating, onclick: create }, creating ? "Создаём…" : "Создать приложение"),
+        ]),
+        freshSecret
+          ? section("Секрет — сохраните сейчас, повторно не покажется", [
+              el("div", { class: "referral-code-row" }, [
+                el("span", { class: "mono" }, `client_id: ${freshSecret.clientId}`),
+              ]),
+              el("div", { class: "referral-code-row" }, [
+                el("span", { class: "mono" }, `client_secret: ${freshSecret.clientSecret}`),
+                el("button", {
+                  class: "icon-btn",
+                  title: "Скопировать секрет",
+                  html: iconSvg("Copy", 16),
+                  onclick: () => navigator.clipboard.writeText(freshSecret.clientSecret).catch(() => {}),
+                }),
+              ]),
+              el(
+                "p",
+                { class: "settings-toggle-hint" },
+                "client_secret нужен только вашему серверу (для POST /api/oauth/token) — никогда не кладите его в код браузера/приложения."
+              ),
+            ])
+          : null,
+        el("p", { class: "settings-section-title" }, `Ваши приложения — ${apps.length}`),
+        apps.length === 0
+          ? el("p", { class: "empty-hint" }, "Пока ничего не зарегистрировано")
+          : el(
+              "div",
+              { class: "settings-devices-list" },
+              apps.map((a) =>
+                el("div", { class: "settings-device-row" }, [
+                  el("div", { class: "settings-device-body" }, [
+                    el("p", {}, a.name),
+                    el("p", { class: "mono settings-toggle-hint" }, a.redirectUri),
+                    el("p", { class: "mono settings-toggle-hint" }, `client_id: ${a.clientId}`),
+                  ]),
+                  el("button", { class: "icon-btn danger", title: "Удалить", html: iconSvg("Trash", 16), onclick: () => remove(a) }),
+                ])
+              )
+            ),
       ])
     );
   }

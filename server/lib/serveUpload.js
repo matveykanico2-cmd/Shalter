@@ -1,6 +1,7 @@
 const path = require("path");
 const { createDecryptStream, HEADER_LEN } = require("./fileCrypto");
 const storage = require("./storage");
+const { MAGIC: COMPRESS_MAGIC, decompressStream } = require("./fileCompression");
 
 // Serves an uploaded file (data/uploads — see routes/uploads.js).
 //
@@ -9,6 +10,17 @@ const storage = require("./storage");
 // handle ranges, but it also needs the directory to be publicly mounted with its
 // own path semantics; doing it here keeps the filename validation, the
 // Content-Disposition, and the no-execute headers in one obvious place.
+
+// Buffers a short stream fully — only ever used to read the few-byte
+// compression marker below, never a whole file.
+function collect(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on("data", (c) => chunks.push(c));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
+}
 
 const MIME = {
   ".mp4": "video/mp4",
@@ -60,11 +72,35 @@ function serveUpload() {
       const dataDir = path.join(process.cwd(), "data");
       const header = await storage.readHeader(filename);
       const contentSize = header ? size - HEADER_LEN : size;
+
+      // Brotli-compressed at rest (lib/fileCompression.js) — only ever true
+      // for a kind="file" upload, never image/video/voice/etc. Detected by
+      // decrypting just the first few plaintext bytes and checking for the
+      // marker, rather than trusting anything about the filename/extension.
+      let compressed = false;
+      if (header && contentSize >= COMPRESS_MAGIC.length) {
+        const magicCipher = await storage.readRange(filename, HEADER_LEN, HEADER_LEN + COMPRESS_MAGIC.length - 1);
+        const magicPlain = await collect(magicCipher.pipe(createDecryptStream(dataDir, header.iv, 0)));
+        compressed = magicPlain.equals(COMPRESS_MAGIC);
+      }
+
       const openAt = async (start, end) => {
         const from = header ? HEADER_LEN + start : start;
         const to = header ? HEADER_LEN + end : end;
         const raw = await storage.readRange(filename, from, to);
         return header ? raw.pipe(createDecryptStream(dataDir, header.iv, start)) : raw;
+      };
+      // Whole-file only — brotli output can't be decompressed starting from
+      // an arbitrary byte offset the way AES-CTR can be decrypted from one
+      // (see fileCompression.js), so a compressed file has no Range support
+      // at all, ever. The true (decompressed) size isn't known without
+      // decompressing it, so this also can't set a Content-Length — it's
+      // served chunked instead (Node does that automatically whenever the
+      // header is never set).
+      const openCompressed = async () => {
+        const from = HEADER_LEN + COMPRESS_MAGIC.length;
+        const raw = await storage.readRange(filename, from, size - 1);
+        return raw.pipe(createDecryptStream(dataDir, header.iv, COMPRESS_MAGIC.length)).pipe(decompressStream());
       };
 
       const ext = path.extname(filename);
@@ -78,6 +114,12 @@ function serveUpload() {
       res.setHeader("Content-Type", type ?? "application/octet-stream");
       if (!type || ext === ".svg") res.setHeader("Content-Disposition", "attachment");
       res.setHeader("Cache-Control", "private, max-age=31536000, immutable"); // the name is random and content never changes
+
+      if (compressed) {
+        res.setHeader("Accept-Ranges", "none");
+        if (req.method === "HEAD") return res.end();
+        return (await openCompressed()).pipe(res);
+      }
       res.setHeader("Accept-Ranges", "bytes");
 
       // Range support — this is what makes seeking in a long video work at all,

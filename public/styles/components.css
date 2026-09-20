@@ -367,10 +367,9 @@
   flex: 1;
   min-height: 0;
   width: 100%;
-  /* cover, а не contain: история — вертикальный кадр во весь экран, и чёрные
-     поля сверху и снизу выглядят как незагрузившаяся картинка. Так же ведёт
-     себя Telegram: кадр заполняет экран, лишнее подрезается. */
-  object-fit: cover;
+  /* contain, не cover — весь кадр виден целиком, без обрезки краёв. Чёрные
+     поля сверху/снизу при несовпадении пропорций — сознательный компромисс. */
+  object-fit: contain;
   background: #000;
 }
 .story-tap-zones {
@@ -1749,20 +1748,47 @@
   position: fixed;
   z-index: 55;
   display: flex;
+  flex-direction: column;
   gap: 2px;
-  border-radius: 999px;
+  border-radius: 18px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   padding: 4px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
+.emoji-picker-row {
+  display: flex;
+  gap: 2px;
+}
+.emoji-picker-row-premium {
+  border-top: 1px solid var(--color-border);
+  padding-top: 4px;
+  margin-top: 2px;
+}
 .emoji-picker button {
+  position: relative;
   padding: 4px;
   border-radius: 999px;
   font-size: 16px;
 }
 .emoji-picker button:hover {
   background: var(--color-surface-alt);
+}
+.emoji-picker button.locked {
+  opacity: 0.55;
+}
+.emoji-picker-lock {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  display: flex;
+  height: 12px;
+  width: 12px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
 }
 .reactions-row {
   margin-top: 4px;
@@ -6172,7 +6198,7 @@
   height: 100%;
   width: 100%;
   border-radius: 16px;
-  object-fit: cover;
+  object-fit: contain;
 }
 .call-tile-avatar-wrap {
   display: flex;
@@ -8938,35 +8964,71 @@
 .status-viewer-dialog {
   position: relative;
   display: flex;
+  overflow: hidden;
   max-width: min(320px, 86vw);
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  border-radius: 16px;
+  border-radius: 20px;
   background: var(--color-surface);
-  padding: 28px 20px 20px;
+  padding: 40px 20px 24px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  animation: status-viewer-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* A soft glow behind the icon, sampled from the icon's own colours via
+   `background: inherit` on a blurred pseudo-element — the same "picture
+   glows its own colour into the card" trick as Spotify/Apple Music's now-
+   playing screens, done with plain CSS (no canvas colour extraction). */
+.status-viewer-dialog::before {
+  content: "";
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  height: 220px;
+  width: 220px;
+  transform: translateX(-50%);
+  background: var(--status-glow-image, none);
+  background-size: cover;
+  background-position: center;
+  filter: blur(36px) saturate(1.6);
+  opacity: 0.55;
+  z-index: 0;
 }
 .status-viewer-image {
+  position: relative;
+  z-index: 1;
   width: 160px;
   height: 160px;
   border-radius: 24px;
   object-fit: cover;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  animation: sticker-pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .status-viewer-caption {
-  margin: 12px 0 0;
-  font-size: 16px;
-  font-weight: 600;
+  position: relative;
+  z-index: 1;
+  margin: 4px 0 0;
+  font-size: 17px;
+  font-weight: 700;
 }
 .status-viewer-name {
-  margin: 2px 0 0;
-  font-size: 14px;
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: 13.5px;
   color: var(--color-muted);
 }
 .status-viewer-close {
   position: absolute;
+  z-index: 2;
   top: 8px;
   right: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
+@keyframes status-viewer-in {
+  from { opacity: 0; transform: scale(0.92) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 /* Invite link (components/editChatDialog.js) and the page it opens
@@ -12012,7 +12074,7 @@
 .call-tiles-grid.solo .call-tile-video {
   height: 100%;
   width: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 /* Поиск получателя перевода звёзд. */

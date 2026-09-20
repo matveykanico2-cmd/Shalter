@@ -169,6 +169,15 @@ export const api = {
   // Opens (or returns) the DM with the support account.
   openSupportChat: () => req("/api/support/chat", { method: "POST" }),
   getPartnerInfo: () => req("/api/partners/me"),
+  // "Войти через Shalter" (server/routes/oauth.js) — managing apps you've
+  // registered, and the consent-screen calls oauthAuthorize.js's view makes.
+  listOAuthApps: () => req("/api/oauth/apps"),
+  createOAuthApp: (name, redirectUri) => req("/api/oauth/apps", { method: "POST", body: JSON.stringify({ name, redirectUri }) }),
+  deleteOAuthApp: (id) => req(`/api/oauth/apps/${id}`, { method: "DELETE" }),
+  getOAuthAppInfo: (clientId, redirectUri) =>
+    req(`/api/oauth/app-info?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}`),
+  approveOAuth: (clientId, redirectUri, state) =>
+    req("/api/oauth/authorize", { method: "POST", body: JSON.stringify({ client_id: clientId, redirect_uri: redirectUri, state }) }),
   openPartnerChat: () => req("/api/partners/chat", { method: "POST" }),
 
   listChats: () => req("/api/chats"),

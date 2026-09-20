@@ -66,6 +66,17 @@ async function boot() {
     return;
   }
 
+  // "Войти через Shalter" consent screen (server/routes/oauth.js) — same
+  // reasoning as /qr-login above: it embeds its own login form if needed,
+  // so it must not go through the plain "not logged in → /login" redirect
+  // below, which would drop client_id/redirect_uri/state from the URL.
+  if (path === "/oauth/authorize") {
+    const { OAuthAuthorizeView } = await import("./views/oauthAuthorize.js");
+    await OAuthAuthorizeView(root);
+    removeSplash();
+    return;
+  }
+
   const { user, accounts } = await api.session();
   if (!user || !user.name) {
     window.location.href = "/login";

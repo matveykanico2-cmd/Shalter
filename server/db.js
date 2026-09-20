@@ -374,6 +374,50 @@ CREATE TABLE IF NOT EXISTS pending_orders (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_orders_code ON pending_orders(code);
 CREATE INDEX IF NOT EXISTS idx_pending_orders_user ON pending_orders(userId);
 
+-- "Войти через Shalter" — any account can register a third-party app here
+-- (server/routes/oauth.js), the same self-service shape as a bot
+-- (server/data/bots.js): no admin approval, a token identifies the app.
+-- clientSecret is a bearer credential exactly like a bot token — plain text
+-- by the same reasoning bots.js's token is (see that file), not hashed.
+CREATE TABLE IF NOT EXISTS oauth_apps (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  clientId TEXT NOT NULL,
+  clientSecret TEXT NOT NULL,
+  redirectUri TEXT NOT NULL,
+  ownerId TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_apps_client_id ON oauth_apps(clientId);
+CREATE INDEX IF NOT EXISTS idx_oauth_apps_owner ON oauth_apps(ownerId);
+
+-- Short-lived authorization codes (standard OAuth "authorization code"
+-- step) — minted when the account approves the consent screen, redeemed
+-- exactly once at POST /api/oauth/token in exchange for an access token.
+-- Expiring and single-use so a code leaked via referrer/browser history
+-- can't be replayed later.
+CREATE TABLE IF NOT EXISTS oauth_codes (
+  code TEXT PRIMARY KEY,
+  clientId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  redirectUri TEXT NOT NULL,
+  expiresAt TEXT NOT NULL,
+  usedAt TEXT
+);
+
+-- Long-lived bearer tokens a third-party app holds after redeeming a code —
+-- what it sends back on every GET /api/oauth/userinfo call. No refresh/
+-- expiry flow for now (same "simple, not enterprise SSO" scope as the rest
+-- of this app) — revoking means the account owner deletes the app itself
+-- (oauth_apps, cascaded by clientId below), or an admin bans the account.
+CREATE TABLE IF NOT EXISTS oauth_tokens (
+  token TEXT PRIMARY KEY,
+  clientId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_client ON oauth_tokens(clientId);
+
 -- One row per issued copy of a *limited* gift (server/data/gifts.js's
 -- entries carrying a supply) — the thing that makes those gifts actually
 -- exclusive rather than just expensive: only that many copies will ever

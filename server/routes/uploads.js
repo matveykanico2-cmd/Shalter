@@ -6,6 +6,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { UPLOADABLE_KINDS, limitFor, tooLargeError, UPLOAD_LIMITS, DEFAULT_LIMIT } = require("../lib/uploadLimits");
 const storage = require("../lib/storage");
+const { MAGIC: COMPRESS_MAGIC, compressStream } = require("../lib/fileCompression");
 
 // Real file uploads, streamed straight to disk.
 //
@@ -67,6 +68,15 @@ router.post(
     // читать его ради этого не нужно.
     const digest = crypto.createHash("sha256");
 
+    // Compression (lib/fileCompression.js) only for kind === "file" — plain
+    // document/code/text attachments, never anything that needs
+    // range-served seeking (image/video/voice/video-note/avatar/gift). The
+    // digest/size-limit tracking above stays on `req`'s raw bytes either
+    // way — dedup and the size cap must reflect what was actually uploaded,
+    // not the compressed size on disk.
+    const compressing = kind === "file";
+    const compressor = compressing ? compressStream() : null;
+
     // Cleans up the partial file on any failure — an aborted 2GB upload must not
     // leave 1.9GB of garbage sitting in storage.
     const discard = () => storage.deleteObject(filename).catch(() => {});
@@ -96,7 +106,16 @@ router.post(
         cipher.on("error", reject);
         done().then(resolve, reject);
         cipher.pipe(out);
-        req.pipe(cipher);
+        if (compressor) {
+          // MAGIC has to land first in what the cipher encrypts — written
+          // synchronously here, before the piped (async) compressed bytes
+          // start arriving, so ordering is guaranteed.
+          cipher.write(COMPRESS_MAGIC);
+          compressor.on("error", reject);
+          req.pipe(compressor).pipe(cipher);
+        } else {
+          req.pipe(cipher);
+        }
       });
     } catch (err) {
       await discard();

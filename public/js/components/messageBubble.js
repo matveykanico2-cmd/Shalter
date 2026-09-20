@@ -12,8 +12,17 @@ import { getState, setState } from "../state.js";
 import { renderScene } from "../lib/animScenes.js";
 import { renderGiftArt } from "../lib/giftTraits.js";
 import { openStarsDialog } from "./starsDialog.js";
+import { navigate } from "../router.js";
 
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
+// Premium-only reactions — still plain emoji (reactions are stored as
+// {emoji, userIds}, see chatView.js's handleReact), just a fancier set
+// gated behind isPremium as a small, low-effort perk. Not custom
+// image/sticker reactions — that would mean the reaction pill rendering
+// below (and the server's reaction validation) treating "emoji" as
+// possibly-a-URL everywhere it's stored/rendered, a bigger change than
+// this feature is worth right now.
+const PREMIUM_QUICK_EMOJI = ["💎", "👑", "🚀", "🥂", "💯", "🌟"];
 
 // Settings → Данные и память → «Автозагрузка медиа», turned off. Even with it
 // on, attachments.js never fetches full quality until the media viewer is
@@ -753,22 +762,43 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       closePicker();
       return;
     }
-    picker = el(
-      "div",
-      { class: "emoji-picker" },
-      QUICK_EMOJI.map((e) =>
-        el(
-          "button",
-          {
-            onclick: () => {
-              onReact(message, e);
-              closePicker();
+    picker = el("div", { class: "emoji-picker" }, [
+      el(
+        "div",
+        { class: "emoji-picker-row" },
+        QUICK_EMOJI.map((e) =>
+          el(
+            "button",
+            {
+              onclick: () => {
+                onReact(message, e);
+                closePicker();
+              },
             },
-          },
-          e
+            e
+          )
         )
-      )
-    );
+      ),
+      el(
+        "div",
+        { class: "emoji-picker-row emoji-picker-row-premium" },
+        PREMIUM_QUICK_EMOJI.map((e) =>
+          el(
+            "button",
+            {
+              class: me?.isPremium ? "" : "locked",
+              title: me?.isPremium ? "" : "Реакция для Premium",
+              onclick: () => {
+                closePicker();
+                if (me?.isPremium) onReact(message, e);
+                else navigate("/settings/premium");
+              },
+            },
+            [e, !me?.isPremium ? el("span", { class: "emoji-picker-lock", html: iconSvg("Lock", 9) }) : null]
+          )
+        )
+      ),
+    ]);
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     picker.style.left = `${Math.min(pos.x, vw - 260)}px`;
