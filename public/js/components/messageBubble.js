@@ -16,6 +16,29 @@ import { navigate } from "../router.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 import { PremiumStar } from "./premiumStar.js";
 
+// A message that's *only* 1-3 emoji (Telegram's own rule) renders them big
+// and lets them pop in, instead of the normal-size static text everything
+// else gets. Uses Intl.Segmenter for grapheme counting rather than
+// String.length/[...text] — a family emoji (👨‍👩‍👧‍👦) or a flag is one
+// grapheme made of several code points, and counting code points would
+// have miscounted it as several separate emoji and skipped the jumbo
+// treatment on exactly the messages it matters most for.
+const EXTENDED_PICTOGRAPHIC_RE = /\p{Extended_Pictographic}/u;
+// Flags (🇷🇺) are a pair of Regional_Indicator code points — a category
+// \p{Extended_Pictographic} deliberately excludes, so this needs its own
+// check or every flag message would silently miss the jumbo treatment.
+const FLAG_RE = /^\p{Regional_Indicator}{2}$/u;
+function isEmojiGrapheme(g) {
+  return EXTENDED_PICTOGRAPHIC_RE.test(g) || FLAG_RE.test(g);
+}
+function jumboEmojiCount(text) {
+  const trimmed = (text ?? "").trim();
+  if (!trimmed || typeof Intl === "undefined" || !Intl.Segmenter) return 0;
+  const graphemes = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(trimmed)].map((s) => s.segment);
+  if (graphemes.length > 3) return 0;
+  return graphemes.every(isEmojiGrapheme) ? graphemes.length : 0;
+}
+
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
 // Premium-only reactions — still plain emoji (reactions are stored as
 // {emoji, userIds}, see chatView.js's handleReact), just a fancier set
@@ -621,7 +644,13 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   if (isSticker) {
     bubbleInner.push(StickerBody(message));
   } else if (!message.attachments?.some((a) => a.kind === "poll")) {
-    const textNode = el("span", { class: "message-text" }, formatText(message.text, members));
+    // Jumbo only for a message that's *nothing but* the emoji — one with
+    // attachments (a photo captioned "🔥") stays normal size, same as
+    // Telegram's own rule.
+    const jumboCount = !message.attachments?.length ? jumboEmojiCount(message.text) : 0;
+    const textNode = jumboCount
+      ? el("span", { class: `message-text message-text-jumbo jumbo-${jumboCount}` }, message.text)
+      : el("span", { class: "message-text" }, formatText(message.text, members));
     // Сообщение, за которое незнакомый человек заплатил звёздами, печатается
     // на экране, а не появляется разом. Это не украшение: платное письмо — чья-
     // то попытка достучаться, и отдельное движение сообщает об этом яснее, чем
