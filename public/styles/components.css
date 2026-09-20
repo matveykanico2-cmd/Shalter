@@ -6202,7 +6202,9 @@
 }
 .call-tiles-grid {
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
   flex: 1;
+  min-height: 0;
   place-items: center;
   gap: 16px;
   padding: 24px;
@@ -12067,6 +12069,7 @@
 .call-tiles-grid.solo .call-tile {
   max-width: none;
   height: 100%;
+  min-height: 0;
   width: 100%;
   aspect-ratio: auto;
   border-radius: 0;
