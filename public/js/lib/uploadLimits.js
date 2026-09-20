@@ -18,7 +18,7 @@ export const UPLOAD_LIMITS = {
   avatar: 1 * GB,
   "avatar-video": 3 * GB,
   gift: 700 * MB,
-  "profile-track": 30 * MB,
+  "profile-track": 5 * GB,
 };
 const DEFAULT_LIMIT = 1 * GB;
 

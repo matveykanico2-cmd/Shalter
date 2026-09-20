@@ -30,10 +30,11 @@ const UPLOAD_LIMITS = {
   // Исходная гифка подарка (server/lib/giftMedia.js её потом перекодирует) —
   // тоже узкий потолок: это анимация-стикер, а не видео.
   gift: 20 * MB,
-  // Один закреплённый трек на профиле (routes/users.js's /me/track) — a song,
-  // not a voice message, but still just one file, so it gets its own tighter
-  // ceiling rather than inheriting voice's 5 GB.
-  "profile-track": 30 * MB,
+  // Один закреплённый трек на профиле (routes/users.js's /me/track) — same
+  // ceiling as everything else heavy (video, voice), not the old 30 MB: a
+  // lossless/high-bitrate track or a long mix can be genuinely bigger than
+  // that.
+  "profile-track": 5 * GB,
 };
 const DEFAULT_LIMIT = 1 * GB;
 
