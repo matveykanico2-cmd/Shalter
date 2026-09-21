@@ -556,6 +556,37 @@ const ORBIT_ITEMS = [
   { icon: "Video", color: "#1c9bd9" },
 ];
 
+// Настоящий список того, что даёт Premium — каждая строка проверена в коде
+// (см. renderPremium ниже), а не выдумана под макет. Расшифровка голосовых
+// сюда сознательно не входит: она бесплатна для всех (lib/transcribe.js).
+const PREMIUM_PERKS = [
+  {
+    icon: "MessageSquare",
+    title: "Пишите и звоните бесплатно",
+    desc: "Платная личка и звонки незнакомцам не берут с вас звёзды, даже если у собеседника это включено",
+  },
+  {
+    icon: "Lock",
+    title: "Доступ в закрытую личку",
+    desc: "Пишите даже тем, кто разрешил сообщения только от контактов",
+  },
+  {
+    icon: "Video",
+    title: "Ссылка на звонок для всех",
+    desc: "Приглашайте в звонок кого угодно, не только участников чата",
+  },
+  {
+    icon: "Smile",
+    title: "До 5 статусов профиля",
+    desc: "Готовых или своих — вместо одного на обычном аккаунте",
+  },
+  {
+    icon: "Zap",
+    title: "Эксклюзивные реакции",
+    desc: "💎 👑 🚀 🥂 💯 🌟 — доступны в любом чате",
+  },
+];
+
 function premiumOrbit() {
   return el("div", { class: "premium-orbit" }, [
     // В середине — та же белая звезда, что и в значке у имени: знак Premium в
@@ -626,9 +657,28 @@ async function renderPremium(root) {
           el("span", { class: "premium-status-icon" }, [PremiumStar({ size: 34, variant: "gold", title: "Premium" })]),
           el("div", {}, [
             el("p", { class: "premium-status-title" }, info.isPremium ? "У вас Shalter Premium" : "Shalter Premium не активен"),
+            // Настоящая дата окончания (или "навсегда") — не "отменить можно в
+            // любой момент": здесь нет автопродления и подписки списывать
+            // нечего, срок просто заканчивается сам, когда подойдёт.
             el("p", { class: "premium-status-hint" }, formatPremiumUntil(info)),
           ]),
         ]),
+        // Настоящие преимущества, которые действительно проверяются в коде
+        // (server/routes/messages.js, calls.js, chats.js, lib/profileStatus.js,
+        // messageBubble.js) — не общие слова вроде "эксклюзивные функции".
+        el(
+          "div",
+          { class: "premium-perks-card" },
+          PREMIUM_PERKS.map((p) =>
+            el("div", { class: "premium-perk-row" }, [
+              el("span", { class: "premium-perk-icon", html: iconSvg(p.icon, 20) }),
+              el("div", {}, [
+                el("p", { class: "premium-perk-title" }, p.title),
+                el("p", { class: "premium-perk-desc" }, p.desc),
+              ]),
+            ])
+          )
+        ),
         !info.isPremium
           ? el("div", { class: "settings-notice-box" }, [
               el("p", { class: "settings-toggle-title" }, "Купить Premium"),

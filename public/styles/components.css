@@ -4991,6 +4991,52 @@
   50% { opacity: 0.75; filter: drop-shadow(0 0 5px rgba(28, 155, 217, 0.9)); }
 }
 
+/* Список настоящих преимуществ Premium на странице покупки — карточка с
+   разделёнными строками (иконка + заголовок + описание), как в маркетинговых
+   экранах подписок. Каждая строка — реальная, проверяемая в коде функция, а
+   не общие слова "больше возможностей": см. renderPremium в
+   views/settings/index.js. */
+.premium-perks-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.premium-perk-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+}
+.premium-perk-row + .premium-perk-row {
+  border-top: 1px solid var(--color-border);
+}
+.premium-perk-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(110, 86, 198, 0.14);
+  color: var(--color-accent);
+}
+.premium-perk-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 14.5px;
+}
+.premium-perk-desc {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--color-muted);
+  line-height: 1.35;
+}
+
 /* Decorative orbiting-perks hero on the Premium settings page — a центральная
    corona icon with perk icons circling it, each counter-rotated so the icon
    glyphs themselves stay upright while the ring carrying them spins. */
