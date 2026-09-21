@@ -2,7 +2,18 @@ const crypto = require("crypto");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { TTL_MS, listStoriesForUsers, listArchivedStoriesFor, addStory, getStoryById, markViewed, deleteStory } = require("../data/stories");
+const {
+  TTL_MS,
+  listStoriesForUsers,
+  listArchivedStoriesFor,
+  addStory,
+  getStoryById,
+  markViewed,
+  deleteStory,
+  toggleLike,
+  listComments,
+  addComment,
+} = require("../data/stories");
 const { getSettings } = require("../data/settings");
 const { privacyAllows } = require("../lib/privacyRules");
 const { listContactsFor, listOwnersOf } = require("../data/contacts");
@@ -100,7 +111,12 @@ router.get(
         const sorted = items.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
         return {
           user,
-          stories: sorted.map((s) => ({ ...s, viewed: s.viewedByIds.includes(req.uid) })),
+          stories: sorted.map((s) => ({
+            ...s,
+            viewed: s.viewedByIds.includes(req.uid),
+            liked: s.likedByIds.includes(req.uid),
+            likeCount: s.likedByIds.length,
+          })),
         };
       })
     );
@@ -130,7 +146,12 @@ router.get(
         user,
         stories: stories
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-          .map((st) => ({ ...st, viewed: st.viewedByIds.includes(req.uid) })),
+          .map((st) => ({
+            ...st,
+            viewed: st.viewedByIds.includes(req.uid),
+            liked: st.likedByIds.includes(req.uid),
+            likeCount: st.likedByIds.length,
+          })),
       },
     });
   })
@@ -177,6 +198,8 @@ router.get(
       stories: all.map((st) => ({
         ...st,
         viewed: st.viewedByIds.includes(req.uid),
+        liked: st.likedByIds.includes(req.uid),
+        likeCount: st.likedByIds.length,
         // Клиенту нужно отличать живую историю от архивной: первую можно
         // открыть в просмотрщике как обычно, вторая — уже история из прошлого.
         expired: new Date(st.expiresAt).getTime() <= now,
@@ -257,6 +280,76 @@ router.post(
 
     const story = await markViewed(req.params.id, req.uid);
     res.json({ story });
+  })
+);
+
+// Кому рассказывать про лайк/комментарий — то же правило, что и у "story:new"
+// для личной истории, а для истории канала это все подписчики, как и у
+// story:deleted выше.
+async function audienceForStory(story) {
+  if (isChannelId(story.userId)) {
+    const chat = await getChat(story.userId);
+    return chat?.memberIds ?? [];
+  }
+  return audienceOf(story.userId);
+}
+
+router.post(
+  "/:id/like",
+  asyncRoute(async (req, res) => {
+    const allowed = await visibleAuthorIds(req.uid);
+    const visible = (await listStoriesForUsers(allowed)).find((st) => st.id === req.params.id);
+    if (!visible) return res.status(404).json({ error: "not found" });
+
+    const story = await toggleLike(req.params.id, req.uid);
+    broadcastToUsers(await audienceForStory(story), {
+      type: "story:liked",
+      storyId: story.id,
+      userId: story.userId,
+      likeCount: story.likedByIds.length,
+    });
+    res.json({ story, liked: story.likedByIds.includes(req.uid), likeCount: story.likedByIds.length });
+  })
+);
+
+router.get(
+  "/:id/comments",
+  asyncRoute(async (req, res) => {
+    const allowed = await visibleAuthorIds(req.uid);
+    const visible = (await listStoriesForUsers(allowed)).find((st) => st.id === req.params.id);
+    if (!visible) return res.status(404).json({ error: "not found" });
+
+    const comments = await listComments(req.params.id);
+    const authors = await Promise.all([...new Set(comments.map((c) => c.userId))].map((id) => getUser(id)));
+    const byId = new Map(authors.filter(Boolean).map((u) => [u.id, publicUser(u)]));
+    res.json({ comments: comments.map((c) => ({ ...c, author: byId.get(c.userId) ?? null })) });
+  })
+);
+
+router.post(
+  "/:id/comments",
+  asyncRoute(async (req, res) => {
+    const allowed = await visibleAuthorIds(req.uid);
+    const visible = (await listStoriesForUsers(allowed)).find((st) => st.id === req.params.id);
+    if (!visible) return res.status(404).json({ error: "not found" });
+
+    const text = String(req.body?.text ?? "").trim().slice(0, 500);
+    if (!text) return res.status(400).json({ error: "empty comment" });
+
+    const comment = await addComment({
+      id: `stc_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
+      storyId: req.params.id,
+      userId: req.uid,
+      text,
+      createdAt: new Date().toISOString(),
+    });
+    const author = publicUser(await getUser(req.uid));
+    broadcastToUsers(await audienceForStory(visible), {
+      type: "story:commented",
+      storyId: req.params.id,
+      comment: { ...comment, author },
+    });
+    res.json({ comment: { ...comment, author } });
   })
 );
 

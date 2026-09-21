@@ -530,6 +530,25 @@ CREATE INDEX IF NOT EXISTS idx_data_exports_created ON data_exports(createdAt);
 // продолжают читаться: items у них пустой, и слой данных подставляет kind/url.
 const existingStoryColumns = new Set(db.prepare("PRAGMA table_info(stories)").all().map((c) => c.name));
 if (!existingStoryColumns.has("items")) db.exec("ALTER TABLE stories ADD COLUMN items TEXT");
+// Лайки истории — тот же формат, что и viewedByIds (список id, а не счётчик):
+// нужно знать, ставил ли лайк именно этот зритель, чтобы кнопка-сердце
+// показывала правильное состояние, а не только общее число.
+if (!existingStoryColumns.has("likedByIds")) db.exec("ALTER TABLE stories ADD COLUMN likedByIds TEXT NOT NULL DEFAULT '[]'");
+
+// Комментарии к истории — отдельная таблица, а не JSON-колонка на stories:
+// в отличие от лайков (просто набор id), комментарий несёт текст и автора и
+// со временем их может накопиться много — читать/добавлять по одному без
+// перезаписи всего столбца проще как обычные строки.
+db.exec(`
+CREATE TABLE IF NOT EXISTS story_comments (
+  id TEXT PRIMARY KEY,
+  storyId TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  userId TEXT NOT NULL,
+  text TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_story_comments_story ON story_comments(storyId, createdAt);
+`);
 
 const existingUserColumns = new Set(db.prepare("PRAGMA table_info(users)").all().map((c) => c.name));
 if (!existingUserColumns.has("isPremium")) db.exec("ALTER TABLE users ADD COLUMN isPremium INTEGER NOT NULL DEFAULT 0");

@@ -28,6 +28,7 @@ function rowToStory(row) {
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     viewedByIds: JSON.parse(row.viewedByIds),
+    likedByIds: JSON.parse(row.likedByIds ?? "[]"),
   };
 }
 
@@ -101,4 +102,51 @@ async function deleteStory(id, userId) {
   return result.changes > 0;
 }
 
-module.exports = { TTL_MS, listAllStories, listStoriesForUsers, listArchivedStoriesFor, addStory, getStoryById, markViewed, deleteStory };
+// Toggle, not set — the route doesn't know the current state, the button
+// just says "переключить лайк на этой истории для этого зрителя".
+async function toggleLike(id, userId) {
+  const row = db.prepare("SELECT likedByIds FROM stories WHERE id = ?").get(id);
+  if (!row) return undefined;
+  const likedByIds = JSON.parse(row.likedByIds ?? "[]");
+  const index = likedByIds.indexOf(userId);
+  if (index === -1) likedByIds.push(userId);
+  else likedByIds.splice(index, 1);
+  db.prepare("UPDATE stories SET likedByIds = ? WHERE id = ?").run(JSON.stringify(likedByIds), id);
+  return rowToStory(db.prepare("SELECT * FROM stories WHERE id = ?").get(id));
+}
+
+function rowToComment(row) {
+  return { id: row.id, storyId: row.storyId, userId: row.userId, text: row.text, createdAt: row.createdAt };
+}
+
+async function listComments(storyId) {
+  return db
+    .prepare("SELECT * FROM story_comments WHERE storyId = ? ORDER BY createdAt ASC")
+    .all(storyId)
+    .map(rowToComment);
+}
+
+async function addComment(comment) {
+  db.prepare("INSERT INTO story_comments (id, storyId, userId, text, createdAt) VALUES (?, ?, ?, ?, ?)").run(
+    comment.id,
+    comment.storyId,
+    comment.userId,
+    comment.text,
+    comment.createdAt
+  );
+  return rowToComment(db.prepare("SELECT * FROM story_comments WHERE id = ?").get(comment.id));
+}
+
+module.exports = {
+  TTL_MS,
+  listAllStories,
+  listStoriesForUsers,
+  listArchivedStoriesFor,
+  addStory,
+  getStoryById,
+  markViewed,
+  deleteStory,
+  toggleLike,
+  listComments,
+  addComment,
+};

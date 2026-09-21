@@ -219,16 +219,42 @@
   padding: 2px 0;
 }
 .story-avatar-ring {
+  position: relative;
   display: flex;
   padding: 2px;
   border-radius: 999px;
   border: 2px solid transparent;
 }
-.story-avatar-ring.unseen {
-  border-color: var(--color-accent);
-}
 .story-avatar-ring.seen {
   border-color: var(--color-border);
+}
+/* Непросмотренная история — кольцо крутится само по себе, не дожидаясь
+   открытия: живое приглашение посмотреть, а не просто цветная обводка. */
+.story-avatar-ring.unseen {
+  border-color: transparent;
+}
+.story-avatar-ring.unseen::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: 999px;
+  padding: 2px;
+  background: conic-gradient(from 0deg, #ff9a3c, #ff5678, #a855f7, #6366f1, #ff9a3c);
+  animation: story-ring-spin 3s linear infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+@keyframes story-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .story-avatar-ring.unseen::before {
+    animation: none;
+  }
 }
 .story-add-badge {
   position: absolute;
@@ -474,6 +500,106 @@
   color: #fff;
   cursor: pointer;
 }
+.story-like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #fff;
+  cursor: pointer;
+}
+.story-like-heart {
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.story-like-btn.liked .story-like-heart {
+  transform: scale(1.15);
+}
+.story-like-count {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #fff;
+  opacity: 0.85;
+}
+.story-comments-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #fff;
+  cursor: pointer;
+}
+.story-comments-panel {
+  position: absolute;
+  bottom: 60px;
+  left: 10px;
+  right: 10px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 12px;
+  background: rgba(20, 23, 31, 0.96);
+  padding: 10px 12px;
+  max-height: 50%;
+  color: #fff;
+}
+.story-comments-list {
+  overflow-y: auto;
+}
+.story-comment-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+}
+.story-comment-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.story-comment-author {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #9aa1b1;
+}
+.story-comment-text {
+  font-size: 13.5px;
+  color: #fff;
+  word-break: break-word;
+}
+.story-comment-compose {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.story-comment-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px 12px;
+  font-size: 13.5px;
+  color: #fff;
+}
+.story-comment-input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
 /* Соседний автор — стрелками по краям, как в веб-версии; на телефоне для этого
    есть зоны нажатия, и стрелки только заняли бы место. */
 .story-nav {

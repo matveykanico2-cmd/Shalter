@@ -436,6 +436,9 @@ export const api = {
   postChannelStory: (chatId, items) => req(`/api/stories/channel/${chatId}`, { method: "POST", body: JSON.stringify({ items }) }),
   viewStory: (id) => req(`/api/stories/${id}/view`, { method: "POST" }),
   deleteStory: (id) => req(`/api/stories/${id}`, { method: "DELETE" }),
+  likeStory: (id) => req(`/api/stories/${id}/like`, { method: "POST" }),
+  getStoryComments: (id) => req(`/api/stories/${id}/comments`),
+  addStoryComment: (id, text) => req(`/api/stories/${id}/comments`, { method: "POST", body: JSON.stringify({ text }) }),
 
   translateText: (text, target) => req("/api/translate", { method: "POST", body: JSON.stringify({ text, target }) }),
   translateBatch: (texts, target) => req("/api/translate/batch", { method: "POST", body: JSON.stringify({ texts, target }) }),

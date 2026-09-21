@@ -37,6 +37,8 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   let videoEl = null;
   let viewers = null; // список посмотревших свою историю, грузится по нажатию
   let viewersOpen = false;
+  let comments = null; // комментарии текущей истории, грузятся по нажатию
+  let commentsOpen = false;
 
   const overlay = el("div", { class: "story-viewer-overlay" });
   document.body.appendChild(overlay);
@@ -64,6 +66,8 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     videoEl?.pause();
     document.removeEventListener("keydown", onKey);
     unsubDeleted?.();
+    unsubLiked?.();
+    unsubCommented?.();
     overlay.remove();
   }
 
@@ -76,9 +80,17 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     return `${Math.floor(min / 60)} ч`;
   }
 
+  function resetStoryPanels() {
+    comments = null;
+    commentsOpen = false;
+    viewers = null;
+    viewersOpen = false;
+  }
+
   function goNextStory() {
     if (si < frames().length - 1) {
       si++;
+      resetStoryPanels();
       render();
     } else goNextGroup();
   }
@@ -86,6 +98,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   function goPrevStory() {
     if (si > 0) {
       si--;
+      resetStoryPanels();
       render();
     } else if (gi > 0) {
       gi--;
@@ -100,6 +113,8 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       si = 0;
       viewers = null;
       viewersOpen = false;
+      comments = null;
+      commentsOpen = false;
       render();
     } else close();
   }
@@ -110,6 +125,8 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       si = 0;
       viewers = null;
       viewersOpen = false;
+      comments = null;
+      commentsOpen = false;
       render();
     }
   }
@@ -197,6 +214,52 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     render();
   }
 
+  async function loadComments() {
+    const story = currentStory();
+    try {
+      ({ comments } = await api.getStoryComments(story.id));
+    } catch {
+      comments = [];
+    }
+    render();
+  }
+
+  // Оптимистично меняем сердечко сразу, откатываем, если сервер отказал —
+  // так же, как реакции на сообщения делают в остальном приложении.
+  async function toggleLike() {
+    const story = currentStory();
+    if (!story || story.expired) return;
+    const before = { liked: !!story.liked, likeCount: story.likeCount ?? 0 };
+    story.liked = !before.liked;
+    story.likeCount = before.likeCount + (story.liked ? 1 : -1);
+    render();
+    try {
+      const res = await api.likeStory(story.id);
+      story.liked = res.liked;
+      story.likeCount = res.likeCount;
+      render();
+    } catch {
+      story.liked = before.liked;
+      story.likeCount = before.likeCount;
+      render();
+    }
+  }
+
+  async function sendComment(text, input) {
+    const story = currentStory();
+    const clean = text.trim();
+    if (!clean) return;
+    input.value = "";
+    try {
+      const { comment } = await api.addStoryComment(story.id, clean);
+      if (comments) comments = [...comments, comment];
+      render();
+    } catch (err) {
+      input.value = clean;
+      alert(err.message || "Не удалось отправить комментарий");
+    }
+  }
+
   async function sendReply(text, input) {
     const group = currentGroup();
     if (!text.trim()) return;
@@ -240,6 +303,25 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     if (!groups.some((g) => g.stories.some((st) => st.id === storyId))) return;
     dropStory(storyId);
     onChanged?.();
+  });
+
+  // Кто-то ещё лайкнул/прокомментировал ту же историю, пока мы её смотрим —
+  // обновляем счётчик и (если панель комментариев открыта) список, не дожидаясь
+  // повторного открытия просмотрщика.
+  const unsubLiked = onWsMessage("story:liked", ({ storyId, likeCount }) => {
+    for (const group of groups) {
+      const story = group.stories.find((st) => st.id === storyId);
+      if (story) story.likeCount = likeCount;
+    }
+    if (currentStory()?.id === storyId) render();
+  });
+
+  const unsubCommented = onWsMessage("story:commented", ({ storyId, comment }) => {
+    if (currentStory()?.id !== storyId) return;
+    if (comments && !comments.some((c) => c.id === comment.id)) {
+      comments = [...comments, comment];
+      if (commentsOpen) render();
+    }
   });
 
   function onKey(e) {
@@ -303,6 +385,50 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       },
     });
 
+    const commentInput = el("input", {
+      class: "story-comment-input",
+      placeholder: "Комментарий…",
+      onfocus: pause,
+      onblur: resume,
+      onkeydown: (e) => {
+        if (e.key === "Enter") sendComment(e.target.value, e.target);
+        e.stopPropagation();
+      },
+    });
+
+    // Свою историю не лайкают — кнопка нужна только у чужой, но счётчик под
+    // ней видят оба: автору важно знать, сколько лайков собрала история.
+    const likeBtn = !mine && !story.expired
+      ? el(
+          "button",
+          {
+            class: `story-like-btn ${story.liked ? "liked" : ""}`,
+            title: story.liked ? "Убрать лайк" : "Нравится",
+            onclick: toggleLike,
+          },
+          [el("span", { class: "story-like-heart" }, story.liked ? "❤️" : "🤍"), story.likeCount ? ` ${story.likeCount}` : ""]
+        )
+      : story.likeCount
+        ? el("span", { class: "story-like-count" }, `❤️ ${story.likeCount}`)
+        : null;
+
+    const commentsBtn = el(
+      "button",
+      {
+        class: "story-comments-btn",
+        title: "Комментарии",
+        onclick: () => {
+          commentsOpen = !commentsOpen;
+          if (commentsOpen) {
+            viewersOpen = false;
+            if (comments === null) loadComments();
+            else render();
+          } else render();
+        },
+      },
+      [el("span", { html: iconSvg("MessageSquare", 18) }), comments ? ` ${comments.length}` : ""]
+    );
+
     const footer = mine
       ? el("div", { class: "story-footer" }, [
           el(
@@ -311,17 +437,51 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
               class: "story-viewers-btn",
               onclick: () => {
                 viewersOpen = !viewersOpen;
+                commentsOpen = false;
                 if (viewersOpen && viewers === null) loadViewers();
                 else render();
               },
             },
             [el("span", { html: iconSvg("Users", 16) }), ` ${story.viewedByIds?.length ?? viewers?.length ?? 0} просмотров`]
           ),
+          likeBtn,
+          commentsBtn,
         ])
       : el("div", { class: "story-footer" }, [
           replyInput,
           el("button", { class: "story-send-btn", html: iconSvg("Send", 18), onclick: () => sendReply(replyInput.value, replyInput) }),
+          likeBtn,
+          commentsBtn,
         ]);
+
+    const commentsPanel = commentsOpen
+      ? el("div", { class: "story-comments-panel" }, [
+          el("div", { class: "story-comments-list" }, [
+            comments === null
+              ? el("p", { class: "story-viewers-title" }, "Загружаем…")
+              : !comments.length
+                ? el("p", { class: "story-viewers-title" }, "Пока нет комментариев")
+                : null,
+            ...(comments ?? []).map((c) =>
+              el("div", { class: "story-comment-row" }, [
+                Avatar({ name: c.author?.name ?? "?", color: c.author?.avatarColor, image: c.author?.avatarImage, size: 26 }),
+                el("div", { class: "story-comment-body" }, [
+                  el("span", { class: "story-comment-author" }, c.author?.name ?? "Пользователь"),
+                  el("span", { class: "story-comment-text" }, c.text),
+                ]),
+              ])
+            ),
+          ]),
+          el("div", { class: "story-comment-compose" }, [
+            commentInput,
+            el("button", {
+              class: "story-send-btn",
+              html: iconSvg("Send", 16),
+              onclick: () => sendComment(commentInput.value, commentInput),
+            }),
+          ]),
+        ])
+      : null;
 
     const viewersPanel =
       mine && viewersOpen
@@ -391,6 +551,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
         ]),
         footer,
         viewersPanel,
+        commentsPanel,
       ]),
       // Переход к соседнему автору — на широком экране стрелками по краям, как
       // в веб-версии Telegram. На телефоне их нет: там для этого зоны нажатия.
