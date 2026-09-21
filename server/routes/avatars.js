@@ -4,6 +4,7 @@ const { requireUserId } = require("../middleware/auth");
 const { getUser, setAvatars } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { MAX_AVATARS, validateEntry } = require("../lib/avatars");
+const { notifyProfileChanged } = require("../lib/notifyProfileChanged");
 
 // Managing your own profile photos. Always your own: there is no :id here at
 // all, so there's no permission check to get wrong — the session decides whose
@@ -41,6 +42,7 @@ router.post(
     }
 
     const updated = await setAvatars(req.uid, list);
+    notifyProfileChanged(req.uid, updated);
     res.json({ user: publicUser(updated), avatars: updated.avatarImages });
   })
 );
@@ -59,6 +61,7 @@ router.post(
     // flipping through it.
     const [picked] = list.splice(i, 1);
     const updated = await setAvatars(req.uid, [picked, ...list]);
+    notifyProfileChanged(req.uid, updated);
     res.json({ user: publicUser(updated), avatars: updated.avatarImages });
   })
 );
@@ -78,6 +81,7 @@ router.delete(
     // Removing the current avatar promotes the next one; removing the last one
     // leaves the account on coloured initials, same as never having set one.
     const updated = await setAvatars(req.uid, list);
+    notifyProfileChanged(req.uid, updated);
     res.json({ user: publicUser(updated), avatars: updated.avatarImages });
   })
 );

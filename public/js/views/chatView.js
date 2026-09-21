@@ -1563,6 +1563,18 @@ export async function ChatView(root, chatId) {
     other.lastSeen = msg.lastSeen;
     renderHeader();
   });
+  // Собеседник поменял аватар/имя/био — включая случай, когда «собеседник»
+  // это мы сами (открытое «Избранное», ваш собственный чат с собой). `other`
+  // берётся один раз при открытии чата (см. присвоение выше), поэтому без
+  // этого шапка продолжала показывать старую аватарку до перезахода в чат,
+  // хотя список чатов слева уже обновлялся сам (он читает состояние
+  // реактивно, а не снимок на момент открытия).
+  const unsubContactUpdated = onWsMessage("contact:updated", (msg) => {
+    if (!other || msg.user?.id !== other.id) return;
+    Object.assign(other, msg.user);
+    renderHeader();
+    renderInfoPanel();
+  });
   const unsubMessageNew = onWsMessage("message:new", (msg) => {
     if (msg.chatId !== chat.id) return;
     scheduleRefresh();
@@ -1643,6 +1655,7 @@ export async function ChatView(root, chatId) {
     unsubLiveStarted();
     unsubLiveEnded();
     unsubPresence();
+    unsubContactUpdated();
     unsubMessageNew();
     unsubMessageUpdated();
     unsubMessageDeleted();

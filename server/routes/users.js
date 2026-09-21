@@ -12,6 +12,7 @@ const { updateSettings } = require("../data/settings");
 const { listMediaMessages, listMessages } = require("../data/messages");
 const { PHONE_RE, normalizePhone, isValidBirthday } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
+const { notifyProfileChanged } = require("../lib/notifyProfileChanged");
 
 const LINK_RE = /https?:\/\/\S+/;
 
@@ -268,6 +269,8 @@ router.patch(
       if (isUsernameConflict(err)) return res.status(409).json({ error: "Этот юзернейм уже занят" });
       throw err;
     }
+
+    if (user) notifyProfileChanged(req.uid, user);
     res.json({ user: user ? publicUser(user) : null });
   })
 );
