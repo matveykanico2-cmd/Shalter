@@ -430,6 +430,18 @@ CREATE TABLE IF NOT EXISTS birthday_greetings_sent (
   PRIMARY KEY (ownerId, birthdayUserId, year)
 );
 
+-- Кому уже отправлено напоминание о каком празднике в этом году
+-- (server/lib/holidaySweep.js) — тот же смысл, что и у таблицы выше, только
+-- праздник шлётся самому человеку, а не его контактам (dm с собой, а не с
+-- владельцами контакта).
+CREATE TABLE IF NOT EXISTS holiday_notifications_sent (
+  userId TEXT NOT NULL,
+  holidayId TEXT NOT NULL,
+  year INTEGER NOT NULL,
+  sentAt TEXT NOT NULL,
+  PRIMARY KEY (userId, holidayId, year)
+);
+
 -- One row per issued copy of a *limited* gift (server/data/gifts.js's
 -- entries carrying a supply) — the thing that makes those gifts actually
 -- exclusive rather than just expensive: only that many copies will ever

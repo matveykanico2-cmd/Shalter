@@ -174,6 +174,7 @@ export const api = {
   listOAuthApps: () => req("/api/oauth/apps"),
   createOAuthApp: (name, redirectUri) => req("/api/oauth/apps", { method: "POST", body: JSON.stringify({ name, redirectUri }) }),
   deleteOAuthApp: (id) => req(`/api/oauth/apps/${id}`, { method: "DELETE" }),
+  regenerateOAuthApp: (id) => req(`/api/oauth/apps/${id}/regenerate`, { method: "POST" }),
   getOAuthAppInfo: (clientId, redirectUri) =>
     req(`/api/oauth/app-info?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}`),
   approveOAuth: (clientId, redirectUri, state) =>

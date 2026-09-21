@@ -32,6 +32,7 @@ const { startAutoDeleteSweep } = require("./lib/autoDelete");
 const { startDonationAlertsSweep } = require("./lib/donationAlerts");
 const { startDonatePaySweep } = require("./lib/donatePay");
 const { startBirthdaySweep } = require("./lib/birthdaySweep");
+const { startHolidaySweep } = require("./lib/holidaySweep");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
 const { startReminderSweep } = require("./lib/reminderSweep");
 
@@ -339,6 +340,7 @@ startAutoDeleteSweep();
 startDonationAlertsSweep();
 startDonatePaySweep();
 startBirthdaySweep();
+startHolidaySweep();
 startScheduledMessagesSweep();
 startReminderSweep();
 // Раз в сутки убираем загруженные файлы, на которые никто не ссылается:

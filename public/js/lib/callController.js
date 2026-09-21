@@ -48,7 +48,26 @@ const RESTART_GRACE_MS = 10000;
 function createPeer(otherUserId) {
   const pc = new RTCPeerConnection({ iceServers });
   if (state.localStream) {
+    const videoTrack = state.localStream.getVideoTracks()[0] ?? null;
     state.localStream.getTracks().forEach((t) => pc.addTrack(t, state.localStream));
+    if (videoTrack) {
+      pc._videoSender = pc.getSenders().find((s) => s.track === videoTrack) ?? null;
+    } else {
+      // A voice call's localStream has no video track, so nothing above puts
+      // a video sender on this connection — the SDP never gets a video
+      // m-line at all. There's no renegotiation path anywhere in this file
+      // (see handleSignal below: an "offer" is only ever handled as the very
+      // first one), so "turn on camera" or "share screen" mid-call, both
+      // implemented as replaceTrack() on an existing sender (see
+      // toggleScreenShare/flipCamera), had no sender to find and silently
+      // did nothing. Reserving an empty sendrecv video transceiver up front
+      // — same trick as the recvonly branch below — gives replaceTrack()
+      // somewhere to attach a track later, at zero cost while it stays
+      // empty. Stashed directly on the connection because `sender.track` is
+      // null until then, so the old "find the sender whose track.kind is
+      // video" lookup used elsewhere in this file can't find it.
+      pc._videoSender = pc.addTransceiver("video", { direction: "sendrecv" }).sender;
+    }
     // Битрейт и «чем жертвовать при нехватке канала» задаются на сендере, а не
     // на дорожке, и сбрасываются вместе с соединением — поэтому здесь, на
     // каждом новом peer, а не один раз при получении камеры.
@@ -58,8 +77,12 @@ function createPeer(otherUserId) {
     // recvonly so the *other* side's audio/video reaches us. Without this,
     // a failed getUserMedia would silently skip the offer entirely and the
     // call would just sit there connecting nothing (the bug this fixes).
+    //
+    // Video is sendrecv rather than recvonly even here, for the same reason
+    // as above: camera/screen-share can still be turned on later via
+    // replaceTrack even though the call started with no working local media.
     pc.addTransceiver("audio", { direction: "recvonly" });
-    if (state.call.kind === "video") pc.addTransceiver("video", { direction: "recvonly" });
+    pc._videoSender = pc.addTransceiver("video", { direction: "sendrecv" }).sender;
   }
 
   let restarted = false;
@@ -437,7 +460,11 @@ export async function flipCamera() {
   state.localStream?.addTrack(newTrack);
   state.cameraTrack = newTrack;
   state.peers.forEach((pc) => {
-    pc.getSenders().find((s) => s.track?.kind === "video")?.replaceTrack(newTrack);
+    // _videoSender is stashed at createPeer() time (see there for why: an
+    // empty reserved video sender has no track yet, so the old "find by
+    // track.kind" lookup below can't see it — kept as a fallback for peers
+    // from before this field existed, though none should remain in practice.
+    (pc._videoSender ?? pc.getSenders().find((s) => s.track?.kind === "video"))?.replaceTrack(newTrack);
     tunePeerVideo(pc);
   });
   notify();
@@ -456,7 +483,7 @@ export async function toggleScreenShare() {
       state.screenTrack = screenTrack;
       state.cameraTrack = state.localStream?.getVideoTracks()[0] ?? null;
       state.peers.forEach((pc) => {
-        pc.getSenders().find((s) => s.track?.kind === "video")?.replaceTrack(screenTrack);
+        (pc._videoSender ?? pc.getSenders().find((s) => s.track?.kind === "video"))?.replaceTrack(screenTrack);
         // У экрана свой профиль: 60 кадров важнее чёткости, иначе прокрутка и
         // игра превращаются в слайд-шоу.
         tunePeerVideo(pc, { screen: true });
@@ -468,13 +495,15 @@ export async function toggleScreenShare() {
       // User cancelled the screen picker or the browser denied it.
     }
   } else {
+    // revertTrack is null on a call that had no camera to begin with (a
+    // voice call sharing its screen) — replaceTrack(null) still has to run
+    // in that case, or the sender keeps offering the just-stopped screen
+    // track (a frozen last frame, or nothing at all) instead of going quiet.
     const revertTrack = state.cameraTrack;
-    if (revertTrack) {
-      state.peers.forEach((pc) => {
-        pc.getSenders().find((s) => s.track?.kind === "video")?.replaceTrack(revertTrack);
-        tunePeerVideo(pc);
-      });
-    }
+    state.peers.forEach((pc) => {
+      (pc._videoSender ?? pc.getSenders().find((s) => s.track?.kind === "video"))?.replaceTrack(revertTrack);
+      tunePeerVideo(pc);
+    });
     state.screenTrack?.stop();
     state.screenTrack = null;
     state.sharing = false;

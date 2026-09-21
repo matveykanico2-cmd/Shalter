@@ -51,6 +51,7 @@ const UNSUPPORTED_LANGUAGE_NOTE = "Украинский язык не подде
 const SECTIONS = [
   { id: "profile", label: "Изменить профиль", icon: "Edit" },
   { id: "notifications", label: "Уведомления", icon: "Bell", group: "main" },
+  { id: "holidays", label: "Праздники", icon: "Gift", group: "main" },
   { id: "data", label: "Данные и память", icon: "Download", group: "main" },
   { id: "privacy", label: "Конфиденциальность", icon: "Lock", group: "main" },
   { id: "appearance", label: "Внешний вид", icon: "Settings", group: "main" },
@@ -65,6 +66,7 @@ const SECTIONS = [
   { id: "usernames", label: "Аукцион юзернеймов", icon: "Globe", group: "extra" },
   { id: "ads", label: "Реклама", icon: "BarChart", group: "extra" },
   { id: "bots", label: "Боты", icon: "Code", group: "extra" },
+  { id: "about", label: "О приложении", icon: "Info", group: "extra" },
   { id: "moderation", label: "Модерация", icon: "Shield", group: "admin", adminOnly: true },
   { id: "server", label: "Состояние сервера", icon: "BarChart", group: "admin", adminOnly: true },
   { id: "giftshop", label: "Каталог подарков", icon: "Gift", group: "admin", adminOnly: true },
@@ -176,8 +178,10 @@ export async function SettingsView(root, page) {
     oauth: renderOAuthApps,
     ads: renderAds,
     bots: renderBots,
+    about: renderAbout,
     appearance: renderAppearance,
     notifications: renderNotifications,
+    holidays: renderHolidays,
     privacy: renderPrivacy,
     devices: renderDevices,
     accounts: renderAccounts,
@@ -753,6 +757,52 @@ async function renderPremium(root) {
 // этим заголовком), плюс прямой чат с администрацией для обсуждения условий
 // сотрудничества — деловой вопрос, который решает человек, а не бот
 // поддержки.
+// Заглушка команды — реальные имена/роли впишите сюда, когда решите, что
+// показывать публично; формат {name, role, url?} на строку.
+const ABOUT_TEAM = [{ name: "Shalter", role: "Независимый проект" }];
+
+async function renderAbout(root) {
+  let version = null;
+  try {
+    ({ version } = await api.getAppVersion());
+  } catch {
+    // Версия не критична для этого экрана — просто не покажем строку.
+  }
+
+  mount(
+    root,
+    pageWrap("О приложении", "Версия, команда и полезные ссылки", [
+      section("Shalter", [
+        el("p", { class: "settings-toggle-hint" }, "Мессенджер с чатами, звонками, историями, ботами и звёздами — без стороннего сервера: всё работает на вашей собственной инсталляции."),
+        version ? el("p", { class: "settings-toggle-hint mono" }, `Версия: ${version}`) : null,
+      ]),
+      section(
+        "Команда",
+        ABOUT_TEAM.map((m) =>
+          el("div", { class: "settings-toggle-row" }, [
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, m.name),
+              el("p", { class: "settings-toggle-hint" }, m.role),
+            ]),
+            m.url ? el("a", { class: "icon-btn", href: m.url, target: "_blank", rel: "noopener", title: m.name, html: iconSvg("Globe", 16) }) : null,
+          ])
+        )
+      ),
+      section("Ссылки", [
+        el("a", { class: "settings-row", href: "/download" }, [
+          el("span", { class: "settings-row-icon", html: iconSvg("Download", 22) }),
+          el("span", { class: "settings-row-label" }, "Скачать приложение"),
+        ]),
+        el("a", { class: "settings-row", href: "/promo" }, [
+          el("span", { class: "settings-row-icon", html: iconSvg("Users", 22) }),
+          el("span", { class: "settings-row-label" }, "Сотрудничество"),
+        ]),
+        menuRow({ icon: "Info", label: "Поддержка — Hugo", onClick: openSupport }),
+      ]),
+    ])
+  );
+}
+
 async function renderPartners(root) {
   let info = null;
   let loadError = null;
@@ -863,6 +913,18 @@ async function renderOAuthApps(root) {
     render();
   }
 
+  // Секрет нигде не хранится в виде, который можно посмотреть повторно (см.
+  // комментарий в server/data/oauthApps.js) — единственный выход, если он
+  // потерян, тот же, что и у токена бота: сгенерировать новый. client_id и
+  // redirect_uri не меняются, поэтому уже настроенная ссылка входа продолжит
+  // работать — обновить нужно только секрет на своём сервере.
+  async function regenerate(app) {
+    if (!confirm(`Перегенерировать секрет «${app.name}»? Старый секрет сразу перестанет работать.`)) return;
+    const { app: updated } = await api.regenerateOAuthApp(app.id);
+    freshSecret = { clientId: updated.clientId, clientSecret: updated.clientSecret };
+    render();
+  }
+
   function render() {
     mount(
       root,
@@ -912,14 +974,53 @@ async function renderOAuthApps(root) {
                     el("p", { class: "mono settings-toggle-hint" }, a.redirectUri),
                     el("p", { class: "mono settings-toggle-hint" }, `client_id: ${a.clientId}`),
                   ]),
+                  el("button", {
+                    class: "icon-btn",
+                    title: "Перегенерировать секрет",
+                    html: iconSvg("Key", 16),
+                    onclick: () => regenerate(a),
+                  }),
                   el("button", { class: "icon-btn danger", title: "Удалить", html: iconSvg("Trash", 16), onclick: () => remove(a) }),
                 ])
               )
             ),
+        section("Как подключить", [
+          el(
+            "p",
+            { class: "settings-toggle-hint" },
+            "1. Отправьте человека на страницу входа с вашими client_id и redirect_uri — он подтверждает вход и возвращается к вам с кодом."
+          ),
+          el(
+            "p",
+            { class: "settings-toggle-hint mono" },
+            `${window.location.origin}/oauth/authorize?client_id=ВАШ_CLIENT_ID&redirect_uri=ВАШ_REDIRECT_URI&state=что-угодно`
+          ),
+          el("p", { class: "settings-toggle-hint" }, "2. Ваш сервер меняет код на токен (client_secret — только на сервере, не в браузере):"),
+          codeBlock(
+            `curl -X POST ${window.location.origin}/api/oauth/token \\\n  -H "Content-Type: application/json" \\\n  -d '{"client_id":"...","client_secret":"...","code":"...","redirect_uri":"..."}'`
+          ),
+          el("p", { class: "settings-toggle-hint" }, "3. Токеном из ответа проверяете, что вход действительно сработал, и получаете профиль:"),
+          codeBlock(`curl ${window.location.origin}/api/oauth/userinfo \\\n  -H "Authorization: Bearer ВАШ_ACCESS_TOKEN"`),
+        ]),
       ])
     );
   }
   render();
+}
+
+// Блок кода с кнопкой копирования — те же примеры curl нужны и странице
+// ботов; здесь достаточно локальной функции, второго места, где это
+// понадобится, пока нет.
+function codeBlock(text) {
+  return el("div", { class: "settings-code-block" }, [
+    el("pre", { class: "mono" }, text),
+    el("button", {
+      class: "icon-btn",
+      title: "Скопировать",
+      html: iconSvg("Copy", 14),
+      onclick: () => navigator.clipboard.writeText(text).catch(() => {}),
+    }),
+  ]);
 }
 
 async function renderAds(root) {
@@ -1563,6 +1664,109 @@ async function renderNotifications(root) {
             },
             checking ? "Проверяем…" : "Переподключить уведомления"
           ),
+        ]),
+      ])
+    );
+  }
+  render();
+}
+
+async function renderHolidays(root) {
+  const { settings: initial, holidayCatalog } = await api.getSettings();
+  let settings = initial;
+  let newTitle = "";
+  let newDate = "";
+  let addError = null;
+
+  function isEnabled(id) {
+    return !(settings.holidays?.disabled ?? []).includes(id);
+  }
+
+  async function toggle(id, enabled) {
+    const disabled = new Set(settings.holidays?.disabled ?? []);
+    if (enabled) disabled.delete(id);
+    else disabled.add(id);
+    settings = { ...settings, holidays: { ...settings.holidays, disabled: [...disabled] } };
+    render();
+    await api.patchSettings({ holidays: settings.holidays });
+  }
+
+  // "ДД.ММ" — привычный формат без года (год для праздника не нужен, дата
+  // повторяется каждый год), переводится в "MM-DD" перед отправкой на сервер
+  // (тот же формат, что и у встроенных праздников, lib/holidays.js).
+  function parseDayMonth(input) {
+    const m = String(input ?? "").trim().match(/^(\d{1,2})[.\-/](\d{1,2})$/);
+    if (!m) return null;
+    const day = Number(m[1]);
+    const month = Number(m[2]);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return `${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+
+  async function addCustom() {
+    const title = newTitle.trim();
+    const date = parseDayMonth(newDate);
+    if (!title) return (addError = "Укажите название праздника");
+    if (!date) return (addError = "Дата — в формате ДД.ММ, например 14.02");
+    addError = null;
+    const custom = [...(settings.holidays?.custom ?? []), { title, date }];
+    settings = { ...settings, holidays: { ...settings.holidays, custom } };
+    newTitle = "";
+    newDate = "";
+    render();
+    const { settings: saved } = await api.patchSettings({ holidays: settings.holidays });
+    settings = saved;
+    render();
+  }
+
+  async function removeCustom(id) {
+    const custom = (settings.holidays?.custom ?? []).filter((h) => h.id !== id);
+    settings = { ...settings, holidays: { ...settings.holidays, custom } };
+    render();
+    await api.patchSettings({ holidays: settings.holidays });
+  }
+
+  function render() {
+    const custom = settings.holidays?.custom ?? [];
+    mount(
+      root,
+      pageWrap("Праздники", "Напоминания в личном чате с Shalter в день праздника", [
+        section(
+          "Встроенные",
+          holidayCatalog.map((h) =>
+            el("div", { class: "settings-toggle-row" }, [
+              el("span", { class: "settings-toggle-title" }, h.title),
+              Toggle(isEnabled(h.id), (v) => toggle(h.id, v)),
+            ])
+          )
+        ),
+        section("Свои праздники", [
+          ...custom.map((h) =>
+            el("div", { class: "settings-toggle-row" }, [
+              el("div", {}, [
+                el("p", { class: "settings-toggle-title" }, h.title),
+                el("p", { class: "settings-toggle-hint mono" }, h.date.split("-").reverse().join(".")),
+              ]),
+              el("button", { class: "icon-btn danger", title: "Удалить", html: iconSvg("Trash", 16), onclick: () => removeCustom(h.id) }),
+            ])
+          ),
+          el("div", { class: "settings-toggle-row no-divider" }, [
+            el("input", {
+              class: "settings-input",
+              placeholder: "Название праздника",
+              value: newTitle,
+              oninput: (e) => (newTitle = e.target.value),
+            }),
+            el("input", {
+              class: "settings-input mono",
+              style: "max-width: 100px",
+              placeholder: "ДД.ММ",
+              value: newDate,
+              oninput: (e) => (newDate = e.target.value),
+            }),
+          ]),
+          addError ? el("p", { class: "login-error" }, addError) : null,
+          el("button", { class: "btn-accent", onclick: addCustom }, "Добавить праздник"),
         ]),
       ])
     );

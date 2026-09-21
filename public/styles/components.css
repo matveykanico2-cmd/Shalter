@@ -5791,6 +5791,29 @@
   background: var(--color-surface-alt);
   padding: 14px;
 }
+/* Пример команды в документации (OAuth-приложения, скоро — Bot API) —
+   тёмный моноширинный блок с кнопкой копирования, как в редакторе кода бота. */
+.settings-code-block {
+  position: relative;
+  margin: 8px 0 12px;
+  border-radius: 8px;
+  background: #10131a;
+  padding: 12px 40px 12px 14px;
+  overflow-x: auto;
+}
+.settings-code-block pre {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #d8dae8;
+  white-space: pre;
+}
+.settings-code-block .icon-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: #9aa1b1;
+}
 .ad-attachments-preview {
   display: flex;
   flex-wrap: wrap;

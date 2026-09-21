@@ -104,6 +104,13 @@ const DEFAULT_SETTINGS = {
   // populating it from here). Debounce-saved as the user types (see
   // composer.js), cleared the moment a message actually sends.
   drafts: {},
+  // Настройка праздничных напоминаний (Settings → Праздники, lib/holidays.js
+  // для встроенного списка, lib/holidaySweep.js для доставки). `disabled` —
+  // id встроенных или своих праздников, которые человек выключил; `custom` —
+  // свои даты, [{id, title, date: "MM-DD"}]. Небольшой список, читается и
+  // пишется только по одному этому аккаунту — тот же формат, что и у всего
+  // остального здесь, а не отдельная таблица.
+  holidays: { disabled: [], custom: [] },
 };
 
 async function getSettings(userId) {

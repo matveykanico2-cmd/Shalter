@@ -7,6 +7,7 @@ const {
   listOAuthAppsByOwner,
   getOAuthAppByClientId,
   deleteOAuthApp,
+  regenerateOAuthAppSecret,
   createAuthCode,
   redeemAuthCode,
   issueAccessToken,
@@ -149,6 +150,19 @@ router.delete(
     const ok = await deleteOAuthApp(req.params.id, req.uid);
     if (!ok) return res.status(404).json({ error: "Приложение не найдено" });
     res.json({ ok: true });
+  })
+);
+
+// Lost the secret? There's nowhere to look it up (see data/oauthApps.js's
+// header comment — it's shown once, on purpose) — regenerating is the way
+// out, same as resetting a bot's token. clientId/redirect_uri stay the same,
+// so the third-party's login link keeps working; only the secret changes.
+router.post(
+  "/apps/:id/regenerate",
+  asyncRoute(async (req, res) => {
+    const app = await regenerateOAuthAppSecret(req.params.id, req.uid);
+    if (!app) return res.status(404).json({ error: "Приложение не найдено" });
+    res.json({ app }); // includes the new clientSecret — shown once, at regeneration
   })
 );
 

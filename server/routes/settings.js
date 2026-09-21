@@ -6,6 +6,7 @@ const { normalizePrivacy } = require("../lib/privacyRules");
 const { isUnsupportedLanguage, UNSUPPORTED_MESSAGE } = require("../lib/unsupportedLanguages");
 const { listChatsForUser } = require("../data/chats");
 const { attachmentBytesByKind } = require("../data/messages");
+const { BUILTIN_HOLIDAYS } = require("../lib/holidays");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -14,7 +15,9 @@ router.get(
   "/",
   asyncRoute(async (req, res) => {
     const settings = await getSettings(req.uid);
-    res.json({ settings });
+    // Встроенный список праздников (lib/holidays.js) — статичный каталог,
+    // тот же принцип, что и у /api/labels: правится в коде, читают все.
+    res.json({ settings, holidayCatalog: BUILTIN_HOLIDAYS });
   })
 );
 
@@ -55,6 +58,32 @@ router.get(
   })
 );
 
+// MM-DD, год не хранится — тот же формат, что и у users.birthday (см.
+// listUsersWithBirthdayToday), только это своя дата на каждый праздник.
+const HOLIDAY_DATE_RE = /^\d{2}-\d{2}$/;
+
+function sanitizeHolidays(raw) {
+  const disabled = Array.isArray(raw?.disabled)
+    ? [...new Set(raw.disabled.filter((id) => typeof id === "string").slice(0, 200))]
+    : [];
+  const custom = (Array.isArray(raw?.custom) ? raw.custom : [])
+    .slice(0, 50)
+    .map((h) => {
+      const date = String(h?.date ?? "");
+      const title = String(h?.title ?? "").trim().slice(0, 80);
+      if (!HOLIDAY_DATE_RE.test(date) || !title) return null;
+      const [mm, dd] = date.split("-").map(Number);
+      if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+      return {
+        id: typeof h.id === "string" && h.id ? h.id : `hol_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+        title,
+        date,
+      };
+    })
+    .filter(Boolean);
+  return { disabled, custom };
+}
+
 router.patch(
   "/",
   asyncRoute(async (req, res) => {
@@ -64,6 +93,7 @@ router.patch(
     // приходит любой JSON, какой клиент пришлёт. Приводим к ожидаемой форме —
     // строки, без повторов, с ограничением по длине (см. lib/privacyRules.js).
     if (patch.privacy) patch.privacy = normalizePrivacy(patch.privacy);
+    if (patch.holidays) patch.holidays = sanitizeHolidays(patch.holidays);
     // Язык, которого в мессенджере нет, нельзя и сохранить: убрать его из
     // выпадающего списка мало — настройки патчатся обычным запросом, а записанный
     // однажды язык интерфейса применяется при каждом заходе.

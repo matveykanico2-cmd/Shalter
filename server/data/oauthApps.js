@@ -59,6 +59,19 @@ async function deleteOAuthApp(id, ownerId) {
   return true;
 }
 
+// The secret is shown once and never stored anywhere the owner can read it
+// back (see the header comment) — losing it means starting over with a new
+// one, the same way a bot's token or an API key on most platforms works.
+// Regenerating keeps the same clientId/redirect_uri (so a third-party's
+// login link stays valid), only the secret changes.
+async function regenerateOAuthAppSecret(id, ownerId) {
+  const row = db.prepare("SELECT id FROM oauth_apps WHERE id = ? AND ownerId = ?").get(id, ownerId);
+  if (!row) return undefined;
+  const clientSecret = randomId(24);
+  db.prepare("UPDATE oauth_apps SET clientSecret = ? WHERE id = ?").run(clientSecret, id);
+  return { ...(await getOAuthApp(id)), clientSecret };
+}
+
 const CODE_TTL_MS = 5 * 60 * 1000; // 5 минут — только чтобы долететь до /token, не для хранения
 
 function createAuthCode({ clientId, userId, redirectUri }) {
@@ -104,6 +117,7 @@ module.exports = {
   getOAuthAppByClientId,
   getOAuthApp,
   deleteOAuthApp,
+  regenerateOAuthAppSecret,
   createAuthCode,
   redeemAuthCode,
   issueAccessToken,

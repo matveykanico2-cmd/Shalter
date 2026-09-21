@@ -198,8 +198,14 @@ export async function CallScreenView(root, callId) {
           // картинка собеседника уезжает в маленькое окно.
           const remoteStream = swapped && s.localStream ? s.localStream : s.remoteStreams[p.id] ?? null;
           const isConnected = !!s.connectedPeers[p.id];
-          const showVideo = s.call.kind === "video" && remoteStream && remoteStream.getVideoTracks().length > 0;
-          const kind = showVideo ? "video" : s.call.kind === "audio" ? "audio" : null;
+          // Keyed off what's actually arriving, not the call's original kind —
+          // a voice call can grow a video track mid-call now (camera turned on,
+          // or a screen share started; see callController.js's createPeer),
+          // and gating this on `s.call.kind === "video"` meant that video (and
+          // screen-share) landed on the wire correctly but had nowhere to
+          // render: this tile stayed on the avatar placeholder forever.
+          const showVideo = !!remoteStream && remoteStream.getVideoTracks().length > 0;
+          const kind = showVideo ? "video" : "audio";
 
           let mediaEl = null;
           if (kind) {
@@ -223,7 +229,11 @@ export async function CallScreenView(root, callId) {
               : el("div", { class: "call-tile-avatar-wrap" }, [
                   Avatar({ name: p.name, color: p.avatarColor, image: p.avatarImage, size: 72 }),
                   el("p", { class: "call-tile-name" }, p.name),
-                  s.call.kind === "audio" ? mediaEl : null,
+                  // Same reasoning as showVideo above: a video call that
+                  // hasn't received a video track yet (still connecting, or
+                  // camera off) still needs its audio playing, not just once
+                  // it's confirmed to be an "audio" call.
+                  mediaEl,
                 ]),
             el("p", { class: "call-tile-status" }, s.phase === "ringing" ? "вызов…" : isConnected ? "" : "соединение…"),
             // The counterpart of "add participant": whoever started the call can
@@ -265,8 +275,12 @@ export async function CallScreenView(root, callId) {
       if (!s.others.some((p) => p.id === id)) remoteMediaEls.delete(id);
     }
 
+    // Also shown on a voice call that's sharing its screen — otherwise the
+    // person sharing gets no local confirmation that it's actually going out
+    // (see callController.js's createPeer: a voice call can now send video
+    // mid-call via screen-share even though it didn't start as one).
     const localPip =
-      s.call.kind === "video"
+      s.call.kind === "video" || s.sharing
         ? el("div", {
             class: "call-local-pip",
             onpointerdown: startPipDrag,
