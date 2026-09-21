@@ -444,7 +444,7 @@ export const api = {
   translateBatch: (texts, target) => req("/api/translate/batch", { method: "POST", body: JSON.stringify({ texts, target }) }),
 
   getPremiumInfo: () => req("/api/premium/me"),
-  requestPremium: () => req("/api/premium/request", { method: "POST" }),
+  requestPremium: (plan) => req("/api/premium/request", { method: "POST", body: JSON.stringify({ plan }) }),
   // Admin-only grants (server/routes/premium.js's and ads.js's /grant): pass a
   // day count, or { forever: true } for permanent. premium/active false revokes.
   grantPremium: (userId, premium = true, opts = {}) =>

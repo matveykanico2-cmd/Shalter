@@ -37,6 +37,7 @@ import { AdReviewQueue } from "../../components/adModeration.js";
 import { safetyLabelInfo } from "../../lib/safetyLabels.js";
 import { openDropdownMenu } from "../../components/dropdownMenu.js";
 import { openPrivacyExceptionsDialog } from "../../components/privacyExceptionsDialog.js";
+import { openProfileDialog } from "../../components/profileDialog.js";
 
 // То же, что говорит сервер (server/lib/unsupportedLanguages.js), — написано
 // прямо под выбором языка, а не только в ответе на отклонённый запрос: человек
@@ -250,6 +251,10 @@ function renderMenu(root) {
       ]),
       el("div", { class: "settings-section-group" }, [
         el("div", { class: "settings-section rows" }, [
+          // Тот же экран профиля, что открывается по имени в чате/контактах —
+          // с подарками, где можно закрепить/открепить, а не отдельная форма
+          // редактирования (для неё есть «Изменить профиль» ниже, в разделах).
+          menuRow({ icon: "User", label: "Мой профиль", onClick: () => openProfileDialog(me.id) }),
           me.phone ? copyRow({ icon: "Phone", value: me.phone, label: "Телефон" }) : null,
           me.username
             ? copyRow({ icon: "At", value: `@${me.username}`, label: "Юзернейм" })
@@ -572,7 +577,7 @@ function premiumOrbit() {
 async function renderPremium(root) {
   let info = await api.getPremiumInfo();
   let copied = false;
-  let buying = false;
+  let buyingPlan = null; // id тарифа, который сейчас покупается — блокирует именно его плитку, не все три
   let buyError = null;
 
   function referralLink() {
@@ -594,17 +599,17 @@ async function renderPremium(root) {
     }, 1500);
   }
 
-  async function buyPremium() {
-    buying = true;
+  async function buyPremium(planId) {
+    buyingPlan = planId;
     buyError = null;
     render();
     try {
-      const res = await api.requestPremium();
+      const res = await api.requestPremium(planId);
       handlePurchaseResponse(res);
     } catch (err) {
       buyError = err.message;
     } finally {
-      buying = false;
+      buyingPlan = null;
       render();
     }
   }
@@ -626,9 +631,22 @@ async function renderPremium(root) {
         ]),
         !info.isPremium
           ? el("div", { class: "settings-notice-box" }, [
-              el("p", { class: "settings-toggle-title" }, "Купить Premium на 30 дней — 10₽"),
-              el("p", { class: "settings-toggle-hint" }, "Оплата переводом администрации Shalter. Нажмите «Купить» — откроется чат, переведите 10₽ и дождитесь подтверждения."),
-              el("button", { class: "btn-accent", disabled: buying, onclick: buyPremium }, buying ? "Открываем чат…" : "Купить Premium"),
+              el("p", { class: "settings-toggle-title" }, "Купить Premium"),
+              el("p", { class: "settings-toggle-hint" }, "Оплата переводом администрации Shalter. Выберите срок — откроется чат, переведите указанную сумму и дождитесь подтверждения."),
+              el(
+                "div",
+                { class: "stars-pack-grid" },
+                Object.entries(info.plans ?? {}).map(([planId, plan]) =>
+                  el(
+                    "button",
+                    { class: "stars-pack", disabled: !!buyingPlan, onclick: () => buyPremium(planId) },
+                    [
+                      el("span", { class: "stars-pack-amount" }, buyingPlan === planId ? "Открываем чат…" : plan.label),
+                      el("span", { class: "stars-pack-price mono" }, `${plan.priceRub} ₽`),
+                    ]
+                  )
+                )
+              ),
               buyError ? el("p", { class: "login-error" }, buyError) : null,
             ])
           : null,

@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { ADMIN_PHONE, PREMIUM_GRANT_DAYS, isAdminPhone } = require("../config");
+const { ADMIN_PHONE, PREMIUM_GRANT_DAYS, PREMIUM_PLANS, DEFAULT_PREMIUM_PLAN, isAdminPhone } = require("../config");
 const { getUser, findUserByPhone, listReferrals, grantPremiumDays, revokePremium } = require("../data/users");
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -26,20 +26,25 @@ router.get(
       referralCode: me.referralCode,
       isAdmin: isAdminPhone(me.phone),
       referrals: publicUsers(referrals),
+      plans: PREMIUM_PLANS,
     });
   })
 );
 
-// "Купить Premium за 10₽" — there's no payment gateway here (see AGENTS.md:
-// this is a plain self-hosted Express app), so buying opens a DM with
-// whichever account currently holds ADMIN_PHONE and drops a message asking
-// for confirmation. The admin then grants Premium by hand from that chat
-// (see /grant below) once the 10₽ actually lands on their phone. The full
-// Gifts catalog (server/routes/gifts.js) covers every other price/duration —
-// this endpoint is kept as the one-tap "just give me Premium" shortcut.
+// "Купить Premium" — there's no payment gateway here (see AGENTS.md: this is
+// a plain self-hosted Express app), so buying opens a DM with whichever
+// account currently holds ADMIN_PHONE and drops a message asking for
+// confirmation. The admin then grants Premium by hand from that chat (see
+// /grant below) once the money actually lands on their phone. The full Gifts
+// catalog (server/routes/gifts.js) covers every other price/duration — this
+// endpoint is kept as the one-tap "just give me Premium" shortcut, now with a
+// choice of tier (PREMIUM_PLANS in config.js) instead of one fixed length.
 router.post(
   "/request",
   asyncRoute(async (req, res) => {
+    const planId = PREMIUM_PLANS[req.body?.plan] ? req.body.plan : DEFAULT_PREMIUM_PLAN;
+    const plan = PREMIUM_PLANS[planId];
+
     const admin = await findUserByPhone(ADMIN_PHONE);
     if (!admin) {
       return res.status(503).json({ error: "Администрация Shalter ещё не зарегистрирована в приложении" });
@@ -55,12 +60,12 @@ router.post(
     // is a real self-chat (deduped in systemChat.js), same one every other
     // self-delivered grant lands in — not a special-cased dead end.
     if (admin.id === req.uid) {
-      await grantPremiumDays(req.uid, PREMIUM_GRANT_DAYS);
+      await grantPremiumDays(req.uid, plan.days);
       const chat = await findOrCreateDm(req.uid, req.uid);
       await sendMessageAndBroadcast(
         chat,
         req.uid,
-        `🎉 Вам выдан Shalter Premium на ${PREMIUM_GRANT_DAYS} дней! Спасибо, что поддерживаете проект.`
+        `🎉 Вам выдан Shalter Premium на ${plan.label}! Спасибо, что поддерживаете проект.`
       );
       return res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE, delivered: true });
     }
@@ -72,15 +77,15 @@ router.post(
     // from the buyer's profile (public/js/components/adminUserPanel.js).
     const donation = getActiveDonationLink();
     if (donation) {
-      const order = await createPendingOrder({ userId: req.uid, kind: "premium", amountRub: 10 });
-      return res.json({ code: order.code, donationUrl: donation.donationUrl, provider: donation.provider, amountRub: 10 });
+      const order = await createPendingOrder({ userId: req.uid, kind: "premium", amountRub: plan.priceRub });
+      return res.json({ code: order.code, donationUrl: donation.donationUrl, provider: donation.provider, amountRub: plan.priceRub });
     }
 
     const chat = await findOrCreateDm(req.uid, admin.id);
     await sendMessageAndBroadcast(
       chat,
       req.uid,
-      `Хочу оформить Shalter Premium на ${PREMIUM_GRANT_DAYS} дней за 10₽. Перевожу на ${ADMIN_PHONE} и жду подтверждения 🙏`
+      `Хочу оформить Shalter Premium на ${plan.label} за ${plan.priceRub}₽. Перевожу на ${ADMIN_PHONE} и жду подтверждения 🙏`
     );
     res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE });
   })

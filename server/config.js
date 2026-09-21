@@ -28,10 +28,23 @@ function isAdminPhone(phone) {
   return !!phone && ADMIN_PHONES.includes(phone);
 }
 
-// Default Premium grant length — the referral bonus and the plain "Купить
-// Premium — 10₽" purchase both use this. Longer/shorter durations are also
-// available individually through the Gifts catalog (server/data/gifts.js).
+// Default Premium grant length — the referral bonus uses this directly, and
+// it's also the "1m" tariff's length below. Longer/shorter one-off durations
+// are also available individually through the Gifts catalog
+// (server/data/gifts.js), which is unrelated to these fixed purchase tiers.
 const PREMIUM_GRANT_DAYS = 30;
+
+// Purchase tiers offered on the Settings → Premium screen (server/routes/
+// premium.js's /request, /me). Same "message the admin / DonationAlerts"
+// payment flow as before — this just gives the buyer a choice of length
+// instead of a single fixed 30 days, the way Telegram Premium's own purchase
+// screen offers a short/discounted-longer spread rather than one price.
+const PREMIUM_PLANS = {
+  "1m": { days: 30, priceRub: 99, label: "1 месяц" },
+  "3m": { days: 90, priceRub: 249, label: "3 месяца" },
+  "12m": { days: 365, priceRub: 799, label: "12 месяцев" },
+};
+const DEFAULT_PREMIUM_PLAN = "1m";
 
 // DonationAlerts OAuth app credentials (server/lib/donationAlerts.js) — from
 // https://www.donationalerts.com/application/clients, registered by whoever
@@ -71,6 +84,8 @@ module.exports = {
   ADMIN_PHONES,
   isAdminPhone,
   PREMIUM_GRANT_DAYS,
+  PREMIUM_PLANS,
+  DEFAULT_PREMIUM_PLAN,
   DONATIONALERTS_CLIENT_ID,
   DONATIONALERTS_CLIENT_SECRET,
   DONATIONALERTS_REDIRECT_URI,

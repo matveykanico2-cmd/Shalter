@@ -1,6 +1,7 @@
 const { getUser, grantPremiumDays, grantAdsDays } = require("../data/users");
 const { getGift } = require("../data/gifts");
 const { addStars, STAR_PACKS } = require("../data/stars");
+const { PREMIUM_PLANS } = require("../config");
 const { markOrderFulfilled } = require("../data/pendingOrders");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("./systemChat");
@@ -58,8 +59,15 @@ async function fulfillOrder(order) {
 
   let text;
   if (order.kind === "premium") {
-    await grantPremiumDays(order.userId, 30);
-    text = "🎉 Оплата получена! Вам выдан Shalter Premium на 30 дней. Спасибо, что поддерживаете проект.";
+    // No planId column on pending_orders — the tier is found back by price,
+    // same technique as "stars" below, which is why PREMIUM_PLANS' priceRub
+    // values must stay unique. A price that no longer matches any current
+    // tier (catalogue changed after this order was created) fails closed
+    // rather than granting an arbitrary length.
+    const plan = Object.values(PREMIUM_PLANS).find((p) => p.priceRub === order.amountRub);
+    if (!plan) return { ok: false, reason: "unknown_plan" };
+    await grantPremiumDays(order.userId, plan.days);
+    text = `🎉 Оплата получена! Вам выдан Shalter Premium на ${plan.label}. Спасибо, что поддерживаете проект.`;
   } else if (order.kind === "ads") {
     await grantAdsDays(order.userId, 30);
     text = "📢 Оплата получена! Вам выдан кабинет рекламы на 30 дней. Настройте объявление в Настройки → Реклама.";
