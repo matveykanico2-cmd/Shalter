@@ -16,7 +16,7 @@ import { messagePreview } from "../lib/messagePreview.js";
 import { noteMessageInChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache } from "../lib/localCache.js";
 import { navigate } from "../router.js";
-import { placeCall as placeCallController } from "../lib/callController.js";
+import { placeCall as placeCallController, joinVoiceRoom } from "../lib/callController.js";
 import { onWsMessage } from "../lib/wsClient.js";
 import { paintWallpaper } from "../lib/wallpapers.js";
 import { openWallpaperDialog } from "../components/wallpaperDialog.js";
@@ -360,6 +360,7 @@ export async function ChatView(root, chatId) {
       messagesCount = messages.length;
     };
 
+    let sentMessage = null;
     try {
       // Отправленное сразу уходит и в строку списка чатов: обратно по сокету
       // сервер его отправителю не шлёт, так что иначе превью там осталось бы
@@ -367,6 +368,7 @@ export async function ChatView(root, chatId) {
       const { message } = isChannel
         ? await api.publishPost(chat.id, text, attachments)
         : await api.sendMessage(chat.id, text, { replyToId, attachments, ...extra });
+      sentMessage = message;
       noteMessageInChatList(chat.id, message);
       // Настоящее сообщение на месте временного — не в конец списка, иначе оно
       // прыгнет мимо тех, что пришли, пока это ехало.
@@ -383,6 +385,9 @@ export async function ChatView(root, chatId) {
     }
     renderComposer();
     await refreshMessages();
+    // Возвращается вызывающему (composer.js's "Живая геолокация") — нужен id
+    // только что отправленного сообщения, чтобы начать слать в него обновления.
+    return sentMessage;
   }
 
   // Composer.js debounce-saves the draft server-side itself; this just
@@ -865,6 +870,19 @@ export async function ChatView(root, chatId) {
     renderHeader();
     renderLiveBar();
   }
+  // Постоянная голосовая комната группы (server/routes/calls.js's
+  // /room/:chatId) — живой индикатор в шапке виден всем в группе, даже тем,
+  // кто в комнату не заходил, тем же способом, что и плашка эфира выше.
+  let voiceRoom = null;
+  async function loadVoiceRoom() {
+    if (chat.type !== "group") return;
+    try {
+      ({ call: voiceRoom } = await api.getVoiceRoom(chat.id));
+    } catch {
+      voiceRoom = null;
+    }
+    renderHeader();
+  }
   async function startLive(source) {
     try {
       const { stream } = await api.startLive(chat.id, { title: chat.title, withVideo: true, source });
@@ -1053,6 +1071,16 @@ export async function ChatView(root, chatId) {
               el("span", { class: "chat-header-live-label" }, "Эфир"),
             ])
           : null,
+        // Голосовая комната группы — видна всем в группе, даже тем, кто в неё
+        // не заходил (voiceRoom пришёл с сервера уже с полным списком
+        // участников). Подписью, а не только значком — по той же причине, что
+        // и у кнопки эфира выше: рядом стоит обычная кнопка звонка.
+        chat.type === "group" && voiceRoom
+          ? el("button", { class: "icon-btn chat-header-live-btn", title: "Присоединиться к голосовому чату", onclick: () => joinVoiceRoom(chat.id, me) }, [
+              el("span", { class: "chat-header-live-dot" }),
+              el("span", { class: "chat-header-live-label" }, `Голосовой чат · ${voiceRoom.participantIds.length}`),
+            ])
+          : null,
         isDm || chat.type === "group"
           ? el("button", { class: "icon-btn", title: "Позвонить", html: iconSvg("Phone", 18), onclick: () => placeCall("audio") })
           : null,
@@ -1065,6 +1093,11 @@ export async function ChatView(root, chatId) {
           onclick: (e) =>
             openDropdownMenu({ x: e.clientX, y: e.clientY }, [
               { icon: "Search", label: "Поиск по чату", onClick: () => openSearch() },
+              // Только чтобы завести новую комнату — если она уже идёт, в
+              // неё зовёт кнопка-плашка в шапке выше, эта пропадает.
+              ...(chat.type === "group" && !voiceRoom
+                ? [{ icon: "Phone", label: "Начать голосовой чат", onClick: () => joinVoiceRoom(chat.id, me) }]
+                : []),
               {
                 icon: chat.muted ? "Bell" : "BellOff",
                 label: chat.muted ? "Включить уведомления" : "Отключить уведомления",
@@ -1291,13 +1324,19 @@ export async function ChatView(root, chatId) {
         !!a &&
         !!b &&
         a.senderId === b.senderId &&
+        !a.anonymous === !b.anonymous && // "от себя" и "от имени группы" никогда не группируются, даже от одного автора
         a.type === b.type &&
         sameDay(a.createdAt, b.createdAt) &&
         Math.abs(new Date(b.createdAt) - new Date(a.createdAt)) < GROUP_WINDOW_MS;
       const groupStart = !runsWith(prev, m);
       const groupEnd = !runsWith(m, next);
       const showSender = (chat.type === "group" || chat.type === "channel") && groupStart;
-      const sender = members.find((u) => u.id === m.senderId);
+      // "От имени группы" (routes/chats.js's anonymousAdmins) — показываем
+      // личность чата вместо настоящего автора. senderId в данных остаётся
+      // настоящим (штатные видят его в модерации), это только отображение.
+      const sender = m.anonymous
+        ? { id: chat.id, name: chat.title, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage }
+        : members.find((u) => u.id === m.senderId);
       const replyToMessage = m.replyToId ? messages.find((x) => x.id === m.replyToId) : undefined;
       const bubble = MessageBubble({
           message: m,
@@ -1507,6 +1546,11 @@ export async function ChatView(root, chatId) {
         initialDraft: draftText,
         botCommands,
         paidMessages,
+        // "Отправить от имени группы" (routes/chats.js's /:id/settings
+        // anonymousAdmins) — сервер перепроверяет то же самое сам
+        // (routes/messages.js), это только чтобы кнопка не появлялась у тех,
+        // кому она всё равно ничего не даст.
+        canPostAnonymously: isGroup && !!chat.anonymousAdmins && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id)),
         members: members.filter((u) => u.id !== me.id),
         onCancelReply: () => {
           replyingTo = null;
@@ -1530,6 +1574,7 @@ export async function ChatView(root, chatId) {
   renderInfoPanel();
   loadBotAudience();
   loadLive();
+  loadVoiceRoom();
   mount(root, wrap);
   list.scrollTo({ top: list.scrollHeight });
 
@@ -1555,6 +1600,14 @@ export async function ChatView(root, chatId) {
   });
   const unsubLiveEnded = onWsMessage("live:ended", (msg) => {
     if (msg.chatId === chat.id) loadLive();
+  });
+
+  // Кто-то зашёл в голосовую комнату группы, вышел из неё или она погасла —
+  // тем же способом обновляем плашку, что и у эфира выше.
+  const unsubVoiceChat = onWsMessage("voicechat:updated", (msg) => {
+    if (msg.chatId !== chat.id) return;
+    voiceRoom = msg.call;
+    renderHeader();
   });
 
   const unsubPresence = onWsMessage("presence:update", (msg) => {
@@ -1654,6 +1707,7 @@ export async function ChatView(root, chatId) {
     clearTimeout(msgTimer);
     unsubLiveStarted();
     unsubLiveEnded();
+    unsubVoiceChat();
     unsubPresence();
     unsubContactUpdated();
     unsubMessageNew();

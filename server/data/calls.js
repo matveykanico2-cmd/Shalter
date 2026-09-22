@@ -89,6 +89,19 @@ async function removeParticipant(id, userId) {
   return getCall(id);
 }
 
+// Постоянная голосовая комната группы (server/routes/calls.js's /room/:chatId)
+// — та же таблица, что и обычные звонки, отличается только kind: "voice-room"
+// и тем, что вступить может кто угодно из группы в любой момент, без вызова.
+// Одна активная комната на чат: следующий вошедший подключается к уже идущей,
+// а не заводит вторую.
+async function findActiveRoom(chatId) {
+  return rowToCall(
+    db
+      .prepare("SELECT * FROM calls WHERE chatId = ? AND kind = 'voice-room' AND status = 'ongoing' ORDER BY startedAt DESC LIMIT 1")
+      .get(chatId)
+  );
+}
+
 async function setJoinToken(id, token) {
   db.prepare("UPDATE calls SET joinToken = ? WHERE id = ?").run(token, id);
   return getCall(id);
@@ -98,4 +111,4 @@ async function findCallByJoinToken(token) {
   return rowToCall(db.prepare("SELECT * FROM calls WHERE joinToken = ?").get(token));
 }
 
-module.exports = { listCalls, getCall, createCall, updateCall, addParticipant, removeParticipant, setJoinToken, findCallByJoinToken };
+module.exports = { listCalls, getCall, createCall, updateCall, addParticipant, removeParticipant, setJoinToken, findCallByJoinToken, findActiveRoom };

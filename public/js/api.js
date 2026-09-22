@@ -276,6 +276,8 @@ export const api = {
     req(`/api/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify({ text, ...opts }) }),
   editMessage: (chatId, messageId, text) =>
     req(`/api/chats/${chatId}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ text }) }),
+  updateLiveLocation: (chatId, messageId, lat, lng) =>
+    req(`/api/chats/${chatId}/messages/${messageId}/location`, { method: "POST", body: JSON.stringify({ lat, lng }) }),
   deleteMessage: (chatId, messageId, forEveryone) =>
     req(`/api/chats/${chatId}/messages/${messageId}`, {
       method: "DELETE",
@@ -314,6 +316,14 @@ export const api = {
   createFolder: (name, chatIds) => req("/api/folders", { method: "POST", body: JSON.stringify({ name, chatIds }) }),
   patchFolder: (id, patch) => req(`/api/folders/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteFolder: (id) => req(`/api/folders/${id}`, { method: "DELETE" }),
+  createFolderInviteLink: (id) => req(`/api/folders/${id}/invite-link`, { method: "POST" }),
+  revokeFolderInviteLink: (id) => req(`/api/folders/${id}/invite-link`, { method: "DELETE" }),
+  getFolderInvite: (code) => req(`/api/folders/invite/${encodeURIComponent(code)}`),
+  importFolderInvite: (code) => req(`/api/folders/invite/${encodeURIComponent(code)}/import`, { method: "POST" }),
+
+  shareNearbyLocation: (lat, lng) => req("/api/nearby", { method: "POST", body: JSON.stringify({ lat, lng }) }),
+  getNearbyUsers: (lat, lng) => req(`/api/nearby?lat=${lat}&lng=${lng}`),
+  stopNearbySharing: () => req("/api/nearby", { method: "DELETE" }),
 
   listContacts: () => req("/api/contacts"),
   addContact: (userId, localName) => req("/api/contacts", { method: "POST", body: JSON.stringify({ userId, localName }) }),
@@ -344,6 +354,9 @@ export const api = {
   listCalls: () => req("/api/calls"),
   placeCall: (chatId, kind) => req("/api/calls", { method: "POST", body: JSON.stringify({ chatId, kind }) }),
   patchCall: (id, patch) => req(`/api/calls/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  getVoiceRoom: (chatId) => req(`/api/calls/room/${chatId}`),
+  joinVoiceRoom: (chatId) => req(`/api/calls/room/${chatId}/join`, { method: "POST" }),
+  leaveVoiceRoom: (chatId) => req(`/api/calls/room/${chatId}/leave`, { method: "POST" }),
   addCallParticipant: (id, userId) =>
     req(`/api/calls/${id}/participants`, { method: "POST", body: JSON.stringify({ userId }) }),
   createCallInviteLink: (id) => req(`/api/calls/${id}/invite-link`, { method: "POST" }),
@@ -446,6 +459,8 @@ export const api = {
 
   getPremiumInfo: () => req("/api/premium/me"),
   requestPremium: (plan) => req("/api/premium/request", { method: "POST", body: JSON.stringify({ plan }) }),
+  getBusinessInfo: () => req("/api/business/me"),
+  requestBusiness: (plan) => req("/api/business/request", { method: "POST", body: JSON.stringify({ plan }) }),
   // Admin-only grants (server/routes/premium.js's and ads.js's /grant): pass a
   // day count, or { forever: true } for permanent. premium/active false revokes.
   grantPremium: (userId, premium = true, opts = {}) =>

@@ -46,6 +46,18 @@ const PREMIUM_PLANS = {
 };
 const DEFAULT_PREMIUM_PLAN = "1m";
 
+// "Shalter для бизнеса" (Настройки → Shalter для бизнеса, server/routes/
+// business.js) — часы работы, приветствие/автоответ, быстрые ответы,
+// геолокация офиса. Отдельная, более дорогая подписка поверх Premium (как
+// Telegram Business поверх Premium), не входит в обычный Premium.
+const BUSINESS_GRANT_DAYS = 30;
+const BUSINESS_PLANS = {
+  "1m": { days: 30, priceRub: 299, label: "1 месяц" },
+  "3m": { days: 90, priceRub: 799, label: "3 месяца" },
+  "12m": { days: 365, priceRub: 2499, label: "12 месяцев" },
+};
+const DEFAULT_BUSINESS_PLAN = "1m";
+
 // DonationAlerts OAuth app credentials (server/lib/donationAlerts.js) — from
 // https://www.donationalerts.com/application/clients, registered by whoever
 // holds ADMIN_PHONE. Unset by default: without these, Premium/Реклама/Gift
@@ -86,6 +98,9 @@ module.exports = {
   PREMIUM_GRANT_DAYS,
   PREMIUM_PLANS,
   DEFAULT_PREMIUM_PLAN,
+  BUSINESS_GRANT_DAYS,
+  BUSINESS_PLANS,
+  DEFAULT_BUSINESS_PLAN,
   DONATIONALERTS_CLIENT_ID,
   DONATIONALERTS_CLIENT_SECRET,
   DONATIONALERTS_REDIRECT_URI,

@@ -400,6 +400,18 @@ async function boot() {
     const { JoinInviteView } = await import("./views/joinInvite.js");
     await JoinInviteView(mainSlot, params.code);
   });
+  // Ссылка-приглашение на папку с чатами (server/routes/folders.js) — тот же
+  // "полная страница, не диалог" принцип, что и у /join/:code выше.
+  route("/folder/:code", async (params) => {
+    withCleanup(mainSlot);
+    const { FolderInviteView } = await import("./views/folderInvite.js");
+    await FolderInviteView(mainSlot, params.code);
+  });
+  route("/nearby", async () => {
+    withCleanup(mainSlot);
+    const { NearbyView } = await import("./views/nearby.js");
+    await NearbyView(mainSlot);
+  });
   route("/contacts", async () => {
     withCleanup(mainSlot);
     const { ContactsView } = await import("./views/contacts.js");

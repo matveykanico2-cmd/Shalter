@@ -27,6 +27,7 @@ function rowToMessage(row) {
     anchorForPostId: row.anchorForPostId ?? undefined,
     discussionAnchorId: row.discussionAnchorId ?? undefined,
     signedBy: row.signedBy ?? undefined,
+    anonymous: !!row.anonymous || undefined,
     boostedUntil: row.boostedUntil ?? undefined,
     // Ноль не отдаём: обычных сообщений подавляющее большинство, и лишнее поле
     // в каждом из них — это лишние байты в каждом ответе.
@@ -188,8 +189,8 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars)
-     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous)
+     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous)`
   ).run({
     id: message.id,
     chatId: message.chatId,
@@ -217,6 +218,7 @@ async function addMessage(message) {
     signedBy: message.signedBy ?? null,
     views: message.views ?? 0,
     commentCount: message.commentCount ?? 0,
+    anonymous: message.anonymous ? 1 : 0,
   });
   return getMessage(message.id);
 }
@@ -278,6 +280,24 @@ function setBoost(id, until, byId) {
 
 function setLinkPreview(id, linkPreview) {
   return mutate(id, (m) => ({ ...m, linkPreview }));
+}
+
+// Живая геолокация (composer.js's "Живая геолокация") — периодические
+// обновления координат того самого location-вложения, пока не истёк
+// meta.expiresAt (see sanitizeAttachments.js). senderId сверяется здесь же,
+// на уровне мутации: подменить чужую геолокацию нельзя, даже зная id
+// сообщения, потому что "не тот отправитель" оставляет сообщение как есть.
+function updateLiveLocation(id, senderId, lat, lng) {
+  return mutate(id, (m) => {
+    if (m.senderId !== senderId) return m;
+    const nowIso = new Date().toISOString();
+    const attachments = m.attachments?.map((a) => {
+      if (a.kind !== "location" || !a.meta?.live) return a;
+      if (a.meta.expiresAt && a.meta.expiresAt <= nowIso) return a; // истекла — не обновляем
+      return { ...a, meta: { ...a.meta, lat, lng } };
+    });
+    return { ...m, attachments };
+  });
 }
 
 // Проставляет вложению облегчённую копию, досчитанную уже после отправки
@@ -577,6 +597,7 @@ module.exports = {
   setAnchorForPost,
   setDiscussionAnchor,
   setLinkPreview,
+  updateLiveLocation,
   setAttachmentPreview,
   setReportMessageStatus,
   setBoost,

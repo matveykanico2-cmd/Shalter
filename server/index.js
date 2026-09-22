@@ -181,6 +181,8 @@ app.use("/api/admin", require("./routes/admin"));
 app.get("/api/labels", (req, res) => res.json({ labels: require("./data/safetyLabels").listLabels() }));
 app.use("/api/stories", require("./routes/stories"));
 app.use("/api/premium", require("./routes/premium"));
+app.use("/api/business", require("./routes/business"));
+app.use("/api/nearby", require("./routes/nearby"));
 app.use("/api/gifts", require("./routes/gifts"));
 app.use("/api/ads", require("./routes/ads"));
 // Маркет: магазины продавцов, товары и заказы (routes/market.js).
@@ -297,6 +299,10 @@ app.get("/promo", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "promo.html"
 // её открывают из редактора кода, из поиска и по ссылке в чужом чате, и /bots
 // это адрес, который не стыдно дать разработчику.
 app.get("/bots", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "bots.html")));
+// Документация OAuth-входа «Войти через Shalter» — та же логика, что и у
+// /bots: отдельная статическая страница, а не экран приложения, потому что
+// её открывают разработчики стороннего сайта, а не сам аккаунт.
+app.get("/oauth-docs", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "oauth-docs.html")));
 
 // Client-side router owns every non-API path — always serve the shell.
 app.get(/^\/(?!api|ws).*/, (req, res) => {

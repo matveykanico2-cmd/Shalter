@@ -7,6 +7,7 @@ const { isUnsupportedLanguage, UNSUPPORTED_MESSAGE } = require("../lib/unsupport
 const { listChatsForUser } = require("../data/chats");
 const { attachmentBytesByKind } = require("../data/messages");
 const { BUILTIN_HOLIDAYS } = require("../lib/holidays");
+const { getUser } = require("../data/users");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -84,6 +85,53 @@ function sanitizeHolidays(raw) {
   return { disabled, custom };
 }
 
+// Shalter для бизнеса — часы работы, приветствие/автоответ, быстрые ответы
+// (server/routes/business.js для самой подписки, lib/businessAutoReply.js
+// для доставки). `enabled` принудительно false для аккаунта без активной
+// подписки — иначе истёкшая или никогда не купленная подписка продолжала бы
+// работать, если человек когда-то успел включить переключатель.
+const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function sanitizeHours(raw) {
+  const out = {};
+  for (const day of DAY_KEYS) {
+    const d = raw?.[day] ?? {};
+    out[day] = {
+      closed: !!d.closed,
+      open: TIME_RE.test(d.open) ? d.open : "09:00",
+      close: TIME_RE.test(d.close) ? d.close : "18:00",
+    };
+  }
+  return out;
+}
+
+function sanitizeQuickReplies(raw) {
+  return (Array.isArray(raw) ? raw : [])
+    .slice(0, 50)
+    .map((q) => {
+      const text = String(q?.text ?? "").trim().slice(0, 1000);
+      if (!text) return null;
+      return {
+        id: typeof q?.id === "string" && q.id ? q.id : `qr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+        shortcut: String(q?.shortcut ?? "").trim().slice(0, 32),
+        text,
+      };
+    })
+    .filter(Boolean);
+}
+
+async function sanitizeBusiness(raw, userId) {
+  const me = await getUser(userId);
+  return {
+    enabled: !!raw?.enabled && !!me?.isBusiness,
+    hours: sanitizeHours(raw?.hours),
+    greeting: { enabled: !!raw?.greeting?.enabled, text: String(raw?.greeting?.text ?? "").trim().slice(0, 500) },
+    away: { enabled: !!raw?.away?.enabled, text: String(raw?.away?.text ?? "").trim().slice(0, 500) },
+    quickReplies: sanitizeQuickReplies(raw?.quickReplies),
+  };
+}
+
 router.patch(
   "/",
   asyncRoute(async (req, res) => {
@@ -94,6 +142,7 @@ router.patch(
     // строки, без повторов, с ограничением по длине (см. lib/privacyRules.js).
     if (patch.privacy) patch.privacy = normalizePrivacy(patch.privacy);
     if (patch.holidays) patch.holidays = sanitizeHolidays(patch.holidays);
+    if (patch.business) patch.business = await sanitizeBusiness(patch.business, req.uid);
     // Язык, которого в мессенджере нет, нельзя и сохранить: убрать его из
     // выпадающего списка мало — настройки патчатся обычным запросом, а записанный
     // однажды язык интерфейса применяется при каждом заходе.

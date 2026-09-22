@@ -12,6 +12,7 @@ import { STICKERS, DRAWN_STICKERS } from "../lib/stickers.js";
 import { renderScene } from "../lib/animScenes.js";
 import { openStickerPackDialog } from "./stickerPackDialog.js";
 import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
+import { startLiveLocationSharing } from "../lib/liveLocation.js";
 
 const EMOJI = ["😀", "😂", "😍", "👍", "🙏", "🔥", "🎉", "😢", "😮", "❤️", "👏", "🤔"];
 const TYPING_PING_MS = 2500; // well under the server's 4s typing-presence expiry
@@ -40,6 +41,7 @@ export function Composer({
   // (server/lib/messagePrice.js). Цена известна до отправки, поэтому и сказать
   // о ней надо до отправки — раньше человек узнавал о плате только из отказа.
   paidMessages = null,
+  canPostAnonymously = false,
   members,
   onCancelReply,
   onCancelEdit,
@@ -56,6 +58,9 @@ export function Composer({
   let waveTimer = null;
   let levelMeter = null;
   let draftSaveTimer = null;
+  // "Отправить от имени группы" — сбрасывается после каждой отправки, как и
+  // ответ/редактирование: это разовое решение на одно сообщение, не режим.
+  let postAsChat = false;
 
   // Saves to the server on a debounce (network call), but calls
   // onDraftChange immediately every time so chatView.js can reflect the
@@ -182,11 +187,15 @@ export function Composer({
       if (!trimmed) return;
       if (editingMessage) onSaveEdit(trimmed);
       else {
-        onSend(trimmed);
+        onSend(trimmed, [], postAsChat ? { anonymous: true } : undefined);
         clearDraft();
       }
       textarea.value = "";
       autoResize();
+      if (postAsChat) {
+        postAsChat = false;
+        updateAnonymousToggle();
+      }
     }
 
     textarea.addEventListener("input", () => {
@@ -512,6 +521,25 @@ export function Composer({
           },
         },
         {
+          icon: "MapPin",
+          label: "Живая геолокация (15 мин)",
+          run: () => {
+            if (!navigator.geolocation) return alert("Геолокация не поддерживается в этом браузере");
+            navigator.geolocation.getCurrentPosition(
+              async (pos) => {
+                const liveMinutes = 15;
+                const message = await onSend("", [
+                  { kind: "location", meta: { lat: pos.coords.latitude, lng: pos.coords.longitude, liveMinutes } },
+                ]);
+                // onSend может не вернуть сообщение (сеть подвела на самой
+                // отправке) — тогда просто нечего было бы обновлять.
+                if (message) startLiveLocationSharing(chatId, message.id, liveMinutes * 60_000);
+              },
+              () => alert("Не удалось получить местоположение")
+            );
+          },
+        },
+        {
           icon: "Users",
           label: "Контакт",
           run: () =>
@@ -602,6 +630,27 @@ export function Composer({
         },
       }, "/");
       commandSlot.appendChild(commandBtn);
+    }
+
+    // "Отправить от имени группы" — переключатель на одно сообщение, а не
+    // режим (сбрасывается после submit(), см. выше). Сервер перепроверяет
+    // право и настройку группы сам (routes/messages.js) — canPostAnonymously
+    // здесь только решает, показывать ли вообще кнопку.
+    let anonymousToggleBtn = null;
+    function updateAnonymousToggle() {
+      anonymousToggleBtn?.classList.toggle("active", postAsChat);
+      if (anonymousToggleBtn) anonymousToggleBtn.title = postAsChat ? "Отправляется от имени группы" : "Отправить от имени группы";
+    }
+    if (canPostAnonymously) {
+      anonymousToggleBtn = el("button", {
+        class: "composer-icon-btn",
+        title: "Отправить от имени группы",
+        html: iconSvg("Users", 18),
+        onclick: () => {
+          postAsChat = !postAsChat;
+          updateAnonymousToggle();
+        },
+      });
     }
 
     // Emoji picker. Takes the element to hang off, because on a phone the icon
@@ -916,7 +965,7 @@ export function Composer({
     // Скрепка, поле и вторичные кнопки — внутри одной «таблетки»; отправка и
     // запись остаются снаружи справа, как круглая кнопка в привычных
     // мессенджерах.
-    const field = el("div", { class: "composer-field" }, [attachSlot, commandSlot, textarea, hugoSlotBtn, stickerSlot, scheduleSlot, emojiSlot].filter(Boolean));
+    const field = el("div", { class: "composer-field" }, [attachSlot, commandSlot, anonymousToggleBtn, textarea, hugoSlotBtn, stickerSlot, scheduleSlot, emojiSlot].filter(Boolean));
     const row = el("div", { class: "composer-row" }, [mentionMenu, field, trailingSlot].filter(Boolean));
     // Плашка о платной переписке — над полем ввода, там же, где ответ и
     // изменение: это условие отправки, а не свойство собеседника.

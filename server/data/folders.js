@@ -2,7 +2,26 @@ const db = require("../db");
 
 function rowToFolder(row) {
   if (!row) return undefined;
-  return { id: row.id, ownerId: row.ownerId, name: row.name, order: row.sortOrder, chatIds: JSON.parse(row.chatIds) };
+  return {
+    id: row.id,
+    ownerId: row.ownerId,
+    name: row.name,
+    order: row.sortOrder,
+    chatIds: JSON.parse(row.chatIds),
+    inviteCode: row.inviteCode ?? undefined,
+  };
+}
+
+async function findFolderByInviteCode(code) {
+  const c = String(code ?? "").trim();
+  if (!c) return undefined;
+  return rowToFolder(db.prepare("SELECT * FROM folders WHERE inviteCode = ?").get(c));
+}
+
+// null отзывает ссылку — старая сразу перестаёт что-либо находить.
+async function setFolderInviteCode(id, code) {
+  db.prepare("UPDATE folders SET inviteCode = ? WHERE id = ?").run(code, id);
+  return getFolder(id);
 }
 
 function listAllFolders() {
@@ -41,4 +60,13 @@ async function deleteFolder(id) {
   db.prepare("DELETE FROM folders WHERE id = ?").run(id);
 }
 
-module.exports = { listAllFolders, listFoldersFor, getFolder, createFolder, updateFolder, deleteFolder };
+module.exports = {
+  listAllFolders,
+  listFoldersFor,
+  getFolder,
+  createFolder,
+  updateFolder,
+  deleteFolder,
+  findFolderByInviteCode,
+  setFolderInviteCode,
+};

@@ -91,12 +91,22 @@ export function LinkPreviewCard(p) {
 }
 
 export function LocationAttachment(a) {
-  const { lat, lng } = a.meta ?? {};
+  const { lat, lng, live, expiresAt } = a.meta ?? {};
   const mapUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`;
-  return el("a", { href: mapUrl, target: "_blank", rel: "noreferrer", class: "location-attachment" }, [
+  // "Обновляется" только пока не истёк expiresAt — сервер сам перестаёт
+  // принимать обновления после этого (data/messages.js's updateLiveLocation),
+  // так что после истечения это просто последняя известная точка, тот же
+  // вид, что и у обычной (не живой) геолокации.
+  const isLive = live && expiresAt && expiresAt > new Date().toISOString();
+  const label = isLive
+    ? `Живая геолокация — обновляется до ${new Date(expiresAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`
+    : live
+      ? "Геолокация (трансляция окончена)"
+      : "Геолокация";
+  return el("a", { href: mapUrl, target: "_blank", rel: "noreferrer", class: `location-attachment ${isLive ? "live" : ""}` }, [
     el("span", { html: iconSvg("MapPin", 18) }),
     el("div", {}, [
-      el("p", {}, "Геолокация"),
+      el("p", {}, label),
       el("p", { class: "mono location-coords" }, `${lat?.toFixed(5)}, ${lng?.toFixed(5)}`),
     ]),
   ]);

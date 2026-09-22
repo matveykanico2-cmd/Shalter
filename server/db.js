@@ -442,6 +442,19 @@ CREATE TABLE IF NOT EXISTS holiday_notifications_sent (
   PRIMARY KEY (userId, holidayId, year)
 );
 
+-- Shalter для бизнеса: приветствие шлётся один раз за всю историю чата,
+-- автоответ (вне часов работы) — не чаще раза в день на чат. Один и тот же
+-- смысл, что у holiday_notifications_sent выше — "пытались ли мы уже",
+-- ключ по chatId (а не по паре пользователей), потому что это личное дело
+-- ровно этого чата.
+CREATE TABLE IF NOT EXISTS business_auto_replies_sent (
+  chatId TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  sentDate TEXT NOT NULL,
+  sentAt TEXT NOT NULL,
+  PRIMARY KEY (chatId, kind, sentDate)
+);
+
 -- One row per issued copy of a *limited* gift (server/data/gifts.js's
 -- entries carrying a supply) — the thing that makes those gifts actually
 -- exclusive rather than just expensive: only that many copies will ever
@@ -578,6 +591,16 @@ if (!existingUserColumns.has("premiumUntil")) db.exec("ALTER TABLE users ADD COL
 if (!existingUserColumns.has("adsUntil")) db.exec("ALTER TABLE users ADD COLUMN adsUntil TEXT");
 if (!existingUserColumns.has("adText")) db.exec("ALTER TABLE users ADD COLUMN adText TEXT");
 if (!existingUserColumns.has("adUrl")) db.exec("ALTER TABLE users ADD COLUMN adUrl TEXT");
+// Shalter для бизнеса (Настройки → Shalter для бизнеса, server/routes/
+// business.js) — same time-boxed-subscription shape as premiumUntil/adsUntil
+// above, plus a public business address for the profile. Hours, greeting/
+// away messages and quick replies are per-account config, not shown on
+// anyone else's screen, so they live in settings.business (JSON blob) rather
+// than as columns here — see server/data/settings.js.
+if (!existingUserColumns.has("businessUntil")) db.exec("ALTER TABLE users ADD COLUMN businessUntil TEXT");
+if (!existingUserColumns.has("businessAddress")) db.exec("ALTER TABLE users ADD COLUMN businessAddress TEXT");
+if (!existingUserColumns.has("businessLat")) db.exec("ALTER TABLE users ADD COLUMN businessLat REAL");
+if (!existingUserColumns.has("businessLng")) db.exec("ALTER TABLE users ADD COLUMN businessLng REAL");
 // Optional image/video/file attachments (a small gallery, not just one)
 // shown alongside the ad text — same client-authored-JSON shape as a
 // message's own attachments array (see server/lib/sanitizeAttachments.js),
@@ -835,6 +858,22 @@ if (!existingMsgSignCols.has("signedBy")) db.exec("ALTER TABLE messages ADD COLU
 // unsigned channel speaks with one voice, which is the other half of the point.
 if (!existingChatVerifyCols2.has("signMessages")) db.exec("ALTER TABLE chats ADD COLUMN signMessages INTEGER NOT NULL DEFAULT 0");
 
+// Ссылка-приглашение на папку с чатами (Настройки → Папки, server/routes/
+// folders.js) — тот же принцип, что и invite-код чата: null, пока не
+// сгенерирована, отзыв — тоже просто запись null обратно.
+const existingFolderColumns = new Set(db.prepare("PRAGMA table_info(folders)").all().map((c) => c.name));
+if (!existingFolderColumns.has("inviteCode")) db.exec("ALTER TABLE folders ADD COLUMN inviteCode TEXT");
+try {
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_folders_invite_code ON folders(inviteCode) WHERE inviteCode IS NOT NULL");
+} catch (err) {
+  console.error("Could not create unique folder invite-code index:", err.message);
+}
+
+// Anonymous admins (Настройки группы, server/routes/chats.js's /:id/settings)
+// — the opposite idea from signMessages above: owner/admin/moderator can post
+// as the group itself instead of as themself. Off by default, same reasoning.
+if (!existingChatVerifyCols2.has("anonymousAdmins")) db.exec("ALTER TABLE chats ADD COLUMN anonymousAdmins INTEGER NOT NULL DEFAULT 0");
+
 // The invite link — how someone joins a private group or channel. Until now the
 // only way in was an admin adding you by hand, which meant a private group had
 // no way to grow at all. One active code per chat, regenerable: revoking is the
@@ -848,6 +887,17 @@ db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_chats_invite ON chats(inviteCode)
 // The older `avatarImage` column stays and keeps its meaning — the current
 // avatar's still — so every existing reader of it is untouched.
 if (!existingUserColumns.has("avatarImages")) db.exec("ALTER TABLE users ADD COLUMN avatarImages TEXT NOT NULL DEFAULT '[]'");
+
+// «Люди рядом» (Контакты → «Люди рядом», server/routes/nearby.js) — намеренно
+// огрублённые координаты (округление на сервере, см. routes/nearby.js's
+// roundCoord), а не то, что реально прислал браузер: чужому профилю здесь
+// вообще не место — только приблизительная близость. nearbyUpdatedAt решает
+// то же, что и online/lastSeen для присутствия: не обновлялся полчаса —
+// значит, уже не «рядом», без отдельного фонового job (фильтр при чтении,
+// тот же приём, что и у историй в data/stories.js).
+if (!existingUserColumns.has("nearbyLat")) db.exec("ALTER TABLE users ADD COLUMN nearbyLat REAL");
+if (!existingUserColumns.has("nearbyLng")) db.exec("ALTER TABLE users ADD COLUMN nearbyLng REAL");
+if (!existingUserColumns.has("nearbyUpdatedAt")) db.exec("ALTER TABLE users ADD COLUMN nearbyUpdatedAt TEXT");
 
 // Gifts an admin mints are priced in stars now — the currency they're bought
 // with. Rows written before this column existed keep their rouble price and are
@@ -921,6 +971,13 @@ if (!existingMessageColumns.has("gift")) db.exec("ALTER TABLE messages ADD COLUM
 // платное сообщение — это чья-то попытка достучаться, и появление его отдельным
 // движением говорит об этом лучше любого значка.
 if (!existingMessageColumns.has("paidStars")) db.exec("ALTER TABLE messages ADD COLUMN paidStars INTEGER NOT NULL DEFAULT 0");
+// Отправлено от имени группы, а не от себя (chats.anonymousAdmins, routes/
+// messages.js) — messageBubble.js показывает вместо своих имени/аватара
+// группу, когда это выставлено. senderId в строке остаётся настоящим (нужен
+// для модерации/редактирования/удаления) — анонимность здесь только
+// отображаемая, не серверная: другие штатные видят в базе, кто написал, но
+// обычный участник в интерфейсе — нет.
+if (!existingMessageColumns.has("anonymous")) db.exec("ALTER TABLE messages ADD COLUMN anonymous INTEGER NOT NULL DEFAULT 0");
 // A sent sticker (public/js/lib/stickers.js's catalog + composer.js's picker)
 // — same shape as gift above: { emoji, name, anim } so the client can render
 // a big, uniquely-animated sticker instead of plain text.

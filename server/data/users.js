@@ -45,6 +45,17 @@ function rowToUser(row) {
     adsForever: row.adsUntil === FOREVER || undefined,
     adText: row.adText ?? undefined,
     adUrl: row.adUrl ?? undefined,
+    // Shalter для бизнеса (routes/business.js) — то же "выдать дни" по
+    // подписке, что и Premium/Ads, плюс адрес/координаты для профиля. Часы
+    // работы, приветствие/автоответ и быстрые ответы живут не здесь, а в
+    // settings.business (data/settings.js) — они личные и никогда не
+    // читаются по чужому профилю, в отличие от адреса.
+    isBusiness: !!row.businessUntil && row.businessUntil > new Date().toISOString(),
+    businessUntil: row.businessUntil && row.businessUntil !== FOREVER ? row.businessUntil : undefined,
+    businessForever: row.businessUntil === FOREVER || undefined,
+    businessAddress: row.businessAddress ?? undefined,
+    businessLat: row.businessLat ?? undefined,
+    businessLng: row.businessLng ?? undefined,
     adAttachments: row.adAttachments ? JSON.parse(row.adAttachments) : [],
     birthday: row.birthday ?? undefined,
     giftsReceived: JSON.parse(row.giftsReceived ?? "[]"),
@@ -256,7 +267,7 @@ async function createUser(user) {
   return getUser(user.id);
 }
 
-const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday"];
+const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng"];
 
 // Extends (or starts) a Premium period — stacks on top of remaining time if
 // already active, the way a real subscription top-up would, rather than
@@ -290,6 +301,21 @@ async function grantAdsDays(userId, days) {
 
 async function revokeAds(userId) {
   return updateUser(userId, { adsUntil: null });
+}
+
+// Same stacking-top-up shape as grantPremiumDays/grantAdsDays — for Shalter
+// для бизнеса (server/routes/business.js).
+async function grantBusinessDays(userId, days) {
+  const user = await getUser(userId);
+  if (!user) return undefined;
+  if (days == null || user.businessForever) return updateUser(userId, { businessUntil: FOREVER });
+  const base = user.isBusiness && user.businessUntil ? new Date(user.businessUntil) : new Date();
+  base.setUTCDate(base.getUTCDate() + days);
+  return updateUser(userId, { businessUntil: base.toISOString() });
+}
+
+async function revokeBusiness(userId) {
+  return updateUser(userId, { businessUntil: null });
 }
 
 // Real hard delete — see server/lib/deleteAccount.js for the full cascade
@@ -580,5 +606,7 @@ module.exports = {
   revokePremium,
   grantAdsDays,
   revokeAds,
+  grantBusinessDays,
+  revokeBusiness,
   deleteUser,
 };

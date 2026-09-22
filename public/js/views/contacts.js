@@ -293,6 +293,12 @@ export async function ContactsView(root) {
       el("p", { class: "view-title" }, "Контакты"),
       el("button", {
         class: "icon-btn",
+        title: "Люди рядом",
+        html: iconSvg("MapPin", 18),
+        onclick: () => navigate("/nearby"),
+      }),
+      el("button", {
+        class: "icon-btn",
         title: "Найти друзей из контактов телефона",
         html: iconSvg("Users", 18),
         onclick: () => openImportContactsDialog(async () => {

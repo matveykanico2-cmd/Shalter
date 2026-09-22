@@ -59,6 +59,16 @@ function sanitizeAttachments(attachments) {
         const lng = Number(a.meta?.lng);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
         out.meta = { lat, lng };
+        // Живая геолокация: клиент просит окно в минутах, сервер сам считает
+        // expiresAt — так более длинное "окно" из подделанного запроса не
+        // проходит мимо серверного времени. Обновления координат идут потом
+        // отдельным запросом (POST /:messageId/location, routes/messages.js),
+        // проверяемым по expiresAt и по тому, что обновляет отправитель.
+        const liveMinutes = Number(a.meta?.liveMinutes);
+        if (Number.isFinite(liveMinutes) && liveMinutes > 0 && liveMinutes <= 8 * 60) {
+          out.meta.live = true;
+          out.meta.expiresAt = new Date(Date.now() + liveMinutes * 60_000).toISOString();
+        }
       } else if (a.kind === "contact") {
         out.meta = {
           userId: typeof a.meta?.userId === "string" ? a.meta.userId : undefined,

@@ -60,6 +60,7 @@ const SECTIONS = [
   { id: "accounts", label: "Аккаунты", icon: "Accounts", group: "main" },
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", group: "main" },
   { id: "premium", label: "Premium и друзья", icon: "Star", group: "extra" },
+  { id: "business", label: "Shalter для бизнеса", icon: "Bag", group: "extra" },
   { id: "partners", label: "Партнёрка", icon: "Users", group: "extra" },
   { id: "oauth", label: "Войти через Shalter", icon: "Lock", group: "extra" },
   { id: "stars", label: "Звёзды", icon: "Zap", group: "extra" },
@@ -174,6 +175,7 @@ export async function SettingsView(root, page) {
     "": renderMenu,
     profile: renderProfile,
     premium: renderPremium,
+    business: renderBusiness,
     partners: renderPartners,
     oauth: renderOAuthApps,
     ads: renderAds,
@@ -752,6 +754,206 @@ async function renderPremium(root) {
   render();
 }
 
+const BUSINESS_PERKS = [
+  { icon: "Clock", title: "Часы работы", desc: "Покажите, когда вы на связи — и автоответ сам знает, когда включаться" },
+  { icon: "MessageSquare", title: "Приветствие и автоответ", desc: "Новому клиенту — приветствие, вне часов работы — автоответ. От вашего имени, автоматически" },
+  { icon: "Zap", title: "Быстрые ответы", desc: "Заготовленные шаблоны — не печатать одно и то же каждый раз" },
+  { icon: "MapPin", title: "Адрес на профиле", desc: "Покажите, где вас найти" },
+];
+
+const DAY_LABELS = { mon: "Понедельник", tue: "Вторник", wed: "Среда", thu: "Четверг", fri: "Пятница", sat: "Суббота", sun: "Воскресенье" };
+
+async function renderBusiness(root) {
+  let info = await api.getBusinessInfo();
+  let buyingPlan = null;
+  let buyError = null;
+  let business = info.business;
+  let addressDraft = info.businessAddress ?? "";
+  let addressSaving = false;
+  let newReplyShortcut = "";
+  let newReplyText = "";
+
+  async function buyBusiness(planId) {
+    buyingPlan = planId;
+    buyError = null;
+    render();
+    try {
+      const res = await api.requestBusiness(planId);
+      handlePurchaseResponse(res);
+    } catch (err) {
+      buyError = err.message;
+    } finally {
+      buyingPlan = null;
+      render();
+    }
+  }
+
+  async function saveBusiness(patch) {
+    business = { ...business, ...patch };
+    render();
+    const { settings } = await api.patchSettings({ business });
+    business = settings.business;
+    render();
+  }
+
+  async function saveAddress() {
+    addressSaving = true;
+    render();
+    try {
+      const { user } = await api.updateProfile(getState().user.id, { businessAddress: addressDraft.trim() || null });
+      info = { ...info, businessAddress: user.businessAddress ?? null };
+    } catch (err) {
+      alert(err.message || "Не удалось сохранить адрес");
+    } finally {
+      addressSaving = false;
+      render();
+    }
+  }
+
+  function addQuickReply() {
+    const text = newReplyText.trim();
+    if (!text) return;
+    const quickReplies = [...(business.quickReplies ?? []), { shortcut: newReplyShortcut.trim(), text }];
+    newReplyShortcut = "";
+    newReplyText = "";
+    saveBusiness({ quickReplies });
+  }
+
+  function removeQuickReply(id) {
+    saveBusiness({ quickReplies: (business.quickReplies ?? []).filter((q) => q.id !== id) });
+  }
+
+  function render() {
+    const rows = [];
+
+    if (!info.isBusiness) {
+      rows.push(
+        el(
+          "div",
+          { class: "premium-perks-card" },
+          BUSINESS_PERKS.map((p) =>
+            el("div", { class: "premium-perk-row" }, [
+              el("span", { class: "premium-perk-icon", html: iconSvg(p.icon, 20) }),
+              el("div", {}, [el("p", { class: "premium-perk-title" }, p.title), el("p", { class: "premium-perk-desc" }, p.desc)]),
+            ])
+          )
+        ),
+        el("div", { class: "settings-notice-box" }, [
+          el("p", { class: "settings-toggle-title" }, "Купить Shalter для бизнеса"),
+          el("p", { class: "settings-toggle-hint" }, "Оплата переводом администрации Shalter. Выберите срок — откроется чат, переведите указанную сумму и дождитесь подтверждения."),
+          el(
+            "div",
+            { class: "stars-pack-grid" },
+            Object.entries(info.plans ?? {}).map(([planId, plan]) =>
+              el("button", { class: "stars-pack", disabled: !!buyingPlan, onclick: () => buyBusiness(planId) }, [
+                el("span", { class: "stars-pack-amount" }, buyingPlan === planId ? "Открываем чат…" : plan.label),
+                el("span", { class: "stars-pack-price mono" }, `${plan.priceRub} ₽`),
+              ])
+            )
+          ),
+          buyError ? el("p", { class: "login-error" }, buyError) : null,
+        ])
+      );
+    } else {
+      rows.push(
+        el("div", { class: "premium-status-card active" }, [
+          el("span", { class: "premium-status-icon" }, [PremiumStar({ size: 34, variant: "gold", title: "Shalter для бизнеса" })]),
+          el("div", {}, [
+            el("p", { class: "premium-status-title" }, "Shalter для бизнеса активен"),
+            el("p", { class: "premium-status-hint" }, formatPremiumUntil({ isPremium: true, premiumUntil: info.businessUntil, premiumForever: info.businessForever })),
+          ]),
+        ]),
+        el("div", { class: "settings-toggle-row" }, [
+          el("div", {}, [
+            el("p", { class: "settings-toggle-title" }, "Включено"),
+            el("p", { class: "settings-toggle-hint" }, "Приветствие, автоответ и часы работы применяются только пока это включено"),
+          ]),
+          Toggle(business.enabled, (v) => saveBusiness({ enabled: v })),
+        ]),
+        section(
+          "Часы работы",
+          Object.keys(DAY_LABELS).map((day) =>
+            el("div", { class: "settings-toggle-row" }, [
+              el("span", { class: "settings-toggle-title" }, DAY_LABELS[day]),
+              business.hours[day].closed
+                ? el("span", { class: "settings-toggle-hint" }, "Выходной")
+                : el("span", { class: "settings-toggle-hint mono" }, `${business.hours[day].open}–${business.hours[day].close}`),
+              Toggle(!business.hours[day].closed, (v) =>
+                saveBusiness({ hours: { ...business.hours, [day]: { ...business.hours[day], closed: !v } } })
+              ),
+            ])
+          )
+        ),
+        section("Приветствие", [
+          el("div", { class: "settings-toggle-row" }, [
+            el("span", { class: "settings-toggle-title" }, "Отправлять новому собеседнику"),
+            Toggle(business.greeting.enabled, (v) => saveBusiness({ greeting: { ...business.greeting, enabled: v } })),
+          ]),
+          el("textarea", {
+            class: "settings-input",
+            rows: 2,
+            placeholder: "Здравствуйте! Мы вам скоро ответим.",
+            value: business.greeting.text,
+            onblur: (e) => saveBusiness({ greeting: { ...business.greeting, text: e.target.value } }),
+          }),
+        ]),
+        section("Автоответ вне часов работы", [
+          el("div", { class: "settings-toggle-row" }, [
+            el("span", { class: "settings-toggle-title" }, "Отправлять вне часов работы"),
+            Toggle(business.away.enabled, (v) => saveBusiness({ away: { ...business.away, enabled: v } })),
+          ]),
+          el("textarea", {
+            class: "settings-input",
+            rows: 2,
+            placeholder: "Сейчас мы не работаем — ответим, как только начнём.",
+            value: business.away.text,
+            onblur: (e) => saveBusiness({ away: { ...business.away, text: e.target.value } }),
+          }),
+        ]),
+        section("Быстрые ответы", [
+          ...(business.quickReplies ?? []).map((q) =>
+            el("div", { class: "settings-toggle-row" }, [
+              el("div", {}, [
+                q.shortcut ? el("p", { class: "settings-toggle-title mono" }, `/${q.shortcut}`) : null,
+                el("p", { class: "settings-toggle-hint" }, q.text),
+              ]),
+              el("button", { class: "icon-btn danger", title: "Удалить", html: iconSvg("Trash", 16), onclick: () => removeQuickReply(q.id) }),
+            ])
+          ),
+          el("div", { class: "settings-toggle-row no-divider" }, [
+            el("input", {
+              class: "settings-input mono",
+              style: "max-width: 140px",
+              placeholder: "ярлык",
+              value: newReplyShortcut,
+              oninput: (e) => (newReplyShortcut = e.target.value),
+            }),
+            el("input", {
+              class: "settings-input",
+              placeholder: "Текст быстрого ответа",
+              value: newReplyText,
+              oninput: (e) => (newReplyText = e.target.value),
+            }),
+          ]),
+          el("button", { class: "btn-accent", onclick: addQuickReply }, "Добавить"),
+        ]),
+        section("Адрес на профиле", [
+          el("input", {
+            class: "settings-input",
+            placeholder: "Город, улица, дом",
+            value: addressDraft,
+            oninput: (e) => (addressDraft = e.target.value),
+          }),
+          el("button", { class: "btn-accent", disabled: addressSaving, onclick: saveAddress }, addressSaving ? "Сохраняем…" : "Сохранить"),
+        ])
+      );
+    }
+
+    mount(root, pageWrap("Shalter для бизнеса", "Часы работы, автоответчик, быстрые ответы и адрес на профиле", rows));
+  }
+  render();
+}
+
 // Партнёрская программа: та же реферальная ссылка, что на экране Premium
 // (server/routes/partners.js's /me — просто отдаёт то же самое ещё раз, под
 // этим заголовком), плюс прямой чат с администрацией для обсуждения условий
@@ -929,6 +1131,10 @@ async function renderOAuthApps(root) {
     mount(
       root,
       pageWrap("Войти через Shalter", "Разрешите своему сайту принимать вход через Shalter — как «Войти через VK»", [
+        el("a", { class: "settings-row", href: "/oauth-docs", target: "_blank", rel: "noopener" }, [
+          el("span", { class: "settings-row-icon", html: iconSvg("Globe", 22) }),
+          el("span", { class: "settings-row-label" }, "Документация для разработчиков"),
+        ]),
         section("Новое приложение", [
           nameInput,
           redirectInput,
@@ -2333,6 +2539,18 @@ async function renderFolders(root) {
     render();
     await api.deleteFolder(folder.id);
   }
+  async function shareFolder(folder) {
+    const { folder: updated } = await api.createFolderInviteLink(folder.id);
+    folders = folders.map((f) => (f.id === folder.id ? updated : f));
+    if (editing?.id === folder.id) editing = updated;
+    render();
+  }
+  async function revokeFolderLink(folder) {
+    const { folder: updated } = await api.revokeFolderInviteLink(folder.id);
+    folders = folders.map((f) => (f.id === folder.id ? updated : f));
+    if (editing?.id === folder.id) editing = updated;
+    render();
+  }
 
   function render() {
     mount(
@@ -2366,6 +2584,25 @@ async function renderFolders(root) {
                   c.title,
                 ])
               ),
+              el("p", { class: "settings-field-label" }, "Поделиться папкой"),
+              el(
+                "p",
+                { class: "settings-toggle-hint" },
+                "В ссылку попадают только публичные чаты и каналы из этой папки — личные и закрытые группы не показываются."
+              ),
+              editing.inviteCode
+                ? el("div", { class: "referral-code-row" }, [
+                    el("span", { class: "mono" }, `${window.location.origin}/folder/${editing.inviteCode}`),
+                    el("button", {
+                      class: "icon-btn",
+                      title: "Скопировать",
+                      html: iconSvg("Copy", 16),
+                      onclick: () =>
+                        navigator.clipboard.writeText(`${window.location.origin}/folder/${editing.inviteCode}`).catch(() => {}),
+                    }),
+                    el("button", { class: "icon-btn danger", title: "Отозвать", html: iconSvg("Trash", 16), onclick: () => revokeFolderLink(editing) }),
+                  ])
+                : el("button", { class: "btn-accent-pill", onclick: () => shareFolder(editing) }, "Создать ссылку"),
             ])
           : null,
       ])

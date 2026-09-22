@@ -375,7 +375,13 @@ export function openEditChatDialog(chat, onSaved) {
               ]),
               Toggle(!!chat.signMessages, (v) => saveSetting({ signMessages: v })),
             ])
-          : null,
+          : el("div", { class: "create-chat-public" }, [
+              el("div", {}, [
+                el("p", { class: "settings-toggle-title" }, "Анонимные администраторы"),
+                el("p", { class: "settings-toggle-hint" }, "Владелец, админы и модераторы смогут писать от имени группы — участники увидят название и фото группы вместо автора."),
+              ]),
+              Toggle(!!chat.anonymousAdmins, (v) => saveSetting({ anonymousAdmins: v })),
+            ]),
         requests.length
           ? el("div", {}, [
               el("p", { class: "settings-field-label" }, `Заявки (${requests.length})`),

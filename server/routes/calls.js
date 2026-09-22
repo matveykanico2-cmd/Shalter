@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { listCalls, createCall, getCall, updateCall, addParticipant, setJoinToken, findCallByJoinToken, removeParticipant } = require("../data/calls");
+const { listCalls, createCall, getCall, updateCall, addParticipant, setJoinToken, findCallByJoinToken, removeParticipant, findActiveRoom } = require("../data/calls");
 const { getChat } = require("../data/chats");
 const { listUsersByIds, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
@@ -349,6 +349,81 @@ router.delete(
     broadcastToUsers([req.params.userId], { type: "call:updated", call: { ...updated, status: "ended" } });
     broadcastToUsers(updated.participantIds, { type: "call:participants-updated", call: updated });
     res.json({ call: updated });
+  })
+);
+
+// Постоянная голосовая комната группы — в отличие от звонка выше, никого не
+// вызывает: комната просто существует, пока в ней кто-то есть, и любой
+// участник группы заходит и выходит когда хочет, без ответа/отклонения.
+// Один и тот же call-объект и та же WebRTC-сигнализация (call:signal,
+// call:participants-updated), что и у обычного группового звонка — разница
+// только в том, как в него попадают.
+router.get(
+  "/room/:chatId",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.chatId);
+    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    const room = await findActiveRoom(req.params.chatId);
+    res.json({ call: room ?? null });
+  })
+);
+
+router.post(
+  "/room/:chatId/join",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.chatId);
+    if (!chat || !chat.memberIds.includes(req.uid) || chat.type !== "group") {
+      return res.status(404).json({ error: "not found" });
+    }
+
+    let room = await findActiveRoom(req.params.chatId);
+    if (!room) {
+      room = await createCall({
+        id: `cl_${Date.now()}`,
+        chatId: chat.id,
+        kind: "voice-room",
+        direction: "outgoing",
+        callerId: req.uid,
+        participantIds: [req.uid],
+        status: "ongoing",
+        startedAt: new Date().toISOString(),
+        durationSec: 0,
+      });
+    } else if (!room.participantIds.includes(req.uid)) {
+      room = await addParticipant(room.id, req.uid);
+    }
+
+    // Уже сидящие в комнате растят свою mesh-сетку до новичка — тот же
+    // механизм, что и у POST /:id/participants выше. Новичку при этом не
+    // шлётся "входящий звонок": он зашёл сам, звонить ему незачем.
+    broadcastToUsers(room.participantIds.filter((id) => id !== req.uid), { type: "call:participants-updated", call: room });
+    // Живой индикатор в шапке чата видят все в группе, даже те, кто не зашёл.
+    broadcastToUsers(chat.memberIds, { type: "voicechat:updated", chatId: chat.id, call: room });
+
+    res.json({ call: room });
+  })
+);
+
+router.post(
+  "/room/:chatId/leave",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.chatId);
+    if (!chat) return res.status(404).json({ error: "not found" });
+    const room = await findActiveRoom(req.params.chatId);
+    if (!room || !room.participantIds.includes(req.uid)) return res.json({ ok: true });
+
+    let updated = await removeParticipant(room.id, req.uid);
+    // Комната живёт, пока в ней кто-то есть — вышел последний, значит и
+    // комнаты больше нет.
+    if (!updated.participantIds.length) updated = await updateCall(room.id, { status: "ended" });
+
+    broadcastToUsers(updated.participantIds, { type: "call:participants-updated", call: updated });
+    broadcastToUsers(chat.memberIds, {
+      type: "voicechat:updated",
+      chatId: chat.id,
+      call: updated.status === "ongoing" ? updated : null,
+    });
+    res.json({ ok: true });
   })
 );
 

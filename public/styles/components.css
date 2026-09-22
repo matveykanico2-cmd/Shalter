@@ -2849,6 +2849,11 @@
 .composer-icon-btn.danger {
   color: var(--color-danger);
 }
+.composer-icon-btn.active {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  border-radius: 8px;
+}
 .composer-recording-preview {
   height: 36px;
   width: 36px;
@@ -3129,6 +3134,23 @@
   padding: 10px 12px;
   margin-bottom: 4px;
   color: var(--color-accent);
+}
+.location-attachment.live {
+  border: 1px solid var(--color-accent);
+}
+.location-attachment.live .location-coords::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: #e0433b;
+  animation: location-live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes location-live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 .location-coords {
   font-size: 11px;
@@ -5171,6 +5193,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   border-radius: 10px;
   border: 1px dashed var(--color-border);
@@ -5181,6 +5204,14 @@
   font-size: 20px;
   font-weight: 600;
   letter-spacing: 0.2em;
+}
+/* A referral code is short and never wraps, but this row is reused for
+   OAuth client_id/client_secret (Settings → «Войти через Shalter») — long
+   unbroken hex strings with no natural break point, which overflowed the
+   row and the page with it (same fix as .bot-token-value below). */
+.referral-code-row > span.mono {
+  min-width: 0;
+  word-break: break-all;
 }
 .bot-token-value {
   font-size: 13px;
@@ -5955,6 +5986,11 @@
 }
 .settings-device-body p {
   margin: 0;
+}
+/* Same overflow as .referral-code-row above — client_id/redirect_uri lines
+   on the OAuth apps list are long unbroken strings. */
+.settings-device-body p.mono {
+  word-break: break-all;
 }
 .settings-device-name {
   font-weight: 500;

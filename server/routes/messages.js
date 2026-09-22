@@ -4,7 +4,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { getChat, findChannelByDiscussionChatId } = require("../data/chats");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 const { sanitizeSticker } = require("../lib/sanitizeSticker");
-const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, markChatRead, setLinkPreview, setAttachmentPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
+const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, markChatRead, setLinkPreview, updateLiveLocation, setAttachmentPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
 const { getUser, findUserIdsByUsernames } = require("../data/users");
 const { transferStars, balanceOf } = require("../data/stars");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
@@ -18,6 +18,7 @@ const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
 const { dispatchHugo } = require("../lib/hugoBot");
 const { dispatchHelperBot } = require("../lib/helperBot");
+const { dispatchBusinessAutoReply } = require("../lib/businessAutoReply");
 const { can, DENIED, isStaff } = require("../lib/chatPermissions");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser, MESSAGE_PUSH } = require("../push");
@@ -311,6 +312,12 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
     sticker: sanitizeSticker(body.sticker),
     readByIds: [senderId],
     paidStars,
+    // "Отправить от имени группы" — re-checked server-side, not trusted from
+    // the client: only staff, only in a group that turned the option on
+    // (chats.anonymousAdmins, /:id/settings). A stray `anonymous: true` from
+    // an ordinary member or in a chat where it's off is silently dropped
+    // rather than rejecting the whole send.
+    anonymous: !!(body.anonymous && chat.type === "group" && chat.anonymousAdmins && isStaff(chat, senderId)),
   });
 
   // Кто вправе скачать приложенные файлы: те, кто в этом чате. Записывается
@@ -365,6 +372,10 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   // The slash-command bot (lib/helperBot.js) — works in any chat, unlike
   // Hugo above, which only answers inside the one-to-one support chat.
   dispatchHelperBot(chat, message);
+
+  // Shalter для бизнеса — greeting/away auto-reply, sent as the recipient
+  // themself (not a bot) when they have it configured and active.
+  dispatchBusinessAutoReply(chat, message);
 
   // A comment on a channel post is just a reply to that post's auto-forwarded
   // anchor copy in the linked discussion chat (see server/routes/posts.js) —
@@ -555,6 +566,27 @@ router.post(
 
     const message = await deliverMessage(chat, req.uid, body, { paidStars: charged });
     res.json({ message, ...(charged ? { chargedStars: charged, balance: balanceOf(req.uid) } : {}) });
+  })
+);
+
+// Живая геолокация — периодический пинг координат, пока не истекло
+// meta.expiresAt (composer.js's lib/liveLocation.js вызывает это раз в
+// несколько секунд, пока делится местоположением). updateLiveLocation сама
+// сверяет отправителя и срок — здесь только проверка членства в чате.
+router.post(
+  "/:messageId/location",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+
+    const lat = Number(req.body?.lat);
+    const lng = Number(req.body?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return res.status(400).json({ error: "invalid coordinates" });
+
+    const message = await updateLiveLocation(req.params.messageId, req.uid, lat, lng);
+    if (!message) return res.status(404).json({ error: "not found" });
+    broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message });
+    res.json({ message });
   })
 );
 

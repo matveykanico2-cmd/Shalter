@@ -111,6 +111,28 @@ const DEFAULT_SETTINGS = {
   // пишется только по одному этому аккаунту — тот же формат, что и у всего
   // остального здесь, а не отдельная таблица.
   holidays: { disabled: [], custom: [] },
+  // Shalter для бизнеса (Настройки → Shalter для бизнеса, только пока
+  // users.isBusiness активен — см. server/routes/business.js). Часы работы,
+  // приветствие/автоответ и быстрые ответы — личная настройка, никогда не
+  // читается по чужому профилю (в отличие от businessAddress на самом
+  // пользователе, который виден всем). `hours` держит только время: реальная
+  // проверка "сейчас рабочее время или нет" делает lib/businessAutoReply.js
+  // по часовому поясу сервера — без отдельного поля таймзоны на аккаунт.
+  business: {
+    enabled: false,
+    hours: {
+      mon: { closed: false, open: "09:00", close: "18:00" },
+      tue: { closed: false, open: "09:00", close: "18:00" },
+      wed: { closed: false, open: "09:00", close: "18:00" },
+      thu: { closed: false, open: "09:00", close: "18:00" },
+      fri: { closed: false, open: "09:00", close: "18:00" },
+      sat: { closed: true, open: "09:00", close: "18:00" },
+      sun: { closed: true, open: "09:00", close: "18:00" },
+    },
+    greeting: { enabled: false, text: "" },
+    away: { enabled: false, text: "" },
+    quickReplies: [],
+  },
 };
 
 async function getSettings(userId) {

@@ -401,6 +401,10 @@ router.post(
     const patch = {};
     if ("approveJoins" in (req.body ?? {})) patch.approveJoins = !!req.body.approveJoins;
     if ("signMessages" in (req.body ?? {})) patch.signMessages = !!req.body.signMessages;
+    // Разрешает штатным (владелец/админ/модератор) отправлять от имени
+    // группы (message.anonymous, см. routes/messages.js) — только для групп,
+    // у канала свой похожий, но противоположный по смыслу signMessages выше.
+    if ("anonymousAdmins" in (req.body ?? {}) && chat.type === "group") patch.anonymousAdmins = !!req.body.anonymousAdmins;
     if (!Object.keys(patch).length) return res.status(400).json({ error: "Нечего менять" });
     const updated = await updateChat(chat.id, patch);
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });

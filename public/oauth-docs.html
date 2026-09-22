@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Войти через Shalter — документация</title>
+<meta name="description" content="Документация OAuth-входа «Войти через Shalter»: регистрация приложения, поток авторизации, обмен кода на токен, /userinfo, перевыпуск и удаление секрета." />
+<meta name="theme-color" content="#2e56d9" />
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Войти через Shalter" />
+<meta property="og:description" content="OAuth-вход через Shalter для стороннего сайта — как «Войти через VK»." />
+<meta property="og:image" content="/icons/apple-touch-icon.png" />
+<link rel="stylesheet" href="/styles/base.css" />
+<link rel="stylesheet" href="/styles/bots.css" />
+</head>
+<body>
+<div class="doc-page">
+
+  <header class="doc-top">
+    <span class="doc-top-logo">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.05 8.72L18.6 6.14L16.7 15.6L3.6 15.75Z"/><path fill="currentColor" opacity="0.5" d="M18.6 6.14L11.7 11L16.7 15.6Z"/><path fill="currentColor" opacity="0.75" d="M6.3 15.75L10 15.9L6.5 20.5Z"/></svg>
+    </span>
+    <span>
+      <div class="doc-top-title">Войти через Shalter</div>
+      <div class="doc-top-sub">Документация для разработчиков</div>
+    </span>
+    <span class="doc-top-spacer"></span>
+    <a class="doc-top-link" href="/">Открыть Shalter</a>
+  </header>
+
+  <div class="doc-shell">
+    <nav class="doc-nav">
+      <h4>Начало</h4>
+      <a href="#index">Все методы</a>
+      <a href="#idea">Как это работает</a>
+      <a href="#app">Регистрация приложения</a>
+      <a href="#quickstart">Быстрый старт</a>
+      <h4>Поток авторизации</h4>
+      <a href="#authorize">Шаг 1 — /oauth/authorize</a>
+      <a href="#token">Шаг 2 — POST /token</a>
+      <a href="#userinfo">Шаг 3 — GET /userinfo</a>
+      <h4>Управление приложением</h4>
+      <a href="#manage">Смотреть / удалить</a>
+      <a href="#regenerate">Перевыпуск секрета</a>
+      <h4>Справка</h4>
+      <a href="#security">Безопасность</a>
+      <a href="#errors">Ошибки</a>
+      <a href="#objects">Объекты</a>
+    </nav>
+
+    <main class="doc-body">
+      <section class="doc-hero">
+        <h1>Войти через Shalter</h1>
+        <p>
+          Небольшой OAuth-поток authorization-code — тот же смысл, что у «Войти через VK» или
+          «Sign in with Google»: человек подтверждает вход в один клик, а ваш сайт получает его открытый
+          профиль (id, имя, юзернейм, аватар) и ничего больше.
+        </p>
+      </section>
+
+      <h2 id="index">Все методы</h2>
+      <table class="doc-table doc-index">
+        <tbody>
+        <tr><th colspan="2" class="doc-index-group">Управление приложением (нужна сессия Shalter)</th></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/api/oauth/apps</code></td><td>список ваших приложений</td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/api/oauth/apps</code></td><td>зарегистрировать приложение</td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/api/oauth/apps/:id/regenerate</code></td><td>перевыпустить секрет</td></tr>
+        <tr><td><span class="doc-verb">DELETE</span> <code>/api/oauth/apps/:id</code></td><td>удалить приложение</td></tr>
+        <tr><th colspan="2" class="doc-index-group">Поток входа</th></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/oauth/authorize</code></td><td>страница согласия (открывает браузер человека)</td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/api/oauth/token</code></td><td>код → access_token (сервер-сервер)</td></tr>
+        <tr><td><span class="doc-verb">GET</span> <code>/api/oauth/userinfo</code></td><td>профиль по токену</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="idea">Как это работает</h2>
+      <p>Три действующих лица: человек (в браузере), ваш сайт (браузер + свой сервер) и Shalter.</p>
+      <ol>
+        <li>Человек нажимает «Войти через Shalter» на вашем сайте — браузер уходит на <code>/oauth/authorize</code>.</li>
+        <li>Shalter показывает свою страницу согласия. Человек подтверждает — браузер возвращается на ваш <code>redirect_uri</code> с одноразовым кодом.</li>
+        <li>Ваш <strong>сервер</strong> (не браузер) меняет код на <code>access_token</code>, назвав секрет приложения — секрет никогда не должен попадать в код браузера.</li>
+        <li>Токеном сервер запрашивает <code>/userinfo</code> и узнаёт, кто вошёл.</li>
+      </ol>
+      <div class="doc-note">
+        Намеренно минимально: один тип гранта (authorization code), без refresh-токенов и без scope —
+        приложение получает ровно одно: открытый профиль. Ничего личного (телефон, переписку, звёзды) через
+        этот вход получить нельзя.
+      </div>
+
+      <h2 id="app">Регистрация приложения</h2>
+      <p>
+        Настройки → <strong>Войти через Shalter</strong> → «Создать приложение». Укажите имя и
+        <code>redirect_uri</code> — адрес на вашем сайте, куда Shalter вернёт человека после входа
+        (<code>https://</code>, для разработки можно <code>http://localhost</code>).
+      </p>
+      <p>В ответ приложение получает пару ключей:</p>
+      <table class="doc-table">
+        <thead><tr><th>Поле</th><th>Где используется</th></tr></thead>
+        <tbody>
+          <tr><td><code>client_id</code></td><td>публичный — идёт прямо в ссылку входа, виден всем</td></tr>
+          <tr><td><code>client_secret</code></td><td>секретный — только на вашем сервере, для <code>POST /token</code></td></tr>
+        </tbody>
+      </table>
+      <div class="doc-note danger">
+        <strong><code>client_secret</code> показывается один раз</strong> — при создании (и при перевыпуске).
+        Shalter не хранит его в виде, который можно посмотреть повторно. Потеряли — перевыпустите
+        (см. ниже): <code>client_id</code> и <code>redirect_uri</code> при этом не меняются, ссылка входа
+        останется рабочей.
+      </div>
+
+      <h2 id="quickstart">Быстрый старт</h2>
+      <p>Ссылка входа на вашей странице:</p>
+      <pre><code>https://ваш-сайт.example/login?redirect=/account</code></pre>
+      <pre><code>&lt;a href="https://shalter.ru/oauth/authorize?client_id=ВАШ_CLIENT_ID&amp;redirect_uri=https://ваш-сайт.example/callback&amp;state=xyz"&gt;
+  Войти через Shalter
+&lt;/a&gt;</code></pre>
+      <p>На вашем сервере, в обработчике <code>/callback</code>:</p>
+      <pre><code>const CLIENT_ID = process.env.SHALTER_CLIENT_ID;
+const CLIENT_SECRET = process.env.SHALTER_CLIENT_SECRET;
+const API = "https://shalter.ru/api/oauth";
+
+app.get("/callback", async (req, res) =&gt; {
+  const { code } = req.query;
+
+  const tokenRes = await fetch(`${API}/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      code,
+      redirect_uri: "https://ваш-сайт.example/callback",
+    }),
+  });
+  const { access_token, user } = await tokenRes.json();
+
+  // user уже пришёл вместе с токеном — второй запрос за профилем не обязателен.
+  // Дальше — заводите свою сессию для user.id, как для любого другого входа.
+  req.session.userId = user.id;
+  res.redirect("/account");
+});</code></pre>
+
+      <h2 id="authorize">Шаг 1 — /oauth/authorize</h2>
+      <p>Обычная страница, не JSON-эндпоинт — открывается прямо в браузере человека.</p>
+      <table class="doc-table">
+        <thead><tr><th>Параметр</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td><code>client_id</code></td><td>обязателен</td></tr>
+          <tr><td><code>redirect_uri</code></td><td>обязателен, должен буква-в-букву совпадать с зарегистрированным</td></tr>
+          <tr><td><code>state</code></td><td>необязателен — вернётся в query нетронутым, для защиты от CSRF/сверки сессии</td></tr>
+        </tbody>
+      </table>
+      <p>После подтверждения браузер уходит на:</p>
+      <pre><code>https://ваш-сайт.example/callback?code=...&amp;state=xyz</code></pre>
+
+      <h2 id="token">Шаг 2 — POST /api/oauth/token</h2>
+      <p>Только сервер-сервер — секрет сюда, в браузер никогда.</p>
+      <pre><code>curl -X POST https://shalter.ru/api/oauth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "...",
+    "client_secret": "...",
+    "code": "...",
+    "redirect_uri": "https://ваш-сайт.example/callback"
+  }'</code></pre>
+      <p>Ответ:</p>
+      <pre><code>{
+  "access_token": "...",
+  "token_type": "bearer",
+  "user": { "id": "u_...", "name": "Аня", "username": "anna_k", "avatarImage": "..." }
+}</code></pre>
+      <p>Код одноразовый и живёт 5 минут — используйте сразу после редиректа.</p>
+
+      <h2 id="userinfo">Шаг 3 — GET /api/oauth/userinfo</h2>
+      <p>Проверить токен ещё раз (например, при следующем визите, без нового входа) — та же форма профиля:</p>
+      <pre><code>curl https://shalter.ru/api/oauth/userinfo \
+  -H "Authorization: Bearer ВАШ_ACCESS_TOKEN"</code></pre>
+      <pre><code>{ "id": "u_...", "name": "Аня", "username": "anna_k", "avatarImage": "..." }</code></pre>
+
+      <h2 id="manage">Смотреть / удалить</h2>
+      <p>
+        Настройки → «Войти через Shalter» показывает список ваших приложений (имя, <code>client_id</code>,
+        <code>redirect_uri</code>) — <code>client_secret</code> там не появляется повторно, см. выше.
+        Удаление приложения сразу отзывает все выданные им токены — те, кто входил через него, будут
+        отключены при следующей проверке.
+      </p>
+
+      <h2 id="regenerate">Перевыпуск секрета</h2>
+      <p>
+        Кнопка с ключом рядом с приложением. Выдаёт новый <code>client_secret</code> (показывается один раз,
+        как при создании) и сразу делает старый недействительным — обновите его на своём сервере, иначе
+        обмен кода на токен начнёт отвечать <code>invalid_client</code>. <code>client_id</code> и
+        <code>redirect_uri</code> не меняются, ссылка входа остаётся рабочей.
+      </p>
+
+      <h2 id="security">Безопасность</h2>
+      <ul>
+        <li><code>client_secret</code> — только на вашем сервере. Утёк — сразу перевыпускайте.</li>
+        <li><code>redirect_uri</code> сверяется буква-в-букву на каждом шаге — заранее зарегистрируйте точный адрес.</li>
+        <li>Проверяйте <code>state</code> на своей стороне, если полагаетесь на него для защиты от CSRF.</li>
+        <li>Токен даёт доступ только к <code>/userinfo</code> — им нельзя читать чаты, отправлять сообщения или менять профиль.</li>
+      </ul>
+
+      <h2 id="errors">Ошибки</h2>
+      <table class="doc-table">
+        <thead><tr><th>Ответ</th><th>Причина</th></tr></thead>
+        <tbody>
+          <tr><td><code>401 invalid_client</code></td><td><code>client_id</code>/<code>client_secret</code> не совпадают — секрет мог быть перевыпущен</td></tr>
+          <tr><td><code>400 invalid_grant</code></td><td>код уже использован, истёк (5 минут) или выдан для другого <code>redirect_uri</code></td></tr>
+          <tr><td><code>401 invalid_token</code></td><td><code>access_token</code> неверен или приложение, выдавшее его, удалено</td></tr>
+          <tr><td><code>404</code> на <code>/oauth/authorize</code></td><td><code>client_id</code> не найден или <code>redirect_uri</code> не совпадает с зарегистрированным</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="objects">Объекты</h2>
+      <h3>User (публичный профиль)</h3>
+      <table class="doc-table">
+        <thead><tr><th>Поле</th><th>Тип</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td>id</td><td>строка</td><td>Идентификатор аккаунта Shalter — используйте как внешний ключ у себя.</td></tr>
+          <tr><td>name</td><td>строка</td><td>Имя.</td></tr>
+          <tr><td>username</td><td>строка или null</td><td>Юзернейм без @, если задан.</td></tr>
+          <tr><td>avatarImage</td><td>строка или null</td><td>Готовая ссылка на аватар (или data:-URL).</td></tr>
+        </tbody>
+      </table>
+
+      <p class="doc-foot">
+        Адрес API на этом развёртывании — <code>/api/oauth</code> от корня сайта.
+        Управление приложениями — в Shalter, Настройки → «Войти через Shalter».
+      </p>
+    </main>
+  </div>
+</div>
+</body>
+</html>

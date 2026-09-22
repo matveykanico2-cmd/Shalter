@@ -416,6 +416,12 @@ export async function openProfileDialog(userId) {
       user.phone
         ? el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("Phone", 15) }), el("span", { class: "mono" }, user.phone)])
         : null,
+      // Shalter для бизнеса — publicUser() отдаёт это поле как есть, только
+      // если человек его сам заполнил (см. server/data/users.js), поэтому
+      // isBusiness здесь скорее для порядка: пустое поле и так не покажется.
+      user.isBusiness && user.businessAddress
+        ? el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("MapPin", 15) }), el("span", {}, user.businessAddress)])
+        : null,
       user.birthday
         ? el("div", { class: "profile-field-row" }, [
             el("span", {}, "🎂"),

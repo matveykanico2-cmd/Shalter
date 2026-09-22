@@ -217,7 +217,7 @@ let unsubParticipants = null;
 let pollTimer = null;
 let ticker = null;
 
-async function join({ call, chatTitle, chatType, participants, me }) {
+async function join({ call, chatTitle, chatType, participants, me, isRoom = false }) {
   const others = participants.filter((p) => p.id !== me.id);
   state = {
     call,
@@ -225,6 +225,7 @@ async function join({ call, chatTitle, chatType, participants, me }) {
     chatType,
     others,
     me,
+    isRoom,
     phase: "ringing",
     elapsed: 0,
     // Таймер «никто не ответил» заводится вместе со звонком — см. armNoAnswerTimer.
@@ -259,13 +260,15 @@ async function join({ call, chatTitle, chatType, participants, me }) {
   // getUserMedia permission prompt that follows, so it adds no perceptible
   // delay.
   iceServers = await fetchIceServers();
+  // Голосовая комната никого не вызывает — ни гудка, ни таймера "не ответили":
+  // заходят туда сами, отвечать там некому.
   // Only the caller hears a ringback — the callee already decided to join by
   // clicking "Accept" (see incomingCallWatcher.js, which rings *before* that).
-  if (call.callerId === me.id) startRingback();
+  if (!isRoom && call.callerId === me.id) startRingback();
   // Ждём ответа ограниченное время: не ответили — кладём трубку сами. Заводим
   // только у звонящего; у принимающего звонок и так либо соединится, либо
   // закончится по сигналу с той стороны.
-  if (call.callerId === me.id) armNoAnswerTimer();
+  if (!isRoom && call.callerId === me.id) armNoAnswerTimer();
 
   ticker = setInterval(() => {
     if (state && state.phase === "connected") {
@@ -374,7 +377,15 @@ export async function joinCallById(callId, me) {
   if (state && state.call.id === callId) return; // already joined (e.g. answered from notification)
   const { calls } = await api.listCalls();
   const call = calls.find((c) => c.id === callId);
-  if (!call) return;
+  // "ongoing" is the only non-final status (see server/data/calls.js) — a
+  // finished call still shows up in listCalls() for history, and the browser
+  // Back button can land here on that same /call/:id URL after the call
+  // already ended (see hangup()/endLocally() below, which now replace that
+  // history entry — this check is the other half of the fix, for whoever
+  // still has the old entry cached, or reaches this URL some other way).
+  // Without it, this used to open a dead call: it'd send offers to a peer
+  // who's long gone and just sit there, unconnectable, until closed by hand.
+  if (!call || call.status !== "ongoing") return;
   let chatTitle = "Звонок";
   let chatType = "dm";
   let participants;
@@ -394,6 +405,19 @@ export async function joinCallById(callId, me) {
     participants = users.filter(Boolean);
   }
   await join({ call, chatTitle, chatType, participants, me });
+}
+
+// Войти в постоянную голосовую комнату группы (server/routes/calls.js's
+// /room/:chatId/join) — комната заводится сама при первом входе, дальше
+// каждый следующий просто подключается к идущей. В отличие от placeCall,
+// никого не вызывает: isRoom отключает гудок и таймер "не ответили" в join().
+export async function joinVoiceRoom(chatId, me) {
+  if (state && state.call.chatId === chatId && state.isRoom) return; // уже внутри
+  const { call } = await api.joinVoiceRoom(chatId);
+  const { chat, members } = await api.getChat(chatId);
+  const participants = await resolveParticipants(call, members);
+  await join({ call, chatTitle: chat.title, chatType: chat.type, participants, me, isRoom: true });
+  navigate(`/call/${call.id}`);
 }
 
 // Premium's "invite by link" (see server/routes/calls.js's /:id/invite-link)
@@ -556,7 +580,10 @@ function endLocally() {
     // положил трубку сам. Раньше здесь этого не было: у второй стороны звонок
     // заканчивался, а экран с ним оставался на месте, и выйти можно было
     // только через «назад». Секунда на надпись «Звонок завершён» — и в чат.
-    if (wasOnCallScreen && chatId) navigate(`/chat/${chatId}`);
+    // replace, not push — otherwise the just-ended call's /call/:id URL stays
+    // one Back-press away, and pressing Back would try to rejoin a call that
+    // no longer exists (see joinCallById's status guard for the other half).
+    if (wasOnCallScreen && chatId) navigate(`/chat/${chatId}`, { replace: true });
   }, 600);
 }
 
@@ -591,16 +618,26 @@ export async function hangup() {
   // первом гудке. В журнале это выглядело как состоявшийся звонок нулевой
   // длины, и отличить «не дозвонился» от «поговорили» было нельзя.
   const answered = state.phase === "connected";
-  await api
-    .patchCall(call.id, { status: answered ? "completed" : "missed", durationSec: answered ? elapsed : 0 })
-    .catch(() => {});
   const chatId = call.chatId;
+  if (state.isRoom) {
+    // Кто-то один вышел из комнаты — она не заканчивается для остальных
+    // (в отличие от обычного PATCH статуса ниже, который завершил бы её у
+    // всех). server/routes/calls.js's /room/:chatId/leave сам решает, гасить
+    // ли комнату целиком, если это был последний.
+    await api.leaveVoiceRoom(chatId).catch(() => {});
+  } else {
+    await api
+      .patchCall(call.id, { status: answered ? "completed" : "missed", durationSec: answered ? elapsed : 0 })
+      .catch(() => {});
+  }
   cleanupSubscriptions();
   state.peers.forEach((pc) => pc.close());
   state.localStream?.getTracks().forEach((t) => t.stop());
   state = null;
   notify();
-  navigate(`/chat/${chatId}`);
+  // Same reasoning as endLocally() above: replace, so the ended call's
+  // /call/:id entry doesn't linger in history for Back to return to.
+  navigate(`/chat/${chatId}`, { replace: true });
 }
 
 export async function decline(call) {
