@@ -1,3 +1,6 @@
+import { el } from "./dom.js";
+import { renderScene } from "./animScenes.js";
+
 // A curated "sticker" catalog — big animated emoji sent as their own message
 // (see components/messageBubble.js's StickerMessage), each with its own
 // motion so the set doesn't feel like one animation reused 30 times (same
@@ -54,4 +57,25 @@ export const STICKERS = [
 
 export function getSticker(id) {
   return STICKERS.find((s) => s.id === id);
+}
+
+// Стикер как картинка на экране — одним способом везде: в сообщении, в выборе
+// стикеров и в редакторе паков. Два вида:
+//
+// - эмодзи со сценой (встроенные и старые свои паки) — анимация из
+//   lib/animScenes.js;
+// - своя картинка (kind: "image") — фото, PNG без фона или GIF. Показывается
+//   как есть, без подложки: прозрачное остаётся прозрачным, GIF двигается.
+export function renderSticker(s, { size = 30, replay = false } = {}) {
+  if (s?.kind === "image") {
+    return el("img", {
+      class: "sticker-image",
+      src: s.url,
+      alt: s.name || "стикер",
+      loading: "lazy",
+      draggable: false,
+      style: { width: `${size}px`, height: `${size}px` },
+    });
+  }
+  return renderScene(s.emoji, { size, preferred: s.scene, replay });
 }

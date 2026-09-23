@@ -1,14 +1,17 @@
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
-import { renderScene, SCENES } from "../lib/animScenes.js";
+import { SCENES } from "../lib/animScenes.js";
+import { renderSticker } from "../lib/stickers.js";
+import { prepareStickerImage } from "../lib/image.js";
+import { uploadFile } from "../lib/upload.js";
 
 // Building and editing your own sticker packs.
 //
-// A sticker here is an emoji plus an optional named scene (lib/animScenes.js) —
-// the same performances the built-in stickers use, so a pack someone assembles
-// animates exactly like the shipped ones rather than being a second-class
-// static thing.
+// Стикер в своём паке — одно из двух:
+// - эмодзи со сценой (lib/animScenes.js) — те же анимации, что у встроенных;
+// - своя картинка: фото, PNG без фона (фон так и остаётся прозрачным) или GIF
+//   (двигается). Готовится в lib/image.js's prepareStickerImage.
 const SCENE_CHOICES = [{ id: "", label: "Авто" }, ...Object.keys(SCENES).map((id) => ({ id, label: id.replace(/_/g, " ") }))];
 
 export function openStickerPackDialog(onChanged) {
@@ -17,6 +20,8 @@ export function openStickerPackDialog(onChanged) {
   let draft = { name: "", stickers: [] };
   let error = null;
   let busy = false;
+  // Сколько картинок сейчас загружается в пак.
+  let uploadingCount = 0;
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const bodyEl = el("div", { class: "sticker-pack-body" });
@@ -111,6 +116,46 @@ export function openStickerPackDialog(onChanged) {
       SCENE_CHOICES.map((c) => el("option", { value: c.id }, c.label))
     );
 
+    // Сразу несколько картинок — пак из десятка своих фото не должен
+    // собираться десятью заходами в проводник.
+    const imageInput = el("input", {
+      type: "file",
+      accept: "image/*",
+      multiple: true,
+      class: "hidden-input",
+      onchange: async (e) => {
+        const files = [...(e.target.files ?? [])];
+        e.target.value = "";
+        if (!files.length) return;
+        error = null;
+        uploadingCount += files.length;
+        render();
+        // Загружаются параллельно, а в пак встают в том порядке, в каком их
+        // выбрали, — не в том, в каком какая успела догрузиться.
+        const results = await Promise.all(
+          files.map(async (file) => {
+            try {
+              const { file: prepared, animated } = await prepareStickerImage(file);
+              const { url } = await uploadFile(prepared, "image");
+              return { sticker: { kind: "image", url, name: "", ...(animated ? { animated: true } : {}) } };
+            } catch (err) {
+              return { error: err.message || "Не удалось добавить картинку" };
+            } finally {
+              uploadingCount--;
+              render();
+            }
+          })
+        );
+        for (const r of results) if (r.sticker) draft.stickers.push(r.sticker);
+        const failures = results.filter((r) => r.error).map((r) => r.error);
+        render();
+        if (failures.length) {
+          error = failures.length === files.length ? failures[0] : `Добавлено ${files.length - failures.length} из ${files.length}: ${failures[0]}`;
+          render();
+        }
+      },
+    });
+
     function addSticker() {
       const emoji = emojiInput.value.trim();
       if (!emoji) return;
@@ -129,7 +174,7 @@ export function openStickerPackDialog(onChanged) {
             { class: "sticker-pack-grid" },
             draft.stickers.map((s, i) =>
               el("div", { class: "sticker-pack-cell" }, [
-                renderScene(s.emoji, { size: 40, preferred: s.scene, replay: false }),
+                renderSticker(s, { size: 40 }),
                 el("button", {
                   class: "sticker-pack-remove",
                   title: "Убрать",
@@ -142,11 +187,22 @@ export function openStickerPackDialog(onChanged) {
               ])
             )
           )
-        : el("p", { class: "moderation-empty" }, "Пока пусто — добавьте эмодзи ниже"),
+        : el("p", { class: "moderation-empty" }, "Пока пусто — добавьте картинки или эмодзи ниже"),
+      el("button", {
+        class: "profile-action-btn sticker-add-image-btn",
+        disabled: uploadingCount > 0,
+        onclick: () => imageInput.click(),
+      }, uploadingCount > 0 ? `Загружаем… (${uploadingCount})` : "Добавить фото, PNG без фона или GIF"),
+      imageInput,
+      el("p", { class: "settings-field-label" }, "Или эмодзи с анимацией"),
       el("div", { class: "sticker-add-row" }, [emojiInput, labelInput]),
       el("div", { class: "sticker-add-row" }, [sceneSelect, el("button", { class: "btn-accent-pill", onclick: addSticker }, "Добавить")]),
       error ? el("p", { class: "login-error" }, error) : null,
-      el("button", { class: "btn-accent", disabled: busy, onclick: save }, busy ? "Сохраняем…" : editing.id ? "Сохранить" : "Создать пак"),
+      el(
+        "button",
+        { class: "btn-accent", disabled: busy || uploadingCount > 0, onclick: save },
+        busy ? "Сохраняем…" : editing.id ? "Сохранить" : "Создать пак"
+      ),
       el("button", { class: "modal-cancel", onclick: () => { editing = null; error = null; render(); } }, "Назад"),
     ].filter(Boolean);
   }
@@ -166,7 +222,7 @@ export function openStickerPackDialog(onChanged) {
                     el(
                       "span",
                       { class: "sticker-pack-preview" },
-                      p.stickers.slice(0, 4).map((s) => renderScene(s.emoji, { size: 22, preferred: s.scene, replay: false }))
+                      p.stickers.slice(0, 4).map((s) => renderSticker(s, { size: 22 }))
                     ),
                     el("span", { class: "sticker-pack-meta" }, [
                       el("span", { class: "sticker-pack-name" }, p.name),

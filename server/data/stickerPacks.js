@@ -1,4 +1,5 @@
 const db = require("../db");
+const { sanitizeSticker } = require("../lib/sanitizeSticker");
 
 // User-made sticker packs. The built-in set stays in the client
 // (public/js/lib/stickers.js) — it ships with the app and never changes at
@@ -24,22 +25,17 @@ function rowToPack(row) {
 
 // Trusted nowhere: a pack is user-authored content that ends up rendered in
 // other people's chats, so the shape is pinned down here rather than wherever it
-// happens to be displayed. `scene` names an animation in the client's own scene
-// table (public/js/lib/animScenes.js) and is restricted to a plain identifier so
-// it can't escape into the class attribute as anything else.
+// happens to be displayed. Тот же разбор, что и у отправленного стикера
+// (lib/sanitizeSticker.js): стикер из пака уходит в чат как есть, и два разных
+// правила для одного и того же рано или поздно разъехались бы.
 function sanitizeStickers(input) {
   if (!Array.isArray(input)) return [];
-  const out = [];
-  for (const s of input.slice(0, MAX_STICKERS)) {
-    const emoji = String(s?.emoji ?? "").trim().slice(0, 8);
-    if (!emoji) continue;
-    out.push({
-      emoji,
-      name: String(s?.name ?? "").trim().slice(0, 40),
-      ...(typeof s?.scene === "string" && /^[a-z0-9_]{1,32}$/.test(s.scene) ? { scene: s.scene } : {}),
-    });
-  }
-  return out;
+  return input
+    .slice(0, MAX_STICKERS)
+    .map((s) => sanitizeSticker(s))
+    .filter(Boolean)
+    // anim у своих паков не бывает — это только встроенный набор.
+    .map(({ anim: _anim, ...rest }) => rest);
 }
 
 function listPacksFor(ownerId) {

@@ -12614,3 +12614,29 @@
 .story-editor-done {
   width: min(88vw, 320px);
 }
+
+/* Свои стикеры-картинки (lib/stickers.js's renderSticker): фото, PNG без фона,
+   GIF. Без подложки и рамки — прозрачное остаётся прозрачным. contain, а не
+   cover: стикер не обрезается, какой бы формы ни был. */
+.sticker-image {
+  display: block;
+  object-fit: contain;
+  background: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.sticker-message.is-image .sticker-image {
+  max-width: min(160px, 50vw);
+  height: auto !important;
+  max-height: 160px;
+  animation: sticker-pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.sticker-message.is-image.no-entrance .sticker-image {
+  animation: none;
+}
+.sticker-picker-item.is-image {
+  padding: 2px;
+}
+.sticker-add-image-btn {
+  width: 100%;
+}

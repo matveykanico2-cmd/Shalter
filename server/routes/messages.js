@@ -324,6 +324,8 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   // здесь, на доставке, — в момент, когда вложение впервые появляется в
   // переписке (см. lib/uploadAccess.js).
   registerAttachments(chat.id, message.attachments);
+  // Стикер-картинка — такой же файл из переписки, как вложение.
+  if (message.sticker?.kind === "image") registerAttachments(chat.id, [{ url: message.sticker.url }]);
 
   if (message.threadRootId) {
     // A thread reply never shows in the main timeline (listMessages()

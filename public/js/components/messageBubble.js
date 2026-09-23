@@ -9,7 +9,7 @@ import { openProfileDialog } from "./profileDialog.js";
 import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard, LocationAttachment } from "./attachments.js";
 import { transcribeAudio, transcriptCache } from "../lib/transcribe.js";
 import { getState, setState } from "../state.js";
-import { renderScene } from "../lib/animScenes.js";
+import { renderSticker } from "../lib/stickers.js";
 import { renderGiftArt } from "../lib/giftTraits.js";
 import { openStarsDialog } from "./starsDialog.js";
 import { navigate } from "../router.js";
@@ -199,8 +199,10 @@ function StickerBody(message) {
   // A multi-part scene rather than one wobbling emoji — see lib/animScenes.js.
   // `sticker.scene` lets a sticker pack name the performance explicitly;
   // without one the emoji picks its own.
-  return el("div", { class: `sticker-message ${isNew ? "" : "no-entrance"}` }, [
-    renderScene(sticker.emoji, { size: 84, preferred: sticker.scene, replay: isNew }),
+  return el("div", { class: `sticker-message ${sticker.kind === "image" ? "is-image" : ""} ${isNew ? "" : "no-entrance"}` }, [
+    // Своя картинка (фото, PNG без фона, GIF) — крупнее эмодзи-сцены: у неё
+    // бывают подробности, которые на 84 точках не разглядеть.
+    renderSticker(sticker, { size: sticker.kind === "image" ? 160 : 84, replay: isNew }),
   ]);
 }
 

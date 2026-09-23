@@ -9,8 +9,7 @@ import { openPollDialog } from "./pollDialog.js";
 import { openMemeDialog } from "./memeDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openScheduleSendDialog } from "./scheduleSendDialog.js";
-import { STICKERS, DRAWN_STICKERS } from "../lib/stickers.js";
-import { renderScene } from "../lib/animScenes.js";
+import { STICKERS, DRAWN_STICKERS, renderSticker } from "../lib/stickers.js";
 import { openStickerPackDialog } from "./stickerPackDialog.js";
 import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
 import { startLiveLocationSharing } from "../lib/liveLocation.js";
@@ -738,7 +737,12 @@ export function Composer({
     function sendSticker(s) {
       stickerMenuEl?.remove();
       stickerMenuEl = null;
-      onSend("", [], { sticker: { emoji: s.emoji, name: s.name, anim: s.anim, scene: s.scene } });
+      onSend("", [], {
+        sticker:
+          s.kind === "image"
+            ? { kind: "image", url: s.url, name: s.name, animated: s.animated }
+            : { emoji: s.emoji, name: s.name, anim: s.anim, scene: s.scene },
+      });
     }
 
     function packSection(title, stickers) {
@@ -748,9 +752,13 @@ export function Composer({
           "div",
           { class: "sticker-pack-items" },
           stickers.map((s) =>
-            el("button", { class: "sticker-picker-item", title: s.name || s.emoji, onclick: () => sendSticker(s) }, [
-              renderScene(s.emoji, { size: 30, preferred: s.scene, replay: false }),
-            ])
+            el(
+              "button",
+              { class: `sticker-picker-item ${s.kind === "image" ? "is-image" : ""}`, title: s.name || s.emoji || "Стикер", onclick: () => sendSticker(s) },
+              // Картинку показываем крупнее эмодзи: 30 точек хватает, чтобы узнать
+              // смайлик, но не чтобы разглядеть своё фото.
+              [renderSticker(s, { size: s.kind === "image" ? 56 : 30 })]
+            )
           )
         ),
       ]);
