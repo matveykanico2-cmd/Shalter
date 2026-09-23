@@ -327,7 +327,28 @@ export async function ChatView(root, chatId) {
   // мгновенно с пометкой «отправляется», а ответ сервера просто заменяет его
   // настоящим.
   let pendingSeq = 0;
-  async function handleSend(text, attachments, extra) {
+  // Своя только что отправленная картинка — адрес сервера -> локальная копия
+  // (blob:). Пока сервер готовит эскиз (routes/messages.js's attachPreviews),
+  // на месте картинки крутилось ожидание — у самого отправителя, у которого
+  // эта картинка вот она, на устройстве. Показываем её, пока эскиз не придёт.
+  const localThumbs = new Map();
+  const withLocalThumbs = (m) =>
+    m.attachments?.some((a) => a.previewPending && !a.thumbUrl && localThumbs.has(a.url))
+      ? {
+          ...m,
+          attachments: m.attachments.map((a) =>
+            a.previewPending && !a.thumbUrl && localThumbs.has(a.url) ? { ...a, thumbUrl: localThumbs.get(a.url) } : a
+          ),
+        }
+      : m;
+
+  // extra.uploading — обещание готовых вложений (composer.js's
+  // sendImageNow): сообщение встаёт в ленту сразу, с локальными копиями
+  // картинок, а на сервер уходит, когда загрузка закончится. Иначе картинка
+  // появлялась в переписке только после загрузки, а до того была видна лишь
+  // крошечной плиткой над полем ввода.
+  async function handleSend(text, attachments, extraIn) {
+    const { uploading, ...extra } = extraIn ?? {};
     const replyToId = replyingTo?.id ?? null;
     replyingTo = null;
 
@@ -362,6 +383,13 @@ export async function ChatView(root, chatId) {
 
     let sentMessage = null;
     try {
+      if (uploading) {
+        const localAtts = attachments ?? [];
+        attachments = await uploading;
+        attachments.forEach((a, i) => {
+          if (localAtts[i]?.url?.startsWith("blob:")) localThumbs.set(a.url, localAtts[i].url);
+        });
+      }
       // Отправленное сразу уходит и в строку списка чатов: обратно по сокету
       // сервер его отправителю не шлёт, так что иначе превью там осталось бы
       // прежним до следующего опроса — см. lib/chatListSync.js.
@@ -611,8 +639,15 @@ export async function ChatView(root, chatId) {
     openChoiceDialog(chat.type === "channel" ? "Канал" : "Группа", options);
   }
 
+  // В группе кнопки звонка — быстрый звонок: вызываются сразу все участники,
+  // как в личке. Добавлять по одному через «добавить участника» по-прежнему
+  // можно уже из самого звонка.
   async function placeCall(kind) {
-    await placeCallController(chat.id, kind, me);
+    try {
+      await placeCallController(chat.id, kind, me, { ringAll: chat.type === "group" });
+    } catch (err) {
+      alert(err.message || "Не удалось позвонить");
+    }
   }
 
   // Функция, а не значение: название чата меняется, пока экран открыт — его
@@ -1082,10 +1117,20 @@ export async function ChatView(root, chatId) {
             ])
           : null,
         isDm || chat.type === "group"
-          ? el("button", { class: "icon-btn", title: "Позвонить", html: iconSvg("Phone", 18), onclick: () => placeCall("audio") })
+          ? el("button", {
+              class: "icon-btn",
+              title: isDm ? "Позвонить" : "Позвонить всем в группе",
+              html: iconSvg("Phone", 18),
+              onclick: () => placeCall("audio"),
+            })
           : null,
         isDm || chat.type === "group"
-          ? el("button", { class: "icon-btn", title: "Видеозвонок", html: iconSvg("Video", 18), onclick: () => placeCall("video") })
+          ? el("button", {
+              class: "icon-btn",
+              title: isDm ? "Видеозвонок" : "Видеозвонок всем в группе",
+              html: iconSvg("Video", 18),
+              onclick: () => placeCall("video"),
+            })
           : null,
         el("button", {
           class: "icon-btn",
@@ -1339,7 +1384,7 @@ export async function ChatView(root, chatId) {
         : members.find((u) => u.id === m.senderId);
       const replyToMessage = m.replyToId ? messages.find((x) => x.id === m.replyToId) : undefined;
       const bubble = MessageBubble({
-          message: m,
+          message: withLocalThumbs(m),
           me,
           sender,
           showSender,
@@ -1561,6 +1606,7 @@ export async function ChatView(root, chatId) {
           renderComposer();
         },
         onSend: handleSend,
+        canSendWhileUploading: true,
         onSaveEdit: handleSaveEdit,
         onDraftChange: handleDraftChange,
         onScheduled: () => openScheduledMessagesDialog(chat.id),

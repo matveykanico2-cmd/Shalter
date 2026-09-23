@@ -1,6 +1,6 @@
 import { api } from "../api.js";
 import { getFlippedTrack, cameraCount } from "./cameraSwitch.js";
-import { HD_VIDEO, HD_SCREEN, cameraConstraints, tunePeerVideo, hintScreenTrack } from "./mediaQuality.js";
+import { HD_VIDEO, HD_SCREEN, cameraConstraints, tuneVideoSender, hintScreenTrack } from "./mediaQuality.js";
 import { getState as getAppState } from "../state.js";
 import { onWsMessage, wsSend, isWsOpen } from "./wsClient.js";
 import { navigate } from "../router.js";
@@ -45,49 +45,96 @@ const ICE_FAILURE_MESSAGE = "Не удалось установить соеди
 const CONNECT_TIMEOUT_MS = 20000;
 const RESTART_GRACE_MS = 10000;
 
-function createPeer(otherUserId) {
+// Что сейчас уходит собеседнику. Видеосендеров два:
+//
+// - основной (_videoSender) — камера, а во время демонстрации экран;
+// - второй (_camSender) — камера во время демонстрации, чтобы показывающего
+//   было видно вместе с экраном, а не вместо него.
+//
+// Пересогласования соединения в этом файле нет (см. handleSignal: offer
+// принимается только первый), поэтому оба сендера заводятся сразу, пустыми, а
+// дальше на них только меняются дорожки. Пустой сендер ничего не стоит.
+function applyOutgoing(pc) {
+  const cam = state.cameraOn ? state.localStream?.getVideoTracks()[0] ?? null : null;
+  const main = state.sharing ? state.screenTrack : cam;
+  const second = state.sharing ? cam : null;
+  const audio = state.screenAudio?.mixed ?? state.localStream?.getAudioTracks()[0] ?? null;
+  const put = (sender, track, opts) => {
+    if (!sender || sender.track === track) return;
+    sender
+      .replaceTrack(track)
+      .then(() => tuneVideoSender(sender, opts))
+      .catch(() => {});
+  };
+  put(pc._videoSender, main, { screen: state.sharing });
+  put(pc._camSender, second, {});
+  // Звук без настройки битрейта — tuneVideoSender его сам пропустит.
+  put(pc._audioSender, audio, {});
+}
+
+function broadcastMedia() {
+  state.others.forEach((p) => sendMedia(p.id));
+}
+
+// Камера и показ экрана — отдельным сигналом, а не по самой дорожке: экран
+// приходит в том же сендере, где была камера, а выключенная камера — это
+// дорожка, которая просто молчит. Со стороны получателя ни то, ни другое не
+// отличить.
+function sendMedia(userId) {
+  sendSignal(userId, "media", { camera: !!state.cameraOn, sharing: !!state.sharing });
+}
+
+// Видеотранссиверы соединения в порядке m-строк SDP. Первый — основная
+// картинка, второй — камера во время демонстрации. Порядок один и тот же у
+// обеих сторон, потому что обе читают его из одного описания сессии.
+function videoTransceivers(pc) {
+  return pc
+    .getTransceivers()
+    .filter((t) => t.mid != null && t.receiver.track.kind === "video")
+    .sort((a, b) => Number(a.mid) - Number(b.mid));
+}
+
+// answering: соединение заводится в ответ на чужой offer. Тогда свои пустые
+// транссиверы заводить нельзя — принимающая сторона их к m-строкам offer'а не
+// привяжет (привязываются только созданные через addTrack), и замена дорожки в
+// таком сендере уходила бы в никуда. Сендеры берутся после
+// setRemoteDescription, см. adoptTransceivers.
+function createPeer(otherUserId, { answering = false } = {}) {
   const pc = new RTCPeerConnection({ iceServers });
   if (state.localStream) {
-    const videoTrack = state.localStream.getVideoTracks()[0] ?? null;
     state.localStream.getTracks().forEach((t) => pc.addTrack(t, state.localStream));
-    if (videoTrack) {
-      pc._videoSender = pc.getSenders().find((s) => s.track === videoTrack) ?? null;
-    } else {
-      // A voice call's localStream has no video track, so nothing above puts
-      // a video sender on this connection — the SDP never gets a video
-      // m-line at all. There's no renegotiation path anywhere in this file
-      // (see handleSignal below: an "offer" is only ever handled as the very
-      // first one), so "turn on camera" or "share screen" mid-call, both
-      // implemented as replaceTrack() on an existing sender (see
-      // toggleScreenShare/flipCamera), had no sender to find and silently
-      // did nothing. Reserving an empty sendrecv video transceiver up front
-      // — same trick as the recvonly branch below — gives replaceTrack()
-      // somewhere to attach a track later, at zero cost while it stays
-      // empty. Stashed directly on the connection because `sender.track` is
-      // null until then, so the old "find the sender whose track.kind is
-      // video" lookup used elsewhere in this file can't find it.
-      pc._videoSender = pc.addTransceiver("video", { direction: "sendrecv" }).sender;
-    }
-    // Битрейт и «чем жертвовать при нехватке канала» задаются на сендере, а не
-    // на дорожке, и сбрасываются вместе с соединением — поэтому здесь, на
-    // каждом новом peer, а не один раз при получении камеры.
-    tunePeerVideo(pc, { screen: state.sharing });
-  } else {
-    // No local mic/camera (denied permission or no device) — still negotiate
-    // recvonly so the *other* side's audio/video reaches us. Without this,
-    // a failed getUserMedia would silently skip the offer entirely and the
-    // call would just sit there connecting nothing (the bug this fixes).
-    //
-    // Video is sendrecv rather than recvonly even here, for the same reason
-    // as above: camera/screen-share can still be turned on later via
-    // replaceTrack even though the call started with no working local media.
-    pc.addTransceiver("audio", { direction: "recvonly" });
-    pc._videoSender = pc.addTransceiver("video", { direction: "sendrecv" }).sender;
+    pc._audioSender = pc.getSenders().find((s) => s.track?.kind === "audio") ?? null;
   }
+  if (!answering) {
+    // No local mic (denied permission or no device) — still negotiate
+    // recvonly so the *other* side's audio reaches us. Without this, a failed
+    // getUserMedia would silently skip the offer entirely and the call would
+    // just sit there connecting nothing.
+    if (!pc._audioSender) pc.addTransceiver("audio", { direction: "recvonly" });
+    const cam = state.localStream?.getVideoTracks()[0] ?? null;
+    // Video is sendrecv even without a camera: camera and screen-share can be
+    // turned on later via replaceTrack, and there's no renegotiation to add a
+    // sender then.
+    pc._videoSender = cam
+      ? pc.getSenders().find((s) => s.track === cam) ?? null
+      : pc.addTransceiver("video", { direction: "sendrecv" }).sender;
+    pc._camSender = pc.addTransceiver("video", { direction: "sendrecv" }).sender;
+    applyOutgoing(pc);
+  }
+  // Собеседник узнаёт, что у нас с камерой и экраном, — даже если он ещё не
+  // ответил: сигнал дождётся его на сервере (см. поллинг в join).
+  sendMedia(otherUserId);
 
   let restarted = false;
   function handleStuck() {
     if (!state || pc.connectionState === "connected" || pc.connectionState === "closed") return;
+    // Собеседник ещё не ответил — это не «не соединяется», это «ещё звонит».
+    // В групповом звонке вызывают сразу всех, и один не взявший трубку иначе
+    // показывал бы ошибку связи всем остальным. Отсчёт — с момента ответа.
+    if (!pc.currentRemoteDescription) {
+      setTimeout(handleStuck, CONNECT_TIMEOUT_MS);
+      return;
+    }
     if (!restarted) {
       restarted = true;
       try {
@@ -107,8 +154,17 @@ function createPeer(otherUserId) {
   pc.onicecandidate = (e) => {
     if (e.candidate) sendSignal(otherUserId, "ice", e.candidate.toJSON());
   };
+  // Поток собирается здесь сам, а не берётся из e.streams: у дорожки из
+  // пустого транссивера (см. createPeer) потока нет вовсе, и раньше она
+  // затирала уже пришедший звук пустым значением.
   pc.ontrack = (e) => {
-    state.remoteStreams = { ...state.remoteStreams, [otherUserId]: e.streams[0] };
+    const track = e.track;
+    if (track.kind === "video" && videoTransceivers(pc).indexOf(e.transceiver) > 0) {
+      state.remoteCamStreams = { ...state.remoteCamStreams, [otherUserId]: new MediaStream([track]) };
+    } else {
+      const prev = state.remoteStreams[otherUserId]?.getTracks().filter((t) => t.kind !== track.kind) ?? [];
+      state.remoteStreams = { ...state.remoteStreams, [otherUserId]: new MediaStream([...prev, track]) };
+    }
     notify();
   };
   // Соединение считается состоявшимся по двум признакам, а не по одному.
@@ -151,6 +207,21 @@ function createPeer(otherUserId) {
   return pc;
 }
 
+// Кто в паре начинает соединение. Правило одно на всех, иначе двое пошлют
+// offer друг другу одновременно и не соединятся оба.
+//
+// Звонивший — всегда он. Остальные — по старшинству id. Раньше offer'ы слал
+// только звонивший и те, кто уже сидел в звонке, когда добавили новичка: в
+// группе, где вызвали сразу всех, двое ответивших слышали звонившего, но не
+// друг друга. Offer тому, кто ещё не ответил, не пропадает — он дождётся его
+// на сервере и заберёт при входе (поллинг в join).
+function shouldOffer(userId) {
+  const callerId = state.call.callerId;
+  if (state.me.id === callerId) return true;
+  if (userId === callerId) return false;
+  return state.me.id > userId;
+}
+
 async function offerTo(userId) {
   if (state.offered.has(userId)) return;
   state.offered.add(userId);
@@ -176,8 +247,9 @@ async function handleSignal(sig) {
       // nothing for the whole call.
       await state.mediaReadyPromise;
       if (!state || sig.callId !== state.call.id) return;
-      const pc = state.peers.get(sig.fromUserId) ?? createPeer(sig.fromUserId);
+      const pc = state.peers.get(sig.fromUserId) ?? createPeer(sig.fromUserId, { answering: true });
       await pc.setRemoteDescription(new RTCSessionDescription(sig.data));
+      adoptTransceivers(pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       sendSignal(sig.fromUserId, "answer", answer);
@@ -189,10 +261,30 @@ async function handleSignal(sig) {
       if (pc) await pc.addIceCandidate(new RTCIceCandidate(sig.data));
     } else if (sig.kind === "end") {
       removePeer(sig.fromUserId);
+    } else if (sig.kind === "media") {
+      state.remoteMedia = {
+        ...state.remoteMedia,
+        [sig.fromUserId]: { camera: !!sig.data?.camera, sharing: !!sig.data?.sharing },
+      };
+      notify();
     }
   } catch {
     // Out-of-order or stale signal — safe to drop.
   }
+}
+
+// Принимающая сторона: транссиверы появились из offer'а, берём сендеры оттуда.
+// Созданные setRemoteDescription'ом видеотранссиверы по умолчанию только
+// принимают — разворачиваем их на отправку, иначе камеру или экран с этой
+// стороны включить было бы некуда.
+function adoptTransceivers(pc) {
+  const video = videoTransceivers(pc);
+  video.forEach((t) => {
+    if (t.direction !== "sendrecv") t.direction = "sendrecv";
+  });
+  pc._videoSender = video[0]?.sender ?? null;
+  pc._camSender = video[1]?.sender ?? null;
+  applyOutgoing(pc);
 }
 
 function removePeer(userId) {
@@ -204,6 +296,10 @@ function removePeer(userId) {
   }
   const { [userId]: _drop, ...restStreams } = state.remoteStreams;
   state.remoteStreams = restStreams;
+  const { [userId]: _dropMedia, ...restMedia } = state.remoteMedia;
+  state.remoteMedia = restMedia;
+  const { [userId]: _dropCam, ...restCam } = state.remoteCamStreams;
+  state.remoteCamStreams = restCam;
   state.others = state.others.filter((p) => p.id !== userId);
   notify();
   if (state.others.length === 0 && state.phase !== "ended") {
@@ -239,6 +335,14 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
     // если камера одна. Заполняется асинхронно после старта.
     cameraCount: 1,
     sharing: false,
+    // Своя демонстрация для предпросмотра — поток из одной дорожки экрана.
+    screenStream: null,
+    // Звук демонстрации, смешанный с микрофоном (startScreenAudio).
+    screenAudio: null,
+    // Что у собеседников с камерой и экраном: userId -> { camera, sharing }.
+    remoteMedia: {},
+    // Камера собеседника, пока он показывает экран: userId -> MediaStream.
+    remoteCamStreams: {},
     minimized: false,
     localStream: null,
     mediaError: null,
@@ -288,13 +392,19 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
   unsubParticipants = onWsMessage("call:participants-updated", async (msg) => {
     if (!state || msg.call.id !== state.call.id) return;
     const { members } = await api.getChat(state.call.chatId).catch(() => ({ members: [] }));
+    // Вышедшие из группового звонка (POST /:id/leave) — их соединения
+    // закрываем, а плитки убираем. Раньше этот список только рос.
+    for (const o of state.others) {
+      if (!msg.call.participantIds.includes(o.id)) removePeer(o.id);
+    }
+    if (!state) return;
     const newIds = msg.call.participantIds.filter((id) => id !== state.me.id && !state.others.some((o) => o.id === id));
     for (const id of newIds) {
       const user = members.find((m) => m.id === id);
       if (user) {
         state.others = [...state.others, user];
         notify();
-        await offerTo(id);
+        if (shouldOffer(id)) await offerTo(id);
       }
     }
   });
@@ -347,8 +457,8 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
   // The offer must go out whether or not local media was acquired — gating
   // this on getUserMedia succeeding was the bug that made calls "not really
   // ring": on any permission/device failure the offer was silently skipped.
-  if (call.callerId === me.id) {
-    for (const p of others) await offerTo(p.id);
+  for (const p of others) {
+    if (state && shouldOffer(p.id)) await offerTo(p.id);
   }
 }
 
@@ -365,8 +475,9 @@ async function resolveParticipants(call, members) {
   return resolved.filter((m) => m !== undefined);
 }
 
-export async function placeCall(chatId, kind, me) {
-  const { call } = await api.placeCall(chatId, kind);
+// ringAll — быстрый звонок в группе: вызываются сразу все её участники.
+export async function placeCall(chatId, kind, me, { ringAll = false } = {}) {
+  const { call } = await api.placeCall(chatId, kind, { ringAll });
   const { chat, members } = await api.getChat(chatId);
   const participants = await resolveParticipants(call, members);
   await join({ call, chatTitle: chat.title, chatType: chat.type, participants, me });
@@ -436,103 +547,161 @@ export function toggleMute() {
   notify();
 }
 
-export function toggleCamera() {
+function flashCameraError(message) {
+  state.cameraError = message;
+  notify();
+  setTimeout(() => {
+    if (state && state.cameraError === message) {
+      state.cameraError = null;
+      notify();
+    }
+  }, 3000);
+}
+
+// Голосовой звонок — это тот же видеозвонок, только с выключенной камерой:
+// включить её можно в любом звонке. Камера берётся при включении и
+// отпускается при выключении (а не просто гасится), так что и лампочка на
+// ноутбуке честно гаснет.
+export async function toggleCamera() {
   if (!state) return;
-  state.cameraOn = !state.cameraOn;
-  state.localStream?.getVideoTracks().forEach((t) => (t.enabled = state.cameraOn));
+  if (state.cameraOn) {
+    state.cameraOn = false;
+    const tracks = state.localStream?.getTracks() ?? [];
+    tracks.filter((t) => t.kind === "video").forEach((t) => t.stop());
+    // Новый объект потока, а не removeTrack: экран звонка сравнивает srcObject
+    // по ссылке и иначе не заметил бы, что картинки больше нет.
+    if (state.localStream) state.localStream = new MediaStream(tracks.filter((t) => t.kind !== "video"));
+  } else {
+    let track = null;
+    try {
+      const cam = await navigator.mediaDevices.getUserMedia({
+        video: cameraConstraints({ facingMode: state.facingBack ? "environment" : "user" }),
+      });
+      track = cam.getVideoTracks()[0] ?? null;
+    } catch {
+      // Отказ в разрешении или камеры нет — ниже скажем об этом.
+    }
+    if (!state) {
+      track?.stop();
+      return;
+    }
+    if (!track) {
+      flashCameraError("Нет доступа к камере");
+      return;
+    }
+    state.localStream = new MediaStream([...(state.localStream?.getTracks() ?? []), track]);
+    state.cameraOn = true;
+    cameraCount()
+      .then((n) => {
+        if (state) {
+          state.cameraCount = n;
+          notify();
+        }
+      })
+      .catch(() => {});
+  }
+  state.peers.forEach(applyOutgoing);
+  broadcastMedia();
   notify();
 }
 
 // Переворот камеры. Вся возня с тем, как вообще получить вторую камеру, живёт
-// в lib/cameraSwitch.js — здесь только замена дорожки в звонке.
+// в lib/cameraSwitch.js — здесь только замена дорожки в звонке. Во время
+// демонстрации тоже работает: камера тогда уходит вторым потоком рядом с
+// экраном (см. applyOutgoing).
 export async function flipCamera() {
   if (!state) return;
-  // Во время демонстрации экрана переворачивать нечего: собеседники видят экран,
-  // и подмена дорожки у отправителя просто оборвала бы показ.
-  if (state.sharing) {
-    state.cameraError = "Сначала остановите показ экрана";
-    notify();
-    return;
-  }
-
   const oldTrack = state.localStream?.getVideoTracks()[0] ?? null;
   const { track: newTrack, error } = await getFlippedTrack({ currentTrack: oldTrack, wantBack: !state.facingBack, video: HD_VIDEO });
+  if (!state) {
+    newTrack?.stop();
+    return;
+  }
   if (!newTrack) {
     // Молчание было главной бедой прежней версии: кнопка нажималась, ничего не
     // происходило, и понять почему было нельзя.
-    state.cameraError = error ?? "Не удалось переключить камеру";
-    notify();
-    setTimeout(() => {
-      if (state) {
-        state.cameraError = null;
-        notify();
-      }
-    }, 3000);
+    flashCameraError(error ?? "Не удалось переключить камеру");
     return;
   }
 
   state.facingBack = !state.facingBack;
   state.cameraError = null;
-  // Выключенная камера должна остаться выключенной: новая дорожка приходит
-  // включённой, и без этой строки переворот сам собой включал видео.
-  newTrack.enabled = state.cameraOn;
-
-  if (oldTrack && state.localStream) {
-    state.localStream.removeTrack(oldTrack);
-    oldTrack.stop();
-  }
-  state.localStream?.addTrack(newTrack);
-  state.cameraTrack = newTrack;
-  state.peers.forEach((pc) => {
-    // _videoSender is stashed at createPeer() time (see there for why: an
-    // empty reserved video sender has no track yet, so the old "find by
-    // track.kind" lookup below can't see it — kept as a fallback for peers
-    // from before this field existed, though none should remain in practice.
-    (pc._videoSender ?? pc.getSenders().find((s) => s.track?.kind === "video"))?.replaceTrack(newTrack);
-    tunePeerVideo(pc);
-  });
+  oldTrack?.stop();
+  const rest = state.localStream?.getTracks().filter((t) => t !== oldTrack) ?? [];
+  state.localStream = new MediaStream([...rest, newTrack]);
+  state.peers.forEach(applyOutgoing);
   notify();
 }
 
+// Звук демонстрации подмешивается к микрофону в одну дорожку.
+//
+// Отдельной звуковой дорожки под экран в соединении нет, а добавить её посреди
+// звонка нельзя — пересогласования здесь нет (см. applyOutgoing). Смешанная
+// дорожка встаёт в тот же звуковой сендер вместо микрофона. Выключение
+// микрофона продолжает работать: выключенная дорожка даёт в смесь тишину, а
+// звук экрана идёт дальше.
+function startScreenAudio(track) {
+  if (!track) return;
+  try {
+    const ctx = new AudioContext();
+    const dest = ctx.createMediaStreamDestination();
+    const mic = state.localStream?.getAudioTracks()[0];
+    if (mic) ctx.createMediaStreamSource(new MediaStream([mic])).connect(dest);
+    ctx.createMediaStreamSource(new MediaStream([track])).connect(dest);
+    ctx.resume?.().catch(() => {});
+    state.screenAudio = { ctx, track, mixed: dest.stream.getAudioTracks()[0] };
+  } catch {
+    // Нет Web Audio — показ продолжится без звука.
+    track.stop();
+  }
+}
+
+function stopScreenAudio() {
+  const a = state?.screenAudio;
+  if (!a) return;
+  a.track.stop();
+  a.mixed?.stop();
+  a.ctx.close().catch(() => {});
+  state.screenAudio = null;
+}
+
 // Real getDisplayMedia screen-share (the original app only toggled a UI flag).
-// Swaps the outgoing video track the same way flipCamera does.
+// Экран встаёт в основной видеосендер, камера — во второй, звук экрана
+// смешивается с микрофоном.
 export async function toggleScreenShare() {
   if (!state) return;
   if (!state.sharing) {
+    let display;
     try {
-      const display = await navigator.mediaDevices.getDisplayMedia(HD_SCREEN);
-      const screenTrack = display.getVideoTracks()[0];
-      if (!screenTrack) return;
-      hintScreenTrack(screenTrack);
-      state.screenTrack = screenTrack;
-      state.cameraTrack = state.localStream?.getVideoTracks()[0] ?? null;
-      state.peers.forEach((pc) => {
-        (pc._videoSender ?? pc.getSenders().find((s) => s.track?.kind === "video"))?.replaceTrack(screenTrack);
-        // У экрана свой профиль: 60 кадров важнее чёткости, иначе прокрутка и
-        // игра превращаются в слайд-шоу.
-        tunePeerVideo(pc, { screen: true });
-      });
-      screenTrack.onended = () => toggleScreenShare();
-      state.sharing = true;
-      notify();
+      display = await navigator.mediaDevices.getDisplayMedia(HD_SCREEN);
     } catch {
       // User cancelled the screen picker or the browser denied it.
+      return;
     }
+    const screenTrack = display.getVideoTracks()[0];
+    if (!screenTrack || !state) {
+      display.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    hintScreenTrack(screenTrack);
+    state.screenTrack = screenTrack;
+    state.screenStream = new MediaStream([screenTrack]);
+    startScreenAudio(display.getAudioTracks()[0] ?? null);
+    // Показ остановили кнопкой браузера («Закрыть доступ»), а не нашей.
+    screenTrack.onended = () => {
+      if (state?.screenTrack === screenTrack) toggleScreenShare();
+    };
+    state.sharing = true;
   } else {
-    // revertTrack is null on a call that had no camera to begin with (a
-    // voice call sharing its screen) — replaceTrack(null) still has to run
-    // in that case, or the sender keeps offering the just-stopped screen
-    // track (a frozen last frame, or nothing at all) instead of going quiet.
-    const revertTrack = state.cameraTrack;
-    state.peers.forEach((pc) => {
-      (pc._videoSender ?? pc.getSenders().find((s) => s.track?.kind === "video"))?.replaceTrack(revertTrack);
-      tunePeerVideo(pc);
-    });
     state.screenTrack?.stop();
     state.screenTrack = null;
+    state.screenStream = null;
+    stopScreenAudio();
     state.sharing = false;
-    notify();
   }
+  state.peers.forEach(applyOutgoing);
+  broadcastMedia();
+  notify();
 }
 
 export async function addParticipant(userId) {
@@ -571,6 +740,8 @@ function endLocally() {
   state.peers.forEach((pc) => pc.close());
   state.peers.clear();
   state.localStream?.getTracks().forEach((t) => t.stop());
+  state.screenTrack?.stop();
+  stopScreenAudio();
   cleanupSubscriptions();
   notify();
   setTimeout(() => {
@@ -608,18 +779,27 @@ export async function hangup() {
   clearTimeout(noAnswerTimer);
   if (!state) return;
   const { call, others, elapsed } = state;
-  others.forEach((p) => sendSignal(p.id, "end", null));
-  state.phase = "ended";
-  stopRingtone();
-  notify();
   // Разговор состоялся или нет — разные записи в журнале.
   //
   // Раньше отсюда всегда уходило «completed», даже когда трубку сбросили на
   // первом гудке. В журнале это выглядело как состоявшийся звонок нулевой
   // длины, и отличить «не дозвонился» от «поговорили» было нельзя.
+  //
+  // Считается до того, как фаза сменится на "ended" ниже: раньше проверка
+  // стояла после, и каждый звонок записывался как пропущенный.
   const answered = state.phase === "connected";
+  others.forEach((p) => sendSignal(p.id, "end", null));
+  state.phase = "ended";
+  stopRingtone();
+  notify();
   const chatId = call.chatId;
-  if (state.isRoom) {
+  // Групповой звонок, в котором кто-то уже ответил, — выходим сами, остальные
+  // продолжают. Завершить его целиком (PATCH ниже) значит оборвать разговор
+  // всем из-за одного положившего трубку.
+  const leaveOnly = !state.isRoom && state.chatType === "group" && (answered || call.callerId !== state.me.id);
+  if (leaveOnly) {
+    await api.leaveCall(call.id).catch(() => {});
+  } else if (state.isRoom) {
     // Кто-то один вышел из комнаты — она не заканчивается для остальных
     // (в отличие от обычного PATCH статуса ниже, который завершил бы её у
     // всех). server/routes/calls.js's /room/:chatId/leave сам решает, гасить
@@ -633,6 +813,8 @@ export async function hangup() {
   cleanupSubscriptions();
   state.peers.forEach((pc) => pc.close());
   state.localStream?.getTracks().forEach((t) => t.stop());
+  state.screenTrack?.stop();
+  stopScreenAudio();
   state = null;
   notify();
   // Same reasoning as endLocally() above: replace, so the ended call's
@@ -640,7 +822,13 @@ export async function hangup() {
   navigate(`/chat/${chatId}`, { replace: true });
 }
 
+// В групповом звонке «Отклонить» — это «я не приду», а не «звонок отменён»:
+// остальные вызванные могли уже ответить и разговаривать.
 export async function decline(call) {
+  if ((call.participantIds?.length ?? 0) > 2) {
+    await api.leaveCall(call.id).catch(() => {});
+    return;
+  }
   await api.patchCall(call.id, { status: "declined" }).catch(() => {});
 }
 

@@ -487,7 +487,7 @@ export async function toggleScreenShare() {
 
   let display = null;
   try {
-    display = await navigator.mediaDevices.getDisplayMedia(HD_SCREEN);
+    display = await navigator.mediaDevices.getDisplayMedia({ ...HD_SCREEN, audio: false, systemAudio: "exclude" });
   } catch {
     // Окно выбора закрыли или браузер запретил — молча, это не ошибка эфира.
     return;

@@ -352,7 +352,9 @@ export const api = {
   terminateOtherSessions: () => req("/api/sessions/terminate-others", { method: "POST" }),
 
   listCalls: () => req("/api/calls"),
-  placeCall: (chatId, kind) => req("/api/calls", { method: "POST", body: JSON.stringify({ chatId, kind }) }),
+  placeCall: (chatId, kind, { ringAll = false } = {}) =>
+    req("/api/calls", { method: "POST", body: JSON.stringify({ chatId, kind, ringAll }) }),
+  leaveCall: (id) => req(`/api/calls/${id}/leave`, { method: "POST" }),
   patchCall: (id, patch) => req(`/api/calls/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   getVoiceRoom: (chatId) => req(`/api/calls/room/${chatId}`),
   joinVoiceRoom: (chatId) => req(`/api/calls/room/${chatId}/join`, { method: "POST" }),

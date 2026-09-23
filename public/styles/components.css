@@ -8369,6 +8369,16 @@
 /* ── Meme maker (components/memeDialog.js) ─────────────────────────────────── */
 .meme-dialog {
   max-width: min(440px, 94vw);
+  /* Окно ограничено по высоте (.modal-dialog, 80vh), а картинка с двумя полями
+     и кнопками в него на телефоне не помещается. Раньше в таком случае
+     сжимался блок превью — и обрезал картинку: видна была середина, а надписи
+     сверху и снизу срезались. Теперь ничего не сжимается, а окно
+     прокручивается. */
+  overflow-y: auto;
+}
+.meme-dialog > *,
+.meme-dialog-body > * {
+  flex-shrink: 0;
 }
 .meme-dialog-body {
   display: flex;
@@ -8382,31 +8392,15 @@
   border-radius: 12px;
   background: var(--color-surface-alt);
 }
-.meme-preview-img {
+.meme-preview-canvas {
   display: block;
-  width: 100%;
-  max-height: 360px;
-  object-fit: contain;
-}
-.meme-preview-text {
-  position: absolute;
-  left: 4%;
-  width: 92%;
-  color: #fff;
-  -webkit-text-stroke: 1.5px #000;
-  paint-order: stroke fill;
-  font-weight: 900;
-  font-size: clamp(14px, 6vw, 28px);
-  text-align: center;
-  text-transform: uppercase;
-  line-height: 1.15;
-  word-break: break-word;
-}
-.meme-preview-top {
-  top: 6px;
-}
-.meme-preview-bottom {
-  bottom: 6px;
+  max-width: 100%;
+  /* И сама картинка не выше половины экрана — чтобы поля для текста и кнопка
+     «Отправить» были видны без прокрутки хотя бы на обычном телефоне. */
+  max-height: min(360px, 45vh);
+  width: auto;
+  height: auto;
+  margin: 0 auto;
 }
 
 /* ── Stars (components/starsDialog.js, server/routes/stars.js) ────────────── */
@@ -12291,6 +12285,137 @@
   height: 100%;
   width: 100%;
   object-fit: contain;
+}
+
+/* Демонстрация экрана: экран на всю площадь звонка, окна участников —
+   полоской поверх него (views/callScreen.js, stageMode). */
+.call-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.call-stage > .call-tile.stage {
+  position: absolute;
+  inset: 0;
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  border-radius: 0;
+  background: #000;
+}
+.call-stage > .call-tile.stage .call-tile-video {
+  border-radius: 0;
+  object-fit: contain;
+}
+.call-stage-label {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+/* По умолчанию — сверху по центру. Перетащили — положение задаётся из
+   views/callScreen.js (left/top), и transform там сбрасывается. */
+.call-stage-strip {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(10, 12, 18, 0.55);
+  backdrop-filter: blur(6px);
+}
+.call-stage-strip-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: grab;
+  /* Иначе на телефоне палец прокручивал бы страницу, а не тащил полоску. */
+  touch-action: none;
+  user-select: none;
+}
+.call-stage-strip-bar:active {
+  cursor: grabbing;
+}
+.call-stage-strip-grip {
+  display: flex;
+}
+.call-stage-strip-count {
+  flex: 1;
+  white-space: nowrap;
+}
+.call-stage-strip-toggle {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+.call-stage-strip-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.call-stage-strip-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.call-tile-caption {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  margin: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  font-size: 11px;
+  color: #fff;
+}
+.call-stage-strip .call-tile {
+  width: 176px;
+  max-width: 28vw;
+  aspect-ratio: 16 / 9;
+  gap: 4px;
+  border-radius: 12px;
+  background: rgba(20, 22, 31, 0.85);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.call-stage-strip .call-tile-video {
+  border-radius: 12px;
+  object-fit: cover;
+}
+.call-stage-strip .call-tile-avatar-wrap {
+  gap: 4px;
+}
+.call-stage-strip .call-tile-name {
+  font-size: 12px;
+}
+.call-stage-strip .call-tile-status {
+  bottom: 4px;
+  left: 6px;
+  font-size: 11px;
+}
+@media (max-width: 560px) {
+  .call-stage-strip .call-tile {
+    width: 112px;
+    max-width: 30vw;
+  }
 }
 
 /* Поиск получателя перевода звёзд. */

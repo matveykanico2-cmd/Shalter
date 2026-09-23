@@ -46,8 +46,12 @@ export const HD_VIDEO = {
 export const HD_SCREEN = {
   video: { ...HD_VIDEO, cursor: "motion" },
   // Звук вкладки/системы — если браузер и выбранный источник это умеют. Отказ
-  // не мешает: демонстрация продолжится без звука.
-  audio: false,
+  // не мешает: демонстрация продолжится без звука. В звонке этот звук
+  // подмешивается к микрофону (callController.js, startScreenAudio).
+  audio: true,
+  // Chrome по умолчанию предлагает звук только для вкладки; так — и для всего
+  // экрана, где система это позволяет (Windows, ChromeOS).
+  systemAudio: "include",
 };
 
 export function cameraConstraints(extra = {}) {

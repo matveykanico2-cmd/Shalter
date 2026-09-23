@@ -29,7 +29,19 @@ function showBanner(call) {
   const other = call.otherUser ?? {};
   banner = el("div", { class: "incoming-call-screen" }, [
     el("div", { class: "incoming-call-card" }, [
-      el("p", { class: "incoming-call-kind" }, call.kind === "video" ? "Входящий видеозвонок" : "Входящий звонок"),
+      el(
+        "p",
+        { class: "incoming-call-kind" },
+        // Быстрый звонок в группе вызывает всех сразу — по одной строке видно,
+        // что зовут не лично тебя.
+        (call.participantIds?.length ?? 0) > 2
+          ? call.kind === "video"
+            ? "Групповой видеозвонок"
+            : "Групповой звонок"
+          : call.kind === "video"
+            ? "Входящий видеозвонок"
+            : "Входящий звонок"
+      ),
       el("div", { class: "incoming-call-avatar" }, [
         Avatar({ name: other.name ?? "?", color: other.avatarColor, image: other.avatarImage, size: 132 }),
       ]),

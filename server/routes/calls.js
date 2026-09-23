@@ -112,6 +112,8 @@ async function pushCallCancelled(call, recipientIds, { missed = false, callerNam
 // Все состояния, в которые звонок может перейти по запросу клиента.
 // «ongoing» — идёт; остальные означают, что он кончился, и различаются только
 // тем, что покажет журнал звонков.
+// Сколько участников группы можно вызвать разом (см. POST / ниже).
+const MAX_RING_ALL = 12;
 const ALLOWED_CALL_STATUSES = new Set(["ongoing", "ended", "missed", "completed", "declined"]);
 const FINISHED_CALL_STATUSES = new Set(["ended", "missed", "completed", "declined"]);
 
@@ -176,10 +178,27 @@ router.get(
 router.post(
   "/",
   asyncRoute(async (req, res) => {
-    const { chatId, kind } = req.body ?? {};
+    const { chatId, kind, ringAll } = req.body ?? {};
     const chat = await getChat(chatId);
     if (!chat || !chat.memberIds.includes(req.uid)) {
       return res.status(404).json({ error: "not found" });
+    }
+    // Быстрый звонок в группе — вызывает сразу всех, как звонок в личке, а не
+    // только звонящего с последующим «добавить участника» по одному.
+    //
+    // Звонок устроен сеткой «каждый с каждым» (callController.js): на двадцать
+    // человек это уже девятнадцать исходящих видеопотоков у каждого. Для
+    // большой группы есть голосовой чат — туда заходят сами, кому нужно.
+    let ringIds = null;
+    if (chat.type === "group" && ringAll) {
+      if (chat.memberIds.length > MAX_RING_ALL) {
+        return res.status(400).json({
+          error: `В группе больше ${MAX_RING_ALL} участников — позвонить всем сразу нельзя. Начните голосовой чат`,
+        });
+      }
+      const others = chat.memberIds.filter((id) => id !== req.uid);
+      const allowed = await Promise.all(others.map((id) => canCall(req.uid, id)));
+      ringIds = [req.uid, ...others.filter((_, i) => allowed[i])];
     }
     if (chat.type !== "group") {
       const otherId = chat.memberIds.find((id) => id !== req.uid);
@@ -208,7 +227,7 @@ router.post(
       kind,
       direction: "outgoing",
       callerId: req.uid,
-      participantIds: chat.type === "group" ? [req.uid] : chat.memberIds,
+      participantIds: ringIds ?? (chat.type === "group" ? [req.uid] : chat.memberIds),
       status: "ongoing",
       startedAt: new Date().toISOString(),
       durationSec: 0,
@@ -236,6 +255,21 @@ router.patch(
   asyncRoute(async (req, res) => {
     const existing = await getCall(req.params.id);
     if (!existing || !existing.participantIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+
+    // «Отклонить» из уведомления (public/sw.js) шлёт сюда конечный статус. В
+    // групповом звонке на троих и больше это значит «я не приду», а не
+    // «звонок отменён для всех», — так же, как POST /:id/leave. Звонивший
+    // по-прежнему завершает звонок целиком (например, «никто не ответил»).
+    if (
+      FINISHED_CALL_STATUSES.has(req.body?.status) &&
+      existing.status === "ongoing" &&
+      existing.kind !== "voice-room" &&
+      existing.callerId !== req.uid &&
+      existing.participantIds.length > 2
+    ) {
+      const updated = await leaveCall(existing, req.uid);
+      return res.json({ call: updated });
+    }
 
     const patch = {};
     // Список должен совпадать с тем, что шлёт клиент, иначе изменение молча
@@ -325,6 +359,34 @@ router.post(
     res.json({ call: updated });
 
     pushIncomingCall(updated, updated.callerId, [userId]).catch((err) => console.error("push notify failed:", err));
+  })
+);
+
+// Выйти из звонка, не завершая его для остальных.
+//
+// PATCH /:id со статусом завершал звонок у всех разом — для разговора двоих это
+// правильно, а в группе один положил трубку, и связь оборвалась у всех. Тот
+// же ответ для «Отклонить» в групповом звонке: не хочешь — не заходи, но
+// другие-то разговаривают. Остался один — звонок заканчивается сам.
+async function leaveCall(call, uid) {
+  let updated = await removeParticipant(call.id, uid);
+  if (updated.participantIds.length < 2 && updated.status === "ongoing") {
+    const durationSec = Math.max(0, Math.floor((Date.now() - new Date(call.startedAt).getTime()) / 1000));
+    updated = await updateCall(call.id, { status: "completed", durationSec });
+    broadcastToUsers(updated.participantIds, { type: "call:updated", call: updated });
+  } else {
+    broadcastToUsers(updated.participantIds, { type: "call:participants-updated", call: updated });
+  }
+  return updated;
+}
+
+router.post(
+  "/:id/leave",
+  asyncRoute(async (req, res) => {
+    const call = await getCall(req.params.id);
+    if (!call || !call.participantIds.includes(req.uid)) return res.json({ ok: true });
+    await leaveCall(call, req.uid);
+    res.json({ ok: true });
   })
 );
 

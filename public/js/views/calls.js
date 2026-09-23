@@ -62,7 +62,7 @@ export async function CallsView(root) {
 
   async function callChat(chatId, kind) {
     try {
-      await placeCall(chatId, kind, me);
+      await placeCall(chatId, kind, me, { ringAll: true });
     } catch (err) {
       alert(err.message || "Не удалось позвонить");
     }

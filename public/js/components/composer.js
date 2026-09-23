@@ -46,6 +46,10 @@ export function Composer({
   onCancelReply,
   onCancelEdit,
   onSend,
+  // Хозяин поля (chatView.js) умеет показать сообщение сразу, а вложения
+  // дождаться — см. sendImageNow ниже. Ветка обсуждения этого не умеет, там
+  // картинка идёт прежним путём: загрузка, потом отправка.
+  canSendWhileUploading = false,
   onSaveEdit,
   onDraftChange,
   onScheduled,
@@ -436,6 +440,15 @@ export function Composer({
       }
     }
 
+    // Одна готовая картинка (мем) — сразу в переписку, загрузка в фоне.
+    function sendImageNow(file) {
+      if (!canSendWhileUploading) return attachFiles([{ file, kind: "image" }]);
+      const sizeError = checkSize(file, "image");
+      if (sizeError) return showUploadError(sizeError);
+      const local = { kind: "image", url: URL.createObjectURL(file), name: file.name, size: file.size, mimeType: file.type };
+      onSend("", [local], { uploading: uploadFile(file, "image").then((a) => [a]) });
+    }
+
     // Attach menu — each item sends a real attachment (no more "[Label]" text stub).
     // multiple — потому что выбирают обычно не один файл: пять фотографий с
     // прогулки прикреплялись по одной, через пять открытий проводника подряд.
@@ -487,7 +500,7 @@ export function Composer({
         {
           icon: "Zap",
           label: "Мем",
-          run: () => openMemeDialog((file) => attachFiles([{ file, kind: "image" }])),
+          run: () => openMemeDialog(sendImageNow),
         },
         {
           icon: "BarChart",
