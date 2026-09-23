@@ -6,6 +6,16 @@ const ffmpegPath = require("ffmpeg-static");
 const ffmpeg = require("fluent-ffmpeg");
 const sharp = require("sharp");
 
+// Память sharp — не память JavaScript: её не видно в --max-old-space-size, но
+// она входит в то, по чему pm2 перезапускает процесс (max_memory_restart в
+// ecosystem.config.js). По умолчанию sharp держит кэш операций и запускает по
+// потоку на каждое ядро; пачка фотографий с телефона разом поднимала процесс
+// за предел, pm2 его убивал — и у всех, кто в этот момент что-то загружал,
+// выходило «Не удалось загрузить». На маленьком сервере эскизу хватает одного
+// потока, а кэш тут бесполезен: каждая картинка обрабатывается один раз.
+sharp.cache(false);
+sharp.concurrency(1);
+
 // Лёгкое превью тяжёлого вложения: 240p-копия видео с кадром-обложкой и
 // уменьшенная картинка. В переписке показывается именно превью, оригинал
 // скачивается отдельно и по требованию — иначе пятигигабайтный ролик
@@ -162,7 +172,10 @@ async function generateImagePreview(inputPath) {
   return imageQueue(async () => {
     const previewPath = tempPath(".jpg");
     try {
-      await sharp(inputPath)
+      // sequentialRead — читать сверху вниз, не держа всю расжатую картинку в
+      // памяти целиком; limitInputPixels — не браться за «картинку» в сотни
+      // мегапикселей, которая съела бы всю память сервера одна.
+      await sharp(inputPath, { sequentialRead: true, limitInputPixels: 100_000_000 })
         .rotate()
         .resize({ width: 1080, withoutEnlargement: true })
         .jpeg({ quality: 70 })

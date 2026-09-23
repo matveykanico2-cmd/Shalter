@@ -3,6 +3,7 @@ import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { startRecording, isRecordingSupported, createLevelMeter, MAX_RECORD_SEC } from "../lib/recorder.js";
 import { uploadFile } from "../lib/upload.js";
+import { compressPhotoForUpload } from "../lib/image.js";
 import { checkSize } from "../lib/uploadLimits.js";
 import { openPollDialog } from "./pollDialog.js";
 import { openMemeDialog } from "./memeDialog.js";
@@ -404,14 +405,29 @@ export function Composer({
         else if (t.kind === "video") captureVideoFrame(t.file).then((url) => t.setPreviewUrl(url));
       }
 
+      // Фото пережимаются перед отправкой (lib/image.js) — по одному, а не
+      // все разом: расжатый снимок с телефона — это под пятьдесят мегабайт
+      // памяти, и десяток одновременно ронял бы вкладку на слабом телефоне.
+      let compressing = Promise.resolve();
+      const prepare = (t) => {
+        if (t.kind !== "image") return Promise.resolve(t.file);
+        const next = compressing.then(() => compressPhotoForUpload(t.file));
+        compressing = next.catch(() => {});
+        return next;
+      };
       const results = await Promise.allSettled(
         tiles.map((t) =>
-          uploadFile(
-            t.file,
-            t.kind,
-            (fraction) => t.setProgress(fraction),
-            (xhr) => t.setXhr(xhr)
-          )
+          prepare(t)
+            .then((file) => {
+              // Плитку убрали, пока фото пережималось, — загружать нечего.
+              if (!t.tile.isConnected) throw new Error("Загрузка отменена");
+              return uploadFile(
+                file,
+                t.kind,
+                (fraction) => t.setProgress(fraction),
+                (xhr) => t.setXhr(xhr)
+              );
+            })
             .then((attachment) => {
               t.setDone();
               return attachment;
@@ -426,16 +442,22 @@ export function Composer({
       strip.remove();
 
       const attachments = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
-      const failedCount = results.length - attachments.length;
+      // Отменённые самим человеком — не ошибка, о них не сообщаем.
+      const failures = results.filter((r) => r.status === "rejected" && r.reason?.message !== "Загрузка отменена");
+      const failedCount = failures.length;
+      // Причина словами (lib/upload.js): «сервер недоступен», «слишком большой»,
+      // «проверьте соединение» — по одному общему «не удалось» не понять, что
+      // делать.
+      const reason = failures[0]?.reason?.message;
 
       for (let i = 0; i < attachments.length; i += MAX_ATTACHMENTS_PER_MESSAGE) {
         onSend("", attachments.slice(i, i + MAX_ATTACHMENTS_PER_MESSAGE));
       }
       if (failedCount > 0) {
         showUploadError(
-          failedCount === results.length
-            ? "Не удалось загрузить файл" + (results.length > 1 ? "ы" : "")
-            : `Загружено ${attachments.length} из ${results.length} — часть файлов не отправилась`
+          !attachments.length
+            ? reason || "Не удалось загрузить файл" + (results.length > 1 ? "ы" : "")
+            : `Загружено ${attachments.length} из ${results.length} — часть файлов не отправилась${reason ? `: ${reason}` : ""}`
         );
       }
     }

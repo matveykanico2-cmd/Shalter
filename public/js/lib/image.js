@@ -68,6 +68,63 @@ export async function fileToImageUpload(file, maxSize = 1080) {
   return new File([blob], name, { type: webp ? "image/webp" : "image/jpeg" });
 }
 
+// Фото перед отправкой в чат — уменьшенное до разумного размера.
+//
+// Раньше фотография уходила как есть: снимок с телефона — это 4000×3000 и
+// 5–10 МБ. Десять таких — полсотни мегабайт через домашний канал на отправку,
+// и столько же серверу: принять, зашифровать, пережать в эскиз. Отсюда и
+// «долго грузится», и падения сервера при пачке фотографий. 2560 пикселей по
+// длинной стороне — больше, чем экран любого телефона и большинства
+// мониторов; на глаз разницы нет, а файл меньше в десять-двадцать раз.
+//
+// Оригинал без пережатия по-прежнему уходит через «Файл».
+//
+// Если что-то пошло не так (формат, который браузер не открывает, например
+// HEIC на Android) — отдаём исходный файл: отправить без сжатия лучше, чем не
+// отправить вовсе.
+const PHOTO_MAX_SIDE = 2560;
+const PHOTO_SKIP_BYTES = 800 * 1024;
+export async function compressPhotoForUpload(file) {
+  const type = file.type || "";
+  // Анимацию canvas превратил бы в один кадр, вектор — в растр.
+  if (!type.startsWith("image/") || type === "image/gif" || type === "image/svg+xml") return file;
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    return file;
+  }
+  try {
+    const longSide = Math.max(bitmap.width, bitmap.height);
+    if (file.size <= PHOTO_SKIP_BYTES && longSide <= PHOTO_MAX_SIDE) return file;
+    const scale = Math.min(1, PHOTO_MAX_SIDE / longSide);
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    const webp = supportsWebp();
+    // У jpeg нет прозрачности — прозрачные места иначе стали бы чёрными.
+    if (!webp) {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const mime = webp ? "image/webp" : "image/jpeg";
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, mime, 0.85));
+    // Бывает, что пережатое выходит тяжелее (маленький скриншот в png) —
+    // тогда смысла нет.
+    if (!blob || blob.size >= file.size) return file;
+    const name = (file.name || "photo").replace(/\.[^.]+$/, "") + (webp ? ".webp" : ".jpg");
+    return new File([blob], name, { type: mime });
+  } catch {
+    return file;
+  } finally {
+    bitmap.close?.();
+  }
+}
+
 // One frame out of a video file, downscaled, as a data URL.
 //
 // A video avatar still needs a still: every avatar circle in the app — chat
