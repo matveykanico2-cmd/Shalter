@@ -6,6 +6,7 @@ import { subscribeLive, joinLive, leaveLive, stopLive, toggleMic, toggleCam, tog
 import { VolumeControl } from "./volumeControl.js";
 import { applyVolumeToAll } from "../lib/mediaVolume.js";
 import { attachFlv, isFlvSupported } from "../lib/flvPlayer.js";
+import { isServerModerator } from "../lib/moderation.js";
 
 // Экран эфира. Слева — видео и управление, справа — участники и чат.
 //
@@ -64,6 +65,9 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
   let unsub = null;
   let sending = false;
   let error = null;
+  // Своё сообщение в чате эфира, которое сейчас правится: поле ввода внизу
+  // переходит в режим правки, как в обычном чате.
+  let editingMessage = null;
   // Один узел на всё время эфира — по той же причине, что и <video> выше:
   // экран пересобирается на каждое сообщение в чат, а ползунок, пересозданный
   // во время перетаскивания, бросает его на полпути.
@@ -135,17 +139,49 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
     const text = chatInput.value.trim();
     if (!text || sending) return;
     sending = true;
+    const editing = editingMessage;
     chatInput.value = "";
     try {
-      await api.sendLiveMessage(streamId, text);
+      if (editing) {
+        await api.editLiveMessage(streamId, editing.id, text);
+        stopEditing();
+      } else {
+        await api.sendLiveMessage(streamId, text);
+      }
     } catch (err) {
-      error = err.message || "Не удалось отправить";
+      if (editing) chatInput.value = text;
+      error = err.message || (editing ? "Не удалось сохранить" : "Не удалось отправить");
     }
     sending = false;
   }
   chatInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") send();
+    if (e.key === "Escape" && editingMessage) stopEditing();
   });
+
+  function startEditing(m) {
+    editingMessage = m;
+    chatInput.value = m.text;
+    chatInput.placeholder = "Изменить сообщение";
+    chatInput.focus();
+    lastState && render(lastState);
+  }
+  function stopEditing() {
+    editingMessage = null;
+    chatInput.value = "";
+    chatInput.placeholder = "Сообщение в эфир";
+    lastState && render(lastState);
+  }
+  async function removeMessage(m, meId) {
+    if (!confirm(m.user?.id === meId ? "Удалить сообщение?" : `Удалить сообщение ${m.user?.name ?? "участника"}?`)) return;
+    try {
+      await api.deleteLiveMessage(streamId, m.id);
+      if (editingMessage?.id === m.id) stopEditing();
+    } catch (err) {
+      error = err.message || "Не удалось удалить";
+      lastState && render(lastState);
+    }
+  }
 
   async function act(fn) {
     try {
@@ -358,12 +394,37 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
         "div",
         { class: "live-chat-list" },
         s.messages.length
-          ? s.messages.map((m) =>
-              el("p", { class: "live-chat-msg" }, [el("span", { class: "live-chat-author" }, `${m.user.name}: `), m.text])
-            )
+          ? s.messages.map((m) => {
+              const own = m.user?.id === s.me?.id;
+              // Чужое удаляют ведущий, администрация чата и модератор сервера —
+              // те же, кого пускает server/routes/live.js.
+              const canDelete = own || isHost || canStopStream || isServerModerator();
+              return el("div", { class: `live-chat-msg${editingMessage?.id === m.id ? " editing" : ""}` }, [
+                el("p", {}, [
+                  el("span", { class: "live-chat-author" }, `${m.user.name}: `),
+                  m.text,
+                  m.editedAt ? el("span", { class: "comment-edited" }, " · изм.") : null,
+                ]),
+                own || canDelete
+                  ? el("div", { class: "comment-actions" }, [
+                      own ? el("button", { class: "comment-action-btn", title: "Изменить", html: iconSvg("Edit", 13), onclick: () => startEditing(m) }) : null,
+                      canDelete
+                        ? el("button", { class: "comment-action-btn danger", title: "Удалить", html: iconSvg("Trash", 13), onclick: () => removeMessage(m, s.me?.id) })
+                        : null,
+                    ])
+                  : null,
+              ]);
+            })
           : [el("p", { class: "live-chat-empty" }, "Пока никто ничего не написал")]
       ),
-      el("div", { class: "live-chat-form" }, [chatInput, el("button", { class: "live-send-btn", html: iconSvg("Send", 16), onclick: send })]),
+      editingMessage
+        ? el("div", { class: "comment-editing-bar" }, [
+            el("span", { html: iconSvg("Edit", 13) }),
+            el("span", { class: "comment-editing-text" }, `Изменение: ${editingMessage.text}`),
+            el("button", { class: "comment-action-btn", title: "Отменить", html: iconSvg("X", 14), onclick: stopEditing }),
+          ])
+        : null,
+      el("div", { class: "live-chat-form" }, [chatInput, el("button", { class: "live-send-btn", html: iconSvg(editingMessage ? "Check" : "Send", 16), onclick: send })]),
     ]);
 
     // Что вставить в OBS. Показывается только ведущему и только пока программа

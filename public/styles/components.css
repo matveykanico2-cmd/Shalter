@@ -8464,57 +8464,6 @@
   font-size: 12px;
   color: var(--color-muted);
 }
-
-/* Настройки → Хранилище (views/settings/index.js, renderStorage). */
-.storage-meter {
-  height: 8px;
-  border-radius: 999px;
-  background: var(--color-surface-alt);
-  border: 1px solid var(--color-border);
-  overflow: hidden;
-  margin: 0 0 12px;
-}
-.storage-meter-fill {
-  height: 100%;
-  min-width: 2px;
-  border-radius: inherit;
-  background: var(--color-accent);
-}
-.storage-period {
-  display: inline-flex;
-  gap: 4px;
-  padding: 3px;
-  margin: 8px 0 10px;
-  border-radius: 10px;
-  background: var(--color-surface-alt);
-  border: 1px solid var(--color-border);
-  max-width: 100%;
-  flex-wrap: wrap;
-}
-.storage-period-btn {
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 13px;
-  color: var(--color-muted);
-}
-.storage-period-btn.active {
-  background: var(--color-surface);
-  color: inherit;
-  font-weight: 600;
-}
-.storage-plan.current {
-  border-color: var(--color-accent);
-}
-.storage-plan:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-.storage-plan-badge {
-  margin-top: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-accent);
-}
 .stars-costs {
   margin: 0;
   padding-left: 18px;
@@ -12769,4 +12718,176 @@ p.business-status {
   justify-content: space-between;
   gap: 12px;
   padding: 2px 0;
+}
+
+/* ── Правка и удаление комментариев: истории (storyViewer.js), чат эфира
+   (liveScreen.js), ветки и комментарии к постам (threadPanel.js). ───────── */
+.comment-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+/* С мышью кнопки появляются при наведении на строку — лента комментариев
+   не пестрит карандашами. На сенсорных экранах наведения нет, там они видны
+   всегда, но приглушённо. */
+@media (hover: hover) {
+  .story-comment-row .comment-actions,
+  .live-chat-msg .comment-actions,
+  .thread-reply-row .comment-actions {
+    opacity: 0;
+  }
+  .story-comment-row:hover .comment-actions,
+  .live-chat-msg:hover .comment-actions,
+  .thread-reply-row:hover .comment-actions,
+  .comment-actions:focus-within {
+    opacity: 1;
+  }
+}
+.comment-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  color: inherit;
+  opacity: 0.7;
+}
+.comment-action-btn:hover {
+  opacity: 1;
+  background: rgba(127, 127, 127, 0.18);
+}
+.comment-action-btn.danger:hover {
+  color: var(--color-danger);
+}
+.comment-edited {
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+.comment-editing-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 6px 8px 6px 10px;
+  border-left: 3px solid var(--color-accent);
+  border-radius: 6px;
+  background: rgba(124, 111, 214, 0.12);
+  font-size: 12.5px;
+}
+.comment-editing-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.story-comment-row,
+.thread-reply-row {
+  border-radius: 10px;
+  transition: background-color 0.15s ease;
+}
+.story-comment-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.story-comment-row.editing,
+.thread-reply-row.editing,
+.live-chat-msg.editing {
+  background: rgba(124, 111, 214, 0.14);
+}
+.story-comment-body {
+  flex: 1;
+  min-width: 0;
+}
+/* Строка чата эфира стала блоком (текст + кнопки справа). */
+.live-chat-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 2px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+}
+.live-chat-msg:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.live-chat-msg > p {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+.thread-reply-row {
+  position: relative;
+  padding: 8px 8px;
+  margin: 0 -8px;
+}
+.thread-reply-row:hover {
+  background: var(--color-surface-alt);
+}
+.thread-reply-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.thread-reply-edit {
+  width: 100%;
+  resize: vertical;
+  margin: 4px 0 6px;
+}
+.thread-reply-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── Мелкая полировка ────────────────────────────────────────────────────── */
+/* Отклик на нажатие: кнопка чуть проседает и светлеет при наведении — без
+   этого непонятно, сработало ли касание, особенно на телефоне. */
+.btn-accent,
+.btn-accent-pill,
+.live-send-btn,
+.story-send-btn {
+  transition: filter 0.15s ease, transform 0.1s ease, background-color 0.15s ease;
+}
+.btn-accent:hover:not(:disabled),
+.btn-accent-pill:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.btn-accent:active:not(:disabled),
+.btn-accent-pill:active:not(:disabled),
+.live-send-btn:active,
+.story-send-btn:active,
+.comment-action-btn:active {
+  transform: scale(0.96);
+}
+.btn-accent:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+/* Плитки тарифов и паков звёзд — лёгкий подъём при наведении. */
+.stars-pack {
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.stars-pack:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+.stars-pack:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+/* Карточка статуса (Premium, бизнес, реклама) — мягкая тень вместо плоской
+   рамки, чтобы главное на странице читалось первым. */
+.premium-status-card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.04);
+}
+.settings-row {
+  transition: background-color 0.15s ease;
+}
+.settings-row:active {
+  background: var(--color-surface-alt);
 }

@@ -413,6 +413,21 @@ export async function joinLive(streamId) {
       notify();
     })
   );
+  // Правка и удаление сообщений в чате эфира (server/routes/live.js).
+  state.unsubs.push(
+    onWsMessage("live:message-updated", (msg) => {
+      if (!state || msg.streamId !== state.stream.id) return;
+      state.messages = state.messages.map((m) => (m.id === msg.message.id ? msg.message : m));
+      notify();
+    })
+  );
+  state.unsubs.push(
+    onWsMessage("live:message-deleted", (msg) => {
+      if (!state || msg.streamId !== state.stream.id) return;
+      state.messages = state.messages.filter((m) => m.id !== msg.messageId);
+      notify();
+    })
+  );
   state.unsubs.push(
     onWsMessage("live:ended", (msg) => {
       if (!state || msg.streamId !== state.stream.id) return;

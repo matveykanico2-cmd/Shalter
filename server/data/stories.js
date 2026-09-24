@@ -116,7 +116,21 @@ async function toggleLike(id, userId) {
 }
 
 function rowToComment(row) {
-  return { id: row.id, storyId: row.storyId, userId: row.userId, text: row.text, createdAt: row.createdAt };
+  if (!row) return undefined;
+  return { id: row.id, storyId: row.storyId, userId: row.userId, text: row.text, createdAt: row.createdAt, editedAt: row.editedAt ?? undefined };
+}
+
+async function getComment(id) {
+  return rowToComment(db.prepare("SELECT * FROM story_comments WHERE id = ?").get(id));
+}
+
+async function editComment(id, text) {
+  db.prepare("UPDATE story_comments SET text = ?, editedAt = ? WHERE id = ?").run(text, new Date().toISOString(), id);
+  return getComment(id);
+}
+
+async function deleteComment(id) {
+  db.prepare("DELETE FROM story_comments WHERE id = ?").run(id);
 }
 
 async function listComments(storyId) {
@@ -149,4 +163,7 @@ module.exports = {
   toggleLike,
   listComments,
   addComment,
+  getComment,
+  editComment,
+  deleteComment,
 };

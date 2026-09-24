@@ -5,6 +5,8 @@ import { formatText } from "../lib/formatText.js";
 import { Composer } from "./composer.js";
 import { api } from "../api.js";
 import { onWsMessage } from "../lib/wsClient.js";
+import { isChatAdmin, isChatModerator } from "../lib/chatRoles.js";
+import { isServerModerator } from "../lib/moderation.js";
 
 function timeLabel(iso) {
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
@@ -48,10 +50,58 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
     replies = [...replies, msg.message];
     renderBody();
   });
+  // Ответ поправили или удалили — у всех, у кого открыта эта ветка.
+  const unsubUpdated = onWsMessage("message:updated", (msg) => {
+    if (!msg.message || !replies.some((r) => r.id === msg.message.id)) return;
+    replies = replies.map((r) => (r.id === msg.message.id ? msg.message : r));
+    renderBody();
+  });
+  const unsubDeleted = onWsMessage("message:deleted", (msg) => {
+    const id = msg.id ?? msg.messageId;
+    if (!replies.some((r) => r.id === id)) return;
+    replies = replies.filter((r) => r.id !== id);
+    renderBody();
+  });
 
   function close() {
     unsub();
+    unsubUpdated();
+    unsubDeleted();
     overlay.remove();
+  }
+
+  // Правка — только своего ответа, прямо в строке. Удалить — свой; чужой —
+  // администрации чата (для комментариев — администрации канала, см.
+  // server/routes/messages.js) и модератору сервера.
+  let editingId = null;
+  const canDeleteReply = (m) => m.senderId === me.id || isChatAdmin(chat, me.id) || isChatModerator(chat, me.id) || isServerModerator();
+
+  async function saveReplyEdit(m, text) {
+    const clean = text.trim();
+    if (!clean || clean === m.text) {
+      editingId = null;
+      return renderBody();
+    }
+    try {
+      const { message } = await api.editMessage(m.chatId, m.id, clean);
+      replies = replies.map((r) => (r.id === m.id ? message : r));
+      editingId = null;
+      renderBody();
+    } catch (err) {
+      alert(err.message || "Не удалось сохранить");
+    }
+  }
+
+  async function deleteReply(m) {
+    if (!confirm(m.senderId === me.id ? "Удалить комментарий?" : `Удалить комментарий ${memberOf(m.senderId)?.name ?? "участника"}?`)) return;
+    try {
+      await api.deleteMessage(m.chatId, m.id, true);
+      replies = replies.filter((r) => r.id !== m.id);
+      renderBody();
+      onReplySent?.();
+    } catch (err) {
+      alert(err.message || "Не удалось удалить");
+    }
   }
 
   function memberOf(userId) {
@@ -67,10 +117,43 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
   }
 
   function replyRow(m) {
+    const own = m.senderId === me.id;
+    if (editingId === m.id) {
+      const input = el("textarea", { class: "settings-input thread-reply-edit", rows: 2, value: m.text });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          saveReplyEdit(m, input.value);
+        }
+        if (e.key === "Escape") {
+          editingId = null;
+          renderBody();
+        }
+      });
+      setTimeout(() => input.focus(), 0);
+      return el("div", { class: "thread-reply-row editing" }, [
+        personLine(m.senderId),
+        input,
+        el("div", { class: "thread-reply-edit-actions" }, [
+          el("button", { class: "settings-danger-link", onclick: () => ((editingId = null), renderBody()) }, "Отмена"),
+          el("button", { class: "btn-accent", onclick: () => saveReplyEdit(m, input.value) }, "Сохранить"),
+        ]),
+      ]);
+    }
     return el("div", { class: "thread-reply-row" }, [
       personLine(m.senderId),
       el("div", { class: "thread-reply-text message-text" }, formatText(m.text || "Медиа", members)),
-      el("span", { class: "thread-reply-time" }, timeLabel(m.createdAt)),
+      el("span", { class: "thread-reply-time" }, [timeLabel(m.createdAt), m.editedAt ? " · изм." : ""]),
+      own || canDeleteReply(m)
+        ? el("div", { class: "comment-actions thread-reply-actions" }, [
+            own && m.text
+              ? el("button", { class: "comment-action-btn", title: "Изменить", html: iconSvg("Edit", 14), onclick: () => ((editingId = m.id), renderBody()) })
+              : null,
+            canDeleteReply(m)
+              ? el("button", { class: "comment-action-btn danger", title: "Удалить", html: iconSvg("Trash", 14), onclick: () => deleteReply(m) })
+              : null,
+          ])
+        : null,
     ]);
   }
 

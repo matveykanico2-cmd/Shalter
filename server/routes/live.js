@@ -9,6 +9,7 @@ const { publicUser } = require("../data/sanitize");
 const { isStaff } = require("../lib/chatPermissions");
 const { broadcastToUsers } = require("../ws");
 const live = require("../data/liveStreams");
+const { hasAdminSection } = require("../lib/adminAccess");
 const rtmp = require("../rtmp");
 
 // Эфиры в каналах и группах: ведущий вещает звук и видео, слушатели смотрят,
@@ -83,6 +84,7 @@ async function stateOf(stream) {
       id: m.id,
       text: m.text,
       createdAt: m.createdAt,
+      editedAt: m.editedAt ?? undefined,
       user: authors[i] ? publicUser(authors[i]) : { id: m.userId, name: "—" },
     })),
   };
@@ -339,6 +341,57 @@ router.post(
       { type: "live:message", streamId: found.stream.id, message }
     );
     res.json({ message });
+  })
+);
+
+// Правка и удаление сообщений в чате эфира. Править — только своё. Удалять —
+// своё; любое — ведущему и администрации чата (тем же, кто вправе завершить
+// эфир, canStopStream), а также модератору сервера.
+async function loadLiveMessage(req, res) {
+  const found = await loadStream(req, res);
+  if (!found) return null;
+  const message = live.getMessage(req.params.messageId);
+  if (!message || message.streamId !== found.stream.id) {
+    res.status(404).json({ error: "Сообщение не найдено" });
+    return null;
+  }
+  return { ...found, message };
+}
+
+function participantIds(stream) {
+  return live.listParticipants(stream.id).map((p) => p.userId);
+}
+
+router.patch(
+  "/:id/messages/:messageId",
+  asyncRoute(async (req, res) => {
+    const found = await loadLiveMessage(req, res);
+    if (!found) return;
+    if (found.message.userId !== req.uid) return res.status(403).json({ error: "Править можно только своё сообщение" });
+    const text = String(req.body?.text ?? "").trim().slice(0, MAX_MESSAGE_LEN);
+    if (!text) return res.status(400).json({ error: "Пустое сообщение" });
+
+    const saved = live.editMessage(found.message.id, text);
+    const message = { id: saved.id, text: saved.text, createdAt: saved.createdAt, editedAt: saved.editedAt, user: publicUser(await getUser(req.uid)) };
+    broadcastToUsers(participantIds(found.stream), { type: "live:message-updated", streamId: found.stream.id, message });
+    res.json({ message });
+  })
+);
+
+router.delete(
+  "/:id/messages/:messageId",
+  asyncRoute(async (req, res) => {
+    const found = await loadLiveMessage(req, res);
+    if (!found) return;
+    const allowed =
+      found.message.userId === req.uid ||
+      canStopStream(found.stream, found.chat, req.uid) ||
+      hasAdminSection(await getUser(req.uid), "moderation");
+    if (!allowed) return res.status(403).json({ error: "Удалить чужое сообщение может ведущий или администратор чата" });
+
+    live.deleteMessage(found.message.id);
+    broadcastToUsers(participantIds(found.stream), { type: "live:message-deleted", streamId: found.stream.id, messageId: found.message.id });
+    res.json({ ok: true });
   })
 );
 

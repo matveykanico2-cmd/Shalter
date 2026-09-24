@@ -40,6 +40,9 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   let viewersOpen = false;
   let comments = null; // комментарии текущей истории, грузятся по нажатию
   let commentsOpen = false;
+  // Какой комментарий сейчас правится — поле ввода внизу панели переходит в
+  // режим правки, как поле сообщения в чате.
+  let editingCommentId = null;
 
   const overlay = el("div", { class: "story-viewer-overlay" });
   document.body.appendChild(overlay);
@@ -69,6 +72,8 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     unsubDeleted?.();
     unsubLiked?.();
     unsubCommented?.();
+    unsubCommentUpdated?.();
+    unsubCommentDeleted?.();
     overlay.remove();
   }
 
@@ -84,6 +89,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   function resetStoryPanels() {
     comments = null;
     commentsOpen = false;
+    editingCommentId = null;
     viewers = null;
     viewersOpen = false;
   }
@@ -116,6 +122,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       viewersOpen = false;
       comments = null;
       commentsOpen = false;
+      editingCommentId = null;
       render();
     } else close();
   }
@@ -128,6 +135,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       viewersOpen = false;
       comments = null;
       commentsOpen = false;
+      editingCommentId = null;
       render();
     }
   }
@@ -250,6 +258,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     const story = currentStory();
     const clean = text.trim();
     if (!clean) return;
+    if (editingCommentId) return saveCommentEdit(editingCommentId, clean, input);
     input.value = "";
     try {
       const { comment } = await api.addStoryComment(story.id, clean);
@@ -258,6 +267,39 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     } catch (err) {
       input.value = clean;
       alert(err.message || "Не удалось отправить комментарий");
+    }
+  }
+
+  async function saveCommentEdit(commentId, text, input) {
+    const story = currentStory();
+    try {
+      const { comment } = await api.editStoryComment(story.id, commentId, text);
+      comments = (comments ?? []).map((c) => (c.id === comment.id ? comment : c));
+      editingCommentId = null;
+      input.value = "";
+      render();
+    } catch (err) {
+      alert(err.message || "Не удалось сохранить комментарий");
+    }
+  }
+
+  // Удалить можно свой комментарий; под своей историей (или историей своего
+  // канала) — любой; модератору сервера — любой (server/routes/stories.js).
+  function canDeleteComment(c) {
+    return c.userId === meId || isMine() || isServerModerator();
+  }
+
+  async function removeComment(c) {
+    const story = currentStory();
+    const question = c.userId === meId ? "Удалить комментарий?" : `Удалить комментарий ${c.author?.name ?? "пользователя"}?`;
+    if (!confirm(question)) return;
+    try {
+      await api.deleteStoryComment(story.id, c.id);
+      comments = (comments ?? []).filter((x) => x.id !== c.id);
+      if (editingCommentId === c.id) editingCommentId = null;
+      render();
+    } catch (err) {
+      alert(err.message || "Не удалось удалить комментарий");
     }
   }
 
@@ -325,6 +367,18 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     }
   });
 
+  const unsubCommentUpdated = onWsMessage("story:comment-updated", ({ storyId, comment }) => {
+    if (currentStory()?.id !== storyId || !comments) return;
+    comments = comments.map((c) => (c.id === comment.id ? comment : c));
+    if (commentsOpen) render();
+  });
+  const unsubCommentDeleted = onWsMessage("story:comment-deleted", ({ storyId, commentId }) => {
+    if (currentStory()?.id !== storyId || !comments) return;
+    comments = comments.filter((c) => c.id !== commentId);
+    if (editingCommentId === commentId) editingCommentId = null;
+    if (commentsOpen) render();
+  });
+
   function onKey(e) {
     if (e.key === "Escape") return close();
     if (e.key === "ArrowRight") return goNextStory();
@@ -386,13 +440,19 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       },
     });
 
+    const editing = editingCommentId ? comments?.find((c) => c.id === editingCommentId) : null;
     const commentInput = el("input", {
       class: "story-comment-input",
-      placeholder: "Комментарий…",
+      placeholder: editing ? "Изменить комментарий…" : "Комментарий…",
+      value: editing?.text ?? "",
       onfocus: pause,
       onblur: resume,
       onkeydown: (e) => {
         if (e.key === "Enter") sendComment(e.target.value, e.target);
+        if (e.key === "Escape" && editingCommentId) {
+          editingCommentId = null;
+          render();
+        }
         e.stopPropagation();
       },
     });
@@ -464,15 +524,39 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
                 ? el("p", { class: "story-viewers-title" }, "Пока нет комментариев")
                 : null,
             ...(comments ?? []).map((c) =>
-              el("div", { class: "story-comment-row" }, [
+              el("div", { class: `story-comment-row${c.id === editingCommentId ? " editing" : ""}` }, [
                 Avatar({ name: c.author?.name ?? "?", color: c.author?.avatarColor, image: c.author?.avatarImage, size: 26 }),
                 el("div", { class: "story-comment-body" }, [
                   el("span", { class: "story-comment-author" }, c.author?.name ?? "Пользователь"),
-                  el("span", { class: "story-comment-text" }, c.text),
+                  el("span", { class: "story-comment-text" }, [c.text, c.editedAt ? el("span", { class: "comment-edited" }, " · изм.") : null]),
+                ]),
+                el("div", { class: "comment-actions" }, [
+                  c.userId === meId
+                    ? el("button", {
+                        class: "comment-action-btn",
+                        title: "Изменить",
+                        html: iconSvg("Edit", 14),
+                        onclick: () => {
+                          editingCommentId = c.id;
+                          render();
+                          overlay.querySelector(".story-comment-input")?.focus();
+                        },
+                      })
+                    : null,
+                  canDeleteComment(c)
+                    ? el("button", { class: "comment-action-btn danger", title: "Удалить", html: iconSvg("Trash", 14), onclick: () => removeComment(c) })
+                    : null,
                 ]),
               ])
             ),
           ]),
+          editing
+            ? el("div", { class: "comment-editing-bar" }, [
+                el("span", { html: iconSvg("Edit", 13) }),
+                el("span", { class: "comment-editing-text" }, `Изменение: ${editing.text}`),
+                el("button", { class: "comment-action-btn", title: "Отменить", html: iconSvg("X", 14), onclick: () => ((editingCommentId = null), render()) }),
+              ])
+            : null,
           el("div", { class: "story-comment-compose" }, [
             commentInput,
             el("button", {

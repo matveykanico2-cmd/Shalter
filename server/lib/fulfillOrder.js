@@ -1,7 +1,7 @@
-const { getUser, grantPremiumDays, grantAdsDays, grantBusinessDays, grantStorage } = require("../data/users");
+const { getUser, grantPremiumDays, grantAdsDays, grantBusinessDays } = require("../data/users");
 const { getGift } = require("../data/gifts");
 const { addStars, STAR_PACKS } = require("../data/stars");
-const { PREMIUM_PLANS, BUSINESS_PLANS, STORAGE_PLANS } = require("../config");
+const { PREMIUM_PLANS, BUSINESS_PLANS } = require("../config");
 const { markOrderFulfilled } = require("../data/pendingOrders");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("./systemChat");
@@ -74,13 +74,6 @@ async function fulfillOrder(order) {
     if (!plan) return { ok: false, reason: "unknown_plan" };
     await grantBusinessDays(order.userId, plan.days);
     text = `🏢 Оплата получена! Вам выдан Shalter для бизнеса на ${plan.label}.`;
-  } else if (order.kind === "storage") {
-    // Same by-price lookup as "premium" above — STORAGE_PLANS' prices are
-    // unique for exactly this reason.
-    const plan = Object.values(STORAGE_PLANS).find((p) => p.priceRub === order.amountRub);
-    if (!plan) return { ok: false, reason: "unknown_plan" };
-    await grantStorage(order.userId, plan.gb, plan.days);
-    text = `☁️ Оплата получена! Хранилище ${plan.label} подключено ${plan.period === "year" ? "на год" : "на месяц"}.`;
   } else if (order.kind === "ads") {
     await grantAdsDays(order.userId, 30);
     text = "📢 Оплата получена! Вам выдан кабинет рекламы на 30 дней. Настройте объявление в Настройки → Реклама.";

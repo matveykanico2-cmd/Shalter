@@ -734,8 +734,13 @@ router.delete(
       const inDm = chatForDelete?.type === "dm";
       // Модератор сервера (раздел «Модерация») — любое сообщение в любом чате:
       // спам, запрещённые файлы и ссылки убираются без жалобы и без членства.
-      const moderator = found.moderator || (!mine && !staff && !inDm && (await isServerModerator(req.uid)));
-      if (!mine && !staff && !inDm && !moderator) {
+      // Комментарии под постом канала лежат в его группе обсуждения, а
+      // управляет ими, как в Telegram, администрация самого канала — даже если
+      // в группе обсуждения у неё нет роли.
+      const channelOfDiscussion = !mine && !staff && !inDm ? await findChannelByDiscussionChatId(chatForDelete.id) : null;
+      const channelStaff = !!channelOfDiscussion && isStaff(channelOfDiscussion, req.uid);
+      const moderator = found.moderator || (!mine && !staff && !inDm && !channelStaff && (await isServerModerator(req.uid)));
+      if (!mine && !staff && !inDm && !channelStaff && !moderator) {
         return res.status(403).json({ error: "Удалить чужое сообщение у всех могут владельцы, админы и модераторы" });
       }
       await deleteMessage(req.params.messageId);

@@ -146,6 +146,19 @@ function addMessage(streamId, userId, text) {
   return message;
 }
 
+function getMessage(id) {
+  return db.prepare("SELECT * FROM live_messages WHERE id = ?").get(id);
+}
+
+function editMessage(id, text) {
+  db.prepare("UPDATE live_messages SET text = ?, editedAt = ? WHERE id = ?").run(text, new Date().toISOString(), id);
+  return getMessage(id);
+}
+
+function deleteMessage(id) {
+  db.prepare("DELETE FROM live_messages WHERE id = ?").run(id);
+}
+
 // Последние N сообщений чата эфира: он живёт минутами и читается «с конца»,
 // поэтому отдаём хвост, а не всю ленту с начала.
 function listMessages(streamId, { limit = 100 } = {}) {
@@ -156,6 +169,9 @@ function listMessages(streamId, { limit = 100 } = {}) {
 }
 
 module.exports = {
+  getMessage,
+  editMessage,
+  deleteMessage,
   getStreamKey,
   getLiveStreamByKey,
   setRtmpLive,

@@ -13,6 +13,9 @@ const {
   toggleLike,
   listComments,
   addComment,
+  getComment,
+  editComment,
+  deleteComment,
 } = require("../data/stories");
 const { getSettings } = require("../data/settings");
 const { privacyAllows } = require("../lib/privacyRules");
@@ -353,6 +356,63 @@ router.post(
       comment: { ...comment, author },
     });
     res.json({ comment: { ...comment, author } });
+  })
+);
+
+// Правка и удаление комментария к истории.
+//
+// Править — только свой комментарий. Удалять — свой; любой под своей
+// историей (или историей канала, которым управляешь), как в Telegram
+// хозяин поста чистит комментарии под ним; и модератору сервера — любой.
+async function loadStoryComment(req, res) {
+  const story = await getStoryById(req.params.id);
+  const comment = story ? await getComment(req.params.commentId) : null;
+  if (!story || !comment || comment.storyId !== story.id) {
+    res.status(404).json({ error: "not found" });
+    return null;
+  }
+  return { story, comment };
+}
+
+router.patch(
+  "/:id/comments/:commentId",
+  asyncRoute(async (req, res) => {
+    const found = await loadStoryComment(req, res);
+    if (!found) return;
+    if (found.comment.userId !== req.uid) return res.status(403).json({ error: "Править можно только свой комментарий" });
+    const text = String(req.body?.text ?? "").trim().slice(0, 500);
+    if (!text) return res.status(400).json({ error: "empty comment" });
+
+    const comment = await editComment(found.comment.id, text);
+    const author = publicUser(await getUser(req.uid));
+    broadcastToUsers(await audienceForStory(found.story), {
+      type: "story:comment-updated",
+      storyId: found.story.id,
+      comment: { ...comment, author },
+    });
+    res.json({ comment: { ...comment, author } });
+  })
+);
+
+router.delete(
+  "/:id/comments/:commentId",
+  asyncRoute(async (req, res) => {
+    const found = await loadStoryComment(req, res);
+    if (!found) return;
+    const { story, comment } = found;
+    let allowed = comment.userId === req.uid;
+    if (!allowed && isChannelId(story.userId)) allowed = isChannelStaff(await getChat(story.userId), req.uid);
+    else if (!allowed) allowed = story.userId === req.uid;
+    if (!allowed) allowed = hasAdminSection(await getUser(req.uid), "moderation");
+    if (!allowed) return res.status(403).json({ error: "Недостаточно прав" });
+
+    await deleteComment(comment.id);
+    broadcastToUsers(await audienceForStory(story), {
+      type: "story:comment-deleted",
+      storyId: story.id,
+      commentId: comment.id,
+    });
+    res.json({ ok: true });
   })
 );
 

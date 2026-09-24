@@ -576,12 +576,6 @@ if (!existingUserColumns.has("businessUntil")) db.exec("ALTER TABLE users ADD CO
 if (!existingUserColumns.has("businessAddress")) db.exec("ALTER TABLE users ADD COLUMN businessAddress TEXT");
 if (!existingUserColumns.has("businessLat")) db.exec("ALTER TABLE users ADD COLUMN businessLat REAL");
 if (!existingUserColumns.has("businessLng")) db.exec("ALTER TABLE users ADD COLUMN businessLng REAL");
-// Тариф облачного хранилища (server/routes/storage.js): объём в гигабайтах и
-// срок — та же схема «до какого числа», что у premiumUntil/businessUntil.
-// Объём, а не id тарифа: тариф могут переименовать или убрать из сетки, а
-// купленные гигабайты у человека остаются.
-if (!existingUserColumns.has("storageGb")) db.exec("ALTER TABLE users ADD COLUMN storageGb INTEGER");
-if (!existingUserColumns.has("storageUntil")) db.exec("ALTER TABLE users ADD COLUMN storageUntil TEXT");
 // Optional image/video/file attachments (a small gallery, not just one)
 // shown alongside the ad text — same client-authored-JSON shape as a
 // message's own attachments array (see server/lib/sanitizeAttachments.js),
@@ -1209,6 +1203,13 @@ CREATE TABLE IF NOT EXISTS live_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_live_messages_stream ON live_messages(streamId, createdAt);
 `);
+
+// Правка комментариев (routes/stories.js, routes/live.js): когда текст меняли,
+// рядом показывается «изм.», как у обычных сообщений.
+for (const table of ["story_comments", "live_messages"]) {
+  const cols = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+  if (!cols.has("editedAt")) db.exec(`ALTER TABLE ${table} ADD COLUMN editedAt TEXT`);
+}
 
 // Метки безопасности, которые администратор заводит сам.
 //

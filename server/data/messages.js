@@ -511,31 +511,6 @@ function attachmentBytesByKind(chatIds) {
   return Object.fromEntries(rows.filter((r) => r.kind).map((r) => [r.kind, r.bytes ?? 0]));
 }
 
-// Сколько места занимают файлы, которые человек сам отправил, — для экрана
-// «Хранилище» (routes/storage.js). В отличие от attachmentBytesByKind выше
-// (всё, что лежит в чатах человека, включая чужие вложения), здесь только
-// своё — то, что и считается «его облаком».
-//
-// Один и тот же файл, отправленный в десять чатов, на сервере лежит один раз
-// (routes/uploads.js, дедупликация по содержимому) — и считается один раз:
-// сначала группировка по ссылке, потом сумма.
-function attachmentBytesBySender(userId) {
-  const rows = db
-    .prepare(
-      `SELECT kind, count(*) AS files, sum(bytes) AS bytes FROM (
-         SELECT json_extract(a.value, '$.url') AS url,
-                max(json_extract(a.value, '$.kind')) AS kind,
-                max(coalesce(json_extract(a.value, '$.size'), 0)) AS bytes
-           FROM messages m, json_each(m.attachments) a
-          WHERE m.senderId = ? AND m.attachments IS NOT NULL AND m.attachments <> '[]'
-            AND json_extract(a.value, '$.url') LIKE '/uploads/%'
-          GROUP BY url
-       ) GROUP BY kind`
-    )
-    .all(userId);
-  return Object.fromEntries(rows.filter((r) => r.kind).map((r) => [r.kind, { bytes: r.bytes ?? 0, files: r.files }]));
-}
-
 // Календарь переписки: в какие дни в этом чате вообще что-то писали.
 //
 // Даты считаются в часовом поясе того, кто смотрит: createdAt лежит в UTC, а
@@ -593,7 +568,6 @@ module.exports = {
   chatMessageStats,
   topSenders,
   attachmentBytesByKind,
-  attachmentBytesBySender,
   listMessageDays,
   firstMessageOfDay,
   // Нужен data/chat-summary.js: он читает строки своим запросом и превращает

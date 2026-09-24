@@ -182,7 +182,6 @@ app.get("/api/labels", (req, res) => res.json({ labels: require("./data/safetyLa
 app.use("/api/stories", require("./routes/stories"));
 app.use("/api/premium", require("./routes/premium"));
 app.use("/api/business", require("./routes/business"));
-app.use("/api/storage", require("./routes/storage"));
 app.use("/api/nearby", require("./routes/nearby"));
 app.use("/api/gifts", require("./routes/gifts"));
 app.use("/api/ads", require("./routes/ads"));

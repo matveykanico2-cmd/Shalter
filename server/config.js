@@ -46,25 +46,6 @@ const PREMIUM_PLANS = {
 };
 const DEFAULT_PREMIUM_PLAN = "1m";
 
-// Тарифы облачного хранилища (Настройки → Хранилище, server/routes/
-// storage.js) — сетка как у Google One: несколько объёмов, помесячно или на
-// год со скидкой в два месяца. Лимита по умолчанию нет, и тариф ничего не
-// ограничивает: загрузка работает одинаково с ним и без него, тариф — это
-// поддержка проекта и отметка объёма в профиле.
-//
-// Оплата — тем же путём, что Premium (lib/autoPayment.js или перевод
-// администрации), и заказ находится обратно по цене (lib/fulfillOrder.js),
-// поэтому все priceRub здесь обязаны быть разными.
-const STORAGE_PLANS = {
-  "100gb-1m": { gb: 100, days: 30, priceRub: 149, label: "100 ГБ", period: "month" },
-  "200gb-1m": { gb: 200, days: 30, priceRub: 249, label: "200 ГБ", period: "month" },
-  "2tb-1m": { gb: 2048, days: 30, priceRub: 699, label: "2 ТБ", period: "month" },
-  "100gb-12m": { gb: 100, days: 365, priceRub: 1490, label: "100 ГБ", period: "year" },
-  "200gb-12m": { gb: 200, days: 365, priceRub: 2490, label: "200 ГБ", period: "year" },
-  "2tb-12m": { gb: 2048, days: 365, priceRub: 6990, label: "2 ТБ", period: "year" },
-};
-const DEFAULT_STORAGE_PLAN = "100gb-1m";
-
 // "Shalter для бизнеса" (Настройки → Shalter для бизнеса, server/routes/
 // business.js) — часы работы, приветствие/автоответ, быстрые ответы,
 // геолокация офиса. Отдельная, более дорогая подписка поверх Premium (как
@@ -117,8 +98,6 @@ module.exports = {
   PREMIUM_GRANT_DAYS,
   PREMIUM_PLANS,
   DEFAULT_PREMIUM_PLAN,
-  STORAGE_PLANS,
-  DEFAULT_STORAGE_PLAN,
   BUSINESS_GRANT_DAYS,
   BUSINESS_PLANS,
   DEFAULT_BUSINESS_PLAN,

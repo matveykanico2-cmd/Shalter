@@ -71,7 +71,6 @@ const SECTIONS = [
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", group: "main" },
   { id: "premium", label: "Premium и друзья", icon: "Star", group: "extra" },
   { id: "business", label: "Shalter для бизнеса", icon: "Bag", group: "extra" },
-  { id: "storage", label: "Хранилище", icon: "Cloud", group: "extra" },
   { id: "partners", label: "Партнёрка", icon: "Users", group: "extra" },
   { id: "oauth", label: "Войти через Shalter", icon: "Lock", group: "extra" },
   { id: "stars", label: "Звёзды", icon: "Zap", group: "extra" },
@@ -187,7 +186,6 @@ export async function SettingsView(root, page) {
     profile: renderProfile,
     premium: renderPremium,
     business: renderBusiness,
-    storage: renderStorage,
     partners: renderPartners,
     oauth: renderOAuthApps,
     ads: renderAds,
@@ -249,12 +247,7 @@ function renderMenu(root) {
       icon: s.icon,
       label: s.label,
       href: `/settings/${s.id}`,
-      value:
-        s.id === "accounts" && accounts.length > 1
-          ? accounts.length
-          : s.id === "storage" && me.isStorageActive
-            ? formatGb(me.storageGb)
-            : null,
+      value: s.id === "accounts" && accounts.length > 1 ? accounts.length : null,
     });
 
   const admin = groupOf("admin");
@@ -1051,124 +1044,6 @@ async function renderBusiness(root) {
     }
 
     mount(root, pageWrap("Shalter для бизнеса", "Часы работы, автоответчик, быстрые ответы и адрес на профиле", rows));
-  }
-  render();
-}
-
-// Облачное хранилище — тарифы в духе Google One (server/config.js,
-// STORAGE_PLANS). Лимита нет и тариф ничего не ограничивает, поэтому шкала
-// здесь честная: реальный объём своих файлов против объёма тарифа (или просто
-// «использовано», если тарифа нет) — без множителя, который стоит на экране
-// «Данные и память». Рядом с кнопкой «купить» завышенная цифра была бы
-// уговором заплатить за место, которое на самом деле не занято.
-const STORAGE_KIND_LABELS = [
-  { kinds: ["image"], label: "Фото" },
-  { kinds: ["video", "video-note"], label: "Видео" },
-  { kinds: ["file"], label: "Файлы" },
-  { kinds: ["voice"], label: "Голосовые" },
-];
-
-function formatGb(gb) {
-  return gb >= 1024 ? `${gb / 1024} ТБ` : `${gb} ГБ`;
-}
-
-async function renderStorage(root) {
-  let info = await api.getStorageInfo();
-  let period = "month";
-  let buyingPlan = null;
-  let buyError = null;
-
-  async function buy(planId) {
-    buyingPlan = planId;
-    buyError = null;
-    render();
-    try {
-      handlePurchaseResponse(await api.requestStorage(planId));
-    } catch (err) {
-      buyError = err.message;
-    } finally {
-      buyingPlan = null;
-      render();
-    }
-  }
-
-  function planTile(planId, plan) {
-    const current = info.isStorageActive && info.storageGb === plan.gb;
-    // Меньший объём при действующем тарифе сервер не продаст (routes/
-    // storage.js) — плитка сразу выключена, а не падает с ошибкой.
-    const smaller = info.isStorageActive && plan.gb < info.storageGb;
-    const monthly = plan.period === "year" ? Math.round(plan.priceRub / 12) : null;
-    return el(
-      "button",
-      {
-        class: `stars-pack storage-plan${current ? " current" : ""}`,
-        disabled: !!buyingPlan || smaller || (current && info.storageForever),
-        onclick: () => buy(planId),
-      },
-      [
-        el("span", { class: "stars-pack-amount" }, buyingPlan === planId ? "Открываем…" : plan.label),
-        el("span", { class: "stars-pack-price mono" }, `${plan.priceRub} ₽ / ${plan.period === "year" ? "год" : "мес"}`),
-        monthly ? el("span", { class: "stars-pack-price" }, `≈ ${monthly} ₽ в месяц`) : null,
-        current ? el("span", { class: "storage-plan-badge" }, info.storageForever ? "Ваш тариф" : "Продлить") : null,
-      ]
-    );
-  }
-
-  function render() {
-    const capacity = info.isStorageActive ? info.storageGb * 1024 * 1024 * 1024 : 0;
-    const share = capacity ? Math.min(100, (info.usedBytes / capacity) * 100) : 0;
-    const bytesOf = (kinds) => kinds.reduce((sum, k) => sum + (info.byKind[k]?.bytes ?? 0), 0);
-    const plans = Object.entries(info.plans ?? {}).filter(([, p]) => p.period === period);
-
-    mount(
-      root,
-      pageWrap("Хранилище", "Место для ваших фото, видео и файлов в облаке Shalter", [
-        el("div", { class: `premium-status-card ${info.isStorageActive ? "active" : ""}` }, [
-          el("span", { class: "premium-status-icon", html: iconSvg("Cloud", 26) }),
-          el("div", {}, [
-            el(
-              "p",
-              { class: "premium-status-title" },
-              info.isStorageActive ? `Тариф ${formatGb(info.storageGb)}` : "Бесплатно, без ограничений"
-            ),
-            el(
-              "p",
-              { class: "premium-status-hint" },
-              info.isStorageActive
-                ? formatPremiumUntil({ premiumUntil: info.storageUntil, premiumForever: info.storageForever })
-                : "Лимита нет — тариф поддерживает проект и отмечает объём"
-            ),
-          ]),
-        ]),
-        el("p", { class: "settings-section-title" }, `Использовано — ${formatBytes(info.usedBytes)}${capacity ? ` из ${formatGb(info.storageGb)}` : ""}`),
-        capacity ? el("div", { class: "storage-meter" }, [el("div", { class: "storage-meter-fill", style: `width: ${share}%` })]) : null,
-        el(
-          "div",
-          { class: "settings-cache-list" },
-          STORAGE_KIND_LABELS.map((k) =>
-            el("div", { class: "settings-cache-row" }, [
-              el("span", {}, k.label),
-              el("span", { class: "mono settings-toggle-hint" }, formatBytes(bytesOf(k.kinds))),
-            ])
-          )
-        ),
-        el("p", { class: "settings-toggle-hint" }, `${info.fileCount} ${info.fileCount === 1 ? "файл" : "файлов"}, отправленных вами. Файл, пересланный в несколько чатов, хранится и считается один раз.`),
-        el("div", { class: "settings-notice-box" }, [
-          el("p", { class: "settings-toggle-title" }, info.isStorageActive ? "Сменить или продлить тариф" : "Тарифы"),
-          el("div", { class: "storage-period" }, [
-            el("button", { class: `storage-period-btn${period === "month" ? " active" : ""}`, onclick: () => { period = "month"; render(); } }, "Помесячно"),
-            el("button", { class: `storage-period-btn${period === "year" ? " active" : ""}`, onclick: () => { period = "year"; render(); } }, "На год · 2 месяца в подарок"),
-          ]),
-          el("div", { class: "stars-pack-grid" }, plans.map(([id, plan]) => planTile(id, plan))),
-          el(
-            "p",
-            { class: "settings-toggle-hint" },
-            "Оплата — так же, как Premium. Тот же объём продлевается поверх оставшегося срока, больший начинается с сегодняшнего дня."
-          ),
-          buyError ? el("p", { class: "login-error" }, buyError) : null,
-        ]),
-      ])
-    );
   }
   render();
 }
