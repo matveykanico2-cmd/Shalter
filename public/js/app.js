@@ -11,6 +11,7 @@ import { startWsClient, onWsMessage } from "./lib/wsClient.js";
 import { ensurePushSubscribed } from "./lib/push.js";
 import { startVersionWatch } from "./lib/appVersion.js";
 import { subscribeCall, getCallState, minimize, restore } from "./lib/callController.js";
+import { applyVolume } from "./lib/mediaVolume.js";
 import { Avatar } from "./components/avatar.js";
 import { iconSvg } from "./icons.js";
 import { initUiTranslation } from "./lib/uiTranslate.js";
@@ -209,8 +210,17 @@ async function boot() {
   const sidebar = el("div", { class: "shell-sidebar" });
   const mainSlot = el("div", { class: "shell-main-col" });
   const callBubbleSlot = el("div", { class: "call-bubble-slot" });
+  // Звук собеседников живёт здесь, в оболочке, а не на экране звонка.
+  //
+  // Иначе звук пропадал при любом уходе с экрана звонка: <audio> собеседников
+  // были частью вида /call/:id, и роутер, очищая mainSlot под новую страницу,
+  // уносил их вместе с ней — соединение оставалось живым, а играть удалённый
+  // поток становилось нечем. Оболочка переживает переходы (как и PiP-пузырь),
+  // поэтому звонок продолжает звучать, пока свёрнут в пузырь. Экран звонка сам
+  // аудио больше не выводит — только немые <video> для картинки.
+  const callAudioSink = el("div", { class: "call-audio-sink", hidden: true });
   mount(root, shell);
-  shell.append(listCol, mainSlot, callBubbleSlot);
+  shell.append(listCol, mainSlot, callBubbleSlot, callAudioSink);
   sidebar.append(ChatListPane());
   listCol.append(NavRail(), sidebar);
 
@@ -249,8 +259,38 @@ async function boot() {
       )
     );
   }
+  // Держит по одному <audio> на собеседника, пока идёт звонок, и переиспользует
+  // узлы между обновлениями: заново созданный <audio> перезапустил бы поток с
+  // нуля (щелчок, пропуск звука). Громкость — общая с ползунком в звонке и
+  // эфире (lib/mediaVolume.js, работает по всему документу).
+  const callAudioEls = new Map(); // participantId -> HTMLAudioElement
+  function syncCallAudio() {
+    const s = getCallState();
+    const streams = s?.remoteStreams ?? {};
+    for (const [id, node] of callAudioEls) {
+      if (!streams[id]) {
+        node.srcObject = null;
+        node.remove();
+        callAudioEls.delete(id);
+      }
+    }
+    for (const [id, stream] of Object.entries(streams)) {
+      if (!stream) continue;
+      let node = callAudioEls.get(id);
+      if (!node) {
+        node = el("audio", { autoplay: true });
+        callAudioEls.set(id, node);
+        callAudioSink.appendChild(node);
+      }
+      if (node.srcObject !== stream) node.srcObject = stream;
+      applyVolume(node);
+    }
+  }
+
   subscribeCall(renderCallBubble);
+  subscribeCall(syncCallAudio);
   renderCallBubble();
+  syncCallAudio();
 
   // Вкладки, которым нужен весь экран, а не колонка рядом со списком чатов:
   // контакты, звонки, архив, каталог каналов и настройки. Это самостоятельные

@@ -220,11 +220,11 @@ export async function CallScreenView(root, callId) {
     stageMode = s.sharing || !!remoteSharerId;
     const swap = swapped && !stageMode;
 
-    // <video> и <audio> переиспользуются между перерисовками — см. комментарий
-    // у remoteMediaEls. Все картинки идут без звука: звук каждого собеседника
-    // играет отдельный <audio> (audioSink ниже), поэтому, где бы ни оказалась
-    // его картинка — в сетке, в центре, в полоске или в своём окне при обмене
-    // местами, — слышно его ровно один раз.
+    // <video> переиспользуются между перерисовками — см. комментарий у
+    // remoteMediaEls. Все картинки идут без звука (muted): звук собеседников
+    // выводит постоянный <audio>-приёмник в оболочке приложения (app.js), а не
+    // экран звонка, — иначе он пропадал бы при уходе с экрана. Поэтому, где бы
+    // ни оказалась картинка собеседника, звук с ней не дублируется.
     const liveKeys = new Set();
     function mediaNode(key, kind, stream) {
       liveKeys.add(key);
@@ -316,13 +316,6 @@ export async function CallScreenView(root, callId) {
       }
       return tile;
     }
-
-    // Звук каждого собеседника — всегда, в каком бы виде ни была его картинка.
-    const audioSink = el(
-      "div",
-      { class: "call-audio-sink", hidden: true },
-      s.others.map((p) => (s.remoteStreams[p.id] ? mediaNode(`${p.id}:audio`, "audio", s.remoteStreams[p.id]) : null))
-    );
 
     let callArea;
     if (stageMode) {
@@ -471,7 +464,6 @@ export async function CallScreenView(root, callId) {
             )
           : null,
         callArea,
-        audioSink,
         localPip,
         el("div", { class: "call-controls" }, [
           el("button", {
