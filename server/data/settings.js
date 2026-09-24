@@ -115,9 +115,10 @@ const DEFAULT_SETTINGS = {
   // users.isBusiness активен — см. server/routes/business.js). Часы работы,
   // приветствие/автоответ и быстрые ответы — личная настройка, никогда не
   // читается по чужому профилю (в отличие от businessAddress на самом
-  // пользователе, который виден всем). `hours` держит только время: реальная
-  // проверка "сейчас рабочее время или нет" делает lib/businessAutoReply.js
-  // по часовому поясу сервера — без отдельного поля таймзоны на аккаунт.
+  // пользователе, который виден всем). Исключение — часы работы: при
+  // showHours они показываются в профиле (routes/users.js). Проверку
+  // «сейчас рабочее время или нет» делает lib/businessHours.js по timeZone
+  // бизнеса (null — пояс сервера).
   business: {
     enabled: false,
     hours: {
@@ -129,6 +130,8 @@ const DEFAULT_SETTINGS = {
       sat: { closed: true, open: "09:00", close: "18:00" },
       sun: { closed: true, open: "09:00", close: "18:00" },
     },
+    timeZone: null,
+    showHours: true,
     greeting: { enabled: false, text: "" },
     away: { enabled: false, text: "" },
     quickReplies: [],

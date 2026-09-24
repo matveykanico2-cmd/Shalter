@@ -18,6 +18,7 @@ import { giftTraits, renderGiftArt } from "../lib/giftTraits.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 import { ProfileStatusBadge } from "./profileStatusBadge.js";
 import { openPinnedChannelsDialog } from "./pinnedChannelsDialog.js";
+import { DAY_KEYS, DAY_LABELS, formatDayHours, formatStatus, browserTimeZone } from "../lib/businessHours.js";
 
 // Bottom tab strip, same set/order as Telegram's own profile view. Content
 // for media/files/links comes from GET /api/users/:id/shared-media (scoped
@@ -91,6 +92,8 @@ export async function openProfileDialog(userId) {
     render();
   }
   let activeTab = "media";
+  // Расписание бизнеса на неделю раскрывается по нажатию на «Открыто · до …».
+  let hoursExpanded = false;
   // Каналы, которые владелец профиля закрепил у себя. Приходят вместе с
   // профилем и уже проверены сервером: чужие и закрытые сюда не попадают.
   let pinnedChannels = [];
@@ -421,6 +424,40 @@ export async function openProfileDialog(userId) {
       // isBusiness здесь скорее для порядка: пустое поле и так не покажется.
       user.isBusiness && user.businessAddress
         ? el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("MapPin", 15) }), el("span", {}, user.businessAddress)])
+        : null,
+      // Часы работы бизнеса, как в Telegram Business: статус сейчас, по
+      // нажатию — неделя. Статус считает сервер по поясу бизнеса
+      // (server/lib/businessHours.js); если пояс не совпадает со своим,
+      // рядом сказано, в каком поясе указано время.
+      user.businessHours
+        ? el("div", { class: "profile-business-hours" }, [
+            el(
+              "button",
+              { class: "profile-field-row profile-hours-toggle", onclick: () => ((hoursExpanded = !hoursExpanded), render()) },
+              [
+                el("span", { html: iconSvg("Clock", 15) }),
+                el(
+                  "span",
+                  { class: `business-status ${user.businessHours.status.open ? "open" : "closed"}` },
+                  formatStatus(user.businessHours.status, user.businessHours.hours)
+                ),
+                el("span", { class: `profile-hours-chevron${hoursExpanded ? " expanded" : ""}`, html: iconSvg("ChevronRight", 14) }),
+              ]
+            ),
+            hoursExpanded
+              ? el("div", { class: "profile-hours-table" }, [
+                  ...DAY_KEYS.map((k) =>
+                    el("div", { class: "profile-hours-day" }, [
+                      el("span", {}, DAY_LABELS[k]),
+                      el("span", { class: "mono" }, formatDayHours(user.businessHours.hours[k])),
+                    ])
+                  ),
+                  user.businessHours.timeZone && user.businessHours.timeZone !== browserTimeZone()
+                    ? el("p", { class: "settings-toggle-hint" }, `Время указано по поясу ${user.businessHours.timeZone.replace(/_/g, " ")}`)
+                    : null,
+                ])
+              : null,
+          ])
         : null,
       user.birthday
         ? el("div", { class: "profile-field-row" }, [

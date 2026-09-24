@@ -90,8 +90,11 @@ function sanitizeHolidays(raw) {
 // для доставки). `enabled` принудительно false для аккаунта без активной
 // подписки — иначе истёкшая или никогда не купленная подписка продолжала бы
 // работать, если человек когда-то успел включить переключатель.
-const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const { DAY_KEYS, isValidTimeZone } = require("../lib/businessHours");
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+// Конец дня может быть 24:00 — «до полуночи», а вместе с 00:00 —
+// «круглосуточно» (lib/businessHours.js). Начало — нет.
+const CLOSE_RE = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 
 function sanitizeHours(raw) {
   const out = {};
@@ -100,7 +103,7 @@ function sanitizeHours(raw) {
     out[day] = {
       closed: !!d.closed,
       open: TIME_RE.test(d.open) ? d.open : "09:00",
-      close: TIME_RE.test(d.close) ? d.close : "18:00",
+      close: CLOSE_RE.test(d.close) ? d.close : "18:00",
     };
   }
   return out;
@@ -126,6 +129,12 @@ async function sanitizeBusiness(raw, userId) {
   return {
     enabled: !!raw?.enabled && !!me?.isBusiness,
     hours: sanitizeHours(raw?.hours),
+    // Часовой пояс бизнеса (IANA, «Europe/Moscow»): по нему считаются часы
+    // работы и автоответ. null — пояс сервера, как у старых настроек.
+    timeZone: isValidTimeZone(raw?.timeZone) ? raw.timeZone : null,
+    // Показывать ли часы работы в профиле («Открыто · до 18:00»), как в
+    // Telegram Business. По умолчанию да.
+    showHours: raw?.showHours !== false,
     greeting: { enabled: !!raw?.greeting?.enabled, text: String(raw?.greeting?.text ?? "").trim().slice(0, 500) },
     away: { enabled: !!raw?.away?.enabled, text: String(raw?.away?.text ?? "").trim().slice(0, 500) },
     quickReplies: sanitizeQuickReplies(raw?.quickReplies),

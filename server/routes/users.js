@@ -13,6 +13,7 @@ const { listMediaMessages, listMessages } = require("../data/messages");
 const { PHONE_RE, normalizePhone, isValidBirthday } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 const { notifyProfileChanged } = require("../lib/notifyProfileChanged");
+const { businessStatus } = require("../lib/businessHours");
 
 const LINK_RE = /https?:\/\/\S+/;
 
@@ -155,6 +156,20 @@ router.get(
       if (!canSee("photo")) {
         delete visible.avatarImage;
         delete visible.avatarImages;
+      }
+    }
+
+    // Часы работы бизнеса — в профиль, как в Telegram Business: «Открыто ·
+    // до 18:00» и расписание на неделю. Только пока подписка активна, режим
+    // бизнеса включён и владелец не скрыл часы (settings.business.showHours).
+    if (user.isBusiness) {
+      const { business } = await getSettings(req.params.id);
+      if (business?.enabled && business.showHours !== false && business.hours) {
+        visible.businessHours = {
+          hours: business.hours,
+          timeZone: business.timeZone ?? null,
+          status: businessStatus(business.hours, business.timeZone),
+        };
       }
     }
 

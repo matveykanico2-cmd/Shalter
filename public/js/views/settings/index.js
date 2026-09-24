@@ -28,6 +28,16 @@ import { openProfileStatusDialog } from "../../components/profileStatusDialog.js
 import { Toggle } from "../../components/toggle.js";
 import { openProfileQrDialog } from "../../components/profileQrDialog.js";
 import { handlePurchaseResponse } from "../../lib/purchase.js";
+import {
+  DAY_KEYS as BUSINESS_DAY_KEYS,
+  DAY_LABELS,
+  browserTimeZone,
+  timeZoneList,
+  isAllDay,
+  formatDayHours,
+  businessStatus,
+  formatStatus,
+} from "../../lib/businessHours.js";
 import { uploadFile } from "../../lib/upload.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
 import { openAdminUserPanel } from "../../components/adminUserPanel.js";
@@ -768,7 +778,6 @@ const BUSINESS_PERKS = [
   { icon: "MapPin", title: "Адрес на профиле", desc: "Покажите, где вас найти" },
 ];
 
-const DAY_LABELS = { mon: "Понедельник", tue: "Вторник", wed: "Среда", thu: "Четверг", fri: "Пятница", sat: "Суббота", sun: "Воскресенье" };
 
 async function renderBusiness(root) {
   let info = await api.getBusinessInfo();
@@ -801,6 +810,104 @@ async function renderBusiness(root) {
     const { settings } = await api.patchSettings({ business });
     business = settings.business;
     render();
+  }
+
+  // Часы работы. Один день — { closed, open, close }; «круглосуточно» —
+  // 00:00–24:00, конец раньше начала — работа через полночь (см.
+  // lib/businessHours.js).
+  function setDay(day, patch) {
+    saveBusiness({ hours: { ...business.hours, [day]: { ...business.hours[day], ...patch } } });
+  }
+  function applyHours(fn) {
+    const hours = {};
+    for (const day of BUSINESS_DAY_KEYS) hours[day] = { ...business.hours[day], ...fn(day, business.hours[day]) };
+    saveBusiness({ hours });
+  }
+  const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"];
+  const HOURS_PRESETS = [
+    { label: "Будни 9–18", fn: (day) => (WEEKDAYS.includes(day) ? { closed: false, open: "09:00", close: "18:00" } : { closed: true }) },
+    { label: "Каждый день 10–22", fn: () => ({ closed: false, open: "10:00", close: "22:00" }) },
+    { label: "Круглосуточно", fn: () => ({ closed: false, open: "00:00", close: "24:00" }) },
+    {
+      label: "Как в понедельник — на все будни",
+      fn: (day, d) => (WEEKDAYS.includes(day) ? { ...business.hours.mon } : d),
+    },
+  ];
+
+  // Часовой пояс бизнеса. У настроек, сохранённых до его появления, пояса
+  // нет, и часы считались по поясу сервера — подставляем пояс браузера
+  // владельца: почти всегда это и есть пояс, в котором он работает.
+  // Через setTimeout: saveBusiness сразу перерисовывает страницу, а к этому
+  // месту render() ещё не готов — объявления ниже по функции не выполнены.
+  if (info.isBusiness && !business.timeZone && browserTimeZone()) {
+    setTimeout(() => saveBusiness({ timeZone: browserTimeZone() }).catch(() => {}), 0);
+  }
+
+  function dayRow(day) {
+    const d = business.hours[day];
+    const timeInput = (value, onchange) =>
+      el("input", { type: "time", class: "settings-input business-time-input mono", value, onchange: (e) => e.target.value && onchange(e.target.value) });
+    return el("div", { class: "business-day-row" }, [
+      el("span", { class: "settings-toggle-title business-day-name" }, DAY_LABELS[day]),
+      d.closed
+        ? el("span", { class: "settings-toggle-hint business-day-hours" }, "Выходной")
+        : isAllDay(d)
+          ? el("span", { class: "business-day-hours" }, [
+              el("span", { class: "settings-toggle-hint" }, "Круглосуточно"),
+              el("button", { class: "business-day-link", onclick: () => setDay(day, { open: "09:00", close: "18:00" }) }, "задать время"),
+            ])
+          : el("span", { class: "business-day-hours" }, [
+              timeInput(d.open, (v) => setDay(day, { open: v })),
+              el("span", { class: "settings-toggle-hint" }, "–"),
+              // 24:00 в поле времени не выбрать — «до полуночи» показывается
+              // как 00:00, и это то же самое: конец раньше начала = через полночь.
+              timeInput(d.close === "24:00" ? "00:00" : d.close, (v) => setDay(day, { close: v })),
+              el("button", { class: "business-day-link", title: "Круглосуточно", onclick: () => setDay(day, { open: "00:00", close: "24:00" }) }, "24 ч"),
+            ]),
+      Toggle(!d.closed, (v) => setDay(day, { closed: !v })),
+    ]);
+  }
+
+  function hoursSection() {
+    const status = businessStatus(business.hours, business.timeZone);
+    const zones = timeZoneList();
+    const currentZone = business.timeZone ?? browserTimeZone() ?? "UTC";
+    if (!zones.includes(currentZone)) zones.unshift(currentZone);
+    const overnightDays = BUSINESS_DAY_KEYS.filter((k) => !business.hours[k].closed && !isAllDay(business.hours[k]) && business.hours[k].close <= business.hours[k].open);
+    return section("Часы работы", [
+      el("p", { class: `business-status ${status.open ? "open" : "closed"}` }, `Сейчас: ${formatStatus(status, business.hours)}`),
+      ...BUSINESS_DAY_KEYS.map(dayRow),
+      overnightDays.length
+        ? el(
+            "p",
+            { class: "settings-toggle-hint" },
+            `Через полночь: ${overnightDays.map((k) => `${DAY_LABELS[k].toLowerCase()} ${formatDayHours(business.hours[k])}`).join(", ")}.`
+          )
+        : null,
+      el(
+        "div",
+        { class: "business-presets" },
+        HOURS_PRESETS.map((p) => el("button", { class: "admin-label-btn", onclick: () => applyHours(p.fn) }, p.label))
+      ),
+      el("div", { class: "settings-toggle-row" }, [
+        el("div", {}, [
+          el("p", { class: "settings-toggle-title" }, "Часовой пояс"),
+          el("p", { class: "settings-toggle-hint" }, "По нему считаются часы работы и автоответ"),
+        ]),
+        el(
+          "select",
+          { class: "settings-input business-tz-select", onchange: (e) => saveBusiness({ timeZone: e.target.value }) },
+          zones.map((z) => el("option", { value: z, selected: z === currentZone }, z.replace(/_/g, " ")))
+        ),
+      ]),
+      el("div", { class: "settings-toggle-row" }, [
+        el("div", {}, [
+          el("p", { class: "settings-toggle-title" }, "Показывать в профиле"),
+          el("p", { class: "settings-toggle-hint" }, "«Открыто · до 18:00» и расписание на неделю — видно всем, кто откроет ваш профиль"),
+        ]),
+        Toggle(business.showHours !== false, (v) => saveBusiness({ showHours: v })),
+      ]),
+    ]);
   }
 
   async function saveAddress() {
@@ -877,20 +984,7 @@ async function renderBusiness(root) {
           ]),
           Toggle(business.enabled, (v) => saveBusiness({ enabled: v })),
         ]),
-        section(
-          "Часы работы",
-          Object.keys(DAY_LABELS).map((day) =>
-            el("div", { class: "settings-toggle-row" }, [
-              el("span", { class: "settings-toggle-title" }, DAY_LABELS[day]),
-              business.hours[day].closed
-                ? el("span", { class: "settings-toggle-hint" }, "Выходной")
-                : el("span", { class: "settings-toggle-hint mono" }, `${business.hours[day].open}–${business.hours[day].close}`),
-              Toggle(!business.hours[day].closed, (v) =>
-                saveBusiness({ hours: { ...business.hours, [day]: { ...business.hours[day], closed: !v } } })
-              ),
-            ])
-          )
-        ),
+        hoursSection(),
         section("Приветствие", [
           el("div", { class: "settings-toggle-row" }, [
             el("span", { class: "settings-toggle-title" }, "Отправлять новому собеседнику"),

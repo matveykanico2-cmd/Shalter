@@ -7,15 +7,14 @@
 // (chatId,"greeting","once") row); away fires at most once per calendar day
 // per chat ((chatId,"away",<today's date>)) — a customer writing five times
 // in one evening outside business hours gets the away message once, not five
-// times. Server local time decides "is it business hours" — there's no
-// per-account timezone field (see server/data/settings.js's `business`
-// comment), same simplification lib/holidaySweep.js already makes.
+// times. «Рабочее ли сейчас время» и «какой сегодня день» считаются по
+// часовому поясу бизнеса (settings.business.timeZone, lib/businessHours.js);
+// у старых настроек без пояса — по поясу сервера, как раньше.
 const db = require("../db");
 const { getUser } = require("../data/users");
 const { getSettings } = require("../data/settings");
 const { sendMessageAndBroadcast } = require("./systemChat");
-
-const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const { isWithinBusinessHours, localNow } = require("./businessHours");
 
 function alreadySent(chatId, kind, sentDate) {
   return !!db
@@ -27,15 +26,6 @@ function markSent(chatId, kind, sentDate) {
   db.prepare(
     "INSERT OR IGNORE INTO business_auto_replies_sent (chatId, kind, sentDate, sentAt) VALUES (?, ?, ?, ?)"
   ).run(chatId, kind, sentDate, new Date().toISOString());
-}
-
-function isWithinBusinessHours(hours) {
-  const now = new Date();
-  const day = DAY_KEYS[(now.getDay() + 6) % 7]; // Date#getDay(): 0=Sunday
-  const today = hours?.[day];
-  if (!today || today.closed) return false;
-  const hm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  return hm >= today.open && hm < today.close;
 }
 
 async function dispatchBusinessAutoReply(chat, message) {
@@ -56,8 +46,10 @@ async function dispatchBusinessAutoReply(chat, message) {
       return; // приветствие уже отвечает на первое сообщение — автоответ вне часов в тот же раз ни к чему
     }
 
-    if (business.away?.enabled && business.away.text && !isWithinBusinessHours(business.hours)) {
-      const today = new Date().toISOString().slice(0, 10);
+    if (business.away?.enabled && business.away.text && !isWithinBusinessHours(business.hours, business.timeZone)) {
+      // «Раз в день» — в сутках бизнеса, а не UTC: иначе в Москве новый
+      // день для автоответа наступал бы в три часа ночи.
+      const today = localNow(business.timeZone).date;
       if (!alreadySent(chat.id, "away", today)) {
         await sendMessageAndBroadcast(chat, recipientId, business.away.text);
         markSent(chat.id, "away", today);

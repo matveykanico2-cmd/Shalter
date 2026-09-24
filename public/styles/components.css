@@ -12696,3 +12696,77 @@
 .sticker-add-image-btn {
   width: 100%;
 }
+
+/* Часы работы бизнеса — настройки (views/settings/index.js, renderBusiness)
+   и профиль (components/profileDialog.js). */
+.business-status.open {
+  color: #2f9e5a;
+}
+.business-status.closed {
+  color: var(--color-muted);
+}
+p.business-status {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.business-day-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.business-day-name {
+  flex: 0 0 110px;
+}
+.business-day-hours {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.business-time-input {
+  width: auto;
+  min-width: 92px;
+  padding: 4px 8px;
+}
+.business-day-link {
+  font-size: 12px;
+  color: var(--color-accent);
+}
+.business-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+.business-tz-select {
+  max-width: 220px;
+}
+.profile-hours-toggle {
+  width: 100%;
+  text-align: left;
+}
+.profile-hours-chevron {
+  margin-left: auto;
+  color: var(--color-muted);
+  display: inline-flex;
+  transition: transform 0.15s;
+}
+.profile-hours-chevron.expanded {
+  transform: rotate(90deg);
+}
+.profile-hours-table {
+  padding: 4px 0 8px 28px;
+  font-size: 13px;
+}
+.profile-hours-day {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+}
