@@ -399,6 +399,12 @@ await fetch(`${API}/editMessageText`, {
         занятого бота от зависшего. Живёт пять секунд, как и у людей: перед длинным шагом повторяйте,
         а не ставьте один раз в начале.
       </p>
+      <p>
+        Необязательный <code>action</code> — что именно происходит, те же значения, что в Telegram Bot API:
+        <code>typing</code>, <code>choose_sticker</code>, <code>upload_photo</code>, <code>record_video</code>,
+        <code>upload_video</code>, <code>record_voice</code>, <code>upload_voice</code>, <code>upload_document</code>,
+        <code>record_video_note</code>, <code>upload_video_note</code>. Без него — «печатает».
+      </p>
 
       <h2 id="who">Чаты и люди</h2>
       <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getChats</div>

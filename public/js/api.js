@@ -301,7 +301,9 @@ export const api = {
   getPostComments: (postId) => req(`/api/posts/${postId}/comments`),
   sendPostComment: (postId, text, extra = {}) =>
     req(`/api/posts/${postId}/comments`, { method: "POST", body: JSON.stringify({ text, ...extra }) }),
-  sendTyping: (chatId) => req(`/api/chats/${chatId}/typing`, { method: "POST" }),
+  // action — см. server/data/typing.js; "cancel" снимает статус.
+  sendTyping: (chatId, action = "typing") =>
+    req(`/api/chats/${chatId}/typing`, { method: "POST", body: JSON.stringify({ action }) }),
   getTyping: (chatId) => req(`/api/chats/${chatId}/typing`),
 
   listScheduled: (chatId) => req(`/api/chats/${chatId}/messages/scheduled`),
@@ -463,12 +465,17 @@ export const api = {
   requestPremium: (plan) => req("/api/premium/request", { method: "POST", body: JSON.stringify({ plan }) }),
   getBusinessInfo: () => req("/api/business/me"),
   requestBusiness: (plan) => req("/api/business/request", { method: "POST", body: JSON.stringify({ plan }) }),
+  getStorageInfo: () => req("/api/storage/me"),
+  requestStorage: (plan) => req("/api/storage/request", { method: "POST", body: JSON.stringify({ plan }) }),
   // Admin-only grants (server/routes/premium.js's and ads.js's /grant): pass a
   // day count, or { forever: true } for permanent. premium/active false revokes.
   grantPremium: (userId, premium = true, opts = {}) =>
     req("/api/premium/grant", { method: "POST", body: JSON.stringify({ userId, premium, ...opts }) }),
   grantAds: (userId, active = true, opts = {}) =>
     req("/api/ads/grant", { method: "POST", body: JSON.stringify({ userId, active, ...opts }) }),
+  // opts: { plan: "<id из STORAGE_PLANS>", forever?: true }; active false отключает.
+  grantStorage: (userId, active = true, opts = {}) =>
+    req("/api/storage/grant", { method: "POST", body: JSON.stringify({ userId, active, ...opts }) }),
 
   // User-made sticker packs (server/routes/stickers.js). The built-in set is
   // client-side and isn't fetched.
@@ -516,6 +523,7 @@ export const api = {
   // Admin-only lawful-request data export (server/routes/admin.js). Gated
   // server-side to the ADMIN_PHONE holder — these will 403 for anyone else.
   adminLookupUser: (q) => req(`/api/admin/lookup?q=${encodeURIComponent(q)}`),
+  adminLookupChat: (q) => req(`/api/admin/chats/lookup?q=${encodeURIComponent(q)}`),
   adminExportUser: (userId, reason) =>
     req("/api/admin/export", { method: "POST", body: JSON.stringify({ userId, reason }) }),
   adminListExports: () => req("/api/admin/exports"),

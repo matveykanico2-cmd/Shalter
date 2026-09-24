@@ -18,6 +18,9 @@ const { getSettings } = require("../data/settings");
 const { privacyAllows } = require("../lib/privacyRules");
 const { listContactsFor, listOwnersOf } = require("../data/contacts");
 const { getUser } = require("../data/users");
+const { hasAdminSection } = require("../lib/adminAccess");
+const { SYSTEM_BOT_ID } = require("../data/systemBot");
+const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { getChat, listChatsForUser } = require("../data/chats");
 const { publicUser } = require("../data/sanitize");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
@@ -381,13 +384,24 @@ router.delete(
     // Личная история удаляется своим автором; история канала — владельцем/
     // админом канала. deleteStory сверяет userId в базе, поэтому «ключ
     // владения» здесь — id канала, а не того, кто нажал «Удалить».
+    //
+    // Модератор сервера (раздел «Модерация») удаляет любую историю — личную
+    // или канала; автор узнаёт об этом от сервисного бота.
     let audience;
+    let byModerator = false;
+    const moderator = async () => hasAdminSection(await getUser(req.uid), "moderation");
     if (isChannelId(story.userId)) {
       const chat = await getChat(story.userId);
-      if (!chat || !isChannelStaff(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
+      if (!chat) return res.status(404).json({ error: "not found" });
+      if (!isChannelStaff(chat, req.uid)) {
+        if (!(await moderator())) return res.status(403).json({ error: "Недостаточно прав" });
+        byModerator = true;
+      }
       audience = chat.memberIds;
     } else if (story.userId !== req.uid) {
-      return res.status(403).json({ error: "Недостаточно прав" });
+      if (!(await moderator())) return res.status(403).json({ error: "Недостаточно прав" });
+      byModerator = true;
+      audience = [...new Set([story.userId, req.uid, ...audienceOf(story.userId)])];
     } else {
       audience = audienceOf(req.uid);
     }
@@ -398,6 +412,20 @@ router.delete(
     // закрывается, из ленты пропадает кружок. Иначе «удалено» означало лишь
     // «удалено у меня», а чужие экраны продолжали её показывать.
     broadcastToUsers(audience, { type: "story:deleted", storyId: req.params.id, userId: story.userId });
+    if (byModerator) {
+      const chat = isChannelId(story.userId) ? await getChat(story.userId) : null;
+      const authorId = chat ? chat.ownerId : story.userId;
+      if (authorId) {
+        const dm = await findOrCreateDm(SYSTEM_BOT_ID, authorId);
+        await sendMessageAndBroadcast(
+          dm,
+          SYSTEM_BOT_ID,
+          chat
+            ? `🛡 История канала «${chat.title}» удалена модерацией Shalter за нарушение правил.`
+            : "🛡 Ваша история удалена модерацией Shalter за нарушение правил."
+        );
+      }
+    }
     res.json({ ok: true });
   })
 );

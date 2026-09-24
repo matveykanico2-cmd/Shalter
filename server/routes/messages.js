@@ -27,8 +27,39 @@ const { fetchLinkPreview } = require("../lib/linkPreview");
 const { deleteUploadedFiles, FILENAME_RE } = require("../lib/serveUpload");
 const { generateVideoPreview, generateImagePreview } = require("../lib/mediaPreview");
 const { fetchUploadToTemp, storeGeneratedFile } = require("../lib/uploadTransfer");
+const { hasAdminSection } = require("../lib/adminAccess");
 
 const router = express.Router({ mergeParams: true });
+
+// Модератор сервера — тот, кому открыт раздел «Модерация» (lib/adminAccess.js):
+// полный админ или тот, кому этот раздел выдали. Проверяется заново на каждый
+// запрос, как и везде в админке.
+async function isServerModerator(uid) {
+  return hasAdminSection(await getUser(uid), "moderation");
+}
+
+// Сообщение из адреса /chats/:id/messages/:messageId — только если оно и
+// правда лежит в чате :id, а спрашивающий в этом чате состоит.
+//
+// Раньше маршруты правки, удаления, закрепа, реакций и голосования брали
+// сообщение по одному его id и не сверяли его с чатом: права проверялись по
+// чату из адреса, а менялось любое сообщение сервера. Хватало подставить
+// свою личку и чужой id (а id — это время в миллисекундах, его легко
+// перебрать), чтобы удалить чужое сообщение «у всех», а реакция и голос в
+// ответ отдавали сообщение целиком — то есть читать чужую переписку.
+//
+// allowModerator — модератор сервера проходит и без членства: удалять чужое
+// из каналов и групп, в которых он не состоит, и есть его работа.
+async function loadMessageInChat(req, res, { allowModerator = false } = {}) {
+  const [chat, message] = await Promise.all([getChat(req.params.id), getMessage(req.params.messageId)]);
+  const member = !!chat && chat.memberIds.includes(req.uid);
+  const moderator = allowModerator && !member && !!chat && (await isServerModerator(req.uid));
+  if (!chat || !message || message.chatId !== chat.id || (!member && !moderator)) {
+    res.status(404).json({ error: "not found" });
+    return null;
+  }
+  return { chat, message, moderator };
+}
 
 // Pushes a live update to every other chat member — the sender/actor already
 // has the change applied locally (optimistic UI or its own post-action
@@ -666,8 +697,10 @@ router.delete(
 router.patch(
   "/:messageId",
   asyncRoute(async (req, res) => {
-    const existing = await getMessage(req.params.messageId);
-    if (!existing || existing.senderId !== req.uid) {
+    const found = await loadMessageInChat(req, res);
+    if (!found) return;
+    const existing = found.message;
+    if (existing.senderId !== req.uid) {
       return res.status(403).json({ error: "forbidden" });
     }
     const { text } = req.body ?? {};
@@ -681,16 +714,17 @@ router.patch(
 router.delete(
   "/:messageId",
   asyncRoute(async (req, res) => {
-    const existing = await getMessage(req.params.messageId);
-    if (!existing) return res.status(404).json({ error: "not found" });
     const forEveryone = !!(req.body ?? {}).forEveryone;
+    const found = await loadMessageInChat(req, res, { allowModerator: forEveryone });
+    if (!found) return;
+    const existing = found.message;
 
     if (forEveryone) {
       // Your own message, always. Someone else's only if you run the chat:
       // moderating a group means being able to remove what was posted in it, and
       // until now an admin could delete a message only from their own view — the
       // spam stayed up for everyone else.
-      const chatForDelete = await getChat(req.params.id);
+      const chatForDelete = found.chat;
       const mine = existing.senderId === req.uid;
       const staff = chatForDelete && chatForDelete.type !== "dm" && isStaff(chatForDelete, req.uid);
       // В личной переписке — любое сообщение, включая чужое: разговор двоих
@@ -698,7 +732,10 @@ router.delete(
       // В группе и канале это по-прежнему право того, кто ими управляет: иначе
       // один участник в состоянии стереть всю историю общего чата.
       const inDm = chatForDelete?.type === "dm";
-      if (!mine && !staff && !inDm) {
+      // Модератор сервера (раздел «Модерация») — любое сообщение в любом чате:
+      // спам, запрещённые файлы и ссылки убираются без жалобы и без членства.
+      const moderator = found.moderator || (!mine && !staff && !inDm && (await isServerModerator(req.uid)));
+      if (!mine && !staff && !inDm && !moderator) {
         return res.status(403).json({ error: "Удалить чужое сообщение у всех могут владельцы, админы и модераторы" });
       }
       await deleteMessage(req.params.messageId);
@@ -725,22 +762,17 @@ router.delete(
       // "delete for everyone": a delete-for-me leaves the message (and its
       // files) live for everyone else.
       await deleteUploadedFiles(existing.attachments);
-      const chat = await getChat(req.params.id);
-      if (chat) {
-        broadcastToOtherMembers(chat, req.uid, {
-          type: "message:deleted",
-          chatId: req.params.id,
-          id: req.params.messageId,
-        });
-      }
+      broadcastToOtherMembers(found.chat, req.uid, {
+        type: "message:deleted",
+        chatId: req.params.id,
+        id: req.params.messageId,
+      });
       return res.json({ ok: true, id: req.params.messageId, forEveryone: true });
     }
 
     // "Delete for me" — any chat member can hide any message from their own
     // view. History stays intact for everyone else, so there's nothing to
     // broadcast here (unlike the forEveryone branch above).
-    const chat = await getChat(req.params.id);
-    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
     await deleteMessageForMe(req.params.messageId, req.uid);
     res.json({ ok: true, id: req.params.messageId, forEveryone: false });
   })
@@ -767,8 +799,9 @@ function canPin(chat, userId) {
 router.post(
   "/:messageId/pin",
   asyncRoute(async (req, res) => {
-    const chat = await getChat(req.params.id);
-    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    const found = await loadMessageInChat(req, res);
+    if (!found) return;
+    const { chat } = found;
     if (!canPin(chat, req.uid)) {
       return res.status(403).json({ error: "Закреплять сообщения могут владельцы, админы и модераторы" });
     }
@@ -782,10 +815,11 @@ router.post(
 router.post(
   "/:messageId/react",
   asyncRoute(async (req, res) => {
+    const found = await loadMessageInChat(req, res);
+    if (!found) return;
     const { emoji } = req.body ?? {};
     const message = await toggleReaction(req.params.messageId, emoji, req.uid);
-    const chat = await getChat(req.params.id);
-    if (chat) broadcastToOtherMembers(chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
+    broadcastToOtherMembers(found.chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
     res.json({ message });
   })
 );
@@ -793,10 +827,11 @@ router.post(
 router.post(
   "/:messageId/vote",
   asyncRoute(async (req, res) => {
+    const found = await loadMessageInChat(req, res);
+    if (!found) return;
     const { optionIndex } = req.body ?? {};
     const message = await votePoll(req.params.messageId, optionIndex, req.uid);
-    const chat = await getChat(req.params.id);
-    if (chat) broadcastToOtherMembers(chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
+    broadcastToOtherMembers(found.chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
     res.json({ message });
   })
 );

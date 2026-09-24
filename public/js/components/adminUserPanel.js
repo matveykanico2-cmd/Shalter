@@ -32,6 +32,18 @@ const ADS_DURATIONS = [
   { label: "Навсегда", opts: { forever: true } },
 ];
 
+// Тарифы хранилища (server/config.js, STORAGE_PLANS) — id тарифа уходит на
+// сервер, объём и срок берутся оттуда.
+const STORAGE_GRANTS = [
+  { label: "100 ГБ · мес", opts: { plan: "100gb-1m" } },
+  { label: "200 ГБ · мес", opts: { plan: "200gb-1m" } },
+  { label: "2 ТБ · мес", opts: { plan: "2tb-1m" } },
+  { label: "100 ГБ · год", opts: { plan: "100gb-12m" } },
+  { label: "200 ГБ · год", opts: { plan: "200gb-12m" } },
+  { label: "2 ТБ · год", opts: { plan: "2tb-12m" } },
+  { label: "2 ТБ навсегда", opts: { plan: "2tb-1m", forever: true } },
+];
+
 function untilLabel({ active, forever, until }) {
   if (!active) return "не активен";
   if (forever) return "навсегда";
@@ -169,6 +181,27 @@ export function openAdminUserPanel(user, onChange) {
     }, "Кабинет рекламы отключён — пользователь уведомлён в чате.");
   }
 
+  const storagePatch = (u) => ({
+    isStorageActive: !!u.isStorageActive,
+    storageGb: u.storageGb ?? null,
+    storageUntil: u.storageUntil ?? null,
+    storageForever: !!u.storageForever,
+  });
+
+  function grantStorage(opts, label) {
+    run(async () => {
+      const { user: updated } = await api.grantStorage(state.id, true, opts);
+      return { patch: storagePatch(updated) };
+    }, `Хранилище выдано (${label}) — пользователь уведомлён в чате.`);
+  }
+
+  function revokeStorage() {
+    run(async () => {
+      const { user: updated } = await api.grantStorage(state.id, false);
+      return { patch: storagePatch(updated) };
+    }, "Тариф хранилища отключён — пользователь уведомлён в чате.");
+  }
+
   function sendGift(gift) {
     run(async () => {
       await api.deliverGift(gift.id, state.id);
@@ -271,6 +304,14 @@ export function openAdminUserPanel(user, onChange) {
       durationRow(ADS_DURATIONS, grantAds),
       state.isAdsActive
         ? el("button", { class: "settings-danger-link", disabled: busy, onclick: revokeAds }, "Забрать кабинет рекламы")
+        : null,
+      el("p", { class: "admin-grant-status" }, [
+        el("span", {}, state.isStorageActive && state.storageGb ? `Хранилище ${state.storageGb >= 1024 ? `${state.storageGb / 1024} ТБ` : `${state.storageGb} ГБ`}` : "Хранилище"),
+        el("span", { class: "admin-grant-state" }, untilLabel({ active: state.isStorageActive, forever: state.storageForever, until: state.storageUntil })),
+      ]),
+      durationRow(STORAGE_GRANTS, grantStorage),
+      state.isStorageActive
+        ? el("button", { class: "settings-danger-link", disabled: busy, onclick: revokeStorage }, "Отключить тариф хранилища")
         : null,
       gifts.length
         ? el(

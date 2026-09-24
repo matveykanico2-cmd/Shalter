@@ -70,6 +70,27 @@ Three things that matter and are easy to miss:
    Back up `data/uploads/` separately with any ordinary file copy (`rsync`
    etc.) — those files are written once and never modified, so there's no
    consistency concern.
+
+   **Ключи шифрования.** Текст сообщений в базе (`server/lib/textCrypto.js`)
+   и файлы в `data/uploads/` (`server/lib/fileCrypto.js`) хранятся
+   зашифрованными — как облачные чаты Telegram. Ключи берутся из
+   `MESSAGES_KEY` и `UPLOADS_KEY` (по 64 hex-символа, `openssl rand -hex 32`),
+   а если их нет — создаются при первом запуске в `data/messages.key` и
+   `data/uploads.key`. Потеря ключа = потеря всей переписки/файлов без
+   возможности восстановления, поэтому храните ключи в резервной копии — но
+   **отдельно** от `app.db`: копия базы вместе с ключом ничем не защищена.
+   В git ключам не место (`/data/*.key` в `.gitignore`).
+
+   Эти два ключа — мастер-ключи: сами данные шифруются ключами, которые
+   меняются каждые 2 минуты (`server/lib/keyring.js`, срок задаёт
+   `KEY_ROTATION_SECONDS`, по умолчанию 120). Ротируемые ключи лежат в таблице
+   `crypto_keys` той же базы, завёрнутыми мастер-ключом, так что в резервную
+   копию `app.db` они попадают сами. Без мастер-ключа они бесполезны.
+
+   Первый запуск после обновления сам зашифрует уже лежащую переписку, удалит
+   старый поисковый указатель по открытому тексту и сделает `VACUUM`, чтобы
+   открытый текст не остался в свободных страницах файла. На большой базе это
+   займёт время и потребует свободного места размером с саму базу.
 2. **Exactly one replica.** SQLite's own locking (WAL mode, see
    `server/db.js`) makes concurrent access from multiple processes *safe* —
    it won't corrupt the database the way the old flat-JSON-file store's
@@ -284,6 +305,54 @@ isn't HTTPS or `localhost` — that's a browser security rule, not something
 this app can work around. Skip step 5 and the app will otherwise run fine,
 but calls, voice messages, and video-notes will all silently fail to record
 or connect the moment a real visitor (not you on localhost) opens it.
+
+## Переезд вложений с диска в S3 без потери данных
+
+Вложения можно держать в S3-совместимом хранилище (Яндекс Object Storage,
+Cloudflare R2, AWS S3, MinIO) — переменные `S3_*` в `.env.example`,
+реализация в `server/lib/storage.js`.
+
+**Просто: задайте переменные и перезапустите.** Пропишите `S3_BUCKET`,
+`S3_ACCESS_KEY`, `S3_SECRET_KEY` (и `S3_ENDPOINT`/`S3_REGION`, если не
+Яндекс) в окружении сервера — в `.env` на сервере или в настройках Dokploy,
+**не в `config.env` в git** — и перезапустите. Сервер сам, в фоне, перенесёт
+всё из `data/uploads` в бакет (`server/lib/uploadsMigration.js`): сверяет
+каждый файл по размеру и только потом удаляет его с диска; проходы
+повторяются каждые 10 минут, пока папка не опустеет, ход виден в логах
+(`[s3] …`). Пока файл не перенесён, он отдаётся с диска. `S3_AUTO_MIGRATE=0`
+выключает автоперенос, `S3_MIGRATE_KEEP_LOCAL=1` — копирует, но диск не
+чистит.
+
+Ниже — ручной путь скриптом, если хочется проконтролировать каждый шаг.
+
+Файлы переносятся как есть, уже
+зашифрованными, поэтому **ключи не меняются**: `UPLOADS_KEY` (или
+`data/uploads.key`) и база `app.db` (в ней таблица `crypto_keys`) остаются
+те же. Потеряете ключ — файлы в S3 превратятся в шум.
+
+Порядок, при котором ни один файл не теряется и сервер не останавливается:
+
+1. **Резервная копия** `data/` целиком (база, `*.key`, `uploads/`).
+2. Создайте бакет и ключ доступа, пропишите `S3_BUCKET`, `S3_ACCESS_KEY`,
+   `S3_SECRET_KEY` (и `S3_ENDPOINT`/`S3_REGION`, если не Яндекс) в `.env`.
+   Сервер **пока не перезапускайте** — он продолжает писать на диск.
+3. Посмотрите, сколько предстоит: `npm run uploads:to-s3 -- --dry-run`.
+4. Основной перенос, сервер работает как обычно:
+   `npm run uploads:to-s3 -- --concurrency=8`. Можно прерывать и запускать
+   снова — уже перенесённое пропускается.
+5. Перезапустите сервер (`pm2 restart shalter` / пересоздайте контейнер) —
+   теперь новые файлы идут в S3. То, что успело прийти на диск после шага 4,
+   сервер отдаёт с диска, 404 не будет.
+6. Докопируйте остаток: `npm run uploads:to-s3`. Через минуту — ещё раз
+   (скрипт пропускает файлы моложе минуты: они могли ещё записываться).
+7. Проверьте в приложении старые фото, видео, файлы. Всё открывается —
+   освободите диск: `npm run uploads:to-s3 -- --delete-local`. Локальная копия
+   удаляется, только если объект в бакете совпал с ней по размеру.
+
+Что меняется в режиме S3: суточная уборка файлов (`server/lib/orphanSweep.js`)
+работает только по локальному диску и в S3 отключена — неиспользуемые объекты
+в бакете сами не удаляются. Статистика сервера показывает, что хранилище в S3,
+но не его размер — его смотрите в консоли облака.
 
 ## The one hard rule: run exactly one instance
 

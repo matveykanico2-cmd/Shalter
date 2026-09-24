@@ -2,7 +2,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
-const { createEncryptStream, createDecryptStream, HEADER_LEN } = require("./fileCrypto");
+const { createEncryptStream, createDecryptStream } = require("./fileCrypto");
 const storage = require("./storage");
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -13,8 +13,8 @@ const DATA_DIR = path.join(process.cwd(), "data");
 async function fetchUploadToTemp(filename) {
   const localPath = path.join(os.tmpdir(), `shalter_src_${crypto.randomBytes(8).toString("hex")}${path.extname(filename)}`);
   const header = await storage.readHeader(filename);
-  const raw = await storage.readRange(filename, header ? HEADER_LEN : 0, undefined);
-  const source = header ? raw.pipe(createDecryptStream(DATA_DIR, header.iv, 0)) : raw;
+  const raw = await storage.readRange(filename, header ? header.len : 0, undefined);
+  const source = header ? raw.pipe(createDecryptStream(DATA_DIR, header, 0)) : raw;
   try {
     await new Promise((resolve, reject) => {
       const out = fs.createWriteStream(localPath);

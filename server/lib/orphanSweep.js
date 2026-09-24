@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const db = require("../db");
+const { decryptText } = require("./textCrypto");
 
 // Уборка файлов, на которые никто не ссылается.
 //
@@ -43,7 +44,15 @@ function collectReferenced() {
     for (const row of rows) for (const c of columns) add(row[c]);
   };
 
-  scan("SELECT attachments, sticker, text FROM messages", ["attachments", "sticker", "text"]);
+  scan("SELECT attachments, sticker FROM messages", ["attachments", "sticker"]);
+  // Текст зашифрован (lib/textCrypto.js) — ссылку на файл в нём видно только
+  // после расшифровки. Только строки, где текст вообще есть: у большинства
+  // вложений подписи нет.
+  try {
+    for (const row of db.prepare("SELECT id, text FROM messages WHERE text <> ''").iterate()) add(decryptText(row.id, row.text));
+  } catch {
+    /* как и выше: старая база — не повод ронять уборку */
+  }
   scan("SELECT avatarImage, avatarImages FROM users", ["avatarImage", "avatarImages"]);
   scan("SELECT avatarImage FROM chats", ["avatarImage"]);
   scan("SELECT photos FROM listings", ["photos"]);

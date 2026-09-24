@@ -29,6 +29,8 @@ import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openMiniApp } from "../components/miniApp.js";
 import { openDeleteMessageDialog } from "../components/deleteMessageDialog.js";
 import { openLiveScreen } from "../components/liveScreen.js";
+import { CHAT_ACTION_LABELS } from "../lib/chatAction.js";
+import { isServerModerator } from "../lib/moderation.js";
 
 // Settings → Внешний вид → "Фон чата" sets the global default; a chat's own
 // "…" → "Фон чата" (see openWallpaperDialog below) overrides it for just
@@ -143,6 +145,9 @@ export async function ChatView(root, chatId) {
   let infoOpen = false;
   let pinIndex = 0;
   let typingUserId = null;
+  // Что именно делает typingUserId: «печатает», «записывает голосовое»,
+  // «отправляет кружок»… (lib/chatAction.js, server/data/typing.js).
+  let typingAction = null;
   let iBlockedThem = !!chat.otherUser && !!me.blockedUserIds?.includes(chat.otherUser.id);
   let messagesCount = messages.length;
   let isShalterAdmin = false;
@@ -620,13 +625,18 @@ export async function ChatView(root, chatId) {
       },
     ];
     // Only the people who run it can end it for everyone — the same bar the
-    // server enforces (routes/chats.js's DELETE).
-    if (isChatAdmin(chat, me.id)) {
+    // server enforces (routes/chats.js's DELETE). И модератор сервера — чужую
+    // группу или канал за нарушение правил; владельцу придёт уведомление.
+    const byModerator = !isChatAdmin(chat, me.id) && isServerModerator();
+    if (isChatAdmin(chat, me.id) || byModerator) {
       options.push({
-        label: `Удалить ${what} для всех`,
+        label: byModerator ? `Удалить ${what} (модерация)` : `Удалить ${what} для всех`,
         danger: true,
         onClick: async () => {
-          if (!confirm(`Удалить ${what} у всех участников? Это необратимо.`)) return;
+          const question = byModerator
+            ? `Удалить чужой ${what === "канал" ? "канал" : "группу"} «${chat.title ?? chat.name}» за нарушение правил? Все сообщения и файлы пропадут у всех, владельцу придёт уведомление. Это необратимо.`
+            : `Удалить ${what} у всех участников? Это необратимо.`;
+          if (!confirm(question)) return;
           try {
             await api.deleteChat(chat.id);
             navigate("/");
@@ -771,7 +781,7 @@ export async function ChatView(root, chatId) {
     // chat. Selecting a run of someone's spam and clearing it is the case this
     // exists for.
     const canDeleteForAll =
-      picked.every((m) => m.senderId === me.id) || (!isDm && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id)));
+      picked.every((m) => m.senderId === me.id) || (!isDm && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id))) || isServerModerator();
     selectionBar.appendChild(
       el("div", { class: "selection-bar" }, [
         el("button", { class: "icon-btn", title: "Отменить", html: iconSvg("X", 18), onclick: clearSelection }),
@@ -1013,9 +1023,10 @@ export async function ChatView(root, chatId) {
     clear(header);
     const subtitle = (() => {
       if (typingUserId) {
-        if (isDm) return "печатает…";
+        const label = CHAT_ACTION_LABELS[typingAction] ?? CHAT_ACTION_LABELS.typing;
+        if (isDm) return `${label}…`;
         const typist = members.find((m) => m.id === typingUserId);
-        if (typist) return `${typist.name} печатает…`;
+        if (typist) return `${typist.name} ${label}…`;
       }
       if (chat.type === "bot") return "бот";
       // У бота нет присутствия: программа не «заходила» и не «была недавно».
@@ -1075,7 +1086,7 @@ export async function ChatView(root, chatId) {
                     )
                   : null,
               ]),
-              el("p", { class: "chat-header-subtitle" }, subtitle),
+              el("p", { class: `chat-header-subtitle${typingUserId ? " is-typing" : ""}` }, subtitle),
             ]),
           ]
         ),
@@ -1418,7 +1429,8 @@ export async function ChatView(root, chatId) {
               // группе и канале чужое убирает только тот, кто ими управляет,
               // иначе один участник способен стереть всю историю чата.
               openDeleteMessageDialog({
-                canDeleteForEveryone: mine || isDm || isChatAdmin(chat, me.id) || isChatModerator(chat, me.id),
+                // Модератор сервера — любое сообщение, файл или ссылку в любом чате.
+                canDeleteForEveryone: mine || isDm || isChatAdmin(chat, me.id) || isChatModerator(chat, me.id) || isServerModerator(),
                 someoneElses: !mine,
                 onDelete: (forEveryone) => handleDelete(msg, forEveryone),
               });
@@ -1634,8 +1646,9 @@ export async function ChatView(root, chatId) {
   // budget spent re-asking for something the socket had already delivered.
   const typingIv = setInterval(async () => {
     const r = await api.getTyping(chat.id);
-    if (r.typingUserId === typingUserId) return;
+    if (r.typingUserId === typingUserId && (r.typingAction ?? null) === typingAction) return;
     typingUserId = r.typingUserId;
+    typingAction = r.typingAction ?? null;
     renderHeader();
   }, 30000);
 
@@ -1676,6 +1689,9 @@ export async function ChatView(root, chatId) {
   });
   const unsubMessageNew = onWsMessage("message:new", (msg) => {
     if (msg.chatId !== chat.id) return;
+    // Сообщение пришло — значит, дописал: «печатает» над уже полученным
+    // текстом не нужно ждать ещё четыре секунды.
+    if (typingUserId && msg.message?.senderId === typingUserId) clearTypingStatus();
     scheduleRefresh();
   });
   const unsubMessageUpdated = onWsMessage("message:updated", (msg) => {
@@ -1697,15 +1713,24 @@ export async function ChatView(root, chatId) {
   // after 4s (see server/data/typing.js), so clear it locally on the same
   // schedule instead of leaning on the slow poll to notice it's gone stale.
   let typingClearTimer = null;
+  const clearTypingStatus = () => {
+    clearTimeout(typingClearTimer);
+    typingUserId = null;
+    typingAction = null;
+    renderHeader();
+  };
   const unsubTyping = onWsMessage("typing:update", (msg) => {
     if (msg.chatId !== chat.id) return;
+    // Запись удалили, загрузка кончилась — статус уходит сразу.
+    if (msg.action === "cancel") {
+      if (msg.userId === typingUserId) clearTypingStatus();
+      return;
+    }
     typingUserId = msg.userId;
+    typingAction = msg.action ?? "typing";
     renderHeader();
     clearTimeout(typingClearTimer);
-    typingClearTimer = setTimeout(() => {
-      typingUserId = null;
-      renderHeader();
-    }, 4000);
+    typingClearTimer = setTimeout(clearTypingStatus, 4000);
   });
 
   // Чат переименовали или сменили ему фото — свои же изменения из панели

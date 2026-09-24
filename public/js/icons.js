@@ -53,6 +53,8 @@ const PATHS = {
   // Ключ — «показать токен бота» (settings/index.js).
   Key: '<circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M17 6l2 2M14 9l2 2"/>',
   Download: '<path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/>',
+  // Облако — раздел «Хранилище» в настройках.
+  Cloud: '<path d="M7 19a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 17.7 8.6 4.7 4.7 0 0 1 17.3 19Z"/>',
   Accounts: '<circle cx="9" cy="9" r="5"/><path d="M15 6a5 5 0 0 1 0 9.8"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/>',
   FlipCamera:
     '<path d="M4 12a8 8 0 0 1 13.6-5.7L20 8.5"/><path d="M20 5v3.5h-3.5"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 15.5"/><path d="M4 19v-3.5h3.5"/><circle cx="12" cy="12" r="2.3"/>',

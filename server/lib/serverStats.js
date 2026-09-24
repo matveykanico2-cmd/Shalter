@@ -131,8 +131,8 @@ function dbStats() {
   const pageCount = db.pragma("page_count", { simple: true });
   const freePages = db.pragma("freelist_count", { simple: true });
   const all = db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
-  // У полнотекстового индекса (messages_fts) есть служебные таблицы-спутники
-  // messages_fts_data/_idx/_docsize/_config — это внутреннее устройство FTS5, и
+  // У поискового индекса (messages_search) есть служебные таблицы-спутники
+  // messages_search_data/_idx/_config — это внутреннее устройство FTS5, и
   // «5 строк» в них не значат ничего. В списке остаётся сам индекс.
   const virtualTables = all.filter((t) => /^CREATE VIRTUAL TABLE/i.test(t.sql ?? "")).map((t) => t.name);
   const isShadow = (name) => virtualTables.some((v) => name !== v && name.startsWith(`${v}_`));

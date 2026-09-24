@@ -4,6 +4,7 @@ import { Avatar } from "./avatar.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { onWsMessage } from "../lib/wsClient.js";
+import { isServerModerator } from "../lib/moderation.js";
 
 const IMAGE_DURATION_MS = 5000;
 
@@ -518,15 +519,21 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
                 },
               })
             : null,
-          mine
+          // Модератор сервера удаляет и чужие истории (server/routes/stories.js).
+          mine || isServerModerator()
             ? el("button", {
                 class: "story-header-btn",
-                title: "Удалить",
+                title: mine ? "Удалить" : "Удалить (модерация)",
                 html: iconSvg("Trash", 18),
                 onclick: async () => {
                   pause();
                   const count = story.items?.length ?? 1;
-                  if (!confirm(count > 1 ? `Удалить историю целиком — все ${count} кадра?` : "Удалить историю?")) return resume();
+                  const question = !mine
+                    ? `Удалить чужую историю «${group.user.name}» за нарушение правил? Автору придёт уведомление.`
+                    : count > 1
+                      ? `Удалить историю целиком — все ${count} кадра?`
+                      : "Удалить историю?";
+                  if (!confirm(question)) return resume();
                   try {
                     await api.deleteStory(story.id);
                   } catch (err) {

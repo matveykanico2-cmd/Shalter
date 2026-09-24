@@ -61,6 +61,7 @@ const SECTIONS = [
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", group: "main" },
   { id: "premium", label: "Premium и друзья", icon: "Star", group: "extra" },
   { id: "business", label: "Shalter для бизнеса", icon: "Bag", group: "extra" },
+  { id: "storage", label: "Хранилище", icon: "Cloud", group: "extra" },
   { id: "partners", label: "Партнёрка", icon: "Users", group: "extra" },
   { id: "oauth", label: "Войти через Shalter", icon: "Lock", group: "extra" },
   { id: "stars", label: "Звёзды", icon: "Zap", group: "extra" },
@@ -176,6 +177,7 @@ export async function SettingsView(root, page) {
     profile: renderProfile,
     premium: renderPremium,
     business: renderBusiness,
+    storage: renderStorage,
     partners: renderPartners,
     oauth: renderOAuthApps,
     ads: renderAds,
@@ -237,7 +239,12 @@ function renderMenu(root) {
       icon: s.icon,
       label: s.label,
       href: `/settings/${s.id}`,
-      value: s.id === "accounts" && accounts.length > 1 ? accounts.length : null,
+      value:
+        s.id === "accounts" && accounts.length > 1
+          ? accounts.length
+          : s.id === "storage" && me.isStorageActive
+            ? formatGb(me.storageGb)
+            : null,
     });
 
   const admin = groupOf("admin");
@@ -950,6 +957,124 @@ async function renderBusiness(root) {
     }
 
     mount(root, pageWrap("Shalter для бизнеса", "Часы работы, автоответчик, быстрые ответы и адрес на профиле", rows));
+  }
+  render();
+}
+
+// Облачное хранилище — тарифы в духе Google One (server/config.js,
+// STORAGE_PLANS). Лимита нет и тариф ничего не ограничивает, поэтому шкала
+// здесь честная: реальный объём своих файлов против объёма тарифа (или просто
+// «использовано», если тарифа нет) — без множителя, который стоит на экране
+// «Данные и память». Рядом с кнопкой «купить» завышенная цифра была бы
+// уговором заплатить за место, которое на самом деле не занято.
+const STORAGE_KIND_LABELS = [
+  { kinds: ["image"], label: "Фото" },
+  { kinds: ["video", "video-note"], label: "Видео" },
+  { kinds: ["file"], label: "Файлы" },
+  { kinds: ["voice"], label: "Голосовые" },
+];
+
+function formatGb(gb) {
+  return gb >= 1024 ? `${gb / 1024} ТБ` : `${gb} ГБ`;
+}
+
+async function renderStorage(root) {
+  let info = await api.getStorageInfo();
+  let period = "month";
+  let buyingPlan = null;
+  let buyError = null;
+
+  async function buy(planId) {
+    buyingPlan = planId;
+    buyError = null;
+    render();
+    try {
+      handlePurchaseResponse(await api.requestStorage(planId));
+    } catch (err) {
+      buyError = err.message;
+    } finally {
+      buyingPlan = null;
+      render();
+    }
+  }
+
+  function planTile(planId, plan) {
+    const current = info.isStorageActive && info.storageGb === plan.gb;
+    // Меньший объём при действующем тарифе сервер не продаст (routes/
+    // storage.js) — плитка сразу выключена, а не падает с ошибкой.
+    const smaller = info.isStorageActive && plan.gb < info.storageGb;
+    const monthly = plan.period === "year" ? Math.round(plan.priceRub / 12) : null;
+    return el(
+      "button",
+      {
+        class: `stars-pack storage-plan${current ? " current" : ""}`,
+        disabled: !!buyingPlan || smaller || (current && info.storageForever),
+        onclick: () => buy(planId),
+      },
+      [
+        el("span", { class: "stars-pack-amount" }, buyingPlan === planId ? "Открываем…" : plan.label),
+        el("span", { class: "stars-pack-price mono" }, `${plan.priceRub} ₽ / ${plan.period === "year" ? "год" : "мес"}`),
+        monthly ? el("span", { class: "stars-pack-price" }, `≈ ${monthly} ₽ в месяц`) : null,
+        current ? el("span", { class: "storage-plan-badge" }, info.storageForever ? "Ваш тариф" : "Продлить") : null,
+      ]
+    );
+  }
+
+  function render() {
+    const capacity = info.isStorageActive ? info.storageGb * 1024 * 1024 * 1024 : 0;
+    const share = capacity ? Math.min(100, (info.usedBytes / capacity) * 100) : 0;
+    const bytesOf = (kinds) => kinds.reduce((sum, k) => sum + (info.byKind[k]?.bytes ?? 0), 0);
+    const plans = Object.entries(info.plans ?? {}).filter(([, p]) => p.period === period);
+
+    mount(
+      root,
+      pageWrap("Хранилище", "Место для ваших фото, видео и файлов в облаке Shalter", [
+        el("div", { class: `premium-status-card ${info.isStorageActive ? "active" : ""}` }, [
+          el("span", { class: "premium-status-icon", html: iconSvg("Cloud", 26) }),
+          el("div", {}, [
+            el(
+              "p",
+              { class: "premium-status-title" },
+              info.isStorageActive ? `Тариф ${formatGb(info.storageGb)}` : "Бесплатно, без ограничений"
+            ),
+            el(
+              "p",
+              { class: "premium-status-hint" },
+              info.isStorageActive
+                ? formatPremiumUntil({ premiumUntil: info.storageUntil, premiumForever: info.storageForever })
+                : "Лимита нет — тариф поддерживает проект и отмечает объём"
+            ),
+          ]),
+        ]),
+        el("p", { class: "settings-section-title" }, `Использовано — ${formatBytes(info.usedBytes)}${capacity ? ` из ${formatGb(info.storageGb)}` : ""}`),
+        capacity ? el("div", { class: "storage-meter" }, [el("div", { class: "storage-meter-fill", style: `width: ${share}%` })]) : null,
+        el(
+          "div",
+          { class: "settings-cache-list" },
+          STORAGE_KIND_LABELS.map((k) =>
+            el("div", { class: "settings-cache-row" }, [
+              el("span", {}, k.label),
+              el("span", { class: "mono settings-toggle-hint" }, formatBytes(bytesOf(k.kinds))),
+            ])
+          )
+        ),
+        el("p", { class: "settings-toggle-hint" }, `${info.fileCount} ${info.fileCount === 1 ? "файл" : "файлов"}, отправленных вами. Файл, пересланный в несколько чатов, хранится и считается один раз.`),
+        el("div", { class: "settings-notice-box" }, [
+          el("p", { class: "settings-toggle-title" }, info.isStorageActive ? "Сменить или продлить тариф" : "Тарифы"),
+          el("div", { class: "storage-period" }, [
+            el("button", { class: `storage-period-btn${period === "month" ? " active" : ""}`, onclick: () => { period = "month"; render(); } }, "Помесячно"),
+            el("button", { class: `storage-period-btn${period === "year" ? " active" : ""}`, onclick: () => { period = "year"; render(); } }, "На год · 2 месяца в подарок"),
+          ]),
+          el("div", { class: "stars-pack-grid" }, plans.map(([id, plan]) => planTile(id, plan))),
+          el(
+            "p",
+            { class: "settings-toggle-hint" },
+            "Оплата — так же, как Premium. Тот же объём продлевается поверх оставшегося срока, больший начинается с сегодняшнего дня."
+          ),
+          buyError ? el("p", { class: "login-error" }, buyError) : null,
+        ]),
+      ])
+    );
   }
   render();
 }
@@ -2754,6 +2879,10 @@ async function renderModeration(root) {
   // replaces the whole page, while a failed lookup should leave the reports and
   // lists exactly where they were and just say the handle wasn't found.
   let lookupError = null;
+  // Найденная группа/канал для удаления модератором (см. «Группа или канал»).
+  let foundChat = null;
+  let chatLookupError = null;
+  let chatDeleting = false;
   // Проверка отправки почты — по кнопке, а не при открытии страницы: она
   // подключается к чужому серверу и занимает секунды.
   let mailStatus = null;
@@ -2865,6 +2994,40 @@ async function renderModeration(root) {
       }
     }
 
+    // Чужая группа или канал — по @имени, ссылке или id. Открыть такой чат в
+    // приложении модератор не может, если в нём не состоит, поэтому удалить
+    // его можно отсюда.
+    const chatLookupInput = el("input", { class: "settings-input", placeholder: "@канал, ссылка-приглашение или id" });
+    async function lookupChat() {
+      const q = chatLookupInput.value.trim();
+      chatLookupError = null;
+      foundChat = null;
+      if (!q) return render();
+      try {
+        ({ chat: foundChat } = await api.adminLookupChat(q));
+      } catch (err) {
+        chatLookupError = err.message || "Группа или канал не найдены";
+      }
+      render();
+    }
+    async function deleteFoundChat() {
+      const c = foundChat;
+      const what = c.type === "channel" ? "канал" : "группу";
+      if (!confirm(`Удалить ${what} «${c.title}» (${c.members} участников) за нарушение правил? Все сообщения и файлы пропадут у всех, владельцу придёт уведомление. Это необратимо.`)) return;
+      chatDeleting = true;
+      render();
+      try {
+        await api.deleteChat(c.id);
+        foundChat = null;
+        chatLookupError = `«${c.title}» удалён${c.type === "channel" ? "" : "а"}.`;
+      } catch (err) {
+        chatLookupError = err.message || "Не удалось удалить";
+      } finally {
+        chatDeleting = false;
+        render();
+      }
+    }
+
     // Built with section() like every other settings page — hand-rolling
     // .settings-section-title + .settings-section as bare siblings (which this
     // did at first) skips .settings-section-group's bottom margin entirely, so
@@ -2883,6 +3046,31 @@ async function renderModeration(root) {
             "p",
             { class: "settings-toggle-hint" },
             "В карточке — выдача Premium, рекламы, звёзд и подарков, метка безопасности, блокировка и разблокировка, жалобы и выгрузка данных."
+          ),
+        ]),
+        section("Группа или канал", [
+          chatLookupInput,
+          el("button", { class: "btn-accent", onclick: lookupChat }, "Найти"),
+          chatLookupError ? el("p", { class: foundChat ? "login-error" : "settings-toggle-hint" }, chatLookupError) : null,
+          foundChat
+            ? el("div", { class: "settings-notice-box" }, [
+                el("p", { class: "settings-toggle-title" }, `${foundChat.type === "channel" ? "Канал" : "Группа"} «${foundChat.title}»`),
+                el(
+                  "p",
+                  { class: "settings-toggle-hint" },
+                  [
+                    foundChat.username ? `@${foundChat.username}` : null,
+                    `${foundChat.members} участников`,
+                    foundChat.owner ? `владелец — ${foundChat.owner.name}${foundChat.owner.username ? ` (@${foundChat.owner.username})` : ""}` : null,
+                  ].filter(Boolean).join(" · ")
+                ),
+                el("button", { class: "settings-danger-link", disabled: chatDeleting, onclick: deleteFoundChat }, chatDeleting ? "Удаляем…" : "Удалить за нарушение правил"),
+              ])
+            : null,
+          el(
+            "p",
+            { class: "settings-toggle-hint" },
+            "Сообщения, файлы, ссылки и истории удаляются прямо в чате или в просмотре истории — модератору там доступно «Удалить у всех»."
           ),
         ]),
         section("Отправка почты", [

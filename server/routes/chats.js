@@ -11,10 +11,13 @@ const { allowsUser } = require("../lib/privacyRules");
 const { messageCost } = require("../lib/messagePrice");
 const { attachSummaries } = require("../data/chat-summary");
 const { listUsers, listUsersByIds, getUser } = require("../data/users");
+const { hasAdminSection } = require("../lib/adminAccess");
+const { SYSTEM_BOT_ID } = require("../data/systemBot");
+const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { publicUser } = require("../data/sanitize");
 const { getBotByUserId } = require("../data/bots");
 const joinRequests = require("../data/joinRequests");
-const { markTyping, getTypingUserId } = require("../data/typing");
+const { markTyping, clearTyping, getTyping, normalizeAction } = require("../data/typing");
 const { broadcastToUsers } = require("../ws");
 const messagesRouter = require("./messages");
 
@@ -664,12 +667,22 @@ router.post(
 // Deleting a chat for everyone. In a DM either side may (it's half theirs); a
 // group or channel belongs to whoever runs it — this used to accept any member,
 // so anyone in a group could delete it out from under everybody.
+//
+// Модератор сервера (раздел «Модерация», lib/adminAccess.js) удаляет любую
+// группу или канал — и без членства: публичный канал со спамом или запрещённым
+// содержимым он видит через поиск, а вступать туда ради удаления незачем.
+// Личные переписки чужих людей — нет: модератор их не видит и не должен.
 router.delete(
   "/:id",
   asyncRoute(async (req, res) => {
-    const chat = await requireMemberChat(req, res);
-    if (!chat) return;
-    if (chat.type !== "dm" && !isOwnerOrAdminOf(chat, req.uid)) {
+    const chat = await getChat(req.params.id);
+    if (!chat) return res.status(404).json({ error: "not found" });
+    const member = chat.memberIds.includes(req.uid);
+    const ownStaff = member && (chat.type === "dm" || isOwnerOrAdminOf(chat, req.uid));
+    const moderator =
+      !ownStaff && chat.type !== "dm" && hasAdminSection(await getUser(req.uid), "moderation");
+    if (!member && !moderator) return res.status(404).json({ error: "not found" });
+    if (!ownStaff && !moderator) {
       return res.status(403).json({ error: "Удалить чат для всех может только владелец или админ" });
     }
     // Everyone loses it from their list at once, rather than each person finding
@@ -677,6 +690,15 @@ router.delete(
     broadcastToUsers(chat.memberIds, { type: "chat:deleted", chatId: chat.id });
     await deleteMessagesForChat(req.params.id);
     await deleteChat(req.params.id);
+    // Владелец должен узнать, куда делся его канал, — от сервисного бота, а не
+    // по пропавшей строчке в списке чатов.
+    if (moderator) {
+      const kind = chat.type === "channel" ? "Канал" : "Группа";
+      for (const ownerId of new Set([chat.ownerId, ...(chat.ownerIds ?? [])].filter(Boolean))) {
+        const dm = await findOrCreateDm(SYSTEM_BOT_ID, ownerId);
+        await sendMessageAndBroadcast(dm, SYSTEM_BOT_ID, `🛡 ${kind} «${chat.title ?? chat.name}» удалён${chat.type === "channel" ? "" : "а"} модерацией Shalter за нарушение правил.`);
+      }
+    }
     res.json({ ok: true });
   })
 );
@@ -986,7 +1008,8 @@ router.get(
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    res.json({ typingUserId: getTypingUserId(req.params.id, req.uid) });
+    const typing = getTyping(req.params.id, req.uid);
+    res.json({ typingUserId: typing?.userId ?? null, typingAction: typing?.action ?? null });
   })
 );
 
@@ -995,11 +1018,18 @@ router.post(
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    markTyping(req.params.id, req.uid);
+    // action — что именно происходит (data/typing.js): «печатает»,
+    // «записывает голосовое», «отправляет кружок»… "cancel" снимает статус
+    // сразу — запись удалили или загрузка закончилась.
+    const cancel = req.body?.action === "cancel";
+    const action = cancel ? "cancel" : normalizeAction(req.body?.action);
+    if (cancel) clearTyping(req.params.id, req.uid);
+    else markTyping(req.params.id, req.uid, action);
     broadcastToUsers(chat.memberIds.filter((id) => id !== req.uid), {
       type: "typing:update",
       chatId: req.params.id,
       userId: req.uid,
+      action,
     });
     res.json({ ok: true });
   })

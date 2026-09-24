@@ -1,4 +1,5 @@
 const db = require("../db");
+const { encryptText, decryptText, searchQuery, hasLink } = require("../lib/textCrypto");
 
 function rowToMessage(row) {
   if (!row) return undefined;
@@ -7,7 +8,9 @@ function rowToMessage(row) {
     chatId: row.chatId,
     senderId: row.senderId,
     type: row.type,
-    text: row.text,
+    // В базе текст зашифрован (lib/textCrypto.js) — наружу из этого модуля
+    // он выходит уже открытым, остальной код о шифровании не знает.
+    text: decryptText(row.id, row.text),
     createdAt: row.createdAt,
     editedAt: row.editedAt ?? undefined,
     pinned: !!row.pinned,
@@ -63,38 +66,31 @@ function listNewForBot(botUserId, { after, limit = 200 }) {
     .map(rowToMessage);
 }
 
-// Поиск по тексту — через полнотекстовый указатель (db.js, messages_fts).
-// LIKE '%слово%' индексом пользоваться не может в принципе и заставляет базу
-// читать каждую строку: замерено, 12.8 мс против доли миллисекунды на
-// шестидесяти тысячах сообщений.
+// Поиск по тексту — через поисковый указатель (db.js, messages_search).
+// Текст в базе зашифрован, поэтому в указателе лежат не слова, а их
+// отпечатки (lib/textCrypto.js); запрос превращается в отпечатки тем же
+// ключом, и дальше это обычный поиск FTS5 по указателю, без перебора строк.
 //
 // Последнее слово ищется как начало слова: человек в строке поиска ещё
 // печатает, и «сообщ» должно находить «сообщение», а не молчать до последней
 // буквы.
 function searchInChats(chatIds, query, { limit = 40 } = {}) {
   if (!chatIds.length || !query) return [];
-  const words = String(query)
-    .toLowerCase()
-    .split(/\s+/)
-    .map((w) => w.replace(/["*^()]/g, ""))
-    .filter(Boolean);
-  if (!words.length) return [];
-  const match = words.map((w, i) => (i === words.length - 1 ? `"${w}"*` : `"${w}"`)).join(" AND ");
+  const match = searchQuery(query);
+  if (!match) return [];
   const ph = chatIds.map(() => "?").join(",");
   try {
     return db
       .prepare(
-        `SELECT m.* FROM messages_fts f
+        `SELECT m.* FROM messages_search f
            JOIN messages m ON m.rowid = f.rowid
-          WHERE messages_fts MATCH ? AND m.chatId IN (${ph})
+          WHERE messages_search MATCH ? AND m.chatId IN (${ph})
           ORDER BY m.createdAt DESC LIMIT ?`
       )
       .all(match, ...chatIds, limit)
       .map(rowToMessage)
       .reverse();
   } catch {
-    // Запрос из одних знаков препинания FTS5 отвергает — это не повод отдавать
-    // ошибку тому, кто просто печатает в строке поиска.
     return [];
   }
 }
@@ -110,7 +106,7 @@ function listMediaMessages(chatId, viewerId, { limit = 300 } = {}) {
         WHERE chatId = ?
           AND deletedForIds NOT LIKE ?
           AND threadRootId IS NULL
-          AND (attachments IS NOT NULL OR linkPreview IS NOT NULL OR text LIKE '%http%')
+          AND (attachments IS NOT NULL OR linkPreview IS NOT NULL OR hasLink = 1)
         ORDER BY createdAt DESC LIMIT ?`
     )
     .all(chatId, `%"${viewerId}"%`, limit)
@@ -189,15 +185,16 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous)
-     VALUES (@id, @chatId, @senderId, @type, @text, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous)
+     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous)`
   ).run({
     id: message.id,
     chatId: message.chatId,
     senderId: message.senderId,
     paidStars: message.paidStars ?? 0,
     type: message.type ?? "text",
-    text: message.text ?? "",
+    text: encryptText(message.id, message.text),
+    hasLink: hasLink(message.text),
     createdAt: message.createdAt,
     editedAt: message.editedAt ?? null,
     pinned: message.pinned ? 1 : 0,
@@ -240,18 +237,24 @@ function deleteExpiredMessages(chatId, cutoffIso) {
 }
 
 async function mutate(id, fn) {
-  const existing = rowToMessage(db.prepare("SELECT * FROM messages WHERE id = ?").get(id));
+  const row = db.prepare("SELECT * FROM messages WHERE id = ?").get(id);
+  const existing = rowToMessage(row);
   if (!existing) return undefined;
   const updated = fn(existing);
   db.prepare(
-    `UPDATE messages SET text = @text, editedAt = @editedAt, pinned = @pinned, forwardedFrom = @forwardedFrom,
+    `UPDATE messages SET text = @text, hasLink = @hasLink, editedAt = @editedAt, pinned = @pinned, forwardedFrom = @forwardedFrom,
        attachments = @attachments, keyboard = @keyboard, reactions = @reactions, readByIds = @readByIds,
        deletedForIds = @deletedForIds, anchorForPostId = @anchorForPostId, discussionAnchorId = @discussionAnchorId,
        views = @views, commentCount = @commentCount, linkPreview = @linkPreview, report = @report
      WHERE id = @id`
   ).run({
     id,
-    text: updated.text ?? "",
+    // Реакции и прочтения идут через этот же путь, а текст при них не
+    // меняется — тогда остаётся прежний шифротекст, и триггер (db.js,
+    // messages_search_au) не перестраивает указатель зря. Изменённый текст
+    // шифруется заново, с новым случайным вектором.
+    text: (updated.text ?? "") === existing.text ? row.text : encryptText(id, updated.text),
+    hasLink: hasLink(updated.text),
     editedAt: updated.editedAt ?? null,
     pinned: updated.pinned ? 1 : 0,
     forwardedFrom: updated.forwardedFrom ? JSON.stringify(updated.forwardedFrom) : null,
@@ -508,6 +511,31 @@ function attachmentBytesByKind(chatIds) {
   return Object.fromEntries(rows.filter((r) => r.kind).map((r) => [r.kind, r.bytes ?? 0]));
 }
 
+// Сколько места занимают файлы, которые человек сам отправил, — для экрана
+// «Хранилище» (routes/storage.js). В отличие от attachmentBytesByKind выше
+// (всё, что лежит в чатах человека, включая чужие вложения), здесь только
+// своё — то, что и считается «его облаком».
+//
+// Один и тот же файл, отправленный в десять чатов, на сервере лежит один раз
+// (routes/uploads.js, дедупликация по содержимому) — и считается один раз:
+// сначала группировка по ссылке, потом сумма.
+function attachmentBytesBySender(userId) {
+  const rows = db
+    .prepare(
+      `SELECT kind, count(*) AS files, sum(bytes) AS bytes FROM (
+         SELECT json_extract(a.value, '$.url') AS url,
+                max(json_extract(a.value, '$.kind')) AS kind,
+                max(coalesce(json_extract(a.value, '$.size'), 0)) AS bytes
+           FROM messages m, json_each(m.attachments) a
+          WHERE m.senderId = ? AND m.attachments IS NOT NULL AND m.attachments <> '[]'
+            AND json_extract(a.value, '$.url') LIKE '/uploads/%'
+          GROUP BY url
+       ) GROUP BY kind`
+    )
+    .all(userId);
+  return Object.fromEntries(rows.filter((r) => r.kind).map((r) => [r.kind, { bytes: r.bytes ?? 0, files: r.files }]));
+}
+
 // Календарь переписки: в какие дни в этом чате вообще что-то писали.
 //
 // Даты считаются в часовом поясе того, кто смотрит: createdAt лежит в UTC, а
@@ -565,6 +593,7 @@ module.exports = {
   chatMessageStats,
   topSenders,
   attachmentBytesByKind,
+  attachmentBytesBySender,
   listMessageDays,
   firstMessageOfDay,
   // Нужен data/chat-summary.js: он читает строки своим запросом и превращает

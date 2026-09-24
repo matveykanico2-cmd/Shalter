@@ -44,6 +44,24 @@ function s3Key(filename) {
   return S3_PREFIX + filename;
 }
 
+// Переезд с диска в S3 без потерь (scripts/migrate-uploads-to-s3.js,
+// DEPLOY.md). В режиме S3 файл, который ещё лежит в data/uploads, читается
+// оттуда: пока скрипт копирует, а тем более в минуты между его последним
+// проходом и перезапуском сервера, часть файлов есть только на диске — и без
+// этого они отдавали бы 404. Новые файлы пишутся уже только в S3.
+//
+// Сначала диск, потом S3, а не наоборот: statSync локального файла — это
+// микросекунды, а HEAD в бакет — сетевой запрос. Когда перенос закончен и
+// папка очищена (--delete-local), проверка просто всегда промахивается.
+function localCopy(filename) {
+  const full = path.join(UPLOAD_DIR, filename);
+  try {
+    return fs.statSync(full).isFile() ? full : null;
+  } catch {
+    return null;
+  }
+}
+
 // Запись нового файла. Возвращает { stream, done, abort }: пишущий код (см.
 // routes/uploads.js) льёт в stream — на диске это самый обычный
 // fs.WriteStream, в S3 — сквозной PassThrough, который читает
@@ -80,6 +98,7 @@ async function exists(filename) {
       return false;
     }
   }
+  if (localCopy(filename)) return true;
   const { HeadObjectCommand } = require("@aws-sdk/client-s3");
   try {
     await client().send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: s3Key(filename) }));
@@ -98,6 +117,8 @@ async function sizeOf(filename) {
       return null;
     }
   }
+  const local = localCopy(filename);
+  if (local) return fs.statSync(local).size;
   const { HeadObjectCommand } = require("@aws-sdk/client-s3");
   try {
     const head = await client().send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: s3Key(filename) }));
@@ -148,6 +169,9 @@ async function deleteObject(filename) {
     await fs.promises.unlink(path.join(UPLOAD_DIR, filename)).catch(() => {});
     return;
   }
+  // Удалить — значит удалить отовсюду: иначе оставшаяся на диске копия
+  // «воскресила» бы файл через localCopy.
+  await fs.promises.unlink(path.join(UPLOAD_DIR, filename)).catch(() => {});
   const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
   await client()
     .send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: s3Key(filename) }))
@@ -161,6 +185,8 @@ async function readRange(filename, start, end) {
   if (!isS3Enabled) {
     return fs.createReadStream(path.join(UPLOAD_DIR, filename), { start, end });
   }
+  const local = localCopy(filename);
+  if (local) return fs.createReadStream(local, { start, end });
   const { GetObjectCommand } = require("@aws-sdk/client-s3");
   const res = await client().send(
     new GetObjectCommand({ Bucket: S3_BUCKET, Key: s3Key(filename), Range: `bytes=${start}-${end ?? ""}` })
@@ -174,9 +200,9 @@ async function readRange(filename, start, end) {
 // отдельный ranged-запрос, файл целиком качать незачем.
 async function readHeader(filename) {
   const fileCrypto = require("./fileCrypto");
-  if (!isS3Enabled) return fileCrypto.readHeader(path.join(UPLOAD_DIR, filename));
+  if (!isS3Enabled || localCopy(filename)) return fileCrypto.readHeader(path.join(UPLOAD_DIR, filename));
   try {
-    const stream = await readRange(filename, 0, fileCrypto.HEADER_LEN - 1);
+    const stream = await readRange(filename, 0, fileCrypto.HEADER_MAX - 1);
     const chunks = [];
     for await (const chunk of stream) chunks.push(chunk);
     return fileCrypto.headerFromBuffer(Buffer.concat(chunks));

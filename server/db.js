@@ -286,33 +286,8 @@ CREATE TABLE IF NOT EXISTS chat_reads (
   PRIMARY KEY (chatId, userId)
 );
 
--- Полнотекстовый указатель по сообщениям.
---
--- Поиск через LIKE '%слово%' индексом пользоваться не может по своей природе:
--- база вынуждена прочитать каждую строку. FTS5 хранит отдельный указатель
--- слово → сообщение, и поиск становится обращением к нему, а не перебором.
--- content='messages' означает, что тексты не дублируются: указатель ссылается
--- на исходную таблицу.
-CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-  text,
-  content='messages',
-  content_rowid='rowid',
-  tokenize='unicode61 remove_diacritics 2'
-);
-
--- Указатель поддерживается триггерами, а не руками в коде: любая запись мимо
--- addMessage() иначе оставила бы его несогласованным, и поиск молча перестал
--- бы находить часть переписки.
-CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
-  INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
-END;
-CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
-  INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
-END;
-CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE OF text ON messages BEGIN
-  INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
-  INSERT INTO messages_fts(rowid, text) VALUES (new.rowid, new.text);
-END;
+-- Поисковый указатель по сообщениям — см. messages_search ниже, после
+-- миграций столбцов: он строится по зашифрованному тексту (lib/textCrypto.js).
 
 -- Кто уже видел пост канала (server/data/postViews.js). Отдельная таблица, а
 -- не список на самом сообщении: readByIds для этого не годится — открытие чата
@@ -601,6 +576,12 @@ if (!existingUserColumns.has("businessUntil")) db.exec("ALTER TABLE users ADD CO
 if (!existingUserColumns.has("businessAddress")) db.exec("ALTER TABLE users ADD COLUMN businessAddress TEXT");
 if (!existingUserColumns.has("businessLat")) db.exec("ALTER TABLE users ADD COLUMN businessLat REAL");
 if (!existingUserColumns.has("businessLng")) db.exec("ALTER TABLE users ADD COLUMN businessLng REAL");
+// Тариф облачного хранилища (server/routes/storage.js): объём в гигабайтах и
+// срок — та же схема «до какого числа», что у premiumUntil/businessUntil.
+// Объём, а не id тарифа: тариф могут переименовать или убрать из сетки, а
+// купленные гигабайты у человека остаются.
+if (!existingUserColumns.has("storageGb")) db.exec("ALTER TABLE users ADD COLUMN storageGb INTEGER");
+if (!existingUserColumns.has("storageUntil")) db.exec("ALTER TABLE users ADD COLUMN storageUntil TEXT");
 // Optional image/video/file attachments (a small gallery, not just one)
 // shown alongside the ad text — same client-authored-JSON shape as a
 // message's own attachments array (see server/lib/sanitizeAttachments.js),
@@ -1074,18 +1055,115 @@ const existingSessionColumns = new Set(db.prepare("PRAGMA table_info(sessions)")
 // of this feature did). Only an explicit terminate sets this.
 if (!existingSessionColumns.has("revokedAt")) db.exec("ALTER TABLE sessions ADD COLUMN revokedAt TEXT");
 
-// База, созданная до появления указателя, приходит с пустым messages_fts —
-// поиск в ней не нашёл бы ничего. Заполняем один раз, при первом запуске после
-// обновления; на пустой и на уже заполненной это ничего не стоит.
+// ── Шифрование переписки и поиск по ней (lib/textCrypto.js) ─────────────────
+//
+// Текст сообщений хранится зашифрованным, как облачные чаты в Telegram. Здесь
+// три вещи: разовая миграция старой базы, поисковый указатель по отпечаткам
+// слов вместо слов и триггеры, которые держат его в согласии с таблицей.
+// Ключи данных меняются каждые 2 минуты и хранятся в этой же базе
+// завёрнутыми мастер-ключом (lib/keyring.js) — таблица создаётся до первого
+// шифрования.
+require("./lib/keyring").init(db);
+const textCrypto = require("./lib/textCrypto");
+// Ключ читается сразу: повреждённый data/messages.key должен остановить
+// запуск, а не всплыть посреди первого же запроса.
+textCrypto.loadKeys();
+
+// Отпечатки считаются внутри триггеров, поэтому функция зарегистрирована на
+// соединении. Следствие: писать в messages из стороннего клиента (sqlite3 в
+// консоли) нельзя — там этой функции нет, и триггер откажет. Это и к лучшему:
+// запись мимо data/messages.js оставила бы текст незашифрованным.
+db.function("msg_search_tokens", { deterministic: true }, (id, text) =>
+  textCrypto.searchTokens(textCrypto.decryptText(id, text))
+);
+
+if (!existingMessageColumns.has("hasLink")) db.exec("ALTER TABLE messages ADD COLUMN hasLink INTEGER NOT NULL DEFAULT 0");
+
 try {
-  const indexed = db.prepare("SELECT COUNT(*) AS n FROM messages_fts").get().n;
-  const total = db.prepare("SELECT COUNT(*) AS n FROM messages").get().n;
-  if (total > 0 && indexed === 0) {
-    db.exec("INSERT INTO messages_fts(rowid, text) SELECT rowid, text FROM messages");
-    console.log(`[db] построен указатель поиска по ${total} сообщениям`);
+  // Старый указатель FTS5 хранил сами слова: по нему переписка
+  // восстанавливается почти целиком, даже если текст в messages зашифрован.
+  // Поэтому он не перестраивается, а удаляется совсем.
+  let purgePlaintext = false;
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'messages_fts'").get()) {
+    db.exec(`
+      DROP TRIGGER IF EXISTS messages_fts_ai;
+      DROP TRIGGER IF EXISTS messages_fts_ad;
+      DROP TRIGGER IF EXISTS messages_fts_au;
+      DROP TABLE IF EXISTS messages_fts;
+    `);
+    purgePlaintext = true;
+  }
+
+  // Разовая миграция: всё, что лежит открытым текстом, шифруется. Пачками по
+  // тысяче в транзакции — большая база не должна держать одну транзакцию на
+  // сотни тысяч строк. На уже зашифрованной базе запрос сразу пуст.
+  const plainBatch = db.prepare(
+    "SELECT rowid AS rid, id, text FROM messages WHERE text <> '' AND substr(text, 1, 5) NOT IN ('enc1:', 'enc2:') LIMIT 1000"
+  );
+  const setEncrypted = db.prepare("UPDATE messages SET text = ?, hasLink = ? WHERE rowid = ?");
+  const encryptRows = db.transaction((rows) => {
+    for (const r of rows) setEncrypted.run(textCrypto.encryptText(r.id, r.text), textCrypto.hasLink(r.text), r.rid);
+  });
+  let encrypted = 0;
+  for (let rows = plainBatch.all(); rows.length; rows = plainBatch.all()) {
+    encryptRows(rows);
+    encrypted += rows.length;
+  }
+  if (encrypted) {
+    console.log(`[db] зашифровано ${encrypted} сообщений`);
+    purgePlaintext = true;
+  }
+
+  // SQLite не затирает освобождённые страницы: после UPDATE старый открытый
+  // текст ещё лежит в файле базы и в журнале WAL. VACUUM переписывает файл
+  // начисто, контрольная точка обнуляет журнал. Один раз, при миграции.
+  let rebuildIndex = false;
+  if (purgePlaintext) {
+    console.log("[db] переписываем базу, чтобы в ней не осталось открытого текста…");
+    db.exec("VACUUM");
+    db.pragma("wal_checkpoint(TRUNCATE)");
+    // VACUUM вправе перенумеровать rowid у таблицы без INTEGER PRIMARY KEY, а
+    // указатель ссылается именно на rowid — после него указатель строится
+    // заново.
+    rebuildIndex = true;
+  }
+
+  // Указатель без содержимого (content=''): в нём только отпечатки, самих
+  // текстов нет. detail=none — без позиций слов, т.е. без их порядка.
+  // contentless_delete=1 позволяет удалять строки обычным DELETE по rowid.
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'messages_search'").get()) rebuildIndex = true;
+  db.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS messages_search USING fts5(
+      tokens,
+      content='',
+      contentless_delete=1,
+      detail=none,
+      tokenize='ascii'
+    );
+    -- Триггеры, а не код в data/messages.js, по той же причине, что и раньше:
+    -- удаление каскадом вместе с чатом мимо кода проходит, а указатель должен
+    -- забыть и такие сообщения.
+    CREATE TRIGGER IF NOT EXISTS messages_search_ai AFTER INSERT ON messages BEGIN
+      INSERT INTO messages_search(rowid, tokens) VALUES (new.rowid, msg_search_tokens(new.id, new.text));
+    END;
+    CREATE TRIGGER IF NOT EXISTS messages_search_ad AFTER DELETE ON messages BEGIN
+      DELETE FROM messages_search WHERE rowid = old.rowid;
+    END;
+    CREATE TRIGGER IF NOT EXISTS messages_search_au AFTER UPDATE OF text ON messages WHEN old.text IS NOT new.text BEGIN
+      DELETE FROM messages_search WHERE rowid = old.rowid;
+      INSERT INTO messages_search(rowid, tokens) VALUES (new.rowid, msg_search_tokens(new.id, new.text));
+    END;
+  `);
+  if (rebuildIndex) {
+    db.transaction(() => {
+      db.exec("INSERT INTO messages_search(messages_search) VALUES ('delete-all')");
+      db.exec("INSERT INTO messages_search(rowid, tokens) SELECT rowid, msg_search_tokens(id, text) FROM messages WHERE text <> ''");
+    })();
+    console.log("[db] построен поисковый указатель по зашифрованной переписке");
   }
 } catch (err) {
-  console.error("[db] не удалось построить указатель поиска:", err.message);
+  console.error("[db] шифрование переписки / поисковый указатель:", err.message);
+  throw err;
 }
 
 // ── Эфиры в каналах (server/routes/live.js) ─────────────────────────────────

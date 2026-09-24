@@ -9,7 +9,7 @@ const { sanitizePermissions } = require("../lib/chatPermissions");
 const crypto = require("crypto");
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { broadcastToUsers } = require("../ws");
-const { markTyping } = require("../data/typing");
+const { markTyping, normalizeAction } = require("../data/typing");
 const { updateBotApp, updateBotAppCode, updateBotCommands, updateBotDescription, getBotToken } = require("../data/bots");
 const { sendBotMessage, normalizeKeyboard } = require("../lib/botMessaging");
 const { findOrCreateDm } = require("../lib/systemChat");
@@ -177,13 +177,18 @@ router.post(
 // «Печатает…» — то, что отличает бота, который думает над ответом, от бота,
 // который завис. Живёт пять секунд, как и у людей: повторяйте перед каждым
 // длинным шагом, а не один раз в начале.
+//
+// action — как в Telegram Bot API: typing, upload_photo, record_voice,
+// upload_document, record_video_note и т.д. (список — data/typing.js). Без
+// него или с неизвестным значением — «печатает».
 router.post(
   "/sendChatAction",
   asyncRoute(async (req, res) => {
     const chat = await getChat(req.body?.chatId);
     if (!chat || !chat.memberIds.includes(req.bot.userId)) return res.status(404).json({ error: "Bot is not a member of this chat" });
-    markTyping(chat.id, req.bot.userId);
-    broadcastToUsers(chat.memberIds, { type: "typing:update", chatId: chat.id, userId: req.bot.userId });
+    const action = normalizeAction(req.body?.action);
+    markTyping(chat.id, req.bot.userId, action);
+    broadcastToUsers(chat.memberIds, { type: "typing:update", chatId: chat.id, userId: req.bot.userId, action });
     res.json({ ok: true });
   })
 );

@@ -182,6 +182,7 @@ app.get("/api/labels", (req, res) => res.json({ labels: require("./data/safetyLa
 app.use("/api/stories", require("./routes/stories"));
 app.use("/api/premium", require("./routes/premium"));
 app.use("/api/business", require("./routes/business"));
+app.use("/api/storage", require("./routes/storage"));
 app.use("/api/nearby", require("./routes/nearby"));
 app.use("/api/gifts", require("./routes/gifts"));
 app.use("/api/ads", require("./routes/ads"));
@@ -353,6 +354,10 @@ startReminderSweep();
 // выбрал фотографию и передумал отправлять, отправил и удалил сообщение — файл
 // оставался на диске навсегда (см. lib/orphanSweep.js).
 require("./lib/orphanSweep").startOrphanSweep();
+// Задан S3_BUCKET, а на диске ещё лежат старые вложения — переносим их в
+// бакет в фоне, пока сервер работает (lib/uploadsMigration.js). Недоехавшие
+// файлы до тех пор отдаются с диска (lib/storage.js).
+require("./lib/uploadsMigration").startAutoMigration();
 
 // Приём эфиров из OBS и подобных программ (server/rtmp.js). Отдельный порт,
 // отдельный протокол — но тот же процесс.

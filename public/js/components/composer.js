@@ -3,6 +3,7 @@ import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { startRecording, isRecordingSupported, createLevelMeter, MAX_RECORD_SEC } from "../lib/recorder.js";
 import { uploadFile } from "../lib/upload.js";
+import { startChatAction, withChatAction, uploadActionFor } from "../lib/chatAction.js";
 import { compressPhotoForUpload } from "../lib/image.js";
 import { checkSize } from "../lib/uploadLimits.js";
 import { openPollDialog } from "./pollDialog.js";
@@ -56,6 +57,7 @@ export function Composer({
 }) {
   let lastTypingPing = 0;
   let recordingHandle = null;
+  let stopRecordAction = null;
   // Волна рисуется кадрами, а звук слушается через AudioContext — и то и другое
   // надо остановить, когда запись кончилась: иначе кадры продолжают крутиться,
   // а микрофонный контекст остаётся открытым.
@@ -207,7 +209,7 @@ export function Composer({
       updateTrailingButtons();
       if (!editingMessage && textarea.value.trim() && Date.now() - lastTypingPing > TYPING_PING_MS) {
         lastTypingPing = Date.now();
-        api.sendTyping(chatId).catch(() => {});
+        api.sendTyping(chatId, "typing").catch(() => {});
       }
       if (!editingMessage) scheduleDraftSave(textarea.value);
       updateMentionMenu();
@@ -414,6 +416,8 @@ export function Composer({
         compressing = next.catch(() => {});
         return next;
       };
+      // Пока файлы уходят, собеседник видит «отправляет фото/видео/файл».
+      const stopUploadAction = startChatAction(chatId, uploadActionFor(tiles.map((t) => t.kind)));
       const results = await Promise.allSettled(
         tiles.map((t) =>
           prepare(t)
@@ -438,6 +442,7 @@ export function Composer({
         )
       );
 
+      stopUploadAction();
       strip.remove();
 
       const attachments = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
@@ -467,7 +472,7 @@ export function Composer({
       const sizeError = checkSize(file, "image");
       if (sizeError) return showUploadError(sizeError);
       const local = { kind: "image", url: URL.createObjectURL(file), name: file.name, size: file.size, mimeType: file.type };
-      onSend("", [local], { uploading: uploadFile(file, "image").then((a) => [a]) });
+      onSend("", [local], { uploading: withChatAction(chatId, "upload_photo", uploadFile(file, "image")).then((a) => [a]) });
     }
 
     // Attach menu — each item sends a real attachment (no more "[Label]" text stub).
@@ -735,8 +740,7 @@ export function Composer({
     let myPacks = [];
 
     function sendSticker(s) {
-      stickerMenuEl?.remove();
-      stickerMenuEl = null;
+      closeStickerMenu();
       onSend("", [], {
         sticker:
           s.kind === "image"
@@ -773,8 +777,7 @@ export function Composer({
         packSection("Стандартные", STICKERS),
         ...myPacks.filter((p) => p.stickers.length).map((p) => packSection(p.name, p.stickers)),
         el("button", { class: "sticker-manage-btn", onclick: () => {
-          stickerMenuEl?.remove();
-          stickerMenuEl = null;
+          closeStickerMenu();
           openStickerPackDialog(() => {});
         } }, "Мои стикерпаки")
       );
@@ -784,15 +787,23 @@ export function Composer({
     // inserted into the text field, so it's its own message rather than
     // text-plus-emoji.
     let stickerMenuEl = null;
+    // «Выбирает стикер», пока открыта панель, — как в Telegram.
+    let stopStickerAction = null;
+    function closeStickerMenu() {
+      stickerMenuEl?.remove();
+      stickerMenuEl = null;
+      stopStickerAction?.();
+      stopStickerAction = null;
+    }
     function toggleStickers(host = stickerSlot) {
       if (stickerMenuEl) {
-        stickerMenuEl.remove();
-        stickerMenuEl = null;
+        closeStickerMenu();
         return;
       }
       stickerMenuEl = el("div", { class: `composer-emoji-picker sticker-picker ${host === attachSlot ? "anchored-left" : ""}` });
       renderStickerPicker();
       host.appendChild(stickerMenuEl);
+      stopStickerAction = startChatAction(chatId, "choose_sticker", stickerMenuEl);
       // Own packs load after the menu is already open, so the built-in set is
       // usable instantly and a slow request never blocks the picker.
       api
@@ -1158,6 +1169,9 @@ export function Composer({
     try {
       recordingHandle = await startRecording(mode, { onTick: () => drawTime() });
       startedAt = Date.now();
+      // «Записывает голосовое» / «записывает кружок» — до конца записи,
+      // отмены или остановки по лимиту времени (см. result ниже).
+      stopRecordAction = startChatAction(chatId, mode === "voice" ? "record_voice" : "record_video_note", recordingBar);
       if (videoPreview) videoPreview.srcObject = recordingHandle.stream;
 
       // Живая громкость. Без неё волна рисовалась бы случайными палочками — и
@@ -1190,6 +1204,8 @@ export function Composer({
       // кнопке: убирать кружок и гасить волну надо и в этом случае.
       stopWave();
       recordingHandle = null;
+      stopRecordAction?.();
+      stopRecordAction = null;
       renderIdleBody();
       if (!recorded) return;
 
@@ -1199,7 +1215,7 @@ export function Composer({
       const ext = (recorded.mimeType || "").includes("mp4") ? "mp4" : mode === "voice" ? "webm" : "webm";
       const file = new File([recorded.blob], `${mode}-${Date.now()}.${ext}`, { type: recorded.mimeType });
       try {
-        const attachment = await uploadFile(file, mode);
+        const attachment = await withChatAction(chatId, mode === "voice" ? "upload_voice" : "upload_video_note", uploadFile(file, mode));
         onSend("", [{ ...attachment, kind: mode, durationSec: recorded.durationSec }]);
       } catch (err) {
         alert(err.message || "Не удалось отправить запись");

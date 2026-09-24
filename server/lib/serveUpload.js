@@ -1,5 +1,5 @@
 const path = require("path");
-const { createDecryptStream, HEADER_LEN } = require("./fileCrypto");
+const { createDecryptStream } = require("./fileCrypto");
 const storage = require("./storage");
 const { MAGIC: COMPRESS_MAGIC, decompressStream } = require("./fileCompression");
 
@@ -71,7 +71,9 @@ function serveUpload() {
       // как есть — перешифровывать уже лежащее не требуется.
       const dataDir = path.join(process.cwd(), "data");
       const header = await storage.readHeader(filename);
-      const contentSize = header ? size - HEADER_LEN : size;
+      // Длина заголовка своя у каждого формата (lib/fileCrypto.js).
+      const headerLen = header ? header.len : 0;
+      const contentSize = size - headerLen;
 
       // Brotli-compressed at rest (lib/fileCompression.js) — only ever true
       // for a kind="file" upload, never image/video/voice/etc. Detected by
@@ -79,16 +81,14 @@ function serveUpload() {
       // marker, rather than trusting anything about the filename/extension.
       let compressed = false;
       if (header && contentSize >= COMPRESS_MAGIC.length) {
-        const magicCipher = await storage.readRange(filename, HEADER_LEN, HEADER_LEN + COMPRESS_MAGIC.length - 1);
-        const magicPlain = await collect(magicCipher.pipe(createDecryptStream(dataDir, header.iv, 0)));
+        const magicCipher = await storage.readRange(filename, headerLen, headerLen + COMPRESS_MAGIC.length - 1);
+        const magicPlain = await collect(magicCipher.pipe(createDecryptStream(dataDir, header, 0)));
         compressed = magicPlain.equals(COMPRESS_MAGIC);
       }
 
       const openAt = async (start, end) => {
-        const from = header ? HEADER_LEN + start : start;
-        const to = header ? HEADER_LEN + end : end;
-        const raw = await storage.readRange(filename, from, to);
-        return header ? raw.pipe(createDecryptStream(dataDir, header.iv, start)) : raw;
+        const raw = await storage.readRange(filename, headerLen + start, headerLen + end);
+        return header ? raw.pipe(createDecryptStream(dataDir, header, start)) : raw;
       };
       // Whole-file only — brotli output can't be decompressed starting from
       // an arbitrary byte offset the way AES-CTR can be decrypted from one
@@ -98,9 +98,9 @@ function serveUpload() {
       // served chunked instead (Node does that automatically whenever the
       // header is never set).
       const openCompressed = async () => {
-        const from = HEADER_LEN + COMPRESS_MAGIC.length;
+        const from = headerLen + COMPRESS_MAGIC.length;
         const raw = await storage.readRange(filename, from, size - 1);
-        return raw.pipe(createDecryptStream(dataDir, header.iv, COMPRESS_MAGIC.length)).pipe(decompressStream());
+        return raw.pipe(createDecryptStream(dataDir, header, COMPRESS_MAGIC.length)).pipe(decompressStream());
       };
 
       const ext = path.extname(filename);

@@ -56,6 +56,12 @@ function rowToUser(row) {
     businessAddress: row.businessAddress ?? undefined,
     businessLat: row.businessLat ?? undefined,
     businessLng: row.businessLng ?? undefined,
+    // Облачное хранилище (routes/storage.js) — объём тарифа и срок, по той же
+    // схеме, что Premium и бизнес.
+    isStorageActive: !!row.storageGb && !!row.storageUntil && row.storageUntil > new Date().toISOString(),
+    storageGb: row.storageGb ?? undefined,
+    storageUntil: row.storageUntil && row.storageUntil !== FOREVER ? row.storageUntil : undefined,
+    storageForever: row.storageUntil === FOREVER || undefined,
     adAttachments: row.adAttachments ? JSON.parse(row.adAttachments) : [],
     birthday: row.birthday ?? undefined,
     giftsReceived: JSON.parse(row.giftsReceived ?? "[]"),
@@ -267,7 +273,7 @@ async function createUser(user) {
   return getUser(user.id);
 }
 
-const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng"];
+const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng", "storageGb", "storageUntil"];
 
 // Extends (or starts) a Premium period — stacks on top of remaining time if
 // already active, the way a real subscription top-up would, rather than
@@ -316,6 +322,23 @@ async function grantBusinessDays(userId, days) {
 
 async function revokeBusiness(userId) {
   return updateUser(userId, { businessUntil: null });
+}
+
+// Тариф хранилища. Тот же объём — продление поверх оставшегося срока, как у
+// Premium. Другой объём — новый тариф с сегодняшнего дня: смешивать остаток
+// «100 ГБ» с покупкой «2 ТБ» не во что. `days: null` — навсегда.
+async function grantStorage(userId, gb, days) {
+  const user = await getUser(userId);
+  if (!user) return undefined;
+  const sameTier = user.isStorageActive && user.storageGb === gb;
+  if (days == null || (sameTier && user.storageForever)) return updateUser(userId, { storageGb: gb, storageUntil: FOREVER });
+  const base = sameTier && user.storageUntil ? new Date(user.storageUntil) : new Date();
+  base.setUTCDate(base.getUTCDate() + days);
+  return updateUser(userId, { storageGb: gb, storageUntil: base.toISOString() });
+}
+
+async function revokeStorage(userId) {
+  return updateUser(userId, { storageGb: null, storageUntil: null });
 }
 
 // Real hard delete — see server/lib/deleteAccount.js for the full cascade
@@ -608,5 +631,7 @@ module.exports = {
   revokeAds,
   grantBusinessDays,
   revokeBusiness,
+  grantStorage,
+  revokeStorage,
   deleteUser,
 };

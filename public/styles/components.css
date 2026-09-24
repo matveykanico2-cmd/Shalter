@@ -1191,6 +1191,11 @@
   font-size: 12px;
   color: var(--color-muted);
 }
+/* «печатает…», «записывает голосовое…» — акцентным цветом, как в Telegram:
+   живое действие отличается от «был недавно» с первого взгляда. */
+.chat-header-subtitle.is-typing {
+  color: var(--color-accent);
+}
 .icon-btn {
   display: flex;
   padding: 8px;
@@ -8458,6 +8463,57 @@
 .stars-pack-price {
   font-size: 12px;
   color: var(--color-muted);
+}
+
+/* Настройки → Хранилище (views/settings/index.js, renderStorage). */
+.storage-meter {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  margin: 0 0 12px;
+}
+.storage-meter-fill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+.storage-period {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  margin: 8px 0 10px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.storage-period-btn {
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.storage-period-btn.active {
+  background: var(--color-surface);
+  color: inherit;
+  font-weight: 600;
+}
+.storage-plan.current {
+  border-color: var(--color-accent);
+}
+.storage-plan:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.storage-plan-badge {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-accent);
 }
 .stars-costs {
   margin: 0;

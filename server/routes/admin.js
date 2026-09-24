@@ -24,7 +24,7 @@ const { buildUserExport, logExport, listExports } = require("../data/dataExport"
 const { deleteAccount } = require("../lib/deleteAccount");
 const { listOpenReports, listReportsAboutUser } = require("../data/reports");
 const { getMessage } = require("../data/messages");
-const { getChat, updateChat } = require("../data/chats");
+const { getChat, updateChat, findChatByUsername, findChatByInviteCode } = require("../data/chats");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { broadcastToUsers } = require("../ws");
@@ -69,6 +69,38 @@ router.get(
     const target = await resolveTarget(req.query.q);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
     res.json({ user: { id: target.id, name: target.name, username: target.username || null, phone: target.phone || null } });
+  })
+);
+
+// Группа или канал по @имени, ссылке (https://…/join/КОД, …/@имя) или id —
+// для модератора, который в этом чате не состоит и поэтому не может открыть
+// его в приложении. Удаляет потом клиент обычным DELETE /api/chats/:id: тот
+// пропускает модератора сервера и без членства (routes/chats.js).
+router.get(
+  "/chats/lookup",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
+    const raw = String(req.query.q ?? "").trim();
+    // Из ссылки берётся последний кусок пути: …/join/AbC123 → AbC123,
+    // …/@news → @news.
+    const tail = raw.replace(/[?#].*$/, "").replace(/\/+$/, "").split("/").pop() ?? "";
+    const handle = tail.replace(/^@/, "");
+    const chat =
+      (await getChat(tail)) || (await findChatByUsername(handle)) || (await findChatByInviteCode(tail)) || null;
+    if (!chat || chat.type === "dm" || chat.type === "bot") {
+      return res.status(404).json({ error: "Группа или канал не найдены" });
+    }
+    const owner = chat.ownerId ? await getUser(chat.ownerId) : null;
+    res.json({
+      chat: {
+        id: chat.id,
+        type: chat.type,
+        title: chat.title ?? chat.name ?? "",
+        username: chat.username ?? null,
+        members: chat.memberIds.length,
+        owner: owner ? { id: owner.id, name: owner.name, username: owner.username || null } : null,
+      },
+    });
   })
 );
 

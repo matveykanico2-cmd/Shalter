@@ -65,6 +65,10 @@ yarn-error.log*
 /data/*.db
 /data/*.db-wal
 /data/*.db-shm
+# Ключи шифрования вложений и переписки (server/lib/fileCrypto.js,
+# server/lib/textCrypto.js). В репозитории им не место: ключ рядом с кодом
+# расшифровывает всё, что лежит на сервере.
+/data/*.key
 # Uploaded attachments (server/routes/uploads.js) — user data, and gigabytes of it.
 /data/uploads/
 # Letters written when SMTP isn't configured (server/lib/mailer.js). They hold

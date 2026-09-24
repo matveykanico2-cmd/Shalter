@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const keyring = require("./keyring");
 
 // Шифрование вложений на диске.
 //
@@ -21,9 +22,20 @@ const path = require("path");
 // чтения, но не докажет, что файл не подменили. Для содержимого, которое и так
 // лежит на нашем же диске под проверкой прав, это приемлемый размен; для
 // защиты от подмены нужен отдельный отпечаток, и это другая задача.
+//
+// Ключи меняются каждые 2 минуты (lib/keyring.js). Файл шифруется ключом,
+// действующим в момент загрузки, и номер ключа пишется в заголовок:
+//   SHENC2 | номер ключа (4 байта) | вектор (16 байт)
+// Файлы старого формата SHENC1 (метка + вектор, один ключ на всё) читаются
+// прежним ключом. Длина заголовка поэтому у файлов разная — она приходит в
+// header.len, и вызывающий код отступает на неё, а не на константу.
 const MAGIC = Buffer.from("SHENC1");
+const MAGIC2 = Buffer.from("SHENC2");
 const IV_LEN = 16;
-const HEADER_LEN = MAGIC.length + IV_LEN;
+const HEADER_LEN_V1 = MAGIC.length + IV_LEN;
+const HEADER_LEN_V2 = MAGIC2.length + 4 + IV_LEN;
+// Сколько байт прочитать с начала файла, чтобы разобрать любой заголовок.
+const HEADER_MAX = HEADER_LEN_V2;
 
 let key = null;
 
@@ -58,14 +70,41 @@ function loadKey(dataDir) {
   return key;
 }
 
+// Мастер, которым завёрнуты ротируемые ключи файлов, — выводится из того же
+// UPLOADS_KEY / data/uploads.key, так что отдельного секрета не прибавилось.
+let fileKek = null;
+function loadKek(dataDir) {
+  if (!fileKek) fileKek = Buffer.from(crypto.hkdfSync("sha256", loadKey(dataDir), Buffer.alloc(0), "shalter/files/kek", 32));
+  return fileKek;
+}
+
 // Поток, который шифрует по пути на диск. Заголовок (метка и вектор) пишется
 // первым, чтобы при чтении было понятно, зашифрован файл или лежит с тех
 // времён, когда шифрования не было.
 function createEncryptStream(dataDir, out) {
-  const k = loadKey(dataDir);
+  const { id, key: k } = keyring.currentKey("files", loadKek(dataDir));
   const iv = crypto.randomBytes(IV_LEN);
-  out.write(Buffer.concat([MAGIC, iv]));
+  const keyId = Buffer.alloc(4);
+  keyId.writeUInt32BE(id);
+  out.write(Buffer.concat([MAGIC2, keyId, iv]));
   return crypto.createCipheriv("aes-256-ctr", k, iv);
+}
+
+// Разбор заголовка по первым байтам файла: { iv, keyId, len } или null, если
+// файл лежит незашифрованным (записан до появления шифрования).
+function parseHeader(buf) {
+  if (!buf) return null;
+  if (buf.length >= HEADER_LEN_V2 && buf.subarray(0, MAGIC2.length).equals(MAGIC2)) {
+    return {
+      keyId: buf.readUInt32BE(MAGIC2.length),
+      iv: Buffer.from(buf.subarray(MAGIC2.length + 4, HEADER_LEN_V2)),
+      len: HEADER_LEN_V2,
+    };
+  }
+  if (buf.length >= HEADER_LEN_V1 && buf.subarray(0, MAGIC.length).equals(MAGIC)) {
+    return { keyId: null, iv: Buffer.from(buf.subarray(MAGIC.length, HEADER_LEN_V1)), len: HEADER_LEN_V1 };
+  }
+  return null;
 }
 
 // Зашифрован ли файл: читаем метку в начале. Старые файлы отдаются как есть —
@@ -74,10 +113,9 @@ function readHeader(filePath) {
   let fd;
   try {
     fd = fs.openSync(filePath, "r");
-    const buf = Buffer.alloc(HEADER_LEN);
-    const read = fs.readSync(fd, buf, 0, HEADER_LEN, 0);
-    if (read < HEADER_LEN || !buf.subarray(0, MAGIC.length).equals(MAGIC)) return null;
-    return { iv: buf.subarray(MAGIC.length, HEADER_LEN) };
+    const buf = Buffer.alloc(HEADER_MAX);
+    const read = fs.readSync(fd, buf, 0, HEADER_MAX, 0);
+    return parseHeader(buf.subarray(0, read));
   } catch {
     return null;
   } finally {
@@ -86,11 +124,10 @@ function readHeader(filePath) {
 }
 
 // То же самое, что readHeader, но по уже прочитанным байтам, а не по пути на
-// диске, — нужно для S3 (lib/storage.js): там первые HEADER_LEN байт
+// диске, — нужно для S3 (lib/storage.js): там первые HEADER_MAX байт
 // получаются отдельным ranged-запросом, файла на диске нет вовсе.
 function headerFromBuffer(buf) {
-  if (!buf || buf.length < HEADER_LEN || !buf.subarray(0, MAGIC.length).equals(MAGIC)) return null;
-  return { iv: buf.subarray(MAGIC.length, HEADER_LEN) };
+  return parseHeader(buf);
 }
 
 // Счётчик для нужного байта: CTR шифрует блоками по 16, и чтобы начать с
@@ -107,9 +144,11 @@ function counterAt(iv, byteOffset) {
 }
 
 // Расшифровщик, настроенный на чтение с позиции start в исходном файле.
-function createDecryptStream(dataDir, iv, start) {
-  const k = loadKey(dataDir);
-  const decipher = crypto.createDecipheriv("aes-256-ctr", k, counterAt(iv, start));
+// header — то, что вернули readHeader/headerFromBuffer: по нему выбирается
+// ключ (ротируемый по номеру или старый общий).
+function createDecryptStream(dataDir, header, start) {
+  const k = header.keyId != null ? keyring.getKey("files", header.keyId, loadKek(dataDir)) : loadKey(dataDir);
+  const decipher = crypto.createDecipheriv("aes-256-ctr", k, counterAt(header.iv, start));
   // Внутри блока смещение добирается вхолостую: пропускаем столько байт,
   // сколько прошло от начала блока.
   const skip = start % 16;
@@ -117,4 +156,4 @@ function createDecryptStream(dataDir, iv, start) {
   return decipher;
 }
 
-module.exports = { createEncryptStream, createDecryptStream, readHeader, headerFromBuffer, HEADER_LEN, loadKey };
+module.exports = { createEncryptStream, createDecryptStream, readHeader, headerFromBuffer, HEADER_MAX, loadKey };
