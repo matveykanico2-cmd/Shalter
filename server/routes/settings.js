@@ -8,6 +8,7 @@ const { listChatsForUser } = require("../data/chats");
 const { attachmentBytesByKind } = require("../data/messages");
 const { BUILTIN_HOLIDAYS } = require("../lib/holidays");
 const { getUser } = require("../data/users");
+const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -109,16 +110,27 @@ function sanitizeHours(raw) {
   return out;
 }
 
+// Одно вложение на авто-сообщение: голосовое, кружок, аудио, картинка, видео
+// или файл — та же форма, что у вложений обычного сообщения
+// (lib/sanitizeAttachments.js), только не больше одного. previewUrl/posterUrl
+// с клиента там же вырезаются, а url проверяется на безопасность.
+function sanitizeOneAttachment(raw) {
+  return (sanitizeAttachments(raw) ?? []).slice(0, 1);
+}
+
 function sanitizeQuickReplies(raw) {
   return (Array.isArray(raw) ? raw : [])
     .slice(0, 50)
     .map((q) => {
       const text = String(q?.text ?? "").trim().slice(0, 1000);
-      if (!text) return null;
+      const attachments = sanitizeOneAttachment(q?.attachments);
+      // Быстрый ответ без текста, но с вложением — допустим (одно голосовое).
+      if (!text && !attachments.length) return null;
       return {
         id: typeof q?.id === "string" && q.id ? q.id : `qr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
         shortcut: String(q?.shortcut ?? "").trim().slice(0, 32),
         text,
+        attachments,
       };
     })
     .filter(Boolean);
@@ -135,8 +147,18 @@ async function sanitizeBusiness(raw, userId) {
     // Показывать ли часы работы в профиле («Открыто · до 18:00»), как в
     // Telegram Business. По умолчанию да.
     showHours: raw?.showHours !== false,
-    greeting: { enabled: !!raw?.greeting?.enabled, text: String(raw?.greeting?.text ?? "").trim().slice(0, 500) },
-    away: { enabled: !!raw?.away?.enabled, text: String(raw?.away?.text ?? "").trim().slice(0, 500) },
+    // Приветствие и автоответ теперь могут нести вложение помимо текста —
+    // голосовое, кружок, аудио, картинку, видео или файл.
+    greeting: {
+      enabled: !!raw?.greeting?.enabled,
+      text: String(raw?.greeting?.text ?? "").trim().slice(0, 500),
+      attachments: sanitizeOneAttachment(raw?.greeting?.attachments),
+    },
+    away: {
+      enabled: !!raw?.away?.enabled,
+      text: String(raw?.away?.text ?? "").trim().slice(0, 500),
+      attachments: sanitizeOneAttachment(raw?.away?.attachments),
+    },
     quickReplies: sanitizeQuickReplies(raw?.quickReplies),
   };
 }

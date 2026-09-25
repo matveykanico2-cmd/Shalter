@@ -12903,3 +12903,44 @@ p.business-status {
   background: rgba(47, 158, 90, 0.14);
   vertical-align: middle;
 }
+
+/* Вложение приветствия/автоответа бизнеса (views/settings/index.js). */
+.business-media-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.business-media-current {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+}
+.business-media-current .image-attachment,
+.business-media-current .video-attachment-poster {
+  max-width: 160px;
+  border-radius: 10px;
+}
+.business-record-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+}
+.business-record-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  animation: business-rec-pulse 1s infinite;
+}
+@keyframes business-rec-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}

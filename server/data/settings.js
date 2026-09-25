@@ -132,8 +132,8 @@ const DEFAULT_SETTINGS = {
     },
     timeZone: null,
     showHours: true,
-    greeting: { enabled: false, text: "" },
-    away: { enabled: false, text: "" },
+    greeting: { enabled: false, text: "", attachments: [] },
+    away: { enabled: false, text: "", attachments: [] },
     quickReplies: [],
   },
 };

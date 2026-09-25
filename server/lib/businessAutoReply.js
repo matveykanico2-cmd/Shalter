@@ -40,18 +40,23 @@ async function dispatchBusinessAutoReply(chat, message) {
     const business = settings.business;
     if (!business?.enabled) return;
 
-    if (business.greeting?.enabled && business.greeting.text && !alreadySent(chat.id, "greeting", "once")) {
-      await sendMessageAndBroadcast(chat, recipientId, business.greeting.text);
+    // Есть что отправить, если задан текст ИЛИ вложение (голосовое, кружок,
+    // аудио, картинка, видео). Вложение уходит тем же путём, что у обычного
+    // сообщения, — через extra.attachments (lib/systemChat.js).
+    const has = (m) => !!(m?.text || m?.attachments?.length);
+
+    if (business.greeting?.enabled && has(business.greeting) && !alreadySent(chat.id, "greeting", "once")) {
+      await sendMessageAndBroadcast(chat, recipientId, business.greeting.text || "", { attachments: business.greeting.attachments });
       markSent(chat.id, "greeting", "once");
       return; // приветствие уже отвечает на первое сообщение — автоответ вне часов в тот же раз ни к чему
     }
 
-    if (business.away?.enabled && business.away.text && !isWithinBusinessHours(business.hours, business.timeZone)) {
+    if (business.away?.enabled && has(business.away) && !isWithinBusinessHours(business.hours, business.timeZone)) {
       // «Раз в день» — в сутках бизнеса, а не UTC: иначе в Москве новый
       // день для автоответа наступал бы в три часа ночи.
       const today = localNow(business.timeZone).date;
       if (!alreadySent(chat.id, "away", today)) {
-        await sendMessageAndBroadcast(chat, recipientId, business.away.text);
+        await sendMessageAndBroadcast(chat, recipientId, business.away.text || "", { attachments: business.away.attachments });
         markSent(chat.id, "away", today);
       }
     }

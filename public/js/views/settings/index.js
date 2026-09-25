@@ -39,6 +39,8 @@ import {
   formatStatus,
 } from "../../lib/businessHours.js";
 import { uploadFile } from "../../lib/upload.js";
+import { startRecording, isRecordingSupported } from "../../lib/recorder.js";
+import { checkSize } from "../../lib/uploadLimits.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
 import { openAdminUserPanel } from "../../components/adminUserPanel.js";
 import { PremiumStar, PremiumStarRow } from "../../components/premiumStar.js";
@@ -781,6 +783,11 @@ async function renderBusiness(root) {
   let addressSaving = false;
   let newReplyShortcut = "";
   let newReplyText = "";
+  // Вложение авто-сообщения: какой раздел сейчас грузит/пишет ("greeting"/"away").
+  let mediaBusyKey = null;
+  let recordingKey = null;
+  let recordMode = null;
+  let recordingHandle = null;
 
   async function buyBusiness(planId) {
     buyingPlan = planId;
@@ -803,6 +810,119 @@ async function renderBusiness(root) {
     const { settings } = await api.patchSettings({ business });
     business = settings.business;
     render();
+  }
+
+  // Вложение приветствия/автоответа: одно на сообщение. Загрузка идёт тем же
+  // путём, что и в чате (lib/upload.js), запись голосового/кружка — тем же
+  // рекордером (lib/recorder.js). Сохраняется в business[key].attachments.
+  function setAutoMedia(key, attachments) {
+    saveBusiness({ [key]: { ...business[key], attachments } });
+  }
+  async function attachAutoFile(key, file, kind) {
+    const err = checkSize(file, kind);
+    if (err) return alert(err);
+    mediaBusyKey = key;
+    render();
+    try {
+      const a = await uploadFile(file, kind);
+      setAutoMedia(key, [{ ...a, kind }]); // setAutoMedia сам перерисует через saveBusiness
+    } catch (e) {
+      alert(e.message || "Не удалось загрузить вложение");
+    } finally {
+      mediaBusyKey = null;
+      render();
+    }
+  }
+  async function startAutoRecording(key, mode) {
+    if (recordingKey) return;
+    recordingKey = key;
+    recordMode = mode;
+    render();
+    try {
+      recordingHandle = await startRecording(mode, {});
+    } catch {
+      recordingKey = recordMode = recordingHandle = null;
+      alert("Нет доступа к микрофону или камере");
+      return render();
+    }
+    recordingHandle.result.then(async (rec) => {
+      const key2 = recordingKey;
+      recordingHandle = recordingKey = recordMode = null;
+      render();
+      if (!rec || !key2) return; // отменили
+      const ext = (rec.mimeType || "").includes("mp4") ? "mp4" : "webm";
+      const file = new File([rec.blob], `${mode}-${Date.now()}.${ext}`, { type: rec.mimeType });
+      mediaBusyKey = key2;
+      render();
+      try {
+        const a = await uploadFile(file, mode);
+        setAutoMedia(key2, [{ ...a, kind: mode, durationSec: rec.durationSec }]);
+      } catch (e) {
+        alert(e.message || "Не удалось загрузить запись");
+      } finally {
+        mediaBusyKey = null;
+        render();
+      }
+    });
+  }
+  function cancelAutoRecording() {
+    recordingHandle?.cancel();
+    recordingHandle = recordingKey = recordMode = null;
+    render();
+  }
+  function autoMediaPreview(a) {
+    if (a.kind === "image") return ImageAttachment(a);
+    if (a.kind === "video") return VideoAttachment(a);
+    if (a.kind === "voice") return el("p", { class: "settings-toggle-hint" }, `🎤 Голосовое${a.durationSec ? ` · ${Math.round(a.durationSec)} с` : ""}`);
+    if (a.kind === "video-note") return el("p", { class: "settings-toggle-hint" }, `⭕ Кружок${a.durationSec ? ` · ${Math.round(a.durationSec)} с` : ""}`);
+    return FileAttachment(a);
+  }
+  // Блок «вложение» под текстом приветствия/автоответа.
+  function autoMediaBlock(key) {
+    if (recordingKey === key) {
+      return el("div", { class: "business-record-bar" }, [
+        el("span", { class: "business-record-dot" }),
+        el("span", { class: "settings-toggle-title" }, recordMode === "voice" ? "Идёт запись голосового…" : "Идёт запись кружка…"),
+        el("button", { class: "btn-accent", onclick: () => recordingHandle?.stop() }, "Готово"),
+        el("button", { class: "settings-danger-link", onclick: cancelAutoRecording }, "Отмена"),
+      ]);
+    }
+    if (mediaBusyKey === key) return el("p", { class: "settings-toggle-hint" }, "Загрузка вложения…");
+    const att = business[key]?.attachments?.[0];
+    if (att) {
+      return el("div", { class: "business-media-current" }, [
+        autoMediaPreview(att),
+        el("button", { class: "settings-danger-link", onclick: () => setAutoMedia(key, []) }, "Убрать вложение"),
+      ]);
+    }
+    const fileInput = el("input", {
+      type: "file",
+      accept: "image/*,video/*",
+      class: "hidden-input",
+      onchange: (e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (f) attachAutoFile(key, f, f.type.startsWith("video/") ? "video" : "image");
+      },
+    });
+    const audioInput = el("input", {
+      type: "file",
+      accept: "audio/*",
+      class: "hidden-input",
+      onchange: (e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (f) attachAutoFile(key, f, "file");
+      },
+    });
+    return el("div", { class: "business-media-controls" }, [
+      el("button", { class: "settings-chip", onclick: () => fileInput.click() }, "Фото или видео"),
+      fileInput,
+      el("button", { class: "settings-chip", onclick: () => audioInput.click() }, "Аудио или файл"),
+      audioInput,
+      isRecordingSupported() ? el("button", { class: "settings-chip", onclick: () => startAutoRecording(key, "voice") }, "🎤 Голосовое") : null,
+      isRecordingSupported() ? el("button", { class: "settings-chip", onclick: () => startAutoRecording(key, "video-note") }, "⭕ Кружок") : null,
+    ]);
   }
 
   // Часы работы. Один день — { closed, open, close }; «круглосуточно» —
@@ -990,6 +1110,7 @@ async function renderBusiness(root) {
             value: business.greeting.text,
             onblur: (e) => saveBusiness({ greeting: { ...business.greeting, text: e.target.value } }),
           }),
+          autoMediaBlock("greeting"),
         ]),
         section("Автоответ вне часов работы", [
           el("div", { class: "settings-toggle-row" }, [
@@ -1003,6 +1124,7 @@ async function renderBusiness(root) {
             value: business.away.text,
             onblur: (e) => saveBusiness({ away: { ...business.away, text: e.target.value } }),
           }),
+          autoMediaBlock("away"),
         ]),
         section("Быстрые ответы", [
           ...(business.quickReplies ?? []).map((q) =>
