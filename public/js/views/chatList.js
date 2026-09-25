@@ -123,6 +123,7 @@ const SYSTEM_TABS = [
 let tab = "all";
 let query = "";
 let results = null;
+let searchFilter = "all"; // фильтр результатов поиска: all|dms|groups|channels|users|bots|messages
 let settingsCache = null;
 const lastMessageIds = new Map();
 
@@ -378,6 +379,7 @@ function SidebarHeader(listSlot) {
           query = e.target.value;
           if (!query.trim()) {
             results = null;
+            searchFilter = "all";
             renderResults(listSlot);
             return;
           }
@@ -399,6 +401,7 @@ function SidebarHeader(listSlot) {
             // A late response from a shorter query must not replace the results
             // for what's in the box now. Only the results below are redrawn —
             // the field the person is typing into stays exactly where it is.
+            searchFilter = "all";
             if (query.trim() === typed) renderResults(listSlot);
           }, 150);
         },
@@ -423,20 +426,74 @@ function renderResults(container) {
 
   if (results) {
     const box = scrollSlot;
+    // Разбор своих чатов по типу — чтобы фильтр умел показывать отдельно
+    // личные, группы и каналы, а не валить всё в «Чаты».
+    const dms = results.chats.filter((c) => c.type === "dm" || c.type === "bot");
+    const groups = results.chats.filter((c) => c.type === "group");
+    const joinedChannels = results.chats.filter((c) => c.type === "channel");
     const total = results.chats.length + results.channels.length + results.users.length + results.bots.length + results.messages.length;
+
+    // Фильтр-вкладки: показываем только те, где что-то есть. «Каналы»
+    // объединяют свои каналы и публичные, которые не подписаны.
+    const buckets = [
+      { id: "all", name: "Все", count: total },
+      { id: "dms", name: "Личные", count: dms.length },
+      { id: "groups", name: "Группы", count: groups.length },
+      { id: "channels", name: "Каналы", count: joinedChannels.length + results.channels.length },
+      { id: "users", name: "Люди", count: results.users.length },
+      { id: "bots", name: "Боты", count: results.bots.length },
+      { id: "messages", name: "Сообщения", count: results.messages.length },
+    ].filter((b) => b.id === "all" || b.count > 0);
+    // Активный фильтр опустел (сменился запрос) — вернуться на «Все».
+    if (!buckets.some((b) => b.id === searchFilter)) searchFilter = "all";
+    const show = (id) => searchFilter === "all" || searchFilter === id;
+    if (total) {
+      box.appendChild(
+        el(
+          "div",
+          { class: "search-filter-bar" },
+          buckets.map((b) =>
+            el(
+              "button",
+              {
+                class: `search-filter-chip${searchFilter === b.id ? " active" : ""}`,
+                onclick: () => {
+                  searchFilter = b.id;
+                  renderResults(listSlot);
+                },
+              },
+              b.id === "all" ? b.name : `${b.name} ${b.count}`
+            )
+          )
+        )
+      );
+    }
+
     if (!total) {
       box.appendChild(el("p", { class: "empty-hint" }, "Ничего не найдено"));
     }
-    if (results.chats.length) {
-      box.appendChild(el("p", { class: "list-section-label" }, "Чаты"));
-      for (const c of results.chats) {
+    if (dms.length && show("dms")) {
+      box.appendChild(el("p", { class: "list-section-label" }, "Личные"));
+      for (const c of dms) {
+        box.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem }));
+      }
+    }
+    if (groups.length && show("groups")) {
+      box.appendChild(el("p", { class: "list-section-label" }, "Группы"));
+      for (const c of groups) {
+        box.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem }));
+      }
+    }
+    if (joinedChannels.length && show("channels")) {
+      box.appendChild(el("p", { class: "list-section-label" }, "Мои каналы"));
+      for (const c of joinedChannels) {
         box.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem }));
       }
     }
     // Public channels you haven't joined. Tapping opens the channel rather than
     // subscribing on the spot — joining something from a search result you
     // haven't read yet is not what a tap means.
-    if (results.channels.length) {
+    if (results.channels.length && show("channels")) {
       box.appendChild(el("p", { class: "list-section-label" }, "Каналы"));
       for (const c of results.channels) {
         box.appendChild(
@@ -485,15 +542,15 @@ function renderResults(container) {
         ].filter(Boolean)
       );
 
-    if (results.users.length) {
+    if (results.users.length && show("users")) {
       box.appendChild(el("p", { class: "list-section-label" }, "Люди"));
       for (const u of results.users) box.appendChild(accountRow(u));
     }
-    if (results.bots.length) {
+    if (results.bots.length && show("bots")) {
       box.appendChild(el("p", { class: "list-section-label" }, "Боты"));
       for (const u of results.bots) box.appendChild(accountRow(u));
     }
-    if (results.messages.length) {
+    if (results.messages.length && show("messages")) {
       box.appendChild(el("p", { class: "list-section-label" }, "Сообщения"));
       for (const m of results.messages) {
         box.appendChild(

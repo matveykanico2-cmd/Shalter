@@ -251,6 +251,17 @@ export function openAdminUserPanel(user, onChange) {
         state.safetyLabel ? el("span", { class: "admin-panel-flag" }, SAFETY_LABELS[state.safetyLabel]?.short ?? state.safetyLabel) : null,
         state.isVerified ? el("span", { class: "admin-panel-flag" }, "верифицирован") : null,
       ]),
+      // Контакты человека — номер и почта. Нажатие копирует: пригодится и для
+      // связи с органами, и чтобы найти этот же аккаунт в другом месте.
+      state.phone || state.email
+        ? el(
+            "p",
+            { class: "admin-panel-contacts mono" },
+            [state.phone, state.email].filter(Boolean).map((v) =>
+              el("button", { class: "admin-contact-chip", title: "Скопировать", onclick: () => navigator.clipboard?.writeText(v).catch(() => {}) }, v)
+            )
+          )
+        : null,
 
       // Выдача покупок. First section on purpose: this is the thing the admin
       // opens a profile for most often — someone transferred 10₽ and is waiting.

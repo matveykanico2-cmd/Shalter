@@ -13026,3 +13026,48 @@ p.business-status {
   width: 72px;
   height: 72px;
 }
+
+/* Контакты человека в панели администратора (components/adminUserPanel.js). */
+.admin-panel-contacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 6px;
+}
+.admin-contact-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--color-muted);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+}
+.admin-contact-chip:hover {
+  color: inherit;
+  border-color: var(--color-accent);
+}
+
+/* Фильтры результатов поиска (views/chatList.js). */
+.search-filter-bar {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 8px 4px;
+  scrollbar-width: none;
+}
+.search-filter-bar::-webkit-scrollbar { display: none; }
+.search-filter-chip {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--color-muted);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.search-filter-chip.active {
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}

@@ -7,6 +7,7 @@ const {
   getUser,
   findUserByPhone,
   findUserByUsername,
+  findUserByEmail,
   setBanned,
   setSafetyLabel,
   setVerified,
@@ -56,7 +57,7 @@ async function requireAdminSection(req, res, section) {
 async function resolveTarget(query) {
   const q = (query ?? "").trim();
   if (!q) return null;
-  return (await getUser(q)) || (await findUserByUsername(q.replace(/^@/, ""))) || (await findUserByPhone(q)) || null;
+  return (await getUser(q)) || (await findUserByUsername(q.replace(/^@/, ""))) || (await findUserByPhone(q)) || (await findUserByEmail(q)) || null;
 }
 
 // Look up a target without exporting yet — lets the admin UI confirm "this
@@ -68,7 +69,7 @@ router.get(
     if (!(await requireAdminSection(req, res, "legal"))) return;
     const target = await resolveTarget(req.query.q);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
-    res.json({ user: { id: target.id, name: target.name, username: target.username || null, phone: target.phone || null } });
+    res.json({ user: { id: target.id, name: target.name, username: target.username || null, phone: target.phone || null, email: target.email || null } });
   })
 );
 
@@ -188,6 +189,9 @@ function userLabel(u, fallbackId) {
     id: u.id,
     name: u.name,
     username: u.username || null,
+    // Для панели супер-админа: найти и опознать человека по контактам.
+    phone: u.phone || null,
+    email: u.email || null,
     safetyLabel: u.safetyLabel || null,
     isBanned: !!u.isBanned,
     // Current Premium / ads state, so the admin panel on a profile

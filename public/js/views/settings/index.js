@@ -3147,7 +3147,7 @@ async function renderModeration(root) {
     // listed accounts that were *already* banned or labelled, so acting on
     // anyone else meant finding their profile in a chat first — which for a
     // reported stranger is exactly what you can't do.
-    const lookupInput = el("input", { class: "settings-input", placeholder: "@юзернейм, +7… или id" });
+    const lookupInput = el("input", { class: "settings-input", placeholder: "@юзернейм, +7…, почта или id" });
     async function lookup() {
       const q = lookupInput.value.trim();
       lookupError = null;
