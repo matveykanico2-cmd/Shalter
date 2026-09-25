@@ -6,12 +6,7 @@
 // add their own (settings.holidays.custom) — see server/data/settings.js's
 // DEFAULT_SETTINGS.
 const BUILTIN_HOLIDAYS = [
-  { id: "new_year", title: "Новый год", date: "01-01" },
-  { id: "christmas", title: "Рождество", date: "01-07" },
-  { id: "defender_day", title: "День защитника Отечества", date: "02-23" },
-  { id: "womens_day", title: "Международный женский день", date: "03-08" },
-  { id: "victory_day", title: "День Победы", date: "05-09" },
-  { id: "knowledge_day", title: "День знаний", date: "09-01" },
+  { id: "shalter_day", title: "День основания Shalter", date: "09-25" },
 ];
 
 module.exports = { BUILTIN_HOLIDAYS };

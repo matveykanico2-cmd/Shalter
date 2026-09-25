@@ -39,6 +39,7 @@ import {
   formatStatus,
 } from "../../lib/businessHours.js";
 import { uploadFile } from "../../lib/upload.js";
+import { renderGiftArt } from "../../lib/giftTraits.js";
 import { startRecording, isRecordingSupported } from "../../lib/recorder.js";
 import { checkSize } from "../../lib/uploadLimits.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
@@ -326,6 +327,11 @@ function section(title, children) {
 
 async function renderProfile(root) {
   const me = getState().user;
+  // Имя и фамилия редактируются отдельно; в базе name — полное отображаемое
+  // имя, поэтому при сохранении их склеиваем. Фамилия берётся из своего поля
+  // (me.lastName), первое имя — это name без хвоста-фамилии.
+  let lastName = me.lastName ?? "";
+  let firstName = lastName && me.name.endsWith(` ${lastName}`) ? me.name.slice(0, -(lastName.length + 1)) : me.name;
   let name = me.name;
   let username = me.username;
   let phone = me.phone ?? "";
@@ -337,6 +343,19 @@ async function renderProfile(root) {
   let birthdayField = null;
   let avatarImage = me.avatarImage;
   let avatarImages = me.avatarImages ?? [];
+  let avatarColor = me.avatarColor;
+  // Палитра фона кружка с инициалами (пока не задано фото профиля).
+  const AVATAR_COLORS = ["#2E56D9", "#7c6fd6", "#d9822e", "#2f9e5a", "#d94a5a", "#e0a423", "#1c9bd9", "#8a5cf6", "#e0507a", "#3aa6a0"];
+  async function saveAvatarColor(c) {
+    avatarColor = c;
+    render();
+    try {
+      await api.updateProfile(me.id, { avatarColor: c });
+      updateSelf({ avatarColor: c });
+    } catch {
+      /* цвет не критичен — молча */
+    }
+  }
   let statusIcon = me.statusIcon;
   let phoneField = null;
   let saved = false;
@@ -407,7 +426,7 @@ async function renderProfile(root) {
           ),
       },
       [
-        Avatar({ name: name || "?", color: me.avatarColor, image: avatarImage, video: videoAvatarUrl({ avatarImages }), size: 72, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
+        Avatar({ name: name || "?", color: avatarColor, image: avatarImage, video: videoAvatarUrl({ avatarImages }), size: 72, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
         el("span", { class: "settings-avatar-edit", html: iconSvg("Edit", 12) }),
         avatarImages.length > 1 ? el("span", { class: "avatar-count-badge" }, String(avatarImages.length)) : null,
       ].filter(Boolean)
@@ -428,10 +447,31 @@ async function renderProfile(root) {
             el("p", { class: "mono settings-profile-sub" }, me.phone || me.email),
           ]),
         ]),
+        !avatarImage
+          ? section("Цвет аватара", [
+              el("p", { class: "settings-toggle-hint" }, "Фон кружка с инициалами, пока не задано фото профиля"),
+              el(
+                "div",
+                { class: "avatar-color-grid" },
+                AVATAR_COLORS.map((c) =>
+                  el("button", {
+                    class: `avatar-color-swatch${avatarColor === c ? " active" : ""}`,
+                    style: `background:${c}`,
+                    title: "Выбрать цвет",
+                    onclick: () => saveAvatarColor(c),
+                  })
+                )
+              ),
+            ])
+          : null,
         section(null, [
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Имя"),
-            el("input", { class: "settings-input", value: name, oninput: (e) => (name = e.target.value) }),
+            el("input", { class: "settings-input", value: firstName, oninput: (e) => (firstName = e.target.value) }),
+          ]),
+          el("label", { class: "settings-field" }, [
+            el("span", { class: "settings-field-label" }, "Фамилия"),
+            el("input", { class: "settings-input", value: lastName, placeholder: "необязательно", oninput: (e) => (lastName = e.target.value) }),
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Юзернейм"),
@@ -532,8 +572,9 @@ async function renderProfile(root) {
               }
               birthday = date.iso;
               try {
-                const { user } = await api.updateProfile(me.id, { name, username, phone, bio, birthday });
-                updateSelf({ name, username, phone: user.phone, bio, birthday });
+                name = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
+                const { user } = await api.updateProfile(me.id, { name, lastName: lastName.trim(), username, phone, bio, birthday });
+                updateSelf({ name, lastName: lastName.trim(), username, phone: user.phone, bio, birthday });
                 saved = true;
                 render();
                 setTimeout(() => {
@@ -3957,6 +3998,24 @@ async function renderGiftShop(root) {
     render();
   }
 
+  // Строка любого подарка в общем списке: превью, название, цена и удаление —
+  // удалять можно только свой и пока его никто не получил (иначе у людей на
+  // профилях останется подарок без карточки). Встроенные не удаляются.
+  function giftRow(gift) {
+    return el("div", { class: "gift-admin-row" }, [
+      el("span", { class: "gift-admin-emoji" }, [renderGiftArt(gift, { size: 40, replay: false })]),
+      el("div", { class: "gift-admin-body" }, [
+        el("p", { class: "gift-admin-name" }, [gift.name, gift.custom ? el("span", { class: "gift-admin-tag" }, "свой") : el("span", { class: "gift-admin-tag" }, "встроенный")]),
+        el("p", { class: "gift-admin-sub mono" }, `⭐ ${fmt(gift.priceStars)}${gift.supply ? ` · тираж ${fmt(gift.supply)}` : " · без тиража"}`),
+      ]),
+      gift.custom
+        ? (gift.issued ?? 0) === 0
+          ? el("button", { class: "icon-btn", title: "Удалить", html: iconSvg("Trash", 15), onclick: () => removeGift(gift) })
+          : el("span", { class: "settings-toggle-hint" }, "подарен")
+        : null,
+    ]);
+  }
+
   function supplyRow(gift) {
     // Uncontrolled input, read on submit: re-rendering on every keystroke would
     // take the focus with it (the same trap as the contacts search).
@@ -3997,7 +4056,7 @@ async function renderGiftShop(root) {
     }
 
     const limited = data.gifts.filter((g) => g.supply);
-    const emojiInput = el("input", { class: "settings-input gift-emoji-input", placeholder: "🎁", value: draft.emoji, oninput: (e) => (draft.emoji = e.target.value) });
+    const emojiInput = el("input", { class: "settings-input gift-emoji-input", placeholder: "🎁", value: draft.emoji, oninput: (e) => { draft.emoji = e.target.value; render(); } });
     const nameInput = el("input", { class: "settings-input", placeholder: "Название", value: draft.name, oninput: (e) => (draft.name = e.target.value) });
     const priceInput = el("input", { class: "settings-input mono", type: "number", min: "1", placeholder: "Цена, ⭐", value: draft.priceStars, oninput: (e) => (draft.priceStars = e.target.value) });
     const supplyInput = el("input", {
@@ -4029,12 +4088,20 @@ async function renderGiftShop(root) {
       },
     });
     const gifPicker = el("div", { class: "gift-create-gif-picker" }, [
-      draft.gifPreviewUrl ? el("img", { src: draft.gifPreviewUrl, class: "gift-create-gif-preview" }) : null,
+      // Превью того, как подарок будет выглядеть: гифка, если загружена, иначе
+      // встроенная анимация по эмодзи (lib/giftTraits.js → renderScene) — это и
+      // есть «встроенный редактор анимаций», без загрузки файла.
+      draft.gifPreviewUrl
+        ? el("img", { src: draft.gifPreviewUrl, class: "gift-create-gif-preview" })
+        : (draft.emoji ? el("div", { class: "gift-create-anim-preview" }, [renderGiftArt({ emoji: draft.emoji }, { size: 72 })]) : null),
       el(
         "button",
         { class: "btn-accent-pill", type: "button", disabled: uploadingGif, onclick: () => gifInput.click() },
         draft.gifFile ? "Заменить гифку" : "Загрузить гифку (необязательно)"
       ),
+      draft.gifFile
+        ? el("button", { class: "settings-danger-link", type: "button", onclick: () => { if (draft.gifPreviewUrl) URL.revokeObjectURL(draft.gifPreviewUrl); draft.gifFile = null; draft.gifPreviewUrl = null; render(); } }, "Убрать гифку — встроенная анимация")
+        : el("p", { class: "settings-toggle-hint" }, "Без гифки подарок анимируется встроенной анимацией по эмодзи."),
       gifInput,
     ].filter(Boolean));
 
@@ -4069,6 +4136,8 @@ async function renderGiftShop(root) {
           ]),
           el("button", { class: "btn-accent", disabled: uploadingGif, onclick: createGift }, uploadingGif ? "Загружаем гифку…" : "Выпустить"),
         ]),
+
+        section(`Все подарки (${data.gifts.length})`, data.gifts.map(giftRow)),
 
         section(`Тиражи (${limited.length})`, limited.length ? limited.map(supplyRow) : [el("p", { class: "moderation-empty" }, "Ограниченных подарков нет")]),
       ])

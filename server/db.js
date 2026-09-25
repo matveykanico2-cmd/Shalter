@@ -554,6 +554,10 @@ const existingUserColumns = new Set(db.prepare("PRAGMA table_info(users)").all()
 if (!existingUserColumns.has("isPremium")) db.exec("ALTER TABLE users ADD COLUMN isPremium INTEGER NOT NULL DEFAULT 0");
 if (!existingUserColumns.has("referralCode")) db.exec("ALTER TABLE users ADD COLUMN referralCode TEXT");
 if (!existingUserColumns.has("referredBy")) db.exec("ALTER TABLE users ADD COLUMN referredBy TEXT");
+// Фамилия — отдельно от name. name остаётся полным отображаемым именем
+// («имя фамилия»), поэтому весь остальной код менять не нужно; lastName нужен
+// только чтобы редактор мог показать фамилию в своём поле (routes/users.js).
+if (!existingUserColumns.has("lastName")) db.exec("ALTER TABLE users ADD COLUMN lastName TEXT");
 // Premium is time-boxed (a duration, like a real subscription) rather than a
 // permanent flag — premiumUntil is the actual source of truth; the isPremium
 // column above is kept only as a legacy/compat field and is no longer read
@@ -995,6 +999,9 @@ if (!existingMessageColumns.has("mentionedUserIds")) db.exec("ALTER TABLE messag
 // too — same concept (how many replies point at this message), never
 // queried in a way that needs to tell the two apart.
 if (!existingMessageColumns.has("threadRootId")) db.exec("ALTER TABLE messages ADD COLUMN threadRootId TEXT");
+// Ответ на историю: {url, kind, authorName} — превью и пометка «Ответ на историю»
+// в чате (server/routes/messages.js, components/messageBubble.js).
+if (!existingMessageColumns.has("storyReply")) db.exec("ALTER TABLE messages ADD COLUMN storyReply TEXT");
 db.exec("CREATE INDEX IF NOT EXISTS idx_messages_threadRoot ON messages(threadRootId)");
 
 // Per-chat "restrict this member from posting" — { [userId]: isoTimestamp |

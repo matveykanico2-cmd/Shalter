@@ -212,6 +212,17 @@ export async function openProfileDialog(userId) {
     render();
   }
 
+  async function toggleContact() {
+    try {
+      if (isContact) await api.removeContact(userId);
+      else await api.addContact(userId);
+      isContact = !isContact;
+      render();
+    } catch (err) {
+      alert(err.message || "Не удалось изменить контакт");
+    }
+  }
+
   async function startChat() {
     const { chat } = await api.startDm(userId, user.name, user.avatarColor);
     close();
@@ -486,6 +497,13 @@ export async function openProfileDialog(userId) {
         : null,
       el("div", { class: "profile-actions" }, [
         el("button", { class: "btn-accent", onclick: startChat }, [el("span", { html: iconSvg("Send", 16) }), " Написать"]),
+        !isSelf
+          ? el(
+              "button",
+              { class: `profile-action-btn ${isContact ? "danger" : ""}`, onclick: toggleContact },
+              [el("span", { html: iconSvg(isContact ? "Trash" : "Plus", 15) }), isContact ? " Удалить из контактов" : " Добавить в контакты"]
+            )
+          : null,
         // Подарок отправляют из профиля того, кому дарят, — там же, где на него
         // и смотрят. Раньше до магазина надо было идти через меню чата, зная,
         // что он там есть.

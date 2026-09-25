@@ -27,6 +27,7 @@ function rowToMessage(row) {
     deletedForIds: JSON.parse(row.deletedForIds),
     mentionedUserIds: row.mentionedUserIds ? JSON.parse(row.mentionedUserIds) : [],
     threadRootId: row.threadRootId ?? undefined,
+    storyReply: row.storyReply ? JSON.parse(row.storyReply) : undefined,
     anchorForPostId: row.anchorForPostId ?? undefined,
     discussionAnchorId: row.discussionAnchorId ?? undefined,
     signedBy: row.signedBy ?? undefined,
@@ -185,8 +186,8 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous)
-     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, storyReply, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous)
+     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @storyReply, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous)`
   ).run({
     id: message.id,
     chatId: message.chatId,
@@ -210,6 +211,7 @@ async function addMessage(message) {
     deletedForIds: JSON.stringify(message.deletedForIds ?? []),
     mentionedUserIds: JSON.stringify(message.mentionedUserIds ?? []),
     threadRootId: message.threadRootId ?? null,
+    storyReply: message.storyReply ? JSON.stringify(message.storyReply) : null,
     anchorForPostId: message.anchorForPostId ?? null,
     discussionAnchorId: message.discussionAnchorId ?? null,
     signedBy: message.signedBy ?? null,

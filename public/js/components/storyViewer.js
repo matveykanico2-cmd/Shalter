@@ -309,7 +309,15 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     input.value = "";
     try {
       const { chat } = await api.startDm(group.user.id, group.user.name, group.user.avatarColor);
-      await api.sendMessage(chat.id, text.trim());
+      // Прикладываем ссылку на кадр истории и имя автора — в чате это покажется
+      // как «Ответ на историю» с превью (server/routes/messages.js).
+      const frame = currentFrame();
+      const storyReply = {
+        url: frame?.item?.url ?? currentStory()?.url,
+        kind: frame?.item?.kind === "video" ? "video" : "image",
+        authorName: group.user.name,
+      };
+      await api.sendMessage(chat.id, text.trim(), { storyReply });
       input.placeholder = "Отправлено ✓";
       setTimeout(() => (input.placeholder = `Ответить ${group.user.name}…`), 2000);
     } catch (err) {

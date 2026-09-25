@@ -3,7 +3,7 @@ const { genId } = require("../lib/genId");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { getChat, findChannelByDiscussionChatId } = require("../data/chats");
-const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
+const { sanitizeAttachments, isSafeUrl } = require("../lib/sanitizeAttachments");
 const { sanitizeSticker } = require("../lib/sanitizeSticker");
 const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, markChatRead, setLinkPreview, updateLiveLocation, setAttachmentPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
 const { getUser, findUserIdsByUsernames } = require("../data/users");
@@ -314,6 +314,17 @@ async function attachPreviews(chat, message) {
 // (списание уже прошло), а для получателя: письмо, за которое незнакомый
 // человек заплатил, показывается иначе — печатается на экране (см.
 // components/messageBubble.js).
+// Ответ на историю: только url (безопасный), вид и имя автора — остальное с
+// клиента не берём. Не ответ — undefined.
+function sanitizeStoryReply(raw) {
+  if (!raw || typeof raw !== "object") return undefined;
+  const url = typeof raw.url === "string" && isSafeUrl(raw.url) ? raw.url : undefined;
+  const kind = raw.kind === "video" ? "video" : "image";
+  const authorName = typeof raw.authorName === "string" ? raw.authorName.slice(0, 100) : undefined;
+  if (!url && !authorName) return undefined;
+  return { url, kind, authorName };
+}
+
 async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   let forwardedFrom = body.forwardedFrom;
   if (forwardedFrom?.senderId) {
@@ -339,6 +350,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
     reactions: [],
     replyToId: body.replyToId ?? null,
     threadRootId: body.threadRootId ?? null,
+    storyReply: sanitizeStoryReply(body.storyReply),
     attachments: markPendingPreviews(sanitizeAttachments(body.attachments)),
     forwardedFrom,
     sticker: sanitizeSticker(body.sticker),

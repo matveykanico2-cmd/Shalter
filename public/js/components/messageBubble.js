@@ -467,9 +467,15 @@ function VoicePlayer(a) {
 
   // Длительность у записи из MediaRecorder часто приходит как Infinity, пока
   // файл не проигран до конца — тогда берём ту, что посчитал сам диктофон.
+  // Точную длительность знает сам диктофон (a.durationSec) — на неё и
+  // опираемся. audio.duration у WebM/Opus из MediaRecorder сначала приходит
+  // Infinity, а затем становится конечной: если брать её, шкала и время
+  // прыгают посреди воспроизведения («голосовое скипается»). Значение
+  // диктофона стабильно на весь трек, поэтому и полоса, и перемотка ровные.
   const durationOf = () => {
+    if (a.durationSec && a.durationSec > 0) return a.durationSec;
     const known = audio.duration;
-    return Number.isFinite(known) && known > 0 ? known : a.durationSec || 0;
+    return Number.isFinite(known) && known > 0 ? known : 0;
   };
   const paint = () => {
     const dur = durationOf() || 1;
@@ -518,9 +524,12 @@ function VideoNotePlayer(a) {
   const barFill = el("div", { class: "voice-bar-fill" });
   const bar = el("div", { class: "voice-bar seekable" }, [barFill, el("span", { class: "voice-bar-knob" })]);
   const timeLabelEl = el("p", { class: "voice-time mono" }, `0:00 / ${clockTime(a.durationSec ?? 0)}`);
+  // То же, что у голосового: длительность диктофона стабильнее video.duration
+  // у WebM, иначе шкала кружка прыгает.
   const durationOf = () => {
+    if (a.durationSec && a.durationSec > 0) return a.durationSec;
     const known = video.duration;
-    return Number.isFinite(known) && known > 0 ? known : a.durationSec || 0;
+    return Number.isFinite(known) && known > 0 ? known : 0;
   };
   attachSeek(bar, video, durationOf);
 
@@ -650,6 +659,19 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         { class: "reply-preview", onclick: () => onJumpTo(replyToMessage.id) },
         replyToMessage.text || "Медиа"
       )
+    );
+  }
+  // Ответ на историю (server/routes/messages.js): пометка + миниатюра кадра.
+  if (message.storyReply) {
+    const sr = message.storyReply;
+    bubbleInner.push(
+      el("div", { class: "story-reply-banner" }, [
+        sr.url ? el("img", { class: "story-reply-thumb", src: sr.url, alt: "" }) : null,
+        el("div", { class: "story-reply-text" }, [
+          el("span", { class: "story-reply-label" }, "Ответ на историю"),
+          sr.authorName ? el("span", { class: "story-reply-author" }, sr.authorName) : null,
+        ]),
+      ])
     );
   }
   const autoDownload = getState().settings?.autoDownload !== false;

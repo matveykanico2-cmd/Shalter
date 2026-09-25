@@ -113,7 +113,7 @@ router.get(
 // and phone get their own uniqueness/format checks below (same rules as
 // registration — see server/lib/validators.js) since, unlike name/bio, other
 // people rely on these being unique to find/message the right account.
-const EDITABLE_FIELDS = ["name", "username", "phone", "bio", "avatarColor", "avatarImage", "birthday", "businessAddress", "businessLat", "businessLng"];
+const EDITABLE_FIELDS = ["name", "lastName", "username", "phone", "bio", "avatarColor", "avatarImage", "birthday", "businessAddress", "businessLat", "businessLng"];
 
 // Powers the profile view (public/js/components/profileDialog.js). Unlike
 // every other place a user object gets sent to a client (chat lists,

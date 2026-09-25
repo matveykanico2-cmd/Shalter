@@ -16,6 +16,7 @@ function rowToUser(row) {
   return {
     id: row.id,
     name: row.name,
+    lastName: row.lastName ?? undefined,
     username: row.username,
     phone: row.phone,
     email: row.email ?? undefined,
@@ -267,7 +268,7 @@ async function createUser(user) {
   return getUser(user.id);
 }
 
-const PATCHABLE_FIELDS = ["name", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng"];
+const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng"];
 
 // Extends (or starts) a Premium period — stacks on top of remaining time if
 // already active, the way a real subscription top-up would, rather than

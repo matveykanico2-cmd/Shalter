@@ -4,7 +4,6 @@ import { api } from "../api.js";
 import { startRecording, isRecordingSupported, createLevelMeter, MAX_RECORD_SEC } from "../lib/recorder.js";
 import { uploadFile } from "../lib/upload.js";
 import { startChatAction, withChatAction, uploadActionFor } from "../lib/chatAction.js";
-import { compressPhotoForUpload } from "../lib/image.js";
 import { checkSize } from "../lib/uploadLimits.js";
 import { openPollDialog } from "./pollDialog.js";
 import { openMemeDialog } from "./memeDialog.js";
@@ -406,16 +405,8 @@ export function Composer({
         else if (t.kind === "video") captureVideoFrame(t.file).then((url) => t.setPreviewUrl(url));
       }
 
-      // Фото пережимаются перед отправкой (lib/image.js) — по одному, а не
-      // все разом: расжатый снимок с телефона — это под пятьдесят мегабайт
-      // памяти, и десяток одновременно ронял бы вкладку на слабом телефоне.
-      let compressing = Promise.resolve();
-      const prepare = (t) => {
-        if (t.kind !== "image") return Promise.resolve(t.file);
-        const next = compressing.then(() => compressPhotoForUpload(t.file));
-        compressing = next.catch(() => {});
-        return next;
-      };
+      // Сжатие фото отключено — отправляем файл как есть, без потери качества.
+      const prepare = (t) => Promise.resolve(t.file);
       // Пока файлы уходят, собеседник видит «отправляет фото/видео/файл».
       const stopUploadAction = startChatAction(chatId, uploadActionFor(tiles.map((t) => t.kind)));
       const results = await Promise.allSettled(

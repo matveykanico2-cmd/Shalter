@@ -2993,8 +2993,9 @@
 /* Real media/file/location/contact/poll attachments */
 .image-attachment {
   display: block;
-  max-width: 280px;
+  max-width: min(280px, 100%);
   max-height: 320px;
+  height: auto;
   border-radius: 12px;
   object-fit: cover;
   margin-bottom: 4px;
@@ -3009,7 +3010,7 @@
 }
 .video-attachment {
   display: block;
-  max-width: 280px;
+  max-width: min(280px, 100%);
   max-height: 320px;
   border-radius: 12px;
   margin-bottom: 4px;
@@ -3019,7 +3020,7 @@
   position: relative;
   display: block;
   width: 100%;
-  max-width: 280px;
+  max-width: min(280px, 100%);
   max-height: 320px;
   aspect-ratio: 16 / 10;
   border: none;
@@ -12949,4 +12950,79 @@ p.business-status {
   align-items: center;
   gap: 12px;
   margin-top: 10px;
+}
+
+/* «Ответ на историю» в чате (components/messageBubble.js). */
+.story-reply-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 6px;
+  margin-bottom: 4px;
+  border-left: 3px solid var(--color-accent);
+  border-radius: 8px;
+  background: rgba(124, 111, 214, 0.1);
+}
+.story-reply-thumb {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.story-reply-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.story-reply-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+.story-reply-author {
+  font-size: 12px;
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Пустой слот в строке ввода (команды бота, вложения) не должен рисоваться
+   тонкой серой вертикальной полосой рядом с текстом. */
+.composer-field .composer-attach-slot:empty,
+.composer-field .composer-secondary:empty {
+  display: none;
+}
+
+/* Выбор цвета аватарки по умолчанию (views/settings/index.js, renderProfile). */
+.avatar-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 4px 0;
+}
+.avatar-color-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.avatar-color-swatch:hover {
+  transform: scale(1.08);
+}
+.avatar-color-swatch.active {
+  border-color: var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-surface) inset;
+}
+
+/* Превью встроенной анимации при создании подарка (settings/index.js). */
+.gift-create-anim-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
 }
