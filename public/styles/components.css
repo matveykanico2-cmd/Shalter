@@ -2751,8 +2751,11 @@
 }
 .composer-round-wrap {
   position: relative;
-  width: 210px;
-  height: 210px;
+  /* Крупный круг: на запись кружка смотрят, пока говорят, — маленькое окошко
+     размером с кнопку разглядеть невозможно. Ограничен шириной экрана, чтобы
+     на узком телефоне не вылезал за края. */
+  width: min(82vw, 340px);
+  height: min(82vw, 340px);
   pointer-events: auto;
 }
 .composer-round-preview {
@@ -2780,12 +2783,6 @@
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   backdrop-filter: blur(4px);
-}
-@media (max-width: 620px) {
-  .composer-round-wrap {
-    width: 168px;
-    height: 168px;
-  }
 }
 
 /* Живая волна: полоски растут от громкости, новая приходит справа. */
@@ -12945,20 +12942,11 @@ p.business-status {
   50% { opacity: 0.3; }
 }
 
-/* Кнопка «Расшифровать» прямо на голосовом/кружке (components/messageBubble.js). */
-.transcribe-inline-btn {
-  align-self: flex-start;
-  margin-top: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-accent);
-  background: rgba(124, 111, 214, 0.12);
-}
-.transcribe-inline-btn:hover {
-  background: rgba(124, 111, 214, 0.2);
-}
-.bubble-videonote .transcribe-inline-btn {
-  align-self: center;
+/* Запись кружка в настройках бизнеса — большой круг над полосой управления. */
+.business-record-round {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
 }

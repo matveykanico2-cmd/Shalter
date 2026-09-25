@@ -575,8 +575,7 @@ const ORBIT_ITEMS = [
 ];
 
 // Настоящий список того, что даёт Premium — каждая строка проверена в коде
-// (см. renderPremium ниже), а не выдумана под макет. Расшифровка голосовых
-// сюда сознательно не входит: она бесплатна для всех (lib/transcribe.js).
+// (см. renderPremium ниже), а не выдумана под макет.
 const PREMIUM_PERKS = [
   {
     icon: "MessageSquare",
@@ -788,6 +787,9 @@ async function renderBusiness(root) {
   let recordingKey = null;
   let recordMode = null;
   let recordingHandle = null;
+  // Один <video> на всю запись: render() пересобирает страницу, а превью,
+  // пересозданное каждый раз, теряло бы srcObject (как в callScreen.js).
+  let recordPreviewEl = null;
 
   async function buyBusiness(planId) {
     buyingPlan = planId;
@@ -845,9 +847,11 @@ async function renderBusiness(root) {
       alert("Нет доступа к микрофону или камере");
       return render();
     }
+    render(); // превью появляется, как только пошёл поток с камеры
     recordingHandle.result.then(async (rec) => {
       const key2 = recordingKey;
       recordingHandle = recordingKey = recordMode = null;
+      recordPreviewEl = null;
       render();
       if (!rec || !key2) return; // отменили
       const ext = (rec.mimeType || "").includes("mp4") ? "mp4" : "webm";
@@ -868,6 +872,7 @@ async function renderBusiness(root) {
   function cancelAutoRecording() {
     recordingHandle?.cancel();
     recordingHandle = recordingKey = recordMode = null;
+    recordPreviewEl = null;
     render();
   }
   function autoMediaPreview(a) {
@@ -880,11 +885,36 @@ async function renderBusiness(root) {
   // Блок «вложение» под текстом приветствия/автоответа.
   function autoMediaBlock(key) {
     if (recordingKey === key) {
-      return el("div", { class: "business-record-bar" }, [
+      const paused = recordingHandle?.isPaused?.() ?? false;
+      const pauseBtn = el("button", {
+        class: "settings-chip",
+        title: paused ? "Продолжить" : "Пауза",
+        onclick: () => {
+          if (!recordingHandle) return;
+          paused ? recordingHandle.resume?.() : recordingHandle.pause?.();
+          render();
+        },
+      }, [el("span", { html: iconSvg(paused ? "Play" : "Pause", 16) })]);
+      const bar = el("div", { class: "business-record-bar" }, [
         el("span", { class: "business-record-dot" }),
         el("span", { class: "settings-toggle-title" }, recordMode === "voice" ? "Идёт запись голосового…" : "Идёт запись кружка…"),
+        pauseBtn,
         el("button", { class: "btn-accent", onclick: () => recordingHandle?.stop() }, "Готово"),
         el("button", { class: "settings-danger-link", onclick: cancelAutoRecording }, "Отмена"),
+      ]);
+      if (recordMode !== "video-note") return bar;
+      // Кружок: большое круглое превью с камерой и кнопкой поворота — как в чате.
+      if (!recordPreviewEl) recordPreviewEl = el("video", { autoplay: true, muted: true, playsinline: true, class: "composer-round-preview" });
+      if (recordingHandle?.stream && recordPreviewEl.srcObject !== recordingHandle.stream) recordPreviewEl.srcObject = recordingHandle.stream;
+      const flip = el("button", {
+        class: "composer-round-flip",
+        title: "Другая камера",
+        html: iconSvg("FlipCamera", 18),
+        onclick: async () => { await recordingHandle?.flipCamera?.(); render(); },
+      });
+      return el("div", { class: "business-record-round" }, [
+        el("div", { class: "composer-round-wrap" }, [recordPreviewEl, flip]),
+        bar,
       ]);
     }
     if (mediaBusyKey === key) return el("p", { class: "settings-toggle-hint" }, "Загрузка вложения…");

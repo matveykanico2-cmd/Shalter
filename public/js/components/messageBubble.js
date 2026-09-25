@@ -7,7 +7,6 @@ import { api } from "../api.js";
 import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog } from "./profileDialog.js";
 import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard, LocationAttachment } from "./attachments.js";
-import { transcribeAudio, transcriptCache } from "../lib/transcribe.js";
 import { getState, setState } from "../state.js";
 import { renderSticker } from "../lib/stickers.js";
 import { renderGiftArt } from "../lib/giftTraits.js";
@@ -86,8 +85,7 @@ function timeLabel(iso) {
 // animation (the sparkle burst, the pop-in) would replay right along with
 // it, so a message sent minutes ago keeps re-flashing every time anyone else
 // in the chat sends something. Tracked here (not per-render state) so it
-// survives exactly as long as the tab does, same pattern as
-// lib/transcribe.js's transcriptCache.
+// survives exactly as long as the tab does.
 const seenEntranceIds = new Set();
 
 // Same time/views/read-check row a plain text bubble gets (see the `meta`
@@ -737,69 +735,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     }
   }
 
-  // Runs entirely in this tab (see lib/transcribe.js) — the first ever call
-  // on a given page load downloads the model, so that state's worth showing
-  // rather than leaving "Расшифровываем…" sitting there with no explanation
-  // for several seconds.
-  const voiceAttachment = message.attachments?.find((a) => a.kind === "voice" || a.kind === "video-note");
-  let transcriptEl = null;
-
-  function showTranscript(promise) {
-    transcriptEl = el("p", { class: "message-translation" }, "Расшифровываем…");
-    bubble.insertBefore(transcriptEl, meta);
-    promise.then(
-      (text) => {
-        if (transcriptEl) transcriptEl.textContent = text || "(тишина или не удалось разобрать речь)";
-      },
-      (err) => {
-        if (transcriptEl) transcriptEl.textContent = err.message || "Не удалось расшифровать";
-      }
-    );
-  }
-
-  // Restores an already-running (or already-finished) transcription this
-  // exact message started under a *previous* bubble instance — see
-  // transcriptCache's own comment for why that can happen well before this
-  // one ever finishes.
-  if (voiceAttachment && transcriptCache.has(message.id)) {
-    showTranscript(transcriptCache.get(message.id));
-  }
-
-  function toggleTranscription() {
-    if (transcriptEl) {
-      transcriptEl.remove();
-      transcriptEl = null;
-      transcriptCache.delete(message.id);
-      return;
-    }
-    const promise = transcribeAudio(voiceAttachment.url, (p) => {
-      if (p.status === "progress" && transcriptEl) {
-        transcriptEl.textContent = `Загружаем модель распознавания… ${Math.round(p.progress || 0)}%`;
-      }
-    });
-    transcriptCache.set(message.id, promise);
-    showTranscript(promise);
-    syncTranscribeBtn();
-  }
-
-  // Видимая кнопка прямо на голосовом/кружке — не только в контекстном меню:
-  // расшифровку жмут часто (послушать нельзя — шумно, наушников нет), и прятать
-  // её в долгое нажатие значит прятать главное. Клиентский Whisper, первая
-  // расшифровка за сессию скачивает модель (lib/transcribe.js).
-  let transcribeBtn = null;
-  function syncTranscribeBtn() {
-    if (transcribeBtn) transcribeBtn.textContent = transcriptEl ? "Скрыть расшифровку" : "Расшифровать";
-  }
-  if (voiceAttachment) {
-    transcribeBtn = el("button", { class: "transcribe-inline-btn" }, transcriptEl ? "Скрыть расшифровку" : "Расшифровать");
-    transcribeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      toggleTranscription();
-      syncTranscribeBtn();
-    });
-    bubble.insertBefore(transcribeBtn, meta);
-  }
-
   const hoverActions = el("div", { class: "bubble-actions" }, [
         el("button", {
           class: "bubble-action-btn",
@@ -927,9 +862,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     }
     if (canTranslate) {
       items.push({ icon: "Globe", label: translationEl ? "Скрыть перевод" : "Перевести", onClick: toggleTranslation });
-    }
-    if (voiceAttachment) {
-      items.push({ icon: "Mic", label: transcriptEl ? "Скрыть расшифровку" : "Расшифровать", onClick: toggleTranscription });
     }
     // Paid actions (server/routes/stars.js). Boost applies to your own message;
     // paid deletion to someone else's, and only in a DM — see that route for why
