@@ -779,6 +779,25 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     });
     transcriptCache.set(message.id, promise);
     showTranscript(promise);
+    syncTranscribeBtn();
+  }
+
+  // Видимая кнопка прямо на голосовом/кружке — не только в контекстном меню:
+  // расшифровку жмут часто (послушать нельзя — шумно, наушников нет), и прятать
+  // её в долгое нажатие значит прятать главное. Клиентский Whisper, первая
+  // расшифровка за сессию скачивает модель (lib/transcribe.js).
+  let transcribeBtn = null;
+  function syncTranscribeBtn() {
+    if (transcribeBtn) transcribeBtn.textContent = transcriptEl ? "Скрыть расшифровку" : "Расшифровать";
+  }
+  if (voiceAttachment) {
+    transcribeBtn = el("button", { class: "transcribe-inline-btn" }, transcriptEl ? "Скрыть расшифровку" : "Расшифровать");
+    transcribeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleTranscription();
+      syncTranscribeBtn();
+    });
+    bubble.insertBefore(transcribeBtn, meta);
   }
 
   const hoverActions = el("div", { class: "bubble-actions" }, [

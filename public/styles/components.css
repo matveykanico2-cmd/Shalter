@@ -12944,3 +12944,21 @@ p.business-status {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
+
+/* Кнопка «Расшифровать» прямо на голосовом/кружке (components/messageBubble.js). */
+.transcribe-inline-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-accent);
+  background: rgba(124, 111, 214, 0.12);
+}
+.transcribe-inline-btn:hover {
+  background: rgba(124, 111, 214, 0.2);
+}
+.bubble-videonote .transcribe-inline-btn {
+  align-self: center;
+}
