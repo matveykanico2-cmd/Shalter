@@ -31,6 +31,21 @@ async function upsertSession({ userId, deviceId, device, location }) {
   return { session: db.prepare("SELECT * FROM sessions WHERE userId = ? AND deviceId = ?").get(userId, deviceId), isNewDevice: !existing };
 }
 
+// Освежает существующую запись устройства по ходу работы: время последней
+// активности и, если сменился, IP. Новую строку НЕ создаёт (это делает вход,
+// recordSession) — иначе оповещение «вход с нового устройства» можно было бы
+// обойти. Поэтому UPDATE, а не upsert: нет строки — значит устройство ещё не
+// входило под этим аккаунтом, и трогать нечего.
+//
+// location пишется через COALESCE(NULLIF(...)) — пустой IP (за кривым прокси)
+// не должен затирать ранее известный.
+function touchSession(userId, deviceId, location) {
+  db.prepare(
+    `UPDATE sessions SET lastActive = ?, location = COALESCE(NULLIF(?, ''), location)
+       WHERE userId = ? AND deviceId = ? AND revokedAt IS NULL`
+  ).run(new Date().toISOString(), location ?? "", userId, deviceId);
+}
+
 // "Terminate session" (Settings → Устройства → «Завершить»). Sets a flag
 // rather than deleting the row — see server/middleware/auth.js's
 // requireUserId for why a *missing* row must never be treated the same as an
@@ -66,4 +81,4 @@ async function removeAllSessionsForUser(userId) {
   db.prepare("DELETE FROM sessions WHERE userId = ?").run(userId);
 }
 
-module.exports = { listSessions, getSession, upsertSession, revokeSession, revokeOtherSessions, revokeAllSessions, removeAllSessionsForUser };
+module.exports = { listSessions, getSession, upsertSession, touchSession, revokeSession, revokeOtherSessions, revokeAllSessions, removeAllSessionsForUser };

@@ -1,6 +1,6 @@
 const { randomBytes } = require("crypto");
 const { asyncRoute } = require("./errors");
-const { getSession } = require("../data/sessions");
+const { getSession, touchSession } = require("../data/sessions");
 const { getUser } = require("../data/users");
 
 const SESSIONS_COOKIE = "session_uids";
@@ -133,6 +133,24 @@ const requireUserId = asyncRoute(async (req, res, next) => {
   if (deviceId) {
     const session = await getSession(uid, deviceId);
     if (session?.revokedAt) return res.status(401).json({ error: "session_revoked" });
+    // Держим запись устройства живой по ходу работы: время активности и, если
+    // сменился, IP. Одна строка на устройство остаётся той же (ключ — deviceId
+    // из cookie), новая не заводится. Пишем не на каждый запрос, а когда прошла
+    // минута или реально сменился адрес, — иначе это лишняя запись в БД на
+    // каждый опрос списка чатов. IP берётся из req.ip (trust proxy включён,
+    // server/index.js). Ошибка обновления не должна ронять сам запрос.
+    if (session && !session.revokedAt) {
+      const ip = req.ip || "";
+      const stale = Date.now() - Date.parse(session.lastActive || 0) > 60_000;
+      const ipChanged = !!ip && !!session.location && session.location !== ip;
+      if (stale || ipChanged) {
+        try {
+          touchSession(uid, deviceId, ip);
+        } catch {
+          /* обновление активности — не повод ломать запрос */
+        }
+      }
+    }
   }
   // Same "explicit flag, never inferred" shape as the revokedAt check above —
   // set from the reports moderation chat (routes/reports.js's /:id/ban).

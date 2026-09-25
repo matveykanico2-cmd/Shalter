@@ -2508,7 +2508,12 @@ async function renderDevices(root) {
           ? section("Это устройство", [
               el("div", { class: "settings-device-row current" }, [
                 el("div", { class: "settings-device-body" }, [
-                  el("p", { class: "settings-device-name" }, current.device),
+                  el("p", { class: "settings-device-name" }, [
+                    current.device,
+                    el("span", { class: "settings-device-online" }, "в сети"),
+                  ]),
+                  // IP обновляется по ходу работы (server/middleware/auth.js):
+                  // сменился адрес — сменится и здесь, устройство остаётся тем же.
                   el("p", { class: "mono settings-toggle-hint" }, current.location),
                 ]),
               ]),
