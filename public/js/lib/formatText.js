@@ -2,6 +2,7 @@ import { el } from "./dom.js";
 import { navigate } from "../router.js";
 import { openInAppBrowser, checkLinkSafety } from "../components/inAppBrowser.js";
 import { openProfileDialog } from "../components/profileDialog.js";
+import { api } from "../api.js";
 
 // Vanilla-JS port of components/chat/formatText.tsx — same markdown-like
 // shortcuts (**bold**, *italic*, `code`, ~~strike~~, ||spoiler||, > quote,
@@ -35,9 +36,27 @@ function renderInline(text, members) {
     if (tok.startsWith("||") && tok.endsWith("||")) return spoiler(tok.slice(2, -2));
     if (tok.startsWith("@")) {
       const handle = tok.slice(1).toLowerCase();
-      const user = members?.find((u) => u.username && u.username.toLowerCase() === handle);
-      if (user) return el("button", { class: "mention mention-link", onclick: () => openProfileDialog(user.id) }, tok);
-      return el("span", { class: "mention" }, tok);
+      // Любое @упоминание кликабельно и ведёт на профиль — не только тех, кто
+      // сейчас в этом чате. Участник открывается сразу (id уже есть), чужой —
+      // после запроса по юзернейму; если это не человек, а канал/группа/бот,
+      // отдаём это резолверу адреса (/u/имя, см. app.js).
+      const member = members?.find((u) => u.username && u.username.toLowerCase() === handle);
+      return el(
+        "button",
+        {
+          class: "mention mention-link",
+          onclick: async () => {
+            if (member) return openProfileDialog(member.id);
+            try {
+              const { user } = await api.findUserByUsername(handle);
+              openProfileDialog(user.id);
+            } catch {
+              navigate(`/u/${handle}`);
+            }
+          },
+        },
+        tok
+      );
     }
     if (tok.startsWith("http://") || tok.startsWith("https://"))
       return el(
@@ -53,7 +72,7 @@ function renderInline(text, members) {
             // внутри него, а не в окне браузера поверх: там она показала бы вторую
             // копию Shalter в рамке, со своим входом и своей навигацией.
             const internal = internalPath(tok);
-            if (internal) return navigate(internal);
+            if (internal) return navigate(usernameToRoute(internal));
             const { unsafe, warning } = checkLinkSafety(tok);
             openInAppBrowser(tok, { unsafe, warning });
           },
@@ -63,6 +82,21 @@ function renderInline(text, members) {
     if (tok.startsWith("*") && tok.endsWith("*")) return el("i", {}, tok.slice(1, -1));
     return tok;
   });
+}
+
+// Одиночный сегмент-юзернейм («/bob», «/@bob») → маршрут резолвера «/u/bob»,
+// чтобы вставленная ссылка вида домен/username открывалась внутри приложения,
+// а не упиралась в «страница не найдена». Зарезервированные пути приложения
+// (те же, что в app.js) не трогаем. Всё прочее — как есть.
+const RESERVED_USERNAME_PATHS = new Set([
+  "u", "chat", "call", "call-join", "join", "folder", "nearby", "contacts",
+  "discover-channels", "market", "calls", "archive", "settings", "login",
+  "download", "promo", "bots", "oauth-docs",
+]);
+function usernameToRoute(path) {
+  const m = path.match(/^\/@?([A-Za-z0-9_]{3,32})\/?(\?.*|#.*)?$/);
+  if (m && !RESERVED_USERNAME_PATHS.has(m[1].toLowerCase())) return `/u/${m[1]}${m[2] ?? ""}`;
+  return path;
 }
 
 // Путь внутри этого же приложения — или null, если ссылка ведёт наружу.

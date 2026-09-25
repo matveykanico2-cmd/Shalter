@@ -384,6 +384,7 @@ async function boot() {
   //                 приглашение);
   //   ?app=1      — открыть сразу мини-приложение бота, минуя переписку.
   async function openByUsername(username, search) {
+    username = String(username || "").replace(/^@/, "");
     const params = new URLSearchParams(search || "");
     const startPayload = params.get("start");
     const wantsApp = params.get("app") === "1" || params.has("startapp");
@@ -498,12 +499,21 @@ async function boot() {
   route("/settings/:page", (params) => openSettings(params.page));
   notFound(() => navigate("/", { replace: true }));
 
-  // /@имя — то, как ссылку на бота или канал пишут и вставляют люди. Роутер
-  // (router.js) умеет подставлять только целый сегмент пути, поэтому «@» не
-  // получится вписать в шаблон маршрута: приводим адрес к /u/имя до старта,
-  // сохраняя параметры (?start=…, ?app=1).
-  const handleInPath = window.location.pathname.match(/^\/@([A-Za-z0-9_]{1,64})\/?$/);
-  if (handleInPath) window.history.replaceState(null, "", `/u/${handleInPath[1]}${window.location.search}`);
+  // Ссылка на аккаунт, бота, канал или группу — «домен/username» или
+  // «домен/@username», как их пишут и вставляют люди (t.me/name по смыслу).
+  // Роутер (router.js) подставляет только целый сегмент, а «@» в шаблон не
+  // впишешь, поэтому приводим адрес к /u/имя до старта, сохраняя параметры
+  // (?start=…, ?app=1). Зарезервированные пути приложения при этом не трогаем —
+  // иначе «домен/settings» повело бы искать несуществующий аккаунт «settings».
+  const RESERVED_PATHS = new Set([
+    "u", "chat", "call", "call-join", "join", "folder", "nearby", "contacts",
+    "discover-channels", "market", "calls", "archive", "settings", "login",
+    "download", "promo", "bots", "oauth-docs",
+  ]);
+  const handleInPath = window.location.pathname.match(/^\/@?([A-Za-z0-9_]{3,32})\/?$/);
+  if (handleInPath && !RESERVED_PATHS.has(handleInPath[1].toLowerCase())) {
+    window.history.replaceState(null, "", `/u/${handleInPath[1]}${window.location.search}`);
+  }
 
   startRouter();
 }
