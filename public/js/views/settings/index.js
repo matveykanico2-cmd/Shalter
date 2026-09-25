@@ -3632,7 +3632,8 @@ async function renderServer(root) {
           statRow("Память процесса (RSS)", `${formatBytes(proc.rss)} · ${proc.sharePercent.toFixed(1)}% от всей памяти`),
           statRow("Куча V8", `${formatBytes(proc.heapUsed)} из ${formatBytes(proc.heapTotal)}`),
           statRow("PID", String(proc.pid)),
-          statRow("Соединений WebSocket", `${realtime.sockets} · ${realtime.onlineUsers} польз. в сети`),
+          statRow("Пользователей в сети", `${realtime.onlineUsers}`),
+          statRow("Открытых соединений", `${realtime.sockets} (вкладки и устройства)`),
         ]),
         section("Машина", [
           statRow("Имя", host.hostname),

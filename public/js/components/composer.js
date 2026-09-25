@@ -497,6 +497,31 @@ export function Composer({
         attachFiles(files.map((file) => ({ file, kind: "file" })));
       },
     });
+    // Съёмка прямо с камеры: capture просит устройство открыть камеру, а не
+    // галерею (на телефоне). На десктопе атрибут игнорируется — откроется
+    // обычный выбор файла, так что кнопка работает везде.
+    const cameraPhotoInput = el("input", {
+      type: "file",
+      accept: "image/*",
+      capture: "environment",
+      class: "hidden-input",
+      onchange: (e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (f) attachFiles([{ file: f, kind: "image" }]);
+      },
+    });
+    const cameraVideoInput = el("input", {
+      type: "file",
+      accept: "video/*",
+      capture: "environment",
+      class: "hidden-input",
+      onchange: (e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (f) attachFiles([{ file: f, kind: "video" }]);
+      },
+    });
 
     let attachMenuEl = null;
     function closeAttachMenu() {
@@ -511,6 +536,8 @@ export function Composer({
     function attachActions() {
       return [
         { icon: "Image", label: "Фото или видео", run: () => mediaFileInput.click() },
+        { icon: "Video", label: "Снять фото", run: () => cameraPhotoInput.click() },
+        { icon: "Video", label: "Снять видео", run: () => cameraVideoInput.click() },
         { icon: "File", label: "Файл", run: () => anyFileInput.click() },
         { icon: "Sticker", label: "Стикер", run: () => toggleStickers(attachSlot) },
         { icon: "Smile", label: "Эмодзи", run: () => toggleEmoji(attachSlot) },
@@ -616,7 +643,7 @@ export function Composer({
         attachSlot.appendChild(attachMenuEl);
       },
     });
-    const attachSlot = el("div", { class: "composer-attach-slot" }, [attachBtn, mediaFileInput, anyFileInput]);
+    const attachSlot = el("div", { class: "composer-attach-slot" }, [attachBtn, mediaFileInput, anyFileInput, cameraPhotoInput, cameraVideoInput]);
 
     // A bot's commands, the way Telegram's "/" button offers them. The list has
     // been stored since bots existed and was shown nowhere, so using a bot meant

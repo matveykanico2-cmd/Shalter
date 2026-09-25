@@ -31,6 +31,7 @@ import { openDeleteMessageDialog } from "../components/deleteMessageDialog.js";
 import { openLiveScreen } from "../components/liveScreen.js";
 import { CHAT_ACTION_LABELS } from "../lib/chatAction.js";
 import { isServerModerator } from "../lib/moderation.js";
+import { openAd } from "../lib/adLink.js";
 
 // Settings → Внешний вид → "Фон чата" sets the global default; a chat's own
 // "…" → "Фон чата" (see openWallpaperDialog below) overrides it for just
@@ -896,7 +897,27 @@ export async function ChatView(root, chatId) {
     scrollDownBadge.classList.toggle("shown", missedWhileUp > 0);
   }
 
-  const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, searchBar, liveBar, pinnedBar, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
+  // Реклама вверху чата (placement "chat", server/routes/ads.js). Подтягивается
+  // один раз при открытии; пусто — слот остаётся невидимым.
+  const chatAdSlot = el("div", { class: "chat-ad-slot" });
+  const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, searchBar, liveBar, pinnedBar, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
+  api
+    .serveAd("chat")
+    .then((r) => {
+      if (!r.ad) return;
+      clear(chatAdSlot);
+      chatAdSlot.appendChild(
+        el("button", { class: "chat-ad-banner", title: r.ad.url || "", onclick: () => openAd(r.ad) }, [
+          el("span", { class: "chat-ad-mark", html: iconSvg("Zap", 16) }),
+          el("span", { class: "chat-ad-body" }, [
+            el("span", { class: "chat-ad-title" }, r.ad.title || "Реклама"),
+            r.ad.text ? el("span", { class: "chat-ad-text" }, r.ad.text) : null,
+          ]),
+          el("span", { class: "sponsored-badge" }, "РЕКЛАМА"),
+        ])
+      );
+    })
+    .catch(() => {});
   const infoSlot = el("div", { class: "info-panel-slot" });
   const wrap = el("div", { class: "chat-view" }, [mainCol, infoSlot]);
 

@@ -200,6 +200,32 @@ async function boot() {
   else setTimeout(prefetchChat, 1200);
 
   const shell = el("div", { class: "shell" });
+  // Баннер праздника в самом верху мессенджера. Праздники заданы на сервере
+  // (server/lib/holidays.js) — сейчас это День основания Shalter, 25 сентября.
+  // Проверяем дату по MM-DD; закрывается на сегодня (localStorage).
+  const HOLIDAYS = [{ date: "09-25", title: "🎉 С Днём основания Shalter!" }];
+  (function holidayBanner() {
+    const now = new Date();
+    const mmdd = `${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const today = HOLIDAYS.find((h) => h.date === mmdd);
+    if (!today) return;
+    let dismissed = false;
+    try { dismissed = localStorage.getItem("holidayDismissed") === mmdd; } catch {}
+    if (dismissed) return;
+    const banner = el("div", { class: "holiday-banner" }, [
+      el("span", { class: "holiday-banner-text" }, today.title),
+      el("button", {
+        class: "holiday-banner-close",
+        title: "Скрыть",
+        html: iconSvg("X", 14),
+        onclick: () => {
+          try { localStorage.setItem("holidayDismissed", mmdd); } catch {}
+          banner.remove();
+        },
+      }),
+    ]);
+    shell.appendChild(banner);
+  })();
   const listCol = el("div", { class: "shell-list-col" });
   // Боковая панель — только список чатов. Настройки в ней когда-то были вторым
   // слоем поверх списка (как в Telegram), но в колонке шириной 340px разделам

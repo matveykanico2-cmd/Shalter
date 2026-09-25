@@ -13071,3 +13071,54 @@ p.business-status {
   background: var(--color-accent);
   border-color: var(--color-accent);
 }
+
+/* Реклама вверху чата (views/chatView.js). */
+.chat-ad-slot:empty { display: none; }
+.chat-ad-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  text-align: left;
+  cursor: pointer;
+}
+.chat-ad-banner:hover { background: var(--color-surface); }
+.chat-ad-mark { display: inline-flex; color: var(--color-accent); flex-shrink: 0; }
+.chat-ad-body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.chat-ad-title { font-size: 13px; font-weight: 600; }
+.chat-ad-text {
+  font-size: 12px;
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Баннер праздника в самом верху мессенджера (app.js). */
+.holiday-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 7px 14px;
+  background: linear-gradient(90deg, var(--color-accent), #d9822e);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.holiday-banner-close {
+  display: inline-flex;
+  color: #fff;
+  opacity: 0.85;
+}
+.holiday-banner-close:hover { opacity: 1; }
