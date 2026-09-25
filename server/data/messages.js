@@ -358,6 +358,11 @@ function togglePin(id, pinned) {
 }
 
 function toggleReaction(id, emoji, userId) {
+  // Эмодзи приходит из запроса: пустое или неправдоподобно длинное значение —
+  // не реакция, а мусор в базе. Отсекаем до мутации.
+  const clean = typeof emoji === "string" ? emoji.trim().slice(0, 16) : "";
+  if (!clean) return getMessage(id);
+  emoji = clean;
   return mutate(id, (m) => {
     const reactions = m.reactions.map((r) => ({ ...r, userIds: [...r.userIds] }));
     const existing = reactions.find((r) => r.emoji === emoji);
