@@ -1,4 +1,5 @@
 const express = require("express");
+const { genId } = require("../lib/genId");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { countBotAudience, getBotByUserId, getBotToken, listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotApp, updateBotAppCode, updateBotCode, updateBotCommands, updateBotDescription } = require("../data/bots");
@@ -43,7 +44,7 @@ router.post(
     const botUsername = await generateBotUsername(name);
     if (!botUsername) return res.status(409).json({ error: "Не удалось подобрать свободный юзернейм для бота — измените имя" });
 
-    const userId = `bot_${Date.now()}`;
+    const userId = genId("bot");
     await createUser({
       id: userId,
       name: name.trim(),
@@ -324,7 +325,7 @@ router.post(
     let chat = await findDmBetween(req.uid, bot.userId);
     if (!chat) {
       chat = await createChat({
-        id: `c_${Date.now()}`,
+        id: genId("c"),
         type: "dm",
         memberIds: [req.uid, bot.userId],
         pinned: false,
@@ -336,7 +337,7 @@ router.post(
 
     const code = req.body?.code ?? bot.code ?? "";
     const testMessage = {
-      id: `test_${Date.now()}`,
+      id: genId("test"),
       chatId: chat.id,
       senderId: req.uid,
       text: req.body?.text ?? "/start",

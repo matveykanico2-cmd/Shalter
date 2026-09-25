@@ -1,4 +1,5 @@
 const db = require("../db");
+const { genId } = require("../lib/genId");
 const { listAllMessages } = require("./messages");
 const { listChats } = require("./chats");
 const { listUsers, getUser } = require("./users");
@@ -97,7 +98,7 @@ async function buildUserExport(targetUserId) {
 // export id / confirmation to the admin.
 function logExport({ adminId, targetUserId, reason, messageCount }) {
   const row = {
-    id: `exp_${Date.now()}`,
+    id: genId("exp"),
     adminId,
     targetUserId,
     reason,

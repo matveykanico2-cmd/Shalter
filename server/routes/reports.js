@@ -1,4 +1,5 @@
 const express = require("express");
+const { genId } = require("../lib/genId");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
@@ -97,7 +98,7 @@ router.post(
     const reporter = await getUser(req.uid);
     const subjectUserId = await responsibleUserId(targetType, target);
     const report = await addReport({
-      id: `rp_${Date.now()}`,
+      id: genId("rp"),
       reporterId: req.uid,
       targetType,
       targetId,

@@ -4,6 +4,7 @@
 // are the same shape: two users, an existing-or-new DM between them, one
 // system-authored message broadcast over WS.
 const { findDmBetween, createChat } = require("../data/chats");
+const { genId } = require("./genId");
 const { addMessage } = require("../data/messages");
 const { broadcastToUsers } = require("../ws");
 
@@ -18,7 +19,7 @@ async function findOrCreateDm(userIdA, userIdB) {
   // — chat_members has a (chatId, userId) primary key, so a literal
   // [id, id] would crash the insert with a constraint violation.
   return createChat({
-    id: `c_${Date.now()}`,
+    id: genId("c"),
     type: "dm",
     title: "",
     memberIds: [...new Set([userIdA, userIdB])],

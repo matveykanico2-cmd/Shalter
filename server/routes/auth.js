@@ -1,4 +1,5 @@
 const express = require("express");
+const { genId } = require("../lib/genId");
 const { asyncRoute } = require("../middleware/errors");
 const {
   getCurrentUserId,
@@ -192,7 +193,7 @@ router.post(
     let user;
     try {
       user = await createUser({
-        id: `u_${Date.now()}`,
+        id: genId("u"),
         name: name.trim(),
         username: handle,
         phone: normalizedPhone,

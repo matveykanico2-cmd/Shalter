@@ -1,4 +1,5 @@
 const db = require("../db");
+const { genId } = require("../lib/genId");
 
 // Только живые сеансы.
 //
@@ -22,7 +23,7 @@ async function getSession(userId, deviceId) {
 async function upsertSession({ userId, deviceId, device, location }) {
   const lastActive = new Date().toISOString();
   const existing = db.prepare("SELECT id FROM sessions WHERE userId = ? AND deviceId = ?").get(userId, deviceId);
-  const id = existing?.id ?? `sess_${Date.now()}`;
+  const id = existing?.id ?? genId("sess");
   db.prepare(
     `INSERT INTO sessions (id, userId, deviceId, device, location, lastActive, revokedAt) VALUES (@id, @userId, @deviceId, @device, @location, @lastActive, NULL)
      ON CONFLICT(userId, deviceId) DO UPDATE SET device = @device, location = @location, lastActive = @lastActive, revokedAt = NULL`

@@ -432,6 +432,10 @@ function votePoll(id, optionIndex, userId) {
     const attachments = m.attachments?.map((a) => {
       if (a.kind !== "poll") return a;
       const options = a.meta?.options ?? [];
+      // Номер варианта приходит из запроса — вне диапазона (подделанный или
+      // битый клиент) оставляет опрос как есть, а не роняет запрос обращением
+      // к voterIds[undefined].
+      if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= options.length) return a;
       const voterIds = options.map((_, i) => [...(a.meta?.voterIds?.[i] ?? [])]);
       // В викторине ответ даётся один раз и навсегда: иначе можно перебрать все
       // варианты по очереди и «угадать» с гарантией, а вопрос «знал или нет»

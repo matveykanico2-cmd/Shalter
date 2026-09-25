@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { genId } = require("../lib/genId");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
@@ -31,7 +32,7 @@ router.post(
     const { name, chatIds } = req.body ?? {};
     const folders = await listFoldersFor(req.uid);
     const folder = await createFolder({
-      id: `f_${Date.now()}`,
+      id: genId("f"),
       ownerId: req.uid,
       name,
       chatIds: chatIds ?? [],
@@ -127,7 +128,7 @@ router.post(
 
     const existing = await listFoldersFor(req.uid);
     const created = await createFolder({
-      id: `f_${Date.now()}`,
+      id: genId("f"),
       ownerId: req.uid,
       name: folder.name,
       chatIds,

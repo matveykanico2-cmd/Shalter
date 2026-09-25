@@ -1,4 +1,5 @@
 const db = require("../db");
+const { genId } = require("../lib/genId");
 
 function rowToRow(row) {
   if (!row) return undefined;
@@ -12,7 +13,7 @@ async function listSubscriptionsForUser(userId) {
 // Re-subscribing with the same endpoint (browser re-registers the same
 // service worker) replaces the old row rather than piling up duplicates.
 async function addSubscription(userId, subscription) {
-  const id = `ps_${Date.now()}`;
+  const id = genId("ps");
   db.prepare(
     `INSERT INTO push_subscriptions (id, userId, endpoint, subscription) VALUES (?, ?, ?, ?)
      ON CONFLICT(endpoint) DO UPDATE SET userId = excluded.userId, subscription = excluded.subscription`

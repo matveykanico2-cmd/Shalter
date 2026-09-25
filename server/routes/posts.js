@@ -1,4 +1,5 @@
 const express = require("express");
+const { genId } = require("../lib/genId");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { getChat, updateChat } = require("../data/chats");
@@ -32,7 +33,7 @@ router.post(
     }
 
     let post = await addMessage({
-      id: `m_${Date.now()}`,
+      id: genId("m"),
       chatId: chat.id,
       senderId: req.uid,
       type: "text",

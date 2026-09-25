@@ -1,4 +1,5 @@
 const express = require("express");
+const { genId } = require("../lib/genId");
 const { asyncRoute } = require("../middleware/errors");
 const { requireBotToken } = require("../middleware/botAuth");
 const { getUser, findUserByUsername, updateUser } = require("../data/users");
@@ -823,7 +824,7 @@ router.post(
     const invited = (Array.isArray(memberIds) ? memberIds : []).filter((id) => known.has(id));
     const now = new Date().toISOString();
     const chat = await createChat({
-      id: `c_${Date.now()}`,
+      id: genId("c"),
       type: "group",
       title: String(title).trim().slice(0, 120),
       avatarColor: "#5b8def",
@@ -963,7 +964,7 @@ router.post(
     const { text = "", url } = req.body ?? {};
     if (!text.trim() && !url) return res.status(400).json({ error: "text or url is required" });
     const post = await addMessage({
-      id: `m_${Date.now()}`,
+      id: genId("m"),
       chatId: chat.id,
       senderId: req.bot.userId,
       type: "text",
@@ -1233,7 +1234,7 @@ router.post(
       if (problem) return res.status(problem.status).json({ error: problem.error });
     }
     const chat = await createChat({
-      id: `c_${Date.now()}`,
+      id: genId("c"),
       type: "channel",
       title: String(title).trim().slice(0, 120),
       description: String(description ?? "").trim().slice(0, 300),

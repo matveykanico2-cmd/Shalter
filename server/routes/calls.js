@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { genId } = require("../lib/genId");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
@@ -222,7 +223,7 @@ router.post(
     // caller — other group members are pulled in one at a time via
     // POST /:id/participants, so "add participant" has anyone left to add.
     const call = await createCall({
-      id: `cl_${Date.now()}`,
+      id: genId("cl"),
       chatId,
       kind,
       direction: "outgoing",
@@ -441,7 +442,7 @@ router.post(
     let room = await findActiveRoom(req.params.chatId);
     if (!room) {
       room = await createCall({
-        id: `cl_${Date.now()}`,
+        id: genId("cl"),
         chatId: chat.id,
         kind: "voice-room",
         direction: "outgoing",

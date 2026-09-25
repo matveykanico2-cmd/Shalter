@@ -1,4 +1,5 @@
 const express = require("express");
+const { genId } = require("../lib/genId");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findDmBetween, findChatByInviteCode, findChatByUsername, findChannelByDiscussionChatId } = require("../data/chats");
@@ -56,7 +57,7 @@ router.post(
     if (existing) return res.json({ chat: existing });
 
     const chat = await createChat({
-      id: `c_${Date.now()}`,
+      id: genId("c"),
       type: "dm",
       title,
       avatarColor,
@@ -125,7 +126,7 @@ router.post(
       createdAt: now,
     });
     const channel = await createChat({
-      id: `c_${Date.now()}`,
+      id: genId("c"),
       type: "channel",
       title: title.trim(),
       description: identity.description,
@@ -158,7 +159,7 @@ router.post(
     const members = new Set([req.uid, ...(Array.isArray(memberIds) ? memberIds : [])]);
     const admins = new Set([req.uid, ...(Array.isArray(adminIds) ? adminIds.filter((id) => members.has(id)) : [])]);
     const chat = await createChat({
-      id: `c_${Date.now()}`,
+      id: genId("c"),
       type: "group",
       title: title.trim(),
       description: identity.description,

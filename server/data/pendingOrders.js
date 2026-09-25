@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { genId } = require("../lib/genId");
 const db = require("../db");
 
 // Same "no ambiguous characters" alphabet as users.js's referral codes — a
@@ -29,7 +30,7 @@ function generateOrderCode() {
 
 async function createPendingOrder({ userId, kind, giftId, recipientId, amountRub }) {
   const order = {
-    id: `po_${Date.now()}`,
+    id: genId("po"),
     code: generateOrderCode(),
     userId,
     kind,

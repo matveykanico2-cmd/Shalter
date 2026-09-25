@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { genId } = require("../lib/genId");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { getChat, findChannelByDiscussionChatId } = require("../data/chats");
@@ -327,7 +328,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   const mentionedUserIds = await resolveMentions(body.text, chat.memberIds, senderId);
 
   const message = await addMessage({
-    id: `m_${Date.now()}`,
+    id: genId("m"),
     chatId: chat.id,
     senderId,
     type: body.sticker ? "sticker" : "text",
@@ -653,7 +654,7 @@ router.post(
     }
 
     const scheduled = await addScheduled({
-      id: `sch_${Date.now()}`,
+      id: genId("sch"),
       chatId: req.params.id,
       senderId: req.uid,
       text: body.text ?? "",

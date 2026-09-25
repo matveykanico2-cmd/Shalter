@@ -9,6 +9,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "test": "node --test test/",
     "dev": "USE_BUILD=0 nodemon --exec \"node --env-file-if-exists=config.env --env-file-if-exists=.env\" server/index.js",
     "build": "node scripts/build.js",
     "mail-dns": "node scripts/mail-dns.js",
