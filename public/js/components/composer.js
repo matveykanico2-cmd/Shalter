@@ -788,7 +788,17 @@ export function Composer({
               myEmoji.map((em) =>
                 el(
                   "button",
-                  { class: "composer-custom-emoji", title: em.name || "Эмодзи", onclick: () => insertCustomEmoji(em.scene) },
+                  {
+                    class: "composer-custom-emoji",
+                    title: em.name || "Эмодзи",
+                    // Кастом-эмодзи ведёт себя как стикер: клик сразу отправляет
+                    // его анимированной картинкой (текстовое поле не умеет рисовать
+                    // картинки, поэтому токен [ce:N] тут не годится).
+                    onclick: () => {
+                      if (emojiMenuEl) { emojiMenuEl.remove(); emojiMenuEl = null; }
+                      onSend("", [], { sticker: { kind: "custom", scene: em.scene, name: em.name || "" } });
+                    },
+                  },
                   [renderCustomScene(em.scene, { size: 26 })]
                 )
               )

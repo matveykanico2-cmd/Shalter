@@ -363,7 +363,9 @@ export async function ChatView(root, chatId) {
       id: localId,
       chatId: chat.id,
       senderId: me.id,
-      type: "text",
+      // Стикер (в т.ч. кастом-эмодзи) сразу показываем как стикер, а не пустым
+      // текстовым пузырём до ответа сервера.
+      type: extra?.sticker ? "sticker" : "text",
       text,
       attachments: attachments ?? [],
       replyToId,
