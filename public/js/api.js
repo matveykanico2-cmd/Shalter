@@ -97,6 +97,7 @@ export const api = {
 
   getSafetyLabels: () => req("/api/labels"),
   adminCreateLabel: (label) => req("/api/admin/labels", { method: "POST", body: JSON.stringify(label) }),
+  adminUpdateLabel: (id, patch) => req(`/api/admin/labels/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) }),
   adminDeleteLabel: (id) => req(`/api/admin/labels/${encodeURIComponent(id)}`, { method: "DELETE" }),
   verifyPassword: (password) => req("/api/auth/verify-password", { method: "POST", body: JSON.stringify({ password }) }),
   deleteAccount: (password) => req("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password }) }),

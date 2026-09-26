@@ -3061,6 +3061,7 @@ async function renderModeration(root) {
   // Цвет новой метки безопасности (палитра ниже, при создании).
   const LABEL_COLORS = ["#c6403b", "#d9822e", "#e0a423", "#2f9e5a", "#1c9bd9", "#7c6fd6", "#8a5cf6", "#5a6472"];
   let newLabelColor = LABEL_COLORS[0];
+  let editingLabel = null; // {id, short, label, hint, color} — метка в режиме правки
 
   async function checkMail() {
     mailBusy = true;
@@ -3361,8 +3362,43 @@ async function renderModeration(root) {
         // Свои метки. Пять встроенных лежат в той же таблице и удаляются так же:
         // если администрации они не нужны, навязывать их незачем.
         section("Метки безопасности", [
-          ...(data.labels ?? []).map((l) =>
-            el("div", { class: "settings-toggle-row" }, [
+          ...(data.labels ?? []).map((l) => {
+            if (editingLabel && editingLabel.id === l.id) {
+              const shortI = el("input", { class: "settings-input", value: editingLabel.short, maxlength: 16, oninput: (e) => (editingLabel.short = e.target.value) });
+              const nameI = el("input", { class: "settings-input", value: editingLabel.label, oninput: (e) => (editingLabel.label = e.target.value) });
+              const hintI = el("input", { class: "settings-input", value: editingLabel.hint, oninput: (e) => (editingLabel.hint = e.target.value) });
+              return el("div", { class: "settings-notice-box" }, [
+                el("p", { class: "settings-field-label" }, "Изменить метку"),
+                shortI,
+                nameI,
+                hintI,
+                el(
+                  "div",
+                  { class: "avatar-color-grid" },
+                  LABEL_COLORS.map((c) =>
+                    el("button", { class: `avatar-color-swatch${editingLabel.color === c ? " active" : ""}`, style: `background:${c}`, onclick: () => { editingLabel.color = c; render(); } })
+                  )
+                ),
+                el("div", { class: "settings-toggle-row no-divider" }, [
+                  el("button", {
+                    class: "btn-accent",
+                    onclick: async () => {
+                      lookupError = null;
+                      try {
+                        await api.adminUpdateLabel(l.id, { short: editingLabel.short, label: editingLabel.label, hint: editingLabel.hint, color: editingLabel.color });
+                        editingLabel = null;
+                        await load();
+                      } catch (err) {
+                        lookupError = err.message || "Не удалось сохранить метку";
+                        render();
+                      }
+                    },
+                  }, "Сохранить"),
+                  el("button", { class: "settings-danger-link", onclick: () => { editingLabel = null; render(); } }, "Отмена"),
+                ]),
+              ]);
+            }
+            return el("div", { class: "settings-toggle-row" }, [
               el("div", {}, [
                 el("p", { class: "settings-toggle-title" }, [
                   el("span", { class: "safety-badge safety-mini", style: { background: l.color || "var(--color-danger)", color: "#fff" } }, l.short),
@@ -3370,16 +3406,25 @@ async function renderModeration(root) {
                 ]),
                 el("p", { class: "settings-toggle-hint" }, l.hint || "—"),
               ]),
-              el("button", {
-                class: "settings-danger-link",
-                onclick: async () => {
-                  if (!confirm(`Удалить метку «${l.label}»? Она снимется со всех, кому поставлена.`)) return;
-                  await api.adminDeleteLabel(l.id);
-                  await load();
-                },
-              }, "Удалить"),
-            ])
-          ),
+              el("div", { class: "label-row-actions" }, [
+                el("button", {
+                  class: "settings-danger-link",
+                  onclick: () => {
+                    editingLabel = { id: l.id, short: l.short, label: l.label, hint: l.hint || "", color: l.color || LABEL_COLORS[0] };
+                    render();
+                  },
+                }, "Изменить"),
+                el("button", {
+                  class: "settings-danger-link",
+                  onclick: async () => {
+                    if (!confirm(`Удалить метку «${l.label}»? Она снимется со всех, кому поставлена.`)) return;
+                    await api.adminDeleteLabel(l.id);
+                    await load();
+                  },
+                }, "Удалить"),
+              ]),
+            ]);
+          }),
           el("p", { class: "settings-field-label" }, "Новая метка"),
           newLabelShort,
           newLabelName,

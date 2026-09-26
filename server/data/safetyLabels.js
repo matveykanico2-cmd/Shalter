@@ -38,6 +38,23 @@ function createLabel({ id, short, label, hint, color }) {
   return { label: row };
 }
 
+// Редактирование существующей метки. id менять нельзя (на него ссылаются
+// users.safetyLabel) — меняются надпись, название, пояснение и цвет.
+function updateLabel(id, { short, label, hint, color }) {
+  const existing = getLabel(id);
+  if (!existing) return { error: "Метка не найдена" };
+  const row = {
+    id,
+    short: short === undefined ? existing.short : String(short).trim().slice(0, 16).toUpperCase(),
+    label: label === undefined ? existing.label : String(label).trim().slice(0, 60),
+    hint: hint === undefined ? existing.hint : String(hint).trim().slice(0, 300),
+    color: color === undefined ? existing.color : String(color).trim().slice(0, 24),
+  };
+  if (!row.short || !row.label) return { error: "Нужны короткая надпись и название" };
+  db.prepare("UPDATE safety_labels SET short = @short, label = @label, hint = @hint, color = @color WHERE id = @id").run(row);
+  return { label: getLabel(id) };
+}
+
 // Удаление метки снимает её со всех, кому она была поставлена: иначе у людей
 // остаётся значок, о котором больше никто ничего не знает.
 function deleteLabel(id) {
@@ -45,4 +62,4 @@ function deleteLabel(id) {
   db.prepare("DELETE FROM safety_labels WHERE id = ?").run(id);
 }
 
-module.exports = { listLabels, getLabel, createLabel, deleteLabel };
+module.exports = { listLabels, getLabel, createLabel, updateLabel, deleteLabel };

@@ -13125,3 +13125,10 @@ p.business-status {
   opacity: 0.85;
 }
 .holiday-banner-close:hover { opacity: 1; }
+
+/* Кнопки «Изменить»/«Удалить» у метки безопасности (settings/index.js). */
+.label-row-actions {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
