@@ -381,6 +381,9 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     el("div", { class: "anim-body" }, [
       el("div", { class: "anim-stage" }, [
         previewBox,
+        // Кнопки добавления фигур — слева, под холстом.
+        el("p", { class: "anim-section-title" }, "Добавить"),
+        addBar,
         el("div", { class: "anim-transport" }, [playBtn, autokeyBtn, timeLabel]),
         timelineEl,
         el("p", { class: "anim-tip" }, "Встаньте на момент времени и подвиньте фигуру на холсте — движение запишется ключом."),
@@ -389,7 +392,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
       el("div", { class: "anim-side" }, [
         el("p", { class: "anim-section-title" }, "Слои"),
         layerListEl,
-        addBar,
         el("p", { class: "anim-section-title" }, "Свойства и кадр"),
         panelEl,
       ]),

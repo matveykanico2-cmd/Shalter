@@ -13260,7 +13260,12 @@ p.business-status {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* Никакого горизонтального переполнения — иначе колонки/кнопки могут уехать
+     за край и «пропасть». */
+  overflow-x: hidden;
 }
+.anim-stage { min-width: 0; }
+.anim-transport { flex-wrap: wrap; }
 .anim-stage {
   flex: 0 0 240px;
   display: flex;
