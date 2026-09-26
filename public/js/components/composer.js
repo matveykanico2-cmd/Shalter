@@ -791,17 +791,49 @@ export function Composer({
         myEmoji.length
           ? el(
               "div",
-              { class: "composer-emoji-row" },
+              { class: "composer-custom-emoji-row" },
               myEmoji.map((em) =>
-                el(
-                  "button",
-                  { class: "composer-custom-emoji", title: em.name || "Эмодзи", onclick: () => insertCustomEmoji(em.scene) },
-                  [renderCustomScene(em.scene, { size: 26 })]
-                )
+                el("div", { class: "composer-custom-emoji-item" }, [
+                  el(
+                    "button",
+                    { class: "composer-custom-emoji", title: em.name || "Эмодзи", onclick: () => insertCustomEmoji(em.scene) },
+                    [renderCustomScene(em.scene, { size: 26 })]
+                  ),
+                  el("button", { class: "composer-custom-emoji-edit", title: "Изменить", onclick: () => editMyEmoji(em) }, "✎"),
+                  el("button", { class: "composer-custom-emoji-del", title: "Удалить", onclick: () => deleteMyEmoji(em) }, "✕"),
+                ])
               )
             )
           : el("p", { class: "composer-emoji-empty" }, "Нарисуйте свой первый анимированный эмодзи")
       );
+    }
+
+    // Переделать свой эмодзи в аниматоре.
+    function editMyEmoji(em) {
+      openAnimatorEditor({
+        title: "Изменить эмодзи",
+        saveLabel: "Сохранить",
+        initial: em.scene,
+        onSave: async (scene) => {
+          try {
+            const { emoji } = await api.updateCustomEmoji(em.id, { scene });
+            myEmoji = myEmoji.map((e) => (e.id === emoji.id ? emoji : e));
+            renderEmojiMenu();
+          } catch (err) {
+            alert(err.message || "Не удалось сохранить эмодзи");
+          }
+        },
+      });
+    }
+
+    async function deleteMyEmoji(em) {
+      try {
+        await api.deleteCustomEmoji(em.id);
+        myEmoji = myEmoji.filter((e) => e.id !== em.id);
+        renderEmojiMenu();
+      } catch (err) {
+        alert(err.message || "Не удалось удалить эмодзи");
+      }
     }
 
     function toggleEmoji(host = emojiSlot) {

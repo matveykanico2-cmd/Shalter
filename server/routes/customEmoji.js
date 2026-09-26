@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { listEmojiFor, createEmoji, deleteEmoji, MAX_EMOJI } = require("../data/customEmoji");
+const { listEmojiFor, createEmoji, updateEmoji, deleteEmoji, MAX_EMOJI } = require("../data/customEmoji");
 
 // Кастомные эмодзи, нарисованные пользователем в аниматоре
 // (public/js/components/animatorEditor.js). Хранятся по владельцу и
@@ -22,6 +22,17 @@ router.post(
   asyncRoute(async (req, res) => {
     const { name, scene } = req.body ?? {};
     const result = createEmoji({ ownerId: req.uid, name, scene });
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json({ emoji: result.emoji });
+  })
+);
+
+router.patch(
+  "/:id",
+  asyncRoute(async (req, res) => {
+    const { name, scene } = req.body ?? {};
+    const result = updateEmoji(req.params.id, req.uid, { name, scene });
+    if (result.notFound) return res.status(404).json({ error: "Эмодзи не найден" });
     if (result.error) return res.status(400).json({ error: result.error });
     res.json({ emoji: result.emoji });
   })

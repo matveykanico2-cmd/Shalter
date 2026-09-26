@@ -56,8 +56,27 @@ function createEmoji({ ownerId, name, scene }) {
   return { emoji: getEmoji(row.id) };
 }
 
+// Правка своего эмодзи. Возвращает { emoji } или { error } (нет такого/чужой →
+// вызывающий отдаст 404), либо { error } при негодной сцене.
+function updateEmoji(id, ownerId, { name, scene }) {
+  const existing = db.prepare("SELECT * FROM custom_emoji WHERE id = ? AND ownerId = ?").get(id, ownerId);
+  if (!existing) return { notFound: true };
+  let sceneJson = existing.scene;
+  if (scene !== undefined) {
+    const clean = sanitizeScene(scene, { requireLayers: true });
+    if (!clean) return { error: "Нарисуйте эмодзи — добавьте хотя бы одну фигуру" };
+    sceneJson = JSON.stringify(clean);
+  }
+  db.prepare("UPDATE custom_emoji SET name = ?, scene = ? WHERE id = ?").run(
+    name === undefined ? existing.name : String(name).trim().slice(0, MAX_NAME),
+    sceneJson,
+    id
+  );
+  return { emoji: getEmoji(id) };
+}
+
 function deleteEmoji(id, ownerId) {
   return db.prepare("DELETE FROM custom_emoji WHERE id = ? AND ownerId = ?").run(id, ownerId).changes > 0;
 }
 
-module.exports = { listEmojiFor, getEmoji, createEmoji, deleteEmoji, MAX_EMOJI };
+module.exports = { listEmojiFor, getEmoji, createEmoji, updateEmoji, deleteEmoji, MAX_EMOJI };

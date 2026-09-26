@@ -523,6 +523,7 @@ export const api = {
   // бесплатные, декоративные, дарятся без списания звёзд.
   listCustomGifts: () => req("/api/gifts/custom"),
   createCustomGift: (name, scene) => req("/api/gifts/custom", { method: "POST", body: JSON.stringify({ name, scene }) }),
+  updateCustomGift: (id, patch) => req(`/api/gifts/custom/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteCustomGift: (id) => req(`/api/gifts/custom/${encodeURIComponent(id)}`, { method: "DELETE" }),
   sendCustomGift: (giftId, recipientId) =>
     req("/api/gifts/custom/send", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
@@ -530,6 +531,7 @@ export const api = {
   // Кастомные эмодзи, нарисованные в аниматоре (server/routes/customEmoji.js).
   listCustomEmoji: () => req("/api/custom-emoji"),
   createCustomEmoji: (name, scene) => req("/api/custom-emoji", { method: "POST", body: JSON.stringify({ name, scene }) }),
+  updateCustomEmoji: (id, patch) => req(`/api/custom-emoji/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteCustomEmoji: (id) => req(`/api/custom-emoji/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   getAdsInfo: () => req("/api/ads/me"),

@@ -480,6 +480,20 @@ function createUserGift({ id, ownerId, name, scene, emoji }) {
   });
 }
 
+// Правка своего подарка: имя и/или перерисованная сцена. Эмодзи-подпись всегда
+// пересчитывается из сцены, чтобы уведомления не отставали от рисунка.
+function updateUserGift(id, ownerId, { name, scene, emoji }) {
+  const existing = db.prepare("SELECT * FROM gift_catalog WHERE id = ? AND ownerId = ?").get(id, ownerId);
+  if (!existing) return undefined;
+  db.prepare("UPDATE gift_catalog SET name = ?, scene = ?, emoji = ? WHERE id = ?").run(
+    name === undefined ? existing.name : String(name).trim().slice(0, 60) || existing.name,
+    scene === undefined ? existing.scene : JSON.stringify(scene),
+    emoji === undefined ? existing.emoji : emoji,
+    id
+  );
+  return getUserGift(id, ownerId);
+}
+
 function deleteUserGift(id, ownerId) {
   const res = db.prepare("DELETE FROM gift_catalog WHERE id = ? AND ownerId = ?").run(id, ownerId);
   return res.changes > 0;
@@ -524,6 +538,7 @@ module.exports = {
   setSupply,
   createGift,
   createUserGift,
+  updateUserGift,
   deleteUserGift,
   deleteCustomGift,
   hideBuiltin,

@@ -40,6 +40,7 @@ import {
 } from "../../lib/businessHours.js";
 import { uploadFile } from "../../lib/upload.js";
 import { renderGiftArt } from "../../lib/giftTraits.js";
+import { openAnimatorEditor } from "../../components/animatorEditor.js";
 import { startRecording, isRecordingSupported } from "../../lib/recorder.js";
 import { checkSize } from "../../lib/uploadLimits.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
@@ -4147,7 +4148,7 @@ async function renderGiftShop(root) {
   let busyId = null;
   let notice = null;
   let uploadingGif = false;
-  const draft = { emoji: "", name: "", priceStars: "", supply: "", exclusive: true, forever: true, gifFile: null, gifPreviewUrl: null };
+  const draft = { emoji: "", name: "", priceStars: "", supply: "", exclusive: true, forever: true, gifFile: null, gifPreviewUrl: null, scene: null };
 
   async function load() {
     try {
@@ -4199,12 +4200,15 @@ async function renderGiftShop(root) {
         supply: draft.exclusive ? Number(draft.supply) : null,
         exclusive: draft.exclusive,
         gifUrl,
+        // Нарисованная в аниматоре сцена — рисуется вместо анимации по эмодзи.
+        scene: draft.scene || undefined,
       });
       notice = `Выпущен подарок ${gift.emoji} «${gift.name}»`;
       draft.emoji = "";
       draft.name = "";
       draft.priceStars = "";
       draft.supply = "";
+      draft.scene = null;
       if (draft.gifPreviewUrl) URL.revokeObjectURL(draft.gifPreviewUrl);
       draft.gifFile = null;
       draft.gifPreviewUrl = null;
@@ -4346,12 +4350,36 @@ async function renderGiftShop(root) {
       },
     });
     const gifPicker = el("div", { class: "gift-create-gif-picker" }, [
-      // Превью того, как подарок будет выглядеть: гифка, если загружена, иначе
-      // встроенная анимация по эмодзи (lib/giftTraits.js → renderScene) — это и
-      // есть «встроенный редактор анимаций», без загрузки файла.
-      draft.gifPreviewUrl
-        ? el("img", { src: draft.gifPreviewUrl, class: "gift-create-gif-preview" })
-        : (draft.emoji ? el("div", { class: "gift-create-anim-preview" }, [renderGiftArt({ emoji: draft.emoji }, { size: 72 })]) : null),
+      // Превью того, как подарок будет выглядеть: сначала нарисованная сцена
+      // (аниматор), иначе гифка, иначе встроенная анимация по эмодзи.
+      draft.scene
+        ? el("div", { class: "gift-create-anim-preview" }, [renderGiftArt({ scene: draft.scene }, { size: 72 })])
+        : draft.gifPreviewUrl
+          ? el("img", { src: draft.gifPreviewUrl, class: "gift-create-gif-preview" })
+          : (draft.emoji ? el("div", { class: "gift-create-anim-preview" }, [renderGiftArt({ emoji: draft.emoji }, { size: 72 })]) : null),
+      // Нарисовать подарок в аниматоре — открывается тем же редактором, что и
+      // пользовательские стикеры/эмодзи/подарки (components/animatorEditor.js).
+      el(
+        "button",
+        {
+          class: "btn-accent-pill",
+          type: "button",
+          onclick: () =>
+            openAnimatorEditor({
+              title: "Нарисовать подарок",
+              saveLabel: "Готово",
+              initial: draft.scene,
+              onSave: (scene) => {
+                draft.scene = scene;
+                render();
+              },
+            }),
+        },
+        draft.scene ? "Изменить рисунок" : "✏️ Нарисовать анимацию"
+      ),
+      draft.scene
+        ? el("button", { class: "settings-danger-link", type: "button", onclick: () => { draft.scene = null; render(); } }, "Убрать рисунок")
+        : null,
       el(
         "button",
         { class: "btn-accent-pill", type: "button", disabled: uploadingGif, onclick: () => gifInput.click() },
@@ -4359,7 +4387,7 @@ async function renderGiftShop(root) {
       ),
       draft.gifFile
         ? el("button", { class: "settings-danger-link", type: "button", onclick: () => { if (draft.gifPreviewUrl) URL.revokeObjectURL(draft.gifPreviewUrl); draft.gifFile = null; draft.gifPreviewUrl = null; render(); } }, "Убрать гифку — встроенная анимация")
-        : el("p", { class: "settings-toggle-hint" }, "Без гифки подарок анимируется встроенной анимацией по эмодзи."),
+        : el("p", { class: "settings-toggle-hint" }, "Без гифки и рисунка подарок анимируется встроенной анимацией по эмодзи."),
       gifInput,
     ].filter(Boolean));
 

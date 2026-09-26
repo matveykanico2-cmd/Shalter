@@ -177,6 +177,24 @@ export function openStickerPackDialog(onChanged) {
             draft.stickers.map((s, i) =>
               el("div", { class: "sticker-pack-cell" }, [
                 renderSticker(s, { size: 40 }),
+                // Нарисованный стикер можно открыть в аниматоре и переделать.
+                s.kind === "custom"
+                  ? el("button", {
+                      class: "sticker-pack-edit",
+                      title: "Изменить",
+                      html: iconSvg("Edit", 12),
+                      onclick: () =>
+                        openAnimatorEditor({
+                          title: "Изменить стикер",
+                          saveLabel: "Сохранить",
+                          initial: s.scene,
+                          onSave: (scene) => {
+                            draft.stickers[i] = { ...s, scene, emoji: sceneSummaryEmoji(scene) };
+                            render();
+                          },
+                        }),
+                    })
+                  : null,
                 el("button", {
                   class: "sticker-pack-remove",
                   title: "Убрать",

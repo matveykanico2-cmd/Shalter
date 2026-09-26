@@ -15,6 +15,7 @@ const {
   setSupply,
   createGift,
   createUserGift,
+  updateUserGift,
   deleteUserGift,
   deleteCustomGift,
   hideBuiltin,
@@ -339,6 +340,11 @@ router.post(
     if (!(await requireAdmin(req, res))) return;
     const { emoji, name, priceStars, premiumDays, supply, exclusive, gifUrl } = req.body ?? {};
 
+    // Нарисованная в аниматоре сцена (необязательно) — рисуется вместо анимации
+    // по эмодзи. Эмодзи всё равно нужен как подпись в уведомлениях/списке чатов.
+    const scene = req.body?.scene === undefined ? null : sanitizeScene(req.body.scene, { requireLayers: true });
+    if (req.body?.scene !== undefined && !scene) return res.status(400).json({ error: "Нарисуйте подарок — добавьте хотя бы одну фигуру" });
+
     if (!String(emoji ?? "").trim()) return res.status(400).json({ error: "Укажите эмодзи подарка" });
     if (!String(name ?? "").trim()) return res.status(400).json({ error: "Укажите название подарка" });
     const price = Number(priceStars);
@@ -382,6 +388,7 @@ router.post(
       supply: supplyValue,
       exclusive: !!exclusive,
       mediaUrl,
+      scene,
     });
     res.json({ gift });
   })
@@ -455,6 +462,27 @@ router.post(
         .slice(0, 20) || "gift";
     const id = `ug_${slug}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
     const gift = createUserGift({ id, ownerId: req.uid, name, scene, emoji: sceneSummaryEmoji(scene) });
+    res.json({ gift });
+  })
+);
+
+router.patch(
+  "/custom/:id",
+  asyncRoute(async (req, res) => {
+    const patch = {};
+    if (req.body?.name !== undefined) {
+      const name = String(req.body.name).trim().slice(0, 60);
+      if (!name) return res.status(400).json({ error: "Назовите подарок" });
+      patch.name = name;
+    }
+    if (req.body?.scene !== undefined) {
+      const scene = sanitizeScene(req.body.scene, { requireLayers: true });
+      if (!scene) return res.status(400).json({ error: "Нарисуйте подарок — добавьте хотя бы одну фигуру" });
+      patch.scene = scene;
+      patch.emoji = sceneSummaryEmoji(scene);
+    }
+    const gift = updateUserGift(req.params.id, req.uid, patch);
+    if (!gift) return res.status(404).json({ error: "Подарок не найден" });
     res.json({ gift });
   })
 );

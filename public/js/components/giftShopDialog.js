@@ -110,6 +110,26 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     }
   }
 
+  // Открыть свой подарок в аниматоре и переделать рисунок.
+  function editMine(gift) {
+    openAnimatorEditor({
+      title: "Изменить подарок",
+      saveLabel: "Сохранить",
+      initial: gift.scene,
+      onSave: async (scene) => {
+        try {
+          const { gift: updated } = await api.updateCustomGift(gift.id, { scene });
+          myGifts = myGifts.map((g) => (g.id === updated.id ? updated : g));
+          notice = `Подарок «${updated.name}» обновлён`;
+          render();
+        } catch (err) {
+          error = err.message || "Не удалось сохранить";
+          render();
+        }
+      },
+    });
+  }
+
   async function deleteMine(gift) {
     if (!confirm(`Удалить подарок «${gift.name}»?`)) return;
     try {
@@ -185,6 +205,11 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
   // Карточка своего подарка: клик — подарить (бесплатно), крестик — удалить.
   function mineCard(g) {
     return el("div", { class: "gs-card gs-card-mine" }, [
+      el("button", {
+        class: "gs-card-edit",
+        title: "Изменить",
+        onclick: (e) => { e.stopPropagation(); editMine(g); },
+      }, "✎"),
       el("button", {
         class: "gs-card-del",
         title: "Удалить",

@@ -8319,6 +8319,19 @@
   background: var(--color-danger);
   color: #fff;
 }
+.sticker-pack-edit {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent, #ff8a3d);
+  color: #fff;
+}
 /* ── Status wardrobe (components/profileStatusDialog.js) ─────────────────── */
 .status-cell {
   display: flex;
@@ -13461,10 +13474,10 @@ p.business-status {
   cursor: pointer;
 }
 .gs-card-inner:hover { background: var(--color-surface-alt); }
-.gs-card-del {
+.gs-card-del,
+.gs-card-edit {
   position: absolute;
   top: 2px;
-  right: 2px;
   z-index: 2;
   width: 20px;
   height: 20px;
@@ -13477,3 +13490,42 @@ p.business-status {
   cursor: pointer;
   padding: 0;
 }
+.gs-card-del { right: 2px; }
+.gs-card-edit { left: 2px; }
+
+/* Свои эмодзи в пикере: превью + изменить/удалить (composer.js) */
+.composer-custom-emoji-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.composer-custom-emoji-item {
+  position: relative;
+  display: inline-flex;
+}
+.composer-custom-emoji-item .composer-custom-emoji {
+  background: rgba(128, 128, 128, 0.1);
+  border: none;
+  border-radius: 8px;
+  padding: 3px;
+  cursor: pointer;
+}
+.composer-custom-emoji-edit,
+.composer-custom-emoji-del {
+  position: absolute;
+  top: -5px;
+  width: 15px;
+  height: 15px;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: none;
+}
+.composer-custom-emoji-edit { left: -5px; background: var(--accent, #ff8a3d); }
+.composer-custom-emoji-del { right: -5px; background: var(--color-danger, #ff5d73); }
+.composer-custom-emoji-item:hover .composer-custom-emoji-edit,
+.composer-custom-emoji-item:hover .composer-custom-emoji-del { display: flex; align-items: center; justify-content: center; }
