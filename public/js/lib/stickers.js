@@ -1,5 +1,6 @@
 import { el } from "./dom.js";
 import { renderScene } from "./animScenes.js";
+import { renderCustomScene } from "./customScene.js";
 
 // A curated "sticker" catalog — big animated emoji sent as their own message
 // (see components/messageBubble.js's StickerMessage), each with its own
@@ -67,6 +68,11 @@ export function getSticker(id) {
 // - своя картинка (kind: "image") — фото, PNG без фона или GIF. Показывается
 //   как есть, без подложки: прозрачное остаётся прозрачным, GIF двигается.
 export function renderSticker(s, { size = 30, replay = false } = {}) {
+  // Своя анимация из аниматора (lib/customScene.js) — векторная сцена из
+  // движущихся фигур, собранная пользователем в components/animatorEditor.js.
+  if (s?.kind === "custom") {
+    return renderCustomScene(s.scene, { size, replay });
+  }
   if (s?.kind === "image") {
     return el("img", {
       class: "sticker-image",

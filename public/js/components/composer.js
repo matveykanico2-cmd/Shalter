@@ -11,6 +11,8 @@ import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openScheduleSendDialog } from "./scheduleSendDialog.js";
 import { STICKERS, DRAWN_STICKERS, renderSticker } from "../lib/stickers.js";
 import { openStickerPackDialog } from "./stickerPackDialog.js";
+import { openAnimatorEditor } from "./animatorEditor.js";
+import { renderCustomScene } from "../lib/customScene.js";
 import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
 import { startLiveLocationSharing } from "../lib/liveLocation.js";
 
@@ -107,6 +109,11 @@ export function Composer({
   function renderIdleBody() {
     clear(bodySlot);
 
+    // Кастомные эмодзи, вставленные в текущий черновик: сцены, на которые
+    // ссылаются токены [ce:N] в тексте (см. lib/customScene.js, formatText.js).
+    // Уходят с сообщением как отдельный массив и обнуляются после отправки.
+    let draftEmoji = [];
+
     const textarea = el("textarea", {
       class: "composer-textarea",
       rows: 1,
@@ -187,12 +194,37 @@ export function Composer({
       textarea.style.height = Math.min(textarea.scrollHeight, 240) + "px";
     }
 
+    // Вставка кастомного эмодзи в текст на месте курсора: сцена кладётся в
+    // draftEmoji, а в текст встаёт токен [ce:N] с её индексом.
+    function insertCustomEmoji(scene) {
+      const idx = draftEmoji.length;
+      draftEmoji.push(scene);
+      const token = `[ce:${idx}]`;
+      const pos = textarea.selectionStart ?? textarea.value.length;
+      const before = textarea.value.slice(0, pos);
+      const after = textarea.value.slice(pos);
+      textarea.value = before + token + after;
+      textarea.focus();
+      const np = before.length + token.length;
+      textarea.setSelectionRange(np, np);
+      autoResize();
+      updateTrailingButtons();
+      if (!editingMessage) scheduleDraftSave(textarea.value);
+    }
+
     function submit() {
       const trimmed = textarea.value.trim();
       if (!trimmed) return;
       if (editingMessage) onSaveEdit(trimmed);
       else {
-        onSend(trimmed, [], postAsChat ? { anonymous: true } : undefined);
+        onSend(trimmed, [], {
+          ...(postAsChat ? { anonymous: true } : {}),
+          // Черновик мог сослаться на эмодзи и потом стереть токен — неважно:
+          // лишние сцены сервер отбросит по индексам, а токены рисуются из этого
+          // массива по позиции.
+          ...(draftEmoji.length ? { customEmoji: draftEmoji.slice() } : {}),
+        });
+        draftEmoji = [];
         clearDraft();
       }
       textarea.value = "";
@@ -714,34 +746,84 @@ export function Composer({
     // that normally opens it isn't on screen — it's in the paperclip menu, and
     // the picker has to anchor to the paperclip instead.
     let emojiMenuEl = null;
+    let myEmoji = [];
+    function insertPlainEmoji(e) {
+      const pos = textarea.selectionStart ?? textarea.value.length;
+      textarea.value = textarea.value.slice(0, pos) + e + textarea.value.slice(pos);
+      textarea.focus();
+      textarea.setSelectionRange(pos + e.length, pos + e.length);
+      autoResize();
+      if (!editingMessage) scheduleDraftSave(textarea.value);
+    }
+
+    function renderEmojiMenu() {
+      if (!emojiMenuEl) return;
+      clear(emojiMenuEl);
+      emojiMenuEl.append(
+        el(
+          "div",
+          { class: "composer-emoji-row" },
+          EMOJI.map((e) => el("button", { onclick: () => insertPlainEmoji(e) }, e))
+        ),
+        el("div", { class: "composer-emoji-heading" }, [
+          el("span", {}, "Мои эмодзи"),
+          // Нарисовать свой анимированный эмодзи в аниматоре (lib/customScene.js).
+          el("button", {
+            class: "composer-emoji-create",
+            title: "Нарисовать эмодзи",
+            onclick: () =>
+              openAnimatorEditor({
+                title: "Нарисовать эмодзи",
+                saveLabel: "Сохранить эмодзи",
+                onSave: async (scene) => {
+                  try {
+                    const { emoji } = await api.createCustomEmoji("", scene);
+                    myEmoji = [emoji, ...myEmoji];
+                    insertCustomEmoji(emoji.scene);
+                    renderEmojiMenu();
+                  } catch (err) {
+                    alert(err.message || "Не удалось сохранить эмодзи");
+                  }
+                },
+              }),
+          }, "＋"),
+        ]),
+        myEmoji.length
+          ? el(
+              "div",
+              { class: "composer-emoji-row" },
+              myEmoji.map((em) =>
+                el(
+                  "button",
+                  { class: "composer-custom-emoji", title: em.name || "Эмодзи", onclick: () => insertCustomEmoji(em.scene) },
+                  [renderCustomScene(em.scene, { size: 26 })]
+                )
+              )
+            )
+          : el("p", { class: "composer-emoji-empty" }, "Нарисуйте свой первый анимированный эмодзи")
+      );
+    }
+
     function toggleEmoji(host = emojiSlot) {
       if (emojiMenuEl) {
         emojiMenuEl.remove();
         emojiMenuEl = null;
         return;
       }
-      emojiMenuEl = el(
-        "div",
-        // Opened from the paperclip (the only way in on a phone) it hangs off
-        // the left edge of the row, so it has to open rightwards or it lands
-        // off the side of the screen.
-        { class: `composer-emoji-picker ${host === attachSlot ? "anchored-left" : ""}` },
-        EMOJI.map((e) =>
-          el(
-            "button",
-            {
-              onclick: () => {
-                textarea.value += e;
-                autoResize();
-                textarea.focus();
-                if (!editingMessage) scheduleDraftSave(textarea.value);
-              },
-            },
-            e
-          )
-        )
-      );
+      // Opened from the paperclip (the only way in on a phone) it hangs off
+      // the left edge of the row, so it has to open rightwards or it lands
+      // off the side of the screen.
+      emojiMenuEl = el("div", { class: `composer-emoji-picker has-sections ${host === attachSlot ? "anchored-left" : ""}` });
       host.appendChild(emojiMenuEl);
+      renderEmojiMenu();
+      // Свои эмодзи подгружаются один раз при первом открытии.
+      api
+        .listCustomEmoji()
+        .then(({ emoji }) => {
+          myEmoji = emoji ?? [];
+          renderEmojiMenu();
+        })
+        .catch(() => {});
     }
     const emojiBtn = el("button", {
       class: "composer-icon-btn",
@@ -763,7 +845,9 @@ export function Composer({
         sticker:
           s.kind === "image"
             ? { kind: "image", url: s.url, name: s.name, animated: s.animated }
-            : { emoji: s.emoji, name: s.name, anim: s.anim, scene: s.scene },
+            : s.kind === "custom"
+              ? { kind: "custom", scene: s.scene, emoji: s.emoji, name: s.name }
+              : { emoji: s.emoji, name: s.name, anim: s.anim, scene: s.scene },
       });
     }
 

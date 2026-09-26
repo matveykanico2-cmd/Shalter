@@ -152,13 +152,17 @@ function GiftMessage(message, mine, isChannel) {
     gift.fromName ? el("p", { class: "gift-message-from" }, `от ${gift.fromName}`) : null,
     isExclusive ? el("p", { class: "gift-message-exclusive-label" }, "Эксклюзивный подарок") : null,
     gift.durationLabel ? el("p", { class: "gift-message-duration" }, gift.durationLabel) : null,
-    el("p", { class: "mono gift-message-price" }, `⭐ ${formatRub(giftStars(gift))}`),
+    // Нарисованный подарок бесплатный — цену не показываем и на звёзды не меняем
+    // (сервер такой обмен и не даст, routes/gifts.js's /convert).
+    el("p", { class: "mono gift-message-price" }, gift.custom ? "Бесплатный подарок" : `⭐ ${formatRub(giftStars(gift))}`),
     // Only on the card of a gift *you* received: keep it on the profile, or trade
     // it back for stars (routes/gifts.js's /convert).
     !mine
       ? el("div", { class: "gift-message-actions" }, [
           el("button", { class: "gift-card-action", onclick: () => openProfileDialog(getState().user.id) }, "Показать в профиле"),
-          el("button", { class: "gift-card-action muted", onclick: () => convertGift(gift) }, `Обменять на ${formatRub(giftStars(gift))} ⭐`),
+          gift.custom
+            ? null
+            : el("button", { class: "gift-card-action muted", onclick: () => convertGift(gift) }, `Обменять на ${formatRub(giftStars(gift))} ⭐`),
         ])
       : null,
     entranceMessageMeta(message, mine, isChannel),
@@ -697,7 +701,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     const jumboCount = !message.attachments?.length ? jumboEmojiCount(message.text) : 0;
     const textNode = jumboCount
       ? el("span", { class: `message-text message-text-jumbo jumbo-${jumboCount}` }, message.text)
-      : el("span", { class: "message-text" }, formatText(message.text, members));
+      : el("span", { class: "message-text" }, formatText(message.text, members, message.customEmoji));
     // Сообщение, за которое незнакомый человек заплатил звёздами, печатается
     // на экране, а не появляется разом. Это не украшение: платное письмо — чья-
     // то попытка достучаться, и отдельное движение сообщает об этом яснее, чем

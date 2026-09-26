@@ -5,6 +5,21 @@ const { asyncRoute } = require("../middleware/errors");
 const { getChat, findChannelByDiscussionChatId } = require("../data/chats");
 const { sanitizeAttachments, isSafeUrl } = require("../lib/sanitizeAttachments");
 const { sanitizeSticker } = require("../lib/sanitizeSticker");
+const { sanitizeScene } = require("../lib/sanitizeScene");
+
+// Кастомные эмодзи сообщения: массив сцен, на который ссылаются токены [ce:N] в
+// тексте (public/js/lib/customScene.js). Каждый — пользовательский контент,
+// уходящий в чужой чат, поэтому прогоняется через тот же sanitizeScene, что и
+// нарисованные стикеры/подарки. Пустой массив/мусор → поле не сохраняется.
+const MAX_MESSAGE_EMOJI = 24;
+function sanitizeMessageEmoji(input) {
+  if (!Array.isArray(input) || input.length === 0) return undefined;
+  // Позиции сохраняем: токен [ce:N] ссылается на N-й элемент, поэтому битую
+  // сцену заменяем на null (клиент это переживёт — formatText отрисует токен
+  // текстом), а не выкидываем, иначе сдвинулись бы индексы соседних.
+  const cleaned = input.slice(0, MAX_MESSAGE_EMOJI).map((scene) => sanitizeScene(scene, { requireLayers: true }) ?? null);
+  return cleaned.some(Boolean) ? cleaned : undefined;
+}
 const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, markChatRead, setLinkPreview, updateLiveLocation, setAttachmentPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
 const { getUser, findUserIdsByUsernames } = require("../data/users");
 const { transferStars, balanceOf } = require("../data/stars");
@@ -354,6 +369,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
     attachments: markPendingPreviews(sanitizeAttachments(body.attachments)),
     forwardedFrom,
     sticker: sanitizeSticker(body.sticker),
+    customEmoji: sanitizeMessageEmoji(body.customEmoji),
     readByIds: [senderId],
     paidStars,
     // "Отправить от имени группы" — re-checked server-side, not trusted from

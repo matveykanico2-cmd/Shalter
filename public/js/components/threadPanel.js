@@ -142,7 +142,7 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
     }
     return el("div", { class: "thread-reply-row" }, [
       personLine(m.senderId),
-      el("div", { class: "thread-reply-text message-text" }, formatText(m.text || "Медиа", members)),
+      el("div", { class: "thread-reply-text message-text" }, formatText(m.text || "Медиа", members, m.customEmoji)),
       el("span", { class: "thread-reply-time" }, [timeLabel(m.createdAt), m.editedAt ? " · изм." : ""]),
       own || canDeleteReply(m)
         ? el("div", { class: "comment-actions thread-reply-actions" }, [
@@ -160,7 +160,7 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
   function renderBody() {
     clear(body);
     body.append(
-      el("div", { class: "thread-root" }, [personLine(rootMessage.senderId), el("div", { class: "message-text" }, formatText(rootMessage.text || "Медиа", members))]),
+      el("div", { class: "thread-root" }, [personLine(rootMessage.senderId), el("div", { class: "message-text" }, formatText(rootMessage.text || "Медиа", members, rootMessage.customEmoji))]),
       el("p", { class: "list-section-label thread-replies-label" }, `${source?.repliesLabel ?? "Ответы"} (${replies.length})`),
       ...(replies.length ? replies.map(replyRow) : [el("p", { class: "empty-hint" }, emptyHint ?? "Пока нет ответов — начните тему первым")])
     );

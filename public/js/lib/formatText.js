@@ -4,6 +4,7 @@ import { openInAppBrowser, checkLinkSafety } from "../components/inAppBrowser.js
 import { openProfileDialog } from "../components/profileDialog.js";
 import { getState } from "../state.js";
 import { api } from "../api.js";
+import { renderCustomScene } from "./customScene.js";
 
 // Vanilla-JS port of components/chat/formatText.tsx — same markdown-like
 // shortcuts (**bold**, *italic*, `code`, ~~strike~~, ||spoiler||, > quote,
@@ -15,22 +16,35 @@ import { api } from "../api.js";
 // doesn't match anyone in the chat (a stray "@handle" from a pasted link,
 // someone no longer in the group, etc.) just renders as plain styled text,
 // same as before this list existed.
-export function formatText(text, members) {
+// `emoji` (необязательно) — массив кастомных эмодзи-сцен, приложенных к
+// сообщению (см. server/data/messages.js). Токен `[ce:N]` в тексте — это N-й
+// элемент массива, который рисуется маленькой анимированной сценой прямо в
+// строке. Сцена лежит в самом сообщении, поэтому её видит любой получатель, не
+// дозапрашивая ничего у автора.
+export function formatText(text, members, emoji) {
   const lines = text.split("\n");
   return el(
     "span",
     {},
     lines.map((line, i) => {
       const isQuote = line.startsWith("> ");
-      const content = renderInline(isQuote ? line.slice(2) : line, members);
+      const content = renderInline(isQuote ? line.slice(2) : line, members, emoji);
       return el("span", { class: "block" }, isQuote ? el("span", { class: "quote-line" }, content) : content);
     })
   );
 }
 
-function renderInline(text, members) {
-  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|~~[^~]+~~|\|\|[^|]+\|\||@\w+|https?:\/\/\S+)/g);
+function renderInline(text, members, emoji) {
+  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|~~[^~]+~~|\|\|[^|]+\|\||\[ce:\d+\]|@\w+|https?:\/\/\S+)/g);
   return tokens.filter(Boolean).map((tok) => {
+    // Кастомный эмодзи: [ce:N] → N-я сцена из приложенного к сообщению массива.
+    const ce = /^\[ce:(\d+)\]$/.exec(tok);
+    if (ce) {
+      const scene = emoji?.[Number(ce[1])];
+      // Нет сцены (сообщение без вложений или битый индекс) — не теряем текст.
+      if (!scene) return document.createTextNode(tok);
+      return el("span", { class: "inline-custom-emoji" }, [renderCustomScene(scene, { size: 22 })]);
+    }
     if (tok.startsWith("**") && tok.endsWith("**")) return el("b", {}, tok.slice(2, -2));
     if (tok.startsWith("`") && tok.endsWith("`")) return el("code", { class: "inline-code" }, tok.slice(1, -1));
     if (tok.startsWith("~~") && tok.endsWith("~~")) return el("s", { class: "strike" }, tok.slice(2, -2));

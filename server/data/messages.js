@@ -20,6 +20,10 @@ function rowToMessage(row) {
     keyboard: row.keyboard ? JSON.parse(row.keyboard) : undefined,
     gift: row.gift ? JSON.parse(row.gift) : undefined,
     sticker: row.sticker ? JSON.parse(row.sticker) : undefined,
+    // Кастомные эмодзи-сцены, вставленные в текст токенами [ce:N]
+    // (public/js/lib/customScene.js, formatText.js). Self-contained: сцена
+    // едет в самом сообщении, получателю не нужно ничего дозапрашивать.
+    customEmoji: row.customEmoji ? JSON.parse(row.customEmoji) : undefined,
     linkPreview: row.linkPreview ? JSON.parse(row.linkPreview) : undefined,
     report: row.report ? JSON.parse(row.report) : undefined,
     reactions: JSON.parse(row.reactions),
@@ -186,8 +190,8 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, storyReply, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous)
-     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @storyReply, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, customEmoji, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, storyReply, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous)
+     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @customEmoji, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @storyReply, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous)`
   ).run({
     id: message.id,
     chatId: message.chatId,
@@ -205,6 +209,7 @@ async function addMessage(message) {
     keyboard: message.keyboard ? JSON.stringify(message.keyboard) : null,
     gift: message.gift ? JSON.stringify(message.gift) : null,
     sticker: message.sticker ? JSON.stringify(message.sticker) : null,
+    customEmoji: message.customEmoji ? JSON.stringify(message.customEmoji) : null,
     report: message.report ? JSON.stringify(message.report) : null,
     reactions: JSON.stringify(message.reactions ?? []),
     readByIds: JSON.stringify(message.readByIds ?? []),

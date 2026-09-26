@@ -5,6 +5,8 @@ import { SCENES } from "../lib/animScenes.js";
 import { renderSticker } from "../lib/stickers.js";
 import { prepareStickerImage } from "../lib/image.js";
 import { uploadFile } from "../lib/upload.js";
+import { openAnimatorEditor } from "./animatorEditor.js";
+import { sceneSummaryEmoji } from "../lib/customScene.js";
 
 // Building and editing your own sticker packs.
 //
@@ -194,6 +196,19 @@ export function openStickerPackDialog(onChanged) {
         onclick: () => imageInput.click(),
       }, uploadingCount > 0 ? `Загружаем… (${uploadingCount})` : "Добавить фото, PNG без фона или GIF"),
       imageInput,
+      el("button", {
+        class: "profile-action-btn sticker-add-image-btn",
+        onclick: () =>
+          openAnimatorEditor({
+            title: "Нарисовать стикер",
+            saveLabel: "Добавить в пак",
+            onSave: (scene) => {
+              draft.stickers.push({ kind: "custom", scene, emoji: sceneSummaryEmoji(scene), name: "" });
+              error = null;
+              render();
+            },
+          }),
+      }, "✏️ Нарисовать свою анимацию"),
       el("p", { class: "settings-field-label" }, "Или эмодзи с анимацией"),
       el("div", { class: "sticker-add-row" }, [emojiInput, labelInput]),
       el("div", { class: "sticker-add-row" }, [sceneSelect, el("button", { class: "btn-accent-pill", onclick: addSticker }, "Добавить")]),

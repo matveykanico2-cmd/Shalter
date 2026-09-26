@@ -483,6 +483,20 @@ CREATE TABLE IF NOT EXISTS sticker_packs (
 );
 CREATE INDEX IF NOT EXISTS idx_sticker_packs_owner ON sticker_packs(ownerId);
 
+-- Кастомные эмодзи, нарисованные пользователем в аниматоре (public/js/lib/
+-- customScene.js). Как и стикеры в паке, эмодзи-сцена уходит в чужие чаты, но
+-- вставляется прямо в текст сообщения (server/data/messages.js). Сцена лежит
+-- JSON-колонкой: её только читают/пишут целиком, а не запрашивают по полям, —
+-- то же правило, что у стикеров пака.
+CREATE TABLE IF NOT EXISTS custom_emoji (
+  id TEXT PRIMARY KEY,
+  ownerId TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  scene TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_custom_emoji_owner ON custom_emoji(ownerId);
+
 -- Admin-editable layer over the shipped gift catalogue (server/data/gifts.js).
 -- Two kinds of row live here, told apart by the custom flag:
 --   custom = 0 — an override for a built-in gift. Only its supply is read; the
@@ -887,12 +901,31 @@ if (!existingGiftCatalogCols.has("priceStars")) db.exec("ALTER TABLE gift_catalo
 // server/lib/giftMedia.js, in place of the emoji-based animation
 // (public/js/lib/animScenes.js) — see server/routes/gifts.js's /catalog route.
 if (!existingGiftCatalogCols.has("mediaUrl")) db.exec("ALTER TABLE gift_catalog ADD COLUMN mediaUrl TEXT");
+// Скрытый подарок: убран из витрины админом. Встроенные (их 286 штук в коде,
+// server/data/gifts.js) нельзя удалить физически — за них цепляются копии на
+// чужих профилях, — поэтому «удаление» встроенного подарка это override-строка
+// с hidden = 1, обратимая через восстановление. У custom-подарков скрытие тоже
+// применимо (мягкое удаление уже выпущенного), но нетронутый custom удаляется
+// физически. Custom-строку одновременно можно ещё и хранить со scene (ниже).
+if (!existingGiftCatalogCols.has("hidden")) db.exec("ALTER TABLE gift_catalog ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0");
+// Пользовательская анимированная сцена (аниматор, public/js/lib/customScene.js)
+// вместо эмодзи/гифки — так админ и обычный пользователь рисуют свой подарок
+// прямо в приложении. Проверяется server/lib/sanitizeScene.js.
+if (!existingGiftCatalogCols.has("scene")) db.exec("ALTER TABLE gift_catalog ADD COLUMN scene TEXT");
+// Автор custom-подарка. У админских — null (они общие, лежат в витрине); у
+// пользовательских подарков это владелец: он видит их в своей вкладке и только
+// он может подарить или удалить.
+if (!existingGiftCatalogCols.has("ownerId")) db.exec("ALTER TABLE gift_catalog ADD COLUMN ownerId TEXT");
 
 // A message boosted with stars stays highlighted and pinned to the top of the
 // chat until this moment passes (server/routes/stars.js).
 const existingMessageCols = new Set(db.prepare("PRAGMA table_info(messages)").all().map((c) => c.name));
 if (!existingMessageCols.has("boostedUntil")) db.exec("ALTER TABLE messages ADD COLUMN boostedUntil TEXT");
 if (!existingMessageCols.has("boostedById")) db.exec("ALTER TABLE messages ADD COLUMN boostedById TEXT");
+// Кастомные эмодзи-сцены, вставленные в текст токенами [ce:N] (аниматор,
+// public/js/lib/customScene.js; отрисовка — formatText.js). JSON-массив сцен,
+// едущий в самом сообщении, — получателю не нужно дозапрашивать их у автора.
+if (!existingMessageCols.has("customEmoji")) db.exec("ALTER TABLE messages ADD COLUMN customEmoji TEXT");
 
 // A role between member and admin: a moderator can mute and remove people, but
 // cannot change the chat itself or hand out roles (server/routes/chats.js).

@@ -197,6 +197,7 @@ app.use("/app", require("./routes/miniAppHost"));
 app.use("/api/downloads", require("./routes/downloads"));
 app.use("/api/hugo", require("./routes/hugo"));
 app.use("/api/stickers", require("./routes/stickers"));
+app.use("/api/custom-emoji", require("./routes/customEmoji"));
 app.use("/api/stars", require("./routes/stars"));
 app.use("/api/support", require("./routes/support"));
 app.use("/api/partners", require("./routes/partners"));

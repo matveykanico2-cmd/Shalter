@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { renderGiftArt } from "../lib/giftTraits.js";
 import { openStarsDialog } from "./starsDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
+import { openAnimatorEditor } from "./animatorEditor.js";
 
 // The gift shop: priced in stars, paid from the balance, delivered instantly.
 //
@@ -15,6 +16,8 @@ const TABS = [
   { id: "all", label: "Все подарки" },
   { id: "rare", label: "Редкие" },
   { id: "available", label: "В наличии" },
+  // Свои подарки, нарисованные в аниматоре — бесплатные и дарятся без звёзд.
+  { id: "mine", label: "Мои" },
 ];
 // Price shortcuts, matching the cheap end of the catalogue where most of it sits.
 const PRICE_TABS = [10, 20, 30, 50];
@@ -27,6 +30,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
   let error = null;
   let notice = null;
   let busyId = null;
+  let myGifts = []; // свои нарисованные подарки (вкладка «Мои»)
   let target = recipient; // null = buying for yourself
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
@@ -51,8 +55,68 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
       const res = await api.listGifts();
       gifts = res.gifts;
       balance = res.balance ?? 0;
+      const mine = await api.listCustomGifts();
+      myGifts = mine.gifts ?? [];
     } catch (err) {
       error = err.message || "Не удалось загрузить подарки";
+    }
+    render();
+  }
+
+  // Нарисовать свой подарок в аниматоре и сохранить в «Мои».
+  function createMine() {
+    openAnimatorEditor({
+      title: "Нарисовать подарок",
+      saveLabel: "Сохранить подарок",
+      onSave: async (scene) => {
+        const name = (prompt("Название подарка") || "").trim();
+        if (!name) return;
+        try {
+          const { gift } = await api.createCustomGift(name, scene);
+          myGifts = [gift, ...myGifts];
+          notice = `Подарок «${gift.name}» сохранён`;
+          render();
+        } catch (err) {
+          error = err.message || "Не удалось сохранить";
+          render();
+        }
+      },
+    });
+  }
+
+  // Подарить свой подарок — бесплатно. Без получателя сначала спросим кого.
+  async function sendMine(gift) {
+    if (!target) {
+      openContactPickerDialog((picked) => {
+        target = picked;
+        sendMine(gift);
+      }, "Кому подарить");
+      return;
+    }
+    if (busyId) return;
+    busyId = gift.id;
+    error = null;
+    notice = null;
+    render();
+    try {
+      await api.sendCustomGift(gift.id, target.id);
+      notice = `«${gift.name}» отправлен — ${target.name}`;
+      onSent?.();
+    } catch (err) {
+      error = err.message || "Не удалось отправить подарок";
+    } finally {
+      busyId = null;
+      render();
+    }
+  }
+
+  async function deleteMine(gift) {
+    if (!confirm(`Удалить подарок «${gift.name}»?`)) return;
+    try {
+      await api.deleteCustomGift(gift.id);
+      myGifts = myGifts.filter((g) => g.id !== gift.id);
+    } catch (err) {
+      error = err.message || "Не удалось удалить";
     }
     render();
   }
@@ -118,6 +182,26 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     );
   }
 
+  // Карточка своего подарка: клик — подарить (бесплатно), крестик — удалить.
+  function mineCard(g) {
+    return el("div", { class: "gs-card gs-card-mine" }, [
+      el("button", {
+        class: "gs-card-del",
+        title: "Удалить",
+        onclick: (e) => { e.stopPropagation(); deleteMine(g); },
+      }, "✕"),
+      el(
+        "button",
+        { class: "gs-card-inner", disabled: busyId === g.id, title: `Подарить «${g.name}»`, onclick: () => sendMine(g) },
+        [
+          el("span", { class: "gs-card-art" }, [renderGiftArt(g, { size: 44, replay: false })]),
+          el("span", { class: "gs-card-name" }, g.name),
+          el("span", { class: "gs-card-price" }, "Бесплатно"),
+        ]
+      ),
+    ]);
+  }
+
   function render() {
     balanceEl.textContent = "";
     balanceEl.append(el("span", { class: "gs-balance-label" }, "Баланс"), el("span", { class: "gs-balance-value" }, `⭐ ${fmt(balance)}`));
@@ -152,9 +236,16 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
             ),
           ]
         ),
-        list.length
-          ? el("div", { class: "gs-grid" }, list.map(card))
-          : el("p", { class: "moderation-empty" }, "Под фильтр ничего не подошло"),
+        tab === "mine"
+          ? el("div", { class: "gs-mine" }, [
+              el("button", { class: "gs-recipient-btn gs-create-gift", onclick: createMine }, "✏️ Нарисовать подарок"),
+              myGifts.length
+                ? el("div", { class: "gs-grid" }, myGifts.map(mineCard))
+                : el("p", { class: "moderation-empty" }, "Пока нет своих подарков — нарисуйте первый"),
+            ])
+          : list.length
+            ? el("div", { class: "gs-grid" }, list.map(card))
+            : el("p", { class: "moderation-empty" }, "Под фильтр ничего не подошло"),
       ].filter(Boolean)
     );
   }

@@ -4220,12 +4220,29 @@ async function renderGiftShop(root) {
   async function removeGift(gift) {
     error = null;
     notice = null;
+    // Встроенный или уже выпущенный подарок физически не удалить — он прячется
+    // из витрины (и восстановим), поэтому и подтверждение, и текст об этом.
+    const canHardDelete = gift.custom && !gift.ownerId && (gift.issued ?? 0) === 0;
+    if (!canHardDelete && !confirm(`Скрыть «${gift.name}» из витрины? Уже подаренные экземпляры останутся у людей. Подарок можно вернуть.`)) return;
     try {
-      await api.adminDeleteGift(gift.id);
-      notice = `Подарок «${gift.name}» удалён`;
+      const res = await api.adminDeleteGift(gift.id);
+      notice = res.hidden ? `Подарок «${gift.name}» скрыт из витрины` : `Подарок «${gift.name}» удалён`;
       data = await api.adminGiftCatalog();
     } catch (err) {
       error = err.message || "Не удалось удалить";
+    }
+    render();
+  }
+
+  async function restoreGift(gift) {
+    error = null;
+    notice = null;
+    try {
+      await api.adminRestoreGift(gift.id);
+      notice = `Подарок «${gift.name}» возвращён в витрину`;
+      data = await api.adminGiftCatalog();
+    } catch (err) {
+      error = err.message || "Не удалось восстановить";
     }
     render();
   }
@@ -4234,17 +4251,26 @@ async function renderGiftShop(root) {
   // удалять можно только свой и пока его никто не получил (иначе у людей на
   // профилях останется подарок без карточки). Встроенные не удаляются.
   function giftRow(gift) {
-    return el("div", { class: "gift-admin-row" }, [
+    return el("div", { class: `gift-admin-row ${gift.hidden ? "gift-admin-hidden" : ""}` }, [
       el("span", { class: "gift-admin-emoji" }, [renderGiftArt(gift, { size: 40, replay: false })]),
       el("div", { class: "gift-admin-body" }, [
-        el("p", { class: "gift-admin-name" }, [gift.name, gift.custom ? el("span", { class: "gift-admin-tag" }, "свой") : el("span", { class: "gift-admin-tag" }, "встроенный")]),
+        el("p", { class: "gift-admin-name" }, [
+          gift.name,
+          gift.custom && !gift.ownerId ? el("span", { class: "gift-admin-tag" }, "свой") : el("span", { class: "gift-admin-tag" }, "встроенный"),
+          gift.hidden ? el("span", { class: "gift-admin-tag" }, "скрыт") : null,
+        ]),
         el("p", { class: "gift-admin-sub mono" }, `⭐ ${fmt(gift.priceStars)}${gift.supply ? ` · тираж ${fmt(gift.supply)}` : " · без тиража"}`),
       ]),
-      gift.custom
-        ? (gift.issued ?? 0) === 0
-          ? el("button", { class: "icon-btn", title: "Удалить", html: iconSvg("Trash", 15), onclick: () => removeGift(gift) })
-          : el("span", { class: "settings-toggle-hint" }, "подарен")
-        : null,
+      // Скрытый — только вернуть. Иначе: удалить (свой нетронутый) или скрыть
+      // (встроенный/уже выпущенный) — обе операции идут через removeGift.
+      gift.hidden
+        ? el("button", { class: "btn-accent-pill", title: "Вернуть в витрину", onclick: () => restoreGift(gift) }, "Вернуть")
+        : el("button", {
+            class: "icon-btn danger",
+            title: gift.custom && !gift.ownerId && (gift.issued ?? 0) === 0 ? "Удалить" : "Скрыть из витрины",
+            html: iconSvg("Trash", 15),
+            onclick: () => removeGift(gift),
+          }),
     ]);
   }
 

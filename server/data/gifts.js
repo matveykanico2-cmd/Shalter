@@ -358,6 +358,11 @@ function rowToGift(row) {
     // Гиф с уже вырезанным фоном (server/lib/giftMedia.js) — если есть,
     // клиент рисует его вместо анимации по эмодзи (lib/animScenes.js).
     mediaUrl: row.mediaUrl ?? undefined,
+    // Нарисованная в аниматоре сцена (lib/customScene.js) вместо эмодзи/гифки.
+    scene: row.scene ? JSON.parse(row.scene) : undefined,
+    // Автор пользовательского подарка; у админских — null.
+    ownerId: row.ownerId ?? undefined,
+    hidden: !!row.hidden || undefined,
     custom: true,
   };
 }
@@ -372,23 +377,50 @@ function withStars(g) {
   return { ...g, priceStars: starPrice(g) };
 }
 
-function listGifts() {
+// Витрина и админ-каталог: встроенные подарки + подарки, отчеканенные админом
+// (ownerId = null). Личные подарки пользователей (ownerId задан) сюда не
+// попадают — они личные и живут в отдельном списке (listUserGifts).
+//
+// `includeHidden` включает скрытые (убранные админом из витрины) — нужен только
+// админ-каталогу, чтобы их показать и дать восстановить; витрина зовёт без него.
+function listGifts({ includeHidden = false } = {}) {
   const rows = overrides();
-  const merged = GIFTS.map((g) => {
+  const merged = [];
+  for (const g of GIFTS) {
     const row = rows.get(g.id);
-    if (!row) return g;
+    if (row?.hidden && !includeHidden) continue;
+    if (!row) {
+      merged.push(g);
+      continue;
+    }
     // Only the fields an admin is allowed to change are taken from the row; the
     // rest stays whatever shipped, so an override can't quietly rename a gift.
-    return { ...g, supply: row.supply ?? g.supply, edited: true };
-  });
+    merged.push({ ...g, supply: row.supply ?? g.supply, edited: true, ...(row.hidden ? { hidden: true } : {}) });
+  }
   for (const row of rows.values()) {
-    if (row.custom) merged.push(rowToGift(row));
+    if (!row.custom || row.ownerId) continue;
+    if (row.hidden && !includeHidden) continue;
+    merged.push(rowToGift(row));
   }
   return merged.map(withStars);
 }
 
 function getGift(id) {
-  return listGifts().find((g) => g.id === id);
+  return listGifts({ includeHidden: true }).find((g) => g.id === id);
+}
+
+// Подарки, нарисованные конкретным пользователем в аниматоре — его личная
+// вкладка «Мои подарки». Не общие, в витрину не выкладываются.
+function listUserGifts(ownerId) {
+  return db
+    .prepare("SELECT * FROM gift_catalog WHERE ownerId = ? AND hidden = 0 ORDER BY createdAt DESC")
+    .all(ownerId)
+    .map((row) => withStars(rowToGift(row)));
+}
+
+function getUserGift(id, ownerId) {
+  const row = db.prepare("SELECT * FROM gift_catalog WHERE id = ? AND ownerId = ? AND hidden = 0").get(id, ownerId);
+  return row ? withStars(rowToGift(row)) : undefined;
 }
 
 // Built-in gifts keep their catalogue entry and get an override row; custom
@@ -408,10 +440,10 @@ function setSupply(id, supply) {
   return getGift(id);
 }
 
-function createGift({ id, emoji, name, priceStars, premiumDays, supply, exclusive, mediaUrl }) {
+function createGift({ id, emoji, name, priceStars, premiumDays, supply, exclusive, mediaUrl, scene = null, ownerId = null }) {
   db.prepare(
-    `INSERT INTO gift_catalog (id, emoji, name, priceRub, priceStars, premiumDays, supply, exclusive, mediaUrl, custom, createdAt)
-     VALUES (@id, @emoji, @name, @priceRub, @priceStars, @premiumDays, @supply, @exclusive, @mediaUrl, 1, @createdAt)`
+    `INSERT INTO gift_catalog (id, emoji, name, priceRub, priceStars, premiumDays, supply, exclusive, mediaUrl, scene, ownerId, custom, createdAt)
+     VALUES (@id, @emoji, @name, @priceRub, @priceStars, @premiumDays, @supply, @exclusive, @mediaUrl, @scene, @ownerId, 1, @createdAt)`
   ).run({
     id,
     emoji,
@@ -424,19 +456,81 @@ function createGift({ id, emoji, name, priceStars, premiumDays, supply, exclusiv
     supply: supply ?? null,
     exclusive: exclusive ? 1 : 0,
     mediaUrl: mediaUrl ?? null,
+    scene: scene ? JSON.stringify(scene) : null,
+    ownerId: ownerId ?? null,
     createdAt: new Date().toISOString(),
   });
-  return getGift(id);
+  return ownerId ? getUserGift(id, ownerId) : getGift(id);
 }
 
-// Only ever a custom gift: a built-in can't be deleted, because copies of it
-// may already be sitting on people's profiles and the catalogue entry is what
-// gives those a name and an emoji.
+// Личный подарок пользователя, нарисованный в аниматоре: бесплатный,
+// декоративный, привязан к автору. priceStars = 0 — за такой подарок ничего не
+// списывается (см. routes/gifts.js's /custom/send).
+function createUserGift({ id, ownerId, name, scene, emoji }) {
+  return createGift({
+    id,
+    ownerId,
+    emoji,
+    name,
+    priceStars: 0,
+    premiumDays: 0,
+    supply: null,
+    exclusive: false,
+    scene,
+  });
+}
+
+function deleteUserGift(id, ownerId) {
+  const res = db.prepare("DELETE FROM gift_catalog WHERE id = ? AND ownerId = ?").run(id, ownerId);
+  return res.changes > 0;
+}
+
+// Custom-подарок админа удаляется физически (за него можно не бояться копий:
+// карточку копии несёт запись на профиле). Только нетронутый — issued
+// проверяется в маршруте.
 function deleteCustomGift(id) {
-  const row = db.prepare("SELECT * FROM gift_catalog WHERE id = ? AND custom = 1").get(id);
+  const row = db.prepare("SELECT * FROM gift_catalog WHERE id = ? AND custom = 1 AND ownerId IS NULL").get(id);
   if (!row) return false;
   db.prepare("DELETE FROM gift_catalog WHERE id = ?").run(id);
   return true;
 }
 
-module.exports = { listGifts, getGift, setSupply, createGift, deleteCustomGift, starPrice, conversionValue, SUPPLY_MIN, SUPPLY_MAX, STARS_PER_RUB };
+// Скрытие встроенного подарка — «удаление» для того, что физически удалить
+// нельзя (запись в коде). override-строка с hidden = 1 убирает подарок из
+// витрины; уже выданные копии продолжают читать имя/эмодзи из кода.
+function hideBuiltin(id) {
+  const builtin = GIFTS.find((g) => g.id === id);
+  if (!builtin) return false;
+  const existing = db.prepare("SELECT * FROM gift_catalog WHERE id = ?").get(id);
+  if (existing) db.prepare("UPDATE gift_catalog SET hidden = 1 WHERE id = ?").run(id);
+  else
+    db.prepare(
+      `INSERT INTO gift_catalog (id, emoji, name, priceRub, premiumDays, supply, exclusive, custom, hidden, createdAt)
+       VALUES (@id, NULL, NULL, NULL, NULL, NULL, 0, 0, 1, @createdAt)`
+    ).run({ id, createdAt: new Date().toISOString() });
+  return true;
+}
+
+function restoreBuiltin(id) {
+  const res = db.prepare("UPDATE gift_catalog SET hidden = 0 WHERE id = ?").run(id);
+  return res.changes > 0;
+}
+
+module.exports = {
+  listGifts,
+  getGift,
+  listUserGifts,
+  getUserGift,
+  setSupply,
+  createGift,
+  createUserGift,
+  deleteUserGift,
+  deleteCustomGift,
+  hideBuiltin,
+  restoreBuiltin,
+  starPrice,
+  conversionValue,
+  SUPPLY_MIN,
+  SUPPLY_MAX,
+  STARS_PER_RUB,
+};

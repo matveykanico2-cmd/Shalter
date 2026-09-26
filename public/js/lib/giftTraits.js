@@ -46,6 +46,7 @@ const SYMBOLS = [
 ];
 
 import { renderScene } from "./animScenes.js";
+import { renderCustomScene } from "./customScene.js";
 
 // Небольшая устойчивая хеш-функция: одна и та же строка всегда даёт одно и то
 // же число. Math.random() здесь не подходит принципиально — свойства должны
@@ -87,6 +88,12 @@ export function giftTraits(gift) {
 // эмодзи/гифка не пришлось повторять в каждом месте, где рисуется подарок
 // (полка в профиле, карточка, витрина магазина, сообщение в чате).
 export function renderGiftArt(gift, { size = 84, replay = true } = {}) {
+  // Нарисованная в аниматоре сцена (lib/customScene.js) — свой векторный
+  // подарок вместо анимации по эмодзи. Идёт первой: у такого подарка эмодзи —
+  // лишь запасная подпись.
+  if (gift?.scene) {
+    return renderCustomScene(gift.scene, { size, replay });
+  }
   if (gift?.mediaUrl) {
     const img = document.createElement("img");
     img.src = gift.mediaUrl;

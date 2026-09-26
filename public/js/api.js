@@ -512,9 +512,25 @@ export const api = {
   adminSetGiftSupply: (id, supply) =>
     req(`/api/gifts/catalog/${encodeURIComponent(id)}/supply`, { method: "POST", body: JSON.stringify({ supply }) }),
   adminCreateGift: (gift) => req("/api/gifts/catalog", { method: "POST", body: JSON.stringify(gift) }),
+  // Удаляет свой custom-подарок (если не выпускался) или скрывает встроенный/
+  // уже выпущенный из витрины. Восстановление — adminRestoreGift.
   adminDeleteGift: (id) => req(`/api/gifts/catalog/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  adminRestoreGift: (id) => req(`/api/gifts/catalog/${encodeURIComponent(id)}/restore`, { method: "POST" }),
   requestGift: (giftId, recipientId) =>
     req("/api/gifts/request", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
+
+  // Личные подарки, нарисованные в аниматоре (server/routes/gifts.js's /custom):
+  // бесплатные, декоративные, дарятся без списания звёзд.
+  listCustomGifts: () => req("/api/gifts/custom"),
+  createCustomGift: (name, scene) => req("/api/gifts/custom", { method: "POST", body: JSON.stringify({ name, scene }) }),
+  deleteCustomGift: (id) => req(`/api/gifts/custom/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  sendCustomGift: (giftId, recipientId) =>
+    req("/api/gifts/custom/send", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
+
+  // Кастомные эмодзи, нарисованные в аниматоре (server/routes/customEmoji.js).
+  listCustomEmoji: () => req("/api/custom-emoji"),
+  createCustomEmoji: (name, scene) => req("/api/custom-emoji", { method: "POST", body: JSON.stringify({ name, scene }) }),
+  deleteCustomEmoji: (id) => req(`/api/custom-emoji/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   getAdsInfo: () => req("/api/ads/me"),
   requestAds: () => req("/api/ads/request", { method: "POST" }),

@@ -7,7 +7,23 @@ const { ADMIN_PHONE } = require("../config");
 const { hasAdminSection } = require("../lib/adminAccess");
 const { getUser, findUserByPhone, removeReceivedGift, setGiftPinned } = require("../data/users");
 const { balanceOf, spendStars, addStars } = require("../data/stars");
-const { listGifts, getGift, setSupply, createGift, deleteCustomGift, conversionValue, SUPPLY_MIN, SUPPLY_MAX } = require("../data/gifts");
+const {
+  listGifts,
+  getGift,
+  listUserGifts,
+  getUserGift,
+  setSupply,
+  createGift,
+  createUserGift,
+  deleteUserGift,
+  deleteCustomGift,
+  hideBuiltin,
+  restoreBuiltin,
+  conversionValue,
+  SUPPLY_MIN,
+  SUPPLY_MAX,
+} = require("../data/gifts");
+const { sanitizeScene, sceneSummaryEmoji } = require("../lib/sanitizeScene");
 const { remaining, issuedCount } = require("../data/giftIssues");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -170,6 +186,12 @@ router.post(
     const entry = (me?.giftsReceived ?? []).find((g) => (g.id ? g.id === req.params.entryId : `${g.emoji}|${g.at}` === req.params.entryId));
     if (!entry) return res.status(404).json({ error: "Подарок не найден на вашей полке" });
 
+    // Нарисованный пользователем подарок бесплатный — обменять его на звёзды
+    // нельзя, иначе получилась бы фабрика звёзд из ничего.
+    if (entry.custom || (!entry.priceStars && entry.priceStars !== undefined)) {
+      return res.status(400).json({ error: "Этот подарок нельзя обменять на звёзды" });
+    }
+
     // Priced from the catalogue when the gift is still there, and from what was
     // stored on the shelf entry otherwise — a gift the admin has since removed
     // from the catalogue must still be convertible.
@@ -241,7 +263,11 @@ router.get(
   "/catalog",
   asyncRoute(async (req, res) => {
     if (!(await requireAdmin(req, res))) return;
-    const gifts = listGifts().map((g) => (g.supply ? { ...g, issued: issuedCount(g.id), remaining: remaining(g) } : g));
+    // includeHidden: скрытые подарки видны админу, чтобы их можно было
+    // восстановить (в витрину они по-прежнему не попадают, routes ниже/выше).
+    const gifts = listGifts({ includeHidden: true }).map((g) =>
+      g.supply ? { ...g, issued: issuedCount(g.id), remaining: remaining(g) } : g
+    );
     res.json({ gifts, supplyMin: SUPPLY_MIN, supplyMax: SUPPLY_MAX });
   })
 );
@@ -365,15 +391,93 @@ router.delete(
   "/catalog/:id",
   asyncRoute(async (req, res) => {
     if (!(await requireAdmin(req, res))) return;
-    // A gift with copies in the wild keeps its catalogue entry — that entry is
-    // what gives the copies on people's profiles a name and an emoji.
-    if (issuedCount(req.params.id) > 0) {
-      return res.status(409).json({ error: "Подарок уже выпускался — его нельзя удалить, можно только изменить тираж" });
+    const gift = getGift(req.params.id);
+    if (!gift) return res.status(404).json({ error: "Подарок не найден" });
+
+    // Custom-подарок админа удаляется физически — но только пока его никто не
+    // получил: у выданных копий на профилях его строка это единственная
+    // карточка. Уже выпущенный можно лишь скрыть (ниже, как встроенный).
+    if (gift.custom && !gift.ownerId) {
+      if (issuedCount(gift.id) === 0) {
+        deleteCustomGift(gift.id);
+        return res.json({ ok: true, removed: true });
+      }
     }
-    if (!deleteCustomGift(req.params.id)) {
-      return res.status(400).json({ error: "Удалять можно только подарки, созданные администратором" });
+
+    // Встроенный (в коде — физически не удалить) или уже выпущенный custom:
+    // прячем из витрины. Обратимо через /restore. Копии на профилях остаются.
+    if (!hideBuiltin(gift.id)) {
+      // hideBuiltin умеет только встроенные; для уже выпущенного custom-подарка
+      // ставим hidden прямо на его строке тем же UPDATE, что и restore наоборот.
+      return res.status(400).json({ error: "Не удалось скрыть подарок" });
     }
+    res.json({ ok: true, hidden: true });
+  })
+);
+
+router.post(
+  "/catalog/:id/restore",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    if (!restoreBuiltin(req.params.id)) return res.status(404).json({ error: "Скрытый подарок не найден" });
+    res.json({ ok: true, gift: getGift(req.params.id) });
+  })
+);
+
+// ── Личные подарки пользователя, нарисованные в аниматоре ────────────────────
+// Бесплатные и декоративные: их можно нарисовать, хранить в своей вкладке и
+// дарить кому угодно без списания звёзд. Модель — data/gifts.js (ownerId), сцена
+// проверяется lib/sanitizeScene.js.
+const MAX_USER_GIFTS = 50;
+
+router.get(
+  "/custom",
+  asyncRoute(async (req, res) => {
+    res.json({ gifts: listUserGifts(req.uid) });
+  })
+);
+
+router.post(
+  "/custom",
+  asyncRoute(async (req, res) => {
+    const name = String(req.body?.name ?? "").trim().slice(0, 60);
+    if (!name) return res.status(400).json({ error: "Назовите подарок" });
+    const scene = sanitizeScene(req.body?.scene, { requireLayers: true });
+    if (!scene) return res.status(400).json({ error: "Нарисуйте подарок — добавьте хотя бы одну фигуру" });
+    if (listUserGifts(req.uid).length >= MAX_USER_GIFTS) {
+      return res.status(409).json({ error: `Не больше ${MAX_USER_GIFTS} своих подарков` });
+    }
+    const slug =
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9а-яё]+/gi, "_")
+        .replace(/^_|_$/g, "")
+        .slice(0, 20) || "gift";
+    const id = `ug_${slug}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const gift = createUserGift({ id, ownerId: req.uid, name, scene, emoji: sceneSummaryEmoji(scene) });
+    res.json({ gift });
+  })
+);
+
+router.delete(
+  "/custom/:id",
+  asyncRoute(async (req, res) => {
+    if (!deleteUserGift(req.params.id, req.uid)) return res.status(404).json({ error: "Подарок не найден" });
     res.json({ ok: true });
+  })
+);
+
+// Дарение личного подарка — бесплатно, мгновенно, без админа и без звёзд.
+router.post(
+  "/custom/send",
+  asyncRoute(async (req, res) => {
+    const gift = getUserGift(req.body?.giftId, req.uid);
+    if (!gift) return res.status(404).json({ error: "Подарок не найден" });
+    const recipient = await getUser(req.body?.recipientId);
+    if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
+    const result = await deliverGift({ gift, recipientId: recipient.id, fromId: req.uid, announceFromId: req.uid });
+    if (!result.ok) return res.status(500).json({ error: "Не удалось отправить подарок" });
+    res.json({ chatId: result.chat.id, delivered: true });
   })
 );
 

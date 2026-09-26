@@ -54,6 +54,12 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId }) {
     // прикрепил при выпуске — public/js/lib/giftTraits.js's renderGiftArt
     // рисует её вместо анимации по эмодзи.
     mediaUrl: gift.mediaUrl,
+    // Нарисованная в аниматоре сцена (public/js/lib/customScene.js) — так же
+    // рисуется вместо эмодзи. Personal-подарок (нарисованный пользователем)
+    // бесплатный: помечаем его, чтобы он не обменивался на звёзды (routes/
+    // gifts.js's /convert) — иначе бесплатный подарок стал бы фабрикой звёзд.
+    scene: gift.scene,
+    ...(gift.ownerId || (gift.scene && !gift.priceStars) ? { custom: true } : {}),
     fromId: fromId ?? null,
     fromName,
     at: new Date().toISOString(),
@@ -87,6 +93,8 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId }) {
         durationLabel: duration,
         priceStars: gift.priceStars,
         mediaUrl: gift.mediaUrl,
+        scene: gift.scene,
+        ...(gift.ownerId || (gift.scene && !gift.priceStars) ? { custom: true } : {}),
         fromId: fromId ?? null,
         fromName,
         ...(serial != null ? { serial, supply: gift.supply, exclusive: true } : {}),
