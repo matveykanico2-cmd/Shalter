@@ -19,11 +19,14 @@ function timeLabel(iso) {
   return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
 }
 
+// Токен кастомного эмодзи ([ce:N]) в плоской строке рисовать нечем — 🎨.
+const ceStrip = (t) => (t ?? "").replace(/\[ce:\d+\]/g, "🎨");
+
 function preview(chat, meId) {
-  if (chat.draft) return chat.draft;
+  if (chat.draft) return ceStrip(chat.draft);
   const m = chat.lastMessage;
   if (!m) return "Нет сообщений";
-  if (m.type === "system") return m.text;
+  if (m.type === "system") return ceStrip(m.text);
   // Stickers, gifts and attachments carry no text of their own — messagePreview
   // names them, so the row doesn't go blank ("Вы: ") after sending one.
   const who = m.senderId === meId ? "Вы: " : "";
