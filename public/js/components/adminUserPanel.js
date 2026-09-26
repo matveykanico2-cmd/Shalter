@@ -72,6 +72,9 @@ export function openAdminUserPanel(user, onChange) {
   let reports = null; // null = not loaded yet
   let reportsError = null;
   let gifts = [];
+  // Полный каталог меток безопасности (встроенные + добавленные админом) —
+  // подгружается с сервера, иначе в списке были бы только 5 встроенных.
+  let labels = null;
   let busy = false;
   let error = null;
   let notice = null;
@@ -133,6 +136,11 @@ export function openAdminUserPanel(user, onChange) {
     // to load it must not take the rest of the panel down with it.
     try {
       ({ gifts } = await api.listGifts());
+    } catch {}
+    // Метки безопасности — тоже best-effort: весь каталог (встроенные + свои),
+    // чтобы выбор не ограничивался пятью встроенными.
+    try {
+      ({ labels } = await api.getSafetyLabels());
     } catch {}
     render();
   }
@@ -249,7 +257,7 @@ export function openAdminUserPanel(user, onChange) {
       el("p", { class: "admin-panel-subtitle" }, [
         state.username ? `@${state.username}` : state.id,
         state.isBanned ? el("span", { class: "admin-panel-flag danger" }, "заблокирован") : null,
-        state.safetyLabel ? el("span", { class: "admin-panel-flag" }, SAFETY_LABELS[state.safetyLabel]?.short ?? state.safetyLabel) : null,
+        state.safetyLabel ? el("span", { class: "admin-panel-flag" }, labels?.find((l) => l.id === state.safetyLabel)?.short ?? SAFETY_LABELS[state.safetyLabel]?.short ?? state.safetyLabel) : null,
         state.isVerified ? el("span", { class: "admin-panel-flag" }, "верифицирован") : null,
       ]),
       // Контакты человека — номер и почта. Нажатие копирует: пригодится и для
@@ -418,7 +426,9 @@ export function openAdminUserPanel(user, onChange) {
             },
             "Без метки"
           ),
-          ...Object.entries(SAFETY_LABELS).map(([key, info]) =>
+          // Весь каталог с сервера (встроенные + свои); пока не загрузился —
+          // запасной статический список из 5 встроенных.
+          ...(labels ? labels.map((l) => [l.id, l]) : Object.entries(SAFETY_LABELS)).map(([key, info]) =>
             el(
               "button",
               {

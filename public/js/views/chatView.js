@@ -142,7 +142,11 @@ export async function ChatView(root, chatId) {
 
   let replyingTo = null;
   let editingMessage = null;
-  let draftText = chat.draft ?? "";
+  // Черновик хранится в настройках пользователя. В объект одиночного чата
+  // (api.getChat и кэш) он не всегда подмешан, а вот в состоянии списка чатов
+  // он есть (там и показывается «черновик»). Берём оттуда как запасной источник,
+  // иначе при повторном входе поле было пустым, хотя в списке черновик виден.
+  let draftText = chat.draft ?? getState().chats.find((c) => c.id === chatId)?.draft ?? "";
   let infoOpen = false;
   let pinIndex = 0;
   let typingUserId = null;
