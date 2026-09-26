@@ -13,6 +13,7 @@ import { STICKERS, DRAWN_STICKERS, renderSticker } from "../lib/stickers.js";
 import { openStickerPackDialog } from "./stickerPackDialog.js";
 import { openAnimatorEditor } from "./animatorEditor.js";
 import { renderCustomScene } from "../lib/customScene.js";
+import { ALL_EMOJI } from "../lib/emojiList.js";
 import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
 import { startLiveLocationSharing } from "../lib/liveLocation.js";
 
@@ -760,10 +761,17 @@ export function Composer({
       if (!emojiMenuEl) return;
       clear(emojiMenuEl);
       emojiMenuEl.append(
+        // Часто используемые — быстрым рядом сверху.
         el(
           "div",
           { class: "composer-emoji-row" },
           EMOJI.map((e) => el("button", { onclick: () => insertPlainEmoji(e) }, e))
+        ),
+        // Полный набор (lib/emojiList.js) — прокручиваемой сеткой.
+        el(
+          "div",
+          { class: "composer-emoji-all" },
+          ALL_EMOJI.map((e) => el("button", { onclick: () => insertPlainEmoji(e) }, e))
         ),
         el("div", { class: "composer-emoji-heading" }, [
           el("span", {}, "Мои эмодзи"),

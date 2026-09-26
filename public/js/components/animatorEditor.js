@@ -8,6 +8,7 @@ import {
   sampleLayerAt,
   blankScene,
 } from "../lib/customScene.js";
+import { ALL_EMOJI } from "../lib/emojiList.js";
 
 // Аниматор — покадровый редактор 2D-анимаций («блендер для 2D»).
 //
@@ -22,8 +23,7 @@ import {
 // прозрачность, необязательно цвет). Одним редактором создаются стикеры,
 // эмодзи и подарки — разница лишь в подписи и в том, кто вызвал (onSave).
 
-const EMOJI_QUICK = ["😀", "😍", "🎉", "🔥", "❤️", "⭐", "✨", "🎁", "🌹", "🍾", "🐱", "👍", "💎", "🦵", "🎈", "🕺"];
-const COLOR_SWATCHES = ["#ff8a3d", "#ff5d73", "#ffd23f", "#4ade80", "#38bdf8", "#a78bfa", "#f472b6", "#ffffff", "#2f2a24"];
+const COLOR_SWATCHES =["#ff8a3d", "#ff5d73", "#ffd23f", "#4ade80", "#38bdf8", "#a78bfa", "#f472b6", "#ffffff", "#2f2a24"];
 const PREVIEW = 240;
 
 function defaultLayer(type) {
@@ -203,9 +203,20 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     // Базовые свойства фигуры (форма/размер/цвет).
     const baseRows = [];
     if (L.type === "emoji") {
+      const emojiInput = el("input", { type: "text", class: "anim-text-input", value: L.emoji, maxLength: 8, oninput: (e) => { L.emoji = e.target.value; refreshPreview(); } });
+      // Полная сетка эмодзи (lib/emojiList.js) — «все эмодзи». Выбор не
+      // пересобирает панель (чтобы прокрутка не прыгала): только меняет слой,
+      // поле ввода и предпросмотр.
+      const grid = el(
+        "div",
+        { class: "anim-emoji-grid" },
+        ALL_EMOJI.map((e) =>
+          el("button", { class: "anim-emoji-btn", type: "button", onclick: () => { L.emoji = e; emojiInput.value = e; refreshPreview(); } }, e)
+        )
+      );
       baseRows.push(
-        el("label", { class: "anim-ctl" }, [el("span", { class: "anim-ctl-label" }, "Эмодзи"), el("input", { type: "text", class: "anim-text-input", value: L.emoji, maxLength: 8, oninput: (e) => { L.emoji = e.target.value; refreshPreview(); } })]),
-        el("div", { class: "anim-emoji-quick" }, EMOJI_QUICK.map((e) => el("button", { class: "anim-emoji-btn", onclick: () => { L.emoji = e; renderPanel(); refreshPreview(); } }, e))),
+        el("label", { class: "anim-ctl" }, [el("span", { class: "anim-ctl-label" }, "Эмодзи"), emojiInput]),
+        grid,
         slider("Размер", 6, 100, 1, () => L.size, (v) => (L.size = v))
       );
     } else if (L.type === "text") {

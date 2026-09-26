@@ -13346,6 +13346,24 @@ p.business-status {
   font-size: 18px;
   cursor: pointer;
 }
+/* Полная сетка эмодзи в аниматоре — прокручиваемая (lib/emojiList.js) */
+.anim-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(30px, 1fr));
+  gap: 3px;
+  max-height: 168px;
+  overflow-y: auto;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(128, 128, 128, 0.06);
+}
+.anim-emoji-grid .anim-emoji-btn {
+  width: 30px;
+  height: 30px;
+  font-size: 17px;
+  background: none;
+}
+.anim-emoji-grid .anim-emoji-btn:hover { background: rgba(128, 128, 128, 0.16); }
 .anim-panel { display: flex; flex-direction: column; gap: 8px; }
 .anim-ctl { display: flex; flex-direction: column; gap: 3px; }
 .anim-ctl-label {
@@ -13447,6 +13465,23 @@ p.business-status {
 }
 .composer-custom-emoji { background: none; border: none; cursor: pointer; padding: 3px; }
 .composer-emoji-empty { font-size: 12px; opacity: 0.6; padding: 2px; margin: 0; }
+/* Полный набор эмодзи в пикере композера — прокручиваемая сетка (lib/emojiList.js) */
+.composer-emoji-all {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+  max-height: 168px;
+  overflow-y: auto;
+}
+.composer-emoji-all button {
+  border: none;
+  background: none;
+  border-radius: 8px;
+  padding: 5px;
+  font-size: 18px;
+  cursor: pointer;
+}
+.composer-emoji-all button:hover { background: rgba(128, 128, 128, 0.16); }
 /* Кастомный эмодзи внутри текста сообщения (formatText.js) */
 .inline-custom-emoji {
   display: inline-flex;
