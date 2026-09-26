@@ -511,6 +511,9 @@ export const api = {
   adminGiftCatalog: () => req("/api/gifts/catalog"),
   adminSetGiftSupply: (id, supply) =>
     req(`/api/gifts/catalog/${encodeURIComponent(id)}/supply`, { method: "POST", body: JSON.stringify({ supply }) }),
+  // Перерисовать подарок в аниматоре (встроенный или custom). scene=null убирает рисунок.
+  adminSetGiftScene: (id, scene) =>
+    req(`/api/gifts/catalog/${encodeURIComponent(id)}/scene`, { method: "POST", body: JSON.stringify({ scene }) }),
   adminCreateGift: (gift) => req("/api/gifts/catalog", { method: "POST", body: JSON.stringify(gift) }),
   // Удаляет свой custom-подарок (если не выпускался) или скрывает встроенный/
   // уже выпущенный из витрины. Восстановление — adminRestoreGift.

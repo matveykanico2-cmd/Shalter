@@ -302,6 +302,24 @@ router.post(
   })
 );
 
+// Перерисовать подарок в аниматоре: и встроенный (через override-сцену), и
+// custom. scene = null убирает рисунок и возвращает анимацию по эмодзи.
+router.post(
+  "/catalog/:id/scene",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    if (!getGift(req.params.id)) return res.status(404).json({ error: "Подарок не найден" });
+    let scene = null;
+    if (req.body?.scene != null) {
+      scene = sanitizeScene(req.body.scene, { requireLayers: true });
+      if (!scene) return res.status(400).json({ error: "Нарисуйте подарок — добавьте хотя бы одну фигуру" });
+    }
+    const gift = setGiftScene(req.params.id, scene);
+    if (!gift) return res.status(404).json({ error: "Подарок не найден" });
+    res.json({ gift });
+  })
+);
+
 // Имя файла из ссылки /uploads/<файл>, которую только что вернул обычный
 // POST /api/uploads?kind=gift — та же проверка, что на раздаче
 // (serveUpload.js), чтобы сюда нельзя было подсунуть путь наружу хранилища.

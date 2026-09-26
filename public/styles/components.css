@@ -13247,19 +13247,25 @@ p.business-status {
 .anim-dialog {
   max-width: 760px;
   width: 100%;
+  /* Выше базовых 80vh: у редактора много контента (холст, таймлайн, сетка
+     эмодзи, свойства), и он должен помещаться в окно, а не уезжать вниз. */
+  max-height: 92vh;
 }
+/* Тело прокручивается внутри окна, а заголовок сверху и кнопки снизу
+   (.anim-actions) остаются на месте — иначе «Сохранить» уезжало за экран. */
 .anim-body {
   display: flex;
   gap: 18px;
   align-items: flex-start;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 .anim-stage {
   flex: 0 0 240px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  position: sticky;
-  top: 0;
 }
 .anim-preview {
   width: 100%;

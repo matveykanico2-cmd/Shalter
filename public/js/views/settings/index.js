@@ -4251,9 +4251,46 @@ async function renderGiftShop(root) {
     render();
   }
 
-  // Строка любого подарка в общем списке: превью, название, цена и удаление —
-  // удалять можно только свой и пока его никто не получил (иначе у людей на
-  // профилях останется подарок без карточки). Встроенные не удаляются.
+  // Перерисовать подарок в аниматоре — и встроенный тоже. Раньше встроенные
+  // вообще нельзя было изменить (только тираж); теперь их рисунок правится через
+  // override-сцену. scene=null убирает рисунок и возвращает анимацию по эмодзи.
+  function editGiftScene(gift) {
+    openAnimatorEditor({
+      title: `Нарисовать «${gift.name}»`,
+      saveLabel: "Сохранить рисунок",
+      initial: gift.scene,
+      onSave: async (scene) => {
+        error = null;
+        notice = null;
+        try {
+          await api.adminSetGiftScene(gift.id, scene);
+          notice = `Рисунок «${gift.name}» обновлён`;
+          data = await api.adminGiftCatalog();
+        } catch (err) {
+          error = err.message || "Не удалось сохранить рисунок";
+        }
+        render();
+      },
+    });
+  }
+
+  async function clearGiftScene(gift) {
+    error = null;
+    notice = null;
+    try {
+      await api.adminSetGiftScene(gift.id, null);
+      notice = `Рисунок «${gift.name}» убран`;
+      data = await api.adminGiftCatalog();
+    } catch (err) {
+      error = err.message || "Не удалось убрать рисунок";
+    }
+    render();
+  }
+
+  // Строка любого подарка в общем списке: превью, название, цена, перерисовка и
+  // удаление. Перерисовать можно любой (в т.ч. встроенный); удалять — только
+  // свой нетронутый (иначе у людей на профилях останется карточка без имени),
+  // остальные скрываются из витрины.
   function giftRow(gift) {
     return el("div", { class: `gift-admin-row ${gift.hidden ? "gift-admin-hidden" : ""}` }, [
       el("span", { class: "gift-admin-emoji" }, [renderGiftArt(gift, { size: 40, replay: false })]),
@@ -4261,10 +4298,13 @@ async function renderGiftShop(root) {
         el("p", { class: "gift-admin-name" }, [
           gift.name,
           gift.custom && !gift.ownerId ? el("span", { class: "gift-admin-tag" }, "свой") : el("span", { class: "gift-admin-tag" }, "встроенный"),
+          gift.scene ? el("span", { class: "gift-admin-tag" }, "рисунок") : null,
           gift.hidden ? el("span", { class: "gift-admin-tag" }, "скрыт") : null,
         ]),
         el("p", { class: "gift-admin-sub mono" }, `⭐ ${fmt(gift.priceStars)}${gift.supply ? ` · тираж ${fmt(gift.supply)}` : " · без тиража"}`),
       ]),
+      el("button", { class: "icon-btn", title: gift.scene ? "Изменить рисунок" : "Нарисовать", html: iconSvg("Edit", 15), onclick: () => editGiftScene(gift) }),
+      gift.scene ? el("button", { class: "icon-btn", title: "Убрать рисунок", onclick: () => clearGiftScene(gift) }, "↺") : null,
       // Скрытый — только вернуть. Иначе: удалить (свой нетронутый) или скрыть
       // (встроенный/уже выпущенный) — обе операции идут через removeGift.
       gift.hidden
@@ -4275,7 +4315,7 @@ async function renderGiftShop(root) {
             html: iconSvg("Trash", 15),
             onclick: () => removeGift(gift),
           }),
-    ]);
+    ].filter(Boolean));
   }
 
   function supplyRow(gift) {
