@@ -2,6 +2,7 @@ import { el } from "./dom.js";
 import { navigate } from "../router.js";
 import { openInAppBrowser, checkLinkSafety } from "../components/inAppBrowser.js";
 import { openProfileDialog } from "../components/profileDialog.js";
+import { getState } from "../state.js";
 import { api } from "../api.js";
 
 // Vanilla-JS port of components/chat/formatText.tsx — same markdown-like
@@ -46,11 +47,20 @@ function renderInline(text, members) {
         {
           class: "mention mention-link",
           onclick: async () => {
+            // Свой же юзернейм: сервер не отдаёт тебя самому себе (404), из-за
+            // чего клик «не срабатывал». Открываем свой профиль сразу.
+            const me = getState().user;
+            if (me && me.username && me.username.toLowerCase() === handle) return openProfileDialog(me.id);
             if (member) return openProfileDialog(member.id);
             try {
               const { user } = await api.findUserByUsername(handle);
-              openProfileDialog(user.id);
+              // Нашёлся человек — открываем профиль; ответ без id (не человек)
+              // отдаём резолверу адреса, как и явную ошибку ниже.
+              if (user?.id) return openProfileDialog(user.id);
+              navigate(`/u/${handle}`);
             } catch {
+              // Не человек (канал/группа/бот) или сбой запроса — пусть решает
+              // резолвер адреса (/u/имя, app.js): он откроет канал/бота/чат.
               navigate(`/u/${handle}`);
             }
           },
