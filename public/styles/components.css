@@ -13561,3 +13561,70 @@ p.business-status {
 /* Фон за подарком на карточке сообщения и на полке профиля */
 .gift-message-burst.has-bg { border-radius: 20px; padding: 10px; }
 .profile-gift-art { border-radius: 10px; }
+
+/* Покадровый аниматор: таймлайн, транспорт, маркер (components/animatorEditor.js) */
+.anim-preview { cursor: crosshair; touch-action: none; }
+.anim-marker {
+  fill: none;
+  stroke: var(--accent, #ff8a3d);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+  pointer-events: none;
+}
+.anim-transport { display: flex; align-items: center; gap: 10px; }
+.anim-play-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent, #ff8a3d);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+.anim-autokey {
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.3));
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.6;
+}
+.anim-autokey.on { opacity: 1; color: #ff5d73; border-color: #ff5d73; }
+.anim-time-label { font-size: 12px; opacity: 0.7; font-variant-numeric: tabular-nums; margin-left: auto; }
+.anim-timeline { width: 100%; }
+.anim-track {
+  position: relative;
+  height: 26px;
+  border-radius: 8px;
+  background: repeating-linear-gradient(90deg, rgba(128,128,128,0.14) 0 1px, transparent 1px 10%);
+  background-color: rgba(128, 128, 128, 0.08);
+  cursor: pointer;
+  touch-action: none;
+}
+.anim-keydot {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 3px;
+  background: var(--accent, #ff8a3d);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.anim-keydot.sel { outline: 2px solid #fff; box-shadow: 0 0 0 1px var(--accent, #ff8a3d); }
+.anim-playhead {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: #ff5d73;
+  pointer-events: none;
+}
+.anim-tip { font-size: 12px; opacity: 0.6; margin: 2px 0; }
+.anim-key-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.anim-add-btn.danger { color: #ff5d73; border-color: #ff5d73; }

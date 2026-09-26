@@ -56,6 +56,7 @@ export const CE_SHAPES = [
 const SHAPE_IDS = new Set(CE_SHAPES.map((s) => s.id));
 
 export const CE_MAX_LAYERS = 12;
+export const CE_MAX_KEYS = 30; // ключей на слой
 const HEX_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 const num = (v, min, max, dflt) => {
@@ -100,6 +101,28 @@ function sanitizeLayer(raw) {
     layer.h = num(raw.h, 2, 100, 28);
   } else if (type === "star" || type === "heart") {
     layer.size = num(raw.size, 4, 100, 34);
+  }
+  // Покадровая анимация: ключи во времени. Каждый ключ — поза относительно
+  // базового положения слоя (смещение dx/dy в единицах вьюбокса, поворот,
+  // масштаб, прозрачность, необязательно цвет). Если ключей нет — слой играет
+  // именованный пресет (anim), как раньше; так старые сцены продолжают работать.
+  if (Array.isArray(raw.keys) && raw.keys.length) {
+    layer.keys = raw.keys
+      .slice(0, CE_MAX_KEYS)
+      .map((k) => {
+        const key = {
+          t: num(k?.t, 0, 60, 0),
+          dx: num(k?.dx, -100, 100, 0),
+          dy: num(k?.dy, -100, 100, 0),
+          rot: num(k?.rot, -360, 360, 0),
+          scale: num(k?.scale, 0, 4, 1),
+          opacity: num(k?.opacity, 0, 1, 1),
+        };
+        const f = hex(k?.fill, null);
+        if (f) key.fill = f;
+        return key;
+      })
+      .sort((a, b) => a.t - b.t);
   }
   return layer;
 }
@@ -193,9 +216,84 @@ function makeShape(layer) {
   return node;
 }
 
+// ── Покадровая анимация ──────────────────────────────────────────────────────
+
+const DEFAULT_POSE = { dx: 0, dy: 0, rot: 0, scale: 1, opacity: 1, fill: null };
+
+// CSS-строка трансформа для позы. px в SVG = единицы вьюбокса, поэтому смещение
+// задаётся напрямую; transform-box: fill-box (ставится на элементе) крутит и
+// масштабирует вокруг центра самой фигуры.
+function poseTransform(p) {
+  return `translate(${p.dx}px, ${p.dy}px) rotate(${p.rot}deg) scale(${p.scale})`;
+}
+
+// Поза слоя в момент t (секунды): линейная интерполяция между соседними
+// ключами. До первого ключа держим первый, после последнего — последний.
+// Используется для статичного предпросмотра на позиции таймлайна.
+export function sampleLayerAt(layer, t) {
+  const keys = layer.keys;
+  if (!keys || !keys.length) return { ...DEFAULT_POSE, opacity: layer.opacity ?? 1, fill: layer.fill ?? null };
+  if (t <= keys[0].t) return poseOf(keys[0], layer);
+  if (t >= keys[keys.length - 1].t) return poseOf(keys[keys.length - 1], layer);
+  let i = 0;
+  while (i < keys.length - 1 && keys[i + 1].t <= t) i++;
+  const a = keys[i];
+  const b = keys[i + 1];
+  const span = b.t - a.t || 1;
+  const f = (t - a.t) / span;
+  const lerp = (x, y) => x + (y - x) * f;
+  return {
+    dx: lerp(a.dx, b.dx),
+    dy: lerp(a.dy, b.dy),
+    rot: lerp(a.rot, b.rot),
+    scale: lerp(a.scale, b.scale),
+    opacity: lerp(a.opacity, b.opacity),
+    // Цвет не интерполируем вручную (это делает браузер в WAAPI); для статичного
+    // кадра берём цвет ближайшего предыдущего ключа.
+    fill: a.fill ?? layer.fill ?? null,
+  };
+}
+
+function poseOf(k, layer) {
+  return { dx: k.dx, dy: k.dy, rot: k.rot, scale: k.scale, opacity: k.opacity, fill: k.fill ?? layer.fill ?? null };
+}
+
+// Кадры для Web Animations API. Возвращает массив кадров или null (меньше двух
+// ключей — анимировать нечего, применим статично). Гарантируем кадры на 0 и 1,
+// чтобы цикл был гладким, и строго возрастающие offset.
+function buildFrames(layer, loop) {
+  const keys = layer.keys;
+  if (!keys || keys.length < 2 || loop <= 0) return null;
+  const anyFill = keys.some((k) => k.fill);
+  const frame = (k) => {
+    const fr = { offset: Math.min(1, Math.max(0, k.t / loop)), transform: poseTransform(k), opacity: k.opacity };
+    if (anyFill) fr.fill = k.fill ?? layer.fill ?? "#000000";
+    return fr;
+  };
+  const frames = keys.map(frame);
+  if (frames[0].offset > 0) frames.unshift({ ...frames[0], offset: 0 });
+  if (frames[frames.length - 1].offset < 1) frames.push({ ...frames[frames.length - 1], offset: 1 });
+  // Строго возрастающие offset — WAAPI не принимает равные/убывающие.
+  for (let i = 1; i < frames.length; i++) {
+    if (frames[i].offset <= frames[i - 1].offset) frames[i].offset = Math.min(1, frames[i - 1].offset + 0.0001);
+  }
+  return frames;
+}
+
+// Применяет позу к элементу статично (без анимации) — для кадра на таймлайне.
+function applyPose(node, pose) {
+  node.style.transformBox = "fill-box";
+  node.style.transformOrigin = "center";
+  node.style.transform = poseTransform(pose);
+  node.style.opacity = pose.opacity;
+  if (pose.fill) node.setAttribute("fill", pose.fill);
+}
+
 // Рисует сцену как <svg>. `size` — сторона в пикселях; `replay` включает
-// «въезд» (лёгкое появление), как у встроенных сцен.
-export function renderCustomScene(rawScene, { size = 84, replay = false } = {}) {
+// «въезд» (лёгкое появление), как у встроенных сцен. `atTime` (секунды)
+// замораживает сцену на этом моменте вместо проигрывания — для предпросмотра
+// на позиции таймлайна в редакторе.
+export function renderCustomScene(rawScene, { size = 84, replay = false, atTime = null } = {}) {
   const scene = sanitizeCustomScene(rawScene);
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("viewBox", "0 0 100 100");
@@ -215,19 +313,38 @@ export function renderCustomScene(rawScene, { size = 84, replay = false } = {}) 
   for (const layer of scene.layers) {
     const shape = makeShape(layer);
     if (!shape) continue;
-    // Внешняя группа несёт базовый поворот (атрибутом), внутренняя — движение
-    // (CSS-анимацией). Они на разных элементах, поэтому поворот и анимация
-    // складываются, а не затирают друг друга.
+    // Внешняя группа несёт базовый поворот (атрибутом), внутренняя — движение.
+    // Они на разных элементах, поэтому базовый поворот и анимация складываются.
     const outer = document.createElementNS(SVG_NS, "g");
     if (layer.rot) outer.setAttribute("transform", `rotate(${layer.rot} ${layer.x} ${layer.y})`);
-    const inner = document.createElementNS(SVG_NS, "g");
-    if (layer.anim && layer.anim !== "none") {
-      inner.setAttribute("class", `ce-anim ce-${layer.anim}`);
-      inner.style.animationDuration = `${layer.dur}s`;
-      if (layer.delay) inner.style.animationDelay = `${layer.delay}s`;
+
+    if (layer.keys && layer.keys.length) {
+      // Покадровая анимация: двигаем саму фигуру через Web Animations API
+      // (или замораживаем на atTime для предпросмотра). transform-box: fill-box
+      // крутит/масштабирует вокруг центра фигуры.
+      shape.style.transformBox = "fill-box";
+      shape.style.transformOrigin = "center";
+      if (atTime != null) {
+        applyPose(shape, sampleLayerAt(layer, atTime));
+      } else {
+        const frames = buildFrames(layer, scene.loop);
+        if (frames && typeof shape.animate === "function") {
+          shape.animate(frames, { duration: scene.loop * 1000, iterations: Infinity, easing: "ease-in-out" });
+        } else {
+          applyPose(shape, sampleLayerAt(layer, 0));
+        }
+      }
+      outer.appendChild(shape);
+    } else {
+      const inner = document.createElementNS(SVG_NS, "g");
+      if (layer.anim && layer.anim !== "none") {
+        inner.setAttribute("class", `ce-anim ce-${layer.anim}`);
+        inner.style.animationDuration = `${layer.dur}s`;
+        if (layer.delay) inner.style.animationDelay = `${layer.delay}s`;
+      }
+      inner.appendChild(shape);
+      outer.appendChild(inner);
     }
-    inner.appendChild(shape);
-    outer.appendChild(inner);
     svg.appendChild(outer);
   }
   return svg;

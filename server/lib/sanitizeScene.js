@@ -19,6 +19,7 @@ const ANIM_IDS = new Set([
 const SHAPE_IDS = new Set(["emoji", "circle", "ellipse", "rect", "star", "heart", "text"]);
 
 const MAX_LAYERS = 12;
+const MAX_KEYS = 30;
 const HEX_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 function num(v, min, max, dflt) {
@@ -62,6 +63,25 @@ function sanitizeLayer(raw) {
     layer.h = num(raw.h, 2, 100, 28);
   } else if (type === "star" || type === "heart") {
     layer.size = num(raw.size, 4, 100, 34);
+  }
+  // Покадровая анимация: ключи-позы во времени (см. public/js/lib/customScene.js).
+  if (Array.isArray(raw.keys) && raw.keys.length) {
+    layer.keys = raw.keys
+      .slice(0, MAX_KEYS)
+      .map((k) => {
+        const key = {
+          t: num(k && k.t, 0, 60, 0),
+          dx: num(k && k.dx, -100, 100, 0),
+          dy: num(k && k.dy, -100, 100, 0),
+          rot: num(k && k.rot, -360, 360, 0),
+          scale: num(k && k.scale, 0, 4, 1),
+          opacity: num(k && k.opacity, 0, 1, 1),
+        };
+        const f = hex(k && k.fill, null);
+        if (f) key.fill = f;
+        return key;
+      })
+      .sort((a, b) => a.t - b.t);
   }
   return layer;
 }
