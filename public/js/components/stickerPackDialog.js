@@ -6,6 +6,7 @@ import { renderSticker } from "../lib/stickers.js";
 import { prepareStickerImage } from "../lib/image.js";
 import { uploadFile } from "../lib/upload.js";
 import { openAnimatorEditor } from "./animatorEditor.js";
+import { openPaintDialog } from "./paintDialog.js";
 import { sceneSummaryEmoji } from "../lib/customScene.js";
 
 // Building and editing your own sticker packs.
@@ -227,6 +228,26 @@ export function openStickerPackDialog(onChanged) {
             },
           }),
       }, "✏️ Нарисовать свою анимацию"),
+      el("button", {
+        class: "profile-action-btn sticker-add-image-btn",
+        disabled: uploadingCount > 0,
+        onclick: () =>
+          openPaintDialog(async (file) => {
+            error = null;
+            uploadingCount++;
+            render();
+            try {
+              const { file: prepared, animated } = await prepareStickerImage(file);
+              const { url } = await uploadFile(prepared, "image");
+              draft.stickers.push({ kind: "image", url, name: "", ...(animated ? { animated: true } : {}) });
+            } catch (err) {
+              error = err.message || "Не удалось добавить рисунок";
+            } finally {
+              uploadingCount--;
+              render();
+            }
+          }, { title: "Нарисовать стикер" }),
+      }, "🖌️ Нарисовать картинку"),
       el("p", { class: "settings-field-label" }, "Или эмодзи с анимацией"),
       el("div", { class: "sticker-add-row" }, [emojiInput, labelInput]),
       el("div", { class: "sticker-add-row" }, [sceneSelect, el("button", { class: "btn-accent-pill", onclick: addSticker }, "Добавить")]),

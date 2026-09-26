@@ -21,6 +21,16 @@ import { renderCustomScene } from "./customScene.js";
 // элемент массива, который рисуется маленькой анимированной сценой прямо в
 // строке. Сцена лежит в самом сообщении, поэтому её видит любой получатель, не
 // дозапрашивая ничего у автора.
+// Токен кастомного эмодзи в тексте (см. renderInline / composer.js).
+const CE_TOKEN_RE = /\[ce:\d+\]/g;
+
+// Текст для мест, где сообщение показывается плоской строкой (превью в списке
+// чатов, закреплённое, ответы, поиск, уведомления): там токен [ce:N] рисовать
+// нечем, поэтому заменяем его на 🎨 — иначе виден сырой «[ce:0]».
+export function previewText(text) {
+  return (text ?? "").replace(CE_TOKEN_RE, "🎨");
+}
+
 export function formatText(text, members, emoji) {
   const lines = text.split("\n");
   return el(
@@ -42,8 +52,8 @@ function renderInline(text, members, emoji) {
     if (ce) {
       const scene = emoji?.[Number(ce[1])];
       // Нет сцены (сообщение без вложений или битый индекс) — не теряем текст.
-      if (!scene) return document.createTextNode(tok);
-      return el("span", { class: "inline-custom-emoji" }, [renderCustomScene(scene, { size: 22 })]);
+      if (!scene) return document.createTextNode("🎨");
+      return el("span", { class: "inline-custom-emoji" }, [renderCustomScene(scene, { size: 30 })]);
     }
     if (tok.startsWith("**") && tok.endsWith("**")) return el("b", {}, tok.slice(2, -2));
     if (tok.startsWith("`") && tok.endsWith("`")) return el("code", { class: "inline-code" }, tok.slice(1, -1));

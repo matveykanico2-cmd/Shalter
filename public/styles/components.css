@@ -13491,12 +13491,70 @@ p.business-status {
 /* Кастомный эмодзи внутри текста сообщения (formatText.js) */
 .inline-custom-emoji {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   vertical-align: middle;
-  margin: 0 1px;
+  width: 30px;
+  height: 30px;
+  margin: -4px 1px;
 }
+.inline-custom-emoji svg { display: block; }
 
 /* Скрытый из витрины подарок в админ-каталоге (views/settings/index.js) */
 .gift-admin-row.gift-admin-hidden { opacity: 0.55; }
+
+/* Пейнт — свободное рисование (components/paintDialog.js) */
+.paint-dialog { max-width: 560px; width: 100%; max-height: 92vh; }
+.paint-stage {
+  display: flex;
+  justify-content: center;
+}
+.paint-canvas {
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 1 / 1;
+  touch-action: none;
+  border-radius: 14px;
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.3));
+  cursor: crosshair;
+  background:
+    linear-gradient(45deg, rgba(128, 128, 128, 0.14) 25%, transparent 25%, transparent 75%, rgba(128, 128, 128, 0.14) 75%) 0 0 / 20px 20px,
+    linear-gradient(45deg, rgba(128, 128, 128, 0.14) 25%, transparent 25%, transparent 75%, rgba(128, 128, 128, 0.14) 75%) 10px 10px / 20px 20px;
+}
+.paint-swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; }
+.paint-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.paint-swatch.sel { border-color: var(--accent, #ff8a3d); }
+.paint-color-input {
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.3));
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+.paint-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.paint-row input[type="range"] { flex: 1 1 120px; accent-color: var(--accent, #ff8a3d); }
+.paint-brush-label { font-size: 13px; opacity: 0.75; display: flex; gap: 6px; }
+.paint-brush-val { font-variant-numeric: tabular-nums; }
+.paint-tool {
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.3));
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.paint-tool:hover { background: rgba(128, 128, 128, 0.12); }
+.paint-tool.on { color: #ff5d73; border-color: #ff5d73; }
 
 /* Админ-каталог эмодзи (views/settings/index.js → renderEmojiCatalog) */
 .emoji-admin-grid {

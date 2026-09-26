@@ -558,7 +558,9 @@ function renderResults(container) {
           // по ширине можно только настоящий элемент, а найденное сообщение
           // бывает длиной в экран.
           el("button", { class: "search-message-row", onclick: () => navigate(`/chat/${m.chatId}`) }, [
-            el("span", { class: "search-message-text" }, m.text),
+            // [ce:N] — токен кастомного эмодзи; в плоском тексте поиска рисовать
+            // нечем, показываем 🎨 вместо сырого «[ce:0]».
+            el("span", { class: "search-message-text" }, (m.text ?? "").replace(/\[ce:\d+\]/g, "🎨")),
           ])
         );
       }

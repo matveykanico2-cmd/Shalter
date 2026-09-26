@@ -7,6 +7,7 @@ import { startChatAction, withChatAction, uploadActionFor } from "../lib/chatAct
 import { checkSize } from "../lib/uploadLimits.js";
 import { openPollDialog } from "./pollDialog.js";
 import { openMemeDialog } from "./memeDialog.js";
+import { openPaintDialog } from "./paintDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openScheduleSendDialog } from "./scheduleSendDialog.js";
 import { STICKERS, DRAWN_STICKERS, renderSticker } from "../lib/stickers.js";
@@ -577,6 +578,11 @@ export function Composer({
           icon: "Zap",
           label: "Мем",
           run: () => openMemeDialog(sendImageNow),
+        },
+        {
+          icon: "Edit",
+          label: "Рисунок",
+          run: () => openPaintDialog(sendImageNow),
         },
         {
           icon: "BarChart",

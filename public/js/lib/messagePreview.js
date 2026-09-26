@@ -19,19 +19,24 @@ const ATTACHMENT_LABEL = {
   contact: "👤 Контакт",
 };
 
+// Токен кастомного эмодзи ([ce:N]) в плоской строке рисовать нечем — заменяем
+// на 🎨, иначе в превью виден сырой «[ce:0]» (см. lib/formatText.js).
+const ceText = (t) => (t ?? "").replace(/\[ce:\d+\]/g, "🎨");
+
 export function messagePreview(m) {
   if (!m) return "";
-  if (m.type === "system") return m.text ?? "";
+  if (m.type === "system") return ceText(m.text);
   if (m.type === "sticker") return `${m.sticker?.emoji ?? ""} Стикер`.trim();
   if (m.type === "gift") return `🎁 ${m.gift?.name ?? "Подарок"}`;
   const att = m.attachments?.[0];
+  const text = ceText(m.text);
   if (att) {
-    if (att.kind === "poll") return `📊 ${m.text || "Опрос"}`;
+    if (att.kind === "poll") return `📊 ${text || "Опрос"}`;
     const label = ATTACHMENT_LABEL[att.kind];
     // An unknown attachment kind falls back to the caption, then to the file
     // name — better a filename than a blank row.
-    if (label) return m.text ? `${label} · ${m.text}` : label;
-    return m.text || att.name || "Вложение";
+    if (label) return text ? `${label} · ${text}` : label;
+    return text || att.name || "Вложение";
   }
-  return m.text ?? "";
+  return text;
 }

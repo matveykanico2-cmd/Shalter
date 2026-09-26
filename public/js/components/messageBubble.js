@@ -2,7 +2,7 @@ import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
-import { formatText } from "../lib/formatText.js";
+import { formatText, previewText } from "../lib/formatText.js";
 import { api } from "../api.js";
 import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog } from "./profileDialog.js";
@@ -663,7 +663,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       el(
         "button",
         { class: "reply-preview", onclick: () => onJumpTo(replyToMessage.id) },
-        replyToMessage.text || "Медиа"
+        previewText(replyToMessage.text) || "Медиа"
       )
     );
   }
