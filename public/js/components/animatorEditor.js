@@ -28,6 +28,7 @@ const PREVIEW = 240;
 
 function defaultLayer(type) {
   const base = { type, x: 50, y: 50, fill: "#ff8a3d", opacity: 1, rot: 0, keys: [] };
+  if (type === "draw") return { ...base, fill: "#000000", strokes: [] };
   if (type === "emoji") return { ...base, emoji: "😀", size: 44 };
   if (type === "text") return { ...base, text: "текст", size: 18, fill: "#2f2a24" };
   if (type === "circle") return { ...base, r: 18 };
@@ -48,6 +49,11 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
   let error = null;
   let raf = 0;
   let playStart = 0;
+  // Кисть: рисование с нуля прямо на холсте (слой типа draw).
+  let brushMode = true; // на слое-кисти холст рисует, а не двигает
+  let brushColor = "#000000";
+  let brushWidth = 4;
+  let curStroke = null; // штрих, который сейчас ведём
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
 
@@ -71,7 +77,7 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     // Маркер выбранного слоя — кольцо в его текущем положении, чтобы видеть, что
     // именно двигаешь. При проигрывании прячем (поза меняется сама).
     const L = sel();
-    if (L && !playing) {
+    if (L && !playing && L.type !== "draw") {
       const p = sampleLayerAt(L, time);
       const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       ring.setAttribute("cx", L.x + p.dx);
@@ -94,17 +100,42 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     };
   }
 
-  // Перетаскивание выбранного слоя прямо на холсте.
+  // На холсте два действия: рисование кистью (слой draw + режим кисти) и
+  // перетаскивание слоя (двигаем/пишем ключ позиции).
   let dragging = false;
+  const isBrush = () => brushMode && sel()?.type === "draw";
+
   previewBox.addEventListener("pointerdown", (e) => {
     const L = sel();
     if (!L || playing) return;
-    dragging = true;
     previewBox.setPointerCapture(e.pointerId);
-    moveTo(e.clientX, e.clientY);
+    if (isBrush()) {
+      // Новый штрих текущим цветом/толщиной.
+      const v = toViewbox(e.clientX, e.clientY);
+      curStroke = { color: brushColor, width: brushWidth, pts: [[round(v.x), round(v.y)]] };
+      L.strokes.push(curStroke);
+      refreshPreview();
+    } else {
+      dragging = true;
+      moveTo(e.clientX, e.clientY);
+    }
   });
-  previewBox.addEventListener("pointermove", (e) => dragging && moveTo(e.clientX, e.clientY));
+  previewBox.addEventListener("pointermove", (e) => {
+    if (curStroke) {
+      const v = toViewbox(e.clientX, e.clientY);
+      const pts = curStroke.pts;
+      const lastPt = pts[pts.length - 1];
+      // Не копим лишние точки: добавляем, только если сдвинулись заметно.
+      if (!lastPt || Math.hypot(v.x - lastPt[0], v.y - lastPt[1]) > 0.6) {
+        pts.push([round(v.x), round(v.y)]);
+        refreshPreview();
+      }
+    } else if (dragging) {
+      moveTo(e.clientX, e.clientY);
+    }
+  });
   previewBox.addEventListener("pointerup", (e) => {
+    if (curStroke) { curStroke = null; renderPanel(); }
     dragging = false;
     try { previewBox.releasePointerCapture(e.pointerId); } catch {}
   });
@@ -166,6 +197,8 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     error = null;
     scene.layers.push(defaultLayer(type));
     selected = scene.layers.length - 1;
+    // Кисть сразу в режиме рисования; другие фигуры — в режиме перемещения.
+    brushMode = type === "draw";
     renderAll();
   }
   function removeLayer(i) {
@@ -202,7 +235,22 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
 
     // Базовые свойства фигуры (форма/размер/цвет).
     const baseRows = [];
-    if (L.type === "emoji") {
+    if (L.type === "draw") {
+      // Слой-кисть: рисование на холсте. Режим «рисовать» — штрихи; «двигать» —
+      // перетаскивание/ключи позиции.
+      const modeBtn = el("button", { class: `anim-add-btn ${brushMode ? "" : "danger"}`, onclick: () => { brushMode = !brushMode; renderPanel(); } }, brushMode ? "✏️ Рисую" : "✋ Двигаю");
+      baseRows.push(
+        el("p", { class: "anim-hint" }, brushMode ? "Рисуйте прямо на холсте." : "Перетаскивайте рисунок на холсте (запишется ключом)."),
+        el("div", { class: "anim-key-actions" }, [modeBtn]),
+        colorRow("Цвет кисти", () => brushColor, (v) => { brushColor = v; }),
+        slider("Толщина", 1, 40, 1, () => brushWidth, (v) => { brushWidth = v; }),
+        el("div", { class: "anim-key-actions" }, [
+          el("button", { class: "anim-add-btn", onclick: () => { L.strokes.pop(); refreshPreview(); renderPanel(); } }, "Отменить штрих"),
+          el("button", { class: "anim-add-btn danger", onclick: () => { L.strokes = []; refreshPreview(); renderPanel(); } }, "Очистить рисунок"),
+          el("span", { class: "anim-ctl-val" }, `${L.strokes.length} штрихов`),
+        ])
+      );
+    } else if (L.type === "emoji") {
       const emojiInput = el("input", { type: "text", class: "anim-text-input", value: L.emoji, maxLength: 8, oninput: (e) => { L.emoji = e.target.value; refreshPreview(); } });
       // Полная сетка эмодзи (lib/emojiList.js) — «все эмодзи». Выбор не
       // пересобирает панель (чтобы прокрутка не прыгала): только меняет слой,

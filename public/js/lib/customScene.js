@@ -45,6 +45,7 @@ const ANIM_IDS = new Set(CE_ANIMS.map((a) => a.id));
 // heart дают «стикерную» выразительность без произвольных путей: их геометрия
 // фиксирована и лишь масштабируется, пользователь не задаёт координаты кривых.
 export const CE_SHAPES = [
+  { id: "draw", label: "Кисть" },
   { id: "emoji", label: "Эмодзи" },
   { id: "circle", label: "Круг" },
   { id: "ellipse", label: "Овал" },
@@ -53,6 +54,8 @@ export const CE_SHAPES = [
   { id: "heart", label: "Сердце" },
   { id: "text", label: "Текст" },
 ];
+export const CE_MAX_STROKES = 60; // штрихов в слое-кисти
+export const CE_MAX_POINTS = 400; // точек в штрихе
 const SHAPE_IDS = new Set(CE_SHAPES.map((s) => s.id));
 
 export const CE_MAX_LAYERS = 12;
@@ -65,6 +68,19 @@ const num = (v, min, max, dflt) => {
   return Math.min(max, Math.max(min, n));
 };
 const hex = (v, dflt) => (typeof v === "string" && HEX_RE.test(v.trim()) ? v.trim().toLowerCase() : dflt);
+
+// Один штрих кисти — цвет, толщина и точки. Пустой (без точек) выпадает.
+function sanitizeStroke(s) {
+  if (!s || typeof s !== "object") return undefined;
+  const pts = Array.isArray(s.pts)
+    ? s.pts
+        .slice(0, CE_MAX_POINTS)
+        .map((p) => (Array.isArray(p) && p.length >= 2 ? [num(p[0], 0, 100, 0), num(p[1], 0, 100, 0)] : null))
+        .filter(Boolean)
+    : [];
+  if (!pts.length) return undefined;
+  return { color: hex(s.color, "#000000"), width: num(s.width, 1, 40, 4), pts };
+}
 
 // Одна фигура — приводится к известной форме. Возвращает undefined, если тип
 // фигуры не из белого списка: такой слой просто выпадает, а не роняет сцену.
@@ -101,6 +117,12 @@ function sanitizeLayer(raw) {
     layer.h = num(raw.h, 2, 100, 28);
   } else if (type === "star" || type === "heart") {
     layer.size = num(raw.size, 4, 100, 34);
+  } else if (type === "draw") {
+    // Слой-кисть: нарисованные с нуля векторные штрихи (свободное рисование на
+    // холсте). Координаты точек — в единицах вьюбокса 0..100.
+    layer.strokes = Array.isArray(raw.strokes)
+      ? raw.strokes.slice(0, CE_MAX_STROKES).map(sanitizeStroke).filter(Boolean)
+      : [];
   }
   // Покадровая анимация: ключи во времени. Каждый ключ — поза относительно
   // базового положения слоя (смещение dx/dy в единицах вьюбокса, поворот,
@@ -173,6 +195,13 @@ function heartPath(cx, cy, size) {
   );
 }
 
+// Точки штриха → атрибут d. Одна точка — короткая чёрточка, чтобы был виден
+// «тычок» кистью.
+function strokeToPath(pts) {
+  if (pts.length === 1) return `M${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)} l0.01 0`;
+  return "M" + pts.map((p) => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(" L");
+}
+
 function makeShape(layer) {
   const { type, x, y, fill } = layer;
   let node;
@@ -201,6 +230,20 @@ function makeShape(layer) {
     node = document.createElementNS(SVG_NS, "path");
     node.setAttribute("d", type === "star" ? starPath(x, y, layer.size) : heartPath(x, y, layer.size));
     node.setAttribute("fill", fill);
+  } else if (type === "draw") {
+    // Слой-кисть: каждый штрих — свой <path>. Группа целиком двигается ключами.
+    node = document.createElementNS(SVG_NS, "g");
+    for (const st of layer.strokes) {
+      if (!st.pts.length) continue;
+      const path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", strokeToPath(st.pts));
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", st.color);
+      path.setAttribute("stroke-width", st.width);
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("stroke-linejoin", "round");
+      node.appendChild(path);
+    }
   } else if (type === "emoji" || type === "text") {
     node = document.createElementNS(SVG_NS, "text");
     node.setAttribute("x", x);
