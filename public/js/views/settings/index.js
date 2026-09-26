@@ -2260,20 +2260,60 @@ async function renderHolidays(root) {
     render();
   }
 
+  async function deleteBuiltin(id) {
+    const disabled = new Set(settings.holidays?.disabled ?? []);
+    disabled.add(id);
+    settings = { ...settings, holidays: { ...settings.holidays, disabled: [...disabled] } };
+    render();
+    await api.patchSettings({ holidays: settings.holidays });
+  }
+  async function restoreBuiltins() {
+    // Вернуть скрытые встроенные: убираем из disabled все id из каталога.
+    const catalogIds = new Set(holidayCatalog.map((h) => h.id));
+    const disabled = (settings.holidays?.disabled ?? []).filter((id) => !catalogIds.has(id));
+    settings = { ...settings, holidays: { ...settings.holidays, disabled } };
+    render();
+    await api.patchSettings({ holidays: settings.holidays });
+  }
+  // «Изменить» встроенный: оригинал не поменять (он общий), поэтому делаем его
+  // личной копией — скрываем встроенный и добавляем свой с теми же полями,
+  // затем сразу открываем на редактирование.
+  async function editBuiltin(h) {
+    const disabled = new Set(settings.holidays?.disabled ?? []);
+    disabled.add(h.id);
+    const custom = [...(settings.holidays?.custom ?? []), { title: h.title, date: h.date }];
+    settings = { ...settings, holidays: { ...settings.holidays, disabled: [...disabled], custom } };
+    render();
+    const { settings: saved } = await api.patchSettings({ holidays: settings.holidays });
+    settings = saved;
+    // Открываем на правку только что созданную копию (последняя с таким названием).
+    const created = [...(saved.holidays?.custom ?? [])].reverse().find((c) => c.title === h.title && c.date === h.date);
+    if (created) startEditHoliday(created);
+    else render();
+  }
+
   function render() {
     const custom = settings.holidays?.custom ?? [];
+    const anyBuiltinHidden = holidayCatalog.some((h) => !isEnabled(h.id));
     mount(
       root,
       pageWrap("Праздники", "Напоминания в личном чате с Shalter в день праздника", [
-        section(
-          "Встроенные",
-          holidayCatalog.map((h) =>
-            el("div", { class: "settings-toggle-row" }, [
-              el("span", { class: "settings-toggle-title" }, h.title),
-              Toggle(isEnabled(h.id), (v) => toggle(h.id, v)),
-            ])
-          )
-        ),
+        section("Встроенные", [
+          ...holidayCatalog
+            .filter((h) => isEnabled(h.id))
+            .map((h) =>
+              el("div", { class: "settings-toggle-row" }, [
+                el("span", { class: "settings-toggle-title" }, h.title),
+                el("div", { class: "label-row-actions" }, [
+                  el("button", { class: "settings-danger-link", onclick: () => editBuiltin(h) }, "Изменить"),
+                  el("button", { class: "icon-btn danger", title: "Удалить", html: iconSvg("Trash", 16), onclick: () => deleteBuiltin(h.id) }),
+                ]),
+              ])
+            ),
+          anyBuiltinHidden
+            ? el("button", { class: "settings-danger-link", onclick: restoreBuiltins }, "Вернуть скрытые встроенные")
+            : null,
+        ]),
         section("Свои праздники", [
           ...custom.map((h) => {
             if (editingHolidayId === h.id) {
