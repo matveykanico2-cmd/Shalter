@@ -411,17 +411,25 @@ export async function openProfileDialog(userId) {
         : null,
       user.isBanned ? el("p", { class: "safety-banned-note" }, "🚫 Аккаунт заблокирован администрацией Shalter") : null,
       user.username
-        ? el("p", { class: `profile-username ${user.isCollectibleUsername ? "collectible" : ""}` }, [
-            `@${user.username}`,
-            // Won at auction, not merely registered first — that's the whole
-            // point of a collectible handle, so it has to be visible.
-            user.isCollectibleUsername
-              ? el("span", { class: "collectible-badge", title: "Коллекционный юзернейм — выигран на аукционе" }, "💎")
-              : null,
-          ].filter(Boolean))
+        ? el("div", { class: "profile-info" }, [
+            el("span", { class: "profile-info-label" }, "Юзернейм"),
+            el("p", { class: `profile-username ${user.isCollectibleUsername ? "collectible" : ""}` }, [
+              `@${user.username}`,
+              // Won at auction, not merely registered first — that's the whole
+              // point of a collectible handle, so it has to be visible.
+              user.isCollectibleUsername
+                ? el("span", { class: "collectible-badge", title: "Коллекционный юзернейм — выигран на аукционе" }, "💎")
+                : null,
+            ].filter(Boolean)),
+          ])
         : null,
       status ? el("p", { class: "profile-status" }, status) : null,
-      user.bio ? el("p", { class: "profile-bio" }, user.bio) : null,
+      user.bio
+        ? el("div", { class: "profile-info" }, [
+            el("span", { class: "profile-info-label" }, "О себе"),
+            el("p", { class: "profile-bio" }, user.bio),
+          ])
+        : null,
       user.profileTrack
         ? el("div", { class: "profile-track-row" }, [
             el("span", { class: "profile-track-icon", html: iconSvg("Volume", 15) }),
@@ -429,13 +437,19 @@ export async function openProfileDialog(userId) {
           ])
         : null,
       user.phone
-        ? el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("Phone", 15) }), el("span", { class: "mono" }, user.phone)])
+        ? el("div", { class: "profile-info" }, [
+            el("span", { class: "profile-info-label" }, "Телефон"),
+            el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("Phone", 15) }), el("span", { class: "mono" }, user.phone)]),
+          ])
         : null,
       // Shalter для бизнеса — publicUser() отдаёт это поле как есть, только
       // если человек его сам заполнил (см. server/data/users.js), поэтому
       // isBusiness здесь скорее для порядка: пустое поле и так не покажется.
       user.isBusiness && user.businessAddress
-        ? el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("MapPin", 15) }), el("span", {}, user.businessAddress)])
+        ? el("div", { class: "profile-info" }, [
+            el("span", { class: "profile-info-label" }, "Адрес"),
+            el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("MapPin", 15) }), el("span", {}, user.businessAddress)]),
+          ])
         : null,
       // Часы работы бизнеса, как в Telegram Business: статус сейчас, по
       // нажатию — неделя. Статус считает сервер по поясу бизнеса
@@ -472,9 +486,12 @@ export async function openProfileDialog(userId) {
           ])
         : null,
       user.birthday
-        ? el("div", { class: "profile-field-row" }, [
-            el("span", {}, "🎂"),
-            el("span", {}, new Date(user.birthday).toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" })),
+        ? el("div", { class: "profile-info" }, [
+            el("span", { class: "profile-info-label" }, "Дата рождения"),
+            el("div", { class: "profile-field-row" }, [
+              el("span", {}, "🎂"),
+              el("span", {}, new Date(user.birthday).toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" })),
+            ]),
           ])
         : null,
       isContact ? el("p", { class: "profile-contact-tag" }, "В ваших контактах") : null,

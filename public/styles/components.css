@@ -4180,6 +4180,24 @@
   font-size: 14px;
   color: var(--color-text);
 }
+/* Подписанное поле профиля (карточка): подпись сверху, значение снизу
+   (components/profileDialog.js) */
+.profile-info {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.profile-info .profile-field-row,
+.profile-info .profile-username,
+.profile-info .profile-bio { margin-top: 0; }
+.profile-info-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.55;
+}
 .profile-track-row {
   margin-top: 12px;
   display: flex;
