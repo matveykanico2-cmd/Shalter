@@ -13,6 +13,7 @@ const {
   listUserGifts,
   getUserGift,
   setSupply,
+  setGiftScene,
   createGift,
   createUserGift,
   updateUserGift,

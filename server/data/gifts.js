@@ -395,7 +395,15 @@ function listGifts({ includeHidden = false } = {}) {
     }
     // Only the fields an admin is allowed to change are taken from the row; the
     // rest stays whatever shipped, so an override can't quietly rename a gift.
-    merged.push({ ...g, supply: row.supply ?? g.supply, edited: true, ...(row.hidden ? { hidden: true } : {}) });
+    // Кроме тиража теперь берётся и нарисованная сцена (scene) — админ может
+    // перерисовать встроенный подарок в аниматоре, не переименовывая его.
+    merged.push({
+      ...g,
+      supply: row.supply ?? g.supply,
+      edited: true,
+      ...(row.hidden ? { hidden: true } : {}),
+      ...(row.scene ? { scene: JSON.parse(row.scene) } : {}),
+    });
   }
   for (const row of rows.values()) {
     if (!row.custom || row.ownerId) continue;
@@ -436,6 +444,27 @@ function setSupply(id, supply) {
       `INSERT INTO gift_catalog (id, emoji, name, priceRub, premiumDays, supply, exclusive, custom, createdAt)
        VALUES (@id, NULL, NULL, NULL, NULL, @supply, 0, 0, @createdAt)`
     ).run({ id, supply, createdAt: new Date().toISOString() });
+  }
+  return getGift(id);
+}
+
+// Нарисованная сцена подарка — override для встроенного (админ перерисовал его
+// в аниматоре) или замена сцены у custom-подарка. scene = null убирает override
+// и возвращает встроенному подарку его анимацию по эмодзи. Единственный путь
+// записи, как и у setSupply. Только имя/цену встроенного не трогаем — меняется
+// лишь рисунок.
+function setGiftScene(id, scene) {
+  const builtin = GIFTS.find((g) => g.id === id);
+  const existing = db.prepare("SELECT * FROM gift_catalog WHERE id = ?").get(id);
+  if (!builtin && !existing) return undefined;
+  const sceneJson = scene ? JSON.stringify(scene) : null;
+  if (existing) {
+    db.prepare("UPDATE gift_catalog SET scene = ? WHERE id = ?").run(sceneJson, id);
+  } else {
+    db.prepare(
+      `INSERT INTO gift_catalog (id, emoji, name, priceRub, premiumDays, supply, exclusive, custom, scene, createdAt)
+       VALUES (@id, NULL, NULL, NULL, NULL, NULL, 0, 0, @scene, @createdAt)`
+    ).run({ id, scene: sceneJson, createdAt: new Date().toISOString() });
   }
   return getGift(id);
 }
@@ -536,6 +565,7 @@ module.exports = {
   listUserGifts,
   getUserGift,
   setSupply,
+  setGiftScene,
   createGift,
   createUserGift,
   updateUserGift,
