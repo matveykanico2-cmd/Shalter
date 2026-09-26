@@ -525,6 +525,7 @@ export const api = {
   // server-side to the ADMIN_PHONE holder — these will 403 for anyone else.
   adminLookupUser: (q) => req(`/api/admin/lookup?q=${encodeURIComponent(q)}`),
   adminLookupChat: (q) => req(`/api/admin/chats/lookup?q=${encodeURIComponent(q)}`),
+  adminDirectory: (type, q = "") => req(`/api/admin/directory?type=${encodeURIComponent(type)}&q=${encodeURIComponent(q)}`),
   adminExportUser: (userId, reason) =>
     req("/api/admin/export", { method: "POST", body: JSON.stringify({ userId, reason }) }),
   adminListExports: () => req("/api/admin/exports"),

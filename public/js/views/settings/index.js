@@ -3077,6 +3077,27 @@ async function renderModeration(root) {
   // Вне render(): пересоздание полей на каждой перерисовке — ровно то, из-за
   // чего в других местах приложения текст приходилось вводить по одной букве.
   const newLabelShort = el("input", { class: "settings-input", placeholder: "СПАМ", maxlength: 16 });
+  // Каталог: листать всех людей/группы/каналы/ботов и открывать карточку.
+  let dirTab = "users";
+  let dirItems = null;
+  let dirTotal = 0;
+  let dirLoading = false;
+  const dirQueryInput = el("input", { class: "settings-input", placeholder: "Поиск в каталоге (необязательно)" });
+  async function loadDirectory() {
+    dirLoading = true;
+    render();
+    try {
+      const r = await api.adminDirectory(dirTab, dirQueryInput.value.trim());
+      dirItems = r.items;
+      dirTotal = r.total;
+    } catch {
+      dirItems = [];
+      dirTotal = 0;
+    } finally {
+      dirLoading = false;
+      render();
+    }
+  }
 
   const newStatusName = el("input", { class: "settings-input", placeholder: "Название (необязательно)", maxlength: 40 });
   const newStatusFileInput = el("input", {
@@ -3119,6 +3140,50 @@ async function renderModeration(root) {
   // which reloads what it needs itself.
   function openPanel(u) {
     openAdminUserPanel(u, () => load());
+  }
+
+  const DIR_TABS = [["users", "Люди"], ["groups", "Группы"], ["channels", "Каналы"], ["bots", "Боты"]];
+  function dirRow(it) {
+    if (it.kind === "user" || it.kind === "bot") {
+      return el("button", { class: "moderation-row", onclick: () => openPanel(it) }, [
+        el("div", { class: "moderation-row-body" }, [
+          el("p", { class: "moderation-row-name" }, [
+            it.name || "—",
+            it.isBanned ? el("span", { class: "admin-panel-flag danger" }, "бан") : null,
+            it.kind === "bot" ? el("span", { class: "gift-admin-tag" }, "бот") : null,
+          ]),
+          el("p", { class: "settings-toggle-hint mono" }, [it.username ? `@${it.username}` : null, it.phone, it.email].filter(Boolean).join(" · ") || it.id),
+        ]),
+      ]);
+    }
+    return el("button", { class: "moderation-row", onclick: () => navigate(`/chat/${it.id}`) }, [
+      el("div", { class: "moderation-row-body" }, [
+        el("p", { class: "moderation-row-name" }, it.title || "(без названия)"),
+        el("p", { class: "settings-toggle-hint mono" }, [it.username ? `@${it.username}` : null, `${it.members} участн.`].filter(Boolean).join(" · ")),
+      ]),
+    ]);
+  }
+  function directorySection() {
+    return section("Каталог", [
+      el(
+        "div",
+        { class: "search-filter-bar" },
+        DIR_TABS.map(([id, name]) =>
+          el("button", { class: `search-filter-chip${dirTab === id ? " active" : ""}`, onclick: () => { dirTab = id; dirItems = null; loadDirectory(); } }, name)
+        )
+      ),
+      el("div", { class: "settings-toggle-row no-divider" }, [dirQueryInput, el("button", { class: "btn-accent", onclick: loadDirectory }, "Показать")]),
+      dirLoading
+        ? el("p", { class: "settings-toggle-hint" }, "Загрузка…")
+        : dirItems == null
+          ? el("p", { class: "settings-toggle-hint" }, "Выберите вкладку и нажмите «Показать».")
+          : !dirItems.length
+            ? el("p", { class: "moderation-empty" }, "Пусто")
+            : el("div", {}, [
+                el("p", { class: "settings-toggle-hint" }, dirTotal > dirItems.length ? `Показано ${dirItems.length} из ${dirTotal} — уточните поиск` : `Всего: ${dirTotal}`),
+                ...dirItems.map(dirRow),
+              ]),
+    ]);
   }
 
   function userRow(u, meta) {
@@ -3243,6 +3308,7 @@ async function renderModeration(root) {
             "Сообщения, файлы, ссылки и истории удаляются прямо в чате или в просмотре истории — модератору там доступно «Удалить у всех»."
           ),
         ]),
+        directorySection(),
         section("Отправка почты", [
           el(
             "p",

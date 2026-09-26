@@ -16,6 +16,7 @@ const {
   updateUser,
   disableTotp,
   setAdminSections,
+  listUsers,
 } = require("../data/users");
 const { hashPassword } = require("../security");
 const { revokeAllSessions } = require("../data/sessions");
@@ -25,7 +26,7 @@ const { buildUserExport, logExport, listExports } = require("../data/dataExport"
 const { deleteAccount } = require("../lib/deleteAccount");
 const { listOpenReports, listReportsAboutUser } = require("../data/reports");
 const { getMessage } = require("../data/messages");
-const { getChat, updateChat, findChatByUsername, findChatByInviteCode } = require("../data/chats");
+const { getChat, updateChat, findChatByUsername, findChatByInviteCode, listChats } = require("../data/chats");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { broadcastToUsers } = require("../ws");
@@ -600,6 +601,60 @@ router.post(
     const sections = requested.filter((s) => ADMIN_SECTIONS.includes(s));
     const updated = await setAdminSections(target.id, sections);
     res.json({ user: { id: updated.id, adminSections: updated.adminSections } });
+  })
+);
+
+// Каталог для супер-админа: листать всех людей, ботов, группы и каналы,
+// искать по имени/юзернейму/телефону/почте и открывать карточку. Раздел
+// «Модерация». Отдаётся с ограничением (LIMIT) — не вся база разом; total
+// показывает, сколько всего нашлось.
+router.get(
+  "/directory",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
+    const type = ["users", "bots", "groups", "channels"].includes(req.query.type) ? req.query.type : "users";
+    const q = String(req.query.q ?? "").trim().toLowerCase();
+    const LIMIT = 100;
+
+    if (type === "users" || type === "bots") {
+      const wantBot = type === "bots";
+      let users = (await listUsers()).filter((u) => !!u.isBot === wantBot);
+      if (q) {
+        users = users.filter(
+          (u) =>
+            (u.name ?? "").toLowerCase().includes(q) ||
+            (u.username ?? "").toLowerCase().includes(q) ||
+            (u.phone ?? "").includes(q) ||
+            (u.email ?? "").toLowerCase().includes(q)
+        );
+      }
+      users.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+      const total = users.length;
+      const items = users.slice(0, LIMIT).map((u) => ({
+        kind: wantBot ? "bot" : "user",
+        id: u.id,
+        name: u.name,
+        username: u.username || null,
+        phone: u.phone || null,
+        email: u.email || null,
+        isBanned: !!u.isBanned,
+      }));
+      return res.json({ items, total });
+    }
+
+    const wanted = type === "channels" ? "channel" : "group";
+    let chats = (await listChats()).filter((c) => c.type === wanted);
+    if (q) chats = chats.filter((c) => (c.title ?? "").toLowerCase().includes(q) || (c.username ?? "").toLowerCase().includes(q));
+    chats.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
+    const total = chats.length;
+    const items = chats.slice(0, LIMIT).map((c) => ({
+      kind: wanted,
+      id: c.id,
+      title: c.title || c.name || "",
+      username: c.username || null,
+      members: c.memberIds.length,
+    }));
+    res.json({ items, total });
   })
 );
 
