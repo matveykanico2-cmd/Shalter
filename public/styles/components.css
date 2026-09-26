@@ -1860,7 +1860,10 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  transform: translateY(-50%);
+  /* Полностью над сообщением, а не на его верхнем крае: так панель действий
+     не перекрывает текст короткого сообщения. Небольшой зазор — чтобы она не
+     прилипала вплотную. */
+  transform: translateY(calc(-100% + 2px));
   border-radius: 999px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);

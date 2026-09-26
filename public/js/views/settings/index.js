@@ -3058,6 +3058,9 @@ async function renderModeration(root) {
   // на файл, до отправки формы — та же последовательность, что у аватарки.
   let newStatusImage = null;
   let newStatusError = null;
+  // Цвет новой метки безопасности (палитра ниже, при создании).
+  const LABEL_COLORS = ["#c6403b", "#d9822e", "#e0a423", "#2f9e5a", "#1c9bd9", "#7c6fd6", "#8a5cf6", "#5a6472"];
+  let newLabelColor = LABEL_COLORS[0];
 
   async function checkMail() {
     mailBusy = true;
@@ -3315,6 +3318,26 @@ async function renderModeration(root) {
           newLabelShort,
           newLabelName,
           newLabelHint,
+          el("p", { class: "settings-field-label" }, "Цвет метки"),
+          el(
+            "div",
+            { class: "avatar-color-grid" },
+            LABEL_COLORS.map((c) =>
+              el("button", {
+                class: `avatar-color-swatch${newLabelColor === c ? " active" : ""}`,
+                style: `background:${c}`,
+                title: "Выбрать цвет",
+                onclick: () => {
+                  newLabelColor = c;
+                  render();
+                },
+              })
+            )
+          ),
+          el("p", { class: "settings-toggle-hint" }, [
+            "Так метка будет выглядеть: ",
+            el("span", { class: "safety-badge safety-mini", style: { background: newLabelColor, color: "#fff" } }, (newLabelShort.value || "МЕТКА").toUpperCase()),
+          ]),
           el("button", {
             class: "btn-accent",
             onclick: async () => {
@@ -3325,8 +3348,10 @@ async function renderModeration(root) {
                   short: newLabelShort.value,
                   label: newLabelName.value,
                   hint: newLabelHint.value,
+                  color: newLabelColor,
                 });
                 newLabelShort.value = newLabelName.value = newLabelHint.value = "";
+                newLabelColor = LABEL_COLORS[0];
                 await load();
               } catch (err) {
                 lookupError = err.message || "Не удалось создать метку";
