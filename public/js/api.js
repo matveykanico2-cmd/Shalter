@@ -176,6 +176,8 @@ export const api = {
   createOAuthApp: (name, redirectUri) => req("/api/oauth/apps", { method: "POST", body: JSON.stringify({ name, redirectUri }) }),
   deleteOAuthApp: (id) => req(`/api/oauth/apps/${id}`, { method: "DELETE" }),
   regenerateOAuthApp: (id) => req(`/api/oauth/apps/${id}/regenerate`, { method: "POST" }),
+  // Показать секрет ещё раз (как «Показать токен» у бота).
+  getOAuthAppSecret: (id) => req(`/api/oauth/apps/${id}/secret`),
   getOAuthAppInfo: (clientId, redirectUri) =>
     req(`/api/oauth/app-info?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}`),
   approveOAuth: (clientId, redirectUri, state) =>

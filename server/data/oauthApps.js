@@ -111,11 +111,20 @@ function getTokenOwner(token) {
   return db.prepare("SELECT userId, clientId FROM oauth_tokens WHERE token = ?").get(token);
 }
 
+// Показать секрет владельцу ещё раз — как «Показать токен» у бота
+// (data/bots.js's getBotToken). Секрет лежит в базе открытым текстом, поэтому
+// его можно вернуть; отдаём только владельцу приложения.
+async function getOAuthAppSecret(id, ownerId) {
+  const row = db.prepare("SELECT clientId, clientSecret FROM oauth_apps WHERE id = ? AND ownerId = ?").get(id, ownerId);
+  return row ? { clientId: row.clientId, clientSecret: row.clientSecret } : undefined;
+}
+
 module.exports = {
   createOAuthApp,
   listOAuthAppsByOwner,
   getOAuthAppByClientId,
   getOAuthApp,
+  getOAuthAppSecret,
   deleteOAuthApp,
   regenerateOAuthAppSecret,
   createAuthCode,

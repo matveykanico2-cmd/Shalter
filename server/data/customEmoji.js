@@ -1,51 +1,49 @@
 const db = require("../db");
 const { sanitizeScene } = require("../lib/sanitizeScene");
 
-// Кастомные эмодзи пользователя — маленькие анимированные сцены (аниматор,
-// public/js/lib/customScene.js), которые вставляются прямо в текст сообщения.
+// Кастомные эмодзи — общий каталог, как подарки: создаёт/правит/удаляет только
+// админ (см. server/routes/customEmoji.js), а вставлять их в сообщения может
+// кто угодно. Раньше это была личная библиотека каждого пользователя; теперь
+// набор один на всех, поэтому список — глобальный, а не по владельцу.
 //
-// Сцена — пользовательский контент, уходящий в чужие чаты, поэтому её форма
-// пинуется здесь через sanitizeScene, ровно как у стикеров пака
-// (data/stickerPacks.js). Пустая сцена (без фигур) недопустима.
+// Сцена — пользовательский (админский) контент, уходящий в чужие чаты, поэтому
+// её форма пинуется через sanitizeScene. `ownerId` остаётся как автор записи
+// (кто из админов её создал) — для истории, не для доступа.
 
-const MAX_EMOJI = 100;
+const MAX_EMOJI = 500;
 const MAX_NAME = 40;
 
 function rowToEmoji(row) {
   if (!row) return undefined;
   return {
     id: row.id,
-    ownerId: row.ownerId,
     name: row.name,
     scene: JSON.parse(row.scene),
     createdAt: row.createdAt,
   };
 }
 
-function listEmojiFor(ownerId) {
-  return db
-    .prepare("SELECT * FROM custom_emoji WHERE ownerId = ? ORDER BY createdAt DESC")
-    .all(ownerId)
-    .map(rowToEmoji);
+// Весь каталог — для пикера у любого пользователя.
+function listAllEmoji() {
+  return db.prepare("SELECT * FROM custom_emoji ORDER BY createdAt DESC").all().map(rowToEmoji);
 }
 
-function countFor(ownerId) {
-  return db.prepare("SELECT COUNT(*) c FROM custom_emoji WHERE ownerId = ?").get(ownerId).c;
+function countAll() {
+  return db.prepare("SELECT COUNT(*) c FROM custom_emoji").get().c;
 }
 
 function getEmoji(id) {
   return rowToEmoji(db.prepare("SELECT * FROM custom_emoji WHERE id = ?").get(id));
 }
 
-// Возвращает { emoji } или { error } — так вызывающий маршрут отвечает нужным
-// кодом, не заглядывая внутрь правил.
-function createEmoji({ ownerId, name, scene }) {
+// Создание — только админом (гейт в маршруте). Возвращает { emoji } или { error }.
+function createEmoji({ creatorId, name, scene }) {
   const clean = sanitizeScene(scene, { requireLayers: true });
   if (!clean) return { error: "Нарисуйте эмодзи — добавьте хотя бы одну фигуру" };
-  if (countFor(ownerId) >= MAX_EMOJI) return { error: `Не больше ${MAX_EMOJI} своих эмодзи` };
+  if (countAll() >= MAX_EMOJI) return { error: `Не больше ${MAX_EMOJI} эмодзи в каталоге` };
   const row = {
     id: `ce_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-    ownerId,
+    ownerId: creatorId ?? "",
     name: String(name ?? "").trim().slice(0, MAX_NAME),
     scene: JSON.stringify(clean),
     createdAt: new Date().toISOString(),
@@ -56,10 +54,9 @@ function createEmoji({ ownerId, name, scene }) {
   return { emoji: getEmoji(row.id) };
 }
 
-// Правка своего эмодзи. Возвращает { emoji } или { error } (нет такого/чужой →
-// вызывающий отдаст 404), либо { error } при негодной сцене.
-function updateEmoji(id, ownerId, { name, scene }) {
-  const existing = db.prepare("SELECT * FROM custom_emoji WHERE id = ? AND ownerId = ?").get(id, ownerId);
+// Правка любого эмодзи каталога (админом). Возвращает { emoji } / { notFound } / { error }.
+function updateEmoji(id, { name, scene }) {
+  const existing = db.prepare("SELECT * FROM custom_emoji WHERE id = ?").get(id);
   if (!existing) return { notFound: true };
   let sceneJson = existing.scene;
   if (scene !== undefined) {
@@ -75,8 +72,8 @@ function updateEmoji(id, ownerId, { name, scene }) {
   return { emoji: getEmoji(id) };
 }
 
-function deleteEmoji(id, ownerId) {
-  return db.prepare("DELETE FROM custom_emoji WHERE id = ? AND ownerId = ?").run(id, ownerId).changes > 0;
+function deleteEmoji(id) {
+  return db.prepare("DELETE FROM custom_emoji WHERE id = ?").run(id).changes > 0;
 }
 
-module.exports = { listEmojiFor, getEmoji, createEmoji, updateEmoji, deleteEmoji, MAX_EMOJI };
+module.exports = { listAllEmoji, getEmoji, createEmoji, updateEmoji, deleteEmoji, MAX_EMOJI };

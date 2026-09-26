@@ -10,6 +10,7 @@ import { ImageAttachment, VideoAttachment, FileAttachment } from "../../componen
 import { requestPushPermission, pushDiagnostics, resubscribePush } from "../../lib/push.js";
 import { openCreateBotDialog } from "../../components/createBotDialog.js";
 import { openBotTokenDialog } from "../../components/botTokenDialog.js";
+import { openOAuthSecretDialog } from "../../components/oauthSecretDialog.js";
 import { openBotCodeDialog } from "../../components/botCodeDialog.js";
 import { openEditBotDialog } from "../../components/editBotDialog.js";
 import { PhoneField } from "../../components/phoneField.js";
@@ -41,6 +42,7 @@ import {
 import { uploadFile } from "../../lib/upload.js";
 import { renderGiftArt } from "../../lib/giftTraits.js";
 import { openAnimatorEditor } from "../../components/animatorEditor.js";
+import { renderCustomScene } from "../../lib/customScene.js";
 import { startRecording, isRecordingSupported } from "../../lib/recorder.js";
 import { checkSize } from "../../lib/uploadLimits.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
@@ -85,6 +87,7 @@ const SECTIONS = [
   { id: "moderation", label: "Модерация", icon: "Shield", group: "admin", adminOnly: true },
   { id: "server", label: "Состояние сервера", icon: "BarChart", group: "admin", adminOnly: true },
   { id: "giftshop", label: "Каталог подарков", icon: "Gift", group: "admin", adminOnly: true },
+  { id: "emojicatalog", label: "Эмодзи", icon: "Smile", group: "admin", adminOnly: true },
   { id: "donations", label: "Донаты", icon: "Zap", group: "admin", adminOnly: true },
   { id: "legal", label: "Запросы органов", icon: "Shield", group: "admin", adminOnly: true },
 ];
@@ -210,6 +213,7 @@ export async function SettingsView(root, page) {
     legal: renderLegal,
     stars: renderStars,
     giftshop: renderGiftShop,
+    emojicatalog: renderEmojiCatalog,
     usernames: renderUsernames,
   };
   await (renderers[section] ?? renderMenu)(contentSlot);
@@ -1361,6 +1365,97 @@ async function renderPartners(root) {
 // "Войти через Shalter" — registering a third-party app that can offer
 // Shalter as a login option (server/routes/oauth.js), same self-service
 // shape as Боты above: no admin approval, a secret shown once at creation.
+// Каталог кастомных эмодзи — админский, как каталог подарков. Создаются и
+// правятся в аниматоре; пользователи их только вставляют в сообщения (пикер
+// эмодзи в композере). Управление под грантом «emojicatalog».
+async function renderEmojiCatalog(root) {
+  let emoji = [];
+  let error = null;
+  let notice = null;
+  try {
+    ({ emoji } = await api.listCustomEmoji());
+  } catch (err) {
+    error = err.message || "Не удалось загрузить эмодзи";
+  }
+
+  function create() {
+    openAnimatorEditor({
+      title: "Нарисовать эмодзи",
+      saveLabel: "Сохранить эмодзи",
+      onSave: async (scene) => {
+        const name = (prompt("Название эмодзи (необязательно)") || "").trim();
+        try {
+          const { emoji: created } = await api.createCustomEmoji(name, scene);
+          emoji = [created, ...emoji];
+          notice = "Эмодзи добавлен";
+        } catch (err) {
+          error = err.message || "Не удалось сохранить";
+        }
+        render();
+      },
+    });
+  }
+
+  function edit(em) {
+    openAnimatorEditor({
+      title: "Изменить эмодзи",
+      saveLabel: "Сохранить",
+      initial: em.scene,
+      onSave: async (scene) => {
+        try {
+          const { emoji: updated } = await api.updateCustomEmoji(em.id, { scene });
+          emoji = emoji.map((e) => (e.id === updated.id ? updated : e));
+          notice = "Эмодзи обновлён";
+        } catch (err) {
+          error = err.message || "Не удалось сохранить";
+        }
+        render();
+      },
+    });
+  }
+
+  async function remove(em) {
+    if (!confirm(`Удалить эмодзи${em.name ? ` «${em.name}»` : ""}?`)) return;
+    try {
+      await api.deleteCustomEmoji(em.id);
+      emoji = emoji.filter((e) => e.id !== em.id);
+      notice = "Эмодзи удалён";
+    } catch (err) {
+      error = err.message || "Не удалось удалить";
+    }
+    render();
+  }
+
+  function render() {
+    mount(
+      root,
+      pageWrap("Эмодзи", "Анимированные эмодзи Shalter — их рисуете вы, вставляют все", [
+        notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,
+        error ? el("p", { class: "login-error" }, error) : null,
+        el("button", { class: "btn-accent", onclick: create }, "✏️ Нарисовать эмодзи"),
+        el("p", { class: "settings-section-title" }, `В каталоге — ${emoji.length}`),
+        emoji.length === 0
+          ? el("p", { class: "empty-hint" }, "Пока ничего не нарисовано")
+          : el(
+              "div",
+              { class: "emoji-admin-grid" },
+              emoji.map((em) =>
+                el("div", { class: "emoji-admin-cell" }, [
+                  el("span", { class: "emoji-admin-art" }, [renderCustomScene(em.scene, { size: 44 })]),
+                  em.name ? el("span", { class: "emoji-admin-name" }, em.name) : null,
+                  el("div", { class: "emoji-admin-actions" }, [
+                    el("button", { class: "icon-btn", title: "Изменить", html: iconSvg("Edit", 14), onclick: () => edit(em) }),
+                    el("button", { class: "icon-btn danger", title: "Удалить", html: iconSvg("Trash", 14), onclick: () => remove(em) }),
+                  ]),
+                ])
+              )
+            ),
+      ])
+    );
+  }
+  render();
+}
+
 async function renderOAuthApps(root) {
   let { apps } = await api.listOAuthApps();
   let name = "";
@@ -1383,6 +1478,7 @@ async function renderOAuthApps(root) {
       const { app } = await api.createOAuthApp(name.trim(), redirectUri.trim());
       apps = [{ id: app.id, name: app.name, clientId: app.clientId, redirectUri: app.redirectUri, createdAt: app.createdAt }, ...apps];
       freshSecret = { clientId: app.clientId, clientSecret: app.clientSecret };
+      openOAuthSecretDialog(app.name, { clientId: app.clientId, clientSecret: app.clientSecret }, { fresh: true });
       name = "";
       redirectUri = "";
       nameInput.value = "";
@@ -1412,7 +1508,18 @@ async function renderOAuthApps(root) {
     if (!confirm(`Перегенерировать секрет «${app.name}»? Старый секрет сразу перестанет работать.`)) return;
     const { app: updated } = await api.regenerateOAuthApp(app.id);
     freshSecret = { clientId: updated.clientId, clientSecret: updated.clientSecret };
+    openOAuthSecretDialog(updated.name ?? app.name, { clientId: updated.clientId, clientSecret: updated.clientSecret }, { fresh: true });
     render();
+  }
+
+  // Показать ключ ещё раз — как «Показать токен» у бота.
+  async function showSecret(app) {
+    try {
+      const creds = await api.getOAuthAppSecret(app.id);
+      openOAuthSecretDialog(app.name, creds, { fresh: false });
+    } catch (err) {
+      alert(err.message || "Не удалось получить ключ");
+    }
   }
 
   function render() {
@@ -1468,6 +1575,12 @@ async function renderOAuthApps(root) {
                     el("p", { class: "mono settings-toggle-hint" }, a.redirectUri),
                     el("p", { class: "mono settings-toggle-hint" }, `client_id: ${a.clientId}`),
                   ]),
+                  el("button", {
+                    class: "icon-btn",
+                    title: "Показать и скопировать ключ",
+                    html: iconSvg("Copy", 16),
+                    onclick: () => showSecret(a),
+                  }),
                   el("button", {
                     class: "icon-btn",
                     title: "Перегенерировать секрет",

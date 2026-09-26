@@ -6,6 +6,7 @@ const {
   createOAuthApp,
   listOAuthAppsByOwner,
   getOAuthAppByClientId,
+  getOAuthAppSecret,
   deleteOAuthApp,
   regenerateOAuthAppSecret,
   createAuthCode,
@@ -150,6 +151,17 @@ router.delete(
     const ok = await deleteOAuthApp(req.params.id, req.uid);
     if (!ok) return res.status(404).json({ error: "Приложение не найдено" });
     res.json({ ok: true });
+  })
+);
+
+// Показать секрет ещё раз (владельцу) — как «Показать токен» у бота. Вместе с
+// clientId, чтобы диалог мог показать/скопировать оба.
+router.get(
+  "/apps/:id/secret",
+  asyncRoute(async (req, res) => {
+    const creds = await getOAuthAppSecret(req.params.id, req.uid);
+    if (!creds) return res.status(404).json({ error: "Приложение не найдено" });
+    res.json(creds);
   })
 );
 

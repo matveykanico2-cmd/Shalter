@@ -13498,6 +13498,25 @@ p.business-status {
 /* Скрытый из витрины подарок в админ-каталоге (views/settings/index.js) */
 .gift-admin-row.gift-admin-hidden { opacity: 0.55; }
 
+/* Админ-каталог эмодзи (views/settings/index.js → renderEmojiCatalog) */
+.emoji-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 10px;
+}
+.emoji-admin-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.emoji-admin-name { font-size: 12px; opacity: 0.7; text-align: center; }
+.emoji-admin-actions { display: flex; gap: 6px; }
+
 /* Вкладка «Мои» в витрине подарков (components/giftShopDialog.js) */
 .gs-mine { display: flex; flex-direction: column; gap: 10px; }
 .gs-create-gift { align-self: flex-start; }

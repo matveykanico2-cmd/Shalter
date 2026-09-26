@@ -4,7 +4,7 @@ const { ADMIN_PHONE, isAdminPhone } = require("../config");
 // in SECTIONS' adminOnly group in public/js/views/settings/index.js. Keep
 // this list and that one in sync: an id here with nothing on the client
 // side is dead, and a client section without an id here can't be granted.
-const ADMIN_SECTIONS = ["moderation", "server", "giftshop", "donations", "legal"];
+const ADMIN_SECTIONS = ["moderation", "server", "giftshop", "emojicatalog", "donations", "legal"];
 
 // A full admin (isAdminPhone — the phone in ADMIN_PHONE or listed in
 // PREMIUM_ADMIN_PHONES) already has every section; a partial admin only has

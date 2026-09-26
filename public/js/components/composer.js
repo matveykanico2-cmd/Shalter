@@ -11,7 +11,6 @@ import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openScheduleSendDialog } from "./scheduleSendDialog.js";
 import { STICKERS, DRAWN_STICKERS, renderSticker } from "../lib/stickers.js";
 import { openStickerPackDialog } from "./stickerPackDialog.js";
-import { openAnimatorEditor } from "./animatorEditor.js";
 import { renderCustomScene } from "../lib/customScene.js";
 import { ALL_EMOJI } from "../lib/emojiList.js";
 import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
@@ -773,75 +772,23 @@ export function Composer({
           { class: "composer-emoji-all" },
           ALL_EMOJI.map((e) => el("button", { onclick: () => insertPlainEmoji(e) }, e))
         ),
-        el("div", { class: "composer-emoji-heading" }, [
-          el("span", {}, "Мои эмодзи"),
-          // Нарисовать свой анимированный эмодзи в аниматоре (lib/customScene.js).
-          el("button", {
-            class: "composer-emoji-create",
-            title: "Нарисовать эмодзи",
-            onclick: () =>
-              openAnimatorEditor({
-                title: "Нарисовать эмодзи",
-                saveLabel: "Сохранить эмодзи",
-                onSave: async (scene) => {
-                  try {
-                    const { emoji } = await api.createCustomEmoji("", scene);
-                    myEmoji = [emoji, ...myEmoji];
-                    insertCustomEmoji(emoji.scene);
-                    renderEmojiMenu();
-                  } catch (err) {
-                    alert(err.message || "Не удалось сохранить эмодзи");
-                  }
-                },
-              }),
-          }, "＋"),
-        ]),
+        // Кастомные эмодзи — общий каталог (создаёт админ в настройках).
+        // Здесь их только вставляют; правка/удаление — не тут.
+        el("div", { class: "composer-emoji-heading" }, [el("span", {}, "Эмодзи Shalter")]),
         myEmoji.length
           ? el(
               "div",
               { class: "composer-custom-emoji-row" },
               myEmoji.map((em) =>
-                el("div", { class: "composer-custom-emoji-item" }, [
-                  el(
-                    "button",
-                    { class: "composer-custom-emoji", title: em.name || "Эмодзи", onclick: () => insertCustomEmoji(em.scene) },
-                    [renderCustomScene(em.scene, { size: 26 })]
-                  ),
-                  el("button", { class: "composer-custom-emoji-edit", title: "Изменить", onclick: () => editMyEmoji(em) }, "✎"),
-                  el("button", { class: "composer-custom-emoji-del", title: "Удалить", onclick: () => deleteMyEmoji(em) }, "✕"),
-                ])
+                el(
+                  "button",
+                  { class: "composer-custom-emoji", title: em.name || "Эмодзи", onclick: () => insertCustomEmoji(em.scene) },
+                  [renderCustomScene(em.scene, { size: 26 })]
+                )
               )
             )
-          : el("p", { class: "composer-emoji-empty" }, "Нарисуйте свой первый анимированный эмодзи")
+          : el("p", { class: "composer-emoji-empty" }, "Пока нет анимированных эмодзи")
       );
-    }
-
-    // Переделать свой эмодзи в аниматоре.
-    function editMyEmoji(em) {
-      openAnimatorEditor({
-        title: "Изменить эмодзи",
-        saveLabel: "Сохранить",
-        initial: em.scene,
-        onSave: async (scene) => {
-          try {
-            const { emoji } = await api.updateCustomEmoji(em.id, { scene });
-            myEmoji = myEmoji.map((e) => (e.id === emoji.id ? emoji : e));
-            renderEmojiMenu();
-          } catch (err) {
-            alert(err.message || "Не удалось сохранить эмодзи");
-          }
-        },
-      });
-    }
-
-    async function deleteMyEmoji(em) {
-      try {
-        await api.deleteCustomEmoji(em.id);
-        myEmoji = myEmoji.filter((e) => e.id !== em.id);
-        renderEmojiMenu();
-      } catch (err) {
-        alert(err.message || "Не удалось удалить эмодзи");
-      }
     }
 
     function toggleEmoji(host = emojiSlot) {

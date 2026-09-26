@@ -13,6 +13,7 @@ const ADMIN_SECTIONS = [
   { id: "moderation", label: "Модерация" },
   { id: "server", label: "Состояние сервера" },
   { id: "giftshop", label: "Каталог подарков" },
+  { id: "emojicatalog", label: "Эмодзи" },
   { id: "donations", label: "DonationAlerts" },
   { id: "legal", label: "Запросы органов" },
 ];
