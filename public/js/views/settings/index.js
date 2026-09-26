@@ -2170,6 +2170,9 @@ async function renderHolidays(root) {
   let newTitle = "";
   let newDate = "";
   let addError = null;
+  let editingHolidayId = null;
+  let editTitle = "";
+  let editDate = "";
 
   function isEnabled(id) {
     return !(settings.holidays?.disabled ?? []).includes(id);
@@ -2188,12 +2191,27 @@ async function renderHolidays(root) {
   // повторяется каждый год), переводится в "MM-DD" перед отправкой на сервер
   // (тот же формат, что и у встроенных праздников, lib/holidays.js).
   function parseDayMonth(input) {
-    const m = String(input ?? "").trim().match(/^(\d{1,2})[.\-/](\d{1,2})$/);
-    if (!m) return null;
-    const day = Number(m[1]);
-    const month = Number(m[2]);
+    const raw = String(input ?? "").trim();
+    // Из <input type="date"> приходит ГГГГ-ММ-ДД — год отбрасываем, праздник
+    // повторяется каждый год. Формат ДД.ММ тоже принимаем (на всякий случай).
+    let month, day;
+    const iso = raw.match(/^\d{4}-(\d{2})-(\d{2})$/);
+    if (iso) {
+      month = Number(iso[1]);
+      day = Number(iso[2]);
+    } else {
+      const dm = raw.match(/^(\d{1,2})[.\-/](\d{1,2})$/);
+      if (!dm) return null;
+      day = Number(dm[1]);
+      month = Number(dm[2]);
+    }
     if (month < 1 || month > 12 || day < 1 || day > 31) return null;
     return `${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+  // MM-DD → ГГГГ-ММ-ДД (текущий год) для значения поля выбора даты.
+  function monthDayToInputDate(mmdd) {
+    if (!/^\d{2}-\d{2}$/.test(mmdd || "")) return "";
+    return `${new Date().getFullYear()}-${mmdd}`;
   }
 
   async function addCustom() {
@@ -2219,6 +2237,29 @@ async function renderHolidays(root) {
     await api.patchSettings({ holidays: settings.holidays });
   }
 
+  function startEditHoliday(h) {
+    editingHolidayId = h.id;
+    editTitle = h.title;
+    editDate = monthDayToInputDate(h.date); // MM-DD → ГГГГ-ММ-ДД для поля даты
+    addError = null;
+    render();
+  }
+
+  async function saveEditHoliday(id) {
+    const title = editTitle.trim();
+    const date = parseDayMonth(editDate);
+    if (!title) return ((addError = "Укажите название праздника"), render());
+    if (!date) return ((addError = "Дата — в формате ДД.ММ, например 14.02"), render());
+    const custom = (settings.holidays?.custom ?? []).map((h) => (h.id === id ? { ...h, title, date } : h));
+    settings = { ...settings, holidays: { ...settings.holidays, custom } };
+    editingHolidayId = null;
+    addError = null;
+    render();
+    const { settings: saved } = await api.patchSettings({ holidays: settings.holidays });
+    settings = saved;
+    render();
+  }
+
   function render() {
     const custom = settings.holidays?.custom ?? [];
     mount(
@@ -2234,15 +2275,29 @@ async function renderHolidays(root) {
           )
         ),
         section("Свои праздники", [
-          ...custom.map((h) =>
-            el("div", { class: "settings-toggle-row" }, [
+          ...custom.map((h) => {
+            if (editingHolidayId === h.id) {
+              const titleI = el("input", { class: "settings-input", value: editTitle, oninput: (e) => (editTitle = e.target.value) });
+              const dateI = el("input", { type: "date", class: "settings-input", style: "max-width: 170px", value: editDate, oninput: (e) => (editDate = e.target.value) });
+              return el("div", { class: "settings-notice-box" }, [
+                el("div", { class: "settings-toggle-row no-divider" }, [titleI, dateI]),
+                el("div", { class: "label-row-actions" }, [
+                  el("button", { class: "btn-accent", onclick: () => saveEditHoliday(h.id) }, "Сохранить"),
+                  el("button", { class: "settings-danger-link", onclick: () => { editingHolidayId = null; addError = null; render(); } }, "Отмена"),
+                ]),
+              ]);
+            }
+            return el("div", { class: "settings-toggle-row" }, [
               el("div", {}, [
                 el("p", { class: "settings-toggle-title" }, h.title),
                 el("p", { class: "settings-toggle-hint mono" }, h.date.split("-").reverse().join(".")),
               ]),
-              el("button", { class: "icon-btn danger", title: "Удалить", html: iconSvg("Trash", 16), onclick: () => removeCustom(h.id) }),
-            ])
-          ),
+              el("div", { class: "label-row-actions" }, [
+                el("button", { class: "settings-danger-link", onclick: () => startEditHoliday(h) }, "Изменить"),
+                el("button", { class: "icon-btn danger", title: "Удалить", html: iconSvg("Trash", 16), onclick: () => removeCustom(h.id) }),
+              ]),
+            ]);
+          }),
           el("div", { class: "settings-toggle-row no-divider" }, [
             el("input", {
               class: "settings-input",
@@ -2251,9 +2306,9 @@ async function renderHolidays(root) {
               oninput: (e) => (newTitle = e.target.value),
             }),
             el("input", {
-              class: "settings-input mono",
-              style: "max-width: 100px",
-              placeholder: "ДД.ММ",
+              type: "date",
+              class: "settings-input",
+              style: "max-width: 170px",
               value: newDate,
               oninput: (e) => (newDate = e.target.value),
             }),
