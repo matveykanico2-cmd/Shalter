@@ -392,6 +392,7 @@ export async function openProfileDialog(userId) {
           ].filter(Boolean)
         ),
       ]),
+      isSelf ? el("p", { class: "profile-self-hint" }, "Так ваш профиль видят другие") : null,
       el("p", { class: "profile-name" }, [
         user.name || "Без имени",
         VerifiedBadge(user, 17),

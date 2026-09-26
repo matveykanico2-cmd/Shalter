@@ -4198,6 +4198,13 @@
   letter-spacing: 0.03em;
   opacity: 0.55;
 }
+/* Подсказка на своём профиле: он показан так же, как его видят другие */
+.profile-self-hint {
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.6;
+  margin: 0 0 6px;
+}
 .profile-track-row {
   margin-top: 12px;
   display: flex;

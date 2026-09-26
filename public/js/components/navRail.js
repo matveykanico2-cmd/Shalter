@@ -84,7 +84,19 @@ export function NavRail() {
     // меняются, пока рельс живёт (переименование, вход вторым аккаунтом), а
     // рельс создаётся один раз.
     const { user, accounts } = getState();
-    const items = [{ label: "Аккаунты" }];
+    const items = [
+      // Свой профиль карточкой — ровно так, как его видят другие люди.
+      {
+        icon: "User",
+        label: "Мой профиль",
+        onClick: async () => {
+          const { openProfileDialog } = await import("./profileDialog.js");
+          openProfileDialog(user.id);
+        },
+      },
+      { separator: true },
+      { label: "Аккаунты" },
+    ];
     for (const a of accounts ?? []) {
       items.push({
         label: `${a.name || a.phone || a.email}`,
