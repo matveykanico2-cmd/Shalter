@@ -206,6 +206,16 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     if (selected >= scene.layers.length) selected = scene.layers.length - 1;
     renderAll();
   }
+  // Переставить слой в порядке отрисовки (z-порядок): dir -1 — назад (ниже),
+  // +1 — вперёд (поверх остальных). Выбор едет вместе со слоем.
+  function moveLayer(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= scene.layers.length) return;
+    const [layer] = scene.layers.splice(i, 1);
+    scene.layers.splice(j, 0, layer);
+    selected = j;
+    renderAll();
+  }
 
   // ── Контролы ────────────────────────────────────────────────────────────────
 
@@ -325,6 +335,9 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
           el("span", { class: "anim-layer-name" }, layerLabel(L)),
           el("span", { class: "anim-layer-anim" }, `${L.keys.length} ключей`),
           el("div", { class: "anim-layer-actions" }, [
+            // Порядок слоёв = кто на ком: слой ниже в списке рисуется поверх.
+            el("button", { class: "anim-layer-mini", title: "Назад (ниже)", disabled: i === 0, onclick: (e) => { e.stopPropagation(); moveLayer(i, -1); } }, "↑"),
+            el("button", { class: "anim-layer-mini", title: "Вперёд (выше)", disabled: i === scene.layers.length - 1, onclick: (e) => { e.stopPropagation(); moveLayer(i, 1); } }, "↓"),
             el("button", { class: "anim-layer-mini danger", title: "Удалить", onclick: (e) => { e.stopPropagation(); removeLayer(i); } }, "✕"),
           ]),
         ])

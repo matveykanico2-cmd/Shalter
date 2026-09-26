@@ -13526,6 +13526,7 @@ p.business-status {
     linear-gradient(45deg, rgba(128, 128, 128, 0.14) 25%, transparent 25%, transparent 75%, rgba(128, 128, 128, 0.14) 75%) 0 0 / 20px 20px,
     linear-gradient(45deg, rgba(128, 128, 128, 0.14) 25%, transparent 25%, transparent 75%, rgba(128, 128, 128, 0.14) 75%) 10px 10px / 20px 20px;
 }
+.paint-tools { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .paint-swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; }
 .paint-swatch {
   width: 26px;
