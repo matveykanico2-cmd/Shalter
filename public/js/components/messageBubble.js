@@ -11,6 +11,7 @@ import { getState, setState } from "../state.js";
 import { renderSticker } from "../lib/stickers.js";
 import { renderGiftArt } from "../lib/giftTraits.js";
 import { giftBackgroundStyle } from "../lib/giftBackground.js";
+import { renderCustomScene } from "../lib/customScene.js";
 import { openStarsDialog } from "./starsDialog.js";
 import { navigate } from "../router.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
@@ -701,9 +702,26 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     // attachments (a photo captioned "🔥") stays normal size, same as
     // Telegram's own rule.
     const jumboCount = !message.attachments?.length ? jumboEmojiCount(message.text) : 0;
-    const textNode = jumboCount
-      ? el("span", { class: `message-text message-text-jumbo jumbo-${jumboCount}` }, message.text)
-      : el("span", { class: "message-text" }, formatText(message.text, members, message.customEmoji));
+    // Сообщение только из кастом-эмодзи (1–3 токена [ce:N]) — показываем их
+    // крупно, как «джамбо»-эмодзи (Telegram так же увеличивает обычные эмодзи).
+    const ceOnly =
+      !message.attachments?.length && message.customEmoji && /^\s*(\[ce:\d+\]\s*)+$/.test(message.text || "")
+        ? [...message.text.matchAll(/\[ce:(\d+)\]/g)].map((m) => Number(m[1]))
+        : null;
+    const textNode =
+      ceOnly && ceOnly.length <= 3
+        ? el(
+            "span",
+            { class: "message-text message-custom-jumbo" },
+            ceOnly.map((idx) =>
+              message.customEmoji[idx]
+                ? el("span", { class: "inline-custom-emoji jumbo" }, [renderCustomScene(message.customEmoji[idx], { size: 100, replay: true })])
+                : document.createTextNode("🎨")
+            )
+          )
+        : jumboCount
+          ? el("span", { class: `message-text message-text-jumbo jumbo-${jumboCount}` }, message.text)
+          : el("span", { class: "message-text" }, formatText(message.text, members, message.customEmoji));
     // Сообщение, за которое незнакомый человек заплатил звёздами, печатается
     // на экране, а не появляется разом. Это не украшение: платное письмо — чья-
     // то попытка достучаться, и отдельное движение сообщает об этом яснее, чем

@@ -13245,12 +13245,17 @@ p.business-status {
 
 /* ── Аниматор: редактор пользовательских сцен (components/animatorEditor.js) ── */
 .anim-dialog {
-  max-width: 760px;
-  width: 100%;
-  /* Выше базовых 80vh: у редактора много контента (холст, таймлайн, сетка
-     эмодзи, свойства), и он должен помещаться в окно, а не уезжать вниз. */
-  max-height: 92vh;
+  /* Редактор — на весь экран: места хватает и на холст, и на сцену/цвета/пейнт,
+     и на свойства, ничего не жмётся. */
+  width: 100vw;
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
 }
+/* На весь экран холст можно сделать крупнее — левой колонке больше места. */
+.anim-dialog .anim-stage { flex: 0 0 340px; }
+@media (max-width: 720px) { .anim-dialog .anim-stage { flex-basis: auto; } }
 /* Тело прокручивается внутри окна, а заголовок сверху и кнопки снизу
    (.anim-actions) остаются на месте — иначе «Сохранить» уезжало за экран. */
 .anim-body {
@@ -13504,6 +13509,9 @@ p.business-status {
   margin: -4px 1px;
 }
 .inline-custom-emoji svg { display: block; }
+/* Сообщение только из кастом-эмодзи — крупно (как джамбо-эмодзи) */
+.message-custom-jumbo { display: flex; gap: 6px; flex-wrap: wrap; }
+.inline-custom-emoji.jumbo { width: 100px; height: 100px; margin: 0; }
 
 /* Скрытый из витрины подарок в админ-каталоге (views/settings/index.js) */
 .gift-admin-row.gift-admin-hidden { opacity: 0.55; }
