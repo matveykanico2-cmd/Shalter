@@ -13607,6 +13607,10 @@ p.business-status {
 .emoji-admin-name { font-size: 12px; opacity: 0.7; text-align: center; }
 .emoji-admin-actions { display: flex; gap: 6px; }
 
+/* Анонимная отправка (Premium) в витрине подарков */
+.gs-anon { display: flex; align-items: center; gap: 8px; font-size: 13px; opacity: 0.85; }
+.gs-anon input { accent-color: var(--accent, #ff8a3d); }
+
 /* Вкладка «Мои» в витрине подарков (components/giftShopDialog.js) */
 .gs-mine { display: flex; flex-direction: column; gap: 10px; }
 .gs-create-gift { align-self: flex-start; }

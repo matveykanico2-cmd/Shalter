@@ -10,6 +10,7 @@
 const { grantPremiumDays, addReceivedGift, getUser } = require("../data/users");
 const { claimSerial } = require("../data/giftIssues");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("./systemChat");
+const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { publicUser } = require("../data/sanitize");
 const { broadcastToUsers } = require("../ws");
 
@@ -27,12 +28,17 @@ function durationLabel(days) {
 // error, because every caller has a different thing to do about it (tell
 // the buyer, refund-by-hand, log it) and none of them should treat it as a
 // crash. Nothing is granted in that case.
-async function deliverGift({ gift, recipientId, fromId, announceFromId, background = null }) {
+async function deliverGift({ gift, recipientId, fromId, announceFromId, background = null, anonymous = false }) {
   // Who it's from, resolved once and stamped onto both the message card and the
   // profile shelf. A gift with no visible sender is just an object appearing out
   // of nowhere — the whole point is that someone gave it to you.
+  //
+  // Анонимно (Premium, см. routes/gifts.js): получателю показываем «Аноним» и
+  // доставляем от служебного аккаунта Shalter (не из DM с отправителем, иначе
+  // отправитель тут же раскроется). Но реальный fromId ниже всё равно пишется в
+  // запись подарка — то есть в базе данных остаётся, кто на самом деле подарил.
   const sender = fromId ? await getUser(fromId) : null;
-  const fromName = sender?.name ?? null;
+  const fromName = anonymous ? "Аноним" : sender?.name ?? null;
 
   let serial = null;
   if (gift.supply) {
@@ -63,6 +69,9 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId, backgrou
     // Фон, выбранный отправителем при отправке (lib/giftBackground.js) —
     // рисуется за подарком и в чате, и на полке профиля.
     ...(background ? { background } : {}),
+    // Анонимный подарок: пометка для отображения. fromId ниже — реальный,
+    // остаётся в базе (кто подарил), даже когда получателю показан «Аноним».
+    ...(anonymous ? { anon: true } : {}),
     fromId: fromId ?? null,
     fromName,
     at: new Date().toISOString(),
@@ -81,11 +90,14 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId, backgrou
 
   const duration = durationLabel(gift.premiumDays);
   const serialLabel = serial != null ? ` (№${serial} из ${gift.supply})` : "";
-  const chat = await findOrCreateDm(announceFromId, recipientId);
+  // Анонимный подарок приходит от служебного аккаунта Shalter, а не из DM с
+  // отправителем, — иначе диалог сам выдал бы, кто подарил.
+  const announcerId = anonymous ? SYSTEM_BOT_ID : announceFromId;
+  const chat = await findOrCreateDm(announcerId, recipientId);
   await sendMessageAndBroadcast(
     chat,
-    announceFromId,
-    `🎁 Вам подарили: ${gift.emoji} «${gift.name}»${serialLabel}!${duration ? ` ${duration} активирован.` : ""}`,
+    announcerId,
+    `🎁 Вам ${anonymous ? "анонимно " : ""}подарили: ${gift.emoji} «${gift.name}»${serialLabel}!${duration ? ` ${duration} активирован.` : ""}`,
     {
       type: "gift",
       gift: {
@@ -99,6 +111,7 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId, backgrou
         scene: gift.scene,
         ...(gift.ownerId || (gift.scene && !gift.priceStars) ? { custom: true } : {}),
         ...(background ? { background } : {}),
+        ...(anonymous ? { anon: true } : {}),
         fromId: fromId ?? null,
         fromName,
         ...(serial != null ? { serial, supply: gift.supply, exclusive: true } : {}),

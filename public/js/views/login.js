@@ -300,6 +300,32 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         },
         "Отмена"
       ),
+      // Забыл и облачный пароль, восстановить нечем — крайняя мера: удалить
+      // аккаунт через неделю (за это время любой успешный вход отменит удаление).
+      el(
+        "button",
+        {
+          type: "button",
+          class: "login-link center",
+          onclick: async () => {
+            if (!confirm("Не помните облачный пароль и не можете войти?\n\nМожно запросить удаление аккаунта — он будет удалён через 7 дней. Если вспомните пароль и войдёте до этого, удаление отменится.\n\nЗапросить удаление?")) return;
+            try {
+              const { deleteAt } = await api.scheduleAccountDeletion(twoFactor.ticket);
+              const when = new Date(deleteAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+              twoFactor = null;
+              twoFactorCode = "";
+              twoFactorError = null;
+              mode = "login";
+              error = `Аккаунт будет удалён ${when}. Войдите до этой даты, чтобы отменить.`;
+              render();
+            } catch (err) {
+              twoFactorError = err.message || "Не удалось запросить удаление";
+              render();
+            }
+          },
+        },
+        "Не помню облачный пароль — удалить аккаунт"
+      ),
     ]);
   }
 
@@ -787,7 +813,11 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             el("p", { class: "login-subtitle" }, subtitle),
           ]),
           el("div", { class: "login-card" }, content),
-        ]),
+          // Случайно нажал «Добавить аккаунт» — вернуться в приложение, не входя
+          // в другой аккаунт. Только в режиме добавления (тут уже есть активный
+          // сеанс, поэтому «/» открывает приложение, а не выкидывает на вход).
+          addMode ? el("button", { class: "login-link center", onclick: () => goToApp() }, "Отмена — вернуться в приложение") : null,
+        ].filter(Boolean)),
       ])
     );
   }

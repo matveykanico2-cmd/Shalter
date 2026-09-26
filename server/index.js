@@ -35,6 +35,7 @@ const { startBirthdaySweep } = require("./lib/birthdaySweep");
 const { startHolidaySweep } = require("./lib/holidaySweep");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
 const { startReminderSweep } = require("./lib/reminderSweep");
+const { startAccountDeletionSweep } = require("./lib/accountDeletionSweep");
 
 ensureSystemBot();
 ensureHugoAccount();
@@ -350,6 +351,7 @@ startBirthdaySweep();
 startHolidaySweep();
 startScheduledMessagesSweep();
 startReminderSweep();
+startAccountDeletionSweep();
 // Раз в сутки убираем загруженные файлы, на которые никто не ссылается:
 // выбрал фотографию и передумал отправлять, отправил и удалил сообщение — файл
 // оставался на диске навсегда (см. lib/orphanSweep.js).

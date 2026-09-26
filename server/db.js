@@ -577,6 +577,11 @@ if (!existingUserColumns.has("lastName")) db.exec("ALTER TABLE users ADD COLUMN 
 // column above is kept only as a legacy/compat field and is no longer read
 // (see rowToUser in server/data/users.js, which computes it from this instead).
 if (!existingUserColumns.has("premiumUntil")) db.exec("ALTER TABLE users ADD COLUMN premiumUntil TEXT");
+// Отложенное удаление аккаунта: если человек забыл и пароль, и облачный пароль
+// (2FA) и не может войти, он ставит удаление — аккаунт сносится через неделю
+// (server/lib/accountDeletionSweep.js). Любой успешный вход отменяет удаление
+// (server/routes/auth.js). ISO-дата, когда удалить; NULL — удаление не назначено.
+if (!existingUserColumns.has("scheduledDeletionAt")) db.exec("ALTER TABLE users ADD COLUMN scheduledDeletionAt TEXT");
 // "Ad cabinet" (Settings → Реклама, server/routes/ads.js) — same time-boxed-
 // subscription shape as premiumUntil above (20₽/month, same manual-transfer
 // trust model), plus the one promotional text/link it lets them set on their

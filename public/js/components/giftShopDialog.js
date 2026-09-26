@@ -6,6 +6,7 @@ import { openStarsDialog } from "./starsDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openAnimatorEditor } from "./animatorEditor.js";
 import { GIFT_BACKGROUNDS, giftBackgroundStyle } from "../lib/giftBackground.js";
+import { getState } from "../state.js";
 
 // The gift shop: priced in stars, paid from the balance, delivered instantly.
 //
@@ -33,6 +34,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
   let busyId = null;
   let myGifts = []; // свои нарисованные подарки (вкладка «Мои»)
   let background = null; // выбранный фон подарка (lib/giftBackground.js), null = без фона
+  let anonymous = false; // анонимная отправка (только Premium)
   let target = recipient; // null = buying for yourself
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
@@ -101,7 +103,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     notice = null;
     render();
     try {
-      await api.sendCustomGift(gift.id, target.id, background);
+      await api.sendCustomGift(gift.id, target.id, background, anonymous);
       notice = `«${gift.name}» отправлен — ${target.name}`;
       onSent?.();
     } catch (err) {
@@ -150,7 +152,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     notice = null;
     render();
     try {
-      const res = await api.buyGift(gift.id, target?.id, background);
+      const res = await api.buyGift(gift.id, target?.id, background, anonymous);
       balance = res.balance ?? balance;
       notice = `${gift.emoji} «${gift.name}» отправлен${target ? ` — ${target.name}` : " вам"}${res.serial ? `, №${res.serial}` : ""}`;
       onSent?.();
@@ -288,6 +290,14 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
           target ? el("button", { class: "gs-recipient-btn", onclick: () => { target = null; render(); } }, "Себе") : null,
         ]),
         backgroundPicker(),
+        // Анонимная отправка — только с Premium. Получателю подарок придёт от
+        // «Shalter» без вашего имени (но в базе отправитель сохраняется).
+        getState().user?.isPremium
+          ? el("label", { class: "gs-anon" }, [
+              el("input", { type: "checkbox", checked: anonymous, onchange: (e) => { anonymous = e.target.checked; } }),
+              el("span", {}, "Анонимно — получатель не увидит, что подарок от вас"),
+            ])
+          : null,
         notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,
         error ? el("p", { class: "login-error" }, error) : null,
         el(

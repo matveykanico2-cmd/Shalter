@@ -129,6 +129,8 @@ export const api = {
   // service chat).
   setupTwoFactor: (method) => req("/api/auth/2fa/setup", { method: "POST", body: JSON.stringify({ method }) }),
   sendTwoFactorCode: (ticket) => req("/api/auth/2fa/send-code", { method: "POST", body: JSON.stringify({ ticket }) }),
+  // Забыл и облачный пароль — назначить удаление аккаунта через неделю (по ticket).
+  scheduleAccountDeletion: (ticket) => req("/api/auth/schedule-deletion", { method: "POST", body: JSON.stringify({ ticket }) }),
   enableTwoFactor: (code) => req("/api/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) }),
   disableTwoFactor: (code) => req("/api/auth/2fa/disable", { method: "POST", body: JSON.stringify({ code }) }),
   // Облачный пароль — третий способ подтвердить вход (server/routes/auth.js).
@@ -501,7 +503,7 @@ export const api = {
 
   listGifts: () => req("/api/gifts"),
   // Buying a gift with stars — instant, no admin in the loop.
-  buyGift: (giftId, recipientId, background) => req("/api/gifts/buy", { method: "POST", body: JSON.stringify({ giftId, recipientId, background }) }),
+  buyGift: (giftId, recipientId, background, anonymous) => req("/api/gifts/buy", { method: "POST", body: JSON.stringify({ giftId, recipientId, background, anonymous }) }),
   // Trading a received gift back for stars.
   convertGift: (entryId) => req(`/api/gifts/received/${encodeURIComponent(entryId)}/convert`, { method: "POST" }),
   // Takes a received gift off your own profile shelf.
@@ -530,8 +532,8 @@ export const api = {
   createCustomGift: (name, scene) => req("/api/gifts/custom", { method: "POST", body: JSON.stringify({ name, scene }) }),
   updateCustomGift: (id, patch) => req(`/api/gifts/custom/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteCustomGift: (id) => req(`/api/gifts/custom/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  sendCustomGift: (giftId, recipientId, background) =>
-    req("/api/gifts/custom/send", { method: "POST", body: JSON.stringify({ giftId, recipientId, background }) }),
+  sendCustomGift: (giftId, recipientId, background, anonymous) =>
+    req("/api/gifts/custom/send", { method: "POST", body: JSON.stringify({ giftId, recipientId, background, anonymous }) }),
 
   // Кастомные эмодзи, нарисованные в аниматоре (server/routes/customEmoji.js).
   listCustomEmoji: () => req("/api/custom-emoji"),

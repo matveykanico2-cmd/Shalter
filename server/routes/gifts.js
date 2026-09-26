@@ -40,6 +40,16 @@ const { FILENAME_RE } = require("../lib/serveUpload");
 const router = express.Router();
 router.use(requireUserId);
 
+// Анонимная отправка подарка — привилегия Premium. Возвращает true только если
+// и флаг стоит, и у отправителя есть Premium; иначе подарок уходит неанонимно.
+// Реального отправителя deliverGift всё равно пишет в запись подарка (в базе он
+// остаётся), скрывается лишь показ получателю.
+async function resolveAnonymous(req) {
+  if (!req.body?.anonymous) return false;
+  const me = await getUser(req.uid);
+  return !!me?.isPremium;
+}
+
 // "все 1 экземпляров" reads as broken Russian, and the supplies in the
 // catalog (1, 3, 5, 10, 25, 50) hit every branch of the rule — so this is
 // a real declension, not decoration.
@@ -170,7 +180,9 @@ router.post(
     }
 
     const background = sanitizeGiftBackground(req.body?.background);
-    const result = await deliverGift({ gift, recipientId, fromId: req.uid, announceFromId: req.uid, background });
+    // Анонимно — только с Premium; иначе флаг игнорируется, подарок уходит как обычно.
+    const anonymous = await resolveAnonymous(req);
+    const result = await deliverGift({ gift, recipientId, fromId: req.uid, announceFromId: req.uid, background, anonymous });
     if (!result.ok) {
       // The last copy went between the supply check and the claim — hand the
       // stars back rather than keeping them for a gift that was never delivered.
@@ -525,7 +537,8 @@ router.post(
     const recipient = await getUser(req.body?.recipientId);
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
     const background = sanitizeGiftBackground(req.body?.background);
-    const result = await deliverGift({ gift, recipientId: recipient.id, fromId: req.uid, announceFromId: req.uid, background });
+    const anonymous = await resolveAnonymous(req);
+    const result = await deliverGift({ gift, recipientId: recipient.id, fromId: req.uid, announceFromId: req.uid, background, anonymous });
     if (!result.ok) return res.status(500).json({ error: "Не удалось отправить подарок" });
     res.json({ chatId: result.chat.id, delivered: true });
   })

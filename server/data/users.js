@@ -569,7 +569,29 @@ const removeReceivedGift = db.transaction((userId, giftEntryId) => {
   return true;
 });
 
+// Отложенное удаление аккаунта (server/routes/auth.js, accountDeletionSweep.js).
+function scheduleAccountDeletion(userId, iso) {
+  return db.prepare("UPDATE users SET scheduledDeletionAt = ? WHERE id = ?").run(iso, userId).changes > 0;
+}
+// Отмена — при любом успешном входе. Возвращает true, если удаление было назначено.
+function cancelAccountDeletion(userId) {
+  const row = db.prepare("SELECT scheduledDeletionAt FROM users WHERE id = ?").get(userId);
+  if (!row || !row.scheduledDeletionAt) return false;
+  db.prepare("UPDATE users SET scheduledDeletionAt = NULL WHERE id = ?").run(userId);
+  return true;
+}
+// Кого пора удалять — срок вышел.
+function listAccountsDueForDeletion(nowIso) {
+  return db
+    .prepare("SELECT id FROM users WHERE scheduledDeletionAt IS NOT NULL AND scheduledDeletionAt <= ?")
+    .all(nowIso)
+    .map((r) => r.id);
+}
+
 module.exports = {
+  scheduleAccountDeletion,
+  cancelAccountDeletion,
+  listAccountsDueForDeletion,
   setAvatars,
   getStatusState,
   setStatusState,

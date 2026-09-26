@@ -10,7 +10,7 @@ const {
   getOrCreateDeviceId,
   requireUserId,
 } = require("../middleware/auth");
-const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, updateUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode } = require("../data/users");
+const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, updateUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode, scheduleAccountDeletion } = require("../data/users");
 const { publicUser, selfUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
 const { listSessions, getSession, upsertSession, revokeAllSessions, revokeOtherSessions } = require("../data/sessions");
@@ -1029,6 +1029,42 @@ router.post(
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
     res.json({ user: selfUser(user) });
+  })
+);
+
+// Забыл и облачный пароль (2FA): человек прошёл первый фактор (есть ticket), но
+// второй ввести не может и восстановить некому. Ставит удаление аккаунта через
+// неделю — за это время можно передумать (любой успешный вход отменяет его,
+// см. middleware/auth.js). Реального удаления ждёт lib/accountDeletionSweep.js.
+// Требуется валидный ticket — то есть первый фактор уже подтверждён, поэтому
+// чужой аккаунт так не удалить.
+const DELETION_DELAY_DAYS = 7;
+router.post(
+  "/schedule-deletion",
+  asyncRoute(async (req, res) => {
+    const entry = twoFactorTickets.peek(req.body?.ticket);
+    if (!entry) return res.status(400).json({ error: "Время на подтверждение истекло — войдите заново" });
+    const user = await getUser(entry.userId);
+    if (!user) return res.status(400).json({ error: "Аккаунт не найден" });
+
+    const deleteAt = new Date(Date.now() + DELETION_DELAY_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    scheduleAccountDeletion(user.id, deleteAt);
+    // Больше ничего по этому тикету делать нельзя.
+    twoFactorTickets.consume(req.body.ticket);
+
+    // Предупреждаем в служебном чате — вдруг человек всё же сможет войти.
+    try {
+      const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
+      const when = new Date(deleteAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+      await sendMessageAndBroadcast(
+        chat,
+        SYSTEM_BOT_ID,
+        `⚠️ Запрошено удаление аккаунта — он будет удалён ${when}. Если передумаете, просто войдите в аккаунт до этой даты — удаление отменится.`
+      );
+    } catch {
+      /* уведомление не критично */
+    }
+    res.json({ deleteAt });
   })
 );
 

@@ -1,7 +1,7 @@
 const { randomBytes } = require("crypto");
 const { asyncRoute } = require("./errors");
 const { getSession, touchSession } = require("../data/sessions");
-const { getUser } = require("../data/users");
+const { getUser, cancelAccountDeletion } = require("../data/users");
 
 const SESSIONS_COOKIE = "session_uids";
 const ACTIVE_COOKIE = "active_uid";
@@ -92,6 +92,9 @@ function addAccountSession(req, res, userId) {
   const ids = getSessionUserIds(req);
   const next = ids.includes(userId) ? ids : [...ids, userId];
   writeSessions(res, next, userId);
+  // Успешный вход отменяет отложенное удаление: раз человек снова зашёл,
+  // сносить аккаунт больше не нужно (server/data/users.js, accountDeletionSweep).
+  try { cancelAccountDeletion(userId); } catch {}
 }
 
 function switchActiveAccount(req, res, userId) {
