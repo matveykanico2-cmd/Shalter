@@ -27,7 +27,7 @@ function durationLabel(days) {
 // error, because every caller has a different thing to do about it (tell
 // the buyer, refund-by-hand, log it) and none of them should treat it as a
 // crash. Nothing is granted in that case.
-async function deliverGift({ gift, recipientId, fromId, announceFromId }) {
+async function deliverGift({ gift, recipientId, fromId, announceFromId, background = null }) {
   // Who it's from, resolved once and stamped onto both the message card and the
   // profile shelf. A gift with no visible sender is just an object appearing out
   // of nowhere — the whole point is that someone gave it to you.
@@ -60,6 +60,9 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId }) {
     // gifts.js's /convert) — иначе бесплатный подарок стал бы фабрикой звёзд.
     scene: gift.scene,
     ...(gift.ownerId || (gift.scene && !gift.priceStars) ? { custom: true } : {}),
+    // Фон, выбранный отправителем при отправке (lib/giftBackground.js) —
+    // рисуется за подарком и в чате, и на полке профиля.
+    ...(background ? { background } : {}),
     fromId: fromId ?? null,
     fromName,
     at: new Date().toISOString(),
@@ -95,6 +98,7 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId }) {
         mediaUrl: gift.mediaUrl,
         scene: gift.scene,
         ...(gift.ownerId || (gift.scene && !gift.priceStars) ? { custom: true } : {}),
+        ...(background ? { background } : {}),
         fromId: fromId ?? null,
         fromName,
         ...(serial != null ? { serial, supply: gift.supply, exclusive: true } : {}),

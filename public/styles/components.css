@@ -13529,3 +13529,35 @@ p.business-status {
 .composer-custom-emoji-del { right: -5px; background: var(--color-danger, #ff5d73); }
 .composer-custom-emoji-item:hover .composer-custom-emoji-edit,
 .composer-custom-emoji-item:hover .composer-custom-emoji-del { display: flex; align-items: center; justify-content: center; }
+
+/* Выбор и показ фона подарка (lib/giftBackground.js) */
+.gs-bg-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 4px 0 2px;
+}
+.gs-bg-label { font-size: 13px; opacity: 0.7; }
+.gs-bg-swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.gs-bg-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  background: var(--color-surface-alt, rgba(128, 128, 128, 0.15));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gs-bg-swatch.sel { border-color: var(--accent, #ff8a3d); }
+/* Плитка-превью подарка в витрине с выбранным фоном */
+.gs-card-art { border-radius: 12px; }
+/* Фон за подарком на карточке сообщения и на полке профиля */
+.gift-message-burst.has-bg { border-radius: 20px; padding: 10px; }
+.profile-gift-art { border-radius: 10px; }

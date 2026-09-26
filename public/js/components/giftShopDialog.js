@@ -5,6 +5,7 @@ import { renderGiftArt } from "../lib/giftTraits.js";
 import { openStarsDialog } from "./starsDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openAnimatorEditor } from "./animatorEditor.js";
+import { GIFT_BACKGROUNDS, giftBackgroundStyle } from "../lib/giftBackground.js";
 
 // The gift shop: priced in stars, paid from the balance, delivered instantly.
 //
@@ -31,6 +32,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
   let notice = null;
   let busyId = null;
   let myGifts = []; // свои нарисованные подарки (вкладка «Мои»)
+  let background = null; // выбранный фон подарка (lib/giftBackground.js), null = без фона
   let target = recipient; // null = buying for yourself
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
@@ -99,7 +101,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     notice = null;
     render();
     try {
-      await api.sendCustomGift(gift.id, target.id);
+      await api.sendCustomGift(gift.id, target.id, background);
       notice = `«${gift.name}» отправлен — ${target.name}`;
       onSent?.();
     } catch (err) {
@@ -148,7 +150,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     notice = null;
     render();
     try {
-      const res = await api.buyGift(gift.id, target?.id);
+      const res = await api.buyGift(gift.id, target?.id, background);
       balance = res.balance ?? balance;
       notice = `${gift.emoji} «${gift.name}» отправлен${target ? ` — ${target.name}` : " вам"}${res.serial ? `, №${res.serial}` : ""}`;
       onSent?.();
@@ -192,7 +194,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
       },
       [
         g.exclusive ? el("span", { class: "gs-rare-badge" }, "Редкий") : null,
-        el("span", { class: "gs-card-art" }, [renderGiftArt(g, { size: 44, replay: false })]),
+        el("span", { class: "gs-card-art", style: background ? { background: giftBackgroundStyle(background) } : {} }, [renderGiftArt(g, { size: 44, replay: false })]),
         el("span", { class: "gs-card-name" }, g.name),
         el("span", { class: `gs-card-price ${affordable ? "" : "short"}` }, `⭐ ${fmt(g.priceStars)}`),
         g.supply != null
@@ -219,11 +221,49 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
         "button",
         { class: "gs-card-inner", disabled: busyId === g.id, title: `Подарить «${g.name}»`, onclick: () => sendMine(g) },
         [
-          el("span", { class: "gs-card-art" }, [renderGiftArt(g, { size: 44, replay: false })]),
+          el("span", { class: "gs-card-art", style: background ? { background: giftBackgroundStyle(background) } : {} }, [renderGiftArt(g, { size: 44, replay: false })]),
           el("span", { class: "gs-card-name" }, g.name),
           el("span", { class: "gs-card-price" }, "Бесплатно"),
         ]
       ),
+    ]);
+  }
+
+  // Выбор фона подарка: готовые пресеты + два своих цвета. Фон применяется ко
+  // всем карточкам как превью и уходит с подарком при отправке.
+  function backgroundPicker() {
+    const isSel = (bg) => (bg.id === "" ? !background : background && background.from === bg.from && background.to === bg.to);
+    const swatches = GIFT_BACKGROUNDS.map((bg) =>
+      el(
+        "button",
+        {
+          class: `gs-bg-swatch ${isSel(bg) ? "sel" : ""}`,
+          title: bg.label,
+          style: bg.from ? { background: giftBackgroundStyle({ from: bg.from, to: bg.to }) } : {},
+          onclick: () => { background = bg.id === "" ? null : { from: bg.from, to: bg.to }; render(); },
+        },
+        bg.id === "" ? "✕" : ""
+      )
+    );
+    // Свои цвета — onchange (не oninput), чтобы перерисовка не закрывала пипетку
+    // на каждом движении.
+    const fromInput = el("input", {
+      type: "color",
+      class: "anim-color-input",
+      title: "Цвет в центре",
+      value: background?.from || "#ffe08a",
+      onchange: (e) => { background = { from: e.target.value, to: background?.to || "#c8860b" }; render(); },
+    });
+    const toInput = el("input", {
+      type: "color",
+      class: "anim-color-input",
+      title: "Цвет по краям",
+      value: background?.to || "#c8860b",
+      onchange: (e) => { background = { from: background?.from || "#ffe08a", to: e.target.value }; render(); },
+    });
+    return el("div", { class: "gs-bg-picker" }, [
+      el("span", { class: "gs-bg-label" }, "Фон подарка"),
+      el("div", { class: "gs-bg-swatches" }, [...swatches, fromInput, toInput]),
     ]);
   }
 
@@ -247,6 +287,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
           }, "Выбрать"),
           target ? el("button", { class: "gs-recipient-btn", onclick: () => { target = null; render(); } }, "Себе") : null,
         ]),
+        backgroundPicker(),
         notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,
         error ? el("p", { class: "login-error" }, error) : null,
         el(

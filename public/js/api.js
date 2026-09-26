@@ -499,7 +499,7 @@ export const api = {
 
   listGifts: () => req("/api/gifts"),
   // Buying a gift with stars — instant, no admin in the loop.
-  buyGift: (giftId, recipientId) => req("/api/gifts/buy", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
+  buyGift: (giftId, recipientId, background) => req("/api/gifts/buy", { method: "POST", body: JSON.stringify({ giftId, recipientId, background }) }),
   // Trading a received gift back for stars.
   convertGift: (entryId) => req(`/api/gifts/received/${encodeURIComponent(entryId)}/convert`, { method: "POST" }),
   // Takes a received gift off your own profile shelf.
@@ -525,8 +525,8 @@ export const api = {
   createCustomGift: (name, scene) => req("/api/gifts/custom", { method: "POST", body: JSON.stringify({ name, scene }) }),
   updateCustomGift: (id, patch) => req(`/api/gifts/custom/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteCustomGift: (id) => req(`/api/gifts/custom/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  sendCustomGift: (giftId, recipientId) =>
-    req("/api/gifts/custom/send", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
+  sendCustomGift: (giftId, recipientId, background) =>
+    req("/api/gifts/custom/send", { method: "POST", body: JSON.stringify({ giftId, recipientId, background }) }),
 
   // Кастомные эмодзи, нарисованные в аниматоре (server/routes/customEmoji.js).
   listCustomEmoji: () => req("/api/custom-emoji"),

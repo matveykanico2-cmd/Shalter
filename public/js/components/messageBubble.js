@@ -10,6 +10,7 @@ import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard, Loca
 import { getState, setState } from "../state.js";
 import { renderSticker } from "../lib/stickers.js";
 import { renderGiftArt } from "../lib/giftTraits.js";
+import { giftBackgroundStyle } from "../lib/giftBackground.js";
 import { openStarsDialog } from "./starsDialog.js";
 import { navigate } from "../router.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
@@ -138,7 +139,8 @@ function GiftMessage(message, mine, isChannel) {
   const isExclusive = !!gift.exclusive && gift.serial != null;
   return el("div", { class: `gift-message ${isExclusive ? "gift-message-exclusive" : ""} ${isNew ? "" : "no-entrance"}` }, [
     isExclusive ? el("p", { class: "gift-message-badge" }, `№${gift.serial} из ${gift.supply}`) : null,
-    el("div", { class: "gift-message-burst" }, [
+    // Фон, выбранный отправителем (lib/giftBackground.js) — за подарком.
+    el("div", { class: `gift-message-burst ${gift.background ? "has-bg" : ""}`, style: gift.background ? { background: giftBackgroundStyle(gift.background) } : {} }, [
       el("div", { class: "gift-message-glow" }),
       ...SPARKLE_ANGLES.map((deg, i) =>
         el("span", { class: "gift-message-sparkle", style: `--angle: ${deg}deg; --delay: ${i * 0.05}s` }, "✨")

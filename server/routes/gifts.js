@@ -25,6 +25,7 @@ const {
   SUPPLY_MAX,
 } = require("../data/gifts");
 const { sanitizeScene, sceneSummaryEmoji } = require("../lib/sanitizeScene");
+const { sanitizeGiftBackground } = require("../lib/giftBackground");
 const { remaining, issuedCount } = require("../data/giftIssues");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -167,7 +168,8 @@ router.post(
       });
     }
 
-    const result = await deliverGift({ gift, recipientId, fromId: req.uid, announceFromId: req.uid });
+    const background = sanitizeGiftBackground(req.body?.background);
+    const result = await deliverGift({ gift, recipientId, fromId: req.uid, announceFromId: req.uid, background });
     if (!result.ok) {
       // The last copy went between the supply check and the claim — hand the
       // stars back rather than keeping them for a gift that was never delivered.
@@ -503,7 +505,8 @@ router.post(
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
     const recipient = await getUser(req.body?.recipientId);
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
-    const result = await deliverGift({ gift, recipientId: recipient.id, fromId: req.uid, announceFromId: req.uid });
+    const background = sanitizeGiftBackground(req.body?.background);
+    const result = await deliverGift({ gift, recipientId: recipient.id, fromId: req.uid, announceFromId: req.uid, background });
     if (!result.ok) return res.status(500).json({ error: "Не удалось отправить подарок" });
     res.json({ chatId: result.chat.id, delivered: true });
   })

@@ -15,6 +15,7 @@ import { openGiftCardDialog } from "./giftCardDialog.js";
 import { openGiftShopDialog } from "./giftShopDialog.js";
 import { openStoryViewer } from "./storyViewer.js";
 import { giftTraits, renderGiftArt } from "../lib/giftTraits.js";
+import { giftBackgroundStyle } from "../lib/giftBackground.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 import { ProfileStatusBadge } from "./profileStatusBadge.js";
 import { openPinnedChannelsDialog } from "./pinnedChannelsDialog.js";
@@ -273,7 +274,7 @@ export async function openProfileDialog(userId) {
                   ? el("span", { class: "profile-gift-pin", title: "Закреплён", html: iconSvg("Pin", 12) })
                   : null,
                 g.serial != null ? el("span", { class: "profile-gift-ribbon" }, `№${g.serial}`) : null,
-                el("span", { class: "profile-gift-art" }, [renderGiftArt(g, { size: 44, replay: false })]),
+                el("span", { class: "profile-gift-art", style: g.background ? { background: giftBackgroundStyle(g.background) } : {} }, [renderGiftArt(g, { size: 44, replay: false })]),
                 el("span", { class: "profile-gift-title" }, g.name),
                 el("span", { class: "profile-gift-price" }, `⭐ ${Number(g.priceStars ?? 0).toLocaleString("ru-RU")}`),
               ].filter(Boolean)
