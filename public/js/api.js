@@ -171,6 +171,8 @@ export const api = {
 
   // Opens (or returns) the DM with the support account.
   openSupportChat: () => req("/api/support/chat", { method: "POST" }),
+  // «Сообщить об ошибке» — DM с администрацией (живой человек), не с ботом.
+  openBugReportChat: () => req("/api/support/report", { method: "POST" }),
   getPartnerInfo: () => req("/api/partners/me"),
   // "Войти через Shalter" (server/routes/oauth.js) — managing apps you've
   // registered, and the consent-screen calls oauthAuthorize.js's view makes.

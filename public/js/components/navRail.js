@@ -145,12 +145,21 @@ export function NavRail() {
       },
     });
     items.push({ separator: true });
-    // The "Shalter" service account (server/data/systemBot.js) already
-    // delivers login codes/security alerts to every user — reusing it as the
-    // bug-report inbox means an actual person (whoever holds ADMIN_PHONE)
-    // reads it, not a form that goes nowhere. Routes through the same
-    // /u/:username deep link a scanned profile QR code uses.
-    items.push({ icon: "Bug", label: "Сообщить об ошибке", onClick: () => navigate("/u/shalter") });
+    // Открывает DM с администрацией (живой человек — владелец ADMIN_PHONE), а не
+    // с ботом кодов «shalter». Раньше вело на /u/shalter — служебный бот, куда
+    // приходят коды входа, и жалоба уходила «в коды».
+    items.push({
+      icon: "Bug",
+      label: "Сообщить об ошибке",
+      onClick: async () => {
+        try {
+          const { chatId } = await api.openBugReportChat();
+          navigate(`/chat/${chatId}`);
+        } catch (err) {
+          alert(err.message || "Не удалось открыть чат с поддержкой");
+        }
+      },
+    });
 
     openDropdownMenu(pos, items);
   }
