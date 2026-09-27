@@ -30,6 +30,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   const bannedWhy = new URLSearchParams(window.location.search).get("why");
   let mode = refFromLink ? "register" : "login"; // "login" | "register" | "qr" | "code"
   let name = "";
+  let lastName = "";
   let email = "";
   let password = "";
   let phone = "";
@@ -619,6 +620,10 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       mode === "register"
         ? el("input", { class: "login-input", placeholder: "Имя", value: name, oninput: (e) => (name = e.target.value) })
         : null;
+    const lastNameInput =
+      mode === "register"
+        ? el("input", { class: "login-input", placeholder: "Фамилия (необязательно)", value: lastName, oninput: (e) => (lastName = e.target.value) })
+        : null;
     const avatarInput = mode === "register" ? avatarPicker() : null;
     const emailInput = el("input", {
       class: "login-input",
@@ -663,7 +668,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           try {
             let user;
             if (mode === "register") {
-              ({ user } = await api.registerEmail(name, email, password, phone, username, referralCode));
+              ({ user } = await api.registerEmail(name, email, password, phone, username, referralCode, lastName));
               if (avatarImage) await api.updateProfile(user.id, { avatarImage });
             } else {
               const res = await api.loginEmail(email, password);
@@ -689,6 +694,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       [
         avatarInput,
         nameInput,
+        lastNameInput,
         emailInput,
         phoneInput,
         usernameInput,

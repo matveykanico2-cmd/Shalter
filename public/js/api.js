@@ -43,8 +43,8 @@ export const api = {
     }
     return req("/api/bootstrap");
   },
-  registerEmail: (name, email, password, phone, username, referralCode) =>
-    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, username, referralCode }) }),
+  registerEmail: (name, email, password, phone, username, referralCode, lastName) =>
+    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, username, referralCode, lastName }) }),
   // Live availability check for the registration form's @handle field.
   // Unauthenticated, since it runs before the account exists.
   checkUsername: (u) => req(`/api/auth/username-available?u=${encodeURIComponent(u)}`),

@@ -13789,3 +13789,37 @@ p.business-status {
 .anim-tip { font-size: 12px; opacity: 0.6; margin: 2px 0; }
 .anim-key-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .anim-add-btn.danger { color: #ff5d73; border-color: #ff5d73; }
+
+/* ── Мобильная вёрстка витрины подарков и пикеров эмодзи ──────────────────────
+   На телефоне модалка подарков (шапка+вкладки+получатель+фон+тумблер+сетка) не
+   влезала в 80vh и обрезала низ (кнопку «Закрыть»). Разворачиваем на весь экран,
+   тело со скроллом, кнопка закрытия закреплена снизу. То же — для пикера эмодзи
+   и админ-каталога эмодзи. */
+@media (max-width: 560px) {
+  .gs-dialog {
+    max-width: 100vw;
+    width: 100vw;
+    max-height: 100dvh;
+    height: 100dvh;
+    border-radius: 0;
+  }
+  .gs-body {
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .gs-grid {
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  }
+  /* Пикер эмодзи в композере — не шире экрана, со своим скроллом. */
+  .composer-emoji-picker.has-sections {
+    max-width: calc(100vw - 16px);
+    max-height: 62vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* Админ-каталог эмодзи — компактнее, чтобы влезало в ряд на узком экране. */
+  .emoji-admin-grid {
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  }
+}

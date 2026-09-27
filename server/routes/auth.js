@@ -157,9 +157,13 @@ router.post(
 router.post(
   "/register-email",
   asyncRoute(async (req, res) => {
-    const { name, email, password, phone, username, referralCode } = req.body ?? {};
+    const { name, email, password, phone, username, referralCode, lastName } = req.body ?? {};
 
     if (!name?.trim()) return res.status(400).json({ error: "Введите имя" });
+    // Фамилия необязательна. Полное отображаемое имя — «Имя Фамилия» (как в
+    // Настройки → Профиль), а lastName хранится отдельно.
+    const cleanLast = String(lastName ?? "").trim().slice(0, 60);
+    const fullName = [name.trim(), cleanLast].filter(Boolean).join(" ");
     if (!EMAIL_RE.test(email ?? "")) return res.status(400).json({ error: "Некорректный email" });
     if (!password || password.length < 6) {
       return res.status(400).json({ error: "Пароль должен быть не короче 6 символов" });
@@ -194,7 +198,8 @@ router.post(
     try {
       user = await createUser({
         id: genId("u"),
-        name: name.trim(),
+        name: fullName,
+        lastName: cleanLast || undefined,
         username: handle,
         phone: normalizedPhone,
         email: email.trim().toLowerCase(),
@@ -215,6 +220,13 @@ router.post(
       // second insert. That's a "занят", not a 500.
       if (isUsernameConflict(err)) return res.status(409).json({ error: "Этот юзернейм уже занят" });
       throw err;
+    }
+
+    // Фамилия хранится отдельной колонкой (createUser её не пишет) — дописываем
+    // здесь, чтобы Настройки → Профиль показывали имя и фамилию по отдельности.
+    if (cleanLast) {
+      await updateUser(user.id, { lastName: cleanLast });
+      user = { ...user, lastName: cleanLast };
     }
 
     if (referrer) {
