@@ -1,5 +1,13 @@
 const { LANGUAGETOOL_URL } = require("../config");
 const { isUnsupportedLanguage, UNSUPPORTED_MESSAGE } = require("./unsupportedLanguages");
+const { localProofread } = require("./localProofread");
+
+// Локальные находки, не пересекающиеся с тем, что уже нашёл LanguageTool, —
+// чтобы не дублировать одно и то же место двумя подсказками.
+function mergeLocal(ltMatches, local) {
+  const extra = local.filter((l) => !ltMatches.some((m) => l.offset < m.offset + m.length && l.offset + l.length > m.offset));
+  return [...ltMatches, ...extra].sort((a, b) => a.offset - b.offset);
+}
 
 // The proofreading call itself, shared by the two things that need it: the
 // composer's check button (routes/hugo.js) and the Hugo bot, which answers a
@@ -36,7 +44,9 @@ async function checkText(text, language = "auto") {
   if (text.length > MAX_TEXT) {
     return { error: `Слишком длинный текст — максимум ${MAX_TEXT} символов`, status: 413 };
   }
-  if (!LANGUAGETOOL_URL) return { error: "Проверка текста не настроена на сервере", status: 503 };
+  // Встроенная проверка работает всегда, даже без внешнего сервиса: раньше без
+  // LANGUAGETOOL_URL проверка просто отвечала «не настроена».
+  if (!LANGUAGETOOL_URL) return { matches: localProofread(text), language: "Встроенная проверка" };
 
   const body = new URLSearchParams({
     // Автоопределение — только для латиницы (см. resolveLanguage выше);
@@ -59,11 +69,9 @@ async function checkText(text, language = "auto") {
       signal: controller.signal,
     });
     if (!upstream.ok) {
-      // 429 from the public endpoint is the common one — say so rather than
-      // reporting a generic failure the user can't act on.
-      return upstream.status === 429
-        ? { error: "Сервис проверки перегружен — попробуйте через минуту", status: 429 }
-        : { error: "Сервис проверки текста сейчас недоступен", status: 502 };
+      // Внешний сервис перегружен/недоступен — не отказываем совсем, а отдаём
+      // встроенную проверку: лучше базовая, чем никакой.
+      return { matches: localProofread(text), language: "Встроенная проверка" };
     }
     const data = await upstream.json();
     // Последняя проверка: если автоопределение всё же вышло на язык, которого в
@@ -74,18 +82,21 @@ async function checkText(text, language = "auto") {
     }
     // Reshaped to only what the callers need: the raw response carries a lot of
     // rule metadata that would just be dead weight on the wire.
+    const ltMatches = (data.matches ?? []).map((m) => ({
+      offset: m.offset,
+      length: m.length,
+      message: m.message,
+      short: m.shortMessage || m.rule?.category?.name || "",
+      // Capped: some spelling rules return dozens of candidates, and a chooser
+      // with 40 options is not a chooser.
+      replacements: (m.replacements ?? []).slice(0, 5).map((r) => r.value),
+      type: m.rule?.issueType || "other",
+    }));
     return {
       language: data.language?.name ?? null,
-      matches: (data.matches ?? []).map((m) => ({
-        offset: m.offset,
-        length: m.length,
-        message: m.message,
-        short: m.shortMessage || m.rule?.category?.name || "",
-        // Capped: some spelling rules return dozens of candidates, and a chooser
-        // with 40 options is not a chooser.
-        replacements: (m.replacements ?? []).slice(0, 5).map((r) => r.value),
-        type: m.rule?.issueType || "other",
-      })),
+      // Дополняем находками встроенной проверки (двойные пробелы, повтор слова и
+      // т.п.), которых у LanguageTool может не быть.
+      matches: mergeLocal(ltMatches, localProofread(text)),
     };
   } catch (err) {
     const aborted = err.name === "AbortError";
@@ -93,10 +104,9 @@ async function checkText(text, language = "auto") {
     // reason: "не удалось связаться" covers DNS, TLS, timeouts and refused
     // connections, and they need very different fixes.
     console.error("languagetool check failed:", err.name, err.message, err.cause?.message ?? "", err.cause?.code ?? "");
-    return {
-      error: aborted ? "Проверка заняла слишком долго" : "Не удалось связаться с сервисом проверки",
-      status: 504,
-    };
+    // Сеть/таймаут — тоже не отказываем: отдаём встроенную проверку.
+    void aborted;
+    return { matches: localProofread(text), language: "Встроенная проверка" };
   } finally {
     clearTimeout(timeout);
   }

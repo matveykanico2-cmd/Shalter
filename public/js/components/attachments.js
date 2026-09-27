@@ -46,6 +46,19 @@ export function VideoAttachment(a) {
   // message:updated на месте кадра крутится ожидание, а не кнопка, открывающая
   // оригинал на несколько гигабайт.
   const poster = a.posterUrl || a.thumbUrl;
+  // Постер ещё готовится и его пока нет: раньше висел тёмный плейсхолдер до
+  // перезагрузки. Показываем первый кадр самого файла — preload=metadata тянет
+  // только метаданные (и кадр-постер), а не весь ролик.
+  if (a.previewPending && !poster) {
+    return el(
+      "button",
+      { class: "video-attachment-btn", type: "button", onclick: () => openMediaViewer({ kind: "video", url: a.url, name: a.name }) },
+      [
+        el("video", { class: "video-attachment-poster", src: a.url, preload: "metadata", muted: true, playsinline: true }),
+        el("span", { class: "video-attachment-play", html: iconSvg("Video", 28) }),
+      ]
+    );
+  }
   if (a.previewPending) return PendingPreview(poster);
   return el(
     "button",

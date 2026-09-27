@@ -24,7 +24,10 @@ router.use(requireUserId);
 
 router.get("/", (_req, res) => {
   res.json({
-    available: !!LANGUAGETOOL_URL,
+    // Проверка доступна всегда: даже без LanguageTool работает встроенный
+    // корректор (server/lib/localProofread.js).
+    available: true,
+    languageTool: !!LANGUAGETOOL_URL,
     selfHosted: !/(^|\/\/)api\.languagetool\.org/.test(LANGUAGETOOL_URL),
     maxText: MAX_TEXT,
   });
