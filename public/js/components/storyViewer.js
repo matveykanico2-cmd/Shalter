@@ -36,6 +36,9 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   let paused = false;
   let muted = true;
   let videoEl = null;
+  // Кнопка лайка текущего кадра — чтобы обновлять её на месте, не пересобирая
+  // весь просмотрщик (полный render пересоздаёт медиа и перезапускает историю).
+  let likeBtnEl = null;
   let viewers = null; // список посмотревших свою историю, грузится по нажатию
   let viewersOpen = false;
   let comments = null; // комментарии текущей истории, грузятся по нажатию
@@ -235,22 +238,35 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
 
   // Оптимистично меняем сердечко сразу, откатываем, если сервер отказал —
   // так же, как реакции на сообщения делают в остальном приложении.
+  // Обновляет только кнопку лайка на месте — БЕЗ полного render(), который
+  // пересоздал бы медиа и перезапустил историю с начала (это и был баг: лайк
+  // перематывал историю).
+  function refreshLikeButton() {
+    const story = currentStory();
+    if (!likeBtnEl || !story) return;
+    likeBtnEl.className = `story-like-btn ${story.liked ? "liked" : ""}`;
+    likeBtnEl.title = story.liked ? "Убрать лайк" : "Нравится";
+    clear(likeBtnEl);
+    likeBtnEl.append(el("span", { class: "story-like-heart" }, story.liked ? "❤️" : "🤍"));
+    if (story.likeCount) likeBtnEl.append(` ${story.likeCount}`);
+  }
+
   async function toggleLike() {
     const story = currentStory();
     if (!story || story.expired) return;
     const before = { liked: !!story.liked, likeCount: story.likeCount ?? 0 };
     story.liked = !before.liked;
     story.likeCount = before.likeCount + (story.liked ? 1 : -1);
-    render();
+    refreshLikeButton();
     try {
       const res = await api.likeStory(story.id);
       story.liked = res.liked;
       story.likeCount = res.likeCount;
-      render();
+      refreshLikeButton();
     } catch {
       story.liked = before.liked;
       story.likeCount = before.likeCount;
-      render();
+      refreshLikeButton();
     }
   }
 
@@ -364,7 +380,8 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       const story = group.stories.find((st) => st.id === storyId);
       if (story) story.likeCount = likeCount;
     }
-    if (currentStory()?.id === storyId) render();
+    // Только счётчик — обновляем кнопку на месте, без перезапуска истории.
+    if (currentStory()?.id === storyId) refreshLikeButton();
   });
 
   const unsubCommented = onWsMessage("story:commented", ({ storyId, comment }) => {
@@ -480,6 +497,9 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       : story.likeCount
         ? el("span", { class: "story-like-count" }, `❤️ ${story.likeCount}`)
         : null;
+    // Ссылка на кнопку лайка (только интерактивная — у чужой непросроченной
+    // истории), чтобы обновлять её на месте без перезапуска истории.
+    likeBtnEl = likeBtn && likeBtn.tagName === "BUTTON" ? likeBtn : null;
 
     const commentsBtn = el(
       "button",
