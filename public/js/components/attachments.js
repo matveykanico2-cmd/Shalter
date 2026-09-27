@@ -31,8 +31,11 @@ export function ImageAttachment(a) {
   // загрузиться, — а до открытия чат всё равно выглядит целым по эскизу.
   // Пока сервер считает эскиз, показывать вместо него оригинал нельзя: это
   // ровно тот полноразмерный файл, ради которого эскиз и делается.
-  if (a.previewPending && !a.thumbUrl) return PendingPreview(null);
-  const img = el("img", { src: a.thumbUrl || a.url, alt: a.name || "photo", class: "image-attachment" });
+  // Эскиз ещё считается на сервере (previewPending, thumbUrl пуст). Раньше здесь
+  // висел тёмный плейсхолдер до перезагрузки страницы — теперь показываем сам
+  // только что загруженный файл (он уже в кэше устройства), чтобы картинка
+  // появлялась сразу; когда подъедет эскиз, он и заменит src.
+  const img = el("img", { src: a.thumbUrl || a.url, alt: a.name || "photo", class: "image-attachment", loading: "lazy" });
   return el("button", { class: "image-attachment-btn", type: "button", onclick: () => openMediaViewer({ kind: "image", url: a.url, name: a.name }) }, [img]);
 }
 
