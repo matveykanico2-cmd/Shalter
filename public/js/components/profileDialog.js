@@ -533,16 +533,22 @@ export async function openProfileDialog(userId) {
               [el("span", { html: iconSvg("Gift", 15) }), " Отправить подарок"]
             )
           : null,
-        el(
-          "button",
-          { class: `profile-action-btn ${isBlocked ? "danger" : ""}`, onclick: toggleBlock },
-          isBlocked ? "Разблокировать" : "Заблокировать"
-        ),
-        el(
-          "button",
-          { class: "profile-action-btn danger", onclick: () => openReportDialog("user", userId, user.name) },
-          "Пожаловаться"
-        ),
+        // Себя не блокируют и на себя не жалуются — эти кнопки только у чужого
+        // профиля (сервер тоже запрещает блокировать себя).
+        !isSelf
+          ? el(
+              "button",
+              { class: `profile-action-btn ${isBlocked ? "danger" : ""}`, onclick: toggleBlock },
+              isBlocked ? "Разблокировать" : "Заблокировать"
+            )
+          : null,
+        !isSelf
+          ? el(
+              "button",
+              { class: "profile-action-btn danger", onclick: () => openReportDialog("user", userId, user.name) },
+              "Пожаловаться"
+            )
+          : null,
       ]),
       // Каналы человека. Показываются всем, кто открыл профиль, — в этом и
       // смысл: «вот что я веду, подпишись». Свой профиль вдобавок показывает

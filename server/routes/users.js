@@ -294,6 +294,9 @@ router.post(
   "/:id/block",
   asyncRoute(async (req, res) => {
     const { blocked } = req.body ?? {};
+    // Себя заблокировать нельзя — иначе аккаунт заблокировал бы сам себе весь
+    // обмен сообщениями и не смог бы это откатить с чужой стороны.
+    if (req.params.id === req.uid) return res.status(400).json({ error: "Нельзя заблокировать самого себя" });
     const user = await setBlocked(req.uid, req.params.id, blocked);
     res.json({ user: user ? publicUser(user) : null });
   })

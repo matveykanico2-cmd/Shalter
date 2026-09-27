@@ -422,7 +422,9 @@
 }
 .story-footer {
   position: absolute;
-  bottom: 0;
+  /* Поднимаемся над экранной клавиатурой (var --kb ставит storyViewer.js по
+     visualViewport), иначе поле ответа/комментария оказывается за клавиатурой. */
+  bottom: var(--kb, 0px);
   left: 0;
   right: 0;
   z-index: 3;
@@ -431,6 +433,7 @@
   gap: 8px;
   padding: 22px 12px 12px;
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.6), transparent);
+  transition: bottom 0.15s ease;
 }
 .story-reply-input {
   flex: 1;
@@ -572,7 +575,8 @@
 }
 .story-comments-panel {
   position: absolute;
-  bottom: 60px;
+  /* Над футером и над клавиатурой (var --kb, см. storyViewer.js). */
+  bottom: calc(60px + var(--kb, 0px));
   left: 10px;
   right: 10px;
   z-index: 4;
@@ -584,6 +588,7 @@
   padding: 10px 12px;
   max-height: 50%;
   color: #fff;
+  transition: bottom 0.15s ease;
 }
 .story-comments-list {
   overflow-y: auto;
@@ -1090,6 +1095,27 @@
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+/* На телефоне меню с поиском (подарки) — нижний лист над клавиатурой, а не
+   крохотный поповер у пальца (dropdownMenu.js's `sheet`). --kb ставит тот же
+   код по visualViewport, поэтому поле поиска не прячется за клавиатурой. */
+.dropdown-sheet {
+  left: 0 !important;
+  right: 0 !important;
+  top: auto !important;
+  bottom: var(--kb, 0px) !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  max-height: 70vh;
+  border-radius: 16px 16px 0 0;
+  transition: bottom 0.15s ease;
+}
+.dropdown-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 89;
+  background: rgba(0, 0, 0, 0.4);
 }
 .dropdown-list {
   min-height: 0;

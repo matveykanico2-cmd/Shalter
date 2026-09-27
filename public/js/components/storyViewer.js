@@ -50,6 +50,19 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   const overlay = el("div", { class: "story-viewer-overlay" });
   document.body.appendChild(overlay);
 
+  // На телефоне экранная клавиатура перекрывает нижнюю панель: оверлей fixed, и
+  // клавиатура его не сжимает, поэтому поле комментария/ответа оказывается за
+  // ней. visualViewport — это видимая часть НАД клавиатурой; по её высоте
+  // поднимаем панель и футер (через CSS-переменную --kb).
+  const vv = window.visualViewport;
+  function onViewport() {
+    if (!vv) return;
+    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    overlay.style.setProperty("--kb", `${kb}px`);
+  }
+  vv?.addEventListener("resize", onViewport);
+  vv?.addEventListener("scroll", onViewport);
+
   const currentGroup = () => groups[gi];
 
   // Плоский список кадров текущего автора: история на три снимка даёт три
@@ -77,6 +90,8 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     unsubCommented?.();
     unsubCommentUpdated?.();
     unsubCommentDeleted?.();
+    vv?.removeEventListener("resize", onViewport);
+    vv?.removeEventListener("scroll", onViewport);
     overlay.remove();
   }
 
