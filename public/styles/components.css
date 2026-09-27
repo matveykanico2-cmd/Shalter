@@ -13909,3 +13909,34 @@ p.business-status {
 }
 .chat-empty-title { font-size: 17px; font-weight: 700; margin: 0; }
 .chat-empty-text { font-size: 14px; opacity: 0.6; margin: 0; max-width: 260px; }
+
+/* Лайки и ответы в комментариях историй (components/storyViewer.js) */
+.story-comment-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 2px;
+}
+.comment-like-btn,
+.comment-reply-btn {
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.comment-like-btn.liked { color: #ff5d73; }
+.comment-like-count { font-variant-numeric: tabular-nums; }
+.comment-reply-btn:hover,
+.comment-like-btn:hover { color: #fff; }
+/* Вложенный ответ — с отступом и полоской слева. */
+.story-comment-row.is-reply {
+  margin-left: 30px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(255, 255, 255, 0.15);
+}
+/* Видео-превью истории в ответе — тем же размером, что и картинка. */
+video.story-reply-thumb { object-fit: cover; }

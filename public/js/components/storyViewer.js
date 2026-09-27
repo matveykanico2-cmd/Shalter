@@ -46,6 +46,8 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   // Какой комментарий сейчас правится — поле ввода внизу панели переходит в
   // режим правки, как поле сообщения в чате.
   let editingCommentId = null;
+  // Комментарий, на который сейчас отвечают (панель компоновки показывает «Ответ …»).
+  let replyToComment = null;
 
   const overlay = el("div", { class: "story-viewer-overlay" });
   document.body.appendChild(overlay);
@@ -90,6 +92,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     unsubCommented?.();
     unsubCommentUpdated?.();
     unsubCommentDeleted?.();
+    unsubCommentLiked?.();
     vv?.removeEventListener("resize", onViewport);
     vv?.removeEventListener("scroll", onViewport);
     overlay.remove();
@@ -108,6 +111,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     comments = null;
     commentsOpen = false;
     editingCommentId = null;
+    replyToComment = null;
     viewers = null;
     viewersOpen = false;
   }
@@ -329,15 +333,43 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     if (!clean) return;
     if (editingCommentId) return saveCommentEdit(editingCommentId, clean, input);
     input.value = "";
+    const parentId = replyToComment?.id ?? null;
     try {
-      const { comment } = await api.addStoryComment(story.id, clean);
+      const { comment } = await api.addStoryComment(story.id, clean, parentId);
       // Дедуп по id: WS-событие story:commented приходит и отправителю и могло
       // уже добавить этот же комментарий — без проверки он задваивался.
       if (comments && !comments.some((c) => c.id === comment.id)) comments = [...comments, comment];
+      replyToComment = null;
       render();
     } catch (err) {
       input.value = clean;
       alert(err.message || "Не удалось отправить комментарий");
+    }
+  }
+
+  // Лайк/снятие лайка комментария — оптимистично, с откатом при ошибке.
+  async function toggleCommentLike(c) {
+    if (!comments) return;
+    const liked = (c.likedByIds ?? []).includes(meId);
+    const nextLiked = !liked;
+    const apply = (val) => {
+      comments = comments.map((x) => {
+        if (x.id !== c.id) return x;
+        const ids = new Set(x.likedByIds ?? []);
+        if (val) ids.add(meId);
+        else ids.delete(meId);
+        return { ...x, likedByIds: [...ids], likeCount: ids.size };
+      });
+    };
+    apply(nextLiked);
+    render();
+    try {
+      const res = await api.likeStoryComment(currentStory().id, c.id);
+      comments = comments.map((x) => (x.id === c.id ? { ...x, likedByIds: res.comment.likedByIds, likeCount: res.comment.likeCount } : x));
+      render();
+    } catch {
+      apply(liked);
+      render();
     }
   }
 
@@ -464,6 +496,11 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     if (currentStory()?.id !== storyId || !comments) return;
     comments = comments.filter((c) => c.id !== commentId);
     if (editingCommentId === commentId) editingCommentId = null;
+    if (commentsOpen && !isTypingHere()) render();
+  });
+  const unsubCommentLiked = onWsMessage("story:comment-liked", ({ storyId, commentId, likeCount, likedByIds }) => {
+    if (currentStory()?.id !== storyId || !comments) return;
+    comments = comments.map((c) => (c.id === commentId ? { ...c, likeCount, likedByIds: likedByIds ?? c.likedByIds } : c));
     if (commentsOpen && !isTypingHere()) render();
   });
 
@@ -608,40 +645,59 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
           commentsBtn,
         ]);
 
+    // Одна строка комментария: аватар, автор, текст, лайк-сердце со счётчиком,
+    // «Ответить», плюс изменить/удалить своего. isReply — вложенный ответ.
+    const commentRow = (c, isReply) => {
+      const liked = (c.likedByIds ?? []).includes(meId);
+      return el("div", { class: `story-comment-row${c.id === editingCommentId ? " editing" : ""}${isReply ? " is-reply" : ""}` }, [
+        Avatar({ name: c.author?.name ?? "?", color: c.author?.avatarColor, image: c.author?.avatarImage, size: 26 }),
+        el("div", { class: "story-comment-body" }, [
+          el("span", { class: "story-comment-author" }, c.author?.name ?? "Пользователь"),
+          el("span", { class: "story-comment-text" }, [c.text, c.editedAt ? el("span", { class: "comment-edited" }, " · изм.") : null]),
+          el("div", { class: "story-comment-meta" }, [
+            el(
+              "button",
+              { class: `comment-like-btn ${liked ? "liked" : ""}`, title: liked ? "Убрать лайк" : "Нравится", onclick: () => toggleCommentLike(c) },
+              [el("span", {}, liked ? "❤️" : "🤍"), c.likeCount ? el("span", { class: "comment-like-count" }, ` ${c.likeCount}`) : null]
+            ),
+            // Ответ крепится к верхнему комментарию: у ответа отвечаем его родителю.
+            el("button", { class: "comment-reply-btn", onclick: () => {
+              replyToComment = { id: c.parentId ?? c.id, author: c.author };
+              render();
+              overlay.querySelector(".story-comment-input")?.focus();
+            } }, "Ответить"),
+          ]),
+        ]),
+        el("div", { class: "comment-actions" }, [
+          c.userId === meId
+            ? el("button", { class: "comment-action-btn", title: "Изменить", html: iconSvg("Edit", 14), onclick: () => { editingCommentId = c.id; render(); overlay.querySelector(".story-comment-input")?.focus(); } })
+            : null,
+          canDeleteComment(c)
+            ? el("button", { class: "comment-action-btn danger", title: "Удалить", html: iconSvg("Trash", 14), onclick: () => removeComment(c) })
+            : null,
+        ]),
+      ]);
+    };
+
+    // Раскладываем в потоки: верхние комментарии, под каждым — его ответы.
+    const all = comments ?? [];
+    const tops = all.filter((c) => !c.parentId);
+    const repliesOf = (id) => all.filter((c) => c.parentId === id);
+    const threadNodes = [];
+    for (const top of tops) {
+      threadNodes.push(commentRow(top, false));
+      for (const r of repliesOf(top.id)) threadNodes.push(commentRow(r, true));
+    }
+
     const commentsPanel = commentsOpen
       ? el("div", { class: "story-comments-panel" }, [
           el("div", { class: "story-comments-list" }, [
             comments === null
               ? el("p", { class: "story-viewers-title" }, "Загружаем…")
-              : !comments.length
+              : !all.length
                 ? el("p", { class: "story-viewers-title" }, "Пока нет комментариев")
                 : null,
-            ...(comments ?? []).map((c) =>
-              el("div", { class: `story-comment-row${c.id === editingCommentId ? " editing" : ""}` }, [
-                Avatar({ name: c.author?.name ?? "?", color: c.author?.avatarColor, image: c.author?.avatarImage, size: 26 }),
-                el("div", { class: "story-comment-body" }, [
-                  el("span", { class: "story-comment-author" }, c.author?.name ?? "Пользователь"),
-                  el("span", { class: "story-comment-text" }, [c.text, c.editedAt ? el("span", { class: "comment-edited" }, " · изм.") : null]),
-                ]),
-                el("div", { class: "comment-actions" }, [
-                  c.userId === meId
-                    ? el("button", {
-                        class: "comment-action-btn",
-                        title: "Изменить",
-                        html: iconSvg("Edit", 14),
-                        onclick: () => {
-                          editingCommentId = c.id;
-                          render();
-                          overlay.querySelector(".story-comment-input")?.focus();
-                        },
-                      })
-                    : null,
-                  canDeleteComment(c)
-                    ? el("button", { class: "comment-action-btn danger", title: "Удалить", html: iconSvg("Trash", 14), onclick: () => removeComment(c) })
-                    : null,
-                ]),
-              ])
-            ),
+            ...threadNodes,
           ]),
           editing
             ? el("div", { class: "comment-editing-bar" }, [
@@ -649,7 +705,13 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
                 el("span", { class: "comment-editing-text" }, `Изменение: ${editing.text}`),
                 el("button", { class: "comment-action-btn", title: "Отменить", html: iconSvg("X", 14), onclick: () => ((editingCommentId = null), render()) }),
               ])
-            : null,
+            : replyToComment
+              ? el("div", { class: "comment-editing-bar" }, [
+                  el("span", { html: iconSvg("MessageSquare", 13) }),
+                  el("span", { class: "comment-editing-text" }, `Ответ ${replyToComment.author?.name ?? "пользователю"}`),
+                  el("button", { class: "comment-action-btn", title: "Отменить", html: iconSvg("X", 14), onclick: () => ((replyToComment = null), render()) }),
+                ])
+              : null,
           el("div", { class: "story-comment-compose" }, [
             commentInput,
             el("button", {

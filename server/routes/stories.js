@@ -13,6 +13,7 @@ const {
   toggleLike,
   listComments,
   addComment,
+  toggleCommentLike,
   getComment,
   editComment,
   deleteComment,
@@ -362,12 +363,22 @@ router.post(
     const text = String(req.body?.text ?? "").trim().slice(0, 500);
     if (!text) return res.status(400).json({ error: "empty comment" });
 
+    // Ответ на другой комментарий: parentId должен вести на комментарий этой же
+    // истории. Вложенность одноступенчатая — ответ на ответ крепится к тому же
+    // верхнему комментарию (как в большинстве лент), поэтому берём parent.parentId.
+    let parentId = null;
+    if (req.body?.parentId) {
+      const parent = await getComment(String(req.body.parentId));
+      if (parent && parent.storyId === req.params.id) parentId = parent.parentId ?? parent.id;
+    }
+
     const comment = await addComment({
       id: `stc_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
       storyId: req.params.id,
       userId: req.uid,
       text,
       createdAt: new Date().toISOString(),
+      parentId,
     });
     const author = publicUser(await getUser(req.uid));
     broadcastToUsers(await audienceForStory(visible), {
@@ -376,6 +387,28 @@ router.post(
       comment: { ...comment, author },
     });
     res.json({ comment: { ...comment, author } });
+  })
+);
+
+// Лайк/снятие лайка комментария истории.
+router.post(
+  "/:id/comments/:commentId/like",
+  asyncRoute(async (req, res) => {
+    const allowed = await visibleAuthorIds(req.uid);
+    const visible = (await listStoriesForUsers(allowed)).find((st) => st.id === req.params.id);
+    if (!visible) return res.status(404).json({ error: "not found" });
+    const existing = await getComment(req.params.commentId);
+    if (!existing || existing.storyId !== req.params.id) return res.status(404).json({ error: "not found" });
+
+    const comment = await toggleCommentLike(req.params.commentId, req.uid);
+    broadcastToUsers(await audienceForStory(visible), {
+      type: "story:comment-liked",
+      storyId: req.params.id,
+      commentId: comment.id,
+      likeCount: comment.likeCount,
+      likedByIds: comment.likedByIds,
+    });
+    res.json({ comment, liked: comment.likedByIds.includes(req.uid), likeCount: comment.likeCount });
   })
 );
 

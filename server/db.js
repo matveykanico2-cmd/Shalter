@@ -564,6 +564,14 @@ CREATE TABLE IF NOT EXISTS story_comments (
 CREATE INDEX IF NOT EXISTS idx_story_comments_story ON story_comments(storyId, createdAt);
 `);
 
+// Ответы на комментарии историй и лайки комментариев. parentId — id родителя
+// (у ответа), NULL у обычного комментария. likedByIds — набор id, лайкнувших
+// комментарий (как у самой истории). Добавлены после создания таблицы, поэтому
+// болтятся отдельными миграциями.
+const existingStoryCommentCols = new Set(db.prepare("PRAGMA table_info(story_comments)").all().map((c) => c.name));
+if (!existingStoryCommentCols.has("parentId")) db.exec("ALTER TABLE story_comments ADD COLUMN parentId TEXT");
+if (!existingStoryCommentCols.has("likedByIds")) db.exec("ALTER TABLE story_comments ADD COLUMN likedByIds TEXT NOT NULL DEFAULT '[]'");
+
 const existingUserColumns = new Set(db.prepare("PRAGMA table_info(users)").all().map((c) => c.name));
 if (!existingUserColumns.has("isPremium")) db.exec("ALTER TABLE users ADD COLUMN isPremium INTEGER NOT NULL DEFAULT 0");
 if (!existingUserColumns.has("referralCode")) db.exec("ALTER TABLE users ADD COLUMN referralCode TEXT");

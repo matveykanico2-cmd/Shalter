@@ -464,7 +464,8 @@ export const api = {
   deleteStory: (id) => req(`/api/stories/${id}`, { method: "DELETE" }),
   likeStory: (id) => req(`/api/stories/${id}/like`, { method: "POST" }),
   getStoryComments: (id) => req(`/api/stories/${id}/comments`),
-  addStoryComment: (id, text) => req(`/api/stories/${id}/comments`, { method: "POST", body: JSON.stringify({ text }) }),
+  addStoryComment: (id, text, parentId) => req(`/api/stories/${id}/comments`, { method: "POST", body: JSON.stringify({ text, parentId }) }),
+  likeStoryComment: (id, commentId) => req(`/api/stories/${id}/comments/${commentId}/like`, { method: "POST" }),
   editStoryComment: (id, commentId, text) =>
     req(`/api/stories/${id}/comments/${commentId}`, { method: "PATCH", body: JSON.stringify({ text }) }),
   deleteStoryComment: (id, commentId) => req(`/api/stories/${id}/comments/${commentId}`, { method: "DELETE" }),

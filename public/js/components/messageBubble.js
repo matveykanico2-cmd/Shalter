@@ -673,7 +673,14 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     const sr = message.storyReply;
     bubbleInner.push(
       el("div", { class: "story-reply-banner" }, [
-        sr.url ? el("img", { class: "story-reply-thumb", src: sr.url, alt: "" }) : null,
+        // Видео-история и картинка — разные теги: раньше видео рисовалось через
+        // <img> и превращалось в «битую картинку». Видео показываем кадром
+        // (muted, без управления — это превью), картинку — обычным <img>.
+        sr.url
+          ? sr.kind === "video"
+            ? el("video", { class: "story-reply-thumb", src: sr.url, muted: true, playsinline: true, preload: "metadata" })
+            : el("img", { class: "story-reply-thumb", src: sr.url, alt: "", loading: "lazy" })
+          : null,
         el("div", { class: "story-reply-text" }, [
           el("span", { class: "story-reply-label" }, "Ответ на историю"),
           sr.authorName ? el("span", { class: "story-reply-author" }, sr.authorName) : null,

@@ -117,7 +117,21 @@ async function toggleLike(id, userId) {
 
 function rowToComment(row) {
   if (!row) return undefined;
-  return { id: row.id, storyId: row.storyId, userId: row.userId, text: row.text, createdAt: row.createdAt, editedAt: row.editedAt ?? undefined };
+  const likedByIds = JSON.parse(row.likedByIds ?? "[]");
+  return {
+    id: row.id,
+    storyId: row.storyId,
+    userId: row.userId,
+    text: row.text,
+    createdAt: row.createdAt,
+    editedAt: row.editedAt ?? undefined,
+    // Ответ на другой комментарий (id родителя) — иначе NULL.
+    parentId: row.parentId ?? null,
+    // Лайки комментария: и число, и список — клиент по нему покажет, лайкнул ли
+    // текущий пользователь (как у самой истории).
+    likedByIds,
+    likeCount: likedByIds.length,
+  };
 }
 
 async function getComment(id) {
@@ -141,14 +155,27 @@ async function listComments(storyId) {
 }
 
 async function addComment(comment) {
-  db.prepare("INSERT INTO story_comments (id, storyId, userId, text, createdAt) VALUES (?, ?, ?, ?, ?)").run(
+  db.prepare("INSERT INTO story_comments (id, storyId, userId, text, createdAt, parentId) VALUES (?, ?, ?, ?, ?, ?)").run(
     comment.id,
     comment.storyId,
     comment.userId,
     comment.text,
-    comment.createdAt
+    comment.createdAt,
+    comment.parentId ?? null
   );
   return rowToComment(db.prepare("SELECT * FROM story_comments WHERE id = ?").get(comment.id));
+}
+
+// Лайк/снятие лайка комментария — тем же приёмом, что и лайк истории.
+async function toggleCommentLike(id, userId) {
+  const row = db.prepare("SELECT likedByIds FROM story_comments WHERE id = ?").get(id);
+  if (!row) return undefined;
+  const likedByIds = JSON.parse(row.likedByIds ?? "[]");
+  const i = likedByIds.indexOf(userId);
+  if (i === -1) likedByIds.push(userId);
+  else likedByIds.splice(i, 1);
+  db.prepare("UPDATE story_comments SET likedByIds = ? WHERE id = ?").run(JSON.stringify(likedByIds), id);
+  return getComment(id);
 }
 
 module.exports = {
@@ -163,6 +190,7 @@ module.exports = {
   toggleLike,
   listComments,
   addComment,
+  toggleCommentLike,
   getComment,
   editComment,
   deleteComment,
