@@ -246,9 +246,31 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     if (!likeBtnEl || !story) return;
     likeBtnEl.className = `story-like-btn ${story.liked ? "liked" : ""}`;
     likeBtnEl.title = story.liked ? "Убрать лайк" : "Нравится";
-    clear(likeBtnEl);
-    likeBtnEl.append(el("span", { class: "story-like-heart" }, story.liked ? "❤️" : "🤍"));
-    if (story.likeCount) likeBtnEl.append(` ${story.likeCount}`);
+    // Обновляем только внутренний span, не трогая частицы всплеска.
+    let inner = likeBtnEl.querySelector(".story-like-inner");
+    if (!inner) {
+      inner = el("span", { class: "story-like-inner" });
+      likeBtnEl.prepend(inner);
+    }
+    clear(inner);
+    inner.append(el("span", { class: "story-like-heart" }, story.liked ? "❤️" : "🤍"));
+    if (story.likeCount) inner.append(` ${story.likeCount}`);
+  }
+
+  // Красивый лайк: пульс сердца + разлетающиеся сердечки. Только при постановке
+  // лайка (не при снятии).
+  function burstLike() {
+    if (!likeBtnEl) return;
+    const heart = likeBtnEl.querySelector(".story-like-heart");
+    if (heart) { heart.classList.remove("pop"); void heart.offsetWidth; heart.classList.add("pop"); }
+    for (let i = 0; i < 6; i++) {
+      const p = el("span", { class: "like-particle" }, "❤️");
+      p.style.setProperty("--dx", `${(Math.random() * 2 - 1) * 44}px`);
+      p.style.setProperty("--rot", `${(Math.random() * 2 - 1) * 50}deg`);
+      p.style.animationDelay = `${i * 0.03}s`;
+      likeBtnEl.appendChild(p);
+      setTimeout(() => p.remove(), 950);
+    }
   }
 
   async function toggleLike() {
@@ -258,6 +280,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     story.liked = !before.liked;
     story.likeCount = before.likeCount + (story.liked ? 1 : -1);
     refreshLikeButton();
+    if (story.liked) burstLike();
     try {
       const res = await api.likeStory(story.id);
       story.liked = res.liked;
@@ -492,7 +515,9 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
             title: story.liked ? "Убрать лайк" : "Нравится",
             onclick: toggleLike,
           },
-          [el("span", { class: "story-like-heart" }, story.liked ? "❤️" : "🤍"), story.likeCount ? ` ${story.likeCount}` : ""]
+          // Содержимое во внутреннем span — так всплеск сердечек (частицы)
+          // можно добавлять прямо в кнопку, не стирая их при обновлении.
+          [el("span", { class: "story-like-inner" }, [el("span", { class: "story-like-heart" }, story.liked ? "❤️" : "🤍"), story.likeCount ? ` ${story.likeCount}` : ""])]
         )
       : story.likeCount
         ? el("span", { class: "story-like-count" }, `❤️ ${story.likeCount}`)
@@ -688,22 +713,35 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   }
 
   // Нажатие с удержанием: короткое — переход, долгое — пауза, пока не отпустят.
+  // Плюс горизонтальный свайп — листать истории ЛЮДЕЙ (влево — следующий,
+  // вправо — предыдущий), как в Instagram; тап остаётся для кадров.
   const HOLD_MS = 220;
+  const SWIPE_MIN = 60;
   function holdable(onTap) {
     let held = false;
     let holdTimer = null;
+    let downX = 0;
+    let downY = 0;
     return {
-      onpointerdown: () => {
+      onpointerdown: (e) => {
         held = false;
+        downX = e.clientX;
+        downY = e.clientY;
         holdTimer = setTimeout(() => {
           held = true;
           pause();
         }, HOLD_MS);
       },
-      onpointerup: () => {
+      onpointerup: (e) => {
         clearTimeout(holdTimer);
-        if (held) resume();
-        else onTap();
+        if (held) return resume();
+        const dx = e.clientX - downX;
+        const dy = e.clientY - downY;
+        // Горизонтальный свайп — между людьми; иначе обычный тап — по кадрам.
+        if (Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy) * 1.4) {
+          return dx < 0 ? goNextGroup() : goPrevGroup();
+        }
+        onTap();
       },
       onpointerleave: () => {
         clearTimeout(holdTimer);

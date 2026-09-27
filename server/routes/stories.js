@@ -28,6 +28,7 @@ const { getChat, listChatsForUser } = require("../data/chats");
 const { publicUser } = require("../data/sanitize");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
 const { broadcastToUsers } = require("../ws");
+const { sendPushToUser, MESSAGE_PUSH } = require("../push");
 
 const MAX_ITEMS = 10;
 
@@ -242,6 +243,25 @@ router.post(
     // Лента у остальных обновляется сама — тем же путём, что и удаление ниже.
     broadcastToUsers(audienceOf(req.uid), { type: "story:new", storyId: story.id, userId: req.uid });
     res.json({ story });
+
+    // Пуш тем, кто увидит историю (контакты автора) — «выложил историю».
+    // Fire-and-forget, уже после ответа: уведомление не должно задерживать
+    // публикацию. Один tag на автора — новая история заменяет предыдущее
+    // уведомление, а не копит их.
+    (async () => {
+      try {
+        const author = await getUser(req.uid);
+        const name = author?.name || "Кто-то";
+        const targets = audienceOf(req.uid).filter((id) => id !== req.uid);
+        await Promise.all(
+          targets.map((id) =>
+            sendPushToUser(id, { title: name, body: "Опубликовал(а) новую историю", url: "/", tag: `story-new:${req.uid}` }, MESSAGE_PUSH)
+          )
+        );
+      } catch (err) {
+        console.error("story push failed:", err);
+      }
+    })();
   })
 );
 

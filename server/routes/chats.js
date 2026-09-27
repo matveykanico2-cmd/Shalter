@@ -36,7 +36,15 @@ router.get(
     // and a fresh incoming message un-hides it for free.
     const settings = await getSettings(req.uid);
     const hidden = settings.hiddenChats ?? {};
-    const visible = withSummary.filter((c) => !hidden[c.id] || c.lastMessage);
+    const visible = withSummary.filter((c) => {
+      // Скрытый чат — пока в нём не появится новое сообщение.
+      if (hidden[c.id] && !c.lastMessage) return false;
+      // Просто открытый личный чат, в котором ещё ни разу не писали (и нет
+      // черновика), в списке не показываем — он появится, когда будет о чём
+      // говорить. Группы/каналы показываем всегда (туда вступают осознанно).
+      if (c.type === "dm" && !c.lastMessage && !c.draft) return false;
+      return true;
+    });
     res.json({ chats: visible });
   })
 );

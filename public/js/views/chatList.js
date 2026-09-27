@@ -629,7 +629,7 @@ function renderResults(container) {
   // Пустая вкладка объясняет, почему она пустая. «Чатов нет» на вкладке
   // «Каналы» читается как «в приложении нет чатов» — хотя в соседней вкладке
   // их два десятка.
-  if (!list.length) scroll.appendChild(el("p", { class: "empty-hint" }, emptyTextFor(tab, folders)));
+  if (!list.length) scroll.appendChild(chatListEmpty(tab, folders));
   for (const c of list) {
     scroll.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem }));
   }
@@ -665,6 +665,16 @@ function SponsoredRow(ad) {
         ]),
       ]
     ),
+  ]);
+}
+
+// Оформленный пустой экран вместо голой строки: мягкий кружок со значком,
+// заголовок и поясняющий текст (тот же emptyTextFor).
+function chatListEmpty(tabId, folders) {
+  return el("div", { class: "chat-empty" }, [
+    el("div", { class: "chat-empty-icon", html: iconSvg("Send", 38) }),
+    el("p", { class: "chat-empty-title" }, "Здесь пока пусто"),
+    el("p", { class: "chat-empty-text" }, emptyTextFor(tabId, folders)),
   ]);
 }
 

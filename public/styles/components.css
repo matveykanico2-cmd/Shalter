@@ -501,6 +501,8 @@
   cursor: pointer;
 }
 .story-like-btn {
+  position: relative;
+  overflow: visible;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -512,6 +514,34 @@
   font-size: 13px;
   color: #fff;
   cursor: pointer;
+}
+.story-like-inner { display: inline-flex; align-items: center; gap: 4px; }
+/* Пульс сердца при постановке лайка */
+.story-like-heart.pop { animation: like-pop 0.5s cubic-bezier(0.34, 1.7, 0.5, 1) both; }
+@keyframes like-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.6); }
+  60% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+/* Разлетающиеся сердечки */
+.like-particle {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  font-size: 14px;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: like-fly 0.9s ease-out forwards;
+}
+@keyframes like-fly {
+  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx, 0px)), -180%) scale(1.1) rotate(var(--rot, 0deg)); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .story-like-heart.pop { animation: none; }
+  .like-particle { display: none; }
 }
 .story-like-heart {
   font-size: 16px;
@@ -13823,3 +13853,33 @@ p.business-status {
     grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
   }
 }
+
+/* Оформленный пустой экран списка чатов (views/chatList.js) */
+.chat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 48px 24px;
+  margin: auto 0;
+}
+.chat-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent, #ff8a3d), #ff5d73);
+  box-shadow: 0 12px 30px rgba(255, 93, 115, 0.35);
+  margin-bottom: 6px;
+  animation: chat-empty-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes chat-empty-pop {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.chat-empty-title { font-size: 17px; font-weight: 700; margin: 0; }
+.chat-empty-text { font-size: 14px; opacity: 0.6; margin: 0; max-width: 260px; }
