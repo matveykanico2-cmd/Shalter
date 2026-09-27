@@ -107,6 +107,88 @@ const LATIN_TO_CYR = {
 const CYR_RE = /[Ѐ-ӿ]/;
 const LAT_RE = /[A-Za-z]/;
 
+// Словарь верных слов — «грамотность» без внешней нейросети. Проверка простая и
+// с низким числом ложных срабатываний: слово помечается ошибкой ТОЛЬКО если его
+// нет в словаре И рядом (в 1–2 правках) есть словарное слово. Так «малако»
+// поймается (рядом «молоко»), а редкое-но-верное слово без близкого соседа —
+// нет. Список — частотный, повседневный; его достаточно, чтобы ловить опечатки
+// обычных слов в переписке.
+const RU_WORDS = `
+привет здравствуй здравствуйте пока спасибо пожалуйста извини извините прости простите
+да нет ага угу конечно ладно хорошо плохо отлично супер класс круто нормально
+как что кто где когда куда откуда почему зачем сколько какой какая какое какие
+я ты он она оно мы вы они меня тебя его её нас вас их мне тебе ему ей нам вам им
+это этот эта эти тот та те там тут здесь сейчас потом теперь всегда никогда иногда часто редко
+сегодня завтра вчера утро день вечер ночь утром днём вечером ночью
+человек люди друг подруга друзья семья мама папа брат сестра сын дочь ребёнок дети жена муж
+дом квартира комната работа школа университет магазин улица город страна мир
+вода еда хлеб молоко чай кофе сок мясо рыба суп каша яйцо сыр масло сахар соль
+корова кошка кот собака птица рыбка лошадь
+машина телефон компьютер интернет сообщение письмо звонок фото видео музыка книга
+деньги рубль доллар цена дорого дёшево купить продать заказ доставка
+время час минута секунда неделя месяц год сегодняшний
+погода солнце дождь снег ветер тепло холодно жарко мороз
+идти пойти прийти ходить бежать ехать поехать лететь плыть
+делать сделать говорить сказать думать знать понимать хотеть мочь любить нравиться
+видеть смотреть слышать слушать читать писать работать отдыхать спать есть пить
+жить дать взять брать давать получить отправить ответить спросить помочь
+большой маленький новый старый молодой красивый хороший плохой быстрый медленный
+белый чёрный красный синий зелёный жёлтый добрый злой умный весёлый грустный
+очень слишком просто сложно можно нужно надо нельзя вообще совсем почти
+и а но или если чтобы потому что тоже также ещё уже только даже вот
+здорово помоги помогите давай пойдём смотри слушай понял поняла знаю думаю
+`.split(/\s+/).filter(Boolean);
+const EN_WORDS = `the a an and or but if then this that these those is are was were be been being
+i you he she it we they me him her us them my your his its our their
+hello hi hey bye thanks thank please sorry yes no okay ok sure yeah
+what who where when why how which now today tomorrow yesterday
+have has had do does did make made get got go went come came see saw know knew think
+good bad new old big small nice great cool people friend family work home time day
+water food money phone message hello world write read speak listen love like want need
+because about with without from into over under again very just only even still`
+  .split(/\s+/)
+  .filter(Boolean);
+const DICT = new Set([...RU_WORDS, ...EN_WORDS]);
+
+// Расстояние Дамерау—Левенштейна с ранним выходом: если минимум в строке уже
+// больше max, дальше считать незачем.
+function editDistance(a, b, max) {
+  const al = a.length;
+  const bl = b.length;
+  if (Math.abs(al - bl) > max) return max + 1;
+  let prev = Array.from({ length: bl + 1 }, (_, j) => j);
+  let prevPrev = [];
+  for (let i = 1; i <= al; i++) {
+    const cur = [i];
+    let rowMin = i;
+    for (let j = 1; j <= bl; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prevPrev[j - 2] + 1);
+      cur[j] = v;
+      if (v < rowMin) rowMin = v;
+    }
+    if (rowMin > max) return max + 1;
+    prevPrev = prev;
+    prev = cur;
+  }
+  return prev[bl];
+}
+
+// Ближайшие словарные слова к опечатке (до 3 вариантов, по возрастанию правок).
+function suggestWord(word) {
+  const lower = word.toLowerCase();
+  const max = lower.length <= 4 ? 1 : 2;
+  const found = [];
+  for (const w of DICT) {
+    if (Math.abs(w.length - lower.length) > max) continue;
+    const d = editDistance(lower, w, max);
+    if (d <= max) found.push([d, w]);
+  }
+  found.sort((a, b) => a[0] - b[0]);
+  return found.slice(0, 3).map(([, w]) => w);
+}
+
 // Ставит заглавную первую букву, если у исходного слова она была заглавной.
 function matchCase(replacement, original) {
   if (original[0] && original[0] === original[0].toUpperCase() && original[0] !== original[0].toLowerCase()) {
@@ -132,13 +214,40 @@ function localProofread(text) {
   const matches = [];
   const add = (offset, length, replacement, message, short, type = "typo") => {
     if (isProtected(offset, length)) return;
-    matches.push({ offset, length, replacements: replacement == null ? [] : [replacement], message, short, type });
+    const replacements = Array.isArray(replacement) ? replacement : replacement == null ? [] : [replacement];
+    matches.push({ offset, length, replacements, message, short, type });
   };
 
   // Словарь опечаток.
   for (const m of src.matchAll(/\p{L}+/gu)) {
     const fix = WORD_FIXES.get(m[0].toLowerCase());
     if (fix) add(m.index, m[0].length, matchCase(fix, m[0]), `Опечатка: «${m[0]}» → «${matchCase(fix, m[0])}»`, "Опечатка", "misspelling");
+  }
+
+  // Орфография по словарю: слово, которого нет в словаре, но рядом (1–2 правки)
+  // есть словарное, — вероятная опечатка. Так ловится «малако» → «молоко» без
+  // фиксированного списка. Только чисто кириллические слова от 5 букв, со
+  // строчной первой буквой (заглавные пропускаем — это обычно имена).
+  for (const m of src.matchAll(/\p{L}+/gu)) {
+    const w = m[0];
+    if (w.length < 5 || /\d/.test(w)) continue;
+    if (!CYR_RE.test(w) || LAT_RE.test(w)) continue;
+    if (w[0] !== w[0].toLowerCase()) continue;
+    const lower = w.toLowerCase();
+    if (DICT.has(lower) || WORD_FIXES.has(lower)) continue;
+    const sug = suggestWord(w);
+    if (sug.length) {
+      // Защита от ложных срабатываний на словоформах: в словаре леммы, и форма
+      // «работает» близка к «работать». Помечаем только если отличие в КОРНЕ
+      // (короткий общий префикс), а не в окончании.
+      const best = sug[0];
+      let common = 0;
+      while (common < lower.length && common < best.length && lower[common] === best[common]) common++;
+      if (common < Math.min(lower.length, best.length) - 2) {
+        const fixes = sug.map((s) => matchCase(s, w));
+        add(m.index, w.length, fixes, `Возможная ошибка: «${w}» → «${fixes[0]}»`, "Орфография", "misspelling");
+      }
+    }
   }
 
   // Смешанная раскладка: в кириллическом слове затесались латинские буквы-
