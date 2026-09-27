@@ -191,6 +191,21 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     startTimer(remainingMs);
   }
 
+  // Заморозка для ввода: пока пишут комментарий/ответ, история НЕ должна
+  // перелистываться (иначе поле пересоздаётся пустым — «текст не пишет»). В
+  // отличие от pause(), не добавляет класс .paused, поэтому панель и поле ввода
+  // остаются видимыми (при паузе UI прячется, чтобы смотреть фото).
+  function freeze() {
+    clearTimeout(timer);
+    videoEl?.pause();
+  }
+  function unfreeze() {
+    // Не размораживаем, пока открыта панель или стоит «настоящая» пауза.
+    if (paused || commentsOpen || viewersOpen) return;
+    if (videoEl) videoEl.play().catch(() => {});
+    else startTimer(IMAGE_DURATION_MS);
+  }
+
   // Полоска заполняется средствами CSS, а не перерисовкой по таймеру: анимация
   // идёт в браузере плавно и не зависит от того, чем занят наш код.
   let activeFill = null;
@@ -316,7 +331,9 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     input.value = "";
     try {
       const { comment } = await api.addStoryComment(story.id, clean);
-      if (comments) comments = [...comments, comment];
+      // Дедуп по id: WS-событие story:commented приходит и отправителю и могло
+      // уже добавить этот же комментарий — без проверки он задваивался.
+      if (comments && !comments.some((c) => c.id === comment.id)) comments = [...comments, comment];
       render();
     } catch (err) {
       input.value = clean;
@@ -422,24 +439,32 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     if (currentStory()?.id === storyId) refreshLikeButton();
   });
 
+  // Сейчас в фокусе поле ввода истории (комментарий/ответ)? Тогда чужое
+  // WS-событие не должно перерисовывать всё — иначе поле пересоздастся пустым и
+  // набранный текст пропадёт. Данные обновим, показ — при следующей перерисовке.
+  const isTypingHere = () => {
+    const a = document.activeElement;
+    return a && overlay.contains(a) && (a.classList.contains("story-comment-input") || a.classList.contains("story-reply-input"));
+  };
+
   const unsubCommented = onWsMessage("story:commented", ({ storyId, comment }) => {
     if (currentStory()?.id !== storyId) return;
     if (comments && !comments.some((c) => c.id === comment.id)) {
       comments = [...comments, comment];
-      if (commentsOpen) render();
+      if (commentsOpen && !isTypingHere()) render();
     }
   });
 
   const unsubCommentUpdated = onWsMessage("story:comment-updated", ({ storyId, comment }) => {
     if (currentStory()?.id !== storyId || !comments) return;
     comments = comments.map((c) => (c.id === comment.id ? comment : c));
-    if (commentsOpen) render();
+    if (commentsOpen && !isTypingHere()) render();
   });
   const unsubCommentDeleted = onWsMessage("story:comment-deleted", ({ storyId, commentId }) => {
     if (currentStory()?.id !== storyId || !comments) return;
     comments = comments.filter((c) => c.id !== commentId);
     if (editingCommentId === commentId) editingCommentId = null;
-    if (commentsOpen) render();
+    if (commentsOpen && !isTypingHere()) render();
   });
 
   function onKey(e) {
@@ -495,8 +520,8 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     const replyInput = el("input", {
       class: "story-reply-input",
       placeholder: `Ответить ${group.user.name}…`,
-      onfocus: pause,
-      onblur: resume,
+      onfocus: freeze,
+      onblur: unfreeze,
       onkeydown: (e) => {
         if (e.key === "Enter") sendReply(e.target.value, e.target);
         e.stopPropagation();
@@ -508,8 +533,8 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       class: "story-comment-input",
       placeholder: editing ? "Изменить комментарий…" : "Комментарий…",
       value: editing?.text ?? "",
-      onfocus: pause,
-      onblur: resume,
+      onfocus: freeze,
+      onblur: unfreeze,
       onkeydown: (e) => {
         if (e.key === "Enter") sendComment(e.target.value, e.target);
         if (e.key === "Escape" && editingCommentId) {
@@ -723,8 +748,16 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       ].filter(Boolean)
     );
 
-    if (frame.item.kind !== "video") startTimer(IMAGE_DURATION_MS);
-    else setBarAnimation(0, false);
+    // Пока открыта панель комментариев/просмотревших — историю не листаем: там
+    // пишут или читают, и авто-переход пересоздал бы поле ввода пустым.
+    const paneOpen = commentsOpen || viewersOpen;
+    if (frame.item.kind !== "video") {
+      if (!paneOpen) startTimer(IMAGE_DURATION_MS);
+    } else if (paneOpen) {
+      videoEl?.pause();
+    } else {
+      setBarAnimation(0, false);
+    }
   }
 
   // Нажатие с удержанием: короткое — переход, долгое — пауза, пока не отпустят.
