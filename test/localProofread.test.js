@@ -70,6 +70,29 @@ test("запятая после адреса почты (вне адреса) �
   assert.ok(mail.some((m) => m.short === "Пробел после знака"));
 });
 
+test("смешанная раскладка: латинская буква в русском слове → чинится", () => {
+  const fixed = applyFirst("пpивет друг", (m) => m.short === "Раскладка");
+  assert.equal(fixed, "привет друг"); // p латинская → р
+});
+
+test("чистое русское и чистое английское слово не считаются раскладкой", () => {
+  assert.equal(localProofread("привет hello").filter((m) => m.short === "Раскладка").length, 0);
+});
+
+test("повтор буквы 4+ раз → схлопывается", () => {
+  const fixed = applyFirst("приветттт", (m) => m.short === "Повтор буквы");
+  assert.equal(fixed, "привет");
+});
+
+test("три одинаковые буквы (4+ нет) не трогаем", () => {
+  assert.equal(localProofread("ааа").filter((m) => m.short === "Повтор буквы").length, 0);
+});
+
+test("новые словарные опечатки", () => {
+  assert.equal(applyFirst("пожалуста помоги", (m) => m.type === "misspelling"), "пожалуйста помоги");
+  assert.equal(applyFirst("ты будеш дома", (m) => m.type === "misspelling"), "ты будешь дома");
+});
+
 test("дефис между пробелами → тире", () => {
   const fixed = applyFirst("это - важно", (m) => m.short === "Тире");
   assert.equal(fixed, "это — важно");
