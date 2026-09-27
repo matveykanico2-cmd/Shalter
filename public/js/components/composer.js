@@ -192,7 +192,10 @@ export function Composer({
 
     function autoResize() {
       textarea.style.height = "auto";
-      textarea.style.height = Math.min(textarea.scrollHeight, 240) + "px";
+      const full = textarea.scrollHeight;
+      textarea.style.height = Math.min(full, 240) + "px";
+      // Скролл нужен только когда текст перерос максимум; иначе прячем полоску.
+      textarea.style.overflowY = full > 240 ? "auto" : "hidden";
     }
 
     // Вставка кастомного эмодзи в текст на месте курсора: сцена кладётся в

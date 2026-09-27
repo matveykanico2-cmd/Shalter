@@ -2606,6 +2606,13 @@
   border-radius: 0;
   padding: 9px 4px;
 }
+/* Без вечной вертикальной полоски-скроллбара справа: при авто-высоте scrollHeight
+   бывает на пиксель больше clientHeight и браузер рисует тонкий скроллбар. Прячем
+   его; настоящий скролл включает autoResize (composer.js), когда текст упёрся в
+   максимум. */
+.composer-textarea {
+  overflow-y: hidden;
+}
 .composer-field .composer-textarea:focus {
   outline: none;
 }
