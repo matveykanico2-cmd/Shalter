@@ -199,9 +199,40 @@ router.get(
       });
     }
 
-    res.json({ messages, hasMore, firstUnreadId });
+    res.json({ messages, hasMore, firstUnreadId, replyTargets: await replyTargetsFor(messages, req.params.id, req.uid) });
   })
 );
+
+// Сообщения, на которые отвечают сообщения этой страницы, но которых в ней
+// самой нет — ответ на что-то постарше последних шестидесяти. Клиент
+// (messageBubble.js) рисует цитату только по загруженному сообщению, и без
+// этого у такого ответа не было ни цитаты, ни способа понять, на что он.
+// Отдаём ровно то, что нужно цитате: автора и краткое содержимое.
+async function replyTargetsFor(messages, chatId, viewerId) {
+  const loaded = new Set(messages.map((m) => m.id));
+  const wanted = [...new Set(messages.map((m) => m.replyToId).filter((id) => id && !loaded.has(id)))];
+  const out = {};
+  for (const id of wanted) {
+    const t = await getMessage(id);
+    // Удалённое у всех, удалённое этим человеком у себя или вовсе из другого
+    // чата — одинаково «удалённое сообщение», без содержимого.
+    if (!t || t.chatId !== chatId || t.deletedForIds?.includes(viewerId)) {
+      out[id] = { id, deleted: true };
+      continue;
+    }
+    out[id] = {
+      id,
+      senderId: t.senderId,
+      anonymous: !!t.anonymous,
+      type: t.type,
+      text: (t.text ?? "").slice(0, 200),
+      attachments: (t.attachments ?? []).slice(0, 1).map((a) => ({ kind: a.kind, name: a.name })),
+      sticker: t.sticker ? { emoji: t.sticker.emoji } : undefined,
+      gift: t.gift ? { name: t.gift.name } : undefined,
+    };
+  }
+  return out;
+}
 
 // Searching inside one chat. The global search (routes/search.js) spans every
 // chat and caps at 20 hits, which is the wrong tool for "find that link Ivan

@@ -44,45 +44,44 @@ export function Avatar({ name, color, image, video = null, size = 44, online, cl
     class: `avatar ${className}`,
     style: { width: `${size}px`, height: `${size}px` },
   });
+  const fallback = () =>
+    el("div", { class: "avatar-fallback", style: { background: color, fontSize: `${size * 0.4}px` } }, initials(name) || "?");
   if (video) {
     // Muted — иначе браузер просто не запустит автовоспроизведение; poster
     // держит кадр, пока видео не начало играть.
-    wrap.appendChild(
-      el("video", {
-        class: "avatar-img",
-        src: video,
-        poster: image,
-        autoplay: true,
-        loop: true,
-        muted: true,
-        playsInline: true,
-        style: { width: `${size}px`, height: `${size}px` },
-      })
-    );
-  } else if (image) {
-    // Картинка может не загрузиться: у бота её задаёт владелец через Bot API
-    // обычной ссылкой, и ссылка бывает мёртвой. Без запасного варианта на
-    // экране оставался «сломанный файл» с текстом alt поперёк строки — видно
-    // было на списке ботов. Теперь такой аватар молча становится буквами.
-    const img = el("img", { src: image, alt: name, class: "avatar-img", style: { width: `${size}px`, height: `${size}px` } });
-    img.addEventListener("error", () => {
-      img.replaceWith(
-        el("div", { class: "avatar-fallback", style: { background: color, fontSize: `${size * 0.4}px` } }, initials(name) || "?")
-      );
+    const videoEl = el("video", {
+      class: "avatar-img",
+      src: video,
+      poster: image,
+      autoplay: true,
+      loop: true,
+      muted: true,
+      playsInline: true,
+      style: { width: `${size}px`, height: `${size}px` },
     });
-    wrap.appendChild(img);
+    // Видео не загрузилось (файл удалён, формат не поддерживается) — без
+    // этого на месте аватара оставался пустой чёрный круг. Ставим снимок, а
+    // нет снимка — буквы.
+    videoEl.addEventListener("error", () => {
+      videoEl.replaceWith(image ? imageNode() : fallback());
+    });
+    wrap.appendChild(videoEl);
+  } else if (image) {
+    wrap.appendChild(imageNode());
   } else {
-    wrap.appendChild(
-      el(
-        "div",
-        {
-          class: "avatar-fallback",
-          style: { background: color, fontSize: `${size * 0.4}px` },
-        },
-        initials(name) || "?"
-      )
-    );
+    wrap.appendChild(fallback());
   }
+
+  // Картинка может не загрузиться: у бота её задаёт владелец через Bot API
+  // обычной ссылкой, и ссылка бывает мёртвой. Без запасного варианта на
+  // экране оставался «сломанный файл» с текстом alt поперёк строки — видно
+  // было на списке ботов. Теперь такой аватар молча становится буквами.
+  function imageNode() {
+    const img = el("img", { src: image, alt: name ?? "", class: "avatar-img", style: { width: `${size}px`, height: `${size}px` } });
+    img.addEventListener("error", () => img.replaceWith(fallback()));
+    return img;
+  }
+
   if (online) {
     wrap.appendChild(
       el("span", {

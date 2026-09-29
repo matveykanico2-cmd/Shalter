@@ -30,3 +30,69 @@ export function openChoiceDialog(title, options) {
   document.body.appendChild(overlay);
   return close;
 }
+
+// Подтверждение с необязательной галочкой — как удаление чата в Telegram:
+// вопрос, под ним «Также удалить для …», и одна кнопка действия. Галочка
+// передаётся в onConfirm(checked), так что вызывающему не нужно заводить два
+// отдельных диалога под «у меня» и «у всех».
+//
+//   openCheckboxDialog({
+//     title, text,
+//     checkbox: { label, checked } | null,
+//     confirmLabel, danger,
+//     extra: [{ label, danger, onClick }],  // дополнительные действия над кнопками
+//     onConfirm: (checked) => {},
+//   })
+export function openCheckboxDialog({ title, text, checkbox = null, confirmLabel = "OK", danger = false, extra = [], onConfirm }) {
+  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
+  const input = checkbox ? el("input", { type: "checkbox", class: "confirm-check-input" }) : null;
+  if (input) input.checked = !!checkbox.checked;
+
+  function onKey(e) {
+    if (e.key === "Escape") close();
+  }
+
+  const dialog = el("div", { class: "modal-dialog choice-dialog confirm-check-dialog" }, [
+    title ? el("h2", { class: "modal-title" }, title) : null,
+    text ? el("p", { class: "confirm-check-text" }, text) : null,
+    input ? el("label", { class: "confirm-check-row" }, [input, el("span", {}, checkbox.label)]) : null,
+    ...extra.map((opt) =>
+      el(
+        "button",
+        {
+          class: `choice-dialog-btn confirm-check-extra ${opt.danger ? "danger" : ""}`,
+          onclick: () => {
+            close();
+            opt.onClick();
+          },
+        },
+        opt.label
+      )
+    ),
+    el("div", { class: "confirm-check-actions" }, [
+      el("button", { class: "modal-cancel", onclick: () => close() }, "Отмена"),
+      el(
+        "button",
+        {
+          class: `confirm-check-ok ${danger ? "danger" : ""}`,
+          onclick: () => {
+            const checked = !!input?.checked;
+            close();
+            onConfirm?.(checked);
+          },
+        },
+        confirmLabel
+      ),
+    ]),
+  ]);
+  overlay.appendChild(dialog);
+
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  }
+
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+  return close;
+}

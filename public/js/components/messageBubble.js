@@ -3,6 +3,7 @@ import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { formatText, previewText } from "../lib/formatText.js";
+import { messagePreview } from "../lib/messagePreview.js";
 import { api } from "../api.js";
 import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog } from "./profileDialog.js";
@@ -619,7 +620,23 @@ function typeOutOnce(node, messageId) {
   });
 }
 
-export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, members, handlers }) {
+// Одно вложение (кроме опроса — ему нужен обработчик голоса) так же, как в
+// пузыре ленты. Отдельно — для ветки обсуждения (threadPanel.js): там фото,
+// голосовые и файлы показывались одним словом «Медиа».
+export function AttachmentView(a, me) {
+  const autoDownload = getState().settings?.autoDownload !== false;
+  if (a.kind === "voice") return VoicePlayer(a);
+  if (a.kind === "video-note") return VideoNotePlayer(a);
+  if (a.kind === "image") return autoDownload ? ImageAttachment(a) : TapToLoad("image", () => ImageAttachment(a));
+  if (a.kind === "video") return autoDownload ? VideoAttachment(a) : TapToLoad("video", () => VideoAttachment(a));
+  if (a.kind === "file") return FileAttachment(a);
+  if (a.kind === "location") return LocationAttachment(a);
+  if (a.kind === "contact") return ContactAttachment(a, me.id);
+  if (a.kind === "birthday") return BirthdayAttachment(a);
+  return null;
+}
+
+export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, replyToSender = null, members, handlers }) {
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onKeyboardAction, onKeyboardApp, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
 
@@ -660,12 +677,16 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     );
   }
   if (replyToMessage) {
+    // Как в Telegram: над цитатой — чьё это сообщение. Без имени в группе было
+    // не понять, кому отвечают, а у фото, голосового или стикера вместо
+    // содержимого стояло безликое «Медиа».
     bubbleInner.push(
-      el(
-        "button",
-        { class: "reply-preview", onclick: () => onJumpTo(replyToMessage.id) },
-        previewText(replyToMessage.text) || "Медиа"
-      )
+      replyToMessage.deleted
+        ? el("div", { class: "reply-preview reply-preview-deleted" }, "Удалённое сообщение")
+        : el("button", { class: "reply-preview", onclick: () => onJumpTo(replyToMessage.id) }, [
+            replyToSender?.name ? el("span", { class: "reply-preview-name" }, replyToSender.name) : null,
+            el("span", { class: "reply-preview-text" }, previewText(messagePreview(replyToMessage)) || "Сообщение"),
+          ])
     );
   }
   // Ответ на историю (server/routes/messages.js): пометка + миниатюра кадра.
@@ -688,19 +709,9 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       ])
     );
   }
-  const autoDownload = getState().settings?.autoDownload !== false;
-  if (message.attachments?.length) {
-    for (const a of message.attachments) {
-      if (a.kind === "poll") bubbleInner.push(PollAttachment(message, a, me, onVote));
-      else if (a.kind === "voice") bubbleInner.push(VoicePlayer(a));
-      else if (a.kind === "video-note") bubbleInner.push(VideoNotePlayer(a));
-      else if (a.kind === "image") bubbleInner.push(autoDownload ? ImageAttachment(a) : TapToLoad("image", () => ImageAttachment(a)));
-      else if (a.kind === "video") bubbleInner.push(autoDownload ? VideoAttachment(a) : TapToLoad("video", () => VideoAttachment(a)));
-      else if (a.kind === "file") bubbleInner.push(FileAttachment(a));
-      else if (a.kind === "location") bubbleInner.push(LocationAttachment(a));
-      else if (a.kind === "contact") bubbleInner.push(ContactAttachment(a, me.id));
-      else if (a.kind === "birthday") bubbleInner.push(BirthdayAttachment(a));
-    }
+  for (const a of message.attachments ?? []) {
+    if (a.kind === "poll") bubbleInner.push(PollAttachment(message, a, me, onVote));
+    else bubbleInner.push(AttachmentView(a, me));
   }
   if (isSticker) {
     bubbleInner.push(StickerBody(message));
@@ -802,7 +813,9 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
           class: "bubble-action-btn",
           title: "Ответить",
           html: iconSvg("Reply", 15),
-          onclick: () => onReply(message),
+          // Выделение снимается уже на нажатии — запоминаем его до того.
+          onpointerdown: rememberQuote,
+          onclick: () => replyWithQuote(),
         }),
         el("button", {
           class: "bubble-action-btn",
@@ -882,13 +895,40 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     setTimeout(() => document.addEventListener("mousedown", onOutsideClick), 0);
   }
 
+  // Ответ на кусок сообщения: выделили фразу мышью (или пальцем) и нажали
+  // «Ответить» — в ответ уходит цитата именно этой фразы, а не всего текста.
+  // Цитата — обычная строка «> …» (lib/formatText.js рисует её как цитату).
+  let pendingQuote = "";
+  function rememberQuote() {
+    const sel = window.getSelection?.();
+    const text = sel && !sel.isCollapsed ? sel.toString().trim() : "";
+    pendingQuote = text && bubble.contains(sel.anchorNode) && bubble.contains(sel.focusNode) ? text.slice(0, 500) : "";
+  }
+  function replyWithQuote() {
+    const quote = pendingQuote;
+    pendingQuote = "";
+    onReply(message, quote ? { quote } : undefined);
+  }
+
+  // «Кто прочитал» — только в группе и только у своего сообщения, как в
+  // Telegram. В личной переписке это и так видно по двум галочкам, а в канале
+  // читателей слишком много, чтобы перечислять.
+  const readers = !isDm && !isChannel && mine ? (message.readByIds ?? []).filter((id) => id !== me.id) : [];
+  function showReaders(pos) {
+    const known = readers.map((id) => members?.find((u) => u.id === id)).filter(Boolean);
+    openDropdownMenu(pos, [
+      { label: `Прочитали: ${readers.length}` },
+      ...known.map((u) => ({ icon: "User", label: u.name, onClick: () => openProfileDialog(u.id) })),
+    ]);
+  }
+
   function openMessageMenu(pos) {
     // Reply/react are included here too (not just Pin/Forward/Edit/Delete)
     // since this menu is also the touch entry point (long-press, below) —
     // the .bubble-actions hover bar those normally live in never shows on a
     // touchscreen, so without this they'd be unreachable on mobile.
     const items = [
-      { icon: "Reply", label: "Ответить", onClick: () => onReply(message) },
+      { icon: "Reply", label: "Ответить", onClick: replyWithQuote },
       { icon: "Smile", label: "Реакция", onClick: () => togglePicker(pos) },
       // Hidden rather than shown-and-refused: in a group or channel only the
       // people running it may pin (server/routes/messages.js's canPin), and an
@@ -905,6 +945,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
           }]
         : []),
       ...(selection ? [{ icon: "Check", label: "Выбрать", onClick: () => selection.onToggle(message.id) }] : []),
+      ...(readers.length ? [{ icon: "CheckCheck", label: `Прочитали: ${readers.length}`, onClick: () => showReaders(pos) }] : []),
     ];
     // Group-chat threads (threadPanel.js) — a nested sub-conversation kept
     // out of the main timeline, unlike a plain "Ответить" quote-reply above.
@@ -972,6 +1013,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     class: `bubble-wrap ${isSticker ? "bubble-wrap-sticker" : ""}`,
     oncontextmenu: (e) => {
       e.preventDefault();
+      rememberQuote();
       // In selection mode the right-click/long-press gesture toggles the
       // message instead of opening a menu — the menu's actions all apply to one
       // message, which is the opposite of what selecting several is for.
@@ -981,8 +1023,21 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       }
       openMessageMenu({ x: e.clientX, y: e.clientY });
     },
-    onclick: selection?.active ? () => selection.onToggle(message.id) : null,
   }, [bubble, hoverActions]);
+  // В режиме выбора нажатие по сообщению только отмечает его. На погружении —
+  // иначе нажатие по фото заодно открывало просмотрщик, по ссылке — браузер, а
+  // по варианту опроса отдавало голос.
+  if (selection?.active) {
+    bubbleWrap.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        selection.onToggle(message.id);
+      },
+      true
+    );
+  }
 
   // Hold a message to start selecting — the gesture Telegram uses, and the only
   // one that exists on a touchscreen, where there is no right-click and the
@@ -1140,7 +1195,13 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       row.classList.remove("swipe-ready");
       swiping = null;
       if (wasSwipe) {
-        if (dx >= SWIPE_REPLY_PX) onReply?.(message);
+        if (dx >= SWIPE_REPLY_PX) replyWithQuote();
+        return;
+      }
+      // Двойное нажатие по кнопке, ссылке, фото или плееру — это два нажатия по
+      // ним, а не «сердечко»; в режиме выбора — два переключения отметки.
+      if (selection?.active || e.target.closest?.("button, a, input, video, audio, .bubble-actions")) {
+        lastTapAt = 0;
         return;
       }
       const now = Date.now();

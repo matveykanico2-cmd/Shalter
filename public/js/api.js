@@ -43,8 +43,8 @@ export const api = {
     }
     return req("/api/bootstrap");
   },
-  registerEmail: (name, email, password, phone, username, referralCode, lastName) =>
-    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, username, referralCode, lastName }) }),
+  registerEmail: (name, email, password, phone, username, lastName) =>
+    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, username, lastName }) }),
   // Live availability check for the registration form's @handle field.
   // Unauthenticated, since it runs before the account exists.
   checkUsername: (u) => req(`/api/auth/username-available?u=${encodeURIComponent(u)}`),
@@ -168,6 +168,8 @@ export const api = {
   setBlocked: (userId, blocked) =>
     req(`/api/users/${userId}/block`, { method: "POST", body: JSON.stringify({ blocked }) }),
   getSharedMedia: (userId) => req(`/api/users/${userId}/shared-media`),
+  // Общие группы с этим человеком — строка «Общие группы» в профиле.
+  getCommonChats: (userId) => req(`/api/users/${userId}/common-chats`),
 
   // Opens (or returns) the DM with the support account.
   openSupportChat: () => req("/api/support/chat", { method: "POST" }),
@@ -193,6 +195,9 @@ export const api = {
   patchChat: (id, patch) => req(`/api/chats/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteChat: (id) => req(`/api/chats/${id}`, { method: "DELETE" }),
   deleteChatForMe: (id) => req(`/api/chats/${id}/delete-for-me`, { method: "POST" }),
+  markChatRead: (id) => req(`/api/chats/${id}/read`, { method: "POST" }),
+  // Порядок закреплённых чатов после перетаскивания (routes/chats.js).
+  setPinnedChatOrder: (chatIds) => req("/api/chats/pinned-order", { method: "POST", body: JSON.stringify({ chatIds }) }),
   startDm: (userId, title, avatarColor) =>
     req("/api/chats", { method: "POST", body: JSON.stringify({ userId, title, avatarColor }) }),
   // `extra` carries what the create dialog now asks for up front: description,

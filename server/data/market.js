@@ -92,7 +92,7 @@ function listShops(query = "", limit = 60) {
       `SELECT s.*, (SELECT COUNT(*) FROM shop_products p WHERE p.shopId = s.id AND p.isActive = 1) AS productCount
          FROM shops s
         WHERE s.isOpen = 1
-          AND (? = '%%' OR lower(s.title) LIKE ? OR lower(s.about) LIKE ? OR lower(s.city) LIKE ?)
+          AND (? = '%%' OR lower_ru(s.title) LIKE ? OR lower_ru(s.about) LIKE ? OR lower_ru(s.city) LIKE ?)
         ORDER BY productCount DESC, s.createdAt DESC
         LIMIT ?`
     )
@@ -162,7 +162,7 @@ function listAllProducts(query = "", limit = 60) {
       `SELECT p.*, s.title AS shopTitle, s.ownerId AS shopOwnerId
          FROM shop_products p JOIN shops s ON s.id = p.shopId
         WHERE p.isActive = 1 AND s.isOpen = 1
-          AND (? = '%%' OR lower(p.title) LIKE ? OR lower(p.description) LIKE ? OR lower(s.title) LIKE ?)
+          AND (? = '%%' OR lower_ru(p.title) LIKE ? OR lower_ru(p.description) LIKE ? OR lower_ru(s.title) LIKE ?)
         ORDER BY p.createdAt DESC LIMIT ?`
     )
     .all(q, q, q, q, limit)

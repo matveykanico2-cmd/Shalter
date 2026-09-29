@@ -16,6 +16,16 @@ export function openSidebarMenu(pos) {
   const items = [];
 
   items.push({ label: user.name || user.phone || "Аккаунт" });
+  // Как в Telegram: первым в меню — свой профиль, следом «Избранное».
+  items.push({
+    icon: "User",
+    label: "Мой профиль",
+    onClick: async () => {
+      const { openProfileDialog } = await import("./profileDialog.js");
+      openProfileDialog(user.id);
+    },
+  });
+  items.push({ icon: "Bookmark", label: "Избранное", onClick: () => openSavedMessages() });
   for (const a of accounts ?? []) {
     if (a.id === user.id) continue;
     items.push({
@@ -72,9 +82,37 @@ export function openSidebarMenu(pos) {
 
   items.push({ separator: true });
   items.push({ icon: "Download", label: "Скачать приложение", onClick: () => (window.location.href = "/download") });
-  // Служебный аккаунт «Shalter» — тот же, что рассылает коды входа: жалобу
-  // читает живой человек, а не форма в никуда.
-  items.push({ icon: "Bug", label: "Сообщить об ошибке", onClick: () => navigate("/u/shalter") });
+  // Чат с администрацией (живой человек — владелец ADMIN_PHONE), как и в меню
+  // аватарки на рельсе (navRail.js). Раньше здесь вело на /u/shalter — это
+  // служебный бот, который рассылает коды входа, и жалоба уходила «в коды».
+  items.push({
+    icon: "Bug",
+    label: "Сообщить об ошибке",
+    onClick: async () => {
+      try {
+        const { chatId } = await api.openBugReportChat();
+        navigate(`/chat/${chatId}`);
+      } catch (err) {
+        alert(err.message || "Не удалось открыть чат с поддержкой");
+      }
+    },
+  });
 
   openDropdownMenu(pos, items);
+}
+
+// «Избранное» — чат с самим собой. Уже заведённый берём из списка, чтобы не
+// ходить на сервер; иначе сервер его создаёт (POST /api/chats с собственным id,
+// см. routes/chats.js). Общая для меню и горячей клавиши Ctrl+0.
+export async function openSavedMessages() {
+  const { user, chats } = getState();
+  const existing = (chats ?? []).find((c) => c.isSaved);
+  if (existing) return navigate(`/chat/${existing.id}`);
+  try {
+    const { chat } = await api.startDm(user.id, "Избранное", user.avatarColor);
+    navigate(`/chat/${chat.id}`);
+    api.listChats().then((r) => setState({ chats: r.chats })).catch(() => {});
+  } catch (err) {
+    alert(err.message || "Не удалось открыть «Избранное»");
+  }
 }

@@ -159,10 +159,24 @@ async function listUsersByIds(ids) {
   return db.prepare(`SELECT * FROM users WHERE id IN (${ph})`).all(...unique).map(rowToUser);
 }
 
+// Только имена и юзернеймы — без аватаров и прочего тяжёлого, для поиска по
+// своим личным чатам (routes/search.js), где нужны имена всех собеседников.
+function listUserNamesByIds(ids) {
+  const unique = [...new Set(ids ?? [])].filter(Boolean);
+  if (!unique.length) return [];
+  const ph = unique.map(() => "?").join(",");
+  return db.prepare(`SELECT id, name, username FROM users WHERE id IN (${ph})`).all(...unique);
+}
+
 // Поиск людей и ботов — тоже запросом, а не перебором всех аккаунтов в памяти
 // на каждое нажатие клавиши в строке поиска. LIKE по name/username: их длина
 // измеряется десятками символов, в отличие от аватара в соседнем поле, поэтому
 // полный просмотр здесь стоит дёшево даже без отдельного индекса.
+// Имя сравнивается через lower_ru (server/db.js), а не встроенную LOWER: та
+// понимает только латиницу, и «кат» не находило «Катя» — поиск людей по
+// русскому имени срабатывал, только если набрать заглавные в точности как у
+// человека в профиле. Юзернейм — всегда латиница, ему хватает LOWER (и по
+// нему есть индекс).
 async function searchUsers(query, { limit = 40 } = {}) {
   const q = String(query ?? "").trim().toLowerCase().replace(/^@/, "");
   if (!q) return [];
@@ -170,7 +184,7 @@ async function searchUsers(query, { limit = 40 } = {}) {
   return db
     .prepare(
       `SELECT * FROM users
-        WHERE (LOWER(name) LIKE ? ESCAPE '\\' OR LOWER(username) LIKE ? ESCAPE '\\')
+        WHERE (lower_ru(name) LIKE ? ESCAPE '\\' OR LOWER(username) LIKE ? ESCAPE '\\')
           AND COALESCE(isBanned, 0) = 0
         LIMIT ?`
     )
@@ -589,6 +603,7 @@ function listAccountsDueForDeletion(nowIso) {
 }
 
 module.exports = {
+  listUserNamesByIds,
   scheduleAccountDeletion,
   cancelAccountDeletion,
   listAccountsDueForDeletion,

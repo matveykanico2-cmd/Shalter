@@ -113,16 +113,18 @@ export function openPollDialog(onCreate) {
         class: "btn-accent poll-create-btn",
         onclick: () => {
           const question = questionInput.value.trim();
-          const options = [...optionsSlot.querySelectorAll(".poll-option-input")]
-            .map((i) => i.value.trim())
-            .filter(Boolean);
+          const raw = [...optionsSlot.querySelectorAll(".poll-option-input")].map((i) => i.value.trim());
+          const options = raw.filter(Boolean);
           if (!question) return (errorSlot.textContent = "Введите вопрос");
           if (options.length < 2) return (errorSlot.textContent = "Нужно хотя бы 2 варианта ответа");
           // Правильный ответ мог указывать на пустой вариант, который отсеялся
           // фильтром выше, — тогда викторина уехала бы с ответом «ни на что».
-          if (quiz && !options[correctIndex]) return (errorSlot.textContent = "Отметьте правильный ответ");
+          if (quiz && !raw[correctIndex]) return (errorSlot.textContent = "Отметьте правильный ответ");
+          // Номер правильного — среди оставшихся вариантов, а не среди полей:
+          // пустое поле выше отмеченного сдвигало ответ на соседний вариант.
+          const correct = quiz ? raw.slice(0, correctIndex).filter(Boolean).length : null;
           close();
-          onCreate(question, options, { correctIndex: quiz ? correctIndex : null });
+          onCreate(question, options, { correctIndex: correct });
         },
       },
       "Создать"

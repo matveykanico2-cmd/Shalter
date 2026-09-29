@@ -1,5 +1,4 @@
 const { balanceOf, addStars } = require("../../data/stars");
-const { getUser } = require("../../data/users");
 const { msUntilNextClaim, recordClaim } = require("../../data/dailyBonus");
 
 const DAILY_REWARD = 20;
@@ -23,18 +22,8 @@ const commands = {
     return `🎁 Ежедневный бонус: +${DAILY_REWARD} ⭐\nБаланс: ${balance} звёзд.`;
   },
 
-  async invite(ctx) {
-    const user = await getUser(ctx.senderId);
-    if (!user?.referralCode) return "Реферальная ссылка недоступна — загляните в Настройки → Premium и друзья.";
-    return `👥 Пригласите друга по своей ссылке — Premium на 30 дней получите оба!\n\nКод: ${user.referralCode}`;
-  },
-
-  async ref(ctx) {
-    return commands.invite(ctx);
-  },
-
   async shop() {
-    return "🛍 Магазин подарков — Настройки → Premium и друзья → «Магазин подарков». Пакеты звёзд — Настройки → Звёзды.";
+    return "🛍 Магазин подарков — Настройки → Shalter Premium → «Магазин подарков». Пакеты звёзд — Настройки → Звёзды.";
   },
 
   async donate() {

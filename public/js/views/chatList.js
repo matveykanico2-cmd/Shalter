@@ -19,7 +19,8 @@ import { navigate } from "../router.js";
 import { onWsMessage } from "../lib/wsClient.js";
 import { noteMessageInChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache } from "../lib/localCache.js";
-import { openSidebarMenu } from "../components/sidebarMenu.js";
+import { openSidebarMenu, openSavedMessages } from "../components/sidebarMenu.js";
+import { sortChats } from "../lib/chatSort.js";
 
 async function openNewChatMenu(e) {
   const rect = e.currentTarget.getBoundingClientRect();
@@ -42,14 +43,9 @@ async function openNewChatMenu(e) {
         // and files you want to keep. The server already supported it (a DM
         // whose two members are the same person, see data/chats.js's setMembers
         // dedup); nothing in the UI ever opened one.
-        icon: "Archive",
+        icon: "Bookmark",
         label: "Избранное",
-        onClick: async () => {
-          const me = getState().user;
-          const { chat } = await api.startDm(me.id, "Избранное", me.avatarColor);
-          await api.listChats().then((r) => setState({ chats: r.chats }));
-          navigate(`/chat/${chat.id}`);
-        },
+        onClick: () => openSavedMessages(),
       },
       {
         icon: "Users",
@@ -126,6 +122,28 @@ let results = null;
 let searchFilter = "all"; // фильтр результатов поиска: all|dms|groups|channels|users|bots|messages
 let settingsCache = null;
 const lastMessageIds = new Map();
+// «Только непрочитанные» — фильтр поверх любой вкладки и папки, как кнопка
+// фильтра в Telegram. Запоминается на этом устройстве: это привычка читать,
+// а не настройка аккаунта.
+const UNREAD_ONLY_KEY = "shalter.chatList.unreadOnly";
+let unreadOnly = (() => {
+  try {
+    return localStorage.getItem(UNREAD_ONLY_KEY) === "1";
+  } catch {
+    return false;
+  }
+})();
+// Лента историй — ссылка нужна, чтобы прятать её на время поиска: результатам
+// нужна вся высота колонки, а кружки историй к ним отношения не имеют.
+let storiesBarEl = null;
+// Какая строка результатов поиска выбрана стрелками (-1 — никакая).
+let kbIndex = -1;
+// Идёт перетаскивание закреплённого чата: перерисовка в этот момент выдернула
+// бы строку из-под курсора, поэтому она откладывается до отпускания.
+let draggingId = null;
+let renderDeferred = false;
+// Колонка, в которую рисуется список, — для горячих клавиш (selectTabByIndex).
+let listSlotRef = null;
 
 export function ChatListPane() {
   const container = el("div", { class: "chat-list-pane" });
@@ -146,6 +164,8 @@ export function ChatListPane() {
   // каждое событие сокета, и пересборка ленты историй так часто означала бы
   // постоянные запросы за ними и потерю всего, что в ней успели открыть.
   const storiesBar = StoriesBar();
+  storiesBarEl = storiesBar;
+  listSlotRef = listSlot;
   container.append(SidebarHeader(listSlot), storiesBar, listSlot);
   renderInto(listSlot);
   // Круглая кнопка «написать» в нижнем правом углу панели, поверх списка. В
@@ -161,7 +181,16 @@ export function ChatListPane() {
   );
 
   const unsubState = subscribe(() => renderInto(listSlot));
-  window.addEventListener("app:navigate", () => renderInto(listSlot));
+  window.addEventListener("app:navigate", ({ detail }) => {
+    // Архив в колонке живёт, пока человек ходит по перепискам (и на телефоне
+    // возвращается к нему кнопкой «назад»); уход в настройки, контакты и прочие
+    // вкладки его закрывает.
+    const p = detail?.path ?? window.location.pathname;
+    if (getState().sidebarArchive && p !== "/" && !p.startsWith("/chat/")) {
+      setState({ sidebarArchive: false });
+    }
+    renderInto(listSlot);
+  });
 
   api.getSettings().then((r) => (settingsCache = r.settings));
 
@@ -375,8 +404,33 @@ function SidebarHeader(listSlot) {
       (searchInputEl ??= el("input", {
         class: "chat-search-input",
         placeholder: "Поиск: чаты, люди, боты, каналы",
+        type: "search",
+        // Стрелки и Enter — по результатам, не отрывая рук от клавиатуры;
+        // Escape очищает поиск и возвращает к списку (как в Telegram Desktop).
+        onkeydown: (e) => {
+          if (e.key === "Escape") {
+            if (!searchInputEl.value) return searchInputEl.blur();
+            e.preventDefault();
+            e.stopPropagation();
+            clearSearch(listSlot);
+            return;
+          }
+          if (!results) return;
+          const rows = [...scrollSlot.querySelectorAll(".chat-list-item, .search-user-row, .search-message-row")];
+          if (!rows.length) return;
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            kbIndex = e.key === "ArrowDown" ? Math.min(rows.length - 1, kbIndex + 1) : Math.max(0, kbIndex - 1);
+            rows.forEach((r, i) => r.classList.toggle("kb-selected", i === kbIndex));
+            rows[kbIndex].scrollIntoView({ block: "nearest" });
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            (rows[kbIndex] ?? rows[0]).click();
+          }
+        },
         oninput: (e) => {
           query = e.target.value;
+          kbIndex = -1;
           if (!query.trim()) {
             results = null;
             searchFilter = "all";
@@ -386,12 +440,20 @@ function SidebarHeader(listSlot) {
           clearTimeout(listSlot._searchDebounce);
           listSlot._searchDebounce = setTimeout(async () => {
             const typed = query.trim();
-            const r = await api.search(typed);
+            let r;
+            try {
+              r = await api.search(typed);
+            } catch {
+              // Сеть моргнула — оставляем прошлые результаты, следующая буква
+              // спросит заново. Раньше ошибка улетала необработанной.
+              return;
+            }
             // The chat rows come from local state so they render with the same
             // unread counts and last-message previews as the normal list; the
             // rest is whatever the server matched.
             const matchedIds = new Set(r.chats.map((c) => c.id));
             results = {
+              query: typed,
               chats: getState().chats.filter((c) => matchedIds.has(c.id)),
               channels: r.channels ?? [],
               users: r.users ?? [],
@@ -402,6 +464,7 @@ function SidebarHeader(listSlot) {
             // for what's in the box now. Only the results below are redrawn —
             // the field the person is typing into stays exactly where it is.
             searchFilter = "all";
+            kbIndex = -1;
             if (query.trim() === typed) renderResults(listSlot);
           }, 150);
         },
@@ -410,13 +473,35 @@ function SidebarHeader(listSlot) {
   ]);
 }
 
+// Сброс поиска целиком — и состояния, и самого поля. Раньше при переходе к
+// найденному человеку сбрасывалось только состояние: результаты пропадали, а
+// набранный текст оставался в поле, будто поиск всё ещё идёт.
+function clearSearch(listSlot) {
+  query = "";
+  results = null;
+  searchFilter = "all";
+  kbIndex = -1;
+  clearTimeout(listSlot?._searchDebounce);
+  if (searchInputEl) searchInputEl.value = "";
+  if (listSlot) renderResults(listSlot);
+}
+
 // Everything below the search field. Split out so that typing only redraws the
 // results — the field itself is never touched, which is what keeps the caret in
 // it (see the comment on searchInputEl above).
 function renderResults(container) {
+  // Пока тянут закреплённый чат, список не трогаем — перерисуем по отпусканию.
+  // Страховка: если строка-источник уже пропала из документа (dragend до
+  // неё тогда не доходит), не замораживаем список навсегда.
+  if (draggingId && !scrollSlot.querySelector(".pinned-draggable.dragging")) draggingId = null;
+  if (draggingId) {
+    renderDeferred = true;
+    return;
+  }
   const { chats, folders, user } = getState();
+  if (storiesBarEl) storiesBarEl.hidden = !!results;
   const currentId = (window.location.pathname.match(/^\/chat\/([^/]+)/) || [])[1];
-  const shown = results ? "search" : tab;
+  const shown = results ? "search" : getState().sidebarArchive ? "archive" : tab;
   const keepScroll = shown === lastShown ? scrollSlot.scrollTop : 0;
   lastShown = shown;
   // Порядок важен: scrollTop снят выше, до того как блок опустеет, — у пустого
@@ -459,7 +544,7 @@ function renderResults(container) {
                 class: `search-filter-chip${searchFilter === b.id ? " active" : ""}`,
                 onclick: () => {
                   searchFilter = b.id;
-                  renderResults(listSlot);
+                  renderResults(container);
                 },
               },
               b.id === "all" ? b.name : `${b.name} ${b.count}`
@@ -472,23 +557,25 @@ function renderResults(container) {
     if (!total) {
       box.appendChild(el("p", { class: "empty-hint" }, "Ничего не найдено"));
     }
+    // Открыл найденный чат — поиск закрывается и поле очищается, как в
+    // Telegram: дальше человек в переписке, а не в результатах.
+    const openFound = (id) => {
+      clearSearch(container);
+      navigate(`/chat/${id}`);
+    };
+    const foundRow = (c) =>
+      ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally, onOpen: openFound });
     if (dms.length && show("dms")) {
       box.appendChild(el("p", { class: "list-section-label" }, "Личные"));
-      for (const c of dms) {
-        box.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem }));
-      }
+      for (const c of dms) box.appendChild(foundRow(c));
     }
     if (groups.length && show("groups")) {
       box.appendChild(el("p", { class: "list-section-label" }, "Группы"));
-      for (const c of groups) {
-        box.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem }));
-      }
+      for (const c of groups) box.appendChild(foundRow(c));
     }
     if (joinedChannels.length && show("channels")) {
       box.appendChild(el("p", { class: "list-section-label" }, "Мои каналы"));
-      for (const c of joinedChannels) {
-        box.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem }));
-      }
+      for (const c of joinedChannels) box.appendChild(foundRow(c));
     }
     // Public channels you haven't joined. Tapping opens the channel rather than
     // subscribing on the spot — joining something from a search result you
@@ -521,8 +608,7 @@ function renderResults(container) {
             btn.dataset.busy = "1";
             try {
               const { chat } = await api.startDm(u.id, u.name, u.avatarColor);
-              query = "";
-              results = null;
+              clearSearch(container);
               navigate(`/chat/${chat.id}`);
               api.listChats().then((r) => setState({ chats: r.chats })).catch(() => {});
             } catch (err) {
@@ -552,25 +638,49 @@ function renderResults(container) {
     }
     if (results.messages.length && show("messages")) {
       box.appendChild(el("p", { class: "list-section-label" }, "Сообщения"));
-      for (const m of results.messages) {
-        box.appendChild(
-          // Текст — отдельным элементом, а не голым текстовым узлом: обрезать
-          // по ширине можно только настоящий элемент, а найденное сообщение
-          // бывает длиной в экран.
-          el("button", { class: "search-message-row", onclick: () => navigate(`/chat/${m.chatId}`) }, [
-            // [ce:N] — токен кастомного эмодзи; в плоском тексте поиска рисовать
-            // нечем, показываем 🎨 вместо сырого «[ce:0]».
-            el("span", { class: "search-message-text" }, (m.text ?? "").replace(/\[ce:\d+\]/g, "🎨")),
-          ])
-        );
-      }
+      for (const m of results.messages) box.appendChild(SearchMessageRow(m, chats, user, results.query));
     }
     bodySlot.appendChild(box);
     scrollSlot.scrollTop = keepScroll;
     return;
   }
 
+  // Архив прямо в колонке, как в Telegram Desktop. Вкладка «Архив» открывается
+  // на весь экран (FULL_PAGE_ROUTES в app.js), и стоило открыть из неё чат,
+  // как переписка занимала её место, а колонка слева показывала обычный список
+  // — без архивных чатов. Вернуться к архиву, чтобы что-то в нём сделать, было
+  // нельзя, пока не догадаешься снова нажать «Архив». Теперь чат из архива
+  // открывается рядом с ним (views/archive.js поднимает sidebarArchive).
+  if (getState().sidebarArchive) {
+    const archived = sortChats(chats.filter((c) => c.archived));
+    bodySlot.appendChild(
+      el("div", { class: "chat-list-archive-head" }, [
+        el("button", {
+          class: "icon-btn chat-list-archive-back",
+          title: "Назад к чатам",
+          html: iconSvg("ChevronLeft", 20),
+          onclick: () => setState({ sidebarArchive: false }),
+        }),
+        el("span", { class: "chat-list-archive-title" }, "Архив"),
+        el("span", { class: "chat-list-archive-count" }, archived.length ? String(archived.length) : ""),
+      ])
+    );
+    if (!archived.length) scrollSlot.appendChild(el("p", { class: "empty-hint" }, "В архиве пусто"));
+    for (const c of archived) {
+      scrollSlot.appendChild(
+        ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally })
+      );
+    }
+    bodySlot.appendChild(scrollSlot);
+    scrollSlot.scrollTop = keepScroll;
+    return;
+  }
+
   const tabs = [...SYSTEM_TABS, ...folders.map((f) => ({ id: f.id, name: f.name }))];
+  // Папку удалили (здесь или на другом устройстве), а она была выбрана —
+  // возвращаемся на «Все», а не показываем пустоту с подписью несуществующей
+  // папки.
+  if (!tabs.some((t) => t.id === tab)) tab = "all";
   // Одно правило отбора на всё: и на сам список ниже, и на счётчики у вкладок.
   // Разойдись они — на вкладке горела бы цифра, а внутри было бы пусто.
   const notArchived = chats.filter((c) => !c.archived);
@@ -585,7 +695,7 @@ function renderResults(container) {
   // Считаем чаты с непрочитанным, а не сами сообщения: «3» на вкладке значит
   // «три разговора ждут ответа» — по этому числу решают, куда заглянуть, а
   // сумма сообщений во всех каналах сразу об этом ничего не говорит.
-  const unreadIn = (tabId) => inTab(tabId).filter((c) => c.unreadCount > 0).length;
+  const unreadIn = (tabId) => inTab(tabId).filter(hasUnread).length;
   // Ряд фильтров тоже пересобирается на каждое событие. С несколькими папками
   // он прокручивается по горизонтали, и без этого выбранная папка уезжала из
   // видимой части ряда, стоило прийти сообщению.
@@ -602,6 +712,12 @@ function renderResults(container) {
             tab = t.id;
             renderInto(container);
           },
+          // Правая кнопка по вкладке — как в Telegram: прочитать всё разом и
+          // перейти к настройке папок.
+          oncontextmenu: (e) => {
+            e.preventDefault();
+            openTabMenu({ x: e.clientX, y: e.clientY }, t.id, inTab(t.id));
+          },
         },
         [
           t.name,
@@ -610,31 +726,231 @@ function renderResults(container) {
       )
     )
   ));
-  bodySlot.appendChild(tabsRow);
+  const filterBtn = el("button", {
+    class: `chat-unread-filter${unreadOnly ? " active" : ""}`,
+    title: unreadOnly ? "Показать все чаты" : "Только непрочитанные",
+    "aria-pressed": unreadOnly ? "true" : "false",
+    html: iconSvg("Filter", 16),
+    onclick: () => {
+      unreadOnly = !unreadOnly;
+      try {
+        localStorage.setItem(UNREAD_ONLY_KEY, unreadOnly ? "1" : "0");
+      } catch {
+        // Хранилище закрыто — фильтр просто не переживёт перезагрузку.
+      }
+      renderInto(container);
+    },
+  });
+  bodySlot.appendChild(el("div", { class: "chat-tabs-bar" }, [tabsRow, filterBtn]));
   tabsRow.scrollLeft = tabsScrollLeft;
 
-  let list = inTab(tab);
-
-  list = [...list].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-    const at = a.lastMessage?.createdAt ?? a.createdAt;
-    const bt = b.lastMessage?.createdAt ?? b.createdAt;
-    return bt.localeCompare(at);
-  });
+  let list = sortChats(inTab(tab));
+  // Фильтр не прячет открытый сейчас чат: прочитал — и строка исчезла бы
+  // прямо из-под курсора.
+  if (unreadOnly) list = list.filter((c) => hasUnread(c) || c.id === currentId);
 
   const scroll = scrollSlot;
   // Первой строкой — и до проверки на пустоту: объявление показывается и тогда,
   // когда чатов ещё нет вовсе.
   if (sponsoredAd) scroll.appendChild(SponsoredRow(sponsoredAd));
+  // Строка «Архив» над чатами — как в Telegram. Без неё убранный в архив чат
+  // просто исчезал из списка, и найти его можно было только через меню ☰.
+  const archived = chats.filter((c) => c.archived);
+  const showArchiveRow = tab === "all" && archived.length && !unreadOnly;
+  if (showArchiveRow) scroll.appendChild(ArchiveRow(archived));
   // Пустая вкладка объясняет, почему она пустая. «Чатов нет» на вкладке
   // «Каналы» читается как «в приложении нет чатов» — хотя в соседней вкладке
-  // их два десятка.
-  if (!list.length) scroll.appendChild(chatListEmpty(tab, folders));
+  // их два десятка. Под строкой «Архив» «чатов нет» — неправда: они есть, просто
+  // убраны, и строка сама на них указывает.
+  if (!list.length && !showArchiveRow) {
+    scroll.appendChild(
+      unreadOnly
+        ? el("div", { class: "chat-empty" }, [
+            el("div", { class: "chat-empty-icon", html: iconSvg("CheckCheck", 38) }),
+            el("p", { class: "chat-empty-title" }, "Всё прочитано"),
+            el("p", { class: "chat-empty-text" }, "Непрочитанных чатов здесь нет — фильтр можно выключить кнопкой справа от вкладок"),
+          ])
+        : chatListEmpty(tab, folders)
+    );
+  }
   for (const c of list) {
-    scroll.appendChild(ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem }));
+    const row = ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally });
+    if (c.pinned) makePinnedDraggable(row, c.id, container);
+    scroll.appendChild(row);
   }
   bodySlot.appendChild(scroll);
   scrollSlot.scrollTop = keepScroll;
+}
+
+function hasUnread(c) {
+  return c.unreadCount > 0 || !!c.hasUnreadMention;
+}
+
+// Строка «Архив»: значок, подпись и имена архивных чатов через запятую, как в
+// Telegram. Счётчик — серый: архив нарочно не зовёт так же громко, как
+// обычные чаты.
+function ArchiveRow(archived) {
+  const sorted = sortChats(archived);
+  const names = sorted.map((c) => (c.type === "dm" ? (c.otherUser?.name ?? c.title) : c.title)).filter(Boolean);
+  const unread = sorted.filter(hasUnread).length;
+  return el("div", { class: "chat-list-item-wrap" }, [
+    el(
+      "button",
+      {
+        class: "chat-list-item archive-row",
+        onclick: () => setState({ sidebarArchive: true }),
+      },
+      [
+        el("span", { class: "archive-row-icon", html: iconSvg("Archive", 24) }),
+        el("div", { class: "chat-list-item-body" }, [
+          el("div", { class: "chat-list-item-row" }, [
+            el("span", { class: "chat-list-item-title" }, "Архив"),
+          ]),
+          el("div", { class: "chat-list-item-row" }, [
+            el("span", { class: "chat-list-item-preview" }, names.join(", ")),
+            unread ? el("span", { class: "chat-list-item-badges" }, [el("span", { class: "unread-badge muted" }, String(unread))]) : null,
+          ]),
+        ]),
+      ]
+    ),
+  ]);
+}
+
+// Меню вкладки: «Прочитать все» и переход к папкам. У папки — ещё и
+// «Изменить», ведущее туда же.
+function openTabMenu(pos, tabId, chatsInTab) {
+  const unread = chatsInTab.filter(hasUnread);
+  const isFolder = !SYSTEM_TABS.some((t) => t.id === tabId);
+  openDropdownMenu(pos, [
+    {
+      icon: "CheckCheck",
+      label: unread.length ? `Прочитать все (${unread.length})` : "Всё прочитано",
+      onClick: async () => {
+        if (!unread.length) return;
+        // По очереди, а не разом: чатов может быть много, а сервер
+        // ограничивает частоту запросов.
+        for (const c of unread) {
+          try {
+            await api.markChatRead(c.id);
+            markReadLocally(c.id);
+          } catch {
+            // Один не удался — остальные всё равно читаем.
+          }
+        }
+      },
+    },
+    { separator: true },
+    { icon: "Folder", label: isFolder ? "Изменить папку" : "Настроить папки", onClick: () => navigate("/settings/folders") },
+  ]);
+}
+
+// Перетаскивание закреплённых чатов мышью — порядок, как в Telegram Desktop.
+// Строка едет только среди закреплённых: бросить её на обычный чат нельзя,
+// так закреп не снимается случайно.
+function makePinnedDraggable(row, chatId, container) {
+  row.draggable = true;
+  row.classList.add("pinned-draggable");
+  row.addEventListener("dragstart", (e) => {
+    draggingId = chatId;
+    row.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", chatId);
+  });
+  row.addEventListener("dragover", (e) => {
+    if (!draggingId || draggingId === chatId) return;
+    e.preventDefault();
+    const r = row.getBoundingClientRect();
+    const after = e.clientY > r.top + r.height / 2;
+    row.classList.toggle("drop-before", !after);
+    row.classList.toggle("drop-after", after);
+  });
+  row.addEventListener("dragleave", () => row.classList.remove("drop-before", "drop-after"));
+  row.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const after = row.classList.contains("drop-after");
+    row.classList.remove("drop-before", "drop-after");
+    const moved = draggingId;
+    if (!moved || moved === chatId) return;
+    reorderPinned(moved, chatId, after);
+  });
+  row.addEventListener("dragend", () => {
+    row.classList.remove("dragging");
+    draggingId = null;
+    if (renderDeferred) {
+      renderDeferred = false;
+      renderResults(container);
+    }
+  });
+}
+
+async function reorderPinned(movedId, targetId, after) {
+  const before = getState().chats;
+  // Порядок считается по всем закреплённым, а не только по видимым на этой
+  // вкладке: закреп один на весь список, и папка не должна его перемешивать.
+  const ids = sortChats(before.filter((c) => c.pinned)).map((c) => c.id).filter((id) => id !== movedId);
+  const at = ids.indexOf(targetId);
+  if (at < 0) return;
+  ids.splice(after ? at + 1 : at, 0, movedId);
+  const order = new Map(ids.map((id, i) => [id, i]));
+  draggingId = null;
+  setState({ chats: before.map((c) => (order.has(c.id) ? { ...c, pinOrder: order.get(c.id) } : c)) });
+  try {
+    await api.setPinnedChatOrder(ids);
+  } catch (err) {
+    setState({ chats: before });
+    alert(err.message || "Не удалось изменить порядок");
+  }
+}
+
+// Найденное сообщение — строкой, как в Telegram: аватар и название чата, где
+// оно лежит, время, кто написал и сам текст с подсвеченным совпадением.
+// Раньше была только голая строка текста — по ней не понять, из какой она
+// переписки, и десять одинаковых «ок» от разных людей не различить.
+function SearchMessageRow(m, chats, me, q) {
+  const chat = chats.find((c) => c.id === m.chatId);
+  const title = chat ? (chat.type === "dm" ? (chat.otherUser?.name ?? chat.title) : chat.title) : "Чат";
+  // [ce:N] — токен кастомного эмодзи; в плоском тексте поиска рисовать нечем,
+  // показываем 🎨 вместо сырого «[ce:0]».
+  const text = (m.text ?? "").replace(/\[ce:\d+\]/g, "🎨").replace(/\s+/g, " ");
+  const who = m.senderId === me.id ? "Вы: " : "";
+  // ?msg= — переписка откроется на самом найденном сообщении (views/chatView.js).
+  return el("button", { class: "search-message-row", onclick: () => navigate(`/chat/${m.chatId}?msg=${encodeURIComponent(m.id)}`) }, [
+    Avatar({
+      size: 40,
+      name: chat?.otherUser?.name ?? title,
+      color: chat?.otherUser?.avatarColor ?? chat?.avatarColor,
+      image: chat?.otherUser?.avatarImage ?? chat?.avatarImage,
+    }),
+    el("div", { class: "search-message-body" }, [
+      el("div", { class: "chat-list-item-row" }, [
+        el("span", { class: "chat-list-item-title" }, title),
+        el("span", { class: "chat-list-item-time" }, searchTimeLabel(m.createdAt)),
+      ]),
+      // Текст — отдельным элементом, а не голым текстовым узлом: обрезать по
+      // ширине можно только настоящий элемент, а найденное сообщение бывает
+      // длиной в экран.
+      el("span", { class: "search-message-text" }, [who, ...highlightMatch(text, q)]),
+    ]),
+  ]);
+}
+
+function searchTimeLabel(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
+
+// Совпадение — <mark>, а длинный текст подрезается спереди, чтобы найденное
+// слово не уехало за край строки: в сообщении на абзац оно часто в середине.
+function highlightMatch(text, q) {
+  const needle = (q ?? "").trim().toLowerCase();
+  const at = needle ? text.toLowerCase().indexOf(needle) : -1;
+  if (at < 0) return [text];
+  const start = at > 24 ? at - 16 : 0;
+  const head = (start ? "…" : "") + text.slice(start, at);
+  return [head, el("mark", { class: "search-hit" }, text.slice(at, at + needle.length)), text.slice(at + needle.length)];
 }
 
 // Объявление строкой списка — но так, чтобы его нельзя было принять за чат:
@@ -687,6 +1003,13 @@ function emptyTextFor(tabId, folders) {
   return "Чатов нет — начните новый кнопкой в правом нижнем углу";
 }
 
+// «Отметить как прочитанное»: сервер уже отметил, счётчик гасим сразу, не
+// дожидаясь следующего обновления списка.
+function markReadLocally(id) {
+  const { chats } = getState();
+  setState({ chats: chats.map((c) => (c.id === id ? { ...c, unreadCount: 0, hasUnreadMention: false } : c)) });
+}
+
 async function patchChat(id, patch) {
   const { chats } = getState();
   setState({ chats: chats.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
@@ -718,4 +1041,27 @@ async function deleteChatItem(id, forEveryone) {
     alert(err.message || "Не удалось удалить чат");
     await api.listChats().then((r) => setState({ chats: r.chats }));
   }
+}
+
+// ── Для горячих клавиш (lib/keyboardShortcuts.js) ──────────────────────────
+
+// Чаты ровно в том порядке, в каком они сейчас на экране: с учётом вкладки,
+// папки, архива в колонке и фильтра непрочитанных. Alt+↑/↓ раньше ходил по
+// собственной копии «всех чатов» и из папки уводил в чат, которого в ней нет.
+export function getVisibleChatIds() {
+  return [...scrollSlot.querySelectorAll(".chat-list-item-wrap[data-chat-id]")].map((n) => n.dataset.chatId);
+}
+
+// Ctrl+1…9 — вкладка по номеру (системные, потом папки), как в Telegram Desktop.
+export function selectTabByIndex(index) {
+  const tabs = [...SYSTEM_TABS, ...(getState().folders ?? [])];
+  const t = tabs[index];
+  if (!t || !listSlotRef) return false;
+  if (getState().sidebarArchive) setState({ sidebarArchive: false });
+  clearSearch(null);
+  tab = t.id;
+  renderInto(listSlotRef);
+  // Папка с дальнего конца ряда могла быть за краем — показываем, куда ушли.
+  tabsRowEl?.querySelector(".chat-tab.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  return true;
 }

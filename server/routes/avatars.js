@@ -16,11 +16,21 @@ const { notifyProfileChanged } = require("../lib/notifyProfileChanged");
 const router = express.Router();
 router.use(requireUserId);
 
+// Галерея аккаунта. У старых аккаунтов (и у тех, кто ставил фото ещё при
+// регистрации) её нет — есть только одиночный avatarImage. Просмотрщик такое
+// фото показывает, а значит, и удалить или отодвинуть его должно быть можно:
+// раньше «Удалить» на нём отвечало «Аватарка не найдена».
+function avatarList(me) {
+  const list = me?.avatarImages ?? [];
+  if (list.length || !me?.avatarImage) return list;
+  return [{ url: me.avatarImage, kind: "image", poster: me.avatarImage }];
+}
+
 router.get(
   "/",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    res.json({ avatars: me?.avatarImages ?? [], max: MAX_AVATARS });
+    res.json({ avatars: avatarList(me), max: MAX_AVATARS });
   })
 );
 
@@ -36,7 +46,7 @@ router.post(
     const { entry, error } = validateEntry(req.body);
     if (error) return res.status(400).json({ error });
 
-    const list = [entry, ...me.avatarImages];
+    const list = [entry, ...avatarList(me)];
     if (list.length > MAX_AVATARS) {
       return res.status(409).json({ error: `Больше ${MAX_AVATARS} аватарок не поместится — удалите одну` });
     }
@@ -52,10 +62,10 @@ router.post(
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
     const i = Number(req.params.index);
-    if (!me || !Number.isInteger(i) || i < 0 || i >= me.avatarImages.length) {
+    if (!me || !Number.isInteger(i) || i < 0 || i >= avatarList(me).length) {
       return res.status(404).json({ error: "Аватарка не найдена" });
     }
-    const list = [...me.avatarImages];
+    const list = [...avatarList(me)];
     // Moved to the front rather than swapped with whatever was first: the rest
     // keeps its order, so the list doesn't reshuffle itself under the person
     // flipping through it.
@@ -74,10 +84,10 @@ router.delete(
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
     const i = Number(req.params.index);
-    if (!me || !Number.isInteger(i) || i < 0 || i >= me.avatarImages.length) {
+    if (!me || !Number.isInteger(i) || i < 0 || i >= avatarList(me).length) {
       return res.status(404).json({ error: "Аватарка не найдена" });
     }
-    const list = me.avatarImages.filter((_, idx) => idx !== i);
+    const list = avatarList(me).filter((_, idx) => idx !== i);
     // Removing the current avatar promotes the next one; removing the last one
     // leaves the account on coloured initials, same as never having set one.
     const updated = await setAvatars(req.uid, list);

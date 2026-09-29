@@ -1,7 +1,7 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { openInAppBrowser } from "./inAppBrowser.js";
-import { openMediaViewer } from "./mediaViewer.js";
+import { openMediaViewer, galleryAround } from "./mediaViewer.js";
 
 // Attachment/link-preview renderers shared between the chat's MessageBubble
 // and the profile dialog's Media/Files/Links tabs — kept in their own module
@@ -10,6 +10,25 @@ import { openMediaViewer } from "./mediaViewer.js";
 // would make the two modules circularly dependent on each other.
 // Сервер ещё готовит лёгкую копию (server/lib/mediaPreview.js): открывать пока
 // нечего — оригинал на несколько гигабайт для этого и не годится.
+// Кнопка, открывающая фото или видео. Помечена данными вложения, чтобы
+// просмотрщик мог собрать из ленты соседние и листать их (mediaViewer.js's
+// galleryAround).
+function MediaButton(className, item, children) {
+  return el(
+    "button",
+    {
+      class: className,
+      type: "button",
+      "data-media-kind": item.kind,
+      "data-media-url": item.url,
+      "data-media-name": item.name || "",
+      "data-media-original": item.originalUrl || "",
+      onclick: (e) => openMediaViewer({ ...item, ...galleryAround(e.currentTarget) }),
+    },
+    children
+  );
+}
+
 function PendingPreview(poster) {
   return el("div", { class: "attachment-pending" }, [
     poster ? el("img", { src: poster, alt: "", class: "video-attachment-poster" }) : el("div", { class: "video-attachment-poster" }),
@@ -36,7 +55,7 @@ export function ImageAttachment(a) {
   // только что загруженный файл (он уже в кэше устройства), чтобы картинка
   // появлялась сразу; когда подъедет эскиз, он и заменит src.
   const img = el("img", { src: a.thumbUrl || a.url, alt: a.name || "photo", class: "image-attachment", loading: "lazy" });
-  return el("button", { class: "image-attachment-btn", type: "button", onclick: () => openMediaViewer({ kind: "image", url: a.url, name: a.name }) }, [img]);
+  return MediaButton("image-attachment-btn", { kind: "image", url: a.url, name: a.name }, [img]);
 }
 
 export function VideoAttachment(a) {
@@ -50,30 +69,34 @@ export function VideoAttachment(a) {
   // перезагрузки. Показываем первый кадр самого файла — preload=metadata тянет
   // только метаданные (и кадр-постер), а не весь ролик.
   if (a.previewPending && !poster) {
-    return el(
-      "button",
-      { class: "video-attachment-btn", type: "button", onclick: () => openMediaViewer({ kind: "video", url: a.url, name: a.name }) },
-      [
-        el("video", { class: "video-attachment-poster", src: a.url, preload: "metadata", muted: true, playsinline: true }),
-        el("span", { class: "video-attachment-play", html: iconSvg("Video", 28) }),
-      ]
-    );
+    return MediaButton("video-attachment-btn", { kind: "video", url: a.url, name: a.name }, [
+      el("video", { class: "video-attachment-poster", src: a.url, preload: "metadata", muted: true, playsinline: true }),
+      el("span", { class: "video-attachment-play", html: iconSvg("Video", 28) }),
+    ]);
   }
   if (a.previewPending) return PendingPreview(poster);
-  return el(
-    "button",
-    {
-      class: "video-attachment-btn",
-      type: "button",
-      // Играет превью, а оригинал просмотрщик предлагает отдельной кнопкой
-      // «Скачать оригинал» — смотреть пятигигабайтный файл потоком незачем.
-      onclick: () => openMediaViewer({ kind: "video", url: a.previewUrl || a.url, name: a.name, originalUrl: a.previewUrl ? a.url : null }),
-    },
-    [
-      poster ? el("img", { src: poster, alt: "", class: "video-attachment-poster" }) : el("div", { class: "video-attachment-poster" }),
-      el("span", { class: "video-attachment-play", html: iconSvg("Video", 28) }),
-    ]
-  );
+  // Играет превью, а оригинал просмотрщик предлагает отдельной кнопкой
+  // «Скачать оригинал» — смотреть пятигигабайтный файл потоком незачем.
+  return MediaButton("video-attachment-btn", { kind: "video", url: a.previewUrl || a.url, name: a.name, originalUrl: a.previewUrl ? a.url : null }, [
+    poster ? el("img", { src: poster, alt: "", class: "video-attachment-poster" }) : el("div", { class: "video-attachment-poster" }),
+    el("span", { class: "video-attachment-play", html: iconSvg("Video", 28) }),
+  ]);
+}
+
+// «10 Б», «512 КБ», «3,4 МБ», «1,2 ГБ» — раньше размер всегда писался в
+// килобайтах и маленький файл выглядел пустым («0 КБ»), а большой — числом
+// из семи цифр.
+function formatSize(bytes) {
+  if (bytes < 1024) return `${bytes} Б`;
+  const units = ["КБ", "МБ", "ГБ"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  const digits = value < 10 && unit > 0 ? 1 : 0;
+  return `${value.toFixed(digits).replace(".", ",")} ${units[unit]}`;
 }
 
 export function FileAttachment(a) {
@@ -81,7 +104,7 @@ export function FileAttachment(a) {
     el("span", { html: iconSvg("Download", 18) }),
     el("div", { class: "file-attachment-info" }, [
       el("p", { class: "file-attachment-name" }, a.name || "Файл"),
-      el("p", { class: "mono file-attachment-size" }, a.size ? `${(a.size / 1024).toFixed(0)} КБ` : ""),
+      el("p", { class: "mono file-attachment-size" }, a.size ? formatSize(a.size) : ""),
     ]),
   ]);
 }

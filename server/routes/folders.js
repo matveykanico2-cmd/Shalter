@@ -26,17 +26,45 @@ router.get(
   })
 );
 
+// Столько же, сколько обещает Настройки → Папки («До 10 папок»). Раньше
+// обещание держалось только на словах: сервер принимал сколько угодно папок,
+// с пустым именем, с именем в мегабайт и с чем угодно вместо списка чатов —
+// а клиент потом падал на folder.chatIds.includes.
+const MAX_FOLDERS = 10;
+const MAX_FOLDER_NAME = 32;
+const MAX_FOLDER_CHATS = 500;
+
+function cleanFolderName(raw) {
+  const name = typeof raw === "string" ? raw.trim().slice(0, MAX_FOLDER_NAME) : "";
+  return name || null;
+}
+
+function cleanChatIds(raw) {
+  if (raw == null) return [];
+  if (!Array.isArray(raw) || !raw.every((id) => typeof id === "string")) return null;
+  return [...new Set(raw)].slice(0, MAX_FOLDER_CHATS);
+}
+
 router.post(
   "/",
   asyncRoute(async (req, res) => {
-    const { name, chatIds } = req.body ?? {};
+    const { name: rawName, chatIds: rawIds } = req.body ?? {};
+    const name = cleanFolderName(rawName);
+    if (!name) return res.status(400).json({ error: "Введите название папки" });
+    const chatIds = cleanChatIds(rawIds);
+    if (!chatIds) return res.status(400).json({ error: "Некорректный список чатов" });
     const folders = await listFoldersFor(req.uid);
+    if (folders.length >= MAX_FOLDERS) {
+      return res.status(400).json({ error: `Можно создать не больше ${MAX_FOLDERS} папок` });
+    }
     const folder = await createFolder({
       id: genId("f"),
       ownerId: req.uid,
       name,
-      chatIds: chatIds ?? [],
-      order: folders.length,
+      chatIds,
+      // После последней, а не «по числу папок»: после удаления из середины
+      // счёт сбивался, и новая папка вставала рядом с уже существующей.
+      order: folders.reduce((max, f) => Math.max(max, (f.order ?? 0) + 1), 0),
     });
     res.json({ folder });
   })
@@ -49,7 +77,21 @@ router.patch(
     if (!existing || existing.ownerId !== req.uid) {
       return res.status(404).json({ error: "not found" });
     }
-    const folder = await updateFolder(req.params.id, req.body ?? {});
+    const body = req.body ?? {};
+    const patch = {};
+    if ("name" in body) {
+      patch.name = cleanFolderName(body.name);
+      if (!patch.name) return res.status(400).json({ error: "Введите название папки" });
+    }
+    if ("chatIds" in body) {
+      patch.chatIds = cleanChatIds(body.chatIds);
+      if (!patch.chatIds) return res.status(400).json({ error: "Некорректный список чатов" });
+    }
+    if ("order" in body) {
+      if (!Number.isInteger(body.order)) return res.status(400).json({ error: "Некорректный порядок" });
+      patch.order = body.order;
+    }
+    const folder = await updateFolder(req.params.id, patch);
     res.json({ folder });
   })
 );
@@ -113,6 +155,11 @@ router.post(
   asyncRoute(async (req, res) => {
     const folder = await findFolderByInviteCode(req.params.code);
     if (!folder) return res.status(404).json({ error: "Ссылка недействительна или отозвана" });
+    // Проверка лимита — до вступления в чаты: иначе человек оказывался
+    // подписан на всё из ссылки, а сама папка так и не появлялась.
+    if ((await listFoldersFor(req.uid)).length >= MAX_FOLDERS) {
+      return res.status(400).json({ error: `Можно создать не больше ${MAX_FOLDERS} папок — удалите лишнюю в Настройки → Папки` });
+    }
 
     const chatIds = [];
     for (const id of folder.chatIds) {
@@ -132,7 +179,7 @@ router.post(
       ownerId: req.uid,
       name: folder.name,
       chatIds,
-      order: existing.length,
+      order: existing.reduce((max, f) => Math.max(max, (f.order ?? 0) + 1), 0),
     });
     res.json({ folder: created });
   })

@@ -3,7 +3,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { listChatsForUser, searchPublicChannels } = require("../data/chats");
 const { searchInChats } = require("../data/messages");
-const { searchUsers } = require("../data/users");
+const { searchUsers, listUserNamesByIds } = require("../data/users");
 const { publicUsers } = require("../data/sanitize");
 
 // One search box for everything the app has: your own chats, public channels you
@@ -38,14 +38,32 @@ router.get(
       searchPublicChannels(raw),
     ]);
 
+    // Личный чат ищется по собеседнику, а не по своему title: title личного
+    // чата — то, что передал его создатель (имя собеседника на момент
+    // создания, а у второй стороны это вовсе её собственное имя), поэтому
+    // «Катя» не находила переписку с Катей. Имена берутся одним лёгким
+    // запросом по всем собеседникам сразу.
+    const peerOf = (c) => ((c.type === "dm" || c.type === "bot") ? c.memberIds.find((id) => id !== req.uid) : null);
+    const peers = new Map(listUserNamesByIds(chats.map(peerOf).filter(Boolean)).map((u) => [u.id, u]));
+    const isSaved = (c) => c.type === "dm" && c.memberIds.length === 1 && c.memberIds[0] === req.uid;
+    const nameOf = (c) => {
+      if (isSaved(c)) return "избранное";
+      const peer = peers.get(peerOf(c));
+      return (peer?.name ?? c.title ?? "").toLowerCase();
+    };
+    const handleOf = (c) => (peers.get(peerOf(c))?.username ?? c.username ?? "").toLowerCase();
+
     // Your own chats, by title or by public @username — a channel you're in is
     // findable by the handle you'd share, not only by the name it shows.
     const matchedChats = chats
-      .filter((c) => c.title.toLowerCase().includes(q) || (c.username ?? "").toLowerCase().includes(handle))
+      .filter((c) => nameOf(c).includes(q) || (handle && handleOf(c).includes(handle)))
       .sort((a, b) => {
-        const rank = (c) => ((c.username ?? "").toLowerCase().startsWith(handle) ? 0 : c.title.toLowerCase().startsWith(q) ? 1 : 2);
+        const rank = (c) => (handleOf(c).startsWith(handle) ? 0 : nameOf(c).startsWith(q) ? 1 : 2);
         return rank(a) - rank(b);
       });
+    // Собеседник, с которым уже есть переписка, показывается строкой этой
+    // переписки — повторять его ниже ещё и в «Людях» незачем.
+    const peersInResults = new Set(matchedChats.map(peerOf).filter(Boolean));
 
     // Public channels you are *not* in. The ones you are in are already above,
     // and listing them twice under two headings is just noise.
@@ -83,6 +101,7 @@ router.get(
         (u) =>
           u.id !== req.uid &&
           !u.isBanned &&
+          !peersInResults.has(u.id) &&
           (u.name.toLowerCase().includes(q) || (u.username ?? "").toLowerCase().includes(handle))
       )
       .sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name, "ru"));
@@ -94,7 +113,12 @@ router.get(
       chats.map((c) => c.id),
       q,
       { limit: LIMIT }
-    ).filter((m) => !m.deleted);
+    )
+      .filter((m) => !m.deleted)
+      // Свежие — первыми, как в Telegram: searchInChats отдаёт по возрастанию
+      // (так удобно поиску внутри одной переписки), а в общем поиске ищут
+      // обычно недавнее.
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
     res.json({
       chats: matchedChats,

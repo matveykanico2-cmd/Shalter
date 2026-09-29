@@ -100,10 +100,30 @@ export function StoriesBar() {
     // После удаления лента перечитывается с сервера, а не перерисовывается по
     // памяти: так на экране всегда то, что действительно осталось, — а не то,
     // что клиент думает про свой массив.
-    const myItem = el("button", { class: "story-item", onclick: () => (myGroup ? openStoryViewer(groups, myGroupIndex, me.id, refetch) : fileInput.click()) }, [
+    const myItem = el("button", {
+      class: "story-item",
+      onclick: () => (myGroup ? openStoryViewer(groups, myGroupIndex, me.id, refetch) : fileInput.click()),
+      // Правая кнопка по своему кружку — тоже «добавить», для тех, кто
+      // промахнулся мимо маленького «+».
+      oncontextmenu: (e) => {
+        e.preventDefault();
+        fileInput.click();
+      },
+    }, [
       el("div", { class: `story-avatar-ring ${myRing}` }, [Avatar({ name: me.name, color: me.avatarColor, image: me.avatarImage, size: 52 })]),
-      !myGroup ? el("span", { class: "story-add-badge", html: iconSvg("Plus", 12) }) : null,
-      el("span", { class: "story-item-label" }, progress ?? "Ваша история"),
+      // «+» — всегда, а не только пока своих историй нет: раньше, выложив одну,
+      // добавить вторую было неоткуда — нажатие на кружок открывало просмотр.
+      // Сам «+» — отдельная цель нажатия поверх кружка, как в Telegram.
+      el("span", {
+        class: "story-add-badge",
+        title: "Добавить историю",
+        html: iconSvg("Plus", 12),
+        onclick: (e) => {
+          e.stopPropagation();
+          fileInput.click();
+        },
+      }),
+      el("span", { class: "story-item-label" }, progress ?? "Моя история"),
     ]);
 
     container.append(myItem, fileInput);

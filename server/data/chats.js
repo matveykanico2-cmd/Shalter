@@ -65,10 +65,14 @@ async function findDmBetween(userIdA, userIdB) {
     userIdA === userIdB
       ? db
           .prepare(
+            // Считать надо всех участников чата, а не только строки самого
+            // человека: с условием m.userId = ? в WHERE группа всегда состояла
+            // из одной строки, и «Избранное» находило первую попавшуюся личную
+            // переписку — меню ☰ → «Избранное» открывало чат с кем-то другим.
             `SELECT c.* FROM chats c
-               JOIN chat_members m ON m.chatId = c.id
-              WHERE c.type = 'dm' AND m.userId = ?
-              GROUP BY c.id HAVING COUNT(*) = 1
+               JOIN chat_members m ON m.chatId = c.id AND m.userId = ?
+              WHERE c.type = 'dm'
+                AND (SELECT COUNT(*) FROM chat_members x WHERE x.chatId = c.id) = 1
               LIMIT 1`
           )
           .get(userIdA)

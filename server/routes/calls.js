@@ -165,10 +165,26 @@ router.get(
     const otherIds = [...new Set(calls.flatMap((c) => c.participantIds).filter((id) => id !== req.uid))];
     const users = await listUsersByIds(otherIds);
     const byId = new Map(users.map((u) => [u.id, u]));
+    // Название — для звонков в группе: там «собеседник» — просто первый
+    // попавшийся участник, и строка журнала подписывалась его именем, будто
+    // звонок был личным.
+    const groupTitles = new Map();
+    for (const chatId of new Set(calls.map((c) => c.chatId))) {
+      const chat = await getChat(chatId).catch(() => null);
+      if (chat && chat.type !== "dm") groupTitles.set(chatId, { title: chat.title, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage });
+    }
     const resolved = calls.map((call) => {
       const otherId = call.participantIds.find((id) => id !== req.uid);
       const other = otherId ? byId.get(otherId) : null;
-      return { ...call, otherUser: other ? publicUser(other) : null };
+      return {
+        ...call,
+        // Направление — относительно того, кто смотрит журнал. В записи оно
+        // одно на всех («outgoing», его ставит звонящий), и у принявшего
+        // звонок он тоже значился исходящим.
+        direction: call.callerId === req.uid ? "outgoing" : "incoming",
+        otherUser: other ? publicUser(other) : null,
+        group: groupTitles.get(call.chatId) ?? null,
+      };
     });
     res.json({ calls: resolved });
   })

@@ -39,6 +39,12 @@ function publicUser(user) {
   // How many stars someone has is their business. messagePriceStars stays:
   // whoever is about to write to them has to know what it will cost.
   delete rest.stars;
+  // Кого человек заблокировал — его личное дело: список уходил с каждым
+  // профилем, строкой чата и отправителем сообщения, и по нему любой мог
+  // узнать, что его (или кого-то ещё) заблокировали. Самому аккаунту его
+  // отдаёт selfUser() ниже. Реферальный код — туда же: он свой, а не общий.
+  delete rest.blockedUserIds;
+  delete rest.referralCode;
   // Computed, not stored — "Developer" is just "whoever currently holds
   // ADMIN_PHONE" (same convention as the Premium-granting permission check
   // in server/routes/premium.js), not a role stored on the row. Exposing a
@@ -68,6 +74,8 @@ function selfUser(user) {
   return {
     ...publicUser(user),
     email: user.email ?? undefined,
+    blockedUserIds: user.blockedUserIds ?? [],
+    referralCode: user.referralCode ?? undefined,
     // Which admin screens were individually granted (server/lib/
     // adminAccess.js) — meaningless for someone else's profile, so it only
     // rides along on the account's own response.

@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { listUsersByIds, updateUser, getUser, setBlocked, findUserByUsername, findUserByPhone } = require("../data/users");
+const { listUsersByIds, updateUser, getUser, setBlocked, findUserByUsername, findUserByPhone, setAvatars } = require("../data/users");
 const { publicUser, selfUser, publicUsers } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
 const { privacyAllows } = require("../lib/privacyRules");
@@ -73,6 +73,27 @@ async function pinnedChannelsOf(userId, viewerId) {
     .map((chat) => channelCard(chat, viewerId));
 }
 
+// Общие группы — те, где состоят оба. Только группы, как в Telegram: канал —
+// это рассылка, и «мы оба подписаны на один канал» ничего о знакомстве не
+// говорит. Считается по моим чатам, поэтому закрытую группу, где меня нет,
+// этот список не выдаст.
+async function commonGroupsOf(viewerId, otherId) {
+  if (viewerId === otherId) return [];
+  const chats = await listChatsForUser(viewerId);
+  return chats.filter((c) => c.type === "group" && (c.memberIds ?? []).includes(otherId));
+}
+
+// Пределы длины полей профиля. Раньше их не было вовсе: имя в десять тысяч
+// символов сохранялось и потом ломало вёрстку каждого списка, где оно стоит.
+const MAX_NAME = 64;
+const MAX_LAST_NAME = 60;
+const MAX_BIO = 300;
+const MAX_ADDRESS = 200;
+const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+// Та же проверка кадра, что у галереи аватаров (lib/avatars.js).
+const POSTER_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+const MAX_POSTER_BYTES = 400 * 1024;
+
 const router = express.Router();
 router.use(requireUserId);
 
@@ -137,6 +158,10 @@ router.get(
     // contact list for the viewer, not the other way around.
     const targetsContacts = isSelf ? [] : await listContactsFor(req.params.id);
     const isContact = !isSelf && targetsContacts.some((c) => c.userId === req.uid);
+    // А это обратное: есть ли этот человек в *моих* контактах. Кнопке
+    // «Добавить / Удалить из контактов» нужно именно оно — раньше она читала
+    // isContact выше и после добавления продолжала предлагать «Добавить».
+    const myContact = isSelf ? null : (await listContactsFor(req.uid)).find((c) => c.userId === req.params.id);
 
     if (!isSelf) {
       const { privacy } = await getSettings(req.params.id);
@@ -157,6 +182,15 @@ router.get(
         delete visible.avatarImage;
         delete visible.avatarImages;
       }
+      // Заблокировавший вас человек, как в Telegram, пропадает из виду: ни
+      // фото, ни «в сети», ни времени захода. Сам факт блокировки при этом не
+      // сообщается — профиль выглядит так же, как у скрывшего всё настройками.
+      if ((user.blockedUserIds ?? []).includes(req.uid)) {
+        delete visible.avatarImage;
+        delete visible.avatarImages;
+        delete visible.lastSeen;
+        visible.online = false;
+      }
     }
 
     // Часы работы бизнеса — в профиль, как в Telegram Business: «Открыто ·
@@ -173,7 +207,18 @@ router.get(
       }
     }
 
-    res.json({ user: visible, isContact, pinnedChannels: await pinnedChannelsOf(req.params.id, req.uid) });
+    // Сколько групп у нас общих — строкой «Общие группы» в профиле, как в
+    // Telegram. Сам список грузится отдельно, когда её откроют.
+    const commonGroupsCount = isSelf ? 0 : (await commonGroupsOf(req.uid, req.params.id)).length;
+
+    res.json({
+      user: visible,
+      isContact,
+      inContacts: !!myContact,
+      contactName: myContact?.localName ?? null,
+      commonGroupsCount,
+      pinnedChannels: await pinnedChannelsOf(req.params.id, req.uid),
+    });
   })
 );
 
@@ -213,7 +258,7 @@ router.put(
 router.get(
   "/:id/shared-media",
   asyncRoute(async (req, res) => {
-    const empty = { media: [], files: [], links: [] };
+    const empty = { chatId: null, media: [], files: [], links: [], voice: [] };
     if (req.params.id === req.uid) return res.json(empty);
 
     // Запросом по join-таблице, а не перебором всех чатов сервера: вкладки
@@ -221,21 +266,45 @@ router.get(
     const chat = await findDmBetween(req.uid, req.params.id);
     if (!chat) return res.json(empty);
 
+    // «Очистить историю у себя» прячет сообщения до этой отметки — и из
+    // вкладок профиля тоже, иначе удалённые фото продолжали жить здесь.
+    const clearedBefore = (await getSettings(req.uid)).chatClears?.[chat.id] ?? null;
+
     // Только то, что может попасть в эти вкладки: вложения и ссылки.
-    const messages = listMediaMessages(chat.id, req.uid);
+    const messages = listMediaMessages(chat.id, req.uid).filter((m) => !clearedBefore || m.createdAt > clearedBefore);
     const media = [];
     const files = [];
     const links = [];
+    const voice = [];
     for (const m of messages) {
       for (const a of m.attachments ?? []) {
-        if (a.kind === "image" || a.kind === "video") media.push({ messageId: m.id, createdAt: m.createdAt, attachment: a });
-        else if (a.kind === "file") files.push({ messageId: m.id, createdAt: m.createdAt, attachment: a });
+        const item = { messageId: m.id, createdAt: m.createdAt, senderId: m.senderId, attachment: a };
+        if (a.kind === "image" || a.kind === "video") media.push(item);
+        else if (a.kind === "file") files.push(item);
+        else if (a.kind === "voice" || a.kind === "video-note") voice.push(item);
       }
       if (m.linkPreview || LINK_RE.test(m.text ?? "")) {
         links.push({ messageId: m.id, createdAt: m.createdAt, text: m.text, linkPreview: m.linkPreview });
       }
     }
-    res.json({ media: media.reverse(), files: files.reverse(), links: links.reverse() });
+    res.json({ chatId: chat.id, media: media.reverse(), files: files.reverse(), links: links.reverse(), voice: voice.reverse() });
+  })
+);
+
+// Список общих групп — по нажатию на «Общие группы» в профиле.
+router.get(
+  "/:id/common-chats",
+  asyncRoute(async (req, res) => {
+    const groups = await commonGroupsOf(req.uid, req.params.id);
+    res.json({
+      chats: groups.map((c) => ({
+        id: c.id,
+        title: c.title,
+        avatarColor: c.avatarColor ?? null,
+        avatarImage: c.avatarImage ?? null,
+        members: (c.memberIds ?? []).length,
+      })),
+    });
   })
 );
 
@@ -247,6 +316,57 @@ router.patch(
     const patch = {};
     for (const key of EDITABLE_FIELDS) {
       if (key in body) patch[key] = body[key];
+    }
+
+    // Всё, что приходит сюда, — строки (или null там, где поле можно стереть).
+    // Объект или число в текстовом поле раньше доходили до SQLite и
+    // превращались в 500 вместо внятной ошибки.
+    for (const key of ["name", "lastName", "username", "phone", "bio", "avatarColor", "birthday", "businessAddress"]) {
+      if (key in patch && patch[key] != null && typeof patch[key] !== "string") {
+        return res.status(400).json({ error: "Некорректное значение поля" });
+      }
+    }
+    if ("name" in patch) {
+      patch.name = String(patch.name ?? "").trim();
+      if (!patch.name) return res.status(400).json({ error: "Введите имя" });
+      if (patch.name.length > MAX_NAME) return res.status(400).json({ error: `Имя — не длиннее ${MAX_NAME} символов` });
+    }
+    if ("lastName" in patch) {
+      patch.lastName = String(patch.lastName ?? "").trim() || null;
+      if (patch.lastName && patch.lastName.length > MAX_LAST_NAME) {
+        return res.status(400).json({ error: `Фамилия — не длиннее ${MAX_LAST_NAME} символов` });
+      }
+    }
+    if ("bio" in patch) {
+      patch.bio = String(patch.bio ?? "").trim();
+      if (patch.bio.length > MAX_BIO) return res.status(400).json({ error: `«О себе» — не длиннее ${MAX_BIO} символов` });
+    }
+    if ("avatarColor" in patch && !COLOR_RE.test(patch.avatarColor ?? "")) {
+      return res.status(400).json({ error: "Некорректный цвет" });
+    }
+    if ("businessAddress" in patch) {
+      patch.businessAddress = String(patch.businessAddress ?? "").trim() || null;
+      if (patch.businessAddress && patch.businessAddress.length > MAX_ADDRESS) {
+        return res.status(400).json({ error: `Адрес — не длиннее ${MAX_ADDRESS} символов` });
+      }
+    }
+    for (const key of ["businessLat", "businessLng"]) {
+      if (key in patch && patch[key] != null && !Number.isFinite(Number(patch[key]))) {
+        return res.status(400).json({ error: "Некорректные координаты" });
+      }
+    }
+    // Фото, выбранное при регистрации, приходит сюда одним кадром. Писать его
+    // только в avatarImage нельзя: галерея (avatarImages) о нём не знала, и
+    // такую аватарку потом нельзя было ни удалить, ни сделать неосновной —
+    // просмотрщик показывал её, а сервер отвечал «Аватарка не найдена».
+    // Поэтому кадр становится обычной первой записью галереи.
+    let avatarPoster;
+    if ("avatarImage" in patch) {
+      avatarPoster = patch.avatarImage;
+      delete patch.avatarImage;
+      if (avatarPoster != null && (typeof avatarPoster !== "string" || !POSTER_RE.test(avatarPoster) || avatarPoster.length > MAX_POSTER_BYTES)) {
+        return res.status(400).json({ error: "Некорректное изображение" });
+      }
     }
 
     if ("username" in patch) {
@@ -283,6 +403,10 @@ router.patch(
     } catch (err) {
       if (isUsernameConflict(err)) return res.status(409).json({ error: "Этот юзернейм уже занят" });
       throw err;
+    }
+    if (user && avatarPoster !== undefined) {
+      const rest = (user.avatarImages ?? []).filter((a) => a.url !== user.avatarImage);
+      user = await setAvatars(req.uid, avatarPoster ? [{ url: avatarPoster, kind: "image", poster: avatarPoster }, ...rest] : rest);
     }
 
     if (user) notifyProfileChanged(req.uid, user);

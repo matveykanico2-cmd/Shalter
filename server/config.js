@@ -28,7 +28,7 @@ function isAdminPhone(phone) {
   return !!phone && ADMIN_PHONES.includes(phone);
 }
 
-// Default Premium grant length — the referral bonus uses this directly, and
+// Default Premium grant length — the admin's /grant fallback, and
 // it's also the "1m" tariff's length below. Longer/shorter one-off durations
 // are also available individually through the Gifts catalog
 // (server/data/gifts.js), which is unrelated to these fixed purchase tiers.
@@ -42,8 +42,11 @@ const PREMIUM_GRANT_DAYS = 30;
 const PREMIUM_PLANS = {
   "1m": { days: 30, priceRub: 99, label: "1 месяц" },
   "3m": { days: 90, priceRub: 249, label: "3 месяца" },
+  "6m": { days: 180, priceRub: 449, label: "6 месяцев" },
   "12m": { days: 365, priceRub: 799, label: "12 месяцев" },
 };
+// Цены тарифов обязаны быть разными: fulfillOrder.js находит оплаченный тариф
+// по сумме доната, а не по id.
 const DEFAULT_PREMIUM_PLAN = "1m";
 
 // "Shalter для бизнеса" (Настройки → Shalter для бизнеса, server/routes/
@@ -90,8 +93,28 @@ const DONATEPAY_PAGE_URL = process.env.DONATEPAY_PAGE_URL || "";
 // nothing else has to change.
 const LANGUAGETOOL_URL = process.env.LANGUAGETOOL_URL || "https://api.languagetool.org/v2/check";
 
+// Нейросеть бота Hugo (server/lib/hugoAi.js). Ключ не нужен: по умолчанию —
+// бесплатный публичный OpenAI-совместимый эндпоинт Pollinations. Цепочка:
+// OLLAMA_URL (если задан, своя локальная модель) → HUGO_AI_URL →
+// HUGO_AI_GET_URL (тот же Pollinations, простой GET) → встроенные ответы
+// по ключевым словам (lib/hugoBot.js). HUGO_AI=off выключает нейросеть целиком.
+const HUGO_AI_ENABLED = !/^(0|off|false|no)$/i.test(process.env.HUGO_AI || "");
+const HUGO_AI_URL = process.env.HUGO_AI_URL ?? "https://text.pollinations.ai/openai";
+const HUGO_AI_MODEL = process.env.HUGO_AI_MODEL || "openai";
+const HUGO_AI_GET_URL = process.env.HUGO_AI_GET_URL ?? "https://text.pollinations.ai/";
+const HUGO_AI_TIMEOUT_MS = Number(process.env.HUGO_AI_TIMEOUT_MS) || 25000;
+const OLLAMA_URL = (process.env.OLLAMA_URL || "").replace(/\/+$/, "");
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2";
+
 module.exports = {
   LANGUAGETOOL_URL,
+  HUGO_AI_ENABLED,
+  HUGO_AI_URL,
+  HUGO_AI_MODEL,
+  HUGO_AI_GET_URL,
+  HUGO_AI_TIMEOUT_MS,
+  OLLAMA_URL,
+  OLLAMA_MODEL,
   ADMIN_PHONE,
   ADMIN_PHONES,
   isAdminPhone,

@@ -1,28 +1,58 @@
-import { el, mount, clear } from "../lib/dom.js";
+import { el, mount } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { ChatListItem } from "../components/chatListItem.js";
 import { api } from "../api.js";
-import { getState } from "../state.js";
+import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
+import { sortChats } from "../lib/chatSort.js";
 
+// Архив читает и правит тот же общий список чатов (state.chats), что и колонка
+// слева. Раньше у него была своя копия: «Вернуть из архива» убирало строку
+// здесь, но в общем состоянии чат оставался архивным — и в основном списке не
+// появлялся до следующего опроса сервера.
 export async function ArchiveView(root) {
-  const { chats: all } = await api.listChats();
-  let chats = all.filter((c) => c.archived);
   const me = getState().user;
 
+  function archived() {
+    return sortChats((getState().chats ?? []).filter((c) => c.archived));
+  }
+
+  // Чат из архива открывается рядом с архивом: колонка слева переключается на
+  // архивные чаты (views/chatList.js, sidebarArchive). Иначе переписка вставала
+  // на место этой страницы, архив пропадал, и сделать что-то с его чатами —
+  // вернуть, удалить, закрепить — было уже неоткуда.
+  function openChat(id) {
+    setState({ sidebarArchive: true });
+    navigate(`/chat/${id}`);
+  }
+
   function render() {
-    const currentId = (window.location.pathname.match(/^\/chat\/([^/]+)/) || [])[1];
+    const chats = archived();
     const list = el(
       "div",
       { class: "chat-list-scroll" },
       chats.length === 0
         ? // Пустой архив объясняет, чем он вообще наполняется: до этой правки
           // экран состоял из двух слов и не подсказывал, что делать.
-          el("p", { class: "empty-hint" }, "В архиве пусто — потяните строку чата влево, чтобы убрать его сюда")
+          el("p", { class: "empty-hint" }, "В архиве пусто — потяните строку чата влево или нажмите «⋮» → «Архивировать»")
         : [
             // Заголовок со счётчиком — тот же, что во всех остальных вкладках.
             el("p", { class: "list-section-label" }, `В архиве — ${chats.length}`),
-            ...chats.map((c) => ChatListItem({ chat: c, active: currentId === c.id, meId: me.id, onPatch: patchChat, onDelete: deleteChatItem })),
+            // Правило возврата — прямо здесь: иначе чат, «сам» вернувшийся в
+            // общий список, выглядит как сбой архива (см. data/chat-summary.js).
+            el("p", { class: "archive-hint" }, "Чаты с включёнными уведомлениями возвращаются из архива, когда в них приходит новое сообщение. Заглушённые остаются здесь."),
+            ...chats.map((c) =>
+              ChatListItem({
+                chat: c,
+                active: false,
+                meId: me.id,
+                onPatch: patchChat,
+                onDelete: deleteChatItem,
+                onLeave: leaveChatItem,
+                onOpen: openChat,
+                onRead: markReadLocally,
+              })
+            ),
           ]
     );
     mount(
@@ -37,23 +67,54 @@ export async function ArchiveView(root) {
     );
   }
 
+  async function reload() {
+    const r = await api.listChats();
+    setState({ chats: r.chats });
+  }
+
   async function patchChat(id, patch) {
-    if (patch.archived === false) {
-      chats = chats.filter((c) => c.id !== id);
-    } else {
-      chats = chats.map((c) => (c.id === id ? { ...c, ...patch } : c));
+    const before = getState().chats;
+    setState({ chats: before.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
+    try {
+      await api.patchChat(id, patch);
+    } catch (err) {
+      alert(err.message || "Не удалось изменить чат");
+      await reload().catch(() => {});
     }
-    render();
-    await api.patchChat(id, patch);
+  }
+
+  function markReadLocally(id) {
+    setState({ chats: getState().chats.map((c) => (c.id === id ? { ...c, unreadCount: 0, hasUnreadMention: false } : c)) });
   }
 
   async function deleteChatItem(id, forEveryone) {
-    chats = chats.filter((c) => c.id !== id);
-    render();
-    if (window.location.pathname === `/chat/${id}`) navigate("/");
-    if (forEveryone) await api.deleteChat(id);
-    else await api.deleteChatForMe(id);
+    setState({ chats: getState().chats.filter((c) => c.id !== id) });
+    try {
+      if (forEveryone) await api.deleteChat(id);
+      else await api.deleteChatForMe(id);
+    } catch (err) {
+      // Строка уже убрана заранее — вернуть её, раз удалить не вышло.
+      alert(err.message || "Не удалось удалить чат");
+      await reload().catch(() => {});
+    }
   }
 
+  async function leaveChatItem(id) {
+    setState({ chats: getState().chats.filter((c) => c.id !== id) });
+    try {
+      await api.leaveChat(id);
+    } catch (err) {
+      alert(err.message || "Не удалось выйти из чата");
+      await reload().catch(() => {});
+    }
+  }
+
+  // Колонка слева и сокет обновляют общий список — архив перерисовывается
+  // вместе с ним.
+  const unsub = subscribe(render);
+  root._cleanup = () => unsub();
+
   render();
+  // Свежий список — поверх того, что уже было в состоянии.
+  await reload().catch(() => {});
 }

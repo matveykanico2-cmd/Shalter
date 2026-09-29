@@ -6,7 +6,7 @@ const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser
 const { checkUsername, normalizeUsername } = require("../lib/username");
 const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeatures");
 const { PERMISSIONS, permissionsOf, sanitizePermissions } = require("../lib/chatPermissions");
-const { deleteMessagesForChat } = require("../data/messages");
+const { deleteMessagesForChat, markChatRead } = require("../data/messages");
 const { getSettings, updateSettings, mutedStateFor, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft } = require("../data/settings");
 const { allowsUser } = require("../lib/privacyRules");
 const { messageCost } = require("../lib/messagePrice");
@@ -46,6 +46,28 @@ router.get(
       return true;
     });
     res.json({ chats: visible });
+  })
+);
+
+// Порядок закреплённых чатов — после перетаскивания в списке. Принимаем только
+// те чаты, где человек состоит и которые у него действительно закреплены:
+// порядок — не способ закрепить что-то в обход PATCH /:id.
+router.post(
+  "/pinned-order",
+  asyncRoute(async (req, res) => {
+    const ids = req.body?.chatIds;
+    if (!Array.isArray(ids) || ids.length > 500 || !ids.every((id) => typeof id === "string")) {
+      return res.status(400).json({ error: "Нужен список чатов" });
+    }
+    const settings = await getSettings(req.uid);
+    const flags = settings.chatFlags ?? {};
+    const mine = new Set((await listChatsForUser(req.uid)).map((c) => c.id));
+    const wanted = [...new Set(ids)].filter((id) => mine.has(id) && flags[id]?.pinned === true);
+    // Закреплённые, о которых клиент не сказал (другая вкладка, другой
+    // аккаунт на том же устройстве), не теряют место — встают следом.
+    const rest = (settings.pinnedOrder ?? []).filter((id) => !wanted.includes(id));
+    await updateSettings(req.uid, { pinnedOrder: [...wanted, ...rest] });
+    res.json({ ok: true, pinnedOrder: [...wanted, ...rest] });
   })
 );
 
@@ -274,6 +296,50 @@ router.patch(
     const EDITABLE_BY_STAFF = ["title", "description", "avatarImage", "avatarColor", "autoDeleteSeconds"];
     if (chat.type !== "dm" && EDITABLE_BY_STAFF.some((k) => k in patch) && !isOwnerOrAdminOf(chat, req.uid)) {
       return res.status(403).json({ error: "Менять настройки чата могут владельцы и админы" });
+    }
+
+    // Закреп, архив и беззвучность — личное дело каждого участника, а не
+    // свойство чата: пишем их в настройки того, кто попросил, и в общую запись
+    // не пускаем. Иначе один собеседник, убрав чат в архив, прятал его и у
+    // другого, а участник группы мог заглушить её всем.
+    const PERSONAL = ["pinned", "archived", "muted"];
+    const personal = PERSONAL.filter((k) => k in patch);
+    if (personal.length) {
+      const settings = await getSettings(req.uid);
+      const chatFlags = { ...(settings.chatFlags ?? {}) };
+      const flags = { ...(chatFlags[chat.id] ?? {}) };
+      if ("pinned" in patch) flags.pinned = !!patch.pinned;
+      if ("archived" in patch) {
+        flags.archived = !!patch.archived;
+        // Когда именно убрали в архив — от этой отметки чат возвращается в
+        // общий список, как только в нём появится новое сообщение (если чат не
+        // заглушён), см. data/chat-summary.js. Так делает Telegram: архив — для
+        // того, что не ждёт ответа, а не место, где теряются живые разговоры.
+        if (flags.archived) flags.archivedAt = new Date().toISOString();
+        else delete flags.archivedAt;
+      }
+      if ("muted" in patch) flags.muted = !!patch.muted;
+      chatFlags[chat.id] = flags;
+      const next = { chatFlags };
+      // Порядок закреплённых — свой у каждого, как и сам закреп. Только что
+      // закреплённый встаёт первым (как в Telegram); дальше человек двигает
+      // их перетаскиванием (POST /api/chats/pinned-order).
+      if ("pinned" in patch) {
+        const order = (settings.pinnedOrder ?? []).filter((id) => id !== chat.id);
+        next.pinnedOrder = patch.pinned ? [chat.id, ...order] : order;
+      }
+      if ("muted" in patch) {
+        const mutedChats = { ...(settings.notifications?.mutedChats ?? {}) };
+        if (patch.muted) mutedChats[chat.id] = true;
+        else delete mutedChats[chat.id];
+        next.notifications = { ...settings.notifications, mutedChats };
+      }
+      await updateSettings(req.uid, next);
+      for (const k of PERSONAL) delete patch[k];
+    }
+    if (!Object.keys(patch).length) {
+      const [summary] = await attachSummaries([chat], req.uid);
+      return res.json({ chat: summary });
     }
 
     const updated = await updateChat(req.params.id, patch);
@@ -687,7 +753,9 @@ router.delete(
     const chat = await getChat(req.params.id);
     if (!chat) return res.status(404).json({ error: "not found" });
     const member = chat.memberIds.includes(req.uid);
-    const ownStaff = member && (chat.type === "dm" || isOwnerOrAdminOf(chat, req.uid));
+    // Личку (и переписку с ботом) удалить у обоих может любой из двоих — как в
+    // Telegram; группу или канал — только те, кто ими управляет.
+    const ownStaff = member && (chat.type === "dm" || chat.type === "bot" || isOwnerOrAdminOf(chat, req.uid));
     const moderator =
       !ownStaff && chat.type !== "dm" && hasAdminSection(await getUser(req.uid), "moderation");
     if (!member && !moderator) return res.status(404).json({ error: "not found" });
@@ -765,6 +833,24 @@ router.post(
 // below is the "for everyone" counterpart, and stays restricted to DM-like
 // chats client-side (see chatListItem.js) since wiping a whole group for
 // every member isn't something a casual long-press should be able to do.
+// «Отметить как прочитанное» из меню строки списка чатов — то же, что
+// происходит при открытии переписки (GET /:id/messages), только без неё.
+router.post(
+  "/:id/read",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    const changedIds = await markChatRead(req.params.id, req.uid);
+    if (changedIds.length > 0) {
+      broadcastToUsers(
+        chat.memberIds.filter((m) => m !== req.uid),
+        { type: "message:read", chatId: req.params.id, readerId: req.uid, messageIds: changedIds }
+      );
+    }
+    res.json({ ok: true, count: changedIds.length });
+  })
+);
+
 router.post(
   "/:id/delete-for-me",
   asyncRoute(async (req, res) => {

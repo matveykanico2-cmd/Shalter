@@ -1,4 +1,5 @@
 import { el, clear, appendAll } from "../lib/dom.js";
+import { plural } from "../lib/presence.js";
 import { api } from "../api.js";
 import { Avatar } from "./avatar.js";
 
@@ -76,7 +77,7 @@ export function openPinnedChannelsDialog({ pinned = [], onSaved } = {}) {
               Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage, size: 36 }),
               el("div", { class: "pinned-row-body" }, [
                 el("p", { class: "pinned-row-title" }, c.title),
-                el("p", { class: "pinned-row-sub" }, c.username ? `@${c.username}` : `${c.members} подписчиков`),
+                el("p", { class: "pinned-row-sub" }, c.username ? `@${c.username}` : `${c.members} ${plural(c.members, "подписчик", "подписчика", "подписчиков")}`),
               ]),
               // Номер, а не галочка: он показывает и что канал выбран, и каким
               // он будет по счёту в профиле.

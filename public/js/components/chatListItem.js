@@ -3,13 +3,15 @@ import { PremiumStar } from "./premiumStar.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
-import { openChoiceDialog } from "./confirmDialog.js";
+import { openDeleteChatDialog } from "./deleteChatDialog.js";
 import { navigate } from "../router.js";
+import { api } from "../api.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
-import { isChatAdmin } from "../lib/chatRoles.js";
 import { messagePreview } from "../lib/messagePreview.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 import { ProfileStatusBadge } from "./profileStatusBadge.js";
+import { getState, setState } from "../state.js";
+import { isChatMuted } from "../lib/chatSort.js";
 
 function timeLabel(iso) {
   const d = new Date(iso);
@@ -29,17 +31,25 @@ function preview(chat, meId) {
   if (m.type === "system") return ceStrip(m.text);
   // Stickers, gifts and attachments carry no text of their own — messagePreview
   // names them, so the row doesn't go blank ("Вы: ") after sending one.
-  const who = m.senderId === meId ? "Вы: " : "";
+  // В «Избранном» всё написано тобой — «Вы:» перед каждым превью там лишнее.
+  const who = m.senderId === meId && !chat.isSaved ? "Вы: " : "";
   return `${who}${messagePreview(m)}`;
 }
 
-export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave }) {
+// onOpen — что делать по нажатию на строку (по умолчанию — открыть переписку;
+// архив подменяет его, чтобы список архива остался рядом, см. views/archive.js).
+// onRead — после «Отметить как прочитанное», чтобы владелец списка обновил
+// счётчик у себя.
+export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave, onOpen, onRead }) {
   const title = chat.type === "dm" ? (chat.otherUser?.name ?? chat.title) : chat.title;
   const online = chat.type === "dm" && chat.otherUser?.online;
+  const muted = isChatMuted(chat);
 
-  const wrap = el("div", { class: "chat-list-item-wrap" });
+  // data-chat-id — по нему колонка находит строку для перетаскивания
+  // закреплённых и для выбора с клавиатуры (views/chatList.js).
+  const wrap = el("div", { class: "chat-list-item-wrap with-more", "data-chat-id": chat.id });
   const swipeHint = el("div", { class: "chat-swipe-actions" }, [
-    el("span", { class: "chat-swipe-action mute" }, chat.muted ? "Со звуком" : "Без звука"),
+    el("span", { class: "chat-swipe-action mute" }, muted ? "Со звуком" : "Без звука"),
     el("span", { class: "chat-swipe-action archive" }, chat.archived ? "Из архива" : "В архив"),
   ]);
 
@@ -62,7 +72,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave })
     "button",
     {
       class: `chat-list-item ${active ? "active" : ""}`,
-      onclick: () => navigate(`/chat/${chat.id}`),
+      onclick: () => (onOpen ? onOpen(chat.id) : navigate(`/chat/${chat.id}`)),
       oncontextmenu: (e) => {
         e.preventDefault();
         openMenu({ x: e.clientX, y: e.clientY });
@@ -93,20 +103,25 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave })
         // Дотянул до порога — сработало действие. Архив дальше по ходу жеста,
         // чем «без звука», потому что убирают из списка чаще, чем глушат.
         if (dx <= -SWIPE_ACTION_PX * 2) onPatch?.(chat.id, { archived: !chat.archived });
-        else if (dx <= -SWIPE_ACTION_PX) onPatch?.(chat.id, { muted: !chat.muted });
+        else if (dx <= -SWIPE_ACTION_PX) onPatch?.(chat.id, { muted: !muted });
       },
       onpointercancel: resetSlide,
     },
     [
-      Avatar({
-        // 52px, а не 44: строка списка стала выше — имя, превью и время в ней
-        // читаются с одного взгляда, и аватар под них подогнан, как в Telegram.
-        size: 52,
-        name: chat.otherUser?.name ?? title,
-        color: chat.otherUser?.avatarColor ?? chat.avatarColor,
-        image: chat.otherUser?.avatarImage ?? chat.avatarImage,
-        online,
-      }),
+      // «Избранное» — закладка в акцентном круге, как в Telegram, а не буква
+      // «И»: иначе чат с самим собой выглядит как переписка с кем-то на «И».
+      chat.isSaved
+        ? el("span", { class: "saved-avatar", html: iconSvg("Bookmark", 24) })
+        : Avatar({
+            // 52px, а не 44: строка списка стала выше — имя, превью и время в
+            // ней читаются с одного взгляда, и аватар под них подогнан, как в
+            // Telegram.
+            size: 52,
+            name: chat.otherUser?.name ?? title,
+            color: chat.otherUser?.avatarColor ?? chat.avatarColor,
+            image: chat.otherUser?.avatarImage ?? chat.avatarImage,
+            online,
+          }),
       el("div", { class: "chat-list-item-body" }, [
         el("div", { class: "chat-list-item-row" }, [
           el("span", { class: "chat-list-item-title" }, title),
@@ -142,7 +157,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave })
           ]),
           el("span", { class: "chat-list-item-badges" }, [
             chat.pinned ? el("span", { html: iconSvg("Pin", 12) }) : null,
-            chat.muted ? el("span", { html: iconSvg("BellOff", 12) }) : null,
+            muted ? el("span", { html: iconSvg("BellOff", 12) }) : null,
             chat.hasUnreadMention ? el("span", { class: "mention-badge" }, "@") : null,
             chat.unreadCount > 0
               ? el("span", { class: "unread-badge" }, chat.unreadCount > 99 ? "99+" : String(chat.unreadCount))
@@ -152,7 +167,26 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave })
       ]),
     ]
   );
-  wrap.append(swipeHint, btn);
+  // «⋮» — то же меню, что по правой кнопке. Правый клик на мышке никто не
+  // угадывает, а на телефоне его нет вовсе: без этой кнопки единственным путём к
+  // «Вернуть из архива» в архиве было знать про него заранее. Кнопка — соседка
+  // строки, а не её потомок: кнопка внутри кнопки — недопустимая разметка, и
+  // нажатие на неё ещё и открывало бы переписку.
+  const moreBtn = el("button", {
+    class: "chat-list-item-more",
+    type: "button",
+    title: "Действия с чатом",
+    "aria-label": "Действия с чатом",
+    html: iconSvg("MoreVertical", 18),
+    onpointerdown: (e) => e.stopPropagation(),
+    onclick: (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const r = e.currentTarget.getBoundingClientRect();
+      openMenu({ x: r.right - 8, y: r.bottom + 2 });
+    },
+  });
+  wrap.append(swipeHint, btn, moreBtn);
 
   function openMenu(pos) {
     openDropdownMenu(pos, [
@@ -162,47 +196,88 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave })
         onClick: () => onPatch(chat.id, { pinned: !chat.pinned }),
       },
       {
-        icon: chat.muted ? "Bell" : "BellOff",
-        label: chat.muted ? "Включить уведомления" : "Отключить уведомления",
-        onClick: () => onPatch(chat.id, { muted: !chat.muted }),
+        icon: muted ? "Bell" : "BellOff",
+        label: muted ? "Включить уведомления" : "Отключить уведомления",
+        onClick: () => onPatch(chat.id, { muted: !muted }),
+      },
+      // «Добавить в папку» — как в Telegram: раньше чат попадал в папку только
+      // из Настройки → Папки, через список галочек по всем чатам сразу.
+      {
+        icon: "Folder",
+        label: "Добавить в папку",
+        onClick: () => setTimeout(() => openFolderMenu(pos), 0),
       },
       {
         icon: "Archive",
         label: chat.archived ? "Вернуть из архива" : "Архивировать",
         onClick: () => onPatch(chat.id, { archived: !chat.archived }),
       },
+      chat.unreadCount > 0 || chat.hasUnreadMention
+        ? {
+            icon: "Check",
+            label: "Отметить как прочитанное",
+            onClick: async () => {
+              try {
+                await api.markChatRead(chat.id);
+                onRead?.(chat.id);
+              } catch (err) {
+                alert(err.message || "Не удалось отметить чат прочитанным");
+              }
+            },
+          }
+        : null,
       { separator: true },
       {
         icon: "Trash",
         label: "Удалить чат",
         danger: true,
-        onClick: () => {
-          const isDmLike = chat.type === "dm" || chat.type === "bot";
-          const what = chat.type === "channel" ? "канал" : "группу";
-          // A group or channel used to offer only "удалить у меня", which hides
-          // it — and the first new message brought it straight back, so its own
-          // owner had no way to delete it at all. Now the people who run it can
-          // really delete it, and everyone else gets the honest option: leave.
-          openChoiceDialog(
-            "Удалить чат",
-            isDmLike
-              ? [
-                  { label: "Удалить у меня", onClick: () => onDelete(chat.id, false) },
-                  { label: "Удалить у всех", danger: true, onClick: () => onDelete(chat.id, true) },
-                ]
-              : isChatAdmin(chat, meId)
-                ? [
-                    { label: "Скрыть у себя", onClick: () => onDelete(chat.id, false) },
-                    { label: `Удалить ${what} для всех`, danger: true, onClick: () => onDelete(chat.id, true) },
-                  ]
-                : [
-                    { label: "Скрыть у себя", onClick: () => onDelete(chat.id, false) },
-                    { label: `Выйти из ${what === "канал" ? "канала" : "группы"}`, danger: true, onClick: () => onLeave?.(chat.id) },
-                  ]
-          );
-        },
+        onClick: () =>
+          openDeleteChatDialog(chat, meId, {
+            onDelete: (forEveryone) => onDelete(chat.id, forEveryone),
+            onLeave: chat.type === "group" || chat.type === "channel" ? () => onLeave?.(chat.id) : null,
+          }),
       },
-    ]);
+    ].filter(Boolean));
+  }
+
+  // Второе меню на том же месте: список папок с галочкой у тех, где чат уже
+  // лежит. Нажатие переключает — кладёт или вынимает.
+  function openFolderMenu(pos) {
+    const folders = getState().folders ?? [];
+    const items = folders.map((f) => {
+      const inside = f.chatIds.includes(chat.id);
+      return {
+        icon: inside ? "Check" : "Folder",
+        label: f.name,
+        onClick: async () => {
+          const chatIds = inside ? f.chatIds.filter((id) => id !== chat.id) : [...f.chatIds, chat.id];
+          const before = getState().folders;
+          setState({ folders: before.map((x) => (x.id === f.id ? { ...x, chatIds } : x)) });
+          try {
+            await api.patchFolder(f.id, { chatIds });
+          } catch (err) {
+            setState({ folders: before });
+            alert(err.message || "Не удалось изменить папку");
+          }
+        },
+      };
+    });
+    if (items.length) items.push({ separator: true });
+    items.push({
+      icon: "Plus",
+      label: "Новая папка",
+      onClick: async () => {
+        const name = prompt("Название папки")?.trim();
+        if (!name) return;
+        try {
+          const { folder } = await api.createFolder(name, [chat.id]);
+          setState({ folders: [...(getState().folders ?? []), folder] });
+        } catch (err) {
+          alert(err.message || "Не удалось создать папку");
+        }
+      },
+    });
+    openDropdownMenu(pos, items);
   }
 
   return wrap;

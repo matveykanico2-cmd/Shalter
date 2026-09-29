@@ -48,14 +48,15 @@ async function checkText(text, language = "auto") {
   // LANGUAGETOOL_URL проверка просто отвечала «не настроена».
   if (!LANGUAGETOOL_URL) return { matches: localProofread(text), language: "Встроенная проверка" };
 
-  const body = new URLSearchParams({
-    // Автоопределение — только для латиницы (см. resolveLanguage выше);
-    // preferredVariants срабатывает, когда оно попадает на один из этих языков,
-    // и выбранный вариант убирает ложные срабатывания.
-    text,
-    language: resolveLanguage(text, language),
-    preferredVariants: "en-US,de-DE,pt-BR",
-  });
+  // Автоопределение — только для латиницы (см. resolveLanguage выше);
+  // preferredVariants срабатывает, когда оно попадает на один из этих языков,
+  // и выбранный вариант убирает ложные срабатывания. Передавать его можно
+  // только вместе с language=auto: с явным языком LanguageTool отвечает 400, и
+  // вся русская проверка молча уходила во встроенную, которая опечаток не
+  // видит («Превет как дила» — «ошибок не нашёл»).
+  const lang = resolveLanguage(text, language);
+  const body = new URLSearchParams({ text, language: lang });
+  if (lang === "auto") body.set("preferredVariants", "en-US,de-DE,pt-BR");
 
   // The public instance is occasionally slow; a proofreading call that hangs is
   // worse than one that fails, since the user is waiting to press send.
@@ -69,6 +70,7 @@ async function checkText(text, language = "auto") {
       signal: controller.signal,
     });
     if (!upstream.ok) {
+      console.error("languagetool check failed: HTTP", upstream.status, (await upstream.text().catch(() => "")).slice(0, 200));
       // Внешний сервис перегружен/недоступен — не отказываем совсем, а отдаём
       // встроенную проверку: лучше базовая, чем никакой.
       return { matches: localProofread(text), language: "Встроенная проверка" };

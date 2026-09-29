@@ -15,7 +15,6 @@ const QR_POLL_MS = 1500;
 // skipping the page chrome (background orbs, logo, "Shalter" brand) —
 // for when a caller (again, qrLoginConfirm.js) supplies its own frame.
 export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
-  const refFromLink = new URLSearchParams(window.location.search).get("ref") ?? "";
   // Landed here from api.js's req() after this device's session got
   // terminated elsewhere (Settings → Устройства → «Завершить») — surfaced as
   // a plain "why am I here" hint rather than leaving it looking like a random
@@ -28,14 +27,13 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   // The recorded ban reason, forwarded by api.js — a ban with no stated reason
   // is indistinguishable from a bug from the user's side.
   const bannedWhy = new URLSearchParams(window.location.search).get("why");
-  let mode = refFromLink ? "register" : "login"; // "login" | "register" | "qr" | "code"
+  let mode = "login"; // "login" | "register" | "qr" | "code"
   let name = "";
   let lastName = "";
   let email = "";
   let password = "";
   let phone = "";
   let username = "";
-  let referralCode = refFromLink;
   let avatarImage = null;
   let error = null;
   let pending = false;
@@ -646,16 +644,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       value: password,
       oninput: (e) => (password = e.target.value),
     });
-    const referralInput =
-      mode === "register"
-        ? el("input", {
-            class: "login-input login-code-field mono",
-            placeholder: "Код друга",
-            value: referralCode,
-            oninput: (e) => (referralCode = e.target.value.toUpperCase()),
-          })
-        : null;
-
     const card = el(
       "form",
       {
@@ -668,7 +656,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           try {
             let user;
             if (mode === "register") {
-              ({ user } = await api.registerEmail(name, email, password, phone, username, referralCode, lastName));
+              ({ user } = await api.registerEmail(name, email, password, phone, username, lastName));
               if (avatarImage) await api.updateProfile(user.id, { avatarImage });
             } else {
               const res = await api.loginEmail(email, password);
@@ -699,14 +687,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         phoneInput,
         usernameInput,
         passwordInput,
-        referralInput,
-        mode === "register"
-          ? el(
-              "p",
-              { class: `login-hint ${referralCode ? "referral-hint" : ""}` },
-              referralCode ? "🎁 Вы и ваш друг получите Shalter Premium бесплатно" : "Необязательно — если вас пригласил друг"
-            )
-          : null,
         mode === "register" ? el("p", { class: "login-hint" }, "Пароль — не короче 6 символов, хранится только в виде хеша.") : null,
         revokedNotice && mode === "login" && !error
           ? el("p", { class: "login-hint" }, "Сеанс на этом устройстве был завершён — войдите снова.")

@@ -2,8 +2,8 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE, PREMIUM_GRANT_DAYS, PREMIUM_PLANS, DEFAULT_PREMIUM_PLAN, isAdminPhone } = require("../config");
-const { getUser, findUserByPhone, listReferrals, grantPremiumDays, revokePremium } = require("../data/users");
-const { publicUser, publicUsers } = require("../data/sanitize");
+const { getUser, findUserByPhone, grantPremiumDays, revokePremium } = require("../data/users");
+const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { broadcastToUsers } = require("../ws");
 const { getActiveDonationLink } = require("../lib/autoPayment");
@@ -12,20 +12,18 @@ const { createPendingOrder } = require("../data/pendingOrders");
 const router = express.Router();
 router.use(requireUserId);
 
-// Referral code + Premium status for the current user, plus who they've
-// brought in — powers the Settings → Premium screen.
+// Premium status for the current user plus the purchase tiers — powers the
+// Settings → Premium screen. (Реферальный «код друга» отсюда убран вместе с
+// фичей; колонка referralCode в users осталась, чтобы не трогать схему.)
 router.get(
   "/me",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    const referrals = await listReferrals(req.uid);
     res.json({
       isPremium: !!me.isPremium,
       premiumUntil: me.premiumUntil,
       premiumForever: !!me.premiumForever,
-      referralCode: me.referralCode,
       isAdmin: isAdminPhone(me.phone),
-      referrals: publicUsers(referrals),
       plans: PREMIUM_PLANS,
     });
   })
@@ -50,9 +48,13 @@ router.post(
       return res.status(503).json({ error: "Администрация Shalter ещё не зарегистрирована в приложении" });
     }
     const me = await getUser(req.uid);
-    if (me.isPremium) {
-      return res.status(400).json({ error: "У вас уже есть Shalter Premium" });
+    // Действующий Premium можно продлить: grantPremiumDays (data/users.js)
+    // прибавляет дни к текущему premiumUntil, а не к сегодняшней дате. Нечего
+    // продлевать только у вечного Premium.
+    if (me.premiumForever) {
+      return res.status(400).json({ error: "У вас уже есть Shalter Premium навсегда" });
     }
+    const extending = !!me.isPremium;
 
     // Same "nobody to ask" reasoning as gifts.js's /request — the admin
     // grants themselves Premium immediately instead of messaging themselves
@@ -65,7 +67,7 @@ router.post(
       await sendMessageAndBroadcast(
         chat,
         req.uid,
-        `🎉 Вам выдан Shalter Premium на ${plan.label}! Спасибо, что поддерживаете проект.`
+        `🎉 ${extending ? "Shalter Premium продлён" : "Вам выдан Shalter Premium"} на ${plan.label}! Спасибо, что поддерживаете проект.`
       );
       return res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE, delivered: true });
     }
@@ -85,7 +87,7 @@ router.post(
     await sendMessageAndBroadcast(
       chat,
       req.uid,
-      `Хочу оформить Shalter Premium на ${plan.label} за ${plan.priceRub}₽. Перевожу на ${ADMIN_PHONE} и жду подтверждения 🙏`
+      `Хочу ${extending ? "продлить" : "оформить"} Shalter Premium на ${plan.label} за ${plan.priceRub}₽. Перевожу на ${ADMIN_PHONE} и жду подтверждения 🙏`
     );
     res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE });
   })

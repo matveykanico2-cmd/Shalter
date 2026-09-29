@@ -42,6 +42,8 @@ const PATHS = {
   Trash:
     '<path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/>',
   More: '<circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
+  // «⋮» у строки списка чатов — то же меню, что по правой кнопке.
+  MoreVertical: '<circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none"/>',
   ChevronLeft: '<path d="M15 5l-7 7 7 7"/>',
   ChevronRight: '<path d="M9 5l7 7-7 7"/>',
   X: '<path d="M6 6l12 12M18 6L6 18"/>',
@@ -100,6 +102,19 @@ const PATHS = {
   // звука в звонке и в эфире.
   Volume: '<path d="M4 9.5h3.4L12 5.5v13L7.4 14.5H4z"/><path d="M15.8 9.2a4 4 0 0 1 0 5.6"/><path d="M18.6 6.4a8 8 0 0 1 0 11.2"/>',
   VolumeOff: '<path d="M4 9.5h3.4L12 5.5v13L7.4 14.5H4z"/><path d="M16 10l4.5 4.5"/><path d="M20.5 10L16 14.5"/>',
+  // Один человек — «Мой профиль» в меню и в настройках. На него уже ссылались
+  // (navRail.js, settings/index.js), но в наборе его не было, и строка
+  // оставалась без значка.
+  User: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/>',
+  // Закладка — «Избранное» (чат с самим собой), как в Telegram.
+  Bookmark: '<path d="M6.5 4h11a1 1 0 0 1 1 1v15.5L12 16.5l-6.5 4V5a1 1 0 0 1 1-1Z"/>',
+  // Папка — «Папки с чатами».
+  Folder: '<path d="M3.5 7a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z"/>',
+  // Палитра — «Внешний вид».
+  Palette:
+    '<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1.1-.9-1.5-.9-2.5 0-.9.7-1.6 1.6-1.6h2.1a3.9 3.9 0 0 0 3.9-3.9C20.5 7 16.7 3.5 12 3.5Z"/><circle cx="7.8" cy="11" r="1.1" fill="currentColor" stroke="none"/><circle cx="10.5" cy="7.4" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="7.6" r="1.1" fill="currentColor" stroke="none"/>',
+  // Воронка — фильтр «Только непрочитанные».
+  Filter: '<path d="M4 5h16l-6.2 7.4V19l-3.6-1.8v-4.8Z"/>',
 };
 
 export function iconSvg(name, size = 20, extraClass = "") {

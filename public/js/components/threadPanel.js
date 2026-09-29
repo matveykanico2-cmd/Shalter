@@ -7,6 +7,8 @@ import { api } from "../api.js";
 import { onWsMessage } from "../lib/wsClient.js";
 import { isChatAdmin, isChatModerator } from "../lib/chatRoles.js";
 import { isServerModerator } from "../lib/moderation.js";
+import { cachedUser, fetchUsers } from "../lib/userLookup.js";
+import { AttachmentView } from "./messageBubble.js";
 
 function timeLabel(iso) {
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
@@ -67,8 +69,18 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
     unsub();
     unsubUpdated();
     unsubDeleted();
+    document.removeEventListener("keydown", onKey, true);
     overlay.remove();
   }
+  // Esc закрывает саму панель, а не чат под ней (lib/keyboardShortcuts.js
+  // иначе уводил из переписки целиком). Правку ответа Esc отменяет своим
+  // обработчиком в строке — её не трогаем.
+  function onKey(e) {
+    if (e.key !== "Escape" || editingId || document.querySelector(".modal-overlay, .dropdown-menu, .media-viewer-overlay")) return;
+    e.stopPropagation();
+    close();
+  }
+  document.addEventListener("keydown", onKey, true);
 
   // Правка — только своего ответа, прямо в строке. Удалить — свой; чужой —
   // администрации чата (для комментариев — администрации канала, см.
@@ -104,8 +116,22 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
     }
   }
 
+  // Автора может не быть в members: вышел из группы или написал уже после
+  // открытия панели. Таких догружаем (lib/userLookup.js) и перерисовываем —
+  // иначе вместо аватара и имени было «?» и «Аноним».
+  let missing = new Set();
   function memberOf(userId) {
-    return members.find((u) => u.id === userId) ?? (userId === me.id ? me : undefined);
+    const found = members.find((u) => u.id === userId) ?? (userId === me.id ? me : undefined) ?? cachedUser(userId);
+    if (!found && userId) missing.add(userId);
+    return found;
+  }
+  function loadMissing() {
+    if (!missing.size) return;
+    const ids = [...missing];
+    missing = new Set();
+    fetchUsers(ids)
+      .then((changed) => changed && body.isConnected && renderBody())
+      .catch(() => {});
   }
 
   function personLine(userId) {
@@ -142,7 +168,10 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
     }
     return el("div", { class: "thread-reply-row" }, [
       personLine(m.senderId),
-      el("div", { class: "thread-reply-text message-text" }, formatText(m.text || "Медиа", members, m.customEmoji)),
+      ...(m.attachments ?? []).filter((a) => a.kind !== "poll").map((a) => AttachmentView(a, me)),
+      m.text || !m.attachments?.length
+        ? el("div", { class: "thread-reply-text message-text" }, formatText(m.text || "Медиа", members, m.customEmoji))
+        : null,
       el("span", { class: "thread-reply-time" }, [timeLabel(m.createdAt), m.editedAt ? " · изм." : ""]),
       own || canDeleteReply(m)
         ? el("div", { class: "comment-actions thread-reply-actions" }, [
@@ -159,12 +188,14 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
 
   function renderBody() {
     clear(body);
+    missing = new Set();
     body.append(
       el("div", { class: "thread-root" }, [personLine(rootMessage.senderId), el("div", { class: "message-text" }, formatText(rootMessage.text || "Медиа", members, rootMessage.customEmoji))]),
       el("p", { class: "list-section-label thread-replies-label" }, `${source?.repliesLabel ?? "Ответы"} (${replies.length})`),
       ...(replies.length ? replies.map(replyRow) : [el("p", { class: "empty-hint" }, emptyHint ?? "Пока нет ответов — начните тему первым")])
     );
     body.scrollTop = body.scrollHeight;
+    loadMissing();
   }
 
   function renderComposer() {

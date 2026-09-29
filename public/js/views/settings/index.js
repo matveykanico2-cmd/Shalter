@@ -54,6 +54,7 @@ import { safetyLabelInfo } from "../../lib/safetyLabels.js";
 import { openDropdownMenu } from "../../components/dropdownMenu.js";
 import { openPrivacyExceptionsDialog } from "../../components/privacyExceptionsDialog.js";
 import { openProfileDialog } from "../../components/profileDialog.js";
+import { openCheckboxDialog } from "../../components/confirmDialog.js";
 
 // То же, что говорит сервер (server/lib/unsupportedLanguages.js), — написано
 // прямо под выбором языка, а не только в ответе на отклонённый запрос: человек
@@ -70,12 +71,12 @@ const SECTIONS = [
   { id: "holidays", label: "Праздники", icon: "Gift", group: "main" },
   { id: "data", label: "Данные и память", icon: "Download", group: "main" },
   { id: "privacy", label: "Конфиденциальность", icon: "Lock", group: "main" },
-  { id: "appearance", label: "Внешний вид", icon: "Settings", group: "main" },
-  { id: "folders", label: "Папки с чатами", icon: "Archive", group: "main" },
-  { id: "devices", label: "Устройства", icon: "Phone", group: "main" },
+  { id: "appearance", label: "Внешний вид", icon: "Palette", group: "main" },
+  { id: "folders", label: "Папки с чатами", icon: "Folder", group: "main" },
+  { id: "devices", label: "Устройства", icon: "Monitor", group: "main" },
   { id: "accounts", label: "Аккаунты", icon: "Accounts", group: "main" },
   { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", group: "main" },
-  { id: "premium", label: "Premium и друзья", icon: "Star", group: "extra" },
+  { id: "premium", label: "Shalter Premium", icon: "Star", group: "extra" },
   { id: "business", label: "Shalter для бизнеса", icon: "Bag", group: "extra" },
   { id: "partners", label: "Партнёрка", icon: "Users", group: "extra" },
   { id: "oauth", label: "Войти через Shalter", icon: "Lock", group: "extra" },
@@ -362,6 +363,7 @@ async function renderProfile(root) {
     }
   }
   let statusIcon = me.statusIcon;
+  const bioCounter = el("span", { class: "settings-toggle-hint settings-bio-counter" }, String(300 - (me.bio ?? "").length));
   let phoneField = null;
   let saved = false;
   let profileError = null;
@@ -410,6 +412,7 @@ async function renderProfile(root) {
   }
 
   function render() {
+    bioCounter.textContent = String(300 - (bio ?? "").length);
     // Opens the viewer rather than a bare file picker: it shows the photos
     // already there, and adding, reordering and deleting all live in one place
     // instead of the picker being the only thing this button could do.
@@ -472,15 +475,27 @@ async function renderProfile(root) {
         section(null, [
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Имя"),
-            el("input", { class: "settings-input", value: firstName, oninput: (e) => (firstName = e.target.value) }),
+            el("input", { class: "settings-input", value: firstName, maxLength: 64, oninput: (e) => (firstName = e.target.value) }),
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Фамилия"),
-            el("input", { class: "settings-input", value: lastName, placeholder: "необязательно", oninput: (e) => (lastName = e.target.value) }),
+            el("input", { class: "settings-input", value: lastName, placeholder: "необязательно", maxLength: 60, oninput: (e) => (lastName = e.target.value) }),
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Юзернейм"),
-            el("input", { class: "settings-input", value: username, oninput: (e) => (username = e.target.value.replace(/[^a-zA-Z0-9_]/g, "")) }),
+            // Недопустимые знаки убираются и из самого поля, а не только из
+            // сохраняемого значения: иначе в поле оставалось «ivan.petrov», а
+            // сохранялось молча «ivanpetrov».
+            el("input", {
+              class: "settings-input",
+              value: username,
+              maxLength: 32,
+              oninput: (e) => {
+                const clean = e.target.value.replace(/[^a-zA-Z0-9_]/g, "");
+                if (clean !== e.target.value) e.target.value = clean;
+                username = clean;
+              },
+            }),
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Телефон"),
@@ -490,7 +505,18 @@ async function renderProfile(root) {
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "О себе"),
-            el("textarea", { class: "settings-input", rows: 3, value: bio, oninput: (e) => (bio = e.target.value) }),
+            // Счётчик, как у Telegram: предел проверяет и сервер (300 знаков).
+            el("textarea", {
+              class: "settings-input",
+              rows: 3,
+              value: bio ?? "",
+              maxLength: 300,
+              oninput: (e) => {
+                bio = e.target.value;
+                bioCounter.textContent = String(300 - bio.length);
+              },
+            }),
+            bioCounter,
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Дата рождения"),
@@ -578,8 +604,13 @@ async function renderProfile(root) {
               birthday = date.iso;
               try {
                 name = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
-                const { user } = await api.updateProfile(me.id, { name, lastName: lastName.trim(), username, phone, bio, birthday });
-                updateSelf({ name, lastName: lastName.trim(), username, phone: user.phone, bio, birthday });
+                const { user } = await api.updateProfile(me.id, { name, lastName: lastName.trim(), username, phone, bio: bio ?? "", birthday });
+                // Сохранённое — из ответа сервера: он обрезает пробелы и
+                // приводит юзернейм к своему виду, и показывать надо именно это.
+                name = user.name;
+                username = user.username;
+                bio = user.bio ?? "";
+                updateSelf({ name: user.name, lastName: user.lastName ?? "", username: user.username, phone: user.phone, bio: user.bio ?? "", birthday: user.birthday ?? "" });
                 saved = true;
                 render();
                 setTimeout(() => {
@@ -644,6 +675,11 @@ const PREMIUM_PERKS = [
     desc: "Готовых или своих — вместо одного на обычном аккаунте",
   },
   {
+    icon: "Star",
+    title: "Значок Premium",
+    desc: "Звезда у имени и особое кольцо вокруг аватарки",
+  },
+  {
     icon: "Zap",
     title: "Эксклюзивные реакции",
     desc: "💎 👑 🚀 🥂 💯 🌟 — доступны в любом чате",
@@ -668,50 +704,81 @@ function premiumOrbit() {
   ]);
 }
 
+// Цена за месяц и скидка тарифа — считаются от самого короткого тарифа
+// (обычно «1 месяц»), как на экране покупки Telegram Premium: «−33%» у
+// годового значит «на треть дешевле, чем платить помесячно».
+function premiumPlanRows(plans) {
+  const rows = Object.entries(plans ?? {}).map(([id, plan]) => {
+    const months = Math.max(1, Math.round(plan.days / 30));
+    return { id, ...plan, months, perMonth: plan.priceRub / months };
+  });
+  const base = rows.reduce((min, r) => (min && min.months <= r.months ? min : r), null);
+  for (const r of rows) {
+    r.discount = base && r !== base ? Math.round((1 - r.perMonth / base.perMonth) * 100) : 0;
+  }
+  return rows;
+}
+
 async function renderPremium(root) {
-  let info = await api.getPremiumInfo();
-  let copied = false;
-  let buyingPlan = null; // id тарифа, который сейчас покупается — блокирует именно его плитку, не все три
+  const info = await api.getPremiumInfo();
+  const plans = premiumPlanRows(info.plans);
+  // По умолчанию выбран самый выгодный тариф — как у Telegram, где сразу
+  // подсвечен годовой.
+  let selectedPlan = plans.reduce((best, p) => (best && best.discount >= p.discount ? best : p), null)?.id ?? null;
+  let buying = false;
   let buyError = null;
 
-  function referralLink() {
-    return `${window.location.origin}/login?ref=${info.referralCode}`;
-  }
-
-  async function copyCode() {
-    try {
-      await navigator.clipboard.writeText(referralLink());
-    } catch {
-      // Clipboard API can be unavailable (insecure context, permissions) —
-      // the code is still shown on screen for manual copying either way.
-    }
-    copied = true;
-    render();
-    setTimeout(() => {
-      copied = false;
-      render();
-    }, 1500);
-  }
-
-  async function buyPremium(planId) {
-    buyingPlan = planId;
+  async function buyPremium() {
+    if (!selectedPlan) return;
+    buying = true;
     buyError = null;
     render();
     try {
-      const res = await api.requestPremium(planId);
+      const res = await api.requestPremium(selectedPlan);
       handlePurchaseResponse(res);
     } catch (err) {
       buyError = err.message;
     } finally {
-      buyingPlan = null;
+      buying = false;
       render();
     }
   }
 
+  function planCard(p) {
+    const selected = p.id === selectedPlan;
+    return el(
+      "button",
+      {
+        type: "button",
+        class: `premium-plan${selected ? " selected" : ""}`,
+        role: "radio",
+        "aria-checked": selected ? "true" : "false",
+        disabled: buying,
+        onclick: () => {
+          selectedPlan = p.id;
+          render();
+        },
+      },
+      [
+        el("span", { class: "premium-plan-radio" }),
+        el("span", { class: "premium-plan-body" }, [
+          el("span", { class: "premium-plan-title" }, [
+            p.label,
+            p.discount > 0 ? el("span", { class: "premium-plan-badge" }, `−${p.discount}%`) : null,
+          ]),
+          el("span", { class: "premium-plan-sub" }, p.months > 1 ? `${p.priceRub} ₽ за ${p.label}` : "Оплата за месяц"),
+        ]),
+        el("span", { class: "premium-plan-price mono" }, `${Math.round(p.perMonth)} ₽/мес`),
+      ]
+    );
+  }
+
   function render() {
+    const current = plans.find((p) => p.id === selectedPlan);
+    const canBuy = !info.premiumForever && plans.length > 0;
     mount(
       root,
-      pageWrap("Premium и друзья", "Реферальная программа, подписка Shalter Premium и подарки", [
+      pageWrap("Shalter Premium", "Подписка Shalter Premium и подарки", [
         premiumOrbit(),
         // Ряд значков с разными фонами: заодно объясняет, что знак Premium
         // бывает разным, — раньше здесь была одна и та же корона трижды.
@@ -726,9 +793,33 @@ async function renderPremium(root) {
             el("p", { class: "premium-status-hint" }, formatPremiumUntil(info)),
           ]),
         ]),
+        // Тарифы. Продление при действующем Premium идёт тем же запросом:
+        // сервер прибавляет дни к текущей дате окончания (routes/premium.js).
+        canBuy
+          ? el("div", { class: "settings-section-group" }, [
+              el("p", { class: "settings-section-title" }, info.isPremium ? "Продлить Premium" : "Выберите срок"),
+              el("div", { class: "premium-plans", role: "radiogroup" }, plans.map(planCard)),
+              el(
+                "button",
+                { class: "btn-accent premium-buy-btn", disabled: buying || !current, onclick: buyPremium },
+                buying
+                  ? "Открываем оплату…"
+                  : `${info.isPremium ? "Продлить" : "Подписаться"} за ${current?.priceRub ?? 0} ₽`
+              ),
+              el(
+                "p",
+                { class: "settings-toggle-hint premium-buy-hint" },
+                info.isPremium
+                  ? "Новый срок прибавится к текущей дате окончания. Автопродления нет — списаний без вашего ведома не будет."
+                  : "Оплата переводом администрации Shalter. Автопродления нет — срок просто закончится сам."
+              ),
+              buyError ? el("p", { class: "login-error" }, buyError) : null,
+            ])
+          : null,
         // Настоящие преимущества, которые действительно проверяются в коде
         // (server/routes/messages.js, calls.js, chats.js, lib/profileStatus.js,
         // messageBubble.js) — не общие слова вроде "эксклюзивные функции".
+        el("p", { class: "settings-section-title" }, "Что даёт Premium"),
         el(
           "div",
           { class: "premium-perks-card" },
@@ -742,57 +833,6 @@ async function renderPremium(root) {
             ])
           )
         ),
-        !info.isPremium
-          ? el("div", { class: "settings-notice-box" }, [
-              el("p", { class: "settings-toggle-title" }, "Купить Premium"),
-              el("p", { class: "settings-toggle-hint" }, "Оплата переводом администрации Shalter. Выберите срок — откроется чат, переведите указанную сумму и дождитесь подтверждения."),
-              el(
-                "div",
-                { class: "stars-pack-grid" },
-                Object.entries(info.plans ?? {}).map(([planId, plan]) =>
-                  el(
-                    "button",
-                    { class: "stars-pack", disabled: !!buyingPlan, onclick: () => buyPremium(planId) },
-                    [
-                      el("span", { class: "stars-pack-amount" }, buyingPlan === planId ? "Открываем чат…" : plan.label),
-                      el("span", { class: "stars-pack-price mono" }, `${plan.priceRub} ₽`),
-                    ]
-                  )
-                )
-              ),
-              buyError ? el("p", { class: "login-error" }, buyError) : null,
-            ])
-          : null,
-        el("div", { class: "referral-card" }, [
-          el("div", { class: "referral-card-header" }, [
-            el("span", { html: iconSvg("Gift", 22) }),
-            el("p", { class: "settings-toggle-title" }, "Пригласите друга — получите Premium"),
-          ]),
-          el(
-            "p",
-            { class: "settings-toggle-hint" },
-            "Когда друг зарегистрируется по вашему коду, Premium на 30 дней получите оба — бесплатно."
-          ),
-          el("div", { class: "referral-code-row" }, [
-            el("span", { class: "mono referral-code-value" }, info.referralCode),
-            el("button", { class: "icon-btn", title: "Скопировать ссылку-приглашение", html: iconSvg("Copy", 16), onclick: copyCode }),
-          ]),
-          copied ? el("p", { class: "settings-toggle-hint" }, "Ссылка скопирована ✓") : null,
-        ]),
-        el("p", { class: "settings-section-title" }, `Приглашено друзей — ${info.referrals.length}`),
-        info.referrals.length === 0
-          ? el("p", { class: "empty-hint" }, "Пока никто не зарегистрировался по вашему коду")
-          : el(
-              "div",
-              { class: "settings-devices-list" },
-              info.referrals.map((u) =>
-                el("div", { class: "settings-device-row" }, [
-                  Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 28 }),
-                  el("div", { class: "settings-device-body" }, [el("p", {}, u.name)]),
-                  u.isPremium ? PremiumStar({ size: 16, seed: u.id, title: "Shalter Premium" }) : null,
-                ])
-              )
-            ),
         // One way into the gift catalogue, not two. This page used to render its
         // own grid of the same 286 gifts below — priced in roubles and wired to
         // the old "переведите и дождитесь подтверждения" flow, so the same rose
@@ -1246,11 +1286,9 @@ async function renderBusiness(root) {
   render();
 }
 
-// Партнёрская программа: та же реферальная ссылка, что на экране Premium
-// (server/routes/partners.js's /me — просто отдаёт то же самое ещё раз, под
-// этим заголовком), плюс прямой чат с администрацией для обсуждения условий
-// сотрудничества — деловой вопрос, который решает человек, а не бот
-// поддержки.
+// Партнёрская программа: условия (server/routes/partners.js's /me) плюс
+// прямой чат с администрацией для обсуждения сотрудничества — деловой
+// вопрос, который решает человек, а не бот поддержки.
 // Заглушка команды — реальные имена/роли впишите сюда, когда решите, что
 // показывать публично; формат {name, role, url?} на строку.
 const ABOUT_TEAM = [{ name: "Shalter", role: "Независимый проект" }];
@@ -1322,10 +1360,6 @@ async function renderPartners(root) {
     }
   }
 
-  function referralLink() {
-    return `${window.location.origin}/login?ref=${info.referralCode}`;
-  }
-
   function render() {
     mount(
       root,
@@ -1333,26 +1367,6 @@ async function renderPartners(root) {
         loadError ? el("p", { class: "login-error" }, loadError) : null,
         info
           ? section("Тарифы", [el("p", { class: "settings-toggle-hint" }, info.tariffText)])
-          : null,
-        info
-          ? section("Ваша реферальная ссылка", [
-              el("div", { class: "referral-code-row" }, [
-                el("span", { class: "mono referral-code-value" }, referralLink()),
-                el("button", {
-                  class: "icon-btn",
-                  title: "Скопировать ссылку",
-                  html: iconSvg("Copy", 16),
-                  onclick: async () => {
-                    try {
-                      await navigator.clipboard.writeText(referralLink());
-                    } catch {
-                      // still visible on screen for manual copying
-                    }
-                  },
-                }),
-              ]),
-              el("p", { class: "settings-toggle-hint" }, `Приглашено: ${info.referrals.length}`),
-            ])
           : null,
         el("button", { class: "btn-accent", disabled: opening, onclick: openChat }, opening ? "Открываем чат…" : "Написать администратору"),
         openError ? el("p", { class: "login-error" }, openError) : null,
@@ -2250,27 +2264,31 @@ async function renderNotifications(root) {
                 diag.ошибка ? el("p", { class: "login-error" }, diag.ошибка) : null,
               ])
             : el("p", { class: "settings-toggle-hint" }, "Проверяем…"),
-          canRequest
-            ? el("button", { class: "btn-accent", onclick: async () => { await requestPushPermission().catch(() => {}); refreshDiag(); } }, "Разрешить уведомления")
-            : null,
-          // Кнопка на случай «разрешение есть, а пуши не идут»: браузер отзывает
-          // подписки молча, и сама она не восстановится.
-          el(
-            "button",
-            {
-              class: "btn-secondary",
-              disabled: checking,
-              onclick: async () => {
-                checking = true;
-                render();
-                const res = await resubscribePush();
-                checking = false;
-                if (!res.ok) diag = { ...(diag ?? {}), ошибка: res.ошибка };
-                refreshDiag();
+          // Кнопки — отдельным рядом с промежутком: голыми соседями они
+          // слипались в одну строку «Разрешить уведомленияПереподключить…».
+          el("div", { class: "settings-notice-actions" }, [
+            canRequest
+              ? el("button", { class: "btn-accent", onclick: async () => { await requestPushPermission().catch(() => {}); refreshDiag(); } }, "Разрешить уведомления")
+              : null,
+            // Кнопка на случай «разрешение есть, а пуши не идут»: браузер отзывает
+            // подписки молча, и сама она не восстановится.
+            el(
+              "button",
+              {
+                class: "btn-secondary",
+                disabled: checking,
+                onclick: async () => {
+                  checking = true;
+                  render();
+                  const res = await resubscribePush();
+                  checking = false;
+                  if (!res.ok) diag = { ...(diag ?? {}), ошибка: res.ошибка };
+                  refreshDiag();
+                },
               },
-            },
-            checking ? "Проверяем…" : "Переподключить уведомления"
-          ),
+              checking ? "Проверяем…" : "Переподключить уведомления"
+            ),
+          ]),
         ]),
       ])
     );
@@ -3016,96 +3034,226 @@ async function renderFolders(root) {
   let editing = null;
   let creating = false;
   let newName = "";
+  let chatFilter = "";
+  let error = null;
+  const MAX_FOLDERS = 10;
 
-  async function createFolder() {
-    if (!newName.trim()) return;
-    const { folder } = await api.createFolder(newName.trim(), []);
-    folders = [...folders, folder];
-    newName = "";
-    creating = false;
-    editing = folder;
-    render();
+  // Каждое изменение — сразу и в общее состояние: вкладки над списком чатов
+  // (views/chatList.js) рисуются оттуда. Раньше папки правились только в копии
+  // этой страницы, и новая папка появлялась над списком лишь с очередным
+  // опросом сервера — через пятнадцать секунд или после перезагрузки.
+  function sync() {
+    setState({ folders });
   }
-  async function toggleChat(folder, chatId) {
+  async function guarded(fn) {
+    error = null;
+    try {
+      await fn();
+    } catch (err) {
+      error = err.message || "Не удалось сохранить";
+      render();
+    }
+  }
+  // Имя чата так, как его видит сам человек: у личного — собеседник, а не
+  // title записи (там имя, переданное создателем, у второй стороны — своё же).
+  const chatName = (c) => (c.type === "dm" ? (c.isSaved ? "Избранное" : c.otherUser?.name ?? c.title) : c.title);
+  const typeLabel = { dm: "личный", bot: "бот", group: "группа", channel: "канал" };
+
+  function createFolder() {
+    const name = newName.trim();
+    if (!name) return;
+    return guarded(async () => {
+      const { folder } = await api.createFolder(name, []);
+      folders = [...folders, folder];
+      newName = "";
+      creating = false;
+      editing = folder;
+      sync();
+      render();
+    });
+  }
+  function toggleChat(folder, chatId) {
     const chatIds = folder.chatIds.includes(chatId) ? folder.chatIds.filter((id) => id !== chatId) : [...folder.chatIds, chatId];
     const updated = { ...folder, chatIds };
     editing = updated;
     folders = folders.map((f) => (f.id === folder.id ? updated : f));
+    sync();
     render();
-    await api.patchFolder(folder.id, { chatIds });
+    return guarded(() => api.patchFolder(folder.id, { chatIds }));
   }
-  async function remove(folder) {
-    folders = folders.filter((f) => f.id !== folder.id);
-    if (editing?.id === folder.id) editing = null;
-    render();
-    await api.deleteFolder(folder.id);
-  }
-  async function shareFolder(folder) {
-    const { folder: updated } = await api.createFolderInviteLink(folder.id);
+  function rename(folder, raw) {
+    const name = raw.trim();
+    if (!name || name === folder.name) return;
+    const updated = { ...folder, name };
     folders = folders.map((f) => (f.id === folder.id ? updated : f));
     if (editing?.id === folder.id) editing = updated;
+    sync();
     render();
+    return guarded(() => api.patchFolder(folder.id, { name }));
   }
-  async function revokeFolderLink(folder) {
-    const { folder: updated } = await api.revokeFolderInviteLink(folder.id);
-    folders = folders.map((f) => (f.id === folder.id ? updated : f));
-    if (editing?.id === folder.id) editing = updated;
+  // Порядок папок = порядок вкладок над списком. Стрелками, а не
+  // перетаскиванием: папок не больше десяти, и на телефоне так проще.
+  function move(folder, delta) {
+    const i = folders.findIndex((f) => f.id === folder.id);
+    const j = i + delta;
+    if (j < 0 || j >= folders.length) return;
+    const next = [...folders];
+    [next[i], next[j]] = [next[j], next[i]];
+    folders = next.map((f, idx) => ({ ...f, order: idx }));
+    sync();
     render();
+    return guarded(() => Promise.all(folders.map((f) => api.patchFolder(f.id, { order: f.order }))));
+  }
+  function remove(folder) {
+    // Подтверждение — удаление не отменить, а папку собирали руками.
+    openCheckboxDialog({
+      title: `Удалить папку «${folder.name}»?`,
+      text: "Сами чаты останутся — пропадёт только папка.",
+      confirmLabel: "Удалить",
+      danger: true,
+      onConfirm: () =>
+        guarded(async () => {
+          folders = folders.filter((f) => f.id !== folder.id);
+          if (editing?.id === folder.id) editing = null;
+          sync();
+          render();
+          await api.deleteFolder(folder.id);
+        }),
+    });
+  }
+  function shareFolder(folder) {
+    return guarded(async () => {
+      const { folder: updated } = await api.createFolderInviteLink(folder.id);
+      folders = folders.map((f) => (f.id === folder.id ? updated : f));
+      if (editing?.id === folder.id) editing = updated;
+      render();
+    });
+  }
+  function revokeFolderLink(folder) {
+    return guarded(async () => {
+      const { folder: updated } = await api.revokeFolderInviteLink(folder.id);
+      folders = folders.map((f) => (f.id === folder.id ? updated : f));
+      if (editing?.id === folder.id) editing = updated;
+      render();
+    });
+  }
+
+  function editorFor(folder) {
+    const q = chatFilter.trim().toLowerCase();
+    // Сначала то, что уже в папке, потом остальное — по алфавиту внутри.
+    const list = chats
+      .filter((c) => !q || chatName(c).toLowerCase().includes(q))
+      .sort((a, b) => Number(folder.chatIds.includes(b.id)) - Number(folder.chatIds.includes(a.id)) || chatName(a).localeCompare(chatName(b), "ru"));
+    const nameInput = el("input", {
+      class: "settings-input",
+      value: folder.name,
+      maxlength: 32,
+      placeholder: "Название папки",
+      onchange: (e) => rename(folder, e.target.value),
+      onkeydown: (e) => e.key === "Enter" && e.target.blur(),
+    });
+    const filterInput = el("input", {
+      class: "settings-input",
+      type: "search",
+      value: chatFilter,
+      placeholder: "Найти чат",
+      oninput: (e) => {
+        chatFilter = e.target.value;
+        render();
+        // Поле пересоздаётся вместе со страницей — возвращаем в него курсор.
+        const again = root.querySelector(".settings-folder-filter");
+        again?.focus();
+        again?.setSelectionRange(chatFilter.length, chatFilter.length);
+      },
+    });
+    filterInput.classList.add("settings-folder-filter");
+    return el("div", { class: "settings-folder-editor" }, [
+      el("p", { class: "settings-field-label" }, "Название"),
+      nameInput,
+      el("p", { class: "settings-field-label" }, `Чаты в папке — ${folder.chatIds.length}`),
+      filterInput,
+      el(
+        "div",
+        { class: "settings-folder-chat-list" },
+        list.length
+          ? list.map((c) =>
+              el("label", { class: "settings-folder-chat-check" }, [
+                el("input", { type: "checkbox", checked: folder.chatIds.includes(c.id), onchange: () => toggleChat(folder, c.id) }),
+                Avatar({ name: chatName(c), color: c.otherUser?.avatarColor ?? c.avatarColor, image: c.otherUser?.avatarImage ?? c.avatarImage, size: 28 }),
+                el("span", { class: "settings-folder-chat-name" }, chatName(c)),
+                el("span", { class: "settings-toggle-hint" }, typeLabel[c.type] ?? ""),
+              ])
+            )
+          : [el("p", { class: "settings-toggle-hint" }, "Ничего не найдено")]
+      ),
+      el("p", { class: "settings-field-label" }, "Поделиться папкой"),
+      el(
+        "p",
+        { class: "settings-toggle-hint" },
+        "В ссылку попадают только публичные чаты и каналы из этой папки — личные и закрытые группы не показываются."
+      ),
+      folder.inviteCode
+        ? el("div", { class: "referral-code-row" }, [
+            el("span", { class: "mono" }, `${window.location.origin}/folder/${folder.inviteCode}`),
+            el("button", {
+              class: "icon-btn",
+              title: "Скопировать",
+              html: iconSvg("Copy", 16),
+              onclick: () => navigator.clipboard.writeText(`${window.location.origin}/folder/${folder.inviteCode}`).catch(() => {}),
+            }),
+            el("button", { class: "icon-btn danger", title: "Отозвать", html: iconSvg("Trash", 16), onclick: () => revokeFolderLink(folder) }),
+          ])
+        : el("button", { class: "btn-accent-pill", onclick: () => shareFolder(folder) }, "Создать ссылку"),
+    ]);
   }
 
   function render() {
+    const full = folders.length >= MAX_FOLDERS;
     mount(
       root,
-      pageWrap("Папки с чатами", "До 10 папок, в каждой — любой набор чатов", [
+      pageWrap("Папки с чатами", `До ${MAX_FOLDERS} папок, в каждой — любой набор чатов. Папки — это вкладки над списком чатов; переключаться между ними можно и клавишами Ctrl+1…9.`, [
+        error ? el("p", { class: "login-error" }, error) : null,
         el(
           "div",
           { class: "settings-folders-list" },
-          folders.map((f) =>
-            el("div", { class: "settings-folder-row" }, [
-              el("button", { class: "settings-folder-name-btn", onclick: () => { editing = editing?.id === f.id ? null : f; render(); } }, [
+          folders.map((f, i) =>
+            el("div", { class: `settings-folder-row${editing?.id === f.id ? " open" : ""}` }, [
+              el("button", { class: "settings-folder-name-btn", onclick: () => { editing = editing?.id === f.id ? null : f; chatFilter = ""; render(); } }, [
+                el("span", { class: "settings-row-icon", html: iconSvg("Folder", 18) }),
                 f.name,
                 el("span", { class: "mono settings-toggle-hint" }, ` · ${f.chatIds.length}`),
               ]),
-              el("button", { class: "icon-btn", html: iconSvg("Trash", 15), onclick: () => remove(f) }),
+              el("button", { class: "icon-btn", title: "Выше", disabled: i === 0, html: iconSvg("ChevronLeft", 15, "rot-up"), onclick: () => move(f, -1) }),
+              el("button", { class: "icon-btn", title: "Ниже", disabled: i === folders.length - 1, html: iconSvg("ChevronLeft", 15, "rot-down"), onclick: () => move(f, 1) }),
+              el("button", { class: "icon-btn", title: "Удалить папку", html: iconSvg("Trash", 15), onclick: () => remove(f) }),
             ])
           )
         ),
+        editing ? editorFor(editing) : null,
         creating
           ? el("div", { class: "settings-folder-create-row" }, [
-              el("input", { class: "settings-input", autofocus: true, value: newName, placeholder: "Название папки", oninput: (e) => (newName = e.target.value) }),
+              el("input", {
+                class: "settings-input",
+                autofocus: true,
+                maxlength: 32,
+                value: newName,
+                placeholder: "Название папки",
+                oninput: (e) => (newName = e.target.value),
+                // Enter создаёт, Escape передумывает — раньше работала только кнопка.
+                onkeydown: (e) => {
+                  if (e.key === "Enter") createFolder();
+                  if (e.key === "Escape") {
+                    creating = false;
+                    newName = "";
+                    render();
+                  }
+                },
+              }),
               el("button", { class: "btn-accent", onclick: createFolder }, "Создать"),
             ])
-          : el("button", { class: "settings-add-account-btn", onclick: () => { creating = true; render(); } }, [el("span", { html: iconSvg("Plus", 15) }), " Новая папка"]),
-        editing
-          ? el("div", { class: "settings-folder-editor" }, [
-              el("p", { class: "settings-field-label" }, `Чаты в папке «${editing.name}»`),
-              ...chats.map((c) =>
-                el("label", { class: "settings-folder-chat-check" }, [
-                  el("input", { type: "checkbox", checked: editing.chatIds.includes(c.id), onchange: () => toggleChat(editing, c.id) }),
-                  c.title,
-                ])
-              ),
-              el("p", { class: "settings-field-label" }, "Поделиться папкой"),
-              el(
-                "p",
-                { class: "settings-toggle-hint" },
-                "В ссылку попадают только публичные чаты и каналы из этой папки — личные и закрытые группы не показываются."
-              ),
-              editing.inviteCode
-                ? el("div", { class: "referral-code-row" }, [
-                    el("span", { class: "mono" }, `${window.location.origin}/folder/${editing.inviteCode}`),
-                    el("button", {
-                      class: "icon-btn",
-                      title: "Скопировать",
-                      html: iconSvg("Copy", 16),
-                      onclick: () =>
-                        navigator.clipboard.writeText(`${window.location.origin}/folder/${editing.inviteCode}`).catch(() => {}),
-                    }),
-                    el("button", { class: "icon-btn danger", title: "Отозвать", html: iconSvg("Trash", 16), onclick: () => revokeFolderLink(editing) }),
-                  ])
-                : el("button", { class: "btn-accent-pill", onclick: () => shareFolder(editing) }, "Создать ссылку"),
-            ])
-          : null,
+          : full
+            ? el("p", { class: "settings-toggle-hint" }, `Папок уже ${MAX_FOLDERS} — чтобы завести новую, удалите одну из них.`)
+            : el("button", { class: "settings-add-account-btn", onclick: () => { creating = true; editing = null; render(); root.querySelector(".settings-folder-create-row input")?.focus(); } }, [el("span", { html: iconSvg("Plus", 15) }), " Новая папка"]),
       ])
     );
   }
@@ -3176,21 +3324,18 @@ async function renderData(root) {
             Toggle(settings.autoDownload, (v) => patch({ autoDownload: v })),
           ]),
         ]),
-        el(
-          "p",
-          { class: "settings-section-title" },
-          usage ? `Использовано места — ${formatBytes(total * DISPLAY_STORAGE_MULTIPLIER)}` : "Использовано места"
-        ),
-        usageError
-          ? el("p", { class: "empty-hint" }, usageError)
-          : !usage
-            ? el("p", { class: "empty-hint" }, "Считаем…")
-            : el(
-                "div",
-                { class: "settings-cache-list" },
-                BUCKETS.map((b) =>
-                  el("div", { class: "settings-cache-row" }, [
-                    el("span", {}, b.label),
+        // Той же карточкой, что и остальные разделы: раньше строки объёма
+        // стояли отдельными рамками вне карточки и выглядели чужими на
+        // странице.
+        section(
+          usage ? `Использовано места — ${formatBytes(total * DISPLAY_STORAGE_MULTIPLIER)}` : "Использовано места",
+          usageError
+            ? [el("p", { class: "empty-hint" }, usageError)]
+            : !usage
+              ? [el("p", { class: "empty-hint" }, "Считаем…")]
+              : BUCKETS.map((b) =>
+                  el("div", { class: "settings-toggle-row" }, [
+                    el("span", { class: "settings-toggle-title" }, b.label),
                     el(
                       "span",
                       { class: "mono settings-toggle-hint" },
@@ -3198,7 +3343,7 @@ async function renderData(root) {
                     ),
                   ])
                 )
-              ),
+        ),
       ])
     );
   }
@@ -3224,10 +3369,18 @@ async function renderShortcuts(root) {
   mount(
     root,
     pageWrap("Горячие клавиши", null, [
-      section("Чат", [shortcutRow("Открыть поиск", [mod, "F"])]),
+      section("Поиск", [
+        shortcutRow("Открыть поиск", [mod, "F"]),
+        shortcutRow("Открыть поиск", [mod, "K"]),
+        shortcutRow("Выбрать результат", ["↑", "↓"]),
+        shortcutRow("Открыть выбранный", ["Enter"]),
+        shortcutRow("Очистить поиск", ["Esc"]),
+      ]),
       section("Навигация", [
         shortcutRow("Следующий чат", ["Alt", "↓"]),
         shortcutRow("Предыдущий чат", ["Alt", "↑"]),
+        shortcutRow("Избранное", [mod, "0"]),
+        shortcutRow("Вкладка или папка по номеру", [mod, "1…9"]),
         shortcutRow("Закрыть чат / окно", ["Esc"]),
       ]),
     ])

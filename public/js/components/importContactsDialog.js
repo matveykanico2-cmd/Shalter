@@ -9,9 +9,8 @@ import { isContactPickerSupported, pickPhoneContacts, readVCardFiles, parsePaste
 // (see views/contacts.js).
 //
 // Two lists come back: people already on Shalter (one tap to add) and people
-// who aren't (one tap to invite). The invite is the existing referral link, so
-// inviting someone is the same action that already earns both sides Premium —
-// no second, parallel invite mechanism.
+// who aren't (one tap to invite). Приглашение — обычная ссылка на вход в
+// Shalter: реферальных кодов («код друга») в приложении больше нет.
 export function openImportContactsDialog(onAdded) {
   let step = "pick"; // "pick" | "loading" | "results"
   let error = null;
@@ -20,7 +19,7 @@ export function openImportContactsDialog(onAdded) {
   let checked = 0;
   let addedIds = new Set();
   let invitedPhones = new Set();
-  let inviteLink = null;
+  const inviteLink = `${window.location.origin}/login`;
   let busyId = null;
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
@@ -36,15 +35,6 @@ export function openImportContactsDialog(onAdded) {
   function close() {
     overlay.remove();
   }
-
-  // The referral link doubles as the invite link: someone who joins through it
-  // gets Premium and so does the person who invited them.
-  api
-    .getPremiumInfo()
-    .then((info) => {
-      if (info?.referralCode) inviteLink = `${window.location.origin}/login?ref=${info.referralCode}`;
-    })
-    .catch(() => {});
 
   const fileInput = el("input", {
     type: "file",

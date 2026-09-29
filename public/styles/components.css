@@ -368,6 +368,27 @@
   font-size: 14px;
   font-weight: 600;
 }
+/* Аватар и имя автора ведут в его профиль (или в канал) — выглядят кнопкой. */
+.story-author-link {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.story-author-name-link {
+  cursor: pointer;
+}
+.story-header-name.story-author-name-link {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+}
+.story-author-name-link:hover {
+  text-decoration: underline;
+}
 .story-header-time {
   margin: 1px 0 0;
   font-size: 11.5px;
@@ -2538,6 +2559,33 @@
   background: var(--color-danger);
   color: #fff;
 }
+/* Второстепенная кнопка рядом с .btn-accent («Отмена», «Закрыть»,
+   «Переподключить уведомления»). Класс раздавался в полудюжине мест, но стиля
+   у него не было вовсе — кнопка выглядела голым текстом, прилипшим к соседней. */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 6px 12px;
+  font-size: 14px;
+  color: var(--color-text);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-surface-alt);
+}
+.btn-secondary:disabled {
+  opacity: 0.6;
+}
+.settings-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
 .composer {
   position: relative; /* точка отсчёта для кружка, висящего над панелью */
   border-top: 1px solid var(--color-border);
@@ -2966,6 +3014,72 @@
   margin: 8px 16px;
   font-size: 13px;
   color: var(--color-danger);
+}
+/* Кнопки записи: запись и касанием, и удержанием (composer.js). Долгое
+   нажатие на телефоне не должно прокручивать страницу, выделять текст и
+   открывать меню «копировать/сохранить» — жест принадлежит кнопке. */
+.composer-record-btn {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+/* Запись удержанием: вместо корзины и паузы — «← Отмена», которая едет за
+   пальцем, над кнопкой отправки — замок «потяните вверх». */
+.composer-rec-slide {
+  display: none;
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.composer-recording-bar.holding {
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.composer-recording-bar.holding .composer-rec-slide {
+  display: inline-block;
+}
+.composer-recording-bar.holding > .composer-icon-btn {
+  display: none;
+}
+.composer-recording-bar.holding .composer-round-send {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+.composer-rec-lock {
+  position: absolute;
+  right: 12px;
+  bottom: calc(100% + 6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 38px;
+  padding: 8px 0 6px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+}
+.composer-rec-lock-arrow {
+  animation: composer-lock-nudge 1.2s ease-in-out infinite;
+}
+@keyframes composer-lock-nudge {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
 }
 
 /* Voice message player */
@@ -5024,12 +5138,7 @@
   font-size: 13px;
   color: var(--color-muted);
 }
-.referral-hint {
-  color: var(--color-accent);
-  font-weight: 500;
-}
-
-/* Premium & referrals */
+/* Premium */
 .premium-status-card {
   display: flex;
   align-items: center;
@@ -5265,22 +5374,93 @@
    .gift-card…) is gone — the shop dialog (.gs-grid / .gs-card, star prices,
    balance in the header, filters) replaced it, and keeping a second grid of the
    same catalogue around meant two different prices for the same rose. */
-.referral-card {
+/* Тарифы Premium — список карточек-«радиокнопок», как на экране покупки
+   Telegram Premium: срок, цена за месяц и скидка против помесячной оплаты. */
+.premium-plans {
+  display: flex;
+  flex-direction: column;
   border-radius: 14px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
-  padding: 16px;
-  margin: 16px 0;
+  overflow: hidden;
 }
-.referral-card-header {
+.premium-plan {
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: var(--color-accent);
-  margin-bottom: 6px;
-}
-.referral-card-header .settings-toggle-title {
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
   color: var(--color-text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.premium-plan + .premium-plan {
+  border-top: 1px solid var(--color-border);
+}
+.premium-plan:hover:not(:disabled) {
+  background: var(--color-surface-alt);
+}
+.premium-plan:disabled {
+  cursor: default;
+}
+.premium-plan-radio {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, border-width 0.15s ease;
+}
+.premium-plan.selected .premium-plan-radio {
+  border: 6px solid var(--color-accent);
+}
+.premium-plan-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.premium-plan-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.premium-plan-badge {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.premium-plan-sub {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.premium-plan-price {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+.premium-plan.selected .premium-plan-price {
+  color: var(--color-text);
+  font-weight: 600;
+}
+.premium-buy-btn {
+  width: 100%;
+  margin-top: 12px;
+}
+.premium-buy-hint {
+  margin-top: 8px;
+  text-align: center;
 }
 .referral-code-row {
   margin-top: 12px;
@@ -11227,6 +11407,13 @@
     width: 100%;
     justify-content: space-between;
   }
+  /* Под названием список стоит слева — и текст в нём тоже слева, а не
+     прижатым вправо «Все ⌄», повисшим посреди строки. */
+  .privacy-row-controls .settings-select {
+    padding-left: 0;
+    text-align: left;
+    text-align-last: left;
+  }
 }
 
 /* Само окно исключений (components/privacyExceptionsDialog.js). */
@@ -13947,3 +14134,580 @@ p.business-status {
 }
 /* Видео-превью истории в ответе — тем же размером, что и картинка. */
 video.story-reply-thumb { object-fit: cover; }
+
+/* ── «⋮» у строки списка чатов (components/chatListItem.js) ────────────────
+   Кнопка лежит поверх правого края строки, а сама строка оставляет под неё
+   место — время и счётчики не прячутся под ней. Видна всегда, но приглушённо:
+   на телефоне наведения нет, а на компьютере именно из-за невидимости меню по
+   правой кнопке никто и не находил. */
+.chat-list-item-wrap.with-more > .chat-list-item {
+  padding-right: 38px;
+}
+.chat-list-item-more {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--color-muted);
+  opacity: 0.55;
+  transform: translateY(-50%);
+  transition: opacity 0.12s, background-color 0.12s;
+}
+.chat-list-item-wrap:hover .chat-list-item-more,
+.chat-list-item-more:focus-visible {
+  opacity: 1;
+}
+.chat-list-item-more:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+.chat-list-item.active + .chat-list-item-more {
+  color: var(--color-accent-contrast);
+  opacity: 0.85;
+}
+.chat-list-item.active + .chat-list-item-more:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--color-accent-contrast);
+}
+/* Строка едет под пальцем — кнопка на месте смотрелась бы оторванной. */
+.chat-list-item-wrap.swiping .chat-list-item-more {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (pointer: coarse) {
+  .chat-list-item-more {
+    width: 36px;
+    height: 36px;
+    right: 10px;
+  }
+}
+
+/* Архив в колонке списка чатов (views/chatList.js, sidebarArchive). */
+.chat-list-archive-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+.chat-list-archive-back {
+  margin-left: -6px;
+  padding: 6px;
+}
+.chat-list-archive-title {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+}
+.chat-list-archive-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+/* Подтверждение с галочкой (components/confirmDialog.js, openCheckboxDialog) —
+   «Удалить чат с X?» + «Также удалить для X». */
+.confirm-check-text {
+  font-size: 14px;
+  line-height: 1.45;
+}
+.confirm-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+.confirm-check-input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--color-accent);
+}
+.confirm-check-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.confirm-check-actions .modal-cancel {
+  width: auto;
+  margin-top: 0;
+  padding: 8px 14px;
+}
+.confirm-check-ok {
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+.confirm-check-ok:hover {
+  background: var(--color-surface-alt);
+}
+.confirm-check-ok.danger {
+  color: var(--color-danger);
+}
+
+/* Профиль (components/profileDialog.js): статус под именем, ряд быстрых
+   действий кружками и карточка сведений строками — как в Telegram. */
+.profile-status.online {
+  color: var(--color-accent);
+}
+.profile-contact-name {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.profile-quick-actions {
+  margin-top: 16px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.profile-quick-action {
+  flex: 1 1 0;
+  max-width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px 8px;
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+  color: var(--color-accent);
+  font-size: 12px;
+}
+.profile-quick-action:hover {
+  filter: brightness(0.96);
+}
+.profile-quick-action-label {
+  color: var(--color-text);
+  white-space: nowrap;
+}
+.profile-info-card {
+  margin-top: 14px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.profile-info-card:empty {
+  display: none;
+}
+.profile-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  padding: 8px 8px;
+  border-radius: 10px;
+  text-align: left;
+  color: var(--color-text);
+}
+.profile-info-row.clickable:hover {
+  background: var(--color-surface-alt);
+}
+.profile-info-row-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-muted);
+}
+.profile-info-row-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.profile-info-row-value {
+  font-size: 14.5px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.profile-info-row-value.accent {
+  color: var(--color-accent);
+}
+.profile-info-row-value.multiline {
+  display: block;
+  white-space: pre-wrap;
+}
+.profile-info-row-label {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.profile-copy-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  z-index: 10000;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(20, 22, 28, 0.88);
+  color: #fff;
+  font-size: 13px;
+  pointer-events: none;
+  max-width: calc(100vw - 32px);
+}
+.profile-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* Прокручиваемый ряд внутри колонки-flex иначе сжимается до нуля по высоте. */
+  flex-shrink: 0;
+  max-width: calc(100% + 32px);
+}
+.profile-tab {
+  flex: 1 0 auto;
+  padding-left: 8px;
+  padding-right: 8px;
+  white-space: nowrap;
+}
+.profile-voice-list,
+.profile-groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+.profile-voice-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 4px;
+}
+.profile-voice-meta {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.profile-voice-player {
+  width: 100%;
+  height: 36px;
+}
+.profile-voice-note {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.profile-group-row {
+  width: 100%;
+  text-align: left;
+}
+
+/* Панель «Информация» (components/infoPanel.js): статус / число участников
+   под названием, сведения собеседника строками и статус каждого участника. */
+.info-panel-subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.info-panel-subtitle.online {
+  color: var(--color-accent);
+}
+.info-panel-body > .profile-info-card {
+  margin: 4px 0 8px;
+}
+.info-panel-member-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.info-panel-member-status {
+  font-size: 12px;
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.info-panel-member-status.online {
+  color: var(--color-accent);
+}
+.info-panel-member-name .info-panel-role-tag {
+  margin-left: 6px;
+}
+.info-panel-avatar-row > .info-panel-title {
+  margin-bottom: 0;
+}
+.info-panel-avatar-row > .info-panel-subtitle {
+  margin-top: -6px;
+}
+
+/* ── Список чатов: фильтр непрочитанных, строка «Архив», поиск, закреп ───── */
+/* Ряд вкладок и кнопка фильтра справа от него. Кнопка не прокручивается
+   вместе с вкладками — она относится ко всему списку, а не к одной папке. */
+.chat-tabs-bar {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.chat-tabs-bar > .chat-tabs-row {
+  flex: 1;
+  min-width: 0;
+}
+.chat-unread-filter {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-right: 8px;
+  border-radius: 999px;
+  color: var(--color-muted);
+}
+.chat-unread-filter:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+.chat-unread-filter.active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+/* Строка «Архив» — того же размера, что строка чата, но со значком в сером
+   круге на месте аватара. */
+.archive-row-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+}
+.unread-badge.muted {
+  background: var(--color-muted);
+  color: var(--color-surface);
+}
+.archive-hint {
+  padding: 0 12px 8px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--color-muted);
+}
+/* Найденное сообщение: аватар чата, название, время и текст с совпадением. */
+.search-message-row {
+  gap: 11px;
+  padding: 7px 18px;
+}
+.search-message-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+.search-hit {
+  border-radius: 3px;
+  background: var(--color-accent-soft);
+  padding: 0 1px;
+  color: var(--color-accent);
+}
+/* Выбор стрелками в результатах поиска — та же подсветка, что под курсором,
+   плюс рамка: иначе с клавиатуры не видно, куда уйдёт Enter. */
+.chat-list-item.kb-selected,
+.search-user-row.kb-selected,
+.search-message-row.kb-selected {
+  background: var(--color-surface-alt);
+  box-shadow: inset 0 0 0 2px var(--color-accent-soft);
+}
+/* Перетаскивание закреплённых: полоска там, куда встанет строка. */
+.pinned-draggable.dragging {
+  opacity: 0.45;
+}
+.pinned-draggable.drop-before {
+  box-shadow: inset 0 2px 0 var(--color-accent);
+}
+.pinned-draggable.drop-after {
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+.story-add-badge {
+  cursor: pointer;
+}
+.story-item {
+  width: 72px;
+}
+/* Лента историй прячется на время поиска (views/chatList.js) — атрибутом
+   hidden, который её собственный display: flex иначе перебивает. */
+.stories-bar[hidden] {
+  display: none;
+}
+/* Остаток знаков под полем «О себе» (Настройки → Изменить профиль). */
+.settings-bio-counter {
+  align-self: flex-end;
+  text-align: right;
+}
+
+/* Настройки → Папки: значок у имени, стрелки порядка, список чатов с
+   аватарами и поиском. */
+.settings-folder-name-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.settings-folder-row.open {
+  border-color: var(--color-accent);
+}
+.settings-folder-row .icon-btn:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.icon.rot-up {
+  transform: rotate(90deg);
+}
+.icon.rot-down {
+  transform: rotate(-90deg);
+}
+.settings-folder-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.settings-folder-chat-list {
+  max-height: 340px;
+  overflow-y: auto;
+}
+.settings-folder-chat-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Звонки: заголовок журнала с фильтром «Все / Пропущенные». */
+.calls-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 12px;
+}
+.calls-filter {
+  display: flex;
+  gap: 6px;
+}
+.call-row-open {
+  display: flex;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+/* ── Переписка: цитата с автором, перетаскивание файлов, листание медиа ──── */
+/* Цитата ответа (messageBubble.js): имя автора цветом акцента, под ним одна
+   строка содержимого — как в Telegram. */
+.reply-preview-name,
+.reply-preview-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reply-preview-name {
+  font-weight: 600;
+  color: var(--color-accent);
+}
+.reply-preview-deleted {
+  font-style: italic;
+  cursor: default;
+}
+/* Файлы, которые несут мышью над перепиской (chatView.js): вся колонка
+   показывает, что их можно отпустить. */
+.chat-main-col.drop-active::after {
+  content: "Отпустите, чтобы отправить";
+  position: absolute;
+  inset: 10px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--color-accent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
+  color: var(--color-accent);
+  font-size: 16px;
+  font-weight: 600;
+  pointer-events: none;
+}
+/* Стрелки просмотрщика (mediaViewer.js) — по краям экрана, поверх затемнения. */
+.media-viewer-nav {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  transform: translateY(-50%);
+}
+.media-viewer-nav:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.24);
+}
+.media-viewer-nav:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+.media-viewer-nav.prev {
+  left: 12px;
+}
+.media-viewer-nav.next {
+  right: 12px;
+}
+.media-viewer-counter {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+}
+@media (max-width: 640px) {
+  .media-viewer-nav {
+    display: none;
+  }
+}
+/* Аватар «Избранного» в списке чатов (components/chatListItem.js). */
+.saved-avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+.saved-avatar .icon {
+  fill: currentColor;
+}
+.chat-list-item.active .saved-avatar {
+  background: var(--color-accent-contrast);
+  color: var(--color-accent);
+}
+/* «Избранное» в шапке открытого чата (chatView.js) — та же закладка, что и в
+   списке, в размере аватара шапки. */
+.chat-header-saved-avatar {
+  width: 38px;
+  height: 38px;
+}
+/* Окно «Переслать» (forwardDialog.js): поиск над списком и «Избранное»
+   закладкой в размере аватара строки. */
+.forward-search {
+  margin-bottom: 6px;
+}
+.forward-saved-avatar {
+  width: 36px;
+  height: 36px;
+}

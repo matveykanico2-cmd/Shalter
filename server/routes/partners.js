@@ -2,16 +2,13 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE } = require("../config");
-const { getUser, findUserByPhone, listReferrals } = require("../data/users");
-const { publicUsers } = require("../data/sanitize");
+const { findUserByPhone } = require("../data/users");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { listMessages } = require("../data/messages");
 
-// Партнёрская программа — та же реферальная ссылка, что уже есть на экране
-// Premium (referralCode; приглашённый и пригласивший получают по 30 дней
-// Premium — см. routes/auth.js), плюс прямой чат с администрацией для
-// отдельных условий сотрудничества (для блогеров/каналов — не то же самое,
-// что обычное «пригласи друга»). Тарифы — не число в базе, а текст ниже:
+// Партнёрская программа — прямой чат с администрацией для отдельных условий
+// сотрудничества (для блогеров/каналов). Реферальную ссылку («код друга»)
+// отсюда убрали вместе с самой фичей. Тарифы — не число в базе, а текст ниже:
 // реальные условия задаёт человек, который держит проект, а не код. Чтобы
 // поменять — редактируется PARTNER_TARIFF_TEXT.
 const PARTNER_TARIFF_TEXT =
@@ -23,11 +20,7 @@ router.use(requireUserId);
 router.get(
   "/me",
   asyncRoute(async (req, res) => {
-    const me = await getUser(req.uid);
-    const referrals = await listReferrals(req.uid);
     res.json({
-      referralCode: me.referralCode,
-      referrals: publicUsers(referrals),
       tariffText: PARTNER_TARIFF_TEXT,
     });
   })

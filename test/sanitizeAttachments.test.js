@@ -27,10 +27,10 @@ test("неизвестный kind отбрасывается", () => {
 
 test("previewUrl/posterUrl с клиента вырезаются, url и name остаются", () => {
   const out = sanitizeAttachments([
-    { kind: "image", url: "/uploads/a.jpg", name: "фото.jpg", previewUrl: "javascript:1", posterUrl: "https://evil" },
+    { kind: "image", url: "/uploads/sha_deadbeefdeadbeef.jpg", name: "фото.jpg", previewUrl: "javascript:1", posterUrl: "https://evil" },
   ]);
   assert.equal(out.length, 1);
-  assert.equal(out[0].url, "/uploads/a.jpg");
+  assert.equal(out[0].url, "/uploads/sha_deadbeefdeadbeef.jpg");
   assert.equal(out[0].name, "фото.jpg");
   assert.equal("previewUrl" in out[0], false);
   assert.equal("posterUrl" in out[0], false);

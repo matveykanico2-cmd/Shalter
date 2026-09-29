@@ -38,15 +38,8 @@ export async function ContactsView(root) {
   // down, rather than a handle you'd have to be told.
   let addMode = "phone";
   let notRegistered = null; // { phone } — found nobody, offer an invite instead
-  let inviteLink = null;
+  const inviteLink = `${window.location.origin}/login`;
   let inviteCopied = false;
-
-  api
-    .getPremiumInfo()
-    .then((info) => {
-      if (info?.referralCode) inviteLink = `${window.location.origin}/login?ref=${info.referralCode}`;
-    })
-    .catch(() => {});
 
   // Filters the list you already have. Separate from the add form below, which
   // searches accounts you don't: mixing the two is how you end up "searching"
@@ -188,8 +181,7 @@ export async function ContactsView(root) {
       );
     }
     // Nobody on that number. Telegram offers an SMS invite here; there's no SMS
-    // gateway in this app, so the invite is the referral link — which is also
-    // worth more to both sides than a plain "join me" would be.
+    // gateway in this app, so the invite is a plain link to the login page.
     if (notRegistered) {
       candidatesEl.append(
         el("p", { class: "empty-hint" }, `На номере ${notRegistered.phone} никого нет в Shalter`),

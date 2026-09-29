@@ -7,7 +7,10 @@ import { navigate } from "../router.js";
 import { getState, setState, updateSelf } from "../state.js";
 import { openReportDialog } from "./reportDialog.js";
 import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard } from "./attachments.js";
-import { statusLabel } from "../lib/presence.js";
+import { statusLabel, plural } from "../lib/presence.js";
+import { placeCall } from "../lib/callController.js";
+import { openForwardDialog } from "./forwardDialog.js";
+import { openProfileQrDialog } from "./profileQrDialog.js";
 import { SAFETY_LABELS, safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openAdminUserPanel } from "./adminUserPanel.js";
 import { openAvatarViewer } from "./avatarViewer.js";
@@ -34,7 +37,81 @@ const TABS = [
   { id: "gifts", label: "Подарки" },
   { id: "files", label: "Файлы" },
   { id: "links", label: "Ссылки" },
+  { id: "voice", label: "Голосовые" },
+  { id: "groups", label: "Группы" },
 ];
+
+// Копирование по нажатию — юзернейм, телефон, ссылка на профиль. Короткая
+// плашка внизу экрана подтверждает, что в буфере именно это.
+export async function copyText(text, note = "Скопировано") {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // Буфер обмена может быть закрыт настройками браузера — тогда хотя бы
+    // покажем, что копировать.
+    prompt("Скопируйте вручную:", text);
+    return;
+  }
+  showToast(note);
+}
+
+function showToast(text) {
+  const toast = el("div", { class: "profile-copy-toast" }, text);
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 1600);
+}
+
+// Кружок быстрого действия под именем.
+function quickAction(icon, label, onClick) {
+  return el("button", { class: "profile-quick-action", onclick: onClick }, [
+    el("span", { class: "profile-quick-action-icon", html: iconSvg(icon, 20) }),
+    el("span", { class: "profile-quick-action-label" }, label),
+  ]);
+}
+
+// Строка карточки сведений. copy — что положить в буфер по нажатию; onClick —
+// своё действие вместо копирования.
+export function infoRow({ icon, value, label, mono, accent, multiline, copy, onClick }) {
+  const clickable = !!(copy || onClick);
+  return el(
+    clickable ? "button" : "div",
+    {
+      class: `profile-info-row${clickable ? " clickable" : ""}`,
+      title: copy ? "Нажмите, чтобы скопировать" : "",
+      onclick: clickable ? () => (onClick ? onClick() : copyText(copy, `${label}: скопировано`)) : null,
+    },
+    [
+      el("span", { class: "profile-info-row-icon", html: iconSvg(icon, 18) }),
+      el("span", { class: "profile-info-row-body" }, [
+        el("span", { class: `profile-info-row-value${mono ? " mono" : ""}${accent ? " accent" : ""}${multiline ? " multiline" : ""}` }, value),
+        el("span", { class: "profile-info-row-label" }, label),
+      ]),
+    ]
+  );
+}
+
+// «17 мая 1995 (31 год)»; в сам день рождения — ещё и поздравительная пометка.
+export function birthdayText(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const date = d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  const now = new Date();
+  let age = now.getFullYear() - d.getUTCFullYear();
+  const beforeBirthday = now.getMonth() < d.getUTCMonth() || (now.getMonth() === d.getUTCMonth() && now.getDate() < d.getUTCDate());
+  if (beforeBirthday) age -= 1;
+  return age >= 0 && age < 150 ? `${date} (${age} ${plural(age, "год", "года", "лет")})` : date;
+}
+
+export function isBirthdayToday(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  return !Number.isNaN(d.getTime()) && d.getUTCMonth() === now.getMonth() && d.getUTCDate() === now.getDate();
+}
+
+function mediaDate(iso) {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
 
 // Full profile view — reachable from Contacts and from a DM's info panel.
 // Unlike the compact InfoPanel (chat-scoped: mute/members/etc.), this is the
@@ -75,12 +152,24 @@ export async function openProfileDialog(userId) {
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
+  // Esc закрывает панель — но не когда поверх неё открыто что-то ещё
+  // (просмотрщик аватаров, окно подарка): тогда Esc принадлежит тому окну.
+  function onKey(e) {
+    if (e.key !== "Escape" || !overlay.isConnected) return;
+    if (overlay.nextElementSibling) return;
+    close();
+  }
   function close() {
+    document.removeEventListener("keydown", onKey);
     overlay.remove();
   }
+  document.addEventListener("keydown", onKey);
 
-  let user, isContact, isBlocked;
-  let sharedMedia = { media: [], files: [], links: [] };
+  let user, inContacts, contactName, isBlocked;
+  let sharedMedia = { chatId: null, media: [], files: [], links: [], voice: [] };
+  let commonGroupsCount = 0;
+  // Список общих групп грузится, когда откроют вкладку «Группы».
+  let commonGroups = null;
   // Истории этого человека. Грузятся отдельным запросом и не задерживают показ
   // профиля: кнопка появляется, когда ответ придёт.
   let storiesGroup = null;
@@ -124,7 +213,9 @@ export async function openProfileDialog(userId) {
         .catch(() => {}), // best-effort — tabs just render empty if this fails
     ]);
     user = res.user;
-    isContact = res.isContact;
+    inContacts = !!res.inContacts;
+    contactName = res.contactName ?? null;
+    commonGroupsCount = res.commonGroupsCount ?? 0;
     pinnedChannels = res.pinnedChannels ?? [];
     isBlocked = !!me.blockedUserIds?.includes(userId);
   } catch (err) {
@@ -214,10 +305,11 @@ export async function openProfileDialog(userId) {
   }
 
   async function toggleContact() {
+    if (inContacts && !confirm(`Удалить ${user.name} из контактов?`)) return;
     try {
-      if (isContact) await api.removeContact(userId);
+      if (inContacts) await api.removeContact(userId);
       else await api.addContact(userId);
-      isContact = !isContact;
+      inContacts = !inContacts;
       render();
     } catch (err) {
       alert(err.message || "Не удалось изменить контакт");
@@ -225,9 +317,70 @@ export async function openProfileDialog(userId) {
   }
 
   async function startChat() {
-    const { chat } = await api.startDm(userId, user.name, user.avatarColor);
-    close();
-    navigate(`/chat/${chat.id}`);
+    try {
+      const { chat } = await api.startDm(userId, user.name, user.avatarColor);
+      close();
+      navigate(`/chat/${chat.id}`);
+    } catch (err) {
+      alert(err.message || "Не удалось открыть чат");
+    }
+  }
+
+  // Звонок прямо из профиля, как в Telegram: личка создаётся (или находится)
+  // тем же запросом, что и у «Написать», дальше — обычный звонок в чат.
+  async function call(kind) {
+    try {
+      const { chat } = await api.startDm(userId, user.name, user.avatarColor);
+      close();
+      await placeCall(chat.id, kind, me);
+    } catch (err) {
+      alert(err.message || "Не удалось позвонить");
+    }
+  }
+
+  // Ссылка на профиль — та же, что зашита в QR-код (app.js, маршрут /u/:username).
+  const profileLink = () => `${location.origin}/u/${user.username}`;
+
+  // «Поделиться контактом» — карточка контакта в выбранный чат. Телефон
+  // уходит, только если он виден нам самим: user уже прошёл через настройки
+  // приватности его владельца (server/routes/users.js).
+  function shareContact() {
+    openForwardDialog(async (chatId) => {
+      try {
+        await api.sendMessage(chatId, "", {
+          attachments: [{ kind: "contact", meta: { userId: user.id, name: user.name, phone: user.phone } }],
+        });
+        showToast("Контакт отправлен");
+      } catch (err) {
+        alert(err.message || "Не удалось отправить контакт");
+      }
+    });
+  }
+
+  async function loadCommonGroups() {
+    try {
+      ({ chats: commonGroups } = await api.getCommonChats(userId));
+    } catch {
+      commonGroups = [];
+    }
+    render();
+  }
+
+  // Вкладки показываются только непустые — как в Telegram, где у профиля без
+  // файлов нет и вкладки «Файлы». Истории остаются всегда: их архив грузится
+  // только при открытии, и заранее не известно, есть ли там что-то.
+  function visibleTabs() {
+    const has = {
+      media: sharedMedia.media.length > 0,
+      // У ботов историй не бывает.
+      stories: !user.isBot,
+      gifts: (user.giftsReceived ?? []).length > 0,
+      files: sharedMedia.files.length > 0,
+      links: sharedMedia.links.length > 0,
+      voice: (sharedMedia.voice ?? []).length > 0,
+      groups: commonGroupsCount > 0,
+    };
+    return TABS.filter((t) => has[t.id]);
   }
 
   function renderTabContent() {
@@ -333,6 +486,56 @@ export async function openProfileDialog(userId) {
       ]);
     }
 
+    if (activeTab === "voice") {
+      const items = sharedMedia.voice ?? [];
+      if (!items.length) return el("p", { class: "profile-empty-tab" }, "Голосовых пока нет");
+      return el(
+        "div",
+        { class: "profile-voice-list" },
+        items.map((v) =>
+          el("div", { class: "profile-voice-row" }, [
+            el("span", { class: "profile-voice-meta" }, [
+              v.attachment.kind === "video-note" ? "Видеосообщение" : "Голосовое",
+              v.attachment.durationSec ? ` · ${Math.round(v.attachment.durationSec)} с` : "",
+              ` · ${mediaDate(v.createdAt)}`,
+            ].join("")),
+            v.attachment.kind === "video-note"
+              ? el("video", { class: "profile-voice-note", src: v.attachment.url, controls: true, preload: "metadata", playsInline: true })
+              : el("audio", { class: "profile-voice-player", src: v.attachment.url, controls: true, preload: "none" }),
+          ])
+        )
+      );
+    }
+    if (activeTab === "groups") {
+      if (commonGroups === null) {
+        loadCommonGroups();
+        return el("div", { class: "qr-login-spinner" });
+      }
+      if (!commonGroups.length) return el("p", { class: "profile-empty-tab" }, "Общих групп нет");
+      return el(
+        "div",
+        { class: "profile-groups-list" },
+        commonGroups.map((g) =>
+          el(
+            "button",
+            {
+              class: "profile-channel-row profile-group-row",
+              onclick: () => {
+                close();
+                navigate(`/chat/${g.id}`);
+              },
+            },
+            [
+              Avatar({ name: g.title, color: g.avatarColor, image: g.avatarImage, size: 38 }),
+              el("div", { class: "profile-channel-body" }, [
+                el("p", { class: "profile-channel-title" }, g.title),
+                el("p", { class: "profile-channel-sub" }, `${g.members} ${plural(g.members, "участник", "участника", "участников")}`),
+              ]),
+            ]
+          )
+        )
+      );
+    }
     if (activeTab === "media") {
       if (!sharedMedia.media.length) return el("p", { class: "profile-empty-tab" }, "Медиа пока нет");
       return el(
@@ -363,6 +566,12 @@ export async function openProfileDialog(userId) {
   function render() {
     clear(body);
     const status = statusLabel(user);
+    // Открытая вкладка могла опустеть (или её не было вовсе) — тогда первая
+    // из тех, что есть.
+    const tabs = visibleTabs();
+    // Истории — последними в очереди: их архив чаще всего закрыт, и начинать
+    // профиль с надписи «Архив историй закрыт» незачем.
+    if (!tabs.some((t) => t.id === activeTab)) activeTab = (tabs.find((t) => t.id !== "stories") ?? tabs[0])?.id ?? "stories";
     const safety = safetyLabelInfo(user.safetyLabel);
     // Plain Element.append() (unlike dom.js's el()/mount()) stringifies null
     // arguments into literal "null" text nodes — filter them out first.
@@ -370,12 +579,15 @@ export async function openProfileDialog(userId) {
       el("div", { class: "profile-avatar-row" }, [
         // Tapping opens it full-size, with any other photos this person has
         // behind it. On your own profile the same viewer manages the list.
+        // Чужой профиль без фото не открывает ничего: пустой просмотрщик с
+        // надписью «Нет фото профиля» — лишний экран, а не информация.
         el(
           "button",
           {
             class: "avatar-open-btn",
-            title: "Открыть фото",
+            title: isSelf || user.avatarImage ? "Открыть фото" : "",
             onclick: () =>
+              (isSelf || user.avatarImage) &&
               openAvatarViewer(user, {
                 canEdit: isSelf,
                 onChange: (updated) => {
@@ -401,6 +613,10 @@ export async function openProfileDialog(userId) {
         ProfileStatusBadge(user, 18),
         safety ? el("span", { class: `safety-badge safety-${user.safetyLabel}`, title: safety.label }, safety.short) : null,
       ]),
+      // Статус — сразу под именем, как в Telegram. Если владелец скрыл время
+      // захода, пишем «был(а) недавно», а не оставляем пустое место.
+      el("p", { class: `profile-status${user.online ? " online" : ""}` }, status ?? "был(а) недавно"),
+      contactName && contactName !== user.name ? el("p", { class: "profile-contact-name" }, `В контактах: ${contactName}`) : null,
       // The warning itself, not just the badge — a three-letter tag next to a
       // name is easy to skim past, and the person who most needs this is the
       // one being actively worked by whoever owns the account.
@@ -411,36 +627,76 @@ export async function openProfileDialog(userId) {
           ])
         : null,
       user.isBanned ? el("p", { class: "safety-banned-note" }, "🚫 Аккаунт заблокирован администрацией Shalter") : null,
-      user.username
-        ? el("div", { class: "profile-info" }, [
-            el("span", { class: "profile-info-label" }, "Юзернейм"),
-            el("p", { class: `profile-username ${user.isCollectibleUsername ? "collectible" : ""}` }, [
-              `@${user.username}`,
-              // Won at auction, not merely registered first — that's the whole
-              // point of a collectible handle, so it has to be visible.
-              user.isCollectibleUsername
-                ? el("span", { class: "collectible-badge", title: "Коллекционный юзернейм — выигран на аукционе" }, "💎")
-                : null,
-            ].filter(Boolean)),
-          ])
-        : null,
-      status ? el("p", { class: "profile-status" }, status) : null,
-      user.bio
-        ? el("div", { class: "profile-info" }, [
-            el("span", { class: "profile-info-label" }, "О себе"),
-            el("p", { class: "profile-bio" }, user.bio),
-          ])
-        : null,
+      user.isBanned ? el("p", { class: "safety-banned-note" }, "🚫 Аккаунт заблокирован администрацией Shalter") : null,
+      // Быстрые действия кружками — «Написать / Звонок / Видео / Поделиться»,
+      // как ряд кнопок под именем в Telegram. Своему профилю звонить некуда,
+      // а «Написать» там открывает «Избранное».
+      el(
+        "div",
+        { class: "profile-quick-actions" },
+        [
+          quickAction(isSelf ? "Bookmark" : "MessageSquare", isSelf ? "Избранное" : "Написать", startChat),
+          !isSelf && !user.isBot && !isBlocked ? quickAction("Phone", "Звонок", () => call("audio")) : null,
+          !isSelf && !user.isBot && !isBlocked ? quickAction("Video", "Видео", () => call("video")) : null,
+          user.username ? quickAction("Copy", "Ссылка", () => copyText(profileLink(), "Ссылка на профиль скопирована")) : null,
+          isSelf && user.username ? quickAction("Qrcode", "QR-код", () => openProfileQrDialog(user)) : null,
+          isSelf
+            ? quickAction("Edit", "Изменить", () => {
+                close();
+                navigate("/settings/profile");
+              })
+            : null,
+        ].filter(Boolean)
+      ),
+      // Карточка сведений: каждая строка слева направо — значение крупно,
+      // подпись мелко под ним. Телефон, юзернейм и ссылка копируются нажатием.
+      el(
+        "div",
+        { class: "profile-info-card" },
+        [
+          user.phone ? infoRow({ icon: "Phone", value: user.phone, label: "Телефон", mono: true, copy: user.phone }) : null,
+          user.username
+            ? infoRow({
+                icon: "At",
+                value: [
+                  `@${user.username}`,
+                  // Won at auction, not merely registered first — that's the whole
+                  // point of a collectible handle, so it has to be visible.
+                  user.isCollectibleUsername
+                    ? el("span", { class: "collectible-badge", title: "Коллекционный юзернейм — выигран на аукционе" }, "💎")
+                    : null,
+                ].filter(Boolean),
+                label: "Юзернейм",
+                accent: true,
+                copy: `@${user.username}`,
+              })
+            : null,
+          user.bio ? infoRow({ icon: "Info", value: user.bio, label: user.isBot ? "Описание" : "О себе", multiline: true }) : null,
+          user.birthday
+            ? infoRow({
+                icon: "Gift",
+                value: isBirthdayToday(user.birthday) ? `🎉 Сегодня день рождения · ${birthdayText(user.birthday)}` : birthdayText(user.birthday),
+                label: "День рождения",
+              })
+            : null,
+          commonGroupsCount > 0
+            ? infoRow({
+                icon: "Users",
+                value: `${commonGroupsCount} ${plural(commonGroupsCount, "общая группа", "общие группы", "общих групп")}`,
+                label: "Общие группы",
+                onClick: () => {
+                  activeTab = "groups";
+                  render();
+                  body.querySelector(".profile-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                },
+              })
+            : null,
+        ].filter(Boolean)
+      ),
       user.profileTrack
         ? el("div", { class: "profile-track-row" }, [
             el("span", { class: "profile-track-icon", html: iconSvg("Volume", 15) }),
             el("audio", { class: "profile-track-player", controls: true, preload: "none", src: user.profileTrack.url }),
-          ])
-        : null,
-      user.phone
-        ? el("div", { class: "profile-info" }, [
-            el("span", { class: "profile-info-label" }, "Телефон"),
-            el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("Phone", 15) }), el("span", { class: "mono" }, user.phone)]),
           ])
         : null,
       // Shalter для бизнеса — publicUser() отдаёт это поле как есть, только
@@ -486,16 +742,6 @@ export async function openProfileDialog(userId) {
               : null,
           ])
         : null,
-      user.birthday
-        ? el("div", { class: "profile-info" }, [
-            el("span", { class: "profile-info-label" }, "Дата рождения"),
-            el("div", { class: "profile-field-row" }, [
-              el("span", {}, "🎂"),
-              el("span", {}, new Date(user.birthday).toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" })),
-            ]),
-          ])
-        : null,
-      isContact ? el("p", { class: "profile-contact-tag" }, "В ваших контактах") : null,
       // Ad cabinet (Settings → Реклама, server/routes/ads.js) — an active
       // subscriber's one promotional text/link, shown here rather than in
       // the chat itself since a profile view is a deliberate "look someone
@@ -514,42 +760,44 @@ export async function openProfileDialog(userId) {
             user.adUrl ? el("a", { class: "profile-ad-link", href: user.adUrl, target: "_blank", rel: "noreferrer" }, "Перейти →") : null,
           ])
         : null,
-      el("div", { class: "profile-actions" }, [
-        el("button", { class: "btn-accent", onclick: startChat }, [el("span", { html: iconSvg("Send", 16) }), " Написать"]),
-        !isSelf
-          ? el(
-              "button",
-              { class: `profile-action-btn ${isContact ? "danger" : ""}`, onclick: toggleContact },
-              [el("span", { html: iconSvg(isContact ? "Trash" : "Plus", 15) }), isContact ? " Удалить из контактов" : " Добавить в контакты"]
-            )
-          : null,
-        // Подарок отправляют из профиля того, кому дарят, — там же, где на него
-        // и смотрят. Раньше до магазина надо было идти через меню чата, зная,
-        // что он там есть.
-        !isSelf
-          ? el(
-              "button",
-              { class: "profile-action-btn", onclick: () => openGiftShopDialog({ recipient: { id: user.id, name: user.name } }) },
-              [el("span", { html: iconSvg("Gift", 15) }), " Отправить подарок"]
-            )
-          : null,
-        // Себя не блокируют и на себя не жалуются — эти кнопки только у чужого
-        // профиля (сервер тоже запрещает блокировать себя).
-        !isSelf
-          ? el(
-              "button",
-              { class: `profile-action-btn ${isBlocked ? "danger" : ""}`, onclick: toggleBlock },
-              isBlocked ? "Разблокировать" : "Заблокировать"
-            )
-          : null,
-        !isSelf
-          ? el(
-              "button",
-              { class: "profile-action-btn danger", onclick: () => openReportDialog("user", userId, user.name) },
-              "Пожаловаться"
-            )
-          : null,
-      ]),
+      // Остальное — списком строк, как «Ещё» в Telegram: контакт, подарок,
+      // поделиться, блокировка, жалоба. Себя не блокируют и на себя не
+      // жалуются (сервер тоже запрещает блокировать себя).
+      !isSelf
+        ? el(
+            "div",
+            { class: "profile-actions" },
+            [
+              !user.isBot
+                ? el(
+                    "button",
+                    { class: "profile-action-btn", onclick: toggleContact },
+                    [el("span", { html: iconSvg(inContacts ? "Trash" : "Plus", 15) }), inContacts ? " Удалить из контактов" : " Добавить в контакты"]
+                  )
+                : null,
+              // Подарок отправляют из профиля того, кому дарят, — там же, где на
+              // него и смотрят.
+              !user.isBot
+                ? el(
+                    "button",
+                    { class: "profile-action-btn", onclick: () => openGiftShopDialog({ recipient: { id: user.id, name: user.name } }) },
+                    [el("span", { html: iconSvg("Gift", 15) }), " Отправить подарок"]
+                  )
+                : null,
+              el("button", { class: "profile-action-btn", onclick: shareContact }, [el("span", { html: iconSvg("Forward", 15) }), " Поделиться контактом"]),
+              el(
+                "button",
+                { class: "profile-action-btn danger", onclick: toggleBlock },
+                [el("span", { html: iconSvg("Lock", 15) }), isBlocked ? " Разблокировать" : " Заблокировать"]
+              ),
+              el(
+                "button",
+                { class: "profile-action-btn danger", onclick: () => openReportDialog("user", userId, user.name) },
+                [el("span", { html: iconSvg("Info", 15) }), " Пожаловаться"]
+              ),
+            ].filter(Boolean)
+          )
+        : null,
       // Каналы человека. Показываются всем, кто открыл профиль, — в этом и
       // смысл: «вот что я веду, подпишись». Свой профиль вдобавок показывает
       // кнопку изменения — и её же, отдельной строкой-приглашением, когда
@@ -572,7 +820,7 @@ export async function openProfileDialog(userId) {
                     Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage, size: 38 }),
                     el("div", { class: "profile-channel-body" }, [
                       el("p", { class: "profile-channel-title" }, [c.title, c.isVerified ? VerifiedBadge(13) : null]),
-                      el("p", { class: "profile-channel-sub" }, c.username ? `@${c.username}` : `${c.members} подписчиков`),
+                      el("p", { class: "profile-channel-sub" }, c.username ? `@${c.username}` : `${c.members} ${plural(c.members, "подписчик", "подписчика", "подписчиков")}`),
                     ]),
                     // Подписчику — «Открыть», остальным — «Подписаться».
                     // Просто вести всех на /chat/:id нельзя: этот адрес требует
@@ -661,10 +909,11 @@ export async function openProfileDialog(userId) {
             ]),
           ])
         : null,
-      el(
+      tabs.length
+        ? el(
         "div",
         { class: "profile-tabs" },
-        TABS.map((t) =>
+        tabs.map((t) =>
           el(
             "button",
             {
@@ -677,8 +926,9 @@ export async function openProfileDialog(userId) {
             t.label
           )
         )
-      ),
-      el("div", { class: "profile-tab-content" }, [renderTabContent()]),
+      )
+        : null,
+      tabs.length ? el("div", { class: "profile-tab-content" }, [renderTabContent()]) : null,
     ];
     body.append(...children.filter(Boolean));
   }

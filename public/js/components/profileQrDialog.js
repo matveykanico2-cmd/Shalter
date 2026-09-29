@@ -52,9 +52,15 @@ export function openProfileQrDialog(user) {
   ]);
   overlay.appendChild(dialog);
 
+  // Esc закрывает, как и любое другое окно поверх приложения.
+  function onKey(e) {
+    if (e.key === "Escape") close();
+  }
   function close() {
+    document.removeEventListener("keydown", onKey);
     overlay.remove();
   }
+  document.addEventListener("keydown", onKey);
 
   document.body.appendChild(overlay);
 }

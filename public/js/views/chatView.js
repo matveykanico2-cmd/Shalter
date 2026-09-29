@@ -1,4 +1,5 @@
 import { el, mount, clear, appendAll } from "../lib/dom.js";
+import { plural } from "../lib/presence.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
 import { openDropdownMenu } from "../components/dropdownMenu.js";
@@ -7,6 +8,7 @@ import { Composer } from "../components/composer.js";
 import { InfoPanel } from "../components/infoPanel.js";
 import { openForwardDialog } from "../components/forwardDialog.js";
 import { openChoiceDialog } from "../components/confirmDialog.js";
+import { openDeleteChatDialog } from "../components/deleteChatDialog.js";
 import { openChatCalendarDialog } from "../components/chatCalendarDialog.js";
 import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
 import { api } from "../api.js";
@@ -15,6 +17,7 @@ import { isChatAdmin, isChatModerator } from "../lib/chatRoles.js";
 import { messagePreview } from "../lib/messagePreview.js";
 import { noteMessageInChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache } from "../lib/localCache.js";
+import { cachedUser, fetchUsers, rememberUser } from "../lib/userLookup.js";
 import { navigate } from "../router.js";
 import { placeCall as placeCallController, joinVoiceRoom } from "../lib/callController.js";
 import { onWsMessage } from "../lib/wsClient.js";
@@ -87,6 +90,13 @@ export async function ChatView(root, chatId) {
   let paidMessages = null;
   let searchQuery = "";
   let searchResults = null;
+  // Сообщения, на которые отвечают, но которые лежат за пределами загруженных
+  // страниц: сервер присылает их краткую копию (routes/messages.js's
+  // replyTargetsFor), чтобы у ответа была цитата.
+  const replyTargets = new Map();
+  const rememberReplyTargets = (res) => {
+    for (const [id, t] of Object.entries(res?.replyTargets ?? {})) replyTargets.set(id, t);
+  };
   // Открывали этот чат раньше — показываем сразу, не дожидаясь сервера.
   //
   // Переписка уже лежит на устройстве с прошлого раза (lib/localCache.js), и
@@ -95,12 +105,16 @@ export async function ChatView(root, chatId) {
   // связи — там между нажатием и первым словом проходила почти секунда.
   const cached = readCache(`chat.${chatId}`, me.id);
   let openedFromCache = false;
+  // Ждём ли ещё от сервера, с какого сообщения начинается непрочитанное (см.
+  // doRefreshMessages) — только когда чат открыт из сохранённого.
+  let awaitingUnreadMark = false;
   if (cached?.chat && cached.messages?.length) {
     chat = cached.chat;
     members = cached.members ?? [];
     messages = cached.messages;
     hasMoreHistory = false;
     openedFromCache = true;
+    awaitingUnreadMark = true;
   }
 
   try {
@@ -115,6 +129,7 @@ export async function ChatView(root, chatId) {
     paidMessages = chatRes.paidMessages ?? null;
     messages = first.messages;
     hasMoreHistory = !!first.hasMore;
+    rememberReplyTargets(first);
     // Only from this first load: every later refetch reports null, because by
     // then the chat has been marked read. Keeping the original is what lets the
     // divider stay put while you read instead of vanishing on the next poll.
@@ -159,7 +174,15 @@ export async function ChatView(root, chatId) {
   let gifts = [];
 
   const isDm = chat.type === "dm";
-  const other = chat.otherUser;
+  // «Избранное» — переписка с самим собой. Звонить некому, «в сети» про себя
+  // бессмысленно, а вместо своей же буквы в круге — закладка, как в списке
+  // чатов (chatListItem.js) и в Telegram.
+  const isSaved = !!chat.isSaved || (isDm && chat.memberIds?.length === 1 && chat.memberIds[0] === me.id);
+  // let, а не const: при открытии из кэша свежий чат приезжает следом, и
+  // собеседника надо заменить на свежего (см. openedFromCache ниже). Если
+  // сервер не приложил otherUser, берём второго участника из members — иначе
+  // в шапке личного чата вместо фото оставались буквы.
+  let other = chat.otherUser ?? (isDm ? members.find((u) => u.id !== me.id) : null) ?? null;
 
   // "Am I the Shalter admin?" is asked for every chat type now, because a
   // channel or group can be verified from its info panel too — it used to be
@@ -190,6 +213,12 @@ export async function ChatView(root, chatId) {
     for (let page = 0; page < 20; page++) {
       const node = document.getElementById(`msg-${id}`);
       if (node) {
+        // Уходим от низа сами — догружающиеся внизу картинки не должны
+        // возвращать ленту обратно (см. keepAtBottom). Плавная прокрутка
+        // первые кадры ещё «внизу», поэтому на время перехода прилипание
+        // выключено совсем.
+        stuckToBottom = false;
+        noStickUntil = Date.now() + 1500;
         node.scrollIntoView({ behavior: "smooth", block: "center" });
         // A brief highlight, or landing in the middle of a wall of text leaves
         // you hunting for which message you were sent to.
@@ -243,6 +272,7 @@ export async function ChatView(root, chatId) {
   async function doRefreshMessages(seq) {
     const res = await api.listMessages(chat.id, { limit: PAGE_SIZE });
     if (seq !== msgSeq) return; // пока ответ ехал, ушёл более новый запрос
+    rememberReplyTargets(res);
     const fresh = res.messages;
     if (!fresh.length) {
       messages = [];
@@ -264,6 +294,18 @@ export async function ChatView(root, chatId) {
     messages = merged;
     messagesCount = messages.length;
     if (!older.length) hasMoreHistory = !!res.hasMore;
+    // Чат открыли из сохранённого: первый ответ сервера — первый, в котором
+    // известно, где кончилось прочитанное (следующие придут уже с null, чат к
+    // тому времени отмечен прочитанным). Без этого разделитель «Непрочитанные»
+    // при открытии из кэша не появлялся никогда.
+    let landOnUnread = false;
+    if (awaitingUnreadMark) {
+      awaitingUnreadMark = false;
+      if (res.firstUnreadId && fresh.some((m) => m.id === res.firstUnreadId)) {
+        firstUnreadId = res.firstUnreadId;
+        landOnUnread = atBottom();
+      }
+    }
     // Замеряем ДО перерисовки: renderList() пересобирает ленту целиком, и после
     // неё положение прокрутки уже не то, в котором человек читал. Именно из-за
     // этого счётчик новых сообщений всегда оставался пустым — проверка «мы
@@ -271,7 +313,9 @@ export async function ChatView(root, chatId) {
     const wasAtBottom = atBottom();
     const prevTop = list.scrollTop;
     renderList();
-    if (grew && wasAtBottom) {
+    if (landOnUnread && scrollToUnreadDivider()) {
+      /* уже на месте — у разделителя */
+    } else if (grew && wasAtBottom) {
       list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
     } else {
       // Читающего старое не дёргаем: возвращаем ленту туда, где он был, а о
@@ -295,13 +339,23 @@ export async function ChatView(root, chatId) {
         x.editedAt !== y.editedAt ||
         x.pinned !== y.pinned ||
         x.views !== y.views ||
-        x.reactions?.length !== y.reactions?.length ||
-        x.readByIds?.length !== y.readByIds?.length
+        x.commentCount !== y.commentCount ||
+        x.boostedUntil !== y.boostedUntil ||
+        x.readByIds?.length !== y.readByIds?.length ||
+        contentKey(x) !== contentKey(y)
       ) {
         return false;
       }
     }
     return true;
+  }
+  // Реакции, вложения и превью ссылки — по содержимому, а не по длине: голос в
+  // опросе, чужая реакция на уже стоящий смайлик, подъехавший эскиз фото и
+  // живая геолокация меняют сообщение, не меняя числа элементов. Раньше такие
+  // изменения до перезахода в чат не показывались вовсе — у второго участника
+  // опрос так и висел с «0 голосов».
+  function contentKey(m) {
+    return JSON.stringify([m.reactions ?? null, m.attachments ?? null, m.linkPreview ?? null]);
   }
 
   // Older history, fetched when the user reaches the top. The scroll position is
@@ -314,11 +368,13 @@ export async function ChatView(root, chatId) {
     const anchorTop = list.scrollTop;
     try {
       const res = await api.listMessages(chat.id, { limit: PAGE_SIZE, before: messages[0].createdAt });
+      rememberReplyTargets(res);
       if (res.messages.length) {
         messages = [...res.messages, ...messages];
         messagesCount = messages.length;
         renderList();
         list.scrollTop = anchorTop + (list.scrollHeight - anchorHeight);
+        stuckToBottom = atBottom();
       }
       hasMoreHistory = !!res.hasMore;
     } catch {
@@ -443,10 +499,17 @@ export async function ChatView(root, chatId) {
   }
 
   async function handleForward(message, targetChatId) {
-    const sender = members.find((u) => u.id === message.senderId);
+    const sender = senderOf(message.senderId);
     const title = isDm ? (other?.name ?? chat.title) : chat.title;
     await api.sendMessage(targetChatId, message.text, {
-      attachments: message.attachments,
+      // Опрос уезжает чистым: чужие голоса из этого чата к новому отношения не
+      // имеют. Стикер и кастом-эмодзи — вместе с сообщением: без них
+      // пересылка стикера была «пустым сообщением» и молча не проходила.
+      attachments: (message.attachments ?? []).map((a) =>
+        a.kind === "poll" ? { ...a, meta: { ...a.meta, voterIds: [], votes: [] } } : a
+      ),
+      ...(message.sticker ? { sticker: message.sticker } : {}),
+      ...(message.customEmoji ? { customEmoji: message.customEmoji } : {}),
       forwardedFrom: { chatId: chat.id, chatTitle: title, senderId: message.senderId, senderName: sender?.name ?? "Аноним" },
     });
   }
@@ -606,54 +669,40 @@ export async function ChatView(root, chatId) {
     });
   }
 
-  // Leaving and deleting are different actions with different consequences, and
-  // this offered only one of them: a group or channel *always* took the leave
-  // path, so its owner could not delete it from here at all — and the confirm
-  // said "покинуть группу" even in a channel.
-  async function handleLeaveOrDelete() {
+  // Удаление и выход — один диалог на всё приложение (components/
+  // deleteChatDialog.js): «Удалить чат с X?» и галочка «Также удалить для X»
+  // (в группе/канале у админа — «для всех участников»), у рядового участника
+  // вместо неё — «Покинуть». Раньше отсюда личка удалялась голым confirm() и
+  // сразу у обоих, без варианта «только у меня».
+  function handleLeaveOrDelete() {
     const isGroupLike = chat.type === "group" || chat.type === "channel";
-    if (!isGroupLike) {
-      if (!confirm("Удалить этот чат?")) return;
-      await api.deleteChat(chat.id);
-      navigate("/");
-      return;
-    }
-
-    const what = chat.type === "channel" ? "канал" : "группу";
-    const leaveLabel = chat.type === "channel" ? "Отписаться от канала" : "Выйти из группы";
-    const options = [
-      {
-        label: leaveLabel,
-        danger: true,
-        onClick: async () => {
-          await api.leaveChat(chat.id);
+    const dropFromList = () => setState({ chats: (getState().chats ?? []).filter((c) => c.id !== chat.id) });
+    openDeleteChatDialog(chat, me.id, {
+      // Модератор сервера удаляет чужую группу или канал за нарушение правил —
+      // та же планка, что у сервера (routes/chats.js, DELETE).
+      moderator: isGroupLike && !isChatAdmin(chat, me.id) && isServerModerator(),
+      onDelete: async (forEveryone) => {
+        try {
+          if (forEveryone) await api.deleteChat(chat.id);
+          else await api.deleteChatForMe(chat.id);
+          dropFromList();
           navigate("/");
-        },
+        } catch (err) {
+          alert(err.message || "Не удалось удалить");
+        }
       },
-    ];
-    // Only the people who run it can end it for everyone — the same bar the
-    // server enforces (routes/chats.js's DELETE). И модератор сервера — чужую
-    // группу или канал за нарушение правил; владельцу придёт уведомление.
-    const byModerator = !isChatAdmin(chat, me.id) && isServerModerator();
-    if (isChatAdmin(chat, me.id) || byModerator) {
-      options.push({
-        label: byModerator ? `Удалить ${what} (модерация)` : `Удалить ${what} для всех`,
-        danger: true,
-        onClick: async () => {
-          const question = byModerator
-            ? `Удалить чужой ${what === "канал" ? "канал" : "группу"} «${chat.title ?? chat.name}» за нарушение правил? Все сообщения и файлы пропадут у всех, владельцу придёт уведомление. Это необратимо.`
-            : `Удалить ${what} у всех участников? Это необратимо.`;
-          if (!confirm(question)) return;
-          try {
-            await api.deleteChat(chat.id);
-            navigate("/");
-          } catch (err) {
-            alert(err.message || "Не удалось удалить");
+      onLeave: isGroupLike
+        ? async () => {
+            try {
+              await api.leaveChat(chat.id);
+              dropFromList();
+              navigate("/");
+            } catch (err) {
+              alert(err.message || "Не удалось выйти из чата");
+            }
           }
-        },
-      });
-    }
-    openChoiceDialog(chat.type === "channel" ? "Канал" : "Группа", options);
+        : null,
+    });
   }
 
   // В группе кнопки звонка — быстрый звонок: вызываются сразу все участники,
@@ -672,7 +721,7 @@ export async function ChatView(root, chatId) {
   // Раньше здесь стояла константа, посчитанная один раз при открытии, и шапка
   // продолжала показывать старое имя даже после того, как список чатов слева
   // показывал новое.
-  const chatTitle = () => (isDm ? (other?.name ?? chat.title) : chat.title);
+  const chatTitle = () => (isSaved ? "Избранное" : isDm ? (other?.name ?? chat.title) : chat.title);
 
   // Selecting several messages at once — forward a conversation, delete a run of
   // messages, copy a few lines. Every action here already existed for a single
@@ -765,7 +814,7 @@ export async function ChatView(root, chatId) {
               },
             },
             [
-              el("span", { class: "chat-search-hit-who" }, members.find((u) => u.id === m.senderId)?.name ?? ""),
+              el("span", { class: "chat-search-hit-who" }, senderOf(m.senderId)?.name ?? ""),
               el("span", { class: "chat-search-hit-text" }, m.text),
             ]
           )
@@ -802,7 +851,7 @@ export async function ChatView(root, chatId) {
             // messages is almost always going somewhere it has to read as a
             // conversation.
             const text = picked
-              .map((m) => `${members.find((u) => u.id === m.senderId)?.name ?? ""}: ${messagePreview(m)}`.trim())
+              .map((m) => `${senderOf(m.senderId)?.name ?? ""}: ${messagePreview(m)}`.trim())
               .join("\n");
             try {
               await navigator.clipboard.writeText(text);
@@ -820,10 +869,13 @@ export async function ChatView(root, chatId) {
             // Same dialog as a single forward — it hands back a destination,
             // and the whole selection is sent there oldest-first so it arrives
             // in the order it was written.
-            openForwardDialog(async (targetChatId) => {
-              for (const m of picked) await handleForward(m, targetChatId);
-              clearSelection();
-            });
+            openForwardDialog(
+              async (targetChatId) => {
+                clearSelection();
+                for (const m of picked) await handleForward(m, targetChatId);
+              },
+              { count: picked.length }
+            );
           },
         }),
         el("button", {
@@ -1055,6 +1107,7 @@ export async function ChatView(root, chatId) {
         const typist = members.find((m) => m.id === typingUserId);
         if (typist) return `${typist.name} ${label}…`;
       }
+      if (isSaved) return "";
       if (chat.type === "bot") return "бот";
       // У бота нет присутствия: программа не «заходила» и не «была недавно».
       // Поэтому вместо статуса — сколько людей им пользуется; число приходит
@@ -1063,8 +1116,9 @@ export async function ChatView(root, chatId) {
         return botAudience == null ? "бот" : `${botAudience} ${pluralUsers(botAudience)}`;
       }
       if (isDm && other) return lastSeenLabel(other);
-      if (chat.type === "group") return `${members.length} участников`;
-      if (chat.type === "channel") return `${members.length} подписчиков`;
+      // «1 участник», «3 участника», «5 участников» — а не «1 подписчиков».
+      if (chat.type === "group") return `${members.length} ${plural(members.length, "участник", "участника", "участников")}`;
+      if (chat.type === "channel") return `${members.length} ${plural(members.length, "подписчик", "подписчика", "подписчиков")}`;
       return "";
     })();
 
@@ -1076,10 +1130,14 @@ export async function ChatView(root, chatId) {
           "button",
           { class: "chat-header-info-btn", onclick: () => setInfoOpen(true) },
           [
-            Avatar({
+            isSaved
+              ? el("span", { class: "saved-avatar chat-header-saved-avatar", html: iconSvg("Bookmark", 20) })
+              : Avatar({
               name: other?.name ?? chatTitle(),
-              color: (isDm ? other?.avatarColor : null) ?? chat.avatarColor,
-              image: isDm ? other?.avatarImage : chat.avatarImage,
+              // По other, а не по isDm: у чата с ботом старого типа "bot"
+              // собеседник тоже есть, а своей картинки у такого чата нет.
+              color: other?.avatarColor ?? chat.avatarColor,
+              image: other ? other.avatarImage : chat.avatarImage,
               size: 38,
               online: isDm ? other?.online : undefined,
               isPremium: isDm && other?.isPremium,
@@ -1089,6 +1147,7 @@ export async function ChatView(root, chatId) {
             el("div", { class: "chat-header-titles" }, [
               el("p", { class: "chat-header-title" }, [
                 chatTitle(),
+                ...(isSaved ? [] : [
                 // Галочка была всюду, кроме этого места: в списке чатов, в
                 // профиле, в панели информации и в поиске — а в шапке самого
                 // разговора нет. Именно здесь она и нужна больше всего: видно,
@@ -1112,6 +1171,7 @@ export async function ChatView(root, chatId) {
                       safetyLabelInfo(other.safetyLabel).short
                     )
                   : null,
+                ]),
               ]),
               el("p", { class: `chat-header-subtitle${typingUserId ? " is-typing" : ""}` }, subtitle),
             ]),
@@ -1154,7 +1214,7 @@ export async function ChatView(root, chatId) {
               el("span", { class: "chat-header-live-label" }, `Голосовой чат · ${voiceRoom.participantIds.length}`),
             ])
           : null,
-        isDm || chat.type === "group"
+        (isDm && !isSaved) || chat.type === "group"
           ? el("button", {
               class: "icon-btn",
               title: isDm ? "Позвонить" : "Позвонить всем в группе",
@@ -1162,7 +1222,7 @@ export async function ChatView(root, chatId) {
               onclick: () => placeCall("audio"),
             })
           : null,
-        isDm || chat.type === "group"
+        (isDm && !isSaved) || chat.type === "group"
           ? el("button", {
               class: "icon-btn",
               title: isDm ? "Видеозвонок" : "Видеозвонок всем в группе",
@@ -1172,6 +1232,7 @@ export async function ChatView(root, chatId) {
           : null,
         el("button", {
           class: "icon-btn",
+          title: "Ещё",
           html: iconSvg("More", 18),
           onclick: (e) =>
             openDropdownMenu({ x: e.clientX, y: e.clientY }, [
@@ -1201,6 +1262,22 @@ export async function ChatView(root, chatId) {
               { icon: "Image", label: "Фон чата", onClick: handleChooseWallpaper },
               { icon: "Clock", label: "Запланированные сообщения", onClick: () => openScheduledMessagesDialog(chat.id) },
               { icon: "Trash", label: "Очистить историю", onClick: handleClearHistory },
+              {
+                // Из самой переписки тоже: открытый из архива чат иначе было
+                // не вернуть в общий список, не выходя из него.
+                icon: "Archive",
+                label: chat.archived ? "Вернуть из архива" : "Архивировать",
+                onClick: async () => {
+                  const archived = !chat.archived;
+                  chat = { ...chat, archived };
+                  setState({ chats: (getState().chats ?? []).map((c) => (c.id === chat.id ? { ...c, archived } : c)) });
+                  try {
+                    await api.patchChat(chat.id, { archived });
+                  } catch (err) {
+                    alert(err.message || "Не удалось изменить чат");
+                  }
+                },
+              },
               {
                 icon: "X",
                 label: chat.type === "channel" ? "Канал: выйти или удалить" : chat.type === "group" ? "Группа: выйти или удалить" : "Удалить чат",
@@ -1337,6 +1414,9 @@ export async function ChatView(root, chatId) {
     }
     const text = current.textContent.trim();
     if (text && floatingDate.firstChild.textContent !== text) floatingDate.firstChild.textContent = text;
+    // Над лентой, а не над колонкой: сверху колонки шапка, плашки закрепа и
+    // поиска, и метка с top: 8px ложилась прямо на имя собеседника.
+    floatingDate.style.top = `${list.offsetTop + 8}px`;
     // Метка нужна во время движения, а не всегда: остановились — она уходит,
     // чтобы не закрывать сообщения.
     floatingDate.classList.add("visible");
@@ -1344,14 +1424,69 @@ export async function ChatView(root, chatId) {
     hideDateTimer = setTimeout(() => floatingDate.classList.remove("visible"), 1200);
   }
 
+  // Лента «прилипла» к низу: человек читает последнее. Картинки, кружки и
+  // превью ссылок догружаются уже после прокрутки вниз и раздвигают ленту — без
+  // этого чат с фотографией в конце открывался не на последнем сообщении, а
+  // на середине той самой фотографии.
+  let stuckToBottom = true;
+  let noStickUntil = 0;
   list.addEventListener("scroll", () => {
     if (list.scrollTop < 120) loadOlder();
+    stuckToBottom = Date.now() > noStickUntil && atBottom();
     updateScrollDown();
     updateFloatingDate();
   });
+  // load/loadedmetadata не всплывают — ловим на погружении.
+  const keepAtBottom = () => {
+    if (stuckToBottom) list.scrollTop = list.scrollHeight;
+  };
+  list.addEventListener("load", keepAtBottom, true);
+  list.addEventListener("loadedmetadata", keepAtBottom, true);
+
+  // Непрочитанное начинается выше, чем помещается экран, — открываем чат на
+  // разделителе «Непрочитанные сообщения», как Telegram, а не в самом низу,
+  // откуда до начала пропущенного пришлось бы листать вверх вслепую.
+  function scrollToUnreadDivider() {
+    const divider = list.querySelector(".unread-divider");
+    if (!divider) return false;
+    const offset = divider.getBoundingClientRect().top - list.getBoundingClientRect().top;
+    list.scrollTop += offset - 12;
+    stuckToBottom = atBottom();
+    updateScrollDown();
+    return true;
+  }
+
+  // Отправитель — из участников чата, а если его там нет (вышел, удалён,
+  // вступил уже после открытия чата) — из догруженных профилей
+  // (lib/userLookup.js). Без этого у таких сообщений не было ни аватара, ни имени.
+  function senderOf(id) {
+    return members.find((u) => u.id === id) ?? cachedUser(id);
+  }
+  // Кого не нашлось при последней отрисовке — догружаем и перерисовываем
+  // ленту, сохраняя положение прокрутки.
+  let missingSenders = new Set();
+  function loadMissingSenders() {
+    if (!missingSenders.size) return;
+    const ids = [...missingSenders];
+    missingSenders = new Set();
+    fetchUsers(ids)
+      .then((changed) => {
+        if (changed && list.isConnected) rerenderListKeepingScroll();
+      })
+      .catch(() => {});
+  }
+  // Перерисовка ленты не по новым сообщениям, а по данным об отправителях:
+  // читающего не дёргаем — остаёмся внизу, если были внизу, иначе на месте.
+  function rerenderListKeepingScroll() {
+    const wasAtBottom = atBottom();
+    const prevTop = list.scrollTop;
+    renderList();
+    list.scrollTop = wasAtBottom ? list.scrollHeight : prevTop;
+  }
 
   function renderList() {
     clear(list);
+    missingSenders = new Set();
     if (hasMoreHistory) {
       list.appendChild(
         el("div", { class: "history-top" }, [
@@ -1419,8 +1554,15 @@ export async function ChatView(root, chatId) {
       // настоящим (штатные видят его в модерации), это только отображение.
       const sender = m.anonymous
         ? { id: chat.id, name: chat.title, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage }
-        : members.find((u) => u.id === m.senderId);
-      const replyToMessage = m.replyToId ? messages.find((x) => x.id === m.replyToId) : undefined;
+        : senderOf(m.senderId);
+      if (!sender && m.senderId && m.type !== "system") missingSenders.add(m.senderId);
+      const replyToMessage = m.replyToId ? (messages.find((x) => x.id === m.replyToId) ?? replyTargets.get(m.replyToId)) : undefined;
+      const replyToSender =
+        replyToMessage && !replyToMessage.deleted
+          ? replyToMessage.anonymous
+            ? { name: chat.title }
+            : senderOf(replyToMessage.senderId)
+          : null;
       const bubble = MessageBubble({
           message: withLocalThumbs(m),
           me,
@@ -1435,11 +1577,18 @@ export async function ChatView(root, chatId) {
           // that message in it, every later tap adds or removes one.
           selection: { active: selecting, ids: selected, onToggle: (id) => (selecting ? toggleSelect(id) : startSelecting(id)) },
           replyToMessage,
+          replyToSender,
           members,
           handlers: {
-            onReply: (msg) => {
+            onReply: (msg, opts) => {
               replyingTo = msg;
               editingMessage = null;
+              // Ответ на выделенный кусок: цитата встаёт в начало поля ввода
+              // строками «> …», а под ней человек пишет свой ответ.
+              if (opts?.quote) {
+                const quoted = opts.quote.split("\n").map((l) => `> ${l}`).join("\n");
+                draftText = `${quoted}\n${draftText}`;
+              }
               renderComposer();
             },
             onEdit: (msg) => {
@@ -1473,7 +1622,7 @@ export async function ChatView(root, chatId) {
             // Отправителем может быть только бот, и сервер всё равно проверит,
             // что адрес ведёт в приложение этого же бота, а не на чужой сайт.
             onKeyboardApp: (msg, appUrl) =>
-              openMiniApp({ botId: msg.senderId, botName: members.find((m) => m.id === msg.senderId)?.name, chatId: chat.id, url: appUrl }),
+              openMiniApp({ botId: msg.senderId, botName: senderOf(msg.senderId)?.name, chatId: chat.id, url: appUrl }),
             onOpenThread: isGroup ? (msg) => openThreadPanel({ chat, rootMessage: msg, members, me, onReplySent: refreshMessages }) : undefined,
           },
         });
@@ -1519,6 +1668,7 @@ export async function ChatView(root, chatId) {
       }
     });
     renderPinnedBar();
+    loadMissingSenders();
   }
 
   // Просмотры постов канала. Засчитываются, когда пост действительно показался
@@ -1626,6 +1776,7 @@ export async function ChatView(root, chatId) {
       Composer({
         chatId: chat.id,
         replyingTo,
+        replyToName: replyingTo ? (replyingTo.anonymous ? chat.title : (senderOf(replyingTo.senderId)?.name ?? "")) : "",
         editingMessage,
         initialDraft: draftText,
         botCommands,
@@ -1649,9 +1800,74 @@ export async function ChatView(root, chatId) {
         onSaveEdit: handleSaveEdit,
         onDraftChange: handleDraftChange,
         onScheduled: () => openScheduledMessagesDialog(chat.id),
+        onEditLast: () => {
+          const last = [...messages]
+            .reverse()
+            .find(
+              (m) =>
+                m.senderId === me.id &&
+                !m.pending &&
+                !m.forwardedFrom &&
+                m.type !== "system" &&
+                m.type !== "sticker" &&
+                !!m.text?.trim() &&
+                !m.attachments?.some((a) => a.kind === "poll")
+            );
+          if (!last) return;
+          editingMessage = last;
+          replyingTo = null;
+          renderComposer();
+          document.getElementById(`msg-${last.id}`)?.scrollIntoView({ block: "nearest" });
+        },
       })
     );
   }
+
+  // Файлы, перетащенные мышью на переписку, — вложением, как через скрепку.
+  // Считаем входы/выходы: dragleave приходит и при переходе между дочерними
+  // узлами, и по одному ему подсветка мигала бы.
+  let dragDepth = 0;
+  const hasFiles = (e) => [...(e.dataTransfer?.types ?? [])].includes("Files");
+  const composerEl = () => composerSlot.querySelector(".composer");
+  mainCol.addEventListener("dragenter", (e) => {
+    if (!hasFiles(e) || !composerEl()?.attachDropped) return;
+    e.preventDefault();
+    dragDepth++;
+    mainCol.classList.add("drop-active");
+  });
+  mainCol.addEventListener("dragover", (e) => {
+    if (!hasFiles(e) || !composerEl()?.attachDropped) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  });
+  mainCol.addEventListener("dragleave", () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) mainCol.classList.remove("drop-active");
+  });
+  mainCol.addEventListener("drop", (e) => {
+    dragDepth = 0;
+    mainCol.classList.remove("drop-active");
+    const attach = composerEl()?.attachDropped;
+    const files = [...(e.dataTransfer?.files ?? [])];
+    if (!attach || !files.length) return;
+    e.preventDefault();
+    attach(files);
+  });
+
+  // Esc сначала снимает выбор сообщений и закрывает поиск по чату — и только
+  // если снимать нечего, закрывает сам чат (lib/keyboardShortcuts.js). На
+  // погружении, чтобы успеть раньше того обработчика.
+  const onChatKeydown = (e) => {
+    if (e.key !== "Escape" || document.querySelector(".modal-overlay, .dropdown-menu, .media-viewer-overlay")) return;
+    if (selecting) {
+      e.stopPropagation();
+      clearSelection();
+    } else if (searchBar.firstChild) {
+      e.stopPropagation();
+      closeSearch();
+    }
+  };
+  document.addEventListener("keydown", onChatKeydown, true);
 
   renderHeader();
   renderList();
@@ -1662,6 +1878,22 @@ export async function ChatView(root, chatId) {
   loadVoiceRoom();
   mount(root, wrap);
   list.scrollTo({ top: list.scrollHeight });
+  // /chat/:id?msg=… — открыли из поиска по сообщениям (views/chatList.js):
+  // ведём к найденному сообщению и подсвечиваем его, догружая историю, если
+  // оно старше загруженного. Параметр тут же убираем из адреса, чтобы
+  // обновление страницы не прыгало к нему снова.
+  const focusMessageId = new URLSearchParams(window.location.search).get("msg");
+  if (focusMessageId) {
+    window.history.replaceState(null, "", window.location.pathname);
+    awaitingUnreadMark = false;
+    (async () => {
+      // Из сохранённого истории «ещё» не видно — сначала свежая страница.
+      if (openedFromCache) await refreshMessages();
+      await jumpTo(focusMessageId);
+    })();
+  } else {
+    scrollToUnreadDivider();
+  }
 
   // WS push is the primary path for both messages and typing (near-instant);
   // the polling below only needs to catch up after a dropped/reconnecting
@@ -1709,10 +1941,18 @@ export async function ChatView(root, chatId) {
   // хотя список чатов слева уже обновлялся сам (он читает состояние
   // реактивно, а не снимок на момент открытия).
   const unsubContactUpdated = onWsMessage("contact:updated", (msg) => {
-    if (!other || msg.user?.id !== other.id) return;
-    Object.assign(other, msg.user);
-    renderHeader();
-    renderInfoPanel();
+    if (!msg.user?.id) return;
+    rememberUser(msg.user);
+    // Участник группы сменил аватар — обновляем его и в members, иначе у его
+    // сообщений оставалась старая картинка до перезахода в чат.
+    const idx = members.findIndex((u) => u.id === msg.user.id);
+    if (idx !== -1) members[idx] = { ...members[idx], ...msg.user };
+    if (other && msg.user.id === other.id) {
+      Object.assign(other, msg.user);
+      renderHeader();
+      renderInfoPanel();
+    }
+    if (idx !== -1 && !isDm) rerenderListKeepingScroll();
   });
   const unsubMessageNew = onWsMessage("message:new", (msg) => {
     if (msg.chatId !== chat.id) return;
@@ -1765,7 +2005,10 @@ export async function ChatView(root, chatId) {
   // чата показывала старое название до перезахода в него.
   const unsubChatUpdated = onWsMessage("chat:updated", (msg) => {
     if (msg.chat?.id !== chat.id) return;
-    chat = { ...chat, ...msg.chat };
+    // Закреп, архив и беззвучность у каждого свои — в рассылке лежат общие
+    // значения записи чата, и затирать ими свои нельзя.
+    const { pinned, archived, muted, mutedUntil, ...shared } = msg.chat;
+    chat = { ...chat, ...shared };
     renderHeader();
     // Цена за сообщение/комментарий (server/lib/messagePrice.js) не лежит на
     // самом чате — её выше уже посчитал сервер, msg.chat её не несёт. Без
@@ -1792,6 +2035,18 @@ export async function ChatView(root, chatId) {
         members = res.members;
         botCommands = res.commands ?? null;
         paidMessages = res.paidMessages ?? null;
+        // Собеседник и участники из кэша могли устареть (сменили фото, в кэш
+        // попала запись без аватаров) — а лента, шапка и панель были нарисованы
+        // именно по ним. Раньше здесь обновлялось только поле ввода, и
+        // пересобрать ленту было некому: следующий опрос видел те же сообщения
+        // и DOM не трогал (sameMessages), так что старые/пустые аватарки
+        // оставались до перезахода в чат.
+        // Заменяем целиком, а не Object.assign: снятое фото приходит как
+        // отсутствующее поле, и слияние оставило бы старое.
+        other = chat.otherUser ?? (isDm ? members.find((u) => u.id !== me.id) : null) ?? null;
+        renderHeader();
+        renderInfoPanel();
+        rerenderListKeepingScroll();
         renderComposer();
       })
       .catch(() => {});
@@ -1799,6 +2054,7 @@ export async function ChatView(root, chatId) {
   }
 
   root._cleanup = () => {
+    document.removeEventListener("keydown", onChatKeydown, true);
     clearInterval(messagesIv);
     clearInterval(typingIv);
     clearTimeout(typingClearTimer);

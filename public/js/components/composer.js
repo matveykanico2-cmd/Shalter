@@ -16,13 +16,29 @@ import { renderCustomScene } from "../lib/customScene.js";
 import { ALL_EMOJI } from "../lib/emojiList.js";
 import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
 import { startLiveLocationSharing } from "../lib/liveLocation.js";
+import { messagePreview } from "../lib/messagePreview.js";
+import { previewText } from "../lib/formatText.js";
 
 const EMOJI = ["😀", "😂", "😍", "👍", "🙏", "🔥", "🎉", "😢", "😮", "❤️", "👏", "🤔"];
 const TYPING_PING_MS = 2500; // well under the server's 4s typing-presence expiry
 const DRAFT_SAVE_MS = 600; // debounce so we're not POSTing on every keystroke
+// Запись удержанием: дольше HOLD_MS — уже не касание, а удержание; сдвиг
+// влево на HOLD_CANCEL_PX отменяет, вверх на HOLD_LOCK_PX — закрепляет; запись
+// короче HOLD_MIN_MS при отпускании не отправляется.
+const HOLD_MS = 250;
+const HOLD_CANCEL_PX = 110;
+const HOLD_LOCK_PX = 80;
+const HOLD_MIN_MS = 400;
 
 // "1 ошибку / 2 ошибки / 5 ошибок" — a count next to an unagreed noun reads as
 // broken Russian, and Hugo's whole point is noticing exactly that.
+// Фото и видео уходят как медиа (с эскизом, в просмотрщик), остальное — файлом.
+function fileKind(file) {
+  if (file.type.startsWith("image/")) return "image";
+  if (file.type.startsWith("video/")) return "video";
+  return "file";
+}
+
 function plural(n, one, few, many) {
   const mod10 = n % 10;
   const mod100 = n % 100;
@@ -34,6 +50,8 @@ function plural(n, one, few, many) {
 export function Composer({
   chatId,
   replyingTo,
+  // Чьё сообщение — для подписи «Ответ Ивану» над полем, как в Telegram.
+  replyToName = "",
   editingMessage,
   initialDraft,
   // A bot's command list, when this chat has a bot in it (server/routes/chats.js
@@ -56,6 +74,14 @@ export function Composer({
   onSaveEdit,
   onDraftChange,
   onScheduled,
+  // ↑ в пустом поле — изменить своё последнее сообщение (как в Telegram
+  // Desktop). Хозяин поля сам знает, какое оно; без обработчика клавиша
+  // остаётся обычной стрелкой.
+  onEditLast = null,
+  // Поле ввода в ветке обсуждения (threadPanel.js): черновик на сервере у чата
+  // один, и он принадлежит основному полю. Без этого ответ в ветке перезаписывал
+  // черновик переписки, а отправка ответа его стирала.
+  disableDraftSync = false,
 }) {
   let lastTypingPing = 0;
   let recordingHandle = null;
@@ -65,6 +91,9 @@ export function Composer({
   // а микрофонный контекст остаётся открытым.
   let waveTimer = null;
   let levelMeter = null;
+  // Запись с удержанием: пока палец (мышь, перо) держит кнопку, сюда кладётся
+  // управление текущей записью — сдвиг, отпускание, отмена жеста.
+  let activeHold = null;
   let draftSaveTimer = null;
   // "Отправить от имени группы" — сбрасывается после каждой отправки, как и
   // ответ/редактирование: это разовое решение на одно сообщение, не режим.
@@ -74,11 +103,13 @@ export function Composer({
   // onDraftChange immediately every time so chatView.js can reflect the
   // draft in the chat-list preview without waiting on the network.
   function scheduleDraftSave(text) {
+    if (disableDraftSync) return;
     onDraftChange?.(text);
     clearTimeout(draftSaveTimer);
     draftSaveTimer = setTimeout(() => api.setDraft(chatId, text).catch(() => {}), DRAFT_SAVE_MS);
   }
   function clearDraft() {
+    if (disableDraftSync) return;
     clearTimeout(draftSaveTimer);
     onDraftChange?.("");
     api.setDraft(chatId, "").catch(() => {});
@@ -95,8 +126,9 @@ export function Composer({
       ? el("div", { class: "composer-banner" }, [
           el("span", { html: iconSvg(editingMessage ? "Edit" : "Reply", 15) }),
           el("div", { class: "composer-banner-body" }, [
-            el("span", { class: "composer-banner-label" }, editingMessage ? "Изменение" : "Ответ"),
-            el("span", { class: "composer-banner-text" }, (editingMessage ?? replyingTo).text || "Медиа"),
+            el("span", { class: "composer-banner-label" }, editingMessage ? "Изменение" : replyToName ? `Ответ ${replyToName}` : "Ответ"),
+            // Фото, голосовое, стикер — словами («📷 Фото»), а не безликим «Медиа».
+            el("span", { class: "composer-banner-text" }, previewText(messagePreview(editingMessage ?? replyingTo)) || "Сообщение"),
           ]),
           el("button", {
             class: "composer-banner-close",
@@ -276,7 +308,31 @@ export function Composer({
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         submit();
+        return;
       }
+      // Esc снимает ответ или изменение — первым делом, до того как та же
+      // клавиша закроет сам чат (lib/keyboardShortcuts.js).
+      if (e.key === "Escape" && (replyingTo || editingMessage)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (editingMessage) onCancelEdit();
+        else onCancelReply();
+        return;
+      }
+      if (e.key === "ArrowUp" && onEditLast && !editingMessage && !textarea.value && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        onEditLast();
+      }
+    });
+    // Вставка картинки или файла из буфера обмена (снимок экрана, «Копировать
+    // изображение» в браузере) — сразу вложением, как в Telegram. Раньше
+    // вставка просто ничего не делала: в текстовое поле картинка не входит.
+    textarea.addEventListener("paste", (e) => {
+      if (editingMessage) return;
+      const files = [...(e.clipboardData?.files ?? [])];
+      if (!files.length) return;
+      e.preventDefault();
+      attachFiles(files.map((file) => ({ file, kind: fileKind(file) })));
     });
     // Click elsewhere closes it too — menu items themselves prevent this
     // blur (see the mousedown handler above), so this only fires for
@@ -372,6 +428,11 @@ export function Composer({
     // 10 — chunking client-side means a 23-photo pick becomes 3 messages
     // instead of silently losing the 11th photo onward.
     const MAX_ATTACHMENTS_PER_MESSAGE = 10;
+
+    // Файлы, брошенные мышью на переписку (views/chatView.js) — тем же путём,
+    // что и выбранные через скрепку. Переназначается при каждой отрисовке
+    // тела: attachFiles живёт внутри неё.
+    wrap.attachDropped = editingMessage ? null : (files) => attachFiles(files.map((file) => ({ file, kind: fileKind(file) })));
 
     async function attachFiles(picks) {
       const items = [];
@@ -1109,18 +1170,8 @@ export function Composer({
       }
       if (!isRecordingSupported()) return;
       trailingSlot.append(
-        el("button", {
-          class: "composer-icon-btn",
-          title: "Видео-сообщение",
-          html: iconSvg("Video", 19),
-          onclick: () => beginRecording("video-note"),
-        }),
-        el("button", {
-          class: "composer-icon-btn",
-          title: "Голосовое сообщение",
-          html: iconSvg("Mic", 19),
-          onclick: () => beginRecording("voice"),
-        })
+        makeRecordButton("video-note", "Video", "Видео-сообщение"),
+        makeRecordButton("voice", "Mic", "Голосовое сообщение")
       );
     }
 
@@ -1149,10 +1200,117 @@ export function Composer({
     });
   }
 
-  async function beginRecording(mode) {
+  // Кнопка записи понимает и касание, и удержание — как в Telegram:
+  //  • короткое касание — запись «без рук»: панель с корзиной, паузой и
+  //    отправкой, как было всегда;
+  //  • удержание — запись идёт, пока кнопку держат, отпустили — ушло. Сдвиг
+  //    влево отменяет, сдвиг вверх закрепляет запись (дальше — без рук).
+  //
+  // Касание разбирается обычным click, а не pointerup: так же работает и
+  // клавиатура (Enter/Пробел), и не нужно отличать «ткнул» от «клавиша».
+  // Удержание — через Pointer Events, одинаково для мыши, пальца и пера.
+  // Слушатели движения висят и на window: с началом записи кнопка исчезает
+  // (на её месте встаёт панель), и захват указателя вместе с ней теряется —
+  // а жест должен продолжаться.
+  function makeRecordButton(mode, icon, title) {
+    const btn = el("button", {
+      class: "composer-icon-btn composer-record-btn",
+      title: `${title}: нажмите — запись без рук, удерживайте — запись до отпускания`,
+      html: iconSvg(icon, 19),
+      onclick: () => {
+        if (!activeHold && !recordingHandle) beginRecording(mode);
+      },
+      // Долгое нажатие на телефоне иначе открывает контекстное меню.
+      oncontextmenu: (e) => e.preventDefault(),
+    });
+    btn.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      // Второй палец при уже идущем жесте или записи — не новая запись.
+      if (activeHold || recordingHandle) return;
+      // Без этого мышь начинает выделять текст, а кнопка забирает фокус.
+      e.preventDefault();
+      const id = e.pointerId;
+      const x0 = e.clientX;
+      const y0 = e.clientY;
+      try {
+        btn.setPointerCapture(id);
+      } catch {
+        // Указатель мог уже уйти — жест всё равно дослушивается через window.
+      }
+      let holdTimer = setTimeout(() => {
+        holdTimer = null;
+        beginRecording(mode, { hold: true });
+      }, HOLD_MS);
+      const noMenu = (ev) => ev.preventDefault();
+      // Одно и то же событие может прийти дважды — на кнопку и, всплыв, на
+      // window; разбираем его один раз.
+      const seen = new WeakSet();
+      const fresh = (ev) => {
+        if (ev.pointerId !== id || seen.has(ev)) return false;
+        seen.add(ev);
+        return true;
+      };
+      const onMove = (ev) => {
+        if (!fresh(ev)) return;
+        activeHold?.move(ev.clientX - x0, ev.clientY - y0);
+      };
+      const finish = (ev, how) => {
+        if (!fresh(ev)) return;
+        for (const target of [window, btn]) {
+          target.removeEventListener("pointermove", onMove);
+          target.removeEventListener("pointerup", onUp);
+          target.removeEventListener("pointercancel", onCancel);
+        }
+        window.removeEventListener("contextmenu", noMenu, true);
+        if (holdTimer) {
+          // Отпустили раньше порога — это касание, его доделает click.
+          clearTimeout(holdTimer);
+          holdTimer = null;
+          return;
+        }
+        // Удержание кончилось: click, который браузер пришлёт следом, попал
+        // бы уже в панель записи (например, в «Отправить») — гасим его.
+        if (how === "up") suppressNextClick();
+        if (how === "up") activeHold?.release();
+        // Жест отобрала система (звонок, прокрутка, окно доступа к
+        // микрофону) — запись не теряем и не отправляем, а закрепляем:
+        // пусть человек сам решит, что с ней делать.
+        else activeHold?.lock();
+      };
+      const onUp = (ev) => finish(ev, "up");
+      const onCancel = (ev) => finish(ev, "cancel");
+      // И на window, и на самой кнопке: в Safari события касания продолжают
+      // приходить на тот элемент, где палец опустился, даже когда его уже
+      // вынули из документа, — до window они тогда не всплывают.
+      for (const target of [window, btn]) {
+        target.addEventListener("pointermove", onMove);
+        target.addEventListener("pointerup", onUp);
+        target.addEventListener("pointercancel", onCancel);
+      }
+      // Контекстное меню от долгого нажатия может прийти уже на панель,
+      // вставшую на место кнопки.
+      window.addEventListener("contextmenu", noMenu, true);
+    });
+    return btn;
+  }
+
+  function suppressNextClick() {
+    const stop = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+    };
+    window.addEventListener("click", stop, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener("click", stop, { capture: true }), 400);
+  }
+
+  async function beginRecording(mode, { hold = false } = {}) {
     clear(bodySlot);
     const recordingBar = el("div", { class: "composer-recording-bar" });
     bodySlot.appendChild(recordingBar);
+    // Отмена до того, как запись реально пошла (окно доступа к микрофону ещё
+    // открыто, камера просыпается): панель убираем сразу, а запись, если
+    // разрешение всё-таки придёт, гасим, не начав.
+    let cancelledEarly = false;
 
     // Панель записи собрана как в привычных мессенджерах: корзина слева,
     // живая волна по центру, время, пауза и отправка. Прежняя строка «Запись
@@ -1264,7 +1422,56 @@ export function Composer({
     });
     const cancelBtn = el("button", { class: "composer-icon-btn danger", title: "Удалить", html: iconSvg("Trash", 17), onclick: cancelRecording });
     const sendBtn = el("button", { class: "composer-round-send", title: "Отправить", html: iconSvg("Send", 17), onclick: finishRecording });
-    recordingBar.append(...[cancelBtn, dot, waveEl, timeLabel, hint, pauseBtn, sendBtn].filter(Boolean));
+    // Подсказки режима удержания: «← Отмена» вместо корзины и паузы и замок
+    // над кнопкой отправки. Видны только пока кнопку держат (класс holding).
+    const slideHint = el("span", { class: "composer-rec-slide" }, "← Отмена");
+    const lockHint = el("div", { class: "composer-rec-lock", title: "Потяните вверх, чтобы закрепить" }, [
+      el("span", { html: iconSvg("Lock", 16) }),
+      el("span", { class: "composer-rec-lock-arrow" }, "↑"),
+    ]);
+    recordingBar.append(...[cancelBtn, slideHint, dot, waveEl, timeLabel, hint, pauseBtn, sendBtn, hold ? lockHint : null].filter(Boolean));
+
+    let holding = hold;
+    const holdCtl = { move: moveHold, release: releaseHold, lock: lockHold };
+    if (hold) {
+      recordingBar.classList.add("holding");
+      activeHold = holdCtl;
+    }
+    function endHold() {
+      if (!holding) return;
+      holding = false;
+      if (activeHold === holdCtl) activeHold = null;
+      recordingBar.classList.remove("holding");
+      lockHint.remove();
+    }
+    function moveHold(dx, dy) {
+      if (!holding) return;
+      if (dx < -HOLD_CANCEL_PX) return cancelRecording();
+      if (dy < -HOLD_LOCK_PX) return lockHold();
+      // Подсказка едет за пальцем и бледнеет — видно, сколько осталось до отмены.
+      const left = Math.min(0, dx);
+      slideHint.style.transform = `translateX(${left}px)`;
+      slideHint.style.opacity = String(1 - (0.7 * -left) / HOLD_CANCEL_PX);
+      lockHint.style.transform = `translateY(${Math.min(0, dy)}px)`;
+    }
+    function lockHold() {
+      if (!holding) return;
+      endHold();
+      showHint("Запись закреплена");
+    }
+    function releaseHold() {
+      if (!holding) return;
+      endHold();
+      // Запись ещё не пошла (открыт запрос доступа, камера просыпается) или
+      // успела записать долю секунды — ничего не отправляем, а оставляем
+      // панель в режиме «без рук»: пустышку слать незачем, а выбрасывать то,
+      // что человек, возможно, хотел записать, — тоже.
+      if (!recordingHandle || elapsedMs() < HOLD_MIN_MS) {
+        showHint(recordingHandle ? "Слишком коротко — удерживайте дольше" : "");
+        return;
+      }
+      finishRecording();
+    }
     // Ширина известна только после вставки в документ.
     buildWave();
     drawWave();
@@ -1275,7 +1482,12 @@ export function Composer({
     window.addEventListener("resize", onResize);
 
     try {
-      recordingHandle = await startRecording(mode, { onTick: () => drawTime() });
+      const handle = await startRecording(mode, { onTick: () => drawTime() });
+      if (cancelledEarly) {
+        handle.cancel();
+        return;
+      }
+      recordingHandle = handle;
       startedAt = Date.now();
       // «Записывает голосовое» / «записывает кружок» — до конца записи,
       // отмены или остановки по лимиту времени (см. result ниже).
@@ -1300,6 +1512,10 @@ export function Composer({
         levelMeter = meter;
       }
     } catch {
+      // Отменённая заранее запись уже убрана; stopWave здесь погасил бы волну
+      // следующей записи, если её успели начать (волна и счётчик — общие).
+      if (cancelledEarly) return;
+      endHold();
       stopWave();
       clear(bodySlot);
       bodySlot.appendChild(el("p", { class: "composer-record-error" }, "Нет доступа к микрофону или камере"));
@@ -1340,12 +1556,18 @@ export function Composer({
       levelMeter = null;
     }
     async function finishRecording() {
+      // До начала записи отправлять нечего — кнопка просто ждёт разрешения.
+      if (!recordingHandle) return;
+      endHold();
       stopWave();
-      recordingHandle?.stop();
+      recordingHandle.stop();
     }
     async function cancelRecording() {
+      endHold();
       stopWave();
-      recordingHandle?.cancel();
+      if (recordingHandle) return recordingHandle.cancel();
+      cancelledEarly = true;
+      renderIdleBody();
     }
   }
 

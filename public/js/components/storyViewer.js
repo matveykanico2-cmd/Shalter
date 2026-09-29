@@ -5,6 +5,7 @@ import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { onWsMessage } from "../lib/wsClient.js";
 import { isServerModerator } from "../lib/moderation.js";
+import { openProfileDialog } from "./profileDialog.js";
 
 const IMAGE_DURATION_MS = 5000;
 
@@ -96,6 +97,17 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     vv?.removeEventListener("resize", onViewport);
     vv?.removeEventListener("scroll", onViewport);
     overlay.remove();
+  }
+
+  // Нажатие на аватар/имя автора (в шапке, в комментариях, в списке
+  // посмотревших) — закрываем историю и открываем профиль. История канала
+  // ведёт в сам канал: профиля у канала нет, а смотрят его истории только
+  // подписчики (server/routes/stories.js), так что /chat/:id им открыт.
+  function openAuthor(author) {
+    if (!author?.id) return;
+    close();
+    if (author.isChannel || String(author.id).startsWith("c_")) navigate(`/chat/${author.id}`);
+    else openProfileDialog(author.id);
   }
 
   // Сколько прошло с публикации — «12 мин», «3 ч». Истории живут сутки, поэтому
@@ -650,9 +662,11 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     const commentRow = (c, isReply) => {
       const liked = (c.likedByIds ?? []).includes(meId);
       return el("div", { class: `story-comment-row${c.id === editingCommentId ? " editing" : ""}${isReply ? " is-reply" : ""}` }, [
-        Avatar({ name: c.author?.name ?? "?", color: c.author?.avatarColor, image: c.author?.avatarImage, size: 26 }),
+        el("button", { class: "story-author-link", title: "Открыть профиль", onclick: () => openAuthor({ id: c.author?.id ?? c.userId }) }, [
+          Avatar({ name: c.author?.name ?? "?", color: c.author?.avatarColor, image: c.author?.avatarImage, size: 26 }),
+        ]),
         el("div", { class: "story-comment-body" }, [
-          el("span", { class: "story-comment-author" }, c.author?.name ?? "Пользователь"),
+          el("span", { class: "story-comment-author story-author-name-link", onclick: () => openAuthor({ id: c.author?.id ?? c.userId }) }, c.author?.name ?? "Пользователь"),
           el("span", { class: "story-comment-text" }, [c.text, c.editedAt ? el("span", { class: "comment-edited" }, " · изм.") : null]),
           el("div", { class: "story-comment-meta" }, [
             el(
@@ -728,7 +742,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
         ? el("div", { class: "story-viewers-panel" }, [
             el("p", { class: "story-viewers-title" }, viewers === null ? "Загружаем…" : viewers.length ? "Смотрели" : "Пока никто не смотрел"),
             ...(viewers ?? []).map((u) =>
-              el("button", { class: "story-viewer-row", onclick: () => { close(); navigate("/"); } }, [
+              el("button", { class: "story-viewer-row", title: "Открыть профиль", onclick: () => openAuthor(u) }, [
                 Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 30 }),
                 el("span", {}, u.name),
               ])
@@ -741,9 +755,11 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       el("div", { class: "story-shell" }, [
         el("div", { class: "story-progress-row" }, bars),
         el("div", { class: "story-header" }, [
-          Avatar({ name: group.user.name, color: group.user.avatarColor, image: group.user.avatarImage, size: 32 }),
+          el("button", { class: "story-author-link", title: group.user.isChannel ? "Открыть канал" : "Открыть профиль", onclick: () => openAuthor(group.user) }, [
+            Avatar({ name: group.user.name, color: group.user.avatarColor, image: group.user.avatarImage, size: 32 }),
+          ]),
           el("div", { class: "story-header-titles" }, [
-            el("p", { class: "story-header-name" }, group.user.name),
+            el("p", { class: "story-header-name story-author-name-link", onclick: () => openAuthor(group.user) }, group.user.name),
             el("p", { class: "story-header-time" }, timeAgo(story.createdAt)),
           ]),
           frame.item.kind === "video"

@@ -5,7 +5,8 @@ import { iconSvg } from "../icons.js";
 import { Avatar, videoAvatarUrl } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { openReportDialog } from "./reportDialog.js";
-import { openProfileDialog } from "./profileDialog.js";
+import { openProfileDialog, infoRow, birthdayText, isBirthdayToday } from "./profileDialog.js";
+import { statusLabel, plural } from "../lib/presence.js";
 import { openChoiceDialog } from "./confirmDialog.js";
 import { levelForPoints, pointsToNextLevel } from "../lib/groupLevels.js";
 import { openEditChatDialog } from "./editChatDialog.js";
@@ -32,8 +33,76 @@ const AUTO_DELETE_DURATIONS = [
   { label: "1 месяц", seconds: 30 * 24 * 3600 },
 ];
 
+// Участники в порядке, в каком их показывает Telegram: владельцы, затем
+// администраторы, затем те, кто сейчас в сети, затем остальные по времени
+// последнего захода.
+function sortMembers(chat, members) {
+  const rank = (m) => (isChatOwner(chat, m.id) ? 0 : chat.adminIds?.includes(m.id) ? 1 : chat.moderatorIds?.includes(m.id) ? 2 : 3);
+  return [...members].sort(
+    (a, b) =>
+      rank(a) - rank(b) ||
+      (b.online ? 1 : 0) - (a.online ? 1 : 0) ||
+      String(b.lastSeen ?? "").localeCompare(String(a.lastSeen ?? ""))
+  );
+}
+
 function autoDeleteLabel(seconds) {
   return AUTO_DELETE_DURATIONS.find((d) => d.seconds === seconds)?.label ?? "Выключено";
+}
+
+// Профиль собеседника для панели лички. Панель перерисовывается на каждое
+// событие чата (новое сообщение, смена мьюта…), поэтому ответ кэшируется на
+// полминуты — иначе каждая перерисовка была бы ещё одним запросом профиля.
+const profileCache = new Map(); // userId → { at, data }
+const PROFILE_TTL_MS = 30_000;
+
+function loadProfile(userId) {
+  const hit = profileCache.get(userId);
+  if (hit && Date.now() - hit.at < PROFILE_TTL_MS) return hit.promise;
+  const promise = api.getUser(userId).catch(() => null);
+  profileCache.set(userId, { at: Date.now(), promise });
+  return promise;
+}
+
+// Сведения о собеседнике — те же строки, что в профиле: телефон, юзернейм,
+// «О себе», день рождения, общие группы. Раньше панель лички показывала
+// только имя, и за любым из этих полей надо было идти в отдельный профиль.
+function DmProfileRows(otherUser) {
+  const slot = el("div", { class: "profile-info-card info-panel-profile-rows" });
+  loadProfile(otherUser.id).then((res) => {
+    const u = res?.user;
+    if (!u) return;
+    const rows = [
+      u.phone ? infoRow({ icon: "Phone", value: u.phone, label: "Телефон", mono: true, copy: u.phone }) : null,
+      u.username ? infoRow({ icon: "At", value: `@${u.username}`, label: "Юзернейм", accent: true, copy: `@${u.username}` }) : null,
+      u.bio ? infoRow({ icon: "Info", value: u.bio, label: u.isBot ? "Описание" : "О себе", multiline: true }) : null,
+      u.birthday
+        ? infoRow({
+            icon: "Gift",
+            value: isBirthdayToday(u.birthday) ? `🎉 Сегодня день рождения · ${birthdayText(u.birthday)}` : birthdayText(u.birthday),
+            label: "День рождения",
+          })
+        : null,
+      res.commonGroupsCount > 0
+        ? infoRow({
+            icon: "Users",
+            value: `${res.commonGroupsCount} ${plural(res.commonGroupsCount, "общая группа", "общие группы", "общих групп")}`,
+            label: "Общие группы",
+            onClick: () => openProfileDialog(otherUser.id),
+          })
+        : null,
+    ].filter(Boolean);
+    slot.append(...rows);
+  });
+  return slot;
+}
+
+// Строка «сколько участников / подписчиков, из них в сети» под названием.
+function membersLine(chat, members) {
+  const count = members.length || (chat.memberIds ?? []).length;
+  const noun = chat.type === "channel" ? plural(count, "подписчик", "подписчика", "подписчиков") : plural(count, "участник", "участника", "участников");
+  const online = members.filter((m) => m.online).length;
+  return online > 1 && chat.type !== "channel" ? `${count} ${noun}, ${online} в сети` : `${count} ${noun}`;
 }
 
 // Vanilla-JS port of components/chat/InfoPanel.tsx: chat/members, mute
@@ -179,8 +248,16 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
               ? el("span", { class: "group-level-badge", title: `${chat.points} баллов` }, `★ Ур. ${levelForPoints(chat.points)}`)
               : null,
           ]),
+          // Статус собеседника или число участников — как строка под именем
+          // в шапке профиля Telegram.
+          isDm && chat.otherUser
+            ? el("p", { class: `info-panel-subtitle${chat.otherUser.online ? " online" : ""}` }, statusLabel(chat.otherUser) ?? "был(а) недавно")
+            : !isDm
+              ? el("p", { class: "info-panel-subtitle" }, membersLine(chat, members))
+              : null,
         ]
       ),
+      isDm && chat.otherUser ? DmProfileRows(chat.otherUser) : null,
       chat.type === "group"
         ? el("div", { class: "group-vote-row" }, [
             el("div", {}, [
@@ -198,11 +275,21 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
         : null,
       // Description, if there is one — it's part of what a channel *is*, and
       // until now it was stored and never shown anywhere.
-      !isDm && chat.description
-        ? el("p", { class: "info-panel-description" }, chat.description)
-        : null,
-      !isDm && chat.isPublic && chat.username
-        ? el("p", { class: "info-panel-handle mono" }, `@${chat.username}`)
+      !isDm && (chat.description || (chat.isPublic && chat.username))
+        ? el("div", { class: "profile-info-card" }, [
+            chat.description ? infoRow({ icon: "Info", value: chat.description, label: "Описание", multiline: true }) : null,
+            // Публичная ссылка копируется нажатием — ради этого её сюда и
+            // смотрят. Ведёт туда же, куда и у людей: /u/:username (app.js).
+            chat.isPublic && chat.username
+              ? infoRow({
+                  icon: "Globe",
+                  value: `${location.host}/u/${chat.username}`,
+                  label: "Ссылка",
+                  accent: true,
+                  copy: `${location.origin}/u/${chat.username}`,
+                })
+              : null,
+          ].filter(Boolean))
         : null,
       // Editing the chat itself: name, picture, description, public link and
       // the colour palette. Owners/admins only — the server checks again.
@@ -307,12 +394,12 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
       !isDm && (chat.type !== "channel" || isOwnerOrAdmin)
         ? el("div", { class: "info-panel-members" }, [
             el("div", { class: "info-panel-members-header" }, [
-              el("p", { class: "list-section-label" }, `Участники (${members.length})`),
+              el("p", { class: "list-section-label" }, `${chat.type === "channel" ? "Подписчики" : "Участники"} (${members.length})`),
               isOwnerOrAdmin
                 ? el("button", { class: "icon-btn", title: "Добавить участника", html: iconSvg("Plus", 15), onclick: onAddMember })
                 : null,
             ]),
-            ...members.map((m) => {
+            ...sortMembers(chat, members).map((m) => {
               const isMemberOwner = isChatOwner(chat, m.id);
               const isMemberAdmin = chat.adminIds?.includes(m.id);
               // An owner's row is manageable by another owner now: co-owners can be
@@ -323,7 +410,8 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
               const customTitle = !!chat.memberTitles?.[m.id];
               return el("div", { class: "info-panel-member-row" }, [
                 el("button", { class: "info-panel-member-profile-btn", onclick: () => openProfileDialog(m.id) }, [
-                  Avatar({ name: m.name, color: m.avatarColor, image: m.avatarImage, size: 32 }),
+                  Avatar({ name: m.name, color: m.avatarColor, image: m.avatarImage, size: 32, online: m.online }),
+                  el("span", { class: "info-panel-member-text" }, [
                   el("span", { class: "info-panel-member-name" }, [
                     m.name,
                     roleLabel
@@ -339,6 +427,8 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
                         )
                       : null,
                     chat.restrictions?.[m.id] ? el("span", { class: "info-panel-role-tag restricted", title: "Не может писать" }, [" ", el("span", { html: iconSvg("Lock", 11) })]) : null,
+                  ]),
+                  el("span", { class: `info-panel-member-status${m.online ? " online" : ""}` }, m.id === meId ? "это вы" : statusLabel(m) ?? "был(а) недавно"),
                   ]),
                 ]),
                 canManage

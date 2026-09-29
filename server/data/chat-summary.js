@@ -2,7 +2,7 @@ const db = require("../db");
 const { rowToMessage, readWatermarksFor } = require("./messages");
 const { getUser } = require("./users");
 const { publicUser } = require("./sanitize");
-const { getSettings, mutedStateFor } = require("./settings");
+const { getSettings, updateSettings, mutedStateFor, isQuietNow } = require("./settings");
 
 // Сводка для списка чатов: последнее сообщение, число непрочитанных, упоминания
 // и собеседник.
@@ -32,6 +32,7 @@ async function attachSummaries(chats, userId) {
   const mutedOf = (id) => mutedStateFor(settings, id);
   const chatClears = settings.chatClears ?? {};
   const drafts = settings.drafts ?? {};
+  const chatFlags = settings.chatFlags ?? {};
   const ids = chats.map((c) => c.id);
 
   // Последние сообщения — по маленькому запросу на чат.
@@ -85,7 +86,12 @@ async function attachSummaries(chats, userId) {
     if (user) peers.set(id, publicUser(user));
   }
 
-  return chats.map((chat) => {
+  const pinnedOrder = settings.pinnedOrder ?? [];
+  // Чаты, которые пора вернуть из архива (см. ниже) — записываются одним
+  // обновлением настроек после сборки списка, а не по записи на чат.
+  const unarchive = [];
+
+  const result = chats.map((chat) => {
     const clearedBefore = chatClears[chat.id];
     const candidates = (lastByChat.get(chat.id) ?? []).filter((r) => !clearedBefore || r.createdAt > clearedBefore);
     const lastMessage = candidates.length ? rowToMessage(candidates[0]) : null;
@@ -103,14 +109,46 @@ async function attachSummaries(chats, userId) {
     // этого он выглядел бы дубликатом самого человека.
     const isSaved = chat.type === "dm" && chat.memberIds.length === 1 && chat.memberIds[0] === userId;
 
+    // Архив как в Telegram: незаглушённый чат возвращается в общий список,
+    // как только в нём появляется новое сообщение от кого-то другого. Отсчёт —
+    // от момента архивации (chatFlags[id].archivedAt, PATCH /api/chats/:id);
+    // у чатов, убранных в архив до этой правки, отметки нет, и они остаются на
+    // месте. Заглушённые не возвращаются — ради них архив обычно и заводят.
+    const flags = chatFlags[chat.id];
+    let archived = typeof flags?.archived === "boolean" ? flags.archived : !!chat.archived;
+    if (
+      archived &&
+      flags?.archivedAt &&
+      lastMessage &&
+      lastMessage.senderId !== userId &&
+      lastMessage.type !== "system" &&
+      lastMessage.createdAt > flags.archivedAt &&
+      !isQuietNow(settings, chat.id) &&
+      !(typeof flags.muted === "boolean" ? flags.muted : chat.muted)
+    ) {
+      archived = false;
+      unarchive.push(chat.id);
+    }
+    const pinIdx = pinnedOrder.indexOf(chat.id);
+
     return {
       ...chat,
       // Беззвучность — из настроек читающего. Прежний общий флаг в записи чата
       // остаётся запасным значением, чтобы у тех, кто заглушил чат до этой
       // правки, он не «зазвучал» вдруг снова.
-      ...(mutedStateFor(settings, chat.id).muted || mutedStateFor(settings, chat.id).mutedUntil
+      ...(mutedStateFor(settings, chat.id).muted || mutedStateFor(settings, chat.id).mutedUntil || typeof chatFlags[chat.id]?.muted === "boolean"
         ? mutedStateFor(settings, chat.id)
         : { muted: !!chat.muted, mutedUntil: chat.mutedUntil ?? null }),
+      // Закреп и архив — тоже у каждого свои (settings.chatFlags, см.
+      // PATCH /api/chats/:id). Раньше это были столбцы общей записи чата, и
+      // стоило собеседнику убрать личный чат в архив, как он пропадал из
+      // списка и у второго. Общий флаг остаётся запасным значением для тех,
+      // кто ещё ни разу не трогал этот чат после правки.
+      pinned: typeof chatFlags[chat.id]?.pinned === "boolean" ? chatFlags[chat.id].pinned : !!chat.pinned,
+      archived,
+      // Место среди закреплённых (0 — самый верхний); null — порядок не задан,
+      // такие идут после упорядоченных, по свежести.
+      pinOrder: pinIdx >= 0 ? pinIdx : null,
       title: isSaved ? "Избранное" : chat.title,
       isSaved: isSaved || undefined,
       lastMessage,
@@ -120,6 +158,19 @@ async function attachSummaries(chats, userId) {
       draft: drafts[chat.id] ?? null,
     };
   });
+
+  if (unarchive.length) {
+    // Перечитываем настройки перед записью: между чтением выше и этой строкой
+    // человек мог успеть что-то поменять, и писать старый снимок поверх нельзя.
+    const fresh = await getSettings(userId);
+    const nextFlags = { ...(fresh.chatFlags ?? {}) };
+    for (const id of unarchive) {
+      const { archivedAt, ...rest } = nextFlags[id] ?? {};
+      nextFlags[id] = { ...rest, archived: false };
+    }
+    await updateSettings(userId, { chatFlags: nextFlags });
+  }
+  return result;
 }
 
 module.exports = { attachSummaries };

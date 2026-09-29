@@ -1,4 +1,5 @@
 import { el } from "../lib/dom.js";
+import { plural } from "../lib/presence.js";
 import { Avatar } from "./avatar.js";
 import { getState } from "../state.js";
 
@@ -30,7 +31,7 @@ export function openChatPickerDialog(onPick, title = "Выберите груп�
               Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage, size: 36 }),
               el("div", {}, [
                 el("p", { class: "forward-row-title" }, c.title),
-                el("p", { class: "settings-toggle-hint" }, `${c.memberIds?.length ?? 0} участников`),
+                el("p", { class: "settings-toggle-hint" }, `${c.memberIds?.length ?? 0} ${plural(c.memberIds?.length ?? 0, "участник", "участника", "участников")}`),
               ]),
             ]
           )

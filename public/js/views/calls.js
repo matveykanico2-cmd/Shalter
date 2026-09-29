@@ -31,6 +31,8 @@ export async function CallsView(root) {
   let calls = [];
   let contacts = [];
   let busy = null; // id человека, которому сейчас дозваниваемся
+  // «Все» / «Пропущенные» — как вкладки над журналом звонков в Telegram.
+  let filter = "all";
 
   // Оба запроса разом: журнал и контакты нужны одному экрану, и ждать их по
   // очереди значит показывать пустую страницу вдвое дольше.
@@ -77,19 +79,38 @@ export async function CallsView(root) {
     ]);
   }
 
+  // Пропущенный — только входящий, который не взяли. Свой звонок без ответа —
+  // «без ответа», а не красный «пропущен»: пропустил его не ты.
+  const isMissed = (c) => (c.status === "missed" || c.status === "declined") && c.direction === "incoming";
+
   function historyRow(c) {
-    const missed = c.status === "missed";
+    const missed = isMissed(c);
+    const unanswered = !missed && (c.status === "missed" || c.status === "declined");
+    // Звонок в группе подписан группой, а не первым попавшимся участником.
+    const name = c.group?.title ?? c.otherUser?.name ?? "Неизвестно";
     return el("div", { class: "contact-row" }, [
-      Avatar({ name: c.otherUser?.name ?? "?", color: c.otherUser?.avatarColor ?? "#8A8F98", image: c.otherUser?.avatarImage }),
+      el("button", { class: "call-row-open", title: "Открыть чат", onclick: () => navigate(`/chat/${c.chatId}`) }, [
+        Avatar({
+          name,
+          color: c.group?.avatarColor ?? c.otherUser?.avatarColor ?? "#8A8F98",
+          image: c.group?.avatarImage ?? c.otherUser?.avatarImage,
+        }),
+      ]),
       el("div", { class: "contact-row-body" }, [
-        el("p", { class: `contact-row-name ${missed ? "missed-call" : ""}` }, c.otherUser?.name ?? "Неизвестно"),
+        el("p", { class: `contact-row-name ${missed ? "missed-call" : ""}` }, name),
         el("p", { class: "contact-row-status" }, [
           // Стрелка направления вместо повторного значка трубки: тип звонка уже
           // сказан кнопками справа, а вот «входящий или исходящий» из строки
           // иначе читался только словом.
           el("span", { class: `call-dir ${missed ? "missed" : ""}`, html: iconSvg(c.kind === "video" ? "Video" : "Phone", 12) }),
           ` ${c.direction === "incoming" ? "Входящий" : "Исходящий"}`,
-          missed ? " · пропущен" : c.durationSec ? ` · ${durationLabel(c.durationSec)}` : "",
+          missed
+            ? " · пропущен"
+            : unanswered
+              ? c.status === "declined" ? " · отклонён" : " · без ответа"
+              : c.durationSec
+                ? ` · ${durationLabel(c.durationSec)}`
+                : "",
           ` · ${timeLabel(c.startedAt)}`,
         ]),
       ]),
@@ -117,11 +138,29 @@ export async function CallsView(root) {
       for (const u of contacts) body.appendChild(contactRow(u));
     }
 
-    body.appendChild(el("p", { class: "list-section-label" }, "Недавние"));
+    const missedCount = calls.filter(isMissed).length;
+    const shown = filter === "missed" ? calls.filter(isMissed) : calls;
+    body.appendChild(
+      el("div", { class: "calls-history-head" }, [
+        el("p", { class: "list-section-label" }, "Недавние"),
+        calls.length
+          ? el("div", { class: "calls-filter" }, [
+              el("button", { class: `search-filter-chip${filter === "all" ? " active" : ""}`, onclick: () => { filter = "all"; render(); } }, "Все"),
+              el(
+                "button",
+                { class: `search-filter-chip${filter === "missed" ? " active" : ""}`, onclick: () => { filter = "missed"; render(); } },
+                missedCount ? `Пропущенные ${missedCount}` : "Пропущенные"
+              ),
+            ])
+          : null,
+      ])
+    );
     if (calls.length === 0) {
       body.appendChild(el("p", { class: "empty-hint" }, "Звонков ещё не было"));
+    } else if (!shown.length) {
+      body.appendChild(el("p", { class: "empty-hint" }, "Пропущенных звонков нет"));
     } else {
-      for (const c of calls) body.appendChild(historyRow(c));
+      for (const c of shown) body.appendChild(historyRow(c));
     }
 
     if (!contacts.length && !calls.length) {
