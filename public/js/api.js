@@ -244,6 +244,9 @@ export const api = {
   getChatPermissions: (id) => req(`/api/chats/${id}/permissions`),
   setChatPermissions: (id, permissions) =>
     req(`/api/chats/${id}/permissions`, { method: "POST", body: JSON.stringify({ permissions }) }),
+  // reactions: an array to restrict to, or null to allow anything again.
+  setAllowedReactions: (id, reactions) =>
+    req(`/api/chats/${id}/reactions`, { method: "POST", body: JSON.stringify({ reactions }) }),
   searchInChat: (id, q) => req(`/api/chats/${id}/messages/search?q=${encodeURIComponent(q)}`),
   // Invite links — how anyone joins a private group or channel.
   chatInviteLink: (id, revoke = false) => req(`/api/chats/${id}/invite`, { method: "POST", body: JSON.stringify({ revoke }) }),

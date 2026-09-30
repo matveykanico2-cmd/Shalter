@@ -896,6 +896,15 @@ db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_chats_invite ON chats(inviteCode)
 // relationship the global chatWallpaper setting already had to it.
 if (!existingChatVerifyCols2.has("wallpaper")) db.exec("ALTER TABLE chats ADD COLUMN wallpaper TEXT");
 
+// Restricts which emoji can be used to react in this chat — a JSON array, or
+// NULL for "anything" (every chat's behaviour before this existed, and still
+// the default: only a channel's own owner/admin narrows it down, via
+// server/routes/chats.js's /:id/reactions). Mainly meant for channels, where
+// a stray 💩 reaction under an official post reads differently than the same
+// thing in a group chat among friends — but nothing here is channel-specific
+// at the schema level, so a group could use it too if it ever wanted to.
+if (!existingChatVerifyCols2.has("allowedReactions")) db.exec("ALTER TABLE chats ADD COLUMN allowedReactions TEXT");
+
 
 // Several profile photos instead of one, and video avatars (lib/avatars.js).
 // The older `avatarImage` column stays and keeps its meaning — the current

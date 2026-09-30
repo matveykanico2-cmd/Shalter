@@ -86,8 +86,11 @@ router.post(
   asyncRoute(async (req, res) => {
     const gift = getGift(req.body?.giftId);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
-    const recipientId = req.body?.recipientId || req.uid;
-    const recipient = await getUser(recipientId);
+    // No falling back to req.uid when recipientId is missing — a gift is for
+    // someone else, same restriction as /buy and /custom/send below.
+    const recipientId = req.body?.recipientId;
+    if (recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
+    const recipient = recipientId ? await getUser(recipientId) : null;
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
 
     // Checked up front so a sold-out limited gift fails here, before anyone
@@ -113,8 +116,6 @@ router.post(
       return res.json({ chatId: result.chat.id, adminPhone: ADMIN_PHONE, delivered: true, serial: result.serial });
     }
 
-    const forSelf = recipientId === req.uid;
-
     // Same as premium.js's /request — DonationAlerts/DonatePay if either is
     // set up, otherwise a plain transfer that the admin fulfils from the
     // buyer's profile.
@@ -128,7 +129,7 @@ router.post(
     await sendMessageAndBroadcast(
       chat,
       req.uid,
-      `🎁 Хочу подарить ${gift.emoji} «${gift.name}» за ${gift.priceRub}₽ ${forSelf ? "себе" : `пользователю ${recipient.name}`}. Перевожу на ${ADMIN_PHONE} и жду подтверждения 🙏`
+      `🎁 Хочу подарить ${gift.emoji} «${gift.name}» за ${gift.priceRub}₽ пользователю ${recipient.name}. Перевожу на ${ADMIN_PHONE} и жду подтверждения 🙏`
     );
     res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE });
   })
@@ -165,8 +166,11 @@ router.post(
   asyncRoute(async (req, res) => {
     const gift = getGift(req.body?.giftId);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
-    const recipientId = req.body?.recipientId || req.uid;
-    const recipient = await getUser(recipientId);
+    // Gifts are for someone else — no falling back to req.uid when
+    // recipientId is missing.
+    const recipientId = req.body?.recipientId;
+    if (recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
+    const recipient = recipientId ? await getUser(recipientId) : null;
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
     if (gift.supply && remaining(gift) <= 0) return res.status(410).json({ error: soldOutError(gift) });
 
@@ -534,6 +538,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const gift = getUserGift(req.body?.giftId, req.uid);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
+    if (req.body?.recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
     const recipient = await getUser(req.body?.recipientId);
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
     const background = sanitizeGiftBackground(req.body?.background);

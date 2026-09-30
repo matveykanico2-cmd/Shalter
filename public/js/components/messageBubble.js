@@ -18,6 +18,7 @@ import { navigate } from "../router.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 import { PremiumStar } from "./premiumStar.js";
 import { openGiftShopDialog } from "./giftShopDialog.js";
+import { ALL_EMOJI } from "../lib/emojiList.js";
 
 // A message that's *only* 1-3 emoji (Telegram's own rule) renders them big
 // and lets them pop in, instead of the normal-size static text everything
@@ -163,7 +164,11 @@ function GiftMessage(message, mine, isChannel) {
     // it back for stars (routes/gifts.js's /convert).
     !mine
       ? el("div", { class: "gift-message-actions" }, [
-          el("button", { class: "gift-card-action", onclick: () => openProfileDialog(getState().user.id) }, "Показать в профиле"),
+          // gift.recipientId is who it actually landed on — falls back to the
+          // viewer's own id only for gifts sent before that field existed,
+          // when "not mine" reliably meant "I'm the recipient" (no forwarding
+          // or self-gifting could produce a message like this yet).
+          el("button", { class: "gift-card-action", onclick: () => openProfileDialog(gift.recipientId ?? getState().user.id) }, "Показать в профиле"),
           gift.custom
             ? null
             : el("button", { class: "gift-card-action muted", onclick: () => convertGift(gift) }, `Обменять на ${formatRub(giftStars(gift))} ⭐`),
@@ -674,7 +679,7 @@ export function AttachmentView(a, me) {
   return null;
 }
 
-export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, replyToSender = null, members, handlers }) {
+export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, replyToSender = null, members, handlers, allowedReactions = null }) {
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onPollAction, onKeyboardAction, onKeyboardApp, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
 
@@ -873,53 +878,96 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   // the chat header painted underneath.
   let picker = null;
   let closePicker = null;
+  // A channel can narrow reactions to a curated set (editChatDialog.js's
+  // "Разрешённые реакции", enforced server-side too — server/routes/
+  // messages.js's /:messageId/react). When it has, that set replaces the
+  // quick/premium/full-catalogue rows entirely rather than filtering them:
+  // an admin's custom set (say, just three brand emoji) has no reason to
+  // line up with QUICK_EMOJI or PREMIUM_QUICK_EMOJI, and showing it as its
+  // own single row is clearer than a mostly-empty quick row next to an
+  // unrelated premium one.
+  const restricted = Array.isArray(allowedReactions);
   function togglePicker(pos) {
     if (picker) {
       closePicker();
       return;
     }
-    picker = el("div", { class: "emoji-picker" }, [
-      el(
-        "div",
-        { class: "emoji-picker-row" },
-        QUICK_EMOJI.map((e) =>
-          el(
-            "button",
-            {
-              onclick: () => {
-                onReact(message, e);
-                closePicker();
-              },
-            },
-            e
-          )
-        )
-      ),
-      el(
-        "div",
-        { class: "emoji-picker-row emoji-picker-row-premium" },
-        PREMIUM_QUICK_EMOJI.map((e) =>
-          el(
-            "button",
-            {
-              class: me?.isPremium ? "" : "locked",
-              title: me?.isPremium ? "" : "Реакция для Premium",
-              onclick: () => {
-                closePicker();
-                if (me?.isPremium) onReact(message, e);
-                else navigate("/settings/premium");
-              },
-            },
-            [e, !me?.isPremium ? el("span", { class: "emoji-picker-lock", html: iconSvg("Lock", 9) }) : null]
-          )
-        )
-      ),
-    ]);
+    picker = el(
+      "div",
+      { class: "emoji-picker" },
+      restricted
+        ? [
+            el(
+              "div",
+              { class: "emoji-picker-row" },
+              allowedReactions.map((e) =>
+                el("button", { onclick: () => { onReact(message, e); closePicker(); } }, e)
+              )
+            ),
+          ]
+        : [
+            el(
+              "div",
+              { class: "emoji-picker-row" },
+              QUICK_EMOJI.map((e) =>
+                el(
+                  "button",
+                  {
+                    onclick: () => {
+                      onReact(message, e);
+                      closePicker();
+                    },
+                  },
+                  e
+                )
+              )
+            ),
+            el(
+              "div",
+              { class: "emoji-picker-row emoji-picker-row-premium" },
+              PREMIUM_QUICK_EMOJI.map((e) =>
+                el(
+                  "button",
+                  {
+                    class: me?.isPremium ? "" : "locked",
+                    title: me?.isPremium ? "" : "Реакция для Premium",
+                    onclick: () => {
+                      closePicker();
+                      if (me?.isPremium) onReact(message, e);
+                      else navigate("/settings/premium");
+                    },
+                  },
+                  [e, !me?.isPremium ? el("span", { class: "emoji-picker-lock", html: iconSvg("Lock", 9) }) : null]
+                )
+              )
+            ),
+            // Full catalogue (lib/emojiList.js) — a scrollable grid below the
+            // curated quick rows, so any emoji can be used as a reaction
+            // instead of only the handful above (same "quick row + full grid"
+            // shape as composer.js's own emoji menu).
+            el(
+              "div",
+              { class: "emoji-picker-all" },
+              ALL_EMOJI.map((e) =>
+                el("button", { onclick: () => { onReact(message, e); closePicker(); } }, e)
+              )
+            ),
+          ]
+    );
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     picker.style.left = `${Math.min(pos.x, vw - 260)}px`;
     picker.style.top = `${Math.min(Math.max(pos.y - 50, 8), vh - 50)}px`;
     document.body.appendChild(picker);
+    // The full-catalogue grid (added above) makes this popup much taller than
+    // the old two-row version — clamp against its *actual* height now that
+    // it's in the DOM, or it could hang off the bottom of the screen with no
+    // way to reach "Отмена"/the lower rows, same class of bug as the modal
+    // dialog fix above.
+    const pickerRect = picker.getBoundingClientRect();
+    if (pickerRect.bottom > vh - 8) {
+      picker.style.top = `${Math.max(8, vh - pickerRect.height - 8)}px`;
+    }
 
     closePicker = () => {
       document.removeEventListener("mousedown", onOutsideClick);

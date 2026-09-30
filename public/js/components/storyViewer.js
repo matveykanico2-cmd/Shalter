@@ -35,7 +35,9 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   let startedAt = 0;
   let remainingMs = IMAGE_DURATION_MS;
   let paused = false;
-  let muted = true;
+  // Sound on by default — video stories used to open muted, so sound had to
+  // be re-enabled by hand on every single one.
+  let muted = false;
   let videoEl = null;
   // Кнопка лайка текущего кадра — чтобы обновлять её на месте, не пересобирая
   // весь просмотрщик (полный render пересоздаёт медиа и перезапускает историю).
@@ -835,6 +837,14 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       videoEl?.pause();
     } else {
       setBarAnimation(0, false);
+      // Autoplaying with sound needs a recent user gesture — opening the
+      // viewer usually has one, but an `await` before it (or a story reached
+      // by auto-advancing from the previous one) can lose it, and the browser
+      // then silently blocks playback instead of just muting it. Fall back to
+      // muted rather than leaving the video frozen with no sound and no
+      // visible error; a later manual unmute (a click, so always a gesture)
+      // still switches it back.
+      if (!muted) videoEl?.play().catch(() => { muted = true; render(); });
     }
   }
 

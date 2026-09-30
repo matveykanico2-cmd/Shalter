@@ -3,6 +3,10 @@ const state = {
   user: null,
   accounts: [],
   chats: [],
+  // Set once the chat list's first load attempt (cache or network) has
+  // settled — see views/chatList.js. Distinguishes "still loading" from
+  // "genuinely no chats", so the empty-list state doesn't flash on cold load.
+  chatsLoaded: false,
   // Идентификаторы тех, кто уже в контактах (GET /api/contacts/ids). Нужны
   // карточке контакта в чате, чтобы не предлагать добавить того, кто добавлен.
   contactIds: [],

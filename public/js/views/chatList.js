@@ -564,7 +564,7 @@ function renderResults(container) {
       navigate(`/chat/${id}`);
     };
     const foundRow = (c) =>
-      ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally, onOpen: openFound });
+      ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally, onOpen: openFound });
     if (dms.length && show("dms")) {
       box.appendChild(el("p", { class: "list-section-label" }, "Личные"));
       for (const c of dms) box.appendChild(foundRow(c));
@@ -668,7 +668,7 @@ function renderResults(container) {
     if (!archived.length) scrollSlot.appendChild(el("p", { class: "empty-hint" }, "В архиве пусто"));
     for (const c of archived) {
       scrollSlot.appendChild(
-        ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally })
+        ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally })
       );
     }
     bodySlot.appendChild(scrollSlot);
@@ -762,7 +762,13 @@ function renderResults(container) {
   // «Каналы» читается как «в приложении нет чатов» — хотя в соседней вкладке
   // их два десятка. Под строкой «Архив» «чатов нет» — неправда: они есть, просто
   // убраны, и строка сама на них указывает.
-  if (!list.length && !showArchiveRow) {
+  // "No chats" specifically (not the unreadOnly filter's own empty state,
+  // below) only means that once the initial load has actually settled —
+  // bootstrap renders the shell before its response arrives (see app.js), so
+  // `chats` reads as [] for a moment on every page load regardless of tab,
+  // and showing "Чатов нет — начните новый чат" during that gap read as a
+  // real (and wrong) prompt rather than a loading flicker.
+  if (!list.length && !showArchiveRow && (unreadOnly || getState().chatsLoaded)) {
     scroll.appendChild(
       unreadOnly
         ? el("div", { class: "chat-empty" }, [
@@ -774,7 +780,7 @@ function renderResults(container) {
     );
   }
   for (const c of list) {
-    const row = ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally });
+    const row = ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally });
     if (c.pinned) makePinnedDraggable(row, c.id, container);
     scroll.appendChild(row);
   }
@@ -1014,6 +1020,15 @@ async function patchChat(id, patch) {
   const { chats } = getState();
   setState({ chats: chats.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
   await api.patchChat(id, patch);
+}
+
+// Timed mute (8 часов / неделя / месяц / …, see lib/muteDurations.js) — unlike
+// the plain on/off patchChat above, the actual expiry is computed server-side,
+// so the list only reflects it after the response comes back instead of
+// guessing the timestamp itself.
+async function muteChatFor(id, opts) {
+  const { chat: updated } = await api.muteChat(id, opts);
+  setState({ chats: getState().chats.map((c) => (c.id === id ? { ...c, ...updated } : c)) });
 }
 
 async function leaveChatItem(id) {

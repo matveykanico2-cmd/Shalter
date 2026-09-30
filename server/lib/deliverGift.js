@@ -114,6 +114,13 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId, backgrou
         ...(anonymous ? { anon: true } : {}),
         fromId: fromId ?? null,
         fromName,
+        // Whose shelf this actually landed on — the message's own chat isn't
+        // reliable evidence of that (messageBubble.js's "Показать в профиле"
+        // used to just open the *viewer's* own profile instead, which broke
+        // the moment the announcement was viewed by anyone but the recipient:
+        // the giver looking at the same DM, or anyone the message got
+        // forwarded to).
+        recipientId,
         ...(serial != null ? { serial, supply: gift.supply, exclusive: true } : {}),
       },
     }

@@ -887,6 +887,15 @@ router.post(
     const found = await loadMessageInChat(req, res);
     if (!found) return;
     const { emoji } = req.body ?? {};
+    // A channel can narrow its allowed reactions (server/routes/chats.js's
+    // /:id/reactions) — but only for *adding* a new one. Removing a reaction
+    // you already left stays allowed even if it's since fallen off the list,
+    // same as any other setting change doesn't retroactively invalidate what
+    // already exists.
+    if (Array.isArray(found.chat.allowedReactions) && !found.chat.allowedReactions.includes(emoji)) {
+      const already = found.message.reactions.some((r) => r.emoji === emoji && r.userIds.includes(req.uid));
+      if (!already) return res.status(400).json({ error: "Эта реакция недоступна в этом канале" });
+    }
     const message = await toggleReaction(req.params.messageId, emoji, req.uid);
     broadcastToOtherMembers(found.chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
     res.json({ message });

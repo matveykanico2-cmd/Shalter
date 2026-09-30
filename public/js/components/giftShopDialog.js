@@ -35,7 +35,12 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
   let myGifts = []; // свои нарисованные подарки (вкладка «Мои»)
   let background = null; // выбранный фон подарка (lib/giftBackground.js), null = без фона
   let anonymous = false; // анонимная отправка (только Premium)
-  let target = recipient; // null = buying for yourself
+  // null = no recipient chosen yet — gifts can't be sent to yourself, so both
+  // buy() and sendMine() below prompt for one via the contact picker. Guards
+  // against callers pre-filling `recipient` with the viewer's own id too
+  // (e.g. profileDialog.js's "Отправить такой же" on one of your own gifts,
+  // opened while viewing your own profile) — that's still a self-gift.
+  let target = recipient?.id === getState().user?.id ? null : recipient;
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const bodyEl = el("div", { class: "gs-body" });
@@ -145,16 +150,25 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     render();
   }
 
+  // Gifts are for someone else — no target yet just means asking who, same
+  // as sendMine() above.
   async function buy(gift) {
+    if (!target) {
+      openContactPickerDialog((picked) => {
+        target = picked;
+        buy(gift);
+      }, "Кому подарить");
+      return;
+    }
     if (busyId) return;
     busyId = gift.id;
     error = null;
     notice = null;
     render();
     try {
-      const res = await api.buyGift(gift.id, target?.id, background, anonymous);
+      const res = await api.buyGift(gift.id, target.id, background, anonymous);
       balance = res.balance ?? balance;
-      notice = `${gift.emoji} «${gift.name}» отправлен${target ? ` — ${target.name}` : " вам"}${res.serial ? `, №${res.serial}` : ""}`;
+      notice = `${gift.emoji} «${gift.name}» отправлен — ${target.name}${res.serial ? `, №${res.serial}` : ""}`;
       onSent?.();
       // A limited gift's remaining count just changed for everyone.
       const fresh = await api.listGifts();
@@ -278,7 +292,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     bodyEl.append(
       ...[
         el("div", { class: "gs-recipient" }, [
-          el("span", {}, target ? `Кому: ${target.name}` : "Кому: себе"),
+          el("span", {}, target ? `Кому: ${target.name}` : "Кому подарить?"),
           el("button", {
             class: "gs-recipient-btn",
             onclick: () =>
@@ -286,8 +300,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
                 target = picked;
                 render();
               }, "Кому подарить"),
-          }, "Выбрать"),
-          target ? el("button", { class: "gs-recipient-btn", onclick: () => { target = null; render(); } }, "Себе") : null,
+          }, target ? "Изменить" : "Выбрать"),
         ]),
         backgroundPicker(),
         // Анонимная отправка — только с Premium. Получателю подарок придёт от

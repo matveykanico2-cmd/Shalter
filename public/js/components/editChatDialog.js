@@ -7,6 +7,7 @@ import { Toggle } from "./toggle.js";
 import { Avatar } from "./avatar.js";
 import { openChatPickerDialog } from "./chatPickerDialog.js";
 import { openStoryEditor } from "./storyEditor.js";
+import { ALL_EMOJI } from "../lib/emojiList.js";
 
 // Editing a group or channel after it exists: picture, name, description, and
 // the public @link. Owners and admins only — enforced on the server too
@@ -55,6 +56,26 @@ export function openEditChatDialog(chat, onSaved) {
       const res = await api.setCommentPrice(chat.id, Number(commentPriceInput.value));
       chat = { ...chat, commentPriceStars: res.commentPriceStars };
       notice = res.commentPriceStars > 0 ? `Комментарии стоят ${res.commentPriceStars} ⭐` : "Комментарии бесплатны";
+    } catch (err) {
+      error = err.message || "Не удалось сохранить";
+    }
+    render();
+  }
+
+  // Разрешённые реакции (server/routes/chats.js's /:id/reactions) — null
+  // (the toggle off) means "anything", same as every chat before this
+  // setting existed. Draft list is separate from chat.allowedReactions so
+  // flipping the toggle off doesn't lose the picks if it's flipped back on
+  // before saving.
+  let reactionsRestricted = Array.isArray(chat.allowedReactions);
+  let allowedReactionsDraft = chat.allowedReactions ? [...chat.allowedReactions] : [];
+  async function saveReactions(next) {
+    error = null;
+    notice = null;
+    try {
+      const res = await api.setAllowedReactions(chat.id, next);
+      chat = { ...chat, allowedReactions: res.chat.allowedReactions };
+      notice = res.chat.allowedReactions ? `Разрешено реакций: ${res.chat.allowedReactions.length}` : "Разрешены все реакции";
     } catch (err) {
       error = err.message || "Не удалось сохранить";
     }
@@ -374,6 +395,42 @@ export function openEditChatDialog(chat, onSaved) {
                 el("p", { class: "settings-toggle-hint" }, "Под постом будет имя автора. Уже опубликованные не меняются."),
               ]),
               Toggle(!!chat.signMessages, (v) => saveSetting({ signMessages: v })),
+            ])
+          : null,
+        isChannel
+          ? el("div", {}, [
+              el("div", { class: "create-chat-public" }, [
+                el("div", {}, [
+                  el("p", { class: "settings-toggle-title" }, "Ограничить реакции"),
+                  el("p", { class: "settings-toggle-hint" }, "Только выбранные ниже — иначе под постами доступны любые эмодзи."),
+                ]),
+                Toggle(reactionsRestricted, (v) => {
+                  reactionsRestricted = v;
+                  saveReactions(v ? allowedReactionsDraft : null);
+                }),
+              ]),
+              reactionsRestricted
+                ? el(
+                    "div",
+                    { class: "edit-chat-reactions-grid" },
+                    ALL_EMOJI.map((e) => {
+                      const active = allowedReactionsDraft.includes(e);
+                      return el(
+                        "button",
+                        {
+                          class: `edit-chat-reaction-btn ${active ? "active" : ""}`,
+                          onclick: () => {
+                            allowedReactionsDraft = active
+                              ? allowedReactionsDraft.filter((x) => x !== e)
+                              : [...allowedReactionsDraft, e];
+                            saveReactions(allowedReactionsDraft);
+                          },
+                        },
+                        e
+                      );
+                    })
+                  )
+                : null,
             ])
           : el("div", { class: "create-chat-public" }, [
               el("div", {}, [

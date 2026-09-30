@@ -22,6 +22,7 @@ import { navigate } from "../router.js";
 import { placeCall as placeCallController, joinVoiceRoom } from "../lib/callController.js";
 import { onWsMessage } from "../lib/wsClient.js";
 import { paintWallpaper } from "../lib/wallpapers.js";
+import { openMuteDurationDialog } from "../lib/muteDurations.js";
 import { openWallpaperDialog } from "../components/wallpaperDialog.js";
 import { openScheduledMessagesDialog } from "../components/scheduledMessagesDialog.js";
 import { openThreadPanel } from "../components/threadPanel.js";
@@ -1304,18 +1305,7 @@ export async function ChatView(root, chatId) {
               {
                 icon: chat.muted ? "Bell" : "BellOff",
                 label: chat.muted ? "Включить уведомления" : "Отключить уведомления",
-                onClick: chat.muted
-                  ? () => setMute({ off: true })
-                  : // Telegram's own set of durations — "тихо на час" is the
-                    // common case, and a permanent switch made it a chore you
-                    // had to remember to undo.
-                    () =>
-                      openChoiceDialog("Отключить уведомления", [
-                        { label: "На 1 час", onClick: () => setMute({ hours: 1 }) },
-                        { label: "На 8 часов", onClick: () => setMute({ hours: 8 }) },
-                        { label: "На 2 дня", onClick: () => setMute({ hours: 48 }) },
-                        { label: "Навсегда", onClick: () => setMute({ forever: true }) },
-                      ]),
+                onClick: chat.muted ? () => setMute({ off: true }) : () => openMuteDurationDialog(setMute),
               },
               { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
               { icon: "Image", label: "Фон чата", onClick: handleChooseWallpaper },
@@ -1632,6 +1622,7 @@ export async function ChatView(root, chatId) {
           isChannel: chat.type === "channel",
           isDm,
           canPin,
+          allowedReactions: chat.allowedReactions,
           // onToggle does double duty: the first hold starts selection with
           // that message in it, every later tap adds or removes one.
           selection: { active: selecting, ids: selected, onToggle: (id) => (selecting ? toggleSelect(id) : startSelecting(id)) },

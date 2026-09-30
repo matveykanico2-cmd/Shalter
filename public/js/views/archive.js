@@ -47,6 +47,7 @@ export async function ArchiveView(root) {
                 active: false,
                 meId: me.id,
                 onPatch: patchChat,
+                onMute: muteChatFor,
                 onDelete: deleteChatItem,
                 onLeave: leaveChatItem,
                 onOpen: openChat,
@@ -80,6 +81,17 @@ export async function ArchiveView(root) {
     } catch (err) {
       alert(err.message || "Не удалось изменить чат");
       await reload().catch(() => {});
+    }
+  }
+
+  // Timed mute (see lib/muteDurations.js) — expiry is computed server-side,
+  // so the list only reflects it once the response comes back.
+  async function muteChatFor(id, opts) {
+    try {
+      const { chat: updated } = await api.muteChat(id, opts);
+      setState({ chats: getState().chats.map((c) => (c.id === id ? { ...c, ...updated } : c)) });
+    } catch (err) {
+      alert(err.message || "Не удалось изменить уведомления");
     }
   }
 

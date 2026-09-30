@@ -12,6 +12,7 @@ import { VerifiedBadge } from "./verifiedBadge.js";
 import { ProfileStatusBadge } from "./profileStatusBadge.js";
 import { getState, setState } from "../state.js";
 import { isChatMuted } from "../lib/chatSort.js";
+import { openMuteDurationDialog } from "../lib/muteDurations.js";
 
 function timeLabel(iso) {
   const d = new Date(iso);
@@ -40,7 +41,7 @@ function preview(chat, meId) {
 // архив подменяет его, чтобы список архива остался рядом, см. views/archive.js).
 // onRead — после «Отметить как прочитанное», чтобы владелец списка обновил
 // счётчик у себя.
-export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave, onOpen, onRead }) {
+export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, onLeave, onOpen, onRead }) {
   const title = chat.type === "dm" ? (chat.otherUser?.name ?? chat.title) : chat.title;
   const online = chat.type === "dm" && chat.otherUser?.online;
   const muted = isChatMuted(chat);
@@ -198,7 +199,9 @@ export function ChatListItem({ chat, active, meId, onPatch, onDelete, onLeave, o
       {
         icon: muted ? "Bell" : "BellOff",
         label: muted ? "Включить уведомления" : "Отключить уведомления",
-        onClick: () => onPatch(chat.id, { muted: !muted }),
+        onClick: muted
+          ? () => onPatch(chat.id, { muted: false })
+          : () => openMuteDurationDialog((opts) => onMute(chat.id, opts)),
       },
       // «Добавить в папку» — как в Telegram: раньше чат попадал в папку только
       // из Настройки → Папки, через список галочек по всем чатам сразу.

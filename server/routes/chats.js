@@ -515,6 +515,27 @@ router.post(
   })
 );
 
+// Narrows which emoji this channel's posts can be reacted with — null (the
+// request's `reactions` omitted or not an array) lifts the restriction back
+// to "anything", same as a chat that never set one. Enforced for real in
+// routes/messages.js's /:messageId/react; this just stores the list.
+router.post(
+  "/:id/reactions",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (chat.type !== "channel") return res.status(400).json({ error: "Список реакций настраивается только у каналов" });
+    if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
+    const list = req.body?.reactions;
+    const allowedReactions = Array.isArray(list)
+      ? [...new Set(list.map((e) => String(e).trim()).filter(Boolean))].slice(0, 20)
+      : null;
+    const updated = await updateChat(chat.id, { allowedReactions });
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    res.json({ chat: updated });
+  })
+);
+
 // The discussion group behind a channel's comments — creating one, pointing at
 // an existing group, or detaching it.
 //

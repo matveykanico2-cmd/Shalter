@@ -134,6 +134,11 @@ async function boot() {
       return data;
     })
     .catch(() => null);
+  // Chats render before this resolves (see the comment above) — until it
+  // settles, an empty `chats` array means "not loaded yet", not "no chats",
+  // so the sidebar's empty state (views/chatList.js) waits on this flag
+  // instead of flashing "Чатов нет — начните новый чат" on every page load.
+  bootData.finally(() => setState({ chatsLoaded: true }));
   // Каталог меток безопасности — один раз при запуске: значки рядом с именами
   // рисуются по нему повсюду.
   loadSafetyLabels(api).catch(() => {});
@@ -143,6 +148,17 @@ async function boot() {
   // (кольцо аватарки в navRail и везде, где читается state.user) оставался
   // прежним до перезахода. updateSelf уведомляет всех подписчиков сразу.
   onWsMessage("self:updated", (msg) => {
+    if (msg.user?.id === getState().user?.id) updateSelf(msg.user);
+  });
+  // Editing your own name/username/bio/avatar/photo (server/lib/
+  // notifyProfileChanged.js) broadcasts "contact:updated", not "self:updated"
+  // — the same event a chat partner gets when *their* profile changes. The
+  // only other listener for it lives in chatView.js, scoped to whichever
+  // chat happens to be open, and never touches state.user. Without this, a
+  // second tab or device of the same account (or this one, once you've
+  // navigated away from an open chat) never saw your own edits until a full
+  // reload re-fetched the profile from scratch.
+  onWsMessage("contact:updated", (msg) => {
     if (msg.user?.id === getState().user?.id) updateSelf(msg.user);
   });
   mountIncomingCallWatcher();
