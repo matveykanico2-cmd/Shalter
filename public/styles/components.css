@@ -5046,6 +5046,19 @@ pre.mono,
   color: var(--color-accent);
   text-align: center;
 }
+/* login.js's "Отмена — вернуться в приложение" (add-account flow) is a
+   <button>, which is inline-block by default and shrink-wraps to its own
+   text — the text-align:center above had nothing to center inside that box,
+   so the button just sat left-aligned in .login-box instead of centered
+   under the card, unlike .login-error.center/.qr-login-instructions.center
+   which both do have this pairing already. No visible box here (no
+   background/border/padding), so going full-width to actually center the
+   text has no other effect. */
+.login-link.center {
+  display: block;
+  width: 100%;
+  margin-top: 20px;
+}
 .login-link.muted {
   color: var(--color-muted);
 }
