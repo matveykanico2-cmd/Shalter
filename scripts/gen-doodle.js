@@ -119,6 +119,49 @@ const ALL_ICONS = {
   dove: `<g><path d="M2 14 C2 8 8 4 14 6 C12 4 12 1 14 0 C16 3 16 6 14 8 C18 8 20 12 18 16 C14 14 10 14 8 16 C6 18 3 18 2 14 Z"/><circle cx="15" cy="6" r="0.9" fill="%238774e1"/></g>`,
 };
 
+// Shared icon pools for the numbered seasonal/mood variants (see
+// seasonThemes() below) — one pool per category, reused by every numbered
+// tile in that category instead of each one listing its own near-duplicate
+// array.
+const POOLS = {
+  snow: ["snowflake", "icicle", "mitten", "sled", "pinecone", "cloud", "star"],
+  winter: ["snowman", "scarf", "hotcocoa", "skis", "mitten", "snowflake", "star"],
+  spring: ["tulip", "butterfly", "raindrop", "sprout", "flower", "umbrella", "rainbow"],
+  summer: ["sun", "icecream", "beachball", "watermelon", "seashell", "glasses", "rainbow"],
+  autumn: ["mapleleaf", "pumpkin", "chestnut", "leaf", "acorn", "umbrella", "mushroom"],
+  love: ["heart", "rose", "ring", "loveletter", "cupidarrow", "dove", "sparkle"],
+  space: ["rocket", "planet", "satellite", "telescope", "star", "moon", "sparkle", "ghost"],
+  holiday: ["gift", "bell", "snowflake", "star", "ribbon", "crown", "sparkle", "balloon"],
+};
+
+// Rotates `pool` by `offset` places, then repeats it out to `count` entries —
+// same pool, different lead icon and repeat pattern per numbered variant, so
+// e.g. "snow-1"/"snow-2"/"snow-3" each favor a different icon instead of all
+// three listing the exact same array.
+function variant(pool, offset, count = 12) {
+  const at = offset % pool.length;
+  const rotated = pool.slice(at).concat(pool.slice(0, at));
+  const out = [];
+  for (let i = 0; i < count; i++) out.push(rotated[i % rotated.length]);
+  return out;
+}
+
+// Builds every numbered entry (snow-1..3, space-1..3, ...) from POOLS in one
+// pass instead of hand-listing each theme's array.
+function seasonThemes() {
+  const COUNTS = { snow: 3, winter: 3, spring: 3, summer: 4, autumn: 3, love: 4, space: 3, holiday: 3 };
+  const themes = {};
+  for (const [category, n] of Object.entries(COUNTS)) {
+    const pool = POOLS[category];
+    for (let i = 1; i <= n; i++) {
+      // Offset step > 1 so short pools don't just cycle back to the same
+      // rotation (e.g. a 6-icon pool with n=4 variants and step 1 would repeat).
+      themes[`${category}-${i}`] = variant(pool, (i - 1) * 2, 12);
+    }
+  }
+  return themes;
+}
+
 const THEMES = {
   default: [
     "star", "sparkle", "heart", "plane", "gift", "cloud", "bulb", "balloon", "moon", "cactus",
@@ -139,32 +182,15 @@ const THEMES = {
     "backpack", "chart", "star", "compass2", "gradcap", "bookstack", "diploma", "laptop", "cup", "bulb",
   ],
 
-  // 20 seasonal/mood wallpapers — Настройки → Внешний вид → «Фон чата», and
-  // the per-chat picker (chatView.js's "Фон чата" menu item). Several named
-  // variants per category share the same icon pool but get a different
-  // layout because generate()'s seed is derived from the theme name string
-  // itself (see mulberry32 call below) — "snow-1" vs "snow-2" hash to
-  // different seeds even with identical ALL_ICONS input.
-  "snow-1": ["snowflake", "icicle", "mitten", "sled", "pinecone", "cloud", "star", "snowflake", "icicle", "cloud"],
-  "snow-2": ["snowflake", "icicle", "mitten", "sled", "pinecone", "cloud", "star", "snowflake", "icicle", "cloud"],
-  "snow-3": ["snowflake", "icicle", "mitten", "sled", "pinecone", "cloud", "star", "snowflake", "icicle", "cloud"],
-  "winter-1": ["snowman", "scarf", "hotcocoa", "skis", "mitten", "snowflake", "star", "snowman", "scarf", "hotcocoa"],
-  "winter-2": ["snowman", "scarf", "hotcocoa", "skis", "mitten", "snowflake", "star", "snowman", "scarf", "hotcocoa"],
-  "winter-3": ["snowman", "scarf", "hotcocoa", "skis", "mitten", "snowflake", "star", "snowman", "scarf", "hotcocoa"],
-  "spring-1": ["tulip", "butterfly", "raindrop", "sprout", "flower", "umbrella", "rainbow", "tulip", "butterfly", "sprout"],
-  "spring-2": ["tulip", "butterfly", "raindrop", "sprout", "flower", "umbrella", "rainbow", "tulip", "butterfly", "sprout"],
-  "spring-3": ["tulip", "butterfly", "raindrop", "sprout", "flower", "umbrella", "rainbow", "tulip", "butterfly", "sprout"],
-  "summer-1": ["sun", "icecream", "beachball", "watermelon", "seashell", "glasses", "sun", "icecream", "beachball", "seashell"],
-  "summer-2": ["sun", "icecream", "beachball", "watermelon", "seashell", "glasses", "sun", "icecream", "beachball", "seashell"],
-  "summer-3": ["sun", "icecream", "beachball", "watermelon", "seashell", "glasses", "sun", "icecream", "beachball", "seashell"],
-  "summer-4": ["sun", "icecream", "beachball", "watermelon", "seashell", "glasses", "sun", "icecream", "beachball", "seashell"],
-  "autumn-1": ["mapleleaf", "pumpkin", "chestnut", "leaf", "acorn", "umbrella", "mushroom", "mapleleaf", "pumpkin", "leaf"],
-  "autumn-2": ["mapleleaf", "pumpkin", "chestnut", "leaf", "acorn", "umbrella", "mushroom", "mapleleaf", "pumpkin", "leaf"],
-  "autumn-3": ["mapleleaf", "pumpkin", "chestnut", "leaf", "acorn", "umbrella", "mushroom", "mapleleaf", "pumpkin", "leaf"],
-  "love-1": ["heart", "rose", "ring", "loveletter", "cupidarrow", "dove", "heart", "rose", "loveletter", "heart"],
-  "love-2": ["heart", "rose", "ring", "loveletter", "cupidarrow", "dove", "heart", "rose", "loveletter", "heart"],
-  "love-3": ["heart", "rose", "ring", "loveletter", "cupidarrow", "dove", "heart", "rose", "loveletter", "heart"],
-  "love-4": ["heart", "rose", "ring", "loveletter", "cupidarrow", "dove", "heart", "rose", "loveletter", "heart"],
+  // Seasonal/mood wallpapers — Настройки → Внешний вид → «Фон чата», and the
+  // per-chat picker (chatView.js's "Фон чата" menu item). Numbered variants
+  // within a category used to list byte-identical icon arrays and rely on
+  // generate()'s per-name seed alone to tell them apart — which only
+  // reshuffled position/rotation/scale, not which icons appeared or how
+  // often, so e.g. "snow-1"/"snow-2"/"snow-3" read as the same tile three
+  // times. `variant()` below rotates the shared pool per index instead, so
+  // each numbered tile actually favors a different icon.
+  ...seasonThemes(),
 };
 
 function mulberry32(a) {
@@ -176,40 +202,33 @@ function mulberry32(a) {
   };
 }
 
-// A chat bubble can run up to 70% of the message column's width (see
-// components.css's .message-column max-width), starting flush from
-// whichever edge its sender's side hugs — so the two edges of the tile are
-// what actually stays visible behind bubbles, not the middle. Icons are
-// placed in a left and a right band only (each 30% of the tile), leaving
-// the center 40% empty, instead of the old even 8-column spread across the
-// whole width (which mostly ended up hidden under bubble text).
+// Icons spread across the *full* tile width in an even grid, jittered and
+// rotated per cell. An earlier version confined them to a left/right 30%
+// band each, on the theory that a chat bubble covers the middle of the
+// column — but that left a bare vertical strip down the center of every
+// wallpaper that read as a rendering gap rather than a design choice, so the
+// grid now covers edge to edge like Telegram's own tiled backgrounds do.
 function generate(themeName) {
   const names = THEMES[themeName];
   if (!names) throw new Error(`unknown theme "${themeName}" — options: ${Object.keys(THEMES).join(", ")}`);
   const rand = mulberry32(themeName === "default" ? 42 : [...themeName].reduce((a, c) => a + c.charCodeAt(0), 0));
 
   const TILE = 640;
-  const cols = 2; // icon columns per band
-  const perRow = cols * 2; // left band + right band
-  const rows = Math.ceil(names.length / perRow);
+  const cols = 4;
+  const rows = Math.ceil(names.length / cols);
+  const cellW = TILE / cols;
   const cellH = TILE / rows;
-  const bandW = TILE * 0.3;
-  const bandMargin = TILE * 0.015;
-  const bandX = [bandMargin, TILE - bandW - bandMargin]; // left band, right band
-  const cellW = bandW / cols;
 
   let groups = "";
   let i = 0;
   for (let r = 0; r < rows; r++) {
-    for (let slot = 0; slot < perRow; slot++) {
+    for (let c = 0; c < cols; c++) {
       if (i >= names.length) break;
       const name = names[i % names.length];
       i++;
-      const side = slot < cols ? 0 : 1;
-      const colInSide = slot < cols ? slot : slot - cols;
-      const jitterX = (rand() - 0.5) * cellW * 0.4;
-      const jitterY = (rand() - 0.5) * cellH * 0.5;
-      const x = Math.round(bandX[side] + colInSide * cellW + cellW / 2 + jitterX - 10);
+      const jitterX = (rand() - 0.5) * cellW * 0.35;
+      const jitterY = (rand() - 0.5) * cellH * 0.35;
+      const x = Math.round(c * cellW + cellW / 2 + jitterX - 10);
       const y = Math.round(r * cellH + cellH / 2 + jitterY - 10);
       const rot = Math.round((rand() - 0.5) * 40);
       const scale = (0.7 + rand() * 0.5).toFixed(2);

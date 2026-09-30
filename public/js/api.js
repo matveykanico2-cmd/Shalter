@@ -258,8 +258,8 @@ export const api = {
   leaveChat: (id) => req(`/api/chats/${id}/leave`, { method: "POST" }),
   clearHistory: (id, forEveryone) =>
     req(`/api/chats/${id}/clear`, { method: "POST", body: JSON.stringify({ forEveryone: !!forEveryone }) }),
-  setChatWallpaper: (id, wallpaper) =>
-    req(`/api/chats/${id}/wallpaper`, { method: "POST", body: JSON.stringify({ wallpaper }) }),
+  setChatWallpaper: (id, wallpaper, forEveryone) =>
+    req(`/api/chats/${id}/wallpaper`, { method: "POST", body: JSON.stringify({ wallpaper, forEveryone: !!forEveryone }) }),
   setDraft: (id, text) => req(`/api/chats/${id}/draft`, { method: "POST", body: JSON.stringify({ text }) }),
   setMemberRole: (id, userId, role) =>
     req(`/api/chats/${id}/members`, { method: "POST", body: JSON.stringify({ userId, role }) }),

@@ -3381,11 +3381,7 @@ async function renderData(root) {
   // AGENTS.md), so unlike Telegram's own version of this screen there's
   // nothing safe to "clear" here without deleting real chat history. There's
   // no clear button for the same reason as before — it would either do
-  // nothing or silently delete messages the user didn't ask to delete. The
-  // numbers shown are cosmetically inflated (see DISPLAY_STORAGE_MULTIPLIER)
-  // by request — real per-bucket byte counts are still what's fetched and
-  // summed, only the on-screen text is scaled up.
-  const DISPLAY_STORAGE_MULTIPLIER = 10000;
+  // nothing or silently delete messages the user didn't ask to delete.
   const BUCKETS = [
     { key: "photos", label: "Фото" },
     { key: "videos", label: "Видео" },
@@ -3411,7 +3407,7 @@ async function renderData(root) {
         // стояли отдельными рамками вне карточки и выглядели чужими на
         // странице.
         section(
-          usage ? `Использовано места — ${formatBytes(total * DISPLAY_STORAGE_MULTIPLIER)}` : "Использовано места",
+          usage ? `Использовано места — ${formatBytes(total)}` : "Использовано места",
           usageError
             ? [el("p", { class: "empty-hint" }, usageError)]
             : !usage
@@ -3422,7 +3418,7 @@ async function renderData(root) {
                     el(
                       "span",
                       { class: "mono settings-toggle-hint" },
-                      formatBytes((usage.bytesByBucket[b.key] ?? 0) * DISPLAY_STORAGE_MULTIPLIER)
+                      formatBytes(usage.bytesByBucket[b.key] ?? 0)
                     ),
                   ])
                 )

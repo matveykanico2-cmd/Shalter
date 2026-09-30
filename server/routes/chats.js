@@ -797,16 +797,28 @@ router.post(
   })
 );
 
-// Per-chat wallpaper override (Settings sets the global default; this is
-// the chat header's "…" → "Фон чата" picker overriding it for one
-// conversation only, same shape as chatClears/hiddenChats — private to
-// this account, stored in *this user's* settings row, not the chat itself).
+// Per-chat wallpaper. Settings sets the global default; this is the chat
+// header's "…" → "Фон чата" picker. Two scopes, either one open to any
+// member (not just admins — a background is decor, not moderation):
+//  - forEveryone: false (default) — private to this account only, same
+//    shape as chatClears/hiddenChats, stored in *this user's* settings row.
+//    Unchanged from before this scope option existed.
+//  - forEveryone: true — written onto the chat row itself (chats.wallpaper)
+//    and broadcast to every member, so it becomes everyone's shared
+//    background at once. A member's own personal override (above) still
+//    wins over this for themselves — same fallback order as the global
+//    chatWallpaper setting already had (see chatView.js's applyWallpaper).
 router.post(
   "/:id/wallpaper",
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    const { wallpaper } = req.body ?? {};
+    const { wallpaper, forEveryone } = req.body ?? {};
+    if (forEveryone) {
+      const updated = await updateChat(chat.id, { wallpaper: wallpaper ?? null });
+      broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+      return res.json({ chat: updated });
+    }
     const settings = await setChatWallpaper(req.uid, req.params.id, wallpaper ?? null);
     res.json({ settings });
   })

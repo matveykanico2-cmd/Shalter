@@ -36,14 +36,17 @@ import { CHAT_ACTION_LABELS } from "../lib/chatAction.js";
 import { isServerModerator } from "../lib/moderation.js";
 import { openAd } from "../lib/adLink.js";
 
-// Settings → Внешний вид → "Фон чата" sets the global default; a chat's own
-// "…" → "Фон чата" (see openWallpaperDialog below) overrides it for just
-// that conversation via settings.chatWallpapers[chatId] — private to this
-// account, same as Telegram's own per-chat background.
-function applyWallpaper(list, chatId) {
+// Three-level fallback, closest override wins:
+//  1. settings.chatWallpapers[chatId] — this account's own per-chat override
+//     (openWallpaperDialog with "Изменить у всех" off), private to them.
+//  2. chat.wallpaper — the shared background any member set for everyone
+//     (same dialog, toggle on; see server/routes/chats.js's /:id/wallpaper).
+//  3. The global default from Settings → Внешний вид → "Фон чата".
+function applyWallpaper(list, chat) {
   const settings = getState().settings;
-  const override = settings?.chatWallpapers?.[chatId];
-  paintWallpaper(list, override ?? { id: settings?.chatWallpaper ?? "default", image: settings?.chatWallpaperImage });
+  const personal = settings?.chatWallpapers?.[chat.id];
+  const shared = chat?.wallpaper;
+  paintWallpaper(list, personal ?? shared ?? { id: settings?.chatWallpaper ?? "default", image: settings?.chatWallpaperImage });
 }
 
 // Date dividers between messages from different calendar days (Telegram's
@@ -708,11 +711,16 @@ export async function ChatView(root, chatId) {
   function handleChooseWallpaper() {
     const settings = getState().settings;
     openWallpaperDialog({
-      current: settings?.chatWallpapers?.[chat.id] ?? null,
-      onSelect: async (wallpaper) => {
-        const { settings: updated } = await api.setChatWallpaper(chat.id, wallpaper);
-        setState({ settings: updated });
-        applyWallpaper(list, chat.id);
+      current: settings?.chatWallpapers?.[chat.id] ?? chat.wallpaper ?? null,
+      onSelect: async (wallpaper, forEveryone) => {
+        if (forEveryone) {
+          const { chat: updated } = await api.setChatWallpaper(chat.id, wallpaper, true);
+          chat = { ...chat, wallpaper: updated.wallpaper };
+        } else {
+          const { settings: updated } = await api.setChatWallpaper(chat.id, wallpaper, false);
+          setState({ settings: updated });
+        }
+        applyWallpaper(list, chat);
       },
     });
   }
@@ -969,7 +977,7 @@ export async function ChatView(root, chatId) {
   // остаются обычными строками в потоке, а сверху висит одна метка, которая
   // показывает дату того, что сейчас на экране, и меняется по мере прокрутки.
   const floatingDate = el("div", { class: "chat-floating-date" }, el("span", {}, ""));
-  applyWallpaper(list, chat.id);
+  applyWallpaper(list, chat);
   const composerSlot = el("div", { class: "composer-slot" });
   const bodyBottomSlot = el("div", { class: "body-bottom-slot" });
   const liveBar = el("div", { class: "live-bar-slot" });
@@ -2068,6 +2076,7 @@ export async function ChatView(root, chatId) {
     const { pinned, archived, muted, mutedUntil, ...shared } = msg.chat;
     chat = { ...chat, ...shared };
     renderHeader();
+    applyWallpaper(list, chat);
     // Цена за сообщение/комментарий (server/lib/messagePrice.js) не лежит на
     // самом чате — её выше уже посчитал сервер, msg.chat её не несёт. Без
     // этого запроса открытый композитор продолжал показывать старую цену (или

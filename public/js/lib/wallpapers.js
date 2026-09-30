@@ -67,6 +67,22 @@ export const WALLPAPER_GROUPS = [
     ],
   },
   {
+    label: "Космос",
+    items: [
+      { id: "space-1", label: "Космос 1" },
+      { id: "space-2", label: "Космос 2" },
+      { id: "space-3", label: "Космос 3" },
+    ],
+  },
+  {
+    label: "Праздник",
+    items: [
+      { id: "holiday-1", label: "Праздник 1" },
+      { id: "holiday-2", label: "Праздник 2" },
+      { id: "holiday-3", label: "Праздник 3" },
+    ],
+  },
+  {
     label: "Своё",
     items: [{ id: "custom", label: "Своё фото" }],
   },

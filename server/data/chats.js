@@ -34,6 +34,7 @@ function rowToChat(row) {
     archived: !!row.archived,
     createdAt: row.createdAt,
     linkedDiscussionChatId: row.linkedDiscussionChatId ?? undefined,
+    wallpaper: row.wallpaper ? JSON.parse(row.wallpaper) : null,
     restrictions: row.restrictions ? JSON.parse(row.restrictions) : {},
     warnings: row.warnings ? JSON.parse(row.warnings) : {},
     rules: row.rules ?? undefined,
@@ -253,6 +254,12 @@ async function updateChat(id, patch) {
   }
   if ("warnings" in patch) {
     db.prepare("UPDATE chats SET warnings = ? WHERE id = ?").run(JSON.stringify(patch.warnings ?? {}), id);
+  }
+  if ("wallpaper" in patch) {
+    db.prepare("UPDATE chats SET wallpaper = ? WHERE id = ?").run(
+      patch.wallpaper ? JSON.stringify(patch.wallpaper) : null,
+      id
+    );
   }
   return getChat(id);
 }

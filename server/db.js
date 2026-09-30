@@ -888,6 +888,14 @@ if (!existingChatVerifyCols2.has("anonymousAdmins")) db.exec("ALTER TABLE chats 
 if (!existingChatVerifyCols2.has("inviteCode")) db.exec("ALTER TABLE chats ADD COLUMN inviteCode TEXT");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_chats_invite ON chats(inviteCode) WHERE inviteCode IS NOT NULL");
 
+// Shared chat wallpaper — { id, image? }, same shape as a user's own
+// chatWallpapers override (server/data/settings.js), just set on the chat
+// itself so it applies to every member at once ("Фон чата" → "Изменить у
+// всех"). Any member's *personal* override in their own settings still wins
+// over this for themselves — this column is only the shared fallback, same
+// relationship the global chatWallpaper setting already had to it.
+if (!existingChatVerifyCols2.has("wallpaper")) db.exec("ALTER TABLE chats ADD COLUMN wallpaper TEXT");
+
 
 // Several profile photos instead of one, and video avatars (lib/avatars.js).
 // The older `avatarImage` column stays and keeps its meaning — the current
