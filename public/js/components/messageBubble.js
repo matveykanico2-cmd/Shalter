@@ -352,22 +352,34 @@ function ContactAttachment(a, meId) {
   return wrap;
 }
 
-function PollAttachment(message, a, me, onVote) {
+function PollAttachment(message, a, me, onVote, onPollAction) {
   const options = a.meta?.options ?? [];
   const votes = a.meta?.votes ?? options.map(() => 0);
   const voterIds = a.meta?.voterIds ?? options.map(() => []);
-  const totalVotes = votes.reduce((s, v) => s + v, 0);
-  const denom = totalVotes || 1;
-  const myVoteIdx = voterIds.findIndex((ids) => ids.includes(me.id));
+  // Проголосовавших людей, а не голосов: в опросе с несколькими ответами один
+  // человек даёт несколько голосов, и проценты считаются от людей — как в Telegram.
+  const voters = new Set(voterIds.flat());
+  const totalVoters = voters.size;
+  const denom = totalVoters || 1;
+  const myVotes = voterIds.map((ids, i) => (ids.includes(me.id) ? i : -1)).filter((i) => i >= 0);
+  const myVoteIdx = myVotes[0] ?? -1;
   // Викторина: у вопроса есть правильный ответ, и он объявляется сразу после
   // голоса — до голоса не показывается ничего, иначе весь смысл теряется.
   const correctIndex = Number.isInteger(a.meta?.correctIndex) ? a.meta.correctIndex : null;
   const isQuiz = correctIndex !== null;
-  const answered = myVoteIdx >= 0;
+  const multiple = !!a.meta?.multiple && !isQuiz;
+  const closed = !!a.meta?.closed;
+  const answered = myVotes.length > 0;
+  const showResults = answered || closed;
   const gotIt = isQuiz && answered && myVoteIdx === correctIndex;
+  const maxVotes = Math.max(0, ...votes);
+  const canClose = !closed && (message.senderId === me.id || a.canClose);
 
-  return el("div", { class: `poll-attachment ${isQuiz ? "quiz" : ""}` }, [
-    el("p", { class: "poll-question" }, `${isQuiz ? "🧠" : "📊"} ${message.text}`),
+  const kindLabel = closed ? "Опрос завершён" : isQuiz ? "Викторина" : multiple ? "Несколько ответов" : "Опрос";
+
+  return el("div", { class: `poll-attachment ${isQuiz ? "quiz" : ""} ${closed ? "closed" : ""}` }, [
+    el("p", { class: "poll-question" }, message.text),
+    el("p", { class: "poll-kind" }, kindLabel),
     el(
       "div",
       { class: "poll-options" },
@@ -376,16 +388,25 @@ function PollAttachment(message, a, me, onVote) {
         // В викторине после ответа варианты подсвечиваются: верный — зелёным
         // всегда, ошибочный — красным только тот, который выбрал сам человек.
         const mark = !isQuiz || !answered ? "" : i === correctIndex ? "correct" : i === myVoteIdx ? "wrong" : "";
+        const mine = myVotes.includes(i);
+        const leader = showResults && votes[i] > 0 && votes[i] === maxVotes;
         return el(
           "button",
-          { class: `poll-option ${myVoteIdx === i ? "my-vote" : ""} ${mark}`, onclick: () => onVote(message, i) },
+          {
+            class: `poll-option ${mine ? "my-vote" : ""} ${mark} ${showResults ? "has-results" : ""} ${leader ? "leader" : ""}`,
+            disabled: closed || (isQuiz && answered) || (!multiple && answered),
+            onclick: () => onVote(message, i),
+          },
           [
-            answered ? el("span", { class: "poll-option-fill", style: { width: `${pct}%` } }) : null,
+            showResults ? el("span", { class: "poll-option-fill", style: { width: `${pct}%` } }) : null,
+            showResults
+              ? el("span", { class: "mono poll-option-pct" }, `${pct}%`)
+              : el("span", { class: `poll-option-radio ${multiple ? "square" : ""}` }),
             el("span", { class: "poll-option-label" }, [
               opt,
+              mine && !isQuiz ? el("span", { class: "poll-mark mine" }, "✓") : null,
               mark === "correct" ? el("span", { class: "poll-mark" }, "✓") : null,
               mark === "wrong" ? el("span", { class: "poll-mark" }, "✗") : null,
-              answered ? el("span", { class: "mono poll-option-pct" }, `${pct}%`) : null,
             ]),
           ]
         );
@@ -394,16 +415,33 @@ function PollAttachment(message, a, me, onVote) {
     isQuiz && answered
       ? el("p", { class: `poll-quiz-result ${gotIt ? "ok" : "bad"}` }, gotIt ? "Верно!" : `Неверно. Правильный ответ: ${options[correctIndex]}`)
       : null,
-    el("p", { class: "mono poll-total" }, `${totalVotes} ${votesWord(totalVotes)}${isQuiz && !answered ? " · выберите ответ" : ""}`),
+    el("div", { class: "poll-footer" }, [
+      el("span", { class: "poll-total" }, totalVoters ? `${totalVoters} ${votersWord(totalVoters)}` : "Пока нет голосов"),
+      // Отменить голос — как в Telegram: только в обычном открытом опросе.
+      answered && !isQuiz && !closed && onPollAction
+        ? el("button", { class: "poll-action", onclick: () => onPollAction(message, "retract") }, "Отменить голос")
+        : null,
+      canClose && onPollAction
+        ? el(
+            "button",
+            {
+              class: "poll-action danger",
+              onclick: () => {
+                if (confirm("Остановить опрос? Голосовать больше будет нельзя, итоги сохранятся.")) onPollAction(message, "close");
+              },
+            },
+            "Остановить"
+          )
+        : null,
+    ]),
   ]);
 }
 
-function votesWord(n) {
+function votersWord(n) {
   const mod10 = n % 10;
   const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return "голос";
-  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return "голоса";
-  return "голосов";
+  if (mod10 === 1 && mod100 !== 11) return "проголосовал";
+  return "проголосовали";
 }
 
 // Перемотка тягой по полосе — общая и для голосового, и для кружка.
@@ -637,7 +675,7 @@ export function AttachmentView(a, me) {
 }
 
 export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, replyToSender = null, members, handlers }) {
-  const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onKeyboardAction, onKeyboardApp, onOpenThread } = handlers;
+  const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onPollAction, onKeyboardAction, onKeyboardApp, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
 
   if (message.type === "system") {
@@ -710,7 +748,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     );
   }
   for (const a of message.attachments ?? []) {
-    if (a.kind === "poll") bubbleInner.push(PollAttachment(message, a, me, onVote));
+    if (a.kind === "poll") bubbleInner.push(PollAttachment(message, { ...a, canClose: handlers.canClosePolls }, me, onVote, onPollAction));
     else bubbleInner.push(AttachmentView(a, me));
   }
   if (isSticker) {
@@ -1134,7 +1172,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       ? el(
           "button",
           { class: "sender-name", onclick: () => openProfileDialog(sender.id) },
-          [sender.name, VerifiedBadge(sender, 12), sender.isPremium ? PremiumStar({ size: 13, seed: sender.id, title: "Shalter Premium" }) : null].filter(Boolean)
+          [el("span", { class: "sender-name-text" }, sender.name), VerifiedBadge(sender, 12), sender.isPremium ? PremiumStar({ size: 13, seed: sender.id, title: "Shalter Premium" }) : null].filter(Boolean)
         )
       : null,
     bubbleWrap,

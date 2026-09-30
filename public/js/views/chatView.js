@@ -1,5 +1,5 @@
 import { el, mount, clear, appendAll } from "../lib/dom.js";
-import { plural } from "../lib/presence.js";
+import { plural, statusLabel } from "../lib/presence.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
 import { openDropdownMenu } from "../components/dropdownMenu.js";
@@ -68,10 +68,11 @@ function dayLabel(iso) {
   return d.toLocaleDateString("ru-RU", opts);
 }
 
+// Та же строка, что в контактах и профиле (lib/presence.js): «3 минуты назад»,
+// «час назад». Раньше здесь печаталась дата «28.09 в 21:43» даже для только
+// что вышедшего, а при скрытом «последнем визите» — «Invalid Date».
 function lastSeenLabel(user) {
-  if (user.online) return "в сети";
-  const d = new Date(user.lastSeen);
-  return `был(а) в сети ${d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })} в ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+  return statusLabel(user) ?? "был(а) недавно";
 }
 
 export async function ChatView(root, chatId) {
@@ -542,9 +543,56 @@ export async function ChatView(root, chatId) {
     await api.react(chat.id, m.id, emoji);
   }
 
+  // Голос ставится сразу, до ответа сервера — иначе нажатие на вариант
+  // полсекунды «ничего не делает». Ответ сервера затем заменяет сообщение
+  // целиком, поэтому расхождение (викторина, закрытый опрос) само исправится.
+  function replaceMessage(updated) {
+    if (!updated) return;
+    const idx = messages.findIndex((x) => x.id === updated.id);
+    if (idx >= 0) messages[idx] = updated;
+    renderList();
+  }
+  function applyLocalVote(m, optionIndex) {
+    const a = m.attachments?.find((x) => x.kind === "poll");
+    if (!a || a.meta?.closed) return;
+    const multiple = !!a.meta.multiple && !Number.isInteger(a.meta.correctIndex);
+    const voterIds = (a.meta.voterIds ?? a.meta.options.map(() => [])).map((ids) => [...(ids ?? [])]);
+    if (optionIndex === null) {
+      for (let i = 0; i < voterIds.length; i++) voterIds[i] = voterIds[i].filter((v) => v !== me.id);
+    } else if (multiple) {
+      voterIds[optionIndex] = voterIds[optionIndex].includes(me.id) ? voterIds[optionIndex].filter((v) => v !== me.id) : [...voterIds[optionIndex], me.id];
+    } else {
+      for (let i = 0; i < voterIds.length; i++) voterIds[i] = voterIds[i].filter((v) => v !== me.id);
+      voterIds[optionIndex].push(me.id);
+    }
+    a.meta = { ...a.meta, voterIds, votes: voterIds.map((v) => v.length) };
+    renderList();
+  }
+
   async function handleVote(m, optionIndex) {
-    await api.votePoll(chat.id, m.id, optionIndex);
-    await refreshMessages();
+    applyLocalVote(m, optionIndex);
+    try {
+      const { message } = await api.votePoll(chat.id, m.id, optionIndex);
+      replaceMessage(message);
+    } catch {
+      await refreshMessages();
+    }
+  }
+
+  async function handlePollAction(m, action) {
+    try {
+      if (action === "retract") {
+        applyLocalVote(m, null);
+        const { message } = await api.retractPollVote(chat.id, m.id);
+        replaceMessage(message);
+      } else if (action === "close") {
+        const { message } = await api.closePoll(chat.id, m.id);
+        replaceMessage(message);
+      }
+    } catch (err) {
+      alert(err.message || "Не получилось");
+      await refreshMessages();
+    }
   }
 
   async function handlePin(m) {
@@ -1146,7 +1194,10 @@ export async function ChatView(root, chatId) {
             }),
             el("div", { class: "chat-header-titles" }, [
               el("p", { class: "chat-header-title" }, [
-                chatTitle(),
+                // Текст — отдельным span: у flex-строки многоточие не работает,
+                // и длинное название просто обрезалось посередине буквы под
+                // кнопками шапки.
+                el("span", { class: "chat-header-title-text" }, chatTitle()),
                 ...(isSaved ? [] : [
                 // Галочка была всюду, кроме этого места: в списке чатов, в
                 // профиле, в панели информации и в поиске — а в шапке самого
@@ -1173,7 +1224,7 @@ export async function ChatView(root, chatId) {
                   : null,
                 ]),
               ]),
-              el("p", { class: `chat-header-subtitle${typingUserId ? " is-typing" : ""}` }, subtitle),
+              el("p", { class: `chat-header-subtitle${typingUserId ? " is-typing" : isDm && other?.online ? " is-online" : ""}` }, subtitle),
             ]),
           ]
         ),
@@ -1617,6 +1668,8 @@ export async function ChatView(root, chatId) {
           onRefresh: refreshMessages,
             onForward: (msg) => openForwardDialog((targetChatId) => handleForward(msg, targetChatId)),
             onVote: handleVote,
+            onPollAction: handlePollAction,
+            canClosePolls: !isDm && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id)),
             onKeyboardAction: (action) => handleSend(action, []),
             // Кнопка бота, открывающая его мини-приложение: { text, app: "…" }.
             // Отправителем может быть только бот, и сервер всё равно проверит,
@@ -1899,6 +1952,11 @@ export async function ChatView(root, chatId) {
   // the polling below only needs to catch up after a dropped/reconnecting
   // socket, so it can run at a much longer interval than before.
   const messagesIv = setInterval(refreshMessages, 15000);
+  // «был(а) 3 минуты назад» стареет само по себе, без всяких событий: раз в
+  // минуту пересчитываем шапку, иначе через час там всё ещё «3 минуты».
+  const lastSeenIv = setInterval(() => {
+    if (isDm && other && !other.online && header.isConnected) renderHeader();
+  }, 60000);
   // Typing already arrives over the socket (the "typing:update" handler further
   // down), so this poll is only a catch-up for a dropped connection. At 5s it
   // was 60 requests per tab per 5 minutes — a fifth of the whole rate-limit
@@ -2056,6 +2114,7 @@ export async function ChatView(root, chatId) {
   root._cleanup = () => {
     document.removeEventListener("keydown", onChatKeydown, true);
     clearInterval(messagesIv);
+    clearInterval(lastSeenIv);
     clearInterval(typingIv);
     clearTimeout(typingClearTimer);
     clearTimeout(msgTimer);

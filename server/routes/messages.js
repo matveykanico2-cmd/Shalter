@@ -20,7 +20,7 @@ function sanitizeMessageEmoji(input) {
   const cleaned = input.slice(0, MAX_MESSAGE_EMOJI).map((scene) => sanitizeScene(scene, { requireLayers: true }) ?? null);
   return cleaned.some(Boolean) ? cleaned : undefined;
 }
-const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, markChatRead, setLinkPreview, updateLiveLocation, setAttachmentPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
+const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, retractPollVote, closePoll, markChatRead, setLinkPreview, updateLiveLocation, setAttachmentPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
 const { getUser, findUserIdsByUsernames } = require("../data/users");
 const { transferStars, balanceOf } = require("../data/stars");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
@@ -37,7 +37,7 @@ const { dispatchHelperBot } = require("../lib/helperBot");
 const { dispatchBusinessAutoReply } = require("../lib/businessAutoReply");
 const { can, DENIED, isStaff } = require("../lib/chatPermissions");
 const { broadcastToUsers } = require("../ws");
-const { sendPushToUser, MESSAGE_PUSH } = require("../push");
+const { sendPushToUser, pushAvatar, userPushAvatar, MESSAGE_PUSH } = require("../push");
 const { registerAttachments } = require("../lib/uploadAccess");
 const { fetchLinkPreview } = require("../lib/linkPreview");
 const { deleteUploadedFiles, FILENAME_RE } = require("../lib/serveUpload");
@@ -131,6 +131,9 @@ async function pushNewMessage(chat, sender, message) {
   const title = isGroupLike ? chat.title : sender?.name ?? "Новое сообщение";
   const preview = messagePreview(message);
   const recipients = chat.memberIds.filter((id) => id !== message.senderId);
+  // В группе и канале — аватар чата, в личке — собеседника (с проверкой, видно
+  // ли его фото этому получателю, — см. userPushAvatar).
+  const chatAvatar = isGroupLike ? pushAvatar(chat) : null;
   await Promise.all(
     recipients.map(async (uid) => {
       const settings = await getSettings(uid);
@@ -152,7 +155,8 @@ async function pushNewMessage(chat, sender, message) {
       // сутки сообщение уже прочитано в самом приложении, и уведомление о нём
       // только мешает. Срочность обычная: в отличие от звонка, сообщение может
       // подождать, пока телефон проснётся сам (см. server/push.js).
-      await sendPushToUser(uid, { title, body, url: `/chat/${chat.id}`, // Отдельное уведомление на каждое сообщение.
+      const avatar = chatAvatar ?? (await userPushAvatar(sender, uid));
+      await sendPushToUser(uid, { title, body, ...avatar, url: `/chat/${chat.id}`, // Отдельное уведомление на каждое сообщение.
       //
       // Раньше здесь стоял общий признак на весь чат, и система показывала
       // только последнее: десять сообщений подряд схлопывались в одно, у
@@ -896,6 +900,33 @@ router.post(
     if (!found) return;
     const { optionIndex } = req.body ?? {};
     const message = await votePoll(req.params.messageId, optionIndex, req.uid);
+    broadcastToOtherMembers(found.chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
+    res.json({ message });
+  })
+);
+
+router.delete(
+  "/:messageId/vote",
+  asyncRoute(async (req, res) => {
+    const found = await loadMessageInChat(req, res);
+    if (!found) return;
+    const message = await retractPollVote(req.params.messageId, req.uid);
+    broadcastToOtherMembers(found.chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
+    res.json({ message });
+  })
+);
+
+// Остановить опрос может его автор или администрация чата — как в Telegram.
+router.post(
+  "/:messageId/poll/close",
+  asyncRoute(async (req, res) => {
+    const found = await loadMessageInChat(req, res);
+    if (!found) return;
+    if (found.message.senderId !== req.uid && !isStaff(found.chat, req.uid)) {
+      return res.status(403).json({ error: "Остановить опрос может только его автор или администратор" });
+    }
+    if (!found.message.attachments?.some((a) => a.kind === "poll")) return res.status(400).json({ error: "Это не опрос" });
+    const message = await closePoll(req.params.messageId);
     broadcastToOtherMembers(found.chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
     res.json({ message });
   })

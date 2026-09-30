@@ -2,7 +2,9 @@ const db = require("../db");
 
 const DEFAULT_SETTINGS = {
   theme: "system",
-  accent: "#2E56D9",
+  // Пусто — акцент темы (base.css): голубой #3390ec в светлой, фиолетовый
+  // #8774e1 в тёмной, как в Telegram. Цвет строкой — выбранный вручную.
+  accent: "",
   // "Отключить анимации" in the account menu (public/js/components/navRail.js)
   // — toggles the html[data-reduce-motion] CSS rule in base.css.
   reduceMotion: false,

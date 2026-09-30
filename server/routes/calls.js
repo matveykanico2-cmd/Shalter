@@ -13,7 +13,7 @@ const { sendMessageAndBroadcast } = require("../lib/systemChat");
 const { listContactsFor } = require("../data/contacts");
 const { transferStars, balanceOf } = require("../data/stars");
 const { broadcastToUsers } = require("../ws");
-const { sendPushToUser, CALL_PUSH, CALL_CANCEL_PUSH } = require("../push");
+const { sendPushToUser, userPushAvatar, CALL_PUSH, CALL_CANCEL_PUSH } = require("../push");
 const { getIceServers } = require("../lib/turnCredentials");
 
 const router = express.Router();
@@ -125,10 +125,11 @@ async function pushIncomingCall(call, callerId, recipientIds) {
   await Promise.all(
     recipientIds
       .filter((id) => id !== callerId)
-      .map((uid) =>
+      .map(async (uid) =>
         sendPushToUser(uid, {
           title,
           body,
+          ...(await userPushAvatar(caller, uid)),
           url: `/call/${call.id}`,
           tag: `call-${call.id}`,
           requireInteraction: true,

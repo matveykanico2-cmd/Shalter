@@ -13,10 +13,37 @@ export const MAX_RECORD_SEC = 180;
 // Кружок и голосовое пишутся сразу на пониженном битрейте, а не режутся потом.
 // Три минуты видео с телефонным битрейтом по умолчанию (несколько Мбит/с) —
 // это десятки мегабайт на одно сообщение; 240p-кружку столько не нужно.
-// ~700 кбит/с на картинку 240×240 хватает с запасом, речи хватает 32 кбит/с
-// opus. На выходе трёхминутный кружок весит ~16 МБ вместо ~60.
-const VIDEO_NOTE_BITRATES = { videoBitsPerSecond: 700_000, audioBitsPerSecond: 32_000 };
-const VOICE_BITRATES = { audioBitsPerSecond: 32_000 };
+// ~700 кбит/с на картинку 240×240 хватает с запасом.
+//
+// Звук — 96 кбит/с, а не 32, как было. 32 кбит/с ещё терпимо для opus, но
+// Safari/iOS пишет не webm/opus, а mp4/AAC, и AAC на 32 кбит/с срезает всё
+// выше ~7 кГц: голос звучит глухо, «как из трубы». 96 кбит/с моно — это
+// ~2 МБ на три минуты, разница в весе с 32 кбит/с незаметна на фоне видео.
+const VIDEO_NOTE_BITRATES = { videoBitsPerSecond: 700_000, audioBitsPerSecond: 96_000 };
+const VOICE_BITRATES = { audioBitsPerSecond: 96_000 };
+
+// Микрофон: моно 48 кГц с эхо- и шумоподавлением. При голом `audio: true`
+// часть браузеров (Android WebView, десктопный Chrome с гарнитурой) отдаёт
+// стерео 16/44.1 кГц без обработки — отсюда эхо комнаты и гулкий звук, а
+// стерео ещё и делит и без того малый битрейт пополам.
+const MIC_CONSTRAINTS = {
+  channelCount: 1,
+  sampleRate: 48_000,
+  sampleSize: 16,
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+};
+
+// Предпочтительные контейнеры по порядку: opus явно, чтобы браузер не выбрал
+// что-то хуже по умолчанию; mp4 — для Safari, где webm не пишется вовсе.
+function pickMime(kind) {
+  const list =
+    kind === "audio"
+      ? ["audio/webm;codecs=opus", "audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm"]
+      : ["video/webm;codecs=vp8,opus", "video/webm;codecs=vp9,opus", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm"];
+  return list.find((t) => MediaRecorder.isTypeSupported?.(t)) ?? "";
+}
 // Видео-аватар пишется тем же квадратным захватом 240×240, что и кружок, но
 // живёт в профиле дольше одного сообщения, поэтому картинке даётся больше
 // битрейта; длительность — свой предел (см. components/avatarViewer.js).
@@ -35,7 +62,7 @@ export function isRecordingSupported() {
 // recording modes. `extraStop` runs alongside stopping `stream`'s own tracks
 // (video-notes need it to also release the camera feeding the canvas).
 function wireRecorder(stream, mimeType, onTick, extraStop, bitrates, maxSec = MAX_RECORD_SEC) {
-  const opts = MediaRecorder.isTypeSupported(mimeType) ? { mimeType, ...bitrates } : { ...bitrates };
+  const opts = mimeType && MediaRecorder.isTypeSupported(mimeType) ? { mimeType, ...bitrates } : { ...bitrates };
   const recorder = new MediaRecorder(stream, Object.keys(opts).length ? opts : undefined);
   const chunks = [];
   recorder.ondataavailable = (e) => {
@@ -139,9 +166,20 @@ export function createLevelMeter(stream) {
   };
 }
 
+// Старые браузеры отвергают незнакомые ограничения целиком (OverconstrainedError)
+// — тогда берём микрофон как есть, лишь бы запись вообще пошла.
+async function getMic(video) {
+  try {
+    return await navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS, ...(video ? { video } : {}) });
+  } catch (err) {
+    if (err?.name === "NotAllowedError" || err?.name === "NotFoundError") throw err;
+    return navigator.mediaDevices.getUserMedia({ audio: true, ...(video ? { video } : {}) });
+  }
+}
+
 async function startVoiceRecording(onTick) {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const rec = wireRecorder(stream, "audio/webm", onTick, undefined, VOICE_BITRATES);
+  const stream = await getMic();
+  const rec = wireRecorder(stream, pickMime("audio"), onTick, undefined, VOICE_BITRATES);
   return { stream, ...rec };
 }
 
@@ -154,10 +192,7 @@ async function startVoiceRecording(onTick) {
 // gives MediaRecorder a video track whose identity never changes; only the
 // camera feeding pixels into the canvas changes underneath it.
 async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
-  let camStream = await navigator.mediaDevices.getUserMedia({
-    audio: true,
-    video: { width: 240, height: 240, facingMode: "user" },
-  });
+  let camStream = await getMic({ width: 240, height: 240, facingMode: "user" });
 
   const camVideo = document.createElement("video");
   camVideo.muted = true;
@@ -223,14 +258,17 @@ async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
     return { ok: true };
   }
 
-  const rec = wireRecorder(finalStream, "video/webm", onTick, () => {
+  const rec = wireRecorder(finalStream, pickMime("video"), onTick, () => {
     drawing = false;
     camStream.getTracks().forEach((t) => t.stop());
     camVideo.pause();
     camVideo.srcObject = null;
   }, bitrates, maxSec);
 
-  return { stream: finalStream, ...rec, flipCamera };
+  // Превью кружка показывает только картинку: звук в нём не нужен, а живой
+  // аудиотрек в <video> на части телефонов переключает звук в «режим звонка».
+  const previewStream = new MediaStream(canvasStream.getVideoTracks());
+  return { stream: finalStream, previewStream, ...rec, flipCamera };
 }
 
 // mode: "voice" | "video-note" | "avatar-video". onTick(sec) fires once a second

@@ -57,6 +57,7 @@ const BUSINESS_GRANT_DAYS = 30;
 const BUSINESS_PLANS = {
   "1m": { days: 30, priceRub: 299, label: "1 месяц" },
   "3m": { days: 90, priceRub: 799, label: "3 месяца" },
+  "6m": { days: 180, priceRub: 1499, label: "6 месяцев" },
   "12m": { days: 365, priceRub: 2499, label: "12 месяцев" },
 };
 const DEFAULT_BUSINESS_PLAN = "1m";

@@ -438,11 +438,14 @@ async function markChatRead(chatId, viewerId) {
 }
 
 // Persisted poll voting — clicking your current option un-votes, clicking a
-// different one moves your vote (only one choice per poll, like Telegram).
+// different one moves your vote (one choice per poll, like Telegram), or — in
+// a multiple-answer poll — toggles just that option. A closed poll no longer
+// takes votes.
 function votePoll(id, optionIndex, userId) {
   return mutate(id, (m) => {
     const attachments = m.attachments?.map((a) => {
       if (a.kind !== "poll") return a;
+      if (a.meta?.closed) return a;
       const options = a.meta?.options ?? [];
       // Номер варианта приходит из запроса — вне диапазона (подделанный или
       // битый клиент) оставляет опрос как есть, а не роняет запрос обращением
@@ -455,18 +458,46 @@ function votePoll(id, optionIndex, userId) {
       // переставляется и снимается.
       const isQuiz = Number.isInteger(a.meta?.correctIndex);
       if (isQuiz && voterIds.some((ids) => ids.includes(userId))) return a;
-      let votedSameAgain = false;
-      for (let i = 0; i < voterIds.length; i++) {
-        if (voterIds[i].includes(userId)) {
-          if (i === optionIndex) votedSameAgain = true;
-          voterIds[i] = voterIds[i].filter((v) => v !== userId);
+      if (a.meta?.multiple && !isQuiz) {
+        voterIds[optionIndex] = voterIds[optionIndex].includes(userId)
+          ? voterIds[optionIndex].filter((v) => v !== userId)
+          : [...voterIds[optionIndex], userId];
+      } else {
+        let votedSameAgain = false;
+        for (let i = 0; i < voterIds.length; i++) {
+          if (voterIds[i].includes(userId)) {
+            if (i === optionIndex) votedSameAgain = true;
+            voterIds[i] = voterIds[i].filter((v) => v !== userId);
+          }
         }
+        if (!votedSameAgain) voterIds[optionIndex].push(userId);
       }
-      if (!votedSameAgain) voterIds[optionIndex].push(userId);
       return { ...a, meta: { ...a.meta, voterIds, votes: voterIds.map((v) => v.length) } };
     });
     return { ...m, attachments };
   });
+}
+
+// «Отменить голос» — снимает все голоса человека в опросе разом (в опросе с
+// несколькими ответами их может быть несколько). В викторине и в закрытом
+// опросе ничего не делает: там ответ окончательный.
+function retractPollVote(id, userId) {
+  return mutate(id, (m) => {
+    const attachments = m.attachments?.map((a) => {
+      if (a.kind !== "poll" || a.meta?.closed || Number.isInteger(a.meta?.correctIndex)) return a;
+      const voterIds = (a.meta?.voterIds ?? []).map((ids) => (ids ?? []).filter((v) => v !== userId));
+      return { ...a, meta: { ...a.meta, voterIds, votes: voterIds.map((v) => v.length) } };
+    });
+    return { ...m, attachments };
+  });
+}
+
+// «Остановить опрос»: итоги замораживаются, голосовать больше нельзя.
+function closePoll(id) {
+  return mutate(id, (m) => ({
+    ...m,
+    attachments: m.attachments?.map((a) => (a.kind === "poll" ? { ...a, meta: { ...a.meta, closed: true } } : a)),
+  }));
 }
 
 // Increments the view counter on a channel post (see server/routes/posts.js).
@@ -611,6 +642,8 @@ module.exports = {
   setReadWatermark,
   readWatermarksFor,
   votePoll,
+  retractPollVote,
+  closePoll,
   incrementViews,
   incrementCommentCount,
   setAnchorForPost,

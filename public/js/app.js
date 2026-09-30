@@ -1,3 +1,4 @@
+import { applyAccentSetting } from "./lib/accent.js";
 import { el, mount, clear } from "./lib/dom.js";
 import { api } from "./api.js";
 import { setState, getState, updateSelf } from "./state.js";
@@ -159,7 +160,7 @@ async function boot() {
       // manually-picked theme/accent survive a hard reload instead of
       // silently falling back to the OS default every time.
       if (settings.theme && settings.theme !== "system") document.documentElement.setAttribute("data-theme", settings.theme);
-      if (settings.accent) document.documentElement.style.setProperty("--color-accent", settings.accent);
+      applyAccentSetting(settings.accent);
       document.documentElement.toggleAttribute("data-reduce-motion", !!settings.reduceMotion);
     })
     .catch(() => {});

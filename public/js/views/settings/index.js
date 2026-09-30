@@ -43,6 +43,8 @@ import { uploadFile } from "../../lib/upload.js";
 import { renderGiftArt } from "../../lib/giftTraits.js";
 import { openAnimatorEditor } from "../../components/animatorEditor.js";
 import { renderCustomScene } from "../../lib/customScene.js";
+import { timeAgo, plural } from "../../lib/presence.js";
+import { applyAccentSetting, isThemeAccent } from "../../lib/accent.js";
 import { startRecording, isRecordingSupported } from "../../lib/recorder.js";
 import { checkSize } from "../../lib/uploadLimits.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
@@ -852,10 +854,10 @@ async function renderPremium(root) {
 }
 
 const BUSINESS_PERKS = [
-  { icon: "Clock", title: "Часы работы", desc: "Покажите, когда вы на связи — и автоответ сам знает, когда включаться" },
-  { icon: "MessageSquare", title: "Приветствие и автоответ", desc: "Новому клиенту — приветствие, вне часов работы — автоответ. От вашего имени, автоматически" },
-  { icon: "Zap", title: "Быстрые ответы", desc: "Заготовленные шаблоны — не печатать одно и то же каждый раз" },
-  { icon: "MapPin", title: "Адрес на профиле", desc: "Покажите, где вас найти" },
+  { icon: "Clock", color: "#f0a23b", title: "Часы работы", desc: "Покажите, когда вы на связи — и автоответ сам знает, когда включаться" },
+  { icon: "MessageSquare", color: "#3b9bf0", title: "Приветствие и автоответ", desc: "Новому клиенту — приветствие, вне часов работы — автоответ. От вашего имени, автоматически" },
+  { icon: "Zap", color: "#8b5cf6", title: "Быстрые ответы", desc: "Заготовленные шаблоны — не печатать одно и то же каждый раз" },
+  { icon: "MapPin", color: "#e0513f", title: "Адрес на профиле", desc: "Покажите, где вас найти" },
 ];
 
 
@@ -876,6 +878,102 @@ async function renderBusiness(root) {
   // Один <video> на всю запись: render() пересобирает страницу, а превью,
   // пересозданное каждый раз, теряло бы srcObject (как в callScreen.js).
   let recordPreviewEl = null;
+
+  const plans = premiumPlanRows(info.plans);
+  // Как у Premium: по умолчанию подсвечен самый выгодный тариф.
+  let selectedPlan = plans.reduce((best, p) => (best && best.discount >= p.discount ? best : p), null)?.id ?? null;
+
+  // Сколько дней осталось — для полоски и подписи в шапке. Полоска меряет
+  // остаток относительно самого длинного тарифа: полная — год и больше.
+  function daysLeft() {
+    if (!info.businessUntil) return 0;
+    return Math.max(0, Math.ceil((new Date(info.businessUntil) - Date.now()) / 86400000));
+  }
+
+  function businessHero() {
+    const active = info.isBusiness;
+    const left = daysLeft();
+    const maxDays = Math.max(365, ...plans.map((p) => p.days));
+    const soon = active && !info.businessForever && left <= 7;
+    return el("div", { class: `business-hero${active ? " active" : ""}` }, [
+      el("div", { class: "business-hero-glow" }),
+      el("div", { class: "business-hero-icon", html: iconSvg("Bag", 36) }),
+      el("h2", { class: "business-hero-title" }, "Shalter для бизнеса"),
+      el(
+        "p",
+        { class: "business-hero-sub" },
+        active
+          ? info.businessForever
+            ? "Подписка активна навсегда"
+            : `Активна до ${new Date(info.businessUntil).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}`
+          : "Превратите аккаунт в витрину: часы работы, автоответы и адрес прямо в профиле"
+      ),
+      active && !info.businessForever
+        ? el("div", { class: "business-hero-meter" }, [
+            el("div", { class: "business-hero-meter-row" }, [
+              el("span", {}, soon ? "Скоро закончится" : "Осталось"),
+              el("span", { class: "mono" }, `${left} ${plural(left, "день", "дня", "дней")}`),
+            ]),
+            el("div", { class: `business-hero-bar${soon ? " warn" : ""}` }, [
+              el("span", { style: `width: ${Math.min(100, Math.max(3, (left / maxDays) * 100))}%` }),
+            ]),
+          ])
+        : null,
+    ]);
+  }
+
+  function businessPlans() {
+    const current = plans.find((p) => p.id === selectedPlan);
+    const extending = info.isBusiness;
+    return el("div", { class: "settings-section-group" }, [
+      el("p", { class: "settings-section-title" }, extending ? "Продлить подписку" : "Тарифы"),
+      el(
+        "div",
+        { class: "premium-plans business-plans", role: "radiogroup" },
+        plans.map((p) => {
+          const selected = p.id === selectedPlan;
+          return el(
+            "button",
+            {
+              type: "button",
+              class: `premium-plan${selected ? " selected" : ""}`,
+              role: "radio",
+              "aria-checked": selected ? "true" : "false",
+              disabled: !!buyingPlan,
+              onclick: () => {
+                selectedPlan = p.id;
+                render();
+              },
+            },
+            [
+              el("span", { class: "premium-plan-radio" }),
+              el("span", { class: "premium-plan-body" }, [
+                el("span", { class: "premium-plan-title" }, [
+                  p.label,
+                  p.discount > 0 ? el("span", { class: "premium-plan-badge business-plan-badge" }, `−${p.discount}%`) : null,
+                ]),
+                el("span", { class: "premium-plan-sub" }, p.months > 1 ? `${p.priceRub} ₽ за ${p.label}` : "Оплата за месяц"),
+              ]),
+              el("span", { class: "premium-plan-price mono" }, `${Math.round(p.perMonth)} ₽/мес`),
+            ]
+          );
+        })
+      ),
+      el(
+        "button",
+        { class: "btn-accent premium-buy-btn business-buy-btn", disabled: !!buyingPlan || !current, onclick: () => current && buyBusiness(current.id) },
+        buyingPlan ? "Открываем оплату…" : `${extending ? "Продлить" : "Подключить"} за ${current?.priceRub ?? 0} ₽`
+      ),
+      el(
+        "p",
+        { class: "settings-toggle-hint premium-buy-hint" },
+        extending
+          ? "Новый срок прибавится к текущей дате окончания. Автопродления нет — списаний без вашего ведома не будет."
+          : "Оплата переводом администрации Shalter. Автопродления нет — срок просто закончится сам."
+      ),
+      buyError ? el("p", { class: "login-error" }, buyError) : null,
+    ]);
+  }
 
   async function buyBusiness(planId) {
     buyingPlan = planId;
@@ -1169,43 +1267,26 @@ async function renderBusiness(root) {
   function render() {
     const rows = [];
 
+    rows.push(businessHero());
+    // Без подписки тарифы — сразу под шапкой; с подпиской — в конце, после
+    // настроек: продлевают реже, чем правят часы работы.
+    if (!info.isBusiness && plans.length) rows.push(businessPlans());
     if (!info.isBusiness) {
       rows.push(
+        el("p", { class: "settings-section-title" }, "Что входит"),
         el(
           "div",
           { class: "premium-perks-card" },
           BUSINESS_PERKS.map((p) =>
             el("div", { class: "premium-perk-row" }, [
-              el("span", { class: "premium-perk-icon", html: iconSvg(p.icon, 20) }),
+              el("span", { class: "premium-perk-icon business-perk-icon", style: `--perk-color: ${p.color}`, html: iconSvg(p.icon, 20) }),
               el("div", {}, [el("p", { class: "premium-perk-title" }, p.title), el("p", { class: "premium-perk-desc" }, p.desc)]),
             ])
           )
-        ),
-        el("div", { class: "settings-notice-box" }, [
-          el("p", { class: "settings-toggle-title" }, "Купить Shalter для бизнеса"),
-          el("p", { class: "settings-toggle-hint" }, "Оплата переводом администрации Shalter. Выберите срок — откроется чат, переведите указанную сумму и дождитесь подтверждения."),
-          el(
-            "div",
-            { class: "stars-pack-grid" },
-            Object.entries(info.plans ?? {}).map(([planId, plan]) =>
-              el("button", { class: "stars-pack", disabled: !!buyingPlan, onclick: () => buyBusiness(planId) }, [
-                el("span", { class: "stars-pack-amount" }, buyingPlan === planId ? "Открываем чат…" : plan.label),
-                el("span", { class: "stars-pack-price mono" }, `${plan.priceRub} ₽`),
-              ])
-            )
-          ),
-          buyError ? el("p", { class: "login-error" }, buyError) : null,
-        ])
+        )
       );
     } else {
       rows.push(
-        el("div", { class: "premium-status-card active" }, [
-          el("span", { class: "premium-status-icon" }, [PremiumStar({ size: 34, variant: "gold", title: "Shalter для бизнеса" })]),
-          el("div", {}, [
-            el("p", { class: "premium-status-title" }, "Shalter для бизнеса активен"),
-            el("p", { class: "premium-status-hint" }, formatPremiumUntil({ isPremium: true, premiumUntil: info.businessUntil, premiumForever: info.businessForever })),
-          ]),
-        ]),
         el("div", { class: "settings-toggle-row" }, [
           el("div", {}, [
             el("p", { class: "settings-toggle-title" }, "Включено"),
@@ -1281,6 +1362,7 @@ async function renderBusiness(root) {
       );
     }
 
+    if (info.isBusiness && !info.businessForever && plans.length) rows.push(businessPlans());
     mount(root, pageWrap("Shalter для бизнеса", "Часы работы, автоответчик, быстрые ответы и адрес на профиле", rows));
   }
   render();
@@ -2007,7 +2089,8 @@ async function renderAppearance(root) {
     { id: "dark", label: "Тёмная" },
     { id: "system", label: "Системная" },
   ];
-  const ACCENTS = ["#2E56D9", "#C6403B", "#1F9D63", "#B9791C", "#6E56C6", "#1C9BD9", "#D9822E"];
+  // "" — акцент темы (см. lib/accent.js); дальше — цвета на выбор.
+  const ACCENTS = ["", "#3390EC", "#E53935", "#4FAE4E", "#E39D2B", "#8774E1", "#1C9BD9", "#D9822E"];
   let wallpaperError = null;
   // Covers the world's most-spoken languages — Google Translate itself
   // supports 100+, but a dropdown of every ISO code is a worse UX than a
@@ -2044,14 +2127,14 @@ async function renderAppearance(root) {
     else document.documentElement.setAttribute("data-theme", theme);
   }
   function applyAccent(hex) {
-    document.documentElement.style.setProperty("--color-accent", hex);
+    applyAccentSetting(hex);
   }
   applyAccent(settings.accent);
 
   async function patch(p) {
     settings = { ...settings, ...p };
     if (p.theme) applyTheme(p.theme);
-    if (p.accent) applyAccent(p.accent);
+    if ("accent" in p) applyAccent(p.accent);
     setState({ settings });
     render();
     await api.patchSettings(p);
@@ -2112,8 +2195,9 @@ async function renderAppearance(root) {
             { class: "settings-swatch-row" },
             ACCENTS.map((hex) =>
               el("button", {
-                class: `settings-swatch ${settings.accent === hex ? "active" : ""}`,
-                style: { background: hex },
+                class: `settings-swatch ${(hex ? settings.accent === hex : isThemeAccent(settings.accent)) ? "active" : ""}`,
+                title: hex ? hex : "Как в теме",
+                style: { background: hex || "linear-gradient(135deg, #3390ec 50%, #8774e1 50%)" },
                 onclick: () => patch({ accent: hex }),
               })
             )
@@ -2883,8 +2967,7 @@ async function renderDevices(root) {
   let busyId = null;
 
   function timeLabel(iso) {
-    const d = new Date(iso);
-    return `${d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })}, ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+    return timeAgo(iso);
   }
 
   async function terminate(deviceId) {

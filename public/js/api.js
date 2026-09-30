@@ -301,6 +301,8 @@ export const api = {
     req(`/api/chats/${chatId}/messages/${messageId}/pin`, { method: "POST", body: JSON.stringify({ pinned }) }),
   votePoll: (chatId, messageId, optionIndex) =>
     req(`/api/chats/${chatId}/messages/${messageId}/vote`, { method: "POST", body: JSON.stringify({ optionIndex }) }),
+  retractPollVote: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/vote`, { method: "DELETE" }),
+  closePoll: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/poll/close`, { method: "POST" }),
   getThread: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/thread`),
   // Комментарии к отдельному посту канала — своя ветка на каждый пост
   // (server/routes/posts.js). Вступление в группу обсуждения происходит само,

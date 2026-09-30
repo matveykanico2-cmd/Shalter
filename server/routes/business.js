@@ -47,9 +47,14 @@ router.post(
       return res.status(503).json({ error: "Администрация Shalter ещё не зарегистрирована в приложении" });
     }
     const me = await getUser(req.uid);
-    if (me.isBusiness) {
-      return res.status(400).json({ error: "У вас уже есть Shalter для бизнеса" });
+    // Действующую подписку можно продлить: grantBusinessDays (data/users.js)
+    // прибавляет дни к текущему businessUntil. Продлевать нечего только у
+    // вечной — раньше же любой активный бизнес получал отказ, и продлить его
+    // заранее, до истечения срока, было нельзя вовсе.
+    if (me.businessForever) {
+      return res.status(400).json({ error: "У вас уже есть Shalter для бизнеса навсегда" });
     }
+    const extending = !!me.isBusiness;
 
     if (admin.id === req.uid) {
       await grantBusinessDays(req.uid, plan.days);
@@ -57,7 +62,7 @@ router.post(
       await sendMessageAndBroadcast(
         chat,
         req.uid,
-        `🏢 Вам выдан Shalter для бизнеса на ${plan.label}! Спасибо, что поддерживаете проект.`
+        `🏢 ${extending ? "Shalter для бизнеса продлён" : "Вам выдан Shalter для бизнеса"} на ${plan.label}! Спасибо, что поддерживаете проект.`
       );
       return res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE, delivered: true });
     }
@@ -72,7 +77,7 @@ router.post(
     await sendMessageAndBroadcast(
       chat,
       req.uid,
-      `Хочу оформить Shalter для бизнеса на ${plan.label} за ${plan.priceRub}₽. Перевожу на ${ADMIN_PHONE} и жду подтверждения 🙏`
+      `Хочу ${extending ? "продлить" : "оформить"} Shalter для бизнеса на ${plan.label} за ${plan.priceRub}₽. Перевожу на ${ADMIN_PHONE} и жду подтверждения 🙏`
     );
     res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE });
   })

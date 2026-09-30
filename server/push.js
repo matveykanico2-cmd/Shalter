@@ -72,4 +72,45 @@ const CALL_CANCEL_PUSH = { urgency: "high", TTL: 30 };
 // Сообщение подождёт: телефон был вне сети — покажем, когда вернётся.
 const MESSAGE_PUSH = { urgency: "normal", TTL: 24 * 60 * 60 };
 
-module.exports = { initPush, getPublicKey, sendPushToUser, CALL_PUSH, CALL_CANCEL_PUSH, MESSAGE_PUSH };
+// Аватар для уведомления: ссылка на картинку, цвет и имя — из них
+// public/sw.js рисует круглую иконку (фото или буквы на цветном фоне), как в
+// самом приложении. Вместо этого раньше у каждого уведомления стоял значок
+// приложения, и понять, от кого оно, можно было только по заголовку.
+// data:-ссылки не передаём: в уведомление влезает около 4 КБ, а встроенная
+// картинка весит больше.
+function pushAvatar(entity, fallbackName = "", { hideImage = false } = {}) {
+  if (!entity) return {};
+  const image = !hideImage && typeof entity.avatarImage === "string" && !entity.avatarImage.startsWith("data:") && entity.avatarImage.length < 1024 ? entity.avatarImage : null;
+  return {
+    avatar: {
+      url: image,
+      color: typeof entity.avatarColor === "string" ? entity.avatarColor.slice(0, 64) : null,
+      name: String(entity.title ?? entity.name ?? fallbackName).slice(0, 64),
+    },
+  };
+}
+
+// Аватар человека для уведомления конкретному получателю — с теми же
+// проверками, что у профиля (routes/users.js GET /:id): настройка «Фото
+// профиля» с исключениями и чёрный список. Без них уведомление показывало
+// фото, скрытое от этого получателя, — тем, кому его видеть нельзя. Скрытое
+// фото заменяется буквами имени на цвете профиля.
+async function userPushAvatar(user, viewerId) {
+  if (!user) return {};
+  if (user.id === viewerId) return pushAvatar(user);
+  // Здесь, а не наверху файла: модули данных тянут за собой db.js, а этот
+  // файл подключается и там, где база ещё не нужна.
+  const { allowsUser } = require("./lib/privacyRules");
+  let hideImage = (user.blockedUserIds ?? []).includes(viewerId);
+  if (!hideImage) {
+    try {
+      hideImage = !(await allowsUser(user.id, "photo", viewerId));
+    } catch {
+      // Не смогли проверить — безопаснее не показывать фото.
+      hideImage = true;
+    }
+  }
+  return pushAvatar(user, "", { hideImage });
+}
+
+module.exports = { initPush, getPublicKey, sendPushToUser, pushAvatar, userPushAvatar, CALL_PUSH, CALL_CANCEL_PUSH, MESSAGE_PUSH };

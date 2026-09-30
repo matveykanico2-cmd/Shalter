@@ -10,12 +10,13 @@ import { iconSvg } from "../icons.js";
 // поэтому проценты там уходят на второй план, а на первый выходят «верно» и
 // «неверно» (см. PollAttachment в messageBubble.js).
 //
-// onCreate(question, options, { correctIndex }) — correctIndex равен null для
-// обычного опроса.
+// onCreate(question, options, { correctIndex, multiple }) — correctIndex равен
+// null для обычного опроса; multiple — можно выбрать несколько вариантов.
 export function openPollDialog(onCreate) {
   let optionCount = 2;
   let quiz = false;
   let correctIndex = 0;
+  let multiple = false;
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const questionInput = el("input", { class: "login-input", placeholder: "Вопрос", autofocus: true });
@@ -90,6 +91,9 @@ export function openPollDialog(onCreate) {
     }, "Викторина"),
   ]);
   const modeHint = el("p", { class: "settings-toggle-hint" });
+  // Несколько ответов — только у обычного опроса: у викторины ответ один.
+  const multipleBox = el("input", { type: "checkbox", onchange: (e) => (multiple = e.target.checked) });
+  const multipleRow = el("label", { class: "poll-multiple-row" }, [multipleBox, el("span", {}, "Несколько вариантов ответа")]);
   function renderMode() {
     const [pollBtn, quizBtn] = modeRow.childNodes;
     pollBtn.className = `ad-placement ${quiz ? "" : "active"}`;
@@ -97,6 +101,7 @@ export function openPollDialog(onCreate) {
     modeHint.textContent = quiz
       ? "Отметьте галочкой правильный ответ. Ответивший сразу увидит, угадал он или нет."
       : "Обычный опрос: правильного ответа нет, видно только кто как проголосовал.";
+    multipleRow.style.display = quiz ? "none" : "";
   }
   renderMode();
 
@@ -106,6 +111,7 @@ export function openPollDialog(onCreate) {
     modeHint,
     questionInput,
     optionsSlot,
+    multipleRow,
     errorSlot,
     el(
       "button",
@@ -124,7 +130,7 @@ export function openPollDialog(onCreate) {
           // пустое поле выше отмеченного сдвигало ответ на соседний вариант.
           const correct = quiz ? raw.slice(0, correctIndex).filter(Boolean).length : null;
           close();
-          onCreate(question, options, { correctIndex: correct });
+          onCreate(question, options, { correctIndex: correct, multiple: !quiz && multiple });
         },
       },
       "Создать"

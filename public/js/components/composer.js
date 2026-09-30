@@ -652,7 +652,7 @@ export function Composer({
           icon: "BarChart",
           label: "Опрос",
           run: () =>
-            openPollDialog((question, options, { correctIndex } = {}) => {
+            openPollDialog((question, options, { correctIndex, multiple } = {}) => {
               onSend(question, [
                 {
                   kind: "poll",
@@ -663,6 +663,7 @@ export function Composer({
                     // null — обычный опрос; число — викторина с этим правильным
                     // ответом (см. pollDialog.js).
                     correctIndex: correctIndex ?? null,
+                    multiple: !!multiple,
                   },
                 },
               ]);
@@ -1492,7 +1493,7 @@ export function Composer({
       // «Записывает голосовое» / «записывает кружок» — до конца записи,
       // отмены или остановки по лимиту времени (см. result ниже).
       stopRecordAction = startChatAction(chatId, mode === "voice" ? "record_voice" : "record_video_note", recordingBar);
-      if (videoPreview) videoPreview.srcObject = recordingHandle.stream;
+      if (videoPreview) videoPreview.srcObject = recordingHandle.previewStream ?? recordingHandle.stream;
 
       // Живая громкость. Без неё волна рисовалась бы случайными палочками — и
       // это видно сразу: она не совпадает с тем, что человек говорит.

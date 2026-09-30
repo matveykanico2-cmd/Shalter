@@ -1,3 +1,4 @@
+import { timeAgo } from "../lib/presence.js";
 import { el, mount } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
@@ -8,8 +9,7 @@ import { placeCall } from "../lib/callController.js";
 import { openContactPickerDialog } from "../components/contactPickerDialog.js";
 
 function timeLabel(iso) {
-  const d = new Date(iso);
-  return `${d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })}, ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+  return timeAgo(iso);
 }
 
 function durationLabel(sec) {

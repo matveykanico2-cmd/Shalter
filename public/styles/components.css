@@ -1354,9 +1354,10 @@
    ribbon, magnet, telescope, satellite, planet, ghost, sparkle) scattered
    across a 640px tile — generated via scripts/gen-doodle.js. */
 .message-list.wallpaper-default {
-  background-color: var(--color-bg);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='640' viewBox='0 0 640 640'%3E%3Cg fill='none' stroke='%238774e1' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' opacity='0.15'%3E%3Cg transform='translate(51,20) rotate(14) scale(1.03)'%3E%3Cpath d='M10 0 L12.5 7 L20 7 L14 11.5 L16 19 L10 14.5 L4 19 L6 11.5 L0 7 L7.5 7 Z'/%3E%3C/g%3E%3Cg transform='translate(131,23) rotate(-9) scale(1.01)'%3E%3Cpath d='M6 0 L7.5 4.5 L12 6 L7.5 7.5 L6 12 L4.5 7.5 L0 6 L4.5 4.5 Z'/%3E%3C/g%3E%3Cg transform='translate(490,21) rotate(-10) scale(1.14)'%3E%3Cpath d='M10 20 C-6 8 0 -4 10 4 C20 -4 26 8 10 20 Z'/%3E%3C/g%3E%3Cg transform='translate(582,16) rotate(-12) scale(0.95)'%3E%3Cg%3E%3Cpath d='M0 14 L28 0 L18 28 L14 16 Z'/%3E%3Cpath d='M14 16 L0 14'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(55,90) rotate(-20) scale(0.94)'%3E%3Cg%3E%3Crect x='0' y='8' width='24' height='18' rx='2'/%3E%3Cpath d='M0 14 H24'/%3E%3Cpath d='M12 8 V26'/%3E%3Cpath d='M12 8 C6 8 6 0 12 3 C18 0 18 8 12 8 Z'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(157,72) rotate(4) scale(0.72)'%3E%3Cpath d='M4 20 a8 8 0 0 1 0 -16 a10 10 0 0 1 19 -2 a7 7 0 0 1 -2 18 Z'/%3E%3C/g%3E%3Cg transform='translate(467,72) rotate(-13) scale(1.09)'%3E%3Cg%3E%3Cpath d='M8 0 C14 4 14 16 8 22 C2 16 2 4 8 0 Z'/%3E%3Ccircle cx='8' cy='9' r='2.5'/%3E%3Cpath d='M8 22 L4 28 M8 22 L12 28'/%3E%3Cpath d='M2 14 L-4 18 M14 14 L20 18'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(574,71) rotate(-13) scale(1.12)'%3E%3Cg%3E%3Cellipse cx='10' cy='10' rx='9' ry='11'/%3E%3Cpath d='M10 21 L10 34'/%3E%3Cpath d='M10 21 L7 24 L10 27 L13 24 Z'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(47,160) rotate(-7) scale(0.92)'%3E%3Cpath d='M18 10 A10 10 0 1 1 8 0 A8 8 0 0 0 18 10 Z'/%3E%3C/g%3E%3Cg transform='translate(126,136) rotate(2) scale(1.00)'%3E%3Cg%3E%3Cpath d='M6 26 V6 a4 4 0 0 1 8 0 V26'/%3E%3Cpath d='M6 12 h-5 a3 3 0 0 0 0 8 h5'/%3E%3Cpath d='M14 16 h5 a3 3 0 0 1 0 8 h-5'/%3E%3Cpath d='M2 30 H18'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(467,155) rotate(-12) scale(0.85)'%3E%3Cg%3E%3Crect x='0' y='0' width='26' height='18' rx='2'/%3E%3Cpath d='M0 2 L13 12 L26 2'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(582,161) rotate(0) scale(0.80)'%3E%3Cg%3E%3Crect x='0' y='6' width='24' height='16' rx='2'/%3E%3Cpath d='M8 6 L10 2 H16 L18 6'/%3E%3Ccircle cx='12' cy='14' r='5'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(39,207) rotate(-17) scale(1.03)'%3E%3Cg%3E%3Ccircle cx='3' cy='20' r='3'/%3E%3Ccircle cx='16' cy='17' r='3'/%3E%3Cpath d='M6 20 V4 L19 1 V17'/%3E%3Cpath d='M6 6 L19 3'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(151,220) rotate(17) scale(0.74)'%3E%3Cg%3E%3Cpath d='M0 12 A12 12 0 0 1 24 12 C24 8 18 8 12 12 C6 8 0 8 0 12 Z'/%3E%3Cpath d='M12 12 V26 a3 3 0 0 1 -5 2'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(493,212) rotate(18) scale(0.77)'%3E%3Cg%3E%3Ccircle cx='10' cy='10' r='5'/%3E%3Cpath d='M10 0 V-4 M10 20 V24 M0 10 H-4 M20 10 H24 M3 3 L0 0 M17 3 L20 0 M3 17 L0 20 M17 17 L20 20'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(557,199) rotate(-6) scale(0.94)'%3E%3Cg%3E%3Cpath d='M0 20 A16 16 0 0 1 32 20'/%3E%3Cpath d='M6 20 A10 10 0 0 1 26 20'/%3E%3Cpath d='M12 20 A4 4 0 0 1 20 20'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(52,291) rotate(-17) scale(1.06)'%3E%3Cg%3E%3Ccircle cx='6' cy='6' r='6'/%3E%3Cpath d='M11 10 L24 23'/%3E%3Cpath d='M18 17 L22 13 M21 20 L25 16'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(160,271) rotate(8) scale(0.79)'%3E%3Cg%3E%3Cpath d='M2 18 C2 8 4 2 10 2 C16 2 18 8 18 18 H2 Z'/%3E%3Cpath d='M0 18 H20'/%3E%3Cpath d='M8 22 a2 2 0 0 0 4 0'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(477,288) rotate(-15) scale(1.20)'%3E%3Cg%3E%3Cpath d='M2 4 H18 L16 22 a2 2 0 0 1 -2 2 H8 a2 2 0 0 1 -2 -2 Z'/%3E%3Cpath d='M18 6 h4 a3 3 0 0 1 0 8 h-3'/%3E%3Cpath d='M0 4 H20'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(575,291) rotate(-3) scale(0.99)'%3E%3Cg%3E%3Ccircle cx='10' cy='4' r='3'/%3E%3Cpath d='M10 7 V26'/%3E%3Cpath d='M2 16 a8 8 0 0 0 16 0'/%3E%3Cpath d='M2 12 H18'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(41,345) rotate(-7) scale(1.06)'%3E%3Cg%3E%3Cpath d='M18 0 C18 12 8 22 0 24 C4 14 8 6 18 0 Z'/%3E%3Cpath d='M14 4 L2 16'/%3E%3Cpath d='M0 24 L4 20'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(136,340) rotate(14) scale(1.05)'%3E%3Cg%3E%3Ccircle cx='5' cy='10' r='5'/%3E%3Ccircle cx='19' cy='10' r='5'/%3E%3Cpath d='M10 10 H14'/%3E%3Cpath d='M0 8 H-3 M24 8 H27'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(495,354) rotate(-3) scale(0.97)'%3E%3Cg%3E%3Cpath d='M0 16 a10 10 0 0 1 20 0'/%3E%3Crect x='-2' y='14' width='6' height='9' rx='2'/%3E%3Crect x='16' y='14' width='6' height='9' rx='2'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(565,329) rotate(8) scale(0.86)'%3E%3Cg%3E%3Crect x='0' y='6' width='26' height='14' rx='7'/%3E%3Cpath d='M6 13 H10 M8 11 V15'/%3E%3Ccircle cx='18' cy='11' r='1.6'/%3E%3Ccircle cx='21' cy='14' r='1.6'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(59,419) rotate(-16) scale(0.94)'%3E%3Cg%3E%3Cpath d='M10 0 L20 10 L10 26 L0 10 Z'/%3E%3Cpath d='M0 10 H20'/%3E%3Cpath d='M10 0 V26'/%3E%3Cpath d='M10 26 L6 32 M10 26 L14 34'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(156,394) rotate(19) scale(0.79)'%3E%3Cpath d='M0 8 L6 0 H18 L24 8 L12 24 Z M0 8 H24 M6 0 L12 8 L18 0'/%3E%3C/g%3E%3Cg transform='translate(484,412) rotate(-11) scale(0.91)'%3E%3Cpath d='M0 22 L2 6 L8 14 L12 2 L16 14 L22 6 L24 22 Z'/%3E%3C/g%3E%3Cg transform='translate(559,411) rotate(-7) scale(0.80)'%3E%3Cg%3E%3Ccircle cx='10' cy='10' r='3'/%3E%3Ccircle cx='10' cy='2' r='3.5'/%3E%3Ccircle cx='18' cy='10' r='3.5'/%3E%3Ccircle cx='10' cy='18' r='3.5'/%3E%3Ccircle cx='2' cy='10' r='3.5'/%3E%3Cpath d='M10 21 V30'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(53,482) rotate(-7) scale(1.10)'%3E%3Cg%3E%3Cpath d='M0 20 C0 6 14 0 20 0 C20 12 12 20 0 20 Z'/%3E%3Cpath d='M0 20 L20 0'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(139,458) rotate(15) scale(0.88)'%3E%3Cg%3E%3Ccircle cx='10' cy='16' r='6'/%3E%3Ccircle cx='1' cy='7' r='2.6'/%3E%3Ccircle cx='8' cy='2' r='2.6'/%3E%3Ccircle cx='15' cy='2' r='2.6'/%3E%3Ccircle cx='20' cy='8' r='2.6'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(458,478) rotate(5) scale(1.14)'%3E%3Cg%3E%3Ccircle cx='10' cy='10' r='10'/%3E%3Cpath d='M10 4 V10 L15 13'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(588,461) rotate(4) scale(0.94)'%3E%3Cg%3E%3Cpath d='M10 0 V20 M0 10 H20 M2.5 2.5 L17.5 17.5 M2.5 17.5 L17.5 2.5'/%3E%3Cpath d='M10 0 L7 3 M10 0 L13 3 M10 20 L7 17 M10 20 L13 17'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(35,520) rotate(8) scale(1.05)'%3E%3Cpath d='M12 0 L2 14 H9 L6 24 L18 8 H11 Z'/%3E%3C/g%3E%3Cg transform='translate(136,527) rotate(-7) scale(0.71)'%3E%3Cg%3E%3Cpath d='M10 0 A8 8 0 0 1 18 8 C18 15 10 24 10 24 C10 24 2 15 2 8 A8 8 0 0 1 10 0 Z'/%3E%3Ccircle cx='10' cy='8' r='3'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(466,550) rotate(3) scale(1.19)'%3E%3Cg%3E%3Cpath d='M10 0 L18 6 L10 12 L2 6 Z'/%3E%3Cpath d='M6 9 L2 22 L10 18 L18 22 L14 9'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(559,523) rotate(2) scale(0.85)'%3E%3Cg%3E%3Cpath d='M2 0 V12 a8 8 0 0 0 16 0 V0'/%3E%3Cpath d='M2 0 H8 M12 0 H18'/%3E%3Cpath d='M2 5 H8 M12 5 H18'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(44,596) rotate(-3) scale(1.04)'%3E%3Cg%3E%3Cpath d='M0 10 L20 2 L23 9 L3 17 Z'/%3E%3Cpath d='M3 17 L0 26 M0 22 L6 24'/%3E%3Ccircle cx='20' cy='20' r='4'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(140,593) rotate(16) scale(0.86)'%3E%3Cg%3E%3Crect x='6' y='6' width='8' height='8' rx='1' transform='rotate(45 10 10)'/%3E%3Cpath d='M2 2 L6 6 M18 2 L14 6 M10 14 L4 24 M13 17 L18 22'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(476,602) rotate(2) scale(0.99)'%3E%3Cg%3E%3Ccircle cx='10' cy='10' r='6'/%3E%3Cellipse cx='10' cy='10' rx='14' ry='4' transform='rotate(-20 10 10)'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(562,592) rotate(-8) scale(0.86)'%3E%3Cg%3E%3Cpath d='M0 24 V10 a10 10 0 0 1 20 0 V24 L16 20 L12 24 L8 20 L4 24 Z'/%3E%3Ccircle cx='6' cy='9' r='1.4' fill='%238774e1'/%3E%3Ccircle cx='14' cy='9' r='1.4' fill='%238774e1'/%3E%3C/g%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-  background-size: 320px 320px;
+  background-color: var(--color-chat-bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='640' viewBox='0 0 640 640'%3E%3Cg fill='none' stroke='%23000000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' opacity='0.14'%3E%3Cg transform='translate(51,20) rotate(14) scale(1.03)'%3E%3Cpath d='M10 0 L12.5 7 L20 7 L14 11.5 L16 19 L10 14.5 L4 19 L6 11.5 L0 7 L7.5 7 Z'/%3E%3C/g%3E%3Cg transform='translate(131,23) rotate(-9) scale(1.01)'%3E%3Cpath d='M6 0 L7.5 4.5 L12 6 L7.5 7.5 L6 12 L4.5 7.5 L0 6 L4.5 4.5 Z'/%3E%3C/g%3E%3Cg transform='translate(490,21) rotate(-10) scale(1.14)'%3E%3Cpath d='M10 20 C-6 8 0 -4 10 4 C20 -4 26 8 10 20 Z'/%3E%3C/g%3E%3Cg transform='translate(582,16) rotate(-12) scale(0.95)'%3E%3Cg%3E%3Cpath d='M0 14 L28 0 L18 28 L14 16 Z'/%3E%3Cpath d='M14 16 L0 14'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(55,90) rotate(-20) scale(0.94)'%3E%3Cg%3E%3Crect x='0' y='8' width='24' height='18' rx='2'/%3E%3Cpath d='M0 14 H24'/%3E%3Cpath d='M12 8 V26'/%3E%3Cpath d='M12 8 C6 8 6 0 12 3 C18 0 18 8 12 8 Z'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(157,72) rotate(4) scale(0.72)'%3E%3Cpath d='M4 20 a8 8 0 0 1 0 -16 a10 10 0 0 1 19 -2 a7 7 0 0 1 -2 18 Z'/%3E%3C/g%3E%3Cg transform='translate(467,72) rotate(-13) scale(1.09)'%3E%3Cg%3E%3Cpath d='M8 0 C14 4 14 16 8 22 C2 16 2 4 8 0 Z'/%3E%3Ccircle cx='8' cy='9' r='2.5'/%3E%3Cpath d='M8 22 L4 28 M8 22 L12 28'/%3E%3Cpath d='M2 14 L-4 18 M14 14 L20 18'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(574,71) rotate(-13) scale(1.12)'%3E%3Cg%3E%3Cellipse cx='10' cy='10' rx='9' ry='11'/%3E%3Cpath d='M10 21 L10 34'/%3E%3Cpath d='M10 21 L7 24 L10 27 L13 24 Z'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(47,160) rotate(-7) scale(0.92)'%3E%3Cpath d='M18 10 A10 10 0 1 1 8 0 A8 8 0 0 0 18 10 Z'/%3E%3C/g%3E%3Cg transform='translate(126,136) rotate(2) scale(1.00)'%3E%3Cg%3E%3Cpath d='M6 26 V6 a4 4 0 0 1 8 0 V26'/%3E%3Cpath d='M6 12 h-5 a3 3 0 0 0 0 8 h5'/%3E%3Cpath d='M14 16 h5 a3 3 0 0 1 0 8 h-5'/%3E%3Cpath d='M2 30 H18'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(467,155) rotate(-12) scale(0.85)'%3E%3Cg%3E%3Crect x='0' y='0' width='26' height='18' rx='2'/%3E%3Cpath d='M0 2 L13 12 L26 2'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(582,161) rotate(0) scale(0.80)'%3E%3Cg%3E%3Crect x='0' y='6' width='24' height='16' rx='2'/%3E%3Cpath d='M8 6 L10 2 H16 L18 6'/%3E%3Ccircle cx='12' cy='14' r='5'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(39,207) rotate(-17) scale(1.03)'%3E%3Cg%3E%3Ccircle cx='3' cy='20' r='3'/%3E%3Ccircle cx='16' cy='17' r='3'/%3E%3Cpath d='M6 20 V4 L19 1 V17'/%3E%3Cpath d='M6 6 L19 3'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(151,220) rotate(17) scale(0.74)'%3E%3Cg%3E%3Cpath d='M0 12 A12 12 0 0 1 24 12 C24 8 18 8 12 12 C6 8 0 8 0 12 Z'/%3E%3Cpath d='M12 12 V26 a3 3 0 0 1 -5 2'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(493,212) rotate(18) scale(0.77)'%3E%3Cg%3E%3Ccircle cx='10' cy='10' r='5'/%3E%3Cpath d='M10 0 V-4 M10 20 V24 M0 10 H-4 M20 10 H24 M3 3 L0 0 M17 3 L20 0 M3 17 L0 20 M17 17 L20 20'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(557,199) rotate(-6) scale(0.94)'%3E%3Cg%3E%3Cpath d='M0 20 A16 16 0 0 1 32 20'/%3E%3Cpath d='M6 20 A10 10 0 0 1 26 20'/%3E%3Cpath d='M12 20 A4 4 0 0 1 20 20'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(52,291) rotate(-17) scale(1.06)'%3E%3Cg%3E%3Ccircle cx='6' cy='6' r='6'/%3E%3Cpath d='M11 10 L24 23'/%3E%3Cpath d='M18 17 L22 13 M21 20 L25 16'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(160,271) rotate(8) scale(0.79)'%3E%3Cg%3E%3Cpath d='M2 18 C2 8 4 2 10 2 C16 2 18 8 18 18 H2 Z'/%3E%3Cpath d='M0 18 H20'/%3E%3Cpath d='M8 22 a2 2 0 0 0 4 0'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(477,288) rotate(-15) scale(1.20)'%3E%3Cg%3E%3Cpath d='M2 4 H18 L16 22 a2 2 0 0 1 -2 2 H8 a2 2 0 0 1 -2 -2 Z'/%3E%3Cpath d='M18 6 h4 a3 3 0 0 1 0 8 h-3'/%3E%3Cpath d='M0 4 H20'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(575,291) rotate(-3) scale(0.99)'%3E%3Cg%3E%3Ccircle cx='10' cy='4' r='3'/%3E%3Cpath d='M10 7 V26'/%3E%3Cpath d='M2 16 a8 8 0 0 0 16 0'/%3E%3Cpath d='M2 12 H18'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(41,345) rotate(-7) scale(1.06)'%3E%3Cg%3E%3Cpath d='M18 0 C18 12 8 22 0 24 C4 14 8 6 18 0 Z'/%3E%3Cpath d='M14 4 L2 16'/%3E%3Cpath d='M0 24 L4 20'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(136,340) rotate(14) scale(1.05)'%3E%3Cg%3E%3Ccircle cx='5' cy='10' r='5'/%3E%3Ccircle cx='19' cy='10' r='5'/%3E%3Cpath d='M10 10 H14'/%3E%3Cpath d='M0 8 H-3 M24 8 H27'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(495,354) rotate(-3) scale(0.97)'%3E%3Cg%3E%3Cpath d='M0 16 a10 10 0 0 1 20 0'/%3E%3Crect x='-2' y='14' width='6' height='9' rx='2'/%3E%3Crect x='16' y='14' width='6' height='9' rx='2'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(565,329) rotate(8) scale(0.86)'%3E%3Cg%3E%3Crect x='0' y='6' width='26' height='14' rx='7'/%3E%3Cpath d='M6 13 H10 M8 11 V15'/%3E%3Ccircle cx='18' cy='11' r='1.6'/%3E%3Ccircle cx='21' cy='14' r='1.6'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(59,419) rotate(-16) scale(0.94)'%3E%3Cg%3E%3Cpath d='M10 0 L20 10 L10 26 L0 10 Z'/%3E%3Cpath d='M0 10 H20'/%3E%3Cpath d='M10 0 V26'/%3E%3Cpath d='M10 26 L6 32 M10 26 L14 34'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(156,394) rotate(19) scale(0.79)'%3E%3Cpath d='M0 8 L6 0 H18 L24 8 L12 24 Z M0 8 H24 M6 0 L12 8 L18 0'/%3E%3C/g%3E%3Cg transform='translate(484,412) rotate(-11) scale(0.91)'%3E%3Cpath d='M0 22 L2 6 L8 14 L12 2 L16 14 L22 6 L24 22 Z'/%3E%3C/g%3E%3Cg transform='translate(559,411) rotate(-7) scale(0.80)'%3E%3Cg%3E%3Ccircle cx='10' cy='10' r='3'/%3E%3Ccircle cx='10' cy='2' r='3.5'/%3E%3Ccircle cx='18' cy='10' r='3.5'/%3E%3Ccircle cx='10' cy='18' r='3.5'/%3E%3Ccircle cx='2' cy='10' r='3.5'/%3E%3Cpath d='M10 21 V30'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(53,482) rotate(-7) scale(1.10)'%3E%3Cg%3E%3Cpath d='M0 20 C0 6 14 0 20 0 C20 12 12 20 0 20 Z'/%3E%3Cpath d='M0 20 L20 0'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(139,458) rotate(15) scale(0.88)'%3E%3Cg%3E%3Ccircle cx='10' cy='16' r='6'/%3E%3Ccircle cx='1' cy='7' r='2.6'/%3E%3Ccircle cx='8' cy='2' r='2.6'/%3E%3Ccircle cx='15' cy='2' r='2.6'/%3E%3Ccircle cx='20' cy='8' r='2.6'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(458,478) rotate(5) scale(1.14)'%3E%3Cg%3E%3Ccircle cx='10' cy='10' r='10'/%3E%3Cpath d='M10 4 V10 L15 13'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(588,461) rotate(4) scale(0.94)'%3E%3Cg%3E%3Cpath d='M10 0 V20 M0 10 H20 M2.5 2.5 L17.5 17.5 M2.5 17.5 L17.5 2.5'/%3E%3Cpath d='M10 0 L7 3 M10 0 L13 3 M10 20 L7 17 M10 20 L13 17'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(35,520) rotate(8) scale(1.05)'%3E%3Cpath d='M12 0 L2 14 H9 L6 24 L18 8 H11 Z'/%3E%3C/g%3E%3Cg transform='translate(136,527) rotate(-7) scale(0.71)'%3E%3Cg%3E%3Cpath d='M10 0 A8 8 0 0 1 18 8 C18 15 10 24 10 24 C10 24 2 15 2 8 A8 8 0 0 1 10 0 Z'/%3E%3Ccircle cx='10' cy='8' r='3'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(466,550) rotate(3) scale(1.19)'%3E%3Cg%3E%3Cpath d='M10 0 L18 6 L10 12 L2 6 Z'/%3E%3Cpath d='M6 9 L2 22 L10 18 L18 22 L14 9'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(559,523) rotate(2) scale(0.85)'%3E%3Cg%3E%3Cpath d='M2 0 V12 a8 8 0 0 0 16 0 V0'/%3E%3Cpath d='M2 0 H8 M12 0 H18'/%3E%3Cpath d='M2 5 H8 M12 5 H18'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(44,596) rotate(-3) scale(1.04)'%3E%3Cg%3E%3Cpath d='M0 10 L20 2 L23 9 L3 17 Z'/%3E%3Cpath d='M3 17 L0 26 M0 22 L6 24'/%3E%3Ccircle cx='20' cy='20' r='4'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(140,593) rotate(16) scale(0.86)'%3E%3Cg%3E%3Crect x='6' y='6' width='8' height='8' rx='1' transform='rotate(45 10 10)'/%3E%3Cpath d='M2 2 L6 6 M18 2 L14 6 M10 14 L4 24 M13 17 L18 22'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(476,602) rotate(2) scale(0.99)'%3E%3Cg%3E%3Ccircle cx='10' cy='10' r='6'/%3E%3Cellipse cx='10' cy='10' rx='14' ry='4' transform='rotate(-20 10 10)'/%3E%3C/g%3E%3C/g%3E%3Cg transform='translate(562,592) rotate(-8) scale(0.86)'%3E%3Cg%3E%3Cpath d='M0 24 V10 a10 10 0 0 1 20 0 V24 L16 20 L12 24 L8 20 L4 24 Z'/%3E%3Ccircle cx='6' cy='9' r='1.4' fill='%23000000'/%3E%3Ccircle cx='14' cy='9' r='1.4' fill='%23000000'/%3E%3C/g%3E%3C/g%3E%3C/g%3E%3C/svg%3E"), var(--chat-gradient);
+  background-size: 320px 320px, cover;
+  background-attachment: local, fixed;
 }
 .message-list.wallpaper-dots {
   background-color: var(--color-bg);
@@ -2520,9 +2521,24 @@
     animation: none !important;
   }
 }
+/* Числа, время, счётчики — обычным шрифтом с цифрами одной ширины, как в
+   Telegram: моноширинный шрифт у каждого «22:34» и «99 ₽» делал интерфейс
+   похожим на терминал. Настоящий моноширинный остался там, где набирают или
+   сверяют посимвольно: коды, токены, секреты, код ботов. */
 .mono {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
+}
+pre.mono,
+.login-code-input.mono,
+.twofa-secret,
+.twofa-recovery-code,
+.bot-token-value,
+.bot-log-line,
+.bot-log-time,
+.bot-app-code,
+.donation-code-value {
+  font-family: var(--font-mono);
 }
 
 /* Composer */
@@ -2879,9 +2895,9 @@
   object-fit: cover;
   background: #000;
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
-  /* Своё изображение зеркалим — как в зеркале, иначе поднятая правая рука
-     уезжает влево и движение выглядит чужим. */
-  transform: scaleX(-1);
+  /* Без зеркала: превью показывает ровно то, что уйдёт собеседнику, — иначе
+     надписи и жесты в кружке после отправки оказывались перевёрнутыми
+     относительно того, что человек видел при записи. */
 }
 .composer-round-flip {
   position: absolute;
@@ -5514,6 +5530,9 @@
 .contacts-header .view-title {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .view-title {
   font-family: var(--font-serif);
@@ -14710,4 +14729,441 @@ video.story-reply-thumb { object-fit: cover; }
 .forward-saved-avatar {
   width: 36px;
   height: 36px;
+}
+
+/* ── Shalter для бизнеса: шапка, тарифы, продление ─────────────────────── */
+.business-hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 28px 20px 22px;
+  margin-bottom: 16px;
+  border-radius: 18px;
+  color: #fff;
+  background: linear-gradient(145deg, #1f6fd1 0%, #2a8ce8 45%, #16b0a4 100%);
+  box-shadow: 0 12px 32px rgba(31, 111, 209, 0.28);
+}
+.business-hero.active {
+  background: linear-gradient(145deg, #0f8a6b 0%, #19a77d 50%, #2bb8c9 100%);
+  box-shadow: 0 12px 32px rgba(15, 138, 107, 0.28);
+}
+.business-hero-glow {
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.35), transparent 70%);
+  pointer-events: none;
+}
+.business-hero-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 6px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(6px);
+  color: #fff;
+}
+.business-hero-icon svg {
+  stroke: currentColor;
+}
+.business-hero-title {
+  position: relative;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.business-hero-sub {
+  position: relative;
+  margin: 0;
+  max-width: 340px;
+  font-size: 14px;
+  line-height: 1.4;
+  opacity: 0.92;
+  overflow-wrap: anywhere;
+}
+.business-hero-meter {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  margin-top: 12px;
+}
+.business-hero-meter-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  opacity: 0.9;
+  margin-bottom: 6px;
+}
+.business-hero-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+.business-hero-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #fff;
+  transition: width 0.4s ease;
+}
+.business-hero-bar.warn span {
+  background: #ffd166;
+}
+.business-plan-badge {
+  background: linear-gradient(135deg, #16b0a4, #1f6fd1) !important;
+  color: #fff !important;
+}
+.business-buy-btn {
+  background: linear-gradient(135deg, #1f6fd1, #16b0a4);
+  border: 0;
+}
+.business-perk-icon {
+  color: #fff !important;
+  background: var(--perk-color, var(--color-accent)) !important;
+}
+
+/* ── Опрос в стиле Telegram: кружок-радио слева, после голоса — процент слева
+   и тонкая полоса под текстом варианта, а не заливка всей кнопки. ───────── */
+.poll-attachment {
+  width: min(300px, 100%);
+  min-width: min(240px, 100%);
+}
+.poll-question {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+}
+.poll-kind {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--color-muted);
+}
+.poll-options {
+  gap: 2px;
+}
+.poll-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 38px;
+  padding: 8px 2px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  overflow: visible;
+}
+.poll-option:disabled {
+  cursor: default;
+}
+.poll-option:not(:disabled):hover {
+  background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+}
+.poll-option.my-vote {
+  border-color: transparent;
+}
+.poll-option-radio {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 0;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--color-muted) 70%, transparent);
+  box-sizing: border-box;
+}
+.poll-option-radio.square {
+  border-radius: 6px;
+}
+.poll-option-pct {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 40px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+  color: var(--color-text);
+}
+.poll-option-label {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  align-items: center;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.poll-option-fill {
+  inset: auto auto 4px 52px;
+  height: 4px;
+  max-width: calc(100% - 52px);
+  border-radius: 999px;
+  background: var(--color-accent);
+  transition: width 0.35s ease;
+}
+.poll-option:not(.leader) .poll-option-fill {
+  opacity: 0.55;
+}
+.poll-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  font-weight: 700;
+}
+.poll-mark.mine {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 10px;
+}
+.poll-option.correct .poll-option-fill { background: var(--color-success, #1f9d63); opacity: 1; }
+.poll-option.wrong .poll-option-fill { background: var(--color-danger); opacity: 1; }
+.poll-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  margin-top: 6px;
+}
+/* Как в Telegram: итог — по центру отдельной строкой, кнопки — под ним. */
+.poll-total {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.poll-action {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.poll-action.danger {
+  color: var(--color-danger);
+}
+.poll-attachment.closed .poll-kind {
+  color: var(--color-danger);
+}
+.poll-multiple-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* ══ Детали в духе Telegram ═════════════════════════════════════════════════
+   Собраны в одном месте в конце файла, чтобы перекрывать старые правила выше
+   без правки каждого из них по отдельности. */
+
+/* Шапка чата: название обрезается многоточием, а не посреди буквы под
+   кнопками; значки рядом с ним не сжимаются. */
+.chat-header {
+  min-height: 56px;
+  padding: 6px 10px;
+}
+.chat-header-titles {
+  flex: 1;
+  overflow: hidden;
+}
+.chat-header-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.chat-header-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-header-title > :not(.chat-header-title-text) {
+  flex-shrink: 0;
+}
+.chat-header-subtitle {
+  margin: 1px 0 0;
+  font-size: 13.5px;
+  line-height: 1.3;
+}
+.chat-header-subtitle:not(.is-typing):not(.is-online) {
+  color: var(--color-muted);
+}
+.chat-header-subtitle.is-online {
+  color: var(--color-accent);
+}
+/* На телефоне кнопка эфира — только значок: подпись отнимала место у названия. */
+@media (max-width: 520px) {
+  .chat-header-live-label {
+    display: none;
+  }
+  .chat-header > .icon-btn,
+  .chat-header > * > .icon-btn {
+    padding: 7px;
+  }
+}
+
+/* Пузыри. */
+.bubble {
+  border-radius: 15px;
+  padding: 6px 10px 6px 11px;
+  box-shadow: 0 1px 2px rgba(16, 35, 47, 0.15);
+}
+.message-text {
+  font-size: 15px;
+  line-height: 1.35;
+}
+.message-meta {
+  font-size: 12px;
+  font-family: var(--font-sans);
+  color: var(--color-muted);
+  opacity: 0.9;
+}
+.message-meta .mono,
+.entrance-message-meta .mono {
+  font-family: var(--font-sans);
+}
+.message-column.mine .message-meta {
+  color: var(--color-bubble-out-meta);
+  opacity: 1;
+}
+/* Имя автора в группе — одной строкой с многоточием, как в Telegram, а не в
+   две-три строки над коротким сообщением. */
+.sender-name {
+  max-width: 100%;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.sender-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sender-name > :not(.sender-name-text) {
+  flex-shrink: 0;
+}
+
+/* Плашки дат — полупрозрачные поверх обоев, белым текстом. */
+.date-divider span,
+.date-divider-btn {
+  background: var(--color-date-pill);
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+.date-divider-btn span {
+  background: none;
+  padding: 0;
+  backdrop-filter: none;
+}
+.date-divider-btn:hover {
+  text-decoration: none;
+  filter: brightness(1.08);
+}
+.chat-floating-date span {
+  background: var(--color-date-pill);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 3px 10px;
+}
+
+/* Список чатов. */
+.chat-list-item {
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+.chat-list-item-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+.chat-list-item-time {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+}
+.chat-list-item-preview {
+  font-size: 15px;
+}
+.unread-badge {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* Опрос в своём пузыре: цвета от пузыря, а не от общей темы — в тёмной теме
+   фиолетовый акцент и серый текст на фиолетовом пузыре почти не читались. */
+.message-column.mine .poll-kind,
+.message-column.mine .poll-total {
+  color: var(--color-bubble-out-meta);
+}
+.message-column.mine .poll-action,
+.message-column.mine .poll-option-pct {
+  color: var(--color-bubble-out-accent);
+}
+.message-column.mine .poll-option-fill,
+.message-column.mine .poll-mark.mine {
+  background: var(--color-bubble-out-accent);
+}
+.message-column.mine .poll-mark.mine {
+  color: var(--color-bubble-out);
+}
+.message-column.mine .poll-option-radio {
+  border-color: var(--color-bubble-out-meta);
+}
+.message-column.mine .poll-option:not(:disabled):hover {
+  background: color-mix(in srgb, var(--color-bubble-out-accent) 10%, transparent);
+}
+/* Ссылки в своём пузыре: в светлой теме — обычным акцентом, в тёмной —
+   белыми (base.css задаёт --color-bubble-out-link только для тёмной). */
+.message-column.mine .message-text a,
+.message-column.mine .message-link {
+  color: var(--color-bubble-out-link, var(--color-accent));
+}
+.gs-balance-value,
+.gs-card-price,
+.chat-list-archive-count {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }

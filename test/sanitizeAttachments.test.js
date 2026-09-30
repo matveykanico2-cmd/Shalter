@@ -66,9 +66,17 @@ test("викторина: валидный correctIndex сохраняется, 
   assert.equal(bad[0].meta.correctIndex, null);
 });
 
-test("опрос: votes считаются из voterIds, не берутся с клиента", () => {
+test("опрос: новый опрос создаётся без голосов — ни votes, ни voterIds с клиента не берутся", () => {
   const out = sanitizeAttachments([
     { kind: "poll", meta: { options: ["a", "b"], voterIds: [["u1", "u2"], ["u3"]], votes: [999, 999] } },
   ]);
-  assert.deepEqual(out[0].meta.votes, [2, 1]);
+  assert.deepEqual(out[0].meta.votes, [0, 0]);
+  assert.deepEqual(out[0].meta.voterIds, [[], []]);
+});
+
+test("опрос: несколько ответов — только у обычного опроса, не у викторины", () => {
+  const poll = sanitizeAttachments([{ kind: "poll", meta: { options: ["a", "b"], multiple: true } }]);
+  assert.equal(poll[0].meta.multiple, true);
+  const quiz = sanitizeAttachments([{ kind: "poll", meta: { options: ["a", "b"], multiple: true, correctIndex: 0 } }]);
+  assert.equal(quiz[0].meta.multiple, false);
 });

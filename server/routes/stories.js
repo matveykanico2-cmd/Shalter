@@ -29,7 +29,7 @@ const { getChat, listChatsForUser } = require("../data/chats");
 const { publicUser } = require("../data/sanitize");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
 const { broadcastToUsers } = require("../ws");
-const { sendPushToUser, MESSAGE_PUSH } = require("../push");
+const { sendPushToUser, userPushAvatar, MESSAGE_PUSH } = require("../push");
 
 const MAX_ITEMS = 10;
 
@@ -255,8 +255,8 @@ router.post(
         const name = author?.name || "Кто-то";
         const targets = audienceOf(req.uid).filter((id) => id !== req.uid);
         await Promise.all(
-          targets.map((id) =>
-            sendPushToUser(id, { title: name, body: "Опубликовал(а) новую историю", url: "/", tag: `story-new:${req.uid}` }, MESSAGE_PUSH)
+          targets.map(async (id) =>
+            sendPushToUser(id, { title: name, body: "Опубликовал(а) новую историю", ...(await userPushAvatar(author, id)), url: "/", tag: `story-new:${req.uid}` }, MESSAGE_PUSH)
           )
         );
       } catch (err) {

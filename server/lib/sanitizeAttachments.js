@@ -84,9 +84,9 @@ function sanitizeAttachments(attachments) {
           .slice(0, 8)
           .map((o) => String(o).slice(0, 200));
         if (options.length < 2) return null;
-        const voterIds = options.map((_, i) =>
-          (Array.isArray(a.meta?.voterIds?.[i]) ? a.meta.voterIds[i] : []).filter((v) => typeof v === "string").slice(0, 5000)
-        );
+        // Голоса при создании всегда пустые: раньше они брались из запроса, и
+        // клиент мог прислать опрос с уже «набитыми» голосами.
+        const voterIds = options.map(() => []);
         // Правильный ответ викторины: номер варианта или null у обычного опроса.
         // Проверяется тип, а не Number(): Number(null) — это ноль, и обычный
         // опрос с correctIndex: null (а именно так его шлёт composer.js)
@@ -96,7 +96,9 @@ function sanitizeAttachments(attachments) {
           typeof rawCorrect === "number" && Number.isInteger(rawCorrect) && rawCorrect >= 0 && rawCorrect < options.length
             ? rawCorrect
             : null;
-        out.meta = { options, voterIds, votes: voterIds.map((v) => v.length), correctIndex };
+        // Несколько ответов — только у обычного опроса: у викторины ответ один.
+        const multiple = correctIndex === null && a.meta?.multiple === true;
+        out.meta = { options, voterIds, votes: voterIds.map((v) => v.length), correctIndex, multiple, closed: false };
       }
       return out;
     })

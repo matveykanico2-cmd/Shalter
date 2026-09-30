@@ -154,6 +154,67 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
+// Круглая иконка уведомления с аватаром отправителя — фото, а нет фото или
+// оно не загрузилось — буквы имени на его цвете, как в списке чатов. Рисуется
+// здесь, в воркере, на OffscreenCanvas: серверу не нужно отдавать отдельных
+// картинок, а приватные файлы грузятся с той же сессионной кукой.
+// Нет OffscreenCanvas (старый Safari) — вернётся null и будет значок приложения.
+function initialsOf(name) {
+  return String(name || "")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p[0] || "")
+    .join("")
+    .toUpperCase();
+}
+
+async function avatarIcon(avatar) {
+  if (!avatar || typeof OffscreenCanvas === "undefined") return null;
+  try {
+    const size = 192;
+    const canvas = new OffscreenCanvas(size, size);
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+
+    let drawn = false;
+    if (avatar.url) {
+      try {
+        const res = await fetch(avatar.url, { credentials: "include" });
+        if (res.ok) {
+          const bitmap = await createImageBitmap(await res.blob());
+          // object-fit: cover — квадрат из середины.
+          const side = Math.min(bitmap.width, bitmap.height);
+          ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size);
+          drawn = true;
+        }
+      } catch {
+        // Файл удалён или это видео — рисуем буквы.
+      }
+    }
+    if (!drawn) {
+      // Цвет аватара бывает и градиентом CSS — такой канвас не поймёт.
+      ctx.fillStyle = /^#[0-9a-f]{3,8}$|^rgb|^hsl/i.test(avatar.color || "") ? avatar.color : "#5288c1";
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = "#fff";
+      ctx.font = "600 76px -apple-system, system-ui, Roboto, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(initialsOf(avatar.name) || "?", size / 2, size / 2 + 4);
+    }
+    const blob = await canvas.convertToBlob({ type: "image/png" });
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+    return `data:image/png;base64,${btoa(bin)}`;
+  } catch {
+    return null;
+  }
+}
+
 self.addEventListener("push", (event) => {
   let payload = {};
   try {
@@ -161,7 +222,7 @@ self.addEventListener("push", (event) => {
   } catch {
     return;
   }
-  const { title, body, url, tag, requireInteraction, kind, callId } = payload;
+  const { title, body, url, tag, requireInteraction, kind, callId, avatar } = payload;
 
   // Звонок отменили (не дозвонились, отменили, ответили с другого устройства).
   // Показывать нечего — надо, наоборот, убрать висящее уведомление о нём:
@@ -192,6 +253,7 @@ self.addEventListener("push", (event) => {
       const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       if (clientsList.some((c) => c.focused)) return;
 
+      const icon = (await avatarIcon(avatar)) || "/icons/icon.svg";
       await self.registration.showNotification(title, {
         body,
         tag,
@@ -202,7 +264,7 @@ self.addEventListener("push", (event) => {
         vibrate: isCall ? [300, 200, 300, 200, 300] : undefined,
         renotify: isCall || undefined,
         silent: false,
-        icon: "/icons/icon.svg",
+        icon,
         badge: "/icons/icon.svg",
         actions: isCall
           ? [

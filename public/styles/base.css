@@ -1,75 +1,100 @@
-/* Ported from app/globals.css (Tailwind + CSS vars) — plain CSS, no Tailwind. */
+/* Ported from app/globals.css (Tailwind + CSS vars) — plain CSS, no Tailwind.
+   Палитра — по Telegram Web: светлая тема с голубым акцентом #3390ec и
+   светло-зелёными своими пузырями, тёмная — графит с фиолетовым #8774e1. */
 :root {
-  --color-bg: #f5f6f9;
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
-  --color-surface-alt: #ecedf3;
-  --color-text: #1b2130;
-  --color-muted: #5c6473;
-  --color-border: #dee1e8;
-  --color-accent: #7c6fd6;
+  --color-surface-alt: #f4f4f5;
+  --color-text: #0f0f0f;
+  --color-muted: #707579;
+  --color-border: #e7e7e9;
+  --color-accent: #3390ec;
   --color-accent-contrast: #ffffff;
-  --color-accent-soft: #ece7fb;
-  --color-success: #1f9d63;
-  --color-warning: #b9791c;
-  --color-danger: #c6403b;
+  --color-accent-soft: #e5f1fd;
+  --color-success: #4fae4e;
+  --color-warning: #e39d2b;
+  --color-danger: #e53935;
   --color-bubble-in: #ffffff;
-  --color-bubble-out: #ece4fd;
-  --font-serif: Georgia, "Iowan Old Style", "Palatino Linotype", "URW Palladio L", serif;
-  --font-sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --color-bubble-out: #eeffde;
+  /* Время и галочки в своём пузыре — зелёные, как в Telegram. */
+  --color-bubble-out-meta: #4fae4e;
+  --color-bubble-out-accent: #3a8e26;
+  --color-chat-bg: #99ba92;
+  --color-date-pill: rgba(0, 0, 0, 0.18);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Заголовки — тем же шрифтом без засечек, как везде в Telegram. Переменная
+     осталась, потому что на неё ссылаются десятки правил. */
+  --font-serif: var(--font-sans);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: #10131a;
-    --color-surface: #171b24;
-    --color-surface-alt: #1e2330;
-    --color-text: #e7e9f0;
-    --color-muted: #98a0b3;
-    --color-border: #2a2f3d;
+    --color-bg: #181818;
+    --color-surface: #212121;
+    --color-surface-alt: #2c2c2c;
+    --color-text: #ffffff;
+    --color-muted: #aaaaaa;
+    --color-border: #303030;
     --color-accent: #8774e1;
     --color-accent-contrast: #ffffff;
-    --color-accent-soft: #2f2a4d;
-    --color-success: #3fbe86;
-    --color-warning: #e0a84a;
-    --color-danger: #e0615c;
-    --color-bubble-in: #1e2330;
-    --color-bubble-out: #3d3466;
+    --color-accent-soft: #2f2a47;
+    --color-success: #5cc85a;
+    --color-warning: #f0ad4e;
+    --color-danger: #ff595a;
+    --color-bubble-in: #212121;
+    --color-bubble-out: #766ac8;
+    --color-bubble-out-meta: rgba(255, 255, 255, 0.6);
+    --color-bubble-out-accent: #ffffff;
+    --color-bubble-out-link: #ffffff;
+    --color-chat-bg: #0f0f0f;
+    --color-date-pill: rgba(255, 255, 255, 0.12);
   }
 }
 
 :root[data-theme="dark"] {
-  --color-bg: #10131a;
-  --color-surface: #171b24;
-  --color-surface-alt: #1e2330;
-  --color-text: #e7e9f0;
-  --color-muted: #98a0b3;
-  --color-border: #2a2f3d;
+  --color-bg: #181818;
+  --color-surface: #212121;
+  --color-surface-alt: #2c2c2c;
+  --color-text: #ffffff;
+  --color-muted: #aaaaaa;
+  --color-border: #303030;
   --color-accent: #8774e1;
   --color-accent-contrast: #ffffff;
-  --color-accent-soft: #2f2a4d;
-  --color-success: #3fbe86;
-  --color-warning: #e0a84a;
-  --color-danger: #e0615c;
-  --color-bubble-in: #1e2330;
-  --color-bubble-out: #3d3466;
+  --color-accent-soft: #2f2a47;
+  --color-success: #5cc85a;
+  --color-warning: #f0ad4e;
+  --color-danger: #ff595a;
+  --color-bubble-in: #212121;
+  --color-bubble-out: #766ac8;
+  --color-bubble-out-meta: rgba(255, 255, 255, 0.6);
+  --color-bubble-out-accent: #ffffff;
+  --color-bubble-out-link: #ffffff;
+  --color-chat-bg: #0f0f0f;
+  --color-date-pill: rgba(255, 255, 255, 0.12);
 }
 
 :root[data-theme="light"] {
-  --color-bg: #f5f6f9;
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
-  --color-surface-alt: #ecedf3;
-  --color-text: #1b2130;
-  --color-muted: #5c6473;
-  --color-border: #dee1e8;
-  --color-accent: #7c6fd6;
+  --color-surface-alt: #f4f4f5;
+  --color-text: #0f0f0f;
+  --color-muted: #707579;
+  --color-border: #e7e7e9;
+  --color-accent: #3390ec;
   --color-accent-contrast: #ffffff;
-  --color-accent-soft: #ece7fb;
-  --color-success: #1f9d63;
-  --color-warning: #b9791c;
-  --color-danger: #c6403b;
+  --color-accent-soft: #e5f1fd;
+  --color-success: #4fae4e;
+  --color-warning: #e39d2b;
+  --color-danger: #e53935;
   --color-bubble-in: #ffffff;
-  --color-bubble-out: #ece4fd;
+  --color-bubble-out: #eeffde;
+  /* Время и галочки в своём пузыре — зелёные, как в Telegram. */
+  --color-bubble-out-meta: #4fae4e;
+  --color-bubble-out-link: var(--color-accent);
+  --color-bubble-out-accent: #3a8e26;
+  --color-chat-bg: #99ba92;
+  --color-date-pill: rgba(0, 0, 0, 0.18);
 }
 
 * {
@@ -173,4 +198,20 @@ button:active:not(:disabled) {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+}
+
+/* Обои чата по умолчанию — как в Telegram: мягкий зелёно-жёлтый градиент в
+   светлой теме и почти чёрный с зелёным отливом в тёмной (components.css,
+   .wallpaper-default, рисует поверх него узор). */
+:root,
+:root[data-theme="light"] {
+  --chat-gradient: linear-gradient(135deg, #dbddbb 0%, #a8c89a 30%, #d5d88d 60%, #88b884 100%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --chat-gradient: linear-gradient(135deg, #1f2b23 0%, #121a16 45%, #1c2420 100%);
+  }
+}
+:root[data-theme="dark"] {
+  --chat-gradient: linear-gradient(135deg, #1f2b23 0%, #121a16 45%, #1c2420 100%);
 }
