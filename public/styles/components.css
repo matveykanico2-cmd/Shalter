@@ -15326,3 +15326,28 @@ video.story-reply-thumb { object-fit: cover; }
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
+
+/* iOS Safari (and some Android WebViews) zoom the whole page in on focus of
+   any text input/textarea whose *computed* font-size is under 16px — its way
+   of making small text readable, but the page then stays zoomed in after the
+   keyboard closes, with the layout broken until the person manually pinches
+   back out. Below the same 768px "mobile" cutoff this file already uses
+   elsewhere (chat-header-back/info-toggle), every typing surface gets bumped
+   to 16px — desktop keeps its smaller, denser sizing, since the zoom only
+   ever triggers on a touchscreen. The composer textarea is the one that
+   matters most (it's focused on every single message), but every other text
+   input in the app has the same problem, so all of them are covered here in
+   one place rather than one at a time. */
+@media (max-width: 767px) {
+  .composer-textarea,
+  .settings-input,
+  .story-reply-input,
+  .story-comment-input,
+  .chat-search-input,
+  .dropdown-search-input,
+  .invite-link-input,
+  .live-chat-input,
+  .live-obs-input {
+    font-size: 16px;
+  }
+}

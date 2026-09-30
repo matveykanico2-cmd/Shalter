@@ -622,10 +622,13 @@ export async function ChatView(root, chatId) {
     }
   }
 
-  async function toggleMute() {
-    chat.muted = !chat.muted;
-    await api.patchChat(chat.id, { muted: chat.muted });
-    renderHeader();
+  // Same duration picker as the header's "…" menu (setMute above) — this used
+  // to mutate chat.muted directly and only call renderHeader(), so the info
+  // panel row the button lives in never re-rendered and looked unchanged
+  // (and unmuting had no duration options at all, unlike everywhere else).
+  function toggleMute() {
+    if (chat.muted) setMute({ off: true });
+    else openMuteDurationDialog(setMute);
   }
 
   async function toggleBlock() {
