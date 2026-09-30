@@ -19,6 +19,7 @@ import { VerifiedBadge } from "./verifiedBadge.js";
 import { PremiumStar } from "./premiumStar.js";
 import { openGiftShopDialog } from "./giftShopDialog.js";
 import { ALL_EMOJI } from "../lib/emojiList.js";
+import { STICKERS, DRAWN_STICKERS } from "../lib/stickers.js";
 
 // A message that's *only* 1-3 emoji (Telegram's own rule) renders them big
 // and lets them pop in, instead of the normal-size static text everything
@@ -44,14 +45,25 @@ function jumboEmojiCount(text) {
 }
 
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
-// Premium-only reactions — still plain emoji (reactions are stored as
-// {emoji, userIds}, see chatView.js's handleReact), just a fancier set
-// gated behind isPremium as a small, low-effort perk. Not custom
-// image/sticker reactions — that would mean the reaction pill rendering
-// below (and the server's reaction validation) treating "emoji" as
-// possibly-a-URL everywhere it's stored/rendered, a bigger change than
-// this feature is worth right now.
+// Premium-only reactions — still plain emoji, just a fancier set gated
+// behind isPremium as a small, low-effort perk.
 const PREMIUM_QUICK_EMOJI = ["💎", "👑", "🚀", "🥂", "💯", "🌟"];
+
+// A reaction is still stored as {emoji, userIds} (server/data/messages.js's
+// toggleReaction) — a sticker reaction just puts "sticker:<id>" in that same
+// string field instead of a plain emoji character, resolved back to the
+// actual sticker object (for rendering, not storage) via this catalog. Scoped
+// to the built-in packs only, not a user's own custom-drawn ones or the
+// per-pack image stickers — those don't have a short stable id to round-trip
+// through a 40-char reaction string the way lib/stickers.js's two built-in
+// arrays already do.
+const REACTION_STICKERS = [...DRAWN_STICKERS, ...STICKERS];
+const REACTION_STICKER_PREFIX = "sticker:";
+function reactionSticker(emoji) {
+  if (typeof emoji !== "string" || !emoji.startsWith(REACTION_STICKER_PREFIX)) return null;
+  const id = emoji.slice(REACTION_STICKER_PREFIX.length);
+  return REACTION_STICKERS.find((s) => s.id === id) ?? null;
+}
 
 // Settings → Данные и память → «Автозагрузка медиа», turned off. Even with it
 // on, attachments.js never fetches full quality until the media viewer is
@@ -679,7 +691,7 @@ export function AttachmentView(a, me) {
   return null;
 }
 
-export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, replyToSender = null, members, handlers, allowedReactions = null }) {
+export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, replyToSender = null, members, handlers, allowedReactions = null, canViewReactionDetails = true }) {
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onPollAction, onKeyboardAction, onKeyboardApp, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
 
@@ -952,6 +964,20 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
                 el("button", { onclick: () => { onReact(message, e); closePicker(); } }, e)
               )
             ),
+            // Sticker reactions (REACTION_STICKERS, built-in packs only —
+            // see the comment on that constant) — same idea, one more row so
+            // a reaction isn't limited to plain emoji either.
+            el(
+              "div",
+              { class: "emoji-picker-all emoji-picker-stickers" },
+              REACTION_STICKERS.map((s) =>
+                el(
+                  "button",
+                  { title: s.name, onclick: () => { onReact(message, REACTION_STICKER_PREFIX + s.id); closePicker(); } },
+                  [renderSticker(s, { size: 26 })]
+                )
+              )
+            ),
           ]
     );
     const vw = window.innerWidth;
@@ -1006,6 +1032,72 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       { label: `Прочитали: ${readers.length}` },
       ...known.map((u) => ({ icon: "User", label: u.name, onClick: () => openProfileDialog(u.id) })),
     ]);
+  }
+
+  // Who reacted with what — long-press/right-click a reaction pill, same
+  // gesture Telegram uses instead of a dedicated button. Open to anyone in a
+  // group or DM, but only admins/moderators in a channel (canViewReactionDetails,
+  // computed from the chat's own roles in chatView.js): a channel's audience can
+  // be huge and anonymous-feeling, and letting every subscriber see exactly who
+  // reacted reads as a moderation tool being handed to everyone, not a feature.
+  function showReactionDetails(r, pos) {
+    const known = r.userIds.map((id) => members?.find((u) => u.id === id)).filter(Boolean);
+    // The dropdown menu only renders text/icons, not an arbitrary sticker
+    // scene — fall back to its emoji/name for the header line.
+    const sticker = reactionSticker(r.emoji);
+    const label = sticker ? `${sticker.emoji} ${sticker.name}` : r.emoji;
+    openDropdownMenu(pos, [
+      { label: `${label} — ${r.userIds.length}` },
+      ...known.map((u) => ({ icon: "User", label: u.name, onClick: () => openProfileDialog(u.id) })),
+    ]);
+  }
+  // Returns the extra DOM props one reaction pill needs for the hold/right-click
+  // gesture, plus a click wrapper that skips onReact() when the click is really
+  // the tail end of a hold that already opened the details. Touch has no
+  // right-click, so the hold does the same job — same HOLD_MS/SLOP shape as the
+  // bubble's own selection-hold above, just scoped to this one pill.
+  function reactionPillHandlers(r) {
+    if (!canViewReactionDetails) return { onclick: () => onReact(message, r.emoji) };
+    const HOLD_MS = 450;
+    const SLOP = 10;
+    let timer = null;
+    let startX = 0;
+    let startY = 0;
+    let justHeld = false;
+    const cancel = () => {
+      clearTimeout(timer);
+      timer = null;
+    };
+    return {
+      oncontextmenu: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showReactionDetails(r, { x: e.clientX, y: e.clientY });
+      },
+      onpointerdown: (e) => {
+        startX = e.clientX;
+        startY = e.clientY;
+        timer = setTimeout(() => {
+          timer = null;
+          justHeld = true;
+          showReactionDetails(r, { x: startX, y: startY });
+          navigator.vibrate?.(12);
+        }, HOLD_MS);
+      },
+      onpointermove: (e) => {
+        if (timer && (Math.abs(e.clientX - startX) > SLOP || Math.abs(e.clientY - startY) > SLOP)) cancel();
+      },
+      onpointerup: cancel,
+      onpointercancel: cancel,
+      onpointerleave: cancel,
+      onclick: () => {
+        if (justHeld) {
+          justHeld = false;
+          return;
+        }
+        onReact(message, r.emoji);
+      },
+    };
   }
 
   function openMessageMenu(pos) {
@@ -1173,16 +1265,17 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     ? el(
         "div",
         { class: "reactions-row" },
-        message.reactions.map((r) =>
-          el(
+        message.reactions.map((r) => {
+          const sticker = reactionSticker(r.emoji);
+          return el(
             "button",
             {
-              class: `reaction-pill ${r.userIds.includes(me.id) ? "mine" : ""}`,
-              onclick: () => onReact(message, r.emoji),
+              class: `reaction-pill ${sticker ? "reaction-pill-sticker" : ""} ${r.userIds.includes(me.id) ? "mine" : ""}`,
+              ...reactionPillHandlers(r),
             },
-            [r.emoji, el("span", { class: "mono" }, String(r.userIds.length))]
-          )
-        )
+            [sticker ? renderSticker(sticker, { size: 22 }) : r.emoji, el("span", { class: "mono" }, String(r.userIds.length))]
+          );
+        })
       )
     : null;
 

@@ -154,21 +154,12 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
-// Круглая иконка уведомления с аватаром отправителя — фото, а нет фото или
-// оно не загрузилось — буквы имени на его цвете, как в списке чатов. Рисуется
-// здесь, в воркере, на OffscreenCanvas: серверу не нужно отдавать отдельных
-// картинок, а приватные файлы грузятся с той же сессионной кукой.
-// Нет OffscreenCanvas (старый Safari) — вернётся null и будет значок приложения.
-function initialsOf(name) {
-  return String(name || "")
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0] || "")
-    .join("")
-    .toUpperCase();
-}
-
+// Круглая иконка уведомления с аватаром отправителя — только настоящее фото;
+// нет фото, оно не загрузилось, или нет OffscreenCanvas (старый Safari) —
+// null, и вызывающий код (onpush ниже) подставит значок приложения вместо
+// безликого кружка с инициалами. Рисуется здесь, в воркере, на
+// OffscreenCanvas: серверу не нужно отдавать отдельных картинок, а приватные
+// файлы грузятся с той же сессионной кукой.
 async function avatarIcon(avatar) {
   if (!avatar || typeof OffscreenCanvas === "undefined") return null;
   try {
@@ -195,16 +186,12 @@ async function avatarIcon(avatar) {
         // Файл удалён или это видео — рисуем буквы.
       }
     }
-    if (!drawn) {
-      // Цвет аватара бывает и градиентом CSS — такой канвас не поймёт.
-      ctx.fillStyle = /^#[0-9a-f]{3,8}$|^rgb|^hsl/i.test(avatar.color || "") ? avatar.color : "#5288c1";
-      ctx.fillRect(0, 0, size, size);
-      ctx.fillStyle = "#fff";
-      ctx.font = "600 76px -apple-system, system-ui, Roboto, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(initialsOf(avatar.name) || "?", size / 2, size / 2 + 4);
-    }
+    // Нет настоящего фото — раньше здесь рисовался цветной кружок с
+    // инициалами. Возвращаем null вместо этого: вызывающий код (onpush ниже)
+    // сам подставит значок приложения (/icons/icon.svg), тот же логотип,
+    // что и everywhere else в системном UI (иконка вкладки, ярлык на
+    // рабочем столе) — своя картинка Shalter вместо безликого кружка.
+    if (!drawn) return null;
     const blob = await canvas.convertToBlob({ type: "image/png" });
     const buf = new Uint8Array(await blob.arrayBuffer());
     let bin = "";

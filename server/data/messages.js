@@ -366,8 +366,10 @@ function togglePin(id, pinned) {
 
 function toggleReaction(id, emoji, userId) {
   // Эмодзи приходит из запроса: пустое или неправдоподобно длинное значение —
-  // не реакция, а мусор в базе. Отсекаем до мутации.
-  const clean = typeof emoji === "string" ? emoji.trim().slice(0, 16) : "";
+  // не реакция, а мусор в базе. Отсекаем до мутации. 40, не 16: реакция-стикер
+  // (public/js/components/messageBubble.js) хранится как "sticker:<id>", и у
+  // встроенного каталога (lib/stickers.js) есть id длиннее "art_congrats".
+  const clean = typeof emoji === "string" ? emoji.trim().slice(0, 40) : "";
   if (!clean) return getMessage(id);
   emoji = clean;
   return mutate(id, (m) => {

@@ -208,6 +208,12 @@ export async function ChatView(root, chatId) {
   // it. The server is the one that enforces it — this only decides whether to
   // offer a button that would come back 403.
   const canPin = isDm || isChatAdmin(chat, me.id) || isChatModerator(chat, me.id);
+  // Long-press/right-click a reaction pill to see who reacted (messageBubble.js's
+  // showReactionDetails) — open to everyone in a group or DM, but a channel's
+  // audience can be huge and anonymous-feeling, so there only admins/moderators
+  // get it, same "staff-only" cut as canPin above (just without the "or a group,
+  // but only its staff" half — every group member gets this one).
+  const canViewReactionDetails = !isChannel || isChatAdmin(chat, me.id) || isChatModerator(chat, me.id);
 
   // Now that history is paged, the message a reply points at may simply not be
   // loaded yet — this used to be a no-op in that case, silently doing nothing
@@ -1623,6 +1629,7 @@ export async function ChatView(root, chatId) {
           isDm,
           canPin,
           allowedReactions: chat.allowedReactions,
+          canViewReactionDetails,
           // onToggle does double duty: the first hold starts selection with
           // that message in it, every later tap adds or removes one.
           selection: { active: selecting, ids: selected, onToggle: (id) => (selecting ? toggleSelect(id) : startSelecting(id)) },
