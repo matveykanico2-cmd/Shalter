@@ -3371,7 +3371,14 @@ pre.mono,
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 240px;
+  /* A fixed width used to stick out past a narrower bubble (a short message
+     with a long-filenamed attachment on a phone-width column) instead of
+     shrinking to fit. max-width alone keeps the usual 240px on a wide bubble
+     but still lets it shrink on a narrow one — same fix shape as an
+     img { max-width: 100% } inside a shrink-wrapping container, and the name
+     inside already shrinks the same way via its own min-width:0 + ellipsis. */
+  max-width: 240px;
+  box-sizing: border-box;
   border-radius: 8px;
   border: 1px solid var(--color-border);
   background: var(--color-surface-alt);
@@ -8909,8 +8916,9 @@ pre.mono,
 }
 .gs-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 6px 10px;
 }
 .gs-head .modal-title {
   flex: 1;
@@ -9045,6 +9053,11 @@ pre.mono,
   font-family: var(--font-mono);
   font-size: 11.5px;
   font-weight: 600;
+  /* A high star price (an exclusive gift can run into the tens of thousands)
+     used to wrap onto a second line inside this small pill instead of
+     staying one line and letting the card grow, which read as the number
+     colliding with the name/supply text around it. */
+  white-space: nowrap;
 }
 /* Priced above the current balance — visible but clearly out of reach, rather
    than looking identical to something affordable. */
