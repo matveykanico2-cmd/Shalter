@@ -346,6 +346,10 @@ async function boot() {
   const FULL_PAGE_ROUTES = ["/contacts", "/calls", "/archive", "/discover-channels", "/settings"];
   const isFullPage = (p) => FULL_PAGE_ROUTES.some((r) => p === r || p.startsWith(`${r}/`));
 
+  // First path segment as a rough "which tab" key — "/chat/123" and
+  // "/chat/456" are the same section (switching conversations), "/" and
+  // "/contacts" aren't.
+  const sectionOf = (p) => p.split("/")[1] ?? "";
   let prevPath = path;
   window.addEventListener("app:navigate", ({ detail }) => {
     // Any route other than the bare chat list renders into mainSlot — on
@@ -358,6 +362,16 @@ async function boot() {
     // На широком экране это ещё и убирает список чатов слева: "chat-open" сам
     // по себе его оставляет (в переписке он нужен), поэтому признак отдельный.
     shell.classList.toggle("full-open", isFullPage(detail.path));
+    // Route handlers await their own data before calling mount() themselves
+    // (withCleanup() above only runs a teardown callback, it never touches
+    // the DOM) — so whatever was in mainSlot before this navigation stayed
+    // on screen for the entire async gap. Switching tabs — say, from "/" to
+    // "/contacts" — briefly showed the home tab's own "Выберите чат"
+    // placeholder inside Contacts, since that's what was already sitting in
+    // mainSlot. Scoped to an actual section change (not every navigation)
+    // so switching between chats, or between Settings sub-pages, doesn't
+    // pick up a needless blank flash of its own.
+    if (sectionOf(prevPath) !== sectionOf(detail.path)) clear(mainSlot);
     // Leaving the call screen without explicitly minimizing (nav-rail click,
     // browser back) still needs the call to keep running in the background —
     // implicitly minimize so the PiP bubble takes over.

@@ -36,6 +36,7 @@ import { openLiveScreen } from "../components/liveScreen.js";
 import { CHAT_ACTION_LABELS } from "../lib/chatAction.js";
 import { isServerModerator } from "../lib/moderation.js";
 import { openAd } from "../lib/adLink.js";
+import { isChatMuted } from "../lib/chatSort.js";
 
 // Three-level fallback, closest override wins:
 //  1. settings.chatWallpapers[chatId] — this account's own per-chat override
@@ -627,7 +628,7 @@ export async function ChatView(root, chatId) {
   // panel row the button lives in never re-rendered and looked unchanged
   // (and unmuting had no duration options at all, unlike everywhere else).
   function toggleMute() {
-    if (chat.muted) setMute({ off: true });
+    if (isChatMuted(chat)) setMute({ off: true });
     else openMuteDurationDialog(setMute);
   }
 
@@ -1312,9 +1313,9 @@ export async function ChatView(root, chatId) {
                 ? [{ icon: "Phone", label: "Начать голосовой чат", onClick: () => joinVoiceRoom(chat.id, me) }]
                 : []),
               {
-                icon: chat.muted ? "Bell" : "BellOff",
-                label: chat.muted ? "Включить уведомления" : "Отключить уведомления",
-                onClick: chat.muted ? () => setMute({ off: true }) : () => openMuteDurationDialog(setMute),
+                icon: isChatMuted(chat) ? "Bell" : "BellOff",
+                label: isChatMuted(chat) ? "Включить уведомления" : "Отключить уведомления",
+                onClick: isChatMuted(chat) ? () => setMute({ off: true }) : () => openMuteDurationDialog(setMute),
               },
               { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
               { icon: "Image", label: "Фон чата", onClick: handleChooseWallpaper },

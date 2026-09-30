@@ -12,6 +12,7 @@ import { levelForPoints, pointsToNextLevel } from "../lib/groupLevels.js";
 import { openEditChatDialog } from "./editChatDialog.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { isChatOwner, isChatAdmin, memberRoleLabel } from "../lib/chatRoles.js";
+import { isChatMuted } from "../lib/chatSort.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 import { ProfileStatusBadge } from "./profileStatusBadge.js";
 import { openChannelStats } from "./channelStats.js";
@@ -347,7 +348,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             "🎁 Отправить подарок"
           )
         : null,
-      el("button", { class: "info-panel-row", onclick: onToggleMute }, chat.muted ? "Включить уведомления" : "Отключить уведомления"),
+      el("button", { class: "info-panel-row", onclick: onToggleMute }, isChatMuted(chat) ? "Включить уведомления" : "Отключить уведомления"),
       // Статистика — только тем, кто ведёт канал (сервер проверяет то же
       // самое). Просмотры и комментарии копились и раньше, но посмотреть на
       // них целиком было негде.

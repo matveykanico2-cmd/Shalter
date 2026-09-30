@@ -350,6 +350,27 @@ router.patch(
   })
 );
 
+// Answering a DM call never touched the server before — the callee's client
+// just starts exchanging WebRTC signals directly with the caller (see
+// public/js/lib/callController.js's join()), since both sides are already in
+// participantIds from creation and there's no "add participant" step to hang
+// this on. That's fine for the caller, who finds out the moment a peer
+// connection forms — but if the same person is logged in on a second device,
+// that device's own incoming-call banner never got told the call was picked
+// up elsewhere, and kept ringing until the call ended entirely. This exists
+// purely to fix that: a fire-and-forget ping the answering client sends right
+// as it joins, so every other session of *this* user (not the caller) can
+// dismiss its own ringing banner.
+router.post(
+  "/:id/answer",
+  asyncRoute(async (req, res) => {
+    const call = await getCall(req.params.id);
+    if (!call || !call.participantIds.includes(req.uid)) return res.json({ ok: true });
+    broadcastToUsers([req.uid], { type: "call:answered", callId: call.id });
+    res.json({ ok: true });
+  })
+);
+
 // Adds a participant to an ongoing call — each existing peer grows its mesh
 // by opening a new RTCPeerConnection to the newcomer (public/js/lib/webrtc.js).
 router.post(

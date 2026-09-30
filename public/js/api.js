@@ -374,6 +374,9 @@ export const api = {
   placeCall: (chatId, kind, { ringAll = false } = {}) =>
     req("/api/calls", { method: "POST", body: JSON.stringify({ chatId, kind, ringAll }) }),
   leaveCall: (id) => req(`/api/calls/${id}/leave`, { method: "POST" }),
+  // Fire-and-forget ping so a second logged-in device stops ringing once this
+  // one answers (server/routes/calls.js's /:id/answer) — see callController.js.
+  answerCall: (id) => req(`/api/calls/${id}/answer`, { method: "POST" }),
   patchCall: (id, patch) => req(`/api/calls/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   getVoiceRoom: (chatId) => req(`/api/calls/room/${chatId}`),
   joinVoiceRoom: (chatId) => req(`/api/calls/room/${chatId}/join`, { method: "POST" }),

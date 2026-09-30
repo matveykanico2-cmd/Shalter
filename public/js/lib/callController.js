@@ -373,6 +373,14 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
   // только у звонящего; у принимающего звонок и так либо соединится, либо
   // закончится по сигналу с той стороны.
   if (!isRoom && call.callerId === me.id) armNoAnswerTimer();
+  // The callee answering — tells this same person's other logged-in devices
+  // to stop ringing (server/routes/calls.js's /:id/answer). Nothing here ever
+  // told the caller's or callee's own sibling sessions that the call was
+  // picked up: the callee's client only exchanges WebRTC signals directly
+  // with the caller, so a second device stayed ringing until the whole call
+  // ended. Fire-and-forget — a failed ping just means that other device rings
+  // a bit longer, not a broken call.
+  if (!isRoom && call.callerId !== me.id) api.answerCall(call.id).catch(() => {});
 
   ticker = setInterval(() => {
     if (state && state.phase === "connected") {

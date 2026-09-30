@@ -127,6 +127,15 @@ export function mountIncomingCallWatcher() {
   onWsMessage("call:updated", (msg) => {
     if (banner && msg.call.status !== "ongoing") dismiss();
   });
+  // Answered on another of this person's own devices (server/routes/calls.js's
+  // /:id/answer, sent by callController.js's join()) — the call itself stays
+  // "ongoing" the whole time it's ringing *and* while it's talked on, so the
+  // call:updated handler above never fires for "someone picked up", only for
+  // when it actually ends. Without this, a second device just kept ringing
+  // until the whole call was over.
+  onWsMessage("call:answered", () => {
+    if (banner) dismiss();
+  });
 
   async function tick() {
     // Первая проверка идёт всегда, даже при живом сокете.
