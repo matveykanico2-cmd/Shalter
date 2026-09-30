@@ -151,7 +151,7 @@ async function listMessages(chatId, viewerId, clearedBefore) {
 // table again just to throw most of it away. `before` is an exclusive cursor on
 // createdAt; ids break ties so two messages in the same millisecond can't cause
 // a page to repeat or skip one.
-function listMessagesPage(chatId, viewerId, clearedBefore, { limit = 60, before = null } = {}) {
+function listMessagesPage(chatId, viewerId, clearedBefore, { limit = 60, before = null, beforeId = null } = {}) {
   const params = { chatId, limit: limit + 1 }; // one extra row tells us if more exist
   let sql = "SELECT * FROM messages WHERE chatId = @chatId AND threadRootId IS NULL";
   if (clearedBefore) {
@@ -159,7 +159,22 @@ function listMessagesPage(chatId, viewerId, clearedBefore, { limit = 60, before 
     params.clearedBefore = clearedBefore;
   }
   if (before) {
-    sql += " AND createdAt < @before";
+    // The comment above promised id breaks ties, but the query never actually
+    // did that — plain "createdAt < @before" treats every message sharing the
+    // previous page's oldest timestamp as a single unit. Whichever of them
+    // didn't make that page's LIMIT cutoff (id DESC decides that) falls on the
+    // wrong side of this strict "<" forever: excluded here for having an equal
+    // createdAt, but already excluded from the previous page's LIMIT too — a
+    // message that can never be paged to. Jumping to a date (chatCalendarDialog
+    // → chatView.js's jumpTo → loadOlder in a loop) surfaced it as a message
+    // appearing to repeat, because the *next* page back would start over from
+    // the same instant instead of continuing past it.
+    if (beforeId) {
+      sql += " AND (createdAt < @before OR (createdAt = @before AND id < @beforeId))";
+      params.beforeId = beforeId;
+    } else {
+      sql += " AND createdAt < @before";
+    }
     params.before = before;
   }
   sql += " ORDER BY createdAt DESC, id DESC LIMIT @limit";

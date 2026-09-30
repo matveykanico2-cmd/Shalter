@@ -379,7 +379,7 @@ export async function ChatView(root, chatId) {
     const anchorHeight = list.scrollHeight;
     const anchorTop = list.scrollTop;
     try {
-      const res = await api.listMessages(chat.id, { limit: PAGE_SIZE, before: messages[0].createdAt });
+      const res = await api.listMessages(chat.id, { limit: PAGE_SIZE, before: messages[0].createdAt, beforeId: messages[0].id });
       rememberReplyTargets(res);
       if (res.messages.length) {
         messages = [...res.messages, ...messages];

@@ -181,7 +181,9 @@ router.get(
     // response and a five-thousand-row DOM rebuild on every poll.
     const limit = Math.min(Math.max(Number(req.query.limit) || 60, 1), 200);
     const before = typeof req.query.before === "string" && req.query.before ? req.query.before : null;
-    const { messages, hasMore } = listMessagesPage(req.params.id, req.uid, settings.chatClears?.[req.params.id], { limit, before });
+    // Tie-breaker alongside `before` — see listMessagesPage.
+    const beforeId = typeof req.query.beforeId === "string" && req.query.beforeId ? req.query.beforeId : null;
+    const { messages, hasMore } = listMessagesPage(req.params.id, req.uid, settings.chatClears?.[req.params.id], { limit, before, beforeId });
 
     // The first message this viewer hadn't read — computed *before* marking the
     // chat read below, which is the only moment it still exists. The client

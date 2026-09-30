@@ -756,6 +756,15 @@ router.post(
     // member list change without waiting on a poll.
     broadcastToUsers([req.uid], { type: "chat:added", chat: updated });
     broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+    // Same "visible trace" as being added by hand (POST /:id/members above) —
+    // group only, so a public channel's subscriber count joining by link
+    // doesn't spam the post feed the way it would a group's membership.
+    if (chat.type === "group") {
+      const joiner = await getUser(req.uid);
+      await sendMessageAndBroadcast(updated, SYSTEM_BOT_ID, `${joiner?.name ?? "Кто-то"} вступил(а) в группу по ссылке-приглашению`, {
+        type: "system",
+      });
+    }
     res.json({ chat: updated });
   })
 );
@@ -967,6 +976,16 @@ router.post(
       // The newly added member needs to see this chat show up in their own
       // list right away, not just on their next poll.
       broadcastToUsers([userId], { type: "chat:added", chat: updated });
+      // A visible trace in the group itself — who added whom, same as
+      // Telegram's own "X added Y" service line. Channels don't get this:
+      // a subscriber list isn't part of the post feed the way a group's
+      // membership is, and it'd just be noise on a channel with thousands.
+      if (chat.type === "group") {
+        const actor = await getUser(req.uid);
+        await sendMessageAndBroadcast(updated, SYSTEM_BOT_ID, `${actor?.name ?? "Кто-то"} добавил(а) в группу ${user.name}`, {
+          type: "system",
+        });
+      }
       return res.json({ chat: updated });
     }
 
@@ -1026,6 +1045,7 @@ router.post(
     }
 
     if (role === "kick") {
+      const kicked = await getUser(userId);
       const updated = await updateChat(req.params.id, {
         memberIds: chat.memberIds.filter((m) => m !== userId),
         adminIds: chat.adminIds?.filter((m) => m !== userId),
@@ -1034,6 +1054,13 @@ router.post(
         moderatorIds: chat.moderatorIds?.filter((m) => m !== userId),
         ownerIds: chat.ownerIds?.filter((m) => m !== userId),
       });
+      // Same "visible trace" as adding a member above — group only.
+      if (chat.type === "group" && kicked) {
+        const actor = await getUser(req.uid);
+        await sendMessageAndBroadcast(updated, SYSTEM_BOT_ID, `${actor?.name ?? "Кто-то"} удалил(а) из группы ${kicked.name}`, {
+          type: "system",
+        });
+      }
       return res.json({ chat: updated });
     }
     if (role === "promote") {

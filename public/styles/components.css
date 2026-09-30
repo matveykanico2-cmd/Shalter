@@ -8946,9 +8946,14 @@ pre.mono,
   align-items: center;
   gap: 6px 10px;
 }
+/* No min-width: 0 here on purpose — that let flexbox always satisfy a
+   single-line layout by shrinking the title down to nothing instead of ever
+   wrapping the balance to its own line, so an extreme balance (a huge number
+   of stars) crushed "Подарки" down to a truncated "Под" instead of the
+   balance moving below it. Keeping the title's natural (short, fixed-text)
+   minimum width is what actually makes flex-wrap trigger when it needs to. */
 .gs-head .modal-title {
   flex: 1;
-  min-width: 0;
 }
 /* The balance is a button, not a label: running out of stars mid-browse is the
    most likely reason to want the top-up, so it's one tap from here. */
@@ -8957,10 +8962,12 @@ pre.mono,
   flex-direction: column;
   align-items: flex-end;
   flex-shrink: 0;
+  max-width: 100%;
   border-radius: 10px;
   border: 1px solid var(--color-border);
   background: var(--color-surface-alt);
   padding: 4px 10px;
+  box-sizing: border-box;
 }
 .gs-balance-label {
   font-size: 10px;
@@ -8972,6 +8979,13 @@ pre.mono,
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 600;
+  /* toLocaleString("ru-RU")'s thousands groups are joined with a
+     non-breaking space, so a genuinely huge number (or a bad/test balance)
+     is one unbreakable run of digits that would otherwise force this badge —
+     and the dialog around it — wider than the screen. break-all lets it wrap
+     as a last resort instead of overflowing. */
+  overflow-wrap: break-word;
+  word-break: break-all;
 }
 .gs-body {
   display: flex;

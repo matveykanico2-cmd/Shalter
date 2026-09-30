@@ -279,6 +279,14 @@ export const api = {
     const q = new URLSearchParams();
     if (opts.limit) q.set("limit", String(opts.limit));
     if (opts.before) q.set("before", opts.before);
+    // Tie-breaker for messages sharing the same createdAt down to the
+    // millisecond (a real occurrence — e.g. the system messages
+    // server/routes/chats.js posts alongside another message land in the
+    // same instant): "before" alone, compared with strict <, either skips or
+    // re-fetches whichever of the tied rows fell on the wrong side of the
+    // previous page's LIMIT cutoff. See server/data/messages.js's
+    // listMessagesPage for the matching (createdAt, id) cursor.
+    if (opts.beforeId) q.set("beforeId", opts.beforeId);
     const qs = q.toString();
     return req(`/api/chats/${chatId}/messages${qs ? `?${qs}` : ""}`);
   },
