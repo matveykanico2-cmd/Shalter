@@ -299,6 +299,31 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         },
         "Отмена"
       ),
+      // Передумал удалять, но пароль так и не вспомнил — отменить удаление
+      // можно прямо здесь, тем же первым фактором, без входа. Кнопка видна
+      // только когда удаление реально запланировано (server отдаёт
+      // scheduledDeletionAt на шаге 2FA).
+      twoFactor.scheduledDeletionAt
+        ? el(
+            "button",
+            {
+              type: "button",
+              class: "login-link center",
+              onclick: async () => {
+                try {
+                  await api.cancelAccountDeletion(twoFactor.ticket);
+                  twoFactor = { ...twoFactor, scheduledDeletionAt: null };
+                  error = "Удаление аккаунта отменено.";
+                  render();
+                } catch (err) {
+                  twoFactorError = err.message || "Не удалось отменить удаление";
+                  render();
+                }
+              },
+            },
+            "Отменить удаление аккаунта"
+          )
+        : null,
       // Забыл и облачный пароль, восстановить нечем — крайняя мера: удалить
       // аккаунт через неделю (за это время любой успешный вход отменит удаление).
       el(
@@ -325,7 +350,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         },
         "Не помню облачный пароль — удалить аккаунт"
       ),
-    ]);
+    ].filter(Boolean));
   }
 
   // Forgotten password: адрес почты и номер телефона этого аккаунта, затем
@@ -466,7 +491,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             } else {
               const res = await api.verifyCodeLogin(codePhone, codeValue);
               if (res.twoFactorRequired) {
-                twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp", hint: res.hint ?? null };
+                twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp", hint: res.hint ?? null, scheduledDeletionAt: res.scheduledDeletionAt ?? null };
                 codePending = false;
                 render();
                 return;
@@ -663,7 +688,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               // Password was right, but the account has 2FA on — no session was
               // created, so hand over to the code step instead of continuing.
               if (res.twoFactorRequired) {
-                twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp", hint: res.hint ?? null };
+                twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp", hint: res.hint ?? null, scheduledDeletionAt: res.scheduledDeletionAt ?? null };
                 pending = false;
                 render();
                 return;

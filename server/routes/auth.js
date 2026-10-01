@@ -10,7 +10,7 @@ const {
   getOrCreateDeviceId,
   requireUserId,
 } = require("../middleware/auth");
-const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, updateUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode, scheduleAccountDeletion } = require("../data/users");
+const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, updateUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode, scheduleAccountDeletion, cancelAccountDeletion } = require("../data/users");
 const { publicUser, selfUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
 const { listSessions, getSession, upsertSession, revokeAllSessions, revokeOtherSessions } = require("../data/sessions");
@@ -106,6 +106,10 @@ async function finishLogin(req, res, user) {
       // то есть знает пароль от аккаунта, — на этом месте она и нужна. Для
       // остальных способов её нет и быть не может.
       hint: method === "password" ? user.cloudPasswordHint || null : null,
+      // Запланировано ли удаление этого аккаунта — чтобы на шаге 2FA показать
+      // «Отменить удаление» тому, кто передумал, но пароль так и не вспомнил
+      // (отмена ниже требует только этот же ticket, т. е. первый фактор).
+      scheduledDeletionAt: user.scheduledDeletionAt ?? null,
     });
   }
   addAccountSession(req, res, user.id);
@@ -1077,6 +1081,31 @@ router.post(
       /* уведомление не критично */
     }
     res.json({ deleteAt });
+  })
+);
+
+// Отмена запланированного удаления без входа: человек передумал, но облачный
+// пароль так и не вспомнил. Достаточно того же первого фактора (валидный
+// ticket) — тем же, чем удаление и запрашивали. Чужой аккаунт так не трогают:
+// без первого фактора ticket не получить.
+router.post(
+  "/cancel-deletion",
+  asyncRoute(async (req, res) => {
+    const entry = twoFactorTickets.peek(req.body?.ticket);
+    if (!entry) return res.status(400).json({ error: "Время на подтверждение истекло — войдите заново" });
+    const user = await getUser(entry.userId);
+    if (!user) return res.status(400).json({ error: "Аккаунт не найден" });
+
+    cancelAccountDeletion(user.id);
+    // Ticket оставляем живым: человек может тут же продолжить вход этим же
+    // шагом 2FA, если всё-таки вспомнит пароль.
+    try {
+      const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
+      await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, "✅ Удаление аккаунта отменено.");
+    } catch {
+      /* уведомление не критично */
+    }
+    res.json({ ok: true });
   })
 );
 

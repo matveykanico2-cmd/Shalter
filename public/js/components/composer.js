@@ -85,6 +85,9 @@ export function Composer({
 }) {
   let lastTypingPing = 0;
   let recordingHandle = null;
+  // Окно «доступ запрашивается, запись ещё не началась» — чтобы второй запуск
+  // записи (голосовое + кружок разом) не проскочил, пока ждём getUserMedia.
+  let recordingStarting = false;
   let stopRecordAction = null;
   // Волна рисуется кадрами, а звук слушается через AudioContext — и то и другое
   // надо остановить, когда запись кончилась: иначе кадры продолжают крутиться,
@@ -1305,6 +1308,13 @@ export function Composer({
   }
 
   async function beginRecording(mode, { hold = false } = {}) {
+    // Уже идёт запись — или ещё идёт запрос доступа к камере/микрофону (между
+    // вызовом и присвоением recordingHandle есть await) — второй раз не
+    // начинаем: иначе из меню можно было запустить голосовое и кружок разом,
+    // и две записи дрались за микрофон. recordingStarting закрывает именно это
+    // окно ожидания, recordingHandle — уже идущую запись.
+    if (recordingHandle || recordingStarting) return;
+    recordingStarting = true;
     clear(bodySlot);
     const recordingBar = el("div", { class: "composer-recording-bar" });
     bodySlot.appendChild(recordingBar);
@@ -1484,6 +1494,7 @@ export function Composer({
 
     try {
       const handle = await startRecording(mode, { onTick: () => drawTime() });
+      recordingStarting = false;
       if (cancelledEarly) {
         handle.cancel();
         return;
@@ -1513,6 +1524,7 @@ export function Composer({
         levelMeter = meter;
       }
     } catch {
+      recordingStarting = false;
       // Отменённая заранее запись уже убрана; stopWave здесь погасил бы волну
       // следующей записи, если её успели начать (волна и счётчик — общие).
       if (cancelledEarly) return;

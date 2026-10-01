@@ -8,9 +8,28 @@ const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat")
 const { broadcastToUsers } = require("../ws");
 const { getActiveDonationLink } = require("../lib/autoPayment");
 const { createPendingOrder } = require("../data/pendingOrders");
+const { balanceOf, spendStars } = require("../data/stars");
 
 const router = express.Router();
 router.use(requireUserId);
+
+// Цена Premium в звёздах: курс примерно как у пакетов звёзд (data/stars.js —
+// ~2 ₽ за звезду), поэтому цена в рублях делится на 2 и округляется вверх.
+// 99 ₽ → 50 ⭐, 799 ₽ → 400 ⭐. Считается из того же PREMIUM_PLANS, что и
+// рублёвая цена, чтобы тарифы не расходились.
+const RUB_PER_STAR = 2;
+function starsCostFor(plan) {
+  return Math.ceil(plan.priceRub / RUB_PER_STAR);
+}
+// Тарифы с добавленным полем `stars` — отдаём клиенту, чтобы кнопка «купить за
+// звёзды» показывала настоящую цену, а не считала её сама.
+function plansWithStars() {
+  const out = {};
+  for (const [id, plan] of Object.entries(PREMIUM_PLANS)) {
+    out[id] = { ...plan, stars: starsCostFor(plan) };
+  }
+  return out;
+}
 
 // Premium status for the current user plus the purchase tiers — powers the
 // Settings → Premium screen. (Реферальный «код друга» отсюда убран вместе с
@@ -24,8 +43,43 @@ router.get(
       premiumUntil: me.premiumUntil,
       premiumForever: !!me.premiumForever,
       isAdmin: isAdminPhone(me.phone),
-      plans: PREMIUM_PLANS,
+      plans: plansWithStars(),
+      // Баланс звёзд — чтобы на экране покупки сразу было видно, хватает ли их.
+      starsBalance: balanceOf(req.uid),
     });
+  })
+);
+
+// Купить Premium за звёзды — моментально, без администрации и донатов: звёзды
+// уже на балансе (routes/stars.js), поэтому списываем их и сразу выдаём дни.
+// spendStars (data/stars.js) атомарен и вернёт false, если не хватает, —
+// гонки «списали дважды» тут быть не может.
+router.post(
+  "/buy-with-stars",
+  asyncRoute(async (req, res) => {
+    const planId = PREMIUM_PLANS[req.body?.plan] ? req.body.plan : DEFAULT_PREMIUM_PLAN;
+    const plan = PREMIUM_PLANS[planId];
+    const cost = starsCostFor(plan);
+
+    const me = await getUser(req.uid);
+    if (me.premiumForever) {
+      return res.status(400).json({ error: "У вас уже есть Shalter Premium навсегда" });
+    }
+    const extending = !!me.isPremium;
+
+    if (!spendStars(req.uid, cost)) {
+      return res.status(400).json({ error: `Недостаточно звёзд: нужно ${cost} ⭐` });
+    }
+    await grantPremiumDays(req.uid, plan.days);
+
+    const chat = await findOrCreateDm(req.uid, req.uid);
+    await sendMessageAndBroadcast(
+      chat,
+      req.uid,
+      `🎉 ${extending ? "Shalter Premium продлён" : "Вам выдан Shalter Premium"} на ${plan.label} за ${cost} ⭐!`
+    );
+    broadcastToUsers([req.uid], { type: "self:updated", user: publicUser(await getUser(req.uid)) });
+    res.json({ delivered: true, stars: cost, balance: balanceOf(req.uid), chatId: chat.id });
   })
 );
 

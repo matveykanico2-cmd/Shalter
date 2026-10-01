@@ -5715,6 +5715,28 @@ pre.mono,
   width: 100%;
   margin-top: 12px;
 }
+/* Вторая кнопка покупки — за звёзды. Та же форма, что и основная, но
+   приглушённый фон (не второй главный CTA рядом с первым). */
+.premium-buy-stars-btn {
+  width: 100%;
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  transition: filter 0.15s ease, transform 0.08s ease;
+}
+.premium-buy-stars-btn:not(:disabled):hover { filter: brightness(0.97); }
+.premium-buy-stars-btn:not(:disabled):active { transform: translateY(1px); }
+.premium-buy-stars-btn:disabled { opacity: 0.55; cursor: default; }
 .premium-buy-hint {
   margin-top: 8px;
   text-align: center;

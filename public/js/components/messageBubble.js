@@ -616,11 +616,16 @@ function VideoNotePlayer(a) {
   });
   const paint = () => {
     const dur = durationOf() || 1;
-    const done = Math.min(1, video.currentTime / dur);
+    // currentTime у WebM-кружка (запись MediaRecorder) до «прогрева» может
+    // прыгать выше реальной длительности — отсюда «2 сек, потом 7». Зажимаем
+    // в [0, dur], чтобы и кольцо, и подпись показывали честное время, а не
+    // скакали за конец ролика.
+    const ct = Math.max(0, Math.min(video.currentTime || 0, dur));
+    const done = Math.min(1, ct / dur);
     ringFill.setAttribute("stroke-dashoffset", String(CIRCUMFERENCE * (1 - done)));
     barFill.style.width = `${done * 100}%`;
     bar.style.setProperty("--voice-knob-left", `${done * 100}%`);
-    timeLabelEl.textContent = `${clockTime(video.currentTime)} / ${clockTime(dur)}`;
+    timeLabelEl.textContent = `${clockTime(ct)} / ${clockTime(dur)}`;
   };
   video.addEventListener("timeupdate", paint);
   video.addEventListener("seeking", paint);

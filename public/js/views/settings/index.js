@@ -744,7 +744,7 @@ function premiumPlanRows(plans) {
 }
 
 async function renderPremium(root) {
-  const info = await api.getPremiumInfo();
+  let info = await api.getPremiumInfo();
   const plans = premiumPlanRows(info.plans);
   // По умолчанию выбран самый выгодный тариф — как у Telegram, где сразу
   // подсвечен годовой.
@@ -760,6 +760,27 @@ async function renderPremium(root) {
     try {
       const res = await api.requestPremium(selectedPlan);
       handlePurchaseResponse(res);
+    } catch (err) {
+      buyError = err.message;
+    } finally {
+      buying = false;
+      render();
+    }
+  }
+
+  // Покупка за звёзды — моментальная, без перехода к оплате: сервер списывает
+  // звёзды и сразу выдаёт дни (routes/premium.js's /buy-with-stars).
+  async function buyWithStars() {
+    if (!selectedPlan) return;
+    buying = true;
+    buyError = null;
+    render();
+    try {
+      const res = await api.buyPremiumWithStars(selectedPlan);
+      updateSelf({ isPremium: true });
+      // Перечитываем статус и баланс, чтобы карточка и цена в звёздах обновились.
+      info = await api.getPremiumInfo();
+      if (res?.chatId) navigate(`/chat/${res.chatId}`);
     } catch (err) {
       buyError = err.message;
     } finally {
@@ -830,6 +851,21 @@ async function renderPremium(root) {
                   ? "Открываем оплату…"
                   : `${info.isPremium ? "Продлить" : "Подписаться"} за ${current?.priceRub ?? 0} ₽`
               ),
+              // Оплата звёздами — моментально, если их хватает. Цена в звёздах
+              // приходит в тарифе (plan.stars), баланс — в info.starsBalance.
+              current?.stars
+                ? el(
+                    "button",
+                    {
+                      class: "premium-buy-stars-btn",
+                      disabled: buying || (info.starsBalance ?? 0) < current.stars,
+                      onclick: buyWithStars,
+                    },
+                    (info.starsBalance ?? 0) < current.stars
+                      ? `Не хватает звёзд — ${current.stars} ⭐ (у вас ${info.starsBalance ?? 0})`
+                      : `Купить за ${current.stars} ⭐ (у вас ${info.starsBalance})`
+                  )
+                : null,
               el(
                 "p",
                 { class: "settings-toggle-hint premium-buy-hint" },

@@ -131,6 +131,7 @@ export const api = {
   sendTwoFactorCode: (ticket) => req("/api/auth/2fa/send-code", { method: "POST", body: JSON.stringify({ ticket }) }),
   // Забыл и облачный пароль — назначить удаление аккаунта через неделю (по ticket).
   scheduleAccountDeletion: (ticket) => req("/api/auth/schedule-deletion", { method: "POST", body: JSON.stringify({ ticket }) }),
+  cancelAccountDeletion: (ticket) => req("/api/auth/cancel-deletion", { method: "POST", body: JSON.stringify({ ticket }) }),
   enableTwoFactor: (code) => req("/api/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) }),
   disableTwoFactor: (code) => req("/api/auth/2fa/disable", { method: "POST", body: JSON.stringify({ code }) }),
   // Облачный пароль — третий способ подтвердить вход (server/routes/auth.js).
@@ -498,6 +499,7 @@ export const api = {
 
   getPremiumInfo: () => req("/api/premium/me"),
   requestPremium: (plan) => req("/api/premium/request", { method: "POST", body: JSON.stringify({ plan }) }),
+  buyPremiumWithStars: (plan) => req("/api/premium/buy-with-stars", { method: "POST", body: JSON.stringify({ plan }) }),
   getBusinessInfo: () => req("/api/business/me"),
   requestBusiness: (plan) => req("/api/business/request", { method: "POST", body: JSON.stringify({ plan }) }),
   // Admin-only grants (server/routes/premium.js's and ads.js's /grant): pass a
