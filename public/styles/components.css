@@ -3551,7 +3551,12 @@ pre.mono,
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 220px;
+  /* Было жёстко 220px: при длинном имени/номере + кнопке «Добавить» текст не
+     помещался и налезал на кнопку. Теперь карточка тянется в разумных
+     пределах, а имя и номер внутри обрезаются многоточием (ниже). */
+  width: max-content;
+  min-width: 200px;
+  max-width: min(300px, 100%);
   border-radius: 8px;
   background: var(--color-surface-alt);
   padding: 10px 12px;
@@ -10255,6 +10260,14 @@ pre.mono,
 .contact-attachment-body {
   flex: 1;
   min-width: 0;
+}
+/* Имя и номер — каждый в одну строку с обрезкой: без этого длинный номер
+   (или имя) вылезал из суженного блока и налезал на кнопку «Добавить» /
+   «в контактах» справа. */
+.contact-attachment-body > p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .contact-attachment-add {
   flex-shrink: 0;
