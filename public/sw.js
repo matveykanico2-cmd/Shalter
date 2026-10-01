@@ -202,6 +202,15 @@ async function avatarIcon(avatar) {
   }
 }
 
+// «1 новое сообщение» / «2 новых сообщения» / «5 новых сообщений».
+function pluralMessages(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} новое сообщение`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} новых сообщения`;
+  return `${n} новых сообщений`;
+}
+
 self.addEventListener("push", (event) => {
   let payload = {};
   try {
@@ -241,15 +250,34 @@ self.addEventListener("push", (event) => {
       if (clientsList.some((c) => c.focused)) return;
 
       const icon = (await avatarIcon(avatar)) || "/icons/icon.svg";
+
+      // Склейка сообщений одного чата. Тег теперь общий на чат (server/routes/
+      // messages.js), поэтому у чата одно уведомление. Чтобы не терять историю,
+      // как при обычном схлопывании по тегу, читаем уже показанное и
+      // наращиваем счётчик: «3 новых сообщения · <последнее>». Так и backlog
+      // виден числом, и уведомлений не десятки — ОС их больше не режет.
+      let notifBody = body;
+      let count = 1;
+      if (!isCall && tag) {
+        const existing = await self.registration.getNotifications({ tag });
+        if (existing.length) {
+          count = (existing[0].data?.count || 1) + 1;
+          notifBody = `${count} ${pluralMessages(count)}${body ? ` · ${body}` : ""}`;
+        }
+      }
+
       await self.registration.showNotification(title, {
-        body,
+        body: notifBody,
         tag,
         requireInteraction: !!requireInteraction,
         // Звонок — единственное, что имеет право вибрировать и перебивать: на
         // него отвечают сейчас или никогда. Ответ и сброс прямо в уведомлении,
         // чтобы не открывать приложение ради «нет, не сейчас».
         vibrate: isCall ? [300, 200, 300, 200, 300] : undefined,
-        renotify: isCall || undefined,
+        // renotify:true и для сообщений — чтобы замена уведомления чата по
+        // тому же тегу каждый раз перезванивала звуком, а не молча меняла
+        // текст. Без этого «много сообщений подряд» переставали звучать.
+        renotify: true,
         silent: false,
         icon,
         badge: "/icons/icon.svg",
@@ -259,7 +287,7 @@ self.addEventListener("push", (event) => {
               { action: "decline", title: "Отклонить" },
             ]
           : undefined,
-        data: { url: url || "/", kind, callId },
+        data: { url: url || "/", kind, callId, count },
       });
     })()
   );
