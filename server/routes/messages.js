@@ -898,7 +898,14 @@ router.post(
       const already = found.message.reactions.some((r) => r.emoji === emoji && r.userIds.includes(req.uid));
       if (!already) return res.status(400).json({ error: "Эта реакция недоступна в этом канале" });
     }
-    const message = await toggleReaction(req.params.messageId, emoji, req.uid);
+    // Сколько разных реакций один человек может держать на одном сообщении:
+    // Premium — три (как у Telegram Premium), обычный аккаунт — одна. Если
+    // человек уже на лимите, data/messages.js снимет самую старую сам, а не
+    // откажет — то же поведение, что и в Telegram на free: ставишь вторую,
+    // первая гаснет.
+    const me = await getUser(req.uid);
+    const maxReactionsPerUser = me?.isPremium ? 3 : 1;
+    const message = await toggleReaction(req.params.messageId, emoji, req.uid, { maxReactionsPerUser });
     broadcastToOtherMembers(found.chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
     res.json({ message });
   })

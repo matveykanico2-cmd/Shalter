@@ -297,6 +297,10 @@ app.get("/download", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "download
 // The partner/collaboration page — same standalone-static-page treatment, and
 // the same reason: /promo is the URL anyone would actually share.
 app.get("/promo", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "promo.html")));
+// Промо-лендинг Shalter Premium — отдельная страница, а не экран SPA: ссылка
+// должна открываться у анонимного посетителя без логина (у приложения внутри
+// есть свой экран /settings/premium — туда уводит CTA на лендинге).
+app.get("/premium", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "premium.html")));
 // Документация Bot API — тоже отдельная страница, а не экран приложения:
 // её открывают из редактора кода, из поиска и по ссылке в чужом чате, и /bots
 // это адрес, который не стыдно дать разработчику.

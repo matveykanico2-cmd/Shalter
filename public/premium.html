@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shalter Premium — больше возможностей</title>
+<meta name="description" content="Shalter Premium — больше возможностей в мессенджере: платная личка без списаний, доступ в закрытую личку, расширенные статусы профиля, значок Premium и эксклюзивные реакции." />
+<meta name="theme-color" content="#8774e1" />
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Shalter Premium" />
+<meta property="og:description" content="Поддержите Shalter и получите значок Premium, эксклюзивные реакции, расширенные статусы и доступ в закрытую личку." />
+<meta property="og:image" content="/icons/apple-touch-icon.png" />
+<link rel="stylesheet" href="/styles/base.css" />
+<link rel="stylesheet" href="/styles/premium.css" />
+</head>
+<body>
+<div class="pm-page">
+  <div class="pm-bg" aria-hidden="true">
+    <span class="pm-orb pm-orb-1"></span>
+    <span class="pm-orb pm-orb-2"></span>
+    <span class="pm-orb pm-orb-3"></span>
+  </div>
+
+  <main class="pm-shell">
+    <header class="pm-hero">
+      <!-- Та же звезда Premium, что и в приложении (public/js/components/premiumStar.js) —
+           золотая версия, с анимированным глянцем. -->
+      <div class="pm-star" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="88" height="88">
+          <defs>
+            <linearGradient id="pm-grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#ffd04a"/>
+              <stop offset="1" stop-color="#f58b2b"/>
+            </linearGradient>
+            <linearGradient id="pm-shine" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+              <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path fill="url(#pm-grad)" d="M24 2l5.6 13.2L44 17l-10.4 10.1L36 42l-12-7-12 7 2.4-14.9L4 17l14.4-1.8z"/>
+          <path fill="url(#pm-shine)" d="M24 2l5.6 13.2L44 17l-10.4 10.1 1.1-7.1-5.8-5.7-4.4-10.4z" opacity="0.65"/>
+        </svg>
+      </div>
+      <p class="pm-kicker">Подписка</p>
+      <h1 class="pm-title">Shalter <span class="pm-title-accent">Premium</span></h1>
+      <p class="pm-lead">
+        Поддержите проект и получите значок Premium, эксклюзивные реакции,
+        расширенные статусы профиля и доступ туда, куда без Premium не пишут.
+      </p>
+      <div class="pm-cta">
+        <a class="pm-btn pm-btn-primary" href="/settings/premium">Оформить Premium</a>
+        <a class="pm-btn" href="/">Открыть мессенджер</a>
+      </div>
+      <!-- Заполняется из /api/premium/me, если человек залогинен, — анонимному
+           посетителю строка просто не появится. -->
+      <p class="pm-status" id="pm-status" hidden></p>
+    </header>
+
+    <section class="pm-perks" aria-label="Что даёт Premium">
+      <article class="pm-perk" style="--pm-perk-color:#3b9bf0">
+        <div class="pm-perk-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2z"/></svg>
+        </div>
+        <h3>Пишите и звоните бесплатно</h3>
+        <p>Платная личка и звонки незнакомцам не берут с вас звёзды, даже если у собеседника это включено.</p>
+      </article>
+
+      <article class="pm-perk" style="--pm-perk-color:#8b5cf6">
+        <div class="pm-perk-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 2a5 5 0 0 1 5 5v3h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h1V7a5 5 0 0 1 5-5zm0 2a3 3 0 0 0-3 3v3h6V7a3 3 0 0 0-3-3z"/></svg>
+        </div>
+        <h3>Доступ в закрытую личку</h3>
+        <p>Пишите даже тем, кто разрешил сообщения только от контактов. Premium — ваш универсальный ключ.</p>
+      </article>
+
+      <article class="pm-perk" style="--pm-perk-color:#1c9bd9">
+        <div class="pm-perk-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M15 10l4-3v10l-4-3v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <h3>Ссылка на звонок для всех</h3>
+        <p>Приглашайте в звонок кого угодно, не только участников чата. Удобно для встреч и созвонов с новыми людьми.</p>
+      </article>
+
+      <article class="pm-perk" style="--pm-perk-color:#f0a23b">
+        <div class="pm-perk-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26"><circle cx="12" cy="12" r="9" fill="currentColor"/><path fill="#fff" d="M9 8.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0zm0 4a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0zm0 4a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0z" opacity=".9"/></svg>
+        </div>
+        <h3>До 5 статусов профиля</h3>
+        <p>Готовых или своих — вместо одного на обычном аккаунте. Переключайтесь по настроению.</p>
+      </article>
+
+      <article class="pm-perk pm-perk-gold" style="--pm-perk-color:#f5a623">
+        <div class="pm-perk-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 2l2.9 6.9L22 10l-5.4 5.3L18 22l-6-3.6L6 22l1.4-6.7L2 10l7.1-1.1z"/></svg>
+        </div>
+        <h3>Значок Premium</h3>
+        <p>Золотая звезда у имени и особое кольцо вокруг аватарки — чтобы вас было видно.</p>
+      </article>
+
+      <article class="pm-perk" style="--pm-perk-color:#e0513f">
+        <div class="pm-perk-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>
+        </div>
+        <h3>Эксклюзивные реакции</h3>
+        <p>💎 👑 🚀 🥂 💯 🌟 — доступны в любом чате. Выделяйтесь из общего ряда.</p>
+      </article>
+
+      <article class="pm-perk" style="--pm-perk-color:#d1457a">
+        <div class="pm-perk-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 21s-7-4.35-9.5-9.03C.84 8.76 2.3 5.5 5.4 5.03c2-.3 3.9.6 5.1 2.07C11.7 5.63 13.6 4.73 15.6 5.03c3.1.47 4.56 3.73 2.9 6.94C19 16.65 12 21 12 21z"/></svg>
+        </div>
+        <h3>До 3 реакций на сообщение</h3>
+        <p>Обычный аккаунт может оставить только одну реакцию под сообщением — Premium ставит до трёх разом.</p>
+      </article>
+    </section>
+
+    <!-- Таблица: что доступно без Premium, а что — только с ним. Прямое
+         сравнение, как у telegram.org/premium: решение принимают по разнице. -->
+    <section class="pm-compare" aria-label="Что входит в Premium">
+      <h2 class="pm-section-title">Сравнение</h2>
+      <div class="pm-table" role="table">
+        <div class="pm-table-head" role="row">
+          <span role="columnheader">Возможность</span>
+          <span role="columnheader">Бесплатно</span>
+          <span role="columnheader">Premium</span>
+        </div>
+        <div class="pm-table-row" role="row">
+          <span role="cell">Писать незнакомцам со включённой платной личкой</span>
+          <span role="cell"><em>⭐ звёздами</em></span>
+          <span role="cell"><strong>Бесплатно</strong></span>
+        </div>
+        <div class="pm-table-row" role="row">
+          <span role="cell">Писать в «только контакты»</span>
+          <span role="cell">—</span>
+          <span role="cell"><strong>Да</strong></span>
+        </div>
+        <div class="pm-table-row" role="row">
+          <span role="cell">Звонки незнакомцам со включённой платой</span>
+          <span role="cell"><em>⭐ звёздами</em></span>
+          <span role="cell"><strong>Бесплатно</strong></span>
+        </div>
+        <div class="pm-table-row" role="row">
+          <span role="cell">Приглашать в звонок по ссылке кого угодно</span>
+          <span role="cell">только участников чата</span>
+          <span role="cell"><strong>Кого угодно</strong></span>
+        </div>
+        <div class="pm-table-row" role="row">
+          <span role="cell">Статусы профиля</span>
+          <span role="cell">1</span>
+          <span role="cell"><strong>до 5</strong></span>
+        </div>
+        <div class="pm-table-row" role="row">
+          <span role="cell">Значок Premium у имени и кольцо вокруг аватарки</span>
+          <span role="cell">—</span>
+          <span role="cell"><strong>Да</strong></span>
+        </div>
+        <div class="pm-table-row" role="row">
+          <span role="cell">Эксклюзивные реакции 💎 👑 🚀 🥂 💯 🌟</span>
+          <span role="cell">—</span>
+          <span role="cell"><strong>Да</strong></span>
+        </div>
+        <div class="pm-table-row" role="row">
+          <span role="cell">Реакций на одно сообщение</span>
+          <span role="cell">1</span>
+          <span role="cell"><strong>до 3</strong></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Тарифы грузятся из /api/premium/me для залогиненных и из PREMIUM_PLANS
+         по умолчанию для анонимных: цена здесь не должна разъезжаться с той,
+         что человек увидит в приложении на экране покупки. -->
+    <section class="pm-plans" aria-label="Тарифы">
+      <h2 class="pm-section-title">Тарифы</h2>
+      <div class="pm-plans-grid" id="pm-plans-grid">
+        <div class="pm-plan"><span class="pm-plan-label">1 месяц</span><span class="pm-plan-price">99 ₽</span><span class="pm-plan-month">99 ₽/мес</span></div>
+        <div class="pm-plan"><span class="pm-plan-label">3 месяца</span><span class="pm-plan-price">249 ₽</span><span class="pm-plan-month">83 ₽/мес · −16%</span></div>
+        <div class="pm-plan"><span class="pm-plan-label">6 месяцев</span><span class="pm-plan-price">449 ₽</span><span class="pm-plan-month">75 ₽/мес · −24%</span></div>
+        <div class="pm-plan pm-plan-best"><span class="pm-plan-label">12 месяцев</span><span class="pm-plan-price">799 ₽</span><span class="pm-plan-month">67 ₽/мес · −33%</span></div>
+      </div>
+      <p class="pm-plans-note">Автопродления нет — срок просто заканчивается сам, когда подойдёт. Списаний без вашего ведома не будет.</p>
+      <div class="pm-cta">
+        <a class="pm-btn pm-btn-primary" href="/settings/premium">Открыть экран покупки</a>
+      </div>
+    </section>
+
+    <!-- Отсылка к бизнес-подписке — не ради кросс-продажи, а чтобы человек,
+         ищущий «часы работы в профиле», сразу попал в нужный раздел. -->
+    <section class="pm-business" id="pm-business">
+      <h2 class="pm-section-title">Shalter для бизнеса</h2>
+      <p>Отдельная подписка поверх Premium: часы работы, приветствие и автоответ, быстрые ответы и адрес прямо на профиле.</p>
+      <div class="pm-cta">
+        <a class="pm-btn" href="/settings/business">Подробнее о бизнес-подписке</a>
+      </div>
+    </section>
+
+    <footer class="pm-footer">
+      <a href="/">Веб-версия</a><span aria-hidden="true">·</span>
+      <a href="/download">Скачать</a><span aria-hidden="true">·</span>
+      <a href="/promo">О проекте</a>
+    </footer>
+  </main>
+</div>
+
+<script>
+// Подсказка статуса для залогиненного человека — тот же /api/premium/me, что
+// и в настройках: если Premium уже активен, кнопка «Оформить» заменяется на
+// «Продлить». Анонимному посетителю строка просто не появится.
+(function () {
+  fetch("/api/premium/me")
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (info) {
+      if (!info) return;
+      var statusEl = document.getElementById("pm-status");
+      if (info.isPremium) {
+        var until = info.premiumForever
+          ? "навсегда"
+          : "до " + new Date(info.premiumUntil).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+        statusEl.textContent = "У вас уже активен Shalter Premium — " + until;
+        statusEl.hidden = false;
+        // Перекрашиваем первую CTA: продлевать, а не оформлять заново.
+        var cta = document.querySelector(".pm-hero .pm-btn-primary");
+        if (cta) cta.textContent = "Продлить Premium";
+      }
+      // Живые цены — чтобы лендинг не отставал от PREMIUM_PLANS в config.js.
+      if (info.plans) {
+        var grid = document.getElementById("pm-plans-grid");
+        grid.innerHTML = "";
+        var ids = Object.keys(info.plans);
+        var rows = ids.map(function (id) {
+          var p = info.plans[id];
+          var months = Math.max(1, Math.round(p.days / 30));
+          return { id: id, label: p.label, priceRub: p.priceRub, months: months, perMonth: p.priceRub / months };
+        });
+        var cheapest = rows.reduce(function (m, r) { return (!m || r.perMonth < m.perMonth) ? r : m; }, null);
+        var longest = rows.reduce(function (m, r) { return (!m || r.months > m.months) ? r : m; }, null);
+        rows.forEach(function (r) {
+          var disc = cheapest && r !== cheapest ? Math.round((1 - r.perMonth / cheapest.perMonth) * 100) : 0;
+          // «Самый выгодный» — тот, где максимальная скидка, с запасом (т. е.
+          // годовой, а не месячный, который тут же окажется базой).
+          var best = r === longest && disc > 0;
+          var card = document.createElement("div");
+          card.className = "pm-plan" + (best ? " pm-plan-best" : "");
+          card.innerHTML =
+            '<span class="pm-plan-label">' + r.label + '</span>' +
+            '<span class="pm-plan-price">' + r.priceRub + ' ₽</span>' +
+            '<span class="pm-plan-month">' + Math.round(r.perMonth) + ' ₽/мес' + (disc > 0 ? ' · −' + disc + '%' : '') + '</span>';
+          grid.appendChild(card);
+        });
+      }
+    })
+    .catch(function () {});
+})();
+</script>
+</body>
+</html>

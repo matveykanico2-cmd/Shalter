@@ -379,7 +379,13 @@ function togglePin(id, pinned) {
   return mutate(id, (m) => ({ ...m, pinned }));
 }
 
-function toggleReaction(id, emoji, userId) {
+// `maxReactionsPerUser`: сколько разных реакций один человек может оставить на
+// одном сообщении. Если он уже на лимите и ставит ещё одну, самая старая его
+// реакция снимается — это поведение Telegram: free-аккаунт при попытке
+// поставить вторую «меняет» старую, Premium даёт держать до трёх сразу.
+// По умолчанию Infinity — поведение до появления тарифов, чтобы не ломать
+// бота (routes/botApi.js), который этот параметр не передаёт.
+function toggleReaction(id, emoji, userId, { maxReactionsPerUser = Infinity } = {}) {
   // Эмодзи приходит из запроса: пустое или неправдоподобно длинное значение —
   // не реакция, а мусор в базе. Отсекаем до мутации. 40, не 16: реакция-стикер
   // (public/js/components/messageBubble.js) хранится как "sticker:<id>", и у
@@ -391,12 +397,34 @@ function toggleReaction(id, emoji, userId) {
     const reactions = m.reactions.map((r) => ({ ...r, userIds: [...r.userIds] }));
     const existing = reactions.find((r) => r.emoji === emoji);
     if (existing) {
+      // Снятие собственной реакции лимитом не ограничивается никогда — иначе
+      // с лимита нельзя было бы «слезть», переставив свою же реакцию.
       if (existing.userIds.includes(userId)) {
         existing.userIds = existing.userIds.filter((u) => u !== userId);
       } else {
+        // Добавление к уже существующей чужой реакции — всё равно расходует
+        // лимит текущего пользователя, поэтому старую его реакцию снимаем,
+        // как и в ветке ниже.
+        if (Number.isFinite(maxReactionsPerUser)) {
+          const mine = reactions.filter((r) => r.userIds.includes(userId));
+          while (mine.length >= maxReactionsPerUser) {
+            const oldest = mine.shift();
+            oldest.userIds = oldest.userIds.filter((u) => u !== userId);
+          }
+        }
         existing.userIds.push(userId);
       }
     } else {
+      // Новая эмодзи — та же проверка лимита. reactions хранится в порядке
+      // добавления, поэтому «первая, в которой есть userId» — это самая
+      // старая реакция этого человека.
+      if (Number.isFinite(maxReactionsPerUser)) {
+        const mine = reactions.filter((r) => r.userIds.includes(userId));
+        while (mine.length >= maxReactionsPerUser) {
+          const oldest = mine.shift();
+          oldest.userIds = oldest.userIds.filter((u) => u !== userId);
+        }
+      }
       reactions.push({ emoji, userIds: [userId] });
     }
     return { ...m, reactions: reactions.filter((r) => r.userIds.length > 0) };

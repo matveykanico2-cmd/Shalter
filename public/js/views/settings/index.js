@@ -653,6 +653,23 @@ const ORBIT_ITEMS = [
   { icon: "Video", color: "#1c9bd9" },
 ];
 
+// Сравнение «что доступно без Premium / с Premium» — те же шесть пунктов, что
+// в PREMIUM_PERKS ниже, но в виде таблицы. Решение купить принимают по
+// разнице, а не по списку плюсов, поэтому Telegram на своём /premium эту
+// таблицу показывает отдельно — здесь то же самое. Строки — [название,
+// бесплатно, premium]; текст в двух местах должен совпадать, см. public/
+// premium.html.
+const PREMIUM_COMPARE = [
+  ["Платная личка незнакомцам", "⭐ звёздами", "Бесплатно"],
+  ["Писать в «только контакты»", "—", "Да"],
+  ["Звонки незнакомцам со включённой платой", "⭐ звёздами", "Бесплатно"],
+  ["Пригласить в звонок по ссылке", "только участников", "Кого угодно"],
+  ["Статусы профиля", "1", "до 5"],
+  ["Значок и кольцо Premium", "—", "Да"],
+  ["Эксклюзивные реакции 💎 👑 🚀 🥂 💯 🌟", "—", "Да"],
+  ["Реакций на одно сообщение", "1", "до 3"],
+];
+
 // Настоящий список того, что даёт Premium — каждая строка проверена в коде
 // (см. renderPremium ниже), а не выдумана под макет.
 const PREMIUM_PERKS = [
@@ -685,6 +702,11 @@ const PREMIUM_PERKS = [
     icon: "Zap",
     title: "Эксклюзивные реакции",
     desc: "💎 👑 🚀 🥂 💯 🌟 — доступны в любом чате",
+  },
+  {
+    icon: "Heart",
+    title: "До 3 реакций на сообщение",
+    desc: "Обычный аккаунт может оставить только одну реакцию под сообщением — Premium ставит до трёх разом",
   },
 ];
 
@@ -835,6 +857,34 @@ async function renderPremium(root) {
             ])
           )
         ),
+        // Таблица «бесплатно vs premium» — те же пункты, что на лендинге /premium:
+        // наглядная разница рядом с перечислением перков, по образцу
+        // telegram.org/premium (см. PREMIUM_COMPARE и public/premium.html).
+        el("p", { class: "settings-section-title" }, "Сравнение"),
+        el("div", { class: "premium-compare-card" }, [
+          el("div", { class: "premium-compare-head" }, [
+            el("span", {}, "Возможность"),
+            el("span", {}, "Бесплатно"),
+            el("span", {}, "Premium"),
+          ]),
+          ...PREMIUM_COMPARE.map((row) =>
+            el("div", { class: "premium-compare-row" }, [
+              el("span", { class: "premium-compare-title" }, row[0]),
+              el("span", { class: "premium-compare-free" }, row[1]),
+              el("span", { class: "premium-compare-prem" }, row[2]),
+            ])
+          ),
+        ]),
+        // Открыть внешний промо-лендинг — чтобы ссылкой можно было поделиться
+        // с теми, кто ещё не завёл аккаунт. У залогиненного здесь это просто
+        // маркетинговая страница в новом окне; выбирать Premium по-прежнему тут.
+        el("div", { class: "settings-toggle-row no-divider" }, [
+          el("div", {}, [
+            el("p", { class: "settings-toggle-title" }, "Публичная страница Premium"),
+            el("p", { class: "settings-toggle-hint" }, "Ссылка, которой можно поделиться — откроется у любого, даже без аккаунта"),
+          ]),
+          el("a", { class: "btn-accent-pill", href: "/premium", target: "_blank", rel: "noopener" }, "Открыть"),
+        ]),
         // One way into the gift catalogue, not two. This page used to render its
         // own grid of the same 286 gifts below — priced in roubles and wired to
         // the old "переведите и дождитесь подтверждения" flow, so the same rose
@@ -1363,6 +1413,18 @@ async function renderBusiness(root) {
     }
 
     if (info.isBusiness && !info.businessForever && plans.length) rows.push(businessPlans());
+    // Публичный лендинг — тот же, что у Premium: ссылкой с бизнес-страницы
+    // клиенту проще показать, что они получат, чем пересказом в сообщении.
+    // Якорь #pm-business — секция «Shalter для бизнеса» на лендинге.
+    rows.push(
+      el("div", { class: "settings-toggle-row no-divider" }, [
+        el("div", {}, [
+          el("p", { class: "settings-toggle-title" }, "Публичная страница"),
+          el("p", { class: "settings-toggle-hint" }, "Ссылка о Premium и бизнес-подписке — откроется даже без аккаунта"),
+        ]),
+        el("a", { class: "btn-accent-pill", href: "/premium#pm-business", target: "_blank", rel: "noopener" }, "Открыть"),
+      ])
+    );
     mount(root, pageWrap("Shalter для бизнеса", "Часы работы, автоответчик, быстрые ответы и адрес на профиле", rows));
   }
   render();

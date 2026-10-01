@@ -5434,6 +5434,83 @@ pre.mono,
   line-height: 1.35;
 }
 
+/* Таблица «бесплатно vs premium» на экране покупки — по образцу telegram.org/
+   premium: три колонки на широком, две карточки под заголовком строки на
+   узком (чтобы ячейки не ужимались в нечитаемую одну букву). Текст и список
+   строк те же, что на лендинге /premium (public/premium.html's .pm-table). */
+.premium-compare-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.premium-compare-head,
+.premium-compare-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 12px;
+  padding: 12px 16px;
+  align-items: center;
+}
+.premium-compare-head {
+  background: var(--color-surface-alt);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.premium-compare-head span:not(:first-child),
+.premium-compare-row span:not(:first-child) {
+  text-align: center;
+}
+.premium-compare-row + .premium-compare-row,
+.premium-compare-head + .premium-compare-row {
+  border-top: 1px solid var(--color-border);
+}
+.premium-compare-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.premium-compare-free {
+  font-size: 13.5px;
+  color: var(--color-muted);
+}
+.premium-compare-prem {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #d9822e;
+}
+@media (max-width: 540px) {
+  .premium-compare-head { display: none; }
+  .premium-compare-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "title title"
+      "free prem";
+    padding: 12px 14px;
+    gap: 8px;
+  }
+  .premium-compare-title { grid-area: title; }
+  .premium-compare-free {
+    grid-area: free;
+    padding: 6px 8px;
+    background: var(--color-surface-alt);
+    border-radius: 10px;
+    text-align: center;
+  }
+  .premium-compare-prem {
+    grid-area: prem;
+    padding: 6px 8px;
+    background: rgba(217, 130, 46, 0.14);
+    border-radius: 10px;
+    text-align: center;
+  }
+}
+
 /* Decorative orbiting-perks hero on the Premium settings page — a центральная
    corona icon with perk icons circling it, each counter-rotated so the icon
    glyphs themselves stay upright while the ring carrying them spins. */
