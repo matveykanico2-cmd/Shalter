@@ -593,7 +593,10 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   let usernameCheckSeq = 0;
   const usernameEl = el("input", {
     class: "login-input mono",
-    placeholder: "@юзернейм",
+    // Без «@» в подсказке: при регистрации она путала — люди вписывали @ сами,
+    // думая, что он нужен. Вводят просто имя, а случайную «@» в начале поле
+    // всё равно срезает (oninput ниже).
+    placeholder: "юзернейм",
     autocapitalize: "off",
     autocorrect: "off",
     spellcheck: false,
