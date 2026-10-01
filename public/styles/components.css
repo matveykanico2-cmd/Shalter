@@ -5069,6 +5069,14 @@ pre.mono,
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
   animation: login-title-in 0.5s 0.28s ease both;
 }
+/* Кнопка «Отмена — вернуться в приложение» внутри карточки добавления: отбивка
+   сверху и разделитель, чтобы она читалась как действие окна, а не «прилипла»
+   к форме входа над ней. */
+.login-card-cancel {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
 .login-form {
   display: flex;
   flex-direction: column;
