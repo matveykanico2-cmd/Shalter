@@ -84,6 +84,13 @@ export function Composer({
   disableDraftSync = false,
 }) {
   let lastTypingPing = 0;
+  // Выбранные фото/видео/файлы ждут отправки, пока человек не нажмёт «Отправить»
+  // — а не улетают сразу по выбору. Так можно добавить подпись, доложить ещё
+  // файлов или передумать. Живёт на уровне всего композера (не внутри
+  // renderIdleBody), чтобы пережить перерисовки тела. Каждый элемент:
+  // { attachment, kind, previewUrl }. renderIdleBody рисует из него поднос.
+  let staged = [];
+  let renderStagedTray = () => {};
   let recordingHandle = null;
   // Окно «доступ запрашивается, запись ещё не началась» — чтобы второй запуск
   // записи (голосовое + кружок разом) не проскочил, пока ждём getUserMedia.
@@ -253,9 +260,27 @@ export function Composer({
 
     function submit() {
       const trimmed = textarea.value.trim();
-      if (!trimmed) return;
-      if (editingMessage) onSaveEdit(trimmed);
-      else {
+      // Отправлять есть что, если есть текст ИЛИ приложенные файлы в очереди.
+      if (!trimmed && !staged.length) return;
+      if (editingMessage) {
+        if (!trimmed) return; // у редактирования вложений нет — пустой текст нечего сохранять
+        onSaveEdit(trimmed);
+      } else if (staged.length) {
+        // Очередь файлов уходит по кнопке. Подпись (если есть) — к первой
+        // партии; дальше по MAX вложений на сообщение, как и раньше.
+        const atts = staged.map((s) => s.attachment);
+        staged = [];
+        renderStagedTray();
+        const extra = {
+          ...(postAsChat ? { anonymous: true } : {}),
+          ...(draftEmoji.length ? { customEmoji: draftEmoji.slice() } : {}),
+        };
+        for (let i = 0; i < atts.length; i += MAX_ATTACHMENTS_PER_MESSAGE) {
+          onSend(i === 0 ? trimmed : "", atts.slice(i, i + MAX_ATTACHMENTS_PER_MESSAGE), i === 0 ? extra : {});
+        }
+        draftEmoji = [];
+        clearDraft();
+      } else {
         onSend(trimmed, [], {
           ...(postAsChat ? { anonymous: true } : {}),
           // Черновик мог сослаться на эмодзи и потом стереть токен — неважно:
@@ -268,6 +293,7 @@ export function Composer({
       }
       textarea.value = "";
       autoResize();
+      updateTrailingButtons();
       if (postAsChat) {
         postAsChat = false;
         updateAnonymousToggle();
@@ -545,9 +571,19 @@ export function Composer({
       // делать.
       const reason = failures[0]?.reason?.message;
 
-      for (let i = 0; i < attachments.length; i += MAX_ATTACHMENTS_PER_MESSAGE) {
-        onSend("", attachments.slice(i, i + MAX_ATTACHMENTS_PER_MESSAGE));
-      }
+      // Не отправляем сразу: складываем в очередь (staged) и показываем поднос
+      // предпросмотра. Уйдёт всё по кнопке «Отправить» (см. submit). Превью —
+      // серверный эскиз, иначе локальный objectURL исходника.
+      results.forEach((r, i) => {
+        if (r.status !== "fulfilled") return;
+        const a = r.value;
+        const t = tiles[i];
+        const previewUrl =
+          a.thumbUrl || a.previewUrl || (t?.kind === "image" && t.file ? URL.createObjectURL(t.file) : "");
+        staged.push({ attachment: a, kind: t?.kind ?? "file", previewUrl });
+      });
+      renderStagedTray();
+      updateTrailingButtons();
       if (failedCount > 0) {
         showUploadError(
           !attachments.length
@@ -1171,7 +1207,8 @@ export function Composer({
     const trailingSlot = el("div", { class: "composer-trailing" });
     function updateTrailingButtons() {
       clear(trailingSlot);
-      if (textarea.value.trim()) {
+      // Кнопка «Отправить» — когда есть текст ИЛИ приложенные файлы в очереди.
+      if (textarea.value.trim() || staged.length) {
         trailingSlot.appendChild(
           el("button", { class: "composer-send-btn", title: "Отправить", html: iconSvg("Send", 17), onclick: submit })
         );
@@ -1187,6 +1224,40 @@ export function Composer({
     // Скрепка, поле и вторичные кнопки — внутри одной «таблетки»; отправка и
     // запись остаются снаружи справа, как круглая кнопка в привычных
     // мессенджерах.
+    // Поднос очереди вложений: миниатюры выбранных фото/видео/файлов с крестиком,
+    // пока они ждут отправки. Рисуется из staged (уровень композера), поэтому
+    // переживает перерисовку тела. renderStagedTray поднимается наверх (в
+    // замыкание компонента), чтобы attachFiles/submit могли его дёргать.
+    const stagedTray = el("div", { class: "composer-staged-tray" });
+    renderStagedTray = () => {
+      clear(stagedTray);
+      stagedTray.style.display = staged.length ? "" : "none";
+      staged.forEach((s, idx) => {
+        const item = el("div", { class: `composer-staged-item kind-${s.kind}` });
+        if (s.previewUrl) {
+          item.style.backgroundImage = `url("${s.previewUrl}")`;
+          item.classList.add("has-image");
+        } else {
+          item.appendChild(el("span", { class: "composer-staged-icon", html: iconSvg(s.kind === "video" ? "Video" : s.kind === "image" ? "Image" : "File", 18) }));
+        }
+        if (s.kind === "video") item.appendChild(el("span", { class: "composer-staged-play", html: iconSvg("Play", 14) }));
+        item.appendChild(
+          el("button", {
+            class: "composer-staged-remove",
+            title: "Убрать",
+            html: iconSvg("X", 12),
+            onclick: () => {
+              staged.splice(idx, 1);
+              renderStagedTray();
+              updateTrailingButtons();
+            },
+          })
+        );
+        stagedTray.appendChild(item);
+      });
+    };
+    renderStagedTray();
+
     const field = el("div", { class: "composer-field" }, [attachSlot, commandSlot, anonymousToggleBtn, textarea, hugoSlotBtn, stickerSlot, scheduleSlot, emojiSlot].filter(Boolean));
     const row = el("div", { class: "composer-row" }, [mentionMenu, field, trailingSlot].filter(Boolean));
     // Плашка о платной переписке — над полем ввода, там же, где ответ и
@@ -1200,7 +1271,7 @@ export function Composer({
             : `⭐ Этот пользователь принимает сообщения за ${paidMessages.stars} ⭐ — спишется за каждое отправленное`
         )
       : null;
-    appendAll(bodySlot, paidHint, uploadSlot, hugoSlot, row);
+    appendAll(bodySlot, paidHint, uploadSlot, hugoSlot, stagedTray, row);
     updateTrailingButtons();
 
     queueMicrotask(() => {

@@ -572,10 +572,36 @@
 .story-like-heart {
   font-size: 16px;
   line-height: 1;
+  display: inline-flex;
   transition: transform 0.15s ease;
 }
 .story-like-btn.liked .story-like-heart {
   transform: scale(1.15);
+}
+/* Палец вверх: по умолчанию только контур, при лайке плавно заливается синим
+   («заливается и не заливается»). Один и тот же SVG в обоих состояниях —
+   меняется только заливка, поэтому переход мягкий. */
+.story-thumb-svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+.story-thumb-svg path {
+  fill: transparent;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  transition: fill 0.28s ease, stroke 0.28s ease;
+}
+.story-like-btn.liked .story-thumb-svg path,
+.story-like-count .story-thumb-svg path {
+  fill: #3b9bf0;
+  stroke: #3b9bf0;
+}
+/* В счётчике у чужой просроченной истории палец тоже залит — лайк уже стоял. */
+.story-like-count .story-thumb-svg {
+  vertical-align: middle;
 }
 .story-like-count {
   flex-shrink: 0;
@@ -2784,6 +2810,60 @@ pre.mono,
   align-items: flex-end;
   gap: 8px;
   padding: 8px 12px;
+}
+
+/* Поднос очереди вложений над строкой ввода: миниатюры выбранных фото/видео/
+   файлов, ждущих отправки по кнопке. */
+.composer-staged-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px 0;
+}
+.composer-staged-item {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.composer-staged-item.has-image {
+  color: #fff;
+}
+.composer-staged-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.composer-staged-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+}
+.composer-staged-remove:hover {
+  background: rgba(0, 0, 0, 0.8);
 }
 .composer-field {
   display: flex;

@@ -243,11 +243,28 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     (async () => {
-      // Skip showing an OS notification if the app is already open and
-      // focused — the user is already looking at it (in-app UI/ringing
-      // banner covers this case), so a popup on top would just be noise.
+      // Уведомление глушим, только если человек прямо сейчас открыл ИМЕННО тот
+      // чат, куда пришло сообщение, — тогда он его и так видит. Если приложение
+      // открыто, но он в другом чате или в списке, уведомление показываем: иначе
+      // сообщения из других чатов проходили мимо, пока он сидит в одном. Звонок
+      // (requireInteraction/isCall) показываем всегда — на него отвечают сейчас.
       const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-      if (clientsList.some((c) => c.focused)) return;
+      const targetPath = (() => {
+        try {
+          return new URL(url || "/", self.location.origin).pathname;
+        } catch {
+          return null;
+        }
+      })();
+      const onThisChat = clientsList.some((c) => {
+        if (!c.focused) return false;
+        try {
+          return !!targetPath && new URL(c.url).pathname === targetPath;
+        } catch {
+          return false;
+        }
+      });
+      if (onThisChat && !isCall) return;
 
       const icon = (await avatarIcon(avatar)) || "/icons/icon.svg";
 

@@ -9,6 +9,14 @@ import { openProfileDialog } from "./profileDialog.js";
 
 const IMAGE_DURATION_MS = 5000;
 
+// Иконка лайка — палец вверх. Заливку (внутри обводки) включает/выключает CSS
+// по классу .liked на кнопке, поэтому сам SVG один и тот же в обоих состояниях,
+// а «залился/не залился» — это плавный переход цвета, а не смена эмодзи.
+const THUMB_SVG =
+  '<svg class="story-thumb-svg" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">' +
+  '<path d="M7 10.5V20H5a1 1 0 0 1-1-1v-7.5a1 1 0 0 1 1-1h2zm2.2-.3l3.6-5.4a1.4 1.4 0 0 1 2.5 1l-.7 3.7a.7.7 0 0 0 .7.8H19a2 2 0 0 1 2 2.3l-1 6A2 2 0 0 1 18 20H9.2z"/>' +
+  "</svg>";
+
 // Просмотр историй, устроенный так же, как к этому привыкли по Telegram:
 // полоски-сегменты сверху (по одной на историю, текущая заполняется на глазах),
 // нажатие слева и справа — назад и вперёд, удержание — пауза, внизу поле ответа
@@ -301,7 +309,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       likeBtnEl.prepend(inner);
     }
     clear(inner);
-    inner.append(el("span", { class: "story-like-heart" }, story.liked ? "❤️" : "🤍"));
+    inner.append(el("span", { class: "story-like-heart", html: THUMB_SVG }));
     if (story.likeCount) inner.append(` ${story.likeCount}`);
   }
 
@@ -312,7 +320,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     const heart = likeBtnEl.querySelector(".story-like-heart");
     if (heart) { heart.classList.remove("pop"); void heart.offsetWidth; heart.classList.add("pop"); }
     for (let i = 0; i < 6; i++) {
-      const p = el("span", { class: "like-particle" }, "❤️");
+      const p = el("span", { class: "like-particle" }, "👍");
       p.style.setProperty("--dx", `${(Math.random() * 2 - 1) * 44}px`);
       p.style.setProperty("--rot", `${(Math.random() * 2 - 1) * 50}deg`);
       p.style.animationDelay = `${i * 0.03}s`;
@@ -608,10 +616,10 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
           },
           // Содержимое во внутреннем span — так всплеск сердечек (частицы)
           // можно добавлять прямо в кнопку, не стирая их при обновлении.
-          [el("span", { class: "story-like-inner" }, [el("span", { class: "story-like-heart" }, story.liked ? "❤️" : "🤍"), story.likeCount ? ` ${story.likeCount}` : ""])]
+          [el("span", { class: "story-like-inner" }, [el("span", { class: "story-like-heart", html: THUMB_SVG }), story.likeCount ? ` ${story.likeCount}` : ""])]
         )
       : story.likeCount
-        ? el("span", { class: "story-like-count" }, `❤️ ${story.likeCount}`)
+        ? el("span", { class: "story-like-count", html: `${THUMB_SVG} ${story.likeCount}` })
         : null;
     // Ссылка на кнопку лайка (только интерактивная — у чужой непросроченной
     // истории), чтобы обновлять её на месте без перезапуска истории.
@@ -652,12 +660,21 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
           likeBtn,
           commentsBtn,
         ])
-      : el("div", { class: "story-footer" }, [
-          replyInput,
-          el("button", { class: "story-send-btn", html: iconSvg("Send", 18), onclick: () => sendReply(replyInput.value, replyInput) }),
-          likeBtn,
-          commentsBtn,
-        ]);
+      : el(
+          "div",
+          { class: "story-footer" },
+          [
+            // Поле «Ответить автору» и комментарии — взаимоисключающие: когда
+            // открыты комментарии, у них своё поле ввода, а второе поле рядом
+            // путало. Поэтому пока комменты открыты, «ответить» прячем.
+            commentsOpen ? null : replyInput,
+            commentsOpen
+              ? null
+              : el("button", { class: "story-send-btn", html: iconSvg("Send", 18), onclick: () => sendReply(replyInput.value, replyInput) }),
+            likeBtn,
+            commentsBtn,
+          ].filter(Boolean)
+        );
 
     // Одна строка комментария: аватар, автор, текст, лайк-сердце со счётчиком,
     // «Ответить», плюс изменить/удалить своего. isReply — вложенный ответ.
@@ -769,10 +786,16 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
                 class: "story-header-btn",
                 title: muted ? "Включить звук" : "Выключить звук",
                 html: iconSvg(muted ? "BellOff" : "Bell", 18),
-                onclick: () => {
+                onclick: (e) => {
                   muted = !muted;
                   if (videoEl) videoEl.muted = muted;
-                  render();
+                  // Полного render() здесь быть не должно — он пересоздаёт
+                  // <video> и перезапускает историю с начала. Звук уже
+                  // переключён на самом элементе выше; остаётся только
+                  // обновить саму кнопку на месте.
+                  const btn = e.currentTarget;
+                  btn.title = muted ? "Включить звук" : "Выключить звук";
+                  btn.innerHTML = iconSvg(muted ? "BellOff" : "Bell", 18);
                 },
               })
             : null,
