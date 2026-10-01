@@ -788,11 +788,24 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
                 html: iconSvg(muted ? "BellOff" : "Bell", 18),
                 onclick: (e) => {
                   muted = !muted;
-                  if (videoEl) videoEl.muted = muted;
                   // Полного render() здесь быть не должно — он пересоздаёт
-                  // <video> и перезапускает историю с начала. Звук уже
-                  // переключён на самом элементе выше; остаётся только
-                  // обновить саму кнопку на месте.
+                  // <video> и перезапускает историю. Но и сама смена .muted на
+                  // iOS у inline-видео нередко сбрасывает позицию на 0 — поэтому
+                  // запоминаем время и состояние и возвращаем их после переключения.
+                  if (videoEl) {
+                    const t = videoEl.currentTime;
+                    const wasPlaying = !videoEl.paused && !videoEl.ended;
+                    videoEl.muted = muted;
+                    if (Math.abs((videoEl.currentTime || 0) - t) > 0.1) {
+                      try {
+                        videoEl.currentTime = t;
+                      } catch {
+                        /* не дали перемотать — не критично */
+                      }
+                    }
+                    if (wasPlaying) videoEl.play().catch(() => {});
+                  }
+                  // Обновляем саму кнопку на месте, без перерисовки истории.
                   const btn = e.currentTarget;
                   btn.title = muted ? "Включить звук" : "Выключить звук";
                   btn.innerHTML = iconSvg(muted ? "BellOff" : "Bell", 18);

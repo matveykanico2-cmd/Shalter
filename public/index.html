@@ -20,17 +20,26 @@
   <script>
     (function () {
       var root = document.documentElement;
-      function setAppHeight() {
-        var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+      var vv = window.visualViewport;
+      function setAppMetrics() {
+        // Высота видимой области и её смещение сверху. На iOS при открытии
+        // клавиатуры окно само прокручивается, чтобы показать поле ввода, —
+        // offsetTop и есть величина этой прокрутки. #view-root прибит
+        // position:fixed к верху окна, а top=offsetTop возвращает его точно в
+        // видимую область, поэтому шапка не уезжает за край, а под композером не
+        // появляется пустота. Без visualViewport — просто вся высота.
+        var h = (vv && vv.height) || window.innerHeight;
+        var top = vv ? vv.offsetTop : 0;
         root.style.setProperty("--app-height", Math.round(h) + "px");
+        root.style.setProperty("--app-top", Math.round(top) + "px");
       }
-      setAppHeight();
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener("resize", setAppHeight);
-        window.visualViewport.addEventListener("scroll", setAppHeight);
+      setAppMetrics();
+      if (vv) {
+        vv.addEventListener("resize", setAppMetrics);
+        vv.addEventListener("scroll", setAppMetrics);
       }
-      window.addEventListener("resize", setAppHeight);
-      window.addEventListener("orientationchange", setAppHeight);
+      window.addEventListener("resize", setAppMetrics);
+      window.addEventListener("orientationchange", setAppMetrics);
     })();
   </script>
   <link rel="stylesheet" href="/styles/base.css" />

@@ -1,5 +1,6 @@
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
+import { translateLocally } from "../lib/localTranslate.js";
 import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { formatText, previewText } from "../lib/formatText.js";
@@ -911,8 +912,14 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     translationEl = el("p", { class: "message-translation" }, "Переводим…");
     bubble.insertBefore(translationEl, meta);
     try {
-      const { translated } = await api.translateText(message.text, lang);
-      const text = translated || "—";
+      // Сначала — перевод на самом устройстве (встроенный Translator API,
+      // lib/localTranslate.js): без сервера, мгновенно и офлайн. Если браузер
+      // его не умеет — откатываемся на серверный перевод.
+      let text = await translateLocally(message.text, lang).catch(() => null);
+      if (!text) {
+        const { translated } = await api.translateText(message.text, lang);
+        text = translated || "—";
+      }
       translationCache.set(cacheKey, text);
       // Пока ждали, перевод могли выключить — не навязываем его обратно.
       if (translationEl) translationEl.textContent = text;
