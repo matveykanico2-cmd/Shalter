@@ -15487,3 +15487,154 @@ video.story-reply-thumb { object-fit: cover; }
     font-size: 16px;
   }
 }
+
+/* ============================================================
+   TG-polish: мелкая визуальная шлифовка в стиле Telegram.
+   Всё аддитивно — ни один существующий селектор не переопределяется,
+   только добавляются псевдоэлементы, keyframes и переходы, которых
+   не было. Любой блок можно вырезать по отдельности, не задев
+   остальные.
+   ============================================================ */
+
+/* 1. Аватарка-fallback (цветной круг с инициалами) — тонкий внутренний
+   глянец сверху, как в iOS/Telegram: инлайн-цвет из avatar.js остаётся
+   базой, ::before рисует поверх белую радиалку с низкой прозрачностью.
+   image/video-аватаркам (.avatar-img) это ничего не делает — у них
+   своё содержимое, а fallback их никогда не оборачивает. */
+.avatar-fallback {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  letter-spacing: 0.02em;
+}
+.avatar-fallback::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.05) 45%, transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.1));
+  pointer-events: none;
+}
+
+/* 2. Модальное окно: плавный ввод по образцу Telegram — оверлей
+   проявляется, диалог вылезает «пружиной» (overshoot ~5%). cubic-bezier
+   выбран так же, как у .reaction-pill: 0.34/1.56 — классическая TG-
+   «подпрыжка». Запускается один раз при появлении узла; к состоянию
+   «уже открыт» не возвращается, ничего не ломает при повторном
+   render. */
+@keyframes tg-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes tg-dialog-in {
+  0%   { opacity: 0; transform: scale(0.92) translateY(14px); }
+  70%  { opacity: 1; transform: scale(1.015) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal-overlay {
+  animation: tg-overlay-in 0.18s ease-out both;
+}
+.modal-dialog {
+  animation: tg-dialog-in 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-origin: center bottom;
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay, .modal-dialog { animation: none; }
+}
+
+/* 3. Чат в списке — подхват при нажатии (не ховере): tiny-scale жмётся
+   на 1% и чуть темнеет. Это то, что отличает TG от «плоского html» —
+   каждое касание даёт мгновенный тактильный отклик, даже без
+   настоящего ripple. */
+.chat-list-item {
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+.chat-list-item:active:not(.active) {
+  transform: scale(0.985);
+  background: var(--color-surface-alt);
+}
+
+/* 4. Плавающие «числа дня» в чате: мягкая тень и небольшое поднятие
+   над фоном переписки. Без неё пилюля сливалась с обоями, если фон
+   чата был светлый. */
+.date-divider span,
+.date-divider-btn {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* 5. Утилита «шиммер-скелетон» для состояний загрузки. Любая вьюха
+   может навесить .sk-skeleton на пустую карточку, пока ждёт данных —
+   пока по проекту их почти нет, но инструмент теперь готов к любому
+   месту, которое захочется превратить из «спиннера посередине» в
+   TG-подобный скелет. Форма — любая (ширина/высота задаются
+   инлайном), заливка одинаковая. */
+.sk-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface-alt);
+  border-radius: 10px;
+}
+.sk-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-text) 6%, transparent),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: tg-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes tg-skeleton-shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk-skeleton::after { animation: none; }
+}
+
+/* 6. Акцентная кнопка — глянцевая подложка в стиле TG: верхняя
+   половинка кнопки чуть светлее нижней. Срабатывает только для
+   основного CTA (.btn-accent) и его таблеточной версии; не трогает
+   icon-btn, settings-row и прочие нейтральные кнопки. :active —
+   лёгкий «нажим» в 1 пиксель вниз, как в iOS. */
+.btn-accent,
+.btn-accent-pill {
+  position: relative;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 55%);
+  transition: transform 0.08s ease, filter 0.15s ease;
+}
+.btn-accent:not(:disabled):hover,
+.btn-accent-pill:not(:disabled):hover {
+  filter: brightness(1.05);
+}
+.btn-accent:not(:disabled):active,
+.btn-accent-pill:not(:disabled):active {
+  transform: translateY(1px);
+  filter: brightness(0.95);
+}
+
+/* 7. Собственная реакция, только что поставленная, — короткий «буст»
+   поверх существующего reaction-pill-in. Класс .just-added можно
+   навесить из messageBubble.js на пилюлю, в userIds которой пользователь
+   появился в этом же тике; без этого класса пилюля ведёт себя как
+   раньше. Пока ни одно место его не ставит — анимация включится
+   автоматически, как только messageBubble начнёт это помечать. */
+@keyframes tg-reaction-boost {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.25) rotate(-6deg); }
+  70%  { transform: scale(0.96) rotate(3deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+.reaction-pill.just-added {
+  animation: tg-reaction-boost 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reaction-pill.just-added { animation: none; }
+}

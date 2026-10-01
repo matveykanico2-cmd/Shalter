@@ -542,6 +542,9 @@ export async function ChatView(root, chatId) {
 
   async function handleReact(m, emoji) {
     const existing = m.reactions.find((r) => r.emoji === emoji);
+    // Ставим ли мы свою реакцию, а не снимаем? — только в этом случае
+    // имеет смысл проигрывать «буст», и только по этой пилюле.
+    const amAdding = !existing || !existing.userIds.includes(me.id);
     if (existing) {
       existing.userIds = existing.userIds.includes(me.id)
         ? existing.userIds.filter((u) => u !== me.id)
@@ -551,6 +554,17 @@ export async function ChatView(root, chatId) {
       m.reactions.push({ emoji, userIds: [me.id] });
     }
     renderList();
+    // Пилюля уже в DOM — находим её по data-эмодзи/data-msgid (крючки
+    // поставлены в components/messageBubble.js) и запускаем .just-added
+    // (components.css: @keyframes tg-reaction-boost). После renderList DOM
+    // пересобирается, поэтому класс не остаётся намертво — он живёт только
+    // до следующей перерисовки, которой на этом тике уже не будет.
+    if (amAdding) {
+      const pill = document.querySelector(
+        `.reaction-pill[data-msgid="${CSS.escape(m.id)}"][data-emoji="${CSS.escape(emoji)}"]`
+      );
+      pill?.classList.add("just-added");
+    }
     await api.react(chat.id, m.id, emoji);
   }
 

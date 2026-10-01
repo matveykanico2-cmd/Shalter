@@ -1283,6 +1283,14 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
             "button",
             {
               class: `reaction-pill ${sticker ? "reaction-pill-sticker" : ""} ${r.userIds.includes(me.id) ? "mine" : ""}`,
+              // data-emoji + data-msgid — крючки для chatView.handleReact,
+              // чтобы после renderList() можно было найти ровно ту пилюлю,
+              // которую пользователь только что поставил, и запустить
+              // «буст»-анимацию (CSS: .reaction-pill.just-added в
+              // components.css). Без этих атрибутов пилюля отличалась только
+              // текстовым содержимым, а эмодзи-стикеры текста не содержат.
+              "data-emoji": r.emoji,
+              "data-msgid": message.id,
               ...reactionPillHandlers(r),
             },
             [
