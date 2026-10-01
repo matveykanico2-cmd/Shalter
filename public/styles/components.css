@@ -1,12 +1,9 @@
 /* Layout shell */
 .shell {
   display: flex;
-  /* Та же защита от мобильной клавиатуры, что и у #view-root (base.css):
-     реальная высота видимой области, иначе на iOS шапку и поле ввода уводит
-     под клавиатуру. width:100% вместо 100vw — чтобы не обрезало по бокам. */
-  height: 100vh;
-  height: 100dvh;
-  height: var(--app-height, 100dvh);
+  /* Высоту задаёт родитель #view-root (base.css: position:fixed + --app-height
+     под мобильную клавиатуру); здесь просто заполняем его целиком. */
+  height: 100%;
   width: 100%;
   overflow: hidden;
   background: var(--color-bg);
@@ -1340,6 +1337,11 @@
 /* Message list */
 .message-list {
   flex: 1;
+  /* min-height:0 обязателен: без него flex-ребёнок не сжимается ниже своего
+     содержимого и выталкивает композер за нижний край — особенно заметно,
+     когда контейнер ужимается под клавиатуру. С ним лента скроллится внутри
+     себя, а шапка и композер остаются на местах. */
+  min-height: 0;
   overflow-y: auto;
   padding: 12px 0;
 }
@@ -3331,6 +3333,54 @@ pre.mono,
   object-fit: cover;
   margin-bottom: 4px;
   cursor: pointer;
+}
+
+/* Альбом: 2+ фото/видео в одном сообщении — сеткой, как в Telegram, а не
+   колонкой во всю ширину (messageBubble.js собирает .message-album). Плитки
+   режутся по размеру ячейки (object-fit: cover), поэтому «что-то шире, что-то
+   уже» — это и есть мозаика, а не длинный столбец одинаковых картинок. */
+.message-album {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  width: 100%;
+  max-width: min(320px, 100%);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.message-album-cell {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  min-width: 0;
+}
+/* Внутри ячейки картинка/видео заполняют её целиком, без своих скруглений и
+   ограничений по ширине — рамку и радиус держит сам альбом. */
+.message-album-cell :is(img, video, .image-attachment, .video-attachment, .video-attachment-poster) {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border-radius: 0;
+  object-fit: cover;
+}
+.message-album-cell .video-attachment-btn {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+/* Три медиа: первое широкое сверху, два квадрата под ним. */
+.message-album.album-3 .message-album-cell:first-child {
+  grid-column: 1 / -1;
+  aspect-ratio: 16 / 9;
+}
+/* Одно нечётное в конце большой пачки — растягиваем на всю ширину, чтобы не
+   оставалась дыра. */
+.message-album.album-many .message-album-cell:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  aspect-ratio: 16 / 9;
 }
 /* Кнопка-обёртка ничего не рисует сама — она display:contents, чтобы во всех
    местах, где раньше был просто .image-attachment (сетка медиа в профиле,

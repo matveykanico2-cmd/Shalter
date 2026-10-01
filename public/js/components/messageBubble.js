@@ -775,9 +775,33 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       ])
     );
   }
-  for (const a of message.attachments ?? []) {
-    if (a.kind === "poll") bubbleInner.push(PollAttachment(message, { ...a, canClose: handlers.canClosePolls }, me, onVote, onPollAction));
-    else bubbleInner.push(AttachmentView(a, me));
+  // Несколько фото/видео в одном сообщении — сеткой-альбомом, как в Telegram,
+  // а не колонкой во всю ширину. Остальные вложения (файлы, голосовые, опрос,
+  // геометка) идут как раньше, по одному. Порядок внутри сообщения сохраняем:
+  // альбом встаёт на место первого медиа.
+  const atts = message.attachments ?? [];
+  const mediaAtts = atts.filter((a) => a.kind === "image" || a.kind === "video");
+  const album = mediaAtts.length >= 2;
+  let albumPlaced = false;
+  for (const a of atts) {
+    if (a.kind === "poll") {
+      bubbleInner.push(PollAttachment(message, { ...a, canClose: handlers.canClosePolls }, me, onVote, onPollAction));
+    } else if (album && (a.kind === "image" || a.kind === "video")) {
+      if (albumPlaced) continue; // все медиа уже внутри альбома
+      albumPlaced = true;
+      // Класс album-N — чтобы CSS знал, 2 это, 3 или больше, и раскладывал
+      // плитки по-разному (2 в ряд, нечётное — первая во всю ширину).
+      const n = Math.min(mediaAtts.length, 4);
+      bubbleInner.push(
+        el(
+          "div",
+          { class: `message-album album-${n}${mediaAtts.length > 4 ? " album-many" : ""}` },
+          mediaAtts.map((m) => el("div", { class: "message-album-cell" }, [AttachmentView(m, me)]))
+        )
+      );
+    } else {
+      bubbleInner.push(AttachmentView(a, me));
+    }
   }
   if (isSticker) {
     bubbleInner.push(StickerBody(message));
