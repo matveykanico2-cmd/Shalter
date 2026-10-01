@@ -88,13 +88,18 @@ function writeSessions(res, ids, active) {
 // Adds (or switches to, if already present) an account on this browser
 // without signing out any other accounts already open — the "add account"
 // flow from the nav-rail switcher.
+// Возвращает true, если аккаунт уже был в списке сессий этого браузера (т. е.
+// «вход» в него — повторный). Клиент показывает по этому флагу понятное
+// «Этот аккаунт уже добавлен» вместо тихого повторного входа.
 function addAccountSession(req, res, userId) {
   const ids = getSessionUserIds(req);
-  const next = ids.includes(userId) ? ids : [...ids, userId];
+  const alreadyLinked = ids.includes(userId);
+  const next = alreadyLinked ? ids : [...ids, userId];
   writeSessions(res, next, userId);
   // Успешный вход отменяет отложенное удаление: раз человек снова зашёл,
   // сносить аккаунт больше не нужно (server/data/users.js, accountDeletionSweep).
   try { cancelAccountDeletion(userId); } catch {}
+  return alreadyLinked;
 }
 
 function switchActiveAccount(req, res, userId) {

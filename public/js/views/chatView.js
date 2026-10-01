@@ -483,10 +483,12 @@ export async function ChatView(root, chatId) {
       const at = messages.findIndex((m) => m.id === localId);
       if (at >= 0) messages[at] = message;
       else messages = [...messages, message];
-      renderList();
+      // Сохраняем прокрутку: подмена временного сообщения настоящим не должна
+      // дёргать ленту (голый renderList сбрасывал бы scrollTop в 0).
+      rerenderListKeepingScroll();
     } catch (err) {
       dropOptimistic();
-      renderList();
+      rerenderListKeepingScroll();
       alert(err.message || "Не удалось отправить сообщение");
       // Текст возвращается в поле ввода: он не отправлен, и терять его нельзя.
       if (text) draftText = text;
@@ -579,7 +581,10 @@ export async function ChatView(root, chatId) {
     if (!updated) return;
     const idx = messages.findIndex((x) => x.id === updated.id);
     if (idx >= 0) messages[idx] = updated;
-    renderList();
+    // С сохранением прокрутки: замена одного сообщения (голос в опросе, снятие
+    // голоса, закрытие опроса) не должна швырять ленту в начало — та же причина,
+    // что была у реакций.
+    rerenderListKeepingScroll();
   }
   function applyLocalVote(m, optionIndex) {
     const a = m.attachments?.find((x) => x.kind === "poll");
@@ -595,7 +600,7 @@ export async function ChatView(root, chatId) {
       voterIds[optionIndex].push(me.id);
     }
     a.meta = { ...a.meta, voterIds, votes: voterIds.map((v) => v.length) };
-    renderList();
+    rerenderListKeepingScroll();
   }
 
   async function handleVote(m, optionIndex) {
@@ -821,7 +826,10 @@ export async function ChatView(root, chatId) {
     // Unticking the last one leaves selection mode, so there's no way to get
     // stuck in a mode with nothing selected and no obvious way out.
     if (!selected.size) selecting = false;
-    renderList();
+    // С сохранением прокрутки: отметка сообщения не должна уносить ленту в
+    // начало (голый renderList сбрасывал scrollTop — выделять несколько
+    // сообщений было невозможно, список прыгал наверх на каждой галочке).
+    rerenderListKeepingScroll();
     renderSelectionBar();
   }
 
@@ -829,14 +837,14 @@ export async function ChatView(root, chatId) {
     selecting = true;
     selected.clear();
     if (id) selected.add(id);
-    renderList();
+    rerenderListKeepingScroll();
     renderSelectionBar();
   }
 
   function clearSelection() {
     selecting = false;
     selected.clear();
-    renderList();
+    rerenderListKeepingScroll();
     renderSelectionBar();
   }
 

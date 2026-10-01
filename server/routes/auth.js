@@ -112,9 +112,9 @@ async function finishLogin(req, res, user) {
       scheduledDeletionAt: user.scheduledDeletionAt ?? null,
     });
   }
-  addAccountSession(req, res, user.id);
+  const alreadyLinked = addAccountSession(req, res, user.id);
   await recordSession(req, res, user.id);
-  return res.json({ user: selfUser(user) });
+  return res.json({ user: selfUser(user), alreadyLinked });
 }
 
 // The ban set from the reports moderation chat (routes/reports.js's
@@ -1050,9 +1050,9 @@ router.post(
     }
 
     twoFactorTickets.consume(ticket);
-    addAccountSession(req, res, user.id);
+    const alreadyLinked = addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
-    res.json({ user: selfUser(user) });
+    res.json({ user: selfUser(user), alreadyLinked });
   })
 );
 

@@ -138,6 +138,19 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     window.location.href = "/";
   }
 
+  // Завершение входа. В режиме добавления аккаунта, если сервер сообщил, что
+  // этот аккаунт уже привязан к браузеру (alreadyLinked), не перезаходим молча
+  // в него заново, а говорим об этом — «повторный вход в тот же аккаунт» ничего
+  // не менял, но выглядел как успешное добавление второй копии.
+  function finishAuth(user, alreadyLinked) {
+    if (addMode && alreadyLinked) {
+      error = "Этот аккаунт уже добавлен — выберите его в меню аккаунтов.";
+      render();
+      return;
+    }
+    (onSuccess ?? goToApp)(user);
+  }
+
   function qrCodeSvg(text) {
     const qr = qrcode(0, "M");
     qr.addData(text);
@@ -221,8 +234,8 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           twoFactorPending = true;
           render();
           try {
-            const { user } = await api.twoFactorLogin(twoFactor.ticket, twoFactorCode);
-            (onSuccess ?? goToApp)(user);
+            const res = await api.twoFactorLogin(twoFactor.ticket, twoFactorCode);
+            finishAuth(res.user, res.alreadyLinked);
           } catch (err) {
             twoFactorError = err.message;
             twoFactorCode = "";
@@ -489,14 +502,14 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               await api.startCodeLogin(codePhone);
               codeStep = "code";
             } else {
-              const res = await api.verifyCodeLogin(codePhone, codeValue);
+              const res = await api.verifyCodeLogin(codePhone, codeValue); // { user, alreadyLinked }
               if (res.twoFactorRequired) {
                 twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp", hint: res.hint ?? null, scheduledDeletionAt: res.scheduledDeletionAt ?? null };
                 codePending = false;
                 render();
                 return;
               }
-              (onSuccess ?? goToApp)(res.user);
+              finishAuth(res.user, res.alreadyLinked);
             }
           } catch (err) {
             codeError = err.message;
@@ -680,6 +693,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           render();
           try {
             let user;
+            let alreadyLinked = false;
             if (mode === "register") {
               ({ user } = await api.registerEmail(name, email, password, phone, username, lastName));
               if (avatarImage) await api.updateProfile(user.id, { avatarImage });
@@ -694,8 +708,9 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
                 return;
               }
               user = res.user;
+              alreadyLinked = res.alreadyLinked;
             }
-            (onSuccess ?? goToApp)(user);
+            finishAuth(user, alreadyLinked);
           } catch (err) {
             error = err.message;
           } finally {
