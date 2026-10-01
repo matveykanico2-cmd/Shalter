@@ -2103,35 +2103,80 @@
   color: var(--color-accent-contrast);
 }
 .reactions-row {
-  margin-top: 4px;
+  margin-top: 6px;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
 @keyframes reaction-pill-in {
   from { opacity: 0; transform: scale(0.5); }
   to { opacity: 1; transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .reaction-pill { animation: none; }
+  .reaction-pill { animation: none; transition: none; }
 }
 .message-column.mine .reactions-row {
   justify-content: flex-end;
 }
 .reaction-pill {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   border-radius: 999px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   animation: reaction-pill-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
-  padding: 2px 6px;
-  font-size: 12px;
+  padding: 2px 8px 2px 6px;
+  font-size: 12.5px;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+}
+.reaction-pill:hover {
+  transform: translateY(-1px);
+  background: var(--color-surface-alt);
 }
 .reaction-pill.mine {
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+.reaction-pill.mine:hover {
+  background: var(--color-accent-soft);
+  filter: brightness(0.97);
+}
+.reaction-pill-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+}
+/* Stacked avatars of the people behind this reaction. The negative margin on
+   every item but the first makes them overlap by a few pixels; the ring
+   (box-shadow in the pill's own background colour) carves each one back out
+   of its neighbour so you still see a clean circle, not a mushed blob. */
+.reaction-pill-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+.reaction-pill-avatar {
+  display: inline-flex;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--color-surface);
+}
+.reaction-pill.mine .reaction-pill-avatar {
+  box-shadow: 0 0 0 1.5px var(--color-accent-soft);
+}
+.reaction-pill-avatar + .reaction-pill-avatar {
+  margin-left: -5px;
+}
+.reaction-pill-count {
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 10px;
+  text-align: center;
 }
 .keyboard-rows {
   margin-top: 6px;

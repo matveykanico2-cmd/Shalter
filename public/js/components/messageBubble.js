@@ -1267,13 +1267,41 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         { class: "reactions-row" },
         message.reactions.map((r) => {
           const sticker = reactionSticker(r.emoji);
+          // Up to three stacked avatars of the people who reacted — but only
+          // of users still resolvable from `members` (someone who's left a
+          // group isn't in that list any more, and we'd rather show one fewer
+          // avatar than a nameless grey circle). `me` isn't always in members
+          // either (own row is served separately in some chats), so patch
+          // ourselves in explicitly when we reacted — otherwise the one face
+          // the viewer most wants to see confirmed is the one that's missing.
+          const SHOWN = 3;
+          const avatars = r.userIds
+            .slice(0, SHOWN)
+            .map((id) => (id === me.id ? me : members?.find((u) => u.id === id)))
+            .filter(Boolean);
           return el(
             "button",
             {
               class: `reaction-pill ${sticker ? "reaction-pill-sticker" : ""} ${r.userIds.includes(me.id) ? "mine" : ""}`,
               ...reactionPillHandlers(r),
             },
-            [sticker ? renderSticker(sticker, { size: 22 }) : r.emoji, el("span", { class: "mono" }, String(r.userIds.length))]
+            [
+              el("span", { class: "reaction-pill-glyph" }, [
+                sticker ? renderSticker(sticker, { size: 22 }) : r.emoji,
+              ]),
+              avatars.length
+                ? el(
+                    "span",
+                    { class: "reaction-pill-avatars" },
+                    avatars.map((u) =>
+                      el("span", { class: "reaction-pill-avatar", title: u.name }, [
+                        Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 16 }),
+                      ])
+                    )
+                  )
+                : null,
+              el("span", { class: "reaction-pill-count mono" }, String(r.userIds.length)),
+            ].filter(Boolean)
           );
         })
       )
