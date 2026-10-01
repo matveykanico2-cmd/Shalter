@@ -553,7 +553,11 @@ export async function ChatView(root, chatId) {
     } else {
       m.reactions.push({ emoji, userIds: [me.id] });
     }
-    renderList();
+    // Перерисовка С сохранением прокрутки — renderList() голышом делает
+    // clear(list) и сбрасывает scrollTop в 0, из-за чего при отмене реакции
+    // чат «прыгал в самое начало». Для реакции положение экрана меняться
+    // не должно.
+    rerenderListKeepingScroll();
     // Пилюля уже в DOM — находим её по data-эмодзи/data-msgid (крючки
     // поставлены в components/messageBubble.js) и запускаем .just-added
     // (components.css: @keyframes tg-reaction-boost). После renderList DOM
