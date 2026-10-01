@@ -5103,6 +5103,14 @@ pre.mono,
   font-size: 14px;
   color: var(--color-accent);
   text-align: center;
+  /* Длинная подпись («Отмена — вернуться в приложение») на узком экране не
+     должна вылезать за край: кнопка по умолчанию не переносит текст и не
+     считает padding в ширину. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0 12px;
 }
 /* login.js's "Отмена — вернуться в приложение" (add-account flow) is a
    <button>, which is inline-block by default and shrink-wraps to its own

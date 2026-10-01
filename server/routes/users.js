@@ -6,6 +6,7 @@ const { publicUser, selfUser, publicUsers } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
 const { privacyAllows } = require("../lib/privacyRules");
 const { listContactsFor } = require("../data/contacts");
+const { countBotAudience } = require("../data/bots");
 const { listChats, listChatsForUser, getChat, findDmBetween } = require("../data/chats");
 const { isStaff } = require("../lib/chatPermissions");
 const { updateSettings } = require("../data/settings");
@@ -205,6 +206,12 @@ router.get(
           status: businessStatus(business.hours, business.timeZone),
         };
       }
+    }
+
+    // У бота вместо «был(а) в сети» показываем число пользователей — как в
+    // Telegram («бот · N пользователей»). Счёт по join-таблице (data/bots.js).
+    if (user.isBot) {
+      visible.botUserCount = countBotAudience(req.params.id);
     }
 
     // Сколько групп у нас общих — строкой «Общие группы» в профиле, как в

@@ -570,7 +570,12 @@ export async function openProfileDialog(userId) {
 
   function render() {
     clear(body);
-    const status = statusLabel(user);
+    // У бота вместо «был(а) в сети» — число пользователей (users.js's
+    // /:id отдаёт botUserCount). «бот · 1 234 пользователя».
+    const status =
+      user.isBot && typeof user.botUserCount === "number"
+        ? `бот · ${user.botUserCount.toLocaleString("ru-RU")} ${plural(user.botUserCount, "пользователь", "пользователя", "пользователей")}`
+        : statusLabel(user);
     // Открытая вкладка могла опустеть (или её не было вовсе) — тогда первая
     // из тех, что есть.
     const tabs = visibleTabs();

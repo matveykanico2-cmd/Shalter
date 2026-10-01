@@ -50,6 +50,10 @@ const SKIP_SELECTOR = [
   ".sender-name",
   ".referral-code-value",
   ".bot-token-value",
+  // Инициалы в аватарке-заглушке — одна-две буквы имени, не слова для
+  // перевода. Иначе «С» (первая буква имени) переводилась как «with», «И» —
+  // как «and» и т. п.
+  ".avatar-fallback",
   ".mono",
 ].join(",");
 

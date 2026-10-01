@@ -64,7 +64,6 @@ export function NavRail() {
     railButton("/", "Send", "Чаты", (p) => p === "/" || p.startsWith("/chat")),
     railButton("/contacts", "Users", "Контакты", (p) => p === "/contacts"),
     railButton("/calls", "Phone", "Звонки", (p) => p === "/calls"),
-    railButton("/market", "Bag", "Маркет", (p) => p.startsWith("/market")),
     railButton("/archive", "Archive", "Архив", (p) => p === "/archive"),
   ];
   const settingsBtn = railButton("/settings", "Settings", "Настройки", (p) => p.startsWith("/settings"));

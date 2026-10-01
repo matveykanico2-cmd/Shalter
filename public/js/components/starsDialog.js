@@ -148,8 +148,18 @@ export function openStarsDialog(onChanged) {
     error = null;
     notice = null;
     const amount = Math.floor(Number(amountInput.value));
+    // Человек ввёл @ник или имя, но не нажал на подсказку — не заставляем
+    // кликать: если есть точное совпадение по @нику или ровно один кандидат,
+    // выбираем его сами. Раньше в этом случае строго писало «Выберите
+    // получателя из списка», даже когда получатель очевиден.
     if (!transferTo) {
-      error = "Выберите получателя из списка";
+      const q = toInput.value.trim().replace(/^@/, "").toLowerCase();
+      transferTo =
+        found.find((u) => (u.username || "").toLowerCase() === q) ??
+        (found.length === 1 ? found[0] : null);
+    }
+    if (!transferTo) {
+      error = found.length ? "Выберите получателя из списка" : "Никого не нашлось по этому имени или @нику";
       render();
       return;
     }

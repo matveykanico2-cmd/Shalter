@@ -1202,7 +1202,12 @@ export async function ChatView(root, chatId) {
       }
       if (isDm && other) return lastSeenLabel(other);
       // «1 участник», «3 участника», «5 участников» — а не «1 подписчиков».
-      if (chat.type === "group") return `${members.length} ${plural(members.length, "участник", "участника", "участников")}`;
+      // Плюс, как в Telegram, «, N в сети», когда кто-то онлайн (кроме себя).
+      if (chat.type === "group") {
+        const base = `${members.length} ${plural(members.length, "участник", "участника", "участников")}`;
+        const onlineCount = members.filter((m) => m.id !== me.id && m.online).length;
+        return onlineCount > 0 ? `${base}, ${onlineCount} в сети` : base;
+      }
       if (chat.type === "channel") return `${members.length} ${plural(members.length, "подписчик", "подписчика", "подписчиков")}`;
       return "";
     })();
