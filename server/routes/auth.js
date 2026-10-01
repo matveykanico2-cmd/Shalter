@@ -936,10 +936,18 @@ router.post(
     if (me.twoFactorEnabled) return res.status(400).json({ error: "Двухфакторная аутентификация уже включена" });
     const byChat = me.twoFactorMethod === "chat";
     if (!byChat && !me.totpSecret) return res.status(400).json({ error: "Сначала отсканируйте QR-код" });
-    if (!(await verifySecondFactor(me, req.body?.code))) {
+    // Для метода «код в чате» разрешаем подтвердить включение вводом
+    // собственного номера телефона — на случай, когда код в служебный чат не
+    // виден (не дошёл, второго устройства нет). Это шаг настройки: человек уже
+    // вошёл в аккаунт, так что ввод своего же номера подтверждает владение, не
+    // ослабляя вход (на входе по-прежнему нужен код). Номер сверяем
+    // нормализованным, чтобы «+7…» и «8…» считались одинаковыми.
+    const confirmedByPhone =
+      byChat && !!me.phone && normalizePhone(String(req.body?.code ?? "")) === normalizePhone(me.phone);
+    if (!confirmedByPhone && !(await verifySecondFactor(me, req.body?.code))) {
       return res.status(400).json({
         error: byChat
-          ? "Неверный или устаревший код — запросите новый"
+          ? "Неверный код или номер — введите код из чата либо номер телефона аккаунта"
           : "Неверный код — проверьте, что время на устройстве точное, и попробуйте снова",
       });
     }

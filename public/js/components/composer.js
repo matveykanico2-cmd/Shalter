@@ -706,8 +706,13 @@ export function Composer({
           icon: "Users",
           label: "Контакт",
           run: () =>
-            openContactPickerDialog((user) =>
-              onSend("", [{ kind: "contact", meta: { userId: user.id, name: user.name, phone: user.phone } }])
+            openContactPickerDialog(
+              (user) => onSend("", [{ kind: "contact", meta: { userId: user.id, name: user.name, phone: user.phone } }]),
+              "Отправить контакт",
+              // Участники этого чата — чтобы можно было отправить собеседнику
+              // его же контакт (или контакт участника группы), даже если он не
+              // записан в контактах.
+              { extra: members ?? [] }
             ),
         },
         // Recording needs a microphone/camera, and scheduling makes no sense

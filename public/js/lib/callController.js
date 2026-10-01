@@ -619,12 +619,19 @@ export async function toggleCamera() {
 // экраном (см. applyOutgoing).
 export async function flipCamera() {
   if (!state) return;
+  if (state.switchingCamera) return; // уже переключаем — второй раз не дёргаем
   const oldTrack = state.localStream?.getVideoTracks()[0] ?? null;
+  // Вторая камера просыпается не мгновенно (getUserMedia её «будит») — это и
+  // есть «чёрный экран на пару секунд». Показываем на это время подпись
+  // «Переключаю камеру…», чтобы пауза читалась как ожидание, а не как поломка.
+  state.switchingCamera = true;
+  notify();
   const { track: newTrack, error } = await getFlippedTrack({ currentTrack: oldTrack, wantBack: !state.facingBack, video: HD_VIDEO });
   if (!state) {
     newTrack?.stop();
     return;
   }
+  state.switchingCamera = false;
   if (!newTrack) {
     // Молчание было главной бедой прежней версии: кнопка нажималась, ничего не
     // происходило, и понять почему было нельзя.

@@ -1,8 +1,13 @@
 /* Layout shell */
 .shell {
   display: flex;
+  /* Та же защита от мобильной клавиатуры, что и у #view-root (base.css):
+     реальная высота видимой области, иначе на iOS шапку и поле ввода уводит
+     под клавиатуру. width:100% вместо 100vw — чтобы не обрезало по бокам. */
   height: 100vh;
-  width: 100vw;
+  height: 100dvh;
+  height: var(--app-height, 100dvh);
+  width: 100%;
   overflow: hidden;
   background: var(--color-bg);
 }
@@ -8387,6 +8392,22 @@ pre.mono,
   font-size: 11px;
   text-align: center;
 }
+/* Подпись «Переключаю камеру…» поверх своего видео, пока вторая камера
+   просыпается (callController.switchingCamera). По центру, чтобы перекрыть
+   чёрный кадр. */
+.call-camera-switching {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+}
 .char-scene {
   display: inline-block;
   line-height: 0;
@@ -9522,6 +9543,22 @@ pre.mono,
   border-radius: 8px;
   background: #000;
   object-fit: contain;
+  /* Зум просмотрщика (components/mediaViewer.js): плавная анимация масштаба,
+     центр как точка отсчёта, без перехвата жестов браузером — свой пинч. */
+  transform-origin: center center;
+  transition: transform 0.12s ease-out;
+  touch-action: none;
+  will-change: transform;
+}
+.media-viewer-media.zoomed {
+  /* Во время перетаскивания анимация не нужна — иначе картинка «догоняет»
+     палец с задержкой. */
+  transition: none;
+  cursor: grab;
+  border-radius: 0;
+}
+.media-viewer-media.zoomed:active {
+  cursor: grabbing;
 }
 
 /* The avatar itself as a button, wherever tapping it opens the viewer. Padding

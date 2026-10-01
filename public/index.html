@@ -12,6 +12,27 @@
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Shalter" />
+  <!-- Высота под мобильную клавиатуру. На iOS при фокусе в поле ввода
+       клавиатура уменьшает видимую область, но 100vh остаётся прежним — экран
+       уезжает вверх, обрезая шапку и само поле. Держим --app-height равной
+       реальной высоте visualViewport, а base.css кладёт её в #view-root. Скрипт
+       в <head>, чтобы переменная была готова к первой отрисовке. -->
+  <script>
+    (function () {
+      var root = document.documentElement;
+      function setAppHeight() {
+        var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+        root.style.setProperty("--app-height", Math.round(h) + "px");
+      }
+      setAppHeight();
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", setAppHeight);
+        window.visualViewport.addEventListener("scroll", setAppHeight);
+      }
+      window.addEventListener("resize", setAppHeight);
+      window.addEventListener("orientationchange", setAppHeight);
+    })();
+  </script>
   <link rel="stylesheet" href="/styles/base.css" />
   <link rel="stylesheet" href="/styles/components.css" />
   <!-- Заставка на запуск — своими стилями, не из components.css: тот файл

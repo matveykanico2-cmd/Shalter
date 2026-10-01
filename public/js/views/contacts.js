@@ -75,7 +75,24 @@ export async function ContactsView(root) {
   });
 
   // The Telegram-shaped form: a name you choose and the number you have.
+  // Черновик имени переживает уход с экрана и возврат: контакт часто заводят в
+  // два захода (ввёл имя → пошёл за номером в другое приложение → вернулся), а
+  // поле раньше очищалось при каждом перемонтировании вью, и введённое имя
+  // пропадало. Храним в sessionStorage, чистим после успешного добавления.
+  const NAME_DRAFT_KEY = "contact-add-name-draft";
   const nameInput = el("input", { class: "login-input", placeholder: "Имя (как записать у себя)" });
+  try {
+    nameInput.value = sessionStorage.getItem(NAME_DRAFT_KEY) || "";
+  } catch {
+    /* приватный режим — просто без черновика */
+  }
+  nameInput.addEventListener("input", () => {
+    try {
+      sessionStorage.setItem(NAME_DRAFT_KEY, nameInput.value);
+    } catch {
+      /* не критично */
+    }
+  });
   // Country picker in front of the number (components/phoneField.js) — the old
   // single box was formatted for a Russian number and capped at 11 digits, so a
   // foreign contact simply could not be typed in.
@@ -156,12 +173,28 @@ export async function ContactsView(root) {
     const localName = nameInput.value.trim();
     await api.addContact(u.id, localName || null);
     ({ contacts } = await api.listContacts());
+    // Держим глобальный state.contactIds в синхроне: по нему карточка
+    // присланного контакта решает, показывать ли «Добавить» (messageBubble.js).
+    // Без этого добавленный здесь человек продолжал предлагать «Добавить» на
+    // своей карточке в переписке, пока не перезагрузишь приложение.
+    syncContactIds();
     adding = false;
     query = "";
     searchResult = null;
     notRegistered = null;
     nameInput.value = "";
+    try {
+      sessionStorage.removeItem(NAME_DRAFT_KEY);
+    } catch {
+      /* не критично */
+    }
     render();
+  }
+
+  // Приводит state.contactIds к текущему списку контактов — один источник
+  // правды и для экрана контактов, и для карточек в чатах.
+  function syncContactIds() {
+    setState({ contactIds: contacts.map((c) => c.userId) });
   }
 
   // Only the result slot under the input — the input itself stays mounted and
@@ -444,6 +477,7 @@ export async function ContactsView(root) {
             onclick: async () => {
               await api.removeContact(user.id);
               contacts = contacts.filter((x) => x.userId !== user.id);
+              syncContactIds();
               render();
             },
           }),

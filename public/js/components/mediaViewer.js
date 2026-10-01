@@ -29,6 +29,43 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
   document.body.appendChild(overlay);
   show();
 
+  // Масштаб и сдвиг картинки в просмотрщике — свой зум, потому что зум всей
+  // страницы отключён (index.html, user-scalable=no), и без этого фото нельзя
+  // было бы приблизить вовсе. Сбрасывается на каждом новом кадре.
+  let scale = 1;
+  let tx = 0;
+  let ty = 0;
+  function applyTransform() {
+    if (!media) return;
+    media.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    media.style.cursor = scale > 1 ? "grab" : "";
+    media.classList.toggle("zoomed", scale > 1);
+  }
+  function resetZoom() {
+    scale = 1;
+    tx = 0;
+    ty = 0;
+    applyTransform();
+  }
+  function zoomTo(next, cx = 0, cy = 0) {
+    const clamped = Math.max(1, Math.min(5, next));
+    if (clamped === scale) return;
+    // Зумируем к точке под курсором/пальцем, а не к центру: иначе при
+    // приближении деталь уезжает из-под пальца.
+    const rect = media.getBoundingClientRect();
+    const ox = cx - (rect.left + rect.width / 2);
+    const oy = cy - (rect.top + rect.height / 2);
+    const k = clamped / scale;
+    tx = tx - ox * (k - 1);
+    ty = ty - oy * (k - 1);
+    scale = clamped;
+    if (scale === 1) {
+      tx = 0;
+      ty = 0;
+    }
+    applyTransform();
+  }
+
   function show() {
     if (media?.tagName === "VIDEO") media.pause();
     const item = items[at];
@@ -36,8 +73,12 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
       item.kind === "video"
         ? el("video", { class: "media-viewer-media", src: item.url, controls: true, autoplay: true, playsInline: true })
         : el("img", { class: "media-viewer-media", src: item.url, alt: item.name || "" });
+    scale = 1;
+    tx = 0;
+    ty = 0;
     clear(stage);
     stage.appendChild(media);
+    applyTransform();
     clear(head);
     appendAll(
       head,
@@ -64,18 +105,86 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
     show();
   }
 
-  // Смахивание на телефоне: влево — следующее, вправо — предыдущее.
+  // Колесо мыши / тачпад — зум к точке под курсором (только для фото: у видео
+  // свои элементы управления). Ctrl+колесо тоже, но и обычное колесо, раз зум
+  // страницы отключён и прокручивать тут нечего.
+  stage.addEventListener(
+    "wheel",
+    (e) => {
+      if (items[at]?.kind === "video") return;
+      e.preventDefault();
+      zoomTo(scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY);
+    },
+    { passive: false }
+  );
+  // Двойной клик/тап — быстрый зум 1× ↔ 2.5×.
+  stage.addEventListener("dblclick", (e) => {
+    if (items[at]?.kind === "video") return;
+    if (scale > 1) resetZoom();
+    else zoomTo(2.5, e.clientX, e.clientY);
+  });
+
+  // Указатели: один — свайп между кадрами (когда не приближено) или
+  // перетаскивание (когда приближено); два — пинч-зум.
+  const pointers = new Map();
   let swipeStartX = null;
+  let panStart = null; // { x, y, tx, ty }
+  let pinchStart = null; // { dist, scale, cx, cy }
+
   stage.addEventListener("pointerdown", (e) => {
-    if (e.pointerType !== "mouse") swipeStartX = e.clientX;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      pinchStart = {
+        dist: Math.hypot(a.x - b.x, a.y - b.y),
+        scale,
+        cx: (a.x + b.x) / 2,
+        cy: (a.y + b.y) / 2,
+      };
+      swipeStartX = null;
+      panStart = null;
+    } else if (scale > 1) {
+      panStart = { x: e.clientX, y: e.clientY, tx, ty };
+      try { media.setPointerCapture?.(e.pointerId); } catch {}
+    } else if (e.pointerType !== "mouse") {
+      swipeStartX = e.clientX;
+    }
   });
-  stage.addEventListener("pointerup", (e) => {
-    if (swipeStartX === null) return;
-    const dx = e.clientX - swipeStartX;
+
+  stage.addEventListener("pointermove", (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinchStart && pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      zoomTo(pinchStart.scale * (dist / pinchStart.dist), pinchStart.cx, pinchStart.cy);
+    } else if (panStart) {
+      tx = panStart.tx + (e.clientX - panStart.x);
+      ty = panStart.ty + (e.clientY - panStart.y);
+      applyTransform();
+    }
+  });
+
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchStart = null;
+    if (panStart) {
+      panStart = null;
+      return;
+    }
+    if (swipeStartX !== null) {
+      const dx = e.clientX - swipeStartX;
+      swipeStartX = null;
+      if (scale === 1 && Math.abs(dx) > 60) go(dx < 0 ? 1 : -1);
+    }
+  }
+  stage.addEventListener("pointerup", endPointer);
+  stage.addEventListener("pointercancel", (e) => {
+    pointers.delete(e.pointerId);
+    pinchStart = null;
+    panStart = null;
     swipeStartX = null;
-    if (Math.abs(dx) > 60) go(dx < 0 ? 1 : -1);
   });
-  stage.addEventListener("pointercancel", () => (swipeStartX = null));
 
   function close() {
     document.removeEventListener("keydown", onKey, true);

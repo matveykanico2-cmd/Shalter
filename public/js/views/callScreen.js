@@ -424,6 +424,9 @@ export async function CallScreenView(root, callId) {
         : null,
       // Причина неудачи — прямо на видео, а не в консоли.
       s.cameraError ? el("p", { class: "call-camera-error" }, s.cameraError) : null,
+      // Пока вторая камера просыпается — подпись поверх видео, чтобы чёрный
+      // кадр читался как ожидание, а не как сбой (callController.switchingCamera).
+      s.switchingCamera ? el("div", { class: "call-camera-switching" }, "Переключаю камеру…") : null,
     ]);
 
     // Any call, not just a group one: adding a third person to a one-to-one

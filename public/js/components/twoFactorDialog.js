@@ -107,10 +107,20 @@ export function openTwoFactorSetupDialog(onEnabled) {
     class: "login-input login-code-input mono",
     inputmode: "numeric",
     placeholder: "······",
-    maxlength: 6,
+    // 20, а не 6: для метода «код в чате» в это же поле можно ввести номер
+    // телефона аккаунта (он длиннее шести цифр и может начинаться с «+»), и
+    // тогда включение подтверждается номером. Для остальных методов ниже всё
+    // равно остаётся шестизначный код.
+    maxlength: 20,
     autocomplete: "one-time-code",
     oninput: (e) => {
-      e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6);
+      // Метод «код в чате» допускает ввод номера телефона: оставляем цифры и
+      // ведущий «+». Остальные методы — строго шесть цифр кода.
+      if (method === "chat") {
+        e.target.value = e.target.value.replace(/[^\d+]/g, "").slice(0, 20);
+      } else {
+        e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6);
+      }
       code = e.target.value;
     },
   });
@@ -245,6 +255,9 @@ export function openTwoFactorSetupDialog(onEnabled) {
             ]
           : [
               el("p", { class: "settings-toggle-hint" }, "Код отправлен в ваш чат с Shalter — откройте его и введите шесть цифр. Код действует 5 минут."),
+              // Если код в чат не виден (не дошёл, второго устройства нет) —
+              // включение можно подтвердить номером телефона аккаунта.
+              el("p", { class: "settings-toggle-hint" }, "Не видите код? Введите в поле номер телефона этого аккаунта — этого достаточно, чтобы включить."),
               el(
                 "button",
                 {

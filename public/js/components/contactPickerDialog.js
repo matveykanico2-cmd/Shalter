@@ -4,15 +4,25 @@ import { api } from "../api.js";
 
 // Pick one of your contacts — used both to send a "contact card" attachment
 // and (with a different title) to start a new private chat.
-export async function openContactPickerDialog(onPick, title = "Отправить контакт") {
+//
+// `extra` — люди, которых надо показать помимо списка контактов (например,
+// собеседники текущего чата): так можно отправить человеку его же контакт или
+// контакт участника группы, даже если он не записан в контакты. Дублей по id
+// нет — свои контакты имеют приоритет.
+export async function openContactPickerDialog(onPick, title = "Отправить контакт", { extra = [] } = {}) {
   const { contacts } = await api.listContacts();
+  const seen = new Set(contacts.map((c) => c.user.id));
+  const people = [
+    ...contacts.map((c) => c.user),
+    ...extra.filter((u) => u && u.id && !seen.has(u.id)),
+  ];
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const list = el(
     "div",
     { class: "forward-list" },
-    contacts.length === 0
+    people.length === 0
       ? el("p", { class: "empty-hint" }, "Список контактов пуст")
-      : contacts.map(({ user }) =>
+      : people.map((user) =>
           el(
             "button",
             {

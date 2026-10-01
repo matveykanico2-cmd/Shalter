@@ -34,6 +34,32 @@ export function checkLinkSafety(url) {
 // that (browsers fail those silently, no onerror fires) — so "Открыть в
 // браузере" stays a prominent, always-available escape hatch rather than a
 // fallback only shown after a detected failure.
+// Видео с популярных площадок обычная страница /watch в iframe не пускает
+// (X-Frame-Options), а embed-версия — пускает и сразу играет. Переписываем
+// ссылку на встраиваемую, чтобы «встроенный просмотр видео» работал, а не
+// упирался в белый экран. Остальные ссылки отдаём как есть.
+function embedUrlFor(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      const id = u.searchParams.get("v");
+      if (id) return `https://www.youtube.com/embed/${id}`;
+    }
+    if (host === "youtu.be") {
+      const id = u.pathname.slice(1).split("/")[0];
+      if (id) return `https://www.youtube.com/embed/${id}`;
+    }
+    if (host === "vimeo.com") {
+      const id = u.pathname.split("/").filter(Boolean)[0];
+      if (/^\d+$/.test(id || "")) return `https://player.vimeo.com/video/${id}`;
+    }
+  } catch {
+    // нераспознанный адрес — оставляем как есть
+  }
+  return url;
+}
+
 export function openInAppBrowser(url, { warning, unsafe } = {}) {
   let host = url;
   try {
@@ -43,7 +69,12 @@ export function openInAppBrowser(url, { warning, unsafe } = {}) {
   }
 
   const overlay = el("div", { class: "inapp-browser-overlay" });
-  const iframe = el("iframe", { class: "inapp-browser-frame", src: url, sandbox: "allow-scripts allow-same-origin allow-forms allow-popups" });
+  const iframe = el("iframe", {
+    class: "inapp-browser-frame",
+    src: embedUrlFor(url),
+    sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-presentation",
+    allow: "autoplay; fullscreen; picture-in-picture; encrypted-media",
+  });
 
   const header = el("div", { class: "inapp-browser-header" }, [
     el("button", { class: "icon-btn", html: iconSvg("X", 18), onclick: close }),

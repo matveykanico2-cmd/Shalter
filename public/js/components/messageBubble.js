@@ -44,6 +44,12 @@ function jumboEmojiCount(text) {
   return graphemes.every(isEmojiGrapheme) ? graphemes.length : 0;
 }
 
+// Кэш переводов на время сессии: ключ «язык\nтекст» → переведённый текст.
+// Один и тот же текст (повтор, пересланное, перечитанное) переводится один
+// раз, дальше показывается мгновенно и без сети — это и есть «мгновенный
+// перевод без долгой загрузки».
+const translationCache = new Map();
+
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
 // Premium-only reactions — still plain emoji, just a fancier set gated
 // behind isPremium as a small, low-effort perk.
@@ -848,14 +854,28 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       translationEl = null;
       return;
     }
+    // Язык берём из уже загруженных настроек (state.settings), без запроса
+    // GET /api/settings на каждый перевод — это полсекунды задержки впустую.
+    const lang = getState().settings?.translateLanguage || "ru";
+    const cacheKey = `${lang}\n${message.text}`;
+    // Готовый перевод показываем мгновенно, без «Переводим…» и без сети:
+    // один и тот же текст переводится раз за сессию (кэш ниже).
+    const cached = translationCache.get(cacheKey);
+    if (cached) {
+      translationEl = el("p", { class: "message-translation" }, cached);
+      bubble.insertBefore(translationEl, meta);
+      return;
+    }
     translationEl = el("p", { class: "message-translation" }, "Переводим…");
     bubble.insertBefore(translationEl, meta);
     try {
-      const { settings } = await api.getSettings();
-      const { translated } = await api.translateText(message.text, settings.translateLanguage || "ru");
-      translationEl.textContent = translated || "—";
+      const { translated } = await api.translateText(message.text, lang);
+      const text = translated || "—";
+      translationCache.set(cacheKey, text);
+      // Пока ждали, перевод могли выключить — не навязываем его обратно.
+      if (translationEl) translationEl.textContent = text;
     } catch {
-      translationEl.textContent = "Не удалось перевести";
+      if (translationEl) translationEl.textContent = "Не удалось перевести";
     }
   }
 
