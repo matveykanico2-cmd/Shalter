@@ -44,6 +44,22 @@ function jumboEmojiCount(text) {
   return graphemes.every(isEmojiGrapheme) ? graphemes.length : 0;
 }
 
+// Единое «одновременно играет только одно» для голосовых и кружков. Запуск
+// любого ставит на паузу предыдущее — как в Telegram, где нельзя включить два
+// голосовых разом. Держит ссылку на текущий <audio>/<video>; на его паузу/конец
+// ссылка снимается, чтобы не держать мёртвый элемент.
+let currentAudibleMedia = null;
+function playExclusiveMedia(mediaEl) {
+  if (currentAudibleMedia && currentAudibleMedia !== mediaEl) {
+    try {
+      currentAudibleMedia.pause();
+    } catch {
+      /* элемент мог уйти из DOM — не важно */
+    }
+  }
+  currentAudibleMedia = mediaEl;
+}
+
 // Кэш переводов на время сессии: ключ «язык\nтекст» → переведённый текст.
 // Один и тот же текст (повтор, пересланное, перечитанное) переводится один
 // раз, дальше показывается мгновенно и без сети — это и есть «мгновенный
@@ -521,6 +537,7 @@ function VoicePlayer(a) {
   });
   audio.addEventListener("play", () => {
     playing = true;
+    playExclusiveMedia(audio); // ставит на паузу другое играющее голосовое/кружок
     playBtn.innerHTML = "";
     playBtn.appendChild(el("span", { class: "voice-pause-icon" }));
   });
@@ -610,6 +627,7 @@ function VideoNotePlayer(a) {
   });
   video.addEventListener("play", () => {
     playing = true;
+    playExclusiveMedia(video); // ставит на паузу другое играющее голосовое/кружок
     overlay.style.display = "none";
   });
   video.addEventListener("pause", () => {
