@@ -19,6 +19,16 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
   let at = Math.min(Math.max(index, 0), items.length - 1);
   let media = null;
 
+  // Масштаб и сдвиг картинки в просмотрщике — свой зум, потому что зум всей
+  // страницы отключён (index.html, user-scalable=no), и без этого фото нельзя
+  // было бы приблизить вовсе. Сбрасывается на каждом новом кадре. Объявлены ДО
+  // show(): show() их присваивает, а let до своей строки — в «мёртвой зоне»
+  // (TDZ), и прежний вызов show() выше бросал ReferenceError — просмотрщик
+  // открывался пустым, прозрачно-чёрным.
+  let scale = 1;
+  let tx = 0;
+  let ty = 0;
+
   const overlay = el("div", { class: "media-viewer-overlay", onclick: (e) => e.target === overlay && close() });
   const head = el("div", { class: "media-viewer-head" });
   const stage = el("div", { class: "media-viewer-stage" });
@@ -29,12 +39,6 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
   document.body.appendChild(overlay);
   show();
 
-  // Масштаб и сдвиг картинки в просмотрщике — свой зум, потому что зум всей
-  // страницы отключён (index.html, user-scalable=no), и без этого фото нельзя
-  // было бы приблизить вовсе. Сбрасывается на каждом новом кадре.
-  let scale = 1;
-  let tx = 0;
-  let ty = 0;
   function applyTransform() {
     if (!media) return;
     media.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
@@ -73,6 +77,18 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
       item.kind === "video"
         ? el("video", { class: "media-viewer-media", src: item.url, controls: true, autoplay: true, playsInline: true })
         : el("img", { class: "media-viewer-media", src: item.url, alt: item.name || "" });
+    // Полная картинка не загрузилась (её убрали как доставленную) — показываем
+    // эскиз, который точно есть, вместо «прозрачно-чёрного» экрана. Один раз,
+    // чтобы не зациклиться, если и эскиз недоступен.
+    if (item.kind !== "video" && item.thumbUrl && item.thumbUrl !== item.url) {
+      media.addEventListener(
+        "error",
+        () => {
+          if (media.src !== item.thumbUrl) media.src = item.thumbUrl;
+        },
+        { once: true }
+      );
+    }
     scale = 1;
     tx = 0;
     ty = 0;
@@ -225,6 +241,7 @@ export function galleryAround(button) {
       url: b.dataset.mediaUrl,
       name: b.dataset.mediaName || "",
       originalUrl: b.dataset.mediaOriginal || null,
+      thumbUrl: b.dataset.mediaThumb || null,
     })),
     index,
   };

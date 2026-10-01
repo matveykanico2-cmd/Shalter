@@ -23,6 +23,11 @@ function MediaButton(className, item, children) {
       "data-media-url": item.url,
       "data-media-name": item.name || "",
       "data-media-original": item.originalUrl || "",
+      // Миниатюра — запасной кадр для просмотрщика: полная версия картинки могла
+      // быть удалена сервером как доставленная (server/lib/orphanSweep.js), и
+      // тогда по a.url приходит пусто — был «прозрачно-чёрный» экран. По эскизу
+      // (он точно есть, его и видно в ленте) просмотрщик покажет хоть что-то.
+      "data-media-thumb": item.thumbUrl || "",
       onclick: (e) => openMediaViewer({ ...item, ...galleryAround(e.currentTarget) }),
     },
     children
@@ -55,7 +60,7 @@ export function ImageAttachment(a) {
   // только что загруженный файл (он уже в кэше устройства), чтобы картинка
   // появлялась сразу; когда подъедет эскиз, он и заменит src.
   const img = el("img", { src: a.thumbUrl || a.url, alt: a.name || "photo", class: "image-attachment", loading: "lazy" });
-  return MediaButton("image-attachment-btn", { kind: "image", url: a.url, name: a.name }, [img]);
+  return MediaButton("image-attachment-btn", { kind: "image", url: a.url, name: a.name, thumbUrl: a.thumbUrl || a.url }, [img]);
 }
 
 export function VideoAttachment(a) {
