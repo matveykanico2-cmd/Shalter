@@ -593,12 +593,10 @@ export async function ChatView(root, chatId) {
     const pinned = !m.pinned;
     messages = messages.map((x) => (x.id === m.id ? { ...x, pinned } : x));
     rerenderListKeepingScroll();
-    renderPinnedBarSafe();
     try {
       await api.pinMessage(chat.id, m.id, pinned);
     } catch (err) {
       undoWith(snapshot, err, "Не удалось закрепить сообщение");
-      renderPinnedBarSafe();
       return;
     }
     scheduleRefresh();
@@ -607,8 +605,9 @@ export async function ChatView(root, chatId) {
   async function setMute(opts) {
     const before = chat;
     const beforeList = getState().chats;
+    // Точное «до какого времени» пришлёт сервер; пока — просто «выключено».
     const muted = !opts?.off;
-    chat = { ...chat, muted, mutedUntil: muted ? opts?.until ?? chat.mutedUntil : undefined };
+    chat = { ...chat, muted, mutedUntil: muted ? chat.mutedUntil : undefined };
     setState({ chats: (beforeList ?? []).map((c) => (c.id === chat.id ? { ...c, muted, mutedUntil: chat.mutedUntil } : c)) });
     renderHeader();
     renderInfoPanel();

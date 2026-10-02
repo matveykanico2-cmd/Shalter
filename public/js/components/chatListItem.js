@@ -191,9 +191,9 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
             icon: "Check",
             label: "Отметить как прочитанное",
             onClick: async () => {
+              onRead?.(chat.id);
               try {
                 await api.markChatRead(chat.id);
-                onRead?.(chat.id);
               } catch (err) {
                 alert(err.message || "Не удалось отметить чат прочитанным");
               }

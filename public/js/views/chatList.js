@@ -641,13 +641,8 @@ function openTabMenu(pos, tabId, chatsInTab) {
       label: unread.length ? `Прочитать все (${unread.length})` : "Всё прочитано",
       onClick: async () => {
         if (!unread.length) return;
-        for (const c of unread) {
-          try {
-            await api.markChatRead(c.id);
-            markReadLocally(c.id);
-          } catch {
-          }
-        }
+        for (const c of unread) markReadLocally(c.id);
+        await Promise.all(unread.map((c) => api.markChatRead(c.id).catch(() => {})));
       },
     },
     { separator: true },
@@ -795,15 +790,29 @@ function markReadLocally(id) {
   setState({ chats: chats.map((c) => (c.id === id ? { ...c, unreadCount: 0, hasUnreadMention: false } : c)) });
 }
 
+// Сразу меняем список, запрос — в фоне; при ошибке возвращаем как было.
 async function patchChat(id, patch) {
-  const { chats } = getState();
-  setState({ chats: chats.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
-  await api.patchChat(id, patch);
+  const before = getState().chats.find((c) => c.id === id);
+  setState({ chats: getState().chats.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
+  try {
+    await api.patchChat(id, patch);
+  } catch (err) {
+    if (before) setState({ chats: getState().chats.map((c) => (c.id === id ? before : c)) });
+    alert(err.message || "Не удалось изменить чат");
+  }
 }
 
 async function muteChatFor(id, opts) {
-  const { chat: updated } = await api.muteChat(id, opts);
-  setState({ chats: getState().chats.map((c) => (c.id === id ? { ...c, ...updated } : c)) });
+  const before = getState().chats.find((c) => c.id === id);
+  const muted = !opts?.off;
+  setState({ chats: getState().chats.map((c) => (c.id === id ? { ...c, muted, mutedUntil: muted ? c.mutedUntil : undefined } : c)) });
+  try {
+    const { chat: updated } = await api.muteChat(id, opts);
+    setState({ chats: getState().chats.map((c) => (c.id === id ? { ...c, ...updated } : c)) });
+  } catch (err) {
+    if (before) setState({ chats: getState().chats.map((c) => (c.id === id ? before : c)) });
+    alert(err.message || "Не удалось изменить уведомления");
+  }
 }
 
 async function leaveChatItem(id) {

@@ -365,8 +365,9 @@ function ChecklistAttachment(message, a, me, members, onRefresh) {
   async function run(body) {
     try {
       await api.updateChecklist(message.chatId, message.id, body);
-      onRefresh?.();
+      if (body.add) onRefresh?.();
     } catch (err) {
+      onRefresh?.();
       alert(err.message || "Не удалось изменить чек-лист");
     }
   }
@@ -384,7 +385,23 @@ function ChecklistAttachment(message, a, me, members, onRefresh) {
             class: `checklist-item${it.doneBy ? " done" : ""}`,
             disabled: !canMark || message.pending,
             title: it.doneBy ? `Отметил(а): ${nameOf(it.doneBy)}` : "",
-            onclick: () => run({ itemId: it.id }),
+            onclick: (e) => {
+              // Отметка сразу, запрос — в фоне; при ошибке run() перерисует с сервера.
+              const btn = e.currentTarget;
+              const nowDone = !btn.classList.contains("done");
+              btn.classList.toggle("done", nowDone);
+              if (nowDone) Object.assign(it, { doneBy: me.id, doneAt: new Date().toISOString() });
+              else {
+                delete it.doneBy;
+                delete it.doneAt;
+              }
+              btn.querySelector(".checklist-box").textContent = nowDone ? "✓" : "";
+              btn.querySelector(".checklist-by")?.remove();
+              const box = btn.closest(".checklist-attachment");
+              const kind = box?.querySelector(".poll-kind");
+              if (kind) kind.textContent = `Выполнено ${box.querySelectorAll(".checklist-item.done").length} из ${items.length}`;
+              run({ itemId: it.id });
+            },
           },
           [
             el("span", { class: "checklist-box" }, it.doneBy ? "✓" : ""),
