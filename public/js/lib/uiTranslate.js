@@ -1,15 +1,18 @@
 import { api } from "../api.js";
 
-// v2: v1 cached failed lookups as the untranslated original, forever.
-const CACHE_KEY = "shalter_ui_translation_cache_v2";
-const MIN_TEXT_LEN = 1;
+// v3: ключи теперь без пробелов по краям.
+const CACHE_KEY = "shalter_ui_translation_cache_v3";
 // The UI's source language is Russian, so only Cyrillic strings are ours to
 // translate. Latin ones are names, usernames, brands or code, and Google
 // mangles them when told they're Russian.
 const HAS_LETTER = /[а-яё]/i;
+const ATTRS = ["placeholder", "title", "aria-label"];
+const BATCH_SIZE = 300;
 
+// Пользовательский контент не переводим. Внутри ленты сообщений переводим
+// только служебные надписи (разделители дат, «X сменил фото» и т.п.).
 const SKIP_SELECTOR = [
-  ".message-list",
+  ".message-list .sender-name",
   ".pinned-bar-slot",
   ".chat-list-item-title",
   ".chat-list-item-preview",
@@ -36,15 +39,26 @@ const SKIP_SELECTOR = [
   ".bot-token-value",
   ".avatar-fallback",
   ".mono",
+  ".message-translation",
+  "[contenteditable]",
+  "textarea",
+  "script",
+  "style",
+  "[data-no-translate]",
 ].join(",");
+const MESSAGE_LIST_ALLOW = ".system-message, .date-divider, .bubble-actions";
 
 let cache = {};
+let known = {};
 let translatedValues = new Set();
 const failedThisSession = new Set();
 let observer = null;
 let currentLang = "ru";
-let pending = false;
-const OBSERVER_OPTIONS = { childList: true, subtree: true, characterData: true };
+
+// Строки, которых ещё нет в кэше: текст → элементы, ждущие перевода.
+const waiting = new Map();
+let fetchTimer = null;
+let fetching = false;
 
 function loadCache() {
   try {
@@ -54,114 +68,156 @@ function loadCache() {
   }
 }
 
+let saveTimer = null;
 function saveCache() {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-  } catch {
-  }
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    } catch {
+    }
+  }, 500);
 }
 
 function isTranslatable(text) {
-  const t = text.trim();
-  return t.length >= MIN_TEXT_LEN && HAS_LETTER.test(t);
+  return !!text && HAS_LETTER.test(text) && !translatedValues.has(text.trim());
 }
 
-function isSkipped(el) {
+// Жёсткий пропуск — всё поддерево целиком.
+function isHardSkipped(el) {
   return !!el?.closest?.(SKIP_SELECTOR);
 }
 
-function collect(root) {
-  const items = [];
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode: (node) => {
-      const text = node.nodeValue;
-      if (!isTranslatable(text)) return NodeFilter.FILTER_REJECT;
-      if (isSkipped(node.parentElement)) return NodeFilter.FILTER_REJECT;
-      return NodeFilter.FILTER_ACCEPT;
-    },
-  });
-  let node;
-  while ((node = walker.nextNode())) items.push({ kind: "text", node, text: node.nodeValue });
-
-  root.querySelectorAll?.("[placeholder], [title]").forEach((el) => {
-    if (isSkipped(el)) return;
-    if (el.placeholder && isTranslatable(el.placeholder)) items.push({ kind: "placeholder", el, text: el.placeholder });
-    if (el.title && isTranslatable(el.title)) items.push({ kind: "title", el, text: el.title });
-  });
-  if (root.placeholder && isTranslatable(root.placeholder) && !isSkipped(root)) {
-    items.push({ kind: "placeholder", el: root, text: root.placeholder });
-  }
-
-  return items;
+// В ленте сообщений переводим только служебные надписи.
+function isSkipped(el) {
+  if (!el?.closest) return false;
+  if (isHardSkipped(el)) return true;
+  return !!el.closest(".message-list") && !el.closest(MESSAGE_LIST_ALLOW);
 }
 
-function apply(item, translated) {
-  if (!translated || translated === item.text) return;
-  if (item.kind === "text") {
-    if (!item.node.isConnected) return;
-    item.node.nodeValue = translated;
-  } else if (item.kind === "placeholder") {
-    item.el.placeholder = translated;
-  } else if (item.kind === "title") {
-    item.el.title = translated;
-  }
+function applyText(node, translated) {
+  const value = node.nodeValue;
+  const lead = value.match(/^\s*/)[0];
+  const trail = value.match(/\s*$/)[0];
+  const next = lead + translated + trail;
+  if (value !== next) node.nodeValue = next;
 }
 
-let rerunRequested = false;
-
-async function translateVisible(root) {
-  if (currentLang === "ru") return;
-  if (pending) {
-    rerunRequested = true;
+function handle(item) {
+  const key = item.text.trim();
+  const translated = known[key];
+  if (translated) {
+    if (item.kind === "text") applyText(item.node, translated);
+    else item.el.setAttribute(item.kind, translated);
     return;
   }
-  pending = true;
-  try {
-    const items = collect(root);
-    const known = cache[currentLang] ?? (cache[currentLang] = {});
+  if (failedThisSession.has(key)) return;
+  let list = waiting.get(key);
+  if (!list) waiting.set(key, (list = []));
+  list.push(item);
+}
 
-    const toFetch = [...new Set(items.filter((i) => !(i.text in known) && !translatedValues.has(i.text) && !failedThisSession.has(i.text)).map((i) => i.text))];
-
-    if (toFetch.length > 0) {
-      const batch = toFetch.slice(0, 150);
-      const { translations } = await api.translateBatch(batch, currentLang);
-      batch.forEach((text, i) => {
-        if (!translations[i]) return void failedThisSession.add(text); // not cached: retried after a reload
-        known[text] = translations[i];
-        translatedValues.add(known[text]);
-      });
-      saveCache();
-      if (toFetch.length > batch.length) rerunRequested = true;
-    }
-
-    for (const item of items) apply(item, known[item.text]);
-  } catch (err) {
-    console.error("UI translation pass failed:", err);
-  } finally {
-    pending = false;
-    if (rerunRequested) {
-      rerunRequested = false;
-      translateVisible(root);
-    }
+function scanAttrs(el) {
+  for (const attr of ATTRS) {
+    const v = el.getAttribute?.(attr);
+    if (v && isTranslatable(v)) handle({ kind: attr, el, text: v });
   }
 }
 
-let debounceTimer = null;
-function scheduleTranslate(root) {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => translateVisible(root), 200);
+function scan(root) {
+  if (root.nodeType === Node.TEXT_NODE) {
+    if (isTranslatable(root.nodeValue) && !isSkipped(root.parentElement)) handle({ kind: "text", node: root, text: root.nodeValue });
+    return;
+  }
+  if (root.nodeType !== Node.ELEMENT_NODE || isHardSkipped(root)) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+    acceptNode: (node) => {
+      if (node.nodeType === Node.ELEMENT_NODE) return node.matches(SKIP_SELECTOR) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+      return isTranslatable(node.nodeValue) && !isSkipped(node.parentElement) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+    },
+  });
+  if (!isSkipped(root)) scanAttrs(root);
+  let node;
+  while ((node = walker.nextNode())) {
+    if (node.nodeType === Node.TEXT_NODE) handle({ kind: "text", node, text: node.nodeValue });
+    else if (node.attributes.length && !isSkipped(node)) scanAttrs(node);
+  }
+}
+
+function scheduleFetch() {
+  if (!waiting.size || fetching) return;
+  clearTimeout(fetchTimer);
+  fetchTimer = setTimeout(fetchWaiting, 30);
+}
+
+async function fetchWaiting() {
+  if (fetching || !waiting.size) return;
+  fetching = true;
+  const batch = [...waiting.keys()].slice(0, BATCH_SIZE);
+  try {
+    const { translations } = await api.translateBatch(batch, currentLang);
+    batch.forEach((text, i) => {
+      const items = waiting.get(text) ?? [];
+      waiting.delete(text);
+      const translated = translations?.[i];
+      if (!translated) return void failedThisSession.add(text); // не кэшируем: повторим после перезагрузки
+      known[text] = translated;
+      translatedValues.add(translated);
+      for (const item of items) {
+        // Элемент мог смениться, пока шёл запрос, — применяем только к тому же тексту.
+        if (item.kind === "text") {
+          if (item.node.isConnected && item.node.nodeValue === item.text) applyText(item.node, translated);
+        } else if (item.el.getAttribute(item.kind) === item.text) {
+          item.el.setAttribute(item.kind, translated);
+        }
+      }
+    });
+    saveCache();
+  } catch (err) {
+    console.error("UI translation pass failed:", err);
+    for (const text of batch) {
+      failedThisSession.add(text);
+      waiting.delete(text);
+    }
+  } finally {
+    fetching = false;
+    scheduleFetch();
+  }
+}
+
+function onMutations(mutations) {
+  for (const m of mutations) {
+    if (m.type === "childList") m.addedNodes.forEach(scan);
+    else if (m.type === "characterData") scan(m.target);
+    else if (m.type === "attributes" && !isSkipped(m.target)) {
+      const v = m.target.getAttribute(m.attributeName);
+      if (v && isTranslatable(v)) handle({ kind: m.attributeName, el: m.target, text: v });
+    }
+  }
+  scheduleFetch();
 }
 
 export function initUiTranslation(lang) {
   currentLang = lang || "ru";
   if (currentLang === "ru") return;
+  document.documentElement.lang = currentLang;
 
   loadCache();
-  translatedValues = new Set(Object.values(cache[currentLang] ?? {}));
-  const root = document.getElementById("view-root");
-  translateVisible(root);
+  known = cache[currentLang] ?? (cache[currentLang] = {});
+  translatedValues = new Set(Object.values(known));
 
+  // Вся страница, а не только #view-root: диалоги, меню и тосты живут в <body>.
+  // MutationObserver срабатывает до отрисовки, поэтому уже известные строки
+  // подменяются без мигания русского текста.
   if (observer) observer.disconnect();
-  observer = new MutationObserver(() => scheduleTranslate(root));
-  observer.observe(root, OBSERVER_OPTIONS);
+  observer = new MutationObserver(onMutations);
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+    attributes: true,
+    attributeFilter: ATTRS,
+  });
+  scan(document.body);
+  scheduleFetch();
 }

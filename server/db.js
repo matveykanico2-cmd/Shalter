@@ -1141,6 +1141,15 @@ CREATE TABLE IF NOT EXISTS passkeys (
   lastUsedAt TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(userId);
+
+-- Кэш перевода интерфейса (server/routes/translate.js /batch): одна и та же
+-- надпись переводится в Google один раз на весь сервер, а не у каждого юзера.
+CREATE TABLE IF NOT EXISTS translation_cache (
+  lang TEXT NOT NULL,
+  text TEXT NOT NULL,
+  translated TEXT NOT NULL,
+  PRIMARY KEY (lang, text)
+) WITHOUT ROWID;
 `);
 {
   const chatCols = new Set(db.prepare("PRAGMA table_info(chats)").all().map((c) => c.name));
