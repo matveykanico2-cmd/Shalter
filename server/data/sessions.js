@@ -20,6 +20,12 @@ async function upsertSession({ userId, deviceId, device, location }) {
   return { session: db.prepare("SELECT * FROM sessions WHERE userId = ? AND deviceId = ?").get(userId, deviceId), isNewDevice: !existing };
 }
 
+// Синхронно: используется при каждом запросе, чтобы понять, чей это cookie.
+function isSessionActive(userId, deviceId) {
+  if (!userId || !deviceId) return false;
+  return !!db.prepare("SELECT 1 FROM sessions WHERE userId = ? AND deviceId = ? AND revokedAt IS NULL").get(userId, deviceId);
+}
+
 function touchSession(userId, deviceId, location) {
   db.prepare(
     `UPDATE sessions SET lastActive = ?, location = COALESCE(NULLIF(?, ''), location)
@@ -29,6 +35,14 @@ function touchSession(userId, deviceId, location) {
 
 async function revokeSession(userId, deviceId) {
   db.prepare("UPDATE sessions SET revokedAt = ? WHERE userId = ? AND deviceId = ?").run(new Date().toISOString(), userId, deviceId);
+}
+
+async function revokeSessionById(userId, id) {
+  return db.prepare("UPDATE sessions SET revokedAt = ? WHERE userId = ? AND id = ?").run(new Date().toISOString(), userId, id).changes > 0;
+}
+
+async function getSessionById(userId, id) {
+  return db.prepare("SELECT * FROM sessions WHERE userId = ? AND id = ?").get(userId, id);
 }
 
 async function revokeOtherSessions(userId, exceptDeviceId) {
@@ -43,4 +57,4 @@ async function removeAllSessionsForUser(userId) {
   db.prepare("DELETE FROM sessions WHERE userId = ?").run(userId);
 }
 
-module.exports = { listSessions, getSession, upsertSession, touchSession, revokeSession, revokeOtherSessions, revokeAllSessions, removeAllSessionsForUser };
+module.exports = { listSessions, getSession, getSessionById, isSessionActive, upsertSession, touchSession, revokeSession, revokeSessionById, revokeOtherSessions, revokeAllSessions, removeAllSessionsForUser };

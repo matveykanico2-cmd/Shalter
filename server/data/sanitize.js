@@ -17,6 +17,11 @@ function publicUser(user) {
   delete rest.stars;
   delete rest.blockedUserIds;
   delete rest.referralCode;
+  // Номер скрыт по умолчанию: показывать его можно только с учётом настройки
+  // приватности, а это знает лишь маршрут, который знает, кто смотрит.
+  delete rest.phone;
+  delete rest.adminSections;
+  delete rest.referredBy;
   rest.isDeveloper = isAdminPhone(user.phone) || undefined;
   rest.isVerified = user.isVerified ?? (isAdminPhone(user.phone) || undefined);
   rest.isServiceBot = user.id === SYSTEM_BOT_ID || undefined;
@@ -26,6 +31,7 @@ function publicUser(user) {
 function selfUser(user) {
   return {
     ...publicUser(user),
+    phone: user.phone,
     email: user.email ?? undefined,
     blockedUserIds: user.blockedUserIds ?? [],
     referralCode: user.referralCode ?? undefined,

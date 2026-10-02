@@ -103,7 +103,7 @@ router.post(
     if (found.error) return res.status(found.status).json({ error: found.error });
 
     await deleteMessage(found.message.id);
-    broadcastToUsers(found.chat.memberIds, { type: "message:deleted", chatId: found.chat.id, messageId: found.message.id });
+    broadcastToUsers(found.chat.memberIds, { type: "message:deleted", chatId: found.chat.id, id: found.message.id, messageId: found.message.id });
     res.json({ ok: true });
   })
 );
@@ -349,7 +349,7 @@ router.post(
     const chat = await requireBotAdmin(req, res, target.chatId);
     if (!chat) return;
     await deleteMessage(target.id);
-    broadcastToUsers(chat.memberIds, { type: "message:deleted", chatId: chat.id, messageId: target.id });
+    broadcastToUsers(chat.memberIds, { type: "message:deleted", chatId: chat.id, id: target.id, messageId: target.id });
     res.json({ ok: true });
   })
 );
@@ -573,6 +573,7 @@ router.post(
     if (!source) return res.status(404).json({ error: "Message not found" });
     const from = await botChat(req, res, source.chatId);
     if (!from) return;
+    if (from.protectedBy?.length) return res.status(403).json({ error: "Forwarding is disabled in this chat" });
     const to = await botChat(req, res, toChatId);
     if (!to) return;
     const author = await getUser(source.senderId);
@@ -704,7 +705,10 @@ router.post(
     if (!title?.trim()) return res.status(400).json({ error: "title is required" });
     const known = new Set();
     for (const c of await listChatsForUser(req.bot.userId)) for (const id of c.memberIds) known.add(id);
-    const invited = (Array.isArray(memberIds) ? memberIds : []).filter((id) => known.has(id));
+    const invited = [];
+    for (const id of new Set(Array.isArray(memberIds) ? memberIds : [])) {
+      if (known.has(id) && id !== req.bot.userId && (await allowsUser(id, "invites", req.bot.userId))) invited.push(id);
+    }
     const now = new Date().toISOString();
     const chat = await createChat({
       id: genId("c"),
@@ -719,7 +723,7 @@ router.post(
       archived: false,
       createdAt: now,
     });
-    broadcastToUsers(chat.memberIds, { type: "chat:created", chat });
+    broadcastToUsers(chat.memberIds, { type: "chat:added", chat });
     res.json({ chat: { id: chat.id, title: chat.title, memberCount: chat.memberIds.length } });
   })
 );
@@ -733,6 +737,7 @@ router.post(
     const user = await getUser(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
     if (chat.memberIds.includes(userId)) return res.json({ ok: true, alreadyMember: true });
+    if ((chat.bannedIds ?? []).includes(userId)) return res.status(403).json({ error: "User is banned in this chat" });
     if (!(await allowsUser(userId, "invites", req.bot.userId))) {
       return res.status(403).json({ error: "User does not allow being added to chats" });
     }
@@ -748,7 +753,7 @@ router.post(
     const { chatId, userId, admin = true } = req.body ?? {};
     const chat = await requireBotAdmin(req, res, chatId);
     if (!chat) return;
-    if (userId === chat.ownerId) return res.status(400).json({ error: "Cannot change the owner" });
+    if (userId === chat.ownerId || (chat.ownerIds ?? []).includes(userId)) return res.status(400).json({ error: "Cannot change the owner" });
     if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "User is not a member" });
     const current = new Set(chat.adminIds ?? []);
     admin ? current.add(userId) : current.delete(userId);
@@ -952,6 +957,7 @@ router.post(
     if (!sourceChat || !sourceChat.memberIds.includes(req.bot.userId)) {
       return res.status(404).json({ error: "Bot is not a member of that chat" });
     }
+    if (sourceChat.protectedBy?.length) return res.status(403).json({ error: "Copying is disabled in this chat" });
     try {
       const message = await sendBotMessage(req.bot.userId, chatId, source.text || "📎", {
         attachments: source.attachments,
@@ -1073,7 +1079,7 @@ router.post(
       archived: false,
       createdAt: now,
     });
-    broadcastToUsers(chat.memberIds, { type: "chat:created", chat });
+    broadcastToUsers(chat.memberIds, { type: "chat:added", chat });
     res.json({ chat: { id: chat.id, title: chat.title, username: chat.username, isPublic: !!chat.isPublic } });
   })
 );
@@ -1106,7 +1112,7 @@ router.post(
 
     if (action === "create") {
       const discussion = await createChat({
-        id: `c_${Date.now()}_d`,
+        id: genId("c"),
         type: "group",
         title: String(req.body?.title ?? `${channel.title} · Обсуждение`).trim().slice(0, 120),
         avatarColor: "#5C6473",

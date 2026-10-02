@@ -7,7 +7,7 @@ const { addMessage, getMessage, listThreadReplies, setAnchorForPost, setDiscussi
 const { recordView } = require("../data/postViews");
 const { getUser } = require("../data/users");
 const { publicUsers } = require("../data/sanitize");
-const { deliverMessage } = require("./messages");
+const { deliverMessage, sendGate } = require("./messages");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 
 const router = express.Router();
@@ -48,7 +48,7 @@ router.post(
       if (discussionChat) {
         const author = await getUser(req.uid);
         const anchor = await addMessage({
-          id: `m_${Date.now() + 1}`,
+          id: genId("m"),
           chatId: discussionChat.id,
           senderId: req.uid,
           type: "text",
@@ -129,15 +129,20 @@ router.post(
     if (found.error) return res.status(found.status).json({ error: found.error });
 
     let discussion = found.discussion;
-    if (!discussion.memberIds.includes(req.uid)) {
-      discussion = await updateChat(discussion.id, { memberIds: [...discussion.memberIds, req.uid] });
-    }
+    if ((discussion.bannedIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Вас заблокировали в обсуждении" });
 
     const body = req.body ?? {};
     if (!body.text?.trim() && !body.attachments?.length) return res.status(400).json({ error: "Напишите комментарий" });
 
-    const message = await deliverMessage(discussion, req.uid, { ...body, threadRootId: found.anchor.id });
-    res.json({ message });
+    if (!discussion.memberIds.includes(req.uid)) {
+      discussion = await updateChat(discussion.id, { memberIds: [...discussion.memberIds, req.uid] });
+    }
+    // Те же проверки, что у обычной отправки: ограничения, права, платные комментарии.
+    const gate = await sendGate(discussion, req.uid, body);
+    if (gate.status) return res.status(gate.status).json(gate.payload);
+
+    const message = await deliverMessage(discussion, req.uid, { ...body, threadRootId: found.anchor.id }, { paidStars: gate.charged });
+    res.json({ message, ...(gate.charged ? { chargedStars: gate.charged } : {}) });
   })
 );
 

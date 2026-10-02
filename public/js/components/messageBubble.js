@@ -21,6 +21,7 @@ import { PremiumStar } from "./premiumStar.js";
 import { openGiftShopDialog } from "./giftShopDialog.js";
 import { ALL_EMOJI } from "../lib/emojiList.js";
 import { STICKERS, DRAWN_STICKERS } from "../lib/stickers.js";
+import { openInAppBrowser, checkLinkSafety } from "./inAppBrowser.js";
 
 const EXTENDED_PICTOGRAPHIC_RE = /\p{Extended_Pictographic}/u;
 const FLAG_RE = /^\p{Regional_Indicator}{2}$/u;
@@ -352,6 +353,63 @@ function PollAttachment(message, a, me, onVote, onPollAction) {
   ]);
 }
 
+// Чек-лист: пункты с отметками «кто выполнил». members — чтобы показать имя.
+function ChecklistAttachment(message, a, me, members, onRefresh) {
+  const items = a.meta?.items ?? [];
+  const author = message.senderId === me.id;
+  const canMark = author || a.meta?.othersCanMark !== false;
+  const canAdd = (author || a.meta?.othersCanAdd) && items.length < 30;
+  const done = items.filter((it) => it.doneBy).length;
+  const nameOf = (id) => (id === me.id ? "вы" : members?.find((u) => u.id === id)?.name ?? "участник");
+
+  async function run(body) {
+    try {
+      await api.updateChecklist(message.chatId, message.id, body);
+      onRefresh?.();
+    } catch (err) {
+      alert(err.message || "Не удалось изменить чек-лист");
+    }
+  }
+
+  return el("div", { class: "checklist-attachment" }, [
+    el("p", { class: "poll-question" }, message.text || "Чек-лист"),
+    el("p", { class: "poll-kind" }, `Выполнено ${done} из ${items.length}`),
+    el(
+      "div",
+      { class: "checklist-items" },
+      items.map((it) =>
+        el(
+          "button",
+          {
+            class: `checklist-item${it.doneBy ? " done" : ""}`,
+            disabled: !canMark || message.pending,
+            title: it.doneBy ? `Отметил(а): ${nameOf(it.doneBy)}` : "",
+            onclick: () => run({ itemId: it.id }),
+          },
+          [
+            el("span", { class: "checklist-box" }, it.doneBy ? "✓" : ""),
+            el("span", { class: "checklist-text" }, it.text),
+            it.doneBy && it.doneBy !== message.senderId ? el("span", { class: "checklist-by" }, nameOf(it.doneBy)) : null,
+          ]
+        )
+      )
+    ),
+    canAdd && !message.pending
+      ? el(
+          "button",
+          {
+            class: "poll-action",
+            onclick: () => {
+              const text = prompt("Новый пункт");
+              if (text?.trim()) run({ add: [text.trim()] });
+            },
+          },
+          "+ Добавить пункт"
+        )
+      : null,
+  ]);
+}
+
 function votersWord(n) {
   const mod10 = n % 10;
   const mod100 = n % 100;
@@ -388,38 +446,6 @@ function attachSeek(bar, media, durationOf) {
 function clockTime(sec) {
   const s = Math.max(0, Math.floor(sec || 0));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
-
-function TranscriptToggle(a) {
-  const text = el(
-    "p",
-    { class: "voice-transcript" },
-    a.transcript || (a.transcriptPending ? "Расшифровывается…" : "Не удалось распознать речь в этой записи")
-  );
-  if (!a.transcript) text.classList.add("empty");
-  text.style.display = "none";
-  const btn = el("button", { class: "transcribe-btn", type: "button", title: "Расшифровать" }, "→A");
-  let requested = false;
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const show = text.style.display === "none";
-    text.style.display = show ? "" : "none";
-    btn.classList.toggle("active", show);
-    if (show && !a.transcript && !a.transcriptPending && a.transcribe && !requested) {
-      requested = true;
-      text.textContent = "Расшифровывается…";
-      a.transcribe()
-        .then(({ transcript }) => {
-          text.textContent = transcript || "Не удалось распознать речь в этой записи";
-          text.classList.toggle("empty", !transcript);
-        })
-        .catch((err) => {
-          requested = false;
-          text.textContent = err.message || "Не удалось расшифровать";
-        });
-    }
-  });
-  return { btn, text };
 }
 
 function VoicePlayer(a) {
@@ -474,16 +500,13 @@ function VoicePlayer(a) {
 
   attachSeek(bar, audio, durationOf);
 
-  const tr = TranscriptToggle(a);
   return el("div", { class: "voice-block" }, [
     el("div", { class: "voice-player" }, [
       audio,
       playBtn,
       el("div", { class: "voice-progress" }, [bar, timeLabelEl]),
       speedBtn,
-      tr.btn,
     ]),
-    tr.text,
   ]);
 }
 
@@ -543,11 +566,9 @@ function VideoNotePlayer(a) {
   video.addEventListener("seeking", paint);
   video.addEventListener("loadedmetadata", paint);
 
-  const tr = TranscriptToggle(a);
   return el("div", { class: "video-note-wrap" }, [
     circle,
-    el("div", { class: "video-note-seek" }, [bar, timeLabelEl, tr.btn]),
-    tr.text,
+    el("div", { class: "video-note-seek" }, [bar, timeLabelEl]),
   ]);
 }
 
@@ -595,7 +616,7 @@ export function AttachmentView(a, me) {
   return null;
 }
 
-export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, replyToSender = null, members, handlers, allowedReactions = null, canViewReactionDetails = true }) {
+export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, replyToSender = null, members, handlers, allowedReactions = null, canViewReactionDetails = true, protectedContent = false, senderTag = null }) {
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onPollAction, onKeyboardAction, onKeyboardApp, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
 
@@ -662,6 +683,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   for (const a of atts) {
     if (a.kind === "poll") {
       bubbleInner.push(PollAttachment(message, { ...a, canClose: handlers.canClosePolls }, me, onVote, onPollAction));
+    } else if (a.kind === "checklist") {
+      bubbleInner.push(ChecklistAttachment(message, a, me, members, handlers.onRefresh));
     } else if (album && (a.kind === "image" || a.kind === "video")) {
       if (albumPlaced) continue;
       albumPlaced = true;
@@ -674,16 +697,12 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         )
       );
     } else {
-      const withTranscribe =
-        (a.kind === "voice" || a.kind === "video-note") && message.chatId && !message.pending
-          ? { ...a, transcribe: () => api.transcribeVoice(message.chatId, message.id, (message.attachments ?? []).indexOf(a)) }
-          : a;
-      bubbleInner.push(AttachmentView(withTranscribe, me));
+      bubbleInner.push(AttachmentView(a, me));
     }
   }
   if (isSticker) {
     bubbleInner.push(StickerBody(message));
-  } else if (!message.attachments?.some((a) => a.kind === "poll")) {
+  } else if (!message.attachments?.some((a) => a.kind === "poll" || a.kind === "checklist")) {
     const jumboCount = !message.attachments?.length ? jumboEmojiCount(message.text) : 0;
     const ceOnly =
       !message.attachments?.length && message.customEmoji && /^\s*(\[ce:\d+\]\s*)+$/.test(message.text || "")
@@ -967,8 +986,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       { icon: "Reply", label: "Ответить", onClick: replyWithQuote },
       { icon: "Smile", label: "Реакция", onClick: () => togglePicker(pos) },
       ...(canPin ? [{ icon: "Pin", label: message.pinned ? "Открепить" : "Закрепить", onClick: () => onPin(message) }] : []),
-      { icon: "Forward", label: "Переслать", onClick: () => onForward(message) },
-      ...(message.text?.trim()
+      ...(protectedContent ? [] : [{ icon: "Forward", label: "Переслать", onClick: () => onForward(message) }]),
+      ...(message.text?.trim() && !protectedContent
         ? [{
             icon: "Copy",
             label: "Копировать текст",
@@ -1133,11 +1152,24 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
           el(
             "div",
             { class: "keyboard-row" },
-            row.map((btn) =>
-              btn.app
-                ? el("button", { class: "keyboard-btn keyboard-btn-app", onclick: () => onKeyboardApp?.(message, btn.app) }, btn.text)
-                : el("button", { class: "keyboard-btn", onclick: () => onKeyboardAction(btn.action ?? btn.data) }, btn.text)
-            )
+            row.map((btn) => {
+              const tone = btn.style ? ` keyboard-btn-${btn.style}` : "";
+              if (btn.app) return el("button", { class: `keyboard-btn keyboard-btn-app${tone}`, onclick: () => onKeyboardApp?.(message, btn.app) }, btn.text);
+              if (btn.url)
+                return el(
+                  "button",
+                  {
+                    class: `keyboard-btn keyboard-btn-url${tone}`,
+                    title: btn.url,
+                    onclick: () => {
+                      const { unsafe, warning } = checkLinkSafety(btn.url);
+                      openInAppBrowser(btn.url, { unsafe, warning });
+                    },
+                  },
+                  btn.text
+                );
+              return el("button", { class: `keyboard-btn${tone}`, onclick: () => onKeyboardAction(btn.action ?? btn.data) }, btn.text);
+            })
           )
         )
       )
@@ -1148,7 +1180,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       ? el(
           "button",
           { class: "sender-name", onclick: () => openProfileDialog(sender.id) },
-          [el("span", { class: "sender-name-text" }, sender.name), VerifiedBadge(sender, 12), sender.isPremium ? PremiumStar({ size: 13, seed: sender.id, title: "Shalter Premium" }) : null].filter(Boolean)
+          [el("span", { class: "sender-name-text" }, sender.name), VerifiedBadge(sender, 12), sender.isPremium ? PremiumStar({ size: 13, seed: sender.id, title: "Shalter Premium" }) : null, senderTag ? el("span", { class: "sender-tag" }, senderTag) : null].filter(Boolean)
         )
       : null,
     bubbleWrap,

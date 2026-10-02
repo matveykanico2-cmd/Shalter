@@ -1,4 +1,5 @@
 const express = require("express");
+const { getSettings } = require("../data/settings");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { listChatsForUser, searchPublicChannels } = require("../data/chats");
@@ -76,12 +77,14 @@ router.get(
       )
       .sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name, "ru"));
 
+    const clears = (await getSettings(req.uid)).chatClears ?? {};
     const matchedMessages = searchInChats(
       chats.map((c) => c.id),
       q,
       { limit: LIMIT }
     )
-      .filter((m) => !m.deleted)
+      // Удалённые «у себя» и стёртые очисткой истории не должны всплывать в поиске.
+      .filter((m) => !m.deleted && !m.deletedForIds?.includes(req.uid) && !(clears[m.chatId] && m.createdAt <= clears[m.chatId]))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
     res.json({

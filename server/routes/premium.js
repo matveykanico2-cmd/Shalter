@@ -1,7 +1,8 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { ADMIN_PHONE, PREMIUM_GRANT_DAYS, PREMIUM_PLANS, DEFAULT_PREMIUM_PLAN, isAdminPhone } = require("../config");
+const { ADMIN_PHONE, PREMIUM_GRANT_DAYS, isAdminPhone } = require("../config");
+const { getPricing, getPremiumPlan, starsCostFor, plansAsMap } = require("../data/pricing");
 const { getUser, findUserByPhone, grantPremiumDays, revokePremium } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -13,16 +14,8 @@ const { balanceOf, spendStars } = require("../data/stars");
 const router = express.Router();
 router.use(requireUserId);
 
-const RUB_PER_STAR = 2;
-function starsCostFor(plan) {
-  return Math.ceil(plan.priceRub / RUB_PER_STAR);
-}
 function plansWithStars() {
-  const out = {};
-  for (const [id, plan] of Object.entries(PREMIUM_PLANS)) {
-    out[id] = { ...plan, stars: starsCostFor(plan) };
-  }
-  return out;
+  return plansAsMap(getPricing().premiumPlans, (plan) => ({ stars: starsCostFor(plan) }));
 }
 
 router.get(
@@ -43,8 +36,7 @@ router.get(
 router.post(
   "/buy-with-stars",
   asyncRoute(async (req, res) => {
-    const planId = PREMIUM_PLANS[req.body?.plan] ? req.body.plan : DEFAULT_PREMIUM_PLAN;
-    const plan = PREMIUM_PLANS[planId];
+    const plan = getPremiumPlan(req.body?.plan);
     const cost = starsCostFor(plan);
 
     const me = await getUser(req.uid);
@@ -72,8 +64,7 @@ router.post(
 router.post(
   "/request",
   asyncRoute(async (req, res) => {
-    const planId = PREMIUM_PLANS[req.body?.plan] ? req.body.plan : DEFAULT_PREMIUM_PLAN;
-    const plan = PREMIUM_PLANS[planId];
+    const plan = getPremiumPlan(req.body?.plan);
 
     const admin = await findUserByPhone(ADMIN_PHONE);
     if (!admin) {
@@ -98,7 +89,7 @@ router.post(
 
     const donation = getActiveDonationLink();
     if (donation) {
-      const order = await createPendingOrder({ userId: req.uid, kind: "premium", amountRub: plan.priceRub });
+      const order = await createPendingOrder({ userId: req.uid, kind: "premium", amountRub: plan.priceRub, meta: { days: plan.days, label: plan.label } });
       return res.json({ code: order.code, donationUrl: donation.donationUrl, provider: donation.provider, amountRub: plan.priceRub });
     }
 

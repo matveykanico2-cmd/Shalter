@@ -76,7 +76,10 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
       head,
       items.length > 1 ? el("span", { class: "mono media-viewer-counter" }, `${at + 1} из ${items.length}`) : null,
       el("span", { class: "media-viewer-spacer" }),
-      item.originalUrl
+      // В чате с запретом сохранения (chatView ставит класс на body) — без скачивания.
+      document.body.classList.contains("protected-chat-open")
+        ? null
+        : item.originalUrl
         ? el("a", { class: "media-viewer-original", title: "Скачать оригинал", href: item.originalUrl, download: item.name || "file" }, [
             el("span", { html: iconSvg("Download", 18) }),
             el("span", {}, "Скачать оригинал"),

@@ -604,12 +604,16 @@ await post("publishPost", { chatId: ch.id, text: "Открылись! Перва
       [{ text: "Помощь", data: "/help" }],
       // Кнопка, открывающая мини-приложение бота, а не отправляющая ответ:
       [{ text: "Открыть магазин", app: "https://example.com/app/shop" }],
+      // Ссылка и цветная кнопка:
+      [{ text: "Сайт", url: "https://example.com" }, { text: "Купить", data: "/buy", style: "success" }],
     ],
   }),
 });</code></pre>
       <p>
         Кнопка с полем <code>app</code> открывает <a href="#apps">мини-приложение</a> бота — адрес должен
         вести на тот же сайт, что указан в настройках приложения, иначе кнопка ничего не откроет.
+        Кнопка с полем <code>url</code> (только http/https) открывает ссылку. Поле <code>style</code> красит
+        кнопку: <code>primary</code>, <code>success</code> или <code>danger</code>.
       </p>
 
       <h2 id="media3">Альбомы, кружки и копирование</h2>

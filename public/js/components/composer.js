@@ -3,10 +3,10 @@ import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { startRecording, isRecordingSupported, createLevelMeter, MAX_RECORD_SEC } from "../lib/recorder.js";
 import { uploadFile } from "../lib/upload.js";
-import { startTranscript } from "../lib/speechTranscript.js";
 import { startChatAction, withChatAction, uploadActionFor } from "../lib/chatAction.js";
 import { checkSize } from "../lib/uploadLimits.js";
 import { openPollDialog } from "./pollDialog.js";
+import { openChecklistDialog } from "./checklistDialog.js";
 import { openMemeDialog } from "./memeDialog.js";
 import { openPaintDialog } from "./paintDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
@@ -61,6 +61,7 @@ export function Composer({
   onScheduled,
   onEditLast = null,
   disableDraftSync = false,
+  topicId = null,
 }) {
   let lastTypingPing = 0;
   let staged = [];
@@ -253,6 +254,21 @@ export function Composer({
       if (!editingMessage) scheduleDraftSave(textarea.value);
       updateMentionMenu();
     });
+    function wrapSelection(mark) {
+      const { selectionStart: a, selectionEnd: b, value } = textarea;
+      const inner = value.slice(a, b);
+      const block = mark === "```";
+      const open = block ? "```\n" : mark;
+      const close = block ? "\n```" : mark;
+      if (inner.startsWith(open) && inner.endsWith(close) && inner.length >= open.length + close.length) {
+        textarea.setRangeText(inner.slice(open.length, inner.length - close.length), a, b, "select");
+      } else {
+        textarea.setRangeText(open + inner + close, a, b, "end");
+        if (a === b) textarea.setSelectionRange(a + open.length, a + open.length);
+      }
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
     textarea.addEventListener("keydown", (e) => {
       if (mentionMatches.length) {
         if (e.key === "ArrowDown") {
@@ -274,6 +290,18 @@ export function Composer({
         }
         if (e.key === "Escape") {
           closeMentionMenu();
+          return;
+        }
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        // Сочетания как в Telegram Desktop: оборачивают выделенный текст разметкой.
+        const code = e.code;
+        const wrap = e.shiftKey
+          ? { KeyX: "~~", KeyM: "`", KeyP: "||", KeyK: "```" }[code]
+          : { KeyB: "**", KeyI: "*", KeyU: "__" }[code];
+        if (wrap) {
+          e.preventDefault();
+          wrapSelection(wrap);
           return;
         }
       }
@@ -587,6 +615,14 @@ export function Composer({
             }),
         },
         {
+          icon: "CheckCheck",
+          label: "Чек-лист",
+          run: () =>
+            openChecklistDialog((title, items, opts) => {
+              onSend(title, [{ kind: "checklist", meta: { items: items.map((text, i) => ({ id: i + 1, text })), ...opts } }]);
+            }),
+        },
+        {
           icon: "MapPin",
           label: "Геолокация",
           run: () => {
@@ -875,9 +911,9 @@ export function Composer({
         alert("Сначала напишите сообщение — запланировать можно только то, что уже набрано");
         return;
       }
-      openScheduleSendDialog(async (sendAt) => {
+      openScheduleSendDialog(async (sendAt, repeat) => {
         try {
-          await api.scheduleMessage(chatId, { text: textarea.value.trim(), replyToId: replyingTo?.id ?? null, sendAt });
+          await api.scheduleMessage(chatId, { text: textarea.value.trim(), replyToId: replyingTo?.id ?? null, sendAt, repeat, topicId });
           textarea.value = "";
           autoResize();
           updateTrailingButtons();
@@ -1213,7 +1249,6 @@ export function Composer({
 
     const timeLabel = el("span", { class: "mono composer-rec-time" }, "0:00,00");
     let startedAt = Date.now();
-    let transcriber = null;
     let pausedAt = null;
     function elapsedMs() {
       return (pausedAt ?? Date.now()) - startedAt;
@@ -1316,7 +1351,6 @@ export function Composer({
       }
       recordingHandle = handle;
       startedAt = Date.now();
-      transcriber = startTranscript();
       stopRecordAction = startChatAction(chatId, mode === "voice" ? "record_voice" : "record_video_note", recordingBar);
       if (videoPreview) videoPreview.srcObject = recordingHandle.previewStream ?? recordingHandle.stream;
 
@@ -1346,7 +1380,6 @@ export function Composer({
       return;
     }
 
-    const transcriptPromise = recordingHandle.result.then((recorded) => (recorded && transcriber ? transcriber.stop() : (transcriber?.cancel(), "")));
     recordingHandle.result.then(async (recorded) => {
       stopWave();
       recordingHandle = null;
@@ -1359,8 +1392,7 @@ export function Composer({
       const file = new File([recorded.blob], `${mode}-${Date.now()}.${ext}`, { type: recorded.mimeType });
       try {
         const attachment = await withChatAction(chatId, mode === "voice" ? "upload_voice" : "upload_video_note", uploadFile(file, mode));
-        const transcript = await transcriptPromise.catch(() => "");
-        onSend("", [{ ...attachment, kind: mode, durationSec: recorded.durationSec, ...(transcript ? { transcript } : {}) }]);
+        onSend("", [{ ...attachment, kind: mode, durationSec: recorded.durationSec }]);
       } catch (err) {
         alert(err.message || "Не удалось отправить запись");
       }

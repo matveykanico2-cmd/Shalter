@@ -31,6 +31,7 @@ const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { broadcastToUsers } = require("../ws");
 const { collectServerStats } = require("../lib/serverStats");
+const pricingData = require("../data/pricing");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -42,6 +43,21 @@ async function requireAdminSection(req, res, section) {
     return null;
   }
   return me;
+}
+
+// Модератор не может банить, удалять и сбрасывать пароль тем, кто выше или
+// наравне: иначе выданный раздел «moderation» превращался в захват главного
+// админа (сброс пароля + снятие 2FA).
+async function outranks(adminId, target) {
+  const me = await getUser(adminId);
+  if (isPrimaryAdmin(me?.phone)) return !isPrimaryAdmin(target.phone);
+  if (isAdminPhone(target.phone)) return false;
+  if ((target.adminSections ?? []).length) return isAdminPhone(me?.phone);
+  return true;
+}
+
+function rankError(res) {
+  res.status(403).json({ error: "Нельзя применять это к администратору вашего уровня или выше" });
 }
 
 async function resolveTarget(query) {
@@ -228,6 +244,7 @@ router.post(
     const target = await getUser(req.params.id);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
     if (target.id === admin.id) return res.status(400).json({ error: "Нельзя заблокировать самого себя" });
+    if (!(await outranks(admin.id, target))) return rankError(res);
 
     const banned = req.body?.banned !== false;
     const reason = (req.body?.reason ?? "").trim();
@@ -319,6 +336,7 @@ router.delete(
     if (target.isBot && target.id.startsWith("bot_")) {
       return res.status(400).json({ error: "Служебные аккаунты Shalter удалять нельзя" });
     }
+    if (!(await outranks(req.uid, target))) return rankError(res);
 
     const confirm = String(req.body?.confirm ?? "").trim().replace(/^@/, "").toLowerCase();
     const handle = (target.username || target.id).toLowerCase();
@@ -348,6 +366,7 @@ router.post(
     const target = await getUser(req.params.id);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
     if (target.isBot) return res.status(400).json({ error: "У ботов нет пароля — им управляет владелец через токен" });
+    if (target.id !== req.uid && !(await outranks(req.uid, target))) return rankError(res);
 
     const confirm = String(req.body?.confirm ?? "").trim().replace(/^@/, "").toLowerCase();
     const handle = (target.username || target.id).toLowerCase();
@@ -467,6 +486,32 @@ router.get(
   asyncRoute(async (req, res) => {
     if (!(await requireAdminSection(req, res, "server"))) return;
     res.json(await collectServerStats());
+  })
+);
+
+router.get(
+  "/pricing",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdminSection(req, res, "pricing"))) return;
+    res.json({ pricing: pricingData.getPricing(), defaults: pricingData.DEFAULTS });
+  })
+);
+
+router.put(
+  "/pricing",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdminSection(req, res, "pricing"))) return;
+    const result = pricingData.updatePricing(req.body ?? {});
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json({ pricing: result.value });
+  })
+);
+
+router.delete(
+  "/pricing",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdminSection(req, res, "pricing"))) return;
+    res.json({ pricing: pricingData.resetPricing() });
   })
 );
 

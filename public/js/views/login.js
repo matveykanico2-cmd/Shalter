@@ -1,6 +1,7 @@
 import { el, mount } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
+import { passkeysSupported, loginWithPasskey, passkeyErrorText } from "../lib/passkey.js";
 import { navigate } from "../router.js";
 import { fileToAvatarDataUrl } from "../lib/image.js";
 import qrcode from "../lib/qrcode.js";
@@ -672,6 +673,35 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
                 },
                 [el("span", { html: iconSvg("Qrcode", 15) }), " Войти по QR-коду"]
               ),
+              passkeysSupported()
+                ? el(
+                    "button",
+                    {
+                      type: "button",
+                      class: "login-link qr-login-entry",
+                      disabled: pending,
+                      onclick: async () => {
+                        error = null;
+                        pending = true;
+                        render();
+                        try {
+                          const res = await loginWithPasskey();
+                          if (res.twoFactorRequired) {
+                            twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp", hint: res.hint ?? null, scheduledDeletionAt: res.scheduledDeletionAt ?? null };
+                            return;
+                          }
+                          finishAuth(res.user, res.alreadyLinked);
+                        } catch (err) {
+                          error = passkeyErrorText(err);
+                        } finally {
+                          pending = false;
+                          render();
+                        }
+                      },
+                    },
+                    [el("span", { html: iconSvg("Lock", 15) }), " Войти по ключу доступа"]
+                  )
+                : null,
               el(
                 "button",
                 {

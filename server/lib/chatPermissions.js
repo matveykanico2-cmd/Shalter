@@ -5,6 +5,8 @@ const PERMISSIONS = [
   { id: "sendPolls", label: "Создавать опросы" },
   { id: "addMembers", label: "Добавлять участников" },
   { id: "pinMessages", label: "Закреплять сообщения" },
+  { id: "createTopics", label: "Создавать темы" },
+  { id: "setOwnTag", label: "Ставить себе тег" },
 ];
 
 const DEFAULTS = Object.fromEntries(PERMISSIONS.map((p) => [p.id, true]));
@@ -42,6 +44,8 @@ const DENIED = {
   sendPolls: "В этой группе нельзя создавать опросы",
   addMembers: "В этой группе добавлять участников могут только администраторы",
   pinMessages: "В этой группе закреплять сообщения могут только администраторы",
+  createTopics: "В этой группе создавать темы могут только администраторы",
+  setOwnTag: "В этой группе теги ставят только администраторы",
 };
 
 module.exports = { PERMISSIONS, DEFAULTS, permissionsOf, sanitizePermissions, can, isStaff, DENIED };

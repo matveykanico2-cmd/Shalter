@@ -40,6 +40,13 @@ function ownProduct(req, res, shop) {
   return p;
 }
 
+// Пусто — без ограничения (-1); мусор и отрицательные числа не должны попадать в остаток.
+function parseStock(raw) {
+  if (raw === "" || raw == null) return -1;
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) && n >= 0 ? n : -1;
+}
+
 function priceLine(o) {
   return o.payKind === "stars" ? `⭐ ${o.amountStars}` : `${o.amountRub} ₽ при получении`;
 }
@@ -136,7 +143,7 @@ router.post(
       payKind,
       priceStars,
       priceRub,
-      stock: req.body?.stock === "" || req.body?.stock == null ? -1 : Number(req.body.stock),
+      stock: parseStock(req.body?.stock),
     });
     res.json({ product });
   })
@@ -157,7 +164,7 @@ router.patch(
     if (req.body?.payKind === "cash" || req.body?.payKind === "stars") patch.payKind = req.body.payKind;
     if (Number.isFinite(Number(req.body?.priceStars))) patch.priceStars = Math.max(0, Math.floor(Number(req.body.priceStars)));
     if (Number.isFinite(Number(req.body?.priceRub))) patch.priceRub = Math.max(0, Math.floor(Number(req.body.priceRub)));
-    if (req.body?.stock !== undefined) patch.stock = req.body.stock === "" || req.body.stock == null ? -1 : Math.floor(Number(req.body.stock));
+    if (req.body?.stock !== undefined) patch.stock = parseStock(req.body.stock);
     if (typeof req.body?.isActive === "boolean") patch.isActive = req.body.isActive;
 
     res.json({ product: market.updateProduct(product.id, patch) });

@@ -1,9 +1,10 @@
 const { WebSocketServer } = require("ws");
-const { getCurrentUserIdFromCookieHeader } = require("./middleware/auth");
+const { getCurrentUserIdFromCookieHeader, deviceIdFromCookieHeader } = require("./middleware/auth");
+const { isSessionActive } = require("./data/sessions");
 const { getCall } = require("./data/calls");
 const liveStreams = require("./data/liveStreams");
 const { addSignal } = require("./data/signals");
-const { updateUser } = require("./data/users");
+const { getUser, updateUser } = require("./data/users");
 
 const socketsByUser = new Map();
 
@@ -65,6 +66,7 @@ function attachWebSocketServer(httpServer) {
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
       ws.uid = uid;
+      ws.deviceId = deviceIdFromCookieHeader(req.headers.cookie);
       const wasOffline = !socketsByUser.has(uid);
       addSocket(uid, ws);
       if (wasOffline) markOnline(uid);
@@ -75,6 +77,17 @@ function attachWebSocketServer(httpServer) {
       });
     });
   });
+
+  // Сессию могли завершить с другого устройства, сменить пароль или забанить
+  // аккаунт — открытый сокет при этом продолжал бы получать все сообщения.
+  setInterval(async () => {
+    for (const [uid, set] of socketsByUser) {
+      const banned = !!(await getUser(uid))?.isBanned;
+      for (const ws of set) {
+        if (banned || !isSessionActive(uid, ws.deviceId)) ws.close(4001, "session_revoked");
+      }
+    }
+  }, 60_000).unref();
 
   return wss;
 }

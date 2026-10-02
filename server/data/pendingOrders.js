@@ -8,7 +8,12 @@ const CODE_RE = /SHP-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}/i;
 
 function rowToOrder(row) {
   if (!row) return undefined;
-  return { ...row };
+  const { meta, ...rest } = row;
+  let parsed = null;
+  try {
+    parsed = meta ? JSON.parse(meta) : null;
+  } catch {}
+  return { ...rest, meta: parsed };
 }
 
 function generateOrderCode() {
@@ -20,7 +25,7 @@ function generateOrderCode() {
   }
 }
 
-async function createPendingOrder({ userId, kind, giftId, recipientId, amountRub }) {
+async function createPendingOrder({ userId, kind, giftId, recipientId, amountRub, meta }) {
   const order = {
     id: genId("po"),
     code: generateOrderCode(),
@@ -29,14 +34,15 @@ async function createPendingOrder({ userId, kind, giftId, recipientId, amountRub
     giftId: giftId ?? null,
     recipientId: recipientId ?? null,
     amountRub,
+    meta: meta ? JSON.stringify(meta) : null,
     status: "pending",
     createdAt: new Date().toISOString(),
   };
   db.prepare(
-    `INSERT INTO pending_orders (id, code, userId, kind, giftId, recipientId, amountRub, status, createdAt)
-     VALUES (@id, @code, @userId, @kind, @giftId, @recipientId, @amountRub, @status, @createdAt)`
+    `INSERT INTO pending_orders (id, code, userId, kind, giftId, recipientId, amountRub, meta, status, createdAt)
+     VALUES (@id, @code, @userId, @kind, @giftId, @recipientId, @amountRub, @meta, @status, @createdAt)`
   ).run(order);
-  return order;
+  return { ...order, meta: meta ?? null };
 }
 
 async function getPendingOrderByCode(code) {

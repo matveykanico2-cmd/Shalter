@@ -36,7 +36,23 @@ async function tell(userId, text) {
   }
 }
 
-async function settle(auction) {
+// Итоги подводятся из нескольких маршрутов (любой GET списка запускает sweep),
+// и два одновременных запроса раньше списывали звёзды с победителя дважды.
+const settling = new Map();
+
+function settle(auction) {
+  if (auction.status !== "open") return Promise.resolve(auction);
+  if (!settling.has(auction.id)) {
+    settling.set(
+      auction.id,
+      settleOnce(auction).finally(() => settling.delete(auction.id))
+    );
+  }
+  return settling.get(auction.id);
+}
+
+async function settleOnce(stale) {
+  const auction = auctions.getAuction(stale.id) ?? stale;
   if (auction.status !== "open") return auction;
 
   const seen = new Set();
@@ -245,15 +261,21 @@ router.post(
       listings.closeListing(listing.id, { status: "withdrawn" });
       return res.status(410).json({ error: "Продавец больше не владеет этим юзернеймом" });
     }
-    if (balanceOf(req.uid) < listing.priceStars) {
+    // Списание и закрытие объявления — без await между ними: раньше баланс
+    // проверялся до await, а списывался после (и результат не проверялся), так
+    // что два одновременных запроса получали юзернейм оба или бесплатно.
+    if (!spendStars(req.uid, listing.priceStars)) {
       return res.status(402).json({ error: `Не хватает звёзд: нужно ${listing.priceStars} ⭐` });
     }
+    if (listings.getListing(listing.id)?.status !== "open") {
+      addStars(req.uid, listing.priceStars);
+      return res.status(409).json({ error: "Юзернейм уже купили" });
+    }
+    listings.closeListing(listing.id, { status: "sold", buyerId: req.uid });
+    addStars(seller.id, listing.priceStars);
 
     await updateUser(seller.id, { username: "" });
     await updateUser(req.uid, { username: listing.username });
-    spendStars(req.uid, listing.priceStars);
-    addStars(seller.id, listing.priceStars);
-    listings.closeListing(listing.id, { status: "sold", buyerId: req.uid });
 
     const buyer = await getUser(req.uid);
     for (const [userId, text] of [

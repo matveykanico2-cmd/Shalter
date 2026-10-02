@@ -3,7 +3,7 @@ const { genId } = require("../lib/genId");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { getChat, findChannelByDiscussionChatId } = require("../data/chats");
-const { sanitizeAttachments, isSafeUrl } = require("../lib/sanitizeAttachments");
+const { sanitizeAttachments, isSafeUrl, MAX_CHECKLIST_ITEMS } = require("../lib/sanitizeAttachments");
 const { sanitizeSticker } = require("../lib/sanitizeSticker");
 const { sanitizeScene } = require("../lib/sanitizeScene");
 
@@ -13,7 +13,7 @@ function sanitizeMessageEmoji(input) {
   const cleaned = input.slice(0, MAX_MESSAGE_EMOJI).map((scene) => sanitizeScene(scene, { requireLayers: true }) ?? null);
   return cleaned.some(Boolean) ? cleaned : undefined;
 }
-const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, retractPollVote, closePoll, markChatRead, setLinkPreview, updateLiveLocation, setAttachmentPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
+const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, retractPollVote, closePoll, toggleChecklistItem, addChecklistItems, markChatRead, setLinkPreview, updateLiveLocation, setAttachmentPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
 const { getUser, findUserIdsByUsernames } = require("../data/users");
 const { transferStars, balanceOf } = require("../data/stars");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
@@ -33,12 +33,11 @@ const { broadcastToUsers } = require("../ws");
 const { sendPushToUser, pushAvatar, userPushAvatar, MESSAGE_PUSH } = require("../push");
 const { registerAttachments } = require("../lib/uploadAccess");
 const { fetchLinkPreview } = require("../lib/linkPreview");
-const { deleteUploadedFiles, FILENAME_RE } = require("../lib/serveUpload");
+const { FILENAME_RE } = require("../lib/serveUpload");
 const { generateVideoPreview, generateImagePreview } = require("../lib/mediaPreview");
 const { fetchUploadToTemp, storeGeneratedFile } = require("../lib/uploadTransfer");
 const { hasAdminSection } = require("../lib/adminAccess");
-const { transcribeFile, needsTranscript } = require("../lib/voiceTranscribe");
-const { VOICE_STT_ENABLED } = require("../config");
+const { getTopic } = require("../data/topics");
 
 const router = express.Router({ mergeParams: true });
 
@@ -68,6 +67,7 @@ const ATTACHMENT_LABEL = {
   voice: "🎤 Голосовое сообщение",
   "video-note": "⏺ Видео-кружок",
   poll: "📊 Опрос",
+  checklist: "☑️ Чек-лист",
   location: "📍 Геолокация",
   contact: "👤 Контакт",
 };
@@ -129,7 +129,10 @@ router.get(
     const limit = Math.min(Math.max(Number(req.query.limit) || 60, 1), 200);
     const before = typeof req.query.before === "string" && req.query.before ? req.query.before : null;
     const beforeId = typeof req.query.beforeId === "string" && req.query.beforeId ? req.query.beforeId : null;
-    const { messages, hasMore } = listMessagesPage(req.params.id, req.uid, settings.chatClears?.[req.params.id], { limit, before, beforeId });
+    // ?topic=general — тема «Общее», ?topic=<id> — одна тема; без параметра — весь чат.
+    const rawTopic = typeof req.query.topic === "string" && req.query.topic ? req.query.topic : null;
+    const topic = !chat.topicsEnabled || !rawTopic ? undefined : rawTopic === "general" ? null : rawTopic;
+    const { messages, hasMore } = listMessagesPage(req.params.id, req.uid, settings.chatClears?.[req.params.id], { limit, before, beforeId, topic });
 
     const firstUnreadId =
       messages.find((m) => m.senderId !== req.uid && !(m.readByIds ?? []).includes(req.uid))?.id ?? null;
@@ -182,7 +185,7 @@ router.get(
     const settings = await getSettings(req.uid);
     const clearedBefore = settings.chatClears?.[req.params.id];
     const found = searchInChats([req.params.id], q, { limit: 50 })
-      .filter((m) => !m.deleted && (!clearedBefore || m.createdAt > clearedBefore))
+      .filter((m) => !m.deleted && !m.deletedForIds?.includes(req.uid) && (!clearedBefore || m.createdAt > clearedBefore))
       .reverse();
     res.json({ messages: found });
   })
@@ -215,27 +218,8 @@ function needsPreview(attachment) {
 
 function markPendingPreviews(attachments) {
   return attachments?.map((a) =>
-    needsPreview(a) ? { ...a, previewPending: true } : needsTranscript(a) && uploadFilename(a.url) ? { ...a, transcriptPending: true } : a
+    needsPreview(a) ? { ...a, previewPending: true } : a
   );
-}
-
-async function attachTranscripts(chat, message) {
-  for (const [index, attachment] of (message.attachments ?? []).entries()) {
-    if (!attachment.transcriptPending) continue;
-    let transcript = "";
-    try {
-      const sourcePath = await fetchUploadToTemp(uploadFilename(attachment.url));
-      try {
-        transcript = await transcribeFile(sourcePath);
-      } finally {
-        await fs.promises.unlink(sourcePath).catch(() => {});
-      }
-    } catch (err) {
-      console.error(`transcription failed for ${message.id}#${index}:`, err.message);
-    }
-    const updated = await setAttachmentPreview(message.id, index, { transcriptPending: false, transcript: transcript || undefined });
-    if (updated) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
-  }
 }
 
 async function buildPreview(attachment, filename) {
@@ -302,6 +286,12 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
 
   const mentionedUserIds = await resolveMentions(body.text, chat.memberIds, senderId);
 
+  // Ответ и ветка — только на сообщение из этого же чата: иначе счётчик
+  // комментариев и рассылка уходили бы в чужой чат.
+  const inThisChat = async (id) => (typeof id === "string" && id ? (await getMessage(id))?.chatId === chat.id : false);
+  const replyToId = (await inThisChat(body.replyToId)) ? body.replyToId : null;
+  const threadRootId = (await inThisChat(body.threadRootId)) ? body.threadRootId : null;
+
   const message = await addMessage({
     id: genId("m"),
     chatId: chat.id,
@@ -312,8 +302,9 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
     pinned: false,
     mentionedUserIds,
     reactions: [],
-    replyToId: body.replyToId ?? null,
-    threadRootId: body.threadRootId ?? null,
+    replyToId,
+    threadRootId,
+    topicId: threadRootId ? null : body.topicId ?? null,
     storyReply: sanitizeStoryReply(body.storyReply),
     attachments: markPendingPreviews(sanitizeAttachments(body.attachments)),
     forwardedFrom,
@@ -366,7 +357,6 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   pushNewMessage(chat, sender, message).catch((err) => console.error("push notify failed:", err));
 
   attachPreviews(chat, message).catch((err) => console.error("attachment preview failed:", err));
-  attachTranscripts(chat, message).catch((err) => console.error("voice transcription failed:", err));
 
   if (message.type === "text" && message.text) {
     fetchLinkPreview(message.text)
@@ -381,6 +371,130 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   return message;
 }
 
+// Все проверки «можно ли этому человеку сюда писать». Общие для обычной
+// отправки и отложенной: иначе через расписание можно было постить в чужой
+// канал, писать при запрете или тому, кто заблокировал. charge — списывать ли
+// звёзды за платные сообщения (при планировании нет, при отправке да).
+async function sendGate(chat, uid, body, { charge = true, skipSlowMode = false } = {}) {
+  const fail = (status, payload) => ({ status, payload });
+  if (chat.type === "channel" && !isStaff(chat, uid)) {
+    return fail(403, { error: "Публиковать в канале могут только администраторы" });
+  }
+
+  const restrictedUntil = chat.restrictions?.[uid];
+  if (restrictedUntil && (restrictedUntil === "forever" || restrictedUntil > new Date().toISOString())) {
+    return fail(403, { error: "Вам запрещено писать в этом чате" });
+  }
+
+  // Тема: только существующая тема этого чата; в закрытую пишут только админы.
+  // Нормализованный id кладётся обратно в body.topicId для deliverMessage.
+  if (body.forwardedFrom?.chatId) {
+    const source = await getChat(body.forwardedFrom.chatId);
+    if (source?.protectedBy?.length) return fail(403, { error: "В этом чате запрещена пересылка" });
+  }
+
+  if (!chat.topicsEnabled) body.topicId = null;
+  if (body.topicId != null) {
+    const topic = typeof body.topicId === "string" ? getTopic(body.topicId) : null;
+    if (!topic || topic.chatId !== chat.id) return fail(404, { error: "Тема не найдена" });
+    if (topic.closed && !isStaff(chat, uid)) return fail(403, { error: "Тема закрыта — писать в неё могут только администраторы" });
+    body.topicId = topic.id;
+  }
+
+  const kinds = new Set((body.attachments ?? []).map((a) => a.kind));
+  const needs = [
+    "sendMessages",
+    ...(kinds.has("poll") || kinds.has("checklist") ? ["sendPolls"] : []),
+    ...([...kinds].some((k) => k !== "poll" && k !== "checklist") ? ["sendMedia"] : []),
+    ...(body.sticker ? ["sendStickers"] : []),
+  ];
+  for (const need of needs) {
+    if (!can(chat, uid, need)) return fail(403, { error: DENIED[need] });
+  }
+
+  if (!skipSlowMode && chat.type === "group" && chat.slowModeSeconds > 0 && !isStaff(chat, uid)) {
+    const mine = (await listMessages(chat.id, uid)).filter((m) => m.senderId === uid);
+    const last = mine[mine.length - 1];
+    if (last) {
+      const waited = (Date.now() - new Date(last.createdAt).getTime()) / 1000;
+      if (waited < chat.slowModeSeconds) {
+        const left = Math.ceil(chat.slowModeSeconds - waited);
+        return fail(429, { error: `Медленный режим: следующее сообщение можно отправить через ${left} с`, retryAfter: left });
+      }
+    }
+  }
+
+  let charged = 0;
+  let other = undefined;
+  if (chat.type === "dm") {
+    const otherId = chat.memberIds.find((m) => m !== uid);
+    other = otherId ? await getUser(otherId) : undefined;
+    if (other?.blockedUserIds?.includes(uid)) {
+      return fail(403, { error: "Пользователь заблокировал вас" });
+    }
+
+    if (otherId === SYSTEM_BOT_ID) {
+      return fail(403, { error: "Shalter — служебный чат, отвечать в нём нельзя" });
+    }
+
+    if (other) {
+      const writeAllowed = await allowsUser(other.id, "messages", uid);
+      if (!writeAllowed) {
+        const { privacy: theirPrivacy } = await getSettings(other.id);
+        const level = theirPrivacy?.messages ?? "everyone";
+        const deniedByName = (theirPrivacy?.exceptions?.messages?.deny ?? []).includes(uid);
+        let bypass = false;
+        if (level === "contacts" && !deniedByName) {
+          const sender = await getUser(uid);
+          bypass =
+            !!sender?.isPremium || (await listMessages(chat.id, other.id)).some((m) => m.senderId === other.id);
+        }
+        if (!bypass) {
+          return fail(403, {
+            error:
+              level === "nobody"
+                ? "Этот пользователь никому не разрешает писать первым"
+                : "Этот пользователь принимает сообщения только от своих контактов. С Premium писать можно",
+            privacyBlocked: true,
+          });
+        }
+      }
+
+      const { price, mustPay } = charge ? await messageCost(uid, other, chat.id) : { mustPay: false };
+      if (mustPay) {
+        if (!transferStars(uid, other.id, price)) {
+          return fail(402, {
+            error: `Этот пользователь берёт ${price} ⭐ за сообщение от незнакомых. Не хватает звёзд. С Premium писать можно бесплатно`,
+            needStars: price,
+            balance: balanceOf(uid),
+            premiumHelps: true,
+          });
+        }
+        charged = price;
+      }
+    }
+  } else if (chat.type === "group") {
+    const channel = await findChannelByDiscussionChatId(chat.id);
+    const price = channel?.commentPriceStars ?? 0;
+    if (charge && price > 0 && channel.ownerId !== uid && !isStaff(channel, uid)) {
+      const sender = await getUser(uid);
+      if (!sender?.isPremium) {
+        if (!transferStars(uid, channel.ownerId, price)) {
+          return fail(402, {
+            error: `Комментарии в этом канале стоят ${price} ⭐. Не хватает звёзд. С Premium — бесплатно`,
+            needStars: price,
+            balance: balanceOf(uid),
+            premiumHelps: true,
+          });
+        }
+        charged = price;
+      }
+    }
+  }
+
+  return { charged };
+}
+
 router.post(
   "/",
   asyncRoute(async (req, res) => {
@@ -389,158 +503,16 @@ router.post(
       return res.status(404).json({ error: "not found" });
     }
 
-    if (chat.type === "channel" && !isStaff(chat, req.uid)) {
-      return res.status(403).json({ error: "Публиковать в канале могут только администраторы" });
-    }
-
-    const restrictedUntil = chat.restrictions?.[req.uid];
-    if (restrictedUntil && (restrictedUntil === "forever" || restrictedUntil > new Date().toISOString())) {
-      return res.status(403).json({ error: "Вам запрещено писать в этом чате" });
-    }
-
     const body = req.body ?? {};
     if (!body.text?.trim() && !body.attachments?.length && !body.sticker) {
       return res.status(400).json({ error: "empty message" });
     }
-
-    const kinds = new Set((body.attachments ?? []).map((a) => a.kind));
-    const needs = [
-      "sendMessages",
-      ...(kinds.has("poll") ? ["sendPolls"] : []),
-      ...([...kinds].some((k) => k !== "poll") ? ["sendMedia"] : []),
-      ...(body.sticker ? ["sendStickers"] : []),
-    ];
-    for (const need of needs) {
-      if (!can(chat, req.uid, need)) return res.status(403).json({ error: DENIED[need] });
-    }
-
-    if (chat.type === "group" && chat.slowModeSeconds > 0 && !isStaff(chat, req.uid)) {
-      const mine = (await listMessages(req.params.id, req.uid)).filter((m) => m.senderId === req.uid);
-      const last = mine[mine.length - 1];
-      if (last) {
-        const waited = (Date.now() - new Date(last.createdAt).getTime()) / 1000;
-        if (waited < chat.slowModeSeconds) {
-          const left = Math.ceil(chat.slowModeSeconds - waited);
-          return res.status(429).json({ error: `Медленный режим: следующее сообщение можно отправить через ${left} с`, retryAfter: left });
-        }
-      }
-    }
-
-    let charged = 0;
-    let other = undefined;
-    if (chat.type === "dm") {
-      const otherId = chat.memberIds.find((m) => m !== req.uid);
-      other = otherId ? await getUser(otherId) : undefined;
-      if (other?.blockedUserIds?.includes(req.uid)) {
-        return res.status(403).json({ error: "Пользователь заблокировал вас" });
-      }
-
-      if (otherId === SYSTEM_BOT_ID) {
-        return res.status(403).json({ error: "Shalter — служебный чат, отвечать в нём нельзя" });
-      }
-
-      if (other) {
-        const writeAllowed = await allowsUser(other.id, "messages", req.uid);
-        if (!writeAllowed) {
-          const { privacy: theirPrivacy } = await getSettings(other.id);
-          const level = theirPrivacy?.messages ?? "everyone";
-          const deniedByName = (theirPrivacy?.exceptions?.messages?.deny ?? []).includes(req.uid);
-          let bypass = false;
-          if (level === "contacts" && !deniedByName) {
-            const sender = await getUser(req.uid);
-            bypass =
-              !!sender?.isPremium || (await listMessages(chat.id, other.id)).some((m) => m.senderId === other.id);
-          }
-          if (!bypass) {
-            return res.status(403).json({
-              error:
-                level === "nobody"
-                  ? "Этот пользователь никому не разрешает писать первым"
-                  : "Этот пользователь принимает сообщения только от своих контактов. С Premium писать можно",
-              privacyBlocked: true,
-            });
-          }
-        }
-
-        const { price, mustPay } = await messageCost(req.uid, other, chat.id);
-        if (mustPay) {
-          if (!transferStars(req.uid, other.id, price)) {
-            return res.status(402).json({
-              error: `Этот пользователь берёт ${price} ⭐ за сообщение от незнакомых. Не хватает звёзд. С Premium писать можно бесплатно`,
-              needStars: price,
-              balance: balanceOf(req.uid),
-              premiumHelps: true,
-            });
-          }
-          charged = price;
-        }
-      }
-    } else if (chat.type === "group") {
-      const channel = await findChannelByDiscussionChatId(chat.id);
-      const price = channel?.commentPriceStars ?? 0;
-      if (price > 0 && channel.ownerId !== req.uid && !isStaff(channel, req.uid)) {
-        const sender = await getUser(req.uid);
-        if (!sender?.isPremium) {
-          if (!transferStars(req.uid, channel.ownerId, price)) {
-            return res.status(402).json({
-              error: `Комментарии в этом канале стоят ${price} ⭐. Не хватает звёзд. С Premium — бесплатно`,
-              needStars: price,
-              balance: balanceOf(req.uid),
-              premiumHelps: true,
-            });
-          }
-          charged = price;
-        }
-      }
-    }
+    const gate = await sendGate(chat, req.uid, body);
+    if (gate.status) return res.status(gate.status).json(gate.payload);
+    const charged = gate.charged;
 
     const message = await deliverMessage(chat, req.uid, body, { paidStars: charged });
     res.json({ message, ...(charged ? { chargedStars: charged, balance: balanceOf(req.uid) } : {}) });
-  })
-);
-
-// On-demand transcription: for voice notes sent before server STT was set up,
-// or ones whose automatic pass failed.
-const transcribing = new Set();
-router.post(
-  "/:messageId/transcribe",
-  asyncRoute(async (req, res) => {
-    const chat = await getChat(req.params.id);
-    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
-    const message = await getMessage(req.params.messageId);
-    if (!message || message.chatId !== chat.id) return res.status(404).json({ error: "not found" });
-    const index = Number(req.body?.index);
-    const attachment = message.attachments?.[index];
-    if (!attachment || (attachment.kind !== "voice" && attachment.kind !== "video-note")) {
-      return res.status(400).json({ error: "Это не голосовое сообщение" });
-    }
-    if (attachment.transcript) return res.json({ transcript: attachment.transcript });
-    if (!VOICE_STT_ENABLED) {
-      return res.status(503).json({ error: "Расшифровка на сервере не настроена: не задан VOICE_STT_KEY" });
-    }
-    const filename = uploadFilename(attachment.url);
-    if (!filename) return res.status(400).json({ error: "Файл записи не найден" });
-
-    const key = `${message.id}#${index}`;
-    if (transcribing.has(key)) return res.status(409).json({ error: "Уже расшифровывается" });
-    transcribing.add(key);
-    try {
-      const sourcePath = await fetchUploadToTemp(filename);
-      let transcript;
-      try {
-        transcript = await transcribeFile(sourcePath);
-      } finally {
-        await fs.promises.unlink(sourcePath).catch(() => {});
-      }
-      const updated = await setAttachmentPreview(message.id, index, { transcriptPending: false, transcript: transcript || undefined });
-      if (updated) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
-      res.json({ transcript: transcript || "" });
-    } catch (err) {
-      console.error(`on-demand transcription failed for ${key}:`, err.message);
-      res.status(502).json({ error: `Сервис расшифровки ответил ошибкой: ${err.message}`.slice(0, 300) });
-    } finally {
-      transcribing.delete(key);
-    }
   })
 );
 
@@ -554,6 +526,8 @@ router.post(
     const lng = Number(req.body?.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return res.status(400).json({ error: "invalid coordinates" });
 
+    const target = await getMessage(req.params.messageId);
+    if (!target || target.chatId !== chat.id) return res.status(404).json({ error: "not found" });
     const message = await updateLiveLocation(req.params.messageId, req.uid, lat, lng);
     if (!message) return res.status(404).json({ error: "not found" });
     broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message });
@@ -581,9 +555,11 @@ router.post(
     if (!body.text?.trim() && !body.attachments?.length) {
       return res.status(400).json({ error: "empty message" });
     }
-    if (!body.sendAt || body.sendAt <= new Date().toISOString()) {
+    if (typeof body.sendAt !== "string" || !Number.isFinite(Date.parse(body.sendAt)) || body.sendAt <= new Date().toISOString()) {
       return res.status(400).json({ error: "Время отправки должно быть в будущем" });
     }
+    const gate = await sendGate(chat, req.uid, body, { charge: false, skipSlowMode: true });
+    if (gate.status) return res.status(gate.status).json(gate.payload);
 
     const scheduled = await addScheduled({
       id: genId("sch"),
@@ -592,6 +568,8 @@ router.post(
       text: body.text ?? "",
       attachments: sanitizeAttachments(body.attachments),
       replyToId: body.replyToId ?? null,
+      topicId: body.topicId ?? null,
+      repeat: body.repeat ?? null,
       sendAt: body.sendAt,
       createdAt: new Date().toISOString(),
     });
@@ -607,10 +585,11 @@ router.patch(
       return res.status(404).json({ error: "not found" });
     }
     const body = req.body ?? {};
-    if (body.sendAt && body.sendAt <= new Date().toISOString()) {
+    if (body.sendAt !== undefined && (typeof body.sendAt !== "string" || !Number.isFinite(Date.parse(body.sendAt)) || body.sendAt <= new Date().toISOString())) {
       return res.status(400).json({ error: "Время отправки должно быть в будущем" });
     }
-    const scheduled = await editScheduled(req.params.scheduledId, body);
+    if (body.text !== undefined && typeof body.text !== "string") return res.status(400).json({ error: "Некорректный текст" });
+    const scheduled = await editScheduled(req.params.scheduledId, { text: body.text, sendAt: body.sendAt, repeat: body.repeat });
     res.json({ scheduled });
   })
 );
@@ -641,6 +620,8 @@ router.patch(
       return res.status(400).json({ error: "Это сообщение нельзя изменить" });
     }
     const { text } = req.body ?? {};
+    if (typeof text !== "string") return res.status(400).json({ error: "Некорректный текст" });
+    if (!text.trim() && !existing.attachments?.length) return res.status(400).json({ error: "Сообщение не может быть пустым" });
     const message = await editMessage(req.params.messageId, text);
     const chat = await getChat(req.params.id);
     if (chat) broadcastToOtherMembers(chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
@@ -682,7 +663,9 @@ router.delete(
           }
         }
       }
-      await deleteUploadedFiles(existing.attachments);
+      // Сам файл не трогаем: одинаковые файлы хранятся один раз (sha_…) и его
+      // может держать пересланная копия, стикер-пак и т. п. Без ссылок его
+      // уберёт orphanSweep.
       broadcastToOtherMembers(found.chat, req.uid, {
         type: "message:deleted",
         chatId: req.params.id,
@@ -765,6 +748,36 @@ router.delete(
   })
 );
 
+// Чек-лист: отметить/снять пункт, дописать пункты. Автор может всё; остальные —
+// если он разрешил (othersCanMark / othersCanAdd).
+router.post(
+  "/:messageId/checklist",
+  asyncRoute(async (req, res) => {
+    const found = await loadMessageInChat(req, res);
+    if (!found) return;
+    const list = found.message.attachments?.find((a) => a.kind === "checklist");
+    if (!list) return res.status(400).json({ error: "Это не чек-лист" });
+    const author = found.message.senderId === req.uid;
+    if (found.chat.type === "channel" && !isStaff(found.chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
+
+    let message;
+    if (Array.isArray(req.body?.add)) {
+      if (!author && !list.meta?.othersCanAdd) return res.status(403).json({ error: "Добавлять пункты может только автор" });
+      const texts = req.body.add.map((t) => String(t ?? "").trim().slice(0, 200)).filter(Boolean).slice(0, MAX_CHECKLIST_ITEMS);
+      if (!texts.length) return res.status(400).json({ error: "Введите текст пункта" });
+      if ((list.meta?.items?.length ?? 0) >= MAX_CHECKLIST_ITEMS) return res.status(400).json({ error: `Не больше ${MAX_CHECKLIST_ITEMS} пунктов` });
+      message = await addChecklistItems(found.message.id, texts, MAX_CHECKLIST_ITEMS);
+    } else {
+      if (!author && list.meta?.othersCanMark === false) return res.status(403).json({ error: "Отмечать пункты может только автор" });
+      const itemId = Number(req.body?.itemId);
+      if (!list.meta?.items?.some((it) => it.id === itemId)) return res.status(404).json({ error: "Пункт не найден" });
+      message = await toggleChecklistItem(found.message.id, itemId, req.uid);
+    }
+    broadcastToOtherMembers(found.chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
+    res.json({ message });
+  })
+);
+
 router.post(
   "/:messageId/poll/close",
   asyncRoute(async (req, res) => {
@@ -806,3 +819,4 @@ router.get(
 
 module.exports = router;
 module.exports.deliverMessage = deliverMessage;
+module.exports.sendGate = sendGate;

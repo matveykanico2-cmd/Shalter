@@ -140,7 +140,7 @@ export async function openProfileDialog(userId) {
   }
   document.addEventListener("keydown", onKey);
 
-  let user, inContacts, contactName, isBlocked;
+  let user, inContacts, contactName, contactNote, isBlocked;
   let sharedMedia = { chatId: null, media: [], files: [], links: [], voice: [] };
   let commonGroupsCount = 0;
   let commonGroups = null;
@@ -192,6 +192,7 @@ export async function openProfileDialog(userId) {
     user = res.user;
     inContacts = !!res.inContacts;
     contactName = res.contactName ?? null;
+    contactNote = res.contactNote ?? null;
     commonGroupsCount = res.commonGroupsCount ?? 0;
     pinnedChannels = res.pinnedChannels ?? [];
     isBlocked = !!me.blockedUserIds?.includes(userId);
@@ -281,6 +282,18 @@ export async function openProfileDialog(userId) {
       render();
     } catch (err) {
       alert(err.message || "Не удалось изменить контакт");
+    }
+  }
+
+  async function editNote() {
+    const next = prompt("Заметка о контакте — её видите только вы. Пусто — удалить.", contactNote ?? "");
+    if (next === null) return;
+    try {
+      const res = await api.setContactNote(user.id, next);
+      contactNote = res.note ?? null;
+      render();
+    } catch (err) {
+      alert(err.message || "Не удалось сохранить заметку");
     }
   }
 
@@ -557,7 +570,6 @@ export async function openProfileDialog(userId) {
           ])
         : null,
       user.isBanned ? el("p", { class: "safety-banned-note" }, "🚫 Аккаунт заблокирован администрацией Shalter") : null,
-      user.isBanned ? el("p", { class: "safety-banned-note" }, "🚫 Аккаунт заблокирован администрацией Shalter") : null,
       el(
         "div",
         { class: "profile-quick-actions" },
@@ -595,6 +607,19 @@ export async function openProfileDialog(userId) {
               })
             : null,
           user.bio ? infoRow({ icon: "Info", value: user.bio, label: user.isBot ? "Описание" : "О себе", multiline: true }) : null,
+          inContacts && !isSelf
+            ? el(
+                "button",
+                { class: "profile-note-row", title: "Заметку видите только вы", onclick: editNote },
+                [
+                  el("span", { html: iconSvg("Edit", 16) }),
+                  el("span", { class: "profile-note-body" }, [
+                    el("span", { class: contactNote ? "profile-note-text" : "profile-note-empty" }, contactNote || "Добавить заметку"),
+                    el("span", { class: "profile-note-label" }, "Заметка · видите только вы"),
+                  ]),
+                ]
+              )
+            : null,
           user.birthday
             ? infoRow({
                 icon: "Gift",

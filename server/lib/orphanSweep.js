@@ -7,6 +7,35 @@ const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
 
 const MIN_AGE_MS = 24 * 60 * 60 * 1000;
 
+// Ссылки на загрузки живут в десятках колонок (стикер-паки, музыка профиля,
+// медиа подарков и автоответов, обои, статусы, отложенные сообщения…), и
+// ручной список таблиц всегда отстаёт от новых фич — а пропущенная колонка
+// значит, что живой файл сотрут через сутки. Поэтому обходим все текстовые
+// колонки всех таблиц. messages.text зашифрован — его разбирают отдельно.
+const SKIP_TABLES = new Set(["upload_access", "sqlite_sequence"]);
+
+function scanAllTables(add, { skipTables = [] } = {}) {
+  const skip = new Set([...SKIP_TABLES, ...skipTables]);
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r) => r.name);
+  for (const table of tables) {
+    if (skip.has(table) || table.startsWith("sqlite_")) continue;
+    let columns = [];
+    try {
+      columns = db.prepare(`PRAGMA table_info("${table}")`).all();
+    } catch {
+      continue;
+    }
+    for (const { name, type } of columns) {
+      if (!/TEXT|^$/i.test(type ?? "")) continue;
+      if (table === "messages" && name === "text") continue;
+      try {
+        for (const row of db.prepare(`SELECT "${name}" AS v FROM "${table}" WHERE instr("${name}", '/uploads/') > 0`).iterate()) add(row.v);
+      } catch {
+      }
+    }
+  }
+}
+
 function collectReferenced() {
   const referenced = new Set();
   const add = (value) => {
@@ -16,27 +45,11 @@ function collectReferenced() {
     }
   };
 
-  const scan = (sql, columns) => {
-    let rows = [];
-    try {
-      rows = db.prepare(sql).all();
-    } catch {
-      return;
-    }
-    for (const row of rows) for (const c of columns) add(row[c]);
-  };
-
-  scan("SELECT attachments, sticker FROM messages", ["attachments", "sticker"]);
   try {
     for (const row of db.prepare("SELECT id, text FROM messages WHERE text <> ''").iterate()) add(decryptText(row.id, row.text));
   } catch {
   }
-  scan("SELECT avatarImage, avatarImages FROM users", ["avatarImage", "avatarImages"]);
-  scan("SELECT avatarImage FROM chats", ["avatarImage"]);
-  scan("SELECT photos FROM listings", ["photos"]);
-  scan("SELECT imageUrl FROM shops", ["imageUrl"]);
-  scan("SELECT imageUrl FROM shop_products", ["imageUrl"]);
-  scan("SELECT url, items FROM stories", ["url", "items"]);
+  scanAllTables(add);
   return referenced;
 }
 
@@ -162,12 +175,9 @@ function collectReferencedExcept() {
     ["attachments"],
     [cutoff]
   );
-  scan("SELECT avatarImage, avatarImages FROM users", ["avatarImage", "avatarImages"]);
-  scan("SELECT avatarImage FROM chats", ["avatarImage"]);
-  scan("SELECT photos FROM listings", ["photos"]);
-  scan("SELECT imageUrl FROM shops", ["imageUrl"]);
-  scan("SELECT imageUrl FROM shop_products", ["imageUrl"]);
-  scan("SELECT url, items FROM stories", ["url", "items"]);
+  scan("SELECT sticker FROM messages WHERE sticker IS NOT NULL", ["sticker"]);
+  // Всё, кроме сообщений: аватары, стикер-паки, подарки, отложенные и т. д.
+  scanAllTables(add, { skipTables: ["messages"] });
   keepThumbnails(keep);
   return keep;
 }

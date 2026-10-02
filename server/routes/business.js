@@ -1,7 +1,8 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { ADMIN_PHONE, BUSINESS_GRANT_DAYS, BUSINESS_PLANS, DEFAULT_BUSINESS_PLAN, isAdminPhone } = require("../config");
+const { ADMIN_PHONE, BUSINESS_GRANT_DAYS, isAdminPhone } = require("../config");
+const { getPricing, getBusinessPlan, plansAsMap } = require("../data/pricing");
 const { getUser, findUserByPhone, grantBusinessDays, revokeBusiness } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -26,7 +27,7 @@ router.get(
       businessLat: me.businessLat ?? null,
       businessLng: me.businessLng ?? null,
       isAdmin: isAdminPhone(me.phone),
-      plans: BUSINESS_PLANS,
+      plans: plansAsMap(getPricing().businessPlans),
       business: settings.business,
     });
   })
@@ -35,8 +36,7 @@ router.get(
 router.post(
   "/request",
   asyncRoute(async (req, res) => {
-    const planId = BUSINESS_PLANS[req.body?.plan] ? req.body.plan : DEFAULT_BUSINESS_PLAN;
-    const plan = BUSINESS_PLANS[planId];
+    const plan = getBusinessPlan(req.body?.plan);
 
     const admin = await findUserByPhone(ADMIN_PHONE);
     if (!admin) {
@@ -61,7 +61,7 @@ router.post(
 
     const donation = getActiveDonationLink();
     if (donation) {
-      const order = await createPendingOrder({ userId: req.uid, kind: "business", amountRub: plan.priceRub });
+      const order = await createPendingOrder({ userId: req.uid, kind: "business", amountRub: plan.priceRub, meta: { days: plan.days, label: plan.label } });
       return res.json({ code: order.code, donationUrl: donation.donationUrl, provider: donation.provider, amountRub: plan.priceRub });
     }
 

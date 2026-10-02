@@ -39,6 +39,7 @@ import { CHAT_ACTION_LABELS } from "../lib/chatAction.js";
 import { isServerModerator } from "../lib/moderation.js";
 import { openAd } from "../lib/adLink.js";
 import { isChatMuted } from "../lib/chatSort.js";
+import { TopicTabs } from "../components/topicTabs.js";
 
 function applyWallpaper(list, chat) {
   const settings = getState().settings;
@@ -79,6 +80,10 @@ export async function ChatView(root, chatId) {
   let paidMessages = null;
   let searchQuery = "";
   let searchResults = null;
+  // Темы группы: topicFilter — undefined («Все»), "general» или id темы.
+  let topics = [];
+  let topicFilter = undefined;
+  const topicQuery = () => (chat?.topicsEnabled && topicFilter ? { topic: topicFilter } : {});
   const replyTargets = new Map();
   const rememberReplyTargets = (res) => {
     for (const [id, t] of Object.entries(res?.replyTargets ?? {})) replyTargets.set(id, t);
@@ -194,8 +199,9 @@ export async function ChatView(root, chatId) {
   }
 
   async function doRefreshMessages(seq) {
-    const res = await api.listMessages(chat.id, { limit: PAGE_SIZE });
-    if (seq !== msgSeq) return;
+    const filterAtStart = topicFilter;
+    const res = await api.listMessages(chat.id, { limit: PAGE_SIZE, ...topicQuery() });
+    if (seq !== msgSeq || filterAtStart !== topicFilter) return;
     rememberReplyTargets(res);
     const fresh = res.messages;
     if (!fresh.length) {
@@ -267,7 +273,7 @@ export async function ChatView(root, chatId) {
     const anchorHeight = list.scrollHeight;
     const anchorTop = list.scrollTop;
     try {
-      const res = await api.listMessages(chat.id, { limit: PAGE_SIZE, before: messages[0].createdAt, beforeId: messages[0].id });
+      const res = await api.listMessages(chat.id, { limit: PAGE_SIZE, before: messages[0].createdAt, beforeId: messages[0].id, ...topicQuery() });
       rememberReplyTargets(res);
       if (res.messages.length) {
         messages = [...res.messages, ...messages];
@@ -298,6 +304,8 @@ export async function ChatView(root, chatId) {
   async function handleSend(text, attachments, extraIn) {
     const { uploading, ...extra } = extraIn ?? {};
     const replyToId = replyingTo?.id ?? null;
+    const topicId = currentTopicId() ?? replyingTo?.topicId ?? null;
+    if (topicId) extra.topicId = topicId;
     replyingTo = null;
 
     const localId = `local_${++pendingSeq}_${Date.now()}`;
@@ -396,7 +404,81 @@ export async function ChatView(root, chatId) {
     await refreshMessages();
   }
 
+  // Запрет пересылки и сохранения (включил кто-то из двоих в личке).
+  function isProtected() {
+    return isDm && (chat.protectedBy ?? []).length > 0;
+  }
+  function applyProtection() {
+    document.body.classList.toggle("protected-chat-open", isProtected());
+    list.classList.toggle("protected-content", isProtected());
+  }
+
+  function currentTopicId() {
+    return chat.topicsEnabled && topicFilter && topicFilter !== "general" ? topicFilter : null;
+  }
+  function currentTopic() {
+    const id = currentTopicId();
+    return id ? topics.find((t) => t.id === id) ?? null : null;
+  }
+
+  const topicsSlot = el("div", { class: "topic-tabs-slot" });
+  function renderTopicTabs() {
+    clear(topicsSlot);
+    if (!isGroup || !chat.topicsEnabled) return;
+    const admin = isChatAdmin(chat, me.id);
+    const staff = admin || isChatModerator(chat, me.id);
+    const perms = chat.permissions ?? {};
+    topicsSlot.appendChild(
+      TopicTabs({
+        chatId: chat.id,
+        topics,
+        active: topicFilter,
+        canCreate: staff || perms.createTopics !== false,
+        isAdmin: staff,
+        meId: me.id,
+        onSelect: selectTopic,
+        onChanged: loadTopics,
+      })
+    );
+  }
+
+  async function loadTopics() {
+    if (!isGroup || !chat.topicsEnabled) {
+      topics = [];
+      renderTopicTabs();
+      return;
+    }
+    try {
+      const res = await api.listTopics(chat.id);
+      topics = res.topics ?? [];
+    } catch {
+      topics = [];
+    }
+    if (topicFilter && topicFilter !== "general" && !topics.some((t) => t.id === topicFilter)) {
+      selectTopic(undefined);
+      return;
+    }
+    renderTopicTabs();
+    renderComposer();
+  }
+
+  function selectTopic(id) {
+    if (topicFilter === id) return;
+    topicFilter = id;
+    messages = [];
+    messagesCount = 0;
+    hasMoreHistory = false;
+    firstUnreadId = null;
+    replyingTo = null;
+    renderTopicTabs();
+    renderList();
+    renderComposer();
+    msgSeq++;
+    scheduleRefresh(0);
+  }
+
   function saveChatCache() {
+    if (topicFilter) return;
     writeCache(`chat.${chatId}`, me.id, { chat, members, messages: messages.filter((x) => !x.pending).slice(-PAGE_SIZE) });
   }
 
@@ -500,7 +582,12 @@ export async function ChatView(root, chatId) {
   }
 
   async function handleMemberAction(userId, role) {
-    await api.setMemberRole(chat.id, userId, role);
+    try {
+      await api.setMemberRole(chat.id, userId, role);
+    } catch (err) {
+      alert(err.message || "Не удалось изменить права");
+      return;
+    }
     const { chat: updated, members: refreshedMembers } = await api.getChat(chat.id);
     Object.assign(chat, updated);
     members = refreshedMembers;
@@ -668,12 +755,14 @@ export async function ChatView(root, chatId) {
   const selectionBar = el("div", { class: "selection-bar-slot" });
   const searchBar = el("div", { class: "chat-search-slot" });
 
-  function openSearch() {
+  function openSearch(initial = "") {
     clear(searchBar);
+    searchQuery = initial;
     const input = el("input", {
       class: "login-input chat-search-field",
       type: "search",
       placeholder: "Найти в этом чате",
+      value: initial,
       oninput: (e) => {
         searchQuery = e.target.value;
         clearTimeout(searchBar._timer);
@@ -689,6 +778,7 @@ export async function ChatView(root, chatId) {
       ])
     );
     input.focus();
+    if (initial) runSearch();
 
     async function runSearch() {
       const q = searchQuery.trim();
@@ -832,7 +922,7 @@ export async function ChatView(root, chatId) {
   }
 
   const chatAdSlot = el("div", { class: "chat-ad-slot" });
-  const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, searchBar, liveBar, pinnedBar, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
+  const mainCol = el("div", { class: "chat-main-col" }, [header, topicsSlot, selectionBar, searchBar, liveBar, pinnedBar, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
   api
     .serveAd("chat")
     .then((r) => {
@@ -1065,11 +1155,55 @@ export async function ChatView(root, chatId) {
               ...(chat.type === "group" && !voiceRoom
                 ? [{ icon: "Phone", label: "Начать голосовой чат", onClick: () => joinVoiceRoom(chat.id, me) }]
                 : []),
+              ...(isGroup && isChatAdmin(chat, me.id)
+                ? [
+                    {
+                      icon: "Folder",
+                      label: chat.topicsEnabled ? "Выключить темы" : "Включить темы",
+                      onClick: async () => {
+                        const enabled = !chat.topicsEnabled;
+                        if (!enabled && !confirm("Выключить темы? Сообщения останутся, но будут показаны одной лентой.")) return;
+                        try {
+                          const res = await api.setTopicsEnabled(chat.id, enabled);
+                          chat = { ...chat, topicsEnabled: res.chat?.topicsEnabled };
+                          topics = res.topics ?? [];
+                          if (!enabled) topicFilter = undefined;
+                          renderTopicTabs();
+                          renderComposer();
+                          scheduleRefresh(0);
+                        } catch (err) {
+                          alert(err.message || "Не удалось изменить настройку");
+                        }
+                      },
+                    },
+                  ]
+                : []),
               {
                 icon: isChatMuted(chat) ? "Bell" : "BellOff",
                 label: isChatMuted(chat) ? "Включить уведомления" : "Отключить уведомления",
                 onClick: isChatMuted(chat) ? () => setMute({ off: true }) : () => openMuteDurationDialog(setMute),
               },
+              ...(isDm && !isSaved && !other?.isBot
+                ? [
+                    {
+                      icon: "Lock",
+                      label: (chat.protectedBy ?? []).includes(me.id) ? "Разрешить пересылку" : "Запретить пересылку",
+                      onClick: async () => {
+                        const enabled = !(chat.protectedBy ?? []).includes(me.id);
+                        try {
+                          const res = await api.setChatProtected(chat.id, enabled);
+                          chat = { ...chat, protectedBy: res.protectedBy ?? [] };
+                          applyProtection();
+                          renderList();
+                        } catch (err) {
+                          if (err.premiumHelps || /Premium/.test(err.message ?? "")) {
+                            if (confirm(`${err.message}. Открыть Premium?`)) navigate("/settings/premium");
+                          } else alert(err.message || "Не удалось изменить настройку");
+                        }
+                      },
+                    },
+                  ]
+                : []),
               { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
               { icon: "Image", label: "Фон чата", onClick: handleChooseWallpaper },
               { icon: "Clock", label: "Запланированные сообщения", onClick: () => openScheduledMessagesDialog(chat.id) },
@@ -1346,11 +1480,13 @@ export async function ChatView(root, chatId) {
           me,
           sender,
           showSender,
+          senderTag: showSender && chat.type === "group" && !m.anonymous ? chat.memberTitles?.[m.senderId] ?? null : null,
           groupStart,
           groupEnd,
           isChannel: chat.type === "channel",
           isDm,
           canPin,
+          protectedContent: isProtected(),
           allowedReactions: chat.allowedReactions,
           canViewReactionDetails,
           selection: { active: selecting, ids: selected, onToggle: (id) => (selecting ? toggleSelect(id) : startSelecting(id)) },
@@ -1496,6 +1632,10 @@ export async function ChatView(root, chatId) {
       bodyBottomSlot.appendChild(el("p", { class: "channel-readonly-hint" }, "Shalter — служебный чат: сюда приходят коды входа и уведомления, отвечать в нём нельзя"));
       return;
     }
+    if (currentTopic()?.closed && !isChatAdmin(chat, me.id) && !isChatModerator(chat, me.id)) {
+      bodyBottomSlot.appendChild(el("p", { class: "channel-readonly-hint" }, "Тема закрыта — писать в неё могут только администраторы"));
+      return;
+    }
     const restrictedUntil = chat.restrictions?.[me.id];
     if (restrictedUntil && (restrictedUntil === "forever" || restrictedUntil > new Date().toISOString())) {
       bodyBottomSlot.appendChild(
@@ -1531,6 +1671,7 @@ export async function ChatView(root, chatId) {
         onSaveEdit: handleSaveEdit,
         onDraftChange: handleDraftChange,
         onScheduled: () => openScheduledMessagesDialog(chat.id),
+        topicId: currentTopicId(),
         onEditLast: () => {
           const last = [...messages]
             .reverse()
@@ -1598,6 +1739,8 @@ export async function ChatView(root, chatId) {
   renderHeader();
   renderList();
   renderComposer();
+  if (isGroup && chat.topicsEnabled) loadTopics();
+  applyProtection();
   renderInfoPanel();
   loadBotAudience();
   loadLive();
@@ -1696,10 +1839,24 @@ export async function ChatView(root, chatId) {
     typingClearTimer = setTimeout(clearTypingStatus, 4000);
   });
 
+  const unsubTopics = onWsMessage("topics:updated", (msg) => {
+    if (msg.chatId === chat.id) loadTopics();
+  });
   const unsubChatUpdated = onWsMessage("chat:updated", (msg) => {
     if (msg.chat?.id !== chat.id) return;
     const { pinned, archived, muted, mutedUntil, ...shared } = msg.chat;
+    const topicsWas = !!chat.topicsEnabled;
+    const protectedWas = isProtected();
     chat = { ...chat, ...shared };
+    if (protectedWas !== isProtected()) {
+      applyProtection();
+      renderList();
+    }
+    if (topicsWas !== !!chat.topicsEnabled) {
+      if (!chat.topicsEnabled) topicFilter = undefined;
+      loadTopics();
+      scheduleRefresh(0);
+    }
     renderHeader();
     applyWallpaper(list, chat);
     api
@@ -1729,7 +1886,12 @@ export async function ChatView(root, chatId) {
     scheduleRefresh(0);
   }
 
+  const onHashtag = (e) => openSearch(e.detail);
+  window.addEventListener("shalter:hashtag", onHashtag);
+
   root._cleanup = () => {
+    window.removeEventListener("shalter:hashtag", onHashtag);
+    document.body.classList.remove("protected-chat-open");
     document.removeEventListener("keydown", onChatKeydown, true);
     clearInterval(messagesIv);
     clearInterval(lastSeenIv);
@@ -1747,6 +1909,7 @@ export async function ChatView(root, chatId) {
     unsubMessageRead();
     unsubTyping();
     unsubChatUpdated();
+    unsubTopics();
     viewObserver?.disconnect();
   };
 }

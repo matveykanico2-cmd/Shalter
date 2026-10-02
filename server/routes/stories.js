@@ -75,6 +75,28 @@ function audienceOf(authorId) {
 const router = express.Router();
 router.use(requireUserId);
 
+// Кто посмотрел и лайкнул — видит только автор (или админ канала).
+function storyFor(st, uid, author) {
+  const own = st.userId === uid || !!author?.canManage;
+  const out = {
+    ...st,
+    viewed: st.viewedByIds.includes(uid),
+    liked: st.likedByIds.includes(uid),
+    likeCount: st.likedByIds.length,
+    viewCount: st.viewedByIds.length,
+  };
+  if (!own) {
+    delete out.viewedByIds;
+    delete out.likedByIds;
+  }
+  return out;
+}
+
+async function blockedBy(authorId, uid) {
+  if (isChannelId(authorId)) return false;
+  return !!(await getUser(authorId))?.blockedUserIds?.includes(uid);
+}
+
 async function visibleAuthorIds(uid) {
   const contacts = await listContactsFor(uid);
   const chats = await listChatsForUser(uid);
@@ -96,16 +118,12 @@ router.get(
 
     const groups = await Promise.all(
       [...byAuthor.entries()].map(async ([authorId, items]) => {
+        if (await blockedBy(authorId, req.uid)) return { user: null };
         const user = await authorInfo(authorId, req.uid);
         const sorted = items.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
         return {
           user,
-          stories: sorted.map((s) => ({
-            ...s,
-            viewed: s.viewedByIds.includes(req.uid),
-            liked: s.likedByIds.includes(req.uid),
-            likeCount: s.likedByIds.length,
-          })),
+          stories: sorted.map((s) => storyFor(s, req.uid, user)),
         };
       })
     );
@@ -119,7 +137,7 @@ router.get(
   asyncRoute(async (req, res) => {
     const targetId = req.params.userId;
     const allowed = await visibleAuthorIds(req.uid);
-    if (!allowed.includes(targetId)) return res.json({ group: null });
+    if (!allowed.includes(targetId) || (await blockedBy(targetId, req.uid))) return res.json({ group: null });
 
     const stories = await listStoriesForUsers([targetId]);
     if (!stories.length) return res.json({ group: null });
@@ -131,12 +149,7 @@ router.get(
         user,
         stories: stories
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-          .map((st) => ({
-            ...st,
-            viewed: st.viewedByIds.includes(req.uid),
-            liked: st.likedByIds.includes(req.uid),
-            likeCount: st.likedByIds.length,
-          })),
+          .map((st) => storyFor(st, req.uid, user)),
       },
     });
   })
@@ -148,8 +161,10 @@ router.get(
     const targetId = req.params.userId;
     const isSelf = targetId === req.uid;
 
+    let channelChat = null;
     if (isChannelId(targetId)) {
       const chat = await getChat(targetId);
+      channelChat = chat;
       if (!chat || chat.type !== "channel" || !chat.memberIds.includes(req.uid)) {
         return res.json({ stories: [], allowed: false });
       }
@@ -169,10 +184,7 @@ router.get(
     res.json({
       allowed: true,
       stories: all.map((st) => ({
-        ...st,
-        viewed: st.viewedByIds.includes(req.uid),
-        liked: st.likedByIds.includes(req.uid),
-        likeCount: st.likedByIds.length,
+        ...storyFor(st, req.uid, isChannelId(targetId) ? { canManage: isChannelStaff(channelChat, req.uid) } : null),
         expired: new Date(st.expiresAt).getTime() <= now,
       })),
     });
@@ -246,7 +258,7 @@ router.post(
     if (!visible) return res.status(404).json({ error: "not found" });
 
     const story = await markViewed(req.params.id, req.uid);
-    res.json({ story });
+    res.json({ story: story ? storyFor(story, req.uid, null) : story });
   })
 );
 
@@ -272,7 +284,7 @@ router.post(
       userId: story.userId,
       likeCount: story.likedByIds.length,
     });
-    res.json({ story, liked: story.likedByIds.includes(req.uid), likeCount: story.likedByIds.length });
+    res.json({ story: storyFor(story, req.uid, null), liked: story.likedByIds.includes(req.uid), likeCount: story.likedByIds.length });
   })
 );
 

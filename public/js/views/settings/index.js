@@ -19,6 +19,7 @@ import { hasPasscode } from "../../lib/passcodeLock.js";
 import { hasBiometric, enableBiometric, removeBiometric, isBiometricAvailable } from "../../lib/biometricLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../components/twoFactorDialog.js";
+import { passkeysSupported, registerPasskey, passkeyErrorText } from "../../lib/passkey.js";
 import { openChangePasswordDialog, openChangeEmailDialog } from "../../components/credentialsDialog.js";
 import { VerifiedBadge } from "../../components/verifiedBadge.js";
 import { ProfileStatusBadge } from "../../components/profileStatusBadge.js";
@@ -85,6 +86,7 @@ const SECTIONS = [
   { id: "giftshop", label: "Каталог подарков", icon: "Gift", group: "admin", adminOnly: true },
   { id: "emojicatalog", label: "Эмодзи", icon: "Smile", group: "admin", adminOnly: true },
   { id: "donations", label: "Донаты", icon: "Zap", group: "admin", adminOnly: true },
+  { id: "pricing", label: "Цены и тарифы", icon: "Star", group: "admin", adminOnly: true },
   { id: "legal", label: "Запросы органов", icon: "Shield", group: "admin", adminOnly: true },
 ];
 
@@ -198,6 +200,7 @@ export async function SettingsView(root, page) {
     moderation: renderModeration,
     server: renderServer,
     donations: renderDonations,
+    pricing: renderPricing,
     legal: renderLegal,
     stars: renderStars,
     giftshop: renderGiftShop,
@@ -1803,7 +1806,7 @@ async function renderAds(root) {
         ]),
         !info.isAdsActive
           ? el("div", { class: "settings-notice-box" }, [
-              el("p", { class: "settings-toggle-title" }, `Купить кабинет рекламы на 30 дней — ${info.priceRub}₽`),
+              el("p", { class: "settings-toggle-title" }, `Купить кабинет рекламы на ${info.days ?? 30} дней — ${info.priceRub}₽`),
               el(
                 "p",
                 { class: "settings-toggle-hint" },
@@ -2493,6 +2496,35 @@ async function renderPrivacy(root) {
     biometricAvailable = v;
     if (v) render();
   });
+  let passkeyList = [];
+  let passkeyNotice = null;
+  if (passkeysSupported()) {
+    api.listPasskeys().then((res) => {
+      passkeyList = res.passkeys ?? [];
+      render();
+    }, () => {});
+  }
+  async function addPasskey() {
+    passkeyNotice = null;
+    try {
+      await registerPasskey();
+      passkeyList = (await api.listPasskeys()).passkeys ?? [];
+      passkeyNotice = "Ключ доступа добавлен — теперь можно входить без пароля и кода";
+    } catch (err) {
+      passkeyNotice = passkeyErrorText(err);
+    }
+    render();
+  }
+  async function removePasskey(p) {
+    if (!confirm(`Удалить ключ «${p.name}»? Войти с ним больше не получится.`)) return;
+    try {
+      await api.deletePasskey(p.id);
+      passkeyList = passkeyList.filter((x) => x.id !== p.id);
+    } catch (err) {
+      alert(err.message || "Не удалось удалить ключ");
+    }
+    render();
+  }
   let twoFactor = { enabled: false, recoveryCodesLeft: 0 };
   api
     .getTwoFactor()
@@ -2633,6 +2665,40 @@ async function renderPrivacy(root) {
           row("Кто видит архив историй", "storiesArchive"),
         ]),
         section("Безопасность", [
+          passkeysSupported()
+            ? el("div", {}, [
+                el("div", { class: "settings-toggle-row" }, [
+                  el("div", {}, [
+                    el("p", { class: "settings-toggle-title" }, "Ключи доступа"),
+                    el(
+                      "p",
+                      { class: "settings-toggle-hint" },
+                      passkeyList.length
+                        ? `Добавлено: ${passkeyList.length}. Вход по отпечатку, лицу или PIN-коду устройства`
+                        : "Вход по отпечатку, лицу или PIN-коду устройства — без пароля и кода. Ключ нельзя украсть фишингом"
+                    ),
+                  ]),
+                  el("button", { class: "settings-danger-link", onclick: addPasskey }, "Добавить"),
+                ]),
+                ...passkeyList.map((p) =>
+                  el("div", { class: "settings-device-row" }, [
+                    el("span", { html: iconSvg("Lock", 18) }),
+                    el("div", { class: "settings-device-body" }, [
+                      el("p", {}, p.name),
+                      el(
+                        "p",
+                        { class: "settings-toggle-hint" },
+                        p.lastUsedAt
+                          ? `Последний вход: ${new Date(p.lastUsedAt).toLocaleDateString("ru-RU")}`
+                          : `Добавлен ${new Date(p.createdAt).toLocaleDateString("ru-RU")}`
+                      ),
+                    ]),
+                    el("button", { class: "settings-danger-link", onclick: () => removePasskey(p) }, "Удалить"),
+                  ])
+                ),
+                passkeyNotice ? el("p", { class: "settings-toggle-hint" }, passkeyNotice) : null,
+              ])
+            : null,
           el("div", { class: "settings-toggle-row" }, [
             el("div", {}, [
               el("p", { class: "settings-toggle-title" }, "Двухфакторная аутентификация"),
@@ -4629,6 +4695,155 @@ async function renderLegal(root) {
       ])
     );
   }
+  render();
+}
+
+// Настройки → Цены и тарифы: тарифы Premium и бизнеса, наборы звёзд, кабинет
+// рекламы и стоимость действий за звёзды. Уже созданные заказы оплачиваются по
+// старой цене — сервер запоминает её в самом заказе.
+async function renderPricing(root) {
+  let data = null;
+  let loadError = null;
+  try {
+    data = await api.adminGetPricing();
+  } catch (err) {
+    loadError = err.message;
+  }
+  if (!data) {
+    mount(root, pageWrap("Цены и тарифы", null, [el("p", { class: "login-error" }, loadError || "Не удалось загрузить цены")]));
+    return;
+  }
+
+  const draft = structuredClone(data.pricing);
+  let saving = false;
+  let message = null;
+
+  const num = (value, oninput, attrs = {}) =>
+    el("input", { class: "settings-input mono", type: "number", min: 0, value: String(value ?? ""), oninput: (e) => oninput(e.target.value), ...attrs });
+  const text = (value, oninput, placeholder) =>
+    el("input", { class: "settings-input", type: "text", maxlength: 40, placeholder, value: value ?? "", oninput: (e) => oninput(e.target.value) });
+  const removeBtn = (onclick) => el("button", { class: "btn-secondary pricing-remove", type: "button", title: "Удалить", onclick }, "✕");
+  const head = (labels, cls = "") => el("div", { class: `pricing-row pricing-head ${cls}` }, labels.map((l) => el("span", {}, l)));
+
+  function planEditor(key, title) {
+    const list = draft[key];
+    return section(title, [
+      head(["Название", "Дней", "₽", ""]),
+      ...list.map((p, i) =>
+        el("div", { class: "pricing-row" }, [
+          text(p.label, (v) => (p.label = v), "1 месяц"),
+          num(p.days, (v) => (p.days = Number(v)), { min: 1 }),
+          num(p.priceRub, (v) => (p.priceRub = Number(v)), { min: 1 }),
+          removeBtn(() => {
+            list.splice(i, 1);
+            render();
+          }),
+        ])
+      ),
+      el(
+        "button",
+        {
+          class: "btn-secondary",
+          type: "button",
+          onclick: () => {
+            list.push({ id: `p${Date.now().toString(36)}`, label: "", days: 30, priceRub: 100 });
+            render();
+          },
+        },
+        "+ Добавить тариф"
+      ),
+    ]);
+  }
+
+  async function save() {
+    saving = true;
+    message = null;
+    render();
+    try {
+      const res = await api.adminUpdatePricing(draft);
+      Object.assign(draft, structuredClone(res.pricing));
+      message = { ok: true, text: "Сохранено. Новые цены уже действуют." };
+    } catch (err) {
+      message = { ok: false, text: err.message || "Не удалось сохранить" };
+    }
+    saving = false;
+    render();
+  }
+
+  async function reset() {
+    if (!confirm("Вернуть все цены к значениям по умолчанию?")) return;
+    try {
+      const res = await api.adminResetPricing();
+      for (const k of Object.keys(draft)) delete draft[k];
+      Object.assign(draft, structuredClone(res.pricing));
+      message = { ok: true, text: "Цены сброшены." };
+    } catch (err) {
+      message = { ok: false, text: err.message || "Не удалось сбросить" };
+    }
+    render();
+  }
+
+  function render() {
+    mount(
+      root,
+      pageWrap("Цены и тарифы", "Меняются сразу для всех. Уже выставленные счета оплачиваются по прежней цене.", [
+        planEditor("premiumPlans", "Shalter Premium"),
+        planEditor("businessPlans", "Shalter для бизнеса"),
+        section("Наборы звёзд", [
+          head(["Звёзд", "₽", ""], "pricing-row-3"),
+          ...draft.starPacks.map((p, i) =>
+            el("div", { class: "pricing-row pricing-row-3" }, [
+              num(p.stars, (v) => (p.stars = Number(v)), { min: 1 }),
+              num(p.priceRub, (v) => (p.priceRub = Number(v)), { min: 1 }),
+              removeBtn(() => {
+                draft.starPacks.splice(i, 1);
+                render();
+              }),
+            ])
+          ),
+          el(
+            "button",
+            {
+              class: "btn-secondary",
+              type: "button",
+              onclick: () => {
+                draft.starPacks.push({ id: `stars_${Date.now().toString(36)}`, stars: 100, priceRub: 200 });
+                render();
+              },
+            },
+            "+ Добавить набор"
+          ),
+        ]),
+        section("Кабинет рекламы", [
+          head(["Дней", "₽"], "pricing-row-2"),
+          el("div", { class: "pricing-row pricing-row-2" }, [
+            num(draft.ads.days, (v) => (draft.ads.days = Number(v)), { min: 1 }),
+            num(draft.ads.priceRub, (v) => (draft.ads.priceRub = Number(v)), { min: 1 }),
+          ]),
+        ]),
+        section("Звёзды", [
+          el("label", { class: "settings-field" }, [
+            el("span", { class: "settings-toggle-hint" }, "Рублей за одну звезду при оплате Premium звёздами"),
+            num(draft.rubPerStar, (v) => (draft.rubPerStar = Number(v)), { step: "0.01", min: "0.01" }),
+          ]),
+          el("label", { class: "settings-field" }, [
+            el("span", { class: "settings-toggle-hint" }, "Поднять сообщение, ⭐"),
+            num(draft.starCosts.boost, (v) => (draft.starCosts.boost = Number(v))),
+          ]),
+          el("label", { class: "settings-field" }, [
+            el("span", { class: "settings-toggle-hint" }, "Удалить чужое сообщение, ⭐"),
+            num(draft.starCosts.delete, (v) => (draft.starCosts.delete = Number(v))),
+          ]),
+        ]),
+        message ? el("p", { class: message.ok ? "login-hint" : "login-error" }, message.text) : null,
+        el("div", { class: "pricing-actions" }, [
+          el("button", { class: "btn-accent", disabled: saving, onclick: save }, saving ? "Сохраняем…" : "Сохранить"),
+          el("button", { class: "btn-secondary", type: "button", onclick: reset }, "Сбросить по умолчанию"),
+        ]),
+      ])
+    );
+  }
+
   render();
 }
 

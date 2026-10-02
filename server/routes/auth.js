@@ -18,9 +18,11 @@ const { parseUserAgent } = require("../lib/userAgent");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { deleteAccount } = require("../lib/deleteAccount");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
-const { PREMIUM_GRANT_DAYS } = require("../config");
+const { PREMIUM_GRANT_DAYS, isAdminPhone } = require("../config");
 const qrLogins = require("../data/qrLogins");
 const codeLogins = require("../data/codeLogins");
+const passkeys = require("../data/passkeys");
+const webauthn = require("../lib/webauthn");
 
 const { EMAIL_RE, PHONE_RE, normalizePhone } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
@@ -142,6 +144,11 @@ router.post(
       return res.status(409).json({ error: "Аккаунт с таким email уже существует" });
     }
     if (await findUserByPhone(normalizedPhone)) {
+      return res.status(409).json({ error: "Аккаунт с таким номером телефона уже существует" });
+    }
+    // Номер не подтверждается, а админ определяется по номеру: регистрация на
+    // админский номер возможна, только если явно разрешена в окружении.
+    if (isAdminPhone(normalizedPhone) && process.env.ALLOW_ADMIN_PHONE_SIGNUP !== "1") {
       return res.status(409).json({ error: "Аккаунт с таким номером телефона уже существует" });
     }
 
@@ -355,6 +362,8 @@ router.get(
     if (!entry) return res.json({ status: "expired" });
     if (!entry.confirmedUserId) return res.json({ status: "pending" });
 
+    // QR-код виден на экране: войти по нему должно только то устройство, которое его показало.
+    if (entry.deviceId !== getOrCreateDeviceId(req, res)) return res.json({ status: "expired" });
     const consumed = qrLogins.consume(String(token));
     if (!consumed) return res.json({ status: "pending" });
     const user = await getUser(consumed.confirmedUserId);
@@ -376,6 +385,99 @@ router.post(
     if (result === "expired") return res.status(410).json({ error: "QR-код устарел, обновите его на другом устройстве" });
     if (result === "already-used") return res.status(409).json({ error: "Этот код уже использован" });
     res.json({ ok: true });
+  })
+);
+
+// --- Ключи доступа (passkeys) ---
+router.post(
+  "/passkey/register/start",
+  requireUserId,
+  asyncRoute(async (req, res) => {
+    const user = await getUser(req.uid);
+    if (!user) return res.status(404).json({ error: "not found" });
+    const existing = passkeys.listPasskeys(user.id);
+    if (existing.length >= passkeys.MAX_PER_USER) return res.status(400).json({ error: `Не больше ${passkeys.MAX_PER_USER} ключей` });
+    const { rpId } = webauthn.rpFor(req);
+    res.json({
+      challenge: webauthn.newChallenge("register", user.id),
+      rp: { id: rpId, name: "Shalter" },
+      user: { id: webauthn.b64url(Buffer.from(user.id)), name: user.username || user.phone || user.email || user.name, displayName: user.name || "Shalter" },
+      pubKeyCredParams: [
+        { type: "public-key", alg: -7 },
+        { type: "public-key", alg: -257 },
+      ],
+      authenticatorSelection: { residentKey: "required", requireResidentKey: true, userVerification: "preferred" },
+      attestation: "none",
+      timeout: 120000,
+      excludeCredentials: existing.map((p) => ({ type: "public-key", id: p.id })),
+    });
+  })
+);
+
+router.post(
+  "/passkey/register/finish",
+  requireUserId,
+  asyncRoute(async (req, res) => {
+    const { rpId, origin } = webauthn.rpFor(req);
+    let result;
+    try {
+      result = webauthn.verifyRegistration(req.body ?? {}, { origin, rpId, userId: req.uid });
+    } catch (err) {
+      return res.status(400).json({ error: `Не удалось добавить ключ: ${err.message}` });
+    }
+    const name = String(req.body?.name ?? "").trim().slice(0, 60) || parseUserAgent(req.headers["user-agent"]);
+    const added = passkeys.addPasskey({ id: result.credentialId, userId: req.uid, publicKey: result.publicKey, signCount: result.signCount, name });
+    if (!added) return res.status(409).json({ error: "Этот ключ уже добавлен" });
+    try {
+      const chat = await findOrCreateDm(req.uid, SYSTEM_BOT_ID);
+      await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, `🔑 К аккаунту добавлен ключ доступа «${added.name}». Если это были не вы — удалите его в Настройки → Конфиденциальность и завершите чужие сеансы.`);
+    } catch {}
+    res.json({ passkey: { id: added.id, name: added.name, createdAt: added.createdAt } });
+  })
+);
+
+router.get(
+  "/passkeys",
+  requireUserId,
+  asyncRoute(async (req, res) => {
+    res.json({ passkeys: passkeys.listPasskeys(req.uid).map(({ id, name, createdAt, lastUsedAt }) => ({ id, name, createdAt, lastUsedAt })) });
+  })
+);
+
+router.delete(
+  "/passkeys/:id",
+  requireUserId,
+  asyncRoute(async (req, res) => {
+    if (!passkeys.deletePasskey(req.uid, req.params.id)) return res.status(404).json({ error: "Ключ не найден" });
+    res.json({ ok: true });
+  })
+);
+
+router.post(
+  "/passkey/login/start",
+  asyncRoute(async (req, res) => {
+    const { rpId } = webauthn.rpFor(req);
+    res.json({ challenge: webauthn.newChallenge("login"), rpId, userVerification: "preferred", timeout: 120000 });
+  })
+);
+
+router.post(
+  "/passkey/login/finish",
+  asyncRoute(async (req, res) => {
+    const passkey = typeof req.body?.id === "string" ? passkeys.getPasskey(req.body.id) : null;
+    if (!passkey) return res.status(401).json({ error: "Этот ключ не привязан ни к одному аккаунту" });
+    const { rpId, origin } = webauthn.rpFor(req);
+    let signCount;
+    try {
+      ({ signCount } = webauthn.verifyAssertion(req.body ?? {}, { origin, rpId, passkey }));
+    } catch (err) {
+      return res.status(401).json({ error: `Вход по ключу не удался: ${err.message}` });
+    }
+    passkeys.touchPasskey(passkey.id, signCount);
+    const user = await getUser(passkey.userId);
+    if (!user) return res.status(401).json({ error: "Аккаунт не найден" });
+    if (user.isBanned) return res.status(403).json({ error: banError(user) });
+    return finishLogin(req, res, user);
   })
 );
 

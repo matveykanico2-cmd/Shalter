@@ -297,6 +297,13 @@ CREATE TABLE IF NOT EXISTS pending_orders (
   createdAt TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_orders_code ON pending_orders(code);
+
+-- Настройки уровня всего приложения, которые админ меняет без деплоя (цены —
+-- server/data/pricing.js). Ключ → JSON.
+CREATE TABLE IF NOT EXISTS app_config (
+  key TEXT PRIMARY KEY,
+  data TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_pending_orders_user ON pending_orders(userId);
 
 -- "Войти через Shalter" — any account can register a third-party app here
@@ -503,6 +510,11 @@ const existingStoryCommentCols = new Set(db.prepare("PRAGMA table_info(story_com
 if (!existingStoryCommentCols.has("parentId")) db.exec("ALTER TABLE story_comments ADD COLUMN parentId TEXT");
 if (!existingStoryCommentCols.has("likedByIds")) db.exec("ALTER TABLE story_comments ADD COLUMN likedByIds TEXT NOT NULL DEFAULT '[]'");
 
+// Что именно куплено (срок тарифа, число звёзд) — снимок на момент заказа.
+// Раньше тариф угадывался по сумме, и после смены цены админом старые заказы
+// переставали находить свой тариф.
+const existingOrderColumns = new Set(db.prepare("PRAGMA table_info(pending_orders)").all().map((c) => c.name));
+if (!existingOrderColumns.has("meta")) db.exec("ALTER TABLE pending_orders ADD COLUMN meta TEXT");
 const existingUserColumns = new Set(db.prepare("PRAGMA table_info(users)").all().map((c) => c.name));
 if (!existingUserColumns.has("isPremium")) db.exec("ALTER TABLE users ADD COLUMN isPremium INTEGER NOT NULL DEFAULT 0");
 if (!existingUserColumns.has("referralCode")) db.exec("ALTER TABLE users ADD COLUMN referralCode TEXT");
@@ -756,6 +768,28 @@ try {
   }
   if (encrypted) {
     console.log(`[db] зашифровано ${encrypted} сообщений`);
+    purgePlaintext = true;
+  }
+
+  // Остальной приватный текст — отложенные сообщения, заметки, напоминания —
+  // тем же ключом. Префикс в id (AAD) свой у каждой таблицы, чтобы шифротекст
+  // нельзя было переложить из одной таблицы в другую.
+  for (const [table, aad] of [
+    ["scheduled_messages", "sched:"],
+    ["notes", "note:"],
+    ["reminders", "remind:"],
+  ]) {
+    // notes и reminders создаются ниже по файлу — на новой базе их ещё нет.
+    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table)) continue;
+    const rows = db
+      .prepare(`SELECT rowid AS rid, id, text FROM ${table} WHERE text <> '' AND substr(text, 1, 5) NOT IN ('enc1:', 'enc2:')`)
+      .all();
+    if (!rows.length) continue;
+    const set = db.prepare(`UPDATE ${table} SET text = ? WHERE rowid = ?`);
+    db.transaction(() => {
+      for (const r of rows) set.run(textCrypto.encryptText(aad + r.id, r.text), r.rid);
+    })();
+    console.log(`[db] зашифровано записей в ${table}: ${rows.length}`);
     purgePlaintext = true;
   }
 
@@ -1069,5 +1103,58 @@ CREATE TABLE IF NOT EXISTS daily_claims (
   lastClaimAt TEXT NOT NULL
 );
 `);
+
+// Функции «как в Telegram»: темы в группах, приветствие новым участникам,
+// запрет пересылки в личке, повтор отложенных, заметки о контактах, журнал
+// действий админов, ключи доступа (passkeys).
+db.exec(`
+CREATE TABLE IF NOT EXISTS chat_topics (
+  id TEXT PRIMARY KEY,
+  chatId TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  icon TEXT,
+  color TEXT,
+  closed INTEGER NOT NULL DEFAULT 0,
+  createdBy TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_topics_chat ON chat_topics(chatId, createdAt);
+
+CREATE TABLE IF NOT EXISTS chat_admin_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chatId TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  actorId TEXT NOT NULL,
+  action TEXT NOT NULL,
+  targetId TEXT,
+  details TEXT,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_admin_log_chat ON chat_admin_log(chatId, id);
+
+CREATE TABLE IF NOT EXISTS passkeys (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  publicKey TEXT NOT NULL,
+  signCount INTEGER NOT NULL DEFAULT 0,
+  name TEXT,
+  createdAt TEXT NOT NULL,
+  lastUsedAt TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(userId);
+`);
+{
+  const chatCols = new Set(db.prepare("PRAGMA table_info(chats)").all().map((c) => c.name));
+  if (!chatCols.has("topicsEnabled")) db.exec("ALTER TABLE chats ADD COLUMN topicsEnabled INTEGER NOT NULL DEFAULT 0");
+  if (!chatCols.has("welcomeText")) db.exec("ALTER TABLE chats ADD COLUMN welcomeText TEXT");
+  if (!chatCols.has("protectedBy")) db.exec("ALTER TABLE chats ADD COLUMN protectedBy TEXT");
+  const msgCols = new Set(db.prepare("PRAGMA table_info(messages)").all().map((c) => c.name));
+  if (!msgCols.has("topicId")) db.exec("ALTER TABLE messages ADD COLUMN topicId TEXT");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_messages_topic ON messages(chatId, topicId, createdAt) WHERE topicId IS NOT NULL");
+  const schedCols = new Set(db.prepare("PRAGMA table_info(scheduled_messages)").all().map((c) => c.name));
+  if (!schedCols.has("repeat")) db.exec("ALTER TABLE scheduled_messages ADD COLUMN repeat TEXT");
+  if (!schedCols.has("topicId")) db.exec("ALTER TABLE scheduled_messages ADD COLUMN topicId TEXT");
+  const contactCols = new Set(db.prepare("PRAGMA table_info(contacts)").all().map((c) => c.name));
+  if (!contactCols.has("note")) db.exec("ALTER TABLE contacts ADD COLUMN note TEXT");
+}
 
 module.exports = db;

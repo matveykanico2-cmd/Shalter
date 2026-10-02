@@ -1,6 +1,6 @@
 const { randomBytes } = require("crypto");
 const { asyncRoute } = require("./errors");
-const { getSession, touchSession } = require("../data/sessions");
+const { getSession, touchSession, isSessionActive } = require("../data/sessions");
 const { getUser, cancelAccountDeletion } = require("../data/users");
 
 const SESSIONS_COOKIE = "session_uids";
@@ -28,15 +28,32 @@ function parseIds(raw) {
   }
 }
 
-function getSessionUserIds(req) {
+// Cookie со списком аккаунтов не подписан — подделать его может кто угодно.
+// Поэтому аккаунт засчитывается, только если в базе есть живая сессия для пары
+// (пользователь, device_id): device_id — случайный httpOnly-cookie, его не угадать.
+function activeIdsFromCookies(cookies) {
+  const deviceId = cookies?.[DEVICE_COOKIE];
+  if (!deviceId) return [];
+  return parseIds(cookies?.[SESSIONS_COOKIE]).filter((id) => isSessionActive(id, deviceId));
+}
+
+function pickActive(cookies, ids) {
+  const active = cookies?.[ACTIVE_COOKIE] ?? null;
+  if (active && ids.includes(active)) return active;
+  return ids[0] ?? null;
+}
+
+// Сырой список из cookie, без проверки — только для записи cookie обратно.
+function cookieUserIds(req) {
   return parseIds(req.cookies?.[SESSIONS_COOKIE]);
 }
 
+function getSessionUserIds(req) {
+  return activeIdsFromCookies(req.cookies);
+}
+
 function getCurrentUserId(req) {
-  const active = req.cookies?.[ACTIVE_COOKIE] ?? null;
-  const ids = getSessionUserIds(req);
-  if (active && ids.includes(active)) return active;
-  return ids[0] ?? null;
+  return pickActive(req.cookies, getSessionUserIds(req));
 }
 
 function parseCookieHeader(header) {
@@ -54,10 +71,7 @@ function parseCookieHeader(header) {
 
 function getCurrentUserIdFromCookieHeader(header) {
   const cookies = parseCookieHeader(header);
-  const active = cookies[ACTIVE_COOKIE] ?? null;
-  const ids = parseIds(cookies[SESSIONS_COOKIE]);
-  if (active && ids.includes(active)) return active;
-  return ids[0] ?? null;
+  return pickActive(cookies, activeIdsFromCookies(cookies));
 }
 
 function writeSessions(res, ids, active) {
@@ -72,7 +86,7 @@ function writeSessions(res, ids, active) {
 }
 
 function addAccountSession(req, res, userId) {
-  const ids = getSessionUserIds(req);
+  const ids = cookieUserIds(req);
   const alreadyLinked = ids.includes(userId);
   const next = alreadyLinked ? ids : [...ids, userId];
   writeSessions(res, next, userId);
@@ -87,7 +101,7 @@ function switchActiveAccount(req, res, userId) {
 }
 
 function removeAccountSession(req, res, userId) {
-  const ids = getSessionUserIds(req);
+  const ids = cookieUserIds(req);
   const next = ids.filter((id) => id !== userId);
   const active = req.cookies?.[ACTIVE_COOKIE];
   writeSessions(res, next, active === userId ? next[0] ?? null : active ?? null);
@@ -100,21 +114,20 @@ function clearAllSessions(req, res) {
 
 const requireUserId = asyncRoute(async (req, res, next) => {
   const uid = getCurrentUserId(req);
-  if (!uid) return res.status(401).json({ error: "unauthorized" });
+  if (!uid) {
+    // Аккаунт в cookie есть, но сессию завершили с другого устройства.
+    const listed = cookieUserIds(req).length > 0;
+    return res.status(401).json({ error: listed ? "session_revoked" : "unauthorized" });
+  }
   const deviceId = req.cookies?.[DEVICE_COOKIE];
-  if (deviceId) {
-    const session = await getSession(uid, deviceId);
-    if (session?.revokedAt) return res.status(401).json({ error: "session_revoked" });
-    if (session && !session.revokedAt) {
-      const ip = req.ip || "";
-      const stale = Date.now() - Date.parse(session.lastActive || 0) > 60_000;
-      const ipChanged = !!ip && !!session.location && session.location !== ip;
-      if (stale || ipChanged) {
-        try {
-          touchSession(uid, deviceId, ip);
-        } catch {
-        }
-      }
+  const session = await getSession(uid, deviceId);
+  const ip = req.ip || "";
+  const stale = Date.now() - Date.parse(session?.lastActive || 0) > 60_000;
+  const ipChanged = !!ip && !!session?.location && session.location !== ip;
+  if (stale || ipChanged) {
+    try {
+      touchSession(uid, deviceId, ip);
+    } catch {
     }
   }
   const user = await getUser(uid);
@@ -132,5 +145,6 @@ module.exports = {
   clearAllSessions,
   requireUserId,
   getCurrentUserIdFromCookieHeader,
+  deviceIdFromCookieHeader: (header) => parseCookieHeader(header)[DEVICE_COOKIE] ?? null,
   getOrCreateDeviceId,
 };

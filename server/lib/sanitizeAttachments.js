@@ -1,4 +1,5 @@
-const ALLOWED_KINDS = new Set(["image", "video", "voice", "video-note", "file", "location", "contact", "poll"]);
+const ALLOWED_KINDS = new Set(["image", "video", "voice", "video-note", "file", "location", "contact", "poll", "checklist"]);
+const MAX_CHECKLIST_ITEMS = 30;
 const MAX_ATTACHMENTS = 10;
 
 const UPLOAD_URL_RE = /^\/uploads\/[a-z0-9]+_[a-f0-9]{16}(\.[a-z0-9]{1,12})?$/;
@@ -29,7 +30,6 @@ function sanitizeAttachments(attachments) {
       if (a.kind === "voice" || a.kind === "video-note") {
         const dur = Number(a.durationSec);
         if (Number.isFinite(dur) && dur >= 0 && dur < 24 * 3600) out.durationSec = dur;
-        if (typeof a.transcript === "string" && a.transcript.trim()) out.transcript = a.transcript.trim().slice(0, 4000);
       }
       if (a.kind === "location") {
         const lat = Number(a.meta?.lat);
@@ -60,6 +60,15 @@ function sanitizeAttachments(attachments) {
             : null;
         const multiple = correctIndex === null && a.meta?.multiple === true;
         out.meta = { options, voterIds, votes: voterIds.map((v) => v.length), correctIndex, multiple, closed: false };
+      } else if (a.kind === "checklist") {
+        // Чек-лист, как в Telegram: отметки ставит сервер, от клиента — только тексты.
+        const items = (Array.isArray(a.meta?.items) ? a.meta.items : [])
+          .map((it) => String(typeof it === "string" ? it : it?.text ?? "").trim().slice(0, 200))
+          .filter(Boolean)
+          .slice(0, MAX_CHECKLIST_ITEMS)
+          .map((text, i) => ({ id: i + 1, text }));
+        if (!items.length) return null;
+        out.meta = { items, othersCanAdd: a.meta?.othersCanAdd === true, othersCanMark: a.meta?.othersCanMark !== false };
       }
       return out;
     })
@@ -67,4 +76,4 @@ function sanitizeAttachments(attachments) {
   return cleaned.length ? cleaned : undefined;
 }
 
-module.exports = { sanitizeAttachments, isSafeUrl };
+module.exports = { sanitizeAttachments, isSafeUrl, MAX_CHECKLIST_ITEMS };

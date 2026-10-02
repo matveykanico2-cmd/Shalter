@@ -27,6 +27,8 @@ router.get(
 );
 
 async function canCall(callerId, targetId) {
+  const target = typeof targetId === "string" ? await getUser(targetId) : null;
+  if (!target || target.blockedUserIds?.includes(callerId)) return false;
   return allowsUser(targetId, "calls", callerId);
 }
 
@@ -142,6 +144,8 @@ router.post(
     if (!chat || !chat.memberIds.includes(req.uid)) {
       return res.status(404).json({ error: "not found" });
     }
+    // Иначе «звонок» в канал обзванивал бы всех подписчиков разом.
+    if (chat.type === "channel") return res.status(400).json({ error: "В канал позвонить нельзя" });
     let ringIds = null;
     if (chat.type === "group" && ringAll) {
       if (chat.memberIds.length > MAX_RING_ALL) {

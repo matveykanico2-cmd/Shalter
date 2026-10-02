@@ -38,6 +38,9 @@ function rowToChat(row) {
     warnings: row.warnings ? JSON.parse(row.warnings) : {},
     bannedIds: row.bannedIds ? JSON.parse(row.bannedIds) : [],
     rules: row.rules ?? undefined,
+    topicsEnabled: !!row.topicsEnabled || undefined,
+    welcomeText: row.welcomeText ?? undefined,
+    protectedBy: row.protectedBy ? JSON.parse(row.protectedBy) : [],
     points: row.points ?? 0,
     votes: row.votes ? JSON.parse(row.votes) : {},
     autoDeleteSeconds: row.autoDeleteSeconds ?? undefined,
@@ -157,7 +160,7 @@ const PATCHABLE_FIELDS = [
   "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage",
   "ownerId", "pinned", "muted", "archived", "createdAt", "linkedDiscussionChatId", "points",
   "autoDeleteSeconds", "isVerified", "inviteCode", "mutedUntil", "slowModeSeconds", "commentPriceStars",
-  "approveJoins", "signMessages", "rules", "anonymousAdmins",
+  "approveJoins", "signMessages", "rules", "anonymousAdmins", "topicsEnabled", "welcomeText",
 ];
 
 async function updateChat(id, patch) {
@@ -201,6 +204,10 @@ async function updateChat(id, patch) {
   }
   if ("warnings" in patch) {
     db.prepare("UPDATE chats SET warnings = ? WHERE id = ?").run(JSON.stringify(patch.warnings ?? {}), id);
+  }
+  if ("protectedBy" in patch) {
+    const list = Array.isArray(patch.protectedBy) && patch.protectedBy.length ? JSON.stringify(patch.protectedBy) : null;
+    db.prepare("UPDATE chats SET protectedBy = ? WHERE id = ?").run(list, id);
   }
   if ("bannedIds" in patch) {
     db.prepare("UPDATE chats SET bannedIds = ? WHERE id = ?").run(JSON.stringify(patch.bannedIds ?? []), id);

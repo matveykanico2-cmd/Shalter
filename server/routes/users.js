@@ -5,7 +5,7 @@ const { listUsersByIds, updateUser, getUser, setBlocked, findUserByUsername, fin
 const { publicUser, selfUser, publicUsers } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
 const { privacyAllows } = require("../lib/privacyRules");
-const { listContactsFor } = require("../data/contacts");
+const { listContactsFor, contactNote } = require("../data/contacts");
 const { countBotAudience } = require("../data/bots");
 const { listChats, listChatsForUser, getChat, findDmBetween } = require("../data/chats");
 const { isStaff } = require("../lib/chatPermissions");
@@ -15,6 +15,7 @@ const { PHONE_RE, normalizePhone, isValidBirthday } = require("../lib/validators
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 const { notifyProfileChanged } = require("../lib/notifyProfileChanged");
 const { businessStatus } = require("../lib/businessHours");
+const { isAdminPhone } = require("../config");
 
 const LINK_RE = /https?:\/\/\S+/;
 
@@ -101,7 +102,7 @@ router.get(
     if (!isSelf) {
       const { privacy } = await getSettings(req.params.id);
       const canSee = (key) => privacyAllows(privacy, key, req.uid, isContact);
-      if (!canSee("phone")) delete visible.phone;
+      if (canSee("phone")) visible.phone = user.phone;
       if (!canSee("lastSeen")) delete visible.lastSeen;
       if (!canSee("bio")) delete visible.bio;
       if (!canSee("birthday")) delete visible.birthday;
@@ -139,6 +140,7 @@ router.get(
       isContact,
       inContacts: !!myContact,
       contactName: myContact?.localName ?? null,
+      contactNote: contactNote(myContact),
       commonGroupsCount,
       pinnedChannels: await pinnedChannelsOf(req.params.id, req.uid),
     });
@@ -282,6 +284,12 @@ router.patch(
       }
       const existing = await findUserByPhone(normalized);
       if (existing && existing.id !== req.uid) return res.status(409).json({ error: "Этот номер уже используется другим аккаунтом" });
+      // Права админа привязаны к номеру, а номер не подтверждается — поэтому
+      // ни занять админский номер, ни освободить его сменой номера нельзя.
+      const me = await getUser(req.uid);
+      if (normalized !== me?.phone && (isAdminPhone(normalized) || isAdminPhone(me?.phone))) {
+        return res.status(403).json({ error: "Этот номер нельзя установить" });
+      }
       patch.phone = normalized;
     }
 
@@ -298,7 +306,7 @@ router.patch(
     }
 
     if (user) notifyProfileChanged(req.uid, user);
-    res.json({ user: user ? publicUser(user) : null });
+    res.json({ user: user ? selfUser(user) : null });
   })
 );
 

@@ -135,6 +135,7 @@ router.post(
     if (recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
     const recipient = recipientId ? await getUser(recipientId) : null;
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
+    if ((recipient.blockedUserIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Пользователь ограничил вам доступ" });
     if (gift.supply && remaining(gift) <= 0) return res.status(410).json({ error: soldOutError(gift) });
 
     const price = gift.priceStars;

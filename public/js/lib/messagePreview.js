@@ -5,6 +5,7 @@ const ATTACHMENT_LABEL = {
   voice: "🎤 Голосовое сообщение",
   "video-note": "⏺ Видео-кружок",
   poll: null,
+  checklist: null,
   location: "📍 Геолокация",
   contact: "👤 Контакт",
 };
@@ -20,6 +21,7 @@ export function messagePreview(m) {
   const text = ceText(m.text);
   if (att) {
     if (att.kind === "poll") return `📊 ${text || "Опрос"}`;
+    if (att.kind === "checklist") return `☑️ ${text || "Чек-лист"}`;
     const label = ATTACHMENT_LABEL[att.kind];
     if (label) return text ? `${label} · ${text}` : label;
     return text || att.name || "Вложение";

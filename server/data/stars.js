@@ -1,14 +1,5 @@
 const db = require("../db");
 
-const STAR_PACKS = [
-  { id: "stars_100", stars: 100, priceRub: 10 },
-  { id: "stars_50", stars: 50, priceRub: 100 },
-  { id: "stars_250", stars: 250, priceRub: 500 },
-  { id: "stars_500", stars: 500, priceRub: 1000 },
-  { id: "stars_1000", stars: 1000, priceRub: 2000 },
-  { id: "stars_2500", stars: 2500, priceRub: 5000 },
-];
-
 function balanceOf(userId) {
   const row = db.prepare("SELECT stars FROM users WHERE id = ?").get(userId);
   return row?.stars ?? 0;
@@ -38,4 +29,4 @@ function setMessagePrice(userId, stars) {
   db.prepare("UPDATE users SET messagePriceStars = ? WHERE id = ?").run(stars, userId);
 }
 
-module.exports = { balanceOf, addStars, spendStars, transferStars, setMessagePrice, STAR_PACKS };
+module.exports = { balanceOf, addStars, spendStars, transferStars, setMessagePrice };

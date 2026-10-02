@@ -12,22 +12,9 @@ function isAdminPhone(phone) {
 
 const PREMIUM_GRANT_DAYS = 30;
 
-const PREMIUM_PLANS = {
-  "1m": { days: 30, priceRub: 99, label: "1 месяц" },
-  "3m": { days: 90, priceRub: 249, label: "3 месяца" },
-  "6m": { days: 180, priceRub: 449, label: "6 месяцев" },
-  "12m": { days: 365, priceRub: 799, label: "12 месяцев" },
-};
-const DEFAULT_PREMIUM_PLAN = "1m";
+// Тарифы и цены — server/data/pricing.js (админ меняет их в Настройки → Цены).
 
 const BUSINESS_GRANT_DAYS = 30;
-const BUSINESS_PLANS = {
-  "1m": { days: 30, priceRub: 299, label: "1 месяц" },
-  "3m": { days: 90, priceRub: 799, label: "3 месяца" },
-  "6m": { days: 180, priceRub: 1499, label: "6 месяцев" },
-  "12m": { days: 365, priceRub: 2499, label: "12 месяцев" },
-};
-const DEFAULT_BUSINESS_PLAN = "1m";
 
 const DONATIONALERTS_CLIENT_ID = process.env.DONATIONALERTS_CLIENT_ID || "";
 const DONATIONALERTS_CLIENT_SECRET = process.env.DONATIONALERTS_CLIENT_SECRET || "";
@@ -46,21 +33,7 @@ const HUGO_AI_TIMEOUT_MS = Number(process.env.HUGO_AI_TIMEOUT_MS) || 25000;
 const OLLAMA_URL = (process.env.OLLAMA_URL || "").replace(/\/+$/, "");
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2";
 
-// Server-side voice message transcription (fallback when the browser couldn't).
-// Sends the recording's audio to an OpenAI-compatible endpoint that accepts
-// `input_audio`. Pollinations' audio models need a key (enter.pollinations.ai/keys),
-// so this stays off until VOICE_STT_KEY (or a keyless VOICE_STT_URL) is set.
-const VOICE_STT_KEY = process.env.VOICE_STT_KEY || "";
-const VOICE_STT_URL = process.env.VOICE_STT_URL || "https://gen.pollinations.ai/v1/chat/completions";
-const VOICE_STT_MODEL = process.env.VOICE_STT_MODEL || "google/gemini-2.5-flash-lite";
-const VOICE_STT_ENABLED =
-  !/^(0|off|false|no)$/i.test(process.env.VOICE_STT || "") && !!(VOICE_STT_KEY || process.env.VOICE_STT_URL);
-
 module.exports = {
-  VOICE_STT_ENABLED,
-  VOICE_STT_URL,
-  VOICE_STT_MODEL,
-  VOICE_STT_KEY,
   LANGUAGETOOL_URL,
   HUGO_AI_ENABLED,
   HUGO_AI_URL,
@@ -73,11 +46,7 @@ module.exports = {
   ADMIN_PHONES,
   isAdminPhone,
   PREMIUM_GRANT_DAYS,
-  PREMIUM_PLANS,
-  DEFAULT_PREMIUM_PLAN,
   BUSINESS_GRANT_DAYS,
-  BUSINESS_PLANS,
-  DEFAULT_BUSINESS_PLAN,
   DONATIONALERTS_CLIENT_ID,
   DONATIONALERTS_CLIENT_SECRET,
   DONATIONALERTS_REDIRECT_URI,

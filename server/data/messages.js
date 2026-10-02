@@ -26,6 +26,7 @@ function rowToMessage(row) {
     deletedForIds: JSON.parse(row.deletedForIds),
     mentionedUserIds: row.mentionedUserIds ? JSON.parse(row.mentionedUserIds) : [],
     threadRootId: row.threadRootId ?? undefined,
+    topicId: row.topicId ?? undefined,
     storyReply: row.storyReply ? JSON.parse(row.storyReply) : undefined,
     anchorForPostId: row.anchorForPostId ?? undefined,
     discussionAnchorId: row.discussionAnchorId ?? undefined,
@@ -98,9 +99,16 @@ async function listMessages(chatId, viewerId, clearedBefore) {
   return rows.filter((m) => !m.threadRootId);
 }
 
-function listMessagesPage(chatId, viewerId, clearedBefore, { limit = 60, before = null, beforeId = null } = {}) {
+// topic: undefined — все сообщения чата; null — тема «Общее» (без topicId);
+// строка — одна тема.
+function listMessagesPage(chatId, viewerId, clearedBefore, { limit = 60, before = null, beforeId = null, topic } = {}) {
   const params = { chatId, limit: limit + 1 };
   let sql = "SELECT * FROM messages WHERE chatId = @chatId AND threadRootId IS NULL";
+  if (topic === null) sql += " AND topicId IS NULL";
+  else if (topic !== undefined) {
+    sql += " AND topicId = @topic";
+    params.topic = topic;
+  }
   if (clearedBefore) {
     sql += " AND createdAt > @clearedBefore";
     params.clearedBefore = clearedBefore;
@@ -135,8 +143,8 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, customEmoji, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, storyReply, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous)
-     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @customEmoji, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @storyReply, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, customEmoji, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, topicId, storyReply, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous)
+     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @customEmoji, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @topicId, @storyReply, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous)`
   ).run({
     id: message.id,
     chatId: message.chatId,
@@ -161,6 +169,7 @@ async function addMessage(message) {
     deletedForIds: JSON.stringify(message.deletedForIds ?? []),
     mentionedUserIds: JSON.stringify(message.mentionedUserIds ?? []),
     threadRootId: message.threadRootId ?? null,
+    topicId: message.topicId ?? null,
     storyReply: message.storyReply ? JSON.stringify(message.storyReply) : null,
     anchorForPostId: message.anchorForPostId ?? null,
     discussionAnchorId: message.discussionAnchorId ?? null,
@@ -385,6 +394,40 @@ function votePoll(id, optionIndex, userId) {
   });
 }
 
+function toggleChecklistItem(id, itemId, userId) {
+  return mutate(id, (m) => ({
+    ...m,
+    attachments: m.attachments?.map((a) => {
+      if (a.kind !== "checklist") return a;
+      const items = (a.meta?.items ?? []).map((it) => {
+        if (it.id !== itemId) return it;
+        if (it.doneBy) {
+          const { doneBy, doneAt, ...rest } = it;
+          return rest;
+        }
+        return { ...it, doneBy: userId, doneAt: new Date().toISOString() };
+      });
+      return { ...a, meta: { ...a.meta, items } };
+    }),
+  }));
+}
+
+function addChecklistItems(id, texts, max) {
+  return mutate(id, (m) => ({
+    ...m,
+    attachments: m.attachments?.map((a) => {
+      if (a.kind !== "checklist") return a;
+      const items = [...(a.meta?.items ?? [])];
+      let nextId = Math.max(0, ...items.map((it) => it.id)) + 1;
+      for (const text of texts) {
+        if (items.length >= max) break;
+        items.push({ id: nextId++, text });
+      }
+      return { ...a, meta: { ...a.meta, items } };
+    }),
+  }));
+}
+
 function retractPollVote(id, userId) {
   return mutate(id, (m) => {
     const attachments = m.attachments?.map((a) => {
@@ -482,6 +525,8 @@ function topSenders(chatId, limit = 10) {
 }
 
 module.exports = {
+  toggleChecklistItem,
+  addChecklistItems,
   chatMessageStats,
   topSenders,
   attachmentBytesByKind,

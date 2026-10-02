@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { listContactsFor, addContact, renameContact, removeContact } = require("../data/contacts");
+const { listContactsFor, addContact, renameContact, removeContact, setContactNote, contactNote } = require("../data/contacts");
 const { listUsers, listUsersByIds, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { allowsUser } = require("../lib/privacyRules");
@@ -16,12 +16,17 @@ router.get(
     const contacts = await listContactsFor(req.uid);
     const users = await listUsersByIds(contacts.map((c) => c.userId));
     const byId = new Map(users.map((u) => [u.id, u]));
-    const resolved = contacts
-      .map((c) => {
-        const user = byId.get(c.userId);
-        return user ? { ...c, localName: c.localName ?? null, user: publicUser(user) } : null;
-      })
-      .filter((c) => c !== null);
+    const resolved = (
+      await Promise.all(
+        contacts.map(async (c) => {
+          const user = byId.get(c.userId);
+          if (!user) return null;
+          const visible = publicUser(user);
+          if (await allowsUser(user.id, "phone", req.uid)) visible.phone = user.phone;
+          return { ...c, localName: c.localName ?? null, note: contactNote(c), user: visible };
+        })
+      )
+    ).filter((c) => c !== null);
     res.json({ contacts: resolved });
   })
 );
@@ -52,12 +57,22 @@ router.post(
 );
 
 router.post(
+  "/note",
+  asyncRoute(async (req, res) => {
+    const { userId } = req.body ?? {};
+    const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 1000) : "";
+    if (!(await setContactNote(req.uid, userId, note || null))) return res.status(404).json({ error: "Сначала добавьте человека в контакты" });
+    res.json({ note: note || null });
+  })
+);
+
+router.post(
   "/rename",
   asyncRoute(async (req, res) => {
     const { userId, localName } = req.body ?? {};
     const contact = await renameContact(req.uid, userId, typeof localName === "string" ? localName.trim().slice(0, 80) : null);
     if (!contact) return res.status(404).json({ error: "Контакт не найден" });
-    res.json({ contact });
+    res.json({ contact: { ...contact, note: contactNote(contact) } });
   })
 );
 

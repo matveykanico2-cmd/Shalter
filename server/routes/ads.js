@@ -11,6 +11,7 @@ const { isSafeUrl } = require("../lib/sanitizeAttachments");
 const { getActiveDonationLink } = require("../lib/autoPayment");
 const { createPendingOrder } = require("../data/pendingOrders");
 const { notifyAdminOfReview } = require("../lib/adReview");
+const { getPricing } = require("../data/pricing");
 
 const AD_ATTACHMENT_KINDS = new Set(["image", "video", "file"]);
 const MAX_AD_ATTACHMENTS = 6;
@@ -28,8 +29,6 @@ function sanitizeAdAttachments(list) {
   return list.slice(0, MAX_AD_ATTACHMENTS).map(sanitizeAdAttachment).filter(Boolean);
 }
 
-const ADS_PRICE_RUB = 20;
-const ADS_GRANT_DAYS = 30;
 const AD_TEXT_MAX = 200;
 
 const router = express.Router();
@@ -39,6 +38,7 @@ router.get(
   "/me",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
+    const { priceRub: ADS_PRICE_RUB, days: ADS_GRANT_DAYS } = getPricing().ads;
     res.json({
       isAdsActive: !!me.isAdsActive,
       adsUntil: me.adsUntil,
@@ -47,6 +47,7 @@ router.get(
       adUrl: me.adUrl,
       adAttachments: me.adAttachments,
       priceRub: ADS_PRICE_RUB,
+      days: ADS_GRANT_DAYS,
     });
   })
 );
@@ -56,6 +57,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const admin = await findUserByPhone(ADMIN_PHONE);
     if (!admin) return res.status(503).json({ error: "Администрация Shalter ещё не зарегистрирована в приложении" });
+    const { priceRub: ADS_PRICE_RUB, days: ADS_GRANT_DAYS } = getPricing().ads;
 
     if (admin.id === req.uid) {
       await grantAdsDays(req.uid, ADS_GRANT_DAYS);
@@ -70,7 +72,7 @@ router.post(
 
     const donation = getActiveDonationLink();
     if (donation) {
-      const order = await createPendingOrder({ userId: req.uid, kind: "ads", amountRub: ADS_PRICE_RUB });
+      const order = await createPendingOrder({ userId: req.uid, kind: "ads", amountRub: ADS_PRICE_RUB, meta: { days: ADS_GRANT_DAYS } });
       return res.json({ code: order.code, donationUrl: donation.donationUrl, provider: donation.provider, amountRub: ADS_PRICE_RUB });
     }
 
@@ -114,7 +116,7 @@ router.post(
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
 
     const grant = active !== false;
-    const dayCount = Number(days) > 0 ? Math.floor(Number(days)) : ADS_GRANT_DAYS;
+    const dayCount = Number(days) > 0 ? Math.floor(Number(days)) : getPricing().ads.days;
     if (grant) await grantAdsDays(userId, forever ? null : dayCount);
     else await revokeAds(userId);
 

@@ -1,6 +1,22 @@
 import { el } from "../lib/dom.js";
 
-export function openScheduleSendDialog(onSchedule) {
+export const REPEAT_OPTIONS = [
+  ["", "Не повторять"],
+  ["day", "Каждый день"],
+  ["week", "Каждую неделю"],
+  ["2weeks", "Каждые 2 недели"],
+  ["month", "Каждый месяц"],
+  ["3months", "Каждые 3 месяца"],
+  ["6months", "Каждые 6 месяцев"],
+  ["year", "Каждый год"],
+];
+
+export function repeatLabel(repeat) {
+  return REPEAT_OPTIONS.find(([id]) => id === repeat)?.[1] ?? "";
+}
+
+// onSchedule(iso, repeat) — repeat: null или один из REPEAT_OPTIONS.
+export function openScheduleSendDialog(onSchedule, { allowRepeat = true } = {}) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
 
   function toLocalInputValue(date) {
@@ -16,10 +32,16 @@ export function openScheduleSendDialog(onSchedule) {
     min: toLocalInputValue(new Date()),
   });
   const errorSlot = el("p", { class: "login-error" });
+  const repeatSelect = el(
+    "select",
+    { class: "settings-input", "aria-label": "Повтор" },
+    REPEAT_OPTIONS.map(([id, label]) => el("option", { value: id }, label))
+  );
 
   const dialog = el("div", { class: "modal-dialog" }, [
     el("h2", { class: "modal-title" }, "Отправить позже"),
     input,
+    allowRepeat ? el("label", { class: "schedule-repeat" }, [el("span", {}, "Повтор"), repeatSelect]) : null,
     errorSlot,
     el(
       "button",
@@ -36,7 +58,7 @@ export function openScheduleSendDialog(onSchedule) {
             return;
           }
           close();
-          onSchedule(iso);
+          onSchedule(iso, allowRepeat && repeatSelect.value ? repeatSelect.value : null);
         },
       },
       "Запланировать"

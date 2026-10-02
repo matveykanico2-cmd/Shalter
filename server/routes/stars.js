@@ -5,16 +5,15 @@ const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { getUser, findUserByPhone } = require("../data/users");
 const { getChat, listChatsForUser } = require("../data/chats");
 const { getMessage, deleteMessage, setBoost } = require("../data/messages");
-const { balanceOf, addStars, spendStars, setMessagePrice, transferStars, STAR_PACKS } = require("../data/stars");
+const { balanceOf, addStars, spendStars, setMessagePrice, transferStars } = require("../data/stars");
+const { getPricing, getStarPack } = require("../data/pricing");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { broadcastToUsers } = require("../ws");
 const { publicUser } = require("../data/sanitize");
 const { getActiveDonationLink } = require("../lib/autoPayment");
 const { createPendingOrder } = require("../data/pendingOrders");
 
-const BOOST_COST = 10;
 const BOOST_MINUTES = 60;
-const DELETE_COST = 5;
 const MAX_MESSAGE_PRICE = 90000;
 
 const router = express.Router();
@@ -24,12 +23,13 @@ router.get(
   "/",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
+    const pricing = getPricing();
     res.json({
       balance: balanceOf(req.uid),
       userId: req.uid,
       messagePriceStars: me?.messagePriceStars ?? 0,
-      packs: STAR_PACKS,
-      costs: { boost: BOOST_COST, boostMinutes: BOOST_MINUTES, delete: DELETE_COST, maxMessagePrice: MAX_MESSAGE_PRICE },
+      packs: pricing.starPacks,
+      costs: { boost: pricing.starCosts.boost, boostMinutes: BOOST_MINUTES, delete: pricing.starCosts.delete, maxMessagePrice: MAX_MESSAGE_PRICE },
     });
   })
 );
@@ -37,7 +37,7 @@ router.get(
 router.post(
   "/request",
   asyncRoute(async (req, res) => {
-    const pack = STAR_PACKS.find((p) => p.id === req.body?.packId);
+    const pack = getStarPack(req.body?.packId);
     if (!pack) return res.status(404).json({ error: "Такого набора нет" });
 
     const admin = await findUserByPhone(ADMIN_PHONE);
@@ -49,7 +49,7 @@ router.post(
 
     const donation = getActiveDonationLink();
     if (donation) {
-      const order = await createPendingOrder({ userId: req.uid, kind: "stars", amountRub: pack.priceRub });
+      const order = await createPendingOrder({ userId: req.uid, kind: "stars", amountRub: pack.priceRub, meta: { stars: pack.stars } });
       return res.json({ code: order.code, donationUrl: donation.donationUrl, provider: donation.provider, amountRub: pack.priceRub });
     }
 
@@ -119,6 +119,7 @@ router.post(
     const chat = await getChat(message.chatId);
     if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
 
+    const BOOST_COST = getPricing().starCosts.boost;
     if (!spendStars(req.uid, BOOST_COST)) {
       return res.status(402).json({ error: `Не хватает звёзд — нужно ${BOOST_COST}`, balance: balanceOf(req.uid) });
     }
@@ -143,6 +144,7 @@ router.post(
       return res.status(400).json({ error: "Своё сообщение удаляется бесплатно" });
     }
 
+    const DELETE_COST = getPricing().starCosts.delete;
     if (!spendStars(req.uid, DELETE_COST)) {
       return res.status(402).json({ error: `Не хватает звёзд — нужно ${DELETE_COST}`, balance: balanceOf(req.uid) });
     }
@@ -165,6 +167,7 @@ router.post(
     const target = await getUser(toId);
     if (!target) return res.status(404).json({ error: "Получатель не найден" });
     if (target.isBot) return res.status(400).json({ error: "Боту звёзды не переведёшь" });
+    if ((target.blockedUserIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Пользователь заблокировал вас" });
 
     if (!transferStars(req.uid, toId, amount)) {
       return res.status(402).json({ error: `Не хватает звёзд: на балансе ${balanceOf(req.uid)} ⭐`, balance: balanceOf(req.uid) });
@@ -183,5 +186,4 @@ router.post(
 );
 
 module.exports = router;
-module.exports.STAR_PACKS = STAR_PACKS;
 module.exports.MAX_MESSAGE_PRICE = MAX_MESSAGE_PRICE;

@@ -13,20 +13,41 @@ export function previewText(text) {
 }
 
 export function formatText(text, members, emoji) {
-  const lines = text.split("\n");
-  return el(
-    "span",
-    {},
-    lines.map((line, i) => {
+  // ```блок кода``` — может занимать несколько строк, внутри разметка не работает.
+  const parts = text.split(/(```[\s\S]*?```)/g);
+  const out = [];
+  for (const part of parts) {
+    if (!part) continue;
+    if (part.length >= 6 && part.startsWith("```") && part.endsWith("```")) {
+      out.push(codeBlock(part.slice(3, -3).replace(/^[a-z0-9+#-]*\n/i, "").replace(/\n$/, "")));
+      continue;
+    }
+    for (const line of part.replace(/^\n|\n$/g, "").split("\n")) {
       const isQuote = line.startsWith("> ");
       const content = renderInline(isQuote ? line.slice(2) : line, members, emoji);
-      return el("span", { class: "block" }, isQuote ? el("span", { class: "quote-line" }, content) : content);
-    })
-  );
+      out.push(el("span", { class: "block" }, isQuote ? el("span", { class: "quote-line" }, content) : content));
+    }
+  }
+  return el("span", {}, out);
+}
+
+function codeBlock(code) {
+  const copy = el("button", {
+    class: "code-block-copy",
+    type: "button",
+    onclick: (e) => {
+      e.stopPropagation();
+      navigator.clipboard?.writeText(code).then(() => {
+        copy.textContent = "Скопировано";
+        setTimeout(() => (copy.textContent = "Копировать"), 1500);
+      }, () => {});
+    },
+  }, "Копировать");
+  return el("span", { class: "code-block" }, [copy, el("pre", {}, el("code", {}, code))]);
 }
 
 function renderInline(text, members, emoji) {
-  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|~~[^~]+~~|\|\|[^|]+\|\||\[ce:\d+\]|@\w+|https?:\/\/\S+)/g);
+  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|~~[^~]+~~|__[^_]+__|\|\|[^|]+\|\||\[ce:\d+\]|@\w+|#[\p{L}\p{N}_]{2,64}|https?:\/\/\S+)/gu);
   return tokens.filter(Boolean).map((tok) => {
     const ce = /^\[ce:(\d+)\]$/.exec(tok);
     if (ce) {
@@ -37,6 +58,19 @@ function renderInline(text, members, emoji) {
     if (tok.startsWith("**") && tok.endsWith("**")) return el("b", {}, tok.slice(2, -2));
     if (tok.startsWith("`") && tok.endsWith("`")) return el("code", { class: "inline-code" }, tok.slice(1, -1));
     if (tok.startsWith("~~") && tok.endsWith("~~")) return el("s", { class: "strike" }, tok.slice(2, -2));
+    if (tok.startsWith("__") && tok.endsWith("__") && tok.length > 4) return el("u", {}, tok.slice(2, -2));
+    if (tok.startsWith("#") && tok.length > 2)
+      return el(
+        "button",
+        {
+          class: "mention hashtag-link",
+          onclick: (e) => {
+            e.stopPropagation();
+            window.dispatchEvent(new CustomEvent("shalter:hashtag", { detail: tok }));
+          },
+        },
+        tok
+      );
     if (tok.startsWith("||") && tok.endsWith("||")) return spoiler(tok.slice(2, -2));
     if (tok.startsWith("@")) {
       const handle = tok.slice(1).toLowerCase();

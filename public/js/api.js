@@ -220,6 +220,7 @@ export const api = {
     if (opts.limit) q.set("limit", String(opts.limit));
     if (opts.before) q.set("before", opts.before);
     if (opts.beforeId) q.set("beforeId", opts.beforeId);
+    if (opts.topic) q.set("topic", opts.topic);
     const qs = q.toString();
     return req(`/api/chats/${chatId}/messages${qs ? `?${qs}` : ""}`);
   },
@@ -229,8 +230,6 @@ export const api = {
     req(`/api/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify({ text, ...opts }) }),
   editMessage: (chatId, messageId, text) =>
     req(`/api/chats/${chatId}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ text }) }),
-  transcribeVoice: (chatId, messageId, index) =>
-    req(`/api/chats/${chatId}/messages/${messageId}/transcribe`, { method: "POST", body: JSON.stringify({ index }) }),
   updateLiveLocation: (chatId, messageId, lat, lng) =>
     req(`/api/chats/${chatId}/messages/${messageId}/location`, { method: "POST", body: JSON.stringify({ lat, lng }) }),
   deleteMessage: (chatId, messageId, forEveryone) =>
@@ -256,6 +255,25 @@ export const api = {
     req(`/api/chats/${chatId}/typing`, { method: "POST", body: JSON.stringify({ action }) }),
   getTyping: (chatId) => req(`/api/chats/${chatId}/typing`),
 
+  setChatProtected: (chatId, enabled) =>
+    req(`/api/chats/${chatId}/protect`, { method: "POST", body: JSON.stringify({ enabled }) }),
+  setWelcomeText: (chatId, text) => req(`/api/chats/${chatId}/welcome`, { method: "POST", body: JSON.stringify({ text }) }),
+  getAdminLog: (chatId, beforeId) => req(`/api/chats/${chatId}/admin-log${beforeId ? `?beforeId=${beforeId}` : ""}`),
+  updateChecklist: (chatId, messageId, body) =>
+    req(`/api/chats/${chatId}/messages/${messageId}/checklist`, { method: "POST", body: JSON.stringify(body) }),
+  passkeyRegisterStart: () => req("/api/auth/passkey/register/start", { method: "POST" }),
+  passkeyRegisterFinish: (body) => req("/api/auth/passkey/register/finish", { method: "POST", body: JSON.stringify(body) }),
+  passkeyLoginStart: () => req("/api/auth/passkey/login/start", { method: "POST" }),
+  passkeyLoginFinish: (body) => req("/api/auth/passkey/login/finish", { method: "POST", body: JSON.stringify(body) }),
+  listPasskeys: () => req("/api/auth/passkeys"),
+  deletePasskey: (id) => req(`/api/auth/passkeys/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  listTopics: (chatId) => req(`/api/chats/${chatId}/topics`),
+  setTopicsEnabled: (chatId, enabled) =>
+    req(`/api/chats/${chatId}/topics/enabled`, { method: "POST", body: JSON.stringify({ enabled }) }),
+  createTopic: (chatId, data) => req(`/api/chats/${chatId}/topics`, { method: "POST", body: JSON.stringify(data) }),
+  updateTopic: (chatId, topicId, patch) =>
+    req(`/api/chats/${chatId}/topics/${topicId}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteTopic: (chatId, topicId) => req(`/api/chats/${chatId}/topics/${topicId}`, { method: "DELETE" }),
   listScheduled: (chatId) => req(`/api/chats/${chatId}/messages/scheduled`),
   scheduleMessage: (chatId, opts) =>
     req(`/api/chats/${chatId}/messages/scheduled`, { method: "POST", body: JSON.stringify(opts) }),
@@ -279,6 +297,7 @@ export const api = {
 
   listContacts: () => req("/api/contacts"),
   addContact: (userId, localName) => req("/api/contacts", { method: "POST", body: JSON.stringify({ userId, localName }) }),
+  setContactNote: (userId, note) => req("/api/contacts/note", { method: "POST", body: JSON.stringify({ userId, note }) }),
   renameContact: (userId, localName) => req("/api/contacts/rename", { method: "POST", body: JSON.stringify({ userId, localName }) }),
   findChatByUsername: (username) => req(`/api/chats/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
   findUserByUsername: (username) => req(`/api/users/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
@@ -476,6 +495,9 @@ export const api = {
     }),
   adminMailStatus: () => req("/api/admin/mail-status"),
   adminServerStats: () => req("/api/admin/server"),
+  adminGetPricing: () => req("/api/admin/pricing"),
+  adminUpdatePricing: (patch) => req("/api/admin/pricing", { method: "PUT", body: JSON.stringify(patch) }),
+  adminResetPricing: () => req("/api/admin/pricing", { method: "DELETE" }),
   adminSetSafetyLabel: (userId, label) =>
     req(`/api/admin/users/${userId}/label`, { method: "POST", body: JSON.stringify({ label }) }),
 };

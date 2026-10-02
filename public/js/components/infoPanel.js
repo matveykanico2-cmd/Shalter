@@ -101,14 +101,29 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
 
   async function editTitle(member) {
     const current = chat.memberTitles?.[member.id] ?? "";
-    const next = prompt(`Подпись для ${member.name} (видна всем). Пусто — вернуть обычную роль.`, current);
+    const self = member.id === meId;
+    const next = prompt(self ? "Ваш тег в группе (виден всем, до 24 символов). Пусто — убрать." : `Тег для ${member.name} (виден всем, до 24 символов). Пусто — вернуть обычную роль.`, current);
     if (next === null) return;
     try {
       const { chat: updated } = await api.setMemberTitle(chat.id, member.id, next);
       onChatUpdated?.(updated);
     } catch (err) {
-      alert(err.message || "Не удалось изменить подпись");
+      alert(err.message || "Не удалось изменить тег");
     }
+  }
+
+  function transferItem(member) {
+    return {
+      icon: "Star",
+      label: "Передать права владельца",
+      danger: true,
+      onClick: () => {
+        const kind = chat.type === "channel" ? "канала" : "группы";
+        if (confirm(`Передать ${member.name} права владельца ${kind}? Вы останетесь администратором, но вернуть права сможет только новый владелец.`)) {
+          onMemberAction(member.id, "transfer");
+        }
+      },
+    };
   }
 
   function openMemberMenu(e, member) {
@@ -121,7 +136,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
     if (isOwner) {
       const items = [];
       if (iAmOwner) {
-        items.push({ icon: "Edit", label: "Изменить подпись", onClick: () => editTitle(member) });
+        items.push({ icon: "Edit", label: "Изменить тег", onClick: () => editTitle(member) });
         const ownerCount = new Set([...(chat.ownerIds ?? []), chat.ownerId].filter(Boolean)).size;
         if (ownerCount > 1 && member.id !== meId) {
           items.push({
@@ -131,6 +146,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             onClick: () => onMemberAction(member.id, "unowner"),
           });
         }
+        if (member.id !== meId && !member.isBot) items.push(transferItem(member));
       }
       openDropdownMenu({ x: e.clientX, y: e.clientY }, items.length ? items : [{ icon: "Star", label: "Владелец чата", onClick: () => {} }]);
       return;
@@ -159,7 +175,10 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
           }
         },
       });
-      items.push({ icon: "Edit", label: "Изменить подпись", onClick: () => editTitle(member) });
+      items.push({ icon: "Edit", label: "Изменить тег", onClick: () => editTitle(member) });
+      if (!member.isBot) items.push(transferItem(member));
+    } else if (!isAdmin) {
+      items.push({ icon: "Edit", label: "Изменить тег", onClick: () => editTitle(member) });
     }
     if (isRestricted) {
       items.push({ icon: "Check", label: "Разрешить писать", onClick: () => onRestrictMember(member.id, null) });
@@ -395,7 +414,9 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
                 ]),
                 canManage
                   ? el("button", { class: "icon-btn", html: iconSvg("More", 15), onclick: (e) => openMemberMenu(e, m) })
-                  : null,
+                  : m.id === meId && chat.type === "group" && (isOwnerOrAdmin || chat.permissions?.setOwnTag !== false)
+                    ? el("button", { class: "icon-btn", title: "Мой тег", html: iconSvg("Edit", 14), onclick: () => editTitle(m) })
+                    : null,
               ]);
             }),
           ])

@@ -16,11 +16,13 @@ const { hasAdminSection } = require("../lib/adminAccess");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { publicUser } = require("../data/sanitize");
+const { isSafeUrl } = require("../lib/sanitizeAttachments");
 const { getBotByUserId } = require("../data/bots");
 const joinRequests = require("../data/joinRequests");
 const { markTyping, clearTyping, getTyping, normalizeAction } = require("../data/typing");
 const { broadcastToUsers } = require("../ws");
 const messagesRouter = require("./messages");
+const { logAdminAction, listAdminLog } = require("../data/adminLog");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -106,7 +108,7 @@ router.post(
     const members = new Set([req.uid, ...(await invitableIds(memberIds, req.uid))]);
     const admins = new Set([req.uid, ...(Array.isArray(adminIds) ? adminIds.filter((id) => members.has(id)) : [])]);
     const discussion = await createChat({
-      id: `c_${Date.now()}_d`,
+      id: genId("c"),
       type: "group",
       title: `${title.trim()} · Обсуждение`,
       avatarColor: "#5C6473",
@@ -193,6 +195,20 @@ async function serviceNote(chat, actorId, build) {
   return sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, text, { type: "system" });
 }
 
+// Приветствие новому участнику группы, если админы его задали. {name} —
+// имя вступившего.
+async function sendWelcome(chat, userId) {
+  if (chat.type !== "group" || !chat.welcomeText) return;
+  try {
+    const user = await getUser(userId);
+    if (!user || user.isBot) return;
+    const text = chat.welcomeText.replaceAll("{name}", user.name ?? "");
+    await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, `👋 ${text}`, { type: "system" });
+  } catch (err) {
+    console.error("welcome message failed:", err);
+  }
+}
+
 function isOwner(chat, userId) {
   return chat?.ownerId === userId || (chat?.ownerIds ?? []).includes(userId);
 }
@@ -253,7 +269,27 @@ router.patch(
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    const patch = req.body ?? {};
+    // Только эти поля можно менять через этот маршрут. Раньше тело запроса
+    // целиком уходило в updateChat — и любой участник мог вписать себя в
+    // ownerIds/adminIds, поменять memberIds, снять баны или права.
+    const body = req.body ?? {};
+    const patch = {};
+    if (typeof body.title === "string") patch.title = body.title.trim().slice(0, 128);
+    if ("title" in patch && !patch.title) return res.status(400).json({ error: "Название не может быть пустым" });
+    if (typeof body.description === "string") patch.description = body.description.trim().slice(0, 500) || null;
+    if ("avatarImage" in body) {
+      if (body.avatarImage && !(typeof body.avatarImage === "string" && isSafeUrl(body.avatarImage))) {
+        return res.status(400).json({ error: "Некорректное изображение" });
+      }
+      patch.avatarImage = body.avatarImage || null;
+    }
+    if (typeof body.avatarColor === "string") patch.avatarColor = body.avatarColor.slice(0, 32);
+    if ("autoDeleteSeconds" in body) {
+      const sec = Number(body.autoDeleteSeconds) || 0;
+      if (!Number.isInteger(sec) || sec < 0 || sec > 366 * 86400) return res.status(400).json({ error: "Некорректный срок автоудаления" });
+      patch.autoDeleteSeconds = sec || null;
+    }
+    for (const k of ["pinned", "archived", "muted"]) if (k in body) patch[k] = !!body[k];
 
     if ("avatarColor" in patch && !colorUnlocked(chat, patch.avatarColor)) {
       return res.status(403).json({ error: lockedColorError(patch.avatarColor) });
@@ -298,6 +334,11 @@ router.patch(
 
     const updated = await updateChat(req.params.id, patch);
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    if (chat.type !== "dm") {
+      for (const k of ["title", "description", "avatarImage", "autoDeleteSeconds"]) {
+        if (k in patch && patch[k] !== chat[k]) logAdminAction(chat.id, req.uid, `chat_${k}`, { details: k === "avatarImage" ? null : { value: patch[k] } });
+      }
+    }
     if (chat.type === "group" || chat.type === "channel") {
       const where = chat.type === "channel" ? "канала" : "группы";
       if (typeof patch.title === "string" && patch.title.trim() && patch.title.trim() !== chat.title) {
@@ -378,6 +419,7 @@ router.post(
       broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
       const joiner = await getUser(req.uid);
       await sendMessageAndBroadcast(updated, SYSTEM_BOT_ID, `${joiner?.name ?? "Кто-то"} вступил(а) в группу`, { type: "system" });
+      await sendWelcome(updated, req.uid);
     }
     res.json({ chat: updated });
   })
@@ -448,9 +490,12 @@ router.post(
       return res.json({ ok: true, approved: false });
     }
 
-    const updated = await updateChat(chat.id, { memberIds: [...chat.memberIds, req.params.userId] });
+    if ((chat.bannedIds ?? []).includes(req.params.userId)) return res.status(409).json({ error: "Пользователь заблокирован в этом чате" });
+    const updated = await updateChat(chat.id, { memberIds: [...new Set([...chat.memberIds, req.params.userId])] });
+    logAdminAction(chat.id, req.uid, "join_approve", { targetId: req.params.userId });
     broadcastToUsers([req.params.userId], { type: "chat:added", chat: updated });
     broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+    await sendWelcome(updated, req.params.userId);
     res.json({ ok: true, approved: true, chat: updated });
   })
 );
@@ -468,6 +513,7 @@ router.post(
     if ("anonymousAdmins" in (req.body ?? {}) && chat.type === "group") patch.anonymousAdmins = !!req.body.anonymousAdmins;
     if (!Object.keys(patch).length) return res.status(400).json({ error: "Нечего менять" });
     const updated = await updateChat(chat.id, patch);
+    logAdminAction(chat.id, req.uid, "settings", { details: patch });
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     res.json({ chat: updated });
   })
@@ -490,6 +536,7 @@ router.post(
     if (chat.type !== "group") return res.status(400).json({ error: "Права участников есть только у групп" });
     if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
     const updated = await updateChat(chat.id, { permissions: sanitizePermissions(req.body?.permissions) });
+    logAdminAction(chat.id, req.uid, "permissions");
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     res.json({ chat: updated, permissions: permissionsOf(updated) });
   })
@@ -542,7 +589,7 @@ router.post(
 
     if (action === "create") {
       const discussion = await createChat({
-        id: `c_${Date.now()}_d`,
+        id: genId("c"),
         type: "group",
         title: `${chat.title} · Обсуждение`,
         avatarColor: "#5C6473",
@@ -599,6 +646,7 @@ router.post(
     if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
     const seconds = Math.max(0, Math.min(3600, Math.trunc(Number(req.body?.seconds) || 0)));
     const updated = await updateChat(chat.id, { slowModeSeconds: seconds || null });
+    logAdminAction(chat.id, req.uid, "slow_mode", { details: { seconds } });
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     res.json({ chat: updated, slowModeSeconds: updated.slowModeSeconds ?? 0 });
   })
@@ -691,6 +739,7 @@ router.post(
       await sendMessageAndBroadcast(updated, SYSTEM_BOT_ID, `${joiner?.name ?? "Кто-то"} вступил(а) в группу по ссылке-приглашению`, {
         type: "system",
       });
+      await sendWelcome(updated, req.uid);
     }
     res.json({ chat: updated });
   })
@@ -819,7 +868,8 @@ router.post(
       return res.json({ ok: true, deleted: true });
     }
 
-    if (ownerIds.length === 0) ownerIds = [memberIds[0]];
+    // Владельцем становится админ, а не первый попавшийся подписчик.
+    if (ownerIds.length === 0) ownerIds = [(adminIds ?? []).find((m) => memberIds.includes(m)) ?? memberIds[0]];
 
     const afterLeave = await updateChat(req.params.id, {
       memberIds,
@@ -847,12 +897,14 @@ router.post(
     }
 
     const { userId, role } = req.body ?? {};
+    const log = () => logAdminAction(chat.id, req.uid, `member_${role}`, { targetId: userId });
     if (!isOwnerOrAdmin && !["add", "kick", "ban", "unban"].includes(role)) {
       return res.status(403).json({ error: "Модератор может только добавлять и удалять участников" });
     }
 
     if (role === "unban") {
       const updated = await updateChat(req.params.id, { bannedIds: (chat.bannedIds ?? []).filter((m) => m !== userId) });
+      log();
       return res.json({ chat: updated });
     }
 
@@ -881,7 +933,9 @@ router.post(
         await sendMessageAndBroadcast(updated, SYSTEM_BOT_ID, user.isBot ? `${actor?.name ?? "Кто-то"} добавил(а) бота ${user.name}` : `${actor?.name ?? "Кто-то"} добавил(а) в группу ${user.name}`, {
           type: "system",
         });
+        await sendWelcome(updated, userId);
       }
+      log();
       return res.json({ chat: updated });
     }
 
@@ -902,8 +956,32 @@ router.post(
 
       const admins = new Set(chat.adminIds ?? []);
       if (role === "owner") admins.add(userId);
-      const updated = await updateChat(req.params.id, { ownerIds: [...owners], adminIds: [...admins] });
+      // Снимаемый мог быть основным владельцем (chat.ownerId) — иначе isOwner()
+      // продолжал бы его пускать.
+      const ownerId = owners.has(chat.ownerId) ? chat.ownerId : [...owners][0];
+      const updated = await updateChat(req.params.id, { ownerId, ownerIds: [...owners], adminIds: [...admins] });
       broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+      log();
+      return res.json({ chat: updated });
+    }
+
+    // Передача владения, как в Telegram: новый владелец — единственный,
+    // прежний остаётся администратором.
+    if (role === "transfer") {
+      if (!isOwner(chat, req.uid)) return res.status(403).json({ error: "Передать чат может только владелец" });
+      if (userId === req.uid) return res.status(400).json({ error: "Вы уже владелец" });
+      if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "Пользователь не в чате" });
+      const target = await getUser(userId);
+      if (!target) return res.status(404).json({ error: "Пользователь не найден" });
+      if (target.isBot) return res.status(400).json({ error: "Бота нельзя сделать владельцем" });
+      const admins = new Set(chat.adminIds ?? []);
+      admins.add(userId);
+      admins.add(req.uid);
+      const updated = await updateChat(req.params.id, { ownerId: userId, ownerIds: [userId], adminIds: [...admins] });
+      broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+      const actor = await getUser(req.uid);
+      await sendMessageAndBroadcast(updated, SYSTEM_BOT_ID, `${actor?.name ?? "Кто-то"} передал(а) права владельца: ${target.name}`, { type: "system" });
+      log();
       return res.json({ chat: updated });
     }
 
@@ -920,6 +998,7 @@ router.post(
       else mods.delete(userId);
       const updated = await updateChat(req.params.id, { moderatorIds: [...mods] });
       broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+      log();
       return res.json({ chat: updated });
     }
 
@@ -945,6 +1024,7 @@ router.post(
           type: "system",
         });
       }
+      log();
       return res.json({ chat: updated });
     }
     if (role === "promote") {
@@ -953,6 +1033,7 @@ router.post(
       admins.add(userId);
       const updated = await updateChat(req.params.id, { adminIds: [...admins] });
       broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+      log();
       return res.json({ chat: updated });
     }
     if (role === "demote") {
@@ -963,6 +1044,7 @@ router.post(
         adminIds: (chat.adminIds ?? []).filter((m) => m !== userId),
       });
       broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+      log();
       return res.json({ chat: updated });
     }
     res.status(400).json({ error: "unknown role" });
@@ -974,10 +1056,17 @@ router.post(
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    if (!isOwner(chat, req.uid)) return res.status(403).json({ error: "Менять подписи может только владелец" });
-
     const { userId, title } = req.body ?? {};
     if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "Пользователь не в чате" });
+    // Теги участников, как в Telegram: владелец ставит кому угодно, админ — всем,
+    // кроме владельцев и других админов, участник — себе, если группа разрешает.
+    const self = userId === req.uid;
+    const allowed = isOwner(chat, req.uid)
+      ? true
+      : self
+        ? isOwnerOrAdminOf(chat, req.uid) || can(chat, req.uid, "setOwnTag")
+        : isOwnerOrAdminOf(chat, req.uid) && !isOwnerOrAdminOf(chat, userId);
+    if (!allowed) return res.status(403).json({ error: "Недостаточно прав, чтобы менять этот тег" });
 
     const titles = { ...(chat.memberTitles ?? {}) };
     const clean = String(title ?? "").trim().slice(0, 24);
@@ -985,6 +1074,7 @@ router.post(
     else delete titles[userId];
 
     const updated = await updateChat(req.params.id, { memberTitles: titles });
+    if (!self) logAdminAction(chat.id, req.uid, "member_tag", { targetId: userId, details: { value: clean || null } });
     broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
     res.json({ chat: updated });
   })
@@ -1009,6 +1099,7 @@ router.post(
     else delete restrictions[userId];
 
     const updated = await updateChat(req.params.id, { restrictions });
+    logAdminAction(chat.id, req.uid, until ? "member_restrict" : "member_unrestrict", { targetId: userId, details: until ? { until } : null });
     res.json({ chat: updated });
   })
 );
@@ -1065,6 +1156,71 @@ router.post(
   })
 );
 
+router.post(
+  "/:id/welcome",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (chat.type !== "group") return res.status(400).json({ error: "Приветствие есть только у групп" });
+    if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
+    const text = String(req.body?.text ?? "").trim().slice(0, 1000);
+    const updated = await updateChat(chat.id, { welcomeText: text || null });
+    logAdminAction(chat.id, req.uid, "welcome", { details: { value: text || null } });
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    res.json({ chat: updated, welcomeText: updated.welcomeText ?? "" });
+  })
+);
+
+// Запрет пересылки и сохранения в личной переписке: включает любой из двоих
+// (с Premium), действует на обоих, снять может только тот, кто включил.
+router.post(
+  "/:id/protect",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (chat.type !== "dm") return res.status(400).json({ error: "Только для личных чатов" });
+    const on = !!req.body?.enabled;
+    const list = new Set(chat.protectedBy ?? []);
+    if (on) {
+      const me = await getUser(req.uid);
+      if (!me?.isPremium) return res.status(402).json({ error: "Запрет пересылки доступен с Premium", premiumHelps: true });
+      list.add(req.uid);
+    } else {
+      list.delete(req.uid);
+    }
+    const updated = await updateChat(chat.id, { protectedBy: [...list] });
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: { id: updated.id, protectedBy: updated.protectedBy } });
+    if (on !== (chat.protectedBy ?? []).includes(req.uid)) {
+      const me = await getUser(req.uid);
+      await sendMessageAndBroadcast(
+        updated,
+        SYSTEM_BOT_ID,
+        on ? `${me?.name ?? "Собеседник"} запретил(а) пересылку и сохранение в этом чате` : `${me?.name ?? "Собеседник"} снова разрешил(а) пересылку`,
+        { type: "system" }
+      ).catch(() => {});
+    }
+    res.json({ chat: updated, protectedBy: updated.protectedBy });
+  })
+);
+
+router.get(
+  "/:id/admin-log",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (chat.type === "dm") return res.status(400).json({ error: "Журнал есть только у групп и каналов" });
+    if (!isOwnerOrAdminOf(chat, req.uid) && !(chat.moderatorIds ?? []).includes(req.uid)) {
+      return res.status(403).json({ error: "Журнал видят только администраторы" });
+    }
+    const beforeId = Number(req.query.beforeId) || null;
+    const entries = listAdminLog(chat.id, { limit: 100, beforeId });
+    const ids = [...new Set(entries.flatMap((e) => [e.actorId, e.targetId]).filter(Boolean))];
+    const users = (await listUsersByIds(ids)).map(publicUser);
+    res.json({ entries, users });
+  })
+);
+
 router.use("/:id/messages", messagesRouter);
+router.use("/:id/topics", require("./topics"));
 
 module.exports = router;

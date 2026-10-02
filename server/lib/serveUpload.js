@@ -1,4 +1,5 @@
 const path = require("path");
+const { pipeline } = require("stream");
 const { createDecryptStream } = require("./fileCrypto");
 const storage = require("./storage");
 const { MAGIC: COMPRESS_MAGIC, decompressStream } = require("./fileCompression");
@@ -38,6 +39,13 @@ const MIME = {
 
 const FILENAME_RE = /^[a-z0-9]+_[a-f0-9]{16}(\.[a-z0-9]{1,12})?$/;
 
+// .pipe() не передаёт ошибки дальше: сбой чтения или расшифровки без
+// обработчика — это необработанное исключение и падение всего процесса.
+const noop = () => {};
+function chain(...streams) {
+  return pipeline(...streams, noop);
+}
+
 function serveUpload() {
   return async (req, res) => {
     const filename = req.params.filename ?? "";
@@ -55,24 +63,27 @@ function serveUpload() {
       let compressed = false;
       if (header && contentSize >= COMPRESS_MAGIC.length) {
         const magicCipher = await storage.readRange(filename, headerLen, headerLen + COMPRESS_MAGIC.length - 1);
-        const magicPlain = await collect(magicCipher.pipe(createDecryptStream(dataDir, header, 0)));
+        const magicPlain = await collect(chain(magicCipher, createDecryptStream(dataDir, header, 0)));
         compressed = magicPlain.equals(COMPRESS_MAGIC);
       }
 
       const openAt = async (start, end) => {
         const raw = await storage.readRange(filename, headerLen + start, headerLen + end);
-        return header ? raw.pipe(createDecryptStream(dataDir, header, start)) : raw;
+        return header ? chain(raw, createDecryptStream(dataDir, header, start)) : raw;
       };
       const openCompressed = async () => {
         const from = headerLen + COMPRESS_MAGIC.length;
         const raw = await storage.readRange(filename, from, size - 1);
-        return raw.pipe(createDecryptStream(dataDir, header, COMPRESS_MAGIC.length)).pipe(decompressStream());
+        return chain(raw, createDecryptStream(dataDir, header, COMPRESS_MAGIC.length), decompressStream());
       };
 
       const ext = path.extname(filename);
       const type = MIME[ext];
 
       res.setHeader("X-Content-Type-Options", "nosniff");
+      // Даже если браузер всё-таки отрисует файл как документ — без скриптов и доступа к сайту.
+      // (PDF не трогаем: встроенный просмотрщик Chrome в песочнице не открывается).
+      if (ext !== ".pdf") res.setHeader("Content-Security-Policy", "sandbox");
       res.setHeader("Content-Type", type ?? "application/octet-stream");
       if (!type || ext === ".svg") res.setHeader("Content-Disposition", "attachment");
       res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
@@ -80,7 +91,7 @@ function serveUpload() {
       if (compressed) {
         res.setHeader("Accept-Ranges", "none");
         if (req.method === "HEAD") return res.end();
-        return (await openCompressed()).pipe(res);
+        return chain(await openCompressed(), res);
       }
       res.setHeader("Accept-Ranges", "bytes");
 
@@ -105,7 +116,7 @@ function serveUpload() {
             res.setHeader("Content-Range", `bytes ${start}-${end}/${contentSize}`);
             res.setHeader("Content-Length", end - start + 1);
             if (req.method === "HEAD") return res.end();
-            return (await openAt(start, end)).pipe(res);
+            return chain(await openAt(start, end), res);
           }
           res.status(416).setHeader("Content-Range", `bytes */${contentSize}`);
           return res.end();
@@ -114,7 +125,7 @@ function serveUpload() {
 
       res.setHeader("Content-Length", contentSize);
       if (req.method === "HEAD") return res.end();
-      (await openAt(0, contentSize - 1)).pipe(res);
+      chain(await openAt(0, contentSize - 1), res);
     } catch (err) {
       if (!res.headersSent) res.status(500).end();
     }

@@ -2,7 +2,8 @@ const { HUGO_ID } = require("../data/hugoBot");
 const { getChat } = require("../data/chats");
 const { sendMessageAndBroadcast } = require("./systemChat");
 const { checkText } = require("./languageTool");
-const { ADMIN_PHONE, PREMIUM_PLANS } = require("../config");
+const { ADMIN_PHONE } = require("../config");
+const { getPricing } = require("../data/pricing");
 const { listMessagesPage } = require("../data/messages");
 const { getSettings } = require("../data/settings");
 const { markTyping, clearTyping } = require("../data/typing");
@@ -23,7 +24,7 @@ const TOPICS = [
     any: ["premium", "премиум", "премиум-подписк", "подписк"],
     answer: () =>
       "👑 Shalter Premium — Настройки → Shalter Premium: выберите срок и нажмите «Подписаться».\n\n" +
-      `Сроки: ${Object.values(PREMIUM_PLANS).map((p) => `${p.label} — ${p.priceRub} ₽`).join(", ")}.\n\n` +
+      `Сроки: ${getPricing().premiumPlans.map((p) => `${p.label} — ${p.priceRub} ₽`).join(", ")}.\n\n` +
       "Оплата — переводом администрации: переведите указанную сумму и дождитесь подтверждения, Premium выдадут и пришлют уведомление. Автопродления нет.",
   },
   {

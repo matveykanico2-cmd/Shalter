@@ -1,6 +1,7 @@
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
+import { repeatLabel } from "./scheduleSendDialog.js";
 
 export function openScheduledMessagesDialog(chatId, { onChange } = {}) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
@@ -26,7 +27,7 @@ export function openScheduledMessagesDialog(chatId, { onChange } = {}) {
     return el("div", { class: "scheduled-msg-row" }, [
       el("div", { class: "scheduled-msg-body" }, [
         el("p", { class: "scheduled-msg-text" }, s.text || "Медиа"),
-        el("p", { class: "scheduled-msg-time" }, when),
+        el("p", { class: "scheduled-msg-time" }, s.repeat ? `${when} · 🔁 ${repeatLabel(s.repeat)}` : when),
       ]),
       el("div", { class: "scheduled-msg-actions" }, [
         el("button", {

@@ -8,6 +8,7 @@ import { Avatar } from "./avatar.js";
 import { openChatPickerDialog } from "./chatPickerDialog.js";
 import { openStoryEditor } from "./storyEditor.js";
 import { ALL_EMOJI } from "../lib/emojiList.js";
+import { openAdminLogDialog } from "./adminLogDialog.js";
 
 export function openEditChatDialog(chat, onSaved) {
   const isChannel = chat.type === "channel";
@@ -25,6 +26,7 @@ export function openEditChatDialog(chat, onSaved) {
   let busy = false;
   let error = null;
   let notice = null;
+  let welcomeDraft = chat.welcomeText ?? "";
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const body = el("div", { class: "edit-chat-body" });
@@ -503,6 +505,46 @@ export function openEditChatDialog(chat, onSaved) {
               ),
             ])
           : null,
+
+        !isChannel
+          ? el("div", {}, [
+              el("p", { class: "settings-field-label" }, "Приветствие новым участникам"),
+              el("p", { class: "settings-toggle-hint" }, "Группа сама напишет это каждому, кто вступит. {name} заменится на имя. Пусто — без приветствия."),
+              el("textarea", {
+                class: "settings-input welcome-input",
+                rows: 3,
+                maxlength: 1000,
+                placeholder: "Привет, {name}! Прочитай правила в закрепе",
+                value: welcomeDraft,
+                oninput: (e) => (welcomeDraft = e.target.value),
+              }),
+              el(
+                "button",
+                {
+                  class: "btn-accent-pill",
+                  disabled: busy,
+                  onclick: async () => {
+                    try {
+                      const res = await api.setWelcomeText(chat.id, welcomeDraft);
+                      chat = { ...chat, welcomeText: res.welcomeText || undefined };
+                      welcomeDraft = res.welcomeText ?? "";
+                      notice = res.welcomeText ? "Приветствие сохранено" : "Приветствие выключено";
+                    } catch (err) {
+                      error = err.message || "Не удалось сохранить";
+                    }
+                    render();
+                  },
+                },
+                "Сохранить приветствие"
+              ),
+            ])
+          : null,
+
+        el("div", {}, [
+          el("p", { class: "settings-field-label" }, "Недавние действия"),
+          el("p", { class: "settings-toggle-hint" }, "Кто из администраторов кого удалил, заблокировал, назначил и что поменял — за 30 дней."),
+          el("button", { class: "profile-action-btn", onclick: () => openAdminLogDialog(chat) }, "Открыть журнал"),
+        ]),
 
         isChannel
           ? el("div", {}, [
