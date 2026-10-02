@@ -94,13 +94,14 @@ export function openInAppBrowser(url, { warning, unsafe } = {}) {
 
   // Сайт запрещает показ внутри приложения (или ссылка http на https-странице) —
   // вместо пустого окна объясняем и предлагаем открыть в браузере.
-  function showBlocked(reason) {
+  function showBlocked(reason, { tryHere = false } = {}) {
     body.replaceChildren(
       el("div", { class: "inapp-browser-blocked" }, [
         el("span", { class: "inapp-browser-blocked-icon", html: iconSvg("Globe", 40) }),
         el("p", { class: "inapp-browser-blocked-title" }, host),
         el("p", { class: "inapp-browser-blocked-text" }, reason),
         el("button", { class: "btn-accent", onclick: () => { openExternally(url); close(); } }, "Открыть в браузере"),
+        tryHere ? el("button", { class: "btn-secondary", onclick: showFrame }, "Попробовать открыть здесь") : null,
         el("button", { class: "modal-cancel", onclick: () => navigator.clipboard?.writeText(url).catch(() => {}) }, "Скопировать ссылку"),
       ])
     );
@@ -121,10 +122,13 @@ export function openInAppBrowser(url, { warning, unsafe } = {}) {
       .checkFrameable(target)
       .then((res) => {
         if (!overlay.isConnected) return;
-        if (res.frameable === false) showBlocked("Этот сайт не разрешает открывать себя внутри других приложений.");
-        else showFrame();
+        // Внутри окна — только когда точно можно: иначе браузер покажет
+        // «Отказано в подключении».
+        if (res.frameable === true) showFrame();
+        else if (res.frameable === false) showBlocked("Этот сайт не разрешает открывать себя внутри других приложений.");
+        else showBlocked("Не удалось проверить, откроется ли сайт внутри приложения.", { tryHere: true });
       })
-      .catch(() => overlay.isConnected && showFrame());
+      .catch(() => overlay.isConnected && showBlocked("Не удалось проверить, откроется ли сайт внутри приложения.", { tryHere: true }));
   }
 
   function close() {

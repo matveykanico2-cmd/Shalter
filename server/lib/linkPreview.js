@@ -189,12 +189,29 @@ async function checkFrameable(url, ourOrigin) {
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   let result;
   try {
-    const res = await fetchPublic(url, { signal: controller.signal, headers: { "user-agent": "Mozilla/5.0 (compatible; ShalterBot/1.0)" } });
+    // Представляемся обычным браузером: некоторые сайты боту отвечают без
+    // запрета на встраивание, а браузеру — с ним.
+    const res = await fetchPublic(url, {
+      signal: controller.signal,
+      headers: {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36",
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": "ru-RU,ru;q=0.9,en;q=0.8",
+        "sec-fetch-dest": "iframe",
+        "sec-fetch-mode": "navigate",
+      },
+    });
     res.body?.cancel?.().catch(() => {});
     const xfo = (res.headers.get("x-frame-options") ?? "").trim().toLowerCase();
     const csp = res.headers.get("content-security-policy") ?? "";
-    const frameable = !(xfo === "deny" || xfo === "sameorigin") && frameAncestorsAllow(csp, ourOrigin);
-    result = { frameable, status: res.status };
+    if (xfo && xfo !== "allowall") {
+      result = { frameable: false, status: res.status };
+    } else if (res.status >= 400) {
+      // Ошибка или защита от ботов — что увидит браузер, неизвестно.
+      result = { frameable: null, status: res.status };
+    } else {
+      result = { frameable: frameAncestorsAllow(csp, ourOrigin), status: res.status };
+    }
   } catch {
     result = { frameable: null }; // не удалось проверить — пусть клиент попробует сам
   } finally {

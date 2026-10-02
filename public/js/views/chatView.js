@@ -386,22 +386,44 @@ export async function ChatView(root, chatId) {
     });
   }
 
+  // Все действия ниже — оптимистичные, как в Telegram: интерфейс меняется
+  // сразу, запрос идёт в фоне, при ошибке изменение откатывается.
+  function undoWith(snapshot, err, fallback) {
+    messages = snapshot;
+    messagesCount = messages.length;
+    rerenderListKeepingScroll();
+    alert(err?.message || fallback);
+  }
+
   async function handleSaveEdit(text) {
     if (!editingMessage) return;
     const id = editingMessage.id;
     editingMessage = null;
-    await api.editMessage(chat.id, id, text);
+    const snapshot = messages.slice();
+    messages = messages.map((m) => (m.id === id ? { ...m, text, editedAt: new Date().toISOString() } : m));
+    rerenderListKeepingScroll();
     renderComposer();
-    await refreshMessages();
+    try {
+      await api.editMessage(chat.id, id, text);
+    } catch (err) {
+      undoWith(snapshot, err, "Не удалось изменить сообщение");
+      return;
+    }
+    scheduleRefresh();
   }
 
   async function handleDelete(m, forEveryone) {
+    if (m.pending) return;
     messages = messages.filter((x) => x.id !== m.id);
     messagesCount = messages.length;
     rerenderListKeepingScroll();
     saveChatCache();
-    await api.deleteMessage(chat.id, m.id, forEveryone);
-    await refreshMessages();
+    try {
+      await api.deleteMessage(chat.id, m.id, forEveryone);
+    } catch (err) {
+      alert(err.message || "Не удалось удалить сообщение");
+    }
+    scheduleRefresh();
   }
 
   // Запрет пересылки и сохранения (включил кто-то из двоих в личке).
@@ -483,6 +505,7 @@ export async function ChatView(root, chatId) {
   }
 
   async function handleReact(m, emoji) {
+    const before = m.reactions.map((r) => ({ ...r, userIds: [...r.userIds] }));
     const existing = m.reactions.find((r) => r.emoji === emoji);
     const amAdding = !existing || !existing.userIds.includes(me.id);
     if (existing) {
@@ -500,7 +523,15 @@ export async function ChatView(root, chatId) {
       );
       pill?.classList.add("just-added");
     }
-    await api.react(chat.id, m.id, emoji);
+    try {
+      const { message } = await api.react(chat.id, m.id, emoji);
+      // Сервер мог отказать (лимит реакций) — показываем его версию.
+      if (message?.reactions && JSON.stringify(message.reactions) !== JSON.stringify(m.reactions)) replaceMessage(message);
+    } catch (err) {
+      m.reactions = before;
+      rerenderListKeepingScroll();
+      alert(err.message || "Не удалось поставить реакцию");
+    }
   }
 
   function replaceMessage(updated) {
@@ -543,6 +574,11 @@ export async function ChatView(root, chatId) {
         const { message } = await api.retractPollVote(chat.id, m.id);
         replaceMessage(message);
       } else if (action === "close") {
+        const a = m.attachments?.find((x) => x.kind === "poll");
+        if (a) {
+          a.meta = { ...a.meta, closed: true };
+          rerenderListKeepingScroll();
+        }
         const { message } = await api.closePoll(chat.id, m.id);
         replaceMessage(message);
       }
@@ -553,18 +589,40 @@ export async function ChatView(root, chatId) {
   }
 
   async function handlePin(m) {
-    await api.pinMessage(chat.id, m.id, !m.pinned);
-    await refreshMessages();
+    const snapshot = messages.slice();
+    const pinned = !m.pinned;
+    messages = messages.map((x) => (x.id === m.id ? { ...x, pinned } : x));
+    rerenderListKeepingScroll();
+    renderPinnedBarSafe();
+    try {
+      await api.pinMessage(chat.id, m.id, pinned);
+    } catch (err) {
+      undoWith(snapshot, err, "Не удалось закрепить сообщение");
+      renderPinnedBarSafe();
+      return;
+    }
+    scheduleRefresh();
   }
 
   async function setMute(opts) {
+    const before = chat;
+    const beforeList = getState().chats;
+    const muted = !opts?.off;
+    chat = { ...chat, muted, mutedUntil: muted ? opts?.until ?? chat.mutedUntil : undefined };
+    setState({ chats: (beforeList ?? []).map((c) => (c.id === chat.id ? { ...c, muted, mutedUntil: chat.mutedUntil } : c)) });
+    renderHeader();
+    renderInfoPanel();
     try {
       const { chat: updated } = await api.muteChat(chat.id, opts);
       chat = { ...chat, ...updated };
       renderHeader();
       renderInfoPanel();
-      await api.listChats().then((r) => setState({ chats: r.chats }));
+      api.listChats().then((r) => setState({ chats: r.chats }), () => {});
     } catch (err) {
+      chat = before;
+      setState({ chats: beforeList });
+      renderHeader();
+      renderInfoPanel();
       alert(err.message || "Не удалось изменить уведомления");
     }
   }
@@ -577,8 +635,16 @@ export async function ChatView(root, chatId) {
   async function toggleBlock() {
     if (!other) return;
     iBlockedThem = !iBlockedThem;
-    await api.setBlocked(other.id, iBlockedThem);
     renderComposer();
+    renderInfoPanel();
+    try {
+      await api.setBlocked(other.id, iBlockedThem);
+    } catch (err) {
+      iBlockedThem = !iBlockedThem;
+      renderComposer();
+      renderInfoPanel();
+      alert(err.message || "Не удалось изменить блокировку");
+    }
   }
 
   async function handleMemberAction(userId, role) {
