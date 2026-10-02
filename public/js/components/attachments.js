@@ -20,31 +20,38 @@ function MediaButton(className, item, children) {
   );
 }
 
-function PendingPreview(poster) {
-  return el("div", { class: "attachment-pending" }, [
-    poster ? el("img", { src: poster, alt: "", class: "video-attachment-poster" }) : el("div", { class: "video-attachment-poster" }),
-    el("span", { class: "attachment-pending-spinner" }),
-  ]);
-}
-
 export function ImageAttachment(a) {
   const img = el("img", { src: a.thumbUrl || a.url, alt: a.name || "photo", class: "image-attachment", loading: "lazy" });
   return MediaButton("image-attachment-btn", { kind: "image", url: a.url, name: a.name, thumbUrl: a.thumbUrl || a.url }, [img]);
 }
 
+const VIDEO_MAX_H = 420;
+
 export function VideoAttachment(a) {
-  const poster = a.posterUrl || a.thumbUrl;
-  if (a.previewPending && !poster) {
-    return MediaButton("video-attachment-btn", { kind: "video", url: a.url, name: a.name }, [
-      el("video", { class: "video-attachment-poster", src: a.url.includes("#") ? a.url : `${a.url}#t=0.1`, preload: "metadata", muted: true, playsinline: true }),
-      el("span", { class: "video-attachment-play", html: iconSvg("Play", 28) }),
-    ]);
-  }
-  if (a.previewPending) return PendingPreview(poster);
-  return MediaButton("video-attachment-btn", { kind: "video", url: a.previewUrl || a.url, name: a.name, originalUrl: a.previewUrl ? a.url : null }, [
-    poster ? el("img", { src: poster, alt: "", class: "video-attachment-poster" }) : el("div", { class: "video-attachment-poster" }),
-    el("span", { class: "video-attachment-play", html: iconSvg("Play", 28) }),
-  ]);
+  // posterUrl is a real image; a blob: thumbUrl is the sender's local copy of the video
+  // itself (set while the server preview is pending), so it can't go in an <img>.
+  const localVideo = a.thumbUrl?.startsWith("blob:") ? a.thumbUrl : null;
+  const poster = a.posterUrl || (localVideo ? null : a.thumbUrl);
+  const frameSrc = localVideo || a.url;
+  const cover = poster
+    ? el("img", { src: poster, alt: "", class: "video-attachment-poster" })
+    : el("video", { class: "video-attachment-poster", src: frameSrc.includes("#") ? frameSrc : `${frameSrc}#t=0.1`, preload: "metadata", muted: true, playsinline: true });
+  const btn = MediaButton(
+    "video-attachment-btn",
+    a.previewPending ? { kind: "video", url: frameSrc, name: a.name } : { kind: "video", url: a.previewUrl || a.url, name: a.name, originalUrl: a.previewUrl ? a.url : null },
+    [cover, a.previewPending ? el("span", { class: "attachment-pending-spinner" }) : el("span", { class: "video-attachment-play", html: iconSvg("Play", 28) })]
+  );
+  // Size the bubble to the video's real shape instead of a fixed 16:10 strip.
+  // Portrait clips get a narrower box so they keep their shape under the height cap.
+  const setRatio = (w, h) => {
+    if (!(w > 0 && h > 0)) return;
+    btn.style.aspectRatio = `${w} / ${h}`;
+    if (h > w) btn.style.setProperty("--video-w", `${Math.round((VIDEO_MAX_H * w) / h)}px`);
+  };
+  if (a.width && a.height) setRatio(a.width, a.height);
+  else if (cover.tagName === "VIDEO") cover.addEventListener("loadedmetadata", () => setRatio(cover.videoWidth, cover.videoHeight), { once: true });
+  else cover.addEventListener("load", () => setRatio(cover.naturalWidth, cover.naturalHeight), { once: true });
+  return btn;
 }
 
 function formatSize(bytes) {

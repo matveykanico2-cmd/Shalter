@@ -4,13 +4,27 @@ export function isTranscriptSupported() {
   return !!Recognition;
 }
 
-export function startTranscript(lang = navigator.language || "ru-RU") {
+// The UI is Russian, so default to Russian speech unless the browser explicitly
+// prefers another language the user listed alongside it. navigator.language alone
+// is often "en-US" on a Russian speaker's machine, which makes recognition return
+// nothing (or English gibberish) for Russian speech.
+function pickLang() {
+  const langs = (navigator.languages?.length ? navigator.languages : [navigator.language]).filter(Boolean);
+  return langs.find((l) => /^ru\b/i.test(l)) || "ru-RU";
+}
+
+// Errors after which restarting can't help (no permission, no mic, no speech
+// service reachable — e.g. Electron/Chromium builds without Google's API key).
+const FATAL = new Set(["not-allowed", "service-not-allowed", "audio-capture", "network", "language-not-supported", "bad-grammar"]);
+
+export function startTranscript(lang = pickLang()) {
   if (!Recognition) return { stop: async () => "", cancel() {} };
   const parts = [];
   let interim = "";
   let active = true;
   let finished = null;
   let rec = null;
+  let startedAt = 0;
 
   function launch() {
     try {
@@ -27,12 +41,18 @@ export function startTranscript(lang = navigator.language || "ru-RU") {
         }
       };
       rec.onerror = (e) => {
-        if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") active = false;
+        if (FATAL.has(e.error)) active = false;
       };
       rec.onend = () => {
-        if (active) launch();
-        else finished?.();
+        // Keep words that never got finalized before the session ended.
+        if (interim.trim()) parts.push(interim.trim());
+        interim = "";
+        if (!active) return finished?.();
+        // Chrome ends continuous sessions on silence; restart, but never in a tight loop.
+        const wait = Math.max(0, 250 - (Date.now() - startedAt));
+        setTimeout(() => (active ? launch() : finished?.()), wait);
       };
+      startedAt = Date.now();
       rec.start();
     } catch {
       active = false;
