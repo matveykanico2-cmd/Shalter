@@ -229,6 +229,8 @@ export const api = {
     req(`/api/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify({ text, ...opts }) }),
   editMessage: (chatId, messageId, text) =>
     req(`/api/chats/${chatId}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ text }) }),
+  transcribeVoice: (chatId, messageId, index) =>
+    req(`/api/chats/${chatId}/messages/${messageId}/transcribe`, { method: "POST", body: JSON.stringify({ index }) }),
   updateLiveLocation: (chatId, messageId, lat, lng) =>
     req(`/api/chats/${chatId}/messages/${messageId}/location`, { method: "POST", body: JSON.stringify({ lat, lng }) }),
   deleteMessage: (chatId, messageId, forEveryone) =>

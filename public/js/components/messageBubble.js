@@ -399,11 +399,25 @@ function TranscriptToggle(a) {
   if (!a.transcript) text.classList.add("empty");
   text.style.display = "none";
   const btn = el("button", { class: "transcribe-btn", type: "button", title: "Расшифровать" }, "→A");
+  let requested = false;
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     const show = text.style.display === "none";
     text.style.display = show ? "" : "none";
     btn.classList.toggle("active", show);
+    if (show && !a.transcript && !a.transcriptPending && a.transcribe && !requested) {
+      requested = true;
+      text.textContent = "Расшифровывается…";
+      a.transcribe()
+        .then(({ transcript }) => {
+          text.textContent = transcript || "Не удалось распознать речь в этой записи";
+          text.classList.toggle("empty", !transcript);
+        })
+        .catch((err) => {
+          requested = false;
+          text.textContent = err.message || "Не удалось расшифровать";
+        });
+    }
   });
   return { btn, text };
 }
@@ -660,7 +674,11 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         )
       );
     } else {
-      bubbleInner.push(AttachmentView(a, me));
+      const withTranscribe =
+        (a.kind === "voice" || a.kind === "video-note") && message.chatId && !message.pending
+          ? { ...a, transcribe: () => api.transcribeVoice(message.chatId, message.id, (message.attachments ?? []).indexOf(a)) }
+          : a;
+      bubbleInner.push(AttachmentView(withTranscribe, me));
     }
   }
   if (isSticker) {
@@ -731,11 +749,14 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     translationEl = el("p", { class: "message-translation" }, "Переводим…");
     bubble.insertBefore(translationEl, meta);
     try {
-      let text = await translateLocally(message.text, lang).catch(() => null);
-      if (!text) {
-        const { translated } = await api.translateText(message.text, lang);
-        text = translated || "—";
-      }
+      // Server (Google) first: Chrome's on-device translator often misdetects short or
+      // mixed-language messages and hands back the original text or a garbled one.
+      let text = await api
+        .translateText(message.text, lang)
+        .then((r) => (r.detectedLang && r.detectedLang === lang ? "Сообщение уже на этом языке" : r.translated))
+        .catch(() => null);
+      if (!text) text = await translateLocally(message.text, lang).catch(() => null);
+      if (!text) throw new Error("no translation");
       translationCache.set(cacheKey, text);
       if (translationEl) translationEl.textContent = text;
     } catch {

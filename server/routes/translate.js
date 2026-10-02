@@ -63,7 +63,7 @@ router.post(
         return (await translateOne(text, target, "ru")).translated;
       } catch (err) {
         console.error("batch translate item failed:", err);
-        return text;
+        return null;
       }
     });
     res.json({ translations });

@@ -11,6 +11,7 @@ const ffmpeg = require("fluent-ffmpeg");
 const { VOICE_STT_ENABLED, VOICE_STT_URL, VOICE_STT_MODEL, VOICE_STT_KEY } = require("../config");
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
+console.log(VOICE_STT_ENABLED ? `[stt] расшифровка голосовых включена (${VOICE_STT_MODEL})` : "[stt] расшифровка голосовых выключена — задайте VOICE_STT_KEY");
 
 const MAX_DURATION_SEC = 5 * 60;
 const TIMEOUT_MS = 60000;

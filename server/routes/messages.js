@@ -38,6 +38,7 @@ const { generateVideoPreview, generateImagePreview } = require("../lib/mediaPrev
 const { fetchUploadToTemp, storeGeneratedFile } = require("../lib/uploadTransfer");
 const { hasAdminSection } = require("../lib/adminAccess");
 const { transcribeFile, needsTranscript } = require("../lib/voiceTranscribe");
+const { VOICE_STT_ENABLED } = require("../config");
 
 const router = express.Router({ mergeParams: true });
 
@@ -495,6 +496,51 @@ router.post(
 
     const message = await deliverMessage(chat, req.uid, body, { paidStars: charged });
     res.json({ message, ...(charged ? { chargedStars: charged, balance: balanceOf(req.uid) } : {}) });
+  })
+);
+
+// On-demand transcription: for voice notes sent before server STT was set up,
+// or ones whose automatic pass failed.
+const transcribing = new Set();
+router.post(
+  "/:messageId/transcribe",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    const message = await getMessage(req.params.messageId);
+    if (!message || message.chatId !== chat.id) return res.status(404).json({ error: "not found" });
+    const index = Number(req.body?.index);
+    const attachment = message.attachments?.[index];
+    if (!attachment || (attachment.kind !== "voice" && attachment.kind !== "video-note")) {
+      return res.status(400).json({ error: "Это не голосовое сообщение" });
+    }
+    if (attachment.transcript) return res.json({ transcript: attachment.transcript });
+    if (!VOICE_STT_ENABLED) {
+      return res.status(503).json({ error: "Расшифровка на сервере не настроена: не задан VOICE_STT_KEY" });
+    }
+    const filename = uploadFilename(attachment.url);
+    if (!filename) return res.status(400).json({ error: "Файл записи не найден" });
+
+    const key = `${message.id}#${index}`;
+    if (transcribing.has(key)) return res.status(409).json({ error: "Уже расшифровывается" });
+    transcribing.add(key);
+    try {
+      const sourcePath = await fetchUploadToTemp(filename);
+      let transcript;
+      try {
+        transcript = await transcribeFile(sourcePath);
+      } finally {
+        await fs.promises.unlink(sourcePath).catch(() => {});
+      }
+      const updated = await setAttachmentPreview(message.id, index, { transcriptPending: false, transcript: transcript || undefined });
+      if (updated) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+      res.json({ transcript: transcript || "" });
+    } catch (err) {
+      console.error(`on-demand transcription failed for ${key}:`, err.message);
+      res.status(502).json({ error: `Сервис расшифровки ответил ошибкой: ${err.message}`.slice(0, 300) });
+    } finally {
+      transcribing.delete(key);
+    }
   })
 );
 

@@ -1,8 +1,12 @@
 import { api } from "../api.js";
 
-const CACHE_KEY = "shalter_ui_translation_cache_v1";
+// v2: v1 cached failed lookups as the untranslated original, forever.
+const CACHE_KEY = "shalter_ui_translation_cache_v2";
 const MIN_TEXT_LEN = 1;
-const HAS_LETTER = /[a-zа-яёàâäéèêëïîôöùûüçñ]/i;
+// The UI's source language is Russian, so only Cyrillic strings are ours to
+// translate. Latin ones are names, usernames, brands or code, and Google
+// mangles them when told they're Russian.
+const HAS_LETTER = /[а-яё]/i;
 
 const SKIP_SELECTOR = [
   ".message-list",
@@ -36,6 +40,7 @@ const SKIP_SELECTOR = [
 
 let cache = {};
 let translatedValues = new Set();
+const failedThisSession = new Set();
 let observer = null;
 let currentLang = "ru";
 let pending = false;
@@ -115,16 +120,18 @@ async function translateVisible(root) {
     const items = collect(root);
     const known = cache[currentLang] ?? (cache[currentLang] = {});
 
-    const toFetch = [...new Set(items.filter((i) => !(i.text in known) && !translatedValues.has(i.text)).map((i) => i.text))];
+    const toFetch = [...new Set(items.filter((i) => !(i.text in known) && !translatedValues.has(i.text) && !failedThisSession.has(i.text)).map((i) => i.text))];
 
     if (toFetch.length > 0) {
       const batch = toFetch.slice(0, 150);
       const { translations } = await api.translateBatch(batch, currentLang);
       batch.forEach((text, i) => {
-        known[text] = translations[i] ?? text;
+        if (!translations[i]) return void failedThisSession.add(text); // not cached: retried after a reload
+        known[text] = translations[i];
         translatedValues.add(known[text]);
       });
       saveCache();
+      if (toFetch.length > batch.length) rerunRequested = true;
     }
 
     for (const item of items) apply(item, known[item.text]);
