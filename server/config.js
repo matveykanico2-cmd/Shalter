@@ -46,7 +46,16 @@ const HUGO_AI_TIMEOUT_MS = Number(process.env.HUGO_AI_TIMEOUT_MS) || 25000;
 const OLLAMA_URL = (process.env.OLLAMA_URL || "").replace(/\/+$/, "");
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2";
 
+// Server-side voice message transcription (fallback when the browser couldn't).
+// Sends the recording's audio to this endpoint; VOICE_STT=off disables it.
+const VOICE_STT_ENABLED = !/^(0|off|false|no)$/i.test(process.env.VOICE_STT || "");
+const VOICE_STT_URL = process.env.VOICE_STT_URL || HUGO_AI_URL;
+const VOICE_STT_MODEL = process.env.VOICE_STT_MODEL || "openai-audio";
+
 module.exports = {
+  VOICE_STT_ENABLED,
+  VOICE_STT_URL,
+  VOICE_STT_MODEL,
   LANGUAGETOOL_URL,
   HUGO_AI_ENABLED,
   HUGO_AI_URL,

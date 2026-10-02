@@ -37,6 +37,7 @@ const { deleteUploadedFiles, FILENAME_RE } = require("../lib/serveUpload");
 const { generateVideoPreview, generateImagePreview } = require("../lib/mediaPreview");
 const { fetchUploadToTemp, storeGeneratedFile } = require("../lib/uploadTransfer");
 const { hasAdminSection } = require("../lib/adminAccess");
+const { transcribeFile, needsTranscript } = require("../lib/voiceTranscribe");
 
 const router = express.Router({ mergeParams: true });
 
@@ -212,7 +213,28 @@ function needsPreview(attachment) {
 }
 
 function markPendingPreviews(attachments) {
-  return attachments?.map((a) => (needsPreview(a) ? { ...a, previewPending: true } : a));
+  return attachments?.map((a) =>
+    needsPreview(a) ? { ...a, previewPending: true } : needsTranscript(a) && uploadFilename(a.url) ? { ...a, transcriptPending: true } : a
+  );
+}
+
+async function attachTranscripts(chat, message) {
+  for (const [index, attachment] of (message.attachments ?? []).entries()) {
+    if (!attachment.transcriptPending) continue;
+    let transcript = "";
+    try {
+      const sourcePath = await fetchUploadToTemp(uploadFilename(attachment.url));
+      try {
+        transcript = await transcribeFile(sourcePath);
+      } finally {
+        await fs.promises.unlink(sourcePath).catch(() => {});
+      }
+    } catch (err) {
+      console.error(`transcription failed for ${message.id}#${index}:`, err.message);
+    }
+    const updated = await setAttachmentPreview(message.id, index, { transcriptPending: false, transcript: transcript || undefined });
+    if (updated) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+  }
 }
 
 async function buildPreview(attachment, filename) {
@@ -343,6 +365,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   pushNewMessage(chat, sender, message).catch((err) => console.error("push notify failed:", err));
 
   attachPreviews(chat, message).catch((err) => console.error("attachment preview failed:", err));
+  attachTranscripts(chat, message).catch((err) => console.error("voice transcription failed:", err));
 
   if (message.type === "text" && message.text) {
     fetchLinkPreview(message.text)

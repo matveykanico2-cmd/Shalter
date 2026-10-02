@@ -391,7 +391,11 @@ function clockTime(sec) {
 }
 
 function TranscriptToggle(a) {
-  const text = el("p", { class: "voice-transcript" }, a.transcript || "Не удалось распознать речь в этой записи");
+  const text = el(
+    "p",
+    { class: "voice-transcript" },
+    a.transcript || (a.transcriptPending ? "Расшифровывается…" : "Не удалось распознать речь в этой записи")
+  );
   if (!a.transcript) text.classList.add("empty");
   text.style.display = "none";
   const btn = el("button", { class: "transcribe-btn", type: "button", title: "Расшифровать" }, "→A");
