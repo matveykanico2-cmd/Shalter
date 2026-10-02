@@ -139,6 +139,18 @@ function pluralMessages(n) {
   return `${n} новых сообщений`;
 }
 
+// iPadOS reports a Mac user agent; a touch-capable "Mac" is an iPad.
+const IS_IOS = /iPhone|iPad|iPod/.test(self.navigator.userAgent) ||
+  (/Macintosh/.test(self.navigator.userAgent) && (self.navigator.maxTouchPoints ?? 0) > 1);
+
+async function showIosPlaceholder(title, body, tag, { closeNow = false } = {}) {
+  const t = tag || "shalter";
+  await self.registration.showNotification(title, { body: body || "", tag: t, icon: "/icons/icon-192.png", data: { url: "/" } });
+  // The chat is already open on screen: the notification only has to have
+  // been shown for iOS to count the push as visible, not linger.
+  if (closeNow) for (const n of await self.registration.getNotifications({ tag: t })) n.close();
+}
+
 self.addEventListener("push", (event) => {
   let payload = {};
   try {
@@ -153,12 +165,19 @@ self.addEventListener("push", (event) => {
       (async () => {
         const shown = await self.registration.getNotifications({ tag });
         for (const n of shown) n.close();
+        // iOS Safari revokes the push subscription after a few pushes that
+        // show nothing ("silent push") — so there a cancel has to surface as a
+        // visible notification too, or the next real message never arrives.
+        if (IS_IOS) await showIosPlaceholder(title || "Звонок завершён", body, tag);
       })()
     );
     return;
   }
 
-  if (!title) return;
+  if (!title) {
+    if (IS_IOS) event.waitUntil(showIosPlaceholder("Shalter", body, tag));
+    return;
+  }
 
   const isCall = kind === "call";
 
@@ -180,9 +199,12 @@ self.addEventListener("push", (event) => {
           return false;
         }
       });
-      if (onThisChat && !isCall) return;
+      if (onThisChat && !isCall) {
+        if (IS_IOS) await showIosPlaceholder(title, body, tag, { closeNow: true });
+        return;
+      }
 
-      const icon = (await avatarIcon(avatar)) || "/icons/icon.svg";
+      const icon = (await avatarIcon(avatar)) || "/icons/icon-192.png";
 
       let notifBody = body;
       let count = 1;
@@ -202,7 +224,10 @@ self.addEventListener("push", (event) => {
         renotify: true,
         silent: false,
         icon,
-        badge: "/icons/icon.svg",
+        // Android draws the badge as the small status-bar glyph: it has to be
+        // a raster, white-on-transparent silhouette (an SVG or a colour icon
+        // shows up as a grey square or the browser's own bell).
+        badge: "/icons/badge-96.png",
         actions: isCall
           ? [
               { action: "answer", title: "Ответить" },

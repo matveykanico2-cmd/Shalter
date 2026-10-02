@@ -2,7 +2,7 @@ const express = require("express");
 const { genId } = require("../lib/genId");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { countBotAudience, getBotByUserId, getBotToken, listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotApp, updateBotAppCode, updateBotCode, updateBotCommands, updateBotDescription } = require("../data/bots");
+const { countBotAudience, listBotDmChatIds, getBotByUserId, getBotToken, listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotApp, updateBotAppCode, updateBotCode, updateBotCommands, updateBotDescription } = require("../data/bots");
 const { createUser, getUser, updateUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { checkUsername, normalizeUsername, generateBotUsername } = require("../lib/username");
@@ -11,6 +11,9 @@ const botLogs = require("../data/botLogs");
 const { listChats, createChat, getChat, findDmBetween } = require("../data/chats");
 const { buildInitData, buildAppUrl, validateAppUrl, sameApp } = require("../lib/miniApp");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
+const { sendBotMessage } = require("../lib/botMessaging");
+const { sendPushToUser, pushAvatar, MESSAGE_PUSH } = require("../push");
+const { getSettings, isQuietNow } = require("../data/settings");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -89,6 +92,53 @@ router.delete(
     if (!bot) return;
     await deleteBot(bot.id);
     res.json({ ok: true });
+  })
+);
+
+const BROADCAST_MAX_TEXT = 4096;
+const BROADCAST_COOLDOWN_MS = 60 * 1000;
+const lastBroadcastAt = new Map();
+
+// Рассылка: the owner sends one message to every user who has started the bot.
+router.post(
+  "/:id/broadcast",
+  asyncRoute(async (req, res) => {
+    const bot = await requireOwnedBot(req, res);
+    if (!bot) return;
+    const text = String(req.body?.text ?? "").trim();
+    if (!text) return res.status(400).json({ error: "Введите текст рассылки" });
+    if (text.length > BROADCAST_MAX_TEXT) return res.status(400).json({ error: `Не длиннее ${BROADCAST_MAX_TEXT} символов` });
+    const since = Date.now() - (lastBroadcastAt.get(bot.id) ?? 0);
+    if (since < BROADCAST_COOLDOWN_MS) {
+      return res.status(429).json({ error: `Следующую рассылку можно отправить через ${Math.ceil((BROADCAST_COOLDOWN_MS - since) / 1000)} с` });
+    }
+    lastBroadcastAt.set(bot.id, Date.now());
+
+    const botUser = await getUser(bot.userId);
+    let sent = 0;
+    for (const chatId of listBotDmChatIds(bot.userId)) {
+      try {
+        const chat = await getChat(chatId);
+        const recipientId = chat?.memberIds.find((id) => id !== bot.userId);
+        const recipient = recipientId ? await getUser(recipientId) : null;
+        if (!recipient || recipient.isBot || recipient.blockedUserIds?.includes(bot.userId)) continue;
+        await sendBotMessage(bot.userId, chatId, text);
+        sent += 1;
+        const settings = await getSettings(recipientId);
+        if (isQuietNow(settings, chatId)) continue;
+        const body = settings.notifications?.previewText === false ? "Новое сообщение" : text.slice(0, 200);
+        sendPushToUser(
+          recipientId,
+          { title: botUser?.name || "Бот", body, ...pushAvatar(botUser), url: `/chat/${chatId}`, kind: "message", tag: `chat-${chatId}` },
+          MESSAGE_PUSH
+        ).catch(() => {});
+      } catch (err) {
+        console.error("bot broadcast failed for", chatId, err.message);
+      }
+    }
+    // Nothing went out — don't make the owner wait a minute to retry.
+    if (!sent) lastBroadcastAt.delete(bot.id);
+    res.json({ ok: true, sent });
   })
 );
 

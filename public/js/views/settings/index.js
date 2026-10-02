@@ -7,7 +7,7 @@ import { getState, setState, updateSelf, subscribe } from "../../state.js";
 import { navigate } from "../../router.js";
 import { fileToImageDataUrl, fileToDataUrl } from "../../lib/image.js";
 import { ImageAttachment, VideoAttachment, FileAttachment } from "../../components/attachments.js";
-import { requestPushPermission, pushDiagnostics, resubscribePush } from "../../lib/push.js";
+import { requestPushPermission, pushDiagnostics, resubscribePush, iosNeedsHomeScreen } from "../../lib/push.js";
 import { openCreateBotDialog } from "../../components/createBotDialog.js";
 import { openBotTokenDialog } from "../../components/botTokenDialog.js";
 import { openOAuthSecretDialog } from "../../components/oauthSecretDialog.js";
@@ -2246,6 +2246,9 @@ async function renderNotifications(root) {
         el("div", { class: "settings-notice-box" }, [
           el("p", { class: "settings-toggle-title" }, "Уведомления браузера"),
           el("p", { class: "settings-toggle-hint" }, `Статус: ${permLabel()}`),
+          iosNeedsHomeScreen()
+            ? el("p", { class: "login-error" }, "На iPhone уведомления приходят, только если Shalter добавлен на экран «Домой»: в Safari нажмите «Поделиться» → «На экран „Домой“», откройте Shalter с иконки и разрешите уведомления (нужна iOS 16.4 или новее).")
+            : null,
           diag
             ? el("div", {}, [
                 chainRow("Защищённый адрес (https)", diag.защищённыйАдрес, diag.защищённыйАдрес ? null : "Push работает только по https — по http браузер его не даёт вовсе"),

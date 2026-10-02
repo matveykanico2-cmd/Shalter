@@ -51,6 +51,14 @@ async function subscribeNow() {
   return subscription;
 }
 
+// iPhone/iPad only grant Web Push to a site installed on the Home Screen
+// (iOS 16.4+); in a plain Safari tab PushManager simply doesn't exist.
+export function iosNeedsHomeScreen() {
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const standalone = window.navigator.standalone === true || window.matchMedia?.("(display-mode: standalone)").matches;
+  return ios && !standalone;
+}
+
 export async function pushDiagnostics() {
   const out = {
     защищённыйАдрес: typeof window !== "undefined" && window.isSecureContext,

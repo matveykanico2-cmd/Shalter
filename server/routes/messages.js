@@ -586,6 +586,10 @@ router.patch(
     if (existing.senderId !== req.uid) {
       return res.status(403).json({ error: "forbidden" });
     }
+    const legacyCallLog = existing.createdAt < "2026-10-03" && /^📞 (Звонок|Видеозвонок|Пропущенный звонок|Звонок отклонён)/.test(existing.text ?? "");
+    if (existing.type === "call" || legacyCallLog) {
+      return res.status(400).json({ error: "Это сообщение нельзя изменить" });
+    }
     const { text } = req.body ?? {};
     const message = await editMessage(req.params.messageId, text);
     const chat = await getChat(req.params.id);

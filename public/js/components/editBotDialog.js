@@ -54,6 +54,31 @@ export function openEditBotDialog(bot, onSaved) {
     },
   });
 
+  const broadcastInput = el("textarea", { class: "settings-input", rows: 3, maxlength: 4096, placeholder: "Текст, который получат все, кто запустил бота" });
+  let broadcastBusy = false;
+  let broadcastNotice = null;
+  let broadcastError = null;
+
+  async function sendBroadcast() {
+    const text = broadcastInput.value.trim();
+    if (broadcastBusy || !text) return;
+    if (!confirm("Отправить это сообщение всем пользователям бота?")) return;
+    broadcastBusy = true;
+    broadcastNotice = null;
+    broadcastError = null;
+    render();
+    try {
+      const res = await api.broadcastBot(bot.id, text);
+      broadcastInput.value = "";
+      broadcastNotice = `Отправлено: ${res.sent}`;
+    } catch (err) {
+      broadcastError = err.message || "Не удалось отправить рассылку";
+    } finally {
+      broadcastBusy = false;
+      render();
+    }
+  }
+
   async function save() {
     if (busy) return;
     busy = true;
@@ -144,6 +169,14 @@ export function openEditBotDialog(bot, onSaved) {
             : null,
           appMode !== "none" ? el("p", { class: "settings-field-label" }, "Надпись на кнопке") : null,
           appMode !== "none" ? appNameInput : null,
+        ]),
+        el("div", { class: "bot-app-block" }, [
+          el("p", { class: "bot-app-title" }, "Рассылка"),
+          el("p", { class: "settings-toggle-hint" }, "Сообщение от имени бота придёт в личный чат каждому, кто его запустил. Не чаще раза в минуту."),
+          broadcastInput,
+          broadcastError ? el("p", { class: "login-error" }, broadcastError) : null,
+          broadcastNotice ? el("p", { class: "admin-panel-notice" }, `✅ ${broadcastNotice}`) : null,
+          el("button", { class: "profile-action-btn", disabled: broadcastBusy, onclick: sendBroadcast }, broadcastBusy ? "Отправляем…" : "Отправить всем"),
         ]),
         error ? el("p", { class: "login-error" }, error) : null,
         notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,

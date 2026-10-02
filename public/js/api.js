@@ -1,8 +1,12 @@
+import { trackRequest } from "./lib/netStatus.js";
+
 async function req(url, init) {
-  const res = await fetch(url, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
+  const res = await trackRequest(
+    fetch(url, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    })
+  );
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     if (body.error === "session_revoked") window.location.href = "/login?reason=revoked";
@@ -168,6 +172,7 @@ export const api = {
   deleteUsernameAuction: (id) => req(`/api/usernames/${id}`, { method: "DELETE" }),
   grantUsername: (phone, username) =>
     req("/api/usernames/grant", { method: "POST", body: JSON.stringify({ phone, username }) }),
+  broadcastBot: (id, text) => req(`/api/bots/${id}/broadcast`, { method: "POST", body: JSON.stringify({ text }) }),
   updateBot: (id, patch) => req(`/api/bots/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   removeCallParticipant: (callId, userId) => req(`/api/calls/${callId}/participants/${userId}`, { method: "DELETE" }),
   setBotCommands: (id, commands) => req(`/api/bots/${id}/commands`, { method: "PUT", body: JSON.stringify({ commands }) }),

@@ -63,3 +63,25 @@ export function stopRingtone() {
   activeStop?.();
   activeStop = null;
 }
+
+// Short one-shot cues for chat traffic — same synth as the ringtones, no audio
+// files to ship. Both respect the "Звук" notification setting at the call site.
+let lastIncomingAt = 0;
+export function playIncomingMessageSound() {
+  const now = Date.now();
+  if (now - lastIncomingAt < 1200) return;
+  lastIncomingAt = now;
+  try {
+    const t = getCtx().currentTime;
+    beep(t, 0.12, 880);
+    beep(t + 0.13, 0.16, 1175);
+  } catch {}
+}
+
+export function playSentSound() {
+  try {
+    const t = getCtx().currentTime;
+    beep(t, 0.09, 660);
+    beep(t + 0.07, 0.1, 990);
+  } catch {}
+}

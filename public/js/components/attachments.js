@@ -67,7 +67,19 @@ function formatSize(bytes) {
   return `${value.toFixed(digits).replace(".", ",")} ${units[unit]}`;
 }
 
+const AUDIO_EXT_RE = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|weba)$/i;
+
 export function FileAttachment(a) {
+  const link = FileLink(a);
+  const isAudio = a.mimeType?.startsWith("audio/") || AUDIO_EXT_RE.test(a.name ?? "");
+  if (!isAudio || !a.url) return link;
+  return el("div", { class: "audio-attachment" }, [
+    link,
+    el("audio", { src: a.url, controls: true, preload: "none", class: "audio-attachment-player" }),
+  ]);
+}
+
+function FileLink(a) {
   return el("a", { href: a.url, download: a.name || "file", class: "file-attachment" }, [
     el("span", { html: iconSvg("Download", 18) }),
     el("div", { class: "file-attachment-info" }, [

@@ -2,6 +2,8 @@ import { applyAccentSetting } from "./lib/accent.js";
 import { el, mount, clear } from "./lib/dom.js";
 import { api } from "./api.js";
 import { setState, getState, updateSelf } from "./state.js";
+import { playIncomingMessageSound } from "./lib/ringtone.js";
+import { isChatMuted } from "./lib/chatSort.js";
 import { route, notFound, startRouter, navigate } from "./router.js";
 import { NavRail } from "./components/navRail.js";
 import { ChatListPane } from "./views/chatList.js";
@@ -9,6 +11,7 @@ import { mountIncomingCallWatcher, answerCall } from "./components/incomingCallW
 import { openMiniApp } from "./components/miniApp.js";
 import { loadSafetyLabels } from "./lib/safetyLabels.js";
 import { startWsClient, onWsMessage } from "./lib/wsClient.js";
+import { initNetStatus } from "./lib/netStatus.js";
 import { ensurePushSubscribed } from "./lib/push.js";
 import { startVersionWatch } from "./lib/appVersion.js";
 import { subscribeCall, getCallState, minimize, restore } from "./lib/callController.js";
@@ -105,8 +108,17 @@ async function boot() {
   bootData.finally(() => setState({ chatsLoaded: true }));
   loadSafetyLabels(api).catch(() => {});
   startWsClient();
+  initNetStatus();
   onWsMessage("self:updated", (msg) => {
     if (msg.user?.id === getState().user?.id) updateSelf(msg.user);
+  });
+  onWsMessage("message:new", (msg) => {
+    const { user: me, settings, chats } = getState();
+    if (!msg.message || msg.message.senderId === me?.id || settings?.notifications?.sound === false) return;
+    if (document.visibilityState !== "visible") return;
+    const chat = (chats ?? []).find((c) => c.id === msg.chatId);
+    if (chat && isChatMuted(chat)) return;
+    playIncomingMessageSound();
   });
   onWsMessage("contact:updated", (msg) => {
     if (msg.user?.id === getState().user?.id) updateSelf(msg.user);

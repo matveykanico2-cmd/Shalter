@@ -14,7 +14,10 @@ async function initPush() {
     ).run(keys.publicKey, keys.privateKey);
   }
   publicKey = keys.publicKey;
-  webpush.setVapidDetails("mailto:push@example.com", keys.publicKey, keys.privateKey);
+  // Apple's push service (iPhone/Safari) answers 403 BadJwtToken to a VAPID
+  // subject on a placeholder domain like example.com — every iOS push was
+  // silently dropped. It has to be a real contact address or https URL.
+  webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:support@shalter.ru", keys.publicKey, keys.privateKey);
 }
 
 function getPublicKey() {

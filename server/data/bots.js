@@ -45,6 +45,19 @@ function countBotAudience(botUserId) {
   return row?.n ?? 0;
 }
 
+// Everyone who has started the bot: the private (dm) chats the bot is in.
+function listBotDmChatIds(botUserId) {
+  return db
+    .prepare(
+      `SELECT c.id FROM chats c
+         JOIN chat_members m ON m.chatId = c.id AND m.userId = ?
+        WHERE c.type = 'dm'
+          AND EXISTS (SELECT 1 FROM chat_members o WHERE o.chatId = c.id AND o.userId <> ?)`
+    )
+    .all(botUserId, botUserId)
+    .map((r) => r.id);
+}
+
 function getBotToken(id) {
   return db.prepare("SELECT token FROM bots WHERE id = ?").get(id)?.token ?? null;
 }
@@ -110,6 +123,7 @@ module.exports = {
   getBotByToken,
   getBotToken,
   countBotAudience,
+  listBotDmChatIds,
   createBot,
   regenerateToken,
   deleteBot,

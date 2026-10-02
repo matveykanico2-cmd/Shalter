@@ -507,6 +507,19 @@ export function Composer({
         attachFiles(files.map((file) => ({ file, kind: "file" })));
       },
     });
+    // accept="audio/*" makes the phone open its music / audio files picker
+    // rather than the gallery; the track goes out as a file with a player.
+    const audioFileInput = el("input", {
+      type: "file",
+      accept: "audio/*",
+      multiple: true,
+      class: "hidden-input",
+      onchange: (e) => {
+        const files = [...(e.target.files ?? [])];
+        e.target.value = "";
+        attachFiles(files.map((file) => ({ file, kind: "file" })));
+      },
+    });
     const cameraPhotoInput = el("input", {
       type: "file",
       accept: "image/*",
@@ -541,6 +554,7 @@ export function Composer({
         { icon: "Video", label: "Снять фото", run: () => cameraPhotoInput.click() },
         { icon: "Video", label: "Снять видео", run: () => cameraVideoInput.click() },
         { icon: "File", label: "Файл", run: () => anyFileInput.click() },
+        { icon: "Mic", label: "Аудио", run: () => audioFileInput.click() },
         { icon: "Sticker", label: "Стикер", run: () => toggleStickers(attachSlot) },
         { icon: "Smile", label: "Эмодзи", run: () => toggleEmoji(attachSlot) },
         {
@@ -647,7 +661,7 @@ export function Composer({
         attachSlot.appendChild(attachMenuEl);
       },
     });
-    const attachSlot = el("div", { class: "composer-attach-slot" }, [attachBtn, mediaFileInput, anyFileInput, cameraPhotoInput, cameraVideoInput]);
+    const attachSlot = el("div", { class: "composer-attach-slot" }, [attachBtn, mediaFileInput, anyFileInput, audioFileInput, cameraPhotoInput, cameraVideoInput]);
 
     let commandMenuEl = null;
     const commandSlot = botCommands?.length ? el("div", { class: "composer-attach-slot" }) : null;

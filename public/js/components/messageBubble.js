@@ -598,6 +598,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   }
 
   const isSticker = message.type === "sticker" && !!message.sticker;
+  const isCallLog = isCallLogMessage(message);
   const isVideoNote =
     !message.text?.trim() && message.attachments?.length === 1 && message.attachments[0]?.kind === "video-note";
   const bubbleInner = [];
@@ -967,8 +968,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     } else if (isDm) {
       items.push({ icon: "Trash", label: "Удалить за звёзды", danger: true, onClick: () => deleteForStars(message) });
     }
-    if (mine && !isSticker) items.push({ icon: "Edit", label: "Изменить", onClick: () => onEdit(message) });
-    else {
+    if (mine && !isSticker && !isCallLog) items.push({ icon: "Edit", label: "Изменить", onClick: () => onEdit(message) });
+    else if (!mine) {
       items.push({
         icon: "Info",
         label: "Пожаловаться",
@@ -1230,4 +1231,14 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   );
 
   return row;
+}
+
+// Call-log lines ("📞 Пропущенный звонок" and co.) are written by the server
+// on the caller's behalf — they're a record, not something the caller typed,
+// so they can't be edited. Older ones predate type "call" and are plain text
+// (matched by wording, but only before the cut-over so typed text isn't caught).
+const CALL_LOG_RE = /^📞 (Звонок|Видеозвонок|Пропущенный звонок|Звонок отклонён)/;
+export function isCallLogMessage(m) {
+  if (m?.type === "call") return true;
+  return m?.type === "text" && (m.createdAt ?? "") < "2026-10-03" && !m.attachments?.length && CALL_LOG_RE.test(m.text ?? "");
 }

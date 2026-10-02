@@ -33,6 +33,10 @@ export function startWsClient() {
   if (!socket) connect();
 }
 
+export function isWsStarted() {
+  return !!socket;
+}
+
 export function isWsOpen() {
   return !!socket && socket.readyState === WebSocket.OPEN;
 }

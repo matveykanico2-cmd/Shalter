@@ -3,7 +3,7 @@ import { plural, statusLabel } from "../lib/presence.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
 import { openDropdownMenu } from "../components/dropdownMenu.js";
-import { MessageBubble } from "../components/messageBubble.js";
+import { MessageBubble, isCallLogMessage } from "../components/messageBubble.js";
 import { Composer } from "../components/composer.js";
 import { InfoPanel } from "../components/infoPanel.js";
 import { openForwardDialog } from "../components/forwardDialog.js";
@@ -13,6 +13,7 @@ import { openChatCalendarDialog } from "../components/chatCalendarDialog.js";
 import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
 import { api } from "../api.js";
 import { getState, setState } from "../state.js";
+import { playSentSound } from "../lib/ringtone.js";
 import { isChatAdmin, isChatModerator } from "../lib/chatRoles.js";
 import { messagePreview } from "../lib/messagePreview.js";
 import { noteMessageInChatList } from "../lib/chatListSync.js";
@@ -339,6 +340,7 @@ export async function ChatView(root, chatId) {
         ? await api.publishPost(chat.id, text, attachments)
         : await api.sendMessage(chat.id, text, { replyToId, attachments, ...extra });
       sentMessage = message;
+      if (getState().settings?.notifications?.sound !== false) playSentSound();
       noteMessageInChatList(chat.id, message);
       const at = messages.findIndex((m) => m.id === localId);
       if (at >= 0) messages[at] = message;
@@ -1539,6 +1541,7 @@ export async function ChatView(root, chatId) {
                 !m.forwardedFrom &&
                 m.type !== "system" &&
                 m.type !== "sticker" &&
+                !isCallLogMessage(m) &&
                 !!m.text?.trim() &&
                 !m.attachments?.some((a) => a.kind === "poll")
             );

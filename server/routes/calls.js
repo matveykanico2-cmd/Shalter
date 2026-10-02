@@ -228,7 +228,7 @@ router.patch(
             : "📞 Пропущенный звонок";
         const chat = await getChat(call.chatId).catch(() => null);
         if (chat) {
-          await sendMessageAndBroadcast(chat, call.callerId, label).catch(() => {});
+          await sendMessageAndBroadcast(chat, call.callerId, label, { type: "call" }).catch(() => {});
         }
       }
       if (FINISHED_CALL_STATUSES.has(patch.status)) {
