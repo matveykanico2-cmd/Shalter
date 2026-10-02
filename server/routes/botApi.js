@@ -718,6 +718,9 @@ router.post(
     const user = await getUser(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
     if (chat.memberIds.includes(userId)) return res.json({ ok: true, alreadyMember: true });
+    if (!(await allowsUser(userId, "invites", req.bot.userId))) {
+      return res.status(403).json({ error: "User does not allow being added to chats" });
+    }
     const updated = await updateChat(chat.id, { memberIds: [...chat.memberIds, userId] });
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     res.json({ ok: true, memberCount: updated.memberIds.length });
