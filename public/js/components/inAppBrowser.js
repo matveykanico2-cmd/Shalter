@@ -47,6 +47,29 @@ function isEmbedPlayer(url) {
   return /^https:\/\/(www\.youtube\.com\/embed\/|player\.vimeo\.com\/video\/)/.test(url);
 }
 
+// Крупные сайты, которые точно запрещают показ внутри других сайтов
+// (X-Frame-Options / frame-ancestors). Их сразу открываем в новой вкладке —
+// синхронно, пока ещё идёт клик, иначе браузер заблокирует всплывающее окно.
+const NEVER_FRAMEABLE = [
+  "github.com", "gitlab.com", "google.com", "google.ru", "youtube.com", "x.com", "twitter.com",
+  "facebook.com", "instagram.com", "linkedin.com", "reddit.com", "stackoverflow.com",
+  "vk.com", "vk.ru", "ok.ru", "mail.ru", "yandex.ru", "ya.ru", "dzen.ru", "ozon.ru",
+  "wildberries.ru", "avito.ru", "habr.com", "amazon.com", "apple.com", "microsoft.com",
+  "openai.com", "chatgpt.com", "claude.ai", "anthropic.com", "discord.com", "twitch.tv",
+  "tiktok.com", "pinterest.com", "spotify.com", "netflix.com", "paypal.com", "notion.so",
+  "figma.com", "medium.com", "npmjs.com", "telegram.org", "web.telegram.org", "steamcommunity.com",
+  "store.steampowered.com", "gosuslugi.ru", "sberbank.ru", "tinkoff.ru", "tbank.ru",
+];
+
+function isNeverFrameable(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return NEVER_FRAMEABLE.some((h) => host === h || host.endsWith(`.${h}`));
+  } catch {
+    return false;
+  }
+}
+
 function openExternally(url) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
@@ -58,6 +81,10 @@ export function openInAppBrowser(url, { warning, unsafe } = {}) {
   } catch {
   }
   const target = embedUrlFor(url);
+  if (!unsafe && !warning && !isEmbedPlayer(target) && isNeverFrameable(target)) {
+    openExternally(url);
+    return { close() {} };
+  }
 
   const overlay = el("div", { class: "inapp-browser-overlay" });
   const body = el("div", { class: "inapp-browser-body" }, el("div", { class: "inapp-browser-loading" }, "Загрузка…"));
@@ -65,7 +92,10 @@ export function openInAppBrowser(url, { warning, unsafe } = {}) {
   const header = el("div", { class: "inapp-browser-header" }, [
     el("button", { class: "icon-btn", title: "Закрыть", html: iconSvg("X", 18), onclick: close }),
     el("div", { class: "inapp-browser-host" }, [el("span", { html: iconSvg("Lock", 12) }), " ", host]),
-    el("button", { class: "icon-btn", title: "Открыть в браузере", html: iconSvg("Globe", 16), onclick: () => openExternally(url) }),
+    el("button", { class: "inapp-browser-external", title: "Открыть в браузере", onclick: () => { openExternally(url); close(); } }, [
+      el("span", { html: iconSvg("Globe", 16) }),
+      el("span", {}, "В браузере"),
+    ]),
   ]);
 
   const warningBar = warning
