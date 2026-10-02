@@ -18,9 +18,9 @@ const { getUser, findUserIdsByUsernames } = require("../data/users");
 const { transferStars, balanceOf } = require("../data/stars");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
-const { getSettings, isQuietNow } = require("../data/settings");
+const { getSettings, isQuietNow, clearUnreadMark } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
-const { allowsUser } = require("../lib/privacyRules");
+const { allowsUser, recordsReadTime } = require("../lib/privacyRules");
 const { messageCost } = require("../lib/messagePrice");
 const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled } = require("../data/scheduledMessages");
 const { getBotByUserId } = require("../data/bots");
@@ -69,6 +69,7 @@ const ATTACHMENT_LABEL = {
   "video-note": "⏺ Видео-кружок",
   poll: "📊 Опрос",
   checklist: "☑️ Чек-лист",
+  dice: "🎲 Кубик",
   location: "📍 Геолокация",
   contact: "👤 Контакт",
 };
@@ -88,7 +89,9 @@ async function resolveMentions(text, memberIds, senderId) {
     .map((u) => u.id);
 }
 
-async function pushNewMessage(chat, sender, message) {
+const MESSAGE_EFFECTS = ["🔥", "👍", "👎", "❤️", "🎉", "💩"];
+
+async function pushNewMessage(chat, sender, message, { silent = false } = {}) {
   const isGroupLike = chat.type === "group" || chat.type === "channel";
   const title = isGroupLike ? chat.title : sender?.name ?? "Новое сообщение";
   const preview = messagePreview(message);
@@ -111,7 +114,7 @@ async function pushNewMessage(chat, sender, message) {
       const avatar = chatAvatar ?? (await userPushAvatar(sender, uid));
       await sendPushToUser(
         uid,
-        { title, body, ...avatar, url: `/chat/${chat.id}`, kind: "message", tag: `chat-${chat.id}` },
+        { title, body, ...avatar, url: `/chat/${chat.id}`, kind: "message", tag: `chat-${chat.id}`, ...(silent ? { silent: true } : {}) },
         MESSAGE_PUSH
       );
     })
@@ -138,13 +141,16 @@ router.get(
     const firstUnreadId =
       messages.find((m) => m.senderId !== req.uid && !(m.readByIds ?? []).includes(req.uid))?.id ?? null;
 
-    const changedIds = await markChatRead(req.params.id, req.uid);
+    const recordTime = await recordsReadTime(chat, req.uid);
+    const changedIds = await markChatRead(req.params.id, req.uid, { recordTime });
+    if (!before && !beforeId) await clearUnreadMark(req.uid, req.params.id);
     if (changedIds.length > 0) {
       broadcastToOtherMembers(chat, req.uid, {
         type: "message:read",
         chatId: req.params.id,
         readerId: req.uid,
         messageIds: changedIds,
+        readAt: recordTime ? new Date().toISOString() : undefined,
       });
     }
 
@@ -314,6 +320,8 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
     readByIds: [senderId],
     paidStars,
     anonymous: !!(body.anonymous && chat.type === "group" && chat.anonymousAdmins && isStaff(chat, senderId)),
+    // Эффекты — только в личных чатах, как в Telegram.
+    effect: chat.type === "dm" && MESSAGE_EFFECTS.includes(body.effect) ? body.effect : null,
   });
 
   registerAttachments(chat.id, message.attachments);
@@ -330,7 +338,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
       if (channel) broadcastToUsers(channel.memberIds, { type: "message:updated", chatId: channel.id, message: updatedPost });
     }
   } else {
-    broadcastToOtherMembers(chat, senderId, { type: "message:new", chatId: chat.id, message });
+    broadcastToOtherMembers(chat, senderId, { type: "message:new", chatId: chat.id, message, ...(body.silent === true ? { silent: true } : {}) });
   }
 
   for (const memberId of chat.memberIds) {
@@ -355,7 +363,8 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   }
 
   const sender = await getUser(senderId);
-  pushNewMessage(chat, sender, message).catch((err) => console.error("push notify failed:", err));
+  // «Отправить без звука»: уведомление придёт, но тихое.
+  pushNewMessage(chat, sender, message, { silent: body.silent === true }).catch((err) => console.error("push notify failed:", err));
 
   attachPreviews(chat, message).catch((err) => console.error("attachment preview failed:", err));
 
@@ -406,8 +415,8 @@ async function sendGate(chat, uid, body, { charge = true, skipSlowMode = false }
   const needs = [
     "sendMessages",
     ...(kinds.has("poll") || kinds.has("checklist") ? ["sendPolls"] : []),
-    ...([...kinds].some((k) => k !== "poll" && k !== "checklist") ? ["sendMedia"] : []),
-    ...(body.sticker ? ["sendStickers"] : []),
+    ...([...kinds].some((k) => k !== "poll" && k !== "checklist" && k !== "dice") ? ["sendMedia"] : []),
+    ...(body.sticker || kinds.has("dice") ? ["sendStickers"] : []),
   ];
   for (const need of needs) {
     if (!can(chat, uid, need)) return fail(403, { error: DENIED[need] });

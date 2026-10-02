@@ -114,7 +114,7 @@ async function boot() {
   });
   onWsMessage("message:new", (msg) => {
     const { user: me, settings, chats } = getState();
-    if (!msg.message || msg.message.senderId === me?.id || settings?.notifications?.sound === false) return;
+    if (!msg.message || msg.silent || msg.message.senderId === me?.id || settings?.notifications?.sound === false) return;
     if (document.visibilityState !== "visible") return;
     const chat = (chats ?? []).find((c) => c.id === msg.chatId);
     if (chat && isChatMuted(chat)) return;

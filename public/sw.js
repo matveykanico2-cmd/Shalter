@@ -158,7 +158,7 @@ self.addEventListener("push", (event) => {
   } catch {
     return;
   }
-  const { title, body, url, tag, requireInteraction, kind, callId, avatar } = payload;
+  const { title, body, url, tag, requireInteraction, kind, callId, avatar, silent } = payload;
 
   if (kind === "call-cancelled") {
     event.waitUntil(
@@ -221,8 +221,8 @@ self.addEventListener("push", (event) => {
         tag,
         requireInteraction: !!requireInteraction,
         vibrate: isCall ? [300, 200, 300, 200, 300] : undefined,
-        renotify: true,
-        silent: false,
+        renotify: !silent,
+        silent: !!silent,
         icon,
         // Android draws the badge as the small status-bar glyph: it has to be
         // a raster, white-on-transparent silhouette (an SVG or a colour icon

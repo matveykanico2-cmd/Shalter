@@ -602,7 +602,7 @@ function renderResults(container) {
 }
 
 function hasUnread(c) {
-  return c.unreadCount > 0 || !!c.hasUnreadMention;
+  return c.unreadCount > 0 || !!c.hasUnreadMention || !!c.unread;
 }
 
 function ArchiveRow(archived) {
@@ -787,7 +787,7 @@ function emptyTextFor(tabId, folders) {
 
 function markReadLocally(id) {
   const { chats } = getState();
-  setState({ chats: chats.map((c) => (c.id === id ? { ...c, unreadCount: 0, hasUnreadMention: false } : c)) });
+  setState({ chats: chats.map((c) => (c.id === id ? { ...c, unreadCount: 0, hasUnreadMention: false, unread: undefined } : c)) });
 }
 
 // Сразу меняем список, запрос — в фоне; при ошибке возвращаем как было.

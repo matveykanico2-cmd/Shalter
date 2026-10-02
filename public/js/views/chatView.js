@@ -120,8 +120,8 @@ export async function ChatView(root, chatId) {
   }
 
   const { chats: sharedChats } = getState();
-  if (sharedChats.some((c) => c.id === chatId && c.unreadCount > 0)) {
-    setState({ chats: sharedChats.map((c) => (c.id === chatId ? { ...c, unreadCount: 0 } : c)) });
+  if (sharedChats.some((c) => c.id === chatId && (c.unreadCount > 0 || c.unread))) {
+    setState({ chats: sharedChats.map((c) => (c.id === chatId ? { ...c, unreadCount: 0, unread: undefined } : c)) });
   }
 
   let replyingTo = null;
@@ -1737,6 +1737,7 @@ export async function ChatView(root, chatId) {
         onDraftChange: handleDraftChange,
         onScheduled: () => openScheduledMessagesDialog(chat.id),
         topicId: currentTopicId(),
+        allowEffects: isDm && !isSaved,
         onEditLast: () => {
           const last = [...messages]
             .reverse()

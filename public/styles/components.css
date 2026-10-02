@@ -1601,6 +1601,41 @@
   padding-left: 8px;
   color: var(--color-muted);
 }
+.message-text .quote-line.quote-collapsed {
+  max-height: 5.6em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 60%, transparent);
+  mask-image: linear-gradient(#000 60%, transparent);
+}
+.quote-toggle {
+  border: none;
+  background: none;
+  padding: 2px 0 0 10px;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+.message-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 4px 0;
+}
+.message-table {
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.message-table th,
+.message-table td {
+  border: 1px solid var(--color-border);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.message-table th {
+  background: var(--color-surface-alt);
+  font-weight: 600;
+}
 .inline-code {
   border-radius: 4px;
   background: var(--color-surface-alt);
@@ -14726,3 +14761,70 @@ video.story-reply-thumb { object-fit: cover; }
 .profile-note-text { color: var(--color-text); white-space: pre-wrap; overflow-wrap: anywhere; }
 .profile-note-empty { color: var(--color-accent); }
 .profile-note-label { font-size: 12px; }
+
+/* Чат отмечен как непрочитанный — точка без числа. */
+.unread-badge.unread-badge-mark {
+  min-width: 12px;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+}
+
+/* Эмодзи-игры (🎲🎯🏀⚽🎳🎰). */
+.dice-attachment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+}
+.dice-emoji {
+  font-size: 64px;
+  line-height: 1;
+}
+.dice-rolling {
+  animation: dice-roll 0.4s linear 3;
+}
+.dice-waiting {
+  animation-iteration-count: infinite;
+}
+.dice-result {
+  font-size: 13px;
+  font-weight: 600;
+}
+@keyframes dice-roll {
+  0% { transform: rotate(0) scale(1); }
+  50% { transform: rotate(180deg) scale(0.85); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dice-rolling { animation: none; }
+}
+
+/* Эффекты сообщений. */
+.message-effect-badge {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.message-effect-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+  overflow: hidden;
+}
+.message-effect-particle {
+  position: absolute;
+  font-size: 26px;
+  transform: translate(-50%, -50%);
+  animation: message-effect-burst 1.3s ease-out forwards;
+}
+@keyframes message-effect-burst {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.1); opacity: 0; }
+}

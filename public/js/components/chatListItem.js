@@ -140,7 +140,9 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
             chat.hasUnreadMention ? el("span", { class: "mention-badge" }, "@") : null,
             chat.unreadCount > 0
               ? el("span", { class: "unread-badge" }, chat.unreadCount > 99 ? "99+" : String(chat.unreadCount))
-              : null,
+              : chat.unread
+                ? el("span", { class: "unread-badge unread-badge-mark", "aria-label": "Отмечен как непрочитанный" })
+                : null,
           ]),
         ]),
       ]),
@@ -186,7 +188,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
         label: chat.archived ? "Вернуть из архива" : "Архивировать",
         onClick: () => onPatch(chat.id, { archived: !chat.archived }),
       },
-      chat.unreadCount > 0 || chat.hasUnreadMention
+      chat.unreadCount > 0 || chat.hasUnreadMention || chat.unread
         ? {
             icon: "Check",
             label: "Отметить как прочитанное",
@@ -199,7 +201,11 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
               }
             },
           }
-        : null,
+        : {
+            icon: "MessageSquare",
+            label: "Отметить как непрочитанное",
+            onClick: () => onPatch(chat.id, { unread: true }),
+          },
       { separator: true },
       {
         icon: "Trash",

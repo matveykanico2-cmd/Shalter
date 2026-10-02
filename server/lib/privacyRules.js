@@ -78,4 +78,12 @@ async function allowsUser(ownerId, key, viewerId) {
   return contacts.some((c) => c.userId === viewerId);
 }
 
-module.exports = { PRIVACY_KEYS, privacyAllows, allowsUser, normalizePrivacy, exceptionsFor };
+// Время прочтения пишем только в личке и только если читатель показывает
+// собеседнику, когда был в сети, — как в Telegram.
+async function recordsReadTime(chat, readerId) {
+  if (chat?.type !== "dm") return false;
+  const other = chat.memberIds.find((id) => id !== readerId);
+  return !!other && (await allowsUser(readerId, "lastSeen", other));
+}
+
+module.exports = { PRIVACY_KEYS, privacyAllows, allowsUser, normalizePrivacy, exceptionsFor, recordsReadTime };

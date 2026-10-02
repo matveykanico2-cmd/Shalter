@@ -27,6 +27,8 @@ function rowToMessage(row) {
     mentionedUserIds: row.mentionedUserIds ? JSON.parse(row.mentionedUserIds) : [],
     threadRootId: row.threadRootId ?? undefined,
     topicId: row.topicId ?? undefined,
+    readAt: row.readAt ?? undefined,
+    effect: row.effect ?? undefined,
     storyReply: row.storyReply ? JSON.parse(row.storyReply) : undefined,
     anchorForPostId: row.anchorForPostId ?? undefined,
     discussionAnchorId: row.discussionAnchorId ?? undefined,
@@ -143,8 +145,8 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, customEmoji, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, topicId, storyReply, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous)
-     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @customEmoji, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @topicId, @storyReply, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, customEmoji, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, topicId, storyReply, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous, effect)
+     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @customEmoji, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @topicId, @storyReply, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous, @effect)`
   ).run({
     id: message.id,
     chatId: message.chatId,
@@ -177,6 +179,7 @@ async function addMessage(message) {
     views: message.views ?? 0,
     commentCount: message.commentCount ?? 0,
     anonymous: message.anonymous ? 1 : 0,
+    effect: message.effect ?? null,
   });
   return getMessage(message.id);
 }
@@ -342,19 +345,22 @@ function readWatermarksFor(userId) {
   );
 }
 
-async function markChatRead(chatId, viewerId) {
+// recordTime — запомнить время прочтения (только личка и если читатель не
+// скрывает время захода от отправителя; это решает маршрут).
+async function markChatRead(chatId, viewerId, { recordTime = false } = {}) {
   const rows = db
     .prepare("SELECT id, senderId, readByIds, createdAt FROM messages WHERE chatId = ? AND senderId <> ? AND readByIds NOT LIKE ?")
     .all(chatId, viewerId, `%"${viewerId}"%`);
   const changedIds = [];
-  const update = db.prepare("UPDATE messages SET readByIds = ? WHERE id = ?");
+  const update = db.prepare("UPDATE messages SET readByIds = ?, readAt = COALESCE(readAt, ?) WHERE id = ?");
+  const now = recordTime ? new Date().toISOString() : null;
   const txn = db.transaction(() => {
     for (const row of rows) {
       if (row.senderId === viewerId) continue;
       const readByIds = JSON.parse(row.readByIds);
       if (readByIds.includes(viewerId)) continue;
       readByIds.push(viewerId);
-      update.run(JSON.stringify(readByIds), row.id);
+      update.run(JSON.stringify(readByIds), now, row.id);
       changedIds.push(row.id);
     }
   });

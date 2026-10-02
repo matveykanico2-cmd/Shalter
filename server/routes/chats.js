@@ -7,8 +7,8 @@ const { checkUsername, normalizeUsername } = require("../lib/username");
 const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeatures");
 const { PERMISSIONS, permissionsOf, sanitizePermissions, can } = require("../lib/chatPermissions");
 const { deleteMessagesForChat, markChatRead } = require("../data/messages");
-const { getSettings, updateSettings, mutedStateFor, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft } = require("../data/settings");
-const { allowsUser } = require("../lib/privacyRules");
+const { getSettings, updateSettings, mutedStateFor, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft, clearUnreadMark } = require("../data/settings");
+const { allowsUser, recordsReadTime } = require("../lib/privacyRules");
 const { messageCost } = require("../lib/messagePrice");
 const { attachSummaries } = require("../data/chat-summary");
 const { listUsers, listUsersByIds, getUser } = require("../data/users");
@@ -320,7 +320,7 @@ router.patch(
       if (!Number.isInteger(sec) || sec < 0 || sec > 366 * 86400) return res.status(400).json({ error: "Некорректный срок автоудаления" });
       patch.autoDeleteSeconds = sec || null;
     }
-    for (const k of ["pinned", "archived", "muted"]) if (k in body) patch[k] = !!body[k];
+    for (const k of ["pinned", "archived", "muted", "unread"]) if (k in body) patch[k] = !!body[k];
 
     if ("avatarColor" in patch && !colorUnlocked(chat, patch.avatarColor)) {
       return res.status(403).json({ error: lockedColorError(patch.avatarColor) });
@@ -330,7 +330,7 @@ router.patch(
       return res.status(403).json({ error: "Менять настройки чата могут владельцы и админы" });
     }
 
-    const PERSONAL = ["pinned", "archived", "muted"];
+    const PERSONAL = ["pinned", "archived", "muted", "unread"];
     const personal = PERSONAL.filter((k) => k in patch);
     if (personal.length) {
       const settings = await getSettings(req.uid);
@@ -343,6 +343,8 @@ router.patch(
         else delete flags.archivedAt;
       }
       if ("muted" in patch) flags.muted = !!patch.muted;
+      if (patch.unread) flags.unread = true;
+      else if ("unread" in patch) delete flags.unread;
       chatFlags[chat.id] = flags;
       const next = { chatFlags };
       if ("pinned" in patch) {
@@ -874,11 +876,13 @@ router.post(
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    const changedIds = await markChatRead(req.params.id, req.uid);
+    const recordTime = await recordsReadTime(chat, req.uid);
+    const changedIds = await markChatRead(req.params.id, req.uid, { recordTime });
+    await clearUnreadMark(req.uid, req.params.id);
     if (changedIds.length > 0) {
       broadcastToUsers(
         chat.memberIds.filter((m) => m !== req.uid),
-        { type: "message:read", chatId: req.params.id, readerId: req.uid, messageIds: changedIds }
+        { type: "message:read", chatId: req.params.id, readerId: req.uid, messageIds: changedIds, readAt: recordTime ? new Date().toISOString() : undefined }
       );
     }
     res.json({ ok: true, count: changedIds.length });

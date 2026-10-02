@@ -1149,6 +1149,10 @@ CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(userId);
   if (!chatCols.has("protectedBy")) db.exec("ALTER TABLE chats ADD COLUMN protectedBy TEXT");
   const msgCols = new Set(db.prepare("PRAGMA table_info(messages)").all().map((c) => c.name));
   if (!msgCols.has("topicId")) db.exec("ALTER TABLE messages ADD COLUMN topicId TEXT");
+  // Когда сообщение в личке прочитали (для «Прочитано в 14:05»).
+  if (!msgCols.has("readAt")) db.exec("ALTER TABLE messages ADD COLUMN readAt TEXT");
+  // Эффект при отправке (🔥🎉…), как в личках Telegram.
+  if (!msgCols.has("effect")) db.exec("ALTER TABLE messages ADD COLUMN effect TEXT");
   db.exec("CREATE INDEX IF NOT EXISTS idx_messages_topic ON messages(chatId, topicId, createdAt) WHERE topicId IS NOT NULL");
   const schedCols = new Set(db.prepare("PRAGMA table_info(scheduled_messages)").all().map((c) => c.name));
   if (!schedCols.has("repeat")) db.exec("ALTER TABLE scheduled_messages ADD COLUMN repeat TEXT");

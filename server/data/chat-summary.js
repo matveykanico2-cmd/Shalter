@@ -94,6 +94,7 @@ async function attachSummaries(chats, userId) {
       lastMessage,
       unreadCount,
       hasUnreadMention,
+      unread: !!flags?.unread || undefined,
       otherUser: isSaved ? null : otherUser,
       draft: drafts[chat.id] ?? null,
     };

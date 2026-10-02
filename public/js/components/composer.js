@@ -7,6 +7,7 @@ import { startChatAction, withChatAction, uploadActionFor } from "../lib/chatAct
 import { checkSize } from "../lib/uploadLimits.js";
 import { openPollDialog } from "./pollDialog.js";
 import { openChecklistDialog } from "./checklistDialog.js";
+import { openDropdownMenu } from "./dropdownMenu.js";
 import { openMemeDialog } from "./memeDialog.js";
 import { openPaintDialog } from "./paintDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
@@ -42,6 +43,9 @@ function plural(n, one, few, many) {
   return many;
 }
 
+const MESSAGE_EFFECTS = ["🔥", "👍", "👎", "❤️", "🎉", "💩"];
+const EFFECT_NAMES = { "🔥": "Огонь", "👍": "Класс", "👎": "Не нравится", "❤️": "Сердечки", "🎉": "Праздник", "💩": "Какашка" };
+
 export function Composer({
   chatId,
   replyingTo,
@@ -62,6 +66,7 @@ export function Composer({
   onEditLast = null,
   disableDraftSync = false,
   topicId = null,
+  allowEffects = false,
 }) {
   let lastTypingPing = 0;
   let staged = [];
@@ -208,7 +213,11 @@ export function Composer({
       if (!editingMessage) scheduleDraftSave(textarea.value);
     }
 
-    function submit() {
+    function submit(opts = {}) {
+      const silent = {
+        ...(opts.silent === true ? { silent: true } : {}),
+        ...(opts.effect ? { effect: opts.effect } : {}),
+      };
       const trimmed = textarea.value.trim();
       if (!trimmed && !staged.length) return;
       if (editingMessage) {
@@ -219,16 +228,18 @@ export function Composer({
         staged = [];
         renderStagedTray();
         const extra = {
+          ...silent,
           ...(postAsChat ? { anonymous: true } : {}),
           ...(draftEmoji.length ? { customEmoji: draftEmoji.slice() } : {}),
         };
         for (let i = 0; i < atts.length; i += MAX_ATTACHMENTS_PER_MESSAGE) {
-          onSend(i === 0 ? trimmed : "", atts.slice(i, i + MAX_ATTACHMENTS_PER_MESSAGE), i === 0 ? extra : {});
+          onSend(i === 0 ? trimmed : "", atts.slice(i, i + MAX_ATTACHMENTS_PER_MESSAGE), i === 0 ? extra : opts.silent === true ? { silent: true } : {});
         }
         draftEmoji = [];
         clearDraft();
       } else {
         onSend(trimmed, [], {
+          ...silent,
           ...(postAsChat ? { anonymous: true } : {}),
           ...(draftEmoji.length ? { customEmoji: draftEmoji.slice() } : {}),
         });
@@ -621,6 +632,18 @@ export function Composer({
             openChecklistDialog((title, items, opts) => {
               onSend(title, [{ kind: "checklist", meta: { items: items.map((text, i) => ({ id: i + 1, text })), ...opts } }]);
             }),
+        },
+        {
+          icon: "Smile",
+          label: "Кубик и игры",
+          run: () => {
+            const r = attachBtn.getBoundingClientRect();
+            const games = [["🎲", "Кубик"], ["🎯", "Дартс"], ["🏀", "Баскетбол"], ["⚽", "Футбол"], ["🎳", "Боулинг"], ["🎰", "Слот-машина"]];
+            setTimeout(() => openDropdownMenu({ x: r.left, y: r.top - 8 }, games.map(([emoji, label]) => ({
+              label: `${emoji}  ${label}`,
+              onClick: () => onSend("", [{ kind: "dice", meta: { emoji } }]),
+            }))), 0);
+          },
         },
         {
           icon: "MapPin",
@@ -1065,7 +1088,26 @@ export function Composer({
       clear(trailingSlot);
       if (textarea.value.trim() || staged.length) {
         trailingSlot.appendChild(
-          el("button", { class: "composer-send-btn", title: "Отправить", html: iconSvg("Send", 17), onclick: submit })
+          el("button", {
+            class: "composer-send-btn",
+            title: "Отправить (правый клик — другие варианты)",
+            html: iconSvg("Send", 17),
+            onclick: () => submit(),
+            // Как в Telegram: долгое нажатие / правый клик — «без звука» и «позже».
+            oncontextmenu: (e) => {
+              e.preventDefault();
+              if (editingMessage) return;
+              const r = e.currentTarget.getBoundingClientRect();
+              openDropdownMenu({ x: r.right - 220, y: r.top - 8 }, [
+                { icon: "BellOff", label: "Отправить без звука", onClick: () => submit({ silent: true }) },
+                { icon: "Clock", label: "Отправить позже", onClick: scheduleSend },
+                ...(allowEffects
+                  ? [{ icon: "Zap", label: "Отправить с эффектом", onClick: () => setTimeout(() => openDropdownMenu({ x: r.right - 220, y: r.top - 8 },
+                      MESSAGE_EFFECTS.map((effect) => ({ label: `${effect}  ${EFFECT_NAMES[effect]}`, onClick: () => submit({ effect }) }))), 0) }]
+                  : []),
+              ]);
+            },
+          })
         );
         return;
       }

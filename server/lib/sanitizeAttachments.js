@@ -1,6 +1,10 @@
-const ALLOWED_KINDS = new Set(["image", "video", "voice", "video-note", "file", "location", "contact", "poll", "checklist"]);
+const ALLOWED_KINDS = new Set(["image", "video", "voice", "video-note", "file", "location", "contact", "poll", "checklist", "dice"]);
+// Анимированные эмодзи-игры, как в Telegram: число выпадает на сервере,
+// клиент присылает только какой эмодзи бросить. Значение — максимум очков.
+const DICE = { "🎲": 6, "🎯": 6, "🏀": 5, "⚽": 5, "🎳": 6, "🎰": 64 };
 const MAX_CHECKLIST_ITEMS = 30;
 const MAX_ATTACHMENTS = 10;
+const crypto = require("crypto");
 
 const UPLOAD_URL_RE = /^\/uploads\/[a-z0-9]+_[a-f0-9]{16}(\.[a-z0-9]{1,12})?$/;
 
@@ -60,6 +64,9 @@ function sanitizeAttachments(attachments) {
             : null;
         const multiple = correctIndex === null && a.meta?.multiple === true;
         out.meta = { options, voterIds, votes: voterIds.map((v) => v.length), correctIndex, multiple, closed: false };
+      } else if (a.kind === "dice") {
+        const emoji = typeof a.meta?.emoji === "string" && DICE[a.meta.emoji] ? a.meta.emoji : "🎲";
+        out.meta = { emoji, value: crypto.randomInt(1, DICE[emoji] + 1) };
       } else if (a.kind === "checklist") {
         // Чек-лист, как в Telegram: отметки ставит сервер, от клиента — только тексты.
         const items = (Array.isArray(a.meta?.items) ? a.meta.items : [])
@@ -76,4 +83,4 @@ function sanitizeAttachments(attachments) {
   return cleaned.length ? cleaned : undefined;
 }
 
-module.exports = { sanitizeAttachments, isSafeUrl, MAX_CHECKLIST_ITEMS };
+module.exports = { sanitizeAttachments, isSafeUrl, MAX_CHECKLIST_ITEMS, DICE };

@@ -93,6 +93,15 @@ async function setDraft(userId, chatId, text) {
   return updateSettings(userId, { drafts: next });
 }
 
+// «Отметить как непрочитанное» снимается, когда чат открыли или прочитали.
+async function clearUnreadMark(userId, chatId) {
+  const current = await getSettings(userId);
+  const flags = current.chatFlags?.[chatId];
+  if (!flags?.unread) return;
+  const { unread, ...rest } = flags;
+  await updateSettings(userId, { chatFlags: { ...current.chatFlags, [chatId]: rest } });
+}
+
 function mutedStateFor(settings, chatId) {
   const value = settings?.notifications?.mutedChats?.[chatId];
   if (!value) return { muted: false, mutedUntil: null };
@@ -116,5 +125,6 @@ module.exports = {
   deleteChatForUser,
   setChatWallpaper,
   setDraft,
+  clearUnreadMark,
   DEFAULT_SETTINGS,
 };

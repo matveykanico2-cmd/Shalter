@@ -82,7 +82,7 @@ export async function ArchiveView(root) {
   }
 
   function markReadLocally(id) {
-    setState({ chats: getState().chats.map((c) => (c.id === id ? { ...c, unreadCount: 0, hasUnreadMention: false } : c)) });
+    setState({ chats: getState().chats.map((c) => (c.id === id ? { ...c, unreadCount: 0, hasUnreadMention: false, unread: undefined } : c)) });
   }
 
   async function deleteChatItem(id, forEveryone) {

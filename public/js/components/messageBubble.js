@@ -4,7 +4,7 @@ import { translateLocally } from "../lib/localTranslate.js";
 import { Avatar } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { formatText, previewText } from "../lib/formatText.js";
-import { messagePreview } from "../lib/messagePreview.js";
+import { messagePreview, diceResult } from "../lib/messagePreview.js";
 import { api } from "../api.js";
 import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog } from "./profileDialog.js";
@@ -351,6 +351,56 @@ function PollAttachment(message, a, me, onVote, onPollAction) {
         : null,
     ]),
   ]);
+}
+
+const playedEffects = new Set();
+
+// Россыпь эмодзи от пузыря сообщения — как эффекты в Telegram.
+function playMessageEffect(emoji, anchor) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const r = anchor.getBoundingClientRect();
+  const layer = el("div", { class: "message-effect-layer", "aria-hidden": "true" });
+  for (let i = 0; i < 14; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 60 + Math.random() * 140;
+    const p = el("span", { class: "message-effect-particle" }, emoji);
+    p.style.left = `${r.left + r.width / 2}px`;
+    p.style.top = `${r.top + r.height / 2}px`;
+    p.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
+    p.style.setProperty("--dy", `${Math.sin(angle) * dist - 60}px`);
+    p.style.animationDelay = `${Math.random() * 150}ms`;
+    layer.appendChild(p);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 1600);
+}
+
+// «Прочитано сегодня в 14:05» / «вчера в …» / «12.03 в …».
+function readAtLabel(iso) {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const day = new Date();
+  day.setHours(0, 0, 0, 0);
+  const diff = Math.floor((day - new Date(d).setHours(0, 0, 0, 0)) / 86400000);
+  const when = diff <= 0 ? "сегодня" : diff === 1 ? "вчера" : d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+  return `Прочитано ${when} в ${time}`;
+}
+
+// Эмодзи-игра: свежий бросок крутится секунду, потом показывает результат.
+function DiceAttachment(message, a) {
+  // Пока сервер не ответил (мгновенная отправка), значения ещё нет — просто крутим.
+  if (!a.meta?.value) return el("div", { class: "dice-attachment" }, el("span", { class: "dice-emoji dice-rolling dice-waiting" }, a.meta?.emoji ?? "🎲"));
+  const fresh = Date.now() - Date.parse(message.createdAt) < 8000;
+  const result = el("span", { class: "dice-result" }, diceResult(a.meta));
+  const face = el("span", { class: `dice-emoji${fresh ? " dice-rolling" : ""}` }, a.meta?.emoji ?? "🎲");
+  if (fresh) {
+    result.hidden = true;
+    setTimeout(() => {
+      face.classList.remove("dice-rolling");
+      result.hidden = false;
+    }, 1200);
+  }
+  return el("div", { class: "dice-attachment" }, [face, result]);
 }
 
 // Чек-лист: пункты с отметками «кто выполнил». members — чтобы показать имя.
@@ -702,6 +752,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       bubbleInner.push(PollAttachment(message, { ...a, canClose: handlers.canClosePolls }, me, onVote, onPollAction));
     } else if (a.kind === "checklist") {
       bubbleInner.push(ChecklistAttachment(message, a, me, members, handlers.onRefresh));
+    } else if (a.kind === "dice") {
+      bubbleInner.push(DiceAttachment(message, a));
     } else if (album && (a.kind === "image" || a.kind === "video")) {
       if (albumPlaced) continue;
       albumPlaced = true;
@@ -747,6 +799,17 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   }
 
   const meta = el("span", { class: `message-meta ${isSticker ? "message-meta-sticker" : ""}` }, [
+    message.effect
+      ? el("button", {
+          class: "message-effect-badge",
+          type: "button",
+          title: "Повторить эффект",
+          onclick: (e) => {
+            e.stopPropagation();
+            playMessageEffect(message.effect, bubble);
+          },
+        }, message.effect)
+      : null,
     message.editedAt ? el("span", {}, "изменено") : null,
     el("span", { class: "mono" }, timeLabel(message.createdAt)),
     isChannel && typeof message.views === "number" ? el("span", { class: "mono" }, `${message.views} 👁`) : null,
@@ -765,6 +828,12 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     { class: `bubble ${mine ? "mine" : ""} ${isSticker ? "bubble-sticker" : ""} ${isVideoNote ? "bubble-videonote" : ""} ${boosted ? "bubble-boosted" : ""}` },
     bubbleInner
   );
+
+  // Эффект проигрываем один раз — для только что пришедшего/отправленного сообщения.
+  if (message.effect && !message.pending && !playedEffects.has(message.id) && Date.now() - Date.parse(message.createdAt) < 10_000) {
+    playedEffects.add(message.id);
+    requestAnimationFrame(() => bubble.isConnected && playMessageEffect(message.effect, bubble));
+  }
 
   const canTranslate = !isSticker && !!message.text?.trim() && !message.attachments?.some((a) => a.kind === "poll");
   let translationEl = null;
@@ -1013,6 +1082,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         : []),
       ...(selection ? [{ icon: "Check", label: "Выбрать", onClick: () => selection.onToggle(message.id) }] : []),
       ...(readers.length ? [{ icon: "CheckCheck", label: `Прочитали: ${readers.length}`, onClick: () => showReaders(pos) }] : []),
+      ...(isDm && mine && message.readAt ? [{ icon: "CheckCheck", label: readAtLabel(message.readAt) }] : []),
     ];
     if (onOpenThread && !message.threadRootId) {
       items.push({ icon: "MessageSquare", label: "Ответить в теме", onClick: () => onOpenThread(message) });
