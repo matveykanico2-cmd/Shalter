@@ -55,7 +55,8 @@ export const api = {
   topUpAdCampaign: (id, stars) => req(`/api/ads/campaigns/${id}/budget`, { method: "POST", body: JSON.stringify({ stars }) }),
   setAdCampaignStatus: (id, status) => req(`/api/ads/campaigns/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
   adCampaignStats: (id) => req(`/api/ads/campaigns/${id}/stats`),
-  serveAd: (placement) => req(`/api/ads/serve?placement=${encodeURIComponent(placement)}`),
+  serveAd: (placement, owner) =>
+    req(`/api/ads/serve?placement=${encodeURIComponent(placement)}${owner ? `&owner=${encodeURIComponent(owner)}` : ""}`),
   clickAd: (id) => req(`/api/ads/click/${id}`, { method: "POST", body: "{}" }),
   adsForReview: () => req("/api/ads/review"),
   reviewAd: (id, approve, reason) => req(`/api/ads/review/${id}`, { method: "POST", body: JSON.stringify({ approve, reason }) }),

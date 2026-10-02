@@ -4185,6 +4185,11 @@ pre.mono,
   text-decoration: none;
   color: inherit;
 }
+button.profile-ad-banner {
+  width: 100%;
+  font: inherit;
+  cursor: pointer;
+}
 .profile-ad-label {
   display: inline-block;
   font-size: 10px;

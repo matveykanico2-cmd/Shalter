@@ -10,7 +10,7 @@ export function isTranscriptSupported() {
 // and fall back to Russian (the UI language) for English-only browsers.
 function pickLang() {
   const langs = (navigator.languages?.length ? navigator.languages : [navigator.language]).filter(Boolean);
-  return langs.find((l) => /^ru\b/i.test(l)) || langs.find((l) => !/^en\b/i.test(l)) || "ru-RU";
+  return langs.find((l) => /^ru\b/i.test(l)) || (langs[0] && !/^en\b/i.test(langs[0]) ? langs[0] : "ru-RU");
 }
 
 // Errors after which restarting can't help (no permission, no mic, no speech

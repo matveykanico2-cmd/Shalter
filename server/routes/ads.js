@@ -270,13 +270,37 @@ router.get(
   })
 );
 
+// Profile ads are aimed at one advertiser, so a viewer could drain that campaign by
+// reopening the profile (or hitting /serve in a loop). Bill each viewer once per
+// window per campaign. In-memory is fine: the app runs as a single process.
+const PROFILE_IMPRESSION_WINDOW_MS = 30 * 60 * 1000;
+const profileImpressions = new Map();
+function shouldBillProfileImpression(viewerId, campaignId) {
+  const now = Date.now();
+  const key = `${viewerId}:${campaignId}`;
+  const last = profileImpressions.get(key);
+  if (last && now - last < PROFILE_IMPRESSION_WINDOW_MS) return false;
+  profileImpressions.set(key, now);
+  return true;
+}
+// Sweep expired entries on a timer rather than per request, so a burst of
+// fresh viewers never makes /serve rescan the whole map.
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, t] of profileImpressions) if (now - t >= PROFILE_IMPRESSION_WINDOW_MS) profileImpressions.delete(k);
+}, PROFILE_IMPRESSION_WINDOW_MS).unref();
+
 router.get(
   "/serve",
   asyncRoute(async (req, res) => {
     const placement = PLACEMENTS[req.query.placement] ? req.query.placement : "discover";
-    const c = campaigns.pickForPlacement(placement, req.uid);
+    const owner = placement === "profile" ? String(req.query.owner || "") : "";
+    if (placement === "profile" && !owner) return res.json({ ad: null });
+    const c = owner ? campaigns.pickForOwner(placement, owner) : campaigns.pickForPlacement(placement, req.uid);
     if (!c) return res.json({ ad: null });
-    campaigns.recordImpression(c.id, c.cpmStars);
+    // Advertisers viewing their own profile don't pay for the impression.
+    const bill = c.ownerId !== req.uid && (!owner || shouldBillProfileImpression(req.uid, c.id));
+    if (bill) campaigns.recordImpression(c.id, c.cpmStars);
     res.json({ ad: publicCampaign(c) });
   })
 );
@@ -286,7 +310,8 @@ router.post(
   asyncRoute(async (req, res) => {
     const c = campaigns.get(req.params.id);
     if (!c) return res.status(404).json({ error: "not found" });
-    campaigns.recordClick(c.id);
+    // Owners clicking their own banner (e.g. on their profile) mustn't skew CTR.
+    if (c.ownerId !== req.uid) campaigns.recordClick(c.id);
     res.json({ ok: true, url: c.url });
   })
 );

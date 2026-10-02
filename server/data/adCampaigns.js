@@ -58,6 +58,18 @@ function joinPlacements(p) {
   return list.length ? list.join(",") : "discover";
 }
 
+// "profile" placement: the advertiser's own campaign, shown on their profile page.
+function pickForOwner(placement, ownerId) {
+  const row = db
+    .prepare(
+      `SELECT * FROM ad_campaigns
+        WHERE status = 'active' AND ownerId = ? AND (',' || placement || ',') LIKE ('%,' || ? || ',%') AND budgetStars > spentStars
+        ORDER BY RANDOM() LIMIT 1`
+    )
+    .get(ownerId, placement);
+  return rowToCampaign(row);
+}
+
 function create({ ownerId, title, text, url, imageUrl, placement, cpmStars, status = "review" }) {
   const id = `ad_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   db.prepare(
@@ -129,4 +141,4 @@ function daily(campaignId, days = 14) {
     .reverse();
 }
 
-module.exports = { CPM_MIN, listByOwner, get, listForReview, pickForPlacement, create, update, remove, recordImpression, recordClick, daily };
+module.exports = { CPM_MIN, listByOwner, get, listForReview, pickForPlacement, pickForOwner, create, update, remove, recordImpression, recordClick, daily };

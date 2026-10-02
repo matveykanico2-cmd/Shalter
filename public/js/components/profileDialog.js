@@ -2,6 +2,7 @@ import { el, clear } from "../lib/dom.js";
 import { PremiumStar } from "./premiumStar.js";
 import { Avatar, videoAvatarUrl } from "./avatar.js";
 import { iconSvg } from "../icons.js";
+import { openAd } from "../lib/adLink.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { getState, setState, updateSelf } from "../state.js";
@@ -151,6 +152,16 @@ export async function openProfileDialog(userId) {
       storiesGroup = null;
     }
     render();
+  }
+  // An ad campaign this user runs with the "profile" placement.
+  let campaignAd = null;
+  async function loadCampaignAd() {
+    try {
+      ({ ad: campaignAd } = await api.serveAd("profile", userId));
+    } catch {
+      campaignAd = null;
+    }
+    if (campaignAd) render();
   }
   let activeTab = "media";
   let hoursExpanded = false;
@@ -661,6 +672,16 @@ export async function openProfileDialog(userId) {
             user.adUrl ? el("a", { class: "profile-ad-link", href: user.adUrl, target: "_blank", rel: "noreferrer" }, "Перейти →") : null,
           ])
         : null,
+      campaignAd
+        ? el("button", { class: "profile-ad-banner", title: campaignAd.url || "", onclick: () => {
+              close();
+              openAd(campaignAd);
+            } }, [
+            el("span", { class: "profile-ad-label" }, "Реклама"),
+            campaignAd.title ? el("p", { class: "profile-ad-text" }, el("b", {}, campaignAd.title)) : null,
+            el("p", { class: "profile-ad-text" }, campaignAd.text),
+          ])
+        : null,
       !isSelf
         ? el(
             "div",
@@ -810,4 +831,5 @@ export async function openProfileDialog(userId) {
   }
   render();
   loadStories();
+  loadCampaignAd();
 }
