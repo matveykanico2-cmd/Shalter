@@ -1,8 +1,3 @@
-// Production build: bundle+minify the client JS/CSS and precompress the
-// output (gzip + brotli) so the server never has to spend CPU compressing
-// static assets on the fly — it just streams the right precomputed file.
-// Dev keeps using the raw ES modules in public/ (see npm run dev); this only
-// affects what NODE_ENV=production serves (see server/index.js).
 const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
@@ -23,20 +18,11 @@ async function build() {
     minify: true,
     format: "esm",
     target: "es2022",
-    // splitting — то, что делает динамические import() отдельными файлами:
-    // без него esbuild сложил бы всё обратно в один. Общий для нескольких
-    // экранов код он выносит в отдельный кусок сам, поэтому ничего не
-    // скачивается дважды.
     splitting: true,
     outdir: DIST_DIR,
     entryNames: "app",
     chunkNames: "chunk-[hash]",
     logLevel: "info",
-    // lib/codeEditor.js imports CodeMirror straight from esm.sh (see that
-    // file's comment) — esbuild has no business trying to fetch/bundle a
-    // remote URL, and can't resolve it as a local path either. `external`
-    // leaves the import statement exactly as written; the browser resolves
-    // it at runtime the same way it does in `npm run dev`.
     external: ["https://esm.sh/*"],
   });
 
@@ -50,27 +36,15 @@ async function build() {
     logLevel: "info",
   });
 
-  // Метка содержимого в адресе. Без неё файл называется /dist/app.js всегда, а
-  // отдаётся он с «хранить год, не перепроверять» (server/index.js) — то есть
-  // после выкладки человек продолжал бы работать со старой сборкой, пока сам не
-  // сбросит кэш. Метка меняется вместе с содержимым, поэтому браузер видит
-  // другой адрес и забирает новое, а неизменившееся по-прежнему берёт из кэша.
   const stamp = (file) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex").slice(0, 10);
   const jsV = stamp(path.join(DIST_DIR, "app.js"));
   const baseV = stamp(path.join(DIST_DIR, "styles", "base.css"));
   const compV = stamp(path.join(DIST_DIR, "styles", "components.css"));
 
-  // Куски, которые основному файлу нужны сразу, объявляем в самой странице.
-  //
-  // Без этого браузер узнаёт о них только когда скачает и разберёт app.js — и
-  // получается цепочка: страница → код → куски кода → и лишь потом запрос к
-  // серверу. На быстрой связи незаметно, на медленной каждое звено стоит своей
-  // задержки. Объявленные здесь, они едут одновременно с основным файлом.
   const appSource = fs.readFileSync(path.join(DIST_DIR, "app.js"), "utf-8");
   const eagerChunks = [...new Set([...appSource.matchAll(/from"\.\/(chunk-[A-Z0-9]+\.js)"/g)].map((m) => m[1]))];
   const preloads = eagerChunks.map((c) => `  <link rel="modulepreload" href="/dist/${c}" />`).join("\n");
 
-  // index.html is identical except it points at the built asset paths.
   const html = fs
     .readFileSync(path.join(PUBLIC_DIR, "index.html"), "utf-8")
     .replace('href="/styles/base.css"', `href="/dist/styles/base.css?v=${baseV}"`)
@@ -78,8 +52,6 @@ async function build() {
     .replace('src="/js/app.js"', `src="/dist/app.js?v=${jsV}"`)
     .replace("</head>", `${preloads}\n</head>`);
   fs.writeFileSync(path.join(DIST_DIR, "index.html"), html);
-  // Метка сборки — по ней сервер понимает, что собранное отстало от исходников,
-  // и по ней же служебный воркер отличает свежий набор файлов от старого.
   fs.writeFileSync(
     path.join(DIST_DIR, "build.json"),
     JSON.stringify({ version: jsV, builtAt: new Date().toISOString(), sourceStamp: sourceStamp() })
@@ -113,10 +85,6 @@ function report() {
   }
 }
 
-// Отпечаток исходников: время последнего изменения любого файла, попадающего в
-// сборку. Сервер сравнивает его с записанным в build.json и пересобирает сам,
-// если кто-то выложил новый код и забыл `npm run build` — забытая сборка
-// означала бы, что «/» отдаёт сотню отдельных модулей вместо одного файла.
 function sourceStamp() {
   let newest = 0;
   const walk = (dir) => {
@@ -131,7 +99,6 @@ function sourceStamp() {
   return Math.round(newest);
 }
 
-// Собрано ли актуальное. Сервер вызывает это при запуске.
 function isStale() {
   try {
     const meta = JSON.parse(fs.readFileSync(path.join(DIST_DIR, "build.json"), "utf-8"));

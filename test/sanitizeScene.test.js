@@ -33,7 +33,7 @@ test("координаты и размеры зажимаются, fill толь
   assert.equal(l.x, 100);
   assert.equal(l.y, 0);
   assert.equal(l.r, 50);
-  assert.equal(l.fill, "#ff8a3d"); // не hex → значение по умолчанию
+  assert.equal(l.fill, "#ff8a3d");
 });
 
 test("эмодзи и текст ограничены по длине", () => {
@@ -62,14 +62,14 @@ test("ключи покадровой анимации зажимаются", ()
   assert.equal(l.keys[0].dx, 100);
   assert.equal(l.keys[0].scale, 4);
   assert.equal(l.keys[0].opacity, 1);
-  assert.ok(!("fill" in l.keys[0])); // невалидный цвет отброшен
+  assert.ok(!("fill" in l.keys[0]));
 });
 
 test("слой-кисть: штрихи и точки чистятся", () => {
   const [l] = sanitizeScene({
     layers: [{ type: "draw", strokes: [{ color: "bad", width: 999, pts: [[9999, -5], "no", [10, 20]] }, { pts: [] }] }],
   }).layers;
-  assert.equal(l.strokes.length, 1); // пустой штрих выпал
+  assert.equal(l.strokes.length, 1);
   assert.equal(l.strokes[0].color, "#000000");
   assert.equal(l.strokes[0].width, 40);
   assert.deepEqual(l.strokes[0].pts, [[100, 0], [10, 20]]);

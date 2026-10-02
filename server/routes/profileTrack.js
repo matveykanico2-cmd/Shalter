@@ -4,10 +4,6 @@ const { requireUserId } = require("../middleware/auth");
 const { setProfileTrack } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 
-// The one pinned track on your own profile — always your own, same "no :id,
-// session decides" shape as routes/avatars.js. The file itself goes up
-// through POST /api/uploads first (kind "profile-track"); what arrives here
-// is just the resulting /uploads/… path plus display fields.
 const router = express.Router();
 router.use(requireUserId);
 

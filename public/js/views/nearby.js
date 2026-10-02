@@ -4,12 +4,8 @@ import { api } from "../api.js";
 import { Avatar } from "../components/avatar.js";
 import { navigate } from "../router.js";
 
-// «Люди рядом» — сознательно неточно (см. server/data/nearby.js): координаты
-// огрубляются на сервере, другим виден только диапазон расстояния, а не
-// метры, присутствие само гаснет через получаса без обновления. Здесь, на
-// клиенте, ничего этого не подделать точнее — сервер и так огрубит.
 export async function NearbyView(root) {
-  let phase = "intro"; // intro -> sharing -> error
+  let phase = "intro";
   let users = [];
   let error = null;
   let watchId = null;
@@ -49,8 +45,6 @@ export async function NearbyView(root) {
           render();
         });
     };
-    // Первое обновление сразу, дальше — редко: список не гонка, точность и
-    // так огрублена сервером до километра, часто дёргать смысла нет.
     navigator.geolocation.getCurrentPosition(update, () => {
       error = "Не удалось получить местоположение";
       phase = "intro";

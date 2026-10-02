@@ -6,12 +6,6 @@ const { publicUser } = require("../data/sanitize");
 const { getCatalogItem } = require("../data/profileStatuses");
 const { slotsFor, validateImage } = require("../lib/profileStatus");
 
-// A person's own status wardrobe: what they've picked from the catalog or
-// uploaded, and which one (if any) is currently shown next to their name.
-// Always `req.uid`'s own — same "no :id, so no permission check to get
-// wrong" shape as routes/avatars.js. The read-only catalog itself is a plain
-// GET /api/status-catalog in server/index.js; admin writes to it live in
-// routes/admin.js.
 const router = express.Router();
 router.use(requireUserId);
 
@@ -24,10 +18,6 @@ router.get(
   })
 );
 
-// Adds either a catalog pick (`catalogId`) or a custom upload (`image`, a
-// data: URL the client already downscaled — see public/js/lib/image.js) to
-// the account's own slots. The very first status added becomes active right
-// away, since otherwise "add a status" would silently do nothing visible.
 router.post(
   "/me",
   asyncRoute(async (req, res) => {
@@ -72,7 +62,6 @@ router.post(
   })
 );
 
-// Equips one of the account's own slots (or clears the badge with `id: null`).
 router.post(
   "/me/active",
   asyncRoute(async (req, res) => {

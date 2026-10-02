@@ -40,9 +40,6 @@
 
     <h2 class="dl-section-title">Установить приложение</h2>
 
-    <!-- Cards are filled in by the script below from /api/downloads, so a
-         platform whose artifact isn't on the server shows as "скоро" instead of
-         being a link that 404s, and the sizes are always the real ones. -->
     <div class="dl-grid" id="grid"></div>
 
     <section class="dl-help">
@@ -70,13 +67,8 @@
 
 <script>
 (function () {
-  // Platform icons as inline SVG rather than emoji: emoji render differently on
-  // every OS (and the "🪟" a Windows user sees is not the one this page was
-  // designed against), and they can't take the card's own colour.
   var ICONS = {
     windows: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.6l7.2-1v6.9H3V5.6Zm0 12.8l7.2 1v-6.8H3v5.8Zm8.4 1.2L21 21V12.6h-9.6v7Zm0-15.2v7.1H21V3l-9.6 1.4Z"/></svg>',
-    // Simplified Tux — body, head, beak and feet. Recognisable at 28px without
-    // trying to be a faithful reproduction.
     linux: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c-2.2 0-3.6 1.7-3.6 4v1.8c0 .7-.3 1.3-.8 1.9C6.2 11.3 5.4 13 5.4 15c0 1.5.6 2.7 1.5 3.6-.5.4-1 .9-1.2 1.4-.2.6.2 1 .9 1h10.8c.7 0 1.1-.4.9-1-.2-.5-.7-1-1.2-1.4.9-.9 1.5-2.1 1.5-3.6 0-2-.8-3.7-2.2-5.3-.5-.6-.8-1.2-.8-1.9V6c0-2.3-1.4-4-3.6-4Zm-1.5 4.2a.9 1.1 0 1 1 0 2.2.9 1.1 0 0 1 0-2.2Zm3 0a.9 1.1 0 1 1 0 2.2.9 1.1 0 0 1 0-2.2ZM12 9.1c.9 0 1.7.5 1.7 1s-.8 1.1-1.7 1.1-1.7-.5-1.7-1 .8-1.1 1.7-1.1Z"/></svg>',
     "linux-deb": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
     android: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.8 5.4 5.6 3.5a.4.4 0 1 1 .7-.4l1.2 2a7.6 7.6 0 0 1 6.2 0l1.2-2a.4.4 0 1 1 .7.4l-1.2 1.9A6.6 6.6 0 0 1 17.8 11H6.2a6.6 6.6 0 0 1 3.4-5.4h-2.8Zm2.1 2.4a.7.7 0 1 0 0 1.4.7.7 0 0 0 0-1.4Zm6.2 0a.7.7 0 1 0 0 1.4.7.7 0 0 0 0-1.4ZM6.2 12.2h11.6v6.4c0 .8-.6 1.4-1.4 1.4h-.8v2.2a1.2 1.2 0 0 1-2.4 0V20h-2.4v2.2a1.2 1.2 0 0 1-2.4 0V20h-.8c-.8 0-1.4-.6-1.4-1.4v-6.4ZM3.6 12a1.2 1.2 0 0 1 1.2 1.2v4.4a1.2 1.2 0 0 1-2.4 0v-4.4A1.2 1.2 0 0 1 3.6 12Zm16.8 0a1.2 1.2 0 0 1 1.2 1.2v4.4a1.2 1.2 0 0 1-2.4 0v-4.4A1.2 1.2 0 0 1 20.4 12Z"/></svg>',
@@ -120,9 +112,6 @@
 
     var meta = available ? p.format + " · " + formatSize(info.size) : "Скоро";
 
-    // The size badge sits inside the text column rather than in the card's
-    // corner: as a third flex item it took ~100px of a 270px card and squeezed
-    // every note into three wrapped lines.
     el.innerHTML =
       '<span class="dl-card-icon" style="--accent:' + p.accent + '">' + ICONS[p.icon] + "</span>" +
       '<span class="dl-card-text">' +
@@ -142,7 +131,6 @@
     var os = detectOs();
     var list = PLATFORMS.slice();
     if (os) {
-      // The visitor's own platform first — the rest stay visible and in order.
       list.sort(function (a, b) {
         var am = a.id === os || (os === "linux" && a.id === "linux-deb");
         var bm = b.id === os || (os === "linux" && b.id === "linux-deb");
@@ -164,8 +152,6 @@
     .then(function (r) { return r.json(); })
     .then(render)
     .catch(function () {
-      // Server unreachable: still render the platform list rather than an empty
-      // page — every card just shows as "скоро" instead of a broken link.
       render({ artifacts: [] });
     });
 })();

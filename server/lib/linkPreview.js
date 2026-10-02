@@ -1,18 +1,7 @@
-// Fetches basic Open Graph / <title> metadata for the first http(s) link in
-// a message, server-side (avoids exposing the sender's or recipient's IP to
-// the target site, and sidesteps CORS entirely since this never runs in a
-// browser). Deliberately no HTML-parsing dependency — this only needs a
-// handful of <meta property="og:..."> tags and <title>, which a few regexes
-// cover without pulling in a real DOM/HTML parser for it.
 const URL_RE = /https?:\/\/[^\s<>"]+/;
 const MAX_RESPONSE_BYTES = 512 * 1024;
 const FETCH_TIMEOUT_MS = 6000;
 
-// Same "basic, not a real security scanner" caveat as the rest of this
-// app's trust model (see server/lib/sanitizeAttachments.js) — this flags
-// the common, cheap-to-detect red flags (plaintext http, the userinfo@host
-// credential-phishing trick, known shorteners hiding the real destination)
-// so the client can show a caution note, not a guarantee of safety.
 const SHORTENER_HOSTS = new Set(["bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly", "is.gd", "buff.ly"]);
 
 function checkSafety(url) {
@@ -54,9 +43,6 @@ function decodeEntities(str) {
     .replace(/&#39;/g, "'");
 }
 
-// Returns null if there's no URL, the fetch fails/times out, or the target
-// isn't real HTML — a missing preview is a normal, silent outcome, not an
-// error worth surfacing to the sender.
 async function fetchLinkPreview(text) {
   const url = extractFirstUrl(text);
   if (!url) return null;

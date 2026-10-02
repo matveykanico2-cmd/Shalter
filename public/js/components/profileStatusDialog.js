@@ -4,11 +4,6 @@ import { api } from "../api.js";
 import { getState, updateSelf } from "../state.js";
 import { fileToImageDataUrl } from "../lib/image.js";
 
-// Managing your own status wardrobe (Settings → Профиль → Статус): pick which
-// of your own slots is shown next to your name, upload a new one, or add a
-// ready-made one from the admin's catalog. Same "list + grid" shape as
-// stickerPackDialog.js, reusing its grid/cell CSS rather than inventing a
-// second one.
 export function openProfileStatusDialog(onChanged) {
   let items = [];
   let activeId = null;
@@ -25,7 +20,7 @@ export function openProfileStatusDialog(onChanged) {
     class: "hidden-input",
     onchange: (e) => {
       const file = e.target.files?.[0];
-      e.target.value = ""; // so picking the same file twice still fires
+      e.target.value = "";
       if (file) uploadCustom(file);
     },
   });
@@ -99,8 +94,6 @@ export function openProfileStatusDialog(onChanged) {
 
   const uploadCustom = (file) =>
     run(async () => {
-      // Tiny and square, same idea as an avatar poster — this is an icon
-      // shown next to a name, not a photo.
       const image = await fileToImageDataUrl(file, 96, "image/png", 0.92);
       const res = await api.addMyStatus({ image });
       items = res.items;

@@ -9,13 +9,6 @@ import { openChatPickerDialog } from "./chatPickerDialog.js";
 import { openStoryEditor } from "./storyEditor.js";
 import { ALL_EMOJI } from "../lib/emojiList.js";
 
-// Editing a group or channel after it exists: picture, name, description, and
-// the public @link. Owners and admins only — enforced on the server too
-// (routes/chats.js's PATCH), this just decides whether to offer the screen.
-//
-// Before this there was no edit screen at all: a chat's name and picture were
-// whatever they were set to at creation, and the only editable thing anywhere in
-// the info panel was the public link.
 export function openEditChatDialog(chat, onSaved) {
   const isChannel = chat.type === "channel";
   const what = isChannel ? "канал" : "группу";
@@ -46,8 +39,6 @@ export function openEditChatDialog(chat, onSaved) {
     overlay.remove();
   }
 
-  // Плата звёздами за комментарий под постом канала — несохранённое значение
-  // же теряется при перерисовке render(), поэтому поле живёт здесь.
   const commentPriceInput = el("input", { class: "settings-input mono", type: "number", min: "0", max: "90000", step: "1", value: String(chat.commentPriceStars ?? 0) });
   async function saveCommentPrice() {
     error = null;
@@ -62,11 +53,6 @@ export function openEditChatDialog(chat, onSaved) {
     render();
   }
 
-  // Разрешённые реакции (server/routes/chats.js's /:id/reactions) — null
-  // (the toggle off) means "anything", same as every chat before this
-  // setting existed. Draft list is separate from chat.allowedReactions so
-  // flipping the toggle off doesn't lose the picks if it's flipped back on
-  // before saving.
   let reactionsRestricted = Array.isArray(chat.allowedReactions);
   let allowedReactionsDraft = chat.allowedReactions ? [...chat.allowedReactions] : [];
   async function saveReactions(next) {
@@ -82,8 +68,6 @@ export function openEditChatDialog(chat, onSaved) {
     render();
   }
 
-  // Истории канала: тот же кадр-за-кадром поток, что и у личных историй
-  // (components/storiesBar.js), только адресован не себе, а каналу.
   let storyProgress = null;
   const storyInput = el("input", { type: "file", accept: "image/*,video/*", class: "hidden-input", multiple: true });
   async function postChannelStory(files) {
@@ -145,8 +129,6 @@ export function openEditChatDialog(chat, onSaved) {
     },
   });
 
-  // The palette is the one thing a chat's level still gates (see
-  // server/lib/chatFeatures.js), so it's fetched rather than assumed.
   if (!isChannel) {
     api
       .getChatPermissions(chat.id)
@@ -242,8 +224,6 @@ export function openEditChatDialog(chat, onSaved) {
       if (!patch.title) throw new Error("Название не может быть пустым");
       const { chat: updated } = await api.patchChat(chat.id, patch);
       chat = { ...chat, ...updated };
-      // The public link is its own route: it claims a global @handle and needs
-      // the uniqueness check that a plain PATCH doesn't do.
       const wantPublic = isPublic;
       const handle = usernameInput.value.trim();
       if (wantPublic !== !!chat.isPublic || (wantPublic && handle !== (chat.username ?? ""))) {
@@ -280,9 +260,6 @@ export function openEditChatDialog(chat, onSaved) {
         el("p", { class: "settings-field-label" }, "Описание"),
         descInput,
 
-        // The palette: the level reward. Locked entries stay visible with the
-        // level they need — a palette that just hides what you haven't earned
-        // teaches nobody that there's anything to earn.
         colors.length
           ? el("div", {}, [
               el("p", { class: "settings-field-label" }, "Цвет"),
@@ -310,8 +287,6 @@ export function openEditChatDialog(chat, onSaved) {
             ])
           : null,
 
-        // Who may do what, for everyone who isn't staff. Groups only — posting
-        // in a channel is already admin-only.
         !isChannel && permissions
           ? el("div", {}, [
               el("p", { class: "settings-field-label" }, "Права участников"),
@@ -334,9 +309,6 @@ export function openEditChatDialog(chat, onSaved) {
             ])
           : null,
 
-        // Comments under a channel's posts are just a linked group. It was
-        // created with the channel and could never be changed — no way to turn
-        // comments off, no way to point at a group people are already in.
         isChannel
           ? el("div", {}, [
               el("p", { class: "settings-field-label" }, "Обсуждение"),
@@ -379,7 +351,6 @@ export function openEditChatDialog(chat, onSaved) {
             ])
           : null,
 
-        // Who gets in, and how posts are signed.
         el("p", { class: "settings-field-label" }, "Вступление"),
         el("div", { class: "create-chat-public" }, [
           el("div", {}, [
@@ -456,8 +427,6 @@ export function openEditChatDialog(chat, onSaved) {
             ])
           : null,
 
-        // Slow mode — the gap a member has to wait between messages. Group
-        // only; staff are never held by it.
         !isChannel
           ? el("div", {}, [
               el("p", { class: "settings-field-label" }, "Медленный режим"),
@@ -495,8 +464,6 @@ export function openEditChatDialog(chat, onSaved) {
             ])
           : null,
 
-        // История канала — на 24 часа в ленте у всех подписчиков, тем же
-        // кружком, что и у людей (storiesBar.js её уже умеет рисовать).
         isChannel
           ? el("div", {}, [
               el("p", { class: "settings-field-label" }, "История канала"),
@@ -506,8 +473,6 @@ export function openEditChatDialog(chat, onSaved) {
             ])
           : null,
 
-        // Платные комментарии: цену задаёт владелец/админ канала, платит
-        // каждый, кто без Premium, звёзды идут владельцу.
         isChannel
           ? el("div", {}, [
               el("p", { class: "settings-field-label" }, "Комментарии за звёзды"),
@@ -519,9 +484,6 @@ export function openEditChatDialog(chat, onSaved) {
             ])
           : null,
 
-        // The invite link: how anyone joins a private chat. Shown for public
-        // ones too — a link works whether or not there's an @handle, and it's
-        // what gets pasted into a message.
         el("p", { class: "settings-field-label" }, "Пригласительная ссылка"),
         el("p", { class: "settings-toggle-hint" }, "По ней можно вступить без приглашения от админа. Отозвать — если ссылка утекла."),
         el("div", { class: "invite-link-row" }, [

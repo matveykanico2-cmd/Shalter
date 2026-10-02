@@ -3,12 +3,6 @@ import { plural } from "../lib/presence.js";
 import { api } from "../api.js";
 import { Avatar } from "./avatar.js";
 
-// Выбор каналов, которые видно в профиле.
-//
-// Список приходит с сервера уже отфильтрованным: только свои каналы и только
-// публичные (см. routes/users.js). Второе — не придирка, а причина, по которой
-// закрытый канал в этом списке не появится, и человеку лучше сказать об этом
-// словами, чем оставить его искать пропажу.
 export function openPinnedChannelsDialog({ pinned = [], onSaved } = {}) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const body = el("div", { class: "pinned-dialog-body" });
@@ -23,9 +17,6 @@ export function openPinnedChannelsDialog({ pinned = [], onSaved } = {}) {
     overlay.remove();
   }
 
-  // Порядок в профиле — это порядок выбора: отмеченный первым стоит первым.
-  // Иначе «какой канал главный» решал бы порядок создания каналов, о котором
-  // человек не думает.
   let chosen = pinned.map((c) => c.id);
   let channels = [];
   let max = 6;
@@ -57,14 +48,14 @@ export function openPinnedChannelsDialog({ pinned = [], onSaved } = {}) {
   function render() {
     clear(body);
     if (!channels.length) {
-      appendAll(body, 
+      appendAll(body,
         el("p", { class: "settings-toggle-hint" }, "Здесь появятся ваши публичные каналы — те, где вы владелец или администратор."),
         el("p", { class: "settings-toggle-hint" }, "У закрытого канала сначала нужно включить публичную ссылку: посторонний всё равно не сможет по нему перейти."),
         el("div", { class: "pinned-dialog-actions" }, [el("button", { class: "btn-secondary", onclick: close }, "Закрыть")])
       );
       return;
     }
-    appendAll(body, 
+    appendAll(body,
       el(
         "div",
         { class: "pinned-list" },
@@ -79,8 +70,6 @@ export function openPinnedChannelsDialog({ pinned = [], onSaved } = {}) {
                 el("p", { class: "pinned-row-title" }, c.title),
                 el("p", { class: "pinned-row-sub" }, c.username ? `@${c.username}` : `${c.members} ${plural(c.members, "подписчик", "подписчика", "подписчиков")}`),
               ]),
-              // Номер, а не галочка: он показывает и что канал выбран, и каким
-              // он будет по счёту в профиле.
               el("span", { class: "pinned-row-mark" }, index >= 0 ? String(index + 1) : ""),
             ]
           );
@@ -100,8 +89,6 @@ export function openPinnedChannelsDialog({ pinned = [], onSaved } = {}) {
     .then((r) => {
       channels = r.channels ?? [];
       max = r.max ?? max;
-      // Отмеченное, чего в списке уже нет (канал стал закрытым, или человека
-      // разжаловали), тихо выпадает — сохранять его обратно нечестно.
       const ids = new Set(channels.map((c) => c.id));
       chosen = chosen.filter((id) => ids.has(id));
       render();

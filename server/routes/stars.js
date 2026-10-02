@@ -12,22 +12,9 @@ const { publicUser } = require("../data/sanitize");
 const { getActiveDonationLink } = require("../lib/autoPayment");
 const { createPendingOrder } = require("../data/pendingOrders");
 
-// Stars — the in-app currency.
-//
-// Bought via DonationAlerts/DonatePay when connected (automatic), otherwise a
-// real transfer to the admin who confirms it by hand (see AGENTS.md — there
-// is no payment gateway). STAR_PACKS itself lives in data/stars.js now —
-// fulfillOrder.js needs the same list to credit the right amount once a
-// donation clears.
-
-// What the paid actions cost. Deliberately small next to the pack sizes: these
-// are meant to be used, not hoarded.
 const BOOST_COST = 10;
 const BOOST_MINUTES = 60;
 const DELETE_COST = 5;
-// The ceiling on what an account may charge strangers to write to it. Without
-// one, "paid DMs" becomes "nobody can ever reach me", which is what the block
-// list is for.
 const MAX_MESSAGE_PRICE = 90000;
 
 const router = express.Router();
@@ -47,9 +34,6 @@ router.get(
   })
 );
 
-// "I want to buy stars" — drops the request into the admin's DM, exactly like a
-// Premium or gift purchase. The admin credits the balance from the buyer's
-// profile once the transfer arrives.
 router.post(
   "/request",
   asyncRoute(async (req, res) => {
@@ -59,15 +43,10 @@ router.post(
     const admin = await findUserByPhone(ADMIN_PHONE);
     if (!admin) return res.status(503).json({ error: "Администрация Shalter ещё не зарегистрирована в приложении" });
     if (admin.id === req.uid) {
-      // The admin has nobody to ask, so their own purchase is instant and free —
-      // same shortcut the gift shop takes.
       addStars(req.uid, pack.stars);
       return res.json({ balance: balanceOf(req.uid), granted: true });
     }
 
-    // Same as premium.js's /request — DonationAlerts/DonatePay if either is
-    // set up, otherwise a plain transfer that the admin fulfils from the
-    // buyer's profile.
     const donation = getActiveDonationLink();
     if (donation) {
       const order = await createPendingOrder({ userId: req.uid, kind: "stars", amountRub: pack.priceRub });
@@ -84,8 +63,6 @@ router.post(
   })
 );
 
-// Admin credits (or debits) a balance — the other half of the transfer flow,
-// reachable from the per-user admin panel on a profile.
 router.post(
   "/grant",
   asyncRoute(async (req, res) => {
@@ -111,7 +88,6 @@ router.post(
   })
 );
 
-// The price this account charges strangers per DM. 0 turns it off.
 router.post(
   "/price",
   asyncRoute(async (req, res) => {
@@ -120,11 +96,6 @@ router.post(
       return res.status(400).json({ error: `Цена — от 0 до ${MAX_MESSAGE_PRICE} звёзд` });
     }
     setMessagePrice(req.uid, price);
-    // Кто уже держит открытой переписку с вами, узнаёт новую цену сразу, а не
-    // при следующем заходе в чат: composer.js читает её из paidMessages, а это
-    // поле сервер кладёт только при открытии чата (lib/messagePrice.js) —
-    // без этого сообщения открытый у собеседника композитор молчал бы о
-    // цене до перезахода.
     const dms = (await listChatsForUser(req.uid)).filter((c) => c.type === "dm");
     for (const dm of dms) broadcastToUsers(dm.memberIds, { type: "chat:updated", chat: { id: dm.id } });
     res.json({ messagePriceStars: price });
@@ -140,7 +111,6 @@ async function memberChat(req, res) {
   return chat;
 }
 
-// Boost: highlights a message and keeps it at the top of the chat for an hour.
 router.post(
   "/boost/:messageId",
   asyncRoute(async (req, res) => {
@@ -159,12 +129,6 @@ router.post(
   })
 );
 
-// Paid delete: clears someone else's message out of a conversation.
-//
-// Restricted to one-to-one chats on purpose. In a group or channel this would be
-// "anyone with stars can erase anything anybody said", which is moderation sold
-// to the highest bidder; between two people it's just tidying a conversation you
-// are half of. Group/channel moderation stays with admins, unpaid.
 router.post(
   "/delete/:messageId",
   asyncRoute(async (req, res) => {
@@ -188,14 +152,6 @@ router.post(
   })
 );
 
-// Перевод звёзд другому человеку.
-//
-// Отдельно от покупки и от платных сообщений: там звёзды списываются за
-// действие, здесь просто передаются из рук в руки — как подарок или как
-// расчёт за что-то, о чём договорились в переписке.
-//
-// Списание и зачисление идут одной транзакцией (data/stars.js), поэтому
-// «списалось, но не дошло» невозможно даже при сбое посередине.
 router.post(
   "/transfer",
   asyncRoute(async (req, res) => {
@@ -214,15 +170,12 @@ router.post(
       return res.status(402).json({ error: `Не хватает звёзд: на балансе ${balanceOf(req.uid)} ⭐`, balance: balanceOf(req.uid) });
     }
 
-    // Получателю — сообщение в личный чат, иначе перевод остаётся незамеченным:
-    // баланс молча вырос, а кто и за что прислал — неизвестно.
     const me = await getUser(req.uid);
     const note = String(req.body?.note ?? "").trim().slice(0, 200);
     try {
       const chat = await findOrCreateDm(req.uid, toId);
       await sendMessageAndBroadcast(chat, req.uid, `⭐ Перевод: ${amount} ⭐${note ? `\n${note}` : ""}`);
     } catch {
-      // Сообщение — вежливость, а не часть перевода: звёзды уже переданы.
     }
 
     res.json({ ok: true, amount, balance: balanceOf(req.uid), to: publicUser(target), from: me?.name ?? "" });

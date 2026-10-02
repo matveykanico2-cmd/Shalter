@@ -1,11 +1,6 @@
 import { el } from "../lib/dom.js";
 import { api } from "../api.js";
 
-// Оформление заказа. Отдельным окном, а не строкой в карточке товара: здесь
-// человек в последний раз видит, за что и сколько платит, — и это единственный
-// момент, когда решение ещё можно отменить, ничего не потратив.
-//
-// onDone(order) — заказ создан; экран, откуда его открыли, обновляет себя сам.
 export function openOrderDialog(product, { balanceStars = 0, onDone } = {}) {
   const isStars = product.payKind === "stars";
   const unit = isStars ? product.priceStars : product.priceRub;
@@ -27,8 +22,6 @@ export function openOrderDialog(product, { balanceStars = 0, onDone } = {}) {
   function paintTotal() {
     const total = unit * qty();
     totalSlot.textContent = isStars ? `К оплате: ⭐ ${total}` : `К оплате при получении: ${total} ₽`;
-    // Не хватает звёзд — сказать об этом до нажатия, а не отказом сервера
-    // после. Кнопка при этом остаётся живой: баланс можно пополнить и вернуться.
     errorSlot.textContent = isStars && total > balanceStars ? `На балансе только ⭐ ${balanceStars}` : "";
   }
   qtyInput.addEventListener("input", paintTotal);

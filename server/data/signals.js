@@ -13,8 +13,6 @@ async function addSignal(input) {
     "INSERT INTO signals (id, seq, callId, fromUserId, toUserId, kind, data, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
   ).run(signal.id, seq, signal.callId, signal.fromUserId, signal.toUserId, signal.kind, JSON.stringify(signal.data ?? null), signal.createdAt);
 
-  // Signaling is transient — trim old entries so the table doesn't grow
-  // unbounded (mirrors the old JSON store's "keep last 500" behavior).
   db.prepare(
     "DELETE FROM signals WHERE id NOT IN (SELECT id FROM signals ORDER BY seq DESC LIMIT 500)"
   ).run();

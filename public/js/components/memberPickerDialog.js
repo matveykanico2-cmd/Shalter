@@ -3,11 +3,6 @@ import { Avatar } from "./avatar.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 
-// Multi-select contact list — used both to pick initial members (+ who among
-// them starts as admin) when creating a group/channel, and to add members to
-// an existing one. excludeIds hides contacts already in the chat; allowRoles
-// shows a per-selected-contact "make admin" toggle and makes onConfirm's
-// result { userIds, adminIds } instead of a plain array.
 export async function openMemberPickerDialog(onConfirm, { title = "Участники группы", submitLabel = "Создать группу", excludeIds = [], allowRoles = false } = {}) {
   const { contacts } = await api.listContacts();
   const exclude = new Set(excludeIds);

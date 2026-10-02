@@ -6,12 +6,12 @@ test("phoneKey сводит разные записи одного номера 
   const key = "79991234567";
   assert.equal(phoneKey("+7 (999) 123-45-67"), key);
   assert.equal(phoneKey("79991234567"), key);
-  assert.equal(phoneKey("8 999 123 45 67"), key); // 8 → 7 для 11-значного
+  assert.equal(phoneKey("8 999 123 45 67"), key);
 });
 
 test("phoneKey: 8-префикс меняется на 7 только у 11-значного номера", () => {
   assert.equal(phoneKey("89991234567"), "79991234567");
-  assert.equal(phoneKey("812345"), "812345"); // короткий — не трогаем
+  assert.equal(phoneKey("812345"), "812345");
 });
 
 test("phoneKey возвращает null для пустого/без цифр", () => {
@@ -29,7 +29,7 @@ test("indexUsersByPhone пропускает ботов и недоступны�
   ];
   const index = indexUsersByPhone(users, (u) => u.id !== "hidden");
   assert.equal(index.get("79990000001").id, "u1");
-  assert.equal(index.get("79990000002").id, "u2"); // 8 → 7 нормализован
-  assert.equal(index.has("79990000003"), false); // бот
-  assert.equal(index.has("79990000004"), false); // недоступен
+  assert.equal(index.get("79990000002").id, "u2");
+  assert.equal(index.has("79990000003"), false);
+  assert.equal(index.has("79990000004"), false);
 });

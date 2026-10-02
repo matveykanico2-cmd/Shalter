@@ -7,18 +7,12 @@ const { listMessages } = require("../data/messages");
 const { findUserByPhone } = require("../data/users");
 const { ADMIN_PHONE } = require("../config");
 
-// One route: give me the chat with support. It creates the DM on first use and
-// seeds a greeting, so opening support never lands you in an empty room with no
-// idea whether anyone is there — which, before Hugo answered anything, is
-// exactly what it was.
 const router = express.Router();
 router.use(requireUserId);
 
 router.post(
   "/chat",
   asyncRoute(async (req, res) => {
-    // Defensive: a deployment upgraded while running won't have been through
-    // startup seeding yet.
     ensureHugoAccount();
     const chat = await findOrCreateDm(req.uid, HUGO_ID);
     const existing = await listMessages(chat.id, req.uid);
@@ -36,10 +30,6 @@ router.post(
   })
 );
 
-// «Сообщить об ошибке» — живому администратору, а не боту. Открывает (или
-// возвращает) DM с владельцем ADMIN_PHONE и подсказывает, что писать. Если
-// админа в приложении ещё нет или это сам админ жмёт кнопку — падаем на чат
-// поддержки (Hugo), чтобы кнопка никогда не вела в пустоту.
 router.post(
   "/report",
   asyncRoute(async (req, res) => {

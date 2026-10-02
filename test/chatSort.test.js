@@ -3,8 +3,6 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
-// public/js/lib/chatSort.js — ES-модуль браузера без зависимостей, поэтому
-// грузится прямо из исходников, без сборки.
 const load = () => import(pathToFileURL(path.join(__dirname, "../public/js/lib/chatSort.js")).href);
 
 const chat = (id, extra = {}) => ({ id, createdAt: "2026-01-01T00:00:00.000Z", ...extra });

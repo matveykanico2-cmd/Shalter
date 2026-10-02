@@ -2,17 +2,9 @@ import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 
-// Календарь переписки: открывается нажатием на разделитель даты в чате
-// («30 августа») и переносит к сообщениям выбранного дня.
-//
-// Дни, в которые ничего не писали, показываются приглушённо и не нажимаются —
-// иначе выбор превращался бы в угадывание: в длинной переписке пустых дней
-// больше, чем занятых.
 const MONTHS = ["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
 const WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 
-// Смещение часового пояса в минутах в привычную сторону: getTimezoneOffset
-// возвращает его с обратным знаком (для Москвы −180, хотя пояс +3).
 const tzOffset = () => -new Date().getTimezoneOffset();
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -33,12 +25,9 @@ export function openChatCalendarDialog({ chatId, around, onPick }) {
     overlay.remove();
   }
 
-  // Месяц, который показан сейчас. Открывается на месяце того сообщения, по
-  // чьей дате нажали, — а не на текущем: искать чаще всего идут рядом с тем
-  // местом, где стоят.
   let shown = around ? new Date(around) : new Date();
   if (Number.isNaN(shown.getTime())) shown = new Date();
-  let days = null; // null — ещё грузим
+  let days = null;
   let busy = false;
   let error = null;
 
@@ -85,7 +74,6 @@ export function openChatCalendarDialog({ chatId, around, onPick }) {
     clear(body);
     const first = new Date(shown.getFullYear(), shown.getMonth(), 1);
     const daysInMonth = new Date(shown.getFullYear(), shown.getMonth() + 1, 0).getDate();
-    // Неделя начинается с понедельника: getDay() отдаёт воскресенье нулём.
     const leading = (first.getDay() + 6) % 7;
     const today = dayKey(new Date());
 
@@ -109,7 +97,7 @@ export function openChatCalendarDialog({ chatId, around, onPick }) {
       );
     }
 
-    appendAll(body, 
+    appendAll(body,
       el("div", { class: "calendar-head" }, [
         el("button", { class: "calendar-nav", type: "button", html: iconSvg("ChevronLeft", 18), onclick: () => shiftMonth(-1) }),
         el("span", { class: "calendar-month" }, `${MONTHS[shown.getMonth()]} ${shown.getFullYear()}`),

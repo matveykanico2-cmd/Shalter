@@ -1,13 +1,6 @@
 import { el } from "../lib/dom.js";
 import { api } from "../api.js";
 
-// The two "change what gets you in" dialogs: password and e-mail address.
-//
-// They sit together because they are the same act with different stakes, and
-// because both start by asking for the current password — a live session is not
-// proof that the person at the keyboard is the account's owner, only that the
-// device was left signed in.
-
 function overlayWith(title, hint, fields, submitLabel, onSubmit) {
   let busy = false;
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
@@ -63,8 +56,6 @@ export function openChangePasswordDialog(onDone) {
     "Сменить пароль",
     async ({ close, fail }) => {
       if (next.value.length < 6) return fail("Новый пароль — не короче 6 символов");
-      // Checked here as well as on the server: a mistyped confirmation is the
-      // one error worth catching before the old password stops working.
       if (next.value !== repeat.value) return fail("Пароли не совпадают");
       await api.changePassword(current.value, next.value);
       close();
@@ -77,10 +68,6 @@ export function openChangeEmailDialog(currentEmail, onDone) {
   const password = el("input", { class: "login-input", type: "password", placeholder: "Пароль", autofocus: true });
   const email = el("input", { class: "login-input", type: "email", placeholder: "Новый адрес почты", value: "" });
 
-  // Один шаг: пароль и новый адрес. Кода подтверждения больше нет — значит
-  // опечатка в адресе сохранится молча, и письмо для восстановления пароля
-  // уйдёт не туда. Поэтому адрес показывается в подсказке ещё раз и просьба
-  // проверить его стоит прямо перед кнопкой.
   overlayWith(
     "Смена почты",
     currentEmail
@@ -97,5 +84,4 @@ export function openChangeEmailDialog(currentEmail, onDone) {
     }
   );
 }
-
 

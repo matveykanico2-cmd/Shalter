@@ -24,9 +24,6 @@ const RESTRICT_DURATIONS = [
   { label: "Навсегда", hours: null },
 ];
 
-// Chat-level "auto-delete messages" timer (chat.autoDeleteSeconds, swept
-// server-side by server/lib/autoDelete.js) — same duration scale Telegram's
-// own picker offers.
 const AUTO_DELETE_DURATIONS = [
   { label: "Выключено", seconds: null },
   { label: "1 день", seconds: 24 * 3600 },
@@ -34,9 +31,6 @@ const AUTO_DELETE_DURATIONS = [
   { label: "1 месяц", seconds: 30 * 24 * 3600 },
 ];
 
-// Участники в порядке, в каком их показывает Telegram: владельцы, затем
-// администраторы, затем те, кто сейчас в сети, затем остальные по времени
-// последнего захода.
 function sortMembers(chat, members) {
   const rank = (m) => (isChatOwner(chat, m.id) ? 0 : chat.adminIds?.includes(m.id) ? 1 : chat.moderatorIds?.includes(m.id) ? 2 : 3);
   return [...members].sort(
@@ -51,10 +45,7 @@ function autoDeleteLabel(seconds) {
   return AUTO_DELETE_DURATIONS.find((d) => d.seconds === seconds)?.label ?? "Выключено";
 }
 
-// Профиль собеседника для панели лички. Панель перерисовывается на каждое
-// событие чата (новое сообщение, смена мьюта…), поэтому ответ кэшируется на
-// полминуты — иначе каждая перерисовка была бы ещё одним запросом профиля.
-const profileCache = new Map(); // userId → { at, data }
+const profileCache = new Map();
 const PROFILE_TTL_MS = 30_000;
 
 function loadProfile(userId) {
@@ -65,9 +56,6 @@ function loadProfile(userId) {
   return promise;
 }
 
-// Сведения о собеседнике — те же строки, что в профиле: телефон, юзернейм,
-// «О себе», день рождения, общие группы. Раньше панель лички показывала
-// только имя, и за любым из этих полей надо было идти в отдельный профиль.
 function DmProfileRows(otherUser) {
   const slot = el("div", { class: "profile-info-card info-panel-profile-rows" });
   loadProfile(otherUser.id).then((res) => {
@@ -98,7 +86,6 @@ function DmProfileRows(otherUser) {
   return slot;
 }
 
-// Строка «сколько участников / подписчиков, из них в сети» под названием.
 function membersLine(chat, members) {
   const count = members.length || (chat.memberIds ?? []).length;
   const noun = chat.type === "channel" ? plural(count, "подписчик", "подписчика", "подписчиков") : plural(count, "участник", "участника", "участников");
@@ -106,20 +93,12 @@ function membersLine(chat, members) {
   return online > 1 && chat.type !== "channel" ? `${count} ${noun}, ${online} в сети` : `${count} ${noun}`;
 }
 
-// Vanilla-JS port of components/chat/InfoPanel.tsx: chat/members, mute
-// toggle, block management, and — for group/channel owners/admins — member
-// role management (promote/demote/kick/restrict).
 export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalterAdmin, gifts, onClose, onToggleMute, onToggleBlock, onMemberAction, onTogglePremium, onDeliverGift, onAddMember, onRestrictMember, onVoteForGroup, onSetAutoDelete, onChatUpdated }) {
   const isDm = chat.type === "dm";
   const title = isDm ? (chat.otherUser?.name ?? chat.title) : chat.title;
   const isOwnerOrAdmin = isChatAdmin(chat, meId);
-  // Either DM party can set the timer (it's a mutual chat property, same as
-  // Telegram); for groups/channels it's owner/admin-only, same bar as the
-  // other chat-wide settings (restrict/points aren't member-settable either).
   const canSetAutoDelete = isDm || isOwnerOrAdmin;
 
-  // The label everyone in the chat sees next to this member. Owner-only, so it's
-  // a plain prompt rather than a whole dialog — it's one short string.
   async function editTitle(member) {
     const current = chat.memberTitles?.[member.id] ?? "";
     const next = prompt(`Подпись для ${member.name} (видна всем). Пусто — вернуть обычную роль.`, current);
@@ -139,8 +118,6 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
     const iAmOwner = isChatOwner(chat, meId);
     const isRestricted = !!chat.restrictions?.[member.id];
 
-    // An owner's row still has actions — a co-owner can be demoted, and their
-    // title can be changed — so it isn't a dead end any more.
     if (isOwner) {
       const items = [];
       if (iAmOwner) {
@@ -172,8 +149,6 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
       },
     ];
     if (iAmOwner) {
-      // A chat can have several owners, so this adds one rather than handing the
-      // chat over — it still asks, because an owner can do everything you can.
       items.push({
         icon: "Star",
         label: "Сделать владельцем",
@@ -221,9 +196,6 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
         [
           Avatar({
             name: chat.otherUser?.name ?? title,
-            // Same fallback the image line below already had: a DM's own chat
-            // row carries no avatarColor, so passing it alone left the avatar
-            // with no background at all — a white letter on white, invisible.
             color: chat.otherUser?.avatarColor ?? chat.avatarColor,
             image: chat.otherUser?.avatarImage ?? chat.avatarImage,
             video: videoAvatarUrl(chat.otherUser),
@@ -249,8 +221,6 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
               ? el("span", { class: "group-level-badge", title: `${chat.points} баллов` }, `★ Ур. ${levelForPoints(chat.points)}`)
               : null,
           ]),
-          // Статус собеседника или число участников — как строка под именем
-          // в шапке профиля Telegram.
           isDm && chat.otherUser
             ? el("p", { class: `info-panel-subtitle${chat.otherUser.online ? " online" : ""}` }, statusLabel(chat.otherUser) ?? "был(а) недавно")
             : !isDm
@@ -274,13 +244,9 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
               : el("span", { class: "settings-toggle-hint" }, "Только с Premium"),
           ])
         : null,
-      // Description, if there is one — it's part of what a channel *is*, and
-      // until now it was stored and never shown anywhere.
       !isDm && (chat.description || (chat.isPublic && chat.username))
         ? el("div", { class: "profile-info-card" }, [
             chat.description ? infoRow({ icon: "Info", value: chat.description, label: "Описание", multiline: true }) : null,
-            // Публичная ссылка копируется нажатием — ради этого её сюда и
-            // смотрят. Ведёт туда же, куда и у людей: /u/:username (app.js).
             chat.isPublic && chat.username
               ? infoRow({
                   icon: "Globe",
@@ -292,17 +258,12 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
               : null,
           ].filter(Boolean))
         : null,
-      // Editing the chat itself: name, picture, description, public link and
-      // the colour palette. Owners/admins only — the server checks again.
       !isDm && isOwnerOrAdmin
         ? el("button", { class: "info-panel-row", onclick: () => openEditChatDialog(chat, onChatUpdated) }, [
             el("span", { class: "info-panel-row-icon", html: iconSvg("Edit", 15) }),
             `Редактировать ${chat.type === "channel" ? "канал" : "группу"}`,
           ])
         : null,
-      // Verifying the chat itself — a channel or group, not a person. The
-      // per-account check lives on the profile (adminUserPanel.js); this is the
-      // only place a *chat* can be given one.
       !isDm && isShalterAdmin
         ? el(
             "button",
@@ -349,9 +310,6 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
           )
         : null,
       el("button", { class: "info-panel-row", onclick: onToggleMute }, isChatMuted(chat) ? "Включить уведомления" : "Отключить уведомления"),
-      // Статистика — только тем, кто ведёт канал (сервер проверяет то же
-      // самое). Просмотры и комментарии копились и раньше, но посмотреть на
-      // них целиком было негде.
       chat.type === "channel" && isOwnerOrAdmin
         ? el("button", { class: "info-panel-row", onclick: () => openChannelStats(chat) }, "Статистика канала")
         : null,
@@ -388,10 +346,6 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             `Пожаловаться на ${chat.type === "channel" ? "канал" : "группу"}`
           )
         : null,
-      // Channel subscriber lists are admin/owner-only (matches Telegram —
-      // a channel is broadcast, not a peer group, so regular subscribers
-      // don't get to see who else is subscribed); group member lists stay
-      // visible to every member, same as before.
       !isDm && (chat.type !== "channel" || isOwnerOrAdmin)
         ? el("div", { class: "info-panel-members" }, [
             el("div", { class: "info-panel-members-header" }, [
@@ -403,10 +357,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             ...sortMembers(chat, members).map((m) => {
               const isMemberOwner = isChatOwner(chat, m.id);
               const isMemberAdmin = chat.adminIds?.includes(m.id);
-              // An owner's row is manageable by another owner now: co-owners can be
-              // demoted and every role can be re-titled.
               const canManage = isOwnerOrAdmin && m.id !== meId && (!isMemberOwner || isChatOwner(chat, meId));
-              // The owner-set label wins over the real role — that's what it's for.
               const roleLabel = memberRoleLabel(chat, m.id);
               const customTitle = !!chat.memberTitles?.[m.id];
               return el("div", { class: "info-panel-member-row" }, [

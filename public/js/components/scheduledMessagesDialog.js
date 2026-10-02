@@ -2,13 +2,6 @@ import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 
-// Chat header "…" → "Запланированные сообщения" (chatView.js) — lists just
-// this account's own pending scheduled sends for this chat (the routes
-// already scope by senderId; nobody else in the chat can see these). "Send
-// now" just moves sendAt into the past so the next
-// scheduledMessagesSweep.js tick (≤20s) picks it up, rather than delivering
-// inline here — keeps this dialog a thin view over the same one delivery
-// path everything else goes through.
 export function openScheduledMessagesDialog(chatId, { onChange } = {}) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const body = el("div", { class: "wallpaper-dialog-body" });

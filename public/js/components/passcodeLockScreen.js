@@ -2,16 +2,6 @@ import { el } from "../lib/dom.js";
 import { verifyPasscode } from "../lib/passcodeLock.js";
 import { hasBiometric, unlockBiometric } from "../lib/biometricLock.js";
 
-// Full-page takeover appended straight to <body> — both on initial boot
-// (before the app shell exists at all, see app.js) and again every time the
-// tab comes back from being hidden, if a local passcode is set. It sits on
-// top of, not instead of, whatever's already rendered underneath, so nothing
-// needs to be re-mounted once it's dismissed — it just removes itself.
-//
-// Если включена биометрия (Face ID / отпечаток, см. lib/biometricLock.js),
-// экран сразу предлагает её и пробует снять замок автоматически; код-пароль
-// остаётся запасным способом — биометрию нельзя включить, не задав его, ровно
-// чтобы отказ сканера не запирал человека снаружи.
 export function showPasscodeLockScreen() {
   return new Promise((resolve) => {
     let code = "";
@@ -80,7 +70,6 @@ export function showPasscodeLockScreen() {
 
     render();
     document.body.appendChild(overlay);
-    // Сразу вызвать системный запрос биометрии, не заставляя тянуться к кнопке.
     if (biometric) tryBiometric();
   });
 }

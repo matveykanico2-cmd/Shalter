@@ -6,23 +6,11 @@ import { navigate } from "../router.js";
 import { setState } from "../state.js";
 import { openAd } from "../lib/adLink.js";
 
-// Public-channel directory (chatList.js's "+" menu → "Публичные каналы") —
-// mirrors ContactsView's shape (header + search + row list) but hits
-// GET /api/channels instead, which needs no membership/contact relationship
-// at all (see server/routes/channels.js) — that's the whole point of a
-// channel being public.
 export async function DiscoverChannelsView(root) {
-  // ?q= lets the main search hand a channel over to this screen with the search
-  // already run, instead of dumping the user on an empty discovery page and
-  // making them retype what they just typed.
   let query = new URLSearchParams(window.location.search).get("q") ?? "";
   let channels = [];
   let loading = true;
   let searchTimer = null;
-  // Одно рекламное место на экране (server/routes/ads.js, placement=discover).
-  // Запрашивается один раз при открытии, а не на каждую перерисовку: каждый
-  // ответ — это оплаченный показ, и перерисовка списка не должна списывать
-  // деньги рекламодателя заново.
   let ad = null;
   api
     .serveAd("discover")
@@ -64,9 +52,6 @@ export async function DiscoverChannelsView(root) {
             [Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage }), rowBody(c)]
           )
         : el("div", { class: "contact-row-profile-btn" }, [Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage }), rowBody(c)]),
-      // "Подписаться" had no counterpart here: an already-subscribed row just
-      // said so, and unsubscribing meant finding the channel in the chat list
-      // first. Leaving is the same route the chat itself uses.
       c.isMember
         ? el(
             "button",
@@ -116,8 +101,6 @@ export async function DiscoverChannelsView(root) {
           el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
           el("p", { class: "view-title" }, "Публичные каналы"),
         ]),
-        // Рекламная карточка — над списком и с прямой пометкой «Реклама»: без
-        // неё объявление выглядит как обычный канал, и это обман.
         ad
           ? el("button", { class: "discover-ad", onclick: () => openAd(ad) }, [
               el("div", { class: "discover-ad-head" }, [

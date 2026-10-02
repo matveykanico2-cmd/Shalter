@@ -25,9 +25,6 @@ import { paintWallpaper } from "./lib/wallpapers.js";
 
 const root = document.getElementById("view-root");
 
-// Заставка на запуск (index.html) — только на холодный старт: SPA-навигация
-// внутри приложения (router.js) никогда сюда не возвращается, потому что
-// весь этот код выполняется ровно один раз за загрузку страницы.
 function removeSplash() {
   const splash = document.getElementById("boot-splash");
   if (!splash) return;
@@ -57,10 +54,6 @@ async function boot() {
     return;
   }
 
-  // Where a scanned QR code lands — a standalone confirm screen, shown as-is
-  // whether or not this browser/device already has a Shalter session (see
-  // QrLoginConfirmView), so it deliberately sits outside the authenticated
-  // app shell below.
   if (path === "/qr-login") {
     const { QrLoginConfirmView } = await import("./views/qrLoginConfirm.js");
     await QrLoginConfirmView(root);
@@ -68,10 +61,6 @@ async function boot() {
     return;
   }
 
-  // "Войти через Shalter" consent screen (server/routes/oauth.js) — same
-  // reasoning as /qr-login above: it embeds its own login form if needed,
-  // so it must not go through the plain "not logged in → /login" redirect
-  // below, which would drop client_id/redirect_uri/state from the URL.
   if (path === "/oauth/authorize") {
     const { OAuthAuthorizeView } = await import("./views/oauthAuthorize.js");
     await OAuthAuthorizeView(root);
@@ -84,32 +73,14 @@ async function boot() {
     window.location.href = "/login";
     return;
   }
-  // Заставка снимается здесь, а не в конце boot(): дальше идут экраны кода
-  // доступа и пароля — они должны быть видны, чтобы в них можно было
-  // печатать, а не прятаться под заставкой до самого списка чатов.
   removeSplash();
-  // A local (this-device-only, see lib/passcodeLock.js) passcode lock, if
-  // one's been set — blocks here, before anything from the actual app
-  // renders, rather than showing the shell underneath and locking on top of
-  // it. Re-armed below (see the visibilitychange listener) every time the
-  // tab comes back from being hidden, same trigger Telegram's own Passcode
-  // Lock uses.
   if (hasPasscode()) await showPasscodeLockScreen();
-  // Пароль от аккаунта при запуске (Настройки → Конфиденциальность). Спрашиваем
-  // до отрисовки приложения, а не поверх него: накладка поверх готового экрана
-  // защищает только от нажатий, а не от чтения того, что под ней.
   try {
     const { settings: s } = await api.getSettings();
     setState({ settings: s });
     if (s?.requirePasswordOnLaunch) await showPasswordLockScreen(root);
   } catch {
-    // Настройки не прочитались — не запирать же человека снаружи собственного
-    // приложения из-за сбоя сети.
   }
-  // Открытие нативного пикера файлов (вложения в сообщение, аватар и т. д.)
-  // тоже прячет вкладку и потом возвращает её — visibilitychange срабатывает
-  // так же, как при сворачивании приложения. Различаем эти случаи по времени:
-  // короткое скрытие (< RELOCK_THRESHOLD_MS) не считается уходом из приложения.
   const RELOCK_THRESHOLD_MS = 5000;
   let hiddenAt = 0;
   document.addEventListener("visibilitychange", () => {
@@ -123,9 +94,6 @@ async function boot() {
   });
 
   setState({ user, accounts });
-  // Настройки, чаты, папки и контакты — одним ответом, который ушёл ещё из
-  // index.html одновременно с запросом сессии. Без await: приложение рисуется
-  // сразу, а пришедшее просто наполняет его.
   const bootData = api
     .bootstrap()
     .then((data) => {
@@ -134,92 +102,41 @@ async function boot() {
       return data;
     })
     .catch(() => null);
-  // Chats render before this resolves (see the comment above) — until it
-  // settles, an empty `chats` array means "not loaded yet", not "no chats",
-  // so the sidebar's empty state (views/chatList.js) waits on this flag
-  // instead of flashing "Чатов нет — начните новый чат" on every page load.
   bootData.finally(() => setState({ chatsLoaded: true }));
-  // Каталог меток безопасности — один раз при запуске: значки рядом с именами
-  // рисуются по нему повсюду.
   loadSafetyLabels(api).catch(() => {});
   startWsClient();
-  // Собственный профиль поменяли не вы (администратор выдал/забрал Premium,
-  // например) — раньше это долетало только сообщением в чат, а сам значок
-  // (кольцо аватарки в navRail и везде, где читается state.user) оставался
-  // прежним до перезахода. updateSelf уведомляет всех подписчиков сразу.
   onWsMessage("self:updated", (msg) => {
     if (msg.user?.id === getState().user?.id) updateSelf(msg.user);
   });
-  // Editing your own name/username/bio/avatar/photo (server/lib/
-  // notifyProfileChanged.js) broadcasts "contact:updated", not "self:updated"
-  // — the same event a chat partner gets when *their* profile changes. The
-  // only other listener for it lives in chatView.js, scoped to whichever
-  // chat happens to be open, and never touches state.user. Without this, a
-  // second tab or device of the same account (or this one, once you've
-  // navigated away from an open chat) never saw your own edits until a full
-  // reload re-fetched the profile from scratch.
   onWsMessage("contact:updated", (msg) => {
     if (msg.user?.id === getState().user?.id) updateSelf(msg.user);
   });
   mountIncomingCallWatcher();
   initKeyboardShortcuts();
-  // Starts observing before the shell below does its first render, so that
-  // initial paint gets caught by the same pass as everything after it.
   bootData
     .then((data) => (data ? { settings: data.settings } : api.getSettings()))
     .then(({ settings }) => {
       setState({ settings });
       initUiTranslation(settings.uiLanguage);
-      // Theme/accent/reduce-motion are also applied instantly when changed in
-      // Settings or the account menu (see views/settings/index.js,
-      // components/navRail.js) — restoring them here too is what makes a
-      // manually-picked theme/accent survive a hard reload instead of
-      // silently falling back to the OS default every time.
       if (settings.theme && settings.theme !== "system") document.documentElement.setAttribute("data-theme", settings.theme);
       applyAccentSetting(settings.accent);
       document.documentElement.toggleAttribute("data-reduce-motion", !!settings.reduceMotion);
     })
     .catch(() => {});
-  // Register the service worker unconditionally — it's what makes the app
-  // installable as a PWA (manifest + icons alone aren't enough), independent
-  // of whether the user has granted push permission. ensurePushSubscribed()
-  // below also registers it, but only when permission is already "granted";
-  // registration itself is idempotent, so doing it here too is harmless.
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
-  // Re-subscribes silently if permission was already granted in an earlier
-  // session (e.g. browser restart) — does nothing if it wasn't, so this is
-  // safe to call unconditionally on every boot.
   ensurePushSubscribed().catch(() => {});
-  // Разрешения — один раз, при первом входе. Не автоматическим запросом:
-  // браузер выдаёт камеру, микрофон и контакты только в ответ на нажатие, а
-  // запрос без нажатия молча отклоняет — и второй возможности уже не будет.
-  // Поэтому экран с кнопками (см. components/permissionsDialog.js).
   import("./components/permissionsDialog.js")
     .then(({ openPermissionsDialog, permissionsAlreadyAsked }) => {
       if (permissionsAlreadyAsked()) return;
-      // Не в первую секунду загрузки: сначала человек должен увидеть, куда он
-      // попал, и только потом — просьбу о доступе.
       setTimeout(() => openPermissionsDialog(), 1500);
     })
     .catch(() => {});
-  // Следим за версией на сервере: выложили новую — обновимся сами, но только
-  // когда это никому не помешает (см. lib/appVersion.js).
   startVersionWatch();
-  // Код переписки приезжает заранее, пока человек смотрит на список чатов.
-  //
-  // Он вынесен в отдельный кусок (см. маршрут /chat/:id ниже) — и при первом
-  // нажатии на чат браузер качал его прямо в этот момент, вместе с тем, что
-  // тянет он сам: четыре обращения к серверу подряд, почти секунда ожидания.
-  // Здесь мы просто просим его заранее, в свободное время: к нажатию он уже
-  // на месте, и открытие сводится к одному запросу за сообщениями.
   const prefetchChat = () => import("./views/chatView.js").catch(() => {});
   if ("requestIdleCallback" in window) requestIdleCallback(prefetchChat, { timeout: 3000 });
   else setTimeout(prefetchChat, 1200);
 
   const shell = el("div", { class: "shell" });
-  // Баннер праздника в самом верху мессенджера. Праздники заданы на сервере
-  // (server/lib/holidays.js) — сейчас это День основания Shalter, 25 сентября.
-  // Проверяем дату по MM-DD; закрывается на сегодня (localStorage).
   const HOLIDAYS = [{ date: "09-25", title: "🎉 С Днём основания Shalter!" }];
   (function holidayBanner() {
     const now = new Date();
@@ -244,36 +161,15 @@ async function boot() {
     shell.appendChild(banner);
   })();
   const listCol = el("div", { class: "shell-list-col" });
-  // Боковая панель — только список чатов. Настройки в ней когда-то были вторым
-  // слоем поверх списка (как в Telegram), но в колонке шириной 340px разделам
-  // вроде «Конфиденциальность» или «Боты» тесно: половина строк там — это
-  // подпись и переключатель в одной строке. Теперь настройки, как контакты,
-  // звонки и архив, открываются на весь экран (см. isFullPage ниже), а список
-  // чатов на это время убирается — он и так не нужен, пока человек в них ходит.
   const sidebar = el("div", { class: "shell-sidebar" });
   const mainSlot = el("div", { class: "shell-main-col" });
   const callBubbleSlot = el("div", { class: "call-bubble-slot" });
-  // Звук собеседников живёт здесь, в оболочке, а не на экране звонка.
-  //
-  // Иначе звук пропадал при любом уходе с экрана звонка: <audio> собеседников
-  // были частью вида /call/:id, и роутер, очищая mainSlot под новую страницу,
-  // уносил их вместе с ней — соединение оставалось живым, а играть удалённый
-  // поток становилось нечем. Оболочка переживает переходы (как и PiP-пузырь),
-  // поэтому звонок продолжает звучать, пока свёрнут в пузырь. Экран звонка сам
-  // аудио больше не выводит — только немые <video> для картинки.
   const callAudioSink = el("div", { class: "call-audio-sink", hidden: true });
   mount(root, shell);
   shell.append(listCol, mainSlot, callBubbleSlot, callAudioSink);
   sidebar.append(ChatListPane());
   listCol.append(NavRail(), sidebar);
 
-  // Заглушка «выберите чат» — она же то, что видно справа, когда настройки
-  // открыли с чистого листа (переход прямо по адресу /settings, перезагрузка).
-  //
-  // С тем же фоном, что и открытая переписка: без него на широком мониторе
-  // добрые две трети экрана оставались ровным тёмным полем, и приложение
-  // выглядело недогруженным, а не пустым. Фон делает эту часть окна такой же
-  // частью приложения, какой она станет, когда чат откроют.
   function emptyChatPlaceholder() {
     const s = getState().settings;
     const box = el("div", { class: "empty-chat message-list" }, [
@@ -302,11 +198,7 @@ async function boot() {
       )
     );
   }
-  // Держит по одному <audio> на собеседника, пока идёт звонок, и переиспользует
-  // узлы между обновлениями: заново созданный <audio> перезапустил бы поток с
-  // нуля (щелчок, пропуск звука). Громкость — общая с ползунком в звонке и
-  // эфире (lib/mediaVolume.js, работает по всему документу).
-  const callAudioEls = new Map(); // participantId -> HTMLAudioElement
+  const callAudioEls = new Map();
   function syncCallAudio() {
     const s = getCallState();
     const streams = s?.remoteStreams ?? {};
@@ -335,46 +227,16 @@ async function boot() {
   renderCallBubble();
   syncCallAudio();
 
-  // Вкладки, которым нужен весь экран, а не колонка рядом со списком чатов:
-  // контакты, звонки, архив, каталог каналов и настройки. Это самостоятельные
-  // страницы, а не «что-то рядом с перепиской», — держать при них список чатов
-  // не для чего, зато места им нужно ровно столько, сколько есть.
-  //
-  // Переписка (/chat/:id) в этот список не входит намеренно: там список слева —
-  // это переключение между разговорами, и убирать его значит заставлять
-  // возвращаться назад после каждого сообщения.
   const FULL_PAGE_ROUTES = ["/contacts", "/calls", "/archive", "/discover-channels", "/settings"];
   const isFullPage = (p) => FULL_PAGE_ROUTES.some((r) => p === r || p.startsWith(`${r}/`));
 
-  // First path segment as a rough "which tab" key — "/chat/123" and
-  // "/chat/456" are the same section (switching conversations), "/" and
-  // "/contacts" aren't.
   const sectionOf = (p) => p.split("/")[1] ?? "";
   let prevPath = path;
   window.addEventListener("app:navigate", ({ detail }) => {
-    // Any route other than the bare chat list renders into mainSlot — on
-    // mobile widths mainSlot is only visible while "chat-open" is set (see
-    // components.css), so every one of those routes needs it, not just
-    // /chat/ and /call/. Without this, Contacts/Calls/Archive/Settings were
-    // rendering into a display:none column and looked like dead nav buttons.
     const fullScreen = detail.path !== "/";
     shell.classList.toggle("chat-open", fullScreen);
-    // На широком экране это ещё и убирает список чатов слева: "chat-open" сам
-    // по себе его оставляет (в переписке он нужен), поэтому признак отдельный.
     shell.classList.toggle("full-open", isFullPage(detail.path));
-    // Route handlers await their own data before calling mount() themselves
-    // (withCleanup() above only runs a teardown callback, it never touches
-    // the DOM) — so whatever was in mainSlot before this navigation stayed
-    // on screen for the entire async gap. Switching tabs — say, from "/" to
-    // "/contacts" — briefly showed the home tab's own "Выберите чат"
-    // placeholder inside Contacts, since that's what was already sitting in
-    // mainSlot. Scoped to an actual section change (not every navigation)
-    // so switching between chats, or between Settings sub-pages, doesn't
-    // pick up a needless blank flash of its own.
     if (sectionOf(prevPath) !== sectionOf(detail.path)) clear(mainSlot);
-    // Leaving the call screen without explicitly minimizing (nav-rail click,
-    // browser back) still needs the call to keep running in the background —
-    // implicitly minimize so the PiP bubble takes over.
     if (prevPath.startsWith("/call/") && !detail.path.startsWith("/call/")) {
       const s = getCallState();
       if (s && !s.minimized) minimize();
@@ -390,17 +252,11 @@ async function boot() {
   });
   route("/chat/:id", async (params) => {
     withCleanup(mainSlot);
-    // Сама переписка — тоже отдельным куском: на первом экране виден список
-    // чатов, а вместе с перепиской приезжают поле ввода, диктофон, стикеры и
-    // рисованные подарки. Это самая тяжёлая часть, и она не нужна, пока чат не
-    // открыли.
     const { ChatView } = await import("./views/chatView.js");
     await ChatView(mainSlot, params.id);
   });
   route("/call/:id", async (params) => {
     withCleanup(mainSlot);
-    // Пришли по кнопке «Ответить» из уведомления — звонок принимается сразу,
-    // без второго нажатия уже внутри приложения (public/sw.js ставит ?answer=1).
     if (new URLSearchParams(window.location.search).get("answer") === "1") {
       window.history.replaceState(null, "", `/call/${params.id}`);
       await answerCall(params.id).catch(() => {});
@@ -408,11 +264,6 @@ async function boot() {
     const { CallScreenView } = await import("./views/callScreen.js");
     await CallScreenView(mainSlot, params.id);
   });
-  // Where a Premium invite link (callScreen.js's "Пригласить по ссылке")
-  // lands — joins the call server-side (server/routes/calls.js's
-  // /join/:token), then hands off to the normal call screen the same as any
-  // other call, just via a replace() so "back" doesn't return to this
-  // one-shot redirect.
   route("/call-join/:token", async (params) => {
     withCleanup(mainSlot);
     try {
@@ -428,18 +279,6 @@ async function boot() {
       );
     }
   });
-  // Where a scanned profile QR code / shared @username link lands (see
-  // components/profileQrDialog.js) — resolves the account and starts a DM,
-  // same one-shot resolve-then-redirect shape as /call-join/:token above.
-  // Ссылка на @хендл: человек, бот, канал или группа — одним адресом.
-  //
-  // Что понимает: /@имя и /u/имя (второе оставлено — такие ссылки уже
-  // разошлись в QR-кодах профилей), а для ботов ещё два параметра, знакомых
-  // всем по Telegram:
-  //   ?start=код  — открыть бота и сразу отправить ему «/start код», чтобы он
-  //                 знал, откуда пришёл человек (реферальная ссылка, товар,
-  //                 приглашение);
-  //   ?app=1      — открыть сразу мини-приложение бота, минуя переписку.
   async function openByUsername(username, search) {
     username = String(username || "").replace(/^@/, "");
     const params = new URLSearchParams(search || "");
@@ -449,14 +288,7 @@ async function boot() {
     try {
       const { user: found } = await api.findUserByUsername(username);
       const { chat } = await api.startDm(found.id, found.name, found.avatarColor);
-      // Отправляем ДО перехода: свои же сообщения сервер обратно не
-      // рассылает (их показывает эхо в поле ввода), поэтому отправленное
-      // после открытия чата всплыло бы только через опрос, секунд через
-      // пятнадцать — и человек увидел бы пустую переписку с ботом.
       if (found.isBot && startPayload) {
-        // Именно сообщением, а не скрытым параметром: бот получает его обычным
-        // способом, а человек видит в переписке, что было отправлено от его
-        // имени. Пробел важен — «/start» без кода это другая команда.
         await api.sendMessage(chat.id, `/start ${startPayload}`.trim()).catch(() => {});
       }
       api.listChats().then((r) => setState({ chats: r.chats })).catch(() => {});
@@ -464,13 +296,10 @@ async function boot() {
       if (found.isBot && wantsApp) openMiniApp({ botId: found.id, botName: found.name, chatId: chat.id });
       return;
     } catch {
-      // Не человек и не бот — возможно, публичный канал или группа.
     }
 
     try {
       const { chat } = await api.findChatByUsername(username);
-      // Уже подписан — открываем сам чат; нет — показываем карточку в каталоге,
-      // где есть кнопка «Подписаться», а не подписываем молча по ссылке.
       if (chat.isMember) navigate(`/chat/${chat.id}`, { replace: true });
       else navigate(`/discover-channels?q=${encodeURIComponent(chat.username || chat.title)}`, { replace: true });
       return;
@@ -490,16 +319,11 @@ async function boot() {
     await openByUsername(params.username, window.location.search);
   });
 
-  // An invite link (server/routes/chats.js) — a full page, not a dialog: it's
-  // opened from outside the app, often by someone not signed in yet, and the
-  // router's own auth gate sends them to /login and back.
   route("/join/:code", async (params) => {
     withCleanup(mainSlot);
     const { JoinInviteView } = await import("./views/joinInvite.js");
     await JoinInviteView(mainSlot, params.code);
   });
-  // Ссылка-приглашение на папку с чатами (server/routes/folders.js) — тот же
-  // "полная страница, не диалог" принцип, что и у /join/:code выше.
   route("/folder/:code", async (params) => {
     withCleanup(mainSlot);
     const { FolderInviteView } = await import("./views/folderInvite.js");
@@ -520,8 +344,6 @@ async function boot() {
     const { DiscoverChannelsView } = await import("./views/discoverChannels.js");
     await DiscoverChannelsView(mainSlot);
   });
-  // Маркет: витрина, заказы и кабинет продавца — один экран с вкладками,
-  // страница магазина — свой адрес (на него ведут ссылки из рекламы).
   route("/market", async () => {
     withCleanup(mainSlot);
     const { MarketView } = await import("./views/market.js");
@@ -556,12 +378,6 @@ async function boot() {
   route("/settings/:page", (params) => openSettings(params.page));
   notFound(() => navigate("/", { replace: true }));
 
-  // Ссылка на аккаунт, бота, канал или группу — «домен/username» или
-  // «домен/@username», как их пишут и вставляют люди (t.me/name по смыслу).
-  // Роутер (router.js) подставляет только целый сегмент, а «@» в шаблон не
-  // впишешь, поэтому приводим адрес к /u/имя до старта, сохраняя параметры
-  // (?start=…, ?app=1). Зарезервированные пути приложения при этом не трогаем —
-  // иначе «домен/settings» повело бы искать несуществующий аккаунт «settings».
   const RESERVED_PATHS = new Set([
     "u", "chat", "call", "call-join", "join", "folder", "nearby", "contacts",
     "discover-channels", "market", "calls", "archive", "settings", "login",
@@ -575,17 +391,9 @@ async function boot() {
   startRouter();
 }
 
-// Whatever went wrong, the screen has to say what it was. This used to print
-// one flat line — "Не удалось загрузить приложение." — with the actual cause
-// only in the console, which is unreachable in the desktop and mobile shells,
-// so the single most common case (the server is down or answering 502, and the
-// very first request, api.session(), throws) looked identical to a genuine
-// crash in the app's own code.
 boot().catch((err) => {
   console.error(err);
   removeSplash();
-  // fetch() rejects with a TypeError and no status when the request never
-  // reached a server at all — offline, wrong address, backend not running.
   const offline = !navigator.onLine || err instanceof TypeError;
   mount(
     root,

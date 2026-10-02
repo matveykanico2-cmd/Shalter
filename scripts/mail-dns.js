@@ -1,20 +1,4 @@
 #!/usr/bin/env node
-// Prints the DNS records that make this server's mail acceptable to strict
-// providers — Gmail in particular, which refuses anonymous mail outright.
-//
-//   node scripts/mail-dns.js [ip]
-//
-// Everything here is derived, not invented: the DKIM key is the one the server
-// actually signs with (generating it on first run if needed), and the IP
-// defaults to whatever the sending domain's A record points at — i.e. this
-// deployment's own server. Pass an address to override.
-//
-// These three records are the entire manual part of sending mail. There is no
-// code-only substitute: they are a domain owner's signed statement that this
-// server may send as this domain, and only whoever controls the domain's DNS
-// can make it.
-// Те же config.env/.env, что читает сервер, — иначе проверка судила бы
-// о настройках, отличных от боевых.
 require("../server/lib/loadConfig");
 const { buildDnsAdvice } = require("../server/lib/mailDns");
 

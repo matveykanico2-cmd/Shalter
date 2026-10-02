@@ -1,17 +1,3 @@
-// Авторитетная проверка пользовательской анимированной сцены.
-//
-// Сцена — это данные, из которых на клиенте (public/js/lib/customScene.js)
-// собирается кастомный стикер, эмодзи или подарок. Она пользовательская и
-// уходит в чужие чаты, поэтому форма пинуется здесь, на сервере, а не там, где
-// сцену случится показать, — тот же принцип, что у sanitizeSticker.js и
-// sanitizeAttachments.js. Клиентская версия (customScene.js's
-// sanitizeCustomScene) — точная копия этих правил, но авторитет за этим файлом:
-// что бы клиент ни прислал, в базу ложится только прошедшее отсюда.
-//
-// Отдельно от рендера: класс анимации и тип фигуры становятся именами CSS-
-// классов, а цвет — значением атрибута fill, поэтому первые ограничены белым
-// списком, а цвет — строго hex. Ничего из сцены не может стать разметкой.
-
 const ANIM_IDS = new Set([
   "none", "bounce", "float", "spin", "pulse", "heartbeat",
   "wave", "swing", "shake", "pop", "blink", "rise", "wiggle",
@@ -82,7 +68,6 @@ function sanitizeLayer(raw) {
       ? raw.strokes.slice(0, MAX_STROKES).map(sanitizeStroke).filter(Boolean)
       : [];
   }
-  // Покадровая анимация: ключи-позы во времени (см. public/js/lib/customScene.js).
   if (Array.isArray(raw.keys) && raw.keys.length) {
     layer.keys = raw.keys
       .slice(0, MAX_KEYS)
@@ -104,9 +89,6 @@ function sanitizeLayer(raw) {
   return layer;
 }
 
-// Всегда возвращает валидную сцену; при мусоре на входе — пустую. Второй
-// аргумент отмечает «сцена обязана иметь хотя бы один слой» — тогда пустая
-// считается недопустимой и возвращается undefined (вызывающий ответит 400).
 function sanitizeScene(raw, { requireLayers = false } = {}) {
   const scene = raw && typeof raw === "object" ? raw : {};
   const layers = Array.isArray(scene.layers)
@@ -121,8 +103,6 @@ function sanitizeScene(raw, { requireLayers = false } = {}) {
   };
 }
 
-// Эмодзи-подпись сцены — для уведомлений и списка чатов, где саму сцену не
-// нарисуешь. Первый эмодзи-слой, иначе 🎨. Зеркалит customScene.js.
 function sceneSummaryEmoji(raw) {
   const scene = sanitizeScene(raw);
   const em = scene.layers.find((l) => l.type === "emoji");

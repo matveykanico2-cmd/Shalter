@@ -8,25 +8,9 @@ const { UPLOADABLE_KINDS, limitFor, tooLargeError, UPLOAD_LIMITS, DEFAULT_LIMIT 
 const storage = require("../lib/storage");
 const { MAGIC: COMPRESS_MAGIC, compressStream } = require("../lib/fileCompression");
 
-// Real file uploads, streamed straight to disk.
-//
-// The body is the raw file (Content-Type: application/octet-stream), not
-// multipart — a browser's fetch() streams a File/Blob body as-is, so this needs
-// no multipart parser (no new dependency) and never holds the file in memory on
-// either side. express.json() upstream only claims application/json, so these
-// requests pass through it untouched.
-//
-// This replaces attachments-as-base64-data-URLs for anything file-shaped. That
-// old path read the whole file into a JS string in the browser, inflated it by
-// a third, and posted it inside the message JSON — which is why the effective
-// ceiling was ~25MB regardless of what any limit said.
-
 const router = express.Router();
 router.use(requireUserId);
 
-// Extension only, taken from the client-supplied name and hard-restricted — the
-// stored filename is otherwise random, so a crafted name can't traverse
-// directories or land an executable extension somewhere it'd be served as code.
 function safeExtension(name) {
   const ext = path.extname(String(name ?? "")).toLowerCase();
   return /^\.[a-z0-9]{1,12}$/.test(ext) ? ext : "";
@@ -43,8 +27,6 @@ router.post(
     if (!UPLOADABLE_KINDS.has(kind)) return res.status(400).json({ error: "Неизвестный тип файла" });
 
     const limit = limitFor(kind);
-    // Fail before a single byte moves when the browser tells us the size up
-    // front — the alternative is transferring 2GB and then rejecting it.
     const declared = Number(req.headers["content-length"]);
     if (Number.isFinite(declared) && declared > limit) {
       return res.status(413).json({ error: tooLargeError(kind) });
@@ -56,29 +38,13 @@ router.post(
 
     let written = 0;
     let aborted = false;
-    // Хранилище — диск или S3, смотря что настроено (lib/storage.js); отсюда
-    // и дальше код не знает, куда именно льются байты.
     const { stream: out, done, abort } = storage.createWriteTarget(filename);
-    // Файл кладётся зашифрованным (см. lib/fileCrypto.js) вне зависимости от
-    // хранилища. Отпечаток для дедупликации считается по исходному
-    // содержимому, до шифрования, — иначе два одинаковых файла давали бы
-    // разные имена: у каждого свой вектор.
     const cipher = createEncryptStream(path.join(process.cwd(), "data"), out);
-    // Отпечаток содержимого считается на лету, пока файл пишется, — второй раз
-    // читать его ради этого не нужно.
     const digest = crypto.createHash("sha256");
 
-    // Compression (lib/fileCompression.js) only for kind === "file" — plain
-    // document/code/text attachments, never anything that needs
-    // range-served seeking (image/video/voice/video-note/avatar/gift). The
-    // digest/size-limit tracking above stays on `req`'s raw bytes either
-    // way — dedup and the size cap must reflect what was actually uploaded,
-    // not the compressed size on disk.
     const compressing = kind === "file";
     const compressor = compressing ? compressStream(declared) : null;
 
-    // Cleans up the partial file on any failure — an aborted 2GB upload must not
-    // leave 1.9GB of garbage sitting in storage.
     const discard = () => storage.deleteObject(filename).catch(() => {});
 
     try {
@@ -87,9 +53,6 @@ router.post(
           if (aborted) return;
           written += chunk.length;
           digest.update(chunk);
-          // A lying or absent Content-Length is the case this covers: enforced
-          // again against what actually arrives, and the connection is cut the
-          // moment it goes over rather than after the whole file lands.
           if (written > limit) {
             aborted = true;
             abort();
@@ -107,9 +70,6 @@ router.post(
         done().then(resolve, reject);
         cipher.pipe(out);
         if (compressor) {
-          // MAGIC has to land first in what the cipher encrypts — written
-          // synchronously here, before the piped (async) compressed bytes
-          // start arriving, so ordering is guaranteed.
           cipher.write(COMPRESS_MAGIC);
           compressor.on("error", reject);
           req.pipe(compressor).pipe(cipher);
@@ -127,28 +87,11 @@ router.post(
       return res.status(400).json({ error: "Пустой файл" });
     }
 
-    // Один и тот же файл хранится один раз.
-    //
-    // Картинку, которую переслали сотне человек, раньше сервер записывал сотней
-    // одинаковых копий: имя файла складывалось из времени и случайных байт, и
-    // о совпадении содержимого никто не спрашивал. На пересылаемом — мемах,
-    // фотографиях из общих чатов, одном и том же документе — это и есть
-    // основной расход места.
-    //
-    // Теперь имя выводится из содержимого: у одинаковых файлов оно совпадает.
-    // Если такой файл уже лежит, только что записанный удаляется, а ссылка
-    // отдаётся на существующий. Формат имени прежний (см. isSafeUrl в
-    // lib/sanitizeAttachments.js), поэтому старые ссылки продолжают работать.
-    //
-    // Файл не удаляется, пока на него ссылается хоть одно сообщение, — а раз
-    // содержимое одинаковое, любая из ссылок ведёт к тому же самому.
     const hash = digest.digest("hex").slice(0, 16);
     const dedupName = `sha_${hash}${safeExtension(name)}`;
     const filenameFinal = await storage.finalizeDedup(filename, dedupName);
 
     res.json({
-      // Relative on purpose: the app is same-origin, and a stored absolute URL
-      // would break the moment the deployment's hostname or scheme changed.
       url: `/uploads/${filenameFinal}`,
       name,
       size: written,

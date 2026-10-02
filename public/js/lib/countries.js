@@ -1,13 +1,3 @@
-// Country dialling codes for the phone field (components/phoneField.js).
-//
-// Deliberately a convenience list, not a gate: the field always accepts a typed
-// "+<digits>" prefix even for a country that isn't here, and simply shows no
-// flag for it. A hard-coded list that silently refuses somebody's real number
-// would be worse than an incomplete one.
-//
-// `len` is the usual national-number length, used only to stop formatting from
-// running away — never to reject input, because these vary within a country
-// (Russia's own numbers are 10, but service numbers aren't) and change over time.
 export const COUNTRIES = [
   { iso: "RU", dial: "7", flag: "🇷🇺", name: "Россия", len: 10 },
   { iso: "KZ", dial: "7", flag: "🇰🇿", name: "Казахстан", len: 10 },
@@ -97,22 +87,14 @@ export const COUNTRIES = [
 
 export const DEFAULT_COUNTRY = COUNTRIES[0];
 
-// Longest dial code first, so "+7 999…" isn't mistaken for a shorter code and
-// "+375…" beats "+37". Ties (the +7 and +1 pairs) resolve to the first entry —
-// Russia and the USA — which is why those lead their groups above.
 const BY_LENGTH = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length);
 
-// Which country a typed number belongs to, from its leading digits. Returns
-// undefined for a prefix nobody uses, which is a real answer: the field keeps
-// what was typed and just shows no flag.
 export function countryForDigits(digits) {
   const d = String(digits ?? "").replace(/\D/g, "");
   if (!d) return undefined;
   return BY_LENGTH.find((c) => d.startsWith(c.dial));
 }
 
-// "Рос", "russia", "ru", "+7", "7" all find Russia. Matching the dial code with
-// or without the plus matters: people type the code far more often than the name.
 export function searchCountries(query) {
   const q = String(query ?? "").trim().toLowerCase().replace(/^\+/, "");
   if (!q) return COUNTRIES;
@@ -124,10 +106,6 @@ export function searchCountries(query) {
   );
 }
 
-// The country to start on: whatever the browser's region says, falling back to
-// Russia. navigator.language is "ru-RU" / "en-US" — the half after the dash is
-// the region, and it's the only region hint available without asking for
-// location permission.
 export function guessCountry() {
   const langs = [navigator.language, ...(navigator.languages ?? [])].filter(Boolean);
   for (const tag of langs) {
@@ -139,9 +117,6 @@ export function guessCountry() {
   return DEFAULT_COUNTRY;
 }
 
-// Groups the national part in 3-3-2-2 — close enough to how most of these
-// countries write their numbers, and purely cosmetic: the server strips
-// everything but digits before storing or comparing (see normalizePhone).
 export function formatNational(digits, country) {
   const d = String(digits ?? "").replace(/\D/g, "").slice(0, Math.max(country?.len ?? 12, 12) + 3);
   const groups = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 8), d.slice(8, 10), d.slice(10)].filter(Boolean);

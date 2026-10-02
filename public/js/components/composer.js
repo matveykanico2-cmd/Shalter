@@ -3,6 +3,7 @@ import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { startRecording, isRecordingSupported, createLevelMeter, MAX_RECORD_SEC } from "../lib/recorder.js";
 import { uploadFile } from "../lib/upload.js";
+import { startTranscript } from "../lib/speechTranscript.js";
 import { startChatAction, withChatAction, uploadActionFor } from "../lib/chatAction.js";
 import { checkSize } from "../lib/uploadLimits.js";
 import { openPollDialog } from "./pollDialog.js";
@@ -20,19 +21,13 @@ import { messagePreview } from "../lib/messagePreview.js";
 import { previewText } from "../lib/formatText.js";
 
 const EMOJI = ["😀", "😂", "😍", "👍", "🙏", "🔥", "🎉", "😢", "😮", "❤️", "👏", "🤔"];
-const TYPING_PING_MS = 2500; // well under the server's 4s typing-presence expiry
-const DRAFT_SAVE_MS = 600; // debounce so we're not POSTing on every keystroke
-// Запись удержанием: дольше HOLD_MS — уже не касание, а удержание; сдвиг
-// влево на HOLD_CANCEL_PX отменяет, вверх на HOLD_LOCK_PX — закрепляет; запись
-// короче HOLD_MIN_MS при отпускании не отправляется.
+const TYPING_PING_MS = 2500;
+const DRAFT_SAVE_MS = 600;
 const HOLD_MS = 250;
 const HOLD_CANCEL_PX = 110;
 const HOLD_LOCK_PX = 80;
 const HOLD_MIN_MS = 400;
 
-// "1 ошибку / 2 ошибки / 5 ошибок" — a count next to an unagreed noun reads as
-// broken Russian, and Hugo's whole point is noticing exactly that.
-// Фото и видео уходят как медиа (с эскизом, в просмотрщик), остальное — файлом.
 function fileKind(file) {
   if (file.type.startsWith("image/")) return "image";
   if (file.type.startsWith("video/")) return "video";
@@ -50,68 +45,35 @@ function plural(n, one, few, many) {
 export function Composer({
   chatId,
   replyingTo,
-  // Чьё сообщение — для подписи «Ответ Ивану» над полем, как в Telegram.
   replyToName = "",
   editingMessage,
   initialDraft,
-  // A bot's command list, when this chat has a bot in it (server/routes/chats.js
-  // returns it with the chat). Absent everywhere else, and the "/" button then
-  // isn't rendered at all.
   botCommands = null,
-  // Плата за сообщение в этой переписке: { stars, youPay } с сервера
-  // (server/lib/messagePrice.js). Цена известна до отправки, поэтому и сказать
-  // о ней надо до отправки — раньше человек узнавал о плате только из отказа.
   paidMessages = null,
   canPostAnonymously = false,
   members,
   onCancelReply,
   onCancelEdit,
   onSend,
-  // Хозяин поля (chatView.js) умеет показать сообщение сразу, а вложения
-  // дождаться — см. sendImageNow ниже. Ветка обсуждения этого не умеет, там
-  // картинка идёт прежним путём: загрузка, потом отправка.
   canSendWhileUploading = false,
   onSaveEdit,
   onDraftChange,
   onScheduled,
-  // ↑ в пустом поле — изменить своё последнее сообщение (как в Telegram
-  // Desktop). Хозяин поля сам знает, какое оно; без обработчика клавиша
-  // остаётся обычной стрелкой.
   onEditLast = null,
-  // Поле ввода в ветке обсуждения (threadPanel.js): черновик на сервере у чата
-  // один, и он принадлежит основному полю. Без этого ответ в ветке перезаписывал
-  // черновик переписки, а отправка ответа его стирала.
   disableDraftSync = false,
 }) {
   let lastTypingPing = 0;
-  // Выбранные фото/видео/файлы ждут отправки, пока человек не нажмёт «Отправить»
-  // — а не улетают сразу по выбору. Так можно добавить подпись, доложить ещё
-  // файлов или передумать. Живёт на уровне всего композера (не внутри
-  // renderIdleBody), чтобы пережить перерисовки тела. Каждый элемент:
-  // { attachment, kind, previewUrl }. renderIdleBody рисует из него поднос.
   let staged = [];
   let renderStagedTray = () => {};
   let recordingHandle = null;
-  // Окно «доступ запрашивается, запись ещё не началась» — чтобы второй запуск
-  // записи (голосовое + кружок разом) не проскочил, пока ждём getUserMedia.
   let recordingStarting = false;
   let stopRecordAction = null;
-  // Волна рисуется кадрами, а звук слушается через AudioContext — и то и другое
-  // надо остановить, когда запись кончилась: иначе кадры продолжают крутиться,
-  // а микрофонный контекст остаётся открытым.
   let waveTimer = null;
   let levelMeter = null;
-  // Запись с удержанием: пока палец (мышь, перо) держит кнопку, сюда кладётся
-  // управление текущей записью — сдвиг, отпускание, отмена жеста.
   let activeHold = null;
   let draftSaveTimer = null;
-  // "Отправить от имени группы" — сбрасывается после каждой отправки, как и
-  // ответ/редактирование: это разовое решение на одно сообщение, не режим.
   let postAsChat = false;
 
-  // Saves to the server on a debounce (network call), but calls
-  // onDraftChange immediately every time so chatView.js can reflect the
-  // draft in the chat-list preview without waiting on the network.
   function scheduleDraftSave(text) {
     if (disableDraftSync) return;
     onDraftChange?.(text);
@@ -137,7 +99,6 @@ export function Composer({
           el("span", { html: iconSvg(editingMessage ? "Edit" : "Reply", 15) }),
           el("div", { class: "composer-banner-body" }, [
             el("span", { class: "composer-banner-label" }, editingMessage ? "Изменение" : replyToName ? `Ответ ${replyToName}` : "Ответ"),
-            // Фото, голосовое, стикер — словами («📷 Фото»), а не безликим «Медиа».
             el("span", { class: "composer-banner-text" }, previewText(messagePreview(editingMessage ?? replyingTo)) || "Сообщение"),
           ]),
           el("button", {
@@ -152,9 +113,6 @@ export function Composer({
   function renderIdleBody() {
     clear(bodySlot);
 
-    // Кастомные эмодзи, вставленные в текущий черновик: сцены, на которые
-    // ссылаются токены [ce:N] в тексте (см. lib/customScene.js, formatText.js).
-    // Уходят с сообщением как отдельный массив и обнуляются после отправки.
     let draftEmoji = [];
 
     const textarea = el("textarea", {
@@ -164,9 +122,6 @@ export function Composer({
       value: editingMessage?.text ?? initialDraft ?? "",
     });
 
-    // @mention autocomplete — matches an "@" that starts at a word boundary
-    // and runs up to the cursor with no space in between (so "a@b" doesn't
-    // trigger it, but "hey @niko" does mid-word too).
     const mentionMenu = el("div", { class: "composer-mention-menu hidden" });
     let mentionMatches = [];
     let mentionActiveIndex = 0;
@@ -184,9 +139,6 @@ export function Composer({
             "button",
             {
               class: `composer-mention-item ${i === mentionActiveIndex ? "active" : ""}`,
-              // mousedown (not click) + preventDefault so the textarea never
-              // blurs — a blur would run our own close-on-blur handler and
-              // rip this button out of the DOM before its click could fire.
               onmousedown: (e) => {
                 e.preventDefault();
                 selectMention(u);
@@ -236,12 +188,9 @@ export function Composer({
       textarea.style.height = "auto";
       const full = textarea.scrollHeight;
       textarea.style.height = Math.min(full, 240) + "px";
-      // Скролл нужен только когда текст перерос максимум; иначе прячем полоску.
       textarea.style.overflowY = full > 240 ? "auto" : "hidden";
     }
 
-    // Вставка кастомного эмодзи в текст на месте курсора: сцена кладётся в
-    // draftEmoji, а в текст встаёт токен [ce:N] с её индексом.
     function insertCustomEmoji(scene) {
       const idx = draftEmoji.length;
       draftEmoji.push(scene);
@@ -260,14 +209,11 @@ export function Composer({
 
     function submit() {
       const trimmed = textarea.value.trim();
-      // Отправлять есть что, если есть текст ИЛИ приложенные файлы в очереди.
       if (!trimmed && !staged.length) return;
       if (editingMessage) {
-        if (!trimmed) return; // у редактирования вложений нет — пустой текст нечего сохранять
+        if (!trimmed) return;
         onSaveEdit(trimmed);
       } else if (staged.length) {
-        // Очередь файлов уходит по кнопке. Подпись (если есть) — к первой
-        // партии; дальше по MAX вложений на сообщение, как и раньше.
         const atts = staged.map((s) => s.attachment);
         staged = [];
         renderStagedTray();
@@ -283,9 +229,6 @@ export function Composer({
       } else {
         onSend(trimmed, [], {
           ...(postAsChat ? { anonymous: true } : {}),
-          // Черновик мог сослаться на эмодзи и потом стереть токен — неважно:
-          // лишние сцены сервер отбросит по индексам, а токены рисуются из этого
-          // массива по позиции.
           ...(draftEmoji.length ? { customEmoji: draftEmoji.slice() } : {}),
         });
         draftEmoji = [];
@@ -339,8 +282,6 @@ export function Composer({
         submit();
         return;
       }
-      // Esc снимает ответ или изменение — первым делом, до того как та же
-      // клавиша закроет сам чат (lib/keyboardShortcuts.js).
       if (e.key === "Escape" && (replyingTo || editingMessage)) {
         e.preventDefault();
         e.stopPropagation();
@@ -353,9 +294,6 @@ export function Composer({
         onEditLast();
       }
     });
-    // Вставка картинки или файла из буфера обмена (снимок экрана, «Копировать
-    // изображение» в браузере) — сразу вложением, как в Telegram. Раньше
-    // вставка просто ничего не делала: в текстовое поле картинка не входит.
     textarea.addEventListener("paste", (e) => {
       if (editingMessage) return;
       const files = [...(e.clipboardData?.files ?? [])];
@@ -363,22 +301,11 @@ export function Composer({
       e.preventDefault();
       attachFiles(files.map((file) => ({ file, kind: fileKind(file) })));
     });
-    // Click elsewhere closes it too — menu items themselves prevent this
-    // blur (see the mousedown handler above), so this only fires for
-    // genuine "clicked away" cases.
     textarea.addEventListener("blur", () => closeMentionMenu());
 
-    // Progress line shown above the composer while a file is going up. A large
-    // file takes real time now that it's streamed rather than crammed into the
-    // message JSON, so "nothing appears to happen" isn't an acceptable state.
     const uploadSlot = el("div", { class: "composer-upload-slot" });
 
     function showUploadError(message) {
-      // Appended, not clear(uploadSlot) — a rejected file (too big, say)
-      // while an *earlier* batch is still uploading used to wipe that
-      // batch's progress tiles off the screen along with the error, even
-      // though the earlier upload itself kept running in the background
-      // unaffected. The row removes only itself.
       const row = el("div", { class: "composer-upload-row error" }, [
         el("span", { html: iconSvg("Info", 14) }),
         el("span", { class: "composer-upload-label" }, message),
@@ -387,10 +314,6 @@ export function Composer({
       uploadSlot.appendChild(row);
     }
 
-    // A ring drawn as an SVG stroke-dashoffset — filled clockwise as the
-    // upload's XHR progress event advances. Built as a markup string (same
-    // style as icons.js) rather than through dom.js's el(), which only knows
-    // document.createElement and can't build SVG nodes in the right namespace.
     const RING_R = 19;
     const RING_C = 2 * Math.PI * RING_R;
     function ringMarkup() {
@@ -401,11 +324,6 @@ export function Composer({
       </svg>`;
     }
 
-    // Best-effort poster frame for a video thumbnail — decodes just enough of
-    // the file in an offscreen <video> to grab one frame, without waiting for
-    // (or triggering) any real transcoding. Resolves null on anything that
-    // isn't picture-in-picture-able fast (corrupt file, exotic codec — the
-    // thumbnail just falls back to a plain icon then).
     function captureVideoFrame(file) {
       return new Promise((resolve) => {
         const url = URL.createObjectURL(file);
@@ -418,9 +336,6 @@ export function Composer({
         const timeout = setTimeout(fail, 4000);
         video.addEventListener("error", fail);
         video.addEventListener("loadeddata", () => {
-          // A frame at 0:00 is often a black flash before real content —
-          // nudging in a bit (clamped to the clip's own length) gives a
-          // thumbnail that actually looks like the video.
           video.currentTime = Math.min(0.3, (video.duration || 0) / 2);
         });
         video.addEventListener("seeked", () => {
@@ -441,26 +356,8 @@ export function Composer({
       });
     }
 
-    // Uploads a batch of files (usually picked together — a multi-select from
-    // the file dialog) in parallel, each shown as its own thumbnail tile with
-    // a filling progress ring, then sends everything as ONE message once every
-    // upload in the batch has settled — instead of the old one-request-per-file
-    // flow, where files raced each other for the single shared progress row
-    // and each landed as its own separate message the instant it finished
-    // (out of order, and N round trips to the server instead of one).
-    //
-    // Files stream to the server as-is (server/routes/uploads.js) — nothing is
-    // recompressed here, see the comment that used to sit on the old
-    // single-file version of this function for why.
-    //
-    // MAX_ATTACHMENTS in server/lib/sanitizeAttachments.js caps one message at
-    // 10 — chunking client-side means a 23-photo pick becomes 3 messages
-    // instead of silently losing the 11th photo onward.
     const MAX_ATTACHMENTS_PER_MESSAGE = 10;
 
-    // Файлы, брошенные мышью на переписку (views/chatView.js) — тем же путём,
-    // что и выбранные через скрепку. Переназначается при каждой отрисовке
-    // тела: attachFiles живёт внутри неё.
     wrap.attachDropped = editingMessage ? null : (files) => attachFiles(files.map((file) => ({ file, kind: fileKind(file) })));
 
     async function attachFiles(picks) {
@@ -475,11 +372,6 @@ export function Composer({
       }
       if (!items.length) return;
 
-      // Appended alongside whatever's already in uploadSlot, not
-      // clear()-ed first — attaching a second batch while an earlier one
-      // is still uploading used to wipe the earlier batch's tiles from the
-      // screen (the upload itself kept running regardless, just invisibly);
-      // now each batch gets its own strip and only ever removes its own.
       const strip = el("div", { class: "composer-upload-strip" });
       uploadSlot.appendChild(strip);
 
@@ -524,22 +416,17 @@ export function Composer({
         };
       });
 
-      // Thumbnails are cosmetic and shouldn't hold up starting the uploads —
-      // fired off in parallel with them, not awaited first.
       for (const t of tiles) {
         if (t.kind === "image") t.setPreviewUrl(URL.createObjectURL(t.file));
         else if (t.kind === "video") captureVideoFrame(t.file).then((url) => t.setPreviewUrl(url));
       }
 
-      // Сжатие фото отключено — отправляем файл как есть, без потери качества.
       const prepare = (t) => Promise.resolve(t.file);
-      // Пока файлы уходят, собеседник видит «отправляет фото/видео/файл».
       const stopUploadAction = startChatAction(chatId, uploadActionFor(tiles.map((t) => t.kind)));
       const results = await Promise.allSettled(
         tiles.map((t) =>
           prepare(t)
             .then((file) => {
-              // Плитку убрали, пока фото пережималось, — загружать нечего.
               if (!t.tile.isConnected) throw new Error("Загрузка отменена");
               return uploadFile(
                 file,
@@ -563,17 +450,10 @@ export function Composer({
       strip.remove();
 
       const attachments = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
-      // Отменённые самим человеком — не ошибка, о них не сообщаем.
       const failures = results.filter((r) => r.status === "rejected" && r.reason?.message !== "Загрузка отменена");
       const failedCount = failures.length;
-      // Причина словами (lib/upload.js): «сервер недоступен», «слишком большой»,
-      // «проверьте соединение» — по одному общему «не удалось» не понять, что
-      // делать.
       const reason = failures[0]?.reason?.message;
 
-      // Не отправляем сразу: складываем в очередь (staged) и показываем поднос
-      // предпросмотра. Уйдёт всё по кнопке «Отправить» (см. submit). Превью —
-      // серверный эскиз, иначе локальный objectURL исходника.
       results.forEach((r, i) => {
         if (r.status !== "fulfilled") return;
         const a = r.value;
@@ -593,7 +473,6 @@ export function Composer({
       }
     }
 
-    // Одна готовая картинка (мем) — сразу в переписку, загрузка в фоне.
     function sendImageNow(file) {
       if (!canSendWhileUploading) return attachFiles([{ file, kind: "image" }]);
       const sizeError = checkSize(file, "image");
@@ -602,11 +481,6 @@ export function Composer({
       onSend("", [local], { uploading: withChatAction(chatId, "upload_photo", uploadFile(file, "image")).then((a) => [a]) });
     }
 
-    // Attach menu — each item sends a real attachment (no more "[Label]" text stub).
-    // multiple — потому что выбирают обычно не один файл: пять фотографий с
-    // прогулки прикреплялись по одной, через пять открытий проводника подряд.
-    // Сообщение и так умеет нести несколько вложений сразу (attachments —
-    // массив), одиночным было только само поле выбора.
     const mediaFileInput = el("input", {
       type: "file",
       accept: "image/*,video/*",
@@ -633,9 +507,6 @@ export function Composer({
         attachFiles(files.map((file) => ({ file, kind: "file" })));
       },
     });
-    // Съёмка прямо с камеры: capture просит устройство открыть камеру, а не
-    // галерею (на телефоне). На десктопе атрибут игнорируется — откроется
-    // обычный выбор файла, так что кнопка работает везде.
     const cameraPhotoInput = el("input", {
       type: "file",
       accept: "image/*",
@@ -664,11 +535,6 @@ export function Composer({
       attachMenuEl?.remove();
       attachMenuEl = null;
     }
-    // Every composer action, in one list. The icon row beside the field is a set
-    // of shortcuts into this list, not a separate feature set — on a phone there
-    // is no room for seven icons next to a text field (they left it about
-    // 100px wide), so the shortcuts collapse and the paperclip is how you reach
-    // all of it. One definition, so the two never drift apart.
     function attachActions() {
       return [
         { icon: "Image", label: "Фото или видео", run: () => mediaFileInput.click() },
@@ -699,8 +565,6 @@ export function Composer({
                     options,
                     votes: options.map(() => 0),
                     voterIds: options.map(() => []),
-                    // null — обычный опрос; число — викторина с этим правильным
-                    // ответом (см. pollDialog.js).
                     correctIndex: correctIndex ?? null,
                     multiple: !!multiple,
                   },
@@ -730,8 +594,6 @@ export function Composer({
                 const message = await onSend("", [
                   { kind: "location", meta: { lat: pos.coords.latitude, lng: pos.coords.longitude, liveMinutes } },
                 ]);
-                // onSend может не вернуть сообщение (сеть подвела на самой
-                // отправке) — тогда просто нечего было бы обновлять.
                 if (message) startLiveLocationSharing(chatId, message.id, liveMinutes * 60_000);
               },
               () => alert("Не удалось получить местоположение")
@@ -745,14 +607,9 @@ export function Composer({
             openContactPickerDialog(
               (user) => onSend("", [{ kind: "contact", meta: { userId: user.id, name: user.name, phone: user.phone } }]),
               "Отправить контакт",
-              // Участники этого чата — чтобы можно было отправить собеседнику
-              // его же контакт (или контакт участника группы), даже если он не
-              // записан в контактах.
               { extra: members ?? [] }
             ),
         },
-        // Recording needs a microphone/camera, and scheduling makes no sense
-        // while editing a message that has already been sent.
         ...(isRecordingSupported()
           ? [
               { icon: "Mic", label: "Голосовое сообщение", run: () => beginRecording("voice") },
@@ -792,9 +649,6 @@ export function Composer({
     });
     const attachSlot = el("div", { class: "composer-attach-slot" }, [attachBtn, mediaFileInput, anyFileInput, cameraPhotoInput, cameraVideoInput]);
 
-    // A bot's commands, the way Telegram's "/" button offers them. The list has
-    // been stored since bots existed and was shown nowhere, so using a bot meant
-    // already knowing what it answers to.
     let commandMenuEl = null;
     const commandSlot = botCommands?.length ? el("div", { class: "composer-attach-slot" }) : null;
     if (commandSlot) {
@@ -818,8 +672,6 @@ export function Composer({
                   onclick: () => {
                     commandMenuEl?.remove();
                     commandMenuEl = null;
-                    // Sent straight away rather than typed into the field: a
-                    // command is the whole message, and Telegram sends it on tap.
                     onSend(`/${String(c.command ?? c.name ?? "").replace(/^\//, "")}`, []);
                   },
                 },
@@ -836,10 +688,6 @@ export function Composer({
       commandSlot.appendChild(commandBtn);
     }
 
-    // "Отправить от имени группы" — переключатель на одно сообщение, а не
-    // режим (сбрасывается после submit(), см. выше). Сервер перепроверяет
-    // право и настройку группы сам (routes/messages.js) — canPostAnonymously
-    // здесь только решает, показывать ли вообще кнопку.
     let anonymousToggleBtn = null;
     function updateAnonymousToggle() {
       anonymousToggleBtn?.classList.toggle("active", postAsChat);
@@ -857,9 +705,6 @@ export function Composer({
       });
     }
 
-    // Emoji picker. Takes the element to hang off, because on a phone the icon
-    // that normally opens it isn't on screen — it's in the paperclip menu, and
-    // the picker has to anchor to the paperclip instead.
     let emojiMenuEl = null;
     let myEmoji = [];
     function insertPlainEmoji(e) {
@@ -875,20 +720,16 @@ export function Composer({
       if (!emojiMenuEl) return;
       clear(emojiMenuEl);
       emojiMenuEl.append(
-        // Часто используемые — быстрым рядом сверху.
         el(
           "div",
           { class: "composer-emoji-row" },
           EMOJI.map((e) => el("button", { onclick: () => insertPlainEmoji(e) }, e))
         ),
-        // Полный набор (lib/emojiList.js) — прокручиваемой сеткой.
         el(
           "div",
           { class: "composer-emoji-all" },
           ALL_EMOJI.map((e) => el("button", { onclick: () => insertPlainEmoji(e) }, e))
         ),
-        // Кастомные эмодзи — общий каталог (создаёт админ в настройках).
-        // Здесь их только вставляют; правка/удаление — не тут.
         el("div", { class: "composer-emoji-heading" }, [el("span", {}, "Эмодзи Shalter")]),
         myEmoji.length
           ? el(
@@ -900,9 +741,6 @@ export function Composer({
                   {
                     class: "composer-custom-emoji",
                     title: em.name || "Эмодзи",
-                    // Кастом-эмодзи ведёт себя как стикер: клик сразу отправляет
-                    // его анимированной картинкой (текстовое поле не умеет рисовать
-                    // картинки, поэтому токен [ce:N] тут не годится).
                     onclick: () => {
                       if (emojiMenuEl) { emojiMenuEl.remove(); emojiMenuEl = null; }
                       onSend("", [], { sticker: { kind: "custom", scene: em.scene, name: em.name || "" } });
@@ -922,13 +760,9 @@ export function Composer({
         emojiMenuEl = null;
         return;
       }
-      // Opened from the paperclip (the only way in on a phone) it hangs off
-      // the left edge of the row, so it has to open rightwards or it lands
-      // off the side of the screen.
       emojiMenuEl = el("div", { class: `composer-emoji-picker has-sections ${host === attachSlot ? "anchored-left" : ""}` });
       host.appendChild(emojiMenuEl);
       renderEmojiMenu();
-      // Свои эмодзи подгружаются один раз при первом открытии.
       api
         .listCustomEmoji()
         .then(({ emoji }) => {
@@ -945,10 +779,6 @@ export function Composer({
     });
     const emojiSlot = el("div", { class: "composer-attach-slot composer-secondary" }, [emojiBtn]);
 
-    // Stickers are grouped into packs: the built-in set plus anything the user
-    // assembled themselves (components/stickerPackDialog.js). Each one renders
-    // as its own animated scene rather than a flat emoji, so the picker shows
-    // exactly what will be sent.
     let myPacks = [];
 
     function sendSticker(s) {
@@ -973,8 +803,6 @@ export function Composer({
             el(
               "button",
               { class: `sticker-picker-item ${s.kind === "image" ? "is-image" : ""}`, title: s.name || s.emoji || "Стикер", onclick: () => sendSticker(s) },
-              // Картинку показываем крупнее эмодзи: 30 точек хватает, чтобы узнать
-              // смайлик, но не чтобы разглядеть своё фото.
               [renderSticker(s, { size: s.kind === "image" ? 56 : 30 })]
             )
           )
@@ -985,8 +813,6 @@ export function Composer({
     function renderStickerPicker() {
       clear(stickerMenuEl);
       stickerMenuEl.append(
-        // Нарисованный набор первым: он и есть лицо приложения, а эмодзи —
-        // запасной вариант на всё остальное.
         packSection("Shalter", DRAWN_STICKERS),
         packSection("Стандартные", STICKERS),
         ...myPacks.filter((p) => p.stickers.length).map((p) => packSection(p.name, p.stickers)),
@@ -997,11 +823,7 @@ export function Composer({
       );
     }
 
-    // Sticker picker — sends immediately on tap (like Telegram), not
-    // inserted into the text field, so it's its own message rather than
-    // text-plus-emoji.
     let stickerMenuEl = null;
-    // «Выбирает стикер», пока открыта панель, — как в Telegram.
     let stopStickerAction = null;
     function closeStickerMenu() {
       stickerMenuEl?.remove();
@@ -1018,8 +840,6 @@ export function Composer({
       renderStickerPicker();
       host.appendChild(stickerMenuEl);
       stopStickerAction = startChatAction(chatId, "choose_sticker", stickerMenuEl);
-      // Own packs load after the menu is already open, so the built-in set is
-      // usable instantly and a slow request never blocks the picker.
       api
         .listStickerPacks()
         .then(({ packs }) => {
@@ -1036,9 +856,6 @@ export function Composer({
     });
     const stickerSlot = el("div", { class: "composer-attach-slot composer-secondary" }, [stickerBtn]);
 
-    // "Send later" — queues whatever's currently typed instead of sending
-    // now (server/lib/scheduledMessagesSweep.js fires it at the chosen
-    // time). Doesn't apply while editing an existing message.
     function scheduleSend() {
       if (!textarea.value.trim()) {
         alert("Сначала напишите сообщение — запланировать можно только то, что уже набрано");
@@ -1068,11 +885,6 @@ export function Composer({
           }),
         ]);
 
-    // ── Hugo: proofreading the draft ────────────────────────────────────────
-    // Explicitly triggered, never on typing: the draft is sent to a checking
-    // service (see server/routes/hugo.js), and doing that silently on every
-    // keystroke in a messenger would be the wrong default no matter how useful
-    // the feature is.
     const hugoSlot = el("div", { class: "hugo-slot" });
     let hugoMatches = [];
     let hugoBusy = false;
@@ -1144,9 +956,6 @@ export function Composer({
               ? el(
                   "div",
                   { class: "hugo-item-fixes" },
-                  // The first suggestion gets the primary button; the rest are
-                  // offered too, because a spell checker's top pick is regularly
-                  // not the word you meant.
                   m.replacements.slice(0, 3).map((r, i) =>
                     el(
                       "button",
@@ -1155,9 +964,6 @@ export function Composer({
                         onclick: () => {
                           const res = applyFix(textarea.value, m, r);
                           setDraft(res.text, res.caret);
-                          // Offsets after this one have shifted, so the rest of
-                          // the list is stale — re-check rather than show wrong
-                          // spans.
                           runHugo();
                         },
                       },
@@ -1207,7 +1013,6 @@ export function Composer({
     const trailingSlot = el("div", { class: "composer-trailing" });
     function updateTrailingButtons() {
       clear(trailingSlot);
-      // Кнопка «Отправить» — когда есть текст ИЛИ приложенные файлы в очереди.
       if (textarea.value.trim() || staged.length) {
         trailingSlot.appendChild(
           el("button", { class: "composer-send-btn", title: "Отправить", html: iconSvg("Send", 17), onclick: submit })
@@ -1221,13 +1026,6 @@ export function Composer({
       );
     }
 
-    // Скрепка, поле и вторичные кнопки — внутри одной «таблетки»; отправка и
-    // запись остаются снаружи справа, как круглая кнопка в привычных
-    // мессенджерах.
-    // Поднос очереди вложений: миниатюры выбранных фото/видео/файлов с крестиком,
-    // пока они ждут отправки. Рисуется из staged (уровень композера), поэтому
-    // переживает перерисовку тела. renderStagedTray поднимается наверх (в
-    // замыкание компонента), чтобы attachFiles/submit могли его дёргать.
     const stagedTray = el("div", { class: "composer-staged-tray" });
     renderStagedTray = () => {
       clear(stagedTray);
@@ -1260,8 +1058,6 @@ export function Composer({
 
     const field = el("div", { class: "composer-field" }, [attachSlot, commandSlot, anonymousToggleBtn, textarea, hugoSlotBtn, stickerSlot, scheduleSlot, emojiSlot].filter(Boolean));
     const row = el("div", { class: "composer-row" }, [mentionMenu, field, trailingSlot].filter(Boolean));
-    // Плашка о платной переписке — над полем ввода, там же, где ответ и
-    // изменение: это условие отправки, а не свойство собеседника.
     const paidHint = paidMessages?.youPay
       ? el(
           "p",
@@ -1280,18 +1076,6 @@ export function Composer({
     });
   }
 
-  // Кнопка записи понимает и касание, и удержание — как в Telegram:
-  //  • короткое касание — запись «без рук»: панель с корзиной, паузой и
-  //    отправкой, как было всегда;
-  //  • удержание — запись идёт, пока кнопку держат, отпустили — ушло. Сдвиг
-  //    влево отменяет, сдвиг вверх закрепляет запись (дальше — без рук).
-  //
-  // Касание разбирается обычным click, а не pointerup: так же работает и
-  // клавиатура (Enter/Пробел), и не нужно отличать «ткнул» от «клавиша».
-  // Удержание — через Pointer Events, одинаково для мыши, пальца и пера.
-  // Слушатели движения висят и на window: с началом записи кнопка исчезает
-  // (на её месте встаёт панель), и захват указателя вместе с ней теряется —
-  // а жест должен продолжаться.
   function makeRecordButton(mode, icon, title) {
     const btn = el("button", {
       class: "composer-icon-btn composer-record-btn",
@@ -1300,14 +1084,11 @@ export function Composer({
       onclick: () => {
         if (!activeHold && !recordingHandle) beginRecording(mode);
       },
-      // Долгое нажатие на телефоне иначе открывает контекстное меню.
       oncontextmenu: (e) => e.preventDefault(),
     });
     btn.addEventListener("pointerdown", (e) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
-      // Второй палец при уже идущем жесте или записи — не новая запись.
       if (activeHold || recordingHandle) return;
-      // Без этого мышь начинает выделять текст, а кнопка забирает фокус.
       e.preventDefault();
       const id = e.pointerId;
       const x0 = e.clientX;
@@ -1315,15 +1096,12 @@ export function Composer({
       try {
         btn.setPointerCapture(id);
       } catch {
-        // Указатель мог уже уйти — жест всё равно дослушивается через window.
       }
       let holdTimer = setTimeout(() => {
         holdTimer = null;
         beginRecording(mode, { hold: true });
       }, HOLD_MS);
       const noMenu = (ev) => ev.preventDefault();
-      // Одно и то же событие может прийти дважды — на кнопку и, всплыв, на
-      // window; разбираем его один раз.
       const seen = new WeakSet();
       const fresh = (ev) => {
         if (ev.pointerId !== id || seen.has(ev)) return false;
@@ -1343,32 +1121,21 @@ export function Composer({
         }
         window.removeEventListener("contextmenu", noMenu, true);
         if (holdTimer) {
-          // Отпустили раньше порога — это касание, его доделает click.
           clearTimeout(holdTimer);
           holdTimer = null;
           return;
         }
-        // Удержание кончилось: click, который браузер пришлёт следом, попал
-        // бы уже в панель записи (например, в «Отправить») — гасим его.
         if (how === "up") suppressNextClick();
         if (how === "up") activeHold?.release();
-        // Жест отобрала система (звонок, прокрутка, окно доступа к
-        // микрофону) — запись не теряем и не отправляем, а закрепляем:
-        // пусть человек сам решит, что с ней делать.
         else activeHold?.lock();
       };
       const onUp = (ev) => finish(ev, "up");
       const onCancel = (ev) => finish(ev, "cancel");
-      // И на window, и на самой кнопке: в Safari события касания продолжают
-      // приходить на тот элемент, где палец опустился, даже когда его уже
-      // вынули из документа, — до window они тогда не всплывают.
       for (const target of [window, btn]) {
         target.addEventListener("pointermove", onMove);
         target.addEventListener("pointerup", onUp);
         target.addEventListener("pointercancel", onCancel);
       }
-      // Контекстное меню от долгого нажатия может прийти уже на панель,
-      // вставшую на место кнопки.
       window.addEventListener("contextmenu", noMenu, true);
     });
     return btn;
@@ -1384,32 +1151,16 @@ export function Composer({
   }
 
   async function beginRecording(mode, { hold = false } = {}) {
-    // Уже идёт запись — или ещё идёт запрос доступа к камере/микрофону (между
-    // вызовом и присвоением recordingHandle есть await) — второй раз не
-    // начинаем: иначе из меню можно было запустить голосовое и кружок разом,
-    // и две записи дрались за микрофон. recordingStarting закрывает именно это
-    // окно ожидания, recordingHandle — уже идущую запись.
     if (recordingHandle || recordingStarting) return;
     recordingStarting = true;
     clear(bodySlot);
     const recordingBar = el("div", { class: "composer-recording-bar" });
     bodySlot.appendChild(recordingBar);
-    // Отмена до того, как запись реально пошла (окно доступа к микрофону ещё
-    // открыто, камера просыпается): панель убираем сразу, а запись, если
-    // разрешение всё-таки придёт, гасим, не начав.
     let cancelledEarly = false;
 
-    // Панель записи собрана как в привычных мессенджерах: корзина слева,
-    // живая волна по центру, время, пауза и отправка. Прежняя строка «Запись
-    // голосового…» не сообщала ничего, кроме факта записи, — ни громкости, ни
-    // возможности приостановиться.
     let videoPreview = null;
     let roundOverlay = null;
     if (mode === "video-note") {
-      // Кружок висит по центру над чатом, а не сидит в панели ввода: он и есть
-      // то, что записывают, — на него смотрят, пока говорят, и разглядеть себя
-      // в кружке размером с кнопку невозможно. Панель внизу при этом остаётся
-      // такой же, как у голосового.
       videoPreview = el("video", { autoplay: true, muted: true, playsinline: true, class: "composer-round-preview" });
       const flipOnPreview = el("button", {
         class: "composer-round-flip",
@@ -1427,26 +1178,14 @@ export function Composer({
     }
 
     const dot = el("span", { class: "composer-recording-dot" });
-    // Волна: новая громкость приходит справа и сдвигает остальные влево.
-    //
-    // Число полосок считается от ширины, а не задано числом. С фиксированными
-    // 34 полосками волна занимала свои полтораста пикселей, а дальше до самого
-    // таймера тянулась пустота — на широком экране это выглядело сломанной
-    // вёрсткой, чем и было.
     const waveEl = el("div", { class: "composer-wave" });
     let levels = [];
     function buildWave() {
       const width = waveEl.clientWidth || 260;
-      // Потолок в 96 полосок был ошибкой: на широком мониторе волна шириной
-      // 1592px рисовалась на 573px — заполнено 36%, остальное пустота. Число
-      // считается только от ширины; верхняя граница оставлена лишь как защита
-      // от абсурда, а не как рабочее ограничение.
       const count = Math.max(24, Math.min(400, Math.floor(width / 6)));
       if (count === levels.length) return;
       const old = levels;
       levels = new Array(count).fill(0.06);
-      // Переносим уже накопленное, чтобы волна не обнулялась при повороте
-      // экрана или изменении размера окна посреди записи.
       for (let i = 1; i <= Math.min(old.length, count); i++) levels[count - i] = old[old.length - i];
       clear(waveEl);
       waveEl.append(...levels.map(() => el("span", { class: "composer-wave-bar" })));
@@ -1454,18 +1193,13 @@ export function Composer({
     function drawWave() {
       const bars = waveEl.children;
       for (let i = 0; i < levels.length; i++) {
-        // Минимум 14%, а не 8: полоска тишины должна читаться как полоска, а не
-        // как точка, — иначе вся волна в паузах между словами превращается в
-        // прерывистую линию.
         if (bars[i]) bars[i].style.height = `${Math.max(14, Math.round(levels[i] * 100))}%`;
       }
     }
 
     const timeLabel = el("span", { class: "mono composer-rec-time" }, "0:00,00");
-    // Сотые доли идут не от onTick (он раз в секунду), а от собственного
-    // отсчёта — и он останавливается на паузе, иначе после продолжения время
-    // прыгнуло бы вперёд на всю длину паузы.
     let startedAt = Date.now();
+    let transcriber = null;
     let pausedAt = null;
     function elapsedMs() {
       return (pausedAt ?? Date.now()) - startedAt;
@@ -1495,7 +1229,6 @@ export function Composer({
         const done = paused ? recordingHandle.resume?.() : recordingHandle.pause?.();
         if (!done) return;
         if (paused) {
-          // Продолжаем: сдвигаем точку отсчёта на длину паузы.
           startedAt += Date.now() - (pausedAt ?? Date.now());
           pausedAt = null;
         } else {
@@ -1509,8 +1242,6 @@ export function Composer({
     });
     const cancelBtn = el("button", { class: "composer-icon-btn danger", title: "Удалить", html: iconSvg("Trash", 17), onclick: cancelRecording });
     const sendBtn = el("button", { class: "composer-round-send", title: "Отправить", html: iconSvg("Send", 17), onclick: finishRecording });
-    // Подсказки режима удержания: «← Отмена» вместо корзины и паузы и замок
-    // над кнопкой отправки. Видны только пока кнопку держат (класс holding).
     const slideHint = el("span", { class: "composer-rec-slide" }, "← Отмена");
     const lockHint = el("div", { class: "composer-rec-lock", title: "Потяните вверх, чтобы закрепить" }, [
       el("span", { html: iconSvg("Lock", 16) }),
@@ -1535,7 +1266,6 @@ export function Composer({
       if (!holding) return;
       if (dx < -HOLD_CANCEL_PX) return cancelRecording();
       if (dy < -HOLD_LOCK_PX) return lockHold();
-      // Подсказка едет за пальцем и бледнеет — видно, сколько осталось до отмены.
       const left = Math.min(0, dx);
       slideHint.style.transform = `translateX(${left}px)`;
       slideHint.style.opacity = String(1 - (0.7 * -left) / HOLD_CANCEL_PX);
@@ -1549,17 +1279,12 @@ export function Composer({
     function releaseHold() {
       if (!holding) return;
       endHold();
-      // Запись ещё не пошла (открыт запрос доступа, камера просыпается) или
-      // успела записать долю секунды — ничего не отправляем, а оставляем
-      // панель в режиме «без рук»: пустышку слать незачем, а выбрасывать то,
-      // что человек, возможно, хотел записать, — тоже.
       if (!recordingHandle || elapsedMs() < HOLD_MIN_MS) {
         showHint(recordingHandle ? "Слишком коротко — удерживайте дольше" : "");
         return;
       }
       finishRecording();
     }
-    // Ширина известна только после вставки в документ.
     buildWave();
     drawWave();
     const onResize = () => {
@@ -1577,13 +1302,10 @@ export function Composer({
       }
       recordingHandle = handle;
       startedAt = Date.now();
-      // «Записывает голосовое» / «записывает кружок» — до конца записи,
-      // отмены или остановки по лимиту времени (см. result ниже).
+      transcriber = startTranscript();
       stopRecordAction = startChatAction(chatId, mode === "voice" ? "record_voice" : "record_video_note", recordingBar);
       if (videoPreview) videoPreview.srcObject = recordingHandle.previewStream ?? recordingHandle.stream;
 
-      // Живая громкость. Без неё волна рисовалась бы случайными палочками — и
-      // это видно сразу: она не совпадает с тем, что человек говорит.
       const meter = createLevelMeter(recordingHandle.stream);
       if (meter) {
         const step = () => {
@@ -1601,8 +1323,6 @@ export function Composer({
       }
     } catch {
       recordingStarting = false;
-      // Отменённая заранее запись уже убрана; stopWave здесь погасил бы волну
-      // следующей записи, если её успели начать (волна и счётчик — общие).
       if (cancelledEarly) return;
       endHold();
       stopWave();
@@ -1612,9 +1332,8 @@ export function Composer({
       return;
     }
 
+    const transcriptPromise = recordingHandle.result.then((recorded) => (recorded && transcriber ? transcriber.stop() : (transcriber?.cancel(), "")));
     recordingHandle.result.then(async (recorded) => {
-      // Запись могла кончиться сама — по лимиту времени, — а не только по
-      // кнопке: убирать кружок и гасить волну надо и в этом случае.
       stopWave();
       recordingHandle = null;
       stopRecordAction?.();
@@ -1622,14 +1341,12 @@ export function Composer({
       renderIdleBody();
       if (!recorded) return;
 
-      // Запись уходит обычной загрузкой файла, потоком на диск — как видео из
-      // галереи. Раньше она ехала base64-строкой внутри самого сообщения: на
-      // треть больше байт, и сообщение не появлялось, пока всё не уедет.
       const ext = (recorded.mimeType || "").includes("mp4") ? "mp4" : mode === "voice" ? "webm" : "webm";
       const file = new File([recorded.blob], `${mode}-${Date.now()}.${ext}`, { type: recorded.mimeType });
       try {
         const attachment = await withChatAction(chatId, mode === "voice" ? "upload_voice" : "upload_video_note", uploadFile(file, mode));
-        onSend("", [{ ...attachment, kind: mode, durationSec: recorded.durationSec }]);
+        const transcript = await transcriptPromise.catch(() => "");
+        onSend("", [{ ...attachment, kind: mode, durationSec: recorded.durationSec, ...(transcript ? { transcript } : {}) }]);
       } catch (err) {
         alert(err.message || "Не удалось отправить запись");
       }
@@ -1645,7 +1362,6 @@ export function Composer({
       levelMeter = null;
     }
     async function finishRecording() {
-      // До начала записи отправлять нечего — кнопка просто ждёт разрешения.
       if (!recordingHandle) return;
       endHold();
       stopWave();

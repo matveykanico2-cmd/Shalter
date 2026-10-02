@@ -3,20 +3,11 @@ import { api } from "../api.js";
 import { getState, setState } from "../state.js";
 import { navigate } from "../router.js";
 
-// Меню приложения под гамбургером в шапке боковой панели — то самое, что в
-// Telegram открывается кнопкой «☰» слева от поиска.
-//
-// Раньше эти же переходы жили на узком рельсе иконок вдоль левого края окна.
-// Рельс остался только на телефоне (нижняя панель, до неё дотягивается большой
-// палец); на широком экране он убран, и всё, что на нём было — аккаунты,
-// контакты, звонки, архив, настройки, — собрано здесь. Тема и анимации тоже
-// переехали сюда, потому что раньше их прятало меню аватарки на рельсе.
 export function openSidebarMenu(pos) {
   const { user, accounts, settings } = getState();
   const items = [];
 
   items.push({ label: user.name || user.phone || "Аккаунт" });
-  // Как в Telegram: первым в меню — свой профиль, следом «Избранное».
   items.push({
     icon: "User",
     label: "Мой профиль",
@@ -40,8 +31,6 @@ export function openSidebarMenu(pos) {
   items.push({
     icon: "Plus",
     label: "Добавить аккаунт",
-    // Настоящий переход, а не navigate(): маршрута /login в роутере нет, его
-    // разбирает только boot() при загрузке страницы.
     onClick: () => (window.location.href = "/login?add=1"),
   });
 
@@ -50,8 +39,6 @@ export function openSidebarMenu(pos) {
   items.push({ icon: "Phone", label: "Звонки", onClick: () => navigate("/calls") });
   items.push({ icon: "Archive", label: "Архив", onClick: () => navigate("/archive") });
   items.push({ icon: "Globe", label: "Каталог каналов", onClick: () => navigate("/discover-channels") });
-  // На широком экране рельса скрыта совсем (см. .nav-rail в components.css),
-  // поэтому маркет обязан быть здесь: иначе на компьютере в него не попасть.
   items.push({ icon: "Bag", label: "Маркет", onClick: () => navigate("/market") });
   items.push({ icon: "Settings", label: "Настройки", onClick: () => navigate("/settings") });
 
@@ -82,9 +69,6 @@ export function openSidebarMenu(pos) {
 
   items.push({ separator: true });
   items.push({ icon: "Download", label: "Скачать приложение", onClick: () => (window.location.href = "/download") });
-  // Чат с администрацией (живой человек — владелец ADMIN_PHONE), как и в меню
-  // аватарки на рельсе (navRail.js). Раньше здесь вело на /u/shalter — это
-  // служебный бот, который рассылает коды входа, и жалоба уходила «в коды».
   items.push({
     icon: "Bug",
     label: "Сообщить об ошибке",
@@ -101,9 +85,6 @@ export function openSidebarMenu(pos) {
   openDropdownMenu(pos, items);
 }
 
-// «Избранное» — чат с самим собой. Уже заведённый берём из списка, чтобы не
-// ходить на сервер; иначе сервер его создаёт (POST /api/chats с собственным id,
-// см. routes/chats.js). Общая для меню и горячей клавиши Ctrl+0.
 export async function openSavedMessages() {
   const { user, chats } = getState();
   const existing = (chats ?? []).find((c) => c.isSaved);

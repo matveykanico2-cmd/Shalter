@@ -1,14 +1,5 @@
 const db = require("../db");
 
-// Доска объявлений: данные. Права и проверки — в server/routes/market.js.
-//
-// Устроено проще магазинов рядом: у объявления нет ни остатка, ни оплаты через
-// сервис, ни эскроу. Оно живёт, пока продавец не отметит «продано» или не
-// уберёт — а дальше люди договариваются в переписке.
-
-// Набор категорий закрыт и лежит в коде, а не в базе: он меняется раз в год,
-// а фильтр по нему должен одинаково пониматься и сервером, и экраном. Строкой
-// хранится ключ, человеческое название — рядом, чтобы не расходились.
 const CATEGORIES = [
   { id: "electronics", label: "Электроника" },
   { id: "home", label: "Для дома и дачи" },
@@ -32,7 +23,6 @@ function rowToListing(row) {
     const parsed = JSON.parse(row.photos || "[]");
     if (Array.isArray(parsed)) photos = parsed.filter((p) => typeof p === "string");
   } catch {
-    // Битый JSON не должен уносить объявление целиком — останется без фото.
   }
   return {
     id: row.id,
@@ -45,8 +35,6 @@ function rowToListing(row) {
     isNegotiable: !!row.isNegotiable,
     city: row.city ?? "",
     photos,
-    // null означает «не отправляю, только самовывоз» — это не то же самое, что
-    // «отправляю бесплатно», поэтому ноль и отсутствие различаются.
     cdekPriceRub: row.cdekPriceRub == null ? null : row.cdekPriceRub,
     status: row.status,
     views: row.views ?? 0,
@@ -59,8 +47,6 @@ function getListing(id) {
   return rowToListing(db.prepare("SELECT * FROM listings WHERE id = ?").get(id));
 }
 
-// Лента с фильтрами. Всё складывается в один запрос: отбирать в JavaScript
-// значило бы вычитывать доску целиком ради десятка строк на экране.
 function listListings({
   q = "",
   category = "",
@@ -76,11 +62,6 @@ function listListings({
   const where = ["status = 'active'"];
   const params = {};
   if (q) {
-    // По названию и описанию — этого хватает: доска не библиотека, точный
-    // поиск здесь никому не нужен, а полнотекстовый индекс ради двух полей
-    // стоил бы дороже, чем даёт.
-    // lower_ru, а не lower: встроенная в SQLite понимает только латиницу,
-    // и поиск по русским словам не находил ничего (см. server/db.js).
     where.push("(lower_ru(title) LIKE @q OR lower_ru(description) LIKE @q)");
     params.q = `%${String(q).toLowerCase()}%`;
   }
@@ -118,8 +99,6 @@ function listListings({
     .map(rowToListing);
 }
 
-// Свои объявления — включая проданные и снятые: продавцу нужен весь список,
-// иначе «продано» выглядит как пропажа.
 function listMyListings(sellerId) {
   return db
     .prepare("SELECT * FROM listings WHERE sellerId = ? ORDER BY createdAt DESC")
@@ -127,8 +106,6 @@ function listMyListings(sellerId) {
     .map(rowToListing);
 }
 
-// Города, в которых что-то продаётся, — для фильтра. Считает база: список
-// коротких строк вместо всей доски в памяти.
 function listCities() {
   return db
     .prepare("SELECT city, count(*) n FROM listings WHERE status = 'active' AND city <> '' GROUP BY lower_ru(city) ORDER BY n DESC LIMIT 50")
@@ -168,9 +145,6 @@ function deleteListing(id, sellerId) {
   return db.prepare("DELETE FROM listings WHERE id = ? AND sellerId = ?").run(id, sellerId).changes > 0;
 }
 
-// Счётчик просмотров. Отдельным запросом, а не чтением-записью объекта: два
-// человека, открывшие объявление одновременно, иначе затрут показания друг
-// друга.
 function bumpViews(id) {
   db.prepare("UPDATE listings SET views = views + 1 WHERE id = ?").run(id);
 }
@@ -198,8 +172,6 @@ function listFavorites(userId) {
     .map(rowToListing);
 }
 
-// Какие из этих объявлений человек отметил — одним запросом на всю страницу,
-// а не по одному на карточку.
 function favoriteIdsFor(userId, listingIds) {
   if (!listingIds?.length) return new Set();
   const holes = listingIds.map(() => "?").join(",");

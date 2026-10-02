@@ -13,9 +13,6 @@ const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat")
 const router = express.Router();
 router.use(requireUserId);
 
-// Kept in sync with public/js/components/reportDialog.js's own list and with
-// messageBubble.js's REASON_LABELS (the labels shown back on a report card in
-// the admin's chat).
 const REASON_LABELS = {
   spam: "Спам",
   scam: "Мошенничество",
@@ -30,12 +27,6 @@ const REASON_LABELS = {
 };
 const REASONS = new Set(Object.keys(REASON_LABELS));
 
-// A report reason that, when acted on, also implies a public safety marker on
-// the account (see server/db.js's safetyLabel). Only a subset maps: "спам" or
-// "другое" say nothing durable about the account, while "мошенничество" or
-// "терроризм" are exactly what someone about to talk to that account needs
-// warning about. Applied on ban (below), never automatically on report —
-// otherwise anyone could label anyone by filing one.
 const REASON_TO_LABEL = {
   scam: "scam",
   fake: "fake",
@@ -50,22 +41,12 @@ function targetSummary(targetType, target) {
   return `Сообщение: «${(target.text || "[вложение]").slice(0, 200)}»`;
 }
 
-// Who actually gets banned for a given report — the user themselves for a
-// "user" report, the sender for a "message" report, the owner for a "chat"
-// (group/channel) report. A reported DM has no single owner (ownerId is
-// null for those), so banning is only offered on report cards where this
-// resolves to someone real (see messageBubble.js's ReportMessage).
 async function responsibleUserId(targetType, target) {
   if (targetType === "user") return target.id;
   if (targetType === "message") return target.senderId;
   return target.ownerId ?? null;
 }
 
-// Every report lands here as a real chat message (see ReportMessage in
-// messageBubble.js) — same "no separate admin dashboard, everything flows
-// through a chat with the Shalter service bot" shape as login codes/security
-// alerts. No moderation queue existed before this; reports were only ever
-// recorded, never surfaced to anyone (see the old comment this replaced).
 router.post(
   "/",
   asyncRoute(async (req, res) => {
@@ -102,8 +83,6 @@ router.post(
       reporterId: req.uid,
       targetType,
       targetId,
-      // Stamped now, while the reported message/chat still exists to resolve
-      // an owner from — see server/db.js's subjectUserId comment.
       subjectUserId,
       reason,
       details: (details ?? "").trim().slice(0, 2000),
@@ -132,10 +111,6 @@ router.post(
   })
 );
 
-// Delete/ban/dismiss — admin-only (whoever currently holds ADMIN_PHONE, same
-// gate as premium.js's /grant and gifts.js's /deliver). Flips the report's
-// own status *and* the notification message's embedded status together so
-// the buttons in that chat disappear immediately for everyone viewing it.
 router.post(
   "/:id/resolve",
   asyncRoute(async (req, res) => {
@@ -158,7 +133,7 @@ router.post(
     let nextStatus = "dismissed";
     if (action === "delete") {
       if (!target) {
-        nextStatus = "resolved_deleted"; // already gone — still counts as handled
+        nextStatus = "resolved_deleted";
       } else if (report.targetType === "chat") {
         await deleteChat(report.targetId);
         nextStatus = "resolved_deleted";
@@ -169,16 +144,9 @@ router.post(
         return res.status(400).json({ error: "Пользователя нельзя удалить — только заблокировать" });
       }
     } else if (action === "ban") {
-      // report.subjectUserId first: it was stamped when the report came in, so
-      // banning still works after the reported message/chat itself is gone —
-      // which is exactly the case where the old "re-derive the owner from the
-      // live target" lookup came back null and the ban button silently failed.
       const userId = report.subjectUserId ?? (target ? await responsibleUserId(report.targetType, target) : null);
       if (!userId) return res.status(400).json({ error: "Не удалось определить, кого блокировать" });
       await setBanned(userId, true, `Жалоба: ${REASON_LABELS[report.reason] ?? report.reason}`);
-      // A ban for scam/fake/terrorism/extremism/drugs also marks the account
-      // publicly, so the next person it messages is warned up front instead of
-      // finding out the hard way. Never overwrites a label already set by hand.
       const label = REASON_TO_LABEL[report.reason];
       if (label) {
         const banned = await getUser(userId);

@@ -9,64 +9,31 @@ import { openProfileDialog } from "./profileDialog.js";
 
 const IMAGE_DURATION_MS = 5000;
 
-// Иконка лайка — палец вверх. Заливку (внутри обводки) включает/выключает CSS
-// по классу .liked на кнопке, поэтому сам SVG один и тот же в обоих состояниях,
-// а «залился/не залился» — это плавный переход цвета, а не смена эмодзи.
 const THUMB_SVG =
   '<svg class="story-thumb-svg" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">' +
   '<path d="M7 10.5V20H5a1 1 0 0 1-1-1v-7.5a1 1 0 0 1 1-1h2zm2.2-.3l3.6-5.4a1.4 1.4 0 0 1 2.5 1l-.7 3.7a.7.7 0 0 0 .7.8H19a2 2 0 0 1 2 2.3l-1 6A2 2 0 0 1 18 20H9.2z"/>' +
   "</svg>";
 
-// Просмотр историй, устроенный так же, как к этому привыкли по Telegram:
-// полоски-сегменты сверху (по одной на историю, текущая заполняется на глазах),
-// нажатие слева и справа — назад и вперёд, удержание — пауза, внизу поле ответа
-// автору, а у своей истории вместо поля — счётчик просмотров со списком тех,
-// кто смотрел.
-//
-// Почему пауза по удержанию, а не кнопка: история идёт пять секунд и уходит
-// сама. Единственный способ дочитать подпись или разглядеть картинку — задержать
-// палец, и это движение здесь единственное, которое человек делает не глядя.
-//
-// groups: [{ user, stories: [{id, items: [{kind,url}], viewed, createdAt}] }].
-//
-// История может состоять из нескольких кадров: выбрали в галерее пять файлов —
-// это одна история на пять кадров. Поэтому листается всё по кадрам, а полоска
-// сверху рисует сегмент на каждый кадр; удаление же снимает историю целиком,
-// со всеми её кадрами — по одному снимку из неё не вынуть.
 export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex = 0) {
   let gi = groupIndex;
-  // Открываемся ровно на том кадре, по которому нажали: из сетки в профиле
-  // выбирают конкретный кадр, и начинать всегда с первого значило бы
-  // «нажми на третий, посмотри первый».
   let si = Math.max(0, startIndex);
   let timer = null;
   let startedAt = 0;
   let remainingMs = IMAGE_DURATION_MS;
   let paused = false;
-  // Sound on by default — video stories used to open muted, so sound had to
-  // be re-enabled by hand on every single one.
   let muted = false;
   let videoEl = null;
-  // Кнопка лайка текущего кадра — чтобы обновлять её на месте, не пересобирая
-  // весь просмотрщик (полный render пересоздаёт медиа и перезапускает историю).
   let likeBtnEl = null;
-  let viewers = null; // список посмотревших свою историю, грузится по нажатию
+  let viewers = null;
   let viewersOpen = false;
-  let comments = null; // комментарии текущей истории, грузятся по нажатию
+  let comments = null;
   let commentsOpen = false;
-  // Какой комментарий сейчас правится — поле ввода внизу панели переходит в
-  // режим правки, как поле сообщения в чате.
   let editingCommentId = null;
-  // Комментарий, на который сейчас отвечают (панель компоновки показывает «Ответ …»).
   let replyToComment = null;
 
   const overlay = el("div", { class: "story-viewer-overlay" });
   document.body.appendChild(overlay);
 
-  // На телефоне экранная клавиатура перекрывает нижнюю панель: оверлей fixed, и
-  // клавиатура его не сжимает, поэтому поле комментария/ответа оказывается за
-  // ней. visualViewport — это видимая часть НАД клавиатурой; по её высоте
-  // поднимаем панель и футер (через CSS-переменную --kb).
   const vv = window.visualViewport;
   function onViewport() {
     if (!vv) return;
@@ -78,8 +45,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
 
   const currentGroup = () => groups[gi];
 
-  // Плоский список кадров текущего автора: история на три снимка даёт три
-  // кадра подряд — листаются они так же, как три отдельные истории раньше.
   function frames() {
     const group = currentGroup();
     if (!group) return [];
@@ -89,9 +54,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   }
   const currentFrame = () => frames()[si];
   const currentStory = () => currentFrame()?.story;
-  // У истории канала userId — id канала, не автора клика: «своя» она для
-  // владельца/админа канала, а не для того, кто её выложил (сервер и решает,
-  // кто это, через canManage — server/routes/stories.js).
   const isMine = () => currentStory()?.userId === meId || currentGroup()?.user?.id === meId || !!currentGroup()?.user?.canManage;
 
   function close() {
@@ -109,10 +71,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     overlay.remove();
   }
 
-  // Нажатие на аватар/имя автора (в шапке, в комментариях, в списке
-  // посмотревших) — закрываем историю и открываем профиль. История канала
-  // ведёт в сам канал: профиля у канала нет, а смотрят его истории только
-  // подписчики (server/routes/stories.js), так что /chat/:id им открыт.
   function openAuthor(author) {
     if (!author?.id) return;
     close();
@@ -120,8 +78,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     else openProfileDialog(author.id);
   }
 
-  // Сколько прошло с публикации — «12 мин», «3 ч». Истории живут сутки, поэтому
-  // дни здесь не нужны, а точное время не нужно тем более.
   function timeAgo(iso) {
     const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
     if (min < 1) return "только что";
@@ -184,8 +140,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     }
   }
 
-  // Таймер с паузой: считаем не «сколько прошло с начала», а сколько осталось,
-  // иначе после каждой паузы история доигрывала бы с самого начала.
   function startTimer(ms) {
     clearTimeout(timer);
     remainingMs = ms;
@@ -217,23 +171,16 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     startTimer(remainingMs);
   }
 
-  // Заморозка для ввода: пока пишут комментарий/ответ, история НЕ должна
-  // перелистываться (иначе поле пересоздаётся пустым — «текст не пишет»). В
-  // отличие от pause(), не добавляет класс .paused, поэтому панель и поле ввода
-  // остаются видимыми (при паузе UI прячется, чтобы смотреть фото).
   function freeze() {
     clearTimeout(timer);
     videoEl?.pause();
   }
   function unfreeze() {
-    // Не размораживаем, пока открыта панель или стоит «настоящая» пауза.
     if (paused || commentsOpen || viewersOpen) return;
     if (videoEl) videoEl.play().catch(() => {});
     else startTimer(IMAGE_DURATION_MS);
   }
 
-  // Полоска заполняется средствами CSS, а не перерисовкой по таймеру: анимация
-  // идёт в браузере плавно и не зависит от того, чем занят наш код.
   let activeFill = null;
   function setBarAnimation(ms, freeze) {
     if (!activeFill) return;
@@ -247,8 +194,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     if (ms > 0) {
       activeFill.style.transition = "none";
       activeFill.style.width = "0%";
-      // Перед запуском перехода нужен один кадр с нулевой шириной, иначе
-      // браузер объединит оба изменения и полоска прыгнет в конец сразу.
       requestAnimationFrame(() => {
         activeFill.style.transition = `width ${ms}ms linear`;
         activeFill.style.width = "100%";
@@ -261,10 +206,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   }
 
   async function markViewedIfNeeded(story) {
-    // Истёкшую историю (её открыли из архива в профиле) сервер отмечать не даёт
-    // и правильно делает: «просмотрено» — это про ленту, а из ленты она давно
-    // ушла. Не пытаемся, чтобы не ставить локальную отметку, которой на сервере
-    // не будет.
     if (story.expired) return;
     if (story.viewed || isMine()) return;
     story.viewed = true;
@@ -292,17 +233,11 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     render();
   }
 
-  // Оптимистично меняем сердечко сразу, откатываем, если сервер отказал —
-  // так же, как реакции на сообщения делают в остальном приложении.
-  // Обновляет только кнопку лайка на месте — БЕЗ полного render(), который
-  // пересоздал бы медиа и перезапустил историю с начала (это и был баг: лайк
-  // перематывал историю).
   function refreshLikeButton() {
     const story = currentStory();
     if (!likeBtnEl || !story) return;
     likeBtnEl.className = `story-like-btn ${story.liked ? "liked" : ""}`;
     likeBtnEl.title = story.liked ? "Убрать лайк" : "Нравится";
-    // Обновляем только внутренний span, не трогая частицы всплеска.
     let inner = likeBtnEl.querySelector(".story-like-inner");
     if (!inner) {
       inner = el("span", { class: "story-like-inner" });
@@ -313,8 +248,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     if (story.likeCount) inner.append(` ${story.likeCount}`);
   }
 
-  // Красивый лайк: пульс сердца + разлетающиеся сердечки. Только при постановке
-  // лайка (не при снятии).
   function burstLike() {
     if (!likeBtnEl) return;
     const heart = likeBtnEl.querySelector(".story-like-heart");
@@ -358,8 +291,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     const parentId = replyToComment?.id ?? null;
     try {
       const { comment } = await api.addStoryComment(story.id, clean, parentId);
-      // Дедуп по id: WS-событие story:commented приходит и отправителю и могло
-      // уже добавить этот же комментарий — без проверки он задваивался.
       if (comments && !comments.some((c) => c.id === comment.id)) comments = [...comments, comment];
       replyToComment = null;
       render();
@@ -369,7 +300,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     }
   }
 
-  // Лайк/снятие лайка комментария — оптимистично, с откатом при ошибке.
   async function toggleCommentLike(c) {
     if (!comments) return;
     const liked = (c.likedByIds ?? []).includes(meId);
@@ -408,8 +338,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     }
   }
 
-  // Удалить можно свой комментарий; под своей историей (или историей своего
-  // канала) — любой; модератору сервера — любой (server/routes/stories.js).
   function canDeleteComment(c) {
     return c.userId === meId || isMine() || isServerModerator();
   }
@@ -434,8 +362,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     input.value = "";
     try {
       const { chat } = await api.startDm(group.user.id, group.user.name, group.user.avatarColor);
-      // Прикладываем ссылку на кадр истории и имя автора — в чате это покажется
-      // как «Ответ на историю» с превью (server/routes/messages.js).
       const frame = currentFrame();
       const storyReply = {
         url: frame?.item?.url ?? currentStory()?.url,
@@ -450,9 +376,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
     }
   }
 
-  // История исчезла — своя после удаления или чужая, которую автор убрал прямо
-  // сейчас. Убираем все её кадры; кончились истории у автора — уходим к
-  // следующему, кончились и они — закрываемся.
   function dropStory(storyId) {
     const was = currentFrame();
     for (const group of groups) group.stories = group.stories.filter((st) => st.id !== storyId);
@@ -466,36 +389,25 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
 
     const list = frames();
     if (!list.length) return close();
-    // Возвращаемся на тот же кадр, если он уцелел: удаление чужой истории не
-    // должно перематывать то, что человек сейчас смотрит.
     const same = was ? list.findIndex((f) => f.story.id === was.story.id && f.index === was.index) : -1;
     si = same >= 0 ? same : Math.min(si, list.length - 1);
     render();
   }
 
-  // Автор удалил историю у себя — у смотрящего она закрывается сама
-  // (server/routes/stories.js рассылает это всем, кто её видит).
   const unsubDeleted = onWsMessage("story:deleted", ({ storyId }) => {
     if (!groups.some((g) => g.stories.some((st) => st.id === storyId))) return;
     dropStory(storyId);
     onChanged?.();
   });
 
-  // Кто-то ещё лайкнул/прокомментировал ту же историю, пока мы её смотрим —
-  // обновляем счётчик и (если панель комментариев открыта) список, не дожидаясь
-  // повторного открытия просмотрщика.
   const unsubLiked = onWsMessage("story:liked", ({ storyId, likeCount }) => {
     for (const group of groups) {
       const story = group.stories.find((st) => st.id === storyId);
       if (story) story.likeCount = likeCount;
     }
-    // Только счётчик — обновляем кнопку на месте, без перезапуска истории.
     if (currentStory()?.id === storyId) refreshLikeButton();
   });
 
-  // Сейчас в фокусе поле ввода истории (комментарий/ответ)? Тогда чужое
-  // WS-событие не должно перерисовывать всё — иначе поле пересоздастся пустым и
-  // набранный текст пропадёт. Данные обновим, показ — при следующей перерисовке.
   const isTypingHere = () => {
     const a = document.activeElement;
     return a && overlay.contains(a) && (a.classList.contains("story-comment-input") || a.classList.contains("story-reply-input"));
@@ -573,9 +485,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       media = el("img", { src: frame.item.url, class: "story-media" });
     }
 
-    // Ответ автору уходит обычным сообщением в личную переписку — так же, как
-    // если бы человек написал сам. Отдельной ленты ответов на историю здесь
-    // нет, и делать вид, что есть, незачем.
     const replyInput = el("input", {
       class: "story-reply-input",
       placeholder: `Ответить ${group.user.name}…`,
@@ -604,8 +513,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       },
     });
 
-    // Свою историю не лайкают — кнопка нужна только у чужой, но счётчик под
-    // ней видят оба: автору важно знать, сколько лайков собрала история.
     const likeBtn = !mine && !story.expired
       ? el(
           "button",
@@ -614,15 +521,11 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
             title: story.liked ? "Убрать лайк" : "Нравится",
             onclick: toggleLike,
           },
-          // Содержимое во внутреннем span — так всплеск сердечек (частицы)
-          // можно добавлять прямо в кнопку, не стирая их при обновлении.
           [el("span", { class: "story-like-inner" }, [el("span", { class: "story-like-heart", html: THUMB_SVG }), story.likeCount ? ` ${story.likeCount}` : ""])]
         )
       : story.likeCount
         ? el("span", { class: "story-like-count", html: `${THUMB_SVG} ${story.likeCount}` })
         : null;
-    // Ссылка на кнопку лайка (только интерактивная — у чужой непросроченной
-    // истории), чтобы обновлять её на месте без перезапуска истории.
     likeBtnEl = likeBtn && likeBtn.tagName === "BUTTON" ? likeBtn : null;
 
     const commentsBtn = el(
@@ -664,9 +567,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
           "div",
           { class: "story-footer" },
           [
-            // Поле «Ответить автору» и комментарии — взаимоисключающие: когда
-            // открыты комментарии, у них своё поле ввода, а второе поле рядом
-            // путало. Поэтому пока комменты открыты, «ответить» прячем.
             commentsOpen ? null : replyInput,
             commentsOpen
               ? null
@@ -676,8 +576,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
           ].filter(Boolean)
         );
 
-    // Одна строка комментария: аватар, автор, текст, лайк-сердце со счётчиком,
-    // «Ответить», плюс изменить/удалить своего. isReply — вложенный ответ.
     const commentRow = (c, isReply) => {
       const liked = (c.likedByIds ?? []).includes(meId);
       return el("div", { class: `story-comment-row${c.id === editingCommentId ? " editing" : ""}${isReply ? " is-reply" : ""}` }, [
@@ -693,7 +591,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
               { class: `comment-like-btn ${liked ? "liked" : ""}`, title: liked ? "Убрать лайк" : "Нравится", onclick: () => toggleCommentLike(c) },
               [el("span", {}, liked ? "❤️" : "🤍"), c.likeCount ? el("span", { class: "comment-like-count" }, ` ${c.likeCount}`) : null]
             ),
-            // Ответ крепится к верхнему комментарию: у ответа отвечаем его родителю.
             el("button", { class: "comment-reply-btn", onclick: () => {
               replyToComment = { id: c.parentId ?? c.id, author: c.author };
               render();
@@ -712,7 +609,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       ]);
     };
 
-    // Раскладываем в потоки: верхние комментарии, под каждым — его ответы.
     const all = comments ?? [];
     const tops = all.filter((c) => !c.parentId);
     const repliesOf = (id) => all.filter((c) => c.parentId === id);
@@ -788,10 +684,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
                 html: iconSvg(muted ? "BellOff" : "Bell", 18),
                 onclick: (e) => {
                   muted = !muted;
-                  // Полного render() здесь быть не должно — он пересоздаёт
-                  // <video> и перезапускает историю. Но и сама смена .muted на
-                  // iOS у inline-видео нередко сбрасывает позицию на 0 — поэтому
-                  // запоминаем время и состояние и возвращаем их после переключения.
                   if (videoEl) {
                     const t = videoEl.currentTime;
                     const wasPlaying = !videoEl.paused && !videoEl.ended;
@@ -800,19 +692,16 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
                       try {
                         videoEl.currentTime = t;
                       } catch {
-                        /* не дали перемотать — не критично */
                       }
                     }
                     if (wasPlaying) videoEl.play().catch(() => {});
                   }
-                  // Обновляем саму кнопку на месте, без перерисовки истории.
                   const btn = e.currentTarget;
                   btn.title = muted ? "Включить звук" : "Выключить звук";
                   btn.innerHTML = iconSvg(muted ? "BellOff" : "Bell", 18);
                 },
               })
             : null,
-          // Модератор сервера удаляет и чужие истории (server/routes/stories.js).
           mine || isServerModerator()
             ? el("button", {
                 class: "story-header-btn",
@@ -841,10 +730,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
           el("button", { class: "story-header-btn", title: "Закрыть", html: iconSvg("X", 20), onclick: close }),
         ]),
         media,
-        // Зоны нажатия лежат поверх картинки: слева — назад, справа — вперёд,
-        // удержание в любой из них ставит на паузу. Обычные кнопки не годятся —
-        // нажатие должно срабатывать по отпусканию, иначе удержание сразу
-        // пролистывало бы историю.
         el("div", { class: "story-tap-zones" }, [
           el("div", { class: "story-tap-zone", ...holdable(goPrevStory) }),
           el("div", { class: "story-tap-zone", ...holdable(goNextStory) }),
@@ -853,19 +738,12 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
         viewersPanel,
         commentsPanel,
       ]),
-      // Переход к соседнему автору — на широком экране стрелками по краям, как
-      // в веб-версии Telegram. На телефоне их нет: там для этого зоны нажатия.
       ...[
         gi > 0 ? el("button", { class: "story-nav prev", html: iconSvg("ChevronLeft", 22), onclick: goPrevGroup }) : null,
         gi < groups.length - 1 ? el("button", { class: "story-nav next", html: iconSvg("ChevronRight", 22), onclick: goNextGroup }) : null,
-        // .filter(Boolean) обязателен: Element.append() — не el(), пустоту он не
-        // пропускает, а превращает null в текст «null». У первого автора стрелки
-        // «назад» нет, и это слово печаталось прямо поверх кадра.
       ].filter(Boolean)
     );
 
-    // Пока открыта панель комментариев/просмотревших — историю не листаем: там
-    // пишут или читают, и авто-переход пересоздал бы поле ввода пустым.
     const paneOpen = commentsOpen || viewersOpen;
     if (frame.item.kind !== "video") {
       if (!paneOpen) startTimer(IMAGE_DURATION_MS);
@@ -873,20 +751,10 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
       videoEl?.pause();
     } else {
       setBarAnimation(0, false);
-      // Autoplaying with sound needs a recent user gesture — opening the
-      // viewer usually has one, but an `await` before it (or a story reached
-      // by auto-advancing from the previous one) can lose it, and the browser
-      // then silently blocks playback instead of just muting it. Fall back to
-      // muted rather than leaving the video frozen with no sound and no
-      // visible error; a later manual unmute (a click, so always a gesture)
-      // still switches it back.
       if (!muted) videoEl?.play().catch(() => { muted = true; render(); });
     }
   }
 
-  // Нажатие с удержанием: короткое — переход, долгое — пауза, пока не отпустят.
-  // Плюс горизонтальный свайп — листать истории ЛЮДЕЙ (влево — следующий,
-  // вправо — предыдущий), как в Instagram; тап остаётся для кадров.
   const HOLD_MS = 220;
   const SWIPE_MIN = 60;
   function holdable(onTap) {
@@ -909,7 +777,6 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
         if (held) return resume();
         const dx = e.clientX - downX;
         const dy = e.clientY - downY;
-        // Горизонтальный свайп — между людьми; иначе обычный тап — по кадрам.
         if (Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy) * 1.4) {
           return dx < 0 ? goNextGroup() : goPrevGroup();
         }

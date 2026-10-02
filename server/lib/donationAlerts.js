@@ -1,31 +1,3 @@
-// Real automatic payment via DonationAlerts (donationalerts.com) instead of
-// the old "message the admin, wait for them to confirm by hand" flow (still
-// the fallback — see isConfigured() — for a deployment that hasn't connected
-// this). A donation counts as a *gift to a private individual*, not payment
-// for goods/services, which is why solo devs in Russia lean on donation
-// platforms instead of a payment gateway that'd require registering as
-// self-employed/ИП — same reasoning as this app's whole "no payment gateway"
-// design (see AGENTS.md/DEPLOY.md).
-//
-// Flow: /request (premium.js/ads.js/gifts.js) creates a pending_orders row
-// with a short code and hands the user a donation link + that code to put in
-// the donation message. A periodic sweep (startDonationAlertsSweep, called
-// from server/index.js like the auto-delete sweep) polls DonationAlerts'
-// own donations list, and for each new one whose message contains a known
-// pending code, fulfills that order — grants Premium/ads/delivers the gift
-// and notifies the buyer, exactly like the admin's manual /grant used to.
-//
-// The OAuth flow, token refresh, and donation-list shape below are checked
-// against DonationAlerts' own apidoc (donationalerts.com/apidoc) — this
-// caught two real bugs worth knowing about if anything here ever needs
-// touching again: the refresh_token grant silently requires a `scope` param
-// (missing it doesn't fail the *first* token exchange, only the next
-// refresh — i.e. it looks fine for a few hours, then quietly stops), and
-// the donations list has no "amount_in_user_currency" field at all, just
-// `amount` + `currency` (see parseDonation() below). Still worth a real
-// test donation once connected for real — the docs are one source of
-// truth, an actual donation landing and Premium actually getting granted is
-// the one that matters.
 const db = require("../db");
 const { DONATIONALERTS_CLIENT_ID, DONATIONALERTS_CLIENT_SECRET, DONATIONALERTS_REDIRECT_URI } = require("../config");
 const { getPendingOrderByCode, CODE_RE } = require("../data/pendingOrders");
@@ -64,9 +36,6 @@ function isConnected() {
   return !!auth?.accessToken;
 }
 
-// The admin's public donation page — where a buyer actually sends money and
-// types the pending-order code. DonationAlerts' page URL is just
-// donationalerts.com/r/<username>, no API call needed to build it.
 function getDonationPageUrl() {
   const auth = loadAuth();
   return auth?.username ? `https://www.donationalerts.com/r/${auth.username}` : null;
@@ -101,16 +70,8 @@ async function exchangeCodeForTokens(code) {
   try {
     const userRes = await fetch(`${API_BASE}/user/oauth`, { headers: { Authorization: `Bearer ${data.access_token}` } });
     const userData = (await userRes.json())?.data;
-    // getDonationPageUrl() below builds donationalerts.com/r/<this> — that
-    // path wants the account's chosen URL handle (the apidoc's `code`
-    // field), not its free-text display `name` (which can contain spaces/
-    // emoji/Cyrillic and would 404 the link). Falls back to `name` only if
-    // `code` is somehow missing, so this still shows *something* in
-    // Settings rather than silently staying disconnected-looking.
     if (userRes.ok) username = userData?.code ?? userData?.name ?? null;
   } catch {
-    // Non-fatal — the connection still works without a display name, it's
-    // only used for the "Подключено как @username" line in Settings.
   }
 
   saveAuth({
@@ -121,13 +82,6 @@ async function exchangeCodeForTokens(code) {
   });
 }
 
-// scope is a *required* param on this grant type per DonationAlerts' own
-// apidoc (verified against https://www.donationalerts.com/apidoc directly —
-// easy to miss since the authorization_code exchange above doesn't need
-// it). Omitting it doesn't fail the first token exchange at all — it only
-// breaks the *next* refresh, once the initial access token expires — so
-// this would've quietly killed the whole automatic-payment pipeline a few
-// hours after every reconnect, with nothing in the UI to explain why.
 async function refreshAccessToken(auth) {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
@@ -149,25 +103,11 @@ async function refreshAccessToken(auth) {
 async function getValidAccessToken() {
   const auth = loadAuth();
   if (!auth?.accessToken) return null;
-  // 60s safety margin so a request in flight doesn't get cut off right as
-  // the token expires.
   if (auth.expiresAt && new Date(auth.expiresAt).getTime() > Date.now() + 60_000) return auth.accessToken;
   if (!auth.refreshToken) return null;
   return refreshAccessToken(auth);
 }
 
-// Verified against DonationAlerts' own apidoc directly (the response this
-// app's own account will actually get, not just what a stray blog post
-// says): GET /alerts/donations returns `amount` + `currency` (ISO 4217) per
-// donation — there is no separate "already converted to account currency"
-// field. In practice `amount` *is* already in whatever currency the
-// receiving DonationAlerts account is set to (RUB for a Russian admin
-// account, matching every hardcoded "10₽"/"amountRub" price in this app),
-// but that's an assumption about *this deployment's* account settings, not
-// a guarantee the API makes — so a donation that somehow comes back in a
-// different currency is treated as unmatched (code null) rather than
-// compared as if its number were rubles, which could silently under- or
-// over-credit an order.
 function parseDonation(raw) {
   const amountRub = raw.currency === "RUB" ? Number(raw.amount ?? 0) : 0;
   const message = String(raw.message ?? "");
@@ -194,7 +134,7 @@ async function pollOnce() {
     if (!code) continue;
     const order = await getPendingOrderByCode(code);
     if (!order || order.status !== "pending") continue;
-    if (amountRub < order.amountRub) continue; // underpaid — leave pending, don't silently short-fulfill
+    if (amountRub < order.amountRub) continue;
     await fulfillOrder(order).catch((err) => console.error("donation fulfill failed:", err));
   }
   if (maxId !== auth.lastDonationId) saveAuth({ lastDonationId: maxId });

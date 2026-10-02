@@ -40,19 +40,12 @@ const { FILENAME_RE } = require("../lib/serveUpload");
 const router = express.Router();
 router.use(requireUserId);
 
-// Анонимная отправка подарка — привилегия Premium. Возвращает true только если
-// и флаг стоит, и у отправителя есть Premium; иначе подарок уходит неанонимно.
-// Реального отправителя deliverGift всё равно пишет в запись подарка (в базе он
-// остаётся), скрывается лишь показ получателю.
 async function resolveAnonymous(req) {
   if (!req.body?.anonymous) return false;
   const me = await getUser(req.uid);
   return !!me?.isPremium;
 }
 
-// "все 1 экземпляров" reads as broken Russian, and the supplies in the
-// catalog (1, 3, 5, 10, 25, 50) hit every branch of the rule — so this is
-// a real declension, not decoration.
 function copiesWord(n) {
   const mod10 = n % 10;
   const mod100 = n % 100;
@@ -67,16 +60,10 @@ function soldOutError(gift) {
     : `«${gift.name}» распродан — все ${gift.supply} ${copiesWord(gift.supply)} уже разобраны`;
 }
 
-// `remaining` is computed per request rather than stored on the catalog —
-// it changes every time a limited gift is delivered, and the catalog itself
-// is a static module-level array shared by every caller.
 router.get(
   "/",
   asyncRoute(async (req, res) => {
     const gifts = listGifts().map((g) => (g.supply ? { ...g, remaining: remaining(g) } : g));
-    // The balance rides along with the catalogue so the picker can show it in its
-    // header without a second round trip — that header is where someone decides
-    // whether they can afford anything.
     res.json({ gifts, balance: balanceOf(req.uid) });
   })
 );
@@ -86,19 +73,11 @@ router.post(
   asyncRoute(async (req, res) => {
     const gift = getGift(req.body?.giftId);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
-    // No falling back to req.uid when recipientId is missing — a gift is for
-    // someone else, same restriction as /buy and /custom/send below.
     const recipientId = req.body?.recipientId;
     if (recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
     const recipient = recipientId ? await getUser(recipientId) : null;
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
 
-    // Checked up front so a sold-out limited gift fails here, before anyone
-    // is told to transfer money for it. It's re-checked at delivery time
-    // too (that's the check that actually protects the supply) — the last
-    // copy can still sell between paying and the payment clearing, which
-    // lib/donationAlerts.js handles by telling the buyer rather than
-    // silently pocketing it.
     if (gift.supply && remaining(gift) <= 0) {
       return res.status(410).json({ error: soldOutError(gift) });
     }
@@ -106,19 +85,12 @@ router.post(
     const admin = await findUserByPhone(ADMIN_PHONE);
     if (!admin) return res.status(503).json({ error: "Администрация Shalter ещё не зарегистрирована в приложении" });
 
-    // The admin has nobody to send a payment request *to* — they'd just be
-    // asking themselves for confirmation — so their gifts deliver instantly
-    // and for free instead of round-tripping through the same "перевожу и
-    // жду подтверждения" message everyone else sends.
     if (admin.id === req.uid) {
       const result = await deliverGift({ gift, recipientId: recipient.id, fromId: req.uid, announceFromId: req.uid });
       if (!result.ok) return res.status(410).json({ error: soldOutError(gift) });
       return res.json({ chatId: result.chat.id, adminPhone: ADMIN_PHONE, delivered: true, serial: result.serial });
     }
 
-    // Same as premium.js's /request — DonationAlerts/DonatePay if either is
-    // set up, otherwise a plain transfer that the admin fulfils from the
-    // buyer's profile.
     const donation = getActiveDonationLink();
     if (donation) {
       const order = await createPendingOrder({ userId: req.uid, kind: "gift", giftId: gift.id, recipientId, amountRub: gift.priceRub });
@@ -135,10 +107,6 @@ router.post(
   })
 );
 
-// Actually delivers a gift — restricted to whoever currently holds
-// ADMIN_PHONE, same as Premium's /grant. Posts the announcement in the
-// admin's DM with the recipient (that's the chat the recipient will
-// actually see it in) and applies the Premium duration if the gift grants one.
 router.post(
   "/deliver",
   asyncRoute(async (req, res) => {
@@ -158,16 +126,11 @@ router.post(
   })
 );
 
-// Buying a gift with stars: instant, self-serve, no admin in the loop. This is
-// the primary way to send a gift — the ruble/transfer path below stays for
-// someone who would rather pay money directly for an expensive one.
 router.post(
   "/buy",
   asyncRoute(async (req, res) => {
     const gift = getGift(req.body?.giftId);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
-    // Gifts are for someone else — no falling back to req.uid when
-    // recipientId is missing.
     const recipientId = req.body?.recipientId;
     if (recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
     const recipient = recipientId ? await getUser(recipientId) : null;
@@ -184,12 +147,9 @@ router.post(
     }
 
     const background = sanitizeGiftBackground(req.body?.background);
-    // Анонимно — только с Premium; иначе флаг игнорируется, подарок уходит как обычно.
     const anonymous = await resolveAnonymous(req);
     const result = await deliverGift({ gift, recipientId, fromId: req.uid, announceFromId: req.uid, background, anonymous });
     if (!result.ok) {
-      // The last copy went between the supply check and the claim — hand the
-      // stars back rather than keeping them for a gift that was never delivered.
       addStars(req.uid, price);
       return res.status(410).json({ error: soldOutError(gift), balance: balanceOf(req.uid) });
     }
@@ -197,8 +157,6 @@ router.post(
   })
 );
 
-// Converting a received gift back into stars — Telegram's "обменять на звёзды".
-// The shelf entry goes and the stars land on the balance.
 router.post(
   "/received/:entryId/convert",
   asyncRoute(async (req, res) => {
@@ -206,15 +164,10 @@ router.post(
     const entry = (me?.giftsReceived ?? []).find((g) => (g.id ? g.id === req.params.entryId : `${g.emoji}|${g.at}` === req.params.entryId));
     if (!entry) return res.status(404).json({ error: "Подарок не найден на вашей полке" });
 
-    // Нарисованный пользователем подарок бесплатный — обменять его на звёзды
-    // нельзя, иначе получилась бы фабрика звёзд из ничего.
     if (entry.custom || (!entry.priceStars && entry.priceStars !== undefined)) {
       return res.status(400).json({ error: "Этот подарок нельзя обменять на звёзды" });
     }
 
-    // Priced from the catalogue when the gift is still there, and from what was
-    // stored on the shelf entry otherwise — a gift the admin has since removed
-    // from the catalogue must still be convertible.
     const catalogGift = getGift(entry.giftId ?? "");
     const value = conversionValue(catalogGift ?? { priceRub: entry.priceRub ?? 1, priceStars: entry.priceStars });
     if (!removeReceivedGift(req.uid, req.params.entryId)) {
@@ -225,12 +178,6 @@ router.post(
   })
 );
 
-// Removing a gift from your own shelf. Only your own: a shelf is part of a
-// profile, and letting anyone clear someone else's would make the whole display
-// meaningless.
-//
-// The serial of a limited gift is *not* released — see data/users.js's
-// removeReceivedGift for why.
 router.delete(
   "/received/:entryId",
   asyncRoute(async (req, res) => {
@@ -241,9 +188,6 @@ router.delete(
   })
 );
 
-// Pinning is like a pinned message (public/js/components/chatView.js), just
-// for the gift shelf: no cap on how many, and only the owner can do it — same
-// "own shelf only" reasoning as removing one above.
 router.post(
   "/received/:entryId/pin",
   asyncRoute(async (req, res) => {
@@ -253,11 +197,6 @@ router.post(
     res.json({ user: publicUser(await getUser(req.uid)) });
   })
 );
-
-// ── Catalogue management (admin only) ───────────────────────────────────────
-// The shipped catalogue is code (server/data/gifts.js); these routes let
-// whoever holds ADMIN_PHONE change a limited run's size and mint new gifts,
-// without a redeploy.
 
 async function requireAdmin(req, res) {
   const me = await getUser(req.uid);
@@ -277,14 +216,10 @@ function parseSupply(value) {
   return { value: n };
 }
 
-// The admin view: every gift with how many copies are already out, so a supply
-// can't be changed blind.
 router.get(
   "/catalog",
   asyncRoute(async (req, res) => {
     if (!(await requireAdmin(req, res))) return;
-    // includeHidden: скрытые подарки видны админу, чтобы их можно было
-    // восстановить (в витрину они по-прежнему не попадают, routes ниже/выше).
     const gifts = listGifts({ includeHidden: true }).map((g) =>
       g.supply ? { ...g, issued: issuedCount(g.id), remaining: remaining(g) } : g
     );
@@ -303,9 +238,6 @@ router.post(
     const parsed = parseSupply(req.body?.supply);
     if (parsed.error) return res.status(400).json({ error: parsed.error });
 
-    // Lowering below what's already been handed out would leave real copies
-    // numbered above their own edition ("#4200 из 3000") and, worse, would let
-    // the same serial be minted twice later. The floor is what exists.
     const issued = issuedCount(gift.id);
     if (parsed.value < issued) {
       return res.status(409).json({
@@ -318,8 +250,6 @@ router.post(
   })
 );
 
-// Перерисовать подарок в аниматоре: и встроенный (через override-сцену), и
-// custom. scene = null убирает рисунок и возвращает анимацию по эмодзи.
 router.post(
   "/catalog/:id/scene",
   asyncRoute(async (req, res) => {
@@ -336,22 +266,12 @@ router.post(
   })
 );
 
-// Имя файла из ссылки /uploads/<файл>, которую только что вернул обычный
-// POST /api/uploads?kind=gift — та же проверка, что на раздаче
-// (serveUpload.js), чтобы сюда нельзя было подсунуть путь наружу хранилища.
 function giftUploadFilename(url) {
   if (typeof url !== "string" || !url.startsWith("/uploads/")) return null;
   const filename = url.slice("/uploads/".length);
   return FILENAME_RE.test(filename) ? filename : null;
 }
 
-// Гифка подарка сначала обычным путём кладётся в хранилище (POST
-// /api/uploads?kind=gift, как любое другое вложение), а здесь только
-// перерабатывается: расшифровывается во временный файл, прогоняется через
-// хромакей (lib/giftMedia.js) и кладётся обратно уже с прозрачным фоном.
-// Сама исходная (ещё с фоном) загрузка не удаляется — на неё ничего не
-// ссылается, а специальной уборки "ничьих" вложений в проекте пока нет нигде
-// (то же верно, например, для картинок статусов).
 async function processGiftGif(gifUrl) {
   const filename = giftUploadFilename(gifUrl);
   if (!filename) return { error: "Некорректная ссылка на гифку — загрузите файл заново" };
@@ -377,8 +297,6 @@ router.post(
     if (!(await requireAdmin(req, res))) return;
     const { emoji, name, priceStars, premiumDays, supply, exclusive, gifUrl } = req.body ?? {};
 
-    // Нарисованная в аниматоре сцена (необязательно) — рисуется вместо анимации
-    // по эмодзи. Эмодзи всё равно нужен как подпись в уведомлениях/списке чатов.
     const scene = req.body?.scene === undefined ? null : sanitizeScene(req.body.scene, { requireLayers: true });
     if (req.body?.scene !== undefined && !scene) return res.status(400).json({ error: "Нарисуйте подарок — добавьте хотя бы одну фигуру" });
 
@@ -394,8 +312,6 @@ router.post(
       supplyValue = parsed.value;
     }
 
-    // Вырезание фона идёт до записи в базу: неудачно обработанная гифка не
-    // должна оставить в каталоге подарок с битой ссылкой.
     let mediaUrl;
     if (gifUrl) {
       const result = await processGiftGif(gifUrl);
@@ -403,9 +319,6 @@ router.post(
       mediaUrl = result.mediaUrl;
     }
 
-    // Slug from the name so the id is readable in the DB and in exports, with a
-    // timestamp suffix guaranteeing uniqueness against the 286 built-ins and
-    // against anything minted earlier.
     const slug =
       String(name)
         .toLowerCase()
@@ -419,8 +332,6 @@ router.post(
       emoji: String(emoji).trim().slice(0, 8),
       name: String(name).trim().slice(0, 60),
       priceStars: price,
-      // null means "Premium forever" (see data/users.js's grantPremiumDays);
-      // anything else is a day count, 0 for a purely decorative gift.
       premiumDays: premiumDays === null ? null : Number.isInteger(Number(premiumDays)) ? Number(premiumDays) : 0,
       supply: supplyValue,
       exclusive: !!exclusive,
@@ -438,9 +349,6 @@ router.delete(
     const gift = getGift(req.params.id);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
 
-    // Custom-подарок админа удаляется физически — но только пока его никто не
-    // получил: у выданных копий на профилях его строка это единственная
-    // карточка. Уже выпущенный можно лишь скрыть (ниже, как встроенный).
     if (gift.custom && !gift.ownerId) {
       if (issuedCount(gift.id) === 0) {
         deleteCustomGift(gift.id);
@@ -448,11 +356,7 @@ router.delete(
       }
     }
 
-    // Встроенный (в коде — физически не удалить) или уже выпущенный custom:
-    // прячем из витрины. Обратимо через /restore. Копии на профилях остаются.
     if (!hideBuiltin(gift.id)) {
-      // hideBuiltin умеет только встроенные; для уже выпущенного custom-подарка
-      // ставим hidden прямо на его строке тем же UPDATE, что и restore наоборот.
       return res.status(400).json({ error: "Не удалось скрыть подарок" });
     }
     res.json({ ok: true, hidden: true });
@@ -468,10 +372,6 @@ router.post(
   })
 );
 
-// ── Личные подарки пользователя, нарисованные в аниматоре ────────────────────
-// Бесплатные и декоративные: их можно нарисовать, хранить в своей вкладке и
-// дарить кому угодно без списания звёзд. Модель — data/gifts.js (ownerId), сцена
-// проверяется lib/sanitizeScene.js.
 const MAX_USER_GIFTS = 50;
 
 router.get(
@@ -532,7 +432,6 @@ router.delete(
   })
 );
 
-// Дарение личного подарка — бесплатно, мгновенно, без админа и без звёзд.
 router.post(
   "/custom/send",
   asyncRoute(async (req, res) => {

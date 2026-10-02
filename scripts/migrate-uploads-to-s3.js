@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-// Ручной перенос вложений с диска в S3. Обычно он не нужен: сервер с
-// заданным S3_BUCKET переносит всё сам при запуске (server/lib/
-// uploadsMigration.js). Скрипт — для тех, кто хочет посмотреть заранее
-// (--dry-run), перенести быстрее (--concurrency=8) или сделать это до
-// переключения сервера.
-//
-//   npm run uploads:to-s3 -- [--dry-run] [--delete-local] [--concurrency=8]
 const fs = require("fs");
 const path = require("path");
 const { migrateUploads, formatBytes } = require("../server/lib/uploadsMigration");

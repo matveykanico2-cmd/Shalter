@@ -14,10 +14,6 @@ function rowToScheduled(row) {
   };
 }
 
-// Scheduled messages are private to the sender until they fire (same as
-// Telegram's own "Scheduled Messages" — other chat members have no idea
-// one's pending), so this is always scoped to one chat + one sender, never
-// "everyone's scheduled messages in this chat."
 async function listScheduledFor(chatId, senderId) {
   return db
     .prepare("SELECT * FROM scheduled_messages WHERE chatId = ? AND senderId = ? ORDER BY sendAt ASC")
@@ -61,9 +57,6 @@ async function deleteScheduled(id) {
   db.prepare("DELETE FROM scheduled_messages WHERE id = ?").run(id);
 }
 
-// The sweep's query (server/lib/scheduledMessagesSweep.js) — everything due
-// across every chat, not scoped to one sender, since the sweep's job is to
-// fire all of them regardless of who queued each one.
 function listDue(nowIso) {
   return db.prepare("SELECT * FROM scheduled_messages WHERE sendAt <= ?").all(nowIso).map(rowToScheduled);
 }

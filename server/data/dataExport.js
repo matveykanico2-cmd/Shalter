@@ -4,28 +4,12 @@ const { listAllMessages } = require("./messages");
 const { listChats } = require("./chats");
 const { listUsers, getUser } = require("./users");
 
-// Lawful-request data export for ONE target user — assembles the stored
-// correspondence a regulator/court order can legitimately compel, and
-// nothing more. This is the transparent, targeted alternative to a covert
-// "read everyone" backdoor: it only reaches what already sits in the DB,
-// it's scoped to a single named account, and every run is logged
-// (logExport below / db.js's data_exports table).
-//
-// Secret (E2E) chats are gone from the app, so nothing here is ciphertext
-// any more — apart from the legacy marker below, kept only so a database
-// that still holds messages from before the removal exports them honestly
-// (as ciphertext, flagged) instead of dumping "e2e1:AbCd…" as if it were the
-// message someone actually typed.
-
 const LEGACY_CIPHER_PREFIX = "e2e1:";
 
 function isEncrypted(text) {
   return typeof text === "string" && text.startsWith(LEGACY_CIPHER_PREFIX);
 }
 
-// Everything the target account was party to: every chat it's a member of,
-// and every message in those chats (so the export shows the actual
-// back-and-forth, not just the target's own lines out of context).
 async function buildUserExport(targetUserId) {
   const target = await getUser(targetUserId);
   if (!target) return null;
@@ -70,9 +54,6 @@ async function buildUserExport(targetUserId) {
   });
 
   return {
-    // A header block that makes the file self-describing for whoever
-    // receives it — what it is and who it's about, stated up front rather
-    // than buried.
     export: {
       kind: "lawful-request-user-export",
       generatedAt: new Date().toISOString(),
@@ -94,8 +75,6 @@ async function buildUserExport(targetUserId) {
   };
 }
 
-// One audit row per export. Returns the row so the route can surface an
-// export id / confirmation to the admin.
 function logExport({ adminId, targetUserId, reason, messageCount }) {
   const row = {
     id: genId("exp"),
@@ -112,8 +91,6 @@ function logExport({ adminId, targetUserId, reason, messageCount }) {
   return row;
 }
 
-// The transparency log, newest first — shown back in the admin UI so past
-// exports are visible, not hidden.
 function listExports() {
   return db.prepare("SELECT * FROM data_exports ORDER BY createdAt DESC LIMIT 200").all();
 }

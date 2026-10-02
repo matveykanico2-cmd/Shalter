@@ -1,7 +1,4 @@
-// Thin reconnecting WebSocket client. Used as the primary transport for call
-// signaling and incoming-call push (server/ws.js); HTTP polling is kept as a
-// fallback wherever this isn't connected (see callController.js).
-const handlers = new Map(); // type -> Set<fn>
+const handlers = new Map();
 let socket = null;
 let reconnectTimer = null;
 let reconnectDelay = 1000;

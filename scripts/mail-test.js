@@ -1,15 +1,3 @@
-// Sends one letter with whatever SMTP settings are in the environment, and says
-// plainly what happened. Run it on the server *before* wiring the app up:
-//
-//   SMTP_URL='smtps://user%40domain:app-password@smtp.yandex.ru:465' \
-//   MAIL_FROM='Shalter <no-reply@shalter.ru>' \
-//   node scripts/mail-test.js you@example.com
-//
-// Separated from the app on purpose — when recovery mail doesn't arrive, the
-// question is always "are the credentials right or is the code wrong", and this
-// answers the first half on its own.
-// Те же config.env/.env, что читает сервер, — иначе проверка судила бы
-// о настройках, отличных от боевых.
 require("../server/lib/loadConfig");
 const { sendMail, verifySmtp } = require("../server/lib/mailer");
 
@@ -24,9 +12,6 @@ if (!to) {
     console.log("SMTP не задан — письмо уйдёт напрямую на сервер получателя, а если он откажет, ляжет в data/outbox.");
     console.log("Для отправки через ящик задайте SMTP_URL (или SMTP_HOST/PORT/USER/PASS).");
   } else {
-    // Connect and log in before sending: a wrong password and a blocked port
-    // both end as "письмо не ушло", but only one of them is fixed by editing
-    // the password.
     const check = await verifySmtp();
     if (check.ok) console.log("Подключение и вход на SMTP-сервер: успешно.");
     else {

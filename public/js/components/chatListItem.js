@@ -6,6 +6,7 @@ import { openDropdownMenu } from "./dropdownMenu.js";
 import { openDeleteChatDialog } from "./deleteChatDialog.js";
 import { navigate } from "../router.js";
 import { api } from "../api.js";
+import { prefetchChat } from "../lib/chatPrefetch.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { messagePreview } from "../lib/messagePreview.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
@@ -22,7 +23,6 @@ function timeLabel(iso) {
   return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
 }
 
-// Токен кастомного эмодзи ([ce:N]) в плоской строке рисовать нечем — 🎨.
 const ceStrip = (t) => (t ?? "").replace(/\[ce:\d+\]/g, "🎨");
 
 function preview(chat, meId) {
@@ -30,34 +30,21 @@ function preview(chat, meId) {
   const m = chat.lastMessage;
   if (!m) return "Нет сообщений";
   if (m.type === "system") return ceStrip(m.text);
-  // Stickers, gifts and attachments carry no text of their own — messagePreview
-  // names them, so the row doesn't go blank ("Вы: ") after sending one.
-  // В «Избранном» всё написано тобой — «Вы:» перед каждым превью там лишнее.
   const who = m.senderId === meId && !chat.isSaved ? "Вы: " : "";
   return `${who}${messagePreview(m)}`;
 }
 
-// onOpen — что делать по нажатию на строку (по умолчанию — открыть переписку;
-// архив подменяет его, чтобы список архива остался рядом, см. views/archive.js).
-// onRead — после «Отметить как прочитанное», чтобы владелец списка обновил
-// счётчик у себя.
 export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, onLeave, onOpen, onRead }) {
   const title = chat.type === "dm" ? (chat.otherUser?.name ?? chat.title) : chat.title;
   const online = chat.type === "dm" && chat.otherUser?.online;
   const muted = isChatMuted(chat);
 
-  // data-chat-id — по нему колонка находит строку для перетаскивания
-  // закреплённых и для выбора с клавиатуры (views/chatList.js).
   const wrap = el("div", { class: "chat-list-item-wrap with-more", "data-chat-id": chat.id });
   const swipeHint = el("div", { class: "chat-swipe-actions" }, [
     el("span", { class: "chat-swipe-action mute" }, muted ? "Со звуком" : "Без звука"),
     el("span", { class: "chat-swipe-action archive" }, chat.archived ? "Из архива" : "В архив"),
   ]);
 
-  // Свайп по строке — как в мобильном Telegram: потянуть влево, чтобы убрать в
-  // архив или заглушить, не открывая меню. На мышке жест недоступен и не нужен:
-  // там для этого правая кнопка, поэтому обработчики срабатывают только для
-  // пальца и пера.
   const SWIPE_ACTION_PX = 72;
   let startX = 0;
   let startY = 0;
@@ -78,8 +65,12 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
         e.preventDefault();
         openMenu({ x: e.clientX, y: e.clientY });
       },
+      onpointerenter: (e) => {
+        if (e.pointerType === "mouse") prefetchChat(chat);
+      },
       onpointerdown: (e) => {
-        if (e.pointerType === "mouse") return;
+        if (e.pointerType === "mouse") return prefetchChat(chat);
+        prefetchChat(chat);
         startX = e.clientX;
         startY = e.clientY;
         sliding = null;
@@ -90,7 +81,6 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
         const dy = Math.abs(e.clientY - startY);
         if (sliding === null) {
           if (Math.abs(dx) < 12 && dy < 12) return;
-          // Вертикаль — это прокрутка списка, и перехватывать её нельзя.
           sliding = Math.abs(dx) > dy && dx < 0;
           if (!sliding) return;
           wrap.classList.add("swiping");
@@ -101,22 +91,15 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
         if (sliding !== true) return resetSlide();
         const dx = e.clientX - startX;
         resetSlide();
-        // Дотянул до порога — сработало действие. Архив дальше по ходу жеста,
-        // чем «без звука», потому что убирают из списка чаще, чем глушат.
         if (dx <= -SWIPE_ACTION_PX * 2) onPatch?.(chat.id, { archived: !chat.archived });
         else if (dx <= -SWIPE_ACTION_PX) onPatch?.(chat.id, { muted: !muted });
       },
       onpointercancel: resetSlide,
     },
     [
-      // «Избранное» — закладка в акцентном круге, как в Telegram, а не буква
-      // «И»: иначе чат с самим собой выглядит как переписка с кем-то на «И».
       chat.isSaved
         ? el("span", { class: "saved-avatar", html: iconSvg("Bookmark", 24) })
         : Avatar({
-            // 52px, а не 44: строка списка стала выше — имя, превью и время в
-            // ней читаются с одного взгляда, и аватар под них подогнан, как в
-            // Telegram.
             size: 52,
             name: chat.otherUser?.name ?? title,
             color: chat.otherUser?.avatarColor ?? chat.avatarColor,
@@ -130,8 +113,6 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
           chat.otherUser?.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 13) }) : null,
           chat.otherUser?.isPremium ? PremiumStar({ size: 15, seed: chat.otherUser.id, title: "Shalter Premium" }) : null,
           ProfileStatusBadge(chat.type === "dm" ? chat.otherUser : chat, 15),
-          // Safety marker (server/db.js's safetyLabel) right on the row — the
-          // warning has to be visible before the chat is even opened.
           safetyLabelInfo(chat.otherUser?.safetyLabel)
             ? el(
                 "span",
@@ -149,9 +130,6 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
           ),
         ]),
         el("div", { class: "chat-list-item-row" }, [
-          // Красным помечается только слово «Черновик:», а не весь текст: сам
-          // набранный текст — обычное превью, и целиком красная строка читалась
-          // как ошибка, а не как «здесь недописанное сообщение».
           el("span", { class: "chat-list-item-preview" }, [
             chat.draft ? el("span", { class: "chat-preview-draft" }, "Черновик: ") : null,
             preview(chat, meId),
@@ -168,11 +146,6 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
       ]),
     ]
   );
-  // «⋮» — то же меню, что по правой кнопке. Правый клик на мышке никто не
-  // угадывает, а на телефоне его нет вовсе: без этой кнопки единственным путём к
-  // «Вернуть из архива» в архиве было знать про него заранее. Кнопка — соседка
-  // строки, а не её потомок: кнопка внутри кнопки — недопустимая разметка, и
-  // нажатие на неё ещё и открывало бы переписку.
   const moreBtn = el("button", {
     class: "chat-list-item-more",
     type: "button",
@@ -203,8 +176,6 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
           ? () => onPatch(chat.id, { muted: false })
           : () => openMuteDurationDialog((opts) => onMute(chat.id, opts)),
       },
-      // «Добавить в папку» — как в Telegram: раньше чат попадал в папку только
-      // из Настройки → Папки, через список галочек по всем чатам сразу.
       {
         icon: "Folder",
         label: "Добавить в папку",
@@ -243,8 +214,6 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
     ].filter(Boolean));
   }
 
-  // Второе меню на том же месте: список папок с галочкой у тех, где чат уже
-  // лежит. Нажатие переключает — кладёт или вынимает.
   function openFolderMenu(pos) {
     const folders = getState().folders ?? [];
     const items = folders.map((f) => {

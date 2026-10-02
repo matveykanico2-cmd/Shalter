@@ -8,26 +8,11 @@ import { PhoneField } from "../components/phoneField.js";
 
 const QR_POLL_MS = 1500;
 
-// options.onSuccess lets /qr-login (see qrLoginConfirm.js) reuse this same
-// form to log the *scanning* device in, then continue to the confirm step
-// in-place — the normal top-level /login instead defaults to a full
-// navigation into the app. options.embedded renders just the form card,
-// skipping the page chrome (background orbs, logo, "Shalter" brand) —
-// for when a caller (again, qrLoginConfirm.js) supplies its own frame.
 export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
-  // Landed here from api.js's req() after this device's session got
-  // terminated elsewhere (Settings → Устройства → «Завершить») — surfaced as
-  // a plain "why am I here" hint rather than leaving it looking like a random
-  // logout.
   const revokedNotice = new URLSearchParams(window.location.search).get("reason") === "revoked";
-  // Same idea, for an account banned from the reports moderation chat
-  // (routes/reports.js's /:id/ban) — surfaced here rather than a bare
-  // "неверный email или пароль" that'd make it look like a typo.
   const bannedNotice = new URLSearchParams(window.location.search).get("reason") === "banned";
-  // The recorded ban reason, forwarded by api.js — a ban with no stated reason
-  // is indistinguishable from a bug from the user's side.
   const bannedWhy = new URLSearchParams(window.location.search).get("why");
-  let mode = "login"; // "login" | "register" | "qr" | "code"
+  let mode = "login";
   let name = "";
   let lastName = "";
   let email = "";
@@ -40,24 +25,19 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
 
   let qrToken = null;
   let qrLoginUrl = null;
-  let qrStatus = "loading"; // "loading" | "ready" | "expired" | "error"
+  let qrStatus = "loading";
   let qrPollTimer = null;
 
   let codePhone = "";
   let codeValue = "";
-  let codeStep = "phone"; // "phone" | "code"
+  let codeStep = "phone";
   let codeError = null;
   let codePending = false;
 
-  // Second factor (server/lib/totp.js). Set when a first factor succeeded on an
-  // account with 2FA on: the server withheld the session and handed back a
-  // ticket instead, so the only thing left to render is the code prompt.
-  // The phone fields keep their own state (country + digits), so they are
-  // created once and reused across renders rather than rebuilt.
   let codePhoneField = null;
   let registerPhoneField = null;
-  let twoFactor = null; // { ticket, name, method }
-  let recoverStep = "email"; // "email" — пара почта+телефон, затем "code" — новый пароль
+  let twoFactor = null;
+  let recoverStep = "email";
   let recoverPhone = "";
   let recoverPhoneField = null;
   let recoverEmail = "";
@@ -90,18 +70,14 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             stopQrPolling();
             (onSuccess ?? goToApp)(poll.user);
           } else if (poll.status === "banned") {
-            // The scan itself worked — the account just isn't allowed in. Say
-            // so instead of silently minting a fresh code forever.
             stopQrPolling();
             mode = "login";
             error = poll.error || "Аккаунт заблокирован администрацией Shalter";
             render();
           } else if (poll.status === "expired") {
-            startQrLogin(); // silently mint a fresh code so it never goes stale
+            startQrLogin();
           }
         } catch {
-          // A transient network hiccup shouldn't kill the whole flow — just
-          // wait for the next tick.
         }
       }, QR_POLL_MS);
     } catch {
@@ -138,12 +114,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     window.location.href = "/";
   }
 
-  // Завершение входа. В режиме добавления аккаунта сервер мог сообщить, что
-  // этот аккаунт уже привязан к браузеру (alreadyLinked). Блокировать вход
-  // из-за этого нельзя — именно это и было багом: писало «уже добавлен» и не
-  // пускало. Сервер уже сделал этот аккаунт активным (addAccountSession), так
-  // что просто открываем приложение — человек оказывается в нужном аккаунте,
-  // а не застревает на экране входа.
   function finishAuth(user, _alreadyLinked) {
     (onSuccess ?? goToApp)(user);
   }
@@ -194,15 +164,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     ]);
   }
 
-  // Shown instead of the login form once the first factor is done and the
-  // account owes a code. Its own panel rather than a mode of the main form: at
-  // this point email/password/register are all irrelevant, and leaving them on
-  // screen invites re-submitting the first step and invalidating the ticket.
   function renderTwoFactorPanel() {
-    // Облачный пароль — не код: он длинный, произвольный и его не подставляет
-    // менеджер одноразовых кодов. Поэтому здесь другое поле: скрытый ввод,
-    // обычная ширина вместо разрядки под шесть цифр и подсказка автозаполнения
-    // «текущий пароль», а не «одноразовый код».
     const byPassword = twoFactor.method === "password";
     const codeInput = el("input", {
       class: byPassword ? "login-input" : "login-input login-code-input mono",
@@ -211,13 +173,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       placeholder: byPassword ? "Облачный пароль" : "······",
       autofocus: true,
       autocomplete: byPassword ? "current-password" : "one-time-code",
-      // Same reason as the login-code input below: oninput must not call
-      // render(), or the field is replaced mid-typing and loses focus. Recovery
-      // codes are letters and a dash, so this can't filter to digits only.
-      //
-      // У пароля значение берётся как есть: пробел по краям — такой же знак,
-      // как любой другой, и срезать его молча значит не пустить человека с его
-      // собственным паролем.
       oninput: (e) => (twoFactorCode = byPassword ? e.target.value : e.target.value.trim()),
     });
 
@@ -254,9 +209,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               ? "Код отправлен в ваш чат с Shalter — откройте его на устройстве, где вы уже вошли. Можно ввести и код восстановления."
               : "Код из приложения-аутентификатора. Можно ввести и код восстановления."
         ),
-        // Only for the chat method: the code lives in a message that can be
-        // missed, expire, or arrive while the app is closed. A TOTP app always
-        // has a fresh code, so there is nothing to re-send.
         twoFactor.method === "chat"
           ? el(
               "button",
@@ -298,8 +250,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           type: "button",
           class: "login-link",
           onclick: () => {
-            // Abandoning the ticket rather than reusing it: it's single-purpose
-            // and the server expires it anyway.
             twoFactor = null;
             twoFactorCode = "";
             twoFactorError = null;
@@ -309,10 +259,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         },
         "Отмена"
       ),
-      // Передумал удалять, но пароль так и не вспомнил — отменить удаление
-      // можно прямо здесь, тем же первым фактором, без входа. Кнопка видна
-      // только когда удаление реально запланировано (server отдаёт
-      // scheduledDeletionAt на шаге 2FA).
       twoFactor.scheduledDeletionAt
         ? el(
             "button",
@@ -334,8 +280,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             "Отменить удаление аккаунта"
           )
         : null,
-      // Забыл и облачный пароль, восстановить нечем — крайняя мера: удалить
-      // аккаунт через неделю (за это время любой успешный вход отменит удаление).
       el(
         "button",
         {
@@ -363,16 +307,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     ].filter(Boolean));
   }
 
-  // Forgotten password: адрес почты и номер телефона этого аккаунта, затем
-  // новый пароль. Два шага, потому что пара проверяется до того, как спрашивать
-  // пароль — иначе его придумывают, а потом узнают, что номер не тот.
-  //
-  // Способ здесь ровно один. Раньше их было три (код в письме, код в чат по
-  // номеру, и вот этот), но два первых требуют доставки: письма могут не
-  // доходить вовсе, а код в чат Shalter читается только на устройстве, где вход
-  // ещё не потерян, — то есть именно тогда, когда восстановление и не нужно.
-  // Серверные пути под них остались (routes/auth.js) и работают, просто на этот
-  // экран больше не выведены.
   function renderRecoverPanel() {
     recoverPhoneField ??= PhoneField({ onChange: (v) => (recoverPhone = v) });
 
@@ -403,8 +337,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           render();
           try {
             if (recoverStep === "email") {
-              // Проверка пары ничего не меняет и ничего не выдаёт — она только
-              // отвечает, есть ли такой аккаунт, чтобы не спрашивать пароль зря.
               await api.checkRecoveryPair(recoverEmail.trim(), recoverPhone);
               recoverStep = "code";
               recoverPending = false;
@@ -499,7 +431,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               await api.startCodeLogin(codePhone);
               codeStep = "code";
             } else {
-              const res = await api.verifyCodeLogin(codePhone, codeValue); // { user, alreadyLinked }
+              const res = await api.verifyCodeLogin(codePhone, codeValue);
               if (res.twoFactorRequired) {
                 twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp", hint: res.hint ?? null, scheduledDeletionAt: res.scheduledDeletionAt ?? null };
                 codePending = false;
@@ -518,9 +450,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       },
       codeStep === "phone"
         ? [
-            // Built once and cached on the closure: PhoneField holds its own
-            // state (chosen country, digits typed), so rebuilding it on every
-            // render would reset the picker mid-entry.
             (codePhoneField ??= PhoneField({
               value: codePhone,
               autofocus: true,
@@ -546,12 +475,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             }),
             el("p", { class: "login-hint" }, `Код отправлен в чат Shalter для номера ${codePhone}.`),
             codeError ? el("p", { class: "login-error center" }, codeError) : null,
-            // Not gated on codeValue.length here: the code input's oninput
-            // deliberately doesn't call render() (typing would lose focus —
-            // every render() fully replaces the DOM, same reason the
-            // email/password inputs above don't re-render on keystroke
-            // either), so a length-based disabled state would never update
-            // after the first digit. The server validates the code anyway.
             el("button", { class: "login-submit", disabled: codePending }, codePending ? "Проверяем…" : "Войти"),
           ]
     );
@@ -576,34 +499,17 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     ]);
   }
 
-  // The @handle field. Registration asks for one because it's the only way to
-  // find anyone here — contacts are added by typing an exact @username (see
-  // views/contacts.js) — so an account created without one can't be reached by
-  // anybody until its owner goes looking for the setting.
-  //
-  // Built once, outside render(), and updated in place. render() replaces the
-  // whole form DOM (see the code-input comment above), so a field that called
-  // it on every keystroke would hand the user a fresh, unfocused <input> after
-  // the first character — the same bug the contacts search had.
   const usernameStatus = el("p", { class: "login-hint username-status" });
   let usernameCheckTimer = null;
   let usernameCheckSeq = 0;
   const usernameEl = el("input", {
     class: "login-input mono",
-    // Без «@» в подсказке: при регистрации она путала — люди вписывали @ сами,
-    // думая, что он нужен. Вводят просто имя, а случайную «@» в начале поле
-    // всё равно срезает (oninput ниже).
     placeholder: "юзернейм",
     autocapitalize: "off",
     autocorrect: "off",
     spellcheck: false,
     autocomplete: "username",
     oninput: (e) => {
-      // Normalize as they type: drop a pasted leading @, keep only what the
-      // server's USERNAME_RE accepts, cap at 32. Doing it here means the field
-      // can't hold something the server will reject for a reason the user can't
-      // see — and the caret stays put because the value only changes when the
-      // filter actually removed something.
       const cleaned = e.target.value.replace(/^@+/, "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 32);
       if (cleaned !== e.target.value) {
         const caret = e.target.selectionStart - (e.target.value.length - cleaned.length);
@@ -627,8 +533,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   }
 
   async function checkUsername() {
-    // A response for an abandoned value must never overwrite the current one —
-    // these come back out of order the moment someone types quickly.
     const seq = ++usernameCheckSeq;
     const asked = username;
     try {
@@ -699,8 +603,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               if (avatarImage) await api.updateProfile(user.id, { avatarImage });
             } else {
               const res = await api.loginEmail(email, password);
-              // Password was right, but the account has 2FA on — no session was
-              // created, so hand over to the code step instead of continuing.
               if (res.twoFactorRequired) {
                 twoFactor = { ticket: res.ticket, name: res.name, method: res.method ?? "totp", hint: res.hint ?? null, scheduledDeletionAt: res.scheduledDeletionAt ?? null };
                 pending = false;
@@ -800,15 +702,10 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               ),
             ])
           : null,
-        // A plain link, not a router link: /download is a standalone static page
-        // (see server/index.js), and this is the only place a first-time visitor
-        // would look for the desktop/Android build.
         !embedded ? el("a", { class: "login-link muted login-download-link", href: "/download" }, "Скачать приложение для Windows, Linux и Android") : null,
       ]
     );
 
-    // The 2FA prompt outranks `mode`: once a ticket exists, the first factor is
-    // already spent and nothing else on this screen is actionable.
     const content = twoFactor
       ? renderTwoFactorPanel()
       : mode === "qr"
@@ -838,10 +735,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             el("h1", { class: "login-brand" }, addMode ? "Добавить аккаунт" : "Shalter"),
             el("p", { class: "login-subtitle" }, subtitle),
           ]),
-          // Кнопка отмены — внутри самой карточки, а не отдельной строкой под
-          // ней: снаружи она висела на фоне страницы и «съезжала» с окна. Так
-          // она часть окна добавления. Только в режиме добавления (тут уже есть
-          // активный сеанс, поэтому «/» открывает приложение, а не вход).
           el("div", { class: "login-card" }, [
             content,
             addMode

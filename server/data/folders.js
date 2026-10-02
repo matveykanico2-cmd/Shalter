@@ -18,7 +18,6 @@ async function findFolderByInviteCode(code) {
   return rowToFolder(db.prepare("SELECT * FROM folders WHERE inviteCode = ?").get(c));
 }
 
-// null отзывает ссылку — старая сразу перестаёт что-либо находить.
 async function setFolderInviteCode(id, code) {
   db.prepare("UPDATE folders SET inviteCode = ? WHERE id = ?").run(code, id);
   return getFolder(id);

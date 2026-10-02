@@ -1,14 +1,6 @@
 const db = require("../db");
 const { sanitizeSticker } = require("../lib/sanitizeSticker");
 
-// User-made sticker packs. The built-in set stays in the client
-// (public/js/lib/stickers.js) — it ships with the app and never changes at
-// runtime; these are the packs people assemble themselves.
-//
-// The stickers of a pack are a JSON column rather than their own table: they're
-// only ever read and written as a whole pack, never queried across rows, which
-// is exactly the rule AGENTS.md sets for when nesting stays JSON.
-
 const MAX_STICKERS = 60;
 const MAX_NAME = 40;
 
@@ -23,18 +15,12 @@ function rowToPack(row) {
   };
 }
 
-// Trusted nowhere: a pack is user-authored content that ends up rendered in
-// other people's chats, so the shape is pinned down here rather than wherever it
-// happens to be displayed. Тот же разбор, что и у отправленного стикера
-// (lib/sanitizeSticker.js): стикер из пака уходит в чат как есть, и два разных
-// правила для одного и того же рано или поздно разъехались бы.
 function sanitizeStickers(input) {
   if (!Array.isArray(input)) return [];
   return input
     .slice(0, MAX_STICKERS)
     .map((s) => sanitizeSticker(s))
     .filter(Boolean)
-    // anim у своих паков не бывает — это только встроенный набор.
     .map(({ anim: _anim, ...rest }) => rest);
 }
 

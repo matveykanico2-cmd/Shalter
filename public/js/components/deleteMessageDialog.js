@@ -1,12 +1,5 @@
 import { el } from "../lib/dom.js";
 
-// Удаление сообщения: один вопрос и галочка, а не две кнопки-близнеца.
-//
-// Раньше здесь стоял выбор из двух пунктов — «удалить у себя» и «удалить у
-// всех», — и разница между ними читалась только по надписи, в спешке
-// одинаковой. Галочка честнее: действие одно (удалить), а «у всех» — его
-// свойство, которое видно в момент нажатия и остаётся невыбранным по
-// умолчанию, потому что необратимо именно оно.
 export function openDeleteMessageDialog({ count = 1, canDeleteForEveryone = true, someoneElses = false, onDelete }) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const checkbox = el("input", { type: "checkbox", class: "delete-everyone-check" });

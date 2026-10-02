@@ -2,30 +2,17 @@ const fs = require("fs");
 const path = require("path");
 const { PassThrough } = require("stream");
 
-// Куда физически ложатся вложения: на диск (по умолчанию) или в S3-совместимое
-// хранилище (Яндекс Object Storage, Cloudflare R2, AWS S3 — подходит любое с
-// S3 API), если задан S3_BUCKET.
-//
-// Переключение — по одной переменной окружения, и больше ничего не меняется:
-// пока S3_BUCKET не задан, всё работает ровно как раньше, байт в байт. Это
-// обёртка над routes/uploads.js (запись) и lib/serveUpload.js (чтение с
-// Range), а не отдельный слой поверх них — здесь нет ни шифрования, ни
-// дедупликации, они остаются там же, где были.
 const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const S3_BUCKET = process.env.S3_BUCKET;
 const isS3Enabled = !!S3_BUCKET;
-// Необязательный подкаталог в бакете — на случай если то же хранилище делят
-// несколько проектов.
 const S3_PREFIX = process.env.S3_PREFIX ? `${process.env.S3_PREFIX.replace(/\/+$/, "")}/` : "";
 
 let _client = null;
 function client() {
   if (_client) return _client;
   const { S3Client } = require("@aws-sdk/client-s3");
-  // Эндпоинт и регион по умолчанию — Яндекс Object Storage; для AWS/R2/Selectel
-  // достаточно переопределить S3_ENDPOINT (и S3_REGION, если нужен другой).
   _client = new S3Client({
     region: process.env.S3_REGION || "ru-central1",
     endpoint: process.env.S3_ENDPOINT || "https://storage.yandexcloud.net",
@@ -33,8 +20,6 @@ function client() {
       accessKeyId: process.env.S3_ACCESS_KEY,
       secretAccessKey: process.env.S3_SECRET_KEY,
     },
-    // Некоторые S3-совместимые хранилища (обычно самостоятельно поднятый MinIO)
-    // умеют только путь-стиль (host/bucket/key) вместо bucket.host/key.
     forcePathStyle: process.env.S3_FORCE_PATH_STYLE === "1",
   });
   return _client;
@@ -44,15 +29,6 @@ function s3Key(filename) {
   return S3_PREFIX + filename;
 }
 
-// Переезд с диска в S3 без потерь (scripts/migrate-uploads-to-s3.js,
-// DEPLOY.md). В режиме S3 файл, который ещё лежит в data/uploads, читается
-// оттуда: пока скрипт копирует, а тем более в минуты между его последним
-// проходом и перезапуском сервера, часть файлов есть только на диске — и без
-// этого они отдавали бы 404. Новые файлы пишутся уже только в S3.
-//
-// Сначала диск, потом S3, а не наоборот: statSync локального файла — это
-// микросекунды, а HEAD в бакет — сетевой запрос. Когда перенос закончен и
-// папка очищена (--delete-local), проверка просто всегда промахивается.
 function localCopy(filename) {
   const full = path.join(UPLOAD_DIR, filename);
   try {
@@ -62,12 +38,6 @@ function localCopy(filename) {
   }
 }
 
-// Запись нового файла. Возвращает { stream, done, abort }: пишущий код (см.
-// routes/uploads.js) льёт в stream — на диске это самый обычный
-// fs.WriteStream, в S3 — сквозной PassThrough, который читает
-// @aws-sdk/lib-storage's Upload (сам бьёт на части, если файл большой, без
-// ограничения в 5 ГБ на PutObject). done() резолвится, когда данные точно
-// сохранены; abort() — оборвать незавершённую запись.
 function createWriteTarget(filename) {
   if (!isS3Enabled) {
     const out = fs.createWriteStream(path.join(UPLOAD_DIR, filename));
@@ -108,7 +78,6 @@ async function exists(filename) {
   }
 }
 
-// Полный размер файла в байтах, или null, если его нет.
 async function sizeOf(filename) {
   if (!isS3Enabled) {
     try {
@@ -128,11 +97,6 @@ async function sizeOf(filename) {
   }
 }
 
-// Дедупликация (см. routes/uploads.js): только что записанный файл либо
-// становится файлом с именем по содержимому (dedupName), либо, если такой уже
-// есть, выбрасывается. На диске это переименование; в S3 переименования нет —
-// копия на стороне хранилища (без скачивания на сервер и обратно) плюс
-// удаление временного объекта. Возвращает итоговое имя файла.
 async function finalizeDedup(tempName, dedupName) {
   if (!isS3Enabled) {
     const tempPath = path.join(UPLOAD_DIR, tempName);
@@ -169,8 +133,6 @@ async function deleteObject(filename) {
     await fs.promises.unlink(path.join(UPLOAD_DIR, filename)).catch(() => {});
     return;
   }
-  // Удалить — значит удалить отовсюду: иначе оставшаяся на диске копия
-  // «воскресила» бы файл через localCopy.
   await fs.promises.unlink(path.join(UPLOAD_DIR, filename)).catch(() => {});
   const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
   await client()
@@ -178,9 +140,6 @@ async function deleteObject(filename) {
     .catch(() => {});
 }
 
-// Часть файла (или весь файл — start=0, end=undefined) как поток на чтение,
-// для отдачи с поддержкой Range (см. lib/serveUpload.js). end включительно,
-// как в HTTP-заголовке Range, которым и управляет вызывающий код.
 async function readRange(filename, start, end) {
   if (!isS3Enabled) {
     return fs.createReadStream(path.join(UPLOAD_DIR, filename), { start, end });
@@ -191,13 +150,9 @@ async function readRange(filename, start, end) {
   const res = await client().send(
     new GetObjectCommand({ Bucket: S3_BUCKET, Key: s3Key(filename), Range: `bytes=${start}-${end ?? ""}` })
   );
-  return res.Body; // Readable в Node-окружении
+  return res.Body;
 }
 
-// Заголовок шифрования (магическая метка + вектор, см. lib/fileCrypto.js) —
-// он же говорит, зашифрован ли файл вообще (старые записи до появления
-// шифрования — нет). На диске это синхронное чтение первых байт; в S3 —
-// отдельный ranged-запрос, файл целиком качать незачем.
 async function readHeader(filename) {
   const fileCrypto = require("./fileCrypto");
   if (!isS3Enabled || localCopy(filename)) return fileCrypto.readHeader(path.join(UPLOAD_DIR, filename));

@@ -1,24 +1,11 @@
-// Shared between profileDialog.js and contacts.js — both show the exact
-// same "в сети" / "был(а) в сети ..." line Telegram's own contact rows and
-// profile view use.
-//
-// Свежие отметки — словами («только что», «5 минут назад», «2 часа назад»,
-// «вчера в 23:10»), старше недели — датой, прошлогодние — с годом.
-// Раньше здесь всегда стояло «был(а) в сети 28.09 в 21:43», даже для человека,
-// который вышел минуту назад.
 export function statusLabel(user, now = new Date()) {
   if (user.isBot) return "бот";
   if (user.online) return "в сети";
-  if (!user.lastSeen) return null; // hidden by their privacy settings, or never set
+  if (!user.lastSeen) return null;
   const ago = timeAgo(user.lastSeen, now);
   return ago ? `был(а) ${ago}` : null;
 }
 
-// Относительное время для любых отметок в прошлом — «только что», «3 минуты
-// назад», «час назад», «5 часов назад», «вчера в 23:10», «12 мая в 14:05».
-// Одна функция на весь клиент: шапка чата, контакты, звонки, устройства —
-// раньше каждый экран печатал дату по-своему, и где-то стояло «28.09 в 21:43»
-// у человека, вышедшего минуту назад.
 export function timeAgo(iso, now = new Date()) {
   const d = iso instanceof Date ? iso : new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -37,7 +24,6 @@ export function timeAgo(iso, now = new Date()) {
   return `${date} в ${time}`;
 }
 
-// «1 минуту», «2 минуты», «5 минут».
 export function plural(n, one, few, many) {
   const m10 = n % 10;
   const m100 = n % 100;

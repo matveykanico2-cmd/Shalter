@@ -14,20 +14,6 @@ function timeLabel(iso) {
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
-// Real threads (group chats only, see chatView.js) — a nested
-// sub-conversation on one root message, kept out of the main timeline
-// entirely (server/data/messages.js's listMessages() excludes
-// threadRootId rows) so this slide-in panel is the only place replies in
-// it are readable. Reuses the profile-panel/info-panel shell (same
-// right-docked slide-in look as ProfileDialog/InfoPanel) rather than
-// introducing a third panel style.
-// `source` подменяет две вещи — откуда брать ответы и куда отправлять новый.
-// По умолчанию это ветка сообщения в группе; комментарии к посту канала
-// (chatView.js) передают свой источник, потому что там всё то же самое, но
-// поверх /api/posts/:id/comments: он сам находит группу обсуждения и сам
-// вступает в неё за автора первого комментария. Панель от этого не меняется —
-// корень, список ответов, поле ввода, — а второй такой же компонент рядом был
-// бы копией с одной отличающейся строкой.
 export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, title = "Тема", emptyHint, source }) {
   let replies = [];
   const load = source?.load ?? (() => api.getThread(chat.id, rootMessage.id).then((r) => r.replies));
@@ -52,7 +38,6 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
     replies = [...replies, msg.message];
     renderBody();
   });
-  // Ответ поправили или удалили — у всех, у кого открыта эта ветка.
   const unsubUpdated = onWsMessage("message:updated", (msg) => {
     if (!msg.message || !replies.some((r) => r.id === msg.message.id)) return;
     replies = replies.map((r) => (r.id === msg.message.id ? msg.message : r));
@@ -72,9 +57,6 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
     document.removeEventListener("keydown", onKey, true);
     overlay.remove();
   }
-  // Esc закрывает саму панель, а не чат под ней (lib/keyboardShortcuts.js
-  // иначе уводил из переписки целиком). Правку ответа Esc отменяет своим
-  // обработчиком в строке — её не трогаем.
   function onKey(e) {
     if (e.key !== "Escape" || editingId || document.querySelector(".modal-overlay, .dropdown-menu, .media-viewer-overlay")) return;
     e.stopPropagation();
@@ -82,9 +64,6 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
   }
   document.addEventListener("keydown", onKey, true);
 
-  // Правка — только своего ответа, прямо в строке. Удалить — свой; чужой —
-  // администрации чата (для комментариев — администрации канала, см.
-  // server/routes/messages.js) и модератору сервера.
   let editingId = null;
   const canDeleteReply = (m) => m.senderId === me.id || isChatAdmin(chat, me.id) || isChatModerator(chat, me.id) || isServerModerator();
 
@@ -116,9 +95,6 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
     }
   }
 
-  // Автора может не быть в members: вышел из группы или написал уже после
-  // открытия панели. Таких догружаем (lib/userLookup.js) и перерисовываем —
-  // иначе вместо аватара и имени было «?» и «Аноним».
   let missing = new Set();
   function memberOf(userId) {
     const found = members.find((u) => u.id === userId) ?? (userId === me.id ? me : undefined) ?? cachedUser(userId);
@@ -204,21 +180,9 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
       Composer({
         chatId: chat.id,
         members: members.filter((u) => u.id !== me.id),
-        // Thread replies aren't cloud-drafted against the *chat's* draft
-        // slot (composer.js's normal one) — that's the main composer's own
-        // draft, and the two would otherwise stomp on each other.
         disableDraftSync: true,
         onSend: async (text, attachments, extra) => {
           await send(text, attachments, extra);
-          // The sender's own reply doesn't come back over WS (see
-          // routes/messages.js's broadcastToOtherMembers, which excludes
-          // the actor) — refetch locally so it shows immediately instead of
-          // waiting for someone else's next thread:message to trigger a
-          // redraw. Same reason the *root's* bumped commentCount needs an
-          // explicit nudge back to chatView.js's own message list — that
-          // WS broadcast excludes the actor too, so without onReplySent the
-          // "💬 N ответов" line under the root wouldn't update until the
-          // next unrelated refresh.
           await refreshFromServer();
           onReplySent?.();
         },

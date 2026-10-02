@@ -1,11 +1,3 @@
-// Local-only passcode lock (Settings → Конфиденциальность → Код-пароль).
-// Deliberately *not* synced to the server or tied to the account at all —
-// it's a per-browser lock on top of an already-authenticated session, same
-// as Telegram's own Passcode Lock, not a second authentication factor. The
-// code itself is never stored, only a salted SHA-256 hash, so reading
-// localStorage doesn't reveal it — but this is still just a local UI gate,
-// not real encryption-at-rest, since the underlying data is already sitting
-// unencrypted whether or not a passcode is set.
 const HASH_KEY = "shalter_passcode_hash";
 const SALT_KEY = "shalter_passcode_salt";
 

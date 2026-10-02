@@ -21,8 +21,6 @@ function rowToChat(row) {
     ownerId: row.ownerId ?? undefined,
     adminIds: members.filter((m) => m.isAdmin).map((m) => m.userId),
     moderatorIds: members.filter((m) => m.isModerator).map((m) => m.userId),
-    // Every owner. ownerId above is the creator and stays for compatibility; this
-    // is the list that actually decides owner rights (see server/db.js).
     ownerIds: members.filter((m) => m.isOwner).map((m) => m.userId),
     memberTitles: row.memberTitles ? JSON.parse(row.memberTitles) : {},
     memberIds: members.map((m) => m.userId),
@@ -49,28 +47,11 @@ async function listChats() {
   return db.prepare("SELECT * FROM chats").all().map(rowToChat);
 }
 
-// Личный чат двоих — одним запросом по join-таблице.
-//
-// Раньше это писалось как `(await listChats()).find(...)` в шести местах: там,
-// где бот отвечает на данные из приложения, там, где приходит подарок, код
-// входа, уведомление о премиуме. Каждый такой поиск читал ВСЕ чаты сервера, и
-// на каждый из них rowToChat делал ещё один запрос за участниками — то есть
-// «отправить одно служебное сообщение» стоило тысячи запросов на живой базе и
-// дорожало с каждым новым чатом в системе. Здесь — два запроса, независимо от
-// размера базы.
-//
-// Чат с самим собой («Избранное») — это одна строка участия, и обычное
-// условие «оба состоят» нашло бы вместо него любой диалог, поэтому у него своя
-// ветка (та же оговорка, что в lib/systemChat.js).
 async function findDmBetween(userIdA, userIdB) {
   const row =
     userIdA === userIdB
       ? db
           .prepare(
-            // Считать надо всех участников чата, а не только строки самого
-            // человека: с условием m.userId = ? в WHERE группа всегда состояла
-            // из одной строки, и «Избранное» находило первую попавшуюся личную
-            // переписку — меню ☰ → «Избранное» открывало чат с кем-то другим.
             `SELECT c.* FROM chats c
                JOIN chat_members m ON m.chatId = c.id AND m.userId = ?
               WHERE c.type = 'dm'
@@ -101,12 +82,6 @@ async function getChat(id) {
   return rowToChat(db.prepare("SELECT * FROM chats WHERE id = ?").get(id));
 }
 
-// Case-insensitive (lower() comparison, same convention as
-// findUserByUsername) — usernames and channel usernames share one visible
-// @handle namespace (see routes/chats.js's /:id/public), even though they
-// live in separate columns on separate tables.
-// Joining by link: the code is the only thing the joiner has, so it has to be
-// resolvable without membership.
 async function findChatByInviteCode(code) {
   const c = String(code ?? "").trim();
   if (!c) return undefined;
@@ -119,27 +94,11 @@ async function findChatByUsername(username) {
   return rowToChat(db.prepare("SELECT * FROM chats WHERE lower(username) = ? AND username IS NOT NULL").get(normalized));
 }
 
-// Канал по его группе обсуждения. Индексированный запрос, а не
-// listChats().find(...) — этот путь идёт на каждую отправку сообщения в
-// группу (routes/messages.js), сканировать всю таблицу там дорого.
 async function findChannelByDiscussionChatId(discussionChatId) {
   if (!discussionChatId) return undefined;
   return rowToChat(db.prepare("SELECT * FROM chats WHERE linkedDiscussionChatId = ? AND type = 'channel'").get(discussionChatId));
 }
 
-// Public-channel directory (routes/channels.js, and the main search box) —
-// title/username substring match.
-//
-// Matched in JS, not with SQL's LIKE. SQLite's LIKE folds case for ASCII only:
-// against a channel called «Новости Шалтера», `title LIKE '%новост%'` returns
-// nothing, because SQLite does not consider "н" and "Н" the same letter. On a
-// Russian-language app that meant most public channels could only be found by
-// typing their name with the capitalisation exactly right. JavaScript's
-// toLowerCase is Unicode-aware and gets this right.
-//
-// Small-scale scan is fine at this app's size (see AGENTS.md: single-process,
-// not built for horizontal scale); revisit with FTS5 if the channel count ever
-// gets large.
 async function searchPublicChannels(query) {
   const q = (query ?? "").trim().toLowerCase();
   const handle = q.replace(/^@/, "");
@@ -152,13 +111,6 @@ async function searchPublicChannels(query) {
     .map(rowToChat);
 }
 
-// De-duplicates because chat_members' primary key is (chatId, userId): a caller
-// passing the same id twice used to abort the whole transaction with a UNIQUE
-// constraint error and surface as a 500. The real case is a self-chat ("Saved
-// messages" — routes/chats.js's POST / with userId === req.uid builds
-// [uid, uid]), which is a legitimate chat that simply has one member; premium.js
-// already relies on findOrCreateDm(uid, uid) working. Falsy ids are dropped for
-// the same "one bad argument shouldn't fail the write" reason.
 const setMembers = db.transaction((chatId, memberIds, adminIds, moderatorIds, ownerIds) => {
   db.prepare("DELETE FROM chat_members WHERE chatId = ?").run(chatId);
   const insert = db.prepare("INSERT INTO chat_members (chatId, userId, isAdmin, isModerator, isOwner) VALUES (?, ?, ?, ?, ?)");
@@ -221,13 +173,8 @@ async function updateChat(id, patch) {
     }
     db.prepare(`UPDATE chats SET ${setClause} WHERE id = @id`).run({ ...values, id });
   }
-  // memberIds/adminIds are patched together (see server/routes/chats.js —
-  // every caller that changes membership passes both) so the join table can
-  // just be replaced wholesale rather than diffed.
   if ("memberIds" in patch || "adminIds" in patch || "moderatorIds" in patch || "ownerIds" in patch) {
     const current = rowToChat(db.prepare("SELECT * FROM chats WHERE id = ?").get(id));
-    // Every list is passed, patched or not: setMembers replaces the whole
-    // membership table, so omitting one would wipe that role for everyone.
     setMembers(
       id,
       patch.memberIds ?? current.memberIds,
@@ -245,8 +192,6 @@ async function updateChat(id, patch) {
   if ("memberTitles" in patch) {
     db.prepare("UPDATE chats SET memberTitles = ? WHERE id = ?").run(JSON.stringify(patch.memberTitles ?? {}), id);
   }
-  // A plain object, not a PATCHABLE_FIELDS scalar — stringified separately
-  // rather than going through the generic loop above.
   if ("restrictions" in patch) {
     db.prepare("UPDATE chats SET restrictions = ? WHERE id = ?").run(JSON.stringify(patch.restrictions ?? {}), id);
   }

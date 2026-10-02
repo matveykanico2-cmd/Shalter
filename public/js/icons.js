@@ -1,20 +1,8 @@
-// Vanilla-JS port of components/icons.tsx: same paths, plain SVG markup strings.
 const PATHS = {
   Search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
-  // Гамбургер боковой панели и «@» в строке юзернейма — обе появились вместе с
-  // телеграмоподобной боковой панелью: меню приложения уехало под гамбургер, а
-  // юзернейм в настройках стоит строкой со своим значком, как телефон рядом.
   Menu: '<path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/>',
   At: '<circle cx="12" cy="12" r="4"/><path d="M16 8v5a2.5 2.5 0 0 0 5 0v-1a9 9 0 1 0-3.5 7.1"/>',
-  // An actual thumbtack. This used to be the same five-pointed star as `Star`
-  // below, so every "закреплено" marker in the app — the pinned-message bar, a
-  // pinned chat's badge, the message menu — was drawn as a star. Harmless when
-  // nothing else in the app was starred; actively misleading now that ⭐ is a
-  // currency and a boosted message is a real, different thing.
   Pin: '<path d="M9 4h6"/><path d="M10 4l-.7 6.2L6 13h12l-3.3-2.8L14 4"/><path d="M12 13v7"/>',
-  // A map marker, for a location — the other thing "pin" means. Kept separate
-  // from Pin above so neither has to compromise: a thumbtack reads as "pinned",
-  // a teardrop reads as "a place".
   MapPin: '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/>',
   Bell: '<path d="M6 9a6 6 0 1 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9Z"/><path d="M9.5 17a2.5 2.5 0 0 0 5 0"/>',
   BellOff:
@@ -42,7 +30,6 @@ const PATHS = {
   Trash:
     '<path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/>',
   More: '<circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
-  // «⋮» у строки списка чатов — то же меню, что по правой кнопке.
   MoreVertical: '<circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none"/>',
   ChevronLeft: '<path d="M15 5l-7 7 7 7"/>',
   ChevronRight: '<path d="M9 5l7 7-7 7"/>',
@@ -50,9 +37,7 @@ const PATHS = {
   Plus: '<path d="M12 5v14M5 12h14"/>',
   Info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>',
   Play: '<path d="M7 5l12 7-12 7V5Z"/>',
-  // Пауза записи (composer.js) — раньше её не было вовсе, потому что и паузы не было.
   Pause: '<path d="M8 5v14M16 5v14"/>',
-  // Ключ — «показать токен бота» (settings/index.js).
   Key: '<circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M17 6l2 2M14 9l2 2"/>',
   Download: '<path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/>',
   Accounts: '<circle cx="9" cy="9" r="5"/><path d="M15 6a5 5 0 0 1 0 9.8"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/>',
@@ -83,37 +68,19 @@ const PATHS = {
   Image:
     '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M3 17l5-5 4 4 3-3 6 6"/>',
   MessageSquare: '<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/>',
-  // A sheet with a folded corner, and poll bars — both for the composer's
-  // paperclip menu, which names every action instead of only drawing it.
   File: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/>',
   BarChart: '<path d="M6 20V10"/><path d="M12 20V4"/><path d="M18 20v-7"/>',
-  // Сумка — маркет: в рельсе навигации и на карточках магазинов. Ручка дугой,
-  // а не двумя палками, — иначе на 22 пикселях читается как коробка.
   Bag: '<path d="M4 8h16l-1.2 11.2a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 8z"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/>',
-  // The verified check: a scalloped seal with a tick, drawn filled so it reads
-  // at 13px next to a name rather than dissolving into three strokes.
   Verified:
     '<path d="M12 2.5l2.2 1.7 2.7-.3 1 2.6 2.4 1.3-.6 2.7.6 2.7-2.4 1.3-1 2.6-2.7-.3L12 21.5l-2.2-1.7-2.7.3-1-2.6L3.7 16l.6-2.7-.6-2.7 2.4-1.3 1-2.6 2.7.3Z" fill="currentColor" stroke="none"/><path d="M8.5 12.2l2.4 2.4 4.6-4.8" stroke="var(--color-surface)" stroke-width="2"/>',
-  // Экран с подставкой — демонстрация экрана в звонке и в эфире. Раньше на этой
-  // кнопке стояла стрелка «скачать»: единственная отдалённо подходящая из
-  // набора, и читалась она как «сохранить», а не «показать свой экран».
   Monitor: '<rect x="2.5" y="4" width="19" height="12" rx="2"/><path d="M12 16v4"/><path d="M8.5 20h7"/>',
-  // Динамик с волнами и он же перечёркнутый — ползунок громкости входящего
-  // звука в звонке и в эфире.
   Volume: '<path d="M4 9.5h3.4L12 5.5v13L7.4 14.5H4z"/><path d="M15.8 9.2a4 4 0 0 1 0 5.6"/><path d="M18.6 6.4a8 8 0 0 1 0 11.2"/>',
   VolumeOff: '<path d="M4 9.5h3.4L12 5.5v13L7.4 14.5H4z"/><path d="M16 10l4.5 4.5"/><path d="M20.5 10L16 14.5"/>',
-  // Один человек — «Мой профиль» в меню и в настройках. На него уже ссылались
-  // (navRail.js, settings/index.js), но в наборе его не было, и строка
-  // оставалась без значка.
   User: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/>',
-  // Закладка — «Избранное» (чат с самим собой), как в Telegram.
   Bookmark: '<path d="M6.5 4h11a1 1 0 0 1 1 1v15.5L12 16.5l-6.5 4V5a1 1 0 0 1 1-1Z"/>',
-  // Папка — «Папки с чатами».
   Folder: '<path d="M3.5 7a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z"/>',
-  // Палитра — «Внешний вид».
   Palette:
     '<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1.1-.9-1.5-.9-2.5 0-.9.7-1.6 1.6-1.6h2.1a3.9 3.9 0 0 0 3.9-3.9C20.5 7 16.7 3.5 12 3.5Z"/><circle cx="7.8" cy="11" r="1.1" fill="currentColor" stroke="none"/><circle cx="10.5" cy="7.4" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="7.6" r="1.1" fill="currentColor" stroke="none"/>',
-  // Воронка — фильтр «Только непрочитанные».
   Filter: '<path d="M4 5h16l-6.2 7.4V19l-3.6-1.8v-4.8Z"/>',
 };
 

@@ -1,9 +1,3 @@
-// Ephemeral typing presence — no persistence needed, entries self-expire.
-//
-// Не только «печатает»: как в Telegram, собеседник видит, что именно сейчас
-// происходит — записывается голосовое или кружок, уходит фото, видео, файл.
-// Названия действий те же, что у sendChatAction в Telegram Bot API, чтобы
-// боты (routes/botApi.js) могли слать их без перевода.
 const TTL_MS = 4000;
 
 const ACTIONS = new Set([
@@ -19,8 +13,6 @@ const ACTIONS = new Set([
   "upload_video_note",
 ]);
 
-// Неизвестное действие — это всё равно признак жизни, поэтому «печатает», а
-// не отказ: старый клиент без поля action шлёт именно это.
 function normalizeAction(action) {
   return ACTIONS.has(action) ? action : "typing";
 }
@@ -31,9 +23,6 @@ function markTyping(chatId, userId, action = "typing") {
   typingByChatId.set(chatId, { userId, action: normalizeAction(action), expiresAt: Date.now() + TTL_MS });
 }
 
-// Запись отменили или загрузка кончилась — статус снимается сразу, а не
-// через четыре секунды: «записывает голосовое» над удалённой записью вводит
-// в заблуждение.
 function clearTyping(chatId, userId) {
   const entry = typingByChatId.get(chatId);
   if (entry && entry.userId === userId) typingByChatId.delete(chatId);

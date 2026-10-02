@@ -8,13 +8,6 @@ import { fileToImageDataUrl } from "../lib/image.js";
 import { openOrderDialog } from "../components/orderDialog.js";
 import { openForwardDialog } from "../components/forwardDialog.js";
 
-// Маркет: витрина, магазин продавца и заказы.
-//
-// Три вкладки одного экрана, а не три раздела в рельсе: покупатель и продавец —
-// это один и тот же человек в разные дни, и «мои заказы» он ищет там же, где
-// покупал. Страница магазина (ShopView ниже) — отдельный адрес: на неё ведут
-// ссылки из рекламы и из переписки.
-
 const ORDER_STATUS = {
   new: { label: "Новый", tone: "warn" },
   accepted: { label: "Принят", tone: "ok" },
@@ -23,8 +16,6 @@ const ORDER_STATUS = {
 };
 
 const TABS = [
-  // Доска объявлений идёт первой: продать свою вещь хочет любой, а магазин с
-  // оплатой звёздами заводят единицы.
   { id: "", label: "Объявления" },
   { id: "shops", label: "Магазины" },
   { id: "orders", label: "Мои заказы" },
@@ -33,16 +24,11 @@ const TABS = [
 
 const fmt = (n) => new Intl.NumberFormat("ru-RU").format(n ?? 0);
 
-// Ссылка на магазин. По юзернейму владельца, если он есть: /market/shop/@marina
-// читается вслух и пишется на визитке, а sh_1787…_419l — нет. Сервер понимает
-// обе (server/routes/market.js, resolveShop).
 function shopLink(shop, owner) {
   const handle = owner?.username ? `@${owner.username}` : shop.id;
   return `${window.location.origin}/market/shop/${handle}`;
 }
 
-// Копирование с ответом на экране: без него нажатие «Скопировать» ничем не
-// отличается от нажатия в пустоту.
 async function copyLink(link, button) {
   try {
     await navigator.clipboard.writeText(link);
@@ -54,8 +40,6 @@ async function copyLink(link, button) {
   }
 }
 
-// Отправить ссылку в любой свой чат — тем же выбором, что и пересылка
-// сообщений, чтобы это было одно знакомое окно, а не второе такое же.
 function shareLink(link, title) {
   openForwardDialog(async (chatId) => {
     try {
@@ -67,7 +51,6 @@ function shareLink(link, title) {
   });
 }
 
-// Цена товара одной строкой — она отвечает и на «сколько», и на «чем платят».
 function priceText(p) {
   return p.payKind === "stars" ? `⭐ ${fmt(p.priceStars)}` : `${fmt(p.priceRub)} ₽`;
 }
@@ -84,8 +67,6 @@ function header(title, backTo, actions) {
   ]);
 }
 
-// Карточка товара на витрине. Кнопка целиком: тыкать в маленькую надпись
-// «купить» на телефоне неудобно, а вся карточка — цель размером с палец.
 function productCard(p, onOpen) {
   return el("button", { class: "market-card", onclick: () => onOpen(p) }, [
     p.imageUrl
@@ -101,20 +82,18 @@ function productCard(p, onOpen) {
 }
 
 export async function MarketView(root, tab = "") {
-  let data = null; // витрина
-  let orders = null; // мои заказы
-  let mine = null; // кабинет продавца
+  let data = null;
+  let orders = null;
+  let mine = null;
   let error = null;
   let notice = null;
   let busy = false;
   let query = "";
   let searchTimer = null;
-  let editingProduct = null; // id товара или "new"
+  let editingProduct = null;
 
   const me = getState().user;
 
-  // Поля форм — вне render(): пересозданные на каждой перерисовке, они теряли
-  // бы фокус после каждой буквы.
   const shopFields = {
     title: el("input", { class: "settings-input", placeholder: "Название магазина" }),
     city: el("input", { class: "settings-input", placeholder: "Город или район — где забирать" }),
@@ -175,15 +154,12 @@ export async function MarketView(root, tab = "") {
     openOrderDialog(p, {
       balanceStars: data?.balanceStars ?? mine?.balanceStars ?? 0,
       onDone: (order) => {
-        // Разговор с продавцом уже начался — туда и ведём: дальше всё
-        // происходит в переписке, а не на этом экране.
         if (order?.chatId) navigate(`/chat/${order.chatId}`);
         else navigate("/market/orders");
       },
     });
   }
 
-  // ── Витрина ───────────────────────────────────────────────────────────────
   function feed() {
     if (!data) return el("p", { class: "empty-hint" }, "Загрузка…");
     return el("div", { class: "market-feed" }, [
@@ -222,7 +198,6 @@ export async function MarketView(root, tab = "") {
     ]);
   }
 
-  // ── Мои заказы (покупатель) ───────────────────────────────────────────────
   function buyerOrders() {
     if (!orders) return el("p", { class: "empty-hint" }, "Загрузка…");
     if (!orders.orders.length) return el("p", { class: "empty-hint" }, "Заказов пока нет");
@@ -243,8 +218,6 @@ export async function MarketView(root, tab = "") {
           o.note ? el("p", { class: "settings-toggle-hint" }, `Комментарий: ${o.note}`) : null,
           el("div", { class: "ad-card-actions" }, [
             o.chatId ? el("button", { class: "profile-action-btn", onclick: () => navigate(`/chat/${o.chatId}`) }, "Написать продавцу") : null,
-            // Отменить можно, пока продавец не принял заказ: после этого он уже
-            // мог отложить вещь или выехать, и отмена — разговор, а не кнопка.
             o.status === "new"
               ? el("button", {
                   class: "profile-action-btn danger",
@@ -261,7 +234,6 @@ export async function MarketView(root, tab = "") {
     );
   }
 
-  // ── Кабинет продавца ──────────────────────────────────────────────────────
   function shopForm(shop) {
     return el("div", { class: "ad-form" }, [
       el("p", { class: "settings-field-label" }, "Название"),
@@ -294,8 +266,6 @@ export async function MarketView(root, tab = "") {
     ]);
   }
 
-  // Картинка — одним и тем же способом для магазина и товара: файл сразу
-  // ужимается до 512 пикселей и хранится как есть, без отдельной загрузки.
   function imagePicker(current, label, onPick) {
     const fileInput = el("input", {
       type: "file",
@@ -401,8 +371,6 @@ export async function MarketView(root, tab = "") {
           }),
         }, p.isActive ? "Скрыть" : "Вернуть на витрину"),
         el("button", { class: "profile-action-btn", onclick: () => { editingProduct = p.id; fillProductForm(p); render(); } }, "Изменить"),
-        // Реклама заводится прямо отсюда: продавцу незачем знать про рекламный
-        // кабинет и переносить туда название с ценой руками.
         el("button", {
           class: "profile-action-btn",
           disabled: busy,
@@ -491,9 +459,6 @@ export async function MarketView(root, tab = "") {
         el("span", { html: iconSvg("Zap", 16) }),
         el("p", {}, [el("strong", {}, `⭐ ${fmt(mine.balanceStars)}`), " на балансе — сюда приходит оплата звёздами"]),
       ]),
-      // Ссылка на витрину прямо в кабинете: продавцу она нужна каждый раз, когда
-      // он о магазине кому-то рассказывает, и искать её на самой витрине — лишний
-      // круг.
       el("div", { class: "market-link-row" }, [
         el("span", { class: "mono market-link-text" }, shopLink(mine.shop, me)),
         el("button", { class: "profile-action-btn", onclick: (e) => copyLink(shopLink(mine.shop, me), e.currentTarget) }, "Скопировать"),
@@ -567,8 +532,6 @@ export async function MarketView(root, tab = "") {
 
   render();
   await load();
-  // Форма магазина заполняется после загрузки: до неё нечего показывать, а
-  // после — поля уже стоят в дереве и просто получают значения.
   if (mine?.shop) {
     shopFields.title.value = mine.shop.title;
     shopFields.city.value = mine.shop.city;
@@ -578,9 +541,6 @@ export async function MarketView(root, tab = "") {
   }
 }
 
-// ── Страница магазина ───────────────────────────────────────────────────────
-// Отдельный адрес: /market/shop/:id. На него ведут ссылка из рекламы и ссылка,
-// которую продавец кидает в переписке.
 export async function ShopView(root, shopId) {
   let data = null;
   let error = null;
@@ -614,8 +574,6 @@ export async function ShopView(root, shopId) {
               owner && owner.id !== me.id
                 ? el("button", { class: "profile-action-btn", onclick: () => navigate(owner.username ? `/u/${owner.username}` : "/market") }, `Продавец: ${owner.name}`)
                 : null,
-              // Ссылку даём всем, а не только владельцу: чаще магазин
-              // пересылают друг другу покупатели, а не хозяин.
               el("button", { class: "profile-action-btn", onclick: (e) => copyLink(shopLink(shop, owner), e.currentTarget) }, "Скопировать ссылку"),
               el("button", { class: "profile-action-btn", onclick: () => shareLink(shopLink(shop, owner), `🛍 ${shop.title}`) }, "Отправить в чат"),
               data.isMine ? el("button", { class: "btn-accent", onclick: () => navigate("/market/my") }, "Управлять магазином") : null,

@@ -1,8 +1,5 @@
 const db = require("../db");
 
-// Каталог меток безопасности (таблица в server/db.js). Читается всеми — значок
-// рядом с именем видит каждый, а не только администратор, — а меняется только
-// администратором (server/routes/admin.js).
 function listLabels() {
   return db.prepare("SELECT * FROM safety_labels ORDER BY createdAt ASC").all();
 }
@@ -11,16 +8,11 @@ function getLabel(id) {
   return db.prepare("SELECT * FROM safety_labels WHERE id = ?").get(id);
 }
 
-// Идентификатор метки хранится в строке пользователя, поэтому он должен быть
-// пригоден для сравнения и не меняться: латиница, цифры, подчёркивание.
 function normalizeId(raw) {
   return String(raw ?? "").trim().toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 24);
 }
 
 function createLabel({ id, short, label, hint, color }) {
-  // Идентификатор собирается из латиницы, а надпись на метке обычно русская —
-  // «СПАМ» превращалось в пустую строку, и создание молча отказывало. Если
-  // собирать не из чего, выдаём свой: он служебный, человек его нигде не видит.
   const wanted = normalizeId(id || short);
   const row = {
     id: wanted || `label_${Date.now().toString(36)}`,
@@ -38,8 +30,6 @@ function createLabel({ id, short, label, hint, color }) {
   return { label: row };
 }
 
-// Редактирование существующей метки. id менять нельзя (на него ссылаются
-// users.safetyLabel) — меняются надпись, название, пояснение и цвет.
 function updateLabel(id, { short, label, hint, color }) {
   const existing = getLabel(id);
   if (!existing) return { error: "Метка не найдена" };
@@ -55,8 +45,6 @@ function updateLabel(id, { short, label, hint, color }) {
   return { label: getLabel(id) };
 }
 
-// Удаление метки снимает её со всех, кому она была поставлена: иначе у людей
-// остаётся значок, о котором больше никто ничего не знает.
 function deleteLabel(id) {
   db.prepare("UPDATE users SET safetyLabel = NULL, safetyLabelAt = NULL WHERE safetyLabel = ?").run(id);
   db.prepare("DELETE FROM safety_labels WHERE id = ?").run(id);

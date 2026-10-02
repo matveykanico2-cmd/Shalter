@@ -2,8 +2,6 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { businessStatus, isWithinBusinessHours, isValidTimeZone, localNow } = require("../server/lib/businessHours");
 
-// Полная неделя для тестов: будни 09–18, пятница через полночь 20:00–02:00,
-// суббота круглосуточно, воскресенье выходной.
 const D = (open, close, closed = false) => ({ open, close, closed });
 const WEEK = {
   mon: D("09:00", "18:00"),
@@ -14,7 +12,6 @@ const WEEK = {
   sat: D("00:00", "24:00"),
   sun: D("09:00", "18:00", true),
 };
-// 2026-09-21 — понедельник.
 const at = (iso) => new Date(iso);
 
 test("обычный день: закрыто до открытия, открыто внутри, закрыто после", () => {
@@ -34,8 +31,8 @@ test("после закрытия — opensAt указывает на следу
 });
 
 test("работа через полночь: пятница 23:00 открыто, суббота 01:00 ещё пятничная смена", () => {
-  assert.equal(businessStatus(WEEK, "UTC", at("2026-09-25T23:00:00Z")).open, true); // пт 23:00
-  assert.equal(businessStatus(WEEK, "UTC", at("2026-09-26T01:00:00Z")).open, true); // сб 01:00 — хвост пятницы
+  assert.equal(businessStatus(WEEK, "UTC", at("2026-09-25T23:00:00Z")).open, true);
+  assert.equal(businessStatus(WEEK, "UTC", at("2026-09-26T01:00:00Z")).open, true);
 });
 
 test("круглосуточная суббота открыта в любой час", () => {
@@ -50,7 +47,6 @@ test("выходное воскресенье закрыто, следующее
 });
 
 test("часовой пояс бизнеса решает открытость, а не пояс сервера", () => {
-  // 06:30 UTC = 09:30 в Москве → рабочее время; в UTC ещё закрыто (до 09:00).
   assert.equal(businessStatus(WEEK, "Europe/Moscow", at("2026-09-21T06:30:00Z")).open, true);
   assert.equal(businessStatus(WEEK, "UTC", at("2026-09-21T06:30:00Z")).open, false);
 });
@@ -68,7 +64,6 @@ test("isValidTimeZone принимает реальные пояса и отве
 });
 
 test("localNow даёт день, время и дату в нужном поясе", () => {
-  // 20:00 UTC 21 сентября = 03:00 22 сентября в Новосибирске (UTC+7).
   const n = localNow("Asia/Novosibirsk", at("2026-09-21T20:00:00Z"));
   assert.equal(n.date, "2026-09-22");
   assert.equal(n.hm, "03:00");

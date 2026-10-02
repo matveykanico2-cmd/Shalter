@@ -1,14 +1,6 @@
 import { el } from "../lib/dom.js";
 
-// Пейнт — отдельный инструмент рисования: холст, набор инструментов (карандаш,
-// ластик, линия, прямоугольник, овал, круг), заливка фигур, палитра цветов,
-// толщина, заливка фона, отмена, очистка. Отдаёт результат готовым PNG-файлом
-// через onDone(file) — как мемо-редактор (components/memeDialog.js), поэтому
-// встраивается в любой поток, принимающий картинку (композер, стикерпаки).
-//
-// Фон по умолчанию прозрачный (PNG), сзади шахматка — видно прозрачность.
-
-const SIZE = 640; // внутренний размер холста, px
+const SIZE = 640;
 const COLORS = [
   "#000000", "#ffffff", "#ff5d73", "#ff8a3d", "#ffd23f", "#4ade80",
   "#38bdf8", "#2e56d9", "#a78bfa", "#f472b6", "#8a5a2b", "#9aa0a6",
@@ -22,7 +14,6 @@ const TOOLS = [
   { id: "circle", label: "● Круг" },
 ];
 
-// onDone(file) — вызывается с настоящим File (image/png) по кнопке «Готово».
 export function openPaintDialog(onDone, { title = "Рисунок" } = {}) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
 
@@ -34,11 +25,11 @@ export function openPaintDialog(onDone, { title = "Рисунок" } = {}) {
   let color = "#000000";
   let brush = 12;
   let tool = "pencil";
-  let fillShapes = false; // фигуры: заливка или контур
+  let fillShapes = false;
   let drawing = false;
   let last = null;
   let startPt = null;
-  let baseImage = null; // снимок до фигуры (для «резинового» предпросмотра)
+  let baseImage = null;
   const undoStack = [];
   const UNDO_MAX = 25;
 
@@ -47,7 +38,6 @@ export function openPaintDialog(onDone, { title = "Рисунок" } = {}) {
       undoStack.push(ctx.getImageData(0, 0, SIZE, SIZE));
       if (undoStack.length > UNDO_MAX) undoStack.shift();
     } catch {
-      /* getImageData на своём холсте не тайнится — на всякий случай глушим */
     }
   }
   function undo() {
@@ -61,7 +51,6 @@ export function openPaintDialog(onDone, { title = "Рисунок" } = {}) {
     return { x: ((e.clientX - r.left) / r.width) * SIZE, y: ((e.clientY - r.top) / r.height) * SIZE };
   }
 
-  // Карандаш/ластик — след кистью.
   function strokeTo(p) {
     ctx.globalCompositeOperation = tool === "eraser" ? "destination-out" : "source-over";
     ctx.strokeStyle = color;
@@ -77,7 +66,6 @@ export function openPaintDialog(onDone, { title = "Рисунок" } = {}) {
     last = p;
   }
 
-  // Готовая фигура от startPt к текущей точке.
   function drawShape(a, b) {
     ctx.globalCompositeOperation = "source-over";
     ctx.strokeStyle = color;
@@ -110,7 +98,6 @@ export function openPaintDialog(onDone, { title = "Рисунок" } = {}) {
       return;
     }
     if (tool === "circle") {
-      // Круг из центра (первая точка) радиусом до текущей.
       const r = Math.hypot(b.x - a.x, b.y - a.y);
       ctx.beginPath();
       ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
@@ -140,7 +127,6 @@ export function openPaintDialog(onDone, { title = "Рисунок" } = {}) {
     if (isFreehand()) {
       strokeTo(p);
     } else if (baseImage) {
-      // Предпросмотр фигуры: восстанавливаем холст и рисуем заново от начала.
       ctx.putImageData(baseImage, 0, 0);
       drawShape(startPt, p);
     }
@@ -152,7 +138,6 @@ export function openPaintDialog(onDone, { title = "Рисунок" } = {}) {
     try { canvas.releasePointerCapture(e.pointerId); } catch {}
   });
 
-  // ── Панель инструментов ──────────────────────────────────────────────────
   const toolBtns = TOOLS.map((t) =>
     el("button", { class: `paint-tool ${tool === t.id ? "on" : ""}`, onclick: () => { tool = t.id; refreshTools(); } }, t.label)
   );

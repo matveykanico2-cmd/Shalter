@@ -22,17 +22,7 @@ import { openGiftShopDialog } from "./giftShopDialog.js";
 import { ALL_EMOJI } from "../lib/emojiList.js";
 import { STICKERS, DRAWN_STICKERS } from "../lib/stickers.js";
 
-// A message that's *only* 1-3 emoji (Telegram's own rule) renders them big
-// and lets them pop in, instead of the normal-size static text everything
-// else gets. Uses Intl.Segmenter for grapheme counting rather than
-// String.length/[...text] — a family emoji (👨‍👩‍👧‍👦) or a flag is one
-// grapheme made of several code points, and counting code points would
-// have miscounted it as several separate emoji and skipped the jumbo
-// treatment on exactly the messages it matters most for.
 const EXTENDED_PICTOGRAPHIC_RE = /\p{Extended_Pictographic}/u;
-// Flags (🇷🇺) are a pair of Regional_Indicator code points — a category
-// \p{Extended_Pictographic} deliberately excludes, so this needs its own
-// check or every flag message would silently miss the jumbo treatment.
 const FLAG_RE = /^\p{Regional_Indicator}{2}$/u;
 function isEmojiGrapheme(g) {
   return EXTENDED_PICTOGRAPHIC_RE.test(g) || FLAG_RE.test(g);
@@ -45,41 +35,22 @@ function jumboEmojiCount(text) {
   return graphemes.every(isEmojiGrapheme) ? graphemes.length : 0;
 }
 
-// Единое «одновременно играет только одно» для голосовых и кружков. Запуск
-// любого ставит на паузу предыдущее — как в Telegram, где нельзя включить два
-// голосовых разом. Держит ссылку на текущий <audio>/<video>; на его паузу/конец
-// ссылка снимается, чтобы не держать мёртвый элемент.
 let currentAudibleMedia = null;
 function playExclusiveMedia(mediaEl) {
   if (currentAudibleMedia && currentAudibleMedia !== mediaEl) {
     try {
       currentAudibleMedia.pause();
     } catch {
-      /* элемент мог уйти из DOM — не важно */
     }
   }
   currentAudibleMedia = mediaEl;
 }
 
-// Кэш переводов на время сессии: ключ «язык\nтекст» → переведённый текст.
-// Один и тот же текст (повтор, пересланное, перечитанное) переводится один
-// раз, дальше показывается мгновенно и без сети — это и есть «мгновенный
-// перевод без долгой загрузки».
 const translationCache = new Map();
 
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
-// Premium-only reactions — still plain emoji, just a fancier set gated
-// behind isPremium as a small, low-effort perk.
 const PREMIUM_QUICK_EMOJI = ["💎", "👑", "🚀", "🥂", "💯", "🌟"];
 
-// A reaction is still stored as {emoji, userIds} (server/data/messages.js's
-// toggleReaction) — a sticker reaction just puts "sticker:<id>" in that same
-// string field instead of a plain emoji character, resolved back to the
-// actual sticker object (for rendering, not storage) via this catalog. Scoped
-// to the built-in packs only, not a user's own custom-drawn ones or the
-// per-pack image stickers — those don't have a short stable id to round-trip
-// through a 40-char reaction string the way lib/stickers.js's two built-in
-// arrays already do.
 const REACTION_STICKERS = [...DRAWN_STICKERS, ...STICKERS];
 const REACTION_STICKER_PREFIX = "sticker:";
 function reactionSticker(emoji) {
@@ -88,16 +59,11 @@ function reactionSticker(emoji) {
   return REACTION_STICKERS.find((s) => s.id === id) ?? null;
 }
 
-// Settings → Данные и память → «Автозагрузка медиа», turned off. Even with it
-// on, attachments.js never fetches full quality until the media viewer is
-// actually opened — this gate is one layer earlier: it holds back even the
-// thumbnail, for someone who'd rather not have images painting in at all
-// while they scroll a slow connection.
 function TapToLoad(kind, render) {
   const label = kind === "video" ? "Нажмите, чтобы посмотреть видео" : "Нажмите, чтобы посмотреть фото";
   let revealed = null;
   const placeholder = el("button", { class: "tap-to-load", type: "button" }, [
-    el("span", { html: iconSvg(kind === "video" ? "Video" : "Download", 18) }),
+    el("span", { html: iconSvg(kind === "video" ? "Play" : "Download", 18) }),
     el("span", {}, label),
   ]);
   placeholder.addEventListener("click", () => {
@@ -111,29 +77,8 @@ function timeLabel(iso) {
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
-// Delivered gift (server/routes/gifts.js's /deliver, message type "gift") —
-// a big animated card instead of a plain bubble, same "special, centered,
-// not a normal chat bubble" treatment as .system-message. The sparkle burst
-// is a one-shot entrance (CSS animation, no infinite loop) so it reads as
-// "a gift just arrived" without permanently distracting from the rest of
-// the chat every time this message scrolls into view.
-// chatView.js's renderList() does a full clear()+rebuild on every 15s poll
-// and every WS message event *anywhere in the chat* (see its refreshMessages
-// setInterval) — with no vdom, that recreates every bubble's DOM node from
-// scratch each time. Without this, a gift/sticker's one-shot entrance
-// animation (the sparkle burst, the pop-in) would replay right along with
-// it, so a message sent minutes ago keeps re-flashing every time anyone else
-// in the chat sends something. Tracked here (not per-render state) so it
-// survives exactly as long as the tab does.
 const seenEntranceIds = new Set();
 
-// Same time/views/read-check row a plain text bubble gets (see the `meta`
-// build below in MessageBubble), for the message types that render as a
-// standalone card rather than a bubble: gifts, report cards and payment cards.
-// Those skipped it entirely before, so they looked unlike every other message
-// in the log — no send time, no way to tell if the other side had seen it.
-// (Stickers used to be in this group; they're normal bubbles now and use the
-// regular .message-meta.)
 function entranceMessageMeta(message, mine, isChannel) {
   return el("div", { class: "entrance-message-meta" }, [
     el("span", { class: "mono" }, timeLabel(message.createdAt)),
@@ -142,9 +87,6 @@ function entranceMessageMeta(message, mine, isChannel) {
   ]);
 }
 
-// Trading a received gift for stars. The shelf entry is found by matching what
-// the card knows (emoji + arrival time) against the shelf, because the card
-// itself carries no shelf-entry id — the message predates the shelf row.
 async function convertGift(gift) {
   const me = getState().user;
   if (!confirm(`Обменять ${gift.emoji} «${gift.name}» на ${giftStars(gift)} ⭐? Подарок исчезнет с вашей полки.`)) return;
@@ -170,39 +112,23 @@ function GiftMessage(message, mine, isChannel) {
   const gift = message.gift;
   const isNew = !seenEntranceIds.has(message.id);
   seenEntranceIds.add(message.id);
-  // Limited gifts (server/data/gifts.js's `supply` tier) carry the serial
-  // they were minted with — the whole point of that tier, so it gets a
-  // gold-framed card and the "№3 из 10" badge rather than looking like any
-  // other gift.
   const isExclusive = !!gift.exclusive && gift.serial != null;
   return el("div", { class: `gift-message ${isExclusive ? "gift-message-exclusive" : ""} ${isNew ? "" : "no-entrance"}` }, [
     isExclusive ? el("p", { class: "gift-message-badge" }, `№${gift.serial} из ${gift.supply}`) : null,
-    // Фон, выбранный отправителем (lib/giftBackground.js) — за подарком.
     el("div", { class: `gift-message-burst ${gift.background ? "has-bg" : ""}`, style: gift.background ? { background: giftBackgroundStyle(gift.background) } : {} }, [
       el("div", { class: "gift-message-glow" }),
       ...SPARKLE_ANGLES.map((deg, i) =>
         el("span", { class: "gift-message-sparkle", style: `--angle: ${deg}deg; --delay: ${i * 0.05}s` }, "✨")
       ),
-      // The gift itself now performs a scene too, same system the stickers use.
       el("div", { class: "gift-message-emoji" }, [renderGiftArt(gift, { size: 56, replay: isNew })]),
     ]),
     el("p", { class: "gift-message-name" }, gift.name),
-    // Who it's from. A gift with no sender shown is just an object that
-    // appeared; the point is that a particular person sent it.
     gift.fromName ? el("p", { class: "gift-message-from" }, `от ${gift.fromName}`) : null,
     isExclusive ? el("p", { class: "gift-message-exclusive-label" }, "Эксклюзивный подарок") : null,
     gift.durationLabel ? el("p", { class: "gift-message-duration" }, gift.durationLabel) : null,
-    // Нарисованный подарок бесплатный — цену не показываем и на звёзды не меняем
-    // (сервер такой обмен и не даст, routes/gifts.js's /convert).
     el("p", { class: "mono gift-message-price" }, gift.custom ? "Бесплатный подарок" : `⭐ ${formatRub(giftStars(gift))}`),
-    // Only on the card of a gift *you* received: keep it on the profile, or trade
-    // it back for stars (routes/gifts.js's /convert).
     !mine
       ? el("div", { class: "gift-message-actions" }, [
-          // gift.recipientId is who it actually landed on — falls back to the
-          // viewer's own id only for gifts sent before that field existed,
-          // when "not mine" reliably meant "I'm the recipient" (no forwarding
-          // or self-gifting could produce a message like this yet).
           el("button", { class: "gift-card-action", onclick: () => openProfileDialog(gift.recipientId ?? getState().user.id) }, "Показать в профиле"),
           gift.custom
             ? null
@@ -213,46 +139,24 @@ function GiftMessage(message, mine, isChannel) {
   ]);
 }
 
-// Gifts sent before star pricing existed only carry priceRub. Deriving the star
-// figure here at the same 10⭐/₽ rate the catalogue uses (see data/gifts.js)
-// keeps the chat log from showing some gifts in rubles and others in stars.
 const STARS_PER_RUB = 10;
 function giftStars(gift) {
   return gift.priceStars ?? Math.max(1, Math.round((gift.priceRub ?? 0) * STARS_PER_RUB));
 }
 
-// 1000000 -> "1 000 000". Only ever applied to gift prices, which now span
-// 1₽ to a million — an unseparated "1000000₽" is genuinely hard to read at
-// a glance, and misreading a price by a factor of ten matters here.
 function formatRub(n) {
   return Number(n).toLocaleString("ru-RU");
 }
 
-// A sent sticker (public/js/lib/stickers.js) — a big emoji playing its own
-// named animation (see .sticker-<anim> in components.css). This used to be a
-// standalone, centered block like .system-message/.gift-message, which meant
-// a sticker was the one message type you couldn't tell apart by sender (it
-// sat in the middle of the log regardless of who sent it) and couldn't reply
-// to, react to, forward or delete. It's a real message, so it now goes
-// through the normal bubble pipeline below (row → column → bubble-wrap) and
-// only drops the bubble's background/padding, keeping the left/right
-// alignment, avatar, sender name, hover actions and context menu every other
-// message has.
 function StickerBody(message) {
   const sticker = message.sticker;
   const isNew = !seenEntranceIds.has(message.id);
   seenEntranceIds.add(message.id);
-  // A multi-part scene rather than one wobbling emoji — see lib/animScenes.js.
-  // `sticker.scene` lets a sticker pack name the performance explicitly;
-  // without one the emoji picks its own.
   return el("div", { class: `sticker-message ${sticker.kind === "image" ? "is-image" : ""} ${isNew ? "" : "no-entrance"}` }, [
-    // Своя картинка (фото, PNG без фона, GIF) — крупнее эмодзи-сцены: у неё
-    // бывают подробности, которые на 84 точках не разглядеть.
     renderSticker(sticker, { size: sticker.kind === "image" ? 160 : 84, replay: isNew }),
   ]);
 }
 
-// Same set as reportDialog.js / server/routes/reports.js.
 const REASON_LABELS = {
   spam: "Спам",
   scam: "Мошенничество",
@@ -271,14 +175,6 @@ const REPORT_STATUS_LABELS = {
   dismissed: "Отклонено",
 };
 
-// A new-report notification (server/routes/reports.js) — lands in the
-// admin's chat with the Shalter service bot same as login codes/security
-// alerts. Only the admin (me.isDeveloper — see data/sanitize.js's publicUser,
-// "whoever currently holds ADMIN_PHONE") sees the action buttons; everyone
-// else (there normally isn't anyone else in this chat) just sees the plain
-// summary. Buttons disappear once report.status moves off "open" — either
-// because *this* viewer just resolved it (local optimistic update) or a
-// poll/WS refresh picked up someone else having done so.
 function ReportMessage(message, mine, me, isChannel) {
   const report = message.report;
   const isAdmin = !!me?.isDeveloper;
@@ -327,11 +223,6 @@ function ReportMessage(message, mine, me, isChannel) {
   return wrap;
 }
 
-// A birthday reminder from the service chat (server/lib/birthdaySweep.js —
-// one contact's birthday, sent once a day to everyone who has them added).
-// The point of the card is the one thing the text alone can't do: a single
-// tap straight into the gift shop for that exact person, instead of having
-// to go find their profile first.
 function BirthdayAttachment(a) {
   const { userId, name, avatarImage } = a.meta ?? {};
   return el("div", { class: "contact-attachment birthday-attachment" }, [
@@ -350,9 +241,6 @@ function BirthdayAttachment(a) {
   ]);
 }
 
-// A contact someone sent. It used to be a card and nothing more: the name and
-// the number were there, and adding the person still meant copying the number
-// into the contacts screen by hand.
 function ContactAttachment(a, meId) {
   const { name, phone, userId } = a.meta ?? {};
   const wrap = el("div", { class: "contact-attachment" }, [
@@ -363,12 +251,8 @@ function ContactAttachment(a, meId) {
     ]),
   ]);
 
-  // Only for a card that names a real account, and not for yourself.
   if (!userId || userId === meId) return wrap;
 
-  // Присланный контакт, который у вас уже есть, предлагать добавить не нужно —
-  // раньше кнопка «Добавить» стояла на карточке всегда, и нажатие на неё
-  // добавляло второй раз того же человека.
   if (getState().contactIds?.includes(userId)) {
     wrap.appendChild(el("span", { class: "contact-attachment-done" }, "в контактах ✓"));
     return wrap;
@@ -379,8 +263,6 @@ function ContactAttachment(a, meId) {
     action.disabled = true;
     try {
       await api.addContact(userId, name || null);
-      // Запоминаем сразу: остальные карточки этого же человека в переписке
-      // должны перестать предлагать добавление вместе с этой.
       setState({ contactIds: [...(getState().contactIds ?? []), userId] });
       action.replaceWith(el("span", { class: "contact-attachment-done" }, "в контактах ✓"));
     } catch (err) {
@@ -396,15 +278,11 @@ function PollAttachment(message, a, me, onVote, onPollAction) {
   const options = a.meta?.options ?? [];
   const votes = a.meta?.votes ?? options.map(() => 0);
   const voterIds = a.meta?.voterIds ?? options.map(() => []);
-  // Проголосовавших людей, а не голосов: в опросе с несколькими ответами один
-  // человек даёт несколько голосов, и проценты считаются от людей — как в Telegram.
   const voters = new Set(voterIds.flat());
   const totalVoters = voters.size;
   const denom = totalVoters || 1;
   const myVotes = voterIds.map((ids, i) => (ids.includes(me.id) ? i : -1)).filter((i) => i >= 0);
   const myVoteIdx = myVotes[0] ?? -1;
-  // Викторина: у вопроса есть правильный ответ, и он объявляется сразу после
-  // голоса — до голоса не показывается ничего, иначе весь смысл теряется.
   const correctIndex = Number.isInteger(a.meta?.correctIndex) ? a.meta.correctIndex : null;
   const isQuiz = correctIndex !== null;
   const multiple = !!a.meta?.multiple && !isQuiz;
@@ -425,8 +303,6 @@ function PollAttachment(message, a, me, onVote, onPollAction) {
       { class: "poll-options" },
       options.map((opt, i) => {
         const pct = Math.round((votes[i] / denom) * 100);
-        // В викторине после ответа варианты подсвечиваются: верный — зелёным
-        // всегда, ошибочный — красным только тот, который выбрал сам человек.
         const mark = !isQuiz || !answered ? "" : i === correctIndex ? "correct" : i === myVoteIdx ? "wrong" : "";
         const mine = myVotes.includes(i);
         const leader = showResults && votes[i] > 0 && votes[i] === maxVotes;
@@ -457,7 +333,6 @@ function PollAttachment(message, a, me, onVote, onPollAction) {
       : null,
     el("div", { class: "poll-footer" }, [
       el("span", { class: "poll-total" }, totalVoters ? `${totalVoters} ${votersWord(totalVoters)}` : "Пока нет голосов"),
-      // Отменить голос — как в Telegram: только в обычном открытом опросе.
       answered && !isQuiz && !closed && onPollAction
         ? el("button", { class: "poll-action", onclick: () => onPollAction(message, "retract") }, "Отменить голос")
         : null,
@@ -484,13 +359,6 @@ function votersWord(n) {
   return "проголосовали";
 }
 
-// Перемотка тягой по полосе — общая и для голосового, и для кружка.
-//
-// Слушать голосовое без перемотки — значит переслушивать его целиком ради
-// одной фразы. Считается по доле от ширины полосы, а не по величине шага,
-// поэтому одинаково работает и на узкой строке в телефоне, и на широкой на
-// мониторе. Указатель захватывается (setPointerCapture): палец или курсор,
-// уехавший за пределы полосы, продолжает перематывать, а не бросает тягу.
 function attachSeek(bar, media, durationOf) {
   const seekTo = (event) => {
     const rect = bar.getBoundingClientRect();
@@ -517,10 +385,23 @@ function attachSeek(bar, media, durationOf) {
   bar.addEventListener("pointercancel", release);
 }
 
-// Секунды в «1:05» — на двух минутах записи «65s» уже не читается.
 function clockTime(sec) {
   const s = Math.max(0, Math.floor(sec || 0));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function TranscriptToggle(a) {
+  const text = el("p", { class: "voice-transcript" }, a.transcript || "Не удалось распознать речь в этой записи");
+  if (!a.transcript) text.classList.add("empty");
+  text.style.display = "none";
+  const btn = el("button", { class: "transcribe-btn", type: "button", title: "Расшифровать" }, "→A");
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const show = text.style.display === "none";
+    text.style.display = show ? "" : "none";
+    btn.classList.toggle("active", show);
+  });
+  return { btn, text };
 }
 
 function VoicePlayer(a) {
@@ -538,7 +419,7 @@ function VoicePlayer(a) {
   });
   audio.addEventListener("play", () => {
     playing = true;
-    playExclusiveMedia(audio); // ставит на паузу другое играющее голосовое/кружок
+    playExclusiveMedia(audio);
     playBtn.innerHTML = "";
     playBtn.appendChild(el("span", { class: "voice-pause-icon" }));
   });
@@ -552,13 +433,6 @@ function VoicePlayer(a) {
   });
   const bar = el("div", { class: "voice-bar seekable" }, [barFill, el("span", { class: "voice-bar-knob" })]);
 
-  // Длительность у записи из MediaRecorder часто приходит как Infinity, пока
-  // файл не проигран до конца — тогда берём ту, что посчитал сам диктофон.
-  // Точную длительность знает сам диктофон (a.durationSec) — на неё и
-  // опираемся. audio.duration у WebM/Opus из MediaRecorder сначала приходит
-  // Infinity, а затем становится конечной: если брать её, шкала и время
-  // прыгают посреди воспроизведения («голосовое скипается»). Значение
-  // диктофона стабильно на весь трек, поэтому и полоса, и перемотка ровные.
   const durationOf = () => {
     if (a.durationSec && a.durationSec > 0) return a.durationSec;
     const known = audio.duration;
@@ -582,11 +456,16 @@ function VoicePlayer(a) {
 
   attachSeek(bar, audio, durationOf);
 
-  return el("div", { class: "voice-player" }, [
-    audio,
-    playBtn,
-    el("div", { class: "voice-progress" }, [bar, timeLabelEl]),
-    speedBtn,
+  const tr = TranscriptToggle(a);
+  return el("div", { class: "voice-block" }, [
+    el("div", { class: "voice-player" }, [
+      audio,
+      playBtn,
+      el("div", { class: "voice-progress" }, [bar, timeLabelEl]),
+      speedBtn,
+      tr.btn,
+    ]),
+    tr.text,
   ]);
 }
 
@@ -594,8 +473,6 @@ function VideoNotePlayer(a) {
   const video = el("video", { src: a.url, class: "video-note-el", playsinline: true, preload: "metadata" });
   const overlay = el("span", { class: "video-note-overlay", html: iconSvg("Play", 28) });
 
-  // Кольцо прогресса по краю кружка — как в Telegram. Обводка круга рисуется
-  // штрихом длиной во всю окружность, а сдвиг штриха и есть проигранная доля.
   const RADIUS = 48;
   const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
   const ring = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -606,13 +483,9 @@ function VideoNotePlayer(a) {
     `<circle cx="50" cy="50" r="${RADIUS}" class="video-note-ring-fill" stroke-dasharray="${CIRCUMFERENCE}" stroke-dashoffset="${CIRCUMFERENCE}"/>`;
   const ringFill = ring.querySelector(".video-note-ring-fill");
 
-  // Полоса перемотки под кружком: тянуть по кольцу неудобно — палец закрывает
-  // само видео, — а по прямой полосе привычно и точно.
   const barFill = el("div", { class: "voice-bar-fill" });
   const bar = el("div", { class: "voice-bar seekable" }, [barFill, el("span", { class: "voice-bar-knob" })]);
   const timeLabelEl = el("p", { class: "voice-time mono" }, `0:00 / ${clockTime(a.durationSec ?? 0)}`);
-  // То же, что у голосового: длительность диктофона стабильнее video.duration
-  // у WebM, иначе шкала кружка прыгает.
   const durationOf = () => {
     if (a.durationSec && a.durationSec > 0) return a.durationSec;
     const known = video.duration;
@@ -628,7 +501,7 @@ function VideoNotePlayer(a) {
   });
   video.addEventListener("play", () => {
     playing = true;
-    playExclusiveMedia(video); // ставит на паузу другое играющее голосовое/кружок
+    playExclusiveMedia(video);
     overlay.style.display = "none";
   });
   video.addEventListener("pause", () => {
@@ -641,10 +514,6 @@ function VideoNotePlayer(a) {
   });
   const paint = () => {
     const dur = durationOf() || 1;
-    // currentTime у WebM-кружка (запись MediaRecorder) до «прогрева» может
-    // прыгать выше реальной длительности — отсюда «2 сек, потом 7». Зажимаем
-    // в [0, dur], чтобы и кольцо, и подпись показывали честное время, а не
-    // скакали за конец ролика.
     const ct = Math.max(0, Math.min(video.currentTime || 0, dur));
     const done = Math.min(1, ct / dur);
     ringFill.setAttribute("stroke-dashoffset", String(CIRCUMFERENCE * (1 - done)));
@@ -656,28 +525,21 @@ function VideoNotePlayer(a) {
   video.addEventListener("seeking", paint);
   video.addEventListener("loadedmetadata", paint);
 
+  const tr = TranscriptToggle(a);
   return el("div", { class: "video-note-wrap" }, [
     circle,
-    el("div", { class: "video-note-seek" }, [bar, timeLabelEl]),
+    el("div", { class: "video-note-seek" }, [bar, timeLabelEl, tr.btn]),
+    tr.text,
   ]);
 }
 
-// Какие платные сообщения уже «отпечатались». Модуль живёт столько же, сколько
-// вкладка, — этого хватает: смысл в том, чтобы анимация не повторялась на
-// каждой перерисовке ленты, а не в том, чтобы помнить её между запусками.
 const typedOut = new Set();
 
-// Посимвольная печать уже собранного узла.
-//
-// Разметку не трогаем: formatText мог сделать внутри ссылки и упоминания, и
-// печатать их как строку значило бы либо потерять разметку, либо вставлять
-// куски HTML по мере набора. Поэтому прячем настоящий текст и показываем его
-// целиком в конце, а пока набираем его копию обычными текстовыми узлами.
 function typeOutOnce(node, messageId) {
   if (typedOut.has(messageId)) return;
   typedOut.add(messageId);
   const full = node.textContent ?? "";
-  if (!full || full.length > 400) return; // длинное письмо печатать — мучение
+  if (!full || full.length > 400) return;
 
   requestAnimationFrame(() => {
     if (!node.isConnected) return;
@@ -688,8 +550,6 @@ function typeOutOnce(node, messageId) {
     node.appendChild(ghost);
 
     let i = 0;
-    // Скорость подобрана так, чтобы средняя фраза набралась примерно за
-    // секунду: медленнее — раздражает, быстрее — незаметно.
     const step = Math.max(1, Math.round(full.length / 40));
     const timer = setInterval(() => {
       if (!node.isConnected) return clearInterval(timer);
@@ -697,7 +557,6 @@ function typeOutOnce(node, messageId) {
       ghost.textContent = full.slice(0, i);
       if (i >= full.length) {
         clearInterval(timer);
-        // Возвращаем настоящий узел с разметкой — со ссылками и упоминаниями.
         node.textContent = "";
         real.forEach((child) => node.appendChild(child));
       }
@@ -705,9 +564,6 @@ function typeOutOnce(node, messageId) {
   });
 }
 
-// Одно вложение (кроме опроса — ему нужен обработчик голоса) так же, как в
-// пузыре ленты. Отдельно — для ветки обсуждения (threadPanel.js): там фото,
-// голосовые и файлы показывались одним словом «Медиа».
 export function AttachmentView(a, me) {
   const autoDownload = getState().settings?.autoDownload !== false;
   if (a.kind === "voice") return VoicePlayer(a);
@@ -738,18 +594,11 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   }
 
   const isSticker = message.type === "sticker" && !!message.sticker;
-  // Кружок (видеосообщение) — такой же самостоятельный кадр, как стикер: он
-  // круглый, и прямоугольный цветной пузырь вокруг него смотрится коробкой,
-  // из которой торчит угол. Пузыря у него быть не должно, как и хвоста.
   const isVideoNote =
     !message.text?.trim() && message.attachments?.length === 1 && message.attachments[0]?.kind === "video-note";
   const bubbleInner = [];
 
   if (message.forwardedFrom) {
-    // linkAllowed (stamped server-side at forward time — see routes/
-    // messages.js) reflects the original sender's "who can see a link to me
-    // in forwards" privacy setting — when it's false, the name still shows
-    // (Telegram doesn't hide *that* either) but isn't clickable to a profile.
     const fromEl = message.forwardedFrom.linkAllowed
       ? el(
           "button",
@@ -762,9 +611,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     );
   }
   if (replyToMessage) {
-    // Как в Telegram: над цитатой — чьё это сообщение. Без имени в группе было
-    // не понять, кому отвечают, а у фото, голосового или стикера вместо
-    // содержимого стояло безликое «Медиа».
     bubbleInner.push(
       replyToMessage.deleted
         ? el("div", { class: "reply-preview reply-preview-deleted" }, "Удалённое сообщение")
@@ -774,14 +620,10 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
           ])
     );
   }
-  // Ответ на историю (server/routes/messages.js): пометка + миниатюра кадра.
   if (message.storyReply) {
     const sr = message.storyReply;
     bubbleInner.push(
       el("div", { class: "story-reply-banner" }, [
-        // Видео-история и картинка — разные теги: раньше видео рисовалось через
-        // <img> и превращалось в «битую картинку». Видео показываем кадром
-        // (muted, без управления — это превью), картинку — обычным <img>.
         sr.url
           ? sr.kind === "video"
             ? el("video", { class: "story-reply-thumb", src: sr.url, muted: true, playsinline: true, preload: "metadata" })
@@ -794,10 +636,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       ])
     );
   }
-  // Несколько фото/видео в одном сообщении — сеткой-альбомом, как в Telegram,
-  // а не колонкой во всю ширину. Остальные вложения (файлы, голосовые, опрос,
-  // геометка) идут как раньше, по одному. Порядок внутри сообщения сохраняем:
-  // альбом встаёт на место первого медиа.
   const atts = message.attachments ?? [];
   const mediaAtts = atts.filter((a) => a.kind === "image" || a.kind === "video");
   const album = mediaAtts.length >= 2;
@@ -806,10 +644,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     if (a.kind === "poll") {
       bubbleInner.push(PollAttachment(message, { ...a, canClose: handlers.canClosePolls }, me, onVote, onPollAction));
     } else if (album && (a.kind === "image" || a.kind === "video")) {
-      if (albumPlaced) continue; // все медиа уже внутри альбома
+      if (albumPlaced) continue;
       albumPlaced = true;
-      // Класс album-N — чтобы CSS знал, 2 это, 3 или больше, и раскладывал
-      // плитки по-разному (2 в ряд, нечётное — первая во всю ширину).
       const n = Math.min(mediaAtts.length, 4);
       bubbleInner.push(
         el(
@@ -825,12 +661,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   if (isSticker) {
     bubbleInner.push(StickerBody(message));
   } else if (!message.attachments?.some((a) => a.kind === "poll")) {
-    // Jumbo only for a message that's *nothing but* the emoji — one with
-    // attachments (a photo captioned "🔥") stays normal size, same as
-    // Telegram's own rule.
     const jumboCount = !message.attachments?.length ? jumboEmojiCount(message.text) : 0;
-    // Сообщение только из кастом-эмодзи (1–3 токена [ce:N]) — показываем их
-    // крупно, как «джамбо»-эмодзи (Telegram так же увеличивает обычные эмодзи).
     const ceOnly =
       !message.attachments?.length && message.customEmoji && /^\s*(\[ce:\d+\]\s*)+$/.test(message.text || "")
         ? [...message.text.matchAll(/\[ce:(\d+)\]/g)].map((m) => Number(m[1]))
@@ -849,13 +680,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         : jumboCount
           ? el("span", { class: `message-text message-text-jumbo jumbo-${jumboCount}` }, message.text)
           : el("span", { class: "message-text" }, formatText(message.text, members, message.customEmoji));
-    // Сообщение, за которое незнакомый человек заплатил звёздами, печатается
-    // на экране, а не появляется разом. Это не украшение: платное письмо — чья-
-    // то попытка достучаться, и отдельное движение сообщает об этом яснее, чем
-    // значок в углу. У обеих сторон — отправитель тоже платил, ему это же
-    // подтверждение важно не меньше. Показывается один раз — при первом
-    // появлении сообщения; при перерисовке списка (а он пересобирается часто)
-    // текст уже на месте.
     if (message.paidStars) typeOutOnce(textNode, message.id);
     bubbleInner.push(textNode);
   }
@@ -866,12 +690,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   const meta = el("span", { class: `message-meta ${isSticker ? "message-meta-sticker" : ""}` }, [
     message.editedAt ? el("span", {}, "изменено") : null,
     el("span", { class: "mono" }, timeLabel(message.createdAt)),
-    // Only channels get a view counter — Telegram shows one there and nowhere
-    // else, and "0 👁" under every private message is pure noise.
     isChannel && typeof message.views === "number" ? el("span", { class: "mono" }, `${message.views} 👁`) : null,
-    // Часы вместо галочки, пока сообщение ещё едет на сервер (views/chatView.js
-    // ставит его в ленту сразу, не дожидаясь ответа). Так же это показывает
-    // Telegram, и по этому значку сразу видно, дошло уже или нет.
     mine
       ? el("span", {
           class: message.pending ? "msg-status-pending" : "",
@@ -881,7 +700,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   ]);
   bubbleInner.push(meta);
 
-  // Boosted with stars: highlighted until boostedUntil passes.
   const boosted = !!message.boostedUntil && message.boostedUntil > new Date().toISOString();
   const bubble = el(
     "div",
@@ -897,12 +715,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       translationEl = null;
       return;
     }
-    // Язык берём из уже загруженных настроек (state.settings), без запроса
-    // GET /api/settings на каждый перевод — это полсекунды задержки впустую.
     const lang = getState().settings?.translateLanguage || "ru";
     const cacheKey = `${lang}\n${message.text}`;
-    // Готовый перевод показываем мгновенно, без «Переводим…» и без сети:
-    // один и тот же текст переводится раз за сессию (кэш ниже).
     const cached = translationCache.get(cacheKey);
     if (cached) {
       translationEl = el("p", { class: "message-translation" }, cached);
@@ -912,16 +726,12 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     translationEl = el("p", { class: "message-translation" }, "Переводим…");
     bubble.insertBefore(translationEl, meta);
     try {
-      // Сначала — перевод на самом устройстве (встроенный Translator API,
-      // lib/localTranslate.js): без сервера, мгновенно и офлайн. Если браузер
-      // его не умеет — откатываемся на серверный перевод.
       let text = await translateLocally(message.text, lang).catch(() => null);
       if (!text) {
         const { translated } = await api.translateText(message.text, lang);
         text = translated || "—";
       }
       translationCache.set(cacheKey, text);
-      // Пока ждали, перевод могли выключить — не навязываем его обратно.
       if (translationEl) translationEl.textContent = text;
     } catch {
       if (translationEl) translationEl.textContent = "Не удалось перевести";
@@ -942,7 +752,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
           class: "bubble-action-btn",
           title: "Ответить",
           html: iconSvg("Reply", 15),
-          // Выделение снимается уже на нажатии — запоминаем его до того.
           onpointerdown: rememberQuote,
           onclick: () => replyWithQuote(),
         }),
@@ -954,24 +763,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         }),
       ]);
 
-  // position:fixed + JS-computed, viewport-clamped coordinates, appended to
-  // <body> — same pattern as openDropdownMenu (public/js/components/
-  // dropdownMenu.js), and for the same reason: this used to be position:
-  // absolute relative to the bubble, which put it inside .message-list's
-  // scrolling/clipping box. For the first message in a chat there's no room
-  // above it, so the picker's negative offset escaped the scroll container's
-  // top edge and got clipped there — invisible, and clicks fell through to
-  // the chat header painted underneath.
   let picker = null;
   let closePicker = null;
-  // A channel can narrow reactions to a curated set (editChatDialog.js's
-  // "Разрешённые реакции", enforced server-side too — server/routes/
-  // messages.js's /:messageId/react). When it has, that set replaces the
-  // quick/premium/full-catalogue rows entirely rather than filtering them:
-  // an admin's custom set (say, just three brand emoji) has no reason to
-  // line up with QUICK_EMOJI or PREMIUM_QUICK_EMOJI, and showing it as its
-  // own single row is clearer than a mostly-empty quick row next to an
-  // unrelated premium one.
   const restricted = Array.isArray(allowedReactions);
   function togglePicker(pos) {
     if (picker) {
@@ -1027,10 +820,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
                 )
               )
             ),
-            // Full catalogue (lib/emojiList.js) — a scrollable grid below the
-            // curated quick rows, so any emoji can be used as a reaction
-            // instead of only the handful above (same "quick row + full grid"
-            // shape as composer.js's own emoji menu).
             el(
               "div",
               { class: "emoji-picker-all" },
@@ -1038,9 +827,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
                 el("button", { onclick: () => { onReact(message, e); closePicker(); } }, e)
               )
             ),
-            // Sticker reactions (REACTION_STICKERS, built-in packs only —
-            // see the comment on that constant) — same idea, one more row so
-            // a reaction isn't limited to plain emoji either.
             el(
               "div",
               { class: "emoji-picker-all emoji-picker-stickers" },
@@ -1059,11 +845,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     picker.style.left = `${Math.min(pos.x, vw - 260)}px`;
     picker.style.top = `${Math.min(Math.max(pos.y - 50, 8), vh - 50)}px`;
     document.body.appendChild(picker);
-    // The full-catalogue grid (added above) makes this popup much taller than
-    // the old two-row version — clamp against its *actual* height now that
-    // it's in the DOM, or it could hang off the bottom of the screen with no
-    // way to reach "Отмена"/the lower rows, same class of bug as the modal
-    // dialog fix above.
     const pickerRect = picker.getBoundingClientRect();
     if (pickerRect.bottom > vh - 8) {
       picker.style.top = `${Math.max(8, vh - pickerRect.height - 8)}px`;
@@ -1081,9 +862,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     setTimeout(() => document.addEventListener("mousedown", onOutsideClick), 0);
   }
 
-  // Ответ на кусок сообщения: выделили фразу мышью (или пальцем) и нажали
-  // «Ответить» — в ответ уходит цитата именно этой фразы, а не всего текста.
-  // Цитата — обычная строка «> …» (lib/formatText.js рисует её как цитату).
   let pendingQuote = "";
   function rememberQuote() {
     const sel = window.getSelection?.();
@@ -1096,9 +874,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     onReply(message, quote ? { quote } : undefined);
   }
 
-  // «Кто прочитал» — только в группе и только у своего сообщения, как в
-  // Telegram. В личной переписке это и так видно по двум галочкам, а в канале
-  // читателей слишком много, чтобы перечислять.
   const readers = !isDm && !isChannel && mine ? (message.readByIds ?? []).filter((id) => id !== me.id) : [];
   function showReaders(pos) {
     const known = readers.map((id) => members?.find((u) => u.id === id)).filter(Boolean);
@@ -1108,16 +883,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     ]);
   }
 
-  // Who reacted with what — long-press/right-click a reaction pill, same
-  // gesture Telegram uses instead of a dedicated button. Open to anyone in a
-  // group or DM, but only admins/moderators in a channel (canViewReactionDetails,
-  // computed from the chat's own roles in chatView.js): a channel's audience can
-  // be huge and anonymous-feeling, and letting every subscriber see exactly who
-  // reacted reads as a moderation tool being handed to everyone, not a feature.
   function showReactionDetails(r, pos) {
     const known = r.userIds.map((id) => members?.find((u) => u.id === id)).filter(Boolean);
-    // The dropdown menu only renders text/icons, not an arbitrary sticker
-    // scene — fall back to its emoji/name for the header line.
     const sticker = reactionSticker(r.emoji);
     const label = sticker ? `${sticker.emoji} ${sticker.name}` : r.emoji;
     openDropdownMenu(pos, [
@@ -1125,11 +892,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       ...known.map((u) => ({ icon: "User", label: u.name, onClick: () => openProfileDialog(u.id) })),
     ]);
   }
-  // Returns the extra DOM props one reaction pill needs for the hold/right-click
-  // gesture, plus a click wrapper that skips onReact() when the click is really
-  // the tail end of a hold that already opened the details. Touch has no
-  // right-click, so the hold does the same job — same HOLD_MS/SLOP shape as the
-  // bubble's own selection-hold above, just scoped to this one pill.
   function reactionPillHandlers(r) {
     if (!canViewReactionDetails) return { onclick: () => onReact(message, r.emoji) };
     const HOLD_MS = 450;
@@ -1175,20 +937,11 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   }
 
   function openMessageMenu(pos) {
-    // Reply/react are included here too (not just Pin/Forward/Edit/Delete)
-    // since this menu is also the touch entry point (long-press, below) —
-    // the .bubble-actions hover bar those normally live in never shows on a
-    // touchscreen, so without this they'd be unreachable on mobile.
     const items = [
       { icon: "Reply", label: "Ответить", onClick: replyWithQuote },
       { icon: "Smile", label: "Реакция", onClick: () => togglePicker(pos) },
-      // Hidden rather than shown-and-refused: in a group or channel only the
-      // people running it may pin (server/routes/messages.js's canPin), and an
-      // item that always answers 403 is worse than no item.
       ...(canPin ? [{ icon: "Pin", label: message.pinned ? "Открепить" : "Закрепить", onClick: () => onPin(message) }] : []),
       { icon: "Forward", label: "Переслать", onClick: () => onForward(message) },
-      // Copying the text was only possible by selecting it with the mouse, which
-      // on a phone means fighting the long-press menu.
       ...(message.text?.trim()
         ? [{
             icon: "Copy",
@@ -1199,27 +952,17 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       ...(selection ? [{ icon: "Check", label: "Выбрать", onClick: () => selection.onToggle(message.id) }] : []),
       ...(readers.length ? [{ icon: "CheckCheck", label: `Прочитали: ${readers.length}`, onClick: () => showReaders(pos) }] : []),
     ];
-    // Group-chat threads (threadPanel.js) — a nested sub-conversation kept
-    // out of the main timeline, unlike a plain "Ответить" quote-reply above.
-    // Not offered on a message that's already itself a thread reply (see
-    // db.js's threadRootId comment: threads are one level deep, not nested).
     if (onOpenThread && !message.threadRootId) {
       items.push({ icon: "MessageSquare", label: "Ответить в теме", onClick: () => onOpenThread(message) });
     }
     if (canTranslate) {
       items.push({ icon: "Globe", label: translationEl ? "Скрыть перевод" : "Перевести", onClick: toggleTranslation });
     }
-    // Paid actions (server/routes/stars.js). Boost applies to your own message;
-    // paid deletion to someone else's, and only in a DM — see that route for why
-    // it isn't offered in groups.
     if (mine) {
       items.push({ icon: "Star", label: "Поднять за звёзды", onClick: () => boostForStars(message) });
     } else if (isDm) {
       items.push({ icon: "Trash", label: "Удалить за звёзды", danger: true, onClick: () => deleteForStars(message) });
     }
-    // No "Изменить" for a sticker — it carries no text to edit (the composer
-    // would open with an empty draft and rewrite the sticker into a text
-    // message on save).
     if (mine && !isSticker) items.push({ icon: "Edit", label: "Изменить", onClick: () => onEdit(message) });
     else {
       items.push({
@@ -1233,8 +976,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     openDropdownMenu(pos, items);
   }
 
-  // A failed paid action is almost always "not enough stars" — offering the
-  // top-up right there beats an alert the user can only acknowledge.
   async function runPaid(fn, fallbackMessage) {
     try {
       await fn();
@@ -1266,9 +1007,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     oncontextmenu: (e) => {
       e.preventDefault();
       rememberQuote();
-      // In selection mode the right-click/long-press gesture toggles the
-      // message instead of opening a menu — the menu's actions all apply to one
-      // message, which is the opposite of what selecting several is for.
       if (selection?.active) {
         selection.onToggle(message.id);
         return;
@@ -1276,9 +1014,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       openMessageMenu({ x: e.clientX, y: e.clientY });
     },
   }, [bubble, hoverActions]);
-  // В режиме выбора нажатие по сообщению только отмечает его. На погружении —
-  // иначе нажатие по фото заодно открывало просмотрщик, по ссылке — браузер, а
-  // по варианту опроса отдавало голос.
   if (selection?.active) {
     bubbleWrap.addEventListener(
       "click",
@@ -1291,14 +1026,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     );
   }
 
-  // Hold a message to start selecting — the gesture Telegram uses, and the only
-  // one that exists on a touchscreen, where there is no right-click and the
-  // hover toolbar never appears. Replaces the "Выбрать сообщения" item that used
-  // to live in the chat's own menu, two taps away from the messages it acts on.
   if (selection) {
     const HOLD_MS = 450;
-    // Enough movement to be a scroll rather than a hold. Without this, dragging
-    // the list on a phone would arm selection every time.
     const SLOP = 10;
     let timer = null;
     let startX = 0;
@@ -1309,15 +1038,12 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       timer = null;
     };
     bubbleWrap.addEventListener("pointerdown", (e) => {
-      // Left button / touch only: the right button already opens the menu.
       if (e.button && e.button !== 0) return;
       startX = e.clientX;
       startY = e.clientY;
       timer = setTimeout(() => {
         timer = null;
         selection.onToggle(message.id);
-        // A hold that has become a selection must not also fire the click that
-        // follows it, or the message would be selected and instantly unselected.
         bubbleWrap.addEventListener("click", (ev) => ev.stopPropagation(), { capture: true, once: true });
         navigator.vibrate?.(12);
       }, HOLD_MS);
@@ -1328,9 +1054,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     for (const ev of ["pointerup", "pointercancel", "pointerleave"]) bubbleWrap.addEventListener(ev, cancel);
   }
 
-  // A signed channel post carries its author's name under the text — recorded
-  // when it was published (server/routes/posts.js), so it stays right even if
-  // the channel later stops signing.
   if (message.signedBy) {
     bubble.appendChild(el("p", { class: "message-signature" }, message.signedBy));
   }
@@ -1341,13 +1064,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         { class: "reactions-row" },
         message.reactions.map((r) => {
           const sticker = reactionSticker(r.emoji);
-          // Up to three stacked avatars of the people who reacted — but only
-          // of users still resolvable from `members` (someone who's left a
-          // group isn't in that list any more, and we'd rather show one fewer
-          // avatar than a nameless grey circle). `me` isn't always in members
-          // either (own row is served separately in some chats), so patch
-          // ourselves in explicitly when we reacted — otherwise the one face
-          // the viewer most wants to see confirmed is the one that's missing.
           const SHOWN = 3;
           const avatars = r.userIds
             .slice(0, SHOWN)
@@ -1357,12 +1073,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
             "button",
             {
               class: `reaction-pill ${sticker ? "reaction-pill-sticker" : ""} ${r.userIds.includes(me.id) ? "mine" : ""}`,
-              // data-emoji + data-msgid — крючки для chatView.handleReact,
-              // чтобы после renderList() можно было найти ровно ту пилюлю,
-              // которую пользователь только что поставил, и запустить
-              // «буст»-анимацию (CSS: .reaction-pill.just-added в
-              // components.css). Без этих атрибутов пилюля отличалась только
-              // текстовым содержимым, а эмодзи-стикеры текста не содержат.
               "data-emoji": r.emoji,
               "data-msgid": message.id,
               ...reactionPillHandlers(r),
@@ -1398,11 +1108,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
             "div",
             { class: "keyboard-row" },
             row.map((btn) =>
-              // Two kinds of button. `app` opens the bot's mini app
-              // (components/miniApp.js) — the counterpart of Telegram's
-              // web_app button. Everything else keeps the original behavior:
-              // tapping sends the action immediately as a normal message — it
-              // doesn't just quote it into the composer for the user to send.
               btn.app
                 ? el("button", { class: "keyboard-btn keyboard-btn-app", onclick: () => onKeyboardApp?.(message, btn.app) }, btn.text)
                 : el("button", { class: "keyboard-btn", onclick: () => onKeyboardAction(btn.action ?? btn.data) }, btn.text)
@@ -1413,12 +1118,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     : null;
 
   const column = el("div", { class: `message-column ${mine ? "mine" : ""}` }, [
-    // The sender's name opens their profile, same as tapping their avatar
-    // below — in a group these two are the only things identifying who wrote a
-    // message, and neither did anything when tapped.
-    // Badges same as everywhere else a name shows (chat list, chat header,
-    // profile) — a group message previously had nothing here at all, so
-    // you couldn't tell who's Premium/verified without opening their profile.
     showSender && !mine && sender
       ? el(
           "button",
@@ -1431,27 +1130,14 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     keyboardRows,
   ]);
 
-  // The avatar goes beside the *last* message of a run, not the first — that's
-  // where Telegram puts it, and it keeps the whole block visually anchored to
-  // the bottom where the newest message is.
   const isSelected = !!selection?.ids?.has(message.id);
 
-  // Два жеста, без которых переписка не ощущается привычной.
-  //
-  // Потянуть сообщение вбок — ответить. Это главный жест мессенджера: ответить
-  // хочется в разговоре постоянно, а через меню это три действия вместо одного.
-  // Порог в 48 пикселей выбран так, чтобы обычная вертикальная прокрутка его не
-  // задевала: пока палец идёт больше вниз, чем вбок, жест не начинается вовсе.
-  //
-  // Двойное нажатие — сердечко. Тоже привычка: одобрить сообщение, не открывая
-  // панель реакций. Первое нажатие при этом ничего не делает, поэтому обычные
-  // нажатия по сообщению не ломаются.
   const SWIPE_START_PX = 12;
   const SWIPE_REPLY_PX = 48;
   const DOUBLE_TAP_MS = 300;
   let swipeX = 0;
   let swipeY = 0;
-  let swiping = null; // null — ещё не решили, true/false — жест начат или отвергнут
+  let swiping = null;
   let lastTapAt = 0;
 
   const gestures = {
@@ -1467,8 +1153,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       const dy = Math.abs(e.clientY - swipeY);
       if (swiping === null) {
         if (Math.abs(dx) < SWIPE_START_PX && dy < SWIPE_START_PX) return;
-        // Решаем один раз: вертикальное движение — это прокрутка, и вмешиваться
-        // в неё нельзя, иначе лента начнёт «залипать» под пальцем.
         swiping = Math.abs(dx) > dy && dx > 0;
         if (!swiping) return;
       }
@@ -1487,8 +1171,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         if (dx >= SWIPE_REPLY_PX) replyWithQuote();
         return;
       }
-      // Двойное нажатие по кнопке, ссылке, фото или плееру — это два нажатия по
-      // ним, а не «сердечко»; в режиме выбора — два переключения отметки.
       if (selection?.active || e.target.closest?.("button, a, input, video, audio, .bubble-actions")) {
         lastTapAt = 0;
         return;
@@ -1515,8 +1197,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       ...gestures,
     },
     [
-      // A button, not a decoration: the tick is the obvious thing to aim at to
-      // take a message back out of the selection, and it did nothing.
       selection?.active
         ? el("button", {
             class: `message-select-mark ${isSelected ? "on" : ""}`,
@@ -1545,7 +1225,5 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     ]
   );
 
-  // Полоска со стрелкой, выезжающая слева при свайпе, живёт в CSS —
-  // ::before у .message-row, чтобы не создавать узел на каждое сообщение.
   return row;
 }

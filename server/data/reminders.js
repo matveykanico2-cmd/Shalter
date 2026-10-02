@@ -1,5 +1,3 @@
-// Backing store for /remind (server/lib/helperBot/utility.js), delivered by
-// server/lib/reminderSweep.js.
 const db = require("../db");
 
 function addReminder({ id, userId, chatId, text, dueAt, createdAt }) {

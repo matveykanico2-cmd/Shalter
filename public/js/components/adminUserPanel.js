@@ -5,10 +5,6 @@ import { openDropdownMenu } from "./dropdownMenu.js";
 import { SAFETY_LABELS } from "../lib/safetyLabels.js";
 import { getState } from "../state.js";
 
-// Must match server/lib/adminAccess.js's ADMIN_SECTIONS and the admin group
-// in public/js/views/settings/index.js's SECTIONS — the id is what's sent to
-// POST /api/admin/users/:id/admin-sections and what unlocks the matching
-// settings tab for the granted account.
 const ADMIN_SECTIONS = [
   { id: "moderation", label: "Модерация" },
   { id: "server", label: "Состояние сервера" },
@@ -18,9 +14,6 @@ const ADMIN_SECTIONS = [
   { id: "legal", label: "Запросы органов" },
 ];
 
-// Premium durations offered on the profile. There's no payment gateway here
-// (see AGENTS.md): the buyer transfers the money and says so in chat, and the
-// admin hands the purchase over from here.
 const PREMIUM_DURATIONS = [
   { label: "30 дней", opts: { days: 30 } },
   { label: "90 дней", opts: { days: 90 } },
@@ -46,34 +39,13 @@ const STATUS_LABELS = {
   dismissed: "отклонена",
 };
 
-// Per-user admin panel, opened from a profile (profileDialog.js) by whoever
-// holds ADMIN_PHONE. Everything here is also gated server-side
-// (server/routes/admin.js) — this is the UI, not the permission check.
-//
-// One screen for everything the admin does *to one account*: hand over a
-// purchase someone has transferred for (Premium, кабинет рекламы, a gift),
-// mark or ban them, read what they've been reported for, and export their data
-// on a lawful request.
-//
-// It exists because all of that used to be scattered and half-missing. Granting
-// Premium lived only in an open DM's info panel (30 days, no other duration, no
-// ads cabinet); banning was only reachable from a report notification in the
-// admin's service chat, with no screen anywhere that could *un*-ban or show
-// what the ban was for; and the data export was on its own settings page keyed
-// by re-typing the person's handle.
 export function openAdminUserPanel(user, onChange) {
   let state = { ...user };
-  // Only the primary admin sees/edits this — hasAdminSection lets a
-  // partially-granted admin open this same panel to ban/label/etc., but
-  // re-granting access is reserved for whoever holds PREMIUM_ADMIN_PHONE
-  // (server/lib/adminAccess.js's isPrimaryAdmin).
   const canGrantSections = !!getState().user?.isPrimaryAdmin;
   let pendingSections = new Set(state.adminSections ?? []);
-  let reports = null; // null = not loaded yet
+  let reports = null;
   let reportsError = null;
   let gifts = [];
-  // Полный каталог меток безопасности (встроенные + добавленные админом) —
-  // подгружается с сервера, иначе в списке были бы только 5 встроенных.
   let labels = null;
   let busy = false;
   let error = null;
@@ -93,9 +65,6 @@ export function openAdminUserPanel(user, onChange) {
     overlay.remove();
   }
 
-  // Every action funnels through here so the busy flag, error slot and the
-  // parent profile's refresh all behave the same way regardless of which
-  // button was pressed.
   async function run(fn, successNotice) {
     if (busy) return;
     busy = true;
@@ -117,11 +86,6 @@ export function openAdminUserPanel(user, onChange) {
     }
   }
 
-  // Loaded on open, not behind a button, because this response is also the
-  // only source of banReason: publicUser (server/data/sanitize.js) strips it
-  // from every ordinary profile fetch, so without this the panel would show
-  // "Причина: не указана" for a ban that has one — the exact thing the admin
-  // opened this to read.
   async function loadReports() {
     reportsError = null;
     try {
@@ -132,24 +96,15 @@ export function openAdminUserPanel(user, onChange) {
     } catch (err) {
       reportsError = err.message || "Не удалось загрузить жалобы";
     }
-    // Best-effort: the gift catalog only powers one optional menu, so failing
-    // to load it must not take the rest of the panel down with it.
     try {
       ({ gifts } = await api.listGifts());
     } catch {}
-    // Метки безопасности — тоже best-effort: весь каталог (встроенные + свои),
-    // чтобы выбор не ограничивался пятью встроенными.
     try {
       ({ labels } = await api.getSafetyLabels());
     } catch {}
     render();
   }
 
-  // ── Handing over a purchase ────────────────────────────────────────────────
-  // The buyer transfers the money (they've just sent "перевожу на <номер>" into
-  // the admin's DM — see server/routes/premium.js's /request) and the admin
-  // grants it here, on that person's profile, instead of having to find the
-  // right chat and remember which endpoint to poke.
   function grantPremium(opts, label) {
     run(async () => {
       const { user: updated } = await api.grantPremium(state.id, true, opts);
@@ -185,7 +140,6 @@ export function openAdminUserPanel(user, onChange) {
     }, `Подарок ${gift.emoji} «${gift.name}» отправлен.`);
   }
 
-  // Duration pills, one row per product.
   function durationRow(durations, onPick) {
     return el(
       "div",
@@ -194,11 +148,6 @@ export function openAdminUserPanel(user, onChange) {
     );
   }
 
-  // The lawful-request export (server/data/dataExport.js). The reason is
-  // mandatory server-side — asked for here rather than silently sending a
-  // blank one, since it's what makes the audit journal worth having. The file
-  // is built in memory and downloaded straight from this tab; nothing is
-  // written server-side except the audit row.
   function runExport() {
     const reason = prompt(
       `Основание для выгрузки данных ${state.name} (номер дела / реквизиты постановления).\nОно будет записано в журнал выгрузок.`
@@ -260,8 +209,6 @@ export function openAdminUserPanel(user, onChange) {
         state.safetyLabel ? el("span", { class: "admin-panel-flag" }, labels?.find((l) => l.id === state.safetyLabel)?.short ?? SAFETY_LABELS[state.safetyLabel]?.short ?? state.safetyLabel) : null,
         state.isVerified ? el("span", { class: "admin-panel-flag" }, "верифицирован") : null,
       ]),
-      // Контакты человека — номер и почта. Нажатие копирует: пригодится и для
-      // связи с органами, и чтобы найти этот же аккаунт в другом месте.
       state.phone || state.email
         ? el(
             "p",
@@ -272,8 +219,6 @@ export function openAdminUserPanel(user, onChange) {
           )
         : null,
 
-      // Выдача покупок. First section on purpose: this is the thing the admin
-      // opens a profile for most often — someone transferred 10₽ and is waiting.
       el("p", { class: "admin-panel-section-title" }, "Выдать покупку"),
       el("p", { class: "settings-toggle-hint" }, "Оплата — обычным переводом на телефон администрации. Получив перевод, выдайте купленное здесь: пользователю придёт уведомление в чат."),
       el("p", { class: "admin-grant-status" }, [
@@ -302,9 +247,6 @@ export function openAdminUserPanel(user, onChange) {
                 openDropdownMenu(
                   { x: e.clientX, y: e.clientY },
                   gifts.map((g) => ({
-                    // In stars, because that's the price the recipient would
-                    // have paid — the shop hasn't been priced in roubles since
-                    // stars became the currency.
                     label: `${g.emoji} ${g.name} — ⭐ ${g.priceStars}${g.supply ? ` (осталось ${g.remaining})` : ""}`,
                     onClick: () => sendGift(g),
                   })),
@@ -318,8 +260,6 @@ export function openAdminUserPanel(user, onChange) {
       el("p", { class: "admin-panel-section-title" }, "Звёзды"),
       el("p", { class: "settings-toggle-hint" }, "Начислить после перевода — или списать, указав отрицательное число."),
       (() => {
-        // Uncontrolled input read on submit: the panel re-renders after every
-        // action, and a controlled field would lose focus mid-typing.
         const input = el("input", { class: "settings-input mono", type: "number", step: "1", placeholder: "например 130" });
         return el("div", { class: "admin-stars-row" }, [
           input,
@@ -360,9 +300,6 @@ export function openAdminUserPanel(user, onChange) {
       canGrantSections
         ? (() => {
             if (state.isDeveloper) {
-              // A full admin already has every section (isAdminPhone) — a
-              // grant here would do nothing, and offering checkboxes that
-              // can't actually change anything is worse than not showing them.
               return el("div", {}, [
                 el("p", { class: "admin-panel-section-title" }, "Доступ к разделам администрирования"),
                 el("p", { class: "settings-toggle-hint" }, "Этот аккаунт уже полный администратор — доступен весь раздел «Админ»."),
@@ -426,8 +363,6 @@ export function openAdminUserPanel(user, onChange) {
             },
             "Без метки"
           ),
-          // Весь каталог с сервера (встроенные + свои); пока не загрузился —
-          // запасной статический список из 5 встроенных.
           ...(labels ? labels.map((l) => [l.id, l]) : Object.entries(SAFETY_LABELS)).map(([key, info]) =>
             el(
               "button",
@@ -487,9 +422,6 @@ export function openAdminUserPanel(user, onChange) {
             if (typed == null) return;
             const reason = prompt("Основание — оно попадёт в журнал администрации:");
             if (reason == null || !reason.trim()) return;
-            // Asked separately, and only when it applies: 2FA exists so that
-            // knowing the password isn't enough, so lifting it is a second
-            // decision, not a side effect of the first.
             const disableTwoFactor = state.twoFactorEnabled
               ? confirm("У аккаунта включена двухфакторная аутентификация — без неё войти по новому паролю не выйдет.\n\nСнять её тоже?")
               : false;

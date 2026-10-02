@@ -13,16 +13,10 @@ const { balanceOf, spendStars } = require("../data/stars");
 const router = express.Router();
 router.use(requireUserId);
 
-// Цена Premium в звёздах: курс примерно как у пакетов звёзд (data/stars.js —
-// ~2 ₽ за звезду), поэтому цена в рублях делится на 2 и округляется вверх.
-// 99 ₽ → 50 ⭐, 799 ₽ → 400 ⭐. Считается из того же PREMIUM_PLANS, что и
-// рублёвая цена, чтобы тарифы не расходились.
 const RUB_PER_STAR = 2;
 function starsCostFor(plan) {
   return Math.ceil(plan.priceRub / RUB_PER_STAR);
 }
-// Тарифы с добавленным полем `stars` — отдаём клиенту, чтобы кнопка «купить за
-// звёзды» показывала настоящую цену, а не считала её сама.
 function plansWithStars() {
   const out = {};
   for (const [id, plan] of Object.entries(PREMIUM_PLANS)) {
@@ -31,9 +25,6 @@ function plansWithStars() {
   return out;
 }
 
-// Premium status for the current user plus the purchase tiers — powers the
-// Settings → Premium screen. (Реферальный «код друга» отсюда убран вместе с
-// фичей; колонка referralCode в users осталась, чтобы не трогать схему.)
 router.get(
   "/me",
   asyncRoute(async (req, res) => {
@@ -44,16 +35,11 @@ router.get(
       premiumForever: !!me.premiumForever,
       isAdmin: isAdminPhone(me.phone),
       plans: plansWithStars(),
-      // Баланс звёзд — чтобы на экране покупки сразу было видно, хватает ли их.
       starsBalance: balanceOf(req.uid),
     });
   })
 );
 
-// Купить Premium за звёзды — моментально, без администрации и донатов: звёзды
-// уже на балансе (routes/stars.js), поэтому списываем их и сразу выдаём дни.
-// spendStars (data/stars.js) атомарен и вернёт false, если не хватает, —
-// гонки «списали дважды» тут быть не может.
 router.post(
   "/buy-with-stars",
   asyncRoute(async (req, res) => {
@@ -83,14 +69,6 @@ router.post(
   })
 );
 
-// "Купить Premium" — there's no payment gateway here (see AGENTS.md: this is
-// a plain self-hosted Express app), so buying opens a DM with whichever
-// account currently holds ADMIN_PHONE and drops a message asking for
-// confirmation. The admin then grants Premium by hand from that chat (see
-// /grant below) once the money actually lands on their phone. The full Gifts
-// catalog (server/routes/gifts.js) covers every other price/duration — this
-// endpoint is kept as the one-tap "just give me Premium" shortcut, now with a
-// choice of tier (PREMIUM_PLANS in config.js) instead of one fixed length.
 router.post(
   "/request",
   asyncRoute(async (req, res) => {
@@ -102,19 +80,11 @@ router.post(
       return res.status(503).json({ error: "Администрация Shalter ещё не зарегистрирована в приложении" });
     }
     const me = await getUser(req.uid);
-    // Действующий Premium можно продлить: grantPremiumDays (data/users.js)
-    // прибавляет дни к текущему premiumUntil, а не к сегодняшней дате. Нечего
-    // продлевать только у вечного Premium.
     if (me.premiumForever) {
       return res.status(400).json({ error: "У вас уже есть Shalter Premium навсегда" });
     }
     const extending = !!me.isPremium;
 
-    // Same "nobody to ask" reasoning as gifts.js's /request — the admin
-    // grants themselves Premium immediately instead of messaging themselves
-    // to wait for their own confirmation. findOrCreateDm(req.uid, req.uid)
-    // is a real self-chat (deduped in systemChat.js), same one every other
-    // self-delivered grant lands in — not a special-cased dead end.
     if (admin.id === req.uid) {
       await grantPremiumDays(req.uid, plan.days);
       const chat = await findOrCreateDm(req.uid, req.uid);
@@ -126,11 +96,6 @@ router.post(
       return res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE, delivered: true });
     }
 
-    // Two ways to pay. DonationAlerts or DonatePay, whichever the admin has
-    // set up (lib/autoPayment.js), clears automatically — the donation feed
-    // carries the order code. Otherwise it's a plain transfer to the admin's
-    // phone: this drops the request into their DM, and they hand Premium over
-    // from the buyer's profile (public/js/components/adminUserPanel.js).
     const donation = getActiveDonationLink();
     if (donation) {
       const order = await createPendingOrder({ userId: req.uid, kind: "premium", amountRub: plan.priceRub });
@@ -147,23 +112,6 @@ router.post(
   })
 );
 
-// Grants (or revokes) Premium for another account — restricted to whoever
-// currently holds ADMIN_PHONE, checked fresh on every call (not cached: the
-// phone can move to a different account, e.g. on re-registration). This is the
-// endpoint behind the "выдать" buttons on a user's profile
-// (public/js/components/adminUserPanel.js): the buyer transfers the money and
-// the admin hands the purchase over from there.
-//
-// `days`: a positive number of days, or omit for the standard grant length.
-// `forever: true` grants it permanently. `premium: false` revokes.
-//
-// The forever case needed fixing rather than just wiring up: data/users.js's
-// grantPremiumDays takes `days == null` to mean forever, but this route used to
-// collapse that with `days ?? PREMIUM_GRANT_DAYS`, so null arrived as 30 and
-// permanent Premium was simply unreachable through the API. Meanwhile the
-// message below had a branch that read `days === 0` as "навсегда" — and 0 days
-// sets premiumUntil to *now*, i.e. it announced permanent Premium while
-// actually leaving the account without any.
 router.post(
   "/grant",
   asyncRoute(async (req, res) => {
@@ -189,11 +137,6 @@ router.post(
         : "Ваш Shalter Premium был отключён администрацией."
     );
     const updatedUser = publicUser(await getUser(userId));
-    // Значок Premium держится в состоянии клиента (state.js's `user`, читает
-    // navRail и весь остальной интерфейс) и без явного толчка не узнаёт об
-    // изменении, пока человек не перезайдёт: сообщение выше долетает в чат, но
-    // сам профиль — нет. Раньше это и оставляло золотое кольцо на аватарке
-    // висеть до перезахода даже после того, как админ его отключил.
     broadcastToUsers([userId], { type: "self:updated", user: updatedUser });
     res.json({ user: updatedUser });
   })

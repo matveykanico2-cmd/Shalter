@@ -58,15 +58,8 @@ import { openPrivacyExceptionsDialog } from "../../components/privacyExceptionsD
 import { openProfileDialog } from "../../components/profileDialog.js";
 import { openCheckboxDialog } from "../../components/confirmDialog.js";
 
-// То же, что говорит сервер (server/lib/unsupportedLanguages.js), — написано
-// прямо под выбором языка, а не только в ответе на отклонённый запрос: человек
-// должен видеть, почему языка нет в списке, а не искать его там.
 const UNSUPPORTED_LANGUAGE_NOTE = "Украинский язык не поддерживается в нашем мессенджере.";
 
-// Разделы настроек, разложенные по карточкам так же, как в Telegram: сначала
-// то, что настраивают каждый день, потом платное и дополнительное, потом
-// инструменты администратора и в конце помощь. Значки — одноцветные, серые:
-// цветные плитки читаются как ярлыки приложений и в узкой колонке шумят.
 const SECTIONS = [
   { id: "profile", label: "Изменить профиль", icon: "Edit" },
   { id: "notifications", label: "Уведомления", icon: "Bell", group: "main" },
@@ -95,16 +88,11 @@ const SECTIONS = [
   { id: "legal", label: "Запросы органов", icon: "Shield", group: "admin", adminOnly: true },
 ];
 
-// Заголовок панели живёт в её шапке, а не в теле страницы, — но пишут его сами
-// разделы, через pageWrap() ниже. Ссылка на его узел держится здесь, чтобы не
-// пришлось править два десятка обращений к pageWrap в каждом разделе.
 let panelTitleEl = null;
 function setPanelTitle(title) {
   if (panelTitleEl && title) panelTitleEl.textContent = title;
 }
 
-// Строка меню: значок, подпись, иногда значение справа. Ссылкой, когда ведёт на
-// свой раздел, — тогда работает и «открыть в новой вкладке», и средняя кнопка.
 function menuRow({ icon, label, value, href, onClick, danger }) {
   const body = [
     icon ? el("span", { class: "settings-row-icon", html: iconSvg(icon, 22) }) : null,
@@ -117,8 +105,6 @@ function menuRow({ icon, label, value, href, onClick, danger }) {
     : el("button", { class: cls, onclick: onClick }, body);
 }
 
-// Телефон и юзернейм в карточке под аватаром: значение крупно, подпись мелко
-// под ним. Нажатие копирует — ровно то, зачем в эту карточку и заходят.
 function copyRow({ icon, value, label }) {
   const row = el("button", { class: "settings-row settings-row-copy" }, [
     el("span", { class: "settings-row-icon", html: iconSvg(icon, 22) }),
@@ -133,7 +119,6 @@ function copyRow({ icon, value, label }) {
       row.classList.add("copied");
       setTimeout(() => row.classList.remove("copied"), 1200);
     } catch {
-      // Буфер обмена может быть закрыт настройками браузера — молча ничего.
     }
   });
   return row;
@@ -221,12 +206,6 @@ export async function SettingsView(root, page) {
   };
   await (renderers[section] ?? renderMenu)(contentSlot);
 
-  // Своё Premium-кольцо на этой странице — единственное место в настройках,
-  // которое рисуется один раз и больше не перечитывает state.user: если
-  // администратор выдал или забрал Premium, пока человек уже стоял на этом
-  // экране, кольцо оставалось прежним до перезахода в раздел. Меню — без
-  // полей ввода, его можно перерисовывать целиком; редактор профиля ниже
-  // трогать нельзя — там несохранённый текст, который так стереть.
   if (section === "") {
     root._cleanup = subscribe(() => renderMenu(contentSlot));
   }
@@ -241,15 +220,9 @@ async function openSupport() {
   }
 }
 
-// Корневая страница настроек: аватар, карточка с телефоном и юзернеймом и
-// карточки разделов. Своего заголовка в теле нет — он стоит в шапке панели.
 function renderMenu(root) {
   const me = getState().user;
   const accounts = getState().accounts ?? [];
-  // A section's id doubles as the grant id (server/lib/adminAccess.js) — a
-  // partial admin (me.adminSections, set by the primary admin from the
-  // per-user panel) sees just the sections they were handed, same as a full
-  // admin (me.isDeveloper) sees all of them.
   const groupOf = (g) =>
     SECTIONS.filter((s) => s.group === g && (!s.adminOnly || me.isDeveloper || me.adminSections?.includes(s.id)));
 
@@ -278,9 +251,6 @@ function renderMenu(root) {
       ]),
       el("div", { class: "settings-section-group" }, [
         el("div", { class: "settings-section rows" }, [
-          // Тот же экран профиля, что открывается по имени в чате/контактах —
-          // с подарками, где можно закрепить/открепить, а не отдельная форма
-          // редактирования (для неё есть «Изменить профиль» ниже, в разделах).
           menuRow({ icon: "User", label: "Мой профиль", onClick: () => openProfileDialog(me.id) }),
           me.phone ? copyRow({ icon: "Phone", value: me.phone, label: "Телефон" }) : null,
           me.username
@@ -303,8 +273,6 @@ function renderMenu(root) {
       el("div", { class: "settings-section-group" }, [
         el("div", { class: "settings-section rows" }, [
           menuRow({ icon: "Info", label: "Поддержка — Hugo", onClick: openSupport }),
-          // Страница загрузок — обычная статическая, не маршрут приложения,
-          // поэтому ссылка без data-route: пусть браузер уходит туда сам.
           el("a", { class: "settings-row", href: "/download" }, [
             el("span", { class: "settings-row-icon", html: iconSvg("Download", 22) }),
             el("span", { class: "settings-row-label" }, "Скачать приложение"),
@@ -323,9 +291,6 @@ function pageWrap(title, subtitle, children) {
   ]);
 }
 
-// Groups related rows into a rounded card with an optional purple caption
-// above it — the "Sound Effects" / "Privacy" / "Color theme" grouping
-// Telegram uses throughout Settings, instead of one long flat list.
 function section(title, children) {
   return el("div", { class: "settings-section-group" }, [
     title ? el("p", { class: "settings-section-title" }, title) : null,
@@ -335,9 +300,6 @@ function section(title, children) {
 
 async function renderProfile(root) {
   const me = getState().user;
-  // Имя и фамилия редактируются отдельно; в базе name — полное отображаемое
-  // имя, поэтому при сохранении их склеиваем. Фамилия берётся из своего поля
-  // (me.lastName), первое имя — это name без хвоста-фамилии.
   let lastName = me.lastName ?? "";
   let firstName = lastName && me.name.endsWith(` ${lastName}`) ? me.name.slice(0, -(lastName.length + 1)) : me.name;
   let name = me.name;
@@ -345,14 +307,11 @@ async function renderProfile(root) {
   let phone = me.phone ?? "";
   let bio = me.bio;
   let birthday = me.birthday ?? "";
-  // null, пока в поле даты написано что-то несуразное, — сохранение об этом
-  // спрашивает у самого поля, чтобы не полагаться на порядок событий.
   let birthdayError = null;
   let birthdayField = null;
   let avatarImage = me.avatarImage;
   let avatarImages = me.avatarImages ?? [];
   let avatarColor = me.avatarColor;
-  // Палитра фона кружка с инициалами (пока не задано фото профиля).
   const AVATAR_COLORS = ["#2E56D9", "#7c6fd6", "#d9822e", "#2f9e5a", "#d94a5a", "#e0a423", "#1c9bd9", "#8a5cf6", "#e0507a", "#3aa6a0"];
   async function saveAvatarColor(c) {
     avatarColor = c;
@@ -361,7 +320,6 @@ async function renderProfile(root) {
       await api.updateProfile(me.id, { avatarColor: c });
       updateSelf({ avatarColor: c });
     } catch {
-      /* цвет не критичен — молча */
     }
   }
   let statusIcon = me.statusIcon;
@@ -415,9 +373,6 @@ async function renderProfile(root) {
 
   function render() {
     bioCounter.textContent = String(300 - (bio ?? "").length);
-    // Opens the viewer rather than a bare file picker: it shows the photos
-    // already there, and adding, reordering and deleting all live in one place
-    // instead of the picker being the only thing this button could do.
     const avatarBtn = el(
       "button",
       {
@@ -485,9 +440,6 @@ async function renderProfile(root) {
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Юзернейм"),
-            // Недопустимые знаки убираются и из самого поля, а не только из
-            // сохраняемого значения: иначе в поле оставалось «ivan.petrov», а
-            // сохранялось молча «ivanpetrov».
             el("input", {
               class: "settings-input",
               value: username,
@@ -501,13 +453,10 @@ async function renderProfile(root) {
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Телефон"),
-            // Kept across renders — the picker holds the chosen country, and a
-            // fresh one on each render would forget it mid-edit.
             (phoneField ??= PhoneField({ value: phone, onChange: (v) => (phone = v) })).el,
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "О себе"),
-            // Счётчик, как у Telegram: предел проверяет и сервер (300 знаков).
             el("textarea", {
               class: "settings-input",
               rows: 3,
@@ -522,11 +471,6 @@ async function renderProfile(root) {
           ]),
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Дата рождения"),
-            // Пишется руками (components/dateField.js), а не выбирается в
-            // календаре: родной календарь открывается на этом месяце, и до года
-            // рождения его пришлось бы листать десятилетиями.
-            // Живёт между перерисовками, как и поле телефона: пересозданное,
-            // оно теряло бы и курсор, и набранное.
             (birthdayField ??= DateField({
               value: birthday,
               onChange: (iso, err) => {
@@ -594,9 +538,6 @@ async function renderProfile(root) {
             class: "btn-accent",
             onclick: async () => {
               profileError = null;
-              // Дата спрашивается у поля целиком: набрали «25.12» и сразу жмут
-              // «Сохранить» — половину даты сохранять нельзя, а молча выбрасывать
-              // набранное тем более.
               const date = birthdayField ? birthdayField.read() : { iso: birthday, error: null };
               if (date.error) {
                 profileError = `Дата рождения: ${date.error.toLowerCase()}`;
@@ -607,8 +548,6 @@ async function renderProfile(root) {
               try {
                 name = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
                 const { user } = await api.updateProfile(me.id, { name, lastName: lastName.trim(), username, phone, bio: bio ?? "", birthday });
-                // Сохранённое — из ответа сервера: он обрезает пробелы и
-                // приводит юзернейм к своему виду, и показывать надо именно это.
                 name = user.name;
                 username = user.username;
                 bio = user.bio ?? "";
@@ -642,8 +581,6 @@ function formatPremiumUntil(info) {
   return "Уберите ограничения и получите золотой значок";
 }
 
-// Decorative hero for the Premium page — perk icons circling a crown, each
-// item counter-rotated inside the spinning ring so the glyphs stay upright.
 const ORBIT_ITEMS = [
   { icon: "Star", color: "#d9822e" },
   { icon: "Zap", color: "#6e56c6" },
@@ -653,12 +590,6 @@ const ORBIT_ITEMS = [
   { icon: "Video", color: "#1c9bd9" },
 ];
 
-// Сравнение «что доступно без Premium / с Premium» — те же шесть пунктов, что
-// в PREMIUM_PERKS ниже, но в виде таблицы. Решение купить принимают по
-// разнице, а не по списку плюсов, поэтому Telegram на своём /premium эту
-// таблицу показывает отдельно — здесь то же самое. Строки — [название,
-// бесплатно, premium]; текст в двух местах должен совпадать, см. public/
-// premium.html.
 const PREMIUM_COMPARE = [
   ["Платная личка незнакомцам", "⭐ звёздами", "Бесплатно"],
   ["Писать в «только контакты»", "—", "Да"],
@@ -670,8 +601,6 @@ const PREMIUM_COMPARE = [
   ["Реакций на одно сообщение", "1", "до 3"],
 ];
 
-// Настоящий список того, что даёт Premium — каждая строка проверена в коде
-// (см. renderPremium ниже), а не выдумана под макет.
 const PREMIUM_PERKS = [
   {
     icon: "MessageSquare",
@@ -712,9 +641,6 @@ const PREMIUM_PERKS = [
 
 function premiumOrbit() {
   return el("div", { class: "premium-orbit" }, [
-    // В середине — та же белая звезда, что и в значке у имени: знак Premium в
-    // приложении должен быть один. Корона здесь была третьей по счёту
-    // картинкой для одного и того же понятия.
     el("div", { class: "premium-orbit-core" }, [PremiumStar({ size: 56, variant: "violet", title: "Shalter Premium" })]),
     el(
       "div",
@@ -728,9 +654,6 @@ function premiumOrbit() {
   ]);
 }
 
-// Цена за месяц и скидка тарифа — считаются от самого короткого тарифа
-// (обычно «1 месяц»), как на экране покупки Telegram Premium: «−33%» у
-// годового значит «на треть дешевле, чем платить помесячно».
 function premiumPlanRows(plans) {
   const rows = Object.entries(plans ?? {}).map(([id, plan]) => {
     const months = Math.max(1, Math.round(plan.days / 30));
@@ -746,8 +669,6 @@ function premiumPlanRows(plans) {
 async function renderPremium(root) {
   let info = await api.getPremiumInfo();
   const plans = premiumPlanRows(info.plans);
-  // По умолчанию выбран самый выгодный тариф — как у Telegram, где сразу
-  // подсвечен годовой.
   let selectedPlan = plans.reduce((best, p) => (best && best.discount >= p.discount ? best : p), null)?.id ?? null;
   let buying = false;
   let buyError = null;
@@ -768,8 +689,6 @@ async function renderPremium(root) {
     }
   }
 
-  // Покупка за звёзды — моментальная, без перехода к оплате: сервер списывает
-  // звёзды и сразу выдаёт дни (routes/premium.js's /buy-with-stars).
   async function buyWithStars() {
     if (!selectedPlan) return;
     buying = true;
@@ -778,7 +697,6 @@ async function renderPremium(root) {
     try {
       const res = await api.buyPremiumWithStars(selectedPlan);
       updateSelf({ isPremium: true });
-      // Перечитываем статус и баланс, чтобы карточка и цена в звёздах обновились.
       info = await api.getPremiumInfo();
       if (res?.chatId) navigate(`/chat/${res.chatId}`);
     } catch (err) {
@@ -825,21 +743,14 @@ async function renderPremium(root) {
       root,
       pageWrap("Shalter Premium", "Подписка Shalter Premium и подарки", [
         premiumOrbit(),
-        // Ряд значков с разными фонами: заодно объясняет, что знак Premium
-        // бывает разным, — раньше здесь была одна и та же корона трижды.
         PremiumStarRow({ size: 42 }),
         el("div", { class: `premium-status-card ${info.isPremium ? "active" : ""}` }, [
           el("span", { class: "premium-status-icon" }, [PremiumStar({ size: 34, variant: "gold", title: "Premium" })]),
           el("div", {}, [
             el("p", { class: "premium-status-title" }, info.isPremium ? "У вас Shalter Premium" : "Shalter Premium не активен"),
-            // Настоящая дата окончания (или "навсегда") — не "отменить можно в
-            // любой момент": здесь нет автопродления и подписки списывать
-            // нечего, срок просто заканчивается сам, когда подойдёт.
             el("p", { class: "premium-status-hint" }, formatPremiumUntil(info)),
           ]),
         ]),
-        // Тарифы. Продление при действующем Premium идёт тем же запросом:
-        // сервер прибавляет дни к текущей дате окончания (routes/premium.js).
         canBuy
           ? el("div", { class: "settings-section-group" }, [
               el("p", { class: "settings-section-title" }, info.isPremium ? "Продлить Premium" : "Выберите срок"),
@@ -851,8 +762,6 @@ async function renderPremium(root) {
                   ? "Открываем оплату…"
                   : `${info.isPremium ? "Продлить" : "Подписаться"} за ${current?.priceRub ?? 0} ₽`
               ),
-              // Оплата звёздами — моментально, если их хватает. Цена в звёздах
-              // приходит в тарифе (plan.stars), баланс — в info.starsBalance.
               current?.stars
                 ? el(
                     "button",
@@ -876,9 +785,6 @@ async function renderPremium(root) {
               buyError ? el("p", { class: "login-error" }, buyError) : null,
             ])
           : null,
-        // Настоящие преимущества, которые действительно проверяются в коде
-        // (server/routes/messages.js, calls.js, chats.js, lib/profileStatus.js,
-        // messageBubble.js) — не общие слова вроде "эксклюзивные функции".
         el("p", { class: "settings-section-title" }, "Что даёт Premium"),
         el(
           "div",
@@ -893,9 +799,6 @@ async function renderPremium(root) {
             ])
           )
         ),
-        // Таблица «бесплатно vs premium» — те же пункты, что на лендинге /premium:
-        // наглядная разница рядом с перечислением перков, по образцу
-        // telegram.org/premium (см. PREMIUM_COMPARE и public/premium.html).
         el("p", { class: "settings-section-title" }, "Сравнение"),
         el("div", { class: "premium-compare-card" }, [
           el("div", { class: "premium-compare-head" }, [
@@ -911,9 +814,6 @@ async function renderPremium(root) {
             ])
           ),
         ]),
-        // Открыть внешний промо-лендинг — чтобы ссылкой можно было поделиться
-        // с теми, кто ещё не завёл аккаунт. У залогиненного здесь это просто
-        // маркетинговая страница в новом окне; выбирать Premium по-прежнему тут.
         el("div", { class: "settings-toggle-row no-divider" }, [
           el("div", {}, [
             el("p", { class: "settings-toggle-title" }, "Публичная страница Premium"),
@@ -921,11 +821,6 @@ async function renderPremium(root) {
           ]),
           el("a", { class: "btn-accent-pill", href: "/premium", target: "_blank", rel: "noopener" }, "Открыть"),
         ]),
-        // One way into the gift catalogue, not two. This page used to render its
-        // own grid of the same 286 gifts below — priced in roubles and wired to
-        // the old "переведите и дождитесь подтверждения" flow, so the same rose
-        // was 1₽ here and ⭐10 in the shop, and only one of the two buttons
-        // actually delivered anything. The shop dialog is the real one.
         el("div", { class: "settings-toggle-row no-divider" }, [
           el("div", {}, [
             el("p", { class: "settings-toggle-title" }, "Магазин подарков"),
@@ -946,7 +841,6 @@ const BUSINESS_PERKS = [
   { icon: "MapPin", color: "#e0513f", title: "Адрес на профиле", desc: "Покажите, где вас найти" },
 ];
 
-
 async function renderBusiness(root) {
   let info = await api.getBusinessInfo();
   let buyingPlan = null;
@@ -956,21 +850,15 @@ async function renderBusiness(root) {
   let addressSaving = false;
   let newReplyShortcut = "";
   let newReplyText = "";
-  // Вложение авто-сообщения: какой раздел сейчас грузит/пишет ("greeting"/"away").
   let mediaBusyKey = null;
   let recordingKey = null;
   let recordMode = null;
   let recordingHandle = null;
-  // Один <video> на всю запись: render() пересобирает страницу, а превью,
-  // пересозданное каждый раз, теряло бы srcObject (как в callScreen.js).
   let recordPreviewEl = null;
 
   const plans = premiumPlanRows(info.plans);
-  // Как у Premium: по умолчанию подсвечен самый выгодный тариф.
   let selectedPlan = plans.reduce((best, p) => (best && best.discount >= p.discount ? best : p), null)?.id ?? null;
 
-  // Сколько дней осталось — для полоски и подписи в шапке. Полоска меряет
-  // остаток относительно самого длинного тарифа: полная — год и больше.
   function daysLeft() {
     if (!info.businessUntil) return 0;
     return Math.max(0, Math.ceil((new Date(info.businessUntil) - Date.now()) / 86400000));
@@ -1084,9 +972,6 @@ async function renderBusiness(root) {
     render();
   }
 
-  // Вложение приветствия/автоответа: одно на сообщение. Загрузка идёт тем же
-  // путём, что и в чате (lib/upload.js), запись голосового/кружка — тем же
-  // рекордером (lib/recorder.js). Сохраняется в business[key].attachments.
   function setAutoMedia(key, attachments) {
     saveBusiness({ [key]: { ...business[key], attachments } });
   }
@@ -1097,7 +982,7 @@ async function renderBusiness(root) {
     render();
     try {
       const a = await uploadFile(file, kind);
-      setAutoMedia(key, [{ ...a, kind }]); // setAutoMedia сам перерисует через saveBusiness
+      setAutoMedia(key, [{ ...a, kind }]);
     } catch (e) {
       alert(e.message || "Не удалось загрузить вложение");
     } finally {
@@ -1117,13 +1002,13 @@ async function renderBusiness(root) {
       alert("Нет доступа к микрофону или камере");
       return render();
     }
-    render(); // превью появляется, как только пошёл поток с камеры
+    render();
     recordingHandle.result.then(async (rec) => {
       const key2 = recordingKey;
       recordingHandle = recordingKey = recordMode = null;
       recordPreviewEl = null;
       render();
-      if (!rec || !key2) return; // отменили
+      if (!rec || !key2) return;
       const ext = (rec.mimeType || "").includes("mp4") ? "mp4" : "webm";
       const file = new File([rec.blob], `${mode}-${Date.now()}.${ext}`, { type: rec.mimeType });
       mediaBusyKey = key2;
@@ -1152,7 +1037,6 @@ async function renderBusiness(root) {
     if (a.kind === "video-note") return el("p", { class: "settings-toggle-hint" }, `⭕ Кружок${a.durationSec ? ` · ${Math.round(a.durationSec)} с` : ""}`);
     return FileAttachment(a);
   }
-  // Блок «вложение» под текстом приветствия/автоответа.
   function autoMediaBlock(key) {
     if (recordingKey === key) {
       const paused = recordingHandle?.isPaused?.() ?? false;
@@ -1173,7 +1057,6 @@ async function renderBusiness(root) {
         el("button", { class: "settings-danger-link", onclick: cancelAutoRecording }, "Отмена"),
       ]);
       if (recordMode !== "video-note") return bar;
-      // Кружок: большое круглое превью с камерой и кнопкой поворота — как в чате.
       if (!recordPreviewEl) recordPreviewEl = el("video", { autoplay: true, muted: true, playsinline: true, class: "composer-round-preview" });
       if (recordingHandle?.stream && recordPreviewEl.srcObject !== recordingHandle.stream) recordPreviewEl.srcObject = recordingHandle.stream;
       const flip = el("button", {
@@ -1225,9 +1108,6 @@ async function renderBusiness(root) {
     ]);
   }
 
-  // Часы работы. Один день — { closed, open, close }; «круглосуточно» —
-  // 00:00–24:00, конец раньше начала — работа через полночь (см.
-  // lib/businessHours.js).
   function setDay(day, patch) {
     saveBusiness({ hours: { ...business.hours, [day]: { ...business.hours[day], ...patch } } });
   }
@@ -1247,11 +1127,6 @@ async function renderBusiness(root) {
     },
   ];
 
-  // Часовой пояс бизнеса. У настроек, сохранённых до его появления, пояса
-  // нет, и часы считались по поясу сервера — подставляем пояс браузера
-  // владельца: почти всегда это и есть пояс, в котором он работает.
-  // Через setTimeout: saveBusiness сразу перерисовывает страницу, а к этому
-  // месту render() ещё не готов — объявления ниже по функции не выполнены.
   if (info.isBusiness && !business.timeZone && browserTimeZone()) {
     setTimeout(() => saveBusiness({ timeZone: browserTimeZone() }).catch(() => {}), 0);
   }
@@ -1272,8 +1147,6 @@ async function renderBusiness(root) {
           : el("span", { class: "business-day-hours" }, [
               timeInput(d.open, (v) => setDay(day, { open: v })),
               el("span", { class: "settings-toggle-hint" }, "–"),
-              // 24:00 в поле времени не выбрать — «до полуночи» показывается
-              // как 00:00, и это то же самое: конец раньше начала = через полночь.
               timeInput(d.close === "24:00" ? "00:00" : d.close, (v) => setDay(day, { close: v })),
               el("button", { class: "business-day-link", title: "Круглосуточно", onclick: () => setDay(day, { open: "00:00", close: "24:00" }) }, "24 ч"),
             ]),
@@ -1354,8 +1227,6 @@ async function renderBusiness(root) {
     const rows = [];
 
     rows.push(businessHero());
-    // Без подписки тарифы — сразу под шапкой; с подпиской — в конце, после
-    // настроек: продлевают реже, чем правят часы работы.
     if (!info.isBusiness && plans.length) rows.push(businessPlans());
     if (!info.isBusiness) {
       rows.push(
@@ -1449,9 +1320,6 @@ async function renderBusiness(root) {
     }
 
     if (info.isBusiness && !info.businessForever && plans.length) rows.push(businessPlans());
-    // Публичный лендинг — тот же, что у Premium: ссылкой с бизнес-страницы
-    // клиенту проще показать, что они получат, чем пересказом в сообщении.
-    // Якорь #pm-business — секция «Shalter для бизнеса» на лендинге.
     rows.push(
       el("div", { class: "settings-toggle-row no-divider" }, [
         el("div", {}, [
@@ -1466,11 +1334,6 @@ async function renderBusiness(root) {
   render();
 }
 
-// Партнёрская программа: условия (server/routes/partners.js's /me) плюс
-// прямой чат с администрацией для обсуждения сотрудничества — деловой
-// вопрос, который решает человек, а не бот поддержки.
-// Заглушка команды — реальные имена/роли впишите сюда, когда решите, что
-// показывать публично; формат {name, role, url?} на строку.
 const ABOUT_TEAM = [{ name: "Shalter", role: "Независимый проект" }];
 
 async function renderAbout(root) {
@@ -1478,7 +1341,6 @@ async function renderAbout(root) {
   try {
     ({ version } = await api.getAppVersion());
   } catch {
-    // Версия не критична для этого экрана — просто не покажем строку.
   }
 
   mount(
@@ -1556,12 +1418,6 @@ async function renderPartners(root) {
   render();
 }
 
-// "Войти через Shalter" — registering a third-party app that can offer
-// Shalter as a login option (server/routes/oauth.js), same self-service
-// shape as Боты above: no admin approval, a secret shown once at creation.
-// Каталог кастомных эмодзи — админский, как каталог подарков. Создаются и
-// правятся в аниматоре; пользователи их только вставляют в сообщения (пикер
-// эмодзи в композере). Управление под грантом «emojicatalog».
 async function renderEmojiCatalog(root) {
   let emoji = [];
   let error = null;
@@ -1656,7 +1512,7 @@ async function renderOAuthApps(root) {
   let redirectUri = "";
   let createError = null;
   let creating = false;
-  let freshSecret = null; // { clientId, clientSecret } — shown once, right after creation
+  let freshSecret = null;
 
   const nameInput = el("input", { class: "settings-input", placeholder: "Название приложения" });
   const redirectInput = el("input", { class: "settings-input mono", placeholder: "https://ваш-сайт.example/callback" });
@@ -1693,11 +1549,6 @@ async function renderOAuthApps(root) {
     render();
   }
 
-  // Секрет нигде не хранится в виде, который можно посмотреть повторно (см.
-  // комментарий в server/data/oauthApps.js) — единственный выход, если он
-  // потерян, тот же, что и у токена бота: сгенерировать новый. client_id и
-  // redirect_uri не меняются, поэтому уже настроенная ссылка входа продолжит
-  // работать — обновить нужно только секрет на своём сервере.
   async function regenerate(app) {
     if (!confirm(`Перегенерировать секрет «${app.name}»? Старый секрет сразу перестанет работать.`)) return;
     const { app: updated } = await api.regenerateOAuthApp(app.id);
@@ -1706,7 +1557,6 @@ async function renderOAuthApps(root) {
     render();
   }
 
-  // Показать ключ ещё раз — как «Показать токен» у бота.
   async function showSecret(app) {
     try {
       const creds = await api.getOAuthAppSecret(app.id);
@@ -1809,9 +1659,6 @@ async function renderOAuthApps(root) {
   render();
 }
 
-// Блок кода с кнопкой копирования — те же примеры curl нужны и странице
-// ботов; здесь достаточно локальной функции, второго места, где это
-// понадобится, пока нет.
 function codeBlock(text) {
   return el("div", { class: "settings-code-block" }, [
     el("pre", { class: "mono" }, text),
@@ -1825,10 +1672,6 @@ function codeBlock(text) {
 }
 
 async function renderAds(root) {
-  // Кабинет кампаний (components/adCabinet.js) — над прежней формой: та
-  // осталась для объявления на своей странице профиля, а кабинет отвечает за
-  // платные показы в каталоге. Разные вещи, но живут в одном разделе, потому
-  // что человек ищет их в одном месте.
   const cabinetSlot = el("div", { class: "ad-cabinet-slot" });
 
   let info = await api.getAdsInfo();
@@ -1875,9 +1718,6 @@ async function renderAds(root) {
     }
   }
 
-  // Same file-input/data-URL approach as the chat composer (composer.js) —
-  // no separate upload endpoint, the attachment travels as client-authored
-  // JSON same as a message's, validated server-side in routes/ads.js.
   const mediaFileInput = el("input", {
     type: "file",
     accept: "image/*,video/*",
@@ -2008,8 +1848,6 @@ async function renderAds(root) {
     );
   }
   render();
-  // Кабинет рисует себя сам и сам ходит на сервер — экрану настроек
-  // остаётся только дать ему место.
   AdCabinet(cabinetSlot);
 }
 
@@ -2042,9 +1880,6 @@ async function renderBots(root) {
     mount(
       root,
       pageWrap("Боты", "Настоящие боты, которых можно программировать как угодно", [
-        // Раньше это был один абзац, где «1)» и «2)» шли подряд в сплошном
-        // тексте вместе с заголовком и ссылкой — прочитать, чем один способ
-        // отличается от другого, было нельзя, а именно за этим сюда и смотрят.
         el("div", { class: "settings-notice-box bot-ways" }, [
           el("p", { class: "settings-toggle-title" }, "Три вещи, которые можно сделать"),
           el("div", { class: "bot-way" }, [
@@ -2072,22 +1907,14 @@ async function renderBots(root) {
                 el("div", { class: "settings-device-row" }, [
                   Avatar({ name: b.user.name, color: b.user.avatarColor, image: b.user.avatarImage, size: 32 }),
                   el("div", { class: "settings-device-body" }, [
-                    // Галочка видна и владельцу бота — иначе о том, что бота
-                    // верифицировали, он узнаёт только со стороны, глазами
-                    // чужого поиска.
                     el("p", {}, [b.user.name, VerifiedBadge(b.user, 13)].filter(Boolean)),
                     el("p", { class: "mono settings-toggle-hint" }, `@${b.user.username}`),
-                    // Что у бота уже настроено — видно из списка, а не только
-                    // после открытия каждого диалога по очереди.
                     el("div", { class: "bot-badges" }, [
                       b.code?.trim() ? el("span", { class: "bot-badge" }, "код") : null,
                       b.appCode || b.appUrl ? el("span", { class: "bot-badge accent" }, "приложение") : null,
                       b.commands?.length ? el("span", { class: "bot-badge" }, `${b.commands.length} команд`) : null,
                     ]),
                   ]),
-                  // Открыть переписку с ботом — первым действием: чаще всего с
-                  // ботом именно говорят, а не правят его. Раньше попасть в чат
-                  // с собственным ботом можно было только через поиск.
                   el("button", {
                     class: "icon-btn",
                     title: "Открыть чат с ботом",
@@ -2128,19 +1955,12 @@ async function renderBots(root) {
                     class: "icon-btn",
                     title: "Код бота",
                     html: iconSvg("Code", 15),
-                    // Список ботов загружается один раз при входе в раздел —
-                    // после сохранения кода он обязан узнать об этом сам, иначе
-                    // метка «код» появляется у бота только после ухода со
-                    // страницы и возвращения назад.
                     onclick: () =>
                       openBotCodeDialog(b, (code) => {
                         b.code = code;
                         render();
                       }),
                   }),
-                  // The command list the "/" button in a chat with this bot
-                  // offers. BotFather's own format, so anyone who has set up a
-                  // Telegram bot already knows what to type here.
                   el("button", {
                     class: "icon-btn",
                     title: "Команды бота",
@@ -2187,27 +2007,12 @@ async function renderAppearance(root) {
     { id: "dark", label: "Тёмная" },
     { id: "system", label: "Системная" },
   ];
-  // "" — акцент темы (см. lib/accent.js); дальше — цвета на выбор. Первые семь
-  // (после "") — исходная палитра, оставлены как есть байт в байт, чтобы у
-  // всех, кто уже выбрал один из них, свитч остался «активным» на той же
-  // кнопке. Остальные — добавленные, чтобы закрыть промежутки в цветовом
-  // круге (тёплые между жёлтым и красным, холодные между зелёным и синим,
-  // плюс розовый/пурпурный и нейтральный сине-серый), а не просто ещё
-  // оттенки той же горстки цветов.
   const ACCENTS = [
     "",
     "#3390EC", "#E53935", "#4FAE4E", "#E39D2B", "#8774E1", "#1C9BD9", "#D9822E",
     "#00A99D", "#8BC34A", "#E56B3B", "#E0507A", "#C2185B", "#7C6FD6", "#5C6BC0", "#607D8B",
   ];
   let wallpaperError = null;
-  // Covers the world's most-spoken languages — Google Translate itself
-  // supports 100+, but a dropdown of every ISO code is a worse UX than a
-  // curated list (same tradeoff Telegram's own translate picker makes).
-  //
-  // Украинского в списке нет намеренно — и не только в списке: сервер отклоняет
-  // его и в переводе, и в настройках, и в проверке текста (см.
-  // server/lib/unsupportedLanguages.js). Убрать пункт из выпадающего списка
-  // мало: язык выставляется и обычным запросом к API.
   const TRANSLATE_LANGUAGES = [
     { id: "ru", label: "Русский" },
     { id: "en", label: "English" },
@@ -2399,10 +2204,6 @@ async function renderNotifications(root) {
     return { granted: "разрешены", denied: "запрещены", default: "не запрошены" }[Notification.permission];
   }
 
-  // Полная картина, а не одно только разрешение браузера. «Разрешены» ничего
-  // не говорит о том, дойдёт ли уведомление: подписка могла не создаться, могла
-  // протухнуть, могла не доехать до сервера. Каждое звено показывается отдельно,
-  // потому что чинятся они по-разному.
   let diag = null;
   let checking = false;
   const refreshDiag = () => {
@@ -2445,7 +2246,6 @@ async function renderNotifications(root) {
         el("div", { class: "settings-notice-box" }, [
           el("p", { class: "settings-toggle-title" }, "Уведомления браузера"),
           el("p", { class: "settings-toggle-hint" }, `Статус: ${permLabel()}`),
-          // Цепочка целиком: где именно она рвётся, там и чинить.
           diag
             ? el("div", {}, [
                 chainRow("Защищённый адрес (https)", diag.защищённыйАдрес, diag.защищённыйАдрес ? null : "Push работает только по https — по http браузер его не даёт вовсе"),
@@ -2456,14 +2256,10 @@ async function renderNotifications(root) {
                 diag.ошибка ? el("p", { class: "login-error" }, diag.ошибка) : null,
               ])
             : el("p", { class: "settings-toggle-hint" }, "Проверяем…"),
-          // Кнопки — отдельным рядом с промежутком: голыми соседями они
-          // слипались в одну строку «Разрешить уведомленияПереподключить…».
           el("div", { class: "settings-notice-actions" }, [
             canRequest
               ? el("button", { class: "btn-accent", onclick: async () => { await requestPushPermission().catch(() => {}); refreshDiag(); } }, "Разрешить уведомления")
               : null,
-            // Кнопка на случай «разрешение есть, а пуши не идут»: браузер отзывает
-            // подписки молча, и сама она не восстановится.
             el(
               "button",
               {
@@ -2511,13 +2307,8 @@ async function renderHolidays(root) {
     await api.patchSettings({ holidays: settings.holidays });
   }
 
-  // "ДД.ММ" — привычный формат без года (год для праздника не нужен, дата
-  // повторяется каждый год), переводится в "MM-DD" перед отправкой на сервер
-  // (тот же формат, что и у встроенных праздников, lib/holidays.js).
   function parseDayMonth(input) {
     const raw = String(input ?? "").trim();
-    // Из <input type="date"> приходит ГГГГ-ММ-ДД — год отбрасываем, праздник
-    // повторяется каждый год. Формат ДД.ММ тоже принимаем (на всякий случай).
     let month, day;
     const iso = raw.match(/^\d{4}-(\d{2})-(\d{2})$/);
     if (iso) {
@@ -2532,7 +2323,6 @@ async function renderHolidays(root) {
     if (month < 1 || month > 12 || day < 1 || day > 31) return null;
     return `${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
-  // MM-DD → ГГГГ-ММ-ДД (текущий год) для значения поля выбора даты.
   function monthDayToInputDate(mmdd) {
     if (!/^\d{2}-\d{2}$/.test(mmdd || "")) return "";
     return `${new Date().getFullYear()}-${mmdd}`;
@@ -2564,7 +2354,7 @@ async function renderHolidays(root) {
   function startEditHoliday(h) {
     editingHolidayId = h.id;
     editTitle = h.title;
-    editDate = monthDayToInputDate(h.date); // MM-DD → ГГГГ-ММ-ДД для поля даты
+    editDate = monthDayToInputDate(h.date);
     addError = null;
     render();
   }
@@ -2592,16 +2382,12 @@ async function renderHolidays(root) {
     await api.patchSettings({ holidays: settings.holidays });
   }
   async function restoreBuiltins() {
-    // Вернуть скрытые встроенные: убираем из disabled все id из каталога.
     const catalogIds = new Set(holidayCatalog.map((h) => h.id));
     const disabled = (settings.holidays?.disabled ?? []).filter((id) => !catalogIds.has(id));
     settings = { ...settings, holidays: { ...settings.holidays, disabled } };
     render();
     await api.patchSettings({ holidays: settings.holidays });
   }
-  // «Изменить» встроенный: оригинал не поменять (он общий), поэтому делаем его
-  // личной копией — скрываем встроенный и добавляем свой с теми же полями,
-  // затем сразу открываем на редактирование.
   async function editBuiltin(h) {
     const disabled = new Set(settings.holidays?.disabled ?? []);
     disabled.add(h.id);
@@ -2610,7 +2396,6 @@ async function renderHolidays(root) {
     render();
     const { settings: saved } = await api.patchSettings({ holidays: settings.holidays });
     settings = saved;
-    // Открываем на правку только что созданную копию (последняя с таким названием).
     const created = [...(saved.holidays?.custom ?? [])].reverse().find((c) => c.title === h.title && c.date === h.date);
     if (created) startEditHoliday(created);
     else render();
@@ -2688,9 +2473,6 @@ async function renderHolidays(root) {
 
 async function renderPrivacy(root) {
   const { settings: initial } = await api.getSettings();
-  // Только заблокированные, а не все аккаунты сервера: на большой базе полный
-  // список стоил секунду и полгигабайта памяти на сервере, а нужен он был ради
-  // нескольких строк.
   let blockedUsers = [];
   api
     .getBlockedUsers()
@@ -2703,16 +2485,11 @@ async function renderPrivacy(root) {
   let blockedIds = new Set(getState().user.blockedUserIds ?? []);
   let passcodeOn = hasPasscode();
   let biometricOn = hasBiometric();
-  // Кнопку биометрии показываем только там, где на устройстве есть сканер
-  // (Face ID / отпечаток / Hello) — проверка асинхронная, до ответа считаем,
-  // что нет, потом перерисовываемся.
   let biometricAvailable = false;
   isBiometricAvailable().then((v) => {
     biometricAvailable = v;
     if (v) render();
   });
-  // Real 2FA (server/lib/totp.js), distinct from the local passcode below: the
-  // passcode locks this device's app, 2FA gates getting into the account at all.
   let twoFactor = { enabled: false, recoveryCodesLeft: 0 };
   api
     .getTwoFactor()
@@ -2740,15 +2517,9 @@ async function renderPrivacy(root) {
     render();
   }
 
-  // Исключения из одного правила: «номер видят все, кроме этого одного» или
-  // «последний визит скрыт от всех, кроме двоих». Хранятся рядом с самими
-  // правилами (settings.privacy.exceptions), проверяются на сервере в
-  // server/lib/privacyRules.js — там же и порядок старшинства.
   function openExceptions(label, key) {
     openPrivacyExceptionsDialog({
       title: `Исключения — ${label}`,
-      // Список выбора диалог собирает сам: контакты плюс поиск по серверу.
-      // Раньше сюда передавались все аккаунты разом.
       users: [],
       value: settings.privacy?.exceptions?.[key],
       onSave: (value) =>
@@ -2762,9 +2533,6 @@ async function renderPrivacy(root) {
     const exc = settings.privacy?.exceptions?.[key] ?? {};
     const allowed = exc.allow?.length ?? 0;
     const denied = exc.deny?.length ?? 0;
-    // Сколько исключений уже есть — прямо в строке. Правило, у которого их
-    // не видно, обманывает: в списке написано «Все», а кто-то из этих «всех»
-    // на самом деле ничего не видит.
     const summary = [allowed ? `+${allowed}` : null, denied ? `−${denied}` : null].filter(Boolean).join(" · ");
     return el("div", { class: "settings-toggle-row privacy-row" }, [
       el("div", { class: "privacy-row-label" }, [
@@ -2803,8 +2571,6 @@ async function renderPrivacy(root) {
   function disablePasscode() {
     openRemovePasscodeDialog(() => {
       passcodeOn = false;
-      // Биометрия — надстройка над код-паролем (он остаётся запасным способом
-      // снять замок). Убрали пароль — снимаем и её.
       if (biometricOn) {
         removeBiometric();
         biometricOn = false;
@@ -2828,8 +2594,6 @@ async function renderPrivacy(root) {
     render();
   }
 
-  // Shown under the security section after a password/e-mail change — the same
-  // "state changed, re-render" pattern the rest of this page uses.
   let securityNotice = null;
 
   function enableTwoFactor() {
@@ -2854,9 +2618,6 @@ async function renderPrivacy(root) {
         section("Приватность", [
           row("Последний визит", "lastSeen"),
           row("Номер телефона", "phone"),
-          // Distinct from the row above: that one is about who can *see* the
-          // number, this one about who can find the account *by* it (contact
-          // import — server/routes/contacts.js's /match).
           row("Кто найдёт меня по номеру", "discoverByPhone"),
           row("Фото профиля", "photo"),
           row("О себе", "bio"),
@@ -2864,17 +2625,8 @@ async function renderPrivacy(root) {
           row("Ссылка при пересылке", "forwards"),
           row("Кто добавляет меня в группы", "invites"),
           row("Кто может мне звонить", "calls"),
-          // «Мои контакты» здесь пропускает ещё и Premium, и тех, кому вы уже
-          // отвечали, — так же, как плата за сообщения. «Никто» не пробивается
-          // ничем, кроме поимённого разрешения в исключениях.
           row("Кто может мне писать", "messages"),
-          // Боты умеют писать первыми (Bot API, метод sendMessageToUser) —
-          // это напоминания о доставке и коды подтверждения, но это же и
-          // возможная рассылка. Здесь она выключается одним движением.
           row("Боты могут писать первыми", "botMessages"),
-          // Истории живут сутки и пропадают из ленты, но не из базы — в профиле
-          // есть вкладка со всем, что человек выкладывал. Здесь решается, видит
-          // ли её кто-то, кроме него самого. По умолчанию — никто.
           row("Кто видит архив историй", "storiesArchive"),
         ]),
         section("Безопасность", [
@@ -2886,9 +2638,7 @@ async function renderPrivacy(root) {
                 { class: "settings-toggle-hint" },
                 twoFactor.enabled
                   ? twoFactor.method === "password"
-                    ? // У облачного пароля нет кодов восстановления: восстанавливать
-                      // нечего — пароль знает только его хозяин. Писать «осталось 0»
-                      // значило бы пугать нулём там, где счётчика вовсе нет.
+                    ?
                       `Включена (облачный пароль)${twoFactor.cloudPasswordHint ? `. Подсказка: ${twoFactor.cloudPasswordHint}` : ""}`
                     : `Включена (${twoFactor.method === "chat" ? "код в чате Shalter" : "приложение-аутентификатор"}). Кодов восстановления осталось: ${twoFactor.recoveryCodesLeft}`
                   : "Код при каждом входе — в чате Shalter или из приложения-аутентификатора. Знать пароль или ваш номер будет недостаточно"
@@ -2933,8 +2683,6 @@ async function renderPrivacy(root) {
                 class: "settings-danger-link",
                 onclick: () =>
                   openChangeEmailDialog(getState().user.email, (user) => {
-                    // The address is on the state object the whole app reads, so
-                    // the hint above must not keep showing the old one.
                     if (user) updateSelf({ email: user.email });
                     securityNotice = "Адрес почты изменён";
                     render();
@@ -2955,9 +2703,6 @@ async function renderPrivacy(root) {
                 ])
               : el("button", { class: "settings-danger-link", onclick: changePasscode }, "Включить"),
           ]),
-          // Face ID / отпечаток — снимает тот же локальный замок, что и
-          // код-пароль. Требует включённого код-пароля: он остаётся запасным
-          // способом, если сканер не сработает.
           biometricAvailable
             ? el("div", { class: "settings-toggle-row" }, [
                 el("div", {}, [
@@ -2971,10 +2716,6 @@ async function renderPrivacy(root) {
                 Toggle(biometricOn, toggleBiometric, { disabled: !passcodeOn }),
               ])
             : null,
-          // Пароль аккаунта при запуске — в отличие от код-пароля выше, это
-          // настоящий пароль, и проверяет его сервер. Нужен ровно от того, кто
-          // взял разблокированный телефон: вход уже выполнен, а приложение всё
-          // равно не открывается.
           el("div", { class: "settings-toggle-row" }, [
             el("div", {}, [
               el("p", { class: "settings-toggle-title" }, "Пароль при запуске"),
@@ -2988,9 +2729,6 @@ async function renderPrivacy(root) {
           ]),
           securityNotice ? el("p", { class: "settings-toggle-hint success" }, securityNotice) : null,
         ]),
-        // Отсюда и ниже — `blocked`, а не загруженный с сервера `blockedUsers`:
-        // разблокировка меняет blockedIds на месте, и строка должна исчезать
-        // сразу, не дожидаясь повторного запроса.
         el("p", { class: "settings-section-title" }, `Заблокированные пользователи (${blocked.length})`),
         blocked.length === 0
           ? el("p", { class: "empty-hint" }, "Никого не заблокировано")
@@ -3018,9 +2756,6 @@ async function renderPrivacy(root) {
   render();
 }
 
-// Password re-confirmation before the irreversible delete-account call (see
-// server/lib/deleteAccount.js) — a small one-off modal rather than a new
-// component file, since this is the only place it's used.
 function openDeleteAccountDialog(onConfirm) {
   let error = null;
   let busy = false;
@@ -3060,8 +2795,6 @@ function openDeleteAccountDialog(onConfirm) {
       ),
       el("button", { class: "modal-cancel", onclick: () => close() }, "Отмена"),
     ]);
-    // passwordInput is the same node re-appended each render (not recreated),
-    // so moving it into the fresh dialog preserves its value/focus.
     overlay.textContent = "";
     overlay.appendChild(dialog);
   }
@@ -3104,11 +2837,6 @@ async function renderDevices(root) {
     }
   }
 
-  // Layout matches Telegram Web's own Active Sessions screen: the current
-  // device sits alone under "Это устройство" with the red "terminate all
-  // others" action directly beneath it (plus a hint line under *that*, not
-  // inside the card), then every other session gets its own "Активные
-  // сеансы" group below.
   function render() {
     const current = sessions.find((s) => s.current);
     const others = sessions.filter((s) => !s.current);
@@ -3123,8 +2851,6 @@ async function renderDevices(root) {
                     current.device,
                     el("span", { class: "settings-device-online" }, "в сети"),
                   ]),
-                  // IP обновляется по ходу работы (server/middleware/auth.js):
-                  // сменился адрес — сменится и здесь, устройство остаётся тем же.
                   el("p", { class: "mono settings-toggle-hint" }, current.location),
                 ]),
               ]),
@@ -3175,8 +2901,6 @@ async function renderAccounts(root) {
     const label = uid === me.id ? "Выйти из этого аккаунта?" : "Выйти из этого аккаунта на этом устройстве?";
     if (!confirm(label)) return;
     const { remaining } = await api.logout(uid);
-    // Сохранённый для быстрой отрисовки список чатов и переписка — тоже
-    // содержимое аккаунта: на общем устройстве его надо стереть при выходе.
     clearCache();
     if (remaining.length === 0) window.location.href = "/login";
     else window.location.reload();
@@ -3229,10 +2953,6 @@ async function renderFolders(root) {
   let error = null;
   const MAX_FOLDERS = 10;
 
-  // Каждое изменение — сразу и в общее состояние: вкладки над списком чатов
-  // (views/chatList.js) рисуются оттуда. Раньше папки правились только в копии
-  // этой страницы, и новая папка появлялась над списком лишь с очередным
-  // опросом сервера — через пятнадцать секунд или после перезагрузки.
   function sync() {
     setState({ folders });
   }
@@ -3245,8 +2965,6 @@ async function renderFolders(root) {
       render();
     }
   }
-  // Имя чата так, как его видит сам человек: у личного — собеседник, а не
-  // title записи (там имя, переданное создателем, у второй стороны — своё же).
   const chatName = (c) => (c.type === "dm" ? (c.isSaved ? "Избранное" : c.otherUser?.name ?? c.title) : c.title);
   const typeLabel = { dm: "личный", bot: "бот", group: "группа", channel: "канал" };
 
@@ -3282,8 +3000,6 @@ async function renderFolders(root) {
     render();
     return guarded(() => api.patchFolder(folder.id, { name }));
   }
-  // Порядок папок = порядок вкладок над списком. Стрелками, а не
-  // перетаскиванием: папок не больше десяти, и на телефоне так проще.
   function move(folder, delta) {
     const i = folders.findIndex((f) => f.id === folder.id);
     const j = i + delta;
@@ -3296,7 +3012,6 @@ async function renderFolders(root) {
     return guarded(() => Promise.all(folders.map((f) => api.patchFolder(f.id, { order: f.order }))));
   }
   function remove(folder) {
-    // Подтверждение — удаление не отменить, а папку собирали руками.
     openCheckboxDialog({
       title: `Удалить папку «${folder.name}»?`,
       text: "Сами чаты останутся — пропадёт только папка.",
@@ -3331,7 +3046,6 @@ async function renderFolders(root) {
 
   function editorFor(folder) {
     const q = chatFilter.trim().toLowerCase();
-    // Сначала то, что уже в папке, потом остальное — по алфавиту внутри.
     const list = chats
       .filter((c) => !q || chatName(c).toLowerCase().includes(q))
       .sort((a, b) => Number(folder.chatIds.includes(b.id)) - Number(folder.chatIds.includes(a.id)) || chatName(a).localeCompare(chatName(b), "ru"));
@@ -3351,7 +3065,6 @@ async function renderFolders(root) {
       oninput: (e) => {
         chatFilter = e.target.value;
         render();
-        // Поле пересоздаётся вместе со страницей — возвращаем в него курсор.
         const again = root.querySelector(".settings-folder-filter");
         again?.focus();
         again?.setSelectionRange(chatFilter.length, chatFilter.length);
@@ -3430,7 +3143,6 @@ async function renderFolders(root) {
                 value: newName,
                 placeholder: "Название папки",
                 oninput: (e) => (newName = e.target.value),
-                // Enter создаёт, Escape передумывает — раньше работала только кнопка.
                 onkeydown: (e) => {
                   if (e.key === "Enter") createFolder();
                   if (e.key === "Escape") {
@@ -3463,7 +3175,7 @@ function formatBytes(bytes) {
 async function renderData(root) {
   const { settings: initial } = await api.getSettings();
   let settings = initial;
-  let usage = null; // { bytesByBucket } once loaded
+  let usage = null;
   let usageError = null;
 
   api
@@ -3483,13 +3195,6 @@ async function renderData(root) {
     await api.patchSettings(p);
   }
 
-  // Real, per-account totals computed server-side from actual attachment
-  // bytes (server/routes/settings.js's /storage) — this app has no separate
-  // device cache to measure (attachments live in the message row itself, see
-  // AGENTS.md), so unlike Telegram's own version of this screen there's
-  // nothing safe to "clear" here without deleting real chat history. There's
-  // no clear button for the same reason as before — it would either do
-  // nothing or silently delete messages the user didn't ask to delete.
   const BUCKETS = [
     { key: "photos", label: "Фото" },
     { key: "videos", label: "Видео" },
@@ -3511,9 +3216,6 @@ async function renderData(root) {
             Toggle(settings.autoDownload, (v) => patch({ autoDownload: v })),
           ]),
         ]),
-        // Той же карточкой, что и остальные разделы: раньше строки объёма
-        // стояли отдельными рамками вне карточки и выглядели чужими на
-        // странице.
         section(
           usage ? `Использовано места — ${formatBytes(total)}` : "Использовано места",
           usageError
@@ -3548,8 +3250,6 @@ function shortcutRow(label, keys) {
   ]);
 }
 
-// Only real, wired-up shortcuts (see lib/keyboardShortcuts.js) — listing ones
-// that don't actually do anything would just be misleading.
 async function renderShortcuts(root) {
   const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
   const mod = isMac ? "⌘" : "Ctrl";
@@ -3574,43 +3274,20 @@ async function renderShortcuts(root) {
   );
 }
 
-// Admin-only (see SECTIONS' adminOnly flag) — connects DonationAlerts so
-// Premium/Реклама/Gift purchases become real automatic payments instead of
-// the "message the admin, they confirm by hand" fallback (server/lib/
-// donationAlerts.js). Env vars (DONATIONALERTS_CLIENT_ID/SECRET/REDIRECT_URI)
-// have to be set on the server first — there's no UI for those since they're
-// app-wide OAuth app credentials, not something to type into a settings form.
-// Admin-only (SECTIONS' adminOnly flag → server also gates every /api/admin
-// route). The moderation ledger: what's still open, who is banned and why, and
-// who carries a public safety label. Reports also arrive as messages in the
-// admin's chat with the service bot (server/routes/reports.js) — but a chat
-// message scrolls away, so a ban set from one used to be unreviewable and,
-// worse, un-liftable. Every row here opens the per-user panel
-// (components/adminUserPanel.js), which is where unbanning, labelling, reading
-// the reports against an account and exporting its data actually happen.
 async function renderModeration(root) {
   let data = null;
   let error = null;
-  // Kept apart from `error`: that one means "the screen couldn't load" and
-  // replaces the whole page, while a failed lookup should leave the reports and
-  // lists exactly where they were and just say the handle wasn't found.
   let lookupError = null;
-  // Найденная группа/канал для удаления модератором (см. «Группа или канал»).
   let foundChat = null;
   let chatLookupError = null;
   let chatDeleting = false;
-  // Проверка отправки почты — по кнопке, а не при открытии страницы: она
-  // подключается к чужому серверу и занимает секунды.
   let mailStatus = null;
   let mailBusy = false;
-  // Новый статус в каталоге: картинка выбирается и сжимается сразу по клику
-  // на файл, до отправки формы — та же последовательность, что у аватарки.
   let newStatusImage = null;
   let newStatusError = null;
-  // Цвет новой метки безопасности (палитра ниже, при создании).
   const LABEL_COLORS = ["#c6403b", "#d9822e", "#e0a423", "#2f9e5a", "#1c9bd9", "#7c6fd6", "#8a5cf6", "#5a6472"];
   let newLabelColor = LABEL_COLORS[0];
-  let editingLabel = null; // {id, short, label, hint, color} — метка в режиме правки
+  let editingLabel = null;
 
   async function checkMail() {
     mailBusy = true;
@@ -3624,10 +3301,7 @@ async function renderModeration(root) {
     render();
   }
 
-  // Вне render(): пересоздание полей на каждой перерисовке — ровно то, из-за
-  // чего в других местах приложения текст приходилось вводить по одной букве.
   const newLabelShort = el("input", { class: "settings-input", placeholder: "СПАМ", maxlength: 16 });
-  // Каталог: листать всех людей/группы/каналы/ботов и открывать карточку.
   let dirTab = "users";
   let dirItems = null;
   let dirTotal = 0;
@@ -3668,10 +3342,6 @@ async function renderModeration(root) {
     },
   });
 
-  // Очередь проверки рекламы держит своё состояние (открытый ввод причины,
-  // текст в нём) и грузится своим запросом — поэтому узел создаётся один раз
-  // здесь, а не внутри render(): иначе каждая перерисовка страницы модерации
-  // сбрасывала бы наполовину набранную причину отказа.
   const adReviewSlot = el("div", { class: "settings-section-group" });
   AdReviewQueue(adReviewSlot);
   const newLabelName = el("input", { class: "settings-input", placeholder: "Спам-рассылка" });
@@ -3686,8 +3356,6 @@ async function renderModeration(root) {
     render();
   }
 
-  // Reports name a user id, not a full user object — good enough for the panel,
-  // which reloads what it needs itself.
   function openPanel(u) {
     openAdminUserPanel(u, () => load());
   }
@@ -3761,10 +3429,6 @@ async function renderModeration(root) {
       return;
     }
 
-    // Any account, by handle / phone / id. The moderation screen previously only
-    // listed accounts that were *already* banned or labelled, so acting on
-    // anyone else meant finding their profile in a chat first — which for a
-    // reported stranger is exactly what you can't do.
     const lookupInput = el("input", { class: "settings-input", placeholder: "@юзернейм, +7…, почта или id" });
     async function lookup() {
       const q = lookupInput.value.trim();
@@ -3779,9 +3443,6 @@ async function renderModeration(root) {
       }
     }
 
-    // Чужая группа или канал — по @имени, ссылке или id. Открыть такой чат в
-    // приложении модератор не может, если в нём не состоит, поэтому удалить
-    // его можно отсюда.
     const chatLookupInput = el("input", { class: "settings-input", placeholder: "@канал, ссылка-приглашение или id" });
     async function lookupChat() {
       const q = chatLookupInput.value.trim();
@@ -3813,11 +3474,6 @@ async function renderModeration(root) {
       }
     }
 
-    // Built with section() like every other settings page — hand-rolling
-    // .settings-section-title + .settings-section as bare siblings (which this
-    // did at first) skips .settings-section-group's bottom margin entirely, so
-    // the three groups ran into each other with no gap and each heading hugged
-    // the card above it.
     const empty = (text) => el("p", { class: "moderation-empty" }, text);
 
     mount(
@@ -3869,9 +3525,6 @@ async function renderModeration(root) {
           mailStatus
             ? el("div", {}, [
                 el("p", { class: "mono settings-toggle-hint" }, `Отправитель: ${mailStatus.from}`),
-                // Записи показываются здесь, потому что добавить их может только
-                // владелец домена — а консоли, где обычно запускают
-                // scripts/mail-dns.js, у него может не быть вовсе.
                 ...(mailStatus.dns?.records?.length
                   ? [
                       el(
@@ -3908,8 +3561,6 @@ async function renderModeration(root) {
               ])
             : null,
         ]),
-        // Свои метки. Пять встроенных лежат в той же таблице и удаляются так же:
-        // если администрации они не нужны, навязывать их незачем.
         section("Метки безопасности", [
           ...(data.labels ?? []).map((l) => {
             if (editingLabel && editingLabel.id === l.id) {
@@ -4021,10 +3672,6 @@ async function renderModeration(root) {
           }, "Добавить метку"),
           el("p", { class: "settings-toggle-hint" }, "Короткая надпись — то, что видно рядом с именем (СКАМ, ФЕЙК). Латиницей задавать не нужно: идентификатор соберётся сам."),
         ]),
-        // Готовые статусы — та половина функции «статус рядом с именем»
-        // (Settings → Профиль → Статус), которую наполняет администрация, а не
-        // сам человек. Удаление ничего не ломает у тех, кто уже его выбрал —
-        // см. server/data/profileStatuses.js.
         section("Готовые статусы", [
           el("div", { class: "sticker-pack-grid" },
             (data.statusCatalog ?? []).length
@@ -4124,8 +3771,6 @@ async function renderModeration(root) {
   await load();
 }
 
-// Секунды → «3 д 4 ч», «12 ч 40 мин», «40 мин 12 с» — до двух единиц, потому
-// что аптайм в 268 914 секундах не читается вообще.
 function formatUptime(sec) {
   const s = Math.max(0, Math.floor(sec));
   const d = Math.floor(s / 86400);
@@ -4137,9 +3782,6 @@ function formatUptime(sec) {
   return `${s} с`;
 }
 
-// Полоса заполнения. Цвет — по самому значению, а не по типу показателя: 91%
-// диска и 91% памяти одинаково означают «скоро всё встанет», и красная полоса
-// должна попасться на глаза раньше, чем это случится.
 function meter(label, percent, valueText, hint) {
   const p = Math.min(100, Math.max(0, Number(percent) || 0));
   const level = p >= 90 ? "danger" : p >= 75 ? "warn" : "ok";
@@ -4158,18 +3800,10 @@ function statRow(label, value) {
   return el("div", { class: "server-stat-row" }, [el("span", {}, label), el("span", { class: "mono settings-toggle-hint" }, value)]);
 }
 
-// Admin-only (SECTIONS' adminOnly flag → сервер тоже гейтит /api/admin/server).
-// То, что обычно смотрят по ssh: `df -h`, `top`, `du -sh data/`. К развёртыванию,
-// куда попадают только пушем (DEPLOY.md), консоли может не быть вовсе — а
-// «файлы перестали загружаться» почти всегда означает «кончилось место», и
-// узнать это иначе неоткуда. Данные читаются целиком в server/lib/serverStats.js.
 async function renderServer(root) {
   let data = null;
   let error = null;
   let busy = false;
-  // Опрос по таймеру: загрузка процессора имеет смысл только как ряд значений,
-  // одиночный снимок ничего не говорит. Пять секунд — это ещё и окно, за
-  // которое сервер считает саму загрузку (разница между соседними запросами).
   const REFRESH_MS = 5000;
   let auto = true;
   const TABLES_SHOWN = 12;
@@ -4187,9 +3821,6 @@ async function renderServer(root) {
     render();
   }
 
-  // Настройки не проходят через withCleanup (app.js чистит только mainSlot, а
-  // рисуем мы в его внутренний слот), поэтому таймер снимает себя сам, как
-  // только его узел ушёл из документа — при переходе на другой раздел.
   const iv = setInterval(() => {
     if (!document.body.contains(root)) {
       clearInterval(iv);
@@ -4243,8 +3874,6 @@ async function renderServer(root) {
               ? `Средняя нагрузка: ${cpu.loadAvg.map((v) => v.toFixed(2)).join(" · ")} (1 / 5 / 15 мин). Больше числа ядер (${host.cores}) — очередь на выполнение, сервер не успевает.`
               : null
           ),
-          // Ядра по отдельности: одно упёртое в 100% при общих 12% — это
-          // зациклившийся обработчик, и по средней цифре его не видно.
           cpu.perCore?.length
             ? el(
                 "div",
@@ -4278,8 +3907,6 @@ async function renderServer(root) {
                   : `Раздел, где лежит ${disk.path}`
               ),
           statRow("База data/app.db", formatBytes(storage.db)),
-          // WAL — журнал упреждающей записи (AGENTS.md: база в режиме WAL). В
-          // норме он маленький; разросшийся означает, что чекпоинт не проходит.
           statRow("Журнал WAL", `${formatBytes(storage.wal)}${storage.wal > 64 * 1024 * 1024 ? " — необычно много" : ""}`),
           statRow(
             "Вложения",
@@ -4291,12 +3918,8 @@ async function renderServer(root) {
         ]),
         section("База данных", [
           statRow("Размер по страницам", `${formatBytes(db.pageCount * db.pageSize)} · ${db.pageCount} × ${formatBytes(db.pageSize)}`),
-          // Освобождается только VACUUM — до него место занято, но не используется.
           db.freeBytes > 0 ? statRow("Свободно внутри базы", `${formatBytes(db.freeBytes)} — вернёт VACUUM`) : null,
           statRow("Всего строк", String(db.totalRows)),
-          // Таблицы отсортированы по числу строк, поэтому первых нескольких
-          // хватает на вопрос «от чего растёт база»; остальные два десятка —
-          // это в основном нули, и разворачиваются по нажатию.
           ...db.tables.slice(0, allTables ? db.tables.length : TABLES_SHOWN).map((t) => statRow(t.name, String(t.rows))),
           db.tables.length > TABLES_SHOWN
             ? el(
@@ -4334,22 +3957,11 @@ async function renderServer(root) {
   await load();
 }
 
-// Admin-only (SECTIONS' adminOnly flag → server also gates every /api/admin
-// route to the ADMIN_PHONE holder). Lawful-request compliance: export ONE
-// named user's stored correspondence in response to a legal basis, with the
-// action logged. Deliberately not a "read everyone" surface — you resolve a
-// specific person, state a reason, and get a file.
-// Admin-only. The shipped catalogue is code (server/data/gifts.js) — this
-// screen edits the part that lives in the database: how big a limited run is,
-// and any gifts the admin mints themselves.
-// The stars screen is the dialog — one place that knows about balances, packs
-// and the per-account message price, rather than two copies drifting apart.
 async function renderStars(root) {
   let info = null;
   try {
     info = await api.getStars();
   } catch {
-    /* the dialog reports its own errors */
   }
   mount(
     root,
@@ -4367,10 +3979,6 @@ async function renderStars(root) {
   );
 }
 
-// The username auction (server/routes/usernames.js). Visible to everyone —
-// bidding is the point — with the create/close/grant controls appearing only for
-// whoever holds ADMIN_PHONE, which the server reports rather than the client
-// guessing from a phone number.
 async function renderUsernames(root) {
   let data = null;
   let error = null;
@@ -4493,9 +4101,6 @@ async function renderUsernames(root) {
         error ? el("p", { class: "login-error" }, error) : null,
         el("p", { class: "settings-toggle-hint" }, `На балансе: ${data.balance} ⭐. Звёзды списываются только у победителя и только в момент завершения — до этого баланс не блокируется.`),
 
-        // Рынок перепродажи — рядом с аукционом, потому что предмет тот же, а
-        // отличается только то, кто продаёт: там администрация раздаёт
-        // свободный хендл, здесь человек продаёт свой.
         section("Рынок юзернеймов", [
           el(
             "p",
@@ -4635,9 +4240,6 @@ async function renderGiftShop(root) {
     error = null;
     notice = null;
     try {
-      // Гифка грузится обычным путём (как любое вложение), а вырезание фона
-      // (server/lib/giftMedia.js) сервер делает уже внутри /catalog — так
-      // неудачная обработка не оставляет в каталоге подарок без анимации.
       let gifUrl;
       if (draft.gifFile) {
         uploadingGif = true;
@@ -4653,7 +4255,6 @@ async function renderGiftShop(root) {
         supply: draft.exclusive ? Number(draft.supply) : null,
         exclusive: draft.exclusive,
         gifUrl,
-        // Нарисованная в аниматоре сцена — рисуется вместо анимации по эмодзи.
         scene: draft.scene || undefined,
       });
       notice = `Выпущен подарок ${gift.emoji} «${gift.name}»`;
@@ -4677,8 +4278,6 @@ async function renderGiftShop(root) {
   async function removeGift(gift) {
     error = null;
     notice = null;
-    // Встроенный или уже выпущенный подарок физически не удалить — он прячется
-    // из витрины (и восстановим), поэтому и подтверждение, и текст об этом.
     const canHardDelete = gift.custom && !gift.ownerId && (gift.issued ?? 0) === 0;
     if (!canHardDelete && !confirm(`Скрыть «${gift.name}» из витрины? Уже подаренные экземпляры останутся у людей. Подарок можно вернуть.`)) return;
     try {
@@ -4704,9 +4303,6 @@ async function renderGiftShop(root) {
     render();
   }
 
-  // Перерисовать подарок в аниматоре — и встроенный тоже. Раньше встроенные
-  // вообще нельзя было изменить (только тираж); теперь их рисунок правится через
-  // override-сцену. scene=null убирает рисунок и возвращает анимацию по эмодзи.
   function editGiftScene(gift) {
     openAnimatorEditor({
       title: `Нарисовать «${gift.name}»`,
@@ -4740,10 +4336,6 @@ async function renderGiftShop(root) {
     render();
   }
 
-  // Строка любого подарка в общем списке: превью, название, цена, перерисовка и
-  // удаление. Перерисовать можно любой (в т.ч. встроенный); удалять — только
-  // свой нетронутый (иначе у людей на профилях останется карточка без имени),
-  // остальные скрываются из витрины.
   function giftRow(gift) {
     return el("div", { class: `gift-admin-row ${gift.hidden ? "gift-admin-hidden" : ""}` }, [
       el("span", { class: "gift-admin-emoji" }, [renderGiftArt(gift, { size: 40, replay: false })]),
@@ -4758,8 +4350,6 @@ async function renderGiftShop(root) {
       ]),
       el("button", { class: "icon-btn", title: gift.scene ? "Изменить рисунок" : "Нарисовать", html: iconSvg("Edit", 15), onclick: () => editGiftScene(gift) }),
       gift.scene ? el("button", { class: "icon-btn", title: "Убрать рисунок", onclick: () => clearGiftScene(gift) }, "↺") : null,
-      // Скрытый — только вернуть. Иначе: удалить (свой нетронутый) или скрыть
-      // (встроенный/уже выпущенный) — обе операции идут через removeGift.
       gift.hidden
         ? el("button", { class: "btn-accent-pill", title: "Вернуть в витрину", onclick: () => restoreGift(gift) }, "Вернуть")
         : el("button", {
@@ -4772,8 +4362,6 @@ async function renderGiftShop(root) {
   }
 
   function supplyRow(gift) {
-    // Uncontrolled input, read on submit: re-rendering on every keystroke would
-    // take the focus with it (the same trap as the contacts search).
     const input = el("input", {
       class: "settings-input gift-supply-input mono",
       type: "number",
@@ -4823,11 +4411,6 @@ async function renderGiftShop(root) {
       value: draft.supply,
       oninput: (e) => (draft.supply = e.target.value),
     });
-    // Анимация подарка вместо статичного эмодзи: гифка грузится как есть, а
-    // фон вырезается сервером (хромакей по цвету углов первого кадра — см.
-    // server/lib/giftMedia.js), поэтому фон у исходника лучше брать
-    // однотонным. Эмодзи всё равно нужен — он используется в текстовых
-    // уведомлениях ("🎁 Хочу подарить...", server/routes/gifts.js).
     const gifInput = el("input", {
       type: "file",
       accept: "image/gif,video/*",
@@ -4843,15 +4426,11 @@ async function renderGiftShop(root) {
       },
     });
     const gifPicker = el("div", { class: "gift-create-gif-picker" }, [
-      // Превью того, как подарок будет выглядеть: сначала нарисованная сцена
-      // (аниматор), иначе гифка, иначе встроенная анимация по эмодзи.
       draft.scene
         ? el("div", { class: "gift-create-anim-preview" }, [renderGiftArt({ scene: draft.scene }, { size: 72 })])
         : draft.gifPreviewUrl
           ? el("img", { src: draft.gifPreviewUrl, class: "gift-create-gif-preview" })
           : (draft.emoji ? el("div", { class: "gift-create-anim-preview" }, [renderGiftArt({ emoji: draft.emoji }, { size: 72 })]) : null),
-      // Нарисовать подарок в аниматоре — открывается тем же редактором, что и
-      // пользовательские стикеры/эмодзи/подарки (components/animatorEditor.js).
       el(
         "button",
         {
@@ -4928,11 +4507,11 @@ async function renderGiftShop(root) {
 }
 
 async function renderLegal(root) {
-  let target = null; // resolved user, or null until looked up
+  let target = null;
   let lookupError = null;
   let exportError = null;
   let busy = false;
-  let lastExport = null; // { exportId, at } confirmation after a run
+  let lastExport = null;
   let log = [];
 
   const queryInput = el("input", { class: "settings-input", placeholder: "@username, +7… или id пользователя" });
@@ -4941,8 +4520,6 @@ async function renderLegal(root) {
   try {
     ({ exports: log } = await api.adminListExports());
   } catch (err) {
-    // Non-admin never reaches this renderer (nav hides it), but a 403 here
-    // would just mean an empty log, not a broken page.
     log = [];
   }
 
@@ -4978,9 +4555,6 @@ async function renderLegal(root) {
     render();
     try {
       const { exportId, data } = await api.adminExportUser(target.id, reason);
-      // Turn the assembled JSON into a downloaded file entirely client-side
-      // (a Blob + object URL) — nothing extra to store on the server, and
-      // the file never lingers anywhere but the admin's own machine.
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = el("a", { href: url, download: `export_${target.username || target.id}_${exportId}.json` });

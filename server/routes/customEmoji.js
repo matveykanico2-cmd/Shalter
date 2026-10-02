@@ -5,10 +5,6 @@ const { getUser } = require("../data/users");
 const { hasAdminSection } = require("../lib/adminAccess");
 const { listAllEmoji, createEmoji, updateEmoji, deleteEmoji, MAX_EMOJI } = require("../data/customEmoji");
 
-// Кастомные эмодзи — общий каталог, как подарки: смотреть и вставлять может
-// любой вошедший, а создавать/править/удалять — только админ (раздел
-// «emojicatalog», выдаётся так же, как «Каталог подарков»). Сцена self-contained
-// едет в сообщение (server/routes/messages.js), получателю ничего не дозапросить.
 const router = express.Router();
 router.use(requireUserId);
 

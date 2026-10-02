@@ -1,15 +1,8 @@
 import { el } from "../lib/dom.js";
 
-// Opened from the composer's clock icon (composer.js) — picks when the
-// currently-typed message should actually go out. The actual delivery
-// later is server/lib/scheduledMessagesSweep.js's job; this dialog just
-// hands back the chosen moment as an ISO timestamp.
 export function openScheduleSendDialog(onSchedule) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
 
-  // datetime-local wants "local wall-clock time, no offset" — shifting by
-  // getTimezoneOffset() before slicing is the standard way to turn a UTC
-  // Date into that format without a date library.
   function toLocalInputValue(date) {
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   }

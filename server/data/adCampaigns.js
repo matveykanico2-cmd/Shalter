@@ -1,9 +1,6 @@
 const db = require("../db");
 
-// Кампании рекламного кабинета. Правила — в server/routes/ads.js, здесь только
-// хранение и счёт.
-
-const CPM_MIN = 5; // звёзд за тысячу показов — ниже этого показ дешевле округления
+const CPM_MIN = 5;
 
 function rowToCampaign(row) {
   if (!row) return undefined;
@@ -24,8 +21,6 @@ function rowToCampaign(row) {
     clicks: row.clicks,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt ?? null,
-    // Считается здесь, а не в интерфейсе: одно и то же число нужно и кабинету,
-    // и решению «показывать ли ещё».
     remainingStars: Math.max(0, row.budgetStars - row.spentStars),
   };
 }
@@ -42,9 +37,6 @@ function listForReview() {
   return db.prepare("SELECT * FROM ad_campaigns WHERE status = 'review' ORDER BY createdAt ASC").all().map(rowToCampaign);
 }
 
-// Кандидаты на показ: идут, деньги не кончились, место совпадает. Порядок
-// случайный, чтобы одна кампания не занимала всю выдачу просто потому, что
-// создана раньше.
 function pickForPlacement(placement, excludeOwnerId) {
   const rows = db
     .prepare(
@@ -57,10 +49,6 @@ function pickForPlacement(placement, excludeOwnerId) {
   return rowToCampaign(rows);
 }
 
-// Новая кампания сразу встаёт в очередь на проверку, а не ложится черновиком:
-// объявление всё равно нельзя показать без проверки, а «создал и жду» — это
-// ровно то состояние, в котором она оказывается сразу после создания. Статус
-// всё же параметр: правка уже проверенного объявления возвращает его сюда же.
 function create({ ownerId, title, text, url, imageUrl, placement, cpmStars, status = "review" }) {
   const id = `ad_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   db.prepare(
@@ -98,16 +86,11 @@ function remove(id) {
   db.prepare("DELETE FROM ad_campaigns WHERE id = ?").run(id);
 }
 
-// Показ. Списывать по звезде за показ нельзя — цена за тысячу меньше единицы,
-// поэтому платное «зерно» копится в spentStars дробями через накопитель: сумма
-// растёт на cpm/1000 и списывается целыми звёздами, когда наберётся.
 const recordImpression = db.transaction((id, cpmStars) => {
   const day = new Date().toISOString().slice(0, 10);
   const row = db.prepare("SELECT impressions, spentStars, budgetStars, cpmStars FROM ad_campaigns WHERE id = ?").get(id);
   if (!row) return null;
   const impressions = row.impressions + 1;
-  // Сколько всего должно быть списано при таком числе показов — так на длинной
-  // дистанции округление не уводит счёт ни в плюс, ни в минус.
   const due = Math.floor((impressions * (cpmStars ?? row.cpmStars)) / 1000);
   const spent = Math.min(row.budgetStars, Math.max(row.spentStars, due));
   const charged = spent - row.spentStars;
@@ -116,7 +99,6 @@ const recordImpression = db.transaction((id, cpmStars) => {
     `INSERT INTO ad_daily (campaignId, day, impressions, spentStars) VALUES (?, ?, 1, ?)
      ON CONFLICT(campaignId, day) DO UPDATE SET impressions = impressions + 1, spentStars = spentStars + ?`
   ).run(id, day, charged, charged);
-  // Деньги кончились — кампания сама останавливается, а не крутится в минус.
   if (spent >= row.budgetStars) db.prepare("UPDATE ad_campaigns SET status = 'finished' WHERE id = ? AND status = 'active'").run(id);
   return charged;
 });

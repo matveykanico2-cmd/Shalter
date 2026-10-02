@@ -1,17 +1,3 @@
-// Локальная разблокировка по биометрии (Face ID / отпечаток / Windows Hello) —
-// Настройки → Конфиденциальность. Как и код-пароль (см. lib/passcodeLock.js),
-// это местный замок поверх уже выполненного входа, а не второй фактор: сессия
-// в куке остаётся действительной. Отличие от код-пароля лишь в способе снять
-// замок — вместо ввода PIN платформенный аутентификатор проверяет владельца
-// биометрией.
-//
-// Работает целиком на устройстве через WebAuthn с платформенным
-// аутентификатором. При включении заводится ключ (credential), его id
-// сохраняется в localStorage. Разблокировка — navigator.credentials.get() с
-// userVerification: "required": если аутентификатор не подтвердил владельца
-// биометрией или PIN устройства, промис отклоняется, и замок не снимается.
-// Подпись проверять некому и незачем — секрета на стороне сервера нет, ровно
-// как у локального код-пароля хранится только хэш.
 const CRED_KEY = "shalter_biometric_cred_id";
 
 function bufToB64url(buf) {
@@ -33,8 +19,6 @@ export function isBiometricSupported() {
   return typeof window.PublicKeyCredential !== "undefined" && !!navigator.credentials?.create;
 }
 
-// Есть ли на устройстве встроенный аутентификатор (сканер лица/пальца, Hello).
-// Асинхронно — браузер отвечает не мгновенно; результат кэшируется вызывающим.
 export async function isBiometricAvailable() {
   if (!isBiometricSupported()) return false;
   try {
@@ -48,8 +32,6 @@ export function hasBiometric() {
   return !!localStorage.getItem(CRED_KEY);
 }
 
-// Заводит ключ и включает замок. Вызов только по нажатию — браузер требует
-// пользовательского жеста. Бросает исключение, если человек отменил проверку.
 export async function enableBiometric(userName = "Shalter") {
   if (!isBiometricSupported()) throw new Error("Устройство не поддерживает биометрию");
   const challenge = crypto.getRandomValues(new Uint8Array(32));
@@ -76,8 +58,6 @@ export async function enableBiometric(userName = "Shalter") {
   localStorage.setItem(CRED_KEY, bufToB64url(cred.rawId));
 }
 
-// Снимает замок. true — аутентификатор подтвердил владельца; false — отказ или
-// отмена (вызывающий тогда оставляет замок и предлагает код-пароль).
 export async function unlockBiometric() {
   const stored = localStorage.getItem(CRED_KEY);
   if (!stored) return false;

@@ -1,25 +1,6 @@
 const fs = require("fs");
 const path = require("path");
 
-// Перенос вложений с диска (data/uploads) в S3 — общий код для сервера и для
-// scripts/migrate-uploads-to-s3.js.
-//
-// Сервер запускает его сам (startAutoMigration ниже): достаточно задать
-// S3_BUCKET и ключи доступа и перезапуститься — всё, что лежит на диске,
-// переедет в бакет в фоне, пока приложение работает. Пока файл не перенесён,
-// lib/storage.js отдаёт его с диска, так что во время переезда ничего не
-// пропадает и не отдаёт 404.
-//
-// Каждый файл:
-// - в бакете уже есть объект того же размера — пропускается (перенос можно
-//   прерывать и запускать сколько угодно раз);
-// - иначе загружается как есть, байт в байт: файлы уже зашифрованы
-//   (lib/fileCrypto.js), ключи остаются прежними;
-// - после загрузки размер объекта в бакете сверяется с файлом на диске;
-// - локальный файл удаляется (deleteLocal) только после успешной сверки.
-//
-// Файлы моложе минуты пропускаются — это может быть загрузка, которая ещё
-// пишется; их подберёт следующий проход.
 const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
 const MIN_AGE_MS = 60 * 1000;
 
@@ -56,7 +37,7 @@ async function migrateOne(cfg, name, stats, { dryRun, deleteLocal }) {
   try {
     stat = fs.statSync(full);
   } catch {
-    return; // удалили, пока шли по списку
+    return;
   }
   if (!stat.isFile()) return;
   if (Date.now() - stat.mtimeMs < MIN_AGE_MS) {
@@ -83,15 +64,11 @@ async function migrateOne(cfg, name, stats, { dryRun, deleteLocal }) {
   }
 
   if (deleteLocal && !dryRun) {
-    // Файл могли удалить из приложения, пока он ехал, — тогда его не
-    // было и на диске; unlink без файла не ошибка.
     await fs.promises.unlink(full).catch(() => {});
     stats.deleted += 1;
   }
 }
 
-// Один проход по data/uploads. Возвращает счётчики; ошибки по отдельным
-// файлам не прерывают проход, а считаются в failed.
 async function migrateUploads({ dryRun = false, deleteLocal = false, concurrency = 4, log = () => {} } = {}) {
   const cfg = s3Config();
   if (!cfg) throw new Error("Нужны S3_BUCKET, S3_ACCESS_KEY и S3_SECRET_KEY (см. .env.example)");
@@ -133,16 +110,6 @@ function hasLocalFiles() {
   }
 }
 
-// Автоматический переезд при запуске сервера в режиме S3.
-//
-// Проходы повторяются раз в 10 минут, пока на диске что-то остаётся: так
-// подбираются и «свежие» файлы, пропущенные первым проходом, и те, что не
-// доехали из-за сетевой ошибки. Когда папка пуста — останавливается.
-// Параллельность низкая (2), чтобы перенос не отъедал канал у живых
-// пользователей.
-//
-// S3_AUTO_MIGRATE=0 — выключить совсем (переносить руками скриптом).
-// S3_MIGRATE_KEEP_LOCAL=1 — копировать, но диск не чистить.
 function startAutoMigration() {
   if (process.env.S3_AUTO_MIGRATE === "0" || !s3Config() || !hasLocalFiles()) return;
   const deleteLocal = process.env.S3_MIGRATE_KEEP_LOCAL !== "1";
@@ -170,7 +137,6 @@ function startAutoMigration() {
     }
   };
 
-  // Не сразу при запуске — серверу есть чем заняться в первые секунды.
   setTimeout(run, 30 * 1000).unref();
   timer = setInterval(run, 10 * 60 * 1000);
   timer.unref();

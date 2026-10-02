@@ -1,9 +1,6 @@
 import { el } from "../lib/dom.js";
 import { api } from "../api.js";
 
-// Shown right after a private group or channel is created — the way Telegram
-// hands you the invite link the moment there is one. Without it a private chat
-// is born with no way in, and the link is buried two screens deep in editing.
 export function openInviteLinkDialog(chat) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const linkInput = el("input", { class: "login-input mono invite-link-input", readOnly: true, value: "Получаем ссылку…" });

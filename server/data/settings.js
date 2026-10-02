@@ -2,125 +2,36 @@ const db = require("../db");
 
 const DEFAULT_SETTINGS = {
   theme: "system",
-  // Пусто — акцент темы (base.css): голубой #3390ec в светлой, фиолетовый
-  // #8774e1 в тёмной, как в Telegram. Цвет строкой — выбранный вручную.
   accent: "",
-  // "Отключить анимации" in the account menu (public/js/components/navRail.js)
-  // — toggles the html[data-reduce-motion] CSS rule in base.css.
   reduceMotion: false,
   fontSize: 15,
-  // mutedChats: { [chatId]: true | "ISO-время, до которого тихо" }.
-  //
-  // Здесь, а не в записи чата, потому что тишина — дело личное. Раньше
-  // «отключить уведомления» писалось в саму запись чата, одну на всех, и
-  // человек, заглушивший группу, заглушал её каждому участнику. Прежнее поле
-  // mutedChatIds было массивом, который никто ни разу не прочитал.
-  // Спрашивать пароль аккаунта при каждом запуске приложения — даже когда
-  // вход уже выполнен (см. public/js/components/passwordLockScreen.js).
   requirePasswordOnLaunch: false,
-  // Каналы, закреплённые в профиле, — «вот что я веду». Здесь только
-  // идентификаторы и только порядок; всё остальное (и право их показывать)
-  // перепроверяется на каждом чтении профиля — см. routes/users.js.
   pinnedChannelIds: [],
   notifications: { previewText: true, sound: true, mutedChats: {} },
   privacy: {
     lastSeen: "everyone",
     phone: "contacts",
-    // "Кто может найти меня по номеру телефона" — enforced in
-    // routes/contacts.js's /match (contact import). Separate from `phone`
-    // above, which is about who can *see* the number on a profile: being
-    // findable by a number someone already has is a different question from
-    // handing the number out.
     discoverByPhone: "everyone",
     photo: "everyone",
     bio: "everyone",
     birthday: "everyone",
-    // "Who can add a clickable link back to me when my messages are
-    // forwarded" — enforced in messageBubble.js's forwarded-banner rendering
-    // (server/routes/messages.js stamps forwardedFrom.linkAllowed at forward
-    // time, since that's a snapshot the same way senderName/chatTitle are).
     forwards: "everyone",
-    // "Who can add me to groups/channels without an invite link" — enforced
-    // in the /:id/members "add" branch (server/routes/chats.js).
     invites: "everyone",
-    // "Who can call me" — same everyone/contacts/nobody shape, enforced in
-    // POST /api/calls and POST /api/calls/:id/participants (server/routes/
-    // calls.js). Defaults to "everyone" so this is non-breaking for every
-    // account that existed before this setting did.
     calls: "everyone",
-    // «Кто из ботов может написать мне первым» — тот же набор значений, что и
-    // у остальных: everyone | contacts | nobody. Проверяется в Bot API
-    // (routes/botApi.js, метод sendMessageToUser).
-    //
-    // По умолчанию everyone, потому что бот, который сам пишет первым, — это и
-    // есть напоминание о доставке, код подтверждения и уведомление о заказе,
-    // ради которых боты и заводятся. Кому это не нужно — выключает одним
-    // переключателем, и тогда бот не сможет начать разговор вообще.
     botMessages: "everyone",
-    // Архив историй в профиле — истории, чьи сутки вышли. По умолчанию «никто»:
-    // их публиковали как временные, и открывать их посторонним задним числом
-    // без спроса нельзя. Владелец свой архив видит всегда (routes/stories.js).
     storiesArchive: "nobody",
-    // Поимённые исключения из правил выше: { [ключ]: { allow: [], deny: [] } }.
-    // «Номер видят все, кроме этого одного» и «последний визит скрыт от всех,
-    // кроме двоих» — то, чего одним уровнем не сказать. Читаются и проверяются
-    // только через server/lib/privacyRules.js, туда же вынесен порядок
-    // старшинства (запрет сильнее разрешения, разрешение сильнее уровня).
     exceptions: {},
   },
   chatWallpaper: "default",
-  // Only meaningful when chatWallpaper === "custom" — a data URL, same
-  // client-side-downscaled-before-upload pattern as avatarImage (see
-  // public/js/lib/image.js), stored inline since there's no object storage
-  // in this app (see AGENTS.md's JSON-column note for per-user settings).
   chatWallpaperImage: null,
-  // Target language for the per-message "Перевести" action (messageBubble.js)
-  // — a plain ISO 639-1 code passed straight through to the translate API.
   translateLanguage: "ru",
-  // Target language for the *interface itself* (public/js/lib/uiTranslate.js)
-  // — "ru" means "don't translate," since that's the language the UI is
-  // authored in. Unlike translateLanguage, this one triggers a live pass
-  // over the app's own DOM through the same Google Translate endpoint.
   uiLanguage: "ru",
   autoDownload: true,
-  // Per-chat "clear history for me" timestamps (ISO) — messages at or before
-  // this point are hidden from this user's view only. See server/routes/chats.js.
   chatClears: {},
-  // Per-chat "delete for me" timestamps (ISO) — the chat itself drops out of
-  // this user's chat list (not just its history) unless/until a newer
-  // message arrives, at which point it reappears (same as Telegram: deleting
-  // a chat for yourself doesn't stop the other side from messaging you
-  // again). See server/routes/chats.js.
   hiddenChats: {},
-  // Per-chat wallpaper override — { [chatId]: { id, image? } }, same
-  // id/image shape as the global chatWallpaper/chatWallpaperImage pair
-  // above, just scoped to one conversation (DM, group, or channel). A chat
-  // with no entry here falls back to the global wallpaper (see
-  // chatView.js's applyWallpaper()). Private to this account only, same as
-  // Telegram's own per-chat background — the other side isn't affected.
   chatWallpapers: {},
-  // Per-chat unsent-message draft — { [chatId]: text }. Private to this
-  // account (same as chatWallpapers), read back into the composer on open
-  // and shown in the chat list preview (chatListItem.js's `chat.draft`
-  // check — that field was dead code until attachSummaries started
-  // populating it from here). Debounce-saved as the user types (see
-  // composer.js), cleared the moment a message actually sends.
   drafts: {},
-  // Настройка праздничных напоминаний (Settings → Праздники, lib/holidays.js
-  // для встроенного списка, lib/holidaySweep.js для доставки). `disabled` —
-  // id встроенных или своих праздников, которые человек выключил; `custom` —
-  // свои даты, [{id, title, date: "MM-DD"}]. Небольшой список, читается и
-  // пишется только по одному этому аккаунту — тот же формат, что и у всего
-  // остального здесь, а не отдельная таблица.
   holidays: { disabled: [], custom: [] },
-  // Shalter для бизнеса (Настройки → Shalter для бизнеса, только пока
-  // users.isBusiness активен — см. server/routes/business.js). Часы работы,
-  // приветствие/автоответ и быстрые ответы — личная настройка, никогда не
-  // читается по чужому профилю (в отличие от businessAddress на самом
-  // пользователе, который виден всем). Исключение — часы работы: при
-  // showHours они показываются в профиле (routes/users.js). Проверку
-  // «сейчас рабочее время или нет» делает lib/businessHours.js по timeZone
-  // бизнеса (null — пояс сервера).
   business: {
     enabled: false,
     hours: {
@@ -158,10 +69,6 @@ async function setChatCleared(userId, chatId, iso) {
   return updateSettings(userId, { chatClears: { ...(await getSettings(userId)).chatClears, [chatId]: iso } });
 }
 
-// "Delete for me" — clears history *and* drops the chat out of this user's
-// list, in one settings write (both timestamps need to agree, or a chat
-// could reappear in the list with its old history still cleared, or vice
-// versa).
 async function deleteChatForUser(userId, chatId, iso) {
   const current = await getSettings(userId);
   return updateSettings(userId, {
@@ -170,10 +77,6 @@ async function deleteChatForUser(userId, chatId, iso) {
   });
 }
 
-// Sets (or, with wallpaper === null, clears) this user's per-chat wallpaper
-// override — read-merge-write so patching one chat's entry doesn't clobber
-// every other chat's override (a plain updateSettings({chatWallpapers: {...}})
-// call from the route would replace the whole map).
 async function setChatWallpaper(userId, chatId, wallpaper) {
   const current = await getSettings(userId);
   const next = { ...current.chatWallpapers };
@@ -182,8 +85,6 @@ async function setChatWallpaper(userId, chatId, wallpaper) {
   return updateSettings(userId, { chatWallpapers: next });
 }
 
-// Sets (or, with an empty/falsy text, clears) this user's draft for one
-// chat — same read-merge-write shape as setChatWallpaper.
 async function setDraft(userId, chatId, text) {
   const current = await getSettings(userId);
   const next = { ...current.drafts };
@@ -192,9 +93,6 @@ async function setDraft(userId, chatId, text) {
   return updateSettings(userId, { drafts: next });
 }
 
-// Заглушён ли чат для этого человека прямо сейчас. Срок «тихо на час»
-// проверяется здесь же: истёкшая тишина — это её отсутствие, а не отдельное
-// состояние, которое кто-то должен не забыть снять.
 function mutedStateFor(settings, chatId) {
   const value = settings?.notifications?.mutedChats?.[chatId];
   if (!value) return { muted: false, mutedUntil: null };
@@ -204,7 +102,6 @@ function mutedStateFor(settings, chatId) {
   return { muted: false, mutedUntil: null };
 }
 
-// «Не беспокоить сейчас» — и навсегда заглушённые, и те, у кого не истёк срок.
 function isQuietNow(settings, chatId) {
   const state = mutedStateFor(settings, chatId);
   return state.muted || (!!state.mutedUntil && new Date(state.mutedUntil).getTime() > Date.now());

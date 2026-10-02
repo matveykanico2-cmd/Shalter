@@ -1,16 +1,6 @@
-// Hand-rolled History API router. Keeps the shell (nav rail, chat list,
-// active-call bar) mounted across navigation — a full page reload would
-// tear those down along with any live polling/websocket state.
 const routes = [];
 let notFoundHandler = () => {};
 let currentPath = null;
-// Whether the view for currentPath actually finished mounting. Without this,
-// an exception anywhere during a route's render (e.g. an info-panel update
-// crashing while re-rendering after editing a chat's photo/description) left
-// currentPath pointing at that route forever — navigate()'s "already here"
-// guard below then silently no-op'd on every future click to that exact
-// chat, and only a full page reload (which resets this module) recovered.
-// That's the bug behind "clicking this chat does nothing now".
 let lastRenderOk = true;
 
 function toMatcher(pattern) {
@@ -58,8 +48,6 @@ async function render() {
     await notFoundHandler();
     lastRenderOk = true;
   } catch (err) {
-    // Left as false on purpose — see lastRenderOk's comment above. Logged
-    // rather than swallowed so a broken mount is at least visible somewhere.
     console.error("Не удалось открыть", path, err);
   }
 }

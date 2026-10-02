@@ -1,9 +1,6 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 
-// Показ ключей приложения «Войти через Shalter» — client_id и client_secret с
-// копированием. Открывается после создания/перевыпуска и по кнопке «Показать
-// ключ», как «Показать токен» у бота (components/botTokenDialog.js).
 export function openOAuthSecretDialog(appName, { clientId, clientSecret }, { fresh = true } = {}) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const note = el("p", { class: "settings-toggle-hint" });

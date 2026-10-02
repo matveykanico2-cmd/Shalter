@@ -1,14 +1,6 @@
 const crypto = require("crypto");
 const db = require("../db");
 
-// "Войти через Shalter" — third-party apps, registered by any account
-// (self-service, no admin approval — same shape as a bot in data/bots.js).
-// A registered app gets a clientId (public, goes in the login link) and a
-// clientSecret (bearer credential, shown once at creation, same convention
-// as a bot's token — plain text in the DB, not hashed, for the same reason
-// bots.js gives: it has to be handed back to the owner verbatim later, and
-// this app has no secrets-manager layer to justify the extra complexity).
-
 function rowToApp(row) {
   if (!row) return undefined;
   return { id: row.id, name: row.name, clientId: row.clientId, redirectUri: row.redirectUri, ownerId: row.ownerId, createdAt: row.createdAt };
@@ -32,7 +24,7 @@ async function createOAuthApp({ ownerId, name, redirectUri }) {
     `INSERT INTO oauth_apps (id, name, clientId, clientSecret, redirectUri, ownerId, createdAt)
      VALUES (@id, @name, @clientId, @clientSecret, @redirectUri, @ownerId, @createdAt)`
   ).run(row);
-  return row; // includes clientSecret — the one time it's shown
+  return row;
 }
 
 async function listOAuthAppsByOwner(ownerId) {
@@ -47,9 +39,6 @@ async function getOAuthApp(id) {
   return rowToApp(db.prepare("SELECT * FROM oauth_apps WHERE id = ?").get(id));
 }
 
-// Deleting the app immediately invalidates every token it issued — a
-// dangling token that still worked after its app was "removed" would be a
-// silent backdoor, not a real deletion.
 async function deleteOAuthApp(id, ownerId) {
   const row = db.prepare("SELECT clientId FROM oauth_apps WHERE id = ? AND ownerId = ?").get(id, ownerId);
   if (!row) return false;
@@ -59,11 +48,6 @@ async function deleteOAuthApp(id, ownerId) {
   return true;
 }
 
-// The secret is shown once and never stored anywhere the owner can read it
-// back (see the header comment) — losing it means starting over with a new
-// one, the same way a bot's token or an API key on most platforms works.
-// Regenerating keeps the same clientId/redirect_uri (so a third-party's
-// login link stays valid), only the secret changes.
 async function regenerateOAuthAppSecret(id, ownerId) {
   const row = db.prepare("SELECT id FROM oauth_apps WHERE id = ? AND ownerId = ?").get(id, ownerId);
   if (!row) return undefined;
@@ -72,7 +56,7 @@ async function regenerateOAuthAppSecret(id, ownerId) {
   return { ...(await getOAuthApp(id)), clientSecret };
 }
 
-const CODE_TTL_MS = 5 * 60 * 1000; // 5 минут — только чтобы долететь до /token, не для хранения
+const CODE_TTL_MS = 5 * 60 * 1000;
 
 function createAuthCode({ clientId, userId, redirectUri }) {
   const code = randomId(24);
@@ -82,9 +66,6 @@ function createAuthCode({ clientId, userId, redirectUri }) {
   return code;
 }
 
-// Redeeming a code is transactional and marks it used in the same step —
-// two concurrent /token calls with the same leaked code must not both
-// succeed, only the first.
 const redeemAuthCode = db.transaction((code, clientId, redirectUri) => {
   const row = db.prepare("SELECT * FROM oauth_codes WHERE code = ?").get(code);
   if (!row) return null;
@@ -111,9 +92,6 @@ function getTokenOwner(token) {
   return db.prepare("SELECT userId, clientId FROM oauth_tokens WHERE token = ?").get(token);
 }
 
-// Показать секрет владельцу ещё раз — как «Показать токен» у бота
-// (data/bots.js's getBotToken). Секрет лежит в базе открытым текстом, поэтому
-// его можно вернуть; отдаём только владельцу приложения.
 async function getOAuthAppSecret(id, ownerId) {
   const row = db.prepare("SELECT clientId, clientSecret FROM oauth_apps WHERE id = ? AND ownerId = ?").get(id, ownerId);
   return row ? { clientId: row.clientId, clientSecret: row.clientSecret } : undefined;

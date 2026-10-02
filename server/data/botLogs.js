@@ -1,7 +1,3 @@
-// Ephemeral per-bot execution log — same "in-memory, no persistence" pattern
-// as typing.js/qrLogins.js: this is debug output for the bot's owner, not
-// data anyone needs surviving a server restart. Ring buffer capped per bot
-// so a bot stuck logging in a loop can't grow this unboundedly.
 const MAX_ENTRIES_PER_BOT = 100;
 
 const logsByBotId = new Map();

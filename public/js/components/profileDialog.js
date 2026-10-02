@@ -24,36 +24,20 @@ import { ProfileStatusBadge } from "./profileStatusBadge.js";
 import { openPinnedChannelsDialog } from "./pinnedChannelsDialog.js";
 import { DAY_KEYS, DAY_LABELS, formatDayHours, formatStatus, browserTimeZone } from "../lib/businessHours.js";
 
-// Bottom tab strip, same set/order as Telegram's own profile view. Content
-// for media/files/links comes from GET /api/users/:id/shared-media (scoped
-// to whatever DM already exists with this user — see server/routes/users.js);
-// gifts reuse the user object's own giftsReceived, already loaded with it.
 const TABS = [
   { id: "media", label: "Медиа" },
-  // Истории живут сутки и пропадают из ленты на «Чатах», но не из базы —
-  // здесь они остаются все. Свой архив человек видит всегда, чужой — если
-  // хозяин открыл его настройкой «Кто видит архив историй».
   { id: "stories", label: "Истории" },
   { id: "gifts", label: "Подарки" },
   { id: "files", label: "Файлы" },
   { id: "links", label: "Ссылки" },
-  // Этот раздел на самом деле собирает и голосовые, и видеосообщения-кружки
-  // (server/routes/users.js's /shared-media кладёт "voice" и "video-note" в
-  // один и тот же список) — сама строка внутри честно различает их подписью
-  // «Голосовое»/«Видеосообщение», а вот заголовок вкладки до сих пор называл
-  // всё разом «Голосовые», как будто кружков там вообще не бывает.
   { id: "voice", label: "Голосовые и видео" },
   { id: "groups", label: "Группы" },
 ];
 
-// Копирование по нажатию — юзернейм, телефон, ссылка на профиль. Короткая
-// плашка внизу экрана подтверждает, что в буфере именно это.
 export async function copyText(text, note = "Скопировано") {
   try {
     await navigator.clipboard.writeText(text);
   } catch {
-    // Буфер обмена может быть закрыт настройками браузера — тогда хотя бы
-    // покажем, что копировать.
     prompt("Скопируйте вручную:", text);
     return;
   }
@@ -66,7 +50,6 @@ function showToast(text) {
   setTimeout(() => toast.remove(), 1600);
 }
 
-// Кружок быстрого действия под именем.
 function quickAction(icon, label, onClick) {
   return el("button", { class: "profile-quick-action", onclick: onClick }, [
     el("span", { class: "profile-quick-action-icon", html: iconSvg(icon, 20) }),
@@ -74,8 +57,6 @@ function quickAction(icon, label, onClick) {
   ]);
 }
 
-// Строка карточки сведений. copy — что положить в буфер по нажатию; onClick —
-// своё действие вместо копирования.
 export function infoRow({ icon, value, label, mono, accent, multiline, copy, onClick }) {
   const clickable = !!(copy || onClick);
   return el(
@@ -95,7 +76,6 @@ export function infoRow({ icon, value, label, mono, accent, multiline, copy, onC
   );
 }
 
-// «17 мая 1995 (31 год)»; в сам день рождения — ещё и поздравительная пометка.
 export function birthdayText(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -118,15 +98,6 @@ function mediaDate(iso) {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-// Full profile view — reachable from Contacts and from a DM's info panel.
-// Unlike the compact InfoPanel (chat-scoped: mute/members/etc.), this is the
-// one place a user's bio/username/phone/status all show together, and the
-// one place server/routes/users.js's privacy-aware GET actually gets used.
-// Rendered as a right-docked slide-in panel (like Telegram's own profile/
-// channel-info view) rather than a centered modal.
-// «1 история», «2 истории», «5 историй» — иначе под кружком стоит «5 история».
-// Дата под плиткой архива. Год показывается только у прошлогодних: в архиве
-// за эту неделю «2026» на каждой плитке — четыре лишних знака и ничего больше.
 function storyDate(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -157,8 +128,6 @@ export async function openProfileDialog(userId) {
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
-  // Esc закрывает панель — но не когда поверх неё открыто что-то ещё
-  // (просмотрщик аватаров, окно подарка): тогда Esc принадлежит тому окну.
   function onKey(e) {
     if (e.key !== "Escape" || !overlay.isConnected) return;
     if (overlay.nextElementSibling) return;
@@ -173,10 +142,7 @@ export async function openProfileDialog(userId) {
   let user, inContacts, contactName, isBlocked;
   let sharedMedia = { chatId: null, media: [], files: [], links: [], voice: [] };
   let commonGroupsCount = 0;
-  // Список общих групп грузится, когда откроют вкладку «Группы».
   let commonGroups = null;
-  // Истории этого человека. Грузятся отдельным запросом и не задерживают показ
-  // профиля: кнопка появляется, когда ответ придёт.
   let storiesGroup = null;
   async function loadStories() {
     try {
@@ -187,14 +153,9 @@ export async function openProfileDialog(userId) {
     render();
   }
   let activeTab = "media";
-  // Расписание бизнеса на неделю раскрывается по нажатию на «Открыто · до …».
   let hoursExpanded = false;
-  // Каналы, которые владелец профиля закрепил у себя. Приходят вместе с
-  // профилем и уже проверены сервером: чужие и закрытые сюда не попадают.
   let pinnedChannels = [];
-  // Архив историй грузится не сразу, а когда откроют вкладку: у человека их
-  // могут быть сотни, и тянуть это на каждый просмотр профиля незачем.
-  let archive = null; // null — ещё не грузили, { allowed, stories } — ответ
+  let archive = null;
   let archiveLoading = false;
 
   async function loadArchive() {
@@ -215,7 +176,7 @@ export async function openProfileDialog(userId) {
       api
         .getSharedMedia(userId)
         .then((r) => (sharedMedia = r))
-        .catch(() => {}), // best-effort — tabs just render empty if this fails
+        .catch(() => {}),
     ]);
     user = res.user;
     inContacts = !!res.inContacts;
@@ -229,8 +190,6 @@ export async function openProfileDialog(userId) {
     return;
   }
 
-  // Ban/label changes made from the admin panel are reflected right here
-  // (badge, warning banner) instead of needing the profile reopened.
   function onAdminChange(patch) {
     user = { ...user, ...patch };
     render();
@@ -238,9 +197,6 @@ export async function openProfileDialog(userId) {
 
   const isSelf = userId === me.id;
 
-  // Removing a gift is destructive and irreversible from the UI's point of view
-  // (the shelf entry is gone), so it asks first — and says plainly that the
-  // serial isn't freed, because that's the part someone might reasonably assume.
   async function removeGift(entryId, gift) {
     const serialNote = gift.serial != null ? ` Номер №${gift.serial} останется занятым.` : "";
     if (!confirm(`Убрать ${gift.emoji} «${gift.name}» с вашей полки?${serialNote}`)) return;
@@ -253,8 +209,6 @@ export async function openProfileDialog(userId) {
     }
   }
 
-  // No cap on how many, unlike pinned messages — a pin here just moves the
-  // card to the front of the shelf, so there's nothing that needs limiting.
   async function toggleGiftPin(entryId, gift) {
     try {
       const { user: updated } = await api.setGiftPinned(entryId, !gift.pinned);
@@ -265,8 +219,6 @@ export async function openProfileDialog(userId) {
     }
   }
 
-  // Канал, на который сейчас идёт подписка, — чтобы кнопка не принимала второе
-  // нажатие, пока первое не отработало.
   let joiningChannelId = null;
 
   function openChannel(channel) {
@@ -331,8 +283,6 @@ export async function openProfileDialog(userId) {
     }
   }
 
-  // Звонок прямо из профиля, как в Telegram: личка создаётся (или находится)
-  // тем же запросом, что и у «Написать», дальше — обычный звонок в чат.
   async function call(kind) {
     try {
       const { chat } = await api.startDm(userId, user.name, user.avatarColor);
@@ -343,12 +293,8 @@ export async function openProfileDialog(userId) {
     }
   }
 
-  // Ссылка на профиль — та же, что зашита в QR-код (app.js, маршрут /u/:username).
   const profileLink = () => `${location.origin}/u/${user.username}`;
 
-  // «Поделиться контактом» — карточка контакта в выбранный чат. Телефон
-  // уходит, только если он виден нам самим: user уже прошёл через настройки
-  // приватности его владельца (server/routes/users.js).
   function shareContact() {
     openForwardDialog(async (chatId) => {
       try {
@@ -371,13 +317,9 @@ export async function openProfileDialog(userId) {
     render();
   }
 
-  // Вкладки показываются только непустые — как в Telegram, где у профиля без
-  // файлов нет и вкладки «Файлы». Истории остаются всегда: их архив грузится
-  // только при открытии, и заранее не известно, есть ли там что-то.
   function visibleTabs() {
     const has = {
       media: sharedMedia.media.length > 0,
-      // У ботов историй не бывает.
       stories: !user.isBot,
       gifts: (user.giftsReceived ?? []).length > 0,
       files: sharedMedia.files.length > 0,
@@ -392,13 +334,6 @@ export async function openProfileDialog(userId) {
     if (activeTab === "gifts") {
       const gifts = user.giftsReceived ?? [];
       if (!gifts.length) return el("p", { class: "profile-empty-tab" }, "Подарков пока нет");
-      // Сетка карточек вместо строки крошечных фишек: подарок — вещь, у которой
-      // есть вид, номер и цена, а фишка размером с эмодзи не показывала ничего
-      // из этого. По нажатию открывается карточка экземпляра со свойствами
-      // (components/giftCardDialog.js).
-      // Newest first within each group, but pinned gifts as a group come
-      // first — same idea as pinned messages, just with no limit on count
-      // (see toggleGiftPin above).
       const ordered = gifts
         .slice()
         .reverse()
@@ -420,8 +355,6 @@ export async function openProfileDialog(userId) {
                 onclick: () =>
                   openGiftCardDialog(g, {
                     ownerName: user.name,
-                    // «Отправить такой же» — то, ради чего чаще всего и
-                    // открывают чужой подарок.
                     onSend: () => openGiftShopDialog({ recipient: { id: user.id, name: user.name } }),
                     onRemove: isSelf ? () => removeGift(entryId, g) : undefined,
                     onTogglePin: isSelf ? () => toggleGiftPin(entryId, g) : undefined,
@@ -451,9 +384,6 @@ export async function openProfileDialog(userId) {
       if (!archive.stories.length) {
         return el("p", { class: "profile-empty-tab" }, isSelf ? "Вы ещё не выкладывали историй" : "Историй пока нет");
       }
-      // Плитка на каждый кадр, а не на историю: в одной истории их может быть
-      // до десяти, и показывать десять снимков одной обложкой значит прятать
-      // девять. Открывается просмотрщик с того кадра, по которому нажали.
       const frames = archive.stories.flatMap((story) =>
         (story.items?.length ? story.items : [{ kind: story.kind, url: story.url }]).map((item, index) => ({ story, item, index }))
       );
@@ -470,9 +400,6 @@ export async function openProfileDialog(userId) {
                   0,
                   me.id,
                   () => {
-                    // Историю могли удалить прямо из просмотрщика — тогда
-                    // архив надо перечитать, а не оставлять плитку, за которой
-                    // уже ничего нет.
                     archive = null;
                     render();
                   },
@@ -553,7 +480,6 @@ export async function openProfileDialog(userId) {
       if (!sharedMedia.files.length) return el("p", { class: "profile-empty-tab" }, "Файлов пока нет");
       return el("div", { class: "profile-files-list" }, sharedMedia.files.map((f) => FileAttachment(f.attachment)));
     }
-    // links
     if (!sharedMedia.links.length) return el("p", { class: "profile-empty-tab" }, "Ссылок пока нет");
     return el(
       "div",
@@ -570,27 +496,15 @@ export async function openProfileDialog(userId) {
 
   function render() {
     clear(body);
-    // У бота вместо «был(а) в сети» — число пользователей (users.js's
-    // /:id отдаёт botUserCount). «бот · 1 234 пользователя».
     const status =
       user.isBot && typeof user.botUserCount === "number"
         ? `бот · ${user.botUserCount.toLocaleString("ru-RU")} ${plural(user.botUserCount, "пользователь", "пользователя", "пользователей")}`
         : statusLabel(user);
-    // Открытая вкладка могла опустеть (или её не было вовсе) — тогда первая
-    // из тех, что есть.
     const tabs = visibleTabs();
-    // Истории — последними в очереди: их архив чаще всего закрыт, и начинать
-    // профиль с надписи «Архив историй закрыт» незачем.
     if (!tabs.some((t) => t.id === activeTab)) activeTab = (tabs.find((t) => t.id !== "stories") ?? tabs[0])?.id ?? "stories";
     const safety = safetyLabelInfo(user.safetyLabel);
-    // Plain Element.append() (unlike dom.js's el()/mount()) stringifies null
-    // arguments into literal "null" text nodes — filter them out first.
     const children = [
       el("div", { class: "profile-avatar-row" }, [
-        // Tapping opens it full-size, with any other photos this person has
-        // behind it. On your own profile the same viewer manages the list.
-        // Чужой профиль без фото не открывает ничего: пустой просмотрщик с
-        // надписью «Нет фото профиля» — лишний экран, а не информация.
         el(
           "button",
           {
@@ -623,13 +537,8 @@ export async function openProfileDialog(userId) {
         ProfileStatusBadge(user, 18),
         safety ? el("span", { class: `safety-badge safety-${user.safetyLabel}`, title: safety.label }, safety.short) : null,
       ]),
-      // Статус — сразу под именем, как в Telegram. Если владелец скрыл время
-      // захода, пишем «был(а) недавно», а не оставляем пустое место.
       el("p", { class: `profile-status${user.online ? " online" : ""}` }, status ?? "был(а) недавно"),
       contactName && contactName !== user.name ? el("p", { class: "profile-contact-name" }, `В контактах: ${contactName}`) : null,
-      // The warning itself, not just the badge — a three-letter tag next to a
-      // name is easy to skim past, and the person who most needs this is the
-      // one being actively worked by whoever owns the account.
       safety
         ? el("div", { class: `safety-warning safety-${user.safetyLabel}` }, [
             el("span", { html: iconSvg("Info", 15) }),
@@ -638,9 +547,6 @@ export async function openProfileDialog(userId) {
         : null,
       user.isBanned ? el("p", { class: "safety-banned-note" }, "🚫 Аккаунт заблокирован администрацией Shalter") : null,
       user.isBanned ? el("p", { class: "safety-banned-note" }, "🚫 Аккаунт заблокирован администрацией Shalter") : null,
-      // Быстрые действия кружками — «Написать / Звонок / Видео / Поделиться»,
-      // как ряд кнопок под именем в Telegram. Своему профилю звонить некуда,
-      // а «Написать» там открывает «Избранное».
       el(
         "div",
         { class: "profile-quick-actions" },
@@ -658,8 +564,6 @@ export async function openProfileDialog(userId) {
             : null,
         ].filter(Boolean)
       ),
-      // Карточка сведений: каждая строка слева направо — значение крупно,
-      // подпись мелко под ним. Телефон, юзернейм и ссылка копируются нажатием.
       el(
         "div",
         { class: "profile-info-card" },
@@ -670,8 +574,6 @@ export async function openProfileDialog(userId) {
                 icon: "At",
                 value: [
                   `@${user.username}`,
-                  // Won at auction, not merely registered first — that's the whole
-                  // point of a collectible handle, so it has to be visible.
                   user.isCollectibleUsername
                     ? el("span", { class: "collectible-badge", title: "Коллекционный юзернейм — выигран на аукционе" }, "💎")
                     : null,
@@ -709,19 +611,12 @@ export async function openProfileDialog(userId) {
             el("audio", { class: "profile-track-player", controls: true, preload: "none", src: user.profileTrack.url }),
           ])
         : null,
-      // Shalter для бизнеса — publicUser() отдаёт это поле как есть, только
-      // если человек его сам заполнил (см. server/data/users.js), поэтому
-      // isBusiness здесь скорее для порядка: пустое поле и так не покажется.
       user.isBusiness && user.businessAddress
         ? el("div", { class: "profile-info" }, [
             el("span", { class: "profile-info-label" }, "Адрес"),
             el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("MapPin", 15) }), el("span", {}, user.businessAddress)]),
           ])
         : null,
-      // Часы работы бизнеса, как в Telegram Business: статус сейчас, по
-      // нажатию — неделя. Статус считает сервер по поясу бизнеса
-      // (server/lib/businessHours.js); если пояс не совпадает со своим,
-      // рядом сказано, в каком поясе указано время.
       user.businessHours
         ? el("div", { class: "profile-business-hours" }, [
             el(
@@ -752,10 +647,6 @@ export async function openProfileDialog(userId) {
               : null,
           ])
         : null,
-      // Ad cabinet (Settings → Реклама, server/routes/ads.js) — an active
-      // subscriber's one promotional text/link, shown here rather than in
-      // the chat itself since a profile view is a deliberate "look someone
-      // up" action, not something to interrupt a conversation with.
       user.isAdsActive && user.adText
         ? el("div", { class: "profile-ad-banner" }, [
             el("span", { class: "profile-ad-label" }, "Реклама"),
@@ -770,9 +661,6 @@ export async function openProfileDialog(userId) {
             user.adUrl ? el("a", { class: "profile-ad-link", href: user.adUrl, target: "_blank", rel: "noreferrer" }, "Перейти →") : null,
           ])
         : null,
-      // Остальное — списком строк, как «Ещё» в Telegram: контакт, подарок,
-      // поделиться, блокировка, жалоба. Себя не блокируют и на себя не
-      // жалуются (сервер тоже запрещает блокировать себя).
       !isSelf
         ? el(
             "div",
@@ -785,8 +673,6 @@ export async function openProfileDialog(userId) {
                     [el("span", { html: iconSvg(inContacts ? "Trash" : "Plus", 15) }), inContacts ? " Удалить из контактов" : " Добавить в контакты"]
                   )
                 : null,
-              // Подарок отправляют из профиля того, кому дарят, — там же, где на
-              // него и смотрят.
               !user.isBot
                 ? el(
                     "button",
@@ -808,10 +694,6 @@ export async function openProfileDialog(userId) {
             ].filter(Boolean)
           )
         : null,
-      // Каналы человека. Показываются всем, кто открыл профиль, — в этом и
-      // смысл: «вот что я веду, подпишись». Свой профиль вдобавок показывает
-      // кнопку изменения — и её же, отдельной строкой-приглашением, когда
-      // закреплять ещё нечего.
       pinnedChannels.length || isSelf
         ? el("div", { class: "profile-channels" }, [
             el("div", { class: "profile-channels-head" }, [
@@ -832,11 +714,6 @@ export async function openProfileDialog(userId) {
                       el("p", { class: "profile-channel-title" }, [c.title, c.isVerified ? VerifiedBadge(13) : null]),
                       el("p", { class: "profile-channel-sub" }, c.username ? `@${c.username}` : `${c.members} ${plural(c.members, "подписчик", "подписчика", "подписчиков")}`),
                     ]),
-                    // Подписчику — «Открыть», остальным — «Подписаться».
-                    // Просто вести всех на /chat/:id нельзя: этот адрес требует
-                    // участия в чате, и посторонний упирался бы в отказ сервера
-                    // уже после нажатия. Подписка здесь делает ровно то же, что
-                    // в каталоге каналов: подписывает и открывает.
                     el(
                       "button",
                       {
@@ -851,9 +728,6 @@ export async function openProfileDialog(userId) {
               : [el("p", { class: "settings-toggle-hint" }, "Закрепите свои публичные каналы — их увидит каждый, кто откроет ваш профиль.")]),
           ])
         : null,
-      // Истории человека: сверху кружок с обводкой — как в ленте, — а сразу под
-      // ним все его истории плитками. Кружок открывает с первой, плитка — с
-      // той, по которой нажали.
       storiesGroup
         ? el("div", { class: "profile-stories" }, [
             el("div", { class: "profile-stories-head" }, [
@@ -881,10 +755,6 @@ export async function openProfileDialog(userId) {
             el(
               "div",
               { class: "profile-stories-grid" },
-              // По плитке на кадр, а не на историю: история теперь может быть
-              // из нескольких снимков, и показывать её одной обложкой значило
-              // бы прятать остальные. Просмотрщик листает те же кадры подряд,
-              // поэтому его начальный номер — это номер плитки в этой сетке.
               storiesGroup.stories
                 .flatMap((st) => (st.items?.length ? st.items : [{ kind: st.kind, url: st.url }]).map((item) => ({ st, item })))
                 .map(({ st, item }, i) =>
@@ -906,10 +776,6 @@ export async function openProfileDialog(userId) {
           ])
         : null,
 
-      // Admin tools, on the profile of whoever you're looking at rather than
-      // only on a separate Settings screen where you'd have to re-find the
-      // person by handle first. Gated on me.isDeveloper for the UI; every
-      // action behind it is gated again server-side (routes/admin.js).
       me.isDeveloper && user.id !== me.id
         ? el("div", { class: "profile-admin-block" }, [
             el("p", { class: "profile-admin-title" }, [el("span", { html: iconSvg("Shield", 13) }), " Инструменты разработчика"]),

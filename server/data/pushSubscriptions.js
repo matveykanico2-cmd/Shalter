@@ -10,8 +10,6 @@ async function listSubscriptionsForUser(userId) {
   return db.prepare("SELECT * FROM push_subscriptions WHERE userId = ?").all(userId).map(rowToRow);
 }
 
-// Re-subscribing with the same endpoint (browser re-registers the same
-// service worker) replaces the old row rather than piling up duplicates.
 async function addSubscription(userId, subscription) {
   const id = genId("ps");
   db.prepare(

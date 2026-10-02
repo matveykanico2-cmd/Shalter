@@ -1,23 +1,7 @@
 const crypto = require("crypto");
 
-// RFC 6238 TOTP — the standard 6-digit rotating code any authenticator app
-// (Google Authenticator, Aegis, 1Password, Bitwarden…) produces. Implemented
-// here rather than pulled in as a dependency: it's HMAC-SHA1 over a counter,
-// which Node's crypto already does, and this app deliberately keeps its
-// dependency list short (see AGENTS.md).
-//
-// Why TOTP and not "a second password": the point of the second factor is that
-// it isn't something an attacker can obtain by knowing things *about* you. A
-// phone number is not a secret — it's on your profile, people have it in their
-// contacts — so any flow that treats "proves they know the number" as
-// authentication is only ever one factor. A TOTP secret lives on a device the
-// account owner holds.
-
 const STEP_SECONDS = 30;
 const DIGITS = 6;
-// How many 30s windows either side of "now" are accepted. One step covers the
-// realistic case of a clock a little out of sync or a code typed as it rolls
-// over, without widening the guessable window more than necessary.
 const WINDOW_STEPS = 1;
 
 const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -44,7 +28,7 @@ function base32Decode(str) {
   const out = [];
   for (const ch of String(str ?? "").toUpperCase().replace(/=+$/, "")) {
     const idx = BASE32_ALPHABET.indexOf(ch);
-    if (idx === -1) continue; // tolerate spaces/dashes people paste in
+    if (idx === -1) continue;
     value = (value << 5) | idx;
     bits += 5;
     if (bits >= 8) {
@@ -55,7 +39,6 @@ function base32Decode(str) {
   return Buffer.from(out);
 }
 
-// 160 bits, the length RFC 4226 recommends for an HMAC-SHA1 key.
 function generateSecret() {
   return base32Encode(crypto.randomBytes(20));
 }
@@ -72,8 +55,6 @@ function codeForCounter(secret, counter) {
   return String(binary % 10 ** DIGITS).padStart(DIGITS, "0");
 }
 
-// Constant-time comparison so a caller can't learn the code digit by digit from
-// how long the check took.
 function sameCode(a, b) {
   const bufA = Buffer.from(String(a));
   const bufB = Buffer.from(String(b));
@@ -91,19 +72,12 @@ function verifyCode(secret, code, now = Date.now()) {
   return false;
 }
 
-// The otpauth:// URI an authenticator app expects. The client turns this into a
-// QR code with the vendored generator it already uses for QR login
-// (public/js/lib/qrcode.js) — no new dependency, and the secret never leaves
-// this response.
 function otpauthUri(secret, accountLabel) {
   const label = encodeURIComponent(`Shalter:${accountLabel}`);
   const params = new URLSearchParams({ secret, issuer: "Shalter", algorithm: "SHA1", digits: String(DIGITS), period: String(STEP_SECONDS) });
   return `otpauth://totp/${label}?${params.toString()}`;
 }
 
-// Single-use codes for the "lost my phone" case, which is the failure mode that
-// actually locks people out of 2FA. Stored hashed (see data/users.js) so the DB
-// never holds a usable one, same reasoning as password hashing.
 const RECOVERY_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 function generateRecoveryCodes(count = 8) {
   const codes = [];

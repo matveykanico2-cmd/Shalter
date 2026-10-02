@@ -1,25 +1,8 @@
-/*
- * Shalter Mini Apps SDK — window.Shalter.WebApp
- *
- * Подключается страницей бота одной строкой:
- *   <script src="https://<ваш-shalter>/js/shalter-web-app.js"></script>
- *
- * Это НЕ модуль приложения: файл отдаётся чужим сайтам как есть (сборка
- * scripts/build.js собирает только js/app.js и до него не доходит), поэтому
- * здесь обычный скрипт без import/export и без синтаксиса новее, чем понимает
- * любой браузер, куда вообще откроют мини-приложение.
- *
- * Документация: /bots#apps
- */
 (function () {
   "use strict";
 
   var BRIDGE_VERSION = 1;
 
-  // Подпись открывшего лежит во фрагменте адреса — она не уходит на сервер
-  // приложения в строке запроса и не оседает в его логах (см.
-  // server/lib/miniApp.js). Забираем и сразу отдаём автору как есть: проверять
-  // подпись должен бот на своём сервере, ключом от своего токена.
   function readFragment() {
     var raw = String(window.location.hash || "").replace(/^#/, "");
     var params = new URLSearchParams(raw);
@@ -44,9 +27,6 @@
 
   function call(method, payload, wantsAnswer) {
     if (!isOpenedInShalter) {
-      // Страницу открыли просто в браузере — так её и отлаживают. Молчаливое
-      // ничего здесь хуже отказа: автор полчаса ищет, почему не работает
-      // кнопка, которой некому ответить.
       var message = "Shalter.WebApp." + method + "(): страница открыта не внутри Shalter";
       if (wantsAnswer) return Promise.reject(new Error(message));
       console.warn(message);
@@ -87,8 +67,6 @@
     }
   });
 
-  // Нижняя кнопка рисуется самим Shalter, а не страницей: на телефоне она
-  // должна стоять на месте и не уезжать с прокруткой содержимого.
   var mainButtonState = { text: "", visible: false, disabled: false, loading: false };
   function pushMainButton() {
     call("mainButton", mainButtonState, false);
@@ -136,11 +114,7 @@
 
   var WebApp = {
     version: BRIDGE_VERSION,
-    // Строка с подписью — её и надо переслать боту, чтобы он проверил, кто
-    // перед ним. Целиком, не по кусочкам: подпись считается от всей строки.
     initData: fragment.initData,
-    // Разобранное содержимое — удобно для интерфейса и НЕ годится для доверия:
-    // это то же самое, что прислал бы кто угодно, пока подпись не проверена.
     initDataUnsafe: { user: parseUser(fragment.initData) },
     get user() {
       return WebApp.initDataUnsafe.user;
@@ -155,9 +129,6 @@
     close: function () {
       call("close", {}, false);
     },
-    // Отправить данные боту. Уходит обычным сообщением от имени человека —
-    // он видит в переписке, что именно отправило приложение, — после чего окно
-    // закрывается. Отличие от Telegram, где такое сообщение видит только бот.
     sendData: function (data) {
       var text = typeof data === "string" ? data : JSON.stringify(data);
       return call("sendData", { data: text }, true);

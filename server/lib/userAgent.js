@@ -1,5 +1,3 @@
-// Minimal User-Agent parsing — good enough for a "Chrome, Linux" style
-// device label in the Settings → Devices list. Not meant to be exhaustive.
 function parseUserAgent(ua = "") {
   let browser = "Браузер";
   if (/Edg\//.test(ua)) browser = "Edge";

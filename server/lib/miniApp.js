@@ -1,31 +1,11 @@
-// Мини-приложения ботов: обычная веб-страница на сервере автора, которая
-// открывается внутри Shalter (public/js/components/miniApp.js — тот же
-// встроенный браузер, что и для ссылок, только с мостом наружу) и знает, кто
-// именно её открыл.
-//
-// Всё держится на одном: странице нельзя верить. Она живёт на чужом домене, и
-// «я Вася, дай мне заказы Васи» из неё написать может кто угодно. Поэтому имя
-// открывшего не передаётся страницей — оно подписывается здесь ключом, который
-// знают только сервер и владелец бота (его токен), и бот проверяет подпись у
-// себя. Схема ровно та же, что в Telegram Mini Apps: строка вида
-// `user=...&auth_date=...&hash=...`, где hash — HMAC-SHA256 от остальных полей,
-// отсортированных по имени. Совпадает с привычной, потому что человек, который
-// уже писал такое для Telegram, перепишет проверку в две минуты, а не будет
-// разбираться в новом изобретении.
 const crypto = require("crypto");
 
-// Ключ подписи выводится из токена бота, а не берётся им напрямую: так утечка
-// initData (а она уходит в чужой браузер) не отдаёт сам токен, которым можно
-// отправлять сообщения от имени бота.
 const SECRET_SALT = "ShalterWebAppData";
 
 function secretKey(token) {
   return crypto.createHmac("sha256", SECRET_SALT).update(token).digest();
 }
 
-// Строка для подписи: пары «ключ=значение», кроме hash, отсортированные по
-// ключу и склеенные переводом строки. Порядок обязателен — иначе две стороны
-// посчитают HMAC от разного текста.
 function dataCheckString(params) {
   return [...params.entries()]
     .filter(([k]) => k !== "hash")
@@ -38,9 +18,6 @@ function signParams(params, token) {
   return crypto.createHmac("sha256", secretKey(token)).update(dataCheckString(params)).digest("hex");
 }
 
-// Что получает страница. Намеренно немного: кто открыл, откуда и когда. Ни
-// номера телефона, ни списка чатов, ни почты — приложению бота они не нужны, а
-// initData уходит в чужой браузер и остаётся в его истории.
 function buildInitData({ token, user, chat, botUserId }) {
   const params = new URLSearchParams();
   params.set(
@@ -59,8 +36,6 @@ function buildInitData({ token, user, chat, botUserId }) {
   return params.toString();
 }
 
-// Обратная сторона — то, что вызывает бот. maxAgeSec отсекает старую подпись,
-// подсмотренную в чужой истории браузера: сама по себе она верна вечно.
 function verifyInitData(token, initData, { maxAgeSec = 24 * 60 * 60 } = {}) {
   if (!token || typeof initData !== "string" || !initData) return { ok: false, error: "initData is empty" };
   const params = new URLSearchParams(initData);
@@ -68,9 +43,6 @@ function verifyInitData(token, initData, { maxAgeSec = 24 * 60 * 60 } = {}) {
   if (!hash) return { ok: false, error: "no hash in initData" };
 
   const expected = signParams(params, token);
-  // Сравнение постоянного времени: обычное === на строках выходит по первому
-  // несовпавшему символу и по времени ответа подсказывает, сколько символов
-  // подписи уже угаданы.
   const a = Buffer.from(hash, "hex");
   const b = Buffer.from(expected, "hex");
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { ok: false, error: "bad hash" };
@@ -89,12 +61,6 @@ function verifyInitData(token, initData, { maxAgeSec = 24 * 60 * 60 } = {}) {
   return { ok: true, user, chatId: params.get("chat_id") || null, botId: params.get("bot_id") || null, authDate, ageSec };
 }
 
-// Адрес приложения проверяется при сохранении, а не при открытии: криво
-// введённый адрес должен ругаться в лицо владельцу бота, а не молча выдавать
-// пустое окно каждому, кто нажмёт кнопку.
-//
-// http допускается только для localhost — на нём разрабатывают, и требовать
-// сертификат от машины автора значит запретить попробовать вообще.
 function validateAppUrl(raw) {
   const value = String(raw ?? "").trim();
   if (!value) return { url: null };
@@ -112,9 +78,6 @@ function validateAppUrl(raw) {
   return { url: u.toString() };
 }
 
-// Кнопка бота может открыть не только корень приложения, но и страницу внутри
-// него — а вот чужой сайт не может. Иначе любой бот подписывал бы имя, юзернейм
-// и premium-статус того, кто нажал кнопку, и отправлял бы это куда угодно.
 function sameApp(appUrl, requestedUrl) {
   try {
     return new URL(appUrl).origin === new URL(requestedUrl).origin;
@@ -123,9 +86,6 @@ function sameApp(appUrl, requestedUrl) {
   }
 }
 
-// initData кладётся во фрагмент (#), а не в query: фрагмент не уходит на
-// сервер в строке запроса и не оседает в его логах — забирает его только js
-// самой страницы. Так же это устроено в Telegram.
 function buildAppUrl(url, initData, { theme } = {}) {
   const u = new URL(url);
   const fragment = new URLSearchParams(u.hash.replace(/^#/, ""));

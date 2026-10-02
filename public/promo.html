@@ -8,8 +8,6 @@
 <meta name="theme-color" content="#2e56d9" />
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-<!-- Open Graph, because this page exists to be *sent to someone*: a bare link
-     in a chat with no preview is a link nobody opens. -->
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Shalter — мессенджер для коллабораций" />
 <meta property="og:description" content="Чаты, каналы, звонки, боты, подарки и звёзды. Открыт для партнёрств и интеграций." />
@@ -77,9 +75,6 @@
         <div class="pr-collab-item"><h4>Медиа и блогеры</h4><p>Свой канал, кабинет рекламы и реферальная программа: приглашённый и пригласивший получают Premium.</p></div>
         <div class="pr-collab-item"><h4>Брендовые подарки</h4><p>Ограниченный тираж подарка с вашим оформлением — от 1 000 до 1 000 000 экземпляров, каждый со своим номером.</p></div>
       </div>
-      <!-- Filled in from /api/downloads' admin contact if the deployment exposes
-           one; otherwise this stays a plain in-app route so the page never shows
-           a dead mailto. -->
       <a class="pr-btn pr-btn-primary" href="/">Написать нам в Shalter</a>
     </section>
 
@@ -92,8 +87,6 @@
 </div>
 
 <script>
-// Live numbers rather than hardcoded marketing ones: a promo page that claims
-// "286 подарков" after the catalogue changed is worse than no number at all.
 (function () {
   fetch("/api/downloads")
     .then(function (r) { return r.json(); })
@@ -103,8 +96,6 @@
       if (d.version) document.getElementById("stat-version").textContent = d.version;
     })
     .catch(function () {});
-  // The gift catalogue is behind auth, so this only fills in for a signed-in
-  // visitor; anonymous ones keep the dash rather than seeing a wrong number.
   fetch("/api/gifts")
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (d) { if (d && d.gifts) document.getElementById("stat-gifts").textContent = String(d.gifts.length); })

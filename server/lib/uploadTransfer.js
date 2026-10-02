@@ -7,9 +7,6 @@ const storage = require("./storage");
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
-// Расшифрованная копия вложения во временном файле: ffmpeg и sharp читают файл
-// с диска, а в хранилище он лежит зашифрованным (lib/fileCrypto.js) и,
-// возможно, вообще не на этой машине (S3).
 async function fetchUploadToTemp(filename) {
   const localPath = path.join(os.tmpdir(), `shalter_src_${crypto.randomBytes(8).toString("hex")}${path.extname(filename)}`);
   const header = await storage.readHeader(filename);
@@ -31,10 +28,6 @@ async function fetchUploadToTemp(filename) {
   return localPath;
 }
 
-// Кладёт готовый временный файл в хранилище ровно так же, как это делает
-// routes/uploads.js с загруженным: шифрование, имя по содержимому, тот же вид
-// ссылки — чтобы результат ничем не отличался от обычного вложения ни для
-// раздачи, ни для уборки.
 async function storeGeneratedFile(localPath) {
   const ext = path.extname(localPath);
   const tempName = `${Date.now().toString(36)}_${crypto.randomBytes(8).toString("hex")}${ext}`;

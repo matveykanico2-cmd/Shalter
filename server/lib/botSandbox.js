@@ -1,33 +1,9 @@
-// Runs a bot owner's own JavaScript — written in the in-app editor (Settings
-// → Боты → Код) — against an incoming message, instead of requiring an
-// external script polling the Bot API (server/routes/botApi.js; both exist
-// side by side, use whichever fits).
-//
-// IMPORTANT — what this sandbox is and isn't: Node's own `vm` module docs
-// say plainly "the vm module is not a security mechanism. Do not use it to
-// run untrusted code." This restricts the *accidental* blast radius (no
-// require/process/filesystem access, an execution timeout so a stray
-// infinite loop can't wedge the server) for code *you* write for *your own*
-// bot — it is not a hardened boundary against someone else's adversarial
-// code. Don't paste in a bot script from a stranger and expect this to
-// protect you from it, any more than you'd run a stranger's shell script.
 const vm = require("vm");
 const botLogs = require("../data/botLogs");
 const { sendBotMessage } = require("./botMessaging");
 
-// Generous enough for a bot that calls out to a slow external API with fetch()
-// before replying, rather than killing it mid-request. Это потолок для всего
-// вызова целиком, включая ожидание ответа чужого сервера.
 const EXECUTION_TIMEOUT_MS = 20_000;
 
-// А это — потолок для *непрерывной* работы процессора внутри песочницы, и он
-// на два порядка меньше. Причина в том, что Node однопоточный: пока
-// синхронный код бота крутится, весь сервер стоит — не отвечает никому, не
-// отправляет сообщения, не принимает звонки. С общим таймаутом в 20 секунд
-// один `while(true){}` в чужом боте замораживал приложение на все двадцать;
-// замерено, а не предположено. Триста миллисекунд подряд не нужны никакому
-// разумному обработчику: любое ожидание в нём асинхронное (fetch, bot.send) и
-// под этот лимит не попадает — его считает Promise.race выше.
 const SYNC_TIMEOUT_MS = 300;
 
 function safeStringify(value) {
@@ -39,10 +15,6 @@ function safeStringify(value) {
   }
 }
 
-// `msg` is a plain-data snapshot of the incoming message; `bot.send`/
-// `bot.sendTo` mirror the external Bot API's sendMessage exactly (same
-// shared helper), so the same mental model applies to both ways of
-// programming a bot.
 async function runBotCode(bot, code, msg) {
   const logs = [];
   function record(level, args) {
@@ -67,8 +39,6 @@ async function runBotCode(bot, code, msg) {
       send: (text, opts) => sendBotMessage(bot.userId, msg.chatId, text, opts),
       sendTo: (chatId, text, opts) => sendBotMessage(bot.userId, chatId, text, opts),
     },
-    // Deliberately no require/process/global/Buffer/module — a clean,
-    // curated surface rather than full Node access.
   });
 
   try {
@@ -76,12 +46,6 @@ async function runBotCode(bot, code, msg) {
       `(async () => {\n${code}\nif (typeof handleMessage === "function") return await handleMessage(msg, bot);\nthrow new Error("Определите async function handleMessage(msg, bot) { ... }");\n})()`,
       { filename: "bot.js" }
     );
-    // Two layers against a runaway script: vm's own `timeout` interrupts
-    // long-running *synchronous* execution (e.g. a top-level `while(true){}`)
-    // by throwing inside V8 itself; the Promise.race below additionally
-    // bounds the *async* case (an awaited call that never resolves), which
-    // vm's timeout alone can't reach since control has already returned to
-    // Node's event loop by then.
     const invocation = script.runInContext(context, { timeout: SYNC_TIMEOUT_MS });
     const result = await Promise.race([
       invocation,

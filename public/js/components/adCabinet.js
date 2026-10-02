@@ -2,12 +2,6 @@ import { el, mount, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 
-// Рекламный кабинет: список кампаний, деньги и статистика.
-//
-// Вынесен в свой файл, а не дописан в экран настроек: там уже двадцать
-// разделов в одном файле, а кабинет — это отдельная работа со своим состоянием
-// (черновик, проверка, показ, пауза) и своими числами.
-
 const STATUS = {
   draft: { label: "Черновик", tone: "muted", hint: "Ещё не отправлено на проверку" },
   review: { label: "На проверке", tone: "warn", hint: "Администрация Shalter смотрит объявление — обычно это недолго" },
@@ -18,14 +12,12 @@ const STATUS = {
 };
 
 const fmt = (n) => new Intl.NumberFormat("ru-RU").format(n ?? 0);
-// CTR — доля нажавших от увидевших. Без неё показы и клики читаются порознь и
-// не отвечают на вопрос «работает ли объявление».
 const ctr = (c) => (c.impressions ? ((c.clicks / c.impressions) * 100).toFixed(1) : "0.0");
 
 export function AdCabinet(root) {
   let data = null;
   let error = null;
-  let editing = null; // id редактируемой кампании или "new"
+  let editing = null;
   let statsFor = null;
   let stats = null;
   let busy = false;
@@ -55,8 +47,6 @@ export function AdCabinet(root) {
     }
   }
 
-  // Форма кампании. Поля живут вне render(), иначе перерисовка после каждого
-  // нажатия отбирала бы фокус — тот самый ввод «по одной букве».
   const fields = {
     title: el("input", { class: "settings-input", placeholder: "Название — только для вас, например «Осенняя распродажа»" }),
     text: el("textarea", { class: "settings-input", rows: 3, maxlength: 200, placeholder: "Текст объявления — до 200 символов" }),
@@ -134,8 +124,6 @@ export function AdCabinet(root) {
     ]);
   }
 
-  // Небольшой график по дням: столбики показов, чтобы было видно ход кампании,
-  // а не одно итоговое число.
   function chart(daily) {
     if (!daily?.length) return el("p", { class: "settings-toggle-hint" }, "Показов пока не было");
     const max = Math.max(...daily.map((d) => d.impressions), 1);

@@ -1,10 +1,3 @@
-// Holiday reminders — once an hour, look at whose configured holidays (built
-// in + their own custom ones, minus whatever they turned off) fall today and
-// tell them, from the Shalter service bot to their own self-chat. Same
-// plain-setInterval-scan shape as birthdaySweep.js, for the same reason: a
-// timer per holiday wouldn't survive a restart, and this is a personal
-// reminder (to yourself), not a "tell your contacts" one like a birthday —
-// there's no audience to compute, just the one person who set it up.
 const db = require("../db");
 const { listUsers } = require("../data/users");
 const { getSettings } = require("../data/settings");
@@ -59,9 +52,6 @@ async function sweepOnce() {
       } catch (err) {
         console.error(`holiday notification failed (user ${user.id}, holiday ${holiday.id}):`, err);
       } finally {
-        // Помечается даже при сбое отправки — та же причина, что у
-        // birthdaySweep.js: иначе временная ошибка гоняла бы попытку по
-        // кругу каждый час до конца дня.
         markSent(user.id, holiday.id, year);
       }
     }

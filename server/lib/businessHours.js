@@ -1,17 +1,6 @@
-// Часы работы Shalter для бизнеса — «открыто ли сейчас» и «когда откроется»,
-// по часовому поясу самого бизнеса (settings.business.timeZone), а не
-// сервера: кофейня в Новосибирске открывается в 9 утра по Новосибирску,
-// где бы ни стоял сервер.
-//
-// Формат дня — { closed, open: "HH:MM", close: "HH:MM" }:
-// - close позже open — обычный день, [open, close);
-// - "00:00"–"24:00" — круглосуточно;
-// - close раньше open (или равен) — работа через полночь: 20:00–02:00 значит
-//   с 20:00 этого дня до 02:00 следующего.
 const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const EN_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// Существует ли такой часовой пояс — Intl бросает на неизвестном.
 function isValidTimeZone(tz) {
   if (typeof tz !== "string" || !tz || tz.length > 64) return false;
   try {
@@ -22,8 +11,6 @@ function isValidTimeZone(tz) {
   }
 }
 
-// День недели, время и дата «сейчас» в поясе бизнеса. Без пояса (старые
-// настройки) — пояс сервера, как было раньше.
 function localNow(timeZone, at = new Date()) {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: isValidTimeZone(timeZone) ? timeZone : undefined,
@@ -46,7 +33,6 @@ function localNow(timeZone, at = new Date()) {
 
 const isOvernight = (d) => d.close <= d.open;
 
-// { open: true, until: "18:00" } | { open: false, opensAt: { day: "mon", time: "09:00", today: bool } | null }
 function businessStatus(hours, timeZone, at = new Date()) {
   const now = localNow(timeZone, at);
   const dayOf = (i) => hours?.[DAY_KEYS[(i + 7) % 7]];

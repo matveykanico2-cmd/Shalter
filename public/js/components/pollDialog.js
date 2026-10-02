@@ -1,17 +1,6 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 
-// Real poll creation — question + 2..8 options. Voting is persisted
-// server-side (server/data/messages.js votePoll), unlike a UI-only mock.
-//
-// Режим викторины: у вопроса есть один правильный ответ, и он объявляется
-// сразу после голоса. Это не «опрос с пометкой», а другой разговор: в опросе
-// интересно, что думают остальные, а в викторине — угадал человек или нет,
-// поэтому проценты там уходят на второй план, а на первый выходят «верно» и
-// «неверно» (см. PollAttachment в messageBubble.js).
-//
-// onCreate(question, options, { correctIndex, multiple }) — correctIndex равен
-// null для обычного опроса; multiple — можно выбрать несколько вариантов.
 export function openPollDialog(onCreate) {
   let optionCount = 2;
   let quiz = false;
@@ -24,17 +13,11 @@ export function openPollDialog(onCreate) {
   const errorSlot = el("p", { class: "login-error" });
 
   function renderOptions() {
-    // Введённое сохраняем: перерисовка идёт и при «добавить вариант», и при
-    // выборе правильного ответа, а терять набранный текст на каждое нажатие —
-    // ровно та беда, из-за которой в этом проекте поля живут вне render().
     const typed = [...optionsSlot.querySelectorAll(".poll-option-input")].map((i) => i.value);
     optionsSlot.textContent = "";
     for (let i = 0; i < optionCount; i++) {
       const input = el("input", { class: "settings-input poll-option-input", placeholder: `Вариант ${i + 1}`, "data-idx": i });
       input.value = typed[i] ?? "";
-      // В викторине у каждого варианта своя кнопка «это правильный»: отдельным
-      // списком «выберите номер верного ответа» пришлось бы сверять глазами
-      // номер с текстом.
       optionsSlot.appendChild(
         quiz
           ? el("div", { class: "poll-quiz-row" }, [
@@ -91,7 +74,6 @@ export function openPollDialog(onCreate) {
     }, "Викторина"),
   ]);
   const modeHint = el("p", { class: "settings-toggle-hint" });
-  // Несколько ответов — только у обычного опроса: у викторины ответ один.
   const multipleBox = el("input", { type: "checkbox", onchange: (e) => (multiple = e.target.checked) });
   const multipleRow = el("label", { class: "poll-multiple-row" }, [multipleBox, el("span", {}, "Несколько вариантов ответа")]);
   function renderMode() {
@@ -123,11 +105,7 @@ export function openPollDialog(onCreate) {
           const options = raw.filter(Boolean);
           if (!question) return (errorSlot.textContent = "Введите вопрос");
           if (options.length < 2) return (errorSlot.textContent = "Нужно хотя бы 2 варианта ответа");
-          // Правильный ответ мог указывать на пустой вариант, который отсеялся
-          // фильтром выше, — тогда викторина уехала бы с ответом «ни на что».
           if (quiz && !raw[correctIndex]) return (errorSlot.textContent = "Отметьте правильный ответ");
-          // Номер правильного — среди оставшихся вариантов, а не среди полей:
-          // пустое поле выше отмеченного сдвигало ответ на соседний вариант.
           const correct = quiz ? raw.slice(0, correctIndex).filter(Boolean).length : null;
           close();
           onCreate(question, options, { correctIndex: correct, multiple: !quiz && multiple });

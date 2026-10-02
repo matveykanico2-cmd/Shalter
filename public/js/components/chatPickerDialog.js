@@ -3,11 +3,6 @@ import { plural } from "../lib/presence.js";
 import { Avatar } from "./avatar.js";
 import { getState } from "../state.js";
 
-// Pick one of your own groups. Used for wiring a channel to its discussion
-// group; deliberately a separate component from forwardDialog.js, which picks
-// *any* chat to send something to — this one filters to the groups you could
-// actually link, so the list can't offer a channel or a DM that would be
-// refused by the server a moment later.
 export function openChatPickerDialog(onPick, title = "Выберите группу") {
   const { chats, user } = getState();
   const groups = chats.filter((c) => c.type === "group" && !c.archived);

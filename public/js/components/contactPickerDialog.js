@@ -2,13 +2,6 @@ import { el } from "../lib/dom.js";
 import { Avatar } from "./avatar.js";
 import { api } from "../api.js";
 
-// Pick one of your contacts — used both to send a "contact card" attachment
-// and (with a different title) to start a new private chat.
-//
-// `extra` — люди, которых надо показать помимо списка контактов (например,
-// собеседники текущего чата): так можно отправить человеку его же контакт или
-// контакт участника группы, даже если он не записан в контакты. Дублей по id
-// нет — свои контакты имеют приоритет.
 export async function openContactPickerDialog(onPick, title = "Отправить контакт", { extra = [] } = {}) {
   const { contacts } = await api.listContacts();
   const seen = new Set(contacts.map((c) => c.user.id));

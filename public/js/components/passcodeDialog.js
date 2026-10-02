@@ -1,10 +1,6 @@
 import { el } from "../lib/dom.js";
 import { verifyPasscode, setPasscode, removePasscode, hasPasscode } from "../lib/passcodeLock.js";
 
-// Settings → Конфиденциальность → Код-пароль. Handles both "set for the
-// first time" and "change" (the latter first requires the existing code) in
-// one small self-contained modal — same shape as the delete-account dialog
-// in settings/index.js, not worth a shared abstraction for two call sites.
 export function openSetPasscodeDialog(onDone) {
   let step = hasPasscode() ? "current" : "new";
   let current = "";

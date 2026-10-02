@@ -8,20 +8,10 @@ const sharp = require("sharp");
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 
-// Вырезание фона у gif-анимации подарка — хромакеем, а не сегментацией: сервер
-// маленький (2 ядра/2ГБ, см. DEPLOY.md), полноценная ML-модель для выделения
-// объекта туда просто не влезет. Хромакей работает надёжно ровно тогда, когда
-// фон однотонный, — а это и есть обычный формат для стикеров/анимаций
-// подарков, под который эта фича рассчитана. Сложную сцену с градиентом или
-// фотографией так не разделить — админ увидит на превью, что фон не вырезался,
-// и подберёт другую гифку.
-
 function tempPath(ext) {
   return path.join(os.tmpdir(), `shalter_gift_${crypto.randomBytes(8).toString("hex")}${ext}`);
 }
 
-// Цвет фона берётся усреднением четырёх углов первого кадра, а не одного
-// пикселя, — так шум сжатия в одном углу не собьёт хромакей на весь ролик.
 async function detectBackgroundColor(framePath) {
   const { width, height } = await sharp(framePath).metadata();
   const corners = [
@@ -36,10 +26,6 @@ async function detectBackgroundColor(framePath) {
   return [0, 1, 2].map((i) => Math.round(samples.reduce((sum, s) => sum + s[i], 0) / samples.length));
 }
 
-// Прогоняет входной gif/видео через ffmpeg: определяет цвет фона по первому
-// кадру, вырезает его через фильтр colorkey и перекодирует в gif с
-// прозрачностью (GIF её умеет только как "прозрачно/непрозрачно", без
-// полутонов альфа-канала — colorkey ровно так и работает).
 async function cutGifBackground(inputPath) {
   const framePath = tempPath(".png");
   await new Promise((resolve, reject) => {
@@ -58,8 +44,6 @@ async function cutGifBackground(inputPath) {
   await new Promise((resolve, reject) => {
     ffmpeg(inputPath)
       .complexFilter([
-        // similarity/blend подобраны под чистый однотонный фон: снимают лёгкий
-        // шум сжатия по краю фигуры, не трогая её собственные полутона.
         `[0:v]colorkey=0x${hex}:0.28:0.12,format=rgba,split[a][b]`,
         "[b]palettegen=reserve_transparent=1[p]",
         "[a][p]paletteuse=alpha_threshold=128",

@@ -1,16 +1,5 @@
 import { el } from "../lib/dom.js";
 
-// A friendly little bear that jumps in and waves once on mount — the same
-// "cute animated mascot on an empty state" touch Telegram Desktop's own
-// "select a chat" screen has. Built as a raw SVG string (like icons.js's
-// iconSvg()) rather than nested el() calls: el()'s document.createElement
-// has no SVG-namespace awareness, so <circle>/<ellipse>/<path> built that
-// way silently fail to render — innerHTML parsing handles foreign-content
-// (SVG-in-HTML) correctly, el()'s tree-building doesn't.
-// One-shot animation (see .bear-jump/.bear-arm-wave in components.css):
-// this only ever mounts on a real navigation to "/" (see app.js's
-// route("/")), not inside a polling re-render loop, so there's no need for
-// the seenEntranceIds replay guard messageBubble.js's stickers use.
 const BEAR_SVG = `
 <svg class="mascot-bear" viewBox="0 0 120 128" width="120" height="128">
   <ellipse class="bear-shadow" cx="60" cy="116" rx="26" ry="6" fill="currentColor" opacity="0.12"/>

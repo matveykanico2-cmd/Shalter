@@ -1,40 +1,12 @@
-// Registered unconditionally (see app.js) so the app is installable as a
-// PWA — a controlling service worker is required for that regardless of
-// push permission. It also is what makes the Push API work at all (it's
-// what receives the push event even when no tab is open).
-//
-// Здесь же — хранение оболочки приложения. На плохой связи главная задержка не
-// в объёме, а в количестве обращений к сети: каждое стоит своей задержки,
-// сколько бы байт ни ехало. Поэтому то, что не меняется между заходами (сборка,
-// стили, значки), берётся с диска, а сеть спрашивается только про новое.
-
-// v2, а не v1: в первой версии сюда попадали /styles/*.css из исходников — без
-// версии в адресе, а значит навсегда. Смена имени заставляет activate ниже
-// выбросить старый набор целиком и не отдавать больше ту застрявшую копию.
 const SHELL_CACHE = "shalter-shell-v2";
 
-// Вложения, осевшие на самом устройстве.
-//
-// Смысл отдельного хранилища: файл из переписки не меняется никогда — по
-// адресу /uploads/<отпечаток> лежит ровно одно содержимое и другого там не
-// будет (имя выводится из самого файла, см. routes/uploads.js). Значит,
-// скачав его один раз, спрашивать сервер больше не за чем.
-//
-// Что это даёт: повторные открытия чата не трогают сеть вовсе, а сервер
-// перестаёт отдавать одну и ту же картинку сто раз. Место на сервере при этом
-// не освобождается — файл там по-прежнему лежит, потому что его должен
-// получить и тот, кто ещё не заходил.
 const MEDIA_CACHE = "shalter-media-v1";
-// Браузер не даёт хранить сколько угодно и вычищает старое сам, когда на
-// устройстве кончается место. Свой предел нужен, чтобы не занимать чужую квоту
-// целиком: держим последние 300 файлов, остальное вытесняем сами.
 const MEDIA_CACHE_MAX = 300;
 
 async function trimMediaCache() {
   const cache = await caches.open(MEDIA_CACHE);
   const keys = await cache.keys();
   if (keys.length <= MEDIA_CACHE_MAX) return;
-  // Записи лежат в порядке добавления — убираем самые старые.
   await Promise.all(keys.slice(0, keys.length - MEDIA_CACHE_MAX).map((k) => cache.delete(k)));
 }
 
@@ -45,8 +17,6 @@ self.addEventListener("install", () => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      // Наборы прошлых версий не нужны: адреса собранных файлов содержат метку
-      // содержимого, поэтому старые записи никогда больше не совпадут.
       const names = await caches.keys();
       await Promise.all(
         names.filter((n) => n.startsWith("shalter-") && n !== SHELL_CACHE && n !== MEDIA_CACHE).map((n) => caches.delete(n))
@@ -56,21 +26,6 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Что храним: собранные файлы и значки.
-//
-// Условие тут ровно одно: адрес обязан меняться вместе с содержимым — потому
-// что ниже это отдаётся с диска и сеть не спрашивается вообще никогда. Собранные
-// файлы ему отвечают (scripts/build.js дописывает к ним ?v=<метка>), значки и
-// manifest меняются разве что вместе с версией приложения, а её отрабатывает
-// смена имени набора выше.
-//
-// А вот /styles/*.css из исходников — это ровно тот случай, когда условие не
-// выполняется: в режиме разработки index.html ссылается на них без всякой
-// версии, так что первая же копия оставалась в кэше навсегда. Любая правка
-// стилей после этого была не видна, сколько страницу ни перезагружай: разметка
-// приезжала новая, оформление — вчерашнее. Поэтому их здесь больше нет; в
-// боевой сборке они всё равно лежат по /dist/styles/ и попадают под первую
-// проверку.
 function isShellAsset(url) {
   return (
     url.origin === self.location.origin &&
@@ -87,22 +42,14 @@ self.addEventListener("fetch", (event) => {
   } catch {
     return;
   }
-  // Ответы приложения (сообщения, чаты) не храним никогда: показать вчерашнюю
-  // переписку как сегодняшнюю хуже, чем показать, что связи нет.
-  // Ответы приложения (сообщения, чаты) не храним никогда: показать вчерашнюю
-  // переписку как сегодняшнюю хуже, чем показать, что связи нет.
   if (url.pathname.startsWith("/api/")) return;
 
-  // Вложения — наоборот, храним у себя: содержимое по такому адресу неизменно.
-  // Сначала смотрим на устройстве, в сеть идём только если там пусто.
   if (url.pathname.startsWith("/uploads/")) {
     event.respondWith(
       (async () => {
         const cached = await caches.match(req, { cacheName: MEDIA_CACHE });
         if (cached) return cached;
         const res = await fetch(req);
-        // Кладём только целые ответы: кусок файла (206) в хранилище бесполезен,
-        // а перемотка видео присылает именно такие.
         if (res.ok && res.status === 200) {
           const cache = await caches.open(MEDIA_CACHE);
           await cache.put(req, res.clone());
@@ -115,8 +62,6 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (isShellAsset(url)) {
-    // Сначала с диска. Адрес содержит метку содержимого — если файл на диске
-    // есть, он ровно тот, что нужен, и спрашивать сеть незачем.
     event.respondWith(
       (async () => {
         const cached = await caches.match(req);
@@ -132,9 +77,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Сама страница: сначала сеть, но недолго. Если за полторы секунды не
-  // ответила — отдаём сохранённую и не заставляем смотреть в пустой экран;
-  // свежую при этом всё равно дожидаемся и кладём на её место.
   if (req.mode === "navigate") {
     event.respondWith(
       (async () => {
@@ -147,19 +89,13 @@ self.addEventListener("fetch", (event) => {
           .catch(() => null);
         const cached = await cache.match(req);
         if (!cached) return (await fromNetwork) ?? Response.error();
-        const raced = await Promise.race([fromNetwork, new Promise((r) => setTimeout(() => r(null), 1500))]);
+        const raced = await Promise.race([fromNetwork, new Promise((r) => setTimeout(() => r(null), 300))]);
         return raced ?? cached;
       })()
     );
   }
 });
 
-// Круглая иконка уведомления с аватаром отправителя — только настоящее фото;
-// нет фото, оно не загрузилось, или нет OffscreenCanvas (старый Safari) —
-// null, и вызывающий код (onpush ниже) подставит значок приложения вместо
-// безликого кружка с инициалами. Рисуется здесь, в воркере, на
-// OffscreenCanvas: серверу не нужно отдавать отдельных картинок, а приватные
-// файлы грузятся с той же сессионной кукой.
 async function avatarIcon(avatar) {
   if (!avatar || typeof OffscreenCanvas === "undefined") return null;
   try {
@@ -177,20 +113,13 @@ async function avatarIcon(avatar) {
         const res = await fetch(avatar.url, { credentials: "include" });
         if (res.ok) {
           const bitmap = await createImageBitmap(await res.blob());
-          // object-fit: cover — квадрат из середины.
           const side = Math.min(bitmap.width, bitmap.height);
           ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size);
           drawn = true;
         }
       } catch {
-        // Файл удалён или это видео — рисуем буквы.
       }
     }
-    // Нет настоящего фото — раньше здесь рисовался цветной кружок с
-    // инициалами. Возвращаем null вместо этого: вызывающий код (onpush ниже)
-    // сам подставит значок приложения (/icons/icon.svg), тот же логотип,
-    // что и everywhere else в системном UI (иконка вкладки, ярлык на
-    // рабочем столе) — своя картинка Shalter вместо безликого кружка.
     if (!drawn) return null;
     const blob = await canvas.convertToBlob({ type: "image/png" });
     const buf = new Uint8Array(await blob.arrayBuffer());
@@ -202,7 +131,6 @@ async function avatarIcon(avatar) {
   }
 }
 
-// «1 новое сообщение» / «2 новых сообщения» / «5 новых сообщений».
 function pluralMessages(n) {
   const mod10 = n % 10;
   const mod100 = n % 100;
@@ -220,13 +148,6 @@ self.addEventListener("push", (event) => {
   }
   const { title, body, url, tag, requireInteraction, kind, callId, avatar } = payload;
 
-  // Звонок отменили (не дозвонились, отменили, ответили с другого устройства).
-  // Показывать нечего — надо, наоборот, убрать висящее уведомление о нём:
-  // requireInteraction само его не погасит, и человек вернётся к телефону,
-  // увидит «вам звонят» и ответит на разговор, которого уже нет.
-  // "call-missed" приходит вместо гашения, когда до человека не дозвонились:
-  // это обычное уведомление и показывается обычным путём ниже. Отдельной ветки
-  // ему не нужно — важно лишь не спутать его с отменой.
   if (kind === "call-cancelled") {
     event.waitUntil(
       (async () => {
@@ -243,11 +164,6 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     (async () => {
-      // Уведомление глушим, только если человек прямо сейчас открыл ИМЕННО тот
-      // чат, куда пришло сообщение, — тогда он его и так видит. Если приложение
-      // открыто, но он в другом чате или в списке, уведомление показываем: иначе
-      // сообщения из других чатов проходили мимо, пока он сидит в одном. Звонок
-      // (requireInteraction/isCall) показываем всегда — на него отвечают сейчас.
       const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       const targetPath = (() => {
         try {
@@ -268,11 +184,6 @@ self.addEventListener("push", (event) => {
 
       const icon = (await avatarIcon(avatar)) || "/icons/icon.svg";
 
-      // Склейка сообщений одного чата. Тег теперь общий на чат (server/routes/
-      // messages.js), поэтому у чата одно уведомление. Чтобы не терять историю,
-      // как при обычном схлопывании по тегу, читаем уже показанное и
-      // наращиваем счётчик: «3 новых сообщения · <последнее>». Так и backlog
-      // виден числом, и уведомлений не десятки — ОС их больше не режет.
       let notifBody = body;
       let count = 1;
       if (!isCall && tag) {
@@ -287,13 +198,7 @@ self.addEventListener("push", (event) => {
         body: notifBody,
         tag,
         requireInteraction: !!requireInteraction,
-        // Звонок — единственное, что имеет право вибрировать и перебивать: на
-        // него отвечают сейчас или никогда. Ответ и сброс прямо в уведомлении,
-        // чтобы не открывать приложение ради «нет, не сейчас».
         vibrate: isCall ? [300, 200, 300, 200, 300] : undefined,
-        // renotify:true и для сообщений — чтобы замена уведомления чата по
-        // тому же тегу каждый раз перезванивала звуком, а не молча меняла
-        // текст. Без этого «много сообщений подряд» переставали звучать.
         renotify: true,
         silent: false,
         icon,
@@ -310,9 +215,6 @@ self.addEventListener("push", (event) => {
   );
 });
 
-// Сброс звонка прямо из уведомления — тем же запросом, каким это делает само
-// приложение (PATCH статуса). credentials: "include" обязателен: без него
-// сессионная кука не уйдёт и сервер откажет.
 async function declineCall(callId) {
   if (!callId) return;
   try {
@@ -323,8 +225,6 @@ async function declineCall(callId) {
       body: JSON.stringify({ status: "ended" }),
     });
   } catch {
-    // Сети нет — звонок и так не состоится; молчим, чтобы не падало
-    // необработанное отклонение промиса внутри воркера.
   }
 }
 
@@ -337,17 +237,12 @@ self.addEventListener("notificationclick", (event) => {
     return;
   }
 
-  // «Ответить» и обычное нажатие ведут в одно место, но с пометкой: открытое
-  // приложение по ней сразу принимает звонок, а не показывает ещё один экран с
-  // кнопкой «ответить» поверх уже нажатой.
   const base = data.url || "/";
   const url = event.action === "answer" && data.callId ? `/call/${data.callId}?answer=1` : base;
 
   event.waitUntil(
     (async () => {
       const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-      // Reuse an already-open tab (navigating it to the right chat/call)
-      // instead of always spawning a new window.
       for (const client of clientsList) {
         if ("focus" in client) {
           await client.focus();

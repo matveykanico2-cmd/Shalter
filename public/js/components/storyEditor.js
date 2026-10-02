@@ -1,20 +1,8 @@
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 
-// A minimal Instagram/Telegram-style story editor: a photo, plus text, emoji
-// and image layers dropped on top of it — each one draggable (move), and
-// resizable+rotatable together from one corner handle, the same single-handle
-// gesture every story app uses. There's no server-side concept of "layers" —
-// this bakes everything onto one flat image before handing it back, so the
-// rest of the app (upload, storage, the viewer) never has to know an editor
-// exists at all.
-//
-// Video stories skip this entirely (see storiesBar.js) — baking a moving
-// overlay onto a video needs real video encoding, which has no client-side
-// answer here; editing stays photo-only.
-
 const EXPORT_W = 1080;
-const EXPORT_H = 1920; // 9:16, the aspect every story viewer in the app assumes
+const EXPORT_H = 1920;
 
 const STORY_EMOJI = [
   "😀", "😂", "😍", "🥳", "😎", "🤔", "😭", "😮", "😡", "🥰",
@@ -47,8 +35,6 @@ function loadImage(src) {
   });
 }
 
-// Draws `img` onto a W×H canvas the way CSS object-fit:cover would — fills
-// the frame and crops overflow, rather than letterboxing or distorting it.
 function drawCover(ctx, img, w, h) {
   const ir = img.naturalWidth / img.naturalHeight || 1;
   const cr = w / h;
@@ -69,9 +55,6 @@ function drawCover(ctx, img, w, h) {
 
 let uid = 0;
 
-// Resolves to a File (the flattened result) once the person hits "Готово" or
-// "Пропустить" (skip — uploads the original photo untouched), or to null if
-// they cancel this photo outright.
 export function openStoryEditor(file) {
   return new Promise((resolve) => {
     let settled = false;
@@ -201,9 +184,6 @@ export function openStoryEditor(file) {
       renderAll();
     }
 
-    // Base sizes as a fraction of the stage's height/width, so the same
-    // numbers describe the on-screen preview and the final 1080×1920 export
-    // equally — only the pixels-per-fraction differ.
     function baseFontFraction(type) {
       return type === "emoji" ? 0.12 : 0.055;
     }
@@ -291,9 +271,6 @@ export function openStoryEditor(file) {
       clear(stage);
       if (bgImage) stage.appendChild(el("img", { class: "story-editor-bg", src: bgImage.src, alt: "" }));
 
-      // Absolute pixels off the stage's own current size, not vh/% — the stage
-      // itself is capped well below full viewport height (see .story-editor-stage),
-      // so a viewport-relative unit here would draw everything oversized.
       const rect = stageRect();
       for (const layer of layers) {
         const selected = layer.id === selectedId;
@@ -413,7 +390,7 @@ export function openStoryEditor(file) {
         if (!blob) throw new Error("empty canvas");
         finish(new File([blob], "story.jpg", { type: "image/jpeg" }));
       } catch {
-        finish(file); // export failed for some reason — fall back to the untouched photo rather than losing it
+        finish(file);
       }
     }
 

@@ -3,9 +3,6 @@ const { validateImage } = require("../lib/profileStatus");
 
 const MAX_NAME = 40;
 
-// Каталог готовых статусов (таблица в server/db.js). Читается всеми — выбор
-// идёт с этого же списка у каждого, — а меняется только администратором
-// (server/routes/admin.js), точно как safety_labels.
 function listCatalog() {
   return db.prepare("SELECT * FROM profile_statuses ORDER BY createdAt ASC").all();
 }
@@ -27,9 +24,6 @@ function createCatalogItem({ image, name }) {
   return { item: row };
 }
 
-// Wardrobe entries copy the image at pick time (see server/db.js's comment on
-// statusItems), so removing a catalog item never has to touch users — there's
-// nothing left pointing back at it.
 function deleteCatalogItem(id) {
   db.prepare("DELETE FROM profile_statuses WHERE id = ?").run(id);
 }

@@ -17,17 +17,6 @@ function rowToCall(row) {
   };
 }
 
-// Звонок, который остался «идущим» навсегда.
-//
-// Завершение приходит от клиента (PATCH статуса), а он его не пришлёт, если
-// вкладку закрыли, связь пропала или браузер убили. Такие записи копятся, и
-// каждая из них — это «вам звонят» при следующем входе в приложение и мусор в
-// журнале звонков.
-//
-// Разговоров длиной в шесть часов не бывает, поэтому всё, что висит дольше,
-// закрывается как пропущенное. Уборка на чтении, а не по расписанию, — так же,
-// как срок жизни историй (data/stories.js): ничего в этом приложении не крутится
-// по таймеру, а звонок, повисший лишний час, никому не мешает.
 const STALE_CALL_MS = 6 * 60 * 60 * 1000;
 
 function closeStaleCalls() {
@@ -77,23 +66,16 @@ async function updateCall(id, patch) {
   return getCall(id);
 }
 
-// Adds a participant to an ongoing call (mesh WebRTC grows to N peers client-side).
 async function addParticipant(id, userId) {
   db.prepare("INSERT OR IGNORE INTO call_participants (callId, userId) VALUES (?, ?)").run(id, userId);
   return getCall(id);
 }
 
-// The counterpart of addParticipant: a call could grow but never shrink.
 async function removeParticipant(id, userId) {
   db.prepare("DELETE FROM call_participants WHERE callId = ? AND userId = ?").run(id, userId);
   return getCall(id);
 }
 
-// Постоянная голосовая комната группы (server/routes/calls.js's /room/:chatId)
-// — та же таблица, что и обычные звонки, отличается только kind: "voice-room"
-// и тем, что вступить может кто угодно из группы в любой момент, без вызова.
-// Одна активная комната на чат: следующий вошедший подключается к уже идущей,
-// а не заводит вторую.
 async function findActiveRoom(chatId) {
   return rowToCall(
     db

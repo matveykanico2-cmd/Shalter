@@ -3,11 +3,6 @@ import { api } from "../api.js";
 import { Avatar } from "./avatar.js";
 import { fileToImageDataUrl } from "../lib/image.js";
 
-// Everything about a bot that isn't its code or its token: name, picture,
-// description, @handle.
-//
-// All four were fixed at creation. Getting any of them wrong meant deleting the
-// bot — losing its token and every chat it was in — and starting over.
 export function openEditBotDialog(bot, onSaved) {
   let avatarImage = bot.user.avatarImage ?? null;
   let busy = false;
@@ -30,8 +25,6 @@ export function openEditBotDialog(bot, onSaved) {
 
   const nameInput = el("input", { class: "login-input", value: bot.user.name ?? "" });
   const descInput = el("textarea", { class: "settings-input", rows: 3, value: bot.description ?? "" });
-  // Мини-приложение: адрес страницы и надпись на кнопке, которая её открывает
-  // (server/lib/miniApp.js, документация — /bots#apps).
   const appUrlInput = el("input", { class: "login-input mono", placeholder: "https://example.com/app", value: bot.appUrl ?? "" });
   const appNameInput = el("input", { class: "login-input", placeholder: "Открыть приложение", value: bot.appName ?? "" });
   const appCodeInput = el("textarea", {
@@ -41,10 +34,6 @@ export function openEditBotDialog(bot, onSaved) {
     placeholder: '<h1>Мой магазин</h1>\n<script>\n  const app = Shalter.WebApp;\n  app.ready();\n<\/script>',
     value: bot.appCode ?? "",
   });
-  // Способ ровно один за раз — как и на сервере (routes/bots.js): либо страница
-  // на своём сервере, либо код, который хранит Shalter. Переключатель, а не два
-  // заполненных поля рядом, потому что «какое из них сейчас откроется» — это
-  // вопрос, которого у владельца бота возникать не должно.
   let appMode = bot.appCode ? "code" : bot.appUrl ? "url" : "none";
   const usernameInput = el("input", {
     class: "login-input mono",
@@ -78,8 +67,6 @@ export function openEditBotDialog(bot, onSaved) {
         username: usernameInput.value.trim(),
         avatarImage,
         appName: appNameInput.value.trim(),
-        // Пустая строка в том поле, которое сейчас не выбрано, — это и есть
-        // «убрать приложение прежнего вида», а не «оставить как было».
         appUrl: appMode === "url" ? appUrlInput.value.trim() : "",
         appCode: appMode === "code" ? appCodeInput.value : "",
       });

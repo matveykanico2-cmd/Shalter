@@ -1,12 +1,6 @@
 import { el } from "../lib/dom.js";
 import { api } from "../api.js";
 
-// Kept in sync with server/routes/reports.js's REASON_LABELS (the server
-// rejects anything not in that set). The list is longer than "спам / другое"
-// on purpose: a report only helps if the admin reading it can tell scam from
-// terrorism from a fake account without opening the free-text field, and some
-// of these also drive the public safety label on the account (see
-// reports.js's REASON_TO_LABEL).
 const REASONS = [
   { value: "spam", label: "Спам" },
   { value: "scam", label: "Мошенничество" },
@@ -20,8 +14,6 @@ const REASONS = [
   { value: "other", label: "Другое" },
 ];
 
-// targetType: "user" | "chat" (a group/channel is just a chat with that type,
-// same as everywhere else in this app) | "message" — see server/routes/reports.js.
 export function openReportDialog(targetType, targetId, targetLabel) {
   let reason = REASONS[0].value;
 

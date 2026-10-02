@@ -31,9 +31,6 @@ const { sendMail } = require("../lib/mailer");
 
 const router = express.Router();
 
-// Tells the account (via the Shalter service chat — same one code logins use)
-// that a new device just logged in, the way Telegram's own "Telegram" service
-// chat does. Best-effort: login must still succeed even if this fails.
 async function sendLoginAlert(userId, session) {
   try {
     const chat = await findOrCreateDm(userId, SYSTEM_BOT_ID);
@@ -48,8 +45,6 @@ async function sendLoginAlert(userId, session) {
   }
 }
 
-// Tells the referrer (also via a plain DM — not the service chat, since this
-// is from the *person*, not the system) that their code was used.
 async function notifyReferralBonus(referrerId, newUser) {
   try {
     const chat = await findOrCreateDm(referrerId, newUser.id);
@@ -63,12 +58,6 @@ async function notifyReferralBonus(referrerId, newUser) {
   }
 }
 
-// Records/refreshes the Settings → Devices entry for this (account, browser)
-// pair. Called on every event that establishes or resumes an authenticated
-// session on this device — login, register, switch, QR/code confirmation.
-// Fires the new-device alert above whenever this is a genuinely new device
-// *and* the account already had at least one other session (so a brand new
-// registration's very first device doesn't alert itself).
 async function recordSession(req, res, userId) {
   const deviceId = getOrCreateDeviceId(req, res);
   const priorSessions = await listSessions(userId);
@@ -82,19 +71,10 @@ async function recordSession(req, res, userId) {
   return session;
 }
 
-// Called at the end of every path that has just verified a first factor
-// (password, or a login code delivered to an already-signed-in device). If the
-// account has 2FA on, it must NOT get a session yet — that would make the second
-// factor cosmetic, since the cookie is what actually grants access. Instead it
-// gets a short-lived ticket (data/twoFactorTickets.js) to trade for a session at
-// /2fa/login.
 async function finishLogin(req, res, user) {
   if (user.twoFactorEnabled) {
     const { ticket, expiresInSec } = twoFactorTickets.create(user.id);
     const method = user.twoFactorMethod ?? "totp";
-    // The code is sent as part of issuing the ticket, so the login screen has
-    // something to ask for the moment it appears rather than making people hunt
-    // for a "send me a code" button.
     if (method === "chat") await sendTwoFactorCode(user.id).catch((err) => console.error("2fa code send failed:", err));
     return res.json({
       twoFactorRequired: true,
@@ -102,13 +82,7 @@ async function finishLogin(req, res, user) {
       expiresInSec,
       name: user.name,
       method,
-      // Подсказка к облачному паролю. Её видит тот, кто уже прошёл первый шаг,
-      // то есть знает пароль от аккаунта, — на этом месте она и нужна. Для
-      // остальных способов её нет и быть не может.
       hint: method === "password" ? user.cloudPasswordHint || null : null,
-      // Запланировано ли удаление этого аккаунта — чтобы на шаге 2FA показать
-      // «Отменить удаление» тому, кто передумал, но пароль так и не вспомнил
-      // (отмена ниже требует только этот же ticket, т. е. первый фактор).
       scheduledDeletionAt: user.scheduledDeletionAt ?? null,
     });
   }
@@ -117,17 +91,6 @@ async function finishLogin(req, res, user) {
   return res.json({ user: selfUser(user), alreadyLinked });
 }
 
-// The ban set from the reports moderation chat (routes/reports.js's
-// /:id/resolve) or Settings → Модерация (routes/admin.js's /users/:id/ban) —
-// the same flag middleware/auth.js's requireUserId checks on every request,
-// re-checked at every point that hands out a session cookie so a banned
-// account never gets one in the first place instead of logging in and then
-// failing on the very next call. /code/verify and /qr/poll used to skip this
-// entirely, so an SMS-code or QR login *did* hand a banned account a session,
-// dropping it into an app where every request 403'd with nothing on screen
-// explaining why.
-// Includes the recorded reason (server/data/users.js's setBanned), so the login
-// screen can say what the ban was actually for.
 function banError(user) {
   return user.banReason
     ? `Аккаунт заблокирован администрацией Shalter. Причина: ${user.banReason}`
@@ -140,8 +103,6 @@ router.post(
     const { email, password } = req.body ?? {};
     const user = await findUserByEmail(email ?? "");
 
-    // Same generic error whether the email or the password was wrong —
-    // don't tell an attacker which part of the guess was right.
     if (
       !user ||
       !user.passwordHash ||
@@ -164,19 +125,12 @@ router.post(
     const { name, email, password, phone, username, referralCode, lastName } = req.body ?? {};
 
     if (!name?.trim()) return res.status(400).json({ error: "Введите имя" });
-    // Фамилия необязательна. Полное отображаемое имя — «Имя Фамилия» (как в
-    // Настройки → Профиль), а lastName хранится отдельно.
     const cleanLast = String(lastName ?? "").trim().slice(0, 60);
     const fullName = [name.trim(), cleanLast].filter(Boolean).join(" ");
     if (!EMAIL_RE.test(email ?? "")) return res.status(400).json({ error: "Некорректный email" });
     if (!password || password.length < 6) {
       return res.status(400).json({ error: "Пароль должен быть не короче 6 символов" });
     }
-    // Asked for at registration rather than left to a later trip through
-    // Settings → Профиль: the only way to add someone here is by their exact
-    // @handle (see public/js/views/contacts.js), so an account created without
-    // one is unreachable — nobody can look it up at all until its owner happens
-    // to go and set one.
     const handle = normalizeUsername(username);
     const usernameProblem = await checkUsername(handle);
     if (usernameProblem) return res.status(usernameProblem.status).json({ error: usernameProblem.error });
@@ -214,20 +168,13 @@ router.post(
         online: true,
         lastSeen: new Date().toISOString(),
         referredBy: referrer?.id,
-        // The referral bonus: both the new account and the friend who invited
-        // them get Premium, one-time, the moment registration completes.
         premiumUntil: referrer ? new Date(Date.now() + PREMIUM_GRANT_DAYS * 86400000).toISOString() : undefined,
       });
     } catch (err) {
-      // Two people registering the same handle at the same moment: both pass
-      // the check above, then the unique index on lower(username) rejects the
-      // second insert. That's a "занят", not a 500.
       if (isUsernameConflict(err)) return res.status(409).json({ error: "Этот юзернейм уже занят" });
       throw err;
     }
 
-    // Фамилия хранится отдельной колонкой (createUser её не пишет) — дописываем
-    // здесь, чтобы Настройки → Профиль показывали имя и фамилию по отдельности.
     if (cleanLast) {
       await updateUser(user.id, { lastName: cleanLast });
       user = { ...user, lastName: cleanLast };
@@ -244,9 +191,6 @@ router.post(
   })
 );
 
-// Live "свободен / занят" feedback for the registration form. Unauthenticated
-// by necessity (it's used before an account exists) and harmless: handles are
-// public by design — you look people up by typing an exact one.
 router.get(
   "/username-available",
   asyncRoute(async (req, res) => {
@@ -262,13 +206,6 @@ router.get(
     const uid = getCurrentUserId(req);
     const ids = getSessionUserIds(req);
 
-    // Revocation has to be honoured here too, not only in requireUserId. This
-    // is the endpoint the app asks "who am I" on every boot, and it answers
-    // from cookies alone — so a device whose session was terminated (Settings →
-    // Устройства, or a password change signing out everything else) kept
-    // getting its own name, phone and address back from here indefinitely,
-    // and kept rendering the app until some *other* request happened to 401.
-    // Revocation is per account per device, so each account is checked on its own.
     const deviceId = getOrCreateDeviceId(req, res);
     const revoked = new Set(
       (await Promise.all(ids.map(async (id) => ((await getSession(id, deviceId))?.revokedAt ? id : null)))).filter(Boolean)
@@ -279,8 +216,6 @@ router.get(
     const user = await getUser(uid);
     res.json({
       user: user ? selfUser(user) : null,
-      // Every account signed in on this device — all of them are "yours" here,
-      // which is why the switcher may show their addresses.
       accounts: accountUsers.map(selfUser),
     });
   })
@@ -301,8 +236,6 @@ router.post(
   })
 );
 
-// Body is optional: {} logs out the active account only, leaving any other
-// accounts open on this browser signed in (mirrors Telegram's per-account logout).
 router.post(
   "/logout",
   asyncRoute(async (req, res) => {
@@ -314,13 +247,6 @@ router.post(
   })
 );
 
-// Real, permanent deletion (see server/lib/deleteAccount.js for the full
-// cascade) — requires re-entering the password even though the session is
-// already authenticated, same "prove it's really you" bar as changing a
-// password would have, given how irreversible this is.
-// Проверить пароль, ничего не меняя. Нужен замку при запуске (см. настройку
-// requirePasswordOnLaunch): приложение уже вошло в аккаунт, но не пускает
-// дальше, пока не введён пароль — от того, кто взял разблокированный телефон.
 router.post(
   "/verify-password",
   requireUserId,
@@ -351,13 +277,6 @@ router.post(
   })
 );
 
-// Changing the password from inside the app — the ordinary case, where you know
-// the current one and simply want a different one. (Forgetting it is what
-// /recover/* above is for.)
-//
-// Every other session is signed out. If the reason for changing a password is
-// that someone else might know it, leaving their session alive would defeat the
-// change entirely; and if the reason is routine, signing back in is cheap.
 router.post(
   "/change-password",
   requireUserId,
@@ -390,15 +309,6 @@ router.post(
   })
 );
 
-// Смена адреса почты: пароль и новый адрес, без кода подтверждения.
-//
-// Так попросил владелец приложения, и это его решение — но у него есть цена,
-// поэтому она записана здесь, а не забыта: код на новый адрес подтверждал, что
-// адрес существует и принадлежит вам. Без него опечатка в адресе означает, что
-// письмо для восстановления пароля уйдёт в чужой или несуществующий ящик, и
-// узнается это в тот единственный день, когда доступ действительно нужен.
-// Поэтому адрес проверяется хотя бы по форме и на занятость, а владельцу
-// уходит уведомление в служебный чат.
 router.post(
   "/email/start",
   requireUserId,
@@ -417,8 +327,6 @@ router.post(
     if (taken && taken.id !== req.uid) return res.status(409).json({ error: "Этот адрес уже привязан к другому аккаунту" });
 
     const updated = await updateUser(req.uid, { email });
-    // Уведомление остаётся: смена почты — это смена того, куда придёт
-    // восстановление доступа, и след об этом должен быть виден владельцу.
     try {
       const chat = await findOrCreateDm(req.uid, SYSTEM_BOT_ID);
       await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, `📧 Адрес почты изменён на ${email}.\n\nЕсли это были не вы — немедленно смените пароль.`);
@@ -429,13 +337,6 @@ router.post(
   })
 );
 
-
-// QR login: a real, scannable QR code (see public/js/views/login.js) encodes
-// an absolute URL to /qr-login?token=... on *this* server. Any phone camera
-// can scan it — no in-app scanner needed. Whoever opens that link (already
-// logged in, or after logging in right there) taps "Confirm" to authenticate
-// the original, still-waiting browser. Token state lives in server/data/
-// qrLogins.js — ephemeral and in-memory, same pattern as typing presence.
 router.post(
   "/qr/start",
   asyncRoute(async (req, res) => {
@@ -446,9 +347,6 @@ router.post(
   })
 );
 
-// Polled by the waiting (unauthenticated) browser. Finalizes the session
-// itself once confirmed, since this request carries *that* browser's cookies
-// — same addAccountSession/recordSession as a normal login.
 router.get(
   "/qr/poll",
   asyncRoute(async (req, res) => {
@@ -458,25 +356,17 @@ router.get(
     if (!entry.confirmedUserId) return res.json({ status: "pending" });
 
     const consumed = qrLogins.consume(String(token));
-    if (!consumed) return res.json({ status: "pending" }); // lost a race, try again
+    if (!consumed) return res.json({ status: "pending" });
     const user = await getUser(consumed.confirmedUserId);
     if (!user) return res.json({ status: "expired" });
     if (user.isBanned) return res.json({ status: "banned", error: banError(user) });
 
-    // Deliberately not routed through finishLogin(): a QR login is only ever
-    // confirmed *from an already-signed-in device* (see /qr/confirm below), so
-    // whoever completed it already holds a live session on this account. A TOTP
-    // prompt here would gate nothing an attacker hasn't already passed, while
-    // costing the owner a code on every desktop sign-in.
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
     res.json({ status: "confirmed", user: selfUser(user) });
   })
 );
 
-// Called by the already-authenticated device that scanned the code (or just
-// logged in on the /qr-login page) — requires a real session, since this is
-// the side vouching for the login.
 router.post(
   "/qr/confirm",
   requireUserId,
@@ -489,12 +379,6 @@ router.post(
   })
 );
 
-// Login by numeric code: the *same* underlying idea as QR, just typed
-// instead of scanned. Only works if the account already has another
-// logged-in device — the code is delivered as a message from the Shalter
-// service account (server/data/systemBot.js), which only an existing
-// session can actually see. There's no SMS gateway here, so unlike
-// Telegram/WhatsApp this can't fall back to a text message.
 router.post(
   "/code/start",
   asyncRoute(async (req, res) => {
@@ -527,21 +411,6 @@ router.post(
   })
 );
 
-// Восстановление по паре «почта + телефон», без кода вообще.
-//
-// Названо честно: это самый слабый из трёх путей, и вот почему. Ни почта, ни
-// номер не являются секретами — их знают магазины, банки, любой сервис, где
-// оставляли контакты, и попадают они в утечки чаще всего прочего. Пара из двух
-// несекретов остаётся несекретом, так что аккаунт достаётся тому, кто знает обе
-// строки. Остальные два пути (код в письме, код в чат Shalter) требуют доступа
-// к чему-то, а не знания о чём-то, — потому и надёжнее.
-//
-// Раз путь всё-таки нужен, цена ошибки снижена всем, чем можно: пара обязана
-// совпасть целиком и принадлежать одному аккаунту; аккаунт с двухфакторной
-// аутентификацией так не восстанавливается вовсе; все сеансы завершаются, чтобы
-// смена пароля не прошла незамеченной для того, кто в аккаунте сидит; владельцу
-// уходит уведомление и в чат, и на почту. Частота попыток ограничена authLimiter
-// (server/index.js) — перебор пар работать не должен.
 router.post(
   "/recover/pair/check",
   asyncRoute(async (req, res) => {
@@ -557,8 +426,6 @@ router.post(
     const password = String(req.body?.password ?? "");
     if (password.length < 6) return res.status(400).json({ error: "Пароль — не короче 6 символов" });
 
-    // Пара проверяется заново, а не «раз уж прошли первый шаг»: первый шаг
-    // ничего не выдаёт и ни к чему не обязывает, вся проверка живёт здесь.
     const found = await findByPair(req.body);
     if (!found.user) return res.status(found.status).json({ error: found.error });
     const user = found.user;
@@ -578,8 +445,6 @@ router.post(
     } catch (err) {
       console.error("pair recovery notice failed:", err);
     }
-    // Письмо — второй, независимый канал: если аккаунт уводят, чат злоумышленник
-    // видит, а почту нет. Не обязано дойти, чтобы восстановление состоялось.
     if (user.email) {
       sendMail({
         to: user.email,
@@ -596,8 +461,6 @@ router.post(
   })
 );
 
-// Общая проверка пары для обоих шагов выше. Возвращает либо пользователя, либо
-// готовый отказ.
 async function findByPair(body) {
   const email = String(body?.email ?? "").trim().toLowerCase();
   const phone = normalizePhone(body?.phone);
@@ -605,9 +468,6 @@ async function findByPair(body) {
   if (!PHONE_RE.test(phone)) return { status: 400, error: "Введите номер телефона полностью" };
 
   const user = await findUserByEmail(email);
-  // Одинаковый отказ на «нет такого адреса», «номер не тот» и «аккаунт без
-  // номера»: иначе эндпоинт превращается в справочную, где по разнице ответов
-  // выясняют, какой адрес существует и какой номер к нему привязан.
   const MISMATCH = { status: 400, error: "Почта и телефон не совпадают ни с одним аккаунтом" };
   if (!user || !user.phone || normalizePhone(user.phone) !== phone) return MISMATCH;
   if (user.isBanned) return { status: 403, error: banError(user) };
@@ -620,17 +480,6 @@ async function findByPair(body) {
   return { user };
 }
 
-// The same thing by phone number instead of e-mail — for accounts whose address
-// is private, or where mail simply isn't set up on the server.
-//
-// Said plainly, because it decides the whole shape: a phone number alone cannot
-// be enough. Numbers are not secret — they are in the app, in people's contact
-// lists, on business cards — so "type a number, set a password" would hand every
-// account to anyone who knows one. What makes this recovery rather than a
-// giveaway is the code, and the code goes to the account's own Shalter chat.
-// That means it works when you are still signed in somewhere (another phone, a
-// desktop) and have only forgotten the password — which is what "I forgot my
-// password" usually is.
 router.post(
   "/recover/phone/start",
   asyncRoute(async (req, res) => {
@@ -638,8 +487,6 @@ router.post(
     if (!PHONE_RE.test(phone)) return res.status(400).json({ error: "Введите номер телефона полностью" });
 
     const user = await findUserByPhone(phone);
-    // Same answer either way — otherwise this endpoint answers "does this number
-    // have a Shalter account" for any number anyone cares to try.
     if (!user || user.isBanned) return res.json({ ok: true, sent: true });
     if (user.twoFactorEnabled) {
       return res.status(409).json({
@@ -691,23 +538,6 @@ router.post(
   })
 );
 
-// ── Two-factor authentication (RFC 6238 TOTP — see server/lib/totp.js) ──────
-//
-// The problem it solves: every other way into an account here leans on a phone
-// number somewhere, and a phone number isn't a secret — it's on profiles, it's
-// in people's contact lists, it gets reused across services. With 2FA on, an
-// attacker who has the number, the email, and even the password still can't get
-// in without the rotating code from the owner's own authenticator app.
-
-// Posts a fresh confirmation code into the account's own Shalter service chat —
-// the same channel login codes and security alerts already use.
-//
-// What this is worth, stated plainly: it proves whoever is typing can read that
-// account's chats, i.e. already holds a signed-in device. Against someone who
-// has only the password (the common case: reused or leaked) that is a real
-// second factor. Against someone already inside a session it is not — an
-// authenticator app is stronger, which is why both are offered rather than this
-// one replacing it.
 async function sendTwoFactorCode(userId) {
   const code = codeLogins.createCode(userId);
   const chat = await findOrCreateDm(userId, SYSTEM_BOT_ID);
@@ -718,12 +548,7 @@ async function sendTwoFactorCode(userId) {
   );
 }
 
-// One check for both methods, so every place that accepts a second factor
-// (enable, disable, login) treats them identically.
 async function verifySecondFactor(user, rawCode) {
-  // Облачный пароль сверяется как есть, без trim: пробел в начале или в конце —
-  // такой же знак пароля, как любой другой, и молча его срезать значит не
-  // пустить человека с его собственным паролем.
   if (user.twoFactorMethod === "password") {
     if (!user.cloudPasswordHash || !user.cloudPasswordSalt) return false;
     return verifyPassword(String(rawCode ?? ""), user.cloudPasswordHash, user.cloudPasswordSalt);
@@ -752,11 +577,7 @@ router.get(
     res.json({
       enabled: !!me.twoFactorEnabled,
       method: me.twoFactorMethod ?? "totp",
-      // A secret generated but never confirmed — the UI offers to resume rather
-      // than silently starting over with a different one.
       pending: !!me.totpSecret && !me.totpEnabledAt,
-      // Подсказку своему же аккаунту показать можно и нужно: по ней человек
-      // проверяет, что она понятна ему и бесполезна остальным.
       cloudPasswordHint: me.twoFactorMethod === "password" ? me.cloudPasswordHint || "" : "",
       recoveryCodesLeft: me.twoFactorEnabled ? (me.totpRecoveryCodes ?? []).length : 0,
       enabledAt: me.totpEnabledAt ?? null,
@@ -764,9 +585,6 @@ router.get(
   })
 );
 
-// Step 1: mint a secret and hand back the otpauth:// URI for the QR code. Not
-// enabled yet — /2fa/enable below requires a working code first, so scanning the
-// QR and then closing the app can't leave the account needing a code nobody has.
 router.post(
   "/2fa/setup",
   asyncRoute(async (req, res) => {
@@ -776,8 +594,6 @@ router.post(
     if (!me) return res.status(401).json({ error: "unauthorized" });
     if (me.twoFactorEnabled) return res.status(400).json({ error: "Двухфакторная аутентификация уже включена" });
 
-    // "chat" needs no secret and no QR: the code is minted per attempt and
-    // posted into the Shalter service chat, so setup is just "send me one".
     if (req.body?.method === "chat") {
       await startChatTwoFactor(uid);
       await sendTwoFactorCode(uid);
@@ -790,15 +606,9 @@ router.post(
   })
 );
 
-// Re-send, for both the setup step and the login step. Separate from /setup so
-// asking for another code doesn't reset the method or invalidate a secret that
-// is already in someone's authenticator app.
 router.post(
   "/2fa/send-code",
   asyncRoute(async (req, res) => {
-    // Either an authenticated user (turning it on, or turning it off) or a
-    // half-finished login holding a ticket — the ticket names the account, so no
-    // session is needed and none is granted.
     const ticketEntry = req.body?.ticket ? twoFactorTickets.peek(req.body.ticket) : null;
     const uid = ticketEntry?.userId ?? getCurrentUserId(req);
     if (!uid) return res.status(401).json({ error: "unauthorized" });
@@ -812,16 +622,6 @@ router.post(
   })
 );
 
-// Облачный пароль: задать, сменить и снять.
-//
-// Отдельные маршруты, а не общий /2fa/enable, потому что подтверждать тут
-// нечего: у аутентификатора есть секрет, который надо доказать кодом, а
-// облачный пароль человек придумывает сам — и «доказательством» служит то, что
-// он ввёл его дважды и знает пароль от аккаунта.
-//
-// Пароль от аккаунта спрашивается обязательно: без этого любой, кто добрался до
-// незапертого устройства с открытым Shalter, поставил бы свой облачный пароль и
-// запер владельца снаружи.
 const MIN_CLOUD_PASSWORD = 6;
 const MAX_CLOUD_HINT = 100;
 
@@ -837,9 +637,6 @@ router.post(
     if (!me.passwordHash || !me.passwordSalt || !verifyPassword(accountPassword, me.passwordHash, me.passwordSalt)) {
       return res.status(403).json({ error: "Неверный пароль от аккаунта" });
     }
-    // Смена уже установленного облачного пароля требует и старый: пароль от
-    // аккаунта мог остаться в чужой памяти с прошлого входа, а смысл второго
-    // шага в том, чтобы одного его не хватало.
     if (me.twoFactorMethod === "password" && me.cloudPasswordHash) {
       const current = String(req.body?.currentPassword ?? "");
       if (!verifyPassword(current, me.cloudPasswordHash, me.cloudPasswordSalt)) {
@@ -858,9 +655,6 @@ router.post(
       return res.status(400).json({ error: "Облачный пароль должен отличаться от пароля аккаунта — иначе второй шаг ничего не добавляет" });
     }
     const hint = String(req.body?.hint ?? "").trim().slice(0, MAX_CLOUD_HINT);
-    // Подсказку видно до входа, поэтому она не должна быть самим паролем.
-    // Проверка нестрогая по регистру: «МойПароль» в подсказке выдаёт «мойпароль»
-    // ничуть не меньше.
     if (hint && hint.toLowerCase() === password.toLowerCase()) {
       return res.status(400).json({ error: "Подсказка не должна повторять сам пароль — её видно до входа" });
     }
@@ -872,17 +666,8 @@ router.post(
       cloudPasswordHint: hint || null,
       twoFactorMethod: "password",
     });
-    // Второй шаг только что появился — на всех прочих устройствах он не
-    // спрашивался, и сессии там выданы без него. Оставить их — значит включить
-    // защиту, которая не защищает ровно от того, ради чего её включали.
     await revokeOtherSessions(uid, req.cookies?.device_id ?? null).catch(() => {});
 
-    // Перечитываем и отвечаем тем, что получилось на самом деле, а не тем, что
-    // собирались сделать. Так уже было: updateUser молча выбрасывает поля не из
-    // своего белого списка, twoFactorMethod в него не входил — хэш записывался,
-    // способ нет, и маршрут бодро отвечал «включено», пока вход спрашивать
-    // пароль даже не начинал. Ответ, собранный из намерений, такую поломку
-    // прячет; собранный из состояния — показывает.
     const saved = await getUser(uid);
     if (!saved?.twoFactorEnabled || saved.twoFactorMethod !== "password") {
       return res.status(500).json({ error: "Не удалось включить облачный пароль — попробуйте ещё раз" });
@@ -909,9 +694,6 @@ router.post(
   })
 );
 
-// Подсказка к облачному паролю для экрана входа. По билету, а не по сессии:
-// сессии на этом шаге ещё нет и не должно быть. Билет уже доказывает, что
-// первый шаг пройден, — то есть пароль от аккаунта человек знает.
 router.post(
   "/2fa/hint",
   asyncRoute(async (req, res) => {
@@ -923,9 +705,6 @@ router.post(
   })
 );
 
-// Step 2: prove the authenticator app really has the secret, then turn it on and
-// show the recovery codes once. They're stored hashed, so this response is the
-// only time they exist in readable form.
 router.post(
   "/2fa/enable",
   asyncRoute(async (req, res) => {
@@ -936,12 +715,6 @@ router.post(
     if (me.twoFactorEnabled) return res.status(400).json({ error: "Двухфакторная аутентификация уже включена" });
     const byChat = me.twoFactorMethod === "chat";
     if (!byChat && !me.totpSecret) return res.status(400).json({ error: "Сначала отсканируйте QR-код" });
-    // Для метода «код в чате» разрешаем подтвердить включение вводом
-    // собственного номера телефона — на случай, когда код в служебный чат не
-    // виден (не дошёл, второго устройства нет). Это шаг настройки: человек уже
-    // вошёл в аккаунт, так что ввод своего же номера подтверждает владение, не
-    // ослабляя вход (на входе по-прежнему нужен код). Номер сверяем
-    // нормализованным, чтобы «+7…» и «8…» считались одинаковыми.
     const confirmedByPhone =
       byChat && !!me.phone && normalizePhone(String(req.body?.code ?? "")) === normalizePhone(me.phone);
     if (!confirmedByPhone && !(await verifySecondFactor(me, req.body?.code))) {
@@ -955,9 +728,6 @@ router.post(
     const recoveryCodes = totp.generateRecoveryCodes();
     await enableTotp(uid, recoveryCodes.map(totp.hashRecoveryCode));
 
-    // Same service-chat notification as a new-device login: turning 2FA on is a
-    // security-relevant change, and the owner should see it happen even if it
-    // wasn't them who did it.
     try {
       const chat = await findOrCreateDm(SYSTEM_BOT_ID, uid);
       await sendMessageAndBroadcast(
@@ -973,9 +743,6 @@ router.post(
   })
 );
 
-// Turning it off requires a current code (or a recovery code) — otherwise
-// anyone who got hold of an open session could just switch the protection off,
-// which would leave 2FA protecting nothing.
 router.post(
   "/2fa/disable",
   asyncRoute(async (req, res) => {
@@ -984,18 +751,11 @@ router.post(
     const me = await getUser(uid);
     if (!me) return res.status(401).json({ error: "unauthorized" });
     if (!me.twoFactorEnabled) {
-      // A half-finished setup has nothing to confirm against, so it can just be
-      // dropped.
       await disableTotp(uid);
       return res.json({ enabled: false });
     }
 
     const code = String(req.body?.code ?? "");
-    // Облачный пароль снимается тем же «Отключить», что и остальные способы, —
-    // человеку незачем знать, что внутри это разные механизмы. Проверяем сам
-    // пароль и чистим его поля: disableTotp ниже трогает только totp, и без
-    // этой ветки «отключено» означало бы, что вход по-прежнему спрашивает
-    // пароль, которого в настройках уже нет.
     if (me.twoFactorMethod === "password") {
       if (!verifyPassword(code, me.cloudPasswordHash, me.cloudPasswordSalt)) {
         return res.status(400).json({ error: "Неверный облачный пароль" });
@@ -1019,10 +779,6 @@ router.post(
   })
 );
 
-// The second step of logging in: trade a ticket from finishLogin() plus a code
-// for an actual session. Accepts a recovery code in the same field, since
-// someone reaching for one has lost access to the authenticator and shouldn't
-// have to find a different screen.
 router.post(
   "/2fa/login",
   asyncRoute(async (req, res) => {
@@ -1032,7 +788,6 @@ router.post(
 
     const user = await getUser(entry.userId);
     if (!user) return res.status(400).json({ error: "Время на ввод кода истекло — войдите заново" });
-    // Re-checked here, not just at the first step: a ban can land in between.
     if (user.isBanned) {
       twoFactorTickets.consume(ticket);
       return res.status(403).json({ error: banError(user) });
@@ -1056,12 +811,6 @@ router.post(
   })
 );
 
-// Забыл и облачный пароль (2FA): человек прошёл первый фактор (есть ticket), но
-// второй ввести не может и восстановить некому. Ставит удаление аккаунта через
-// неделю — за это время можно передумать (любой успешный вход отменяет его,
-// см. middleware/auth.js). Реального удаления ждёт lib/accountDeletionSweep.js.
-// Требуется валидный ticket — то есть первый фактор уже подтверждён, поэтому
-// чужой аккаунт так не удалить.
 const DELETION_DELAY_DAYS = 7;
 router.post(
   "/schedule-deletion",
@@ -1073,10 +822,8 @@ router.post(
 
     const deleteAt = new Date(Date.now() + DELETION_DELAY_DAYS * 24 * 60 * 60 * 1000).toISOString();
     scheduleAccountDeletion(user.id, deleteAt);
-    // Больше ничего по этому тикету делать нельзя.
     twoFactorTickets.consume(req.body.ticket);
 
-    // Предупреждаем в служебном чате — вдруг человек всё же сможет войти.
     try {
       const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
       const when = new Date(deleteAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
@@ -1086,16 +833,11 @@ router.post(
         `⚠️ Запрошено удаление аккаунта — он будет удалён ${when}. Если передумаете, просто войдите в аккаунт до этой даты — удаление отменится.`
       );
     } catch {
-      /* уведомление не критично */
     }
     res.json({ deleteAt });
   })
 );
 
-// Отмена запланированного удаления без входа: человек передумал, но облачный
-// пароль так и не вспомнил. Достаточно того же первого фактора (валидный
-// ticket) — тем же, чем удаление и запрашивали. Чужой аккаунт так не трогают:
-// без первого фактора ticket не получить.
 router.post(
   "/cancel-deletion",
   asyncRoute(async (req, res) => {
@@ -1105,13 +847,10 @@ router.post(
     if (!user) return res.status(400).json({ error: "Аккаунт не найден" });
 
     cancelAccountDeletion(user.id);
-    // Ticket оставляем живым: человек может тут же продолжить вход этим же
-    // шагом 2FA, если всё-таки вспомнит пароль.
     try {
       const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
       await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, "✅ Удаление аккаунта отменено.");
     } catch {
-      /* уведомление не критично */
     }
     res.json({ ok: true });
   })

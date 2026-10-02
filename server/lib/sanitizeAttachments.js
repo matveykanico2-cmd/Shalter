@@ -1,31 +1,13 @@
-// Attachments arrive as client-authored JSON (composer.js builds them
-// client-side — a photo becomes a data: URL, a location becomes {lat,lng},
-// etc.) and go straight into a broadcast message with no other checkpoint —
-// unlike message *text* (see public/js/lib/formatText.js, which never uses
-// innerHTML), an attachment's `url` lands directly in a real `<a href>`
-// (FileAttachment in messageBubble.js), so an unvalidated `javascript:` URL
-// there would execute in the *recipient's* browser on click, not just the
-// sender's — a real stored-XSS path, not merely a sender self-XSS one.
-// This is the one place that needs to hold the line, since nothing else
-// downstream re-checks it.
 const ALLOWED_KINDS = new Set(["image", "video", "voice", "video-note", "file", "location", "contact", "poll"]);
 const MAX_ATTACHMENTS = 10;
 
-// "/uploads/<id>[.ext]" — a file this server itself stored (routes/uploads.js).
-// Matched exactly rather than by prefix so "/uploads/../../etc/passwd" or a
-// "//evil.example/x" protocol-relative URL can't ride in as one.
 const UPLOAD_URL_RE = /^\/uploads\/[a-z0-9]+_[a-f0-9]{16}(\.[a-z0-9]{1,12})?$/;
 
 function isSafeUrl(url) {
   if (typeof url !== "string") return false;
-  // data: is still accepted for the small inline cases that legitimately use it
-  // (voice notes, video circles) and for messages sent before uploads existed.
   return UPLOAD_URL_RE.test(url) || url.startsWith("data:") || url.startsWith("https://") || url.startsWith("http://");
 }
 
-// Returns a cleaned array (never throws) — attachments that don't pass are
-// dropped rather than failing the whole message, since a partially-broken
-// attachment array from a buggy client is more useful recovered than 400'd.
 function sanitizeAttachments(attachments) {
   if (!Array.isArray(attachments)) return undefined;
   const cleaned = attachments
@@ -37,33 +19,23 @@ function sanitizeAttachments(attachments) {
         if (!isSafeUrl(a.url)) return null;
         out.url = a.url;
       }
-      // Эскиз — второй, крошечный файл рядом с картинкой. Он остаётся на
-      // сервере навсегда, даже когда полную картинку уберут как доставленную
-      // (см. lib/orphanSweep.js), поэтому чат не пустеет на новом устройстве.
-      // Проверяется так же строго, как и основная ссылка.
       if (a.thumbUrl !== undefined) {
         if (!isSafeUrl(a.thumbUrl)) return null;
         out.thumbUrl = a.thumbUrl;
       }
-      // previewUrl / posterUrl / previewPending в разрешённую форму входят, но
-      // приходят они не отсюда: их выставляет сам сервер, когда досчитает
-      // облегчённую копию (lib/mediaPreview.js, routes/messages.js). С клиента
-      // они молча отбрасываются — иначе кто угодно смог бы объявить превью
-      // чужого вложения чем угодно, включая уже удалённый или чужой файл, и
-      // мимо проверки из uploadAccess.js.
       if (a.name !== undefined) out.name = String(a.name).slice(0, 300);
       if (a.mimeType !== undefined) out.mimeType = String(a.mimeType).slice(0, 120);
       if (a.size !== undefined) out.size = Number.isFinite(a.size) ? a.size : undefined;
+      if (a.kind === "voice" || a.kind === "video-note") {
+        const dur = Number(a.durationSec);
+        if (Number.isFinite(dur) && dur >= 0 && dur < 24 * 3600) out.durationSec = dur;
+        if (typeof a.transcript === "string" && a.transcript.trim()) out.transcript = a.transcript.trim().slice(0, 4000);
+      }
       if (a.kind === "location") {
         const lat = Number(a.meta?.lat);
         const lng = Number(a.meta?.lng);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
         out.meta = { lat, lng };
-        // Живая геолокация: клиент просит окно в минутах, сервер сам считает
-        // expiresAt — так более длинное "окно" из подделанного запроса не
-        // проходит мимо серверного времени. Обновления координат идут потом
-        // отдельным запросом (POST /:messageId/location, routes/messages.js),
-        // проверяемым по expiresAt и по тому, что обновляет отправитель.
         const liveMinutes = Number(a.meta?.liveMinutes);
         if (Number.isFinite(liveMinutes) && liveMinutes > 0 && liveMinutes <= 8 * 60) {
           out.meta.live = true;
@@ -76,27 +48,16 @@ function sanitizeAttachments(attachments) {
           phone: typeof a.meta?.phone === "string" ? a.meta.phone.slice(0, 40) : undefined,
         };
       } else if (a.kind === "poll") {
-        // Раньше здесь meta бралась как есть — с расчётом на то, что её проверит
-        // обработчик голосования. Он проверяет голоса, но не саму структуру:
-        // клиент мог прислать что угодно, и это легло бы в базу. Теперь опрос
-        // собирается заново из того, что в нём вообще может быть.
         const options = (Array.isArray(a.meta?.options) ? a.meta.options : [])
           .slice(0, 8)
           .map((o) => String(o).slice(0, 200));
         if (options.length < 2) return null;
-        // Голоса при создании всегда пустые: раньше они брались из запроса, и
-        // клиент мог прислать опрос с уже «набитыми» голосами.
         const voterIds = options.map(() => []);
-        // Правильный ответ викторины: номер варианта или null у обычного опроса.
-        // Проверяется тип, а не Number(): Number(null) — это ноль, и обычный
-        // опрос с correctIndex: null (а именно так его шлёт composer.js)
-        // превращался в викторину, где «правильным» оказывался первый вариант.
         const rawCorrect = a.meta?.correctIndex;
         const correctIndex =
           typeof rawCorrect === "number" && Number.isInteger(rawCorrect) && rawCorrect >= 0 && rawCorrect < options.length
             ? rawCorrect
             : null;
-        // Несколько ответов — только у обычного опроса: у викторины ответ один.
         const multiple = correctIndex === null && a.meta?.multiple === true;
         out.meta = { options, voterIds, votes: voterIds.map((v) => v.length), correctIndex, multiple, closed: false };
       }

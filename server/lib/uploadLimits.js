@@ -1,53 +1,25 @@
-// Per-kind upload ceilings, in bytes. This module is the authority; the client
-// mirrors these numbers in public/js/lib/uploadLimits.js purely so it can refuse
-// an oversized file instantly instead of pushing gigabytes up only to be told no.
-//
-// These are only meaningful because uploads stream to disk (routes/uploads.js).
-// Attachments used to be base64 data: URLs carried inside the message JSON,
-// which capped everything at express.json's 25MB — and even that was optimistic,
-// since base64 inflates by ~33%, the whole body was buffered in memory, and the
-// result went into a SQLite TEXT column (SQLITE_MAX_LENGTH defaults to 1e9
-// bytes). A 2GB video down that path could not have worked at any limit setting.
 const MB = 1024 * 1024;
 const GB = 1024 * MB;
 
-// Один потолок на все тяжёлые вложения: что бы ни прислали, в переписке
-// показывается лёгкое превью, которое сервер делает сам (lib/mediaPreview.js),
-// а оригинал качается отдельно и по требованию. Разные числа для видео,
-// картинки и файла имели смысл, пока в чат лился сам оригинал.
 const UPLOAD_LIMITS = {
   video: 5 * GB,
   image: 5 * GB,
   file: 5 * GB,
   voice: 5 * GB,
   "video-note": 5 * GB,
-  // Profile photos and video avatars. Far tighter than the message kinds
-  // above on purpose: an avatar is fetched by everyone who opens the profile,
-  // it is never the point of the upload the way a shared 5GB video is, and
-  // without a separate kind a "photo" avatar would inherit the image ceiling.
   avatar: 20 * MB,
   "avatar-video": 3 * GB,
-  // Исходная гифка подарка (server/lib/giftMedia.js её потом перекодирует) —
-  // тоже узкий потолок: это анимация-стикер, а не видео.
   gift: 20 * MB,
-  // Один закреплённый трек на профиле (routes/users.js's /me/track) — same
-  // ceiling as everything else heavy (video, voice), not the old 30 MB: a
-  // lossless/high-bitrate track or a long mix can be genuinely bigger than
-  // that.
   "profile-track": 5 * GB,
 };
 const DEFAULT_LIMIT = 1 * GB;
 
-// Kinds that may be uploaded at all — the sanitizer's other kinds (location,
-// contact, poll) are pure JSON metadata with no file behind them.
 const UPLOADABLE_KINDS = new Set(Object.keys(UPLOAD_LIMITS));
 
 function limitFor(kind) {
   return UPLOAD_LIMITS[kind] ?? DEFAULT_LIMIT;
 }
 
-// "2 ГБ" / "500 МБ" — used in the error the client shows, so the message names
-// the actual ceiling rather than a byte count nobody can read at a glance.
 function formatLimit(bytes) {
   if (bytes >= GB) {
     const gb = bytes / GB;

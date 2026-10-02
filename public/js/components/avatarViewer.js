@@ -6,28 +6,14 @@ import { uploadFile } from "../lib/upload.js";
 import { fileToAvatarDataUrl, videoPosterDataUrl } from "../lib/image.js";
 import { startRecording, isRecordingSupported } from "../lib/recorder.js";
 
-// Full-screen avatar viewer: tap a profile picture anywhere and it opens at full
-// size, with the person's other photos behind it.
-//
-// The small circles around the app stay <img> of the current avatar's still
-// (see lib/image.js's videoPosterDataUrl for why). This is the one place a video
-// avatar actually plays.
-//
-// On your own profile it doubles as the manager — add, reorder, delete — because
-// the alternative is a separate settings screen listing the same six pictures.
-
 const MAX_VIDEO_SECONDS = 180;
 
 export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
   let avatars = [...(user.avatarImages ?? [])];
-  // An account with no list but a legacy single image still opens: older
-  // accounts (and group/channel avatars) never had a list.
   if (!avatars.length && user.avatarImage) avatars = [{ url: user.avatarImage, kind: "image", poster: user.avatarImage }];
   let index = 0;
   let busy = null;
   let error = null;
-  // Запись видео-аватара: тот же квадратный захват, что у кружка в переписке
-  // (lib/recorder.js), только без его предела длительности.
   let recording = null;
   let recordSec = 0;
 
@@ -43,12 +29,12 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
     class: "hidden-input",
     onchange: (e) => {
       const file = e.target.files?.[0];
-      e.target.value = ""; // so picking the same file twice still fires
+      e.target.value = "";
       if (file) add(file);
     },
   });
 
-  appendAll(overlay, 
+  appendAll(overlay,
     el("div", { class: "avatar-viewer" }, [
       el("div", { class: "avatar-viewer-head" }, [
         el("span", { class: "avatar-viewer-name" }, user.name ?? ""),
@@ -65,7 +51,6 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
 
   function close() {
     document.removeEventListener("keydown", onKey);
-    // Иначе камера останется включённой после закрытия окна.
     recording?.cancel();
     recording = null;
     overlay.remove();
@@ -83,8 +68,6 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
     render();
   }
 
-  // Touch paging. A horizontal drag flips; anything mostly vertical is left
-  // alone so a scroll gesture on a phone doesn't change the photo.
   let touchX = null;
   let touchY = null;
   stage.addEventListener("touchstart", (e) => {
@@ -108,8 +91,6 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
       const poster = isVideo ? await videoPosterDataUrl(file) : await fileToAvatarDataUrl(file);
       if (isVideo) {
         const seconds = await durationOf(file);
-        // Infinite/NaN — не «слишком длинное»: свежая запись MediaRecorder
-        // часто отдаёт именно такую длительность, пока файл не перемотан.
         if (Number.isFinite(seconds) && seconds > MAX_VIDEO_SECONDS) {
           throw new Error(`Видео-аватар — не длиннее ${MAX_VIDEO_SECONDS} секунд (у этого ${Math.round(seconds)})`);
         }
@@ -146,8 +127,6 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
     render();
   }
 
-  // Готовая запись уходит тем же путём, что и выбранный файл: add() уже умеет
-  // и постер снять, и длительность проверить, и загрузить.
   async function stopVideo(keep) {
     const handle = recording;
     if (!handle) return;
@@ -175,8 +154,6 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
         URL.revokeObjectURL(url);
         resolve(v.duration || 0);
       };
-      // Unreadable metadata isn't a reason to block the upload — the server's
-      // size ceiling still applies.
       v.onerror = () => resolve(0);
       v.src = url;
     });
@@ -225,9 +202,6 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
             poster: current.poster,
             autoplay: true,
             loop: true,
-            // Muted, because a browser blocks autoplay with sound outright —
-            // the video would simply never start. Controls stay on so sound can
-            // be turned back on deliberately.
             muted: true,
             playsInline: true,
             controls: true,
@@ -235,7 +209,7 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
         : el("img", { class: "avatar-viewer-media", src: current.url, alt: user.name ?? "" })
     );
     if (avatars.length > 1) {
-      appendAll(stage, 
+      appendAll(stage,
         el("button", { class: "avatar-viewer-nav prev", html: iconSvg("ChevronLeft", 26), onclick: () => go(-1) }),
         el("button", { class: "avatar-viewer-nav next", html: iconSvg("ChevronRight", 26), onclick: () => go(1) })
       );
@@ -286,7 +260,7 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
     renderStage();
     clear(dots);
     if (avatars.length > 1) {
-      appendAll(dots, 
+      appendAll(dots,
         ...avatars.map((_, i) =>
           el("button", {
             class: `avatar-viewer-dot ${i === index ? "active" : ""}`,

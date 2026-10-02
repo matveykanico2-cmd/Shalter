@@ -22,9 +22,6 @@ function logLine(entry) {
   ]);
 }
 
-// onSaved — чтобы список ботов, из которого редактор открыли, узнал о новой
-// версии кода: он загружается один раз при входе в раздел, и без этого метка
-// «код» у бота появлялась только после ухода со страницы и возвращения назад.
 export function openBotCodeDialog(bot, onSaved) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const editorSlot = el("div", { class: "bot-code-editor-slot" });
@@ -32,11 +29,6 @@ export function openBotCodeDialog(bot, onSaved) {
   const outputSlot = el("div", { class: "bot-code-output" });
   const logsSlot = el("div", { class: "bot-code-logs" });
   const saveStatus = el("span", { class: "settings-toggle-hint" });
-  // Шапка и кнопка «Сохранить» стоят вне прокручиваемого тела: тело раньше
-  // было единственным содержимым окна с max-height: 90vh и без прокрутки — на
-  // ноутбучном экране редактор с тестом и логами в эту высоту не влезал, и
-  // нижняя часть окна просто обрезалась. Кнопка «Сохранить» оказывалась среди
-  // обрезанного.
   const body = el("div", { class: "bot-code-body" }, [
     el(
       "p",
@@ -71,17 +63,9 @@ export function openBotCodeDialog(bot, onSaved) {
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
 
-  // Редактор приезжает с CDN и потому создаётся асинхронно (lib/codeEditor.js).
-  // Пока он едет, в окне висит надпись, а не пустое место; кнопки «Сохранить» и
-  // «Запустить» до этого момента ничего не делают, а не падают на undefined.
   let editor = null;
   const loadingNote = el("p", { class: "settings-toggle-hint" }, "Загружаем редактор…");
   editorSlot.appendChild(loadingNote);
-  // Код спрашивается у сервера, а не берётся из переданной записи бота. Запись
-  // приходит из списка в настройках, который загружается один раз при входе в
-  // раздел: написав и сохранив программу, редактор можно было закрыть и открыть
-  // заново — и увидеть прежнюю версию, а у нового бота вместо только что
-  // написанного кода снова шаблон. Ровно то место, где написанное «пропадало».
   api
     .getBot(bot.id)
     .then((r) => r.bot)
@@ -142,10 +126,6 @@ export function openBotCodeDialog(bot, onSaved) {
   refreshLogs();
 
   function close() {
-    // Редактор приезжает с CDN — закрыть окно можно и до того, как он приедет
-    // (или если он не приедет вовсе). Безусловный destroy() в этом случае падал
-    // на undefined, и окно не закрывалось ни крестиком, ни щелчком по фону:
-    // единственным выходом была перезагрузка страницы.
     editor?.destroy();
     overlay.remove();
   }

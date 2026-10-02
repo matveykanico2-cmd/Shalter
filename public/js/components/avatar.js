@@ -30,10 +30,6 @@ function orbitItemsFor(isPremium, isDeveloper) {
   return [];
 }
 
-// Ссылка на видео-аватар, если текущая (первая в списке) аватарка — видео.
-// Передавать её в Avatar стоит только там, где аватарка крупная и одна на
-// экране: строка списка чатов с живым <video> в каждой строке — это десятки
-// декодеров разом.
 export function videoAvatarUrl(user) {
   const main = user?.avatarImages?.[0];
   return main?.kind === "video" ? main.url : null;
@@ -47,8 +43,6 @@ export function Avatar({ name, color, image, video = null, size = 44, online, cl
   const fallback = () =>
     el("div", { class: "avatar-fallback", style: { background: color, fontSize: `${size * 0.4}px` } }, initials(name) || "?");
   if (video) {
-    // Muted — иначе браузер просто не запустит автовоспроизведение; poster
-    // держит кадр, пока видео не начало играть.
     const videoEl = el("video", {
       class: "avatar-img",
       src: video,
@@ -59,9 +53,6 @@ export function Avatar({ name, color, image, video = null, size = 44, online, cl
       playsInline: true,
       style: { width: `${size}px`, height: `${size}px` },
     });
-    // Видео не загрузилось (файл удалён, формат не поддерживается) — без
-    // этого на месте аватара оставался пустой чёрный круг. Ставим снимок, а
-    // нет снимка — буквы.
     videoEl.addEventListener("error", () => {
       videoEl.replaceWith(image ? imageNode() : fallback());
     });
@@ -72,10 +63,6 @@ export function Avatar({ name, color, image, video = null, size = 44, online, cl
     wrap.appendChild(fallback());
   }
 
-  // Картинка может не загрузиться: у бота её задаёт владелец через Bot API
-  // обычной ссылкой, и ссылка бывает мёртвой. Без запасного варианта на
-  // экране оставался «сломанный файл» с текстом alt поперёк строки — видно
-  // было на списке ботов. Теперь такой аватар молча становится буквами.
   function imageNode() {
     const img = el("img", { src: image, alt: name ?? "", class: "avatar-img", style: { width: `${size}px`, height: `${size}px` } });
     img.addEventListener("error", () => img.replaceWith(fallback()));
@@ -91,15 +78,6 @@ export function Avatar({ name, color, image, video = null, size = 44, online, cl
     );
   }
 
-  // The orbiting badge ring is an explicit opt-in (not just "isPremium/
-  // isDeveloper is true"), because it needs open space around the avatar to
-  // read as a ring rather than stray fragments — confirmed by trying it in a
-  // densely packed chat-list row, where the ring's icons spilled past the
-  // row's own height into the row above/below and looked like a rendering
-  // glitch, not a badge. Only call sites with real breathing room around the
-  // avatar (profile dialogs, chat header, nav rail, own settings profile)
-  // should pass orbit: true; list rows keep the existing small inline
-  // crown/code badge next to the name instead.
   if (orbit && (isPremium || isDeveloper) && size >= 32) {
     const items = orbitItemsFor(isPremium, isDeveloper);
     const radius = size / 2 + Math.max(8, size * 0.16);

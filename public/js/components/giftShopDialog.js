@@ -8,20 +8,12 @@ import { openAnimatorEditor } from "./animatorEditor.js";
 import { GIFT_BACKGROUNDS, giftBackgroundStyle } from "../lib/giftBackground.js";
 import { getState } from "../state.js";
 
-// The gift shop: priced in stars, paid from the balance, delivered instantly.
-//
-// Shaped after what the brief pointed at: the balance sits in the header (that's
-// where you decide whether you can afford anything), gifts are cards with a star
-// price, limited runs carry a "Редкий" badge, and the tabs narrow a 286-entry
-// catalogue down to something browsable.
 const TABS = [
   { id: "all", label: "Все подарки" },
   { id: "rare", label: "Редкие" },
   { id: "available", label: "В наличии" },
-  // Свои подарки, нарисованные в аниматоре — бесплатные и дарятся без звёзд.
   { id: "mine", label: "Мои" },
 ];
-// Price shortcuts, matching the cheap end of the catalogue where most of it sits.
 const PRICE_TABS = [10, 20, 30, 50];
 
 export function openGiftShopDialog({ recipient = null, onSent } = {}) {
@@ -32,14 +24,9 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
   let error = null;
   let notice = null;
   let busyId = null;
-  let myGifts = []; // свои нарисованные подарки (вкладка «Мои»)
-  let background = null; // выбранный фон подарка (lib/giftBackground.js), null = без фона
-  let anonymous = false; // анонимная отправка (только Premium)
-  // null = no recipient chosen yet — gifts can't be sent to yourself, so both
-  // buy() and sendMine() below prompt for one via the contact picker. Guards
-  // against callers pre-filling `recipient` with the viewer's own id too
-  // (e.g. profileDialog.js's "Отправить такой же" on one of your own gifts,
-  // opened while viewing your own profile) — that's still a self-gift.
+  let myGifts = [];
+  let background = null;
+  let anonymous = false;
   let target = recipient?.id === getState().user?.id ? null : recipient;
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
@@ -72,7 +59,6 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     render();
   }
 
-  // Нарисовать свой подарок в аниматоре и сохранить в «Мои».
   function createMine() {
     openAnimatorEditor({
       title: "Нарисовать подарок",
@@ -93,7 +79,6 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     });
   }
 
-  // Подарить свой подарок — бесплатно. Без получателя сначала спросим кого.
   async function sendMine(gift) {
     if (!target) {
       openContactPickerDialog((picked) => {
@@ -119,7 +104,6 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     }
   }
 
-  // Открыть свой подарок в аниматоре и переделать рисунок.
   function editMine(gift) {
     openAnimatorEditor({
       title: "Изменить подарок",
@@ -150,8 +134,6 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     render();
   }
 
-  // Gifts are for someone else — no target yet just means asking who, same
-  // as sendMine() above.
   async function buy(gift) {
     if (!target) {
       openContactPickerDialog((picked) => {
@@ -170,14 +152,12 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
       balance = res.balance ?? balance;
       notice = `${gift.emoji} «${gift.name}» отправлен — ${target.name}${res.serial ? `, №${res.serial}` : ""}`;
       onSent?.();
-      // A limited gift's remaining count just changed for everyone.
       const fresh = await api.listGifts();
       gifts = fresh.gifts;
       balance = fresh.balance ?? balance;
     } catch (err) {
       if (err.message && /не хватает/i.test(err.message)) {
         error = err.message;
-        // The balance is the blocker, so put the top-up right where they are.
         if (confirm(`${err.message}. Открыть покупку звёзд?`)) openStarsDialog(load);
       } else {
         error = err.message || "Не удалось отправить подарок";
@@ -220,7 +200,6 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     );
   }
 
-  // Карточка своего подарка: клик — подарить (бесплатно), крестик — удалить.
   function mineCard(g) {
     return el("div", { class: "gs-card gs-card-mine" }, [
       el("button", {
@@ -245,8 +224,6 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     ]);
   }
 
-  // Выбор фона подарка: готовые пресеты + два своих цвета. Фон применяется ко
-  // всем карточкам как превью и уходит с подарком при отправке.
   function backgroundPicker() {
     const isSel = (bg) => (bg.id === "" ? !background : background && background.from === bg.from && background.to === bg.to);
     const swatches = GIFT_BACKGROUNDS.map((bg) =>
@@ -261,8 +238,6 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
         bg.id === "" ? "✕" : ""
       )
     );
-    // Свои цвета — onchange (не oninput), чтобы перерисовка не закрывала пипетку
-    // на каждом движении.
     const fromInput = el("input", {
       type: "color",
       class: "anim-color-input",
@@ -303,8 +278,6 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
           }, target ? "Изменить" : "Выбрать"),
         ]),
         backgroundPicker(),
-        // Анонимная отправка — только с Premium. Получателю подарок придёт от
-        // «Shalter» без вашего имени (но в базе отправитель сохраняется).
         getState().user?.isPremium
           ? el("label", { class: "gs-anon" }, [
               el("input", { type: "checkbox", checked: anonymous, onchange: (e) => { anonymous = e.target.checked; } }),

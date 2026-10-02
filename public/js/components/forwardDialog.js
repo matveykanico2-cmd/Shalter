@@ -3,13 +3,6 @@ import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { getState } from "../state.js";
 
-// Выбор, куда переслать: чаты из списка слева. «Избранное» — первым, как в
-// Telegram: переслать себе на память — самый частый случай. Поле поиска —
-// потому что при сотне чатов нужный иначе приходится искать прокруткой.
-//
-// onPick может быть асинхронным: окно закрывается сразу, а ошибка пересылки
-// (нельзя писать в этот чат, собеседник заблокировал) показывается словами, а
-// не пропадает молча в консоли.
 export function openForwardDialog(onPick, { count = 1 } = {}) {
   const { chats } = getState();
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
@@ -74,7 +67,6 @@ export function openForwardDialog(onPick, { count = 1 } = {}) {
   }
 
   document.body.appendChild(overlay);
-  // На телефоне клавиатура сама не выезжает — фокус только на широком экране.
   if (window.matchMedia?.("(pointer: fine)").matches) search.focus();
   return close;
 }

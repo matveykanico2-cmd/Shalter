@@ -1,5 +1,3 @@
-// Backing store for /short (server/lib/helperBot/utility.js) and the public
-// redirect route (server/routes/shortLinks.js).
 const db = require("../db");
 
 const CODE_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -11,8 +9,6 @@ function randomCode(length = 6) {
 }
 
 function createShortLink(targetUrl, creatorId) {
-  // Collisions are astronomically unlikely at this alphabet/length, but a
-  // fixed number of retries keeps this from ever looping forever.
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = randomCode();
     const exists = db.prepare("SELECT 1 FROM short_links WHERE code = ?").get(code);

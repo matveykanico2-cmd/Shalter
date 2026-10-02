@@ -13,7 +13,6 @@ router.use(requireUserId);
 router.get(
   "/",
   asyncRoute(async (req, res) => {
-    // Читаются только те аккаунты, что есть в контактах, а не вся таблица.
     const contacts = await listContactsFor(req.uid);
     const users = await listUsersByIds(contacts.map((c) => c.userId));
     const byId = new Map(users.map((u) => [u.id, u]));
@@ -27,13 +26,6 @@ router.get(
   })
 );
 
-// Только идентификаторы — без имён и без аватаров.
-//
-// Нужно ровно для одного: карточка контакта, присланная в чат, должна знать,
-// есть ли уже этот человек у вас в списке, и писать «в контактах» вместо
-// «Добавить». Спрашивать это на каждую карточку — запрос на сообщение;
-// грузить весь список контактов с аватарами ради галочки — те же килобайты
-// картинок. Здесь несколько строк текста, один раз при запуске.
 router.get(
   "/ids",
   asyncRoute(async (req, res) => {
@@ -59,7 +51,6 @@ router.post(
   })
 );
 
-// Renaming a contact — your own label for them, visible only to you.
 router.post(
   "/rename",
   asyncRoute(async (req, res) => {
@@ -79,20 +70,6 @@ router.delete(
   })
 );
 
-// Matching an address book against registered accounts, so people don't have to
-// type an exact @handle for everyone they already know (which was previously the
-// only way to add anyone — see public/js/views/contacts.js).
-//
-// What this deliberately does NOT do: store anything. The uploaded numbers are
-// matched in memory and dropped when the response is written — no "contacts
-// graph" is accumulated server-side, so someone else uploading your number later
-// still can't learn anything about who *you* know.
-//
-// It is still, unavoidably, an "is this number registered?" oracle: anyone can
-// upload numbers and see which come back. That's inherent to the feature (every
-// messenger with contact sync has it) and is bounded here rather than pretended
-// away — a hard cap per request, the general API rate limit on top, and a
-// per-account privacy setting that removes you from it entirely.
 const MAX_PHONES_PER_REQUEST = 1000;
 
 router.post(
@@ -108,11 +85,6 @@ router.post(
     const contactIds = new Set(myContacts.map((c) => c.userId));
     const blockedByMe = new Set(me?.blockedUserIds ?? []);
 
-    // Index every account by phone first and resolve the uploaded numbers
-    // against it; only the handful that actually matched then get the privacy
-    // check. Doing it the other way round (filter everyone first) meant loading
-    // settings and the contact list for every account on the server on every
-    // request, most of which no uploaded number was ever going to hit.
     const index = indexUsersByPhone(users, () => true);
 
     const candidates = [];
@@ -129,21 +101,11 @@ router.post(
       else notFound.push({ phone, name });
     }
 
-    // "Кто может найти меня по номеру телефона" (Settings → Конфиденциальность),
-    // checked per matched account — the "contacts" level depends on whether
-    // *that* account has the searcher in its own contact list.
-    //
-    // An account that fails any of these checks is reported as *not registered*
-    // rather than dropped from the response. Dropping it would itself be the
-    // leak: a number that came back in neither list is a number that exists but
-    // is hidden, which is precisely what "Никто" is supposed to conceal. Being
-    // indistinguishable from an unused number is the whole point, and it also
-    // means the uploaded number doesn't silently vanish from the UI.
     const found = [];
     for (const { user, name, phone } of candidates) {
       const hide = () => notFound.push({ phone, name });
 
-      if (user.id === req.uid) continue; // your own number: neither a match nor an invite
+      if (user.id === req.uid) continue;
       if (user.isBanned) {
         hide();
         continue;
@@ -153,8 +115,6 @@ router.post(
         continue;
       }
 
-      // Уровень плюс поимённые исключения — «по номеру меня находят все, кроме
-      // вот этого» решается здесь же (см. server/lib/privacyRules.js).
       if (!(await allowsUser(user.id, "discoverByPhone", req.uid))) {
         hide();
         continue;
@@ -162,11 +122,7 @@ router.post(
 
       found.push({
         user: publicUser(user),
-        // So the list can show "уже в контактах" instead of offering to add
-        // someone who is already there.
         alreadyContact: contactIds.has(user.id),
-        // The name from *their* address book, usually more recognisable to them
-        // than the account's own display name.
         localName: name,
       });
     }

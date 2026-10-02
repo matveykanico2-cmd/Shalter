@@ -12,22 +12,11 @@
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Shalter" />
-  <!-- Высота под мобильную клавиатуру. На iOS при фокусе в поле ввода
-       клавиатура уменьшает видимую область, но 100vh остаётся прежним — экран
-       уезжает вверх, обрезая шапку и само поле. Держим --app-height равной
-       реальной высоте visualViewport, а base.css кладёт её в #view-root. Скрипт
-       в <head>, чтобы переменная была готова к первой отрисовке. -->
   <script>
     (function () {
       var root = document.documentElement;
       var vv = window.visualViewport;
       function setAppMetrics() {
-        // Высота видимой области и её смещение сверху. На iOS при открытии
-        // клавиатуры окно само прокручивается, чтобы показать поле ввода, —
-        // offsetTop и есть величина этой прокрутки. #view-root прибит
-        // position:fixed к верху окна, а top=offsetTop возвращает его точно в
-        // видимую область, поэтому шапка не уезжает за край, а под композером не
-        // появляется пустота. Без visualViewport — просто вся высота.
         var h = (vv && vv.height) || window.innerHeight;
         var top = vv ? vv.offsetTop : 0;
         root.style.setProperty("--app-height", Math.round(h) + "px");
@@ -41,14 +30,10 @@
       window.addEventListener("resize", setAppMetrics);
       window.addEventListener("orientationchange", setAppMetrics);
     })();
+  
   </script>
   <link rel="stylesheet" href="/styles/base.css" />
   <link rel="stylesheet" href="/styles/components.css" />
-  <!-- Заставка на запуск — своими стилями, не из components.css: тот файл
-       сейчас 250+ КБ, и ждать его ради экрана, который и существует только
-       чтобы прикрыть это ожидание, было бы бессмысленно. Живёт вне #view-root
-       и убирается из app.js, когда есть что показать взамен — экран входа,
-       код доступа или сам список чатов (см. removeSplash в app.js). -->
   <style>
     #boot-splash {
       position: fixed;
@@ -69,17 +54,11 @@
       letter-spacing: 0.02em;
     }
     #boot-splash.boot-splash-hidden { opacity: 0; pointer-events: none; }
+  
   </style>
   <meta name="yandex-verification" content="5d613c81ddf70c98" />
   <meta name="google-site-verification" content="H5Gkar6C14mDnFw1EAZHJSq6fHveNpDeEzKUmDXUcDE" />
-<!-- Запросы стартуют здесь, а не в app.js.
-     На плохой связи браузер сначала полторы секунды качает и разбирает код и
-     только потом спрашивает сервер, кто вошёл и какие есть чаты. Отсюда оба
-     запроса уходят сразу — они едут одновременно со скачиванием кода, а
-     приложение потом просто забирает готовые обещания (см. js/api.js). -->
 <script>
-  // На странице входа спрашивать нечего: сессии ещё нет, и запрос вернул бы
-  // отказ — лишняя поездка и красная строка в консоли на ровном месте.
   if (!/^\/(login|qr-login)/.test(location.pathname)) {
     window.__boot = {
       session: fetch("/api/auth/session", { credentials: "include" }).then((r) => r.json()).catch(() => null),
@@ -87,11 +66,7 @@
     };
   }
 </script>
-<!-- Yandex.Metrika counter -->
 <script type="text/javascript">
-    // Счётчик поднимается после первой отрисовки: чужой домен — это отдельный
-    // поиск адреса и отдельное защищённое соединение, и на медленной сети они
-    // отнимают время у самого приложения.
     window.addEventListener("load", function () {
     (function(m,e,t,r,i,k,a){
         m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
@@ -104,7 +79,6 @@
     });
 </script>
 <noscript><div><img src="https://mc.yandex.ru/watch/111690384" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
-<!-- /Yandex.Metrika counter -->
 </head>
 <body>
   <div id="boot-splash">
@@ -117,13 +91,11 @@
     <span>by Shalter-Bach</span>
   </div>
   <script>
-    // Строго подстраховка: если app.js по какой-то причине не подхватит
-    // заставку сам (не догрузился, упал ещё до своего кода — см. app.js's
-    // removeSplash), она не должна закрывать экран вечно.
     setTimeout(function () {
       var s = document.getElementById("boot-splash");
       if (s) s.remove();
     }, 10000);
+  
   </script>
   <div id="view-root"></div>
   <script type="module" src="/js/app.js"></script>

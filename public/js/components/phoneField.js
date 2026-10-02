@@ -1,26 +1,11 @@
 import { el, clear } from "../lib/dom.js";
 import { COUNTRIES, countryForDigits, searchCountries, guessCountry, formatNational } from "../lib/countries.js";
 
-// A phone input with the country in front of it: flag, dial code, and a
-// searchable list you can type into ("+380", "укр", "UA").
-//
-// Before this, every phone field in the app was one text box formatted for a
-// Russian number and capped at 11 digits, so a longer international number
-// physically could not be typed — the extra digits were dropped as you went.
-//
-// Two ways in, because people arrive with numbers in both shapes:
-//   * pick the country, then type the national part;
-//   * paste or type the whole thing with "+", and the country switches itself.
-//
-// value() returns "+<dial><national>" — the same shape the server already
-// normalises (it strips everything but digits), so nothing downstream changes.
 export function PhoneField({ value = "", onChange, autofocus = false, placeholder } = {}) {
   let country = guessCountry();
   let national = "";
   let open = false;
 
-  // An existing value decides the country rather than the browser's guess: it's
-  // the actual number, and it's usually being shown for editing.
   if (value) {
     const digits = String(value).replace(/\D/g, "");
     const found = countryForDigits(digits);
@@ -56,9 +41,6 @@ export function PhoneField({ value = "", onChange, autofocus = false, placeholde
     placeholder: placeholder ?? "999 123 45 67",
     oninput: (e) => {
       const raw = e.target.value;
-      // Typed or pasted with a country code — adopt it and keep the rest. This
-      // is what makes pasting a full "+49 151 …" work without touching the
-      // picker.
       if (raw.trim().startsWith("+")) {
         const digits = raw.replace(/\D/g, "");
         const found = countryForDigits(digits);
@@ -164,8 +146,6 @@ export function PhoneField({ value = "", onChange, autofocus = false, placeholde
     el: wrap,
     value: value_,
     focus: () => numberInput.focus(),
-    // For a caller that wants to know whether it's plausibly complete without
-    // pretending to validate every country's numbering plan.
     looksComplete: () => national.length >= Math.min(country.len ?? 9, 9),
     country: () => country,
   };

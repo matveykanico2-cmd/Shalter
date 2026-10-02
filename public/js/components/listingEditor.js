@@ -3,11 +3,6 @@ import { api } from "../api.js";
 import { uploadFile } from "../lib/upload.js";
 import { fileToImageUpload } from "../lib/image.js";
 
-// Размещение и правка объявления.
-//
-// Фотографии уезжают файлами и попадают в объявление ссылками — не строками
-// data: внутри записи. Причина та же, что и у сообщений: доска с картинками
-// внутри базы раздувает её и тянет всё это в каждый ответ ленты.
 const MAX_PHOTOS = 8;
 const MAX_PHOTO_SIDE = 1600;
 
@@ -30,7 +25,6 @@ export function openListingEditor({ listing = null, categories = [], onSaved } =
     isNegotiable: !!listing?.isNegotiable,
     city: listing?.city ?? "",
     photos: [...(listing?.photos ?? [])],
-    // null — «не отправляю»; число — сколько стоит отправка.
     cdekPriceRub: listing?.cdekPriceRub ?? null,
     status: listing?.status ?? "active",
   };
@@ -114,7 +108,7 @@ export function openListingEditor({ listing = null, categories = [], onSaved } =
       },
     });
 
-    appendAll(body, 
+    appendAll(body,
       field("Что продаёте", el("input", { class: "login-input", maxlength: 80, value: form.title, oninput: (e) => (form.title = e.target.value) })),
       field(
         "Описание",
@@ -162,9 +156,6 @@ export function openListingEditor({ listing = null, categories = [], onSaved } =
         ]),
       ]),
       field("Город", el("input", { class: "login-input", maxlength: 60, value: form.city, oninput: (e) => (form.city = e.target.value) })),
-      // Доставки как услуги здесь нет: сервис ничего не отправляет и не
-      // отслеживает. Это просто число, которое увидит покупатель, — чтобы не
-      // спрашивать про отправку в каждой переписке.
       el("div", { class: "listing-cdek" }, [
         el("label", { class: "listing-checkbox" }, [
           el("input", {

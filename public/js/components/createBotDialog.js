@@ -2,9 +2,6 @@ import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { fileToImageDataUrl } from "../lib/image.js";
 
-// Same avatar+title shape as createChatDialog.js's group/channel creation,
-// plus an optional description — used for the "real, programmable" bots
-// (server/routes/botApi.js). onSubmit gets (name, avatarImage, description).
 export function openCreateBotDialog(onSubmit) {
   let avatarImage = null;
 

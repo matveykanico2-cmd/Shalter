@@ -6,9 +6,6 @@ const { addSubscription, removeSubscriptionByEndpoint, listSubscriptionsForUser 
 
 const router = express.Router();
 
-// No auth needed — this is public by design, the same way a site's own
-// domain is public. It's not a secret, just the key the browser needs to
-// create a subscription tied to this server.
 router.get(
   "/vapid-public-key",
   asyncRoute(async (req, res) => {
@@ -37,11 +34,6 @@ router.post(
   })
 );
 
-// Какие подписки сервер знает для этого человека — чтобы настройки могли
-// показать не «уведомления разрешены», а «сервер про это устройство знает».
-// Именно здесь рвалась цепочка в жалобах «пуши не приходят совсем»: разрешение
-// выдано, подписка в браузере есть, а до сервера она не дошла — и увидеть это
-// было нечем.
 router.get(
   "/endpoints",
   asyncRoute(async (req, res) => {

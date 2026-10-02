@@ -26,10 +26,6 @@ router.get(
   })
 );
 
-// Столько же, сколько обещает Настройки → Папки («До 10 папок»). Раньше
-// обещание держалось только на словах: сервер принимал сколько угодно папок,
-// с пустым именем, с именем в мегабайт и с чем угодно вместо списка чатов —
-// а клиент потом падал на folder.chatIds.includes.
 const MAX_FOLDERS = 10;
 const MAX_FOLDER_NAME = 32;
 const MAX_FOLDER_CHATS = 500;
@@ -62,8 +58,6 @@ router.post(
       ownerId: req.uid,
       name,
       chatIds,
-      // После последней, а не «по числу папок»: после удаления из середины
-      // счёт сбивался, и новая папка вставала рядом с уже существующей.
       order: folders.reduce((max, f) => Math.max(max, (f.order ?? 0) + 1), 0),
     });
     res.json({ folder });
@@ -108,11 +102,6 @@ router.delete(
   })
 );
 
-// Ссылка-приглашение на папку — как у чата, но отдаёт список чатов, а не сам
-// чат. Отдаём только публичные (isPublic) чаты и каналы: у личного чата или
-// закрытой группы нет открытого способа в неё войти, а показывать их
-// название/аватар постороннему по одной лишь ссылке на папку — рассказывать
-// про переписку тому, кто в неё даже не входит.
 router.post(
   "/:id/invite-link",
   asyncRoute(async (req, res) => {
@@ -146,17 +135,11 @@ router.get(
   })
 );
 
-// Копирует папку себе: новая личная папка с тем же именем, автоматически
-// вступая в те публичные чаты из неё, где ещё не состоишь. Закрытые чаты
-// (не попавшие в превью выше по той же причине) сюда и не попадают —
-// импортировать можно только то, что было показано.
 router.post(
   "/invite/:code/import",
   asyncRoute(async (req, res) => {
     const folder = await findFolderByInviteCode(req.params.code);
     if (!folder) return res.status(404).json({ error: "Ссылка недействительна или отозвана" });
-    // Проверка лимита — до вступления в чаты: иначе человек оказывался
-    // подписан на всё из ссылки, а сама папка так и не появлялась.
     if ((await listFoldersFor(req.uid)).length >= MAX_FOLDERS) {
       return res.status(400).json({ error: `Можно создать не больше ${MAX_FOLDERS} папок — удалите лишнюю в Настройки → Папки` });
     }
@@ -167,7 +150,7 @@ router.post(
       if (!chat?.isPublic) continue;
       chatIds.push(chat.id);
       if (chat.memberIds.includes(req.uid)) continue;
-      if (chat.approveJoins) continue; // закрытое на вступление — папка не обходит эту защиту
+      if (chat.approveJoins) continue;
       const updated = await updateChat(chat.id, { memberIds: [...chat.memberIds, req.uid] });
       broadcastToUsers([req.uid], { type: "chat:added", chat: updated });
       broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });

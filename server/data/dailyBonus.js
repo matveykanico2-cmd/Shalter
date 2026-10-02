@@ -1,6 +1,3 @@
-// Backing store for /daily (server/lib/helperBot/economy.js) — one row per
-// user, "claimed in the last 24h" is a single comparison against
-// lastClaimAt rather than a growing claim log.
 const db = require("../db");
 
 const CLAIM_INTERVAL_MS = 24 * 60 * 60 * 1000;

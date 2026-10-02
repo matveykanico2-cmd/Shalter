@@ -1,9 +1,3 @@
-// Per-chat "auto-delete messages" (Settings on a chat — see infoPanel.js's
-// duration picker, chats.autoDeleteSeconds in db.js). A plain setInterval
-// sweep rather than one setTimeout per message: a busy server would end up
-// with thousands of live timers, and none of them would survive a restart
-// anyway — a periodic scan is simpler and self-healing, same tradeoff as the
-// typing-presence cleanup already makes.
 const { listChats } = require("../data/chats");
 const { deleteExpiredMessages } = require("../data/messages");
 const { broadcastToUsers } = require("../ws");

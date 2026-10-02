@@ -4,8 +4,6 @@ const crypto = require("crypto");
 const Database = require("better-sqlite3");
 const keyring = require("../server/lib/keyring");
 
-// Хранилище ключей завязано на БД. Даём ему базу в памяти — настоящий
-// data/app.db не трогается.
 keyring.init(new Database(":memory:"));
 const KEK = crypto.randomBytes(32);
 
@@ -30,7 +28,6 @@ test("getKey разворачивает ранее созданный ключ �
 
 test("назначения ('messages'/'files') не пересекаются по номерам", () => {
   const m = keyring.currentKey("messages", KEK);
-  // Ключ messages нельзя достать как files по тому же номеру.
   assert.throws(() => keyring.getKey("files", m.id, KEK));
 });
 

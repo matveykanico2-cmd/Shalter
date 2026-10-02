@@ -33,9 +33,6 @@ const { sendPushToUser, userPushAvatar, MESSAGE_PUSH } = require("../push");
 
 const MAX_ITEMS = 10;
 
-// Истории каналов лежат в той же таблице, тем же userId-столбцом — только в
-// нём id канала (c_…), а не человека (u_…/bot_…): префиксы никогда не
-// пересекаются, так что коллизий не бывает и отдельная колонка не нужна.
 function isChannelId(id) {
   return typeof id === "string" && id.startsWith("c_");
 }
@@ -44,12 +41,6 @@ function isChannelStaff(chat, uid) {
   return chat?.ownerId === uid || (chat?.adminIds ?? []).includes(uid);
 }
 
-// Автор истории для отдачи клиенту — человек или канал, в форме, которую уже
-// умеет рисовать storiesBar.js (он смотрит только на .id/.name/.avatarColor/
-// .avatarImage, так что канал подставляется без правок на клиенте).
-// canManage — «может ли смотрящий удалить эту историю»: тем же полем
-// storyViewer.js отличает свою историю от чужой, и для канала это не автор
-// строки, а его владелец/админ.
 async function authorInfo(id, viewerId) {
   if (isChannelId(id)) {
     const chat = await getChat(id);
@@ -68,8 +59,6 @@ async function authorInfo(id, viewerId) {
   return user ? publicUser(user) : null;
 }
 
-// Одна история — сколько угодно кадров (до MAX_ITEMS). Общая проверка для
-// личных историй и историй канала, чтобы правило кадров не разъезжалось.
 function sanitizeStoryItems(body) {
   const { kind, url } = body ?? {};
   const rawItems = Array.isArray(body?.items) && body.items.length ? body.items : [{ kind, url }];
@@ -79,10 +68,6 @@ function sanitizeStoryItems(body) {
     .map((it) => ({ kind: it.kind, url: it.url }));
 }
 
-// Кому рассказывать про эту историю: автору (он смотрит с нескольких устройств)
-// и всем, у кого автор в контактах, — ровно та же граница видимости, что и у
-// ленты выше. Без этого удалённая история оставалась висеть на чужих экранах до
-// перезагрузки, и автор не мог её убрать по-настоящему.
 function audienceOf(authorId) {
   return [...new Set([authorId, ...listOwnersOf(authorId)])];
 }
@@ -90,10 +75,6 @@ function audienceOf(authorId) {
 const router = express.Router();
 router.use(requireUserId);
 
-// Stories from your contacts + your own, plus every channel you're a member
-// of — same "who can see this" boundary Telegram/Instagram use (people you
-// follow), and this app already has contacts + channel membership to reuse
-// for it rather than "everyone" or "nobody".
 async function visibleAuthorIds(uid) {
   const contacts = await listContactsFor(uid);
   const chats = await listChatsForUser(uid);
@@ -133,10 +114,6 @@ router.get(
   })
 );
 
-// Истории одного человека — для кнопки в его профиле. Границу видимости
-// повторяем ту же, что и в ленте выше: свои истории видно всегда, чужие —
-// если человек у вас в контактах. Иначе профиль стал бы обходным путём
-// смотреть истории тех, кто вам их не показывает.
 router.get(
   "/user/:userId",
   asyncRoute(async (req, res) => {
@@ -165,13 +142,6 @@ router.get(
   })
 );
 
-// Архив историй в профиле: всё, что человек когда-либо выкладывал, включая
-// истёкшее. Лента на «Чатах» и кружки по-прежнему показывают только живые
-// истории — здесь ровно то место, где срок не действует.
-//
-// Кто это видит: сам человек — всегда, остальные — по настройке
-// «Архив историй» (по умолчанию «никто»). Прошедшие сутки истории задумывались
-// временными, и раздавать их посторонним без разрешения нельзя.
 router.get(
   "/user/:userId/archive",
   asyncRoute(async (req, res) => {
@@ -179,16 +149,11 @@ router.get(
     const isSelf = targetId === req.uid;
 
     if (isChannelId(targetId)) {
-      // Канал — не личный дневник: архив открыт любому подписчику, без
-      // настройки видимости. Срок жизни у карусели наверху тот же, здесь
-      // просто нет «до завтра» — только членство в канале.
       const chat = await getChat(targetId);
       if (!chat || chat.type !== "channel" || !chat.memberIds.includes(req.uid)) {
         return res.json({ stories: [], allowed: false });
       }
     } else if (!isSelf) {
-      // Та же граница, что и у живых историй: сначала «показывают ли вам этого
-      // человека вообще», и только потом — «открыт ли архив».
       const allowed = await visibleAuthorIds(req.uid);
       if (!allowed.includes(targetId)) return res.json({ stories: [], allowed: false });
       const { privacy } = await getSettings(targetId);
@@ -208,8 +173,6 @@ router.get(
         viewed: st.viewedByIds.includes(req.uid),
         liked: st.likedByIds.includes(req.uid),
         likeCount: st.likedByIds.length,
-        // Клиенту нужно отличать живую историю от архивной: первую можно
-        // открыть в просмотрщике как обычно, вторая — уже история из прошлого.
         expired: new Date(st.expiresAt).getTime() <= now,
       })),
     });
@@ -219,21 +182,11 @@ router.get(
 router.post(
   "/",
   asyncRoute(async (req, res) => {
-    // Одна история — сколько угодно кадров. Раньше на каждый выбранный файл
-    // заводилась своя история, и десять снимков превращались в десять историй,
-    // которые автор потом удалял по одной. Старая форма запроса (kind + url)
-    // продолжает работать: это та же история из одного кадра.
     const items = sanitizeStoryItems(req.body);
     if (!items.length) return res.status(400).json({ error: "invalid story" });
 
     const now = Date.now();
     const story = await addStory({
-      // Со случайным хвостом, а не голая миллисекунда: id — это PRIMARY KEY, а
-      // истории выкладывают пачкой (в ленте выбирают сразу несколько файлов, см.
-      // components/storiesBar.js). Две маленькие картинки успевают уехать внутри
-      // одной миллисекунды — вторая вставка падала на нарушении ключа, запрос
-      // отвечал 500, и цикл отправки обрывался: из пяти выбранных снимков
-      // выкладывался один, молча.
       id: `st_${now}_${crypto.randomBytes(4).toString("hex")}`,
       userId: req.uid,
       items,
@@ -241,14 +194,9 @@ router.post(
       expiresAt: new Date(now + TTL_MS).toISOString(),
       viewedByIds: [],
     });
-    // Лента у остальных обновляется сама — тем же путём, что и удаление ниже.
     broadcastToUsers(audienceOf(req.uid), { type: "story:new", storyId: story.id, userId: req.uid });
     res.json({ story });
 
-    // Пуш тем, кто увидит историю (контакты автора) — «выложил историю».
-    // Fire-and-forget, уже после ответа: уведомление не должно задерживать
-    // публикацию. Один tag на автора — новая история заменяет предыдущее
-    // уведомление, а не копит их.
     (async () => {
       try {
         const author = await getUser(req.uid);
@@ -266,9 +214,6 @@ router.post(
   })
 );
 
-// История от имени канала — публикует владелец/админ, видят все подписчики
-// (участники канала), а не только его контакты. Та же таблица, тот же формат
-// кадров — только userId хранит id канала (authorInfo выше это понимает).
 router.post(
   "/channel/:chatId",
   asyncRoute(async (req, res) => {
@@ -296,11 +241,6 @@ router.post(
 router.post(
   "/:id/view",
   asyncRoute(async (req, res) => {
-    // Та же граница видимости, что и у ленты: отметить просмотр можно только у
-    // той истории, которую вам вообще показывают. Раньше здесь не было ни одной
-    // проверки, а в ответ уезжала вся история целиком — со ссылками на кадры.
-    // То есть достаточно было знать id, чтобы вытащить историю человека, у
-    // которого ты не в контактах, в обход ленты и профиля.
     const allowed = await visibleAuthorIds(req.uid);
     const visible = (await listStoriesForUsers(allowed)).find((st) => st.id === req.params.id);
     if (!visible) return res.status(404).json({ error: "not found" });
@@ -310,9 +250,6 @@ router.post(
   })
 );
 
-// Кому рассказывать про лайк/комментарий — то же правило, что и у "story:new"
-// для личной истории, а для истории канала это все подписчики, как и у
-// story:deleted выше.
 async function audienceForStory(story) {
   if (isChannelId(story.userId)) {
     const chat = await getChat(story.userId);
@@ -363,9 +300,6 @@ router.post(
     const text = String(req.body?.text ?? "").trim().slice(0, 500);
     if (!text) return res.status(400).json({ error: "empty comment" });
 
-    // Ответ на другой комментарий: parentId должен вести на комментарий этой же
-    // истории. Вложенность одноступенчатая — ответ на ответ крепится к тому же
-    // верхнему комментарию (как в большинстве лент), поэтому берём parent.parentId.
     let parentId = null;
     if (req.body?.parentId) {
       const parent = await getComment(String(req.body.parentId));
@@ -390,7 +324,6 @@ router.post(
   })
 );
 
-// Лайк/снятие лайка комментария истории.
 router.post(
   "/:id/comments/:commentId/like",
   asyncRoute(async (req, res) => {
@@ -412,11 +345,6 @@ router.post(
   })
 );
 
-// Правка и удаление комментария к истории.
-//
-// Править — только свой комментарий. Удалять — свой; любой под своей
-// историей (или историей канала, которым управляешь), как в Telegram
-// хозяин поста чистит комментарии под ним; и модератору сервера — любой.
 async function loadStoryComment(req, res) {
   const story = await getStoryById(req.params.id);
   const comment = story ? await getComment(req.params.commentId) : null;
@@ -469,9 +397,6 @@ router.delete(
   })
 );
 
-// Кто смотрел историю. Автору — своей; истории канала — его владельцу/админам.
-// Список зрителей — это про того, кто выложил, посторонним знать, кто что
-// смотрел, незачем.
 router.get(
   "/:id/viewers",
   asyncRoute(async (req, res) => {
@@ -494,12 +419,6 @@ router.delete(
     const story = await getStoryById(req.params.id);
     if (!story) return res.status(404).json({ error: "not found" });
 
-    // Личная история удаляется своим автором; история канала — владельцем/
-    // админом канала. deleteStory сверяет userId в базе, поэтому «ключ
-    // владения» здесь — id канала, а не того, кто нажал «Удалить».
-    //
-    // Модератор сервера (раздел «Модерация») удаляет любую историю — личную
-    // или канала; автор узнаёт об этом от сервисного бота.
     let audience;
     let byModerator = false;
     const moderator = async () => hasAdminSection(await getUser(req.uid), "moderation");
@@ -521,9 +440,6 @@ router.delete(
 
     const ok = await deleteStory(req.params.id, story.userId);
     if (!ok) return res.status(404).json({ error: "not found" });
-    // Удалили — значит у всех: у того, кто её сейчас смотрит, история
-    // закрывается, из ленты пропадает кружок. Иначе «удалено» означало лишь
-    // «удалено у меня», а чужие экраны продолжали её показывать.
     broadcastToUsers(audience, { type: "story:deleted", storyId: req.params.id, userId: story.userId });
     if (byModerator) {
       const chat = isChannelId(story.userId) ? await getChat(story.userId) : null;

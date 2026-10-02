@@ -19,10 +19,6 @@ const { getIceServers } = require("../lib/turnCredentials");
 const router = express.Router();
 router.use(requireUserId);
 
-// Fresh, short-lived TURN credentials for the peer connection about to be
-// negotiated (see server/lib/turnCredentials.js). Behind auth like the rest
-// of this router — no reason to hand out relay credentials to logged-out
-// requests.
 router.get(
   "/ice-servers",
   asyncRoute(async (req, res) => {
@@ -30,24 +26,10 @@ router.get(
   })
 );
 
-// "Who can call me" (Settings → Конфиденциальность) — уровень «Все / Мои
-// контакты / Никто» плюс поимённые исключения, всё в server/lib/privacyRules.js.
-// Проверяется по контактам *того, кому звонят* (та же несимметричность, что у
-// добавления в чаты в routes/chats.js и у просмотра профиля в routes/users.js),
-// а не по контактам звонящего.
 async function canCall(callerId, targetId) {
   return allowsUser(targetId, "calls", callerId);
 }
 
-// Звонок незнакомого человека — по той же цене, что и сообщение от него.
-//
-// Логика ровно как у платных сообщений (server/routes/messages.js): кто у
-// получателя в контактах — звонит бесплатно, у кого Premium — тоже, остальные
-// платят звёздами. Смысл один: холодный звонок должен чего-то стоить, а
-// знакомство или подписка это снимают.
-//
-// Отдельная функция, а не копия того куска: цена и правила должны меняться в
-// одном месте, иначе через полгода «писать» и «звонить» разъедутся.
 async function chargeForColdCall(callerId, target) {
   const price = target?.messagePriceStars ?? 0;
   if (price <= 0) return { ok: true, charged: 0 };
@@ -68,28 +50,13 @@ async function chargeForColdCall(callerId, target) {
   return { ok: true, charged: price };
 }
 
-// Real Web Push for the ring, same reasoning as pushNewMessage in
-// server/routes/messages.js — the WS broadcast above only reaches an already-
-// open tab. requireInteraction keeps it on screen instead of auto-dismissing
-// like a normal notification, since a missed-call notice that vanishes in a
-// few seconds defeats the point.
-// Звонок кончился, а уведомление о нём висит на экране — оно с
-// requireInteraction и само не гаснет. В итоге человек возвращается к телефону,
-// видит «вам звонят» и жмёт «Ответить» на разговор, которого уже нет.
-//
-// Поэтому вдогонку уходит второе уведомление — с тем же тегом и пометкой
-// «отменено»: public/sw.js по ней закрывает висящее и ничего нового не
-// показывает.
 async function pushCallCancelled(call, recipientIds, { missed = false, callerName = "" } = {}) {
   await Promise.all(
     recipientIds
       .filter((id) => id !== call.callerId)
       .map((uid) =>
         missed
-          ? // Не дозвонились — вместо того чтобы просто убрать «вам звонят»,
-            // оставляем след: иначе человек, отошедший от телефона, не узнает о
-            // звонке вовсе. Тег тот же, поэтому новое уведомление встаёт на
-            // место звонящего, а не добавляется вторым.
+          ?
             sendPushToUser(
               uid,
               {
@@ -110,10 +77,6 @@ async function pushCallCancelled(call, recipientIds, { missed = false, callerNam
   );
 }
 
-// Все состояния, в которые звонок может перейти по запросу клиента.
-// «ongoing» — идёт; остальные означают, что он кончился, и различаются только
-// тем, что покажет журнал звонков.
-// Сколько участников группы можно вызвать разом (см. POST / ниже).
 const MAX_RING_ALL = 12;
 const ALLOWED_CALL_STATUSES = new Set(["ongoing", "ended", "missed", "completed", "declined"]);
 const FINISHED_CALL_STATUSES = new Set(["ended", "missed", "completed", "declined"]);
@@ -133,9 +96,6 @@ async function pushIncomingCall(call, callerId, recipientIds) {
           url: `/call/${call.id}`,
           tag: `call-${call.id}`,
           requireInteraction: true,
-          // По этим двум полям public/sw.js понимает, что показывать надо
-          // звонок: с вибрацией и кнопками «Ответить» / «Отклонить», которые
-          // работают, не открывая приложение.
           kind: "call",
           callId: call.id,
         }, CALL_PUSH)
@@ -143,13 +103,6 @@ async function pushIncomingCall(call, callerId, recipientIds) {
   );
 }
 
-// Кто звонит — вместе с самим звонком.
-//
-// Экран входящего показывает имя и аватар звонящего, а в записи звонка есть
-// только его идентификатор: без этого на весь экран было написано «Звонок» и
-// стояла заглушка вместо лица. Отдаём карточку прямо в событии, чтобы
-// принимающему не пришлось делать ещё один запрос ровно в тот момент, когда
-// на экране должно немедленно появиться, кто звонит.
 async function withCaller(call) {
   const caller = await getUser(call.callerId);
   return { ...call, otherUser: caller ? publicUser(caller) : undefined };
@@ -159,16 +112,9 @@ router.get(
   "/",
   asyncRoute(async (req, res) => {
     const calls = await listCalls(req.uid);
-    // Только собеседники из этих звонков, а не вся таблица аккаунтов. Раньше
-    // здесь читались все пользователи сервера вместе с аватарами — на 50
-    // тысячах это секунда и полгигабайта памяти на один заход в «Звонки»
-    // (замер, см. data/users.js: findUserIdsByUsernames).
     const otherIds = [...new Set(calls.flatMap((c) => c.participantIds).filter((id) => id !== req.uid))];
     const users = await listUsersByIds(otherIds);
     const byId = new Map(users.map((u) => [u.id, u]));
-    // Название — для звонков в группе: там «собеседник» — просто первый
-    // попавшийся участник, и строка журнала подписывалась его именем, будто
-    // звонок был личным.
     const groupTitles = new Map();
     for (const chatId of new Set(calls.map((c) => c.chatId))) {
       const chat = await getChat(chatId).catch(() => null);
@@ -179,9 +125,6 @@ router.get(
       const other = otherId ? byId.get(otherId) : null;
       return {
         ...call,
-        // Направление — относительно того, кто смотрит журнал. В записи оно
-        // одно на всех («outgoing», его ставит звонящий), и у принявшего
-        // звонок он тоже значился исходящим.
         direction: call.callerId === req.uid ? "outgoing" : "incoming",
         otherUser: other ? publicUser(other) : null,
         group: groupTitles.get(call.chatId) ?? null,
@@ -191,8 +134,6 @@ router.get(
   })
 );
 
-// Places a call: creates the Call record; actual media transport is real
-// WebRTC set up client-side (see public/js/lib/webrtc.js), signaled over WS.
 router.post(
   "/",
   asyncRoute(async (req, res) => {
@@ -201,12 +142,6 @@ router.post(
     if (!chat || !chat.memberIds.includes(req.uid)) {
       return res.status(404).json({ error: "not found" });
     }
-    // Быстрый звонок в группе — вызывает сразу всех, как звонок в личке, а не
-    // только звонящего с последующим «добавить участника» по одному.
-    //
-    // Звонок устроен сеткой «каждый с каждым» (callController.js): на двадцать
-    // человек это уже девятнадцать исходящих видеопотоков у каждого. Для
-    // большой группы есть голосовой чат — туда заходят сами, кому нужно.
     let ringIds = null;
     if (chat.type === "group" && ringAll) {
       if (chat.memberIds.length > MAX_RING_ALL) {
@@ -236,9 +171,6 @@ router.post(
         }
       }
     }
-    // DM calls ring both members immediately. Group calls start with just the
-    // caller — other group members are pulled in one at a time via
-    // POST /:id/participants, so "add participant" has anyone left to add.
     const call = await createCall({
       id: genId("cl"),
       chatId,
@@ -260,24 +192,12 @@ router.post(
   })
 );
 
-// Изменение звонка — только его участником и только в тех полях, которые
-// звонку и принадлежат.
-//
-// Раньше тело запроса уходило в updateCall как есть и без единой проверки: имея
-// чужой идентификатор звонка, посторонний мог завершить чужой разговор, а
-// заодно переписать в записи любое поле. Проверку добавил здесь, а не в
-// клиенте, потому что сброс звонка теперь умеет делать и уведомление
-// (public/sw.js) — то есть запрос приходит вообще не из приложения.
 router.patch(
   "/:id",
   asyncRoute(async (req, res) => {
     const existing = await getCall(req.params.id);
     if (!existing || !existing.participantIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
 
-    // «Отклонить» из уведомления (public/sw.js) шлёт сюда конечный статус. В
-    // групповом звонке на троих и больше это значит «я не приду», а не
-    // «звонок отменён для всех», — так же, как POST /:id/leave. Звонивший
-    // по-прежнему завершает звонок целиком (например, «никто не ответил»).
     if (
       FINISHED_CALL_STATUSES.has(req.body?.status) &&
       existing.status === "ongoing" &&
@@ -290,12 +210,6 @@ router.patch(
     }
 
     const patch = {};
-    // Список должен совпадать с тем, что шлёт клиент, иначе изменение молча
-    // выбрасывается. Ровно это и происходило: «Сбросить» отправляет
-    // «completed», отклонение входящего — «declined», а сюда пропускались
-    // только три других значения. Статус оставался «ongoing», рассылка уходила
-    // со старым значением, и у второй стороны звонок не завершался никогда —
-    // экран висел до перезагрузки страницы.
     if (ALLOWED_CALL_STATUSES.has(req.body?.status)) patch.status = req.body.status;
     if (Number.isFinite(req.body?.durationSec)) patch.durationSec = Math.max(0, Math.floor(req.body.durationSec));
     if (!Object.keys(patch).length) return res.json({ call: existing });
@@ -303,23 +217,6 @@ router.patch(
     const call = await updateCall(req.params.id, patch);
     if (call) {
       broadcastToUsers(call.participantIds, { type: "call:updated", call });
-      // Звонок закончился — снимаем висящее уведомление о нём.
-      //
-      // Без оговорок про прежний статус: звонок заводится сразу «ongoing» (см.
-      // data/calls.js), поэтому условие «а раньше он не шёл» не выполнялось
-      // никогда и отмена не уходила ни разу. Лишний раз послать её безвредно:
-      // у того, кто уже ответил, уведомление закрыто нажатием, и воркер просто
-      // не найдёт, что закрывать.
-      // Запись о звонке в самой переписке.
-      //
-      // Раньше звонки жили только во вкладке «Звонки», и в чате не оставалось
-      // ни следа: открываешь переписку — а того, что человек звонил полчаса
-      // назад и не дозвонился, там нет. Теперь каждый законченный звонок
-      // оставляет строку, как в любом мессенджере.
-      //
-      // Пишется один раз: условие выше пропускает сюда только переход из
-      // «идёт» в конечное состояние, а повторный запрос второй стороны такого
-      // перехода уже не даёт.
       if (FINISHED_CALL_STATUSES.has(patch.status) && existing.status === "ongoing") {
         const answered = patch.status === "completed" && (patch.durationSec ?? 0) > 0;
         const mins = Math.floor((patch.durationSec ?? 0) / 60);
@@ -331,14 +228,10 @@ router.patch(
             : "📞 Пропущенный звонок";
         const chat = await getChat(call.chatId).catch(() => null);
         if (chat) {
-          // От имени звонившего: строка встаёт в переписке на его сторону, и
-          // сразу видно, кто кому звонил.
           await sendMessageAndBroadcast(chat, call.callerId, label).catch(() => {});
         }
       }
       if (FINISHED_CALL_STATUSES.has(patch.status)) {
-        // Пропущенный и отклонённый — разные вещи: об отклонённом звонивший
-        // знает сам, а о пропущенном должен узнать тот, кому звонили.
         const missed = patch.status === "missed";
         const caller = missed ? await getUser(call.callerId).catch(() => null) : null;
         pushCallCancelled(call, call.participantIds, { missed, callerName: caller?.name ?? "" }).catch((err) =>
@@ -350,17 +243,6 @@ router.patch(
   })
 );
 
-// Answering a DM call never touched the server before — the callee's client
-// just starts exchanging WebRTC signals directly with the caller (see
-// public/js/lib/callController.js's join()), since both sides are already in
-// participantIds from creation and there's no "add participant" step to hang
-// this on. That's fine for the caller, who finds out the moment a peer
-// connection forms — but if the same person is logged in on a second device,
-// that device's own incoming-call banner never got told the call was picked
-// up elsewhere, and kept ringing until the call ended entirely. This exists
-// purely to fix that: a fire-and-forget ping the answering client sends right
-// as it joins, so every other session of *this* user (not the caller) can
-// dismiss its own ringing banner.
 router.post(
   "/:id/answer",
   asyncRoute(async (req, res) => {
@@ -371,29 +253,22 @@ router.post(
   })
 );
 
-// Adds a participant to an ongoing call — each existing peer grows its mesh
-// by opening a new RTCPeerConnection to the newcomer (public/js/lib/webrtc.js).
 router.post(
   "/:id/participants",
   asyncRoute(async (req, res) => {
     const { userId } = req.body ?? {};
     const call = await getCall(req.params.id);
     if (!call) return res.status(404).json({ error: "not found" });
-    // Only from inside the call: without this anyone who knew a call id could
-    // pull a stranger into someone else's conversation.
     if (!call.participantIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
     if (call.participantIds.includes(userId)) return res.json({ call });
     if (!(await canCall(req.uid, userId))) {
       return res.status(403).json({ error: "Пользователь ограничил звонки" });
     }
     const updated = await addParticipant(req.params.id, userId);
-    // Existing peers grow their mesh to include the newcomer...
     broadcastToUsers(
       updated.participantIds.filter((id) => id !== userId),
       { type: "call:participants-updated", call: updated }
     );
-    // ...and the newcomer gets the same incoming-call prompt as a fresh call,
-    // since they haven't joined a call controller yet.
     broadcastToUsers([userId], { type: "call:incoming", call: await withCaller(updated) });
     res.json({ call: updated });
 
@@ -401,12 +276,6 @@ router.post(
   })
 );
 
-// Выйти из звонка, не завершая его для остальных.
-//
-// PATCH /:id со статусом завершал звонок у всех разом — для разговора двоих это
-// правильно, а в группе один положил трубку, и связь оборвалась у всех. Тот
-// же ответ для «Отклонить» в групповом звонке: не хочешь — не заходи, но
-// другие-то разговаривают. Остался один — звонок заканчивается сам.
 async function leaveCall(call, uid) {
   let updated = await removeParticipant(call.id, uid);
   if (updated.participantIds.length < 2 && updated.status === "ongoing") {
@@ -429,12 +298,6 @@ router.post(
   })
 );
 
-// Removing someone from a call. The counterpart of /participants above, which
-// could pull anyone in with no way to put them out — a call that someone joined
-// by a leaked link could only be escaped by everyone else hanging up.
-//
-// Only the person who started the call, and only on someone else: leaving your
-// own call is what PATCH /:id (status "ended") and simply hanging up already do.
 router.delete(
   "/:id/participants/:userId",
   asyncRoute(async (req, res) => {
@@ -445,20 +308,12 @@ router.delete(
     if (!call.participantIds.includes(req.params.userId)) return res.json({ call });
 
     const updated = await removeParticipant(req.params.id, req.params.userId);
-    // The one removed is told so their call screen closes, and everyone still in
-    // it rebuilds their mesh without that peer.
     broadcastToUsers([req.params.userId], { type: "call:updated", call: { ...updated, status: "ended" } });
     broadcastToUsers(updated.participantIds, { type: "call:participants-updated", call: updated });
     res.json({ call: updated });
   })
 );
 
-// Постоянная голосовая комната группы — в отличие от звонка выше, никого не
-// вызывает: комната просто существует, пока в ней кто-то есть, и любой
-// участник группы заходит и выходит когда хочет, без ответа/отклонения.
-// Один и тот же call-объект и та же WebRTC-сигнализация (call:signal,
-// call:participants-updated), что и у обычного группового звонка — разница
-// только в том, как в него попадают.
 router.get(
   "/room/:chatId",
   asyncRoute(async (req, res) => {
@@ -494,11 +349,7 @@ router.post(
       room = await addParticipant(room.id, req.uid);
     }
 
-    // Уже сидящие в комнате растят свою mesh-сетку до новичка — тот же
-    // механизм, что и у POST /:id/participants выше. Новичку при этом не
-    // шлётся "входящий звонок": он зашёл сам, звонить ему незачем.
     broadcastToUsers(room.participantIds.filter((id) => id !== req.uid), { type: "call:participants-updated", call: room });
-    // Живой индикатор в шапке чата видят все в группе, даже те, кто не зашёл.
     broadcastToUsers(chat.memberIds, { type: "voicechat:updated", chatId: chat.id, call: room });
 
     res.json({ call: room });
@@ -514,8 +365,6 @@ router.post(
     if (!room || !room.participantIds.includes(req.uid)) return res.json({ ok: true });
 
     let updated = await removeParticipant(room.id, req.uid);
-    // Комната живёт, пока в ней кто-то есть — вышел последний, значит и
-    // комнаты больше нет.
     if (!updated.participantIds.length) updated = await updateCall(room.id, { status: "ended" });
 
     broadcastToUsers(updated.participantIds, { type: "call:participants-updated", call: updated });
@@ -528,12 +377,6 @@ router.post(
   })
 );
 
-// Premium's "invite by link" — generates (or returns the existing) join
-// token for an ongoing call, so it can be shared outside the chat itself
-// (any messenger, not just Shalter). Anyone with the link can join the
-// call's mesh via POST /join/:token below, without needing to already be a
-// member of the underlying chat — see joinCallById's fallback in
-// public/js/lib/callController.js for how the client copes with that.
 router.post(
   "/:id/invite-link",
   asyncRoute(async (req, res) => {
@@ -568,8 +411,6 @@ router.post(
   })
 );
 
-// HTTP fallback/catch-up for signaling (primary transport is WebSocket, see
-// server/ws.js) — used on reconnect after a dropped WS connection or page reload.
 router.get(
   "/:id/signal",
   asyncRoute(async (req, res) => {

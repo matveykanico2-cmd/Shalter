@@ -6,27 +6,8 @@ import { getState } from "../state.js";
 import { api } from "../api.js";
 import { renderCustomScene } from "./customScene.js";
 
-// Vanilla-JS port of components/chat/formatText.tsx — same markdown-like
-// shortcuts (**bold**, *italic*, `code`, ~~strike~~, ||spoiler||, > quote,
-// @mentions, bare URLs). Builds real DOM nodes with textContent (never
-// innerHTML) so message text can never be interpreted as markup.
-//
-// `members` (optional — the chat's member list, see messageBubble.js) lets
-// an @mention resolve to a real user and become clickable; a token that
-// doesn't match anyone in the chat (a stray "@handle" from a pasted link,
-// someone no longer in the group, etc.) just renders as plain styled text,
-// same as before this list existed.
-// `emoji` (необязательно) — массив кастомных эмодзи-сцен, приложенных к
-// сообщению (см. server/data/messages.js). Токен `[ce:N]` в тексте — это N-й
-// элемент массива, который рисуется маленькой анимированной сценой прямо в
-// строке. Сцена лежит в самом сообщении, поэтому её видит любой получатель, не
-// дозапрашивая ничего у автора.
-// Токен кастомного эмодзи в тексте (см. renderInline / composer.js).
 const CE_TOKEN_RE = /\[ce:\d+\]/g;
 
-// Текст для мест, где сообщение показывается плоской строкой (превью в списке
-// чатов, закреплённое, ответы, поиск, уведомления): там токен [ce:N] рисовать
-// нечем, поэтому заменяем его на 🎨 — иначе виден сырой «[ce:0]».
 export function previewText(text) {
   return (text ?? "").replace(CE_TOKEN_RE, "🎨");
 }
@@ -47,11 +28,9 @@ export function formatText(text, members, emoji) {
 function renderInline(text, members, emoji) {
   const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|~~[^~]+~~|\|\|[^|]+\|\||\[ce:\d+\]|@\w+|https?:\/\/\S+)/g);
   return tokens.filter(Boolean).map((tok) => {
-    // Кастомный эмодзи: [ce:N] → N-я сцена из приложенного к сообщению массива.
     const ce = /^\[ce:(\d+)\]$/.exec(tok);
     if (ce) {
       const scene = emoji?.[Number(ce[1])];
-      // Нет сцены (сообщение без вложений или битый индекс) — не теряем текст.
       if (!scene) return document.createTextNode("🎨");
       return el("span", { class: "inline-custom-emoji" }, [renderCustomScene(scene, { size: 30 })]);
     }
@@ -61,30 +40,20 @@ function renderInline(text, members, emoji) {
     if (tok.startsWith("||") && tok.endsWith("||")) return spoiler(tok.slice(2, -2));
     if (tok.startsWith("@")) {
       const handle = tok.slice(1).toLowerCase();
-      // Любое @упоминание кликабельно и ведёт на профиль — не только тех, кто
-      // сейчас в этом чате. Участник открывается сразу (id уже есть), чужой —
-      // после запроса по юзернейму; если это не человек, а канал/группа/бот,
-      // отдаём это резолверу адреса (/u/имя, см. app.js).
       const member = members?.find((u) => u.username && u.username.toLowerCase() === handle);
       return el(
         "button",
         {
           class: "mention mention-link",
           onclick: async () => {
-            // Свой же юзернейм: сервер не отдаёт тебя самому себе (404), из-за
-            // чего клик «не срабатывал». Открываем свой профиль сразу.
             const me = getState().user;
             if (me && me.username && me.username.toLowerCase() === handle) return openProfileDialog(me.id);
             if (member) return openProfileDialog(member.id);
             try {
               const { user } = await api.findUserByUsername(handle);
-              // Нашёлся человек — открываем профиль; ответ без id (не человек)
-              // отдаём резолверу адреса, как и явную ошибку ниже.
               if (user?.id) return openProfileDialog(user.id);
               navigate(`/u/${handle}`);
             } catch {
-              // Не человек (канал/группа/бот) или сбой запроса — пусть решает
-              // резолвер адреса (/u/имя, app.js): он откроет канал/бота/чат.
               navigate(`/u/${handle}`);
             }
           },
@@ -102,9 +71,6 @@ function renderInline(text, members, emoji) {
           class: "text-link",
           onclick: (e) => {
             e.preventDefault();
-            // Ссылка на само приложение (магазин, канал, приглашение) открывается
-            // внутри него, а не в окне браузера поверх: там она показала бы вторую
-            // копию Shalter в рамке, со своим входом и своей навигацией.
             const internal = internalPath(tok);
             if (internal) return navigate(usernameToRoute(internal));
             const { unsafe, warning } = checkLinkSafety(tok);
@@ -118,10 +84,6 @@ function renderInline(text, members, emoji) {
   });
 }
 
-// Одиночный сегмент-юзернейм («/bob», «/@bob») → маршрут резолвера «/u/bob»,
-// чтобы вставленная ссылка вида домен/username открывалась внутри приложения,
-// а не упиралась в «страница не найдена». Зарезервированные пути приложения
-// (те же, что в app.js) не трогаем. Всё прочее — как есть.
 const RESERVED_USERNAME_PATHS = new Set([
   "u", "chat", "call", "call-join", "join", "folder", "nearby", "contacts",
   "discover-channels", "market", "calls", "archive", "settings", "login",
@@ -133,7 +95,6 @@ function usernameToRoute(path) {
   return path;
 }
 
-// Путь внутри этого же приложения — или null, если ссылка ведёт наружу.
 function internalPath(href) {
   try {
     const url = new URL(href, window.location.origin);

@@ -5,12 +5,6 @@ import { VerifiedBadge } from "../components/verifiedBadge.js";
 import { navigate } from "../router.js";
 import { setState } from "../state.js";
 
-// What an invite link opens: who is inviting you to what, and one button.
-//
-// Deliberately a preview rather than an instant join — a link lands in a
-// message, gets forwarded, and is clicked without much thought. Being dropped
-// straight into a group you haven't seen the name of is how people end up in
-// chats they never meant to join.
 export async function JoinInviteView(root, code) {
   let info = null;
   let error = null;
@@ -28,8 +22,6 @@ export async function JoinInviteView(root, code) {
     render();
     try {
       const res = await api.joinByInvite(code);
-      // With approval on there is nothing to open yet — the answer comes later,
-      // as a chat appearing in the list.
       if (res.pending) {
         info = { ...info, requestPending: true };
         busy = false;

@@ -1,8 +1,3 @@
-// The slash-command bot's dispatcher. Unlike Hugo (lib/hugoBot.js), this one
-// answers in any chat and doesn't require being a chat member — see
-// data/helperBot.js for why. Called fire-and-forget from routes/messages.js,
-// same shape as dispatchHugo: never throws, never delays the human sender's
-// own request.
 const { HELPER_BOT_ID } = require("../data/helperBot");
 const { sendMessageAndBroadcast } = require("./systemChat");
 const { getPending } = require("./helperBot/pendingState");
@@ -20,9 +15,6 @@ const COMMANDS = {
   ...utility.commands,
 };
 
-// Command name may be Cyrillic-adjacent in theory, but every command in the
-// registry is plain ASCII — kept simple on purpose. "@botname" suffix
-// (Telegram-style, /help@helper) is accepted and ignored.
 const COMMAND_RE = /^\/([a-zA-Z_]+)(?:@\w+)?(?:\s+([\s\S]*))?$/;
 
 function buildCtx(chat, message, argsText) {
@@ -60,8 +52,6 @@ async function dispatchHelperBot(chat, message) {
       return;
     }
 
-    // A bare reply while /game's number-guess is in progress for this
-    // person in this chat — routed to fun.js's handler without a "/" prefix.
     const pending = getPending(chat.id, message.senderId);
     if (pending?.type === "guess") {
       const result = await fun.commands.game(buildCtx(chat, message, trimmed));

@@ -1,20 +1,7 @@
-// Shared by both ways a bot can reply: the external Bot API's POST
-// /sendMessage (server/routes/botApi.js) and the in-app sandboxed code
-// (server/lib/botSandbox.js) — same operation either way, just a different
-// caller.
 const { getChat } = require("../data/chats");
 const { addMessage } = require("../data/messages");
 const { broadcastToUsers } = require("../ws");
 
-// Кнопки приводятся к одной форме на входе, а не разбираются на выходе.
-//
-// Повод настоящий: документация (/bots#keyboard) с самого начала предлагала
-// { text, data }, а приложение читало btn.action — то есть кнопка, собранная
-// строго по документации, отправляла в чат «undefined» и выглядела сломанной.
-// Обе формы понимаются здесь, в одном месте, и в базу ложится одна.
-//
-// { text, app } — кнопка, открывающая мини-приложение бота (lib/miniApp.js).
-// Адрес проверяется не тут, а при открытии: там видно, чьё это приложение.
 function normalizeKeyboard(keyboard) {
   if (!Array.isArray(keyboard)) return undefined;
   const rows = keyboard
@@ -51,8 +38,6 @@ async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId, at
     createdAt: new Date().toISOString(),
     replyToId: replyToId ?? null,
     keyboard: normalizeKeyboard(keyboard),
-    // Картинки и файлы бот присылает ссылкой — своё хранилище у него уже есть,
-    // а второй путь загрузки на сервер тянул бы за собой свои лимиты и чистку.
     attachments: Array.isArray(attachments) ? attachments : undefined,
     readByIds: [],
   });

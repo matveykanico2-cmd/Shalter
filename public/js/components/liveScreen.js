@@ -8,17 +8,8 @@ import { applyVolumeToAll } from "../lib/mediaVolume.js";
 import { attachFlv, isFlvSupported } from "../lib/flvPlayer.js";
 import { isServerModerator } from "../lib/moderation.js";
 
-// Экран эфира. Слева — видео и управление, справа — участники и чат.
-//
-// Разделение обязанностей: медиа целиком в lib/liveController.js, здесь только
-// показ и нажатия. Поэтому на любое изменение состава экран перерисовывается
-// целиком — кроме <video>, которые переиспользуются: пересоздание элемента
-// сбрасывает воспроизведение, и картинка моргала бы на каждый вход зрителя.
 const videoNodes = new Map();
 
-// Поле «скопируй это в OBS». Только для чтения и с кнопкой копирования:
-// ключ потока — 32 знака вперемешку, и набирать его руками никто не станет,
-// а выделять мышью в модальном окне неудобно.
 function obsField(label, value) {
   const input = el("input", { class: "live-obs-input", type: "text", value: value ?? "", readonly: true });
   const button = el(
@@ -32,8 +23,6 @@ function obsField(label, value) {
           await navigator.clipboard.writeText(value ?? "");
           button.textContent = "Скопировано";
         } catch {
-          // Буфер обмена недоступен (нет https или отказано) — текст уже
-          // выделен, и остаётся обычное Ctrl+C.
           button.textContent = "Выделено — Ctrl+C";
         }
         setTimeout(() => (button.textContent = "Копировать"), 2000);
@@ -65,16 +54,9 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
   let unsub = null;
   let sending = false;
   let error = null;
-  // Своё сообщение в чате эфира, которое сейчас правится: поле ввода внизу
-  // переходит в режим правки, как в обычном чате.
   let editingMessage = null;
-  // Один узел на всё время эфира — по той же причине, что и <video> выше:
-  // экран пересобирается на каждое сообщение в чат, а ползунок, пересозданный
-  // во время перетаскивания, бросает его на полпути.
   const volumeControl = VolumeControl();
 
-  // Развернуть эфир на весь экран — двойным нажатием по картинке, как в
-  // звонке. И на телефоне, и на компьютере.
   function toggleFullscreen(node) {
     const target = node?.closest(".live-overlay, .live-main") ?? node;
     if (!target) return;
@@ -82,8 +64,6 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
     else target.requestFullscreen?.().catch(() => {});
   }
 
-  // Плитку участника можно отодвинуть пальцем — она же накрывает картинку
-  // ведущего, и под ней может оказаться то, что нужно разглядеть.
   function startTileDrag(e) {
     const node = e.currentTarget;
     const rect = node.getBoundingClientRect();
@@ -104,8 +84,6 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
     node.addEventListener("pointermove", move);
     node.addEventListener("pointerup", up);
   }
-  // Эфир из OBS: своё <video>, переживающее перерисовки (иначе поток
-  // переподключался бы на каждое сообщение в чате), и статус подключения.
   let flvNode = null;
   let flvDetach = null;
   let flvStatus = null;
@@ -198,10 +176,7 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
     lastState = s;
     clear(body);
     if (!s) {
-      // Без состояния экран не знает, эфир кончился или войти не вышло, —
-      // поэтому текст берётся из ошибки, если она есть. Иначе «Эфир завершён»
-      // говорилось и про живой эфир, в который просто не пустили.
-      appendAll(body, 
+      appendAll(body,
         el("div", { class: "live-message" }, [
           el("p", {}, error || "Эфир завершён"),
           el("button", { class: "btn-accent", onclick: close }, "Закрыть"),
@@ -215,14 +190,7 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
     }
 
     const isHost = s.myRole === "host";
-    // Эфир из OBS: картинка приходит потоком с сервера, соединений с ведущим
-    // нет вообще. Всё остальное на экране — чат, участники, громкость —
-    // работает ровно так же. А вот микрофон, камера и «дать слово» здесь
-    // бессмысленны: браузер в таком эфире ничего не отправляет, и кнопки
-    // обещали бы то, чего не произойдёт.
     const viaObs = s.stream.source === "rtmp";
-    // Завершить может ведущий или администратор чата (server/routes/live.js):
-    // эфир принадлежит чату, и брошенный эфир должен быть кому выключить.
     const canStop = isHost || !!canStopStream;
     const canSpeak = !viaObs && (s.myRole === "host" || s.myRole === "speaker");
     const host = s.participants.find((p) => p.role === "host");
@@ -230,7 +198,6 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
     const viewers = s.participants.filter((p) => p.role === "viewer");
     const mine = s.participants.find((p) => p.userId === s.me.id);
 
-    // Главная картинка — ведущего: своя, если ведущий я, иначе принятая.
     const hostStream = host?.userId === s.me.id ? s.localStream : host ? s.remoteStreams[host.userId] : null;
 
     const obsUnsupported = viaObs && !isFlvSupported();
@@ -249,17 +216,10 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
     const stage = el("div", { class: "live-stage", ondblclick: (e) => { e.preventDefault(); toggleFullscreen(e.currentTarget); } }, [
       viaObs
         ? obsStage
-        : // Картинка ведущего показывается, если эфир вообще с видео — или если в
-      // потоке уже есть видеодорожка. Второе — про демонстрацию экрана в
-      // голосовом эфире: withVideo там false, но показывать зрителям экран как
-      // раз надо, и без этой половины условия они видели бы заглушку
-      // «Голосовой эфир» поверх идущего показа.
+        :
       hostStream && (s.stream.withVideo || !!hostStream.getVideoTracks?.().length)
         ? videoFor("main", hostStream, {
             muted: host?.userId === s.me.id,
-            // Зеркалить экран нельзя: зеркало нужно камере, чтобы человек
-            // видел себя как в зеркале, а показанный задом наперёд текст —
-            // это просто нечитаемый текст.
             mirrored: host?.userId === s.me.id && !s.sharing,
           })
         : el("div", { class: "live-stage-empty" }, [
@@ -271,17 +231,12 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
         el("span", { class: "live-title" }, s.stream.title || chatTitle || "Эфир"),
         el("span", { class: "live-count" }, `${s.participants.length} в эфире`),
       ]),
-      // Плитки тех, кому дали слово, — поверх картинки ведущего, как в любой
-      // трансляции с гостями.
       speakers.length
         ? el(
             "div",
             { class: "live-speakers" },
             speakers.map((p) => {
               const stream = p.userId === s.me.id ? s.localStream : s.remoteStreams[p.userId];
-              // Есть картинка — плитка становится настоящим видео-окном, а не
-              // строчкой с именем: в совместном эфире собеседников должно быть
-              // видно, а не подписано.
               const hasVideo = !!stream?.getVideoTracks?.().some((t) => t.readyState === "live" && t.enabled);
               return el("div", {
                 class: `live-speaker ${hasVideo ? "with-video" : ""} ${p.mutedByHost ? "muted" : ""}`,
@@ -306,16 +261,12 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
             el("span", {}, mine?.mutedByHost ? "Заглушены" : s.micOn ? "Микрофон" : "Включить"),
           ])
         : null,
-      // Кнопка камеры — у всех, кто вещает: ведущий и получившие слово. Для
-      // совместного эфира это и есть главное: включить себя в кадр.
       canSpeak && !viaObs && s.stream.withVideo
         ? el("button", { class: `live-ctl ${s.camOn ? "on" : "off"}`, onclick: toggleCam, title: "Камера" }, [
             el("span", { html: iconSvg("Video", 18) }),
             el("span", {}, s.camOn ? "Камера" : "Включить"),
           ])
         : null,
-      // Показывать экран может любой, кто вещает, — ведущий и получившие слово.
-      // У зрителя исходящего потока нет вовсе, и кнопка ему ничего бы не дала.
       s.canShare
         ? el(
             "button",
@@ -327,7 +278,6 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
             [el("span", { html: iconSvg("Monitor", 18) }), el("span", {}, s.sharing ? "Показ идёт" : "Экран")]
           )
         : null,
-      // Единственное, что зритель решает сам: попроситься говорить.
       !canSpeak && !viaObs
         ? el(
             "button",
@@ -338,9 +288,6 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
             [el("span", {}, "✋"), el("span", {}, mine?.handRaised ? "Рука поднята" : "Попросить слово")]
           )
         : null,
-      // Ведущему выходить некуда — его уход и есть конец эфира (сервер так и
-      // делает), поэтому у него одна красная кнопка. Администратор чата, зашедший
-      // зрителем, получает обе: выйти самому и выключить брошенный эфир.
       !isHost
         ? el("button", { class: "live-ctl", onclick: () => act(async () => { await leaveLive(); close(); }) }, [
             el("span", { html: iconSvg("LogOut", 18) }),
@@ -356,9 +303,6 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
       volumeControl,
     ]);
 
-    // Участники: у ведущего рядом с каждым — то, что он может сделать. Поднятая
-    // рука поднимает человека наверх списка: иначе просьбу о слове приходится
-    // искать глазами среди всех.
     const rows = [...(host ? [host] : []), ...speakers, ...viewers.slice().sort((a, b) => Number(b.handRaised) - Number(a.handRaised))];
     const people = el("div", { class: "live-people" }, [
       el("p", { class: "live-panel-title" }, `Участники — ${s.participants.length}`),
@@ -396,8 +340,6 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
         s.messages.length
           ? s.messages.map((m) => {
               const own = m.user?.id === s.me?.id;
-              // Чужое удаляют ведущий, администрация чата и модератор сервера —
-              // те же, кого пускает server/routes/live.js.
               const canDelete = own || isHost || canStopStream || isServerModerator();
               return el("div", { class: `live-chat-msg${editingMessage?.id === m.id ? " editing" : ""}` }, [
                 el("p", {}, [
@@ -427,8 +369,6 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
       el("div", { class: "live-chat-form" }, [chatInput, el("button", { class: "live-send-btn", html: iconSvg(editingMessage ? "Check" : "Send", 16), onclick: send })]),
     ]);
 
-    // Что вставить в OBS. Показывается только ведущему и только пока программа
-    // не подключилась: как только картинка пошла, эти поля занимают место зря.
     const obsPanel =
       viaObs && isHost && s.ingest && !s.stream.rtmpLive
         ? el("div", { class: "live-obs-panel" }, [
@@ -440,7 +380,7 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
           ])
         : null;
 
-    appendAll(body, 
+    appendAll(body,
       el("div", { class: "live-main" }, [
         stage,
         obsPanel,
@@ -451,12 +391,8 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
       ]),
       el("div", { class: "live-side" }, [people, chat])
     );
-    // Прокрутка чата к последнему сообщению — иначе новое приходит за границу
-    // видимой части и эфир выглядит молчаливым.
     const list = chat.querySelector(".live-chat-list");
     if (list) list.scrollTop = list.scrollHeight;
-    // Вошёл новый говорящий — появился новый <video> с громкостью браузера по
-    // умолчанию; сохранённую громкость надо применить и к нему.
     applyVolumeToAll(overlay);
   }
 

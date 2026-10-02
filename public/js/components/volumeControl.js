@@ -2,16 +2,6 @@ import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { getVolume, setVolume, applyVolumeToAll } from "../lib/mediaVolume.js";
 
-// Ползунок громкости входящего звука — один и тот же в звонке и в эфире.
-//
-// Живёт вне перерисовки: и звонок, и эфир пересобирают экран на каждое событие
-// (новый участник, сообщение в чат эфира), а ползунок, пересозданный под
-// пальцем, теряет захват — тянешь, и он бросает на полпути. Поэтому узел
-// создаётся один раз и переиспользуется, как <video> там же.
-//
-// Нажатие на значок — быстрое «выключить/вернуть»: без него, чтобы приглушить
-// собеседника на секунду, ползунок надо увести в ноль и потом на слух искать,
-// где было.
 export function VolumeControl({ compact = false } = {}) {
   let lastNonZero = getVolume() || 1;
 
@@ -50,14 +40,11 @@ export function VolumeControl({ compact = false } = {}) {
     button.innerHTML = iconSvg(v > 0 ? "Volume" : "VolumeOff", 18);
     button.title = v > 0 ? "Выключить звук" : "Вернуть звук";
     value.textContent = `${Math.round(v * 100)}%`;
-    // Заливка левой части дорожки — обычный range рисует её только в WebKit.
     slider.style.setProperty("--volume-fill", `${Math.round(v * 100)}%`);
     wrap.classList.toggle("muted", v === 0);
   }
 
   paint(getVolume());
-  // Элементы <video> могли появиться раньше ползунка (звонок соединяется, пока
-  // экран ещё собирается) — прогоняем сохранённую громкость по ним сразу.
   applyVolumeToAll();
 
   return wrap;

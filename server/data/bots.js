@@ -11,19 +11,13 @@ function rowToBot(row) {
     commands: JSON.parse(row.commands),
     createdAt: row.createdAt ?? undefined,
     code: row.code ?? undefined,
-    // Мини-приложение бота — см. server/lib/miniApp.js.
     appUrl: row.appUrl ?? null,
     appName: row.appName || null,
-    // Страница приложения, размещённая в самом Shalter (см. appCode в db.js).
     appCode: row.appCode ?? null,
   };
 }
 
 function generateToken() {
-  // Not a JWT/signed token — just an opaque random secret, looked up
-  // directly against the bots.token column (see idx_bots_token). Simpler
-  // than the Telegram Bot API's "<bot_id>:<random>" shape since Shalter has
-  // no need to parse the bot's id back out of the token itself.
   return crypto.randomBytes(24).toString("hex");
 }
 
@@ -39,12 +33,6 @@ async function getBotByUserId(userId) {
   return rowToBot(db.prepare("SELECT * FROM bots WHERE userId = ?").get(userId));
 }
 
-// Токен читается отдельным запросом и только по явному требованию: в rowToBot
-// его нет намеренно, иначе он попадал бы в каждый ответ со списком ботов, в
-// журналы и в отладочные распечатки.
-// Сколько разных людей состоят с ботом в одном чате. Один SQL-запрос по
-// join-таблице: перебирать чаты в памяти у популярного бота значит читать
-// тысячи строк ради одного числа.
 function countBotAudience(botUserId) {
   const row = db
     .prepare(
@@ -69,10 +57,6 @@ async function getBot(id) {
   return rowToBot(db.prepare("SELECT * FROM bots WHERE id = ?").get(id));
 }
 
-// The bot's `id` is the same as its `userId` — same convention as the
-// Shalter system bot (server/data/systemBot.js): a bot is fundamentally a
-// `users` row (isBot: true, holds the avatar/name shown in chat) plus this
-// row of bot-specific metadata layered on top of it.
 async function createBot({ userId, ownerId, description }) {
   const token = generateToken();
   const createdAt = new Date().toISOString();
@@ -103,16 +87,11 @@ async function updateBotCommands(id, commands) {
   return getBot(id);
 }
 
-// Адрес мини-приложения и надпись на кнопке. Пустой appUrl — приложения нет, и
-// кнопка нигде не показывается (проверяется в routes/bots.js).
 async function updateBotApp(id, { appUrl, appName }) {
   db.prepare("UPDATE bots SET appUrl = ?, appCode = NULL, appName = ? WHERE id = ?").run(appUrl || null, appName || null, id);
   return getBot(id);
 }
 
-// Код страницы и внешний адрес — взаимоисключающие: приложение либо своё и
-// лежит на чужом сервере, либо здешнее. Хранить оба значит гадать, какое из
-// них откроется.
 async function updateBotAppCode(id, { appCode, appName }) {
   db.prepare("UPDATE bots SET appCode = ?, appUrl = NULL, appName = ? WHERE id = ?").run(appCode || null, appName || null, id);
   return getBot(id);

@@ -1,8 +1,3 @@
-// /remind delivery — same plain-setInterval-scan shape as
-// scheduledMessagesSweep.js, for the same reason: a setTimeout per reminder
-// wouldn't survive a server restart, and a periodic scan is simpler and
-// self-healing (a reminder due while the server happened to be down just
-// fires on the next tick after it comes back).
 const { getChat } = require("../data/chats");
 const { listDueReminders, markReminderSent } = require("../data/reminders");
 const { sendMessageAndBroadcast } = require("./systemChat");

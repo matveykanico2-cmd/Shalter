@@ -2,13 +2,6 @@ import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { fileToImageDataUrl } from "../lib/image.js";
 
-// Everything a new group or channel needs, at the moment it's created: picture,
-// name, description, and — if it should be public — its @link.
-//
-// These used to be after-the-fact edits, and the @link and description were
-// locked behind the chat's level, so a new channel started nameless and private
-// and could only be published once its members had voted it up. Nobody can vote
-// for a channel that doesn't exist yet.
 export function openCreateChatDialog(kind, onSubmit) {
   let avatarImage = null;
   let isPublic = false;
@@ -23,17 +16,12 @@ export function openCreateChatDialog(kind, onSubmit) {
     class: "login-input mono",
     placeholder: "юзернейм",
     oninput: (e) => {
-      // Typed without the @ — it's shown as a fixed prefix beside the field, so
-      // "@@name" can't happen.
       e.target.value = e.target.value.replace(/^@+/, "").replace(/[^a-zA-Z0-9_]/g, "");
       if (isPublic) typeHint.textContent = `Найти и открыть по ссылке сможет любой: shalter.ru/${e.target.value || "юзернейм"}`;
     },
   });
   const errorSlot = el("p", { class: "login-error" });
 
-  // Telegram's own "Channel type" step: the choice is public-or-private, not a
-  // switch with an optional extra field. A public one needs a @link — that's
-  // what makes it public — so the field is required rather than offered.
   const typeHint = el("p", { class: "settings-toggle-hint" });
   const handleRow = el("div", { class: "create-chat-handle" }, [el("span", { class: "create-chat-at" }, "@"), usernameInput]);
 
@@ -94,10 +82,6 @@ export function openCreateChatDialog(kind, onSubmit) {
           const title = titleInput.value.trim();
           if (!title) return (errorSlot.textContent = "Введите название");
           const username = usernameInput.value.trim();
-          // Required, not optional: a public chat without a handle is just a
-          // private one that says otherwise. Checked here as well as on the
-          // server so the whole member-picking step isn't spent on a name that
-          // will be refused at the end of it.
           if (isPublic && username.length < 3) {
             return (errorSlot.textContent = "Для публичного нужен юзернейм — от 3 символов, латиница, цифры и _");
           }

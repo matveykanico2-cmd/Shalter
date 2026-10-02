@@ -3,8 +3,6 @@ import { api } from "../api.js";
 import { Avatar } from "./avatar.js";
 import { getState } from "../state.js";
 
-// Карточка объявления целиком: фотографии, цена, описание, продавец и то, как
-// с ним связаться. Открывается из ленты доски.
 const fmt = (n) => new Intl.NumberFormat("ru-RU").format(n ?? 0);
 const CONDITION_LABEL = { new: "Новое", used: "Б/у" };
 
@@ -43,7 +41,7 @@ export function openListingDialog({ listingId, onContact, onFavorite, onChanged 
     const mine = listing.sellerId === me?.id;
     const photos = listing.photos ?? [];
 
-    appendAll(body, 
+    appendAll(body,
       photos.length
         ? el("div", { class: "listing-view-gallery" }, [
             el("img", { class: "listing-view-photo", src: photos[photoIndex], alt: "" }),
@@ -72,8 +70,6 @@ export function openListingDialog({ listingId, onContact, onFavorite, onChanged 
         ` · ${listing.views} просмотров`,
         listing.status === "sold" ? " · продано" : listing.status === "archived" ? " · снято" : "",
       ].join("")),
-      // Про отправку — отдельной строкой и без обиняков: сервис в ней не
-      // участвует, это условие продавца.
       el("div", { class: "listing-view-delivery" }, [
         el("p", { class: "listing-view-delivery-title" },
           listing.cdekPriceRub == null

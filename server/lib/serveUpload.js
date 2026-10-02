@@ -3,16 +3,6 @@ const { createDecryptStream } = require("./fileCrypto");
 const storage = require("./storage");
 const { MAGIC: COMPRESS_MAGIC, decompressStream } = require("./fileCompression");
 
-// Serves an uploaded file (data/uploads — see routes/uploads.js).
-//
-// Not express.static: a 2GB video needs real HTTP Range support, or the browser
-// can only play it from the start and seeking does nothing. express.static does
-// handle ranges, but it also needs the directory to be publicly mounted with its
-// own path semantics; doing it here keeps the filename validation, the
-// Content-Disposition, and the no-execute headers in one obvious place.
-
-// Buffers a short stream fully — only ever used to read the few-byte
-// compression marker below, never a whole file.
 function collect(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -46,14 +36,8 @@ const MIME = {
   ".zip": "application/zip",
 };
 
-// Only ever the exact shape routes/uploads.js writes: a random id, optionally
-// one short extension. Anything else is refused rather than normalized, so no
-// amount of traversal encoding gets out of the directory.
 const FILENAME_RE = /^[a-z0-9]+_[a-f0-9]{16}(\.[a-z0-9]{1,12})?$/;
 
-// uploadDir остаётся параметром ради обратной совместимости вызова (см.
-// server/index.js), но фактическим хранилищем распоряжается lib/storage.js —
-// сама функция не знает и не спрашивает, диск это или S3.
 function serveUpload() {
   return async (req, res) => {
     const filename = req.params.filename ?? "";
@@ -63,22 +47,11 @@ function serveUpload() {
       const size = await storage.sizeOf(filename);
       if (size == null) return res.status(404).end();
 
-      // Файл в хранилище зашифрован (lib/fileCrypto.js). Наружу отдаётся
-      // исходное содержимое, поэтому все размеры считаются без служебного
-      // заголовка, а поток пропускается через расшифровщик.
-      //
-      // Файлы, записанные до появления шифрования, метки не имеют и отдаются
-      // как есть — перешифровывать уже лежащее не требуется.
       const dataDir = path.join(process.cwd(), "data");
       const header = await storage.readHeader(filename);
-      // Длина заголовка своя у каждого формата (lib/fileCrypto.js).
       const headerLen = header ? header.len : 0;
       const contentSize = size - headerLen;
 
-      // Brotli-compressed at rest (lib/fileCompression.js) — only ever true
-      // for a kind="file" upload, never image/video/voice/etc. Detected by
-      // decrypting just the first few plaintext bytes and checking for the
-      // marker, rather than trusting anything about the filename/extension.
       let compressed = false;
       if (header && contentSize >= COMPRESS_MAGIC.length) {
         const magicCipher = await storage.readRange(filename, headerLen, headerLen + COMPRESS_MAGIC.length - 1);
@@ -90,13 +63,6 @@ function serveUpload() {
         const raw = await storage.readRange(filename, headerLen + start, headerLen + end);
         return header ? raw.pipe(createDecryptStream(dataDir, header, start)) : raw;
       };
-      // Whole-file only — brotli output can't be decompressed starting from
-      // an arbitrary byte offset the way AES-CTR can be decrypted from one
-      // (see fileCompression.js), so a compressed file has no Range support
-      // at all, ever. The true (decompressed) size isn't known without
-      // decompressing it, so this also can't set a Content-Length — it's
-      // served chunked instead (Node does that automatically whenever the
-      // header is never set).
       const openCompressed = async () => {
         const from = headerLen + COMPRESS_MAGIC.length;
         const raw = await storage.readRange(filename, from, size - 1);
@@ -106,14 +72,10 @@ function serveUpload() {
       const ext = path.extname(filename);
       const type = MIME[ext];
 
-      // An uploaded file is untrusted content served from this app's own origin,
-      // so anything the browser might *render* (SVG with a <script>, an .html)
-      // would run as same-origin script. Unknown types download instead of
-      // rendering, and nosniff stops the browser second-guessing that.
       res.setHeader("X-Content-Type-Options", "nosniff");
       res.setHeader("Content-Type", type ?? "application/octet-stream");
       if (!type || ext === ".svg") res.setHeader("Content-Disposition", "attachment");
-      res.setHeader("Cache-Control", "private, max-age=31536000, immutable"); // the name is random and content never changes
+      res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
 
       if (compressed) {
         res.setHeader("Accept-Ranges", "none");
@@ -122,8 +84,6 @@ function serveUpload() {
       }
       res.setHeader("Accept-Ranges", "bytes");
 
-      // Range support — this is what makes seeking in a long video work at all,
-      // and what lets a browser resume a large download.
       const range = req.headers.range;
       if (range) {
         const match = /^bytes=(\d*)-(\d*)$/.exec(String(range).trim());
@@ -136,7 +96,6 @@ function serveUpload() {
             start = Number(match[1]);
             end = hasEnd ? Number(match[2]) : contentSize - 1;
           } else if (hasEnd) {
-            // "bytes=-500" means the *last* 500 bytes.
             start = Math.max(0, contentSize - Number(match[2]));
             end = contentSize - 1;
           }
@@ -162,10 +121,6 @@ function serveUpload() {
   };
 }
 
-// Removes the files behind a set of attachments — called when a message or a
-// whole chat is deleted, so a 2GB video doesn't sit on disk forever after the
-// only message pointing at it is gone. Silent on anything it can't remove: a
-// missing file is the desired end state anyway.
 async function deleteUploadedFiles(attachments) {
   for (const a of attachments ?? []) {
     const url = a?.url;

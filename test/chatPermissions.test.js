@@ -35,7 +35,6 @@ test("sanitizePermissions оставляет только известные к�
   assert.equal(out.addMembers, true);
   assert.equal("evil" in out, false);
   assert.equal(out.hacked, undefined);
-  // Все ключи булевы, отсутствующий в запросе = true (не false).
   for (const v of Object.values(out)) assert.equal(typeof v, "boolean");
   assert.equal(out.sendPolls, true);
 });

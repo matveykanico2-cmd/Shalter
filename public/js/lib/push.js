@@ -4,8 +4,6 @@ export function isPushSupported() {
   return "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined";
 }
 
-// VAPID public key comes as base64url from the server; PushManager wants it
-// as a raw Uint8Array.
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -13,14 +11,6 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
 }
 
-// Registers the service worker (idempotent — a second call just returns the
-// existing registration) and makes sure there's a live push subscription
-// registered with the server.
-// Последняя причина, по которой подписка не получилась, — чтобы настройки
-// могли сказать это словами вместо «уведомления разрешены» при неработающих
-// уведомлениях. Раньше все отказы здесь молча проглатывались вызывающей
-// стороной (`.catch(() => {})` в app.js), и понять, почему не приходят пуши,
-// было нельзя ни пользователю, ни по логам.
 let lastError = null;
 
 export function getPushError() {
@@ -29,10 +19,6 @@ export function getPushError() {
 
 async function subscribeNow() {
   lastError = null;
-  // Push работает только в защищённом контексте. На http:// (по адресу вида
-  // http://192.168.1.10:3000) браузер не отдаёт ни serviceWorker, ни
-  // PushManager — и это самая частая причина «не приходят совсем»: приложение
-  // открыто не по https.
   if (!window.isSecureContext) {
     lastError = "Уведомления работают только по https. Откройте приложение по защищённому адресу.";
     throw new Error(lastError);
@@ -57,8 +43,6 @@ async function subscribeNow() {
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       });
     } catch (err) {
-      // Отказ службы доставки: чаще всего запрещены уведомления на уровне
-      // системы или браузер не может достучаться до своего push-сервиса.
       lastError = `Браузер не смог оформить подписку: ${err.message || err.name}`;
       throw err;
     }
@@ -67,9 +51,6 @@ async function subscribeNow() {
   return subscription;
 }
 
-// Что на самом деле происходит с уведомлениями на этом устройстве — для экрана
-// настроек. Все три ответа разные, и раньше показывался только первый: человек
-// видел «разрешены» при полностью нерабочих уведомлениях.
 export async function pushDiagnostics() {
   const out = {
     защищённыйАдрес: typeof window !== "undefined" && window.isSecureContext,
@@ -94,9 +75,6 @@ export async function pushDiagnostics() {
   return out;
 }
 
-// Принудительно пересобрать подписку — кнопка «Проверить уведомления».
-// Нужна ровно для случая «разрешение есть, а пуши не идут»: старая подписка
-// могла протухнуть (браузер их отзывает), а сама по себе она не обновится.
 export async function resubscribePush() {
   lastError = null;
   if (!isPushSupported()) return { ok: false, ошибка: "Браузер не умеет push-уведомления." };
@@ -118,22 +96,12 @@ export async function resubscribePush() {
   }
 }
 
-// Called unconditionally on every app boot to re-subscribe silently if
-// permission was already granted in an earlier session. Relies on reading
-// the ambient Notification.permission — unlike requestPushPermission below,
-// there's no fresher signal available here.
 export async function ensurePushSubscribed() {
   if (!isPushSupported()) return;
   if (Notification.permission !== "granted") return;
   await subscribeNow();
 }
 
-// Explicit permission request (Settings → "Разрешить уведомления", or the
-// one-time auto-prompt in incomingCallWatcher.js): request permission, then
-// subscribe using the *fresh* result directly, rather than immediately
-// re-reading Notification.permission — some environments don't reflect a
-// just-granted permission in that property synchronously, so trust the
-// value requestPermission() itself just resolved with.
 export async function requestPushPermission() {
   if (!isPushSupported()) return false;
   const result = await Notification.requestPermission();

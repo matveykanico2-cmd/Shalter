@@ -1,14 +1,3 @@
-// Birthday reminders — once a day, look at who has a birthday today (month
-// + day, year ignored) and tell everyone who has them as a contact, with a
-// nudge to send a gift. Same plain-setInterval-scan shape as
-// scheduledMessagesSweep.js/autoDelete.js: simpler than a timer per
-// birthday, and self-healing across restarts (a birthday the server was
-// down for still gets noticed on the next tick that day).
-//
-// Checked every hour, not once at midnight — a single fixed-time timer
-// wouldn't survive a restart landing on the wrong side of it, and an hourly
-// scan costs one cheap query when there's nothing to do (see
-// listUsersWithBirthdayToday's SQL).
 const db = require("../db");
 const { listUsersWithBirthdayToday, getUser } = require("../data/users");
 const { listOwnersOf } = require("../data/contacts");
@@ -55,10 +44,6 @@ async function sweepOnce() {
       } catch (err) {
         console.error(`birthday greeting failed (owner ${ownerId}, birthday person ${person.id}):`, err);
       } finally {
-        // Помечается даже при сбое отправки — иначе одна ошибка (например,
-        // временный сбой пуша) заставляла бы пытаться заново каждый час до
-        // конца дня. Сам чат — источник правды о том, видел ли человек
-        // поздравление; эта таблица — только "пытались ли мы вообще".
         markSent(ownerId, person.id, year);
       }
     }
@@ -69,8 +54,6 @@ function startBirthdaySweep() {
   setInterval(() => {
     sweepOnce().catch((err) => console.error("birthday sweep failed:", err));
   }, SWEEP_INTERVAL_MS);
-  // Раз при старте тоже — не ждать первого часа, чтобы 9 утра в день чьего-то
-  // рождения не превращалось в "поздравим ближе к вечеру".
   sweepOnce().catch((err) => console.error("birthday sweep failed:", err));
 }
 

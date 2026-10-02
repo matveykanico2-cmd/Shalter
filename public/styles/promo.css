@@ -1,6 +1,3 @@
-/* Collaboration/partner page (public/promo.html). Standalone like the download
-   page: it depends only on base.css's tokens, never on the SPA's component
-   styles, so a change inside the app can't quietly reflow a public landing page. */
 .pr-page {
   position: relative;
   min-height: 100vh;

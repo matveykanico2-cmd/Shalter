@@ -12,29 +12,6 @@ const { listUsersByIds } = require("../data/users");
 const campaigns = require("../data/adCampaigns");
 const { notifyAdminOfReview } = require("../lib/adReview");
 
-// ── Маркет ──────────────────────────────────────────────────────────────────
-//
-// Что это и почему устроено так.
-//
-// Магазин здесь — это витрина внутри мессенджера, а не отдельный сервис: люди
-// уже переписываются с продавцом, и заказ должен продолжаться там же. Поэтому
-// каждый заказ открывает (или находит) диалог покупателя с продавцом и кладёт
-// в него карточку заказа: дальше уточнения про размер, адрес и время идут
-// обычной перепиской, а не в самодельном «чате заказа».
-//
-// Две оплаты, выбор за продавцом на каждый товар:
-//   stars — звёздами внутри приложения. Списываются при заказе и лежат в
-//           заказе, пока продавец не отметит выдачу; отмена возвращает их
-//           покупателю. Это то, что делает возможной продажу цифрового товара
-//           незнакомому человеку.
-//   cash  — деньгами при встрече или доставке. Приложение денег не трогает
-//           вовсе, заказ — это запись о договорённости. Для мешка картошки
-//           внутренняя валюта не нужна и только мешает.
-//
-// Чего здесь намеренно нет: рейтингов продавцов, отзывов и споров. Всё это
-// работает только с настоящей поддержкой, разбирающей конфликты, — рисовать
-// звёздочки, за которыми никого нет, хуже, чем не рисовать их вовсе.
-
 const router = express.Router();
 router.use(requireUserId);
 
@@ -45,8 +22,6 @@ function safeImage(url) {
   return v && isSafeUrl(v) ? v : null;
 }
 
-// Магазин продавца нужен почти каждому маршруту редактирования — и во всех
-// случаях ответ на его отсутствие один и тот же.
 async function ownShop(req, res) {
   const shop = market.getShopByOwner(req.uid);
   if (!shop) {
@@ -69,8 +44,6 @@ function priceLine(o) {
   return o.payKind === "stars" ? `⭐ ${o.amountStars}` : `${o.amountRub} ₽ при получении`;
 }
 
-// ── Витрина ─────────────────────────────────────────────────────────────────
-
 router.get(
   "/",
   asyncRoute(async (req, res) => {
@@ -79,16 +52,11 @@ router.get(
       products: market.listAllProducts(q),
       shops: market.listShops(q),
       myShopId: market.getShopByOwner(req.uid)?.id ?? null,
-      // Баланс едет с витриной: окно заказа показывает «на балансе ⭐ N» до
-      // нажатия, а не после отказа сервера.
       balanceStars: balanceOf(req.uid),
     });
   })
 );
 
-// Ссылка на магазин бывает двух видов: /market/shop/sh_… (короткий
-// внутренний id) и /market/shop/@юзернейм владельца — вторую можно продиктовать
-// вслух и написать на визитке, поэтому магазин ищется и по ней.
 async function resolveShop(idOrHandle) {
   const raw = String(idOrHandle ?? "");
   if (!raw.startsWith("@")) return market.getShop(raw);
@@ -102,8 +70,6 @@ router.get(
     const shop = await resolveShop(req.params.id);
     if (!shop) return res.status(404).json({ error: "Магазин не найден" });
     const isMine = shop.ownerId === req.uid;
-    // Закрытый магазин видит только владелец — иначе ссылка из старой рекламы
-    // вела бы на витрину, которую хозяин намеренно убрал.
     if (!shop.isOpen && !isMine) return res.status(404).json({ error: "Магазин закрыт" });
     const owner = await getUser(shop.ownerId);
     res.json({
@@ -115,8 +81,6 @@ router.get(
     });
   })
 );
-
-// ── Кабинет продавца ────────────────────────────────────────────────────────
 
 router.get(
   "/my",
@@ -131,8 +95,6 @@ router.get(
   })
 );
 
-// Создание и правка магазина — один маршрут: у аккаунта магазин ровно один, и
-// «создать» отличается от «сохранить» только тем, был ли он раньше.
 router.post(
   "/shop",
   asyncRoute(async (req, res) => {
@@ -163,8 +125,6 @@ router.post(
     const payKind = req.body?.payKind === "cash" ? "cash" : "stars";
     const priceStars = Math.max(0, Math.floor(Number(req.body?.priceStars) || 0));
     const priceRub = Math.max(0, Math.floor(Number(req.body?.priceRub) || 0));
-    // Товар без цены — это не «бесплатно», а недозаполненная карточка: у
-    // покупателя не будет ответа на единственный вопрос, который его волнует.
     if (payKind === "stars" && priceStars <= 0) return res.status(400).json({ error: "Укажите цену в звёздах" });
     if (payKind === "cash" && priceRub <= 0) return res.status(400).json({ error: "Укажите цену в рублях" });
 
@@ -216,8 +176,6 @@ router.delete(
   })
 );
 
-// ── Заказы ──────────────────────────────────────────────────────────────────
-
 const ORDER_ERRORS = {
   gone: { code: 404, error: "Товара больше нет" },
   stock: { code: 409, error: "Столько уже не осталось" },
@@ -243,9 +201,6 @@ router.post(
     }
 
     const order = result.order;
-    // Заказ продолжается в обычном диалоге с продавцом: карточка отправляется
-    // от имени покупателя, потому что это его заказ и его вопрос — а дальше
-    // они просто разговаривают.
     const buyer = await getUser(req.uid);
     const chat = await findOrCreateDm(req.uid, order.sellerId);
     market.attachChat(order.id, chat.id);
@@ -270,9 +225,6 @@ router.get(
   })
 );
 
-// Кто что может: продавец ведёт заказ по состояниям, покупатель может только
-// отменить и только пока продавец его не принял. После «принят» отмена — это
-// уже разговор двоих, и делает её продавец.
 const SELLER_STATUSES = new Set(["accepted", "done", "cancelled"]);
 
 router.post(
@@ -297,7 +249,6 @@ router.post(
       return res.status(e.code).json({ error: e.error });
     }
 
-    // Обе стороны узнают об изменении там же, где заказ и начался.
     const NOTE = {
       accepted: `✅ Заказ «${order.productTitle}» принят.`,
       done: `📦 Заказ «${order.productTitle}» выдан.${order.amountStars > 0 ? ` Звёзды (⭐ ${order.amountStars}) зачислены продавцу.` : ""}`,
@@ -314,12 +265,6 @@ router.post(
   })
 );
 
-// ── Реклама магазина ────────────────────────────────────────────────────────
-//
-// Продавцу не нужно знать про «рекламный кабинет»: он жмёт «Рекламировать» у
-// своего товара, и дальше это обычная кампания — та же очередь проверки у
-// администрации, те же звёзды за показы. Ссылка ведёт внутрь приложения, на
-// витрину магазина, а не наружу.
 router.post(
   "/promote",
   asyncRoute(async (req, res) => {
@@ -350,23 +295,11 @@ router.post(
   })
 );
 
-// ─── Объявления ───────────────────────────────────────────────────────────
-//
-// Доска в духе «Авито»: любой человек выкладывает свою вещь, покупатель пишет
-// ему в чат, дальше всё вне сервиса. Оплаты, эскроу и заказов здесь нет
-// намеренно — это магазины выше, у них своя механика.
-//
-// Доставки тоже нет. cdekPriceRub — число, которое написал продавец: «отправлю
-// СДЭК, доставка примерно столько». Никакой интеграции, вызова курьера и
-// отслеживания: отправляет он сам. Поле существует, чтобы покупатель видел
-// цену вопроса сразу, а не выяснял её в переписке.
-
 const MAX_PHOTOS = 8;
 const MAX_TITLE = 80;
 const MAX_DESCRIPTION = 3000;
 const MAX_PRICE = 100_000_000;
 
-// Карточки продавцов для списка объявлений — одним запросом на страницу.
 async function withSellers(items, viewerId) {
   const ids = [...new Set(items.map((l) => l.sellerId))];
   const users = await listUsersByIds(ids);
@@ -401,8 +334,6 @@ function readListingBody(body, { partial = false } = {}) {
   if (!partial || has("isNegotiable")) out.isNegotiable = !!body?.isNegotiable;
   if (!partial || has("city")) out.city = String(body?.city ?? "").trim().slice(0, 60);
   if (!partial || has("photos")) {
-    // Только файлы, которые загрузил сам сервер: чужая ссылка в объявлении —
-    // это запрос к чужому хосту у каждого, кто открыл доску.
     const raw = Array.isArray(body?.photos) ? body.photos : [];
     out.photos = raw.filter((u) => typeof u === "string" && isSafeUrl(u) && !u.startsWith("data:")).slice(0, MAX_PHOTOS);
   }
@@ -460,8 +391,6 @@ router.get(
   asyncRoute(async (req, res) => {
     const listing = listings.getListing(req.params.id);
     if (!listing) return res.status(404).json({ error: "Объявление не найдено" });
-    // Свои просмотры не считаем: иначе счётчик показывает, сколько раз продавец
-    // сам открыл свою страницу.
     if (listing.sellerId !== req.uid) listings.bumpViews(listing.id);
     const [withSeller] = await withSellers([listings.getListing(req.params.id)], req.uid);
     res.json({ listing: withSeller });
@@ -492,8 +421,6 @@ router.patch(
 
     const { value, error } = readListingBody(req.body, { partial: true });
     if (error) return res.status(400).json({ error });
-    // Статус меняется тем же запросом: «продано» и «снять» — это те же
-    // изменения объявления, а не отдельные действия.
     if (typeof req.body?.status === "string" && listings.STATUSES.has(req.body.status)) value.status = req.body.status;
     res.json({ listing: listings.updateListing(listing.id, value) });
   })
@@ -519,9 +446,6 @@ router.post(
   })
 );
 
-// «Написать продавцу» — открывает личную переписку и сразу отправляет туда
-// карточку объявления, чтобы продавец понял, о чём речь: у него их может быть
-// десяток, а сообщение «здравствуйте, ещё продаёте?» само по себе бесполезно.
 router.post(
   "/listings/:id/contact",
   asyncRoute(async (req, res) => {
@@ -532,8 +456,6 @@ router.post(
     const chat = await findOrCreateDm(req.uid, listing.sellerId);
     const price = listing.isNegotiable ? "цена договорная" : `${listing.priceRub} ₽`;
     const text = `Здравствуйте! Пишу по объявлению «${listing.title}» (${price}). Ещё продаёте?`;
-    // Первым аргументом сам чат, а не его идентификатор: рассылка берёт из
-    // него список участников.
     await sendMessageAndBroadcast(chat, req.uid, text);
     res.json({ chatId: chat.id });
   })

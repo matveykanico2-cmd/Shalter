@@ -1,18 +1,7 @@
-// Клиентское пережатие видео перед отправкой — тем же приёмом, что и кружок
-// (см. lib/recorder.js): видео проигрывается в скрытом <video>, кадры рисуются
-// на уменьшенный <canvas>, и запись этого канваса вместе со звуком исходника
-// уходит через MediaRecorder на пониженном битрейте.
-//
-// Ffmpeg в браузер тащить не стали: это ~30 МБ wasm и отдельная возня с
-// заголовками, а тут хватает того, что уже есть в платформе. Плата — пережатие
-// идёт в реальном времени (двухминутный ролик обрабатывается две минуты),
-// поэтому длинные видео и то, что уже и так лёгкое, не трогаются вовсе.
-
-const TARGET_LONG_SIDE = 848; // ~480p по длинной стороне
+const TARGET_LONG_SIDE = 848;
 const TARGET_VIDEO_BPS = 1_400_000;
 const TARGET_AUDIO_BPS = 96_000;
 const MAX_DURATION_SEC = 240;
-// Ниже этого битрейта пережимать нечего — только потеряем качество.
 const SKIP_IF_UNDER_BPS = 1_800_000;
 
 function captureStream(elOrCanvas, fps) {
@@ -21,9 +10,6 @@ function captureStream(elOrCanvas, fps) {
   return null;
 }
 
-// Возвращает File (webm) поменьше, либо исходный файл, если пережатие не нужно
-// или не удалось. onProgress(0..1) — доля обработанного, для того же индикатора,
-// что показывает загрузку.
 export async function compressVideoFile(file, onProgress) {
   if (typeof MediaRecorder === "undefined") return file;
   const url = URL.createObjectURL(file);
@@ -58,7 +44,6 @@ export async function compressVideoFile(file, onProgress) {
 
     const canvasStream = captureStream(canvas, 30);
     if (!canvasStream) return file;
-    // Звук берём из самого файла — captureStream() у <video> отдаёт и аудио.
     const mediaStream = captureStream(video);
     const audioTracks = mediaStream ? mediaStream.getAudioTracks() : [];
     const outStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);

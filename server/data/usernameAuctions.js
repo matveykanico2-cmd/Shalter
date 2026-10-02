@@ -1,9 +1,6 @@
 const crypto = require("crypto");
 const db = require("../db");
 
-// Auctions for free @handles. See server/db.js for why bids live as JSON on the
-// row rather than in their own table.
-
 function rowToAuction(row) {
   if (!row) return undefined;
   const bids = JSON.parse(row.bids ?? "[]");
@@ -13,8 +10,6 @@ function rowToAuction(row) {
     username: row.username,
     startPriceStars: row.startPriceStars,
     bids,
-    // Derived rather than stored: two columns that must agree about the same
-    // fact are two columns that eventually don't.
     topBid: top?.stars ?? null,
     topBidderId: top?.userId ?? null,
     currentPriceStars: top?.stars ?? row.startPriceStars,
@@ -24,8 +19,6 @@ function rowToAuction(row) {
     soldForStars: row.soldForStars ?? undefined,
     createdAt: row.createdAt,
     settledAt: row.settledAt ?? undefined,
-    // "open" in the database plus a passed deadline is what "finished but not
-    // yet settled" looks like — the sweep in routes/usernames.js closes it.
     expired: row.status === "open" && row.endsAt <= new Date().toISOString(),
   };
 }
@@ -55,8 +48,6 @@ function createAuction({ username, startPriceStars, endsAt }) {
   return getAuction(id);
 }
 
-// Appended, never replaced: the losing bids are the record of what happened, and
-// an auction that shows only its final price can't be argued with.
 function addBid(id, userId, stars) {
   const auction = getAuction(id);
   if (!auction) return undefined;

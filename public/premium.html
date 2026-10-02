@@ -25,8 +25,6 @@
 
   <main class="pm-shell">
     <header class="pm-hero">
-      <!-- Та же звезда Premium, что и в приложении (public/js/components/premiumStar.js) —
-           золотая версия, с анимированным глянцем. -->
       <div class="pm-star" aria-hidden="true">
         <svg viewBox="0 0 48 48" width="88" height="88">
           <defs>
@@ -53,8 +51,6 @@
         <a class="pm-btn pm-btn-primary" href="/settings/premium">Оформить Premium</a>
         <a class="pm-btn" href="/">Открыть мессенджер</a>
       </div>
-      <!-- Заполняется из /api/premium/me, если человек залогинен, — анонимному
-           посетителю строка просто не появится. -->
       <p class="pm-status" id="pm-status" hidden></p>
     </header>
 
@@ -116,8 +112,6 @@
       </article>
     </section>
 
-    <!-- Таблица: что доступно без Premium, а что — только с ним. Прямое
-         сравнение, как у telegram.org/premium: решение принимают по разнице. -->
     <section class="pm-compare" aria-label="Что входит в Premium">
       <h2 class="pm-section-title">Сравнение</h2>
       <div class="pm-table" role="table">
@@ -169,9 +163,6 @@
       </div>
     </section>
 
-    <!-- Тарифы грузятся из /api/premium/me для залогиненных и из PREMIUM_PLANS
-         по умолчанию для анонимных: цена здесь не должна разъезжаться с той,
-         что человек увидит в приложении на экране покупки. -->
     <section class="pm-plans" aria-label="Тарифы">
       <h2 class="pm-section-title">Тарифы</h2>
       <div class="pm-plans-grid" id="pm-plans-grid">
@@ -186,8 +177,6 @@
       </div>
     </section>
 
-    <!-- Отсылка к бизнес-подписке — не ради кросс-продажи, а чтобы человек,
-         ищущий «часы работы в профиле», сразу попал в нужный раздел. -->
     <section class="pm-business" id="pm-business">
       <h2 class="pm-section-title">Shalter для бизнеса</h2>
       <p>Отдельная подписка поверх Premium: часы работы, приветствие и автоответ, быстрые ответы и адрес прямо на профиле.</p>
@@ -205,9 +194,6 @@
 </div>
 
 <script>
-// Подсказка статуса для залогиненного человека — тот же /api/premium/me, что
-// и в настройках: если Premium уже активен, кнопка «Оформить» заменяется на
-// «Продлить». Анонимному посетителю строка просто не появится.
 (function () {
   fetch("/api/premium/me")
     .then(function (r) { return r.ok ? r.json() : null; })
@@ -220,11 +206,9 @@
           : "до " + new Date(info.premiumUntil).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
         statusEl.textContent = "У вас уже активен Shalter Premium — " + until;
         statusEl.hidden = false;
-        // Перекрашиваем первую CTA: продлевать, а не оформлять заново.
         var cta = document.querySelector(".pm-hero .pm-btn-primary");
         if (cta) cta.textContent = "Продлить Premium";
       }
-      // Живые цены — чтобы лендинг не отставал от PREMIUM_PLANS в config.js.
       if (info.plans) {
         var grid = document.getElementById("pm-plans-grid");
         grid.innerHTML = "";
@@ -238,8 +222,6 @@
         var longest = rows.reduce(function (m, r) { return (!m || r.months > m.months) ? r : m; }, null);
         rows.forEach(function (r) {
           var disc = cheapest && r !== cheapest ? Math.round((1 - r.perMonth / cheapest.perMonth) * 100) : 0;
-          // «Самый выгодный» — тот, где максимальная скидка, с запасом (т. е.
-          // годовой, а не месячный, который тут же окажется базой).
           var best = r === longest && disc > 0;
           var card = document.createElement("div");
           card.className = "pm-plan" + (best ? " pm-plan-best" : "");

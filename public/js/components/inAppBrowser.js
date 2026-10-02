@@ -1,11 +1,6 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 
-// Client-side mirror of server/lib/linkPreview.js's checkSafety() — kept in
-// sync by hand (no shared module system between server/client here, same as
-// public/js/lib/groupLevels.js). Used for links tapped straight out of
-// message text, which don't carry the server-computed linkPreview.warning
-// a fetched preview card would.
 const SHORTENER_HOSTS = new Set(["bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly", "is.gd", "buff.ly"]);
 export function checkLinkSafety(url) {
   let u;
@@ -26,18 +21,6 @@ export function checkLinkSafety(url) {
   return { unsafe: false, warning: null };
 }
 
-// A lightweight in-app browser overlay for links tapped in chat — opens in
-// an iframe instead of leaving the app. Important honesty about what this
-// can and can't do: many real sites (banks, Google, X/Twitter, even
-// Telegram's own pages) send X-Frame-Options/CSP headers that block being
-// iframed at all, and there's no reliable way for this page's JS to detect
-// that (browsers fail those silently, no onerror fires) — so "Открыть в
-// браузере" stays a prominent, always-available escape hatch rather than a
-// fallback only shown after a detected failure.
-// Видео с популярных площадок обычная страница /watch в iframe не пускает
-// (X-Frame-Options), а embed-версия — пускает и сразу играет. Переписываем
-// ссылку на встраиваемую, чтобы «встроенный просмотр видео» работал, а не
-// упирался в белый экран. Остальные ссылки отдаём как есть.
 function embedUrlFor(url) {
   try {
     const u = new URL(url);
@@ -55,7 +38,6 @@ function embedUrlFor(url) {
       if (/^\d+$/.test(id || "")) return `https://player.vimeo.com/video/${id}`;
     }
   } catch {
-    // нераспознанный адрес — оставляем как есть
   }
   return url;
 }
@@ -65,7 +47,6 @@ export function openInAppBrowser(url, { warning, unsafe } = {}) {
   try {
     host = new URL(url).hostname;
   } catch {
-    // leave host as the raw url if it's somehow not parseable
   }
 
   const overlay = el("div", { class: "inapp-browser-overlay" });

@@ -8,17 +8,11 @@ async function listContactsFor(ownerId) {
   return db.prepare("SELECT * FROM contacts WHERE ownerId = ?").all(ownerId);
 }
 
-// Кто добавил этого человека к себе. Нужен для рассылки об историях: их видят
-// те, у кого автор в контактах (server/routes/stories.js), и «удалить у всех»
-// без обратного списка превратилось бы в перебор всех контактов сервера.
 function listOwnersOf(userId) {
   return db.prepare("SELECT ownerId FROM contacts WHERE userId = ?").all(userId).map((r) => r.ownerId);
 }
 
 async function addContact(contact) {
-  // Adding someone already in the list updates the name instead of inserting a
-  // duplicate row — the add form is reachable from several places and "add
-  // again" should mean "correct the name", not "list them twice".
   const existing = db.prepare("SELECT id FROM contacts WHERE ownerId = ? AND userId = ?").get(contact.ownerId, contact.userId);
   if (existing) {
     if (contact.localName != null) {
@@ -45,8 +39,6 @@ async function removeContact(ownerId, userId) {
   db.prepare("DELETE FROM contacts WHERE ownerId = ? AND userId = ?").run(ownerId, userId);
 }
 
-// Account deletion (server/lib/deleteAccount.js) — strips a user out of
-// everyone else's contact list too, not just their own of others.
 async function removeAllContactsInvolving(userId) {
   db.prepare("DELETE FROM contacts WHERE ownerId = ? OR userId = ?").run(userId, userId);
 }

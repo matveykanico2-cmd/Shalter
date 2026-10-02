@@ -3,40 +3,15 @@ import { Avatar } from "./avatar.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 
-// Исключения из одного правила конфиденциальности (Настройки →
-// Конфиденциальность). Правило говорит «все», «мои контакты» или «никто» — а
-// здесь называют тех, к кому оно не относится:
-//
-//   «Всегда можно»  — видит (или может позвонить, добавить, написать) даже
-//                     тогда, когда правило это запрещает;
-//   «Никогда»       — не видит, даже когда правило разрешает всем.
-//
-// Запрет сильнее разрешения — тот же порядок, что и на сервере
-// (server/lib/privacyRules.js), и он же объяснён подписью в окне.
-//
-// value — { allow, deny } с идентификаторами; onSave получает такую же пару.
-//
-// Списка «всех, кого можно выбрать» здесь больше нет и быть не может: раньше
-// сюда передавали выкачанную с сервера таблицу пользователей целиком, и на
-// большой базе это стоило секунду и полгигабайта памяти на сервере. Теперь
-// сразу показываются контакты, а всё, что шире, ищется на сервере по запросу —
-// с ограничением на число ответов.
 export function openPrivacyExceptionsDialog({ title, users = [], value, onSave }) {
   const allow = new Set(value?.allow ?? []);
   const deny = new Set(value?.deny ?? []);
-  // Карточки для уже выбранных: их надо чем-то рисовать в списках «можно» и
-  // «нельзя». Пополняется и контактами, и найденным на сервере.
   const byId = new Map(users.map((u) => [u.id, u]));
   const remember = (list) => {
     for (const u of list ?? []) if (u?.id) byId.set(u.id, u);
   };
 
-  // Список контактов виден сразу, без единого нажатия по клавиатуре. Пустое
-  // поле поиска на этом месте требовало угадать имя, прежде чем показать хоть
-  // кого-то, — а исключения делают ровно для тех, с кем и так переписываются.
-  // Поиск остаётся, но уже как фильтр: он же достаёт и тех, кого в контактах
-  // нет (по имени или @юзернейму среди всех аккаунтов).
-  let contacts = null; // null — ещё грузятся, [] — контактов нет
+  let contacts = null;
   api
     .listContacts()
     .then((r) => {
@@ -52,8 +27,6 @@ export function openPrivacyExceptionsDialog({ title, users = [], value, onSave }
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const chosenSlot = el("div", { class: "privacy-exc-chosen" });
   const resultsSlot = el("div", { class: "privacy-exc-results" });
-  // renderResults стал асинхронным (поиск ушёл на сервер) — обработчик ввода
-  // это учитывает: ошибку внутри некому будет поймать.
   const search = el("input", {
     class: "settings-input",
     type: "search",
@@ -68,9 +41,6 @@ export function openPrivacyExceptionsDialog({ title, users = [], value, onSave }
     return u.name || u.username || u.phone || "Без имени";
   }
 
-  // Строка человека: аватар, имя и две кнопки-состояния. Обе — переключатели, а
-  // не «добавить в список»: назначить человеку и то и другое сразу нельзя, и
-  // нажатие на уже выбранное состояние снимает его.
   function personRow(u) {
     const state = deny.has(u.id) ? "deny" : allow.has(u.id) ? "allow" : "";
     const set = (next) => {
@@ -108,9 +78,6 @@ export function openPrivacyExceptionsDialog({ title, users = [], value, onSave }
     ]);
   }
 
-  // Уже выбранные — всегда наверху и всегда видны, независимо от поиска: иначе
-  // единственный способ вспомнить, кого ты когда-то внёс в список, — угадать
-  // его имя в строке поиска.
   function renderChosen() {
     clear(chosenSlot);
     const groups = [
@@ -130,8 +97,6 @@ export function openPrivacyExceptionsDialog({ title, users = [], value, onSave }
     if (!any) chosenSlot.appendChild(el("p", { class: "empty-hint" }, "Исключений нет — правило действует на всех одинаково"));
   }
 
-  // Аккаунт из списка мог исчезнуть (удалён, забанен) — оставлять запись без
-  // возможности её убрать нельзя, поэтому строка рисуется и без пользователя.
   function unknownRow(id, cls) {
     return el("div", { class: `privacy-exc-row ${cls}` }, [
       el("div", { class: "privacy-exc-row-body" }, [el("p", { class: "privacy-exc-name" }, "Удалённый аккаунт")]),
@@ -151,9 +116,6 @@ export function openPrivacyExceptionsDialog({ title, users = [], value, onSave }
     ]);
   }
 
-  // Уже выбранные здесь не повторяются: они стоят выше, отдельными списками и
-  // со своим состоянием, — а одна и та же строка дважды в одном окне выглядит
-  // как две разные записи про одного человека.
   const notChosen = (u) => !allow.has(u.id) && !deny.has(u.id);
   const matches = (u, q) => nameOf(u).toLowerCase().includes(q) || (u.username ?? "").toLowerCase().includes(q);
 
@@ -184,12 +146,8 @@ export function openPrivacyExceptionsDialog({ title, users = [], value, onSave }
       return;
     }
 
-    // С запросом ищем шире контактов: в исключения вносят и тех, кого в
-    // контактах нет, — именно ради них («номер видят все, кроме вот этого»).
     const contactIds = new Set((contacts ?? []).map((u) => u.id));
     const mine = (contacts ?? []).filter(notChosen).filter((u) => matches(u, q));
-    // Всё, что шире контактов, спрашиваем у сервера: он и ищет, и ограничивает
-    // выдачу. Ответ мог прийти уже к другому запросу — сверяем.
     const asked = q;
     let others = [];
     try {
@@ -198,7 +156,6 @@ export function openPrivacyExceptionsDialog({ title, users = [], value, onSave }
       remember(res.users);
       others = (res.users ?? []).filter(notChosen).filter((u) => !contactIds.has(u.id));
     } catch {
-      // Поиск не ответил — контакты выше уже показаны, и это лучше пустого окна.
     }
 
     if (!mine.length && !others.length) {

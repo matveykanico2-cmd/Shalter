@@ -8,29 +8,10 @@ const {
   OLLAMA_MODEL,
 } = require("../config");
 
-// Нейросеть Hugo — бесплатная и без ключа.
-//
-// Цепочка провайдеров, первый ответивший побеждает:
-//   1. OLLAMA_URL — своя локальная модель (ollama serve), если задан. Тексты
-//      тогда вообще не покидают сервер.
-//   2. HUGO_AI_URL — OpenAI-совместимый /chat/completions. По умолчанию
-//      https://text.pollinations.ai/openai: публичный, бесплатный, без ключа
-//      (анонимный уровень). Любой другой совместимый эндпоинт подставляется
-//      одной переменной.
-//   3. HUGO_AI_GET_URL — тот же Pollinations простым GET-запросом: другой
-//      путь у них на сервере и заметно быстрее, выручает, когда POST лежит.
-// Не ответил никто за HUGO_AI_TIMEOUT_MS (общий бюджет на всю цепочку, а не
-// на каждый шаг) — generateReply вернёт null, и lib/hugoBot.js ответит
-// встроенными ответами по ключевым словам. Исключений наружу не бросает.
-//
-// Приватность: история переписки с Hugo (последние сообщения этого чата)
-// уходит выбранному провайдеру. Только чат с Hugo — ни одного другого чата.
+const MAX_REPLY = 3500;
+const MAX_TURN = 1500;
+const MAX_GET_PROMPT = 3000;
 
-const MAX_REPLY = 3500; // длиннее сообщение в чате читать уже неудобно
-const MAX_TURN = 1500; // одно сообщение истории, символов
-const MAX_GET_PROMPT = 3000; // GET несёт всё в URL — держим его коротким
-
-// Известное из кодовой базы — чтобы модель не выдумывала пути в настройках.
 const FEATURES = [
   "личные чаты, группы (с уровнями и правами участников), каналы с постами, комментариями и статистикой",
   "аудио- и видеозвонки, в том числе групповые; прямые эфиры",
@@ -65,12 +46,9 @@ function systemPrompt(knowledge) {
   );
 }
 
-// Убирает то, что модели иногда присылают вместе с ответом: рассуждения,
-// рекламные хвосты анонимного уровня Pollinations, заголовки markdown.
 function cleanReply(raw) {
   let text = String(raw ?? "");
   text = text.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/^[\s\S]*<\/think>/i, "");
-  // Рекламная вставка Pollinations обычно отделена чертой в конце.
   text = text.replace(/\n+-{3,}\s*\n[\s\S]*pollinations[\s\S]*$/i, "");
   text = text
     .split("\n")
@@ -97,10 +75,6 @@ function sleep(ms, signal) {
   });
 }
 
-// Анонимный уровень Pollinations держит в очереди не больше одного запроса с
-// IP («Queue full for IP … max: 1») и отвечает 429 на второй. Отменённый по
-// таймауту запрос при этом у них в очереди остаётся, поэтому 429 — не отказ,
-// а «подождите»: повторяем с паузой, пока не кончится время шага.
 async function fetchRetry429(url, init) {
   for (;;) {
     const res = await fetch(url, init);
@@ -110,9 +84,6 @@ async function fetchRetry429(url, init) {
   }
 }
 
-// По той же причине удалённые запросы со всего сервера идут строго по одному:
-// два собеседника Hugo одновременно — это второй запрос с того же IP, то есть
-// гарантированный 429. Ожидание очереди прерывается тем же сигналом.
 let remoteTail = Promise.resolve();
 function inRemoteQueue(signal, fn) {
   const run = remoteTail.then(() => {
@@ -149,8 +120,6 @@ async function viaOllama(messages, signal) {
 async function viaOpenAiCompatible(messages, signal) {
   const data = await postJson(
     HUGO_AI_URL,
-    // private — Pollinations не показывает запрос в своей публичной ленте;
-    // остальные совместимые API лишнее поле игнорируют.
     { model: HUGO_AI_MODEL, messages, temperature: 0.6, private: true, referrer: "shalter" },
     signal
   );
@@ -159,7 +128,6 @@ async function viaOpenAiCompatible(messages, signal) {
 
 async function viaGet(messages, signal) {
   const [system, ...turns] = messages;
-  // Переписка одной строкой, свежие реплики важнее — режем с начала.
   let dialog = turns.map((m) => `${m.role === "assistant" ? "Hugo" : "Пользователь"}: ${m.content}`).join("\n");
   if (dialog.length > MAX_GET_PROMPT) dialog = dialog.slice(-MAX_GET_PROMPT);
   const prompt = `${dialog}\nHugo:`;
@@ -184,10 +152,6 @@ function isAiAvailable() {
   return HUGO_AI_ENABLED && providers().length > 0;
 }
 
-// history — [{role: "user"|"assistant", content}] в хронологическом порядке,
-// последним идёт сообщение, на которое отвечаем. knowledge — текст с
-// проверенными ответами (собирает lib/hugoBot.js из своих тем).
-// Возвращает { text, provider } или null.
 async function generateReply(history, { knowledge = "", timeoutMs = HUGO_AI_TIMEOUT_MS } = {}) {
   if (!isAiAvailable() || !history?.length) return null;
   const messages = [
@@ -202,10 +166,6 @@ async function generateReply(history, { knowledge = "", timeoutMs = HUGO_AI_TIME
   try {
     for (const [i, [name, call, remote]] of list.entries()) {
       if (controller.signal.aborted) break;
-      // Зависший провайдер не должен съесть весь бюджет: не последнему в
-      // цепочке — не больше 75% оставшегося времени, остальное следующим.
-      // Отсчёт шага — с момента, когда подошла очередь (inRemoteQueue), а не
-      // с постановки в неё; само ожидание ограничено общим бюджетом.
       const step = () => {
         const left = deadline - Date.now();
         const stepMs = i === list.length - 1 ? left : Math.max(3000, Math.round(left * 0.75));

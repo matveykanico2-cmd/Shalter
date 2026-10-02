@@ -13,10 +13,6 @@ const { getSettings } = require("../data/settings");
 const router = express.Router();
 router.use(requireUserId);
 
-// Same "message the admin / DonationAlerts" purchase flow as Premium
-// (server/routes/premium.js) — the request/grant/plans shape below mirrors
-// that file closely on purpose, so the two features don't drift apart in how
-// buying works. See that file's comments for the reasoning behind each step.
 router.get(
   "/me",
   asyncRoute(async (req, res) => {
@@ -47,10 +43,6 @@ router.post(
       return res.status(503).json({ error: "Администрация Shalter ещё не зарегистрирована в приложении" });
     }
     const me = await getUser(req.uid);
-    // Действующую подписку можно продлить: grantBusinessDays (data/users.js)
-    // прибавляет дни к текущему businessUntil. Продлевать нечего только у
-    // вечной — раньше же любой активный бизнес получал отказ, и продлить его
-    // заранее, до истечения срока, было нельзя вовсе.
     if (me.businessForever) {
       return res.status(400).json({ error: "У вас уже есть Shalter для бизнеса навсегда" });
     }

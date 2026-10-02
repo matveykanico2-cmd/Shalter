@@ -4,15 +4,8 @@ import { Avatar } from "./avatar.js";
 import { api } from "../api.js";
 import { isContactPickerSupported, pickPhoneContacts, readVCardFiles, parsePastedContacts, isIos } from "../lib/phoneContacts.js";
 
-// "Найти друзей по контактам" — the alternative to typing an exact @handle for
-// every person you already know, which was the only way to add anyone before
-// (see views/contacts.js).
-//
-// Two lists come back: people already on Shalter (one tap to add) and people
-// who aren't (one tap to invite). Приглашение — обычная ссылка на вход в
-// Shalter: реферальных кодов («код друга») в приложении больше нет.
 export function openImportContactsDialog(onAdded) {
-  let step = "pick"; // "pick" | "loading" | "results"
+  let step = "pick";
   let error = null;
   let found = [];
   let notFound = [];
@@ -39,7 +32,6 @@ export function openImportContactsDialog(onAdded) {
   const fileInput = el("input", {
     type: "file",
     accept: ".vcf,text/vcard,text/x-vcard",
-    // iOS shares one .vcf per contact, so importing there means many files.
     multiple: true,
     class: "hidden-input",
     onchange: async (e) => {
@@ -63,9 +55,6 @@ export function openImportContactsDialog(onAdded) {
     },
   });
 
-  // The path that works on every platform, iPhone included: paste or type the
-  // numbers. A plain textarea read on submit — re-rendering per keystroke would
-  // take the focus with it.
   const pasteInput = el("textarea", {
     class: "settings-input import-paste",
     rows: 3,
@@ -86,8 +75,6 @@ export function openImportContactsDialog(onAdded) {
     error = null;
     render();
     try {
-      // Chunked: the server caps a single request, and an address book of a few
-      // thousand numbers is perfectly ordinary.
       const CHUNK = 500;
       found = [];
       notFound = [];
@@ -110,10 +97,9 @@ export function openImportContactsDialog(onAdded) {
     error = null;
     try {
       const entries = await pickPhoneContacts();
-      if (!entries.length) return; // cancelled or nothing ticked — not an error
+      if (!entries.length) return;
       await match(entries);
     } catch (err) {
-      // A refused permission lands here too; the vCard route below still works.
       error = err.message || "Не удалось получить доступ к контактам";
       render();
     }
@@ -124,9 +110,6 @@ export function openImportContactsDialog(onAdded) {
     busyId = entry.user.id;
     render();
     try {
-      // The name from the phone's address book, kept as the local name — it was
-      // already being read out of the vCard and thrown away, and it's the name
-      // this person is actually known by here.
       await api.addContact(entry.user.id, entry.localName || null);
       addedIds.add(entry.user.id);
       onAdded?.();
@@ -145,15 +128,11 @@ export function openImportContactsDialog(onAdded) {
   async function invite(entry) {
     invitedPhones.add(entry.phone);
     render();
-    // navigator.share gives the native share sheet (Telegram/WhatsApp/SMS/…)
-    // on a phone; sms: is the reliable fallback and is exactly right for a
-    // contact you only have a number for.
     if (navigator.share) {
       try {
         await navigator.share({ text: inviteText() });
         return;
       } catch {
-        /* dismissed — fall through to the SMS link */
       }
     }
     const digits = String(entry.phone).replace(/[^\d+]/g, "");
@@ -186,8 +165,6 @@ export function openImportContactsDialog(onAdded) {
         el(
           "p",
           { class: "import-contact-sub" },
-          // Their name in *your* address book, when it differs from the display
-          // name on the account — that's how you recognise who this actually is.
           entry.localName && entry.localName !== u.name ? `${entry.localName} · @${u.username}` : u.username ? `@${u.username}` : ""
         ),
       ]),
@@ -220,10 +197,6 @@ export function openImportContactsDialog(onAdded) {
   function render() {
     clear(bodyEl);
 
-    // Every list below is passed through .filter(Boolean) before append():
-    // Element.append() stringifies a null argument into a literal "null" text
-    // node (dom.js's el() drops them for you, append() does not), which is
-    // exactly how two stray "null"s ended up rendered in this dialog.
     const show = (children) => bodyEl.append(...children.filter(Boolean));
 
     if (step === "loading") {
@@ -261,7 +234,6 @@ export function openImportContactsDialog(onAdded) {
       return;
     }
 
-    // step === "results"
     noticeEl = el("p", { class: "settings-toggle-hint" }, "");
     show([
       el("p", { class: "settings-toggle-hint" }, `Проверено номеров: ${checked}`),

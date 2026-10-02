@@ -1,25 +1,10 @@
 import { el, clear } from "../lib/dom.js";
 
-// The classic meme maker: your own picture, white-with-black-outline caps
-// text top and/or bottom (Impact-alike — most browsers don't ship Impact
-// itself, so a bold sans-serif with a thick stroke stands in; it reads the
-// same at a glance, which is the part that actually matters for "looks like
-// a meme"). Renders to a canvas and hands the result back as a real image
-// file, so it drops into the composer's ordinary photo-attachment pipeline
-// (composer.js's attachFiles) rather than needing its own send path.
-const MAX_DIM = 1080; // export size cap — matches other in-app image exports (storyEditor.js)
+const MAX_DIM = 1080;
 
 const FONT = (size) => `900 ${size}px Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif`;
 const LINE_HEIGHT = 1.15;
 
-// Разбивает надпись на строки и подбирает размер шрифта так, чтобы она целиком
-// поместилась: каждая строка — в ширину, все вместе — в maxHeight.
-//
-// Раньше размер был один на все случаи, и надпись обрезалась: длинное слово
-// («достопримечательности» на узкой картинке) вылезало за оба края, а длинный
-// текст уходил за край кадра или наезжал на вторую надпись. Теперь шрифт
-// уменьшается, пока всё не влезет, а слово, которое не влезает и самым мелким
-// шрифтом, переносится по буквам.
 function layoutCaption(ctx, text, maxWidth, maxHeight, baseSize) {
   const words = text.toUpperCase().split(/\s+/).filter(Boolean);
   const minSize = Math.max(10, Math.round(baseSize * 0.35));
@@ -27,7 +12,6 @@ function layoutCaption(ctx, text, maxWidth, maxHeight, baseSize) {
   for (;;) {
     ctx.font = FONT(size);
     const last = size <= minSize;
-    // На последнем шаге слишком длинные слова режутся по буквам.
     const pieces = last ? words.flatMap((w) => splitWord(ctx, w, maxWidth)) : words;
     const lines = [];
     let line = "";
@@ -65,13 +49,6 @@ function splitWord(ctx, word, maxWidth) {
   return parts;
 }
 
-// anchor: "top" — y это верхний край первой строки, "bottom" — нижний край
-// последней.
-//
-// Раньше край выводился из знака y, и выводился наоборот: верхняя надпись
-// вставала нижним краем на отступ сверху, то есть целиком над картинкой, а
-// нижняя — под ней. В превью текст был (там он HTML поверх картинки), а в
-// отправленном файле мем уходил без надписей.
 function drawCaption(ctx, text, x, y, maxWidth, maxHeight, baseSize, anchor) {
   const { size, lines } = layoutCaption(ctx, text, maxWidth, maxHeight, baseSize);
   ctx.font = FONT(size);
@@ -89,12 +66,6 @@ function drawCaption(ctx, text, x, y, maxWidth, maxHeight, baseSize, anchor) {
   });
 }
 
-// Рисует мем на холст — один и тот же для превью в окне и для отправки.
-//
-// Раньше превью было HTML-текстом поверх <img>: другой шрифт, другой размер,
-// другая обводка, — а отправлялась отдельно нарисованная картинка. Что видел
-// человек и что уходило в чат, не совпадало, и на отправке всё рисовалось
-// заново. Теперь превью и есть отправляемая картинка.
 function drawMeme(canvas, imageEl, topText, bottomText) {
   const scale = Math.min(1, MAX_DIM / Math.max(imageEl.naturalWidth, imageEl.naturalHeight));
   const w = Math.max(1, Math.round(imageEl.naturalWidth * scale));
@@ -104,19 +75,13 @@ function drawMeme(canvas, imageEl, topText, bottomText) {
   const ctx = canvas.getContext("2d");
   ctx.drawImage(imageEl, 0, 0, w, h);
 
-  // От меньшей стороны, а не от ширины: на высокой узкой картинке надпись от
-  // ширины выходила мелкой, на широкой низкой — закрывала полкадра.
   const fontSize = Math.round(Math.min(w, h * 1.2) * 0.1);
   const pad = Math.round(fontSize * 0.3);
-  // Каждой надписи — не больше 42% высоты: верхняя и нижняя не наезжают друг
-  // на друга, и середина картинки остаётся видна.
   const maxHeight = h * 0.42;
   if (topText.trim()) drawCaption(ctx, topText, w / 2, pad, w * 0.92, maxHeight, fontSize, "top");
   if (bottomText.trim()) drawCaption(ctx, bottomText, w / 2, h - pad, w * 0.92, maxHeight, fontSize, "bottom");
 }
 
-// onDone(file) — called with a real File (image/jpeg) once "Отправить"
-// is pressed; the caller attaches it like any picked photo.
 export function openMemeDialog(onDone) {
   let imgEl = null;
   let objectUrl = null;
@@ -143,16 +108,10 @@ export function openMemeDialog(onDone) {
   }
   document.addEventListener("keydown", onKey);
 
-  // Built once, outside renderStructure() — re-creating (or even just
-  // re-appending) these on every keystroke drops focus after one letter,
-  // the same bug the composer/admin-panel comments warn about elsewhere.
-  // Typing only ever touches the preview overlay's textContent below.
   const topInput = el("input", { class: "settings-input", placeholder: "Верхний текст", maxlength: 200 });
   const bottomInput = el("input", { class: "settings-input", placeholder: "Нижний текст", maxlength: 200 });
   const canvas = el("canvas", { class: "meme-preview-canvas" });
   const preview = el("div", { class: "meme-preview" }, [canvas]);
-  // Перерисовка — не чаще кадра: быстрый набор не должен рисовать картинку
-  // по три раза между кадрами экрана.
   let frame = 0;
   function redraw() {
     if (frame) return;
@@ -163,7 +122,6 @@ export function openMemeDialog(onDone) {
   }
   topInput.addEventListener("input", redraw);
   bottomInput.addEventListener("input", redraw);
-  // Enter в верхнем поле — к нижнему, в нижнем — отправить.
   topInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.isComposing) {
       e.preventDefault();
@@ -216,7 +174,6 @@ export function openMemeDialog(onDone) {
     sendBtn.disabled = true;
     sendBtn.textContent = "Готовим…";
     try {
-      // Холст уже нарисован превью — только дорисовать последнее нажатие.
       if (frame) cancelAnimationFrame(frame);
       frame = 0;
       drawMeme(canvas, imgEl, topInput.value, bottomInput.value);
@@ -235,8 +192,6 @@ export function openMemeDialog(onDone) {
     }
   }
 
-  // Rebuilds only which *blocks* are visible (no picture yet vs. picture
-  // picked) — never touches topInput/bottomInput's own DOM identity.
   function renderStructure() {
     clear(body);
     const ready = !!imgEl?.naturalWidth;

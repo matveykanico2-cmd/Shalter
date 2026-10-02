@@ -4,13 +4,6 @@ import { Avatar } from "../components/avatar.js";
 import { api } from "../api.js";
 import { LoginView } from "./login.js";
 
-// Where a third-party site sends the browser to let someone sign in with
-// their Shalter account ("Войти через Shalter") — a plain OAuth
-// authorization-code consent screen. Same standalone-page shape as
-// qrLoginConfirm.js (outside the authenticated app shell, embeds LoginView
-// right here if not logged in yet) for the same reason: the query string
-// (client_id/redirect_uri/state) has to survive a login that happens on
-// this exact page, not a redirect to /login and back that would drop it.
 export async function OAuthAuthorizeView(root) {
   const params = new URLSearchParams(window.location.search);
   const clientId = params.get("client_id");

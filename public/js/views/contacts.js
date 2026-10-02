@@ -11,8 +11,6 @@ import { statusLabel } from "../lib/presence.js";
 import { openImportContactsDialog } from "../components/importContactsDialog.js";
 import { PhoneField } from "../components/phoneField.js";
 
-// Digits only, so "+7 999 123-45-67", "8 (999) 1234567" and "79991234567" are
-// one number when filtering. Mirrors server/lib/phoneMatch.js's phoneKey.
 function digits(raw) {
   const d = String(raw ?? "").replace(/\D/g, "");
   return d.length === 11 && d.startsWith("8") ? `7${d.slice(1)}` : d;
@@ -23,27 +21,16 @@ export async function ContactsView(root) {
   let contacts = initialContacts;
   let adding = false;
   let query = "";
-  // Explicit exact-username lookup only (see server/routes/users.js's
-  // /by-username/:username) — no more browsing/filtering a dump of every
-  // registered user, which made it trivially easy to "just add" someone you
-  // barely know. Matches Telegram's own "add by username" flow: you type
-  // the handle you already know, not scroll a directory of strangers.
   let searchResult = null;
   let searchError = null;
   let searching = false;
   let searchTimer = null;
   let blockedIds = new Set(getState().user.blockedUserIds ?? []);
-  // "по номеру" first: it's how Telegram's own add-contact form works, and it's
-  // the one people can actually use — a phone number you already have written
-  // down, rather than a handle you'd have to be told.
   let addMode = "phone";
-  let notRegistered = null; // { phone } — found nobody, offer an invite instead
+  let notRegistered = null;
   const inviteLink = `${window.location.origin}/login`;
   let inviteCopied = false;
 
-  // Filters the list you already have. Separate from the add form below, which
-  // searches accounts you don't: mixing the two is how you end up "searching"
-  // and getting nothing because the person isn't a contact yet.
   let filter = "";
   const filterInput = el("input", {
     class: "login-input contacts-filter",
@@ -55,11 +42,6 @@ export async function ContactsView(root) {
     },
   });
 
-  // Built once and reused by every render() below, never rebuilt from the
-  // current `query` — a fresh <input> node on each keystroke is exactly what
-  // broke this: render() runs on every oninput, mount() swapped in a brand
-  // new input, and the old one (the focused one) was discarded mid-typing, so
-  // the field went dead after the first character.
   const searchInput = el("input", {
     class: "login-input",
     placeholder: "@юзернейм",
@@ -74,28 +56,18 @@ export async function ContactsView(root) {
     },
   });
 
-  // The Telegram-shaped form: a name you choose and the number you have.
-  // Черновик имени переживает уход с экрана и возврат: контакт часто заводят в
-  // два захода (ввёл имя → пошёл за номером в другое приложение → вернулся), а
-  // поле раньше очищалось при каждом перемонтировании вью, и введённое имя
-  // пропадало. Храним в sessionStorage, чистим после успешного добавления.
   const NAME_DRAFT_KEY = "contact-add-name-draft";
   const nameInput = el("input", { class: "login-input", placeholder: "Имя (как записать у себя)" });
   try {
     nameInput.value = sessionStorage.getItem(NAME_DRAFT_KEY) || "";
   } catch {
-    /* приватный режим — просто без черновика */
   }
   nameInput.addEventListener("input", () => {
     try {
       sessionStorage.setItem(NAME_DRAFT_KEY, nameInput.value);
     } catch {
-      /* не критично */
     }
   });
-  // Country picker in front of the number (components/phoneField.js) — the old
-  // single box was formatted for a Russian number and capped at 11 digits, so a
-  // foreign contact simply could not be typed in.
   const phoneField = PhoneField({
     onChange: () => {
       searchResult = null;
@@ -109,11 +81,6 @@ export async function ContactsView(root) {
   });
   const candidatesEl = el("div", { class: "contacts-candidates" });
 
-  // One number through the same endpoint the address-book import uses, so the
-  // privacy rules ("кто может найти меня по номеру") are enforced in exactly one
-  // place and a single lookup can't become a way around them. That endpoint
-  // reports a hidden account as simply not registered — which is the point, and
-  // why this screen can't tell the difference either.
   async function lookUpPhone() {
     const phone = phoneField.value();
     searchResult = null;
@@ -155,8 +122,6 @@ export async function ContactsView(root) {
     renderCandidates();
     try {
       const { user } = await api.findUserByUsername(trimmed);
-      // A stale response from a previous, longer/shorter query that resolved
-      // after the user kept typing must not overwrite the current one.
       if (query.trim().replace(/^@/, "") !== trimmed) return;
       if (contacts.some((c) => c.userId === user.id)) searchError = "Уже в контактах";
       else searchResult = user;
@@ -173,10 +138,6 @@ export async function ContactsView(root) {
     const localName = nameInput.value.trim();
     await api.addContact(u.id, localName || null);
     ({ contacts } = await api.listContacts());
-    // Держим глобальный state.contactIds в синхроне: по нему карточка
-    // присланного контакта решает, показывать ли «Добавить» (messageBubble.js).
-    // Без этого добавленный здесь человек продолжал предлагать «Добавить» на
-    // своей карточке в переписке, пока не перезагрузишь приложение.
     syncContactIds();
     adding = false;
     query = "";
@@ -186,19 +147,14 @@ export async function ContactsView(root) {
     try {
       sessionStorage.removeItem(NAME_DRAFT_KEY);
     } catch {
-      /* не критично */
     }
     render();
   }
 
-  // Приводит state.contactIds к текущему списку контактов — один источник
-  // правды и для экрана контактов, и для карточек в чатах.
   function syncContactIds() {
     setState({ contactIds: contacts.map((c) => c.userId) });
   }
 
-  // Only the result slot under the input — the input itself stays mounted and
-  // focused, so typing is never interrupted.
   function renderCandidates() {
     clear(candidatesEl);
     if (searching) candidatesEl.appendChild(el("p", { class: "empty-hint" }, "Ищем…"));
@@ -213,8 +169,6 @@ export async function ContactsView(root) {
         ].filter(Boolean))
       );
     }
-    // Nobody on that number. Telegram offers an SMS invite here; there's no SMS
-    // gateway in this app, so the invite is a plain link to the login page.
     if (notRegistered) {
       candidatesEl.append(
         el("p", { class: "empty-hint" }, `На номере ${notRegistered.phone} никого нет в Shalter`),
@@ -229,15 +183,13 @@ export async function ContactsView(root) {
                 else await navigator.clipboard.writeText(text);
                 inviteCopied = true;
               } catch {
-                inviteCopied = true; // sharing cancelled or clipboard blocked — the link is still on screen below
+                inviteCopied = true;
               }
               renderCandidates();
             },
           },
           "Пригласить в Shalter"
         ),
-        // filter(Boolean): native Element.append() turns a null argument into a
-        // literal "null" text node — it rendered as «Пригласить в Shalternull».
         ...(inviteCopied
           ? [el("p", { class: "settings-toggle-hint" }, `Приглашение скопировано${inviteLink ? `: ${inviteLink}` : ""}`)]
           : [])
@@ -263,17 +215,12 @@ export async function ContactsView(root) {
     (mode === "phone" ? nameInput : searchInput).focus();
   }
 
-  // What this contact is called here: your own label if you set one, otherwise
-  // the name on the account.
   const displayName = (c) => c.localName || c.user.name;
 
   function visibleContacts() {
     const q = filter.trim().toLowerCase();
     const sorted = [...contacts].sort((a, b) => displayName(a).localeCompare(displayName(b), "ru"));
     if (!q) return sorted;
-    // Digits in the query mean "looking for a number" — matched against the
-    // number with its own formatting stripped, so how either side wrote the
-    // spaces and dashes doesn't matter.
     const qDigits = digits(q);
     return sorted.filter(
       (c) =>
@@ -286,13 +233,6 @@ export async function ContactsView(root) {
 
   const listEl = el("div", { class: "contacts-list" });
 
-  // Перерисовка не должна выбивать курсор из поля.
-  //
-  // Поля здесь создаются один раз и переиспользуются, но mount() всё равно
-  // вынимает их из документа и вставляет обратно — а для браузера «вынули» это
-  // «потеряли фокус», даже если вставили тот же самый узел. Отсюда и «по одному
-  // символу»: после каждой буквы приходилось снова тыкать в поле. Запоминаем
-  // фокус и позицию курсора и возвращаем их после сборки.
   function withKeptFocus(draw) {
     const active = document.activeElement;
     const canSelect = active && typeof active.selectionStart === "number";
@@ -305,8 +245,6 @@ export async function ContactsView(root) {
       try {
         active.setSelectionRange(start, end);
       } catch {
-        // У input[type=search] и подобных выделение может быть недоступно —
-        // сам фокус важнее позиции курсора.
       }
     }
   }
@@ -327,8 +265,6 @@ export async function ContactsView(root) {
         title: "Найти друзей из контактов телефона",
         html: iconSvg("Users", 18),
         onclick: () => openImportContactsDialog(async () => {
-            // A contact added from the dialog should show up behind it right
-            // away, not on the next visit to this screen.
             ({ contacts } = await api.listContacts());
             render();
           }),
@@ -343,9 +279,6 @@ export async function ContactsView(root) {
             searchError = null;
             query = "";
             render();
-            // Explicit, not the `autofocus` attribute this used to carry —
-            // autofocus only applies to an element present at parse time, so
-            // it never fired for a panel mounted later by render().
             if (adding) searchInput.focus();
           },
         },
@@ -385,8 +318,6 @@ export async function ContactsView(root) {
     withKeptFocus(() => mount(root, el("div", { class: "contacts-view" }, [header, addPanel, contacts.length ? filterInput : null, listEl].filter(Boolean))));
   }
 
-  // Its own render so typing in the filter doesn't rebuild (and unfocus) the
-  // field doing the typing — the same trap the add form fell into once already.
   function renderList() {
     const sorted = visibleContacts();
     clear(listEl);
@@ -414,8 +345,6 @@ export async function ContactsView(root) {
       listEl.appendChild(el("p", { class: "empty-hint" }, `По запросу «${filter.trim()}» никого нет`));
       return;
     }
-    // Заголовок с числом — как во вкладке «Звонки» и в разделе ботов: сколько
-    // человек в списке, видно сразу, а при поиске — сколько из них нашлось.
     listEl.appendChild(
       el(
         "p",
@@ -434,9 +363,6 @@ export async function ContactsView(root) {
               el(
                 "p",
                 { class: `contact-row-status ${user.online ? "online" : ""}` },
-                // When you've given them your own name, the account's own name
-                // is the useful second line — otherwise you'd lose track of who
-                // "Мама" actually is on the service.
                 c.localName && c.localName !== user.name
                   ? user.name
                   : statusLabel(user) ?? (user.username ? `@${user.username}` : "недавно")

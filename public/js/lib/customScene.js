@@ -1,29 +1,5 @@
-// Пользовательские анимированные сцены — то, что рисует «аниматор» (редактор в
-// components/animatorEditor.js), и то, из чего собраны кастомные стикеры,
-// эмодзи и подарки.
-//
-// Встроенные наборы (lib/drawnArt.js, lib/characters.js, lib/animScenes.js) —
-// это статичная SVG-разметка строкой, написанная руками разработчика: туда
-// пользовательский ввод не попадает, поэтому строка безопасна. Здесь наоборот —
-// геометрию и цвета задаёт пользователь и она уходит в чужие чаты, поэтому:
-//
-//   1. Сцена — это ДАННЫЕ (JSON), а не разметка. Ни строчки пользовательского
-//      текста не превращается в HTML/SVG-разметку.
-//   2. Рендер собирается через createElementNS + setAttribute, а подписи и
-//      эмодзи ставятся только через textContent. Никакого innerHTML — значит
-//      сцена не может стать разметкой, чем бы её ни заполнили.
-//   3. Всё, что приходит в сцену, прогоняется через sanitizeCustomScene: числа
-//      зажимаются в диапазон, цвета — только hex, анимации и фигуры — только из
-//      белого списка. Ровно тот же разбор живёт на сервере
-//      (server/lib/sanitizeScene.js) — он и есть авторитетный; здесь дубль,
-//      чтобы редактор не давал собрать то, что сервер потом отвергнет.
-
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-// Словарь движений. Имя анимации — это и есть CSS-класс `ce-<anim>` (кадры
-// описаны в styles/components.css). Каждый слой играет ровно одно движение;
-// расхождение задержек между слоями и создаёт ощущение «сцены», а не «дёргается
-// всё сразу».
 export const CE_ANIMS = [
   { id: "none", label: "Без движения" },
   { id: "bounce", label: "Прыгает" },
@@ -41,9 +17,6 @@ export const CE_ANIMS = [
 ];
 const ANIM_IDS = new Set(CE_ANIMS.map((a) => a.id));
 
-// Фигуры. `emoji`/`text` рисуются как <text>, остальное — как примитивы. star и
-// heart дают «стикерную» выразительность без произвольных путей: их геометрия
-// фиксирована и лишь масштабируется, пользователь не задаёт координаты кривых.
 export const CE_SHAPES = [
   { id: "draw", label: "Кисть" },
   { id: "emoji", label: "Эмодзи" },
@@ -54,12 +27,12 @@ export const CE_SHAPES = [
   { id: "heart", label: "Сердце" },
   { id: "text", label: "Текст" },
 ];
-export const CE_MAX_STROKES = 60; // штрихов в слое-кисти
-export const CE_MAX_POINTS = 400; // точек в штрихе
+export const CE_MAX_STROKES = 60;
+export const CE_MAX_POINTS = 400;
 const SHAPE_IDS = new Set(CE_SHAPES.map((s) => s.id));
 
 export const CE_MAX_LAYERS = 12;
-export const CE_MAX_KEYS = 30; // ключей на слой
+export const CE_MAX_KEYS = 30;
 const HEX_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 const num = (v, min, max, dflt) => {
@@ -69,7 +42,6 @@ const num = (v, min, max, dflt) => {
 };
 const hex = (v, dflt) => (typeof v === "string" && HEX_RE.test(v.trim()) ? v.trim().toLowerCase() : dflt);
 
-// Один штрих кисти — цвет, толщина и точки. Пустой (без точек) выпадает.
 function sanitizeStroke(s) {
   if (!s || typeof s !== "object") return undefined;
   const pts = Array.isArray(s.pts)
@@ -82,8 +54,6 @@ function sanitizeStroke(s) {
   return { color: hex(s.color, "#000000"), width: num(s.width, 1, 40, 4), pts };
 }
 
-// Одна фигура — приводится к известной форме. Возвращает undefined, если тип
-// фигуры не из белого списка: такой слой просто выпадает, а не роняет сцену.
 function sanitizeLayer(raw) {
   if (!raw || typeof raw !== "object") return undefined;
   const type = SHAPE_IDS.has(raw.type) ? raw.type : undefined;
@@ -100,7 +70,6 @@ function sanitizeLayer(raw) {
     dur: num(raw.dur, 0.3, 8, 1.6),
   };
   if (type === "emoji") {
-    // Одна графема эмодзи; ограничиваем длину, чтобы в поле не уехала строка.
     layer.emoji = String(raw.emoji ?? "😀").trim().slice(0, 8) || "😀";
     layer.size = num(raw.size, 6, 100, 40);
   } else if (type === "text") {
@@ -118,16 +87,10 @@ function sanitizeLayer(raw) {
   } else if (type === "star" || type === "heart") {
     layer.size = num(raw.size, 4, 100, 34);
   } else if (type === "draw") {
-    // Слой-кисть: нарисованные с нуля векторные штрихи (свободное рисование на
-    // холсте). Координаты точек — в единицах вьюбокса 0..100.
     layer.strokes = Array.isArray(raw.strokes)
       ? raw.strokes.slice(0, CE_MAX_STROKES).map(sanitizeStroke).filter(Boolean)
       : [];
   }
-  // Покадровая анимация: ключи во времени. Каждый ключ — поза относительно
-  // базового положения слоя (смещение dx/dy в единицах вьюбокса, поворот,
-  // масштаб, прозрачность, необязательно цвет). Если ключей нет — слой играет
-  // именованный пресет (anim), как раньше; так старые сцены продолжают работать.
   if (Array.isArray(raw.keys) && raw.keys.length) {
     layer.keys = raw.keys
       .slice(0, CE_MAX_KEYS)
@@ -149,8 +112,6 @@ function sanitizeLayer(raw) {
   return layer;
 }
 
-// Полная проверка сцены. Всегда возвращает валидную сцену (пустую, если вход
-// мусорный) — вызывающему не нужно ловить исключения.
 export function sanitizeCustomScene(raw) {
   const scene = raw && typeof raw === "object" ? raw : {};
   const layers = Array.isArray(scene.layers)
@@ -168,8 +129,6 @@ export function blankScene() {
   return { v: 1, loop: 3, bg: null, layers: [] };
 }
 
-// Геометрия звезды/сердца в локальных координатах 100×100 вокруг (0,0),
-// масштабируется под `size`. Пути фиксированы — пользователь их не задаёт.
 function starPath(cx, cy, size) {
   const outer = size / 2;
   const inner = outer * 0.42;
@@ -182,7 +141,7 @@ function starPath(cx, cy, size) {
   return `M${pts.join("L")}Z`;
 }
 function heartPath(cx, cy, size) {
-  const s = size / 32; // базовый путь нарисован в ~32px, масштабируем
+  const s = size / 32;
   const p = (x, y) => `${(cx + x * s).toFixed(2)},${(cy + y * s).toFixed(2)}`;
   return (
     `M${p(0, 10)}` +
@@ -195,8 +154,6 @@ function heartPath(cx, cy, size) {
   );
 }
 
-// Точки штриха → атрибут d. Одна точка — короткая чёрточка, чтобы был виден
-// «тычок» кистью.
 function strokeToPath(pts) {
   if (pts.length === 1) return `M${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)} l0.01 0`;
   return "M" + pts.map((p) => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(" L");
@@ -231,7 +188,6 @@ function makeShape(layer) {
     node.setAttribute("d", type === "star" ? starPath(x, y, layer.size) : heartPath(x, y, layer.size));
     node.setAttribute("fill", fill);
   } else if (type === "draw") {
-    // Слой-кисть: каждый штрих — свой <path>. Группа целиком двигается ключами.
     node = document.createElementNS(SVG_NS, "g");
     for (const st of layer.strokes) {
       if (!st.pts.length) continue;
@@ -252,27 +208,18 @@ function makeShape(layer) {
     node.setAttribute("dominant-baseline", "central");
     node.setAttribute("font-size", layer.size);
     if (type === "text") node.setAttribute("fill", fill);
-    // Только textContent — подпись/эмодзи никогда не становятся разметкой.
     node.textContent = type === "emoji" ? layer.emoji : layer.text;
   }
   if (node && layer.opacity < 1) node.setAttribute("opacity", layer.opacity);
   return node;
 }
 
-// ── Покадровая анимация ──────────────────────────────────────────────────────
-
 const DEFAULT_POSE = { dx: 0, dy: 0, rot: 0, scale: 1, opacity: 1, fill: null };
 
-// CSS-строка трансформа для позы. px в SVG = единицы вьюбокса, поэтому смещение
-// задаётся напрямую; transform-box: fill-box (ставится на элементе) крутит и
-// масштабирует вокруг центра самой фигуры.
 function poseTransform(p) {
   return `translate(${p.dx}px, ${p.dy}px) rotate(${p.rot}deg) scale(${p.scale})`;
 }
 
-// Поза слоя в момент t (секунды): линейная интерполяция между соседними
-// ключами. До первого ключа держим первый, после последнего — последний.
-// Используется для статичного предпросмотра на позиции таймлайна.
 export function sampleLayerAt(layer, t) {
   const keys = layer.keys;
   if (!keys || !keys.length) return { ...DEFAULT_POSE, opacity: layer.opacity ?? 1, fill: layer.fill ?? null };
@@ -291,8 +238,6 @@ export function sampleLayerAt(layer, t) {
     rot: lerp(a.rot, b.rot),
     scale: lerp(a.scale, b.scale),
     opacity: lerp(a.opacity, b.opacity),
-    // Цвет не интерполируем вручную (это делает браузер в WAAPI); для статичного
-    // кадра берём цвет ближайшего предыдущего ключа.
     fill: a.fill ?? layer.fill ?? null,
   };
 }
@@ -301,9 +246,6 @@ function poseOf(k, layer) {
   return { dx: k.dx, dy: k.dy, rot: k.rot, scale: k.scale, opacity: k.opacity, fill: k.fill ?? layer.fill ?? null };
 }
 
-// Кадры для Web Animations API. Возвращает массив кадров или null (меньше двух
-// ключей — анимировать нечего, применим статично). Гарантируем кадры на 0 и 1,
-// чтобы цикл был гладким, и строго возрастающие offset.
 function buildFrames(layer, loop) {
   const keys = layer.keys;
   if (!keys || keys.length < 2 || loop <= 0) return null;
@@ -316,14 +258,12 @@ function buildFrames(layer, loop) {
   const frames = keys.map(frame);
   if (frames[0].offset > 0) frames.unshift({ ...frames[0], offset: 0 });
   if (frames[frames.length - 1].offset < 1) frames.push({ ...frames[frames.length - 1], offset: 1 });
-  // Строго возрастающие offset — WAAPI не принимает равные/убывающие.
   for (let i = 1; i < frames.length; i++) {
     if (frames[i].offset <= frames[i - 1].offset) frames[i].offset = Math.min(1, frames[i - 1].offset + 0.0001);
   }
   return frames;
 }
 
-// Применяет позу к элементу статично (без анимации) — для кадра на таймлайне.
 function applyPose(node, pose) {
   node.style.transformBox = "fill-box";
   node.style.transformOrigin = "center";
@@ -332,10 +272,6 @@ function applyPose(node, pose) {
   if (pose.fill) node.setAttribute("fill", pose.fill);
 }
 
-// Рисует сцену как <svg>. `size` — сторона в пикселях; `replay` включает
-// «въезд» (лёгкое появление), как у встроенных сцен. `atTime` (секунды)
-// замораживает сцену на этом моменте вместо проигрывания — для предпросмотра
-// на позиции таймлайна в редакторе.
 export function renderCustomScene(rawScene, { size = 84, replay = false, atTime = null } = {}) {
   const scene = sanitizeCustomScene(rawScene);
   const svg = document.createElementNS(SVG_NS, "svg");
@@ -356,15 +292,10 @@ export function renderCustomScene(rawScene, { size = 84, replay = false, atTime 
   for (const layer of scene.layers) {
     const shape = makeShape(layer);
     if (!shape) continue;
-    // Внешняя группа несёт базовый поворот (атрибутом), внутренняя — движение.
-    // Они на разных элементах, поэтому базовый поворот и анимация складываются.
     const outer = document.createElementNS(SVG_NS, "g");
     if (layer.rot) outer.setAttribute("transform", `rotate(${layer.rot} ${layer.x} ${layer.y})`);
 
     if (layer.keys && layer.keys.length) {
-      // Покадровая анимация: двигаем саму фигуру через Web Animations API
-      // (или замораживаем на atTime для предпросмотра). transform-box: fill-box
-      // крутит/масштабирует вокруг центра фигуры.
       shape.style.transformBox = "fill-box";
       shape.style.transformOrigin = "center";
       if (atTime != null) {
@@ -393,8 +324,6 @@ export function renderCustomScene(rawScene, { size = 84, replay = false, atTime 
   return svg;
 }
 
-// Эмодзи-подпись для сцены — то, чем её показать там, где картинку не
-// нарисуешь (уведомления, список чатов). Берём первый эмодзи-слой, иначе 🎨.
 export function sceneSummaryEmoji(rawScene) {
   const scene = sanitizeCustomScene(rawScene);
   const em = scene.layers.find((l) => l.type === "emoji");

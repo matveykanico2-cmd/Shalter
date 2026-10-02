@@ -1,7 +1,5 @@
 import { el } from "../lib/dom.js";
 
-// Small modal offering a few mutually-exclusive choices (e.g. "delete for
-// everyone" vs "delete for me") — reuses the same modal-* CSS as ForwardDialog.
 export function openChoiceDialog(title, options) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const dialog = el("div", { class: "modal-dialog choice-dialog" }, [
@@ -31,18 +29,6 @@ export function openChoiceDialog(title, options) {
   return close;
 }
 
-// Подтверждение с необязательной галочкой — как удаление чата в Telegram:
-// вопрос, под ним «Также удалить для …», и одна кнопка действия. Галочка
-// передаётся в onConfirm(checked), так что вызывающему не нужно заводить два
-// отдельных диалога под «у меня» и «у всех».
-//
-//   openCheckboxDialog({
-//     title, text,
-//     checkbox: { label, checked } | null,
-//     confirmLabel, danger,
-//     extra: [{ label, danger, onClick }],  // дополнительные действия над кнопками
-//     onConfirm: (checked) => {},
-//   })
 export function openCheckboxDialog({ title, text, checkbox = null, confirmLabel = "OK", danger = false, extra = [], onConfirm }) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const input = checkbox ? el("input", { type: "checkbox", class: "confirm-check-input" }) : null;

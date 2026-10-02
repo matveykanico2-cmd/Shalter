@@ -2,18 +2,6 @@ import { el, clear } from "../lib/dom.js";
 import { requestPushPermission } from "../lib/push.js";
 import { isContactPickerSupported } from "../lib/phoneContacts.js";
 
-// Экран разрешений — один раз, при первом входе.
-//
-// Важная оговорка, которая определяет весь этот файл: браузер не даёт спросить
-// разрешения «сам, при запуске». Камеру, микрофон и контакты он выдаёт только
-// в ответ на нажатие человека — запрос без нажатия он молча отклоняет, и
-// разрешение после этого уже не всплывёт. Поэтому здесь не автоматический
-// запрос, а экран с кнопками: каждое нажатие и есть то самое действие, которое
-// браузер требует.
-//
-// Чего здесь нет и быть не может: показа поверх других приложений. Это
-// системное разрешение Android (и его нет у веба вовсе) — оно появится, только
-// когда приложение собрано в native-оболочке; см. подпись в самом низу окна.
 const SEEN_KEY = "shalter.permissionsAsked";
 
 export function permissionsAlreadyAsked() {
@@ -28,13 +16,9 @@ function markAsked() {
   try {
     localStorage.setItem(SEEN_KEY, "1");
   } catch {
-    /* приватный режим — спросим в следующий раз, это не страшно */
   }
 }
 
-// Камера и микрофон: просим и сразу отпускаем. Задача — получить разрешение
-// заранее, чтобы в момент звонка не всплывало окно поверх собеседника, а не
-// начать съёмку прямо сейчас.
 async function askMedia(kind) {
   const constraints = kind === "camera" ? { video: true } : { audio: true };
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -52,7 +36,7 @@ export function openPermissionsDialog({ onDone } = {}) {
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
 
-  const state = {}; // ключ → "ok" | текст ошибки | undefined
+  const state = {};
 
   function close() {
     markAsked();
@@ -92,9 +76,6 @@ export function openPermissionsDialog({ onDone } = {}) {
         ? "Найти знакомых, которые уже в Shalter"
         : "Этот браузер не умеет отдавать контакты — импорт доступен в мобильном приложении",
       available: isContactPickerSupported(),
-      // Сам выбор контактов делает отдельное окно (importContactsDialog):
-      // здесь только отмечаем, что человек согласен, — Contact Picker не имеет
-      // «разрешения» в обычном смысле, он каждый раз спрашивает, что отдать.
       run: async () => {},
     },
   ];

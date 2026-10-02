@@ -34,6 +34,6 @@ test("HEADER_MAX вмещает самый длинный заголовок (V2
 });
 
 test("обрезанный V2 (не хватает байт) не принимается за V2", () => {
-  const short = Buffer.concat([MAGIC2, Buffer.alloc(4)]); // без вектора
+  const short = Buffer.concat([MAGIC2, Buffer.alloc(4)]);
   assert.equal(headerFromBuffer(short), null);
 });

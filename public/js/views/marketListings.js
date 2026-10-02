@@ -6,14 +6,6 @@ import { navigate } from "../router.js";
 import { Avatar } from "../components/avatar.js";
 import { openListingEditor } from "../components/listingEditor.js";
 
-// Доска объявлений — вкладка «Объявления» в маркете.
-//
-// Отличается от витрины магазинов рядом ровно тем, чем доска отличается от
-// магазина: объявление публикует любой человек про одну свою вещь, оплаты через
-// сервис нет, заказов нет — покупатель пишет продавцу, дальше они сами.
-//
-// Доставки тоже нет. У объявления есть только число «отправка СДЭК стоит
-// столько», которое написал продавец: это подсказка покупателю, а не услуга.
 const fmt = (n) => new Intl.NumberFormat("ru-RU").format(n ?? 0);
 
 const CONDITION_LABEL = { new: "Новое", used: "Б/у" };
@@ -24,8 +16,6 @@ function priceLabel(l) {
   return `${fmt(l.priceRub)} ₽`;
 }
 
-// Подпись про отправку. Разделены три разных случая: продавец не отправляет,
-// отправляет бесплатно и отправляет за деньги — из «0 ₽» это не читается.
 function deliveryLabel(l) {
   if (l.cdekPriceRub == null) return "Только самовывоз";
   if (l.cdekPriceRub === 0) return "СДЭК — за счёт продавца";
@@ -36,7 +26,6 @@ export function ListingsBoard() {
   const wrap = el("div", { class: "listings-board" });
   const me = getState().user;
 
-  // "all" — вся доска, "mine" — свои объявления, "fav" — избранное.
   let scope = "all";
   let filters = { q: "", category: "", city: "", condition: "", priceMin: "", priceMax: "", sort: "new" };
   let data = { listings: [], categories: [], cities: [] };
@@ -58,7 +47,6 @@ export function ListingsBoard() {
     render();
   }
 
-  // Поиск не дёргает сервер на каждую букву.
   let searchTimer = null;
   function scheduleLoad() {
     clearTimeout(searchTimer);
@@ -67,7 +55,7 @@ export function ListingsBoard() {
 
   async function toggleFavorite(listing) {
     const on = !listing.isFavorite;
-    listing.isFavorite = on; // рисуем сразу, не дожидаясь ответа
+    listing.isFavorite = on;
     render();
     try {
       await api.favoriteListing(listing.id, on);
@@ -171,7 +159,7 @@ export function ListingsBoard() {
 
   function render() {
     clear(wrap);
-    appendAll(wrap, 
+    appendAll(wrap,
       el("div", { class: "listing-scopes" }, [
         ...[
           { id: "all", label: "Все объявления" },

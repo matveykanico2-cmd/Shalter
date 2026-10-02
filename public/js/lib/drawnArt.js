@@ -1,23 +1,5 @@
 import { GIFT_ART, GIFT_ART_FOR_EMOJI } from "./giftArt.js";
 
-// Нарисованные стикеры и подарки — векторные, с частями, которые двигаются
-// раздельно.
-//
-// Эмодзи здесь не участвуют вовсе: системная картинка неподвижна внутри, её
-// можно только двигать целиком, и «стикер» из неё выходит бедный. Здесь у
-// каждой вещи свои фигуры — рука машет отдельно от лица, сердце бьётся отдельно
-// от рук, крышка подарка отлетает отдельно от коробки.
-//
-// Разметка статическая и своя, как в icons.js, поэтому вставляется строкой:
-// собранная через createElementNS, она заняла бы втрое больше места и читалась
-// бы вдвое хуже. Пользовательский ввод сюда не попадает.
-//
-// Классы частей описаны в components.css (ch-* и art-*). Имя класса — это и
-// есть движение.
-
-// ── Стикеры ─────────────────────────────────────────────────────────────────
-
-// Приветствие: колобок машет лапой, над ним всплывает «Привет!».
 const HELLO = `
 <svg viewBox="0 0 100 100" class="art" aria-hidden="true">
   <g class="ch-body-g">
@@ -36,7 +18,6 @@ const HELLO = `
   <text class="art-word" x="50" y="20" text-anchor="middle" font-size="15" font-weight="700" fill="#ff8a3d">Привет!</text>
 </svg>`;
 
-// Любовь: сердце бьётся, вокруг взлетают маленькие сердечки.
 const LOVE = `
 <svg viewBox="0 0 100 100" class="art" aria-hidden="true">
   <g class="art-beat">
@@ -49,7 +30,6 @@ const LOVE = `
   <ellipse cx="38" cy="36" rx="7" ry="4" fill="#ffffff" opacity="0.45" transform="rotate(-25 38 36)"/>
 </svg>`;
 
-// Спасибо: две ладошки складываются в поклоне, сверху блики.
 const THANKS = `
 <svg viewBox="0 0 100 100" class="art" aria-hidden="true">
   <g class="art-bow">
@@ -61,7 +41,6 @@ const THANKS = `
   <path class="art-twinkle-2" d="M76 20l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#ffe9a8"/>
 </svg>`;
 
-// Поздравляю: коробка вздрагивает, крышка отлетает, вылетает конфетти.
 const CONGRATS = `
 <svg viewBox="0 0 100 100" class="art" aria-hidden="true">
   <g class="art-shake">
@@ -79,7 +58,6 @@ const CONGRATS = `
   <rect class="art-confetti-3" x="48" y="16" width="6" height="6" rx="1.5" fill="#ffd166"/>
 </svg>`;
 
-// Смех: лицо подпрыгивает, из глаз брызжут слёзы.
 const LAUGH = `
 <svg viewBox="0 0 100 100" class="art" aria-hidden="true">
   <g class="art-jump">
@@ -93,7 +71,6 @@ const LAUGH = `
   <path class="art-tear-2" d="M78 50c3 5 4 8 2 10-2 2-5 0-5-3 0-2 1-4 3-7z" fill="#7ec8ff"/>
 </svg>`;
 
-// Грусть: капля катится, уголки рта опущены.
 const SAD = `
 <svg viewBox="0 0 100 100" class="art" aria-hidden="true">
   <g class="art-sway">
@@ -105,7 +82,6 @@ const SAD = `
   <path class="art-tear-1" d="M36 54c4 7 6 11 3 14-3 3-8 0-8-4 0-3 2-6 5-10z" fill="#4aa8ff"/>
 </svg>`;
 
-// Сон: колпак, закрытые глаза и всплывающие «Z».
 const SLEEP = `
 <svg viewBox="0 0 100 100" class="art" aria-hidden="true">
   <g class="art-breathe">
@@ -120,7 +96,6 @@ const SLEEP = `
   <text class="art-z-2" x="86" y="22" font-size="12" font-weight="700" fill="#b39bff">z</text>
 </svg>`;
 
-// Круто: большой палец вверх с искрами.
 const COOL = `
 <svg viewBox="0 0 100 100" class="art" aria-hidden="true">
   <g class="art-pop">
@@ -133,18 +108,12 @@ const COOL = `
   <path class="art-twinkle-2" d="M24 26l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#ffd166"/>
 </svg>`;
 
-// ── Подарки ─────────────────────────────────────────────────────────────────
-
 const ROSE = `
 <svg viewBox="0 0 100 100" class="art" aria-hidden="true">
-  <!-- Стебель рисуется первым и идёт под бутон: иначе видно, что головка
-       приставлена сбоку, а не растёт из него. -->
   <path d="M48 44c0 18 1 30 2 42" stroke="#2f9e5e" stroke-width="5" stroke-linecap="round" fill="none"/>
   <path class="art-leaf" d="M49 64c-14-1-22-8-23-18 12-1 21 6 23 18z" fill="#37b36a"/>
   <path class="art-leaf-2" d="M51 76c13-1 20-7 21-16-11-1-19 5-21 16z" fill="#2a8b53"/>
   <g class="art-sway">
-    <!-- Бутон: три слоя лепестков со смещением, чтобы читалась спираль,
-         а не круг. -->
     <path d="M50 46c-14 0-23-9-23-20 0-12 10-20 23-20s23 8 23 20c0 11-9 20-23 20z" fill="#c9203a"/>
     <path d="M50 42c-11 0-18-7-18-15 0-6 4-11 10-13-3 4-4 8-3 13 2 8 8 12 17 12-2 2-4 3-6 3z" fill="#e63950"/>
     <path d="M52 38c-8 1-14-3-15-10-1-6 2-11 8-13-2 4-2 8 0 12 3 6 8 9 15 8-2 2-5 3-8 3z" fill="#ff5c74"/>
@@ -176,9 +145,6 @@ const TEDDY = `
 
 const RING = `
 <svg viewBox="0 0 100 100" class="art" aria-hidden="true">
-  <!-- Кольцо покачивается, а не крутится вокруг вертикальной оси: без
-       перспективы такое вращение раз в пол-оборота вырождает эллипс в линию,
-       и кольцо на секунду пропадает — это было видно на первом же скриншоте. -->
   <g class="art-tilt">
     <ellipse cx="50" cy="66" rx="22" ry="24" fill="none" stroke="#f0c14b" stroke-width="9"/>
     <ellipse cx="50" cy="66" rx="22" ry="24" fill="none" stroke="#ffe08a" stroke-width="3"/>
@@ -228,13 +194,8 @@ const GIFTBOX = `
   <path class="art-twinkle-1" d="M24 26l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="#fff3c4"/>
 </svg>`;
 
-
 export const ART = {
-  // Подарки, нарисованные отдельно (lib/giftArt.js) — их больше и они сложнее,
-  // поэтому живут своим файлом, а сюда подмешиваются, чтобы у всех, кто рисует
-  // (магазин, лента, полка в профиле), точка входа осталась одна.
   ...GIFT_ART,
-  // стикеры
   hello: { markup: HELLO, name: "Привет" },
   love: { markup: LOVE, name: "Любовь" },
   thanks: { markup: THANKS, name: "Спасибо" },
@@ -243,7 +204,6 @@ export const ART = {
   sad: { markup: SAD, name: "Грусть" },
   sleep: { markup: SLEEP, name: "Сон" },
   cool: { markup: COOL, name: "Класс" },
-  // подарки
   rose: { markup: ROSE, name: "Роза" },
   teddy: { markup: TEDDY, name: "Мишка" },
   ring: { markup: RING, name: "Кольцо" },
@@ -252,8 +212,6 @@ export const ART = {
   giftbox: { markup: GIFTBOX, name: "Подарок" },
 };
 
-// Что рисуем вместо системного эмодзи. Список намеренно короткий: рисунок
-// уместен там, где он и есть смысл сообщения или самой вещи.
 export const ART_FOR_EMOJI = {
   ...GIFT_ART_FOR_EMOJI,
   "👋": "hello",

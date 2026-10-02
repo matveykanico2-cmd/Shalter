@@ -1,7 +1,3 @@
-// Actual audible ring — plain Web Audio oscillator, no asset files. Two
-// distinct patterns: "ringback" for the caller (waiting for pickup), "ringtone"
-// for the callee (incoming banner). Without this a call could silently sit
-// in "ringing" with nothing telling either side something is happening.
 let ctx = null;
 let activeStop = null;
 
@@ -41,7 +37,6 @@ function loop(pattern, cycleSec) {
   };
 }
 
-// Classic two-beep ringback (caller waiting for pickup).
 export function startRingback() {
   stopRingtone();
   activeStop = loop(
@@ -53,7 +48,6 @@ export function startRingback() {
   );
 }
 
-// Faster incoming-call ring (callee side).
 export function startRingtone() {
   stopRingtone();
   activeStop = loop(

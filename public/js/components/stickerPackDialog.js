@@ -9,21 +9,14 @@ import { openAnimatorEditor } from "./animatorEditor.js";
 import { openPaintDialog } from "./paintDialog.js";
 import { sceneSummaryEmoji } from "../lib/customScene.js";
 
-// Building and editing your own sticker packs.
-//
-// Стикер в своём паке — одно из двух:
-// - эмодзи со сценой (lib/animScenes.js) — те же анимации, что у встроенных;
-// - своя картинка: фото, PNG без фона (фон так и остаётся прозрачным) или GIF
-//   (двигается). Готовится в lib/image.js's prepareStickerImage.
 const SCENE_CHOICES = [{ id: "", label: "Авто" }, ...Object.keys(SCENES).map((id) => ({ id, label: id.replace(/_/g, " ") }))];
 
 export function openStickerPackDialog(onChanged) {
   let packs = [];
-  let editing = null; // the pack being edited, or null for the list
+  let editing = null;
   let draft = { name: "", stickers: [] };
   let error = null;
   let busy = false;
-  // Сколько картинок сейчас загружается в пак.
   let uploadingCount = 0;
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
@@ -102,8 +95,6 @@ export function openStickerPackDialog(onChanged) {
     render();
   }
 
-  // The emoji field is deliberately a plain text input: a full emoji keyboard is
-  // the platform's job, and every phone already has one.
   function editorView() {
     const nameInput = el("input", {
       class: "settings-input",
@@ -119,8 +110,6 @@ export function openStickerPackDialog(onChanged) {
       SCENE_CHOICES.map((c) => el("option", { value: c.id }, c.label))
     );
 
-    // Сразу несколько картинок — пак из десятка своих фото не должен
-    // собираться десятью заходами в проводник.
     const imageInput = el("input", {
       type: "file",
       accept: "image/*",
@@ -133,8 +122,6 @@ export function openStickerPackDialog(onChanged) {
         error = null;
         uploadingCount += files.length;
         render();
-        // Загружаются параллельно, а в пак встают в том порядке, в каком их
-        // выбрали, — не в том, в каком какая успела догрузиться.
         const results = await Promise.all(
           files.map(async (file) => {
             try {
@@ -178,7 +165,6 @@ export function openStickerPackDialog(onChanged) {
             draft.stickers.map((s, i) =>
               el("div", { class: "sticker-pack-cell" }, [
                 renderSticker(s, { size: 40 }),
-                // Нарисованный стикер можно открыть в аниматоре и переделать.
                 s.kind === "custom"
                   ? el("button", {
                       class: "sticker-pack-edit",

@@ -1,13 +1,6 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 
-// Показывается после создания бота, после перевыпуска токена и по кнопке
-// «Показать токен».
-//
-// `fresh` меняет только надпись, и это важно: раньше здесь стояло «второй раз
-// он нигде не показывается», и это было правдой — токен нельзя было посмотреть,
-// только перевыпустить, ломая работающего бота. Теперь можно, и обещать
-// обратное нельзя.
 export function openBotTokenDialog(botName, token, { fresh = true } = {}) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const copiedNote = el("p", { class: "settings-toggle-hint" });

@@ -1,48 +1,3 @@
-// A real code editor (syntax highlighting + autocomplete) for Settings →
-// Боты → Код, powered by CodeMirror 6 — loaded straight from esm.sh (a CDN
-// that serves real npm packages as native ES modules), not vendored or
-// bundled locally. That's consistent with this project's "no framework/
-// bundler for public/js" rule (see AGENTS.md) for `npm run dev`; the
-// production build (scripts/build.js) marks these exact URLs as external so
-// esbuild leaves the import statements alone rather than trying to fetch/
-// bundle them itself — the browser resolves them at runtime either way.
-//
-// Deliberately *not* using esm.sh's `?bundle` flag here: CodeMirror's
-// extension system does `instanceof` checks against classes from
-// @codemirror/state, and `?bundle` inlines a separate private copy of that
-// package into each of these four imports — four different classes that
-// all happen to be named the same thing, so `instanceof` fails with
-// "Unrecognized extension value" even though the code looks completely
-// correct.
-//
-// Also deliberately *pinned to exact versions with an explicit `?deps=`*
-// rather than left floating on "@6" — two failure modes hit along the way
-// (both confirmed live, not just from reading esm.sh's docs): (1) leaving
-// @codemirror/state unpinned while `codemirror` internally resolves its own
-// "^6.0.0" range to "whatever the latest 6.x happens to be right now" can
-// still produce two different concrete versions of it (surfaced as bizarre
-// internal errors like "No tile at position undefined" — nothing that looks
-// like a version problem); (2) floating the top-level `codemirror` package
-// itself on "@6" is worse — its 6.65.x release changed its export shape
-// entirely (no more named `EditorView`/`basicSetup` exports at all), which
-// breaks import resolution for the *whole app*, not just this editor, since
-// this file's imports are evaluated as soon as anything reaches it. `?deps=`
-// is esm.sh's documented mechanism for forcing every one of these four
-// packages to resolve the exact same shared @codemirror/state +
-// @codemirror/view versions — note it has to be a literal string in each
-// import (an ES module import source can't be a template literal/computed
-// expression), so the query string is repeated rather than shared as a
-// constant.
-// Загружается по требованию, а не при старте приложения.
-//
-// Это были обычные import-ы наверху файла — и стоили они дорого: редактор
-// подтягивался с чужого CDN при первом же открытии приложения, ещё на экране
-// входа. Замер до правки: 45 запросов и 564 КБ на esm.sh из 1.6 МБ всей
-// загрузки, при том что редактор кода ботов открывает один человек из сотни.
-//
-// Динамический import() внутри функции переносит эту цену туда, где она
-// оправдана: в момент открытия редактора. Модули кэшируются самим браузером,
-// так что второе открытие уже мгновенное.
 let cmPromise = null;
 function loadCodeMirror() {
   if (!cmPromise) {
@@ -62,11 +17,6 @@ function loadCodeMirror() {
   return cmPromise;
 }
 
-// A curated completion list for the bot-programming surface specifically
-// (see the /bots documentation page) rather than full generic JS intellisense — this is a small,
-// focused scripting context (one handleMessage function), so "the bot API
-// plus common keywords" is more useful here than a general-purpose language
-// server would be.
 const COMPLETIONS = [
   { label: "handleMessage", type: "function", detail: "(msg, bot)", info: "Called for every incoming message. Must be async." },
   { label: "msg.text", type: "property", info: "The message text the user sent." },
@@ -97,18 +47,6 @@ function botApiCompletionSource(context) {
   return { from: word.from, options: COMPLETIONS };
 }
 
-// basicSetup's own closeBrackets only skips-over a typed closing bracket
-// when it's immediately adjacent on the same line (confirmed by direct
-// testing: typing a multi-line function like `f() {\n  body\n}` character
-// by character — which is exactly how anyone hand-types a bot's
-// handleMessage — leaves the auto-inserted "}" in place *and* inserts the
-// user's own, producing invalid doubled-brace code that fails silently
-// until "Запустить"/a real message throws a confusing syntax error). This
-// input handler runs before CodeMirror's own transaction filters and
-// consumes the keystroke as a plain cursor move whenever a matching closing
-// bracket is the next non-whitespace text ahead of the cursor, so typing a
-// real closing bracket always just steps over the auto-inserted one
-// regardless of how many lines are in between.
 function skipClosingBracketAcrossLines(view, from, to, text) {
   if (from !== to || !")]}".includes(text)) return false;
   const ahead = view.state.doc.sliceString(from, from + 200);
@@ -120,12 +58,6 @@ function skipClosingBracketAcrossLines(view, from, to, text) {
   return false;
 }
 
-// container: a plain DOM element to mount into. Returns a small handle —
-// this file has no idea about the rest of the app's render cycle, callers
-// own creating/destroying it around their own dialog's lifecycle.
-// Стала асинхронной: сначала подгружает редактор, потом создаёт. Вызывающие
-// (components/botCodeDialog.js) ждут результат — а пока он едет, на месте
-// редактора висит понятная надпись, а не пустота.
 export async function createCodeEditor(container, { value = "", onChange, readOnly = false } = {}) {
   const { EditorView, EditorState, basicSetup, javascript, autocompletion } = await loadCodeMirror();
   const extensions = [

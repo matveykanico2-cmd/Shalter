@@ -1,23 +1,11 @@
-// Shared "find-or-create a DM and drop an automated message in it" helper —
-// used for the referral bonus notice, the Premium purchase/grant flow, and
-// the Shalter service chat (login codes, new-device alerts). All of those
-// are the same shape: two users, an existing-or-new DM between them, one
-// system-authored message broadcast over WS.
 const { findDmBetween, createChat } = require("../data/chats");
 const { genId } = require("./genId");
 const { addMessage } = require("../data/messages");
 const { broadcastToUsers } = require("../ws");
 
 async function findOrCreateDm(userIdA, userIdB) {
-  // Поиск идёт запросом по join-таблице (data/chats.js), а не перебором всех
-  // чатов сервера в памяти, как было: перебор читал каждый чат вместе с его
-  // участниками ради одного диалога и дорожал с каждым чатом в базе.
   const existing = await findDmBetween(userIdA, userIdB);
   if (existing) return existing;
-  // Deduped: the admin self-delivering a gift/Premium to themselves (see
-  // routes/gifts.js, routes/premium.js) calls this with userIdA === userIdB
-  // — chat_members has a (chatId, userId) primary key, so a literal
-  // [id, id] would crash the insert with a constraint violation.
   return createChat({
     id: genId("c"),
     type: "dm",

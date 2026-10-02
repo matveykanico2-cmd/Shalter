@@ -2,13 +2,8 @@ const crypto = require("crypto");
 const db = require("../db");
 const { parseList, mainImage } = require("../lib/avatars");
 
-// Short, human-typeable codes (no 0/O/1/I — they're the ones people misread
-// when a friend reads a referral code aloud or types it from a screenshot).
 const REFERRAL_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
-// "Forever" is represented as a date far enough out that it's effectively
-// permanent, rather than a separate null-means-forever branch everywhere
-// premiumUntil is compared against "now" — one comparison always works.
 const FOREVER = "9999-01-01T00:00:00.000Z";
 
 function rowToUser(row) {
@@ -24,18 +19,12 @@ function rowToUser(row) {
     passwordSalt: row.passwordSalt ?? undefined,
     avatarColor: row.avatarColor ?? undefined,
     avatarImage: row.avatarImage ?? undefined,
-    // The full list behind the avatar circle (lib/avatars.js). avatarImage
-    // above stays the current one's still, so nothing that only wants "a
-    // picture for this person" has to know this exists.
     avatarImages: parseList(row.avatarImages),
     bio: row.bio,
     online: !!row.online,
     lastSeen: row.lastSeen ?? undefined,
     isBot: !!row.isBot || undefined,
     blockedUserIds: JSON.parse(row.blockedUserIds),
-    // Premium is a duration, not a permanent flag (see server/db.js) —
-    // isPremium is always derived from premiumUntil, never trusted from its
-    // own (legacy, no-longer-written-to) column.
     isPremium: !!row.premiumUntil && row.premiumUntil > new Date().toISOString(),
     premiumUntil: row.premiumUntil && row.premiumUntil !== FOREVER ? row.premiumUntil : undefined,
     premiumForever: row.premiumUntil === FOREVER || undefined,
@@ -46,11 +35,6 @@ function rowToUser(row) {
     adsForever: row.adsUntil === FOREVER || undefined,
     adText: row.adText ?? undefined,
     adUrl: row.adUrl ?? undefined,
-    // Shalter для бизнеса (routes/business.js) — то же "выдать дни" по
-    // подписке, что и Premium/Ads, плюс адрес/координаты для профиля. Часы
-    // работы, приветствие/автоответ и быстрые ответы живут не здесь, а в
-    // settings.business (data/settings.js) — они личные и никогда не
-    // читаются по чужому профилю, в отличие от адреса.
     isBusiness: !!row.businessUntil && row.businessUntil > new Date().toISOString(),
     businessUntil: row.businessUntil && row.businessUntil !== FOREVER ? row.businessUntil : undefined,
     businessForever: row.businessUntil === FOREVER || undefined,
@@ -61,20 +45,8 @@ function rowToUser(row) {
     birthday: row.birthday ?? undefined,
     giftsReceived: JSON.parse(row.giftsReceived ?? "[]"),
     isBanned: !!row.isBanned,
-    // Stars balance and the price this account charges strangers per DM
-    // (server/data/stars.js). The balance is stripped for everyone but the
-    // account itself — see data/sanitize.js.
     stars: row.stars ?? 0,
     messagePriceStars: row.messagePriceStars ?? 0,
-    // Only the currently *equipped* badge goes out here, never the whole
-    // wardrobe (statusItems) — that would hand everyone a list of every icon
-    // this account owns but isn't wearing. The full list is for the account
-    // itself, through getStatusState below.
-    //
-    // `null`, not `undefined`, when there's none: JSON.stringify drops
-    // undefined keys entirely, and the client merges a patch onto its
-    // existing user object (state.js's updateSelf) — a dropped key would
-    // leave a just-cleared badge showing forever instead of disappearing.
     statusIcon: (() => {
       if (!row.activeStatusId) return null;
       try {
@@ -83,11 +55,6 @@ function rowToUser(row) {
         return null;
       }
     })(),
-    // The equipped status's own caption (from the catalog, or typed by the
-    // account itself for a custom upload — see routes/profileStatus.js's
-    // /me). Previously only the icon travelled out here, so a status badge
-    // next to any name just said generic "Статус" with nothing to say what
-    // it actually meant.
     statusName: (() => {
       if (!row.activeStatusId) return null;
       try {
@@ -98,60 +65,30 @@ function rowToUser(row) {
     })(),
     banReason: row.banReason ?? undefined,
     bannedAt: row.bannedAt ?? undefined,
-    // Which admin screens this account was individually granted (see
-    // server/lib/adminAccess.js) — empty for everyone except accounts the
-    // primary admin picked. Irrelevant for a full admin (isAdminPhone already
-    // covers every section), but harmless to carry along regardless.
     adminSections: row.adminSections ? JSON.parse(row.adminSections) : [],
-    // The one pinned track on the profile (routes/users.js's /me/track) —
-    // null when nothing's set, never undefined, for the same reason as
-    // statusIcon above: a patch merged client-side must be able to clear it.
     profileTrack: row.profileTrack ? JSON.parse(row.profileTrack) : null,
     safetyLabel: row.safetyLabel ?? undefined,
     isVerified: !!row.isVerified || undefined,
-    // Set only by the auction (routes/usernames.js) and cleared whenever the
-    // handle changes — a collectible mark that outlived its handle would be a
-    // lie about a name somebody else now holds.
     usernameAuctionId: row.usernameAuctionId ?? undefined,
     isCollectibleUsername: !!row.usernameAuctionId || undefined,
     safetyLabelAt: row.safetyLabelAt ?? undefined,
-    // 2FA (server/lib/totp.js). twoFactorEnabled is derived, never stored — a
-    // secret that was generated but never confirmed with a real code must not
-    // count as enabled, or a half-finished setup would lock the account out.
     totpSecret: row.totpSecret ?? undefined,
     totpEnabledAt: row.totpEnabledAt ?? undefined,
     totpRecoveryCodes: row.totpRecoveryCodes ? JSON.parse(row.totpRecoveryCodes) : [],
-    // "chat" needs no secret — the code is generated per attempt and delivered
-    // through the Shalter service chat — so "enabled" can't be defined by the
-    // presence of a secret alone.
     twoFactorMethod: row.twoFactorMethod ?? "totp",
     twoFactorEnabled:
       row.twoFactorMethod === "password"
-        ? // Облачный пароль включён ровно тогда, когда он задан: подтверждать
-          // его отдельным шагом, как код из аутентификатора, нечего — сам факт
-          // того, что человек его придумал и повторил, и есть подтверждение.
+        ?
           !!(row.cloudPasswordHash && row.cloudPasswordSalt)
         : row.twoFactorMethod === "chat"
           ? !!row.totpEnabledAt
           : !!(row.totpSecret && row.totpEnabledAt),
-    // Сам хэш нужен только проверке при входе (routes/auth.js). Наружу он не
-    // уходит: и publicUser, и selfUser собирают ответ из перечисленных полей,
-    // а этих в их списках нет.
     cloudPasswordHash: row.cloudPasswordHash ?? undefined,
     cloudPasswordSalt: row.cloudPasswordSalt ?? undefined,
-    // Подсказку, наоборот, показывают — но только на экране ввода этого пароля,
-    // и отдаёт её отдельный маршрут по билету, а не профиль.
     cloudPasswordHint: row.cloudPasswordHint ?? "",
   };
 }
 
-// Только нужные люди, а не вся таблица.
-//
-// Повод: у каждой строки users лежит аватар — картинка, закодированная прямо в
-// поле (data:-URL, десятки килобайт). listUsers() читает их все, и «открыть
-// чат» на сервере с тысячей аккаунтов означало прочитать и разобрать тысячу
-// картинок ради имён пяти участников. Здесь читаются ровно те строки, что
-// нужны.
 async function listUsersByIds(ids) {
   const unique = [...new Set(ids ?? [])].filter(Boolean);
   if (!unique.length) return [];
@@ -159,8 +96,6 @@ async function listUsersByIds(ids) {
   return db.prepare(`SELECT * FROM users WHERE id IN (${ph})`).all(...unique).map(rowToUser);
 }
 
-// Только имена и юзернеймы — без аватаров и прочего тяжёлого, для поиска по
-// своим личным чатам (routes/search.js), где нужны имена всех собеседников.
 function listUserNamesByIds(ids) {
   const unique = [...new Set(ids ?? [])].filter(Boolean);
   if (!unique.length) return [];
@@ -168,15 +103,6 @@ function listUserNamesByIds(ids) {
   return db.prepare(`SELECT id, name, username FROM users WHERE id IN (${ph})`).all(...unique);
 }
 
-// Поиск людей и ботов — тоже запросом, а не перебором всех аккаунтов в памяти
-// на каждое нажатие клавиши в строке поиска. LIKE по name/username: их длина
-// измеряется десятками символов, в отличие от аватара в соседнем поле, поэтому
-// полный просмотр здесь стоит дёшево даже без отдельного индекса.
-// Имя сравнивается через lower_ru (server/db.js), а не встроенную LOWER: та
-// понимает только латиницу, и «кат» не находило «Катя» — поиск людей по
-// русскому имени срабатывал, только если набрать заглавные в точности как у
-// человека в профиле. Юзернейм — всегда латиница, ему хватает LOWER (и по
-// нему есть индекс).
 async function searchUsers(query, { limit = 40 } = {}) {
   const q = String(query ?? "").trim().toLowerCase().replace(/^@/, "");
   if (!q) return [];
@@ -209,26 +135,12 @@ async function findUserByPhone(phone) {
   return rowToUser(db.prepare("SELECT * FROM users WHERE phone = ? AND phone <> ''").get((phone ?? "").trim()));
 }
 
-// Usernames are case-insensitive (matches Telegram) — "Ivan" and "ivan" are
-// the same handle, so lookups/uniqueness both go through lower().
 async function findUserByUsername(username) {
   const normalized = (username ?? "").trim().toLowerCase();
   if (!normalized) return undefined;
   return rowToUser(db.prepare("SELECT * FROM users WHERE lower(username) = ? AND username <> ''").get(normalized));
 }
 
-// Идентификаторы по списку @имён — для упоминаний в сообщении.
-//
-// Раньше на каждое сообщение с «@» читалась вся таблица пользователей и
-// перебиралась в JavaScript. Замер на 50 тысячах аккаунтов: 1.2 секунды и
-// +518 МБ оперативной памяти на один такой запрос — потому что вместе со
-// строками едут и аватары (data:-URL по несколько килобайт на каждого). На
-// сервере с двумя гигабайтами два одновременных сообщения с упоминанием
-// убивали процесс по нехватке памяти.
-//
-// Здесь запрос ровно по тем именам, что написаны в сообщении: цена зависит от
-// числа упоминаний, а не от числа зарегистрированных людей. Выбираются только
-// id и username — аватары и всё остальное для этой задачи не нужны.
 function findUserIdsByUsernames(usernames) {
   const list = [...new Set((usernames ?? []).map((u) => String(u ?? "").trim().toLowerCase()).filter(Boolean))];
   if (!list.length) return [];
@@ -244,9 +156,6 @@ async function findUserByReferralCode(code) {
   return rowToUser(db.prepare("SELECT * FROM users WHERE referralCode = ?").get(normalized));
 }
 
-// Generates a unique 6-character referral code, retrying on the rare
-// collision (checked against the DB, not just in-memory, since codes must
-// stay unique across restarts).
 function generateReferralCode() {
   for (;;) {
     let code = "";
@@ -284,14 +193,9 @@ async function createUser(user) {
 
 const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng"];
 
-// Extends (or starts) a Premium period — stacks on top of remaining time if
-// already active, the way a real subscription top-up would, rather than
-// just resetting the clock. `days: null` grants it "forever" (see FOREVER).
 async function grantPremiumDays(userId, days) {
   const user = await getUser(userId);
   if (!user) return undefined;
-  // Already-forever stays forever regardless of what smaller top-up arrives
-  // — there's nothing "more" than permanent to stack on top of.
   if (days == null || user.premiumForever) return updateUser(userId, { premiumUntil: FOREVER });
   const base = user.isPremium && user.premiumUntil ? new Date(user.premiumUntil) : new Date();
   base.setUTCDate(base.getUTCDate() + days);
@@ -302,9 +206,6 @@ async function revokePremium(userId) {
   return updateUser(userId, { premiumUntil: null });
 }
 
-// Same stacking-top-up shape as grantPremiumDays above, for the ad cabinet
-// (20₽/month — see server/routes/ads.js). `days: null` grants it "forever"
-// (see FOREVER), same as Premium — used for the admin's own account.
 async function grantAdsDays(userId, days) {
   const user = await getUser(userId);
   if (!user) return undefined;
@@ -318,8 +219,6 @@ async function revokeAds(userId) {
   return updateUser(userId, { adsUntil: null });
 }
 
-// Same stacking-top-up shape as grantPremiumDays/grantAdsDays — for Shalter
-// для бизнеса (server/routes/business.js).
 async function grantBusinessDays(userId, days) {
   const user = await getUser(userId);
   if (!user) return undefined;
@@ -333,9 +232,6 @@ async function revokeBusiness(userId) {
   return updateUser(userId, { businessUntil: null });
 }
 
-// Real hard delete — see server/lib/deleteAccount.js for the full cascade
-// (chats/sessions/contacts/bots) that has to happen alongside this so
-// nothing references a row that no longer exists.
 async function deleteUser(id) {
   db.prepare("DELETE FROM users WHERE id = ?").run(id);
 }
@@ -343,9 +239,6 @@ async function deleteUser(id) {
 async function updateUser(id, patch) {
   const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(id);
   if (!existing) return undefined;
-  // Changing the handle gives up the collectible mark, unless this very call is
-  // the auction awarding one. Otherwise winning @vip once would leave the badge
-  // attached to whatever the person renamed themselves to afterwards.
   if ("username" in patch && !("usernameAuctionId" in patch)) {
     db.prepare("UPDATE users SET usernameAuctionId = NULL WHERE id = ?").run(id);
   }
@@ -368,9 +261,6 @@ async function updateUser(id, patch) {
   return getUser(id);
 }
 
-// The avatar list and the single `avatarImage` still are written together, in
-// one statement: they must never disagree, or the circle in a chat list would
-// show a photo the profile no longer has (or the other way round).
 async function setAvatars(userId, list) {
   const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
   if (!existing) return undefined;
@@ -382,7 +272,6 @@ async function setAvatars(userId, list) {
   return getUser(userId);
 }
 
-// Sets or clears (track === null) the one pinned track on the profile.
 async function setProfileTrack(userId, track) {
   const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
   if (!existing) return undefined;
@@ -390,9 +279,6 @@ async function setProfileTrack(userId, track) {
   return getUser(userId);
 }
 
-// The account's own full wardrobe — every status it owns, equipped or not —
-// read straight off the row rather than through rowToUser's public projection
-// (see statusIcon there for why the two must stay separate).
 function getStatusState(userId) {
   const row = db.prepare("SELECT statusItems, activeStatusId FROM users WHERE id = ?").get(userId);
   if (!row) return undefined;
@@ -420,12 +306,6 @@ async function listReferrals(userId) {
   return db.prepare("SELECT * FROM users WHERE referredBy = ?").all(userId).map(rowToUser);
 }
 
-// Everyone whose birthday (month+day, year ignored — birthday is stored as a
-// full ISO date, but nobody's *age* is what this checks) is today, server
-// time. Used by lib/birthdaySweep.js to tell their contacts. SQLite's own
-// strftime does the month/day comparison so this is one query, not "list
-// every user and check in JS" — fine at this app's scale either way, but no
-// reason to do it the slow way.
 function listUsersWithBirthdayToday() {
   return db
     .prepare(`SELECT * FROM users WHERE birthday IS NOT NULL AND strftime('%m-%d', birthday) = strftime('%m-%d', 'now')`)
@@ -433,11 +313,6 @@ function listUsersWithBirthdayToday() {
     .map(rowToUser);
 }
 
-// Banning records *why* and *when*, not just that it happened — the reason is
-// shown to the banned account on the login screen and to the admin reviewing
-// the ban later (server/routes/admin.js's /moderation). Unbanning clears both
-// so a lifted ban leaves no stale "reason" hanging around to be shown again
-// if the account is ever banned a second time.
 async function setBanned(userId, banned, reason) {
   if (banned) {
     db.prepare("UPDATE users SET isBanned = 1, banReason = ?, bannedAt = ? WHERE id = ?").run(
@@ -451,15 +326,11 @@ async function setBanned(userId, banned, reason) {
   return getUser(userId);
 }
 
-// Stores a not-yet-confirmed secret (totpEnabledAt stays null until a working
-// code proves the authenticator app actually has it).
 async function startTotpSetup(userId, secret) {
   db.prepare("UPDATE users SET totpSecret = ?, totpEnabledAt = NULL, totpRecoveryCodes = NULL, twoFactorMethod = 'totp' WHERE id = ?").run(secret, userId);
   return getUser(userId);
 }
 
-// The chat method: nothing to store up front but the choice itself. Codes are
-// minted per attempt (data/codeLogins.js) and posted to the service chat.
 async function startChatTwoFactor(userId) {
   db.prepare("UPDATE users SET totpSecret = NULL, totpEnabledAt = NULL, totpRecoveryCodes = NULL, twoFactorMethod = 'chat' WHERE id = ?").run(userId);
   return getUser(userId);
@@ -479,8 +350,6 @@ async function disableTotp(userId) {
   return getUser(userId);
 }
 
-// Single-use: a matching hash is removed as it's accepted, so the same recovery
-// code can't get someone in twice.
 async function consumeRecoveryCode(userId, hash) {
   const user = await getUser(userId);
   if (!user) return false;
@@ -496,17 +365,11 @@ async function listBannedUsers() {
   return db.prepare("SELECT * FROM users WHERE isBanned = 1 ORDER BY bannedAt DESC").all().map(rowToUser);
 }
 
-// The public safety marker (see server/db.js's safetyLabel comment). A falsy
-// label clears it — validating the allowed set is the route's job
-// (routes/admin.js's SAFETY_LABELS), not this module's.
 async function setVerified(userId, verified) {
   db.prepare("UPDATE users SET isVerified = ? WHERE id = ?").run(verified ? 1 : 0, userId);
   return getUser(userId);
 }
 
-// Overwrites the whole set at once (not add/remove one) — the grant screen
-// shows and submits the complete list of checkboxes, so there's never a
-// partial update to reconcile with what's already stored.
 async function setAdminSections(userId, sections) {
   const valid = Array.isArray(sections) ? [...new Set(sections.filter((s) => typeof s === "string"))] : [];
   db.prepare("UPDATE users SET adminSections = ? WHERE id = ?").run(JSON.stringify(valid), userId);
@@ -536,24 +399,15 @@ async function setBlocked(userId, targetId, blocked) {
   return getUser(userId);
 }
 
-// Appends to the gift shelf shown on a user's public profile — called once a
-// gift actually /deliver's (server/routes/gifts.js), not when it's merely
-// requested, so the shelf only ever shows gifts that really landed.
 async function addReceivedGift(userId, gift) {
   const row = db.prepare("SELECT giftsReceived FROM users WHERE id = ?").get(userId);
   if (!row) return undefined;
   const current = JSON.parse(row.giftsReceived ?? "[]");
-  // Each entry gets its own id so it can be removed later without relying on an
-  // array index — an index shifts the moment anything else on the shelf changes,
-  // and "delete gift #3" hitting the wrong gift is not an acceptable outcome.
   current.push({ id: `rg_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`, ...gift });
   db.prepare("UPDATE users SET giftsReceived = ? WHERE id = ?").run(JSON.stringify(current), userId);
   return getUser(userId);
 }
 
-// Pins/unpins a gift on the shelf — like a pinned message, no cap on how many.
-// Stored on the entry itself (not a separate ordered list) so it survives the
-// shelf being re-read from anywhere without a second table to keep in sync.
 const setGiftPinned = db.transaction((userId, giftEntryId, pinned) => {
   const row = db.prepare("SELECT giftsReceived FROM users WHERE id = ?").get(userId);
   if (!row) return false;
@@ -566,16 +420,10 @@ const setGiftPinned = db.transaction((userId, giftEntryId, pinned) => {
   return true;
 });
 
-// Takes a gift off someone's shelf. Deliberately does NOT touch gift_issues: a
-// limited gift's serial stays claimed forever, because it *was* issued — hiding
-// a copy from a profile must not quietly free up a number for someone else and
-// let two people end up holding "№7 из 1000".
 const removeReceivedGift = db.transaction((userId, giftEntryId) => {
   const row = db.prepare("SELECT giftsReceived FROM users WHERE id = ?").get(userId);
   if (!row) return false;
   const current = JSON.parse(row.giftsReceived ?? "[]");
-  // Entries created before ids existed are matched on their contents instead, so
-  // an older shelf is still cleanable rather than permanently stuck.
   const idx = current.findIndex((g) => (g.id ? g.id === giftEntryId : `${g.emoji}|${g.at}` === giftEntryId));
   if (idx === -1) return false;
   current.splice(idx, 1);
@@ -583,18 +431,15 @@ const removeReceivedGift = db.transaction((userId, giftEntryId) => {
   return true;
 });
 
-// Отложенное удаление аккаунта (server/routes/auth.js, accountDeletionSweep.js).
 function scheduleAccountDeletion(userId, iso) {
   return db.prepare("UPDATE users SET scheduledDeletionAt = ? WHERE id = ?").run(iso, userId).changes > 0;
 }
-// Отмена — при любом успешном входе. Возвращает true, если удаление было назначено.
 function cancelAccountDeletion(userId) {
   const row = db.prepare("SELECT scheduledDeletionAt FROM users WHERE id = ?").get(userId);
   if (!row || !row.scheduledDeletionAt) return false;
   db.prepare("UPDATE users SET scheduledDeletionAt = NULL WHERE id = ?").run(userId);
   return true;
 }
-// Кого пора удалять — срок вышел.
 function listAccountsDueForDeletion(nowIso) {
   return db
     .prepare("SELECT id FROM users WHERE scheduledDeletionAt IS NOT NULL AND scheduledDeletionAt <= ?")

@@ -19,23 +19,13 @@ function durationLabel(sec) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-// Вкладка «Звонки»: сверху — кнопка «Позвонить», под ней список людей, кому
-// можно позвонить в одно нажатие, и только потом журнал.
-//
-// Раньше здесь был один журнал звонков — то есть позвонить со вкладки «Звонки»
-// можно было только тому, кому уже звонил хотя бы раз. Первый звонок человеку
-// приходилось начинать из переписки, а вкладка при пустом журнале была просто
-// надписью «Звонков ещё не было».
 export async function CallsView(root) {
   const me = getState().user;
   let calls = [];
   let contacts = [];
-  let busy = null; // id человека, которому сейчас дозваниваемся
-  // «Все» / «Пропущенные» — как вкладки над журналом звонков в Telegram.
+  let busy = null;
   let filter = "all";
 
-  // Оба запроса разом: журнал и контакты нужны одному экрану, и ждать их по
-  // очереди значит показывать пустую страницу вдвое дольше.
   const [callsRes, contactsRes] = await Promise.all([
     api.listCalls().catch(() => ({ calls: [] })),
     api.listContacts().catch(() => ({ contacts: [] })),
@@ -43,8 +33,6 @@ export async function CallsView(root) {
   calls = callsRes.calls ?? [];
   contacts = (contactsRes.contacts ?? []).map((c) => c.user).filter(Boolean);
 
-  // У контакта нет chatId — звонок начинается с переписки. Находим её (или
-  // заводим) и только потом звоним, тем же путём, каким это делается из чата.
   async function callUser(user, kind) {
     if (busy) return;
     busy = user.id;
@@ -53,9 +41,6 @@ export async function CallsView(root) {
       const { chat } = await api.startDm(user.id, user.name, user.avatarColor);
       await placeCall(chat.id, kind, me);
     } catch (err) {
-      // Сюда попадает и отказ по настройкам собеседника («Кто может мне
-      // звонить»), и он должен быть виден: молча ничего не происходящая кнопка
-      // выглядит как поломка.
       alert(err.message || "Не удалось позвонить");
       busy = null;
       render();
@@ -70,8 +55,6 @@ export async function CallsView(root) {
     }
   }
 
-  // Пара кнопок «позвонить» / «видеозвонок» — одна и та же в обоих списках,
-  // чтобы строка журнала и строка контакта заканчивались одинаково.
   function callButtons(onAudio, onVideo, disabled) {
     return el("div", { class: "call-row-actions" }, [
       el("button", { class: "call-action-btn", title: "Позвонить", disabled, html: iconSvg("Phone", 17), onclick: onAudio }),
@@ -79,14 +62,11 @@ export async function CallsView(root) {
     ]);
   }
 
-  // Пропущенный — только входящий, который не взяли. Свой звонок без ответа —
-  // «без ответа», а не красный «пропущен»: пропустил его не ты.
   const isMissed = (c) => (c.status === "missed" || c.status === "declined") && c.direction === "incoming";
 
   function historyRow(c) {
     const missed = isMissed(c);
     const unanswered = !missed && (c.status === "missed" || c.status === "declined");
-    // Звонок в группе подписан группой, а не первым попавшимся участником.
     const name = c.group?.title ?? c.otherUser?.name ?? "Неизвестно";
     return el("div", { class: "contact-row" }, [
       el("button", { class: "call-row-open", title: "Открыть чат", onclick: () => navigate(`/chat/${c.chatId}`) }, [
@@ -99,9 +79,6 @@ export async function CallsView(root) {
       el("div", { class: "contact-row-body" }, [
         el("p", { class: `contact-row-name ${missed ? "missed-call" : ""}` }, name),
         el("p", { class: "contact-row-status" }, [
-          // Стрелка направления вместо повторного значка трубки: тип звонка уже
-          // сказан кнопками справа, а вот «входящий или исходящий» из строки
-          // иначе читался только словом.
           el("span", { class: `call-dir ${missed ? "missed" : ""}`, html: iconSvg(c.kind === "video" ? "Video" : "Phone", 12) }),
           ` ${c.direction === "incoming" ? "Входящий" : "Исходящий"}`,
           missed
@@ -176,9 +153,6 @@ export async function CallsView(root) {
           el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
           el("p", { class: "view-title" }, "Звонки"),
         ]),
-        // Главное действие вкладки — отдельной кнопкой, а не спрятанное в
-        // строку списка: «позвонить кому-то ещё» не должно требовать сначала
-        // найти этого человека глазами.
         el("div", { class: "calls-start-panel" }, [
           el(
             "button",

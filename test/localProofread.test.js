@@ -2,8 +2,6 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { localProofread } = require("../server/lib/localProofread");
 
-// Один помощник: применяет к тексту исправление первой находки с заданным типом
-// (или первой вообще) — так проверяем и offset/length, и предложенную замену.
 function applyFirst(text, predicate) {
   const m = localProofread(text).find(predicate ?? (() => true));
   if (!m || !m.replacements.length) return null;
@@ -88,7 +86,7 @@ test("правильные словоформы НЕ помечаются (не�
 
 test("смешанная раскладка: латинская буква в русском слове → чинится", () => {
   const fixed = applyFirst("пpивет друг", (m) => m.short === "Раскладка");
-  assert.equal(fixed, "привет друг"); // p латинская → р
+  assert.equal(fixed, "привет друг");
 });
 
 test("чистое русское и чистое английское слово не считаются раскладкой", () => {

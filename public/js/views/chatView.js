@@ -18,6 +18,7 @@ import { messagePreview } from "../lib/messagePreview.js";
 import { noteMessageInChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache } from "../lib/localCache.js";
 import { cachedUser, fetchUsers, rememberUser } from "../lib/userLookup.js";
+import { takePrefetched } from "../lib/chatPrefetch.js";
 import { navigate } from "../router.js";
 import { placeCall as placeCallController, joinVoiceRoom } from "../lib/callController.js";
 import { onWsMessage } from "../lib/wsClient.js";
@@ -38,12 +39,6 @@ import { isServerModerator } from "../lib/moderation.js";
 import { openAd } from "../lib/adLink.js";
 import { isChatMuted } from "../lib/chatSort.js";
 
-// Three-level fallback, closest override wins:
-//  1. settings.chatWallpapers[chatId] — this account's own per-chat override
-//     (openWallpaperDialog with "Изменить у всех" off), private to them.
-//  2. chat.wallpaper — the shared background any member set for everyone
-//     (same dialog, toggle on; see server/routes/chats.js's /:id/wallpaper).
-//  3. The global default from Settings → Внешний вид → "Фон чата".
 function applyWallpaper(list, chat) {
   const settings = getState().settings;
   const personal = settings?.chatWallpapers?.[chat.id];
@@ -51,11 +46,6 @@ function applyWallpaper(list, chat) {
   paintWallpaper(list, personal ?? shared ?? { id: settings?.chatWallpaper ?? "default", image: settings?.chatWallpaperImage });
 }
 
-// Date dividers between messages from different calendar days (Telegram's
-// own "Сегодня"/"Вчера"/16 июля" pills above the day's first message) — pure
-// local-time comparison, same as timeLabel()'s toLocaleTimeString elsewhere
-// in this file, so a divider lands on the day the message actually shows
-// under, not its UTC day if that happens to differ near midnight.
 function sameDay(isoA, isoB) {
   const a = new Date(isoA);
   const b = new Date(isoB);
@@ -73,9 +63,6 @@ function dayLabel(iso) {
   return d.toLocaleDateString("ru-RU", opts);
 }
 
-// Та же строка, что в контактах и профиле (lib/presence.js): «3 минуты назад»,
-// «час назад». Раньше здесь печаталась дата «28.09 в 21:43» даже для только
-// что вышедшего, а при скрытом «последнем визите» — «Invalid Date».
 function lastSeenLabel(user) {
   return statusLabel(user) ?? "был(а) недавно";
 }
@@ -83,36 +70,20 @@ function lastSeenLabel(user) {
 export async function ChatView(root, chatId) {
   const me = getState().user;
   let chat, members, messages;
-  // History is paged (server/routes/messages.js): the newest PAGE_SIZE messages
-  // load immediately and older ones arrive as the user scrolls up. Loading a
-  // whole chat at once was a multi-megabyte response and, on a 5000-message
-  // chat, a 130k-node DOM rebuilt on every 15s poll.
   const PAGE_SIZE = 60;
   let hasMoreHistory = false;
   let loadingHistory = false;
   let firstUnreadId = null;
   let botCommands = null;
-  // Плата за сообщение в этой переписке — приходит вместе с чатом.
   let paidMessages = null;
   let searchQuery = "";
   let searchResults = null;
-  // Сообщения, на которые отвечают, но которые лежат за пределами загруженных
-  // страниц: сервер присылает их краткую копию (routes/messages.js's
-  // replyTargetsFor), чтобы у ответа была цитата.
   const replyTargets = new Map();
   const rememberReplyTargets = (res) => {
     for (const [id, t] of Object.entries(res?.replyTargets ?? {})) replyTargets.set(id, t);
   };
-  // Открывали этот чат раньше — показываем сразу, не дожидаясь сервера.
-  //
-  // Переписка уже лежит на устройстве с прошлого раза (lib/localCache.js), и
-  // ждать ответа сети, чтобы показать ровно то же самое, незачем: свежее
-  // приезжает следом и заменяет показанное. Разница видна именно на плохой
-  // связи — там между нажатием и первым словом проходила почти секунда.
   const cached = readCache(`chat.${chatId}`, me.id);
   let openedFromCache = false;
-  // Ждём ли ещё от сервера, с какого сообщения начинается непрочитанное (см.
-  // doRefreshMessages) — только когда чат открыт из сохранённого.
   let awaitingUnreadMark = false;
   if (cached?.chat && cached.messages?.length) {
     chat = cached.chat;
@@ -125,10 +96,7 @@ export async function ChatView(root, chatId) {
 
   try {
     if (openedFromCache) throw new Error("показано сохранённое");
-    // Оба запроса разом, а не один за другим: второй не зависит от первого, а
-    // последовательно они складывались в двойную задержку перед тем, как на
-    // экране появлялось хоть что-то.
-    const [chatRes, first] = await Promise.all([api.getChat(chatId), api.listMessages(chatId, { limit: PAGE_SIZE })]);
+    const [chatRes, first] = await (takePrefetched(chatId) ?? Promise.all([api.getChat(chatId), api.listMessages(chatId, { limit: PAGE_SIZE })]));
     chat = chatRes.chat;
     members = chatRes.members;
     botCommands = chatRes.commands ?? null;
@@ -136,26 +104,15 @@ export async function ChatView(root, chatId) {
     messages = first.messages;
     hasMoreHistory = !!first.hasMore;
     rememberReplyTargets(first);
-    // Only from this first load: every later refetch reports null, because by
-    // then the chat has been marked read. Keeping the original is what lets the
-    // divider stay put while you read instead of vanishing on the next poll.
     firstUnreadId = first.firstUnreadId ?? null;
-    // Складываем последнюю страницу переписки: при следующем открытии этого
-    // чата она нарисуется мгновенно, ещё до ответа сервера.
     writeCache(`chat.${chatId}`, me.id, { chat, members, messages: messages.slice(-PAGE_SIZE) });
   } catch {
-    // Сюда попадаем в двух случаях: показали сохранённое (тогда просто идём
-    // дальше и обновимся ниже) или сеть не ответила и сохранённого нет.
     if (!openedFromCache) {
       mount(root, el("div", { class: "empty-chat" }, "Чат не найден"));
       return;
     }
   }
 
-  // That listMessages() call just marked this chat's messages read on the
-  // server (see server/routes/messages.js) — clear the badge in the shared
-  // chat-list state right away instead of waiting on its own poll/WS refetch
-  // to notice the unreadCount changed.
   const { chats: sharedChats } = getState();
   if (sharedChats.some((c) => c.id === chatId && c.unreadCount > 0)) {
     setState({ chats: sharedChats.map((c) => (c.id === chatId ? { ...c, unreadCount: 0 } : c)) });
@@ -163,16 +120,10 @@ export async function ChatView(root, chatId) {
 
   let replyingTo = null;
   let editingMessage = null;
-  // Черновик хранится в настройках пользователя. В объект одиночного чата
-  // (api.getChat и кэш) он не всегда подмешан, а вот в состоянии списка чатов
-  // он есть (там и показывается «черновик»). Берём оттуда как запасной источник,
-  // иначе при повторном входе поле было пустым, хотя в списке черновик виден.
   let draftText = chat.draft ?? getState().chats.find((c) => c.id === chatId)?.draft ?? "";
   let infoOpen = false;
   let pinIndex = 0;
   let typingUserId = null;
-  // Что именно делает typingUserId: «печатает», «записывает голосовое»,
-  // «отправляет кружок»… (lib/chatAction.js, server/data/typing.js).
   let typingAction = null;
   let iBlockedThem = !!chat.otherUser && !!me.blockedUserIds?.includes(chat.otherUser.id);
   let messagesCount = messages.length;
@@ -180,20 +131,9 @@ export async function ChatView(root, chatId) {
   let gifts = [];
 
   const isDm = chat.type === "dm";
-  // «Избранное» — переписка с самим собой. Звонить некому, «в сети» про себя
-  // бессмысленно, а вместо своей же буквы в круге — закладка, как в списке
-  // чатов (chatListItem.js) и в Telegram.
   const isSaved = !!chat.isSaved || (isDm && chat.memberIds?.length === 1 && chat.memberIds[0] === me.id);
-  // let, а не const: при открытии из кэша свежий чат приезжает следом, и
-  // собеседника надо заменить на свежего (см. openedFromCache ниже). Если
-  // сервер не приложил otherUser, берём второго участника из members — иначе
-  // в шапке личного чата вместо фото оставались буквы.
   let other = chat.otherUser ?? (isDm ? members.find((u) => u.id !== me.id) : null) ?? null;
 
-  // "Am I the Shalter admin?" is asked for every chat type now, because a
-  // channel or group can be verified from its info panel too — it used to be
-  // fetched only for DMs, so that row could never appear. The gift catalogue is
-  // still DM-only: it powers the "send a gift" picker, which needs a recipient.
   Promise.all([api.getPremiumInfo(), isDm && other ? api.listGifts() : Promise.resolve({ gifts: [] })])
     .then(([info, giftsRes]) => {
       isShalterAdmin = info.isAdmin;
@@ -204,36 +144,16 @@ export async function ChatView(root, chatId) {
   const isChannel = chat.type === "channel";
   const isChannelAdmin = isChannel && isChatAdmin(chat, me.id);
   const isGroup = chat.type === "group";
-  // Mirrors the server's own check (routes/messages.js's canPin): your own
-  // conversation is yours to pin in; a group or channel belongs to whoever runs
-  // it. The server is the one that enforces it — this only decides whether to
-  // offer a button that would come back 403.
   const canPin = isDm || isChatAdmin(chat, me.id) || isChatModerator(chat, me.id);
-  // Long-press/right-click a reaction pill to see who reacted (messageBubble.js's
-  // showReactionDetails) — open to everyone in a group or DM, but a channel's
-  // audience can be huge and anonymous-feeling, so there only admins/moderators
-  // get it, same "staff-only" cut as canPin above (just without the "or a group,
-  // but only its staff" half — every group member gets this one).
   const canViewReactionDetails = !isChannel || isChatAdmin(chat, me.id) || isChatModerator(chat, me.id);
 
-  // Now that history is paged, the message a reply points at may simply not be
-  // loaded yet — this used to be a no-op in that case, silently doing nothing
-  // when someone tapped a quote. Walk back through older pages until it turns
-  // up, bounded so a reply to something thousands of messages back gives up
-  // instead of pulling the whole chat in.
   async function jumpTo(id) {
     for (let page = 0; page < 20; page++) {
       const node = document.getElementById(`msg-${id}`);
       if (node) {
-        // Уходим от низа сами — догружающиеся внизу картинки не должны
-        // возвращать ленту обратно (см. keepAtBottom). Плавная прокрутка
-        // первые кадры ещё «внизу», поэтому на время перехода прилипание
-        // выключено совсем.
         stuckToBottom = false;
         noStickUntil = Date.now() + 1500;
         node.scrollIntoView({ behavior: "smooth", block: "center" });
-        // A brief highlight, or landing in the middle of a wall of text leaves
-        // you hunting for which message you were sent to.
         node.classList.add("message-row-flash");
         setTimeout(() => node.classList.remove("message-row-flash"), 1200);
         return;
@@ -243,13 +163,6 @@ export async function ChatView(root, chatId) {
     }
   }
 
-  // A refresh re-reads only the newest page and splices it onto whatever older
-  // history is already loaded, so scrolling back through a long chat isn't
-  // undone every time someone sends a message.
-  // Та же защита, что и в списке чатов: события по WebSocket идут пачками, и
-  // без склейки на каждое уходил свой запрос. Ответы возвращались вперемешку, и
-  // применялся последний пришедший, а не самый свежий — сообщения на мгновение
-  // «откатывались» к прошлому состоянию.
   let msgSeq = 0;
   let msgInFlight = false;
   let msgPending = false;
@@ -270,8 +183,6 @@ export async function ChatView(root, chatId) {
     try {
       await doRefreshMessages(seq);
     } catch {
-      // Сеть моргнула — оставляем показанное. Пустой чат вместо переписки
-      // пугает сильнее, чем секунда несвежести.
     } finally {
       msgInFlight = false;
       if (msgPending) {
@@ -283,33 +194,26 @@ export async function ChatView(root, chatId) {
 
   async function doRefreshMessages(seq) {
     const res = await api.listMessages(chat.id, { limit: PAGE_SIZE });
-    if (seq !== msgSeq) return; // пока ответ ехал, ушёл более новый запрос
+    if (seq !== msgSeq) return;
     rememberReplyTargets(res);
     const fresh = res.messages;
     if (!fresh.length) {
       messages = [];
       messagesCount = 0;
+      saveChatCache();
       renderList();
       return;
     }
     const cutoff = fresh[0].createdAt;
     const older = messages.filter((m) => m.createdAt < cutoff && !m.pending);
-    // Ещё не отправленные остаются в конце: сервер о них не знает, а человек
-    // их уже видит — исчезнуть они не должны.
     const stillPending = messages.filter((m) => m.pending);
     const merged = [...older, ...fresh, ...stillPending];
     const grew = merged.length > messagesCount;
-    // Nothing changed -> don't touch the DOM at all. This is the common case on
-    // a 15s poll, and rebuilding the whole list for it was the single most
-    // wasteful thing the chat view did.
     if (!grew && sameMessages(messages, merged)) return;
     messages = merged;
     messagesCount = messages.length;
+    saveChatCache();
     if (!older.length) hasMoreHistory = !!res.hasMore;
-    // Чат открыли из сохранённого: первый ответ сервера — первый, в котором
-    // известно, где кончилось прочитанное (следующие придут уже с null, чат к
-    // тому времени отмечен прочитанным). Без этого разделитель «Непрочитанные»
-    // при открытии из кэша не появлялся никогда.
     let landOnUnread = false;
     if (awaitingUnreadMark) {
       awaitingUnreadMark = false;
@@ -318,28 +222,19 @@ export async function ChatView(root, chatId) {
         landOnUnread = atBottom();
       }
     }
-    // Замеряем ДО перерисовки: renderList() пересобирает ленту целиком, и после
-    // неё положение прокрутки уже не то, в котором человек читал. Именно из-за
-    // этого счётчик новых сообщений всегда оставался пустым — проверка «мы
-    // внизу?» выполнялась уже после сброса.
     const wasAtBottom = atBottom();
     const prevTop = list.scrollTop;
     renderList();
     if (landOnUnread && scrollToUnreadDivider()) {
-      /* уже на месте — у разделителя */
     } else if (grew && wasAtBottom) {
       list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
     } else {
-      // Читающего старое не дёргаем: возвращаем ленту туда, где он был, а о
-      // новом сообщении сообщаем счётчиком на кнопке — как в Telegram.
       list.scrollTop = prevTop;
       if (grew) missedWhileUp += 1;
     }
     updateScrollDown();
   }
 
-  // Cheap identity check for "did this poll actually bring anything new?".
-  // Compares the fields the rendered list depends on, not the whole object.
   function sameMessages(a, b) {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
@@ -361,18 +256,10 @@ export async function ChatView(root, chatId) {
     }
     return true;
   }
-  // Реакции, вложения и превью ссылки — по содержимому, а не по длине: голос в
-  // опросе, чужая реакция на уже стоящий смайлик, подъехавший эскиз фото и
-  // живая геолокация меняют сообщение, не меняя числа элементов. Раньше такие
-  // изменения до перезахода в чат не показывались вовсе — у второго участника
-  // опрос так и висел с «0 голосов».
   function contentKey(m) {
     return JSON.stringify([m.reactions ?? null, m.attachments ?? null, m.linkPreview ?? null]);
   }
 
-  // Older history, fetched when the user reaches the top. The scroll position is
-  // restored afterwards by height difference — prepending rows would otherwise
-  // yank the view away from whatever they were reading.
   async function loadOlder() {
     if (loadingHistory || !hasMoreHistory || !messages.length) return;
     loadingHistory = true;
@@ -390,25 +277,12 @@ export async function ChatView(root, chatId) {
       }
       hasMoreHistory = !!res.hasMore;
     } catch {
-      /* a failed page just means the button/scroll can be tried again */
     } finally {
       loadingHistory = false;
     }
   }
 
-  // Отправка показывается сразу, не дожидаясь сервера.
-  //
-  // Раньше сообщение появлялось только после ответа сервера, а потом ещё и
-  // после полной перезагрузки списка сообщений — на медленной сети между
-  // нажатием и появлением проходила секунда и больше, и всё это время
-  // выглядело так, будто нажатие не сработало. Теперь сообщение встаёт в ленту
-  // мгновенно с пометкой «отправляется», а ответ сервера просто заменяет его
-  // настоящим.
   let pendingSeq = 0;
-  // Своя только что отправленная картинка — адрес сервера -> локальная копия
-  // (blob:). Пока сервер готовит эскиз (routes/messages.js's attachPreviews),
-  // на месте картинки крутилось ожидание — у самого отправителя, у которого
-  // эта картинка вот она, на устройстве. Показываем её, пока эскиз не придёт.
   const localThumbs = new Map();
   const withLocalThumbs = (m) =>
     m.attachments?.some((a) => a.previewPending && !a.thumbUrl && localThumbs.has(a.url))
@@ -420,11 +294,6 @@ export async function ChatView(root, chatId) {
         }
       : m;
 
-  // extra.uploading — обещание готовых вложений (composer.js's
-  // sendImageNow): сообщение встаёт в ленту сразу, с локальными копиями
-  // картинок, а на сервер уходит, когда загрузка закончится. Иначе картинка
-  // появлялась в переписке только после загрузки, а до того была видна лишь
-  // крошечной плиткой над полем ввода.
   async function handleSend(text, attachments, extraIn) {
     const { uploading, ...extra } = extraIn ?? {};
     const replyToId = replyingTo?.id ?? null;
@@ -435,8 +304,6 @@ export async function ChatView(root, chatId) {
       id: localId,
       chatId: chat.id,
       senderId: me.id,
-      // Стикер (в т.ч. кастом-эмодзи) сразу показываем как стикер, а не пустым
-      // текстовым пузырём до ответа сервера.
       type: extra?.sticker ? "sticker" : "text",
       text,
       attachments: attachments ?? [],
@@ -452,8 +319,6 @@ export async function ChatView(root, chatId) {
     draftText = "";
     renderList();
     renderComposer();
-    // Прокрутка к своему сообщению — то же, что делает браузер при отправке в
-    // любом мессенджере: человек смотрит на то, что только что отправил.
     list.scrollTop = list.scrollHeight;
 
     const dropOptimistic = () => {
@@ -470,40 +335,26 @@ export async function ChatView(root, chatId) {
           if (localAtts[i]?.url?.startsWith("blob:")) localThumbs.set(a.url, localAtts[i].url);
         });
       }
-      // Отправленное сразу уходит и в строку списка чатов: обратно по сокету
-      // сервер его отправителю не шлёт, так что иначе превью там осталось бы
-      // прежним до следующего опроса — см. lib/chatListSync.js.
       const { message } = isChannel
         ? await api.publishPost(chat.id, text, attachments)
         : await api.sendMessage(chat.id, text, { replyToId, attachments, ...extra });
       sentMessage = message;
       noteMessageInChatList(chat.id, message);
-      // Настоящее сообщение на месте временного — не в конец списка, иначе оно
-      // прыгнет мимо тех, что пришли, пока это ехало.
       const at = messages.findIndex((m) => m.id === localId);
       if (at >= 0) messages[at] = message;
       else messages = [...messages, message];
-      // Сохраняем прокрутку: подмена временного сообщения настоящим не должна
-      // дёргать ленту (голый renderList сбрасывал бы scrollTop в 0).
       rerenderListKeepingScroll();
     } catch (err) {
       dropOptimistic();
       rerenderListKeepingScroll();
       alert(err.message || "Не удалось отправить сообщение");
-      // Текст возвращается в поле ввода: он не отправлен, и терять его нельзя.
       if (text) draftText = text;
     }
     renderComposer();
     await refreshMessages();
-    // Возвращается вызывающему (composer.js's "Живая геолокация") — нужен id
-    // только что отправленного сообщения, чтобы начать слать в него обновления.
     return sentMessage;
   }
 
-  // Composer.js debounce-saves the draft server-side itself; this just
-  // keeps the chat-list preview (chatListItem.js's `chat.draft` check) in
-  // sync immediately, without waiting on that network round-trip or the
-  // next chat-list poll.
   function handleDraftChange(text) {
     draftText = text;
     const { chats: sharedChats } = getState();
@@ -516,9 +367,6 @@ export async function ChatView(root, chatId) {
     const sender = senderOf(message.senderId);
     const title = isDm ? (other?.name ?? chat.title) : chat.title;
     await api.sendMessage(targetChatId, message.text, {
-      // Опрос уезжает чистым: чужие голоса из этого чата к новому отношения не
-      // имеют. Стикер и кастом-эмодзи — вместе с сообщением: без них
-      // пересылка стикера была «пустым сообщением» и молча не проходила.
       attachments: (message.attachments ?? []).map((a) =>
         a.kind === "poll" ? { ...a, meta: { ...a.meta, voterIds: [], votes: [] } } : a
       ),
@@ -538,14 +386,20 @@ export async function ChatView(root, chatId) {
   }
 
   async function handleDelete(m, forEveryone) {
+    messages = messages.filter((x) => x.id !== m.id);
+    messagesCount = messages.length;
+    rerenderListKeepingScroll();
+    saveChatCache();
     await api.deleteMessage(chat.id, m.id, forEveryone);
     await refreshMessages();
   }
 
+  function saveChatCache() {
+    writeCache(`chat.${chatId}`, me.id, { chat, members, messages: messages.filter((x) => !x.pending).slice(-PAGE_SIZE) });
+  }
+
   async function handleReact(m, emoji) {
     const existing = m.reactions.find((r) => r.emoji === emoji);
-    // Ставим ли мы свою реакцию, а не снимаем? — только в этом случае
-    // имеет смысл проигрывать «буст», и только по этой пилюле.
     const amAdding = !existing || !existing.userIds.includes(me.id);
     if (existing) {
       existing.userIds = existing.userIds.includes(me.id)
@@ -555,16 +409,7 @@ export async function ChatView(root, chatId) {
     } else {
       m.reactions.push({ emoji, userIds: [me.id] });
     }
-    // Перерисовка С сохранением прокрутки — renderList() голышом делает
-    // clear(list) и сбрасывает scrollTop в 0, из-за чего при отмене реакции
-    // чат «прыгал в самое начало». Для реакции положение экрана меняться
-    // не должно.
     rerenderListKeepingScroll();
-    // Пилюля уже в DOM — находим её по data-эмодзи/data-msgid (крючки
-    // поставлены в components/messageBubble.js) и запускаем .just-added
-    // (components.css: @keyframes tg-reaction-boost). После renderList DOM
-    // пересобирается, поэтому класс не остаётся намертво — он живёт только
-    // до следующей перерисовки, которой на этом тике уже не будет.
     if (amAdding) {
       const pill = document.querySelector(
         `.reaction-pill[data-msgid="${CSS.escape(m.id)}"][data-emoji="${CSS.escape(emoji)}"]`
@@ -574,16 +419,10 @@ export async function ChatView(root, chatId) {
     await api.react(chat.id, m.id, emoji);
   }
 
-  // Голос ставится сразу, до ответа сервера — иначе нажатие на вариант
-  // полсекунды «ничего не делает». Ответ сервера затем заменяет сообщение
-  // целиком, поэтому расхождение (викторина, закрытый опрос) само исправится.
   function replaceMessage(updated) {
     if (!updated) return;
     const idx = messages.findIndex((x) => x.id === updated.id);
     if (idx >= 0) messages[idx] = updated;
-    // С сохранением прокрутки: замена одного сообщения (голос в опросе, снятие
-    // голоса, закрытие опроса) не должна швырять ленту в начало — та же причина,
-    // что была у реакций.
     rerenderListKeepingScroll();
   }
   function applyLocalVote(m, optionIndex) {
@@ -646,10 +485,6 @@ export async function ChatView(root, chatId) {
     }
   }
 
-  // Same duration picker as the header's "…" menu (setMute above) — this used
-  // to mutate chat.muted directly and only call renderHeader(), so the info
-  // panel row the button lives in never re-rendered and looked unchanged
-  // (and unmuting had no duration options at all, unlike everywhere else).
   function toggleMute() {
     if (isChatMuted(chat)) setMute({ off: true });
     else openMuteDurationDialog(setMute);
@@ -746,9 +581,9 @@ export async function ChatView(root, chatId) {
     const settings = getState().settings;
     openWallpaperDialog({
       current: settings?.chatWallpapers?.[chat.id] ?? chat.wallpaper ?? null,
-      onSelect: async (wallpaper, forEveryone) => {
+      onSelect: async (wallpaper, forEveryone, label) => {
         if (forEveryone) {
-          const { chat: updated } = await api.setChatWallpaper(chat.id, wallpaper, true);
+          const { chat: updated } = await api.setChatWallpaper(chat.id, wallpaper, true, label);
           chat = { ...chat, wallpaper: updated.wallpaper };
         } else {
           const { settings: updated } = await api.setChatWallpaper(chat.id, wallpaper, false);
@@ -759,17 +594,10 @@ export async function ChatView(root, chatId) {
     });
   }
 
-  // Удаление и выход — один диалог на всё приложение (components/
-  // deleteChatDialog.js): «Удалить чат с X?» и галочка «Также удалить для X»
-  // (в группе/канале у админа — «для всех участников»), у рядового участника
-  // вместо неё — «Покинуть». Раньше отсюда личка удалялась голым confirm() и
-  // сразу у обоих, без варианта «только у меня».
   function handleLeaveOrDelete() {
     const isGroupLike = chat.type === "group" || chat.type === "channel";
     const dropFromList = () => setState({ chats: (getState().chats ?? []).filter((c) => c.id !== chat.id) });
     openDeleteChatDialog(chat, me.id, {
-      // Модератор сервера удаляет чужую группу или канал за нарушение правил —
-      // та же планка, что у сервера (routes/chats.js, DELETE).
       moderator: isGroupLike && !isChatAdmin(chat, me.id) && isServerModerator(),
       onDelete: async (forEveryone) => {
         try {
@@ -795,9 +623,6 @@ export async function ChatView(root, chatId) {
     });
   }
 
-  // В группе кнопки звонка — быстрый звонок: вызываются сразу все участники,
-  // как в личке. Добавлять по одному через «добавить участника» по-прежнему
-  // можно уже из самого звонка.
   async function placeCall(kind) {
     try {
       await placeCallController(chat.id, kind, me, { ringAll: chat.type === "group" });
@@ -806,29 +631,15 @@ export async function ChatView(root, chatId) {
     }
   }
 
-  // Функция, а не значение: название чата меняется, пока экран открыт — его
-  // переименовали, и `chat` уже обновился (см. подписку на chat:updated ниже).
-  // Раньше здесь стояла константа, посчитанная один раз при открытии, и шапка
-  // продолжала показывать старое имя даже после того, как список чатов слева
-  // показывал новое.
   const chatTitle = () => (isSaved ? "Избранное" : isDm ? (other?.name ?? chat.title) : chat.title);
 
-  // Selecting several messages at once — forward a conversation, delete a run of
-  // messages, copy a few lines. Every action here already existed for a single
-  // message; what was missing was doing them to more than one without repeating
-  // the same four taps per message.
   const selected = new Set();
   let selecting = false;
 
   function toggleSelect(id) {
     if (selected.has(id)) selected.delete(id);
     else selected.add(id);
-    // Unticking the last one leaves selection mode, so there's no way to get
-    // stuck in a mode with nothing selected and no obvious way out.
     if (!selected.size) selecting = false;
-    // С сохранением прокрутки: отметка сообщения не должна уносить ленту в
-    // начало (голый renderList сбрасывал scrollTop — выделять несколько
-    // сообщений было невозможно, список прыгал наверх на каждой галочке).
     rerenderListKeepingScroll();
     renderSelectionBar();
   }
@@ -855,9 +666,6 @@ export async function ChatView(root, chatId) {
   const selectionBar = el("div", { class: "selection-bar-slot" });
   const searchBar = el("div", { class: "chat-search-slot" });
 
-  // Searching inside this conversation. Its own route rather than the global
-  // search box, which spans every chat and caps at 20 hits — the wrong tool for
-  // "find the link Ivan sent here".
   function openSearch() {
     clear(searchBar);
     const input = el("input", {
@@ -926,9 +734,6 @@ export async function ChatView(root, chatId) {
     clear(selectionBar);
     if (!selecting) return;
     const picked = selectedMessages();
-    // Same rule as a single message: your own always, anyone's if you run the
-    // chat. Selecting a run of someone's spam and clearing it is the case this
-    // exists for.
     const canDeleteForAll =
       picked.every((m) => m.senderId === me.id) || (!isDm && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id))) || isServerModerator();
     selectionBar.appendChild(
@@ -940,16 +745,12 @@ export async function ChatView(root, chatId) {
           title: "Копировать",
           html: iconSvg("Copy", 17),
           onclick: async () => {
-            // Oldest first and with the sender's name, because a copied run of
-            // messages is almost always going somewhere it has to read as a
-            // conversation.
             const text = picked
               .map((m) => `${senderOf(m.senderId)?.name ?? ""}: ${messagePreview(m)}`.trim())
               .join("\n");
             try {
               await navigator.clipboard.writeText(text);
             } catch {
-              /* clipboard blocked — nothing useful to say, the messages are on screen */
             }
             clearSelection();
           },
@@ -959,9 +760,6 @@ export async function ChatView(root, chatId) {
           title: "Переслать",
           html: iconSvg("Forward", 17),
           onclick: () => {
-            // Same dialog as a single forward — it hands back a destination,
-            // and the whole selection is sent there oldest-first so it arrives
-            // in the order it was written.
             openForwardDialog(
               async (targetChatId) => {
                 clearSelection();
@@ -990,14 +788,10 @@ export async function ChatView(root, chatId) {
   }
 
   async function deleteMany(list, forEveryone) {
-    // Sequential rather than Promise.all: these all hit the same chat and the
-    // list is refetched once at the end, so parallelism would only race the
-    // broadcasts against each other.
     for (const m of list) {
       try {
         await api.deleteMessage(chat.id, m.id, forEveryone);
       } catch {
-        /* one failure shouldn't abandon the rest of the selection */
       }
     }
     clearSelection();
@@ -1007,21 +801,11 @@ export async function ChatView(root, chatId) {
   const header = el("header", { class: "chat-header" });
   const pinnedBar = el("div", { class: "pinned-bar-slot" });
   const list = el("div", { class: "message-list" });
-  // Одна плавающая дата над перепиской.
-  //
-  // Раньше липким был каждый разделитель сразу, и при прокрутке они
-  // прилипали к верху все вместе, наезжая друг на друга. Теперь разделители
-  // остаются обычными строками в потоке, а сверху висит одна метка, которая
-  // показывает дату того, что сейчас на экране, и меняется по мере прокрутки.
   const floatingDate = el("div", { class: "chat-floating-date" }, el("span", {}, ""));
   applyWallpaper(list, chat);
   const composerSlot = el("div", { class: "composer-slot" });
   const bodyBottomSlot = el("div", { class: "body-bottom-slot" });
   const liveBar = el("div", { class: "live-bar-slot" });
-  // Круглая кнопка «вниз» со счётчиком — как в Telegram. Появляется, когда
-  // лента прокручена вверх, и показывает, сколько сообщений пришло, пока вы
-  // читали старое. Без неё из середины длинной переписки к последнему
-  // сообщению можно было только долго крутить.
   let missedWhileUp = 0;
   const scrollDownBtn = el("button", {
     class: "chat-scroll-down",
@@ -1036,9 +820,6 @@ export async function ChatView(root, chatId) {
   const scrollDownBadge = el("span", { class: "chat-scroll-down-badge" });
   scrollDownBtn.appendChild(scrollDownBadge);
 
-  // «Внизу» — с запасом в 80 пикселей: дочитанной лента считается и тогда,
-  // когда до края осталась пара строк, иначе кнопка мигала бы при каждой
-  // мелкой прокрутке.
   const atBottom = () => list.scrollHeight - list.scrollTop - list.clientHeight < 80;
   function updateScrollDown() {
     const show = !atBottom();
@@ -1048,8 +829,6 @@ export async function ChatView(root, chatId) {
     scrollDownBadge.classList.toggle("shown", missedWhileUp > 0);
   }
 
-  // Реклама вверху чата (placement "chat", server/routes/ads.js). Подтягивается
-  // один раз при открытии; пусто — слот остаётся невидимым.
   const chatAdSlot = el("div", { class: "chat-ad-slot" });
   const mainCol = el("div", { class: "chat-main-col" }, [header, selectionBar, searchBar, liveBar, pinnedBar, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
   api
@@ -1072,10 +851,6 @@ export async function ChatView(root, chatId) {
   const infoSlot = el("div", { class: "info-panel-slot" });
   const wrap = el("div", { class: "chat-view" }, [mainCol, infoSlot]);
 
-  // «12 пользователей» вместо «в сети» у ботов. Просим один раз при открытии
-  // чата: число меняется медленно, дёргать сервер на каждую перерисовку незачем.
-  // Идущий эфир в этом чате (server/routes/live.js): плашка сверху и кнопка
-  // «Начать эфир» у того, кто вправе его вести.
   let liveInfo = null;
   async function loadLive() {
     if (chat.type === "dm") return;
@@ -1087,9 +862,6 @@ export async function ChatView(root, chatId) {
     renderHeader();
     renderLiveBar();
   }
-  // Постоянная голосовая комната группы (server/routes/calls.js's
-  // /room/:chatId) — живой индикатор в шапке виден всем в группе, даже тем,
-  // кто в комнату не заходил, тем же способом, что и плашка эфира выше.
   let voiceRoom = null;
   async function loadVoiceRoom() {
     if (chat.type !== "group") return;
@@ -1104,19 +876,12 @@ export async function ChatView(root, chatId) {
     try {
       const { stream } = await api.startLive(chat.id, { title: chat.title, withVideo: true, source });
       await loadLive();
-      // Тот, кто эфир начал, его и завершает — но canStop передаётся честно с
-      // сервера, а не выводится из «я нажал начать»: эфир мог уже идти и вести
-      // его мог другой администратор (см. already в routes/live.js).
       openLiveScreen(stream.id, { chatTitle: chat.title, canStopStream: !!liveInfo?.canStop });
     } catch (err) {
       alert(err.message || "Не удалось начать эфир");
     }
   }
 
-  // Два разных эфира за одной кнопкой: из вкладки браузера и из внешней
-  // программы. Спрашиваем до создания, а не после: у эфира из OBS свой ключ и
-  // свой путь картинки (server/rtmp.js), и переключить одно в другое на ходу
-  // нельзя — это был бы уже другой эфир.
   function askLiveSource() {
     openChoiceDialog("Начать эфир", [
       { label: "Из браузера — камера и экран", onClick: () => startLive("webrtc") },
@@ -1125,8 +890,6 @@ export async function ChatView(root, chatId) {
   }
 
   let botAudience = null;
-  // Мини-приложение бота, если оно у него есть: { name }. Приходит тем же
-  // запросом, что и аудитория (server/routes/bots.js).
   let botApp = null;
   function pluralUsers(n) {
     const m10 = n % 10;
@@ -1155,13 +918,9 @@ export async function ChatView(root, chatId) {
     } catch (err) {
       alert(err.message || "Не удалось завершить эфир");
     }
-    // Перечитываем в любом случае: если эфир к этому моменту уже кончился сам,
-    // плашка должна исчезнуть, а не остаться вместе с сообщением об ошибке.
     await loadLive();
   }
 
-  // Плашка идущего эфира. Она же — приглашение: об эфире в канале узнают
-  // отсюда, а не по звонку, который разбудил бы всех подписчиков разом.
   function renderLiveBar() {
     clear(liveBar);
     const stream = liveInfo?.stream;
@@ -1181,9 +940,6 @@ export async function ChatView(root, chatId) {
           },
           "Смотреть"
         ),
-        // Завершение прямо отсюда — для брошенного эфира: ведущий закрыл
-        // вкладку, а плашка зовёт людей в пустую комнату. Входить ради
-        // выключения нельзя заставлять: вход спрашивает камеру и микрофон.
         liveInfo.canStop
           ? el("button", { class: "live-bar-stop", onclick: () => stopLiveFromBar(stream) }, "Завершить")
           : null,
@@ -1202,15 +958,10 @@ export async function ChatView(root, chatId) {
       }
       if (isSaved) return "";
       if (chat.type === "bot") return "бот";
-      // У бота нет присутствия: программа не «заходила» и не «была недавно».
-      // Поэтому вместо статуса — сколько людей им пользуется; число приходит
-      // с сервера отдельно и до его прихода показывается просто «бот».
       if (isDm && other?.isBot) {
         return botAudience == null ? "бот" : `${botAudience} ${pluralUsers(botAudience)}`;
       }
       if (isDm && other) return lastSeenLabel(other);
-      // «1 участник», «3 участника», «5 участников» — а не «1 подписчиков».
-      // Плюс, как в Telegram, «, N в сети», когда кто-то онлайн (кроме себя).
       if (chat.type === "group") {
         const base = `${members.length} ${plural(members.length, "участник", "участника", "участников")}`;
         const onlineCount = members.filter((m) => m.id !== me.id && m.online).length;
@@ -1232,8 +983,6 @@ export async function ChatView(root, chatId) {
               ? el("span", { class: "saved-avatar chat-header-saved-avatar", html: iconSvg("Bookmark", 20) })
               : Avatar({
               name: other?.name ?? chatTitle(),
-              // По other, а не по isDm: у чата с ботом старого типа "bot"
-              // собеседник тоже есть, а своей картинки у такого чата нет.
               color: other?.avatarColor ?? chat.avatarColor,
               image: other ? other.avatarImage : chat.avatarImage,
               size: 38,
@@ -1244,27 +993,14 @@ export async function ChatView(root, chatId) {
             }),
             el("div", { class: "chat-header-titles" }, [
               el("p", { class: "chat-header-title" }, [
-                // Текст — отдельным span: у flex-строки многоточие не работает,
-                // и длинное название просто обрезалось посередине буквы под
-                // кнопками шапки.
                 el("span", { class: "chat-header-title-text" }, chatTitle()),
                 ...(isSaved ? [] : [
-                // Галочка была всюду, кроме этого места: в списке чатов, в
-                // профиле, в панели информации и в поиске — а в шапке самого
-                // разговора нет. Именно здесь она и нужна больше всего: видно,
-                // с кем говоришь, пока говоришь, а не только пока выбираешь.
                 VerifiedBadge(isDm ? other : chat, 15),
-                // Та же history — Premium-звезда и значок разработчика уже
-                // стоят в списке чатов, профиле и панели информации; здесь их
-                // не было вообще ни разу.
                 isDm && other?.isDeveloper
                   ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 15) })
                   : null,
                 isDm && other?.isPremium ? PremiumStar({ size: 16, seed: other.id, title: "Shalter Premium" }) : null,
                 isDm ? ProfileStatusBadge(other, 15) : null,
-                // Safety marker (server/db.js's safetyLabel) — shown in the
-                // header of the open chat too, so it's on screen while the
-                // conversation is actually happening, not only on the profile.
                 isDm && safetyLabelInfo(other?.safetyLabel)
                   ? el(
                       "span",
@@ -1278,10 +1014,6 @@ export async function ChatView(root, chatId) {
             ]),
           ]
         ),
-        // Кнопка мини-приложения бота — на месте кнопки звонка, которой у бота
-        // всё равно нет. В Telegram она стоит у поля ввода; здесь в шапке,
-        // потому что именно там у бота пустует место, а не потому, что так
-        // красивее: приложение открывают до разговора, а не посреди него.
         isDm && other?.isBot && botApp
           ? el(
               "button",
@@ -1293,22 +1025,12 @@ export async function ChatView(root, chatId) {
               [el("span", { class: "chat-header-app-icon", html: iconSvg("Code", 15) }), el("span", { class: "chat-header-app-label" }, botApp.name)]
             )
           : null,
-        // Эфир — там, где он имеет смысл: в канале и в группе. Для двоих есть
-        // звонок, и вторая кнопка рядом с ним только запутывала бы.
-        // Подписью, а не голым значком: рядом стоит кнопка видеозвонка с точно
-        // таким же значком камеры, и две одинаковые иконки подряд означали
-        // «угадай, какая из них эфир». На узком экране подпись прячется, но
-        // тогда и кнопки звонков рядом нет — в канале её не бывает.
         !isDm && liveInfo?.canHost && !liveInfo?.stream
           ? el("button", { class: "icon-btn chat-header-live-btn", title: "Начать эфир", onclick: askLiveSource }, [
               el("span", { class: "chat-header-live-dot" }),
               el("span", { class: "chat-header-live-label" }, "Эфир"),
             ])
           : null,
-        // Голосовая комната группы — видна всем в группе, даже тем, кто в неё
-        // не заходил (voiceRoom пришёл с сервера уже с полным списком
-        // участников). Подписью, а не только значком — по той же причине, что
-        // и у кнопки эфира выше: рядом стоит обычная кнопка звонка.
         chat.type === "group" && voiceRoom
           ? el("button", { class: "icon-btn chat-header-live-btn", title: "Присоединиться к голосовому чату", onclick: () => joinVoiceRoom(chat.id, me) }, [
               el("span", { class: "chat-header-live-dot" }),
@@ -1338,8 +1060,6 @@ export async function ChatView(root, chatId) {
           onclick: (e) =>
             openDropdownMenu({ x: e.clientX, y: e.clientY }, [
               { icon: "Search", label: "Поиск по чату", onClick: () => openSearch() },
-              // Только чтобы завести новую комнату — если она уже идёт, в
-              // неё зовёт кнопка-плашка в шапке выше, эта пропадает.
               ...(chat.type === "group" && !voiceRoom
                 ? [{ icon: "Phone", label: "Начать голосовой чат", onClick: () => joinVoiceRoom(chat.id, me) }]
                 : []),
@@ -1353,8 +1073,6 @@ export async function ChatView(root, chatId) {
               { icon: "Clock", label: "Запланированные сообщения", onClick: () => openScheduledMessagesDialog(chat.id) },
               { icon: "Trash", label: "Очистить историю", onClick: handleClearHistory },
               {
-                // Из самой переписки тоже: открытый из архива чат иначе было
-                // не вернуть в общий список, не выходя из него.
                 icon: "Archive",
                 label: chat.archived ? "Вернуть из архива" : "Архивировать",
                 onClick: async () => {
@@ -1429,10 +1147,6 @@ export async function ChatView(root, chatId) {
           isMePremium: me.isPremium,
           onVoteForGroup: handleVoteForGroup,
           onSetAutoDelete: handleSetAutoDelete,
-          // updateChat()'s response is the raw chat row — merge rather than
-          // replace so the extra fields attachSummaries() adds (lastMessage,
-          // unreadCount, draft, hasUnreadMention) survive a public/username
-          // change instead of vanishing until the next full refetch.
           onChatUpdated: (updated) => {
             chat = { ...chat, ...updated };
             renderHeader();
@@ -1462,16 +1176,10 @@ export async function ChatView(root, chatId) {
           },
           [
             el("span", { html: iconSvg("Pin", 14) }),
-            // messagePreview, not .text: a pinned sticker, gift, photo or voice
-            // message has no text, and printing it left the bar with an icon and
-            // an empty strip beside it — nothing to say what was pinned.
             el("span", { class: "pinned-bar-text" }, messagePreview(current) || "Сообщение"),
             pinned.length > 1 ? el("span", { class: "mono pinned-bar-count" }, String(pinned.length)) : null,
           ].filter(Boolean)
         ),
-        // Unpinning lived only in the message's own menu, which meant scrolling
-        // back to find a message whose whole purpose is that you don't have to.
-        // The bar is where you notice the pin, so it's where you undo it.
         canPin
           ? el("button", {
               class: "icon-btn pinned-bar-unpin",
@@ -1484,11 +1192,6 @@ export async function ChatView(root, chatId) {
     );
   }
 
-  // Reaching the top pulls in the previous page. 120px of slack so it starts
-  // fetching just before the user actually hits the edge.
-  // Какой разделитель сейчас выше верхней границы списка — его дату и
-  // показываем. Считается на прокрутке, поэтому обходится дёшево: ищем среди
-  // разделителей, а их в загруженной странице десяток-другой.
   let hideDateTimer = null;
   function updateFloatingDate() {
     const dividers = list.querySelectorAll(".date-divider");
@@ -1497,27 +1200,28 @@ export async function ChatView(root, chatId) {
       return;
     }
     const top = list.getBoundingClientRect().top;
-    let current = dividers[0];
+    let current = null;
+    let nextNear = false;
     for (const d of dividers) {
-      if (d.getBoundingClientRect().top - top <= 8) current = d;
-      else break;
+      const off = d.getBoundingClientRect().top - top;
+      if (off <= 8) current = d;
+      else {
+        nextNear = off < 44;
+        break;
+      }
+    }
+    if (!current || nextNear || current.getBoundingClientRect().bottom > top) {
+      floatingDate.classList.remove("visible");
+      return;
     }
     const text = current.textContent.trim();
     if (text && floatingDate.firstChild.textContent !== text) floatingDate.firstChild.textContent = text;
-    // Над лентой, а не над колонкой: сверху колонки шапка, плашки закрепа и
-    // поиска, и метка с top: 8px ложилась прямо на имя собеседника.
     floatingDate.style.top = `${list.offsetTop + 8}px`;
-    // Метка нужна во время движения, а не всегда: остановились — она уходит,
-    // чтобы не закрывать сообщения.
     floatingDate.classList.add("visible");
     clearTimeout(hideDateTimer);
     hideDateTimer = setTimeout(() => floatingDate.classList.remove("visible"), 1200);
   }
 
-  // Лента «прилипла» к низу: человек читает последнее. Картинки, кружки и
-  // превью ссылок догружаются уже после прокрутки вниз и раздвигают ленту — без
-  // этого чат с фотографией в конце открывался не на последнем сообщении, а
-  // на середине той самой фотографии.
   let stuckToBottom = true;
   let noStickUntil = 0;
   list.addEventListener("scroll", () => {
@@ -1526,16 +1230,12 @@ export async function ChatView(root, chatId) {
     updateScrollDown();
     updateFloatingDate();
   });
-  // load/loadedmetadata не всплывают — ловим на погружении.
   const keepAtBottom = () => {
     if (stuckToBottom) list.scrollTop = list.scrollHeight;
   };
   list.addEventListener("load", keepAtBottom, true);
   list.addEventListener("loadedmetadata", keepAtBottom, true);
 
-  // Непрочитанное начинается выше, чем помещается экран, — открываем чат на
-  // разделителе «Непрочитанные сообщения», как Telegram, а не в самом низу,
-  // откуда до начала пропущенного пришлось бы листать вверх вслепую.
   function scrollToUnreadDivider() {
     const divider = list.querySelector(".unread-divider");
     if (!divider) return false;
@@ -1546,14 +1246,9 @@ export async function ChatView(root, chatId) {
     return true;
   }
 
-  // Отправитель — из участников чата, а если его там нет (вышел, удалён,
-  // вступил уже после открытия чата) — из догруженных профилей
-  // (lib/userLookup.js). Без этого у таких сообщений не было ни аватара, ни имени.
   function senderOf(id) {
     return members.find((u) => u.id === id) ?? cachedUser(id);
   }
-  // Кого не нашлось при последней отрисовке — догружаем и перерисовываем
-  // ленту, сохраняя положение прокрутки.
   let missingSenders = new Set();
   function loadMissingSenders() {
     if (!missingSenders.size) return;
@@ -1565,8 +1260,6 @@ export async function ChatView(root, chatId) {
       })
       .catch(() => {});
   }
-  // Перерисовка ленты не по новым сообщениям, а по данным об отправителях:
-  // читающего не дёргаем — остаёмся внизу, если были внизу, иначе на месте.
   function rerenderListKeepingScroll() {
     const wasAtBottom = atBottom();
     const prevTop = list.scrollTop;
@@ -1590,9 +1283,6 @@ export async function ChatView(root, chatId) {
     messages.forEach((m, i) => {
       const prev = messages[i - 1];
       if (!prev || !sameDay(prev.createdAt, m.createdAt)) {
-        // Разделитель даты — кнопка: по нажатию открывается календарь
-        // переписки, и оттуда можно перепрыгнуть к любому дню, а не листать
-        // историю руками.
         list.appendChild(
           el(
             "div",
@@ -1615,33 +1305,22 @@ export async function ChatView(root, chatId) {
           )
         );
       }
-      // Where reading stopped last time. Drawn once, above the first message
-      // that was unread when the chat was opened.
       if (m.id === firstUnreadId) {
         list.appendChild(el("div", { class: "unread-divider" }, el("span", {}, "Непрочитанные сообщения")));
       }
-      // Telegram-style grouping: a run of messages from the same person, close
-      // together in time, reads as one block — tight spacing, the name only at
-      // the top of the run, the avatar only beside the last one, and the tail
-      // only on that last bubble. Five minutes is Telegram's own threshold;
-      // beyond it a new block starts even from the same sender, because a reply
-      // an hour later isn't part of the same breath.
       const next = messages[i + 1];
       const GROUP_WINDOW_MS = 5 * 60 * 1000;
       const runsWith = (a, b) =>
         !!a &&
         !!b &&
         a.senderId === b.senderId &&
-        !a.anonymous === !b.anonymous && // "от себя" и "от имени группы" никогда не группируются, даже от одного автора
+        !a.anonymous === !b.anonymous &&
         a.type === b.type &&
         sameDay(a.createdAt, b.createdAt) &&
         Math.abs(new Date(b.createdAt) - new Date(a.createdAt)) < GROUP_WINDOW_MS;
       const groupStart = !runsWith(prev, m);
       const groupEnd = !runsWith(m, next);
       const showSender = (chat.type === "group" || chat.type === "channel") && groupStart;
-      // "От имени группы" (routes/chats.js's anonymousAdmins) — показываем
-      // личность чата вместо настоящего автора. senderId в данных остаётся
-      // настоящим (штатные видят его в модерации), это только отображение.
       const sender = m.anonymous
         ? { id: chat.id, name: chat.title, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage }
         : senderOf(m.senderId);
@@ -1665,8 +1344,6 @@ export async function ChatView(root, chatId) {
           canPin,
           allowedReactions: chat.allowedReactions,
           canViewReactionDetails,
-          // onToggle does double duty: the first hold starts selection with
-          // that message in it, every later tap adds or removes one.
           selection: { active: selecting, ids: selected, onToggle: (id) => (selecting ? toggleSelect(id) : startSelecting(id)) },
           replyToMessage,
           replyToSender,
@@ -1675,8 +1352,6 @@ export async function ChatView(root, chatId) {
             onReply: (msg, opts) => {
               replyingTo = msg;
               editingMessage = null;
-              // Ответ на выделенный кусок: цитата встаёт в начало поля ввода
-              // строками «> …», а под ней человек пишет свой ответ.
               if (opts?.quote) {
                 const quoted = opts.quote.split("\n").map((l) => `> ${l}`).join("\n");
                 draftText = `${quoted}\n${draftText}`;
@@ -1689,15 +1364,8 @@ export async function ChatView(root, chatId) {
               renderComposer();
             },
             onDelete: (msg) => {
-              // "Delete for everyone" is offered for your own message, and for
-              // anyone's if you run the chat (the same rule the server applies).
               const mine = msg.senderId === me.id || (!isDm && isChatAdmin(chat, me.id)) || isChatModerator(chat, me.id);
-              // Чужое сообщение в личной переписке удаляется у обоих — так же,
-              // как это делает Telegram: разговор двоих принадлежит обоим. В
-              // группе и канале чужое убирает только тот, кто ими управляет,
-              // иначе один участник способен стереть всю историю чата.
               openDeleteMessageDialog({
-                // Модератор сервера — любое сообщение, файл или ссылку в любом чате.
                 canDeleteForEveryone: mine || isDm || isChatAdmin(chat, me.id) || isChatModerator(chat, me.id) || isServerModerator(),
                 someoneElses: !mine,
                 onDelete: (forEveryone) => handleDelete(msg, forEveryone),
@@ -1712,18 +1380,12 @@ export async function ChatView(root, chatId) {
             onPollAction: handlePollAction,
             canClosePolls: !isDm && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id)),
             onKeyboardAction: (action) => handleSend(action, []),
-            // Кнопка бота, открывающая его мини-приложение: { text, app: "…" }.
-            // Отправителем может быть только бот, и сервер всё равно проверит,
-            // что адрес ведёт в приложение этого же бота, а не на чужой сайт.
             onKeyboardApp: (msg, appUrl) =>
               openMiniApp({ botId: msg.senderId, botName: senderOf(msg.senderId)?.name, chatId: chat.id, url: appUrl }),
             onOpenThread: isGroup ? (msg) => openThreadPanel({ chat, rootMessage: msg, members, me, onReplySent: refreshMessages }) : undefined,
           },
         });
       list.appendChild(bubble);
-      // Просмотр засчитывается по факту появления поста на экране, поэтому
-      // наблюдатель вешается на сам пузырь. Свои посты и уже сосчитанные
-      // пропускаем здесь же, чтобы не тратить запрос на заведомый отказ.
       if (isChannel && m.type !== "system" && m.senderId !== me.id && viewObserver && !countedViews.has(m.id)) {
         bubble.dataset.postId = m.id;
         viewObserver.observe(bubble);
@@ -1733,24 +1395,13 @@ export async function ChatView(root, chatId) {
           el(
             "button",
             {
-              // Сторона у ссылки та же, что у самого поста: своё сообщение
-              // стоит справа, и ссылка под ним должна быть справа. Раньше
-              // отступ был жёстко задан слева, и под правым пузырём она
-              // оказывалась в другом конце строки — будто относится к чему-то
-              // другому.
               class: `post-comments-link ${m.senderId === me.id ? "mine" : ""}`,
-              // Ветка этого поста, а не группа обсуждения целиком. Раньше
-              // ссылка вела в группу, где комментарии ко всем постам лежат
-              // вперемешку, и найти обсуждение конкретного поста было нечем.
               onclick: () => openPostComments(m),
             },
             commentsLabel(m.commentCount ?? 0)
           )
         );
       }
-      // Real threads (threadPanel.js) — group chats only (channels already
-      // have their own comment mechanism above via the linked discussion
-      // chat; a DM is just two people, nothing to thread).
       if (isGroup && m.type !== "system" && m.commentCount && !m.threadRootId) {
         list.appendChild(
           el(
@@ -1765,11 +1416,6 @@ export async function ChatView(root, chatId) {
     loadMissingSenders();
   }
 
-  // Просмотры постов канала. Засчитываются, когда пост действительно показался
-  // на экране, а не когда чат открыли: пролистать сотню постов «прочитанными»
-  // сверху вниз — это не сто прочтений, и счётчик, который так считает, врёт
-  // ровно там, где на него смотрят. Сервер вдобавок отсеивает повторные
-  // просмотры и собственные посты (routes/posts.js).
   const countedViews = new Set();
   const viewObserver =
     typeof IntersectionObserver === "function"
@@ -1781,8 +1427,6 @@ export async function ChatView(root, chatId) {
               viewObserver.unobserve(entry.target);
               if (!id || countedViews.has(id)) continue;
               countedViews.add(id);
-              // Молча: не сосчитанный просмотр — не повод показывать ошибку
-              // тому, кто просто читает канал.
               api.viewPost(id).catch(() => {});
             }
           },
@@ -1790,8 +1434,6 @@ export async function ChatView(root, chatId) {
         )
       : null;
 
-  // «1 комментарий», «2 комментария», «5 комментариев» — русский счёт, а не
-  // «комментари(й/ев)» на глаз: 21 это «комментарий», 22 — «комментария».
   function commentsLabel(n) {
     const mod10 = n % 10;
     const mod100 = n % 100;
@@ -1801,9 +1443,6 @@ export async function ChatView(root, chatId) {
     return `💬 ${n} комментариев`;
   }
 
-  // Комментарии к одному посту. Всё нужное отдаёт сервер за один запрос — сам
-  // пост, его якорь в группе обсуждения, участников и уже написанные ответы, —
-  // так что открывать чат обсуждения и искать в нём ничего не приходится.
   async function openPostComments(post) {
     let data;
     try {
@@ -1844,17 +1483,10 @@ export async function ChatView(root, chatId) {
       bodyBottomSlot.appendChild(el("p", { class: "channel-readonly-hint" }, "Публиковать в этот канал могут только администраторы"));
       return;
     }
-    // Service chats are one-way. The server refuses these sends too
-    // (routes/messages.js) — this just means the composer isn't offered at all,
-    // rather than accepting text and then rejecting it.
     if (isDm && other?.isServiceBot) {
       bodyBottomSlot.appendChild(el("p", { class: "channel-readonly-hint" }, "Shalter — служебный чат: сюда приходят коды входа и уведомления, отвечать в нём нельзя"));
       return;
     }
-    // Администратору пишут как любому другому человеку — поле ввода тут было
-    // спрятано, и на сервере лежал такой же запрет. Сервер уже пропускает, а
-    // эта половина оставалась и продолжала прятать композитор: со стороны это
-    // выглядело как «ничего не изменилось».
     const restrictedUntil = chat.restrictions?.[me.id];
     if (restrictedUntil && (restrictedUntil === "forever" || restrictedUntil > new Date().toISOString())) {
       bodyBottomSlot.appendChild(
@@ -1875,10 +1507,6 @@ export async function ChatView(root, chatId) {
         initialDraft: draftText,
         botCommands,
         paidMessages,
-        // "Отправить от имени группы" (routes/chats.js's /:id/settings
-        // anonymousAdmins) — сервер перепроверяет то же самое сам
-        // (routes/messages.js), это только чтобы кнопка не появлялась у тех,
-        // кому она всё равно ничего не даст.
         canPostAnonymously: isGroup && !!chat.anonymousAdmins && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id)),
         members: members.filter((u) => u.id !== me.id),
         onCancelReply: () => {
@@ -1917,9 +1545,6 @@ export async function ChatView(root, chatId) {
     );
   }
 
-  // Файлы, перетащенные мышью на переписку, — вложением, как через скрепку.
-  // Считаем входы/выходы: dragleave приходит и при переходе между дочерними
-  // узлами, и по одному ему подсветка мигала бы.
   let dragDepth = 0;
   const hasFiles = (e) => [...(e.dataTransfer?.types ?? [])].includes("Files");
   const composerEl = () => composerSlot.querySelector(".composer");
@@ -1948,9 +1573,6 @@ export async function ChatView(root, chatId) {
     attach(files);
   });
 
-  // Esc сначала снимает выбор сообщений и закрывает поиск по чату — и только
-  // если снимать нечего, закрывает сам чат (lib/keyboardShortcuts.js). На
-  // погружении, чтобы успеть раньше того обработчика.
   const onChatKeydown = (e) => {
     if (e.key !== "Escape" || document.querySelector(".modal-overlay, .dropdown-menu, .media-viewer-overlay")) return;
     if (selecting) {
@@ -1972,16 +1594,11 @@ export async function ChatView(root, chatId) {
   loadVoiceRoom();
   mount(root, wrap);
   list.scrollTo({ top: list.scrollHeight });
-  // /chat/:id?msg=… — открыли из поиска по сообщениям (views/chatList.js):
-  // ведём к найденному сообщению и подсвечиваем его, догружая историю, если
-  // оно старше загруженного. Параметр тут же убираем из адреса, чтобы
-  // обновление страницы не прыгало к нему снова.
   const focusMessageId = new URLSearchParams(window.location.search).get("msg");
   if (focusMessageId) {
     window.history.replaceState(null, "", window.location.pathname);
     awaitingUnreadMark = false;
     (async () => {
-      // Из сохранённого истории «ещё» не видно — сначала свежая страница.
       if (openedFromCache) await refreshMessages();
       await jumpTo(focusMessageId);
     })();
@@ -1989,19 +1606,10 @@ export async function ChatView(root, chatId) {
     scrollToUnreadDivider();
   }
 
-  // WS push is the primary path for both messages and typing (near-instant);
-  // the polling below only needs to catch up after a dropped/reconnecting
-  // socket, so it can run at a much longer interval than before.
   const messagesIv = setInterval(refreshMessages, 15000);
-  // «был(а) 3 минуты назад» стареет само по себе, без всяких событий: раз в
-  // минуту пересчитываем шапку, иначе через час там всё ещё «3 минуты».
   const lastSeenIv = setInterval(() => {
     if (isDm && other && !other.online && header.isConnected) renderHeader();
   }, 60000);
-  // Typing already arrives over the socket (the "typing:update" handler further
-  // down), so this poll is only a catch-up for a dropped connection. At 5s it
-  // was 60 requests per tab per 5 minutes — a fifth of the whole rate-limit
-  // budget spent re-asking for something the socket had already delivered.
   const typingIv = setInterval(async () => {
     const r = await api.getTyping(chat.id);
     if (r.typingUserId === typingUserId && (r.typingAction ?? null) === typingAction) return;
@@ -2010,8 +1618,6 @@ export async function ChatView(root, chatId) {
     renderHeader();
   }, 30000);
 
-  // Эфир начался или закончился — плашка появляется и исчезает сама, без
-  // перезахода в чат.
   const unsubLiveStarted = onWsMessage("live:started", (msg) => {
     if (msg.chatId === chat.id) loadLive();
   });
@@ -2019,8 +1625,6 @@ export async function ChatView(root, chatId) {
     if (msg.chatId === chat.id) loadLive();
   });
 
-  // Кто-то зашёл в голосовую комнату группы, вышел из неё или она погасла —
-  // тем же способом обновляем плашку, что и у эфира выше.
   const unsubVoiceChat = onWsMessage("voicechat:updated", (msg) => {
     if (msg.chatId !== chat.id) return;
     voiceRoom = msg.call;
@@ -2033,17 +1637,9 @@ export async function ChatView(root, chatId) {
     other.lastSeen = msg.lastSeen;
     renderHeader();
   });
-  // Собеседник поменял аватар/имя/био — включая случай, когда «собеседник»
-  // это мы сами (открытое «Избранное», ваш собственный чат с собой). `other`
-  // берётся один раз при открытии чата (см. присвоение выше), поэтому без
-  // этого шапка продолжала показывать старую аватарку до перезахода в чат,
-  // хотя список чатов слева уже обновлялся сам (он читает состояние
-  // реактивно, а не снимок на момент открытия).
   const unsubContactUpdated = onWsMessage("contact:updated", (msg) => {
     if (!msg.user?.id) return;
     rememberUser(msg.user);
-    // Участник группы сменил аватар — обновляем его и в members, иначе у его
-    // сообщений оставалась старая картинка до перезахода в чат.
     const idx = members.findIndex((u) => u.id === msg.user.id);
     if (idx !== -1) members[idx] = { ...members[idx], ...msg.user };
     if (other && msg.user.id === other.id) {
@@ -2055,8 +1651,6 @@ export async function ChatView(root, chatId) {
   });
   const unsubMessageNew = onWsMessage("message:new", (msg) => {
     if (msg.chatId !== chat.id) return;
-    // Сообщение пришло — значит, дописал: «печатает» над уже полученным
-    // текстом не нужно ждать ещё четыре секунды.
     if (typingUserId && msg.message?.senderId === typingUserId) clearTypingStatus();
     scheduleRefresh();
   });
@@ -2068,16 +1662,10 @@ export async function ChatView(root, chatId) {
     if (msg.chatId !== chat.id) return;
     scheduleRefresh();
   });
-  // Someone else opened the chat and read our messages — refresh so the
-  // sent/read checkmark (readByIds.length, see messageBubble.js) updates.
   const unsubMessageRead = onWsMessage("message:read", (msg) => {
     if (msg.chatId !== chat.id) return;
     scheduleRefresh();
   });
-  // The push only signals "typing started" (mirroring how the composer only
-  // pings on keystrokes, not on stop) — the server's typing state self-expires
-  // after 4s (see server/data/typing.js), so clear it locally on the same
-  // schedule instead of leaning on the slow poll to notice it's gone stale.
   let typingClearTimer = null;
   const clearTypingStatus = () => {
     clearTimeout(typingClearTimer);
@@ -2087,7 +1675,6 @@ export async function ChatView(root, chatId) {
   };
   const unsubTyping = onWsMessage("typing:update", (msg) => {
     if (msg.chatId !== chat.id) return;
-    // Запись удалили, загрузка кончилась — статус уходит сразу.
     if (msg.action === "cancel") {
       if (msg.userId === typingUserId) clearTypingStatus();
       return;
@@ -2099,22 +1686,12 @@ export async function ChatView(root, chatId) {
     typingClearTimer = setTimeout(clearTypingStatus, 4000);
   });
 
-  // Чат переименовали или сменили ему фото — свои же изменения из панели
-  // сведений приходят сюда тем же путём, что и чужие. Без этого шапка открытого
-  // чата показывала старое название до перезахода в него.
   const unsubChatUpdated = onWsMessage("chat:updated", (msg) => {
     if (msg.chat?.id !== chat.id) return;
-    // Закреп, архив и беззвучность у каждого свои — в рассылке лежат общие
-    // значения записи чата, и затирать ими свои нельзя.
     const { pinned, archived, muted, mutedUntil, ...shared } = msg.chat;
     chat = { ...chat, ...shared };
     renderHeader();
     applyWallpaper(list, chat);
-    // Цена за сообщение/комментарий (server/lib/messagePrice.js) не лежит на
-    // самом чате — её выше уже посчитал сервер, msg.chat её не несёт. Без
-    // этого запроса открытый композитор продолжал показывать старую цену (или
-    // её отсутствие) до перезахода в чат — ровно то, что владелец только что
-    // поменял в редакторе, оставалось невидимым у уже открытых собеседников.
     api
       .getChat(chat.id)
       .then((res) => {
@@ -2124,9 +1701,6 @@ export async function ChatView(root, chatId) {
       .catch(() => {});
   });
 
-  // Показали сохранённое — теперь спрашиваем сервер и заменяем показанное
-  // свежим. Здесь, а не выше: к этому месту всё уже нарисовано, и обновлению
-  // есть что обновлять.
   if (openedFromCache) {
     api
       .getChat(chatId)
@@ -2135,14 +1709,6 @@ export async function ChatView(root, chatId) {
         members = res.members;
         botCommands = res.commands ?? null;
         paidMessages = res.paidMessages ?? null;
-        // Собеседник и участники из кэша могли устареть (сменили фото, в кэш
-        // попала запись без аватаров) — а лента, шапка и панель были нарисованы
-        // именно по ним. Раньше здесь обновлялось только поле ввода, и
-        // пересобрать ленту было некому: следующий опрос видел те же сообщения
-        // и DOM не трогал (sameMessages), так что старые/пустые аватарки
-        // оставались до перезахода в чат.
-        // Заменяем целиком, а не Object.assign: снятое фото приходит как
-        // отсутствующее поле, и слияние оставило бы старое.
         other = chat.otherUser ?? (isDm ? members.find((u) => u.id !== me.id) : null) ?? null;
         renderHeader();
         renderInfoPanel();
@@ -2171,9 +1737,6 @@ export async function ChatView(root, chatId) {
     unsubMessageRead();
     unsubTyping();
     unsubChatUpdated();
-    // Наблюдатель держит ссылки на пузыри ушедшего чата — без этого они не
-    // соберутся сборщиком мусора, а при переходах между чатами их накопятся
-    // сотни.
     viewObserver?.disconnect();
   };
 }

@@ -4,9 +4,6 @@ import { Avatar } from "../components/avatar.js";
 import { navigate } from "../router.js";
 import { setState } from "../state.js";
 
-// Ссылка-приглашение на папку (server/routes/folders.js) — тот же принцип
-// превью-перед-действием, что и у JoinInviteView для чата: показываем, что
-// внутри, прежде чем что-то создавать или к чему-то присоединять.
 export async function FolderInviteView(root, code) {
   let info = null;
   let error = null;

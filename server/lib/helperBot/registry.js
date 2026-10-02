@@ -1,6 +1,3 @@
-// Display list for /help and /menu — kept separate from the actual handler
-// maps (info.js, moderation.js, ...) so the two can't drift into listing
-// different commands than the ones that actually respond.
 const CATEGORIES = [
   {
     title: "Основное",

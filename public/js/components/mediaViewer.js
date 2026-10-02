@@ -1,30 +1,11 @@
 import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 
-// Полноэкранный просмотр фото и видео из переписки — и единственное место,
-// где запрашивается вложение в полном качестве: до открытия в чате видна
-// только миниатюра (attachments.js), а этот файл сервер отдаёт лишь тому,
-// кто действительно нажал «посмотреть». Раньше полное изображение начинало
-// качаться само, стоило сообщению появиться на экране, — и так для каждой
-// фотографии в истории чата, даже если её никто не открывал.
-// originalUrl — полный файл, когда `url` это лёгкое превью (240p-видео с
-// сервера): играем превью, а оригинал отдаём отдельной кнопкой, чтобы он
-// качался только по просьбе.
-//
-// gallery/index — все фото и видео открытой переписки по порядку (их собирает
-// attachments.js): стрелками, клавишами ←/→ или смахиванием листаются соседние,
-// как в Telegram, а не «закрыть — найти следующее — открыть».
 export function openMediaViewer({ kind, url, name, originalUrl = null, gallery = null, index = 0 }) {
   const items = gallery?.length ? gallery : [{ kind, url, name, originalUrl }];
   let at = Math.min(Math.max(index, 0), items.length - 1);
   let media = null;
 
-  // Масштаб и сдвиг картинки в просмотрщике — свой зум, потому что зум всей
-  // страницы отключён (index.html, user-scalable=no), и без этого фото нельзя
-  // было бы приблизить вовсе. Сбрасывается на каждом новом кадре. Объявлены ДО
-  // show(): show() их присваивает, а let до своей строки — в «мёртвой зоне»
-  // (TDZ), и прежний вызов show() выше бросал ReferenceError — просмотрщик
-  // открывался пустым, прозрачно-чёрным.
   let scale = 1;
   let tx = 0;
   let ty = 0;
@@ -54,8 +35,6 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
   function zoomTo(next, cx = 0, cy = 0) {
     const clamped = Math.max(1, Math.min(5, next));
     if (clamped === scale) return;
-    // Зумируем к точке под курсором/пальцем, а не к центру: иначе при
-    // приближении деталь уезжает из-под пальца.
     const rect = media.getBoundingClientRect();
     const ox = cx - (rect.left + rect.width / 2);
     const oy = cy - (rect.top + rect.height / 2);
@@ -77,9 +56,6 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
       item.kind === "video"
         ? el("video", { class: "media-viewer-media", src: item.url, controls: true, autoplay: true, playsInline: true })
         : el("img", { class: "media-viewer-media", src: item.url, alt: item.name || "" });
-    // Полная картинка не загрузилась (её убрали как доставленную) — показываем
-    // эскиз, который точно есть, вместо «прозрачно-чёрного» экрана. Один раз,
-    // чтобы не зациклиться, если и эскиз недоступен.
     if (item.kind !== "video" && item.thumbUrl && item.thumbUrl !== item.url) {
       media.addEventListener(
         "error",
@@ -100,8 +76,6 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
       head,
       items.length > 1 ? el("span", { class: "mono media-viewer-counter" }, `${at + 1} из ${items.length}`) : null,
       el("span", { class: "media-viewer-spacer" }),
-      // download, а не переход по ссылке: файл сохраняется рядом, вкладка
-      // с чатом никуда не девается.
       item.originalUrl
         ? el("a", { class: "media-viewer-original", title: "Скачать оригинал", href: item.originalUrl, download: item.name || "file" }, [
             el("span", { html: iconSvg("Download", 18) }),
@@ -121,9 +95,6 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
     show();
   }
 
-  // Колесо мыши / тачпад — зум к точке под курсором (только для фото: у видео
-  // свои элементы управления). Ctrl+колесо тоже, но и обычное колесо, раз зум
-  // страницы отключён и прокручивать тут нечего.
   stage.addEventListener(
     "wheel",
     (e) => {
@@ -133,19 +104,16 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
     },
     { passive: false }
   );
-  // Двойной клик/тап — быстрый зум 1× ↔ 2.5×.
   stage.addEventListener("dblclick", (e) => {
     if (items[at]?.kind === "video") return;
     if (scale > 1) resetZoom();
     else zoomTo(2.5, e.clientX, e.clientY);
   });
 
-  // Указатели: один — свайп между кадрами (когда не приближено) или
-  // перетаскивание (когда приближено); два — пинч-зум.
   const pointers = new Map();
   let swipeStartX = null;
-  let panStart = null; // { x, y, tx, ty }
-  let pinchStart = null; // { dist, scale, cx, cy }
+  let panStart = null;
+  let pinchStart = null;
 
   stage.addEventListener("pointerdown", (e) => {
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -207,9 +175,6 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
     if (media?.tagName === "VIDEO") media.pause();
     overlay.remove();
   }
-  // На погружении и с остановкой: иначе тот же Esc доходил до общего
-  // обработчика (lib/keyboardShortcuts.js) и вместе с просмотрщиком закрывал
-  // весь чат, а стрелки — листали список чатов.
   function onKey(e) {
     if (e.key === "Escape") {
       e.stopPropagation();
@@ -225,10 +190,6 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
   return close;
 }
 
-// Все фото и видео той же переписки, что и нажатое, — по порядку ленты. Ищем
-// по разметке, а не по данным: кнопки вложений помечены (attachments.js), а
-// лента на экране — это ровно то, что человек и листает. Вне ленты (медиа в
-// профиле и т. п.) — просто одно открытое фото, как раньше.
 export function galleryAround(button) {
   const scope = button?.closest?.(".message-list");
   if (!scope) return {};

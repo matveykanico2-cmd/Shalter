@@ -1,14 +1,6 @@
-// Отложенное удаление аккаунтов — same plain-setInterval-scan shape as
-// reminderSweep.js / scheduledMessagesSweep.js. Аккаунт помечается к удалению,
-// если человек забыл и пароль, и облачный пароль и не смог войти
-// (server/routes/auth.js's /schedule-deletion); через неделю его сносит этот
-// проход. Любой успешный вход до срока снимает пометку (middleware/auth.js),
-// поэтому передумать можно просто зайдя в аккаунт.
 const { listAccountsDueForDeletion } = require("../data/users");
 const { deleteAccount } = require("./deleteAccount");
 
-// Раз в час: точность до часа тут более чем достаточна (речь о неделе), а чаще
-// сканировать таблицу пользователей незачем.
 const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
 async function sweepOnce() {

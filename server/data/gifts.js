@@ -1,8 +1,3 @@
-// Static catalog — no inventory/stock to track, gifts are purely decorative
-// (or a Premium duration) messages, not a real item. `premiumDays: null`
-// means "forever" (see server/data/users.js's grantPremiumDays). Prices are
-// illustrative (see server/routes/gifts.js — payment is a real bank
-// transfer to ADMIN_PHONE, same trust model as the plain Premium purchase).
 const GIFTS = [
   { id: "rose", emoji: "🌹", name: "Роза", priceRub: 1, premiumDays: 0 },
   { id: "coffee", emoji: "☕", name: "Кофе", priceRub: 5, premiumDays: 0 },
@@ -15,10 +10,6 @@ const GIFTS = [
   { id: "premium_year", emoji: "🏆", name: "Premium на год", priceRub: 5000, premiumDays: 365 },
   { id: "premium_forever", emoji: "♾️", name: "Premium навсегда", priceRub: 10000, premiumDays: null },
 
-  // 270 more purely decorative gifts (no Premium attached — premiumDays: 0
-  // throughout), rounding the catalog out from a handful of items to a real
-  // shop. Ordered roughly cheap-and-common -> rare-and-expensive, same
-  // 1₽-10000₽ spread as the ten above.
   { id: "sakura", emoji: "🌸", name: "Сакура", priceRub: 1, premiumDays: 0 },
   { id: "tyulpan", emoji: "🌷", name: "Тюльпан", priceRub: 2, premiumDays: 0 },
   { id: "podsolnuh", emoji: "🌻", name: "Подсолнух", priceRub: 3, premiumDays: 0 },
@@ -290,17 +281,6 @@ const GIFTS = [
   { id: "disko_shar", emoji: "🪩", name: "Диско-шар", priceRub: 9000, premiumDays: 0 },
   { id: "petarda", emoji: "🧨", name: "Петарда", priceRub: 10000, premiumDays: 0 },
 
-  // Эксклюзивные подарки — the only ones in this catalog with a `supply`.
-  // That's what makes them exclusive rather than merely expensive: once
-  // `supply` copies are gone they can never be bought again, and each copy
-  // carries its own serial number ("#3 из 10") minted at delivery time by
-  // server/data/giftIssues.js. Everything above is unlimited (`supply`
-  // absent) and can be gifted forever.
-  //
-  // All of them grant Premium forever (premiumDays: null) — at these prices
-  // a purely decorative item would be a strange thing to sell, and it keeps
-  // the tier meaningfully different from the 10 000₽ ceiling above rather
-  // than just being a bigger number.
   { id: "excl_platinum_star", emoji: "🌟", name: "Платиновая звезда", priceRub: 25000, premiumDays: null, supply: 1000000, exclusive: true },
   { id: "excl_comet", emoji: "💫", name: "Комета", priceRub: 50000, premiumDays: null, supply: 250000, exclusive: true },
   { id: "excl_meteorite", emoji: "☄️", name: "Метеорит", priceRub: 100000, premiumDays: null, supply: 50000, exclusive: true },
@@ -309,36 +289,17 @@ const GIFTS = [
   { id: "excl_absolute", emoji: "💠", name: "Абсолют", priceRub: 1000000, premiumDays: null, supply: 1000, exclusive: true },
 ];
 
-// ── Admin-editable layer ────────────────────────────────────────────────────
-// The array above is the shipped catalogue, and it stays code: it's 286 fixed
-// entries that every deployment starts from. What the admin can change lives in
-// the database instead (the gift_catalog table, see server/db.js), in two forms:
-//
-//   * an override row for a built-in gift — currently just its supply, so a
-//     limited run can be extended or cut back after release;
-//   * a fully custom gift the admin minted, which has no counterpart in GIFTS.
-//
-// Merging happens on read so a deployment that has never touched the catalogue
-// pays only one cheap query, and the built-ins keep working if the table is
-// empty.
 const db = require("../db");
 
 const SUPPLY_MIN = 1000;
 const SUPPLY_MAX = 1000000;
 
-// Gifts are priced in stars, and stars are what people actually buy (10 ⭐ per
-// ₽ — the rate of the cheapest pack in server/routes/stars.js). The ruble figure
-// stays on each entry as the reference price the catalogue was written with; the
-// star price is derived from it so the two can never drift apart.
 const STARS_PER_RUB = 10;
 
 function starPrice(gift) {
   return Math.max(1, Math.round((gift.priceStars ?? gift.priceRub * STARS_PER_RUB)));
 }
 
-// What converting a received gift back pays out. Telegram returns the full
-// price; doing the same here keeps it simple and means a gift is never a trap —
-// you always get back exactly what it cost.
 function conversionValue(gift) {
   return starPrice(gift);
 }
@@ -349,18 +310,12 @@ function rowToGift(row) {
     emoji: row.emoji,
     name: row.name,
     priceRub: row.priceRub,
-    // Set for anything minted since gifts became star-priced; null on older
-    // rows, where starPrice() falls back to converting priceRub.
     priceStars: row.priceStars ?? undefined,
     premiumDays: row.premiumDays === null ? null : row.premiumDays,
     supply: row.supply ?? undefined,
     exclusive: !!row.exclusive || undefined,
-    // Гиф с уже вырезанным фоном (server/lib/giftMedia.js) — если есть,
-    // клиент рисует его вместо анимации по эмодзи (lib/animScenes.js).
     mediaUrl: row.mediaUrl ?? undefined,
-    // Нарисованная в аниматоре сцена (lib/customScene.js) вместо эмодзи/гифки.
     scene: row.scene ? JSON.parse(row.scene) : undefined,
-    // Автор пользовательского подарка; у админских — null.
     ownerId: row.ownerId ?? undefined,
     hidden: !!row.hidden || undefined,
     custom: true,
@@ -377,12 +332,6 @@ function withStars(g) {
   return { ...g, priceStars: starPrice(g) };
 }
 
-// Витрина и админ-каталог: встроенные подарки + подарки, отчеканенные админом
-// (ownerId = null). Личные подарки пользователей (ownerId задан) сюда не
-// попадают — они личные и живут в отдельном списке (listUserGifts).
-//
-// `includeHidden` включает скрытые (убранные админом из витрины) — нужен только
-// админ-каталогу, чтобы их показать и дать восстановить; витрина зовёт без него.
 function listGifts({ includeHidden = false } = {}) {
   const rows = overrides();
   const merged = [];
@@ -393,10 +342,6 @@ function listGifts({ includeHidden = false } = {}) {
       merged.push(g);
       continue;
     }
-    // Only the fields an admin is allowed to change are taken from the row; the
-    // rest stays whatever shipped, so an override can't quietly rename a gift.
-    // Кроме тиража теперь берётся и нарисованная сцена (scene) — админ может
-    // перерисовать встроенный подарок в аниматоре, не переименовывая его.
     merged.push({
       ...g,
       supply: row.supply ?? g.supply,
@@ -417,8 +362,6 @@ function getGift(id) {
   return listGifts({ includeHidden: true }).find((g) => g.id === id);
 }
 
-// Подарки, нарисованные конкретным пользователем в аниматоре — его личная
-// вкладка «Мои подарки». Не общие, в витрину не выкладываются.
 function listUserGifts(ownerId) {
   return db
     .prepare("SELECT * FROM gift_catalog WHERE ownerId = ? AND hidden = 0 ORDER BY createdAt DESC")
@@ -431,8 +374,6 @@ function getUserGift(id, ownerId) {
   return row ? withStars(rowToGift(row)) : undefined;
 }
 
-// Built-in gifts keep their catalogue entry and get an override row; custom
-// ones are the row. Either way this is the single write path.
 function setSupply(id, supply) {
   const builtin = GIFTS.find((g) => g.id === id);
   const existing = db.prepare("SELECT * FROM gift_catalog WHERE id = ?").get(id);
@@ -448,11 +389,6 @@ function setSupply(id, supply) {
   return getGift(id);
 }
 
-// Нарисованная сцена подарка — override для встроенного (админ перерисовал его
-// в аниматоре) или замена сцены у custom-подарка. scene = null убирает override
-// и возвращает встроенному подарку его анимацию по эмодзи. Единственный путь
-// записи, как и у setSupply. Только имя/цену встроенного не трогаем — меняется
-// лишь рисунок.
 function setGiftScene(id, scene) {
   const builtin = GIFTS.find((g) => g.id === id);
   const existing = db.prepare("SELECT * FROM gift_catalog WHERE id = ?").get(id);
@@ -477,8 +413,6 @@ function createGift({ id, emoji, name, priceStars, premiumDays, supply, exclusiv
     id,
     emoji,
     name,
-    // Kept alongside the star price purely so the row is readable next to the
-    // shipped catalogue's rouble figures and in data exports. Nothing charges it.
     priceRub: Math.max(1, Math.round(priceStars / STARS_PER_RUB)),
     priceStars,
     premiumDays: premiumDays === null ? null : premiumDays,
@@ -492,9 +426,6 @@ function createGift({ id, emoji, name, priceStars, premiumDays, supply, exclusiv
   return ownerId ? getUserGift(id, ownerId) : getGift(id);
 }
 
-// Личный подарок пользователя, нарисованный в аниматоре: бесплатный,
-// декоративный, привязан к автору. priceStars = 0 — за такой подарок ничего не
-// списывается (см. routes/gifts.js's /custom/send).
 function createUserGift({ id, ownerId, name, scene, emoji }) {
   return createGift({
     id,
@@ -509,8 +440,6 @@ function createUserGift({ id, ownerId, name, scene, emoji }) {
   });
 }
 
-// Правка своего подарка: имя и/или перерисованная сцена. Эмодзи-подпись всегда
-// пересчитывается из сцены, чтобы уведомления не отставали от рисунка.
 function updateUserGift(id, ownerId, { name, scene, emoji }) {
   const existing = db.prepare("SELECT * FROM gift_catalog WHERE id = ? AND ownerId = ?").get(id, ownerId);
   if (!existing) return undefined;
@@ -528,9 +457,6 @@ function deleteUserGift(id, ownerId) {
   return res.changes > 0;
 }
 
-// Custom-подарок админа удаляется физически (за него можно не бояться копий:
-// карточку копии несёт запись на профиле). Только нетронутый — issued
-// проверяется в маршруте.
 function deleteCustomGift(id) {
   const row = db.prepare("SELECT * FROM gift_catalog WHERE id = ? AND custom = 1 AND ownerId IS NULL").get(id);
   if (!row) return false;
@@ -538,9 +464,6 @@ function deleteCustomGift(id) {
   return true;
 }
 
-// Скрытие встроенного подарка — «удаление» для того, что физически удалить
-// нельзя (запись в коде). override-строка с hidden = 1 убирает подарок из
-// витрины; уже выданные копии продолжают читать имя/эмодзи из кода.
 function hideBuiltin(id) {
   const builtin = GIFTS.find((g) => g.id === id);
   if (!builtin) return false;

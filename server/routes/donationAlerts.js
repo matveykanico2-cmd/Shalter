@@ -26,8 +26,6 @@ function requireAdmin(req, res) {
   });
 }
 
-// Settings → whatever admin-only DonationAlerts panel — whether it's set up
-// at all (env vars present) and, if so, connected (has tokens) yet.
 router.get(
   "/status",
   asyncRoute(async (req, res) => {
@@ -37,19 +35,11 @@ router.get(
       configured: isConfigured(),
       connected: isConnected(),
       username: auth?.username ?? null,
-      // DonatePay has no OAuth step to complete — just an env var — so
-      // "configured" already means "active", unlike DonationAlerts' two-stage
-      // configured/connected. Bundled into this same response rather than a
-      // second endpoint since Settings → Donations shows both on one screen.
       donatePayConfigured: isDonatePayConfigured(),
     });
   })
 );
 
-// Kicks off the OAuth dance — the admin's browser gets redirected to
-// DonationAlerts to log in and approve, which then bounces back to /callback
-// below. Not JSON: this route itself IS the redirect (window.location.href
-// straight here from Settings, not fetch()).
 router.get(
   "/connect",
   asyncRoute(async (req, res) => {
@@ -60,8 +50,6 @@ router.get(
   })
 );
 
-// Must exactly match DONATIONALERTS_REDIRECT_URI (also the value registered
-// on the DonationAlerts app itself) — see server/config.js.
 router.get(
   "/callback",
   asyncRoute(async (req, res) => {

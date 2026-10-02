@@ -9,21 +9,11 @@ import { joinCallById, decline } from "../lib/callController.js";
 import { startRingtone, stopRingtone } from "../lib/ringtone.js";
 import { navigate } from "../router.js";
 
-// The socket delivers "call:incoming" (see the handler below), so this poll is
-// only a catch-up for a dropped connection. At 2.5s it was 120 requests per tab
-// per 5 minutes — the single largest consumer of the rate-limit budget, for
-// something already being pushed.
 const POLL_MS = 20000;
 const seen = new Set();
 let primed = false;
 let banner = null;
 
-// Входящий звонок занимает весь экран, а не строчку сверху.
-//
-// Так это выглядит на любом телефоне, и по делу: звонок — единственное в
-// приложении, на что отвечают немедленно, и промахнуться мимо маленькой
-// кнопки в углу, пока телефон в руке, слишком легко. Здесь крупный аватар,
-// имя, вид звонка и две большие кнопки, до которых дотягивается большой палец.
 function showBanner(call) {
   banner?.remove();
   const other = call.otherUser ?? {};
@@ -32,8 +22,6 @@ function showBanner(call) {
       el(
         "p",
         { class: "incoming-call-kind" },
-        // Быстрый звонок в группе вызывает всех сразу — по одной строке видно,
-        // что зовут не лично тебя.
         (call.participantIds?.length ?? 0) > 2
           ? call.kind === "video"
             ? "Групповой видеозвонок"
@@ -76,9 +64,6 @@ function showBanner(call) {
   startRingtone();
 }
 
-// Приём звонка — одним путём и для кнопки на экране, и для перехода из
-// уведомления (?answer=1, см. public/sw.js): иначе «ответить» из уведомления
-// открывало бы экран с ещё одной кнопкой «ответить».
 export async function answerCall(callId) {
   dismiss();
   await joinCallById(callId, getState().user);
@@ -91,26 +76,13 @@ function dismiss() {
   stopRingtone();
 }
 
-// Сколько звонок считается «сейчас звонит». Дольше минуты не звонит ни один
-// телефон: всё, что старше, — это либо разговор, который уже идёт без нас,
-// либо след от закрытой вкладки, которую некому было завершить.
 const RINGING_WINDOW_MS = 60 * 1000;
 
 async function handleNewCall(call) {
   const me = getState().user;
   if (call.callerId === me.id || call.status !== "ongoing") return;
-  // Проверка по времени нужна именно при входе в приложение: там мы спрашиваем
-  // у сервера все свои звонки, и среди них попадаются зависшие в состоянии
-  // «идёт» — с ними никто никогда не связывался, потому что вкладку закрыли, а
-  // завершить звонок было некому. Без этой строки человек, открыв приложение,
-  // видел бы звонок недельной давности и, нажав «Ответить», попадал в пустоту.
   const startedAt = new Date(call.startedAt ?? 0).getTime();
   if (Number.isFinite(startedAt) && Date.now() - startedAt > RINGING_WINDOW_MS) return;
-  // No foreground Notification here — the in-app banner below already
-  // covers "app open and visible". A real Web Push (server/routes/calls.js)
-  // covers the other cases (backgrounded tab, browser closed) via
-  // public/sw.js, which itself skips showing anything if a focused tab is
-  // already open, so this and push never double up.
   showBanner(call);
 }
 
@@ -127,31 +99,15 @@ export function mountIncomingCallWatcher() {
   onWsMessage("call:updated", (msg) => {
     if (banner && msg.call.status !== "ongoing") dismiss();
   });
-  // Answered on another of this person's own devices (server/routes/calls.js's
-  // /:id/answer, sent by callController.js's join()) — the call itself stays
-  // "ongoing" the whole time it's ringing *and* while it's talked on, so the
-  // call:updated handler above never fires for "someone picked up", only for
-  // when it actually ends. Without this, a second device just kept ringing
-  // until the whole call was over.
   onWsMessage("call:answered", () => {
     if (banner) dismiss();
   });
 
   async function tick() {
-    // Первая проверка идёт всегда, даже при живом сокете.
-    //
-    // Сокет приносит только те звонки, что начались, пока приложение открыто.
-    // Звонок, начавшийся раньше, событие уже отправил — и оно ушло в пустоту.
-    // Поэтому при запуске надо спросить сервер: не звонит ли кто-то прямо
-    // сейчас. Ровно этот случай и был сломан: человеку звонили, он открывал
-    // приложение — и не видел ничего.
-    if (primed && isWsOpen()) return; // дальше сокет справляется сам
+    if (primed && isWsOpen()) return;
     const { calls } = await api.listCalls();
     if (!primed) {
       primed = true;
-      // Виденными помечаем только законченные. Раньше сюда попадали все
-      // подряд, включая идущий прямо сейчас звонок, — и он не показывался
-      // никогда.
       for (const c of calls) if (c.status !== "ongoing") seen.add(c.id);
     }
     for (const call of calls) {

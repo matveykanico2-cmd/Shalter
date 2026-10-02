@@ -18,11 +18,6 @@ const { allowsUser } = require("../lib/privacyRules");
 const { validateAppUrl, verifyInitData } = require("../lib/miniApp");
 const { checkUsername, normalizeUsername } = require("../lib/username");
 
-// The actual "program it however you want" surface — documented on /bots
-// (public/bots.html). A bot's
-// owner runs their own script anywhere (no public URL/webhook needed) that
-// polls GET /updates and replies with POST /sendMessage, authenticated by
-// the bot's token rather than a browser session.
 const router = express.Router();
 router.use(requireBotToken);
 
@@ -30,31 +25,10 @@ router.get(
   "/me",
   asyncRoute(async (req, res) => {
     const user = await getUser(req.bot.userId);
-    // app — назначенное мини-приложение (setWebApp ниже), чтобы выкладка новой
-    // версии могла проверить, на какой адрес бот сейчас показывает.
     res.json({ bot: publicUser(user), app: botApp(req, req.bot, user) });
   })
 );
 
-// Polling, not a webhook push — deliberately, so a bot can run from behind
-// NAT/a laptop/anywhere with outbound internet, exactly like a normal
-// script. `after` is an ISO timestamp; the response's messages are already
-// sorted ascending by createdAt, so `messages.at(-1).createdAt` is the next
-// `after` to pass. Capped at 200 per call so one poll can't return the
-// entire history for a very chatty bot.
-// `timeout` (в секундах) включает длинный опрос: запрос не отвечает пустотой
-// сразу, а висит до появления первого сообщения. Это и есть разница между
-// «бот отвечает через секунду-две» и «бот отвечает мгновенно»: без него
-// задержка ответа равна паузе в цикле самого бота, и нажатая кнопка молчит
-// ровно столько, сколько бот спит между опросами.
-//
-// Внутри — проверка базы раз в четверть секунды, а не подписка на событие.
-// Причина приземлённая: сообщение боту рождается в шести разных местах
-// (routes/messages.js, botMessaging, systemChat, приложение бота…), и
-// подписка означала бы «не забыть послать событие» в каждом из них — а
-// забытое место выглядит как «бот иногда не отвечает», что ищется днями.
-// Чтение из SQLite по индексу стоит доли миллисекунды, четыре раза в секунду
-// на бота — цена, которую видно только в этом комментарии.
 const LONG_POLL_MAX_SEC = 50;
 const LONG_POLL_STEP_MS = 250;
 
@@ -65,17 +39,11 @@ router.get(
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 200));
     const timeoutSec = Math.min(LONG_POLL_MAX_SEC, Math.max(0, Number(req.query.timeout) || 0));
 
-    // Членство и сообщения берутся одним запросом (data/messages.js), а не
-    // «сначала список чатов, потом сообщения по нему»: иначе за секунды
-    // ожидания успевает появиться новый диалог, и первое сообщение от нового
-    // собеседника бот увидит только после конца опроса.
     const read = () => listNewForBot(req.bot.userId, { after, limit });
 
     let messages = read();
     if (messages.length || !timeoutSec) return res.json({ messages });
 
-    // Оборванное соединение (бот перезапустился, сеть моргнула) не должно
-    // оставлять после себя таймер, который продолжает читать базу.
     let alive = true;
     res.on("close", () => {
       alive = false;
@@ -105,21 +73,6 @@ router.post(
   })
 );
 
-// ── Дальше — то, без чего бот упирается в потолок на второй день ────────────
-//
-// Раньше здесь было три метода: «кто я», «что нового» и «отправить текст».
-// Этого хватает на эхо-бота и заканчивается ровно там, где начинается
-// настоящий: отредактировать своё сообщение вместо новой копии, убрать
-// устаревшее, закрепить важное, показать «печатает…», ответить картинкой,
-// узнать, кто перед ним.
-//
-// Каждый метод ниже — тонкая обёртка над тем, что уже умеет приложение, а не
-// вторая реализация того же самого: правит одна и та же editMessage, шлёт одна
-// и та же sendBotMessage. Поэтому бот и человек делают ровно одно и то же, а
-// не «почти одно и то же».
-
-// Общая проверка: бот вправе трогать только свои сообщения и только в чатах,
-// где он состоит. Возвращает { error, status } либо { chat, message }.
 async function botOwns(botUserId, messageId) {
   const message = await getMessage(messageId);
   if (!message) return { status: 404, error: "Message not found" };
@@ -155,8 +108,6 @@ router.post(
   })
 );
 
-// Закреплять можно и чужое сообщение — но только там, где бот администратор:
-// закреп виден всем в чате, это действие модератора, а не отправителя.
 router.post(
   "/pinChatMessage",
   asyncRoute(async (req, res) => {
@@ -175,13 +126,6 @@ router.post(
   })
 );
 
-// «Печатает…» — то, что отличает бота, который думает над ответом, от бота,
-// который завис. Живёт пять секунд, как и у людей: повторяйте перед каждым
-// длинным шагом, а не один раз в начале.
-//
-// action — как в Telegram Bot API: typing, upload_photo, record_voice,
-// upload_document, record_video_note и т.д. (список — data/typing.js). Без
-// него или с неизвестным значением — «печатает».
 router.post(
   "/sendChatAction",
   asyncRoute(async (req, res) => {
@@ -194,10 +138,6 @@ router.post(
   })
 );
 
-// Картинка, файл, голосовое — всё это вложения, они уже есть у обычных
-// сообщений. Бот присылает готовый URL (или data:), а не загружает файл на
-// сервер: у него уже есть где хранить свои картинки, а нам не нужен второй
-// путь загрузки со своими лимитами и чисткой.
 router.post(
   "/sendPhoto",
   asyncRoute(async (req, res) => {
@@ -232,8 +172,6 @@ router.post(
   })
 );
 
-// Куда бот вообще может писать. Без этого метода единственный способ узнать
-// свой чат — дождаться, пока в него кто-нибудь напишет.
 router.get(
   "/getChats",
   asyncRoute(async (req, res) => {
@@ -272,8 +210,6 @@ router.get(
   })
 );
 
-// Кто написал. Бот получает senderId в каждом сообщении, а имя и юзернейм —
-// отсюда: подставить «Спасибо, Аня» вместо «Спасибо, u_1786…».
 router.get(
   "/getUser",
   asyncRoute(async (req, res) => {
@@ -283,8 +219,6 @@ router.get(
   })
 );
 
-// Список команд для кнопки «/» в чате. Тот же, что задаётся в приложении, —
-// просто теперь его можно менять из программы, вместе с выкладкой новой версии.
 router.get(
   "/getMyCommands",
   asyncRoute(async (req, res) => {
@@ -296,8 +230,6 @@ router.post(
   "/setMyCommands",
   asyncRoute(async (req, res) => {
     const raw = Array.isArray(req.body?.commands) ? req.body.commands : [];
-    // Формат BotFather: { command, description }. Мусор молча отбрасывается,
-    // а не роняет запрос — иначе одна опечатка стирает весь список.
     const commands = raw
       .filter((c) => c && typeof c.command === "string" && c.command.trim())
       .slice(0, 50)
@@ -309,19 +241,6 @@ router.post(
     res.json({ commands: bot?.commands ?? commands });
   })
 );
-
-// ── Найти человека, прочитать историю, навести порядок ──────────────────────
-//
-// До этого бот умел отвечать тому, кто ему написал, и не умел ничего сверх.
-// Здесь появляется остальное, ради чего боты и заводятся: найти человека по
-// @юзернейму, прочитать историю чата, отреагировать, а в группе, где бот
-// администратор, — убрать чужое сообщение, ограничить нарушителя или выгнать
-// его.
-//
-// Чего здесь намеренно нет: поиска по номеру телефона. Бот с таким методом —
-// это готовая телефонная книга: перебором номеров он выдал бы, у кого есть
-// аккаунт и как его зовут. @юзернейм — другое дело: он публичен по своей сути,
-// человек сам решил его завести и показывать.
 
 router.get(
   "/resolveUsername",
@@ -341,8 +260,6 @@ router.get(
   })
 );
 
-// История чата — постранично, свежие в конце. Бот читает только те чаты, где
-// состоит: это то же правило, что и у всего остального здесь.
 router.get(
   "/getMessages",
   asyncRoute(async (req, res) => {
@@ -411,9 +328,6 @@ router.post(
   })
 );
 
-// ── Действия администратора ─────────────────────────────────────────────────
-// Всё ниже требует, чтобы бот был администратором чата. Это ровно та же
-// проверка, что и для человека: права даёт владелец чата, а не токен.
 async function requireBotAdmin(req, res, chatId) {
   const chat = await getChat(chatId);
   if (!chat || !chat.memberIds.includes(req.bot.userId)) {
@@ -427,8 +341,6 @@ async function requireBotAdmin(req, res, chatId) {
   return chat;
 }
 
-// Удалить чужое сообщение — то, ради чего заводят бота-модератора. Своё
-// сообщение бот удаляет методом deleteMessage выше и без прав администратора.
 router.post(
   "/deleteAnyMessage",
   asyncRoute(async (req, res) => {
@@ -448,8 +360,6 @@ router.post(
     const { chatId, userId } = req.body ?? {};
     const chat = await requireBotAdmin(req, res, chatId);
     if (!chat) return;
-    // Владельца и других администраторов бот не трогает — иначе одним
-    // утёкшим токеном можно обезглавить чат.
     if (userId === chat.ownerId || (chat.adminIds ?? []).includes(userId)) {
       return res.status(400).json({ error: "Cannot remove the owner or an admin" });
     }
@@ -460,9 +370,6 @@ router.post(
   })
 );
 
-// Ограничение — временное молчание, а не изгнание: человек остаётся в чате и
-// видит переписку. Срок в минутах, потому что «до какого числа» бот считать не
-// обязан.
 router.post(
   "/restrictChatMember",
   asyncRoute(async (req, res) => {
@@ -505,8 +412,6 @@ router.post(
   })
 );
 
-// Уйти из чата. Единственное административное действие, которое боту не нужно
-// согласовывать: остаться там, откуда его хотят убрать, он и не должен.
 router.post(
   "/leaveChat",
   asyncRoute(async (req, res) => {
@@ -518,8 +423,6 @@ router.post(
   })
 );
 
-// Имя и описание самого бота — чтобы выкладка новой версии могла заодно
-// поправить, как бот представляется.
 router.post(
   "/setMyProfile",
   asyncRoute(async (req, res) => {
@@ -531,8 +434,6 @@ router.post(
   })
 );
 
-// Адрес приложения бота: либо чужой сервер (setWebApp), либо страница, которую
-// хранит и раздаёт сам Shalter (setWebAppCode → routes/miniAppHost.js).
 function botApp(req, bot, botUser) {
   if (bot.appCode) {
     const handle = botUser?.username || "";
@@ -540,11 +441,6 @@ function botApp(req, bot, botUser) {
   }
   return bot.appUrl ? { url: bot.appUrl, name: bot.appName, hosted: false } : null;
 }
-
-// ── Мини-приложение ─────────────────────────────────────────────────────────
-// Веб-страница бота, которая открывается внутри Shalter. Здесь два метода:
-// назначить её адрес и проверить подпись того, кто её открыл. Всё остальное
-// происходит в браузере пользователя — см. lib/miniApp.js и /bots#apps.
 
 router.post(
   "/setWebApp",
@@ -557,14 +453,6 @@ router.post(
   })
 );
 
-// Приложение целиком через Bot API — без своего сервера, домена и сертификата.
-//
-// Присылается HTML страницы; Shalter хранит его и раздаёт по адресу
-// /app/<юзернейм бота>, сам подставляя скрипт моста. Дальше всё как у внешнего
-// приложения: та же подпись открывшего, та же кнопка, тот же sendData.
-//
-// Чужой код на нашем домене изолируется заголовком sandbox — почему именно так,
-// подробно написано в routes/miniAppHost.js.
 router.post(
   "/setWebAppCode",
   asyncRoute(async (req, res) => {
@@ -580,18 +468,12 @@ router.post(
   })
 );
 
-// Проверка initData на стороне сервера — для тех, кто не хочет писать HMAC
-// сам. Считается ровно то же самое, что бот посчитал бы у себя (алгоритм
-// описан на /bots#apps): метод удобство, а не единственный способ, и работать
-// без него можно полностью.
 router.post(
   "/checkWebAppData",
   asyncRoute(async (req, res) => {
     const token = getBotToken(req.bot.id);
     const result = verifyInitData(token, req.body?.initData ?? "");
     if (!result.ok) return res.status(400).json({ ok: false, error: result.error });
-    // Данные в подписи — снимок на момент открытия. Имя могли сменить минуту
-    // спустя, поэтому актуальную карточку отдаём из базы, а не из initData.
     const user = await getUser(result.user?.id);
     res.json({
       ok: true,
@@ -603,12 +485,6 @@ router.post(
   })
 );
 
-// ── Третья партия: медиа, чаты, участники, расписание ───────────────────────
-//
-// Всё ниже — обёртки над тем, что приложение уже умеет. Ни одного метода,
-// который делает вид: если возможности нет в приложении, её нет и в API.
-
-// Общая проверка «бот в этом чате» — повторялась в каждом методе.
 async function botChat(req, res, chatId) {
   const chat = await getChat(chatId);
   if (!chat || !chat.memberIds.includes(req.bot.userId)) {
@@ -618,8 +494,6 @@ async function botChat(req, res, chatId) {
   return chat;
 }
 
-// Отправка вложения одного вида — тело у всех методов одинаковое, отличается
-// только `kind`, поэтому делается одной функцией, а не пятью копиями.
 function mediaSender(kind, defaultText) {
   return asyncRoute(async (req, res) => {
     const { chatId, url, caption = "", name, replyToId } = req.body ?? {};
@@ -764,9 +638,6 @@ router.post(
   })
 );
 
-// ── Отложенная отправка ─────────────────────────────────────────────────────
-// Приложение умеет ставить сообщения в очередь; боту это нужно ровно затем же —
-// разослать объявление в назначенный час, а не будить программу ночью.
 router.post(
   "/scheduleMessage",
   asyncRoute(async (req, res) => {
@@ -811,14 +682,11 @@ router.post(
   })
 );
 
-// ── Чаты и участники ────────────────────────────────────────────────────────
 router.post(
   "/createGroup",
   asyncRoute(async (req, res) => {
     const { title, memberIds } = req.body ?? {};
     if (!title?.trim()) return res.status(400).json({ error: "title is required" });
-    // Приглашать бот может только тех, с кем уже состоит в общем чате: иначе
-    // токен превращается в право затащить любого человека в любую группу.
     const known = new Set();
     for (const c of await listChatsForUser(req.bot.userId)) for (const id of c.memberIds) known.add(id);
     const invited = (Array.isArray(memberIds) ? memberIds : []).filter((id) => known.has(id));
@@ -862,7 +730,6 @@ router.post(
     const { chatId, userId, admin = true } = req.body ?? {};
     const chat = await requireBotAdmin(req, res, chatId);
     if (!chat) return;
-    // Владельца не разжаловать — он не «просто ещё один администратор».
     if (userId === chat.ownerId) return res.status(400).json({ error: "Cannot change the owner" });
     if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "User is not a member" });
     const current = new Set(chat.adminIds ?? []);
@@ -932,7 +799,6 @@ router.post(
   })
 );
 
-// ── Люди ────────────────────────────────────────────────────────────────────
 router.get(
   "/getUserStatus",
   asyncRoute(async (req, res) => {
@@ -952,7 +818,6 @@ router.get(
   })
 );
 
-// ── Каналы ──────────────────────────────────────────────────────────────────
 router.post(
   "/publishPost",
   asyncRoute(async (req, res) => {
@@ -998,7 +863,6 @@ router.get(
   })
 );
 
-// ── О себе ──────────────────────────────────────────────────────────────────
 router.get(
   "/getMyStats",
   asyncRoute(async (req, res) => {
@@ -1008,21 +872,11 @@ router.get(
     res.json({
       chats: chats.length,
       messagesSent: mine.length,
-      // С кем бот вообще общался — уникальные собеседники во всех его чатах.
       people: new Set(chats.flatMap((c) => c.memberIds).filter((id) => id !== req.bot.userId)).size,
     });
   })
 );
 
-// ── Остальные виды вложений и мелочи, которых не хватало ────────────────────
-//
-// Приложение умеет показывать видео, голосовые, кружки и альбомы из нескольких
-// файлов — а бот мог прислать только картинку и файл. То есть половина видов
-// сообщений была доступна человеку и недоступна программе, без всякой причины:
-// под всеми ими лежит одно и то же поле attachments.
-//
-// Файлы, как и раньше, передаются ссылкой: своё хранилище у бота уже есть, а
-// второй путь загрузки на сервер потянул бы за собой свои лимиты и чистку.
 const ATTACHMENT_KINDS = {
   sendVideo: { kind: "video", fallback: "🎬 Видео", name: "video" },
   sendVoice: { kind: "voice", fallback: "🎤 Голосовое сообщение", name: "voice" },
@@ -1038,8 +892,6 @@ for (const [method, spec] of Object.entries(ATTACHMENT_KINDS)) {
       try {
         const message = await sendBotMessage(req.bot.userId, chatId, caption || spec.fallback, {
           replyToId,
-          // durationSec нужен голосовым и кружкам: без него плеер не знает
-          // длину дорожки и рисует пустую полосу вместо шкалы.
           attachments: [{ kind: spec.kind, url, name: spec.name, meta: Number.isFinite(durationSec) ? { durationSec } : undefined }],
         });
         res.json({ message });
@@ -1050,8 +902,6 @@ for (const [method, spec] of Object.entries(ATTACHMENT_KINDS)) {
   );
 }
 
-// Альбом: несколько файлов одним сообщением, как это делает человек, выбрав
-// сразу пять фотографий. Отдельными сообщениями это выглядит как спам.
 router.post(
   "/sendMediaGroup",
   asyncRoute(async (req, res) => {
@@ -1074,18 +924,12 @@ router.post(
   })
 );
 
-// Переслать без пометки «переслано» — то же, что «копировать» у Telegram.
-// Нужно ровно там, где forwardMessage не годится: бот раздаёт чужой текст как
-// свой собственный (рассылка, витрина), и подпись автора в шапке лишняя.
 router.post(
   "/copyMessage",
   asyncRoute(async (req, res) => {
     const { chatId, messageId } = req.body ?? {};
     const source = await getMessage(messageId);
     if (!source) return res.status(404).json({ error: "Message not found" });
-    // Копировать можно только то, что бот и так вправе читать: сообщение из
-    // чата, где он состоит. Иначе по перебору идентификаторов можно было бы
-    // вытащить чужую переписку.
     const sourceChat = await getChat(source.chatId);
     if (!sourceChat || !sourceChat.memberIds.includes(req.bot.userId)) {
       return res.status(404).json({ error: "Bot is not a member of that chat" });
@@ -1101,8 +945,6 @@ router.post(
   })
 );
 
-// Аватар бота. Имя и описание менялись через setMyProfile с самого начала, а
-// картинка — единственное, что оставалось только в интерфейсе владельца.
 router.post(
   "/setMyAvatar",
   asyncRoute(async (req, res) => {
@@ -1113,26 +955,8 @@ router.post(
   })
 );
 
-// ── Бот сам находит человека и пишет ему первым ─────────────────────────────
-//
-// Раньше бот умел отвечать только там, где он уже состоит: чат должен был
-// существовать, а начать разговор мог лишь человек. Ради этого метода их и
-// заводят — напомнить о доставке, прислать код, сообщить о заказе, — но он же
-// и есть готовая рассылка спама, если оставить его без ограничений.
-//
-// Поэтому здесь их четыре, и каждое закрывает свою дыру:
-//
-//  1. Человека находим по @юзернейму или id — по номеру телефона нельзя (то
-//     же правило, что и у resolveUsername выше: перебор номеров превратил бы
-//     API в телефонную книгу).
-//  2. Уважается запрет получателя: Настройки → Конфиденциальность → «Боты
-//     могут писать первыми» (everyone | contacts | nobody).
-//  3. Заблокировавшему бота не пишем вовсе.
-//  4. Ограничение на число НОВЫХ разговоров в час. Отвечать в уже открытых
-//     чатах можно сколько угодно — рассылка начинается там, где бот пишет
-//     тем, кто его не знает.
 const NEW_DIALOGS_PER_HOUR = 20;
-const newDialogLog = new Map(); // botId -> массив меток времени
+const newDialogLog = new Map();
 
 function newDialogAllowed(botId) {
   const now = Date.now();
@@ -1153,8 +977,6 @@ async function botMayWriteFirst(botUserId, targetId) {
   if (target.isBot) return { ok: false, error: "Ботам боты не пишут" };
   if (target.blockedUserIds?.includes(botUserId)) return { ok: false, error: "Пользователь заблокировал этого бота" };
 
-  // Уровень плюс поимённые исключения: «боты писать могут, но этот — нет»
-  // (или наоборот) — см. server/lib/privacyRules.js.
   if (!(await allowsUser(targetId, "botMessages", botUserId))) {
     return { ok: false, error: "Пользователь ограничил ботам возможность писать первыми" };
   }
@@ -1175,8 +997,6 @@ router.post(
     const allowed = await botMayWriteFirst(req.bot.userId, target.id);
     if (!allowed.ok) return res.status(403).json({ error: allowed.error });
 
-    // Уже открытый разговор — это не новый разговор: продолжать переписку
-    // ограничение не мешает, оно про первое сообщение незнакомому человеку.
     const existing = await findDmBetween(req.bot.userId, target.id);
     if (!existing && !newDialogAllowed(req.bot.id)) {
       return res.status(429).json({ error: `Не больше ${NEW_DIALOGS_PER_HOUR} новых разговоров в час` });
@@ -1188,20 +1008,6 @@ router.post(
   })
 );
 
-// ── Канал и его обсуждение ──────────────────────────────────────────────────
-//
-// Связка «канал + группа комментариев» в приложении уже есть, но собрать её
-// можно было только руками. Боту это нужно ровно там, где он и полезен: завёл
-// канал под проект, прицепил к нему обсуждение, опубликовал пост — и всё это
-// одним скриптом, без хождения по меню.
-//
-// Правило прав общее с человеческим экраном (routes/chats.js): распоряжается
-// каналом тот, кто им управляет. Для бота это значит — он должен быть
-// администратором и канала, и группы, которую к нему цепляют. Иначе через
-// токен можно было бы прицепить к своему каналу чужую группу и собирать
-// чужие комментарии.
-
-// Общая проверка: бот управляет этим чатом.
 async function botRunsChat(req, res, chatId, expectType) {
   const chat = await getChat(chatId);
   if (!chat || !chat.memberIds.includes(req.bot.userId)) {
@@ -1241,9 +1047,6 @@ router.post(
       username: handle,
       isPublic: !!isPublic && !!handle,
       avatarColor: "#5b8def",
-      // Владелец бота тоже становится владельцем канала. Иначе канал,
-      // созданный ботом, принадлежал бы только программе: сменился токен —
-      // и живой человек остался без доступа к собственному каналу.
       memberIds: [req.bot.userId, req.bot.ownerId].filter(Boolean),
       ownerId: req.bot.userId,
       adminIds: [req.bot.userId, req.bot.ownerId].filter(Boolean),
@@ -1257,8 +1060,6 @@ router.post(
   })
 );
 
-// Обсуждение канала: создать новое, привязать существующую группу или
-// отвязать. Один маршрут на три действия — это одна и та же настройка канала.
 router.post(
   "/setChatDiscussion",
   asyncRoute(async (req, res) => {
@@ -1267,9 +1068,6 @@ router.post(
     const action = req.body?.action ?? "create";
 
     if (action === "unlink") {
-      // Саму группу не трогаем: у неё свои участники и своя переписка, и
-      // удалять её заодно с «выключить комментарии» значит уничтожать то,
-      // о чём никто не просил.
       const updated = await updateChat(channel.id, { linkedDiscussionChatId: null });
       broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
       return res.json({ chat: updated, discussion: null });
@@ -1278,9 +1076,6 @@ router.post(
     if (action === "link") {
       const group = await botRunsChat(req, res, req.body?.groupId, "group");
       if (!group) return;
-      // Одна группа — одному каналу: группа, прицепленная к двум каналам,
-      // собирала бы два потока комментариев без всякой возможности их
-      // различить.
       const taken = (await listChatsForUser(req.bot.userId)).find(
         (c) => c.id !== channel.id && c.linkedDiscussionChatId === group.id
       );
@@ -1314,7 +1109,6 @@ router.post(
   })
 );
 
-// Что сейчас прицеплено к каналу — чтобы скрипт мог проверить, а не гадать.
 router.get(
   "/getChatDiscussion",
   asyncRoute(async (req, res) => {

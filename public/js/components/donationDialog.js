@@ -3,11 +3,6 @@ import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
 
-// Shown instead of navigating to a chat with the admin, once DonationAlerts
-// or DonatePay is connected (server/lib/autoPayment.js) — the buyer pays for
-// real and a background sweep fulfills it automatically (server: premium.js/
-// ads.js/gifts.js's /request), instead of the old "message the admin, wait
-// for them to notice and confirm by hand" flow.
 const PROVIDER_LABEL = { donationalerts: "DonationAlerts", donatepay: "DonatePay" };
 
 export function openDonationDialog({ donationUrl, code, amountRub, provider }) {
@@ -46,8 +41,6 @@ export function openDonationDialog({ donationUrl, code, amountRub, provider }) {
             close();
             navigate(`/chat/${chatId}`);
           } catch {
-            // Support chat itself failed to open — nothing more useful to
-            // do than let them close and try again later.
           }
         },
       },

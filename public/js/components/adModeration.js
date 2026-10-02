@@ -2,22 +2,6 @@ import { el, mount, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 
-// Очередь проверки рекламы — то, что видит администрация после того, как
-// кто-то создал кампанию в своём кабинете.
-//
-// Живёт в «Модерации» рядом с жалобами, а не отдельным разделом: это одна и та
-// же работа одного и того же человека, и разносить её по двум экранам значило
-// бы забывать про один из них. Отдельным файлом — по той же причине, что и
-// сам кабинет (components/adCabinet.js): у очереди своё состояние и свои
-// запросы, а settings/index.js и без того на две с половиной тысячи строк.
-//
-// Решений ровно два, и обоим нужен свой вид кнопки: «Проверил» — обычное
-// действие, «Отказ» — красное и с обязательной причиной, потому что причину
-// увидит рекламодатель и по ней он будет править объявление.
-
-// Готовые причины: почти все отказы — это одно из этого, а набирать текст
-// руками ради каждого третьего объявления никто не станет (и тогда в причине
-// окажется «нет» — то есть ничего).
 const QUICK_REASONS = [
   "Обман или несуществующий товар",
   "Запрещённые товары или услуги",
@@ -32,14 +16,11 @@ const fmt = (n) => new Intl.NumberFormat("ru-RU").format(n ?? 0);
 export function AdReviewQueue(root) {
   let list = null;
   let error = null;
-  let busy = null; // id кампании, по которой сейчас идёт запрос
-  let rejecting = null; // id кампании, для которой открыт ввод причины
+  let busy = null;
+  let rejecting = null;
   let rejectError = null;
   let placements = {};
 
-  // Поле причины — одно на очередь и живёт вне render(): пересозданное на
-  // каждой перерисовке, оно теряло бы фокус после каждой буквы (та же грабля,
-  // что и в остальных экранах настроек).
   const reasonInput = el("input", { class: "settings-input", placeholder: "Причина отказа — её увидит рекламодатель" });
 
   async function load() {
@@ -49,8 +30,6 @@ export function AdReviewQueue(root) {
       placements = data.placements ?? {};
       error = null;
     } catch (err) {
-      // 403 здесь означает «этот аккаунт не администратор» — очередь просто
-      // не показывается, а не кричит ошибкой на весь экран модерации.
       error = err.message || "Не удалось загрузить очередь проверки";
       list = [];
     }
@@ -134,8 +113,6 @@ export function AdReviewQueue(root) {
         el("span", { class: "ad-status warn" }, "Ждёт проверки"),
       ]),
 
-      // Ровно то, что увидит читатель, — текст, ссылка и картинка. Решение
-      // принимается по этому, поэтому оно и стоит первым.
       el("p", { class: "ad-card-text" }, c.text),
       c.imageUrl ? el("img", { class: "ad-review-image", src: c.imageUrl, alt: "" }) : null,
       c.url
@@ -178,9 +155,6 @@ export function AdReviewQueue(root) {
   function render() {
     clear(root);
     const count = list?.length ?? 0;
-    // Заголовок и карточка кладутся прямо в root (он уже
-    // .settings-section-group), без лишней обёртки — иначе группа выглядела бы
-    // не так, как соседние секции экрана модерации.
     mount(root, [
       el("p", { class: "settings-section-title" }, `Реклама на проверке${list ? ` (${count})` : ""}`),
       el("div", { class: "settings-section" }, [

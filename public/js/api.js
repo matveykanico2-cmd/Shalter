@@ -5,15 +5,7 @@ async function req(url, init) {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    // This device's session was terminated from elsewhere (Settings →
-    // Устройства → «Завершить», server/middleware/auth.js's requireUserId) —
-    // bounce to login instead of leaving every subsequent request failing
-    // silently. ?reason=revoked lets login.js show why, instead of it just
-    // looking like a random logout.
     if (body.error === "session_revoked") window.location.href = "/login?reason=revoked";
-    // Banned by the admin (routes/reports.js's /:id/resolve or Settings →
-    // Модерация) — same "bounce to login with an explanation" shape as above,
-    // carrying the recorded reason so the login screen can show it.
     if (body.error === "banned") {
       const why = body.banReason ? `&why=${encodeURIComponent(body.banReason)}` : "";
       window.location.href = `/login?reason=banned${why}`;
@@ -24,9 +16,6 @@ async function req(url, init) {
 }
 
 export const api = {
-  // Запрос уже ушёл из index.html, ещё до того как этот файл скачался —
-  // забираем готовое обещание вместо второй поездки. Первый раз оно
-  // забирается один раз: после входа/выхода нужно спрашивать заново.
   session: () => {
     const early = window.__boot?.session;
     if (early) {
@@ -45,31 +34,20 @@ export const api = {
   },
   registerEmail: (name, email, password, phone, username, lastName) =>
     req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, username, lastName }) }),
-  // Live availability check for the registration form's @handle field.
-  // Unauthenticated, since it runs before the account exists.
   checkUsername: (u) => req(`/api/auth/username-available?u=${encodeURIComponent(u)}`),
   loginEmail: (email, password) =>
     req("/api/auth/login-email", { method: "POST", body: JSON.stringify({ email, password }) }),
-  // Забытый пароль: код в собственный чат аккаунта с Shalter. На экран входа
-  // не выведено — там остался единственный способ, пара «почта + телефон» ниже.
   startPhoneRecovery: (phone) => req("/api/auth/recover/phone/start", { method: "POST", body: JSON.stringify({ phone }) }),
   finishPhoneRecovery: (phone, code, password) =>
     req("/api/auth/recover/phone/verify", { method: "POST", body: JSON.stringify({ phone, code, password }) }),
   switchAccount: (userId) => req("/api/auth/switch", { method: "POST", body: JSON.stringify({ userId }) }),
   logout: (uid) => req("/api/auth/logout", { method: "POST", body: JSON.stringify({ uid }) }),
-  // Истории одного человека — кнопка «Истории» в его профиле.
-  // Закреплённые в профиле каналы (server/routes/users.js). Список для показа
-  // приходит вместе с самим профилем; эти два — про его изменение.
   getPinnableChannels: () => req("/api/users/me/pinnable-channels"),
   setPinnedChannels: (chatIds) =>
     req("/api/users/me/pinned-channels", { method: "PUT", body: JSON.stringify({ chatIds }) }),
   getStoryViewers: (id) => req(`/api/stories/${id}/viewers`),
   getUserStories: (userId) => req(`/api/stories/user/${userId}`),
-  // Архив: все истории человека, включая те, чьи сутки вышли. Свой архив виден
-  // всегда, чужой — если он открыт настройкой (server/routes/stories.js).
   getStoriesArchive: (userId) => req(`/api/stories/user/${userId}/archive`),
-  // Рекламный кабинет (server/routes/ads.js): кампании, бюджет в звёздах,
-  // статистика показов и кликов, модерация объявлений.
   listAdCampaigns: () => req("/api/ads/campaigns"),
   createAdCampaign: (data) => req("/api/ads/campaigns", { method: "POST", body: JSON.stringify(data) }),
   updateAdCampaign: (id, patch) => req(`/api/ads/campaigns/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
@@ -82,7 +60,6 @@ export const api = {
   adsForReview: () => req("/api/ads/review"),
   reviewAd: (id, approve, reason) => req(`/api/ads/review/${id}`, { method: "POST", body: JSON.stringify({ approve, reason }) }),
 
-  // Маркет (server/routes/market.js): витрина, магазин продавца, заказы.
   marketFeed: (q) => req(`/api/market${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   marketShop: (id) => req(`/api/market/shops/${id}`),
   myShop: () => req("/api/market/my"),
@@ -103,10 +80,6 @@ export const api = {
   deleteAccount: (password) => req("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password }) }),
   changePassword: (currentPassword, newPassword) =>
     req("/api/auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),
-  // Two steps: the code goes to the new address, so it is that address being
-  // proved, not merely typed (server/data/emailChanges.js).
-  // Восстановление по паре «почта + телефон», без кода. Два шага: проверка пары
-  // и собственно смена пароля — сервер проверяет пару в обоих (auth.js).
   checkRecoveryPair: (email, phone) => req("/api/auth/recover/pair/check", { method: "POST", body: JSON.stringify({ email, phone }) }),
   finishPairRecovery: (email, phone, password) =>
     req("/api/auth/recover/pair/reset", { method: "POST", body: JSON.stringify({ email, phone, password }) }),
@@ -120,23 +93,14 @@ export const api = {
   startCodeLogin: (phone) => req("/api/auth/code/start", { method: "POST", body: JSON.stringify({ phone }) }),
   verifyCodeLogin: (phone, code) => req("/api/auth/code/verify", { method: "POST", body: JSON.stringify({ phone, code }) }),
 
-  // Two-factor authentication (TOTP — server/lib/totp.js). A login whose
-  // account has it on comes back as { twoFactorRequired, ticket } with no
-  // session; twoFactorLogin trades that ticket plus a code for one.
   twoFactorLogin: (ticket, code) => req("/api/auth/2fa/login", { method: "POST", body: JSON.stringify({ ticket, code }) }),
   getTwoFactor: () => req("/api/auth/2fa"),
-  // `method`: "totp" (authenticator app) or "chat" (code posted into the Shalter
-  // service chat).
   setupTwoFactor: (method) => req("/api/auth/2fa/setup", { method: "POST", body: JSON.stringify({ method }) }),
   sendTwoFactorCode: (ticket) => req("/api/auth/2fa/send-code", { method: "POST", body: JSON.stringify({ ticket }) }),
-  // Забыл и облачный пароль — назначить удаление аккаунта через неделю (по ticket).
   scheduleAccountDeletion: (ticket) => req("/api/auth/schedule-deletion", { method: "POST", body: JSON.stringify({ ticket }) }),
   cancelAccountDeletion: (ticket) => req("/api/auth/cancel-deletion", { method: "POST", body: JSON.stringify({ ticket }) }),
   enableTwoFactor: (code) => req("/api/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) }),
   disableTwoFactor: (code) => req("/api/auth/2fa/disable", { method: "POST", body: JSON.stringify({ code }) }),
-  // Облачный пароль — третий способ подтвердить вход (server/routes/auth.js).
-  // Пароль от аккаунта здесь обязателен: иначе его поставил бы любой, кто нашёл
-  // незапертое устройство с открытым Shalter.
   setCloudPassword: ({ password, hint, accountPassword, currentPassword }) =>
     req("/api/auth/2fa/cloud-password", {
       method: "POST",
@@ -144,17 +108,12 @@ export const api = {
     }),
 
   updateProfile: (id, patch) => req(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
-  // The one pinned track on your own profile (server/routes/profileTrack.js).
-  // `track` is the object POST /api/uploads returned (url/name/size/mimeType).
   setProfileTrack: (track) => req("/api/profile-track", { method: "POST", body: JSON.stringify(track) }),
   clearProfileTrack: () => req("/api/profile-track", { method: "DELETE" }),
-  // Profile photos — always your own, so no id: the session decides whose.
   listAvatars: () => req("/api/avatars"),
   addAvatar: (entry) => req("/api/avatars", { method: "POST", body: JSON.stringify(entry) }),
   setMainAvatar: (index) => req(`/api/avatars/${index}/main`, { method: "POST" }),
   removeAvatar: (index) => req(`/api/avatars/${index}`, { method: "DELETE" }),
-  // Статус рядом с именем — свой набор (до 1 или 5 слотов, см. slotsFor) и
-  // read-only каталог готовых, который наполняет администратор.
   getStatusCatalog: () => req("/api/status-catalog"),
   listMyStatuses: () => req("/api/status/me"),
   addMyStatus: (entry) => req("/api/status/me", { method: "POST", body: JSON.stringify(entry) }),
@@ -162,28 +121,20 @@ export const api = {
   removeMyStatus: (id) => req(`/api/status/me/${encodeURIComponent(id)}`, { method: "DELETE" }),
   adminCreateStatusCatalogItem: (item) => req("/api/admin/status-catalog", { method: "POST", body: JSON.stringify(item) }),
   adminDeleteStatusCatalogItem: (id) => req(`/api/admin/status-catalog/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  // Заблокированные — точечно. Прежний listUsers() выкачивал всех
-  // пользователей сервера ради десятка нужных строк (см. server/routes/users.js).
   getBlockedUsers: () => req("/api/users/blocked"),
   getUser: (id) => req(`/api/users/${id}`),
   setBlocked: (userId, blocked) =>
     req(`/api/users/${userId}/block`, { method: "POST", body: JSON.stringify({ blocked }) }),
   getSharedMedia: (userId) => req(`/api/users/${userId}/shared-media`),
-  // Общие группы с этим человеком — строка «Общие группы» в профиле.
   getCommonChats: (userId) => req(`/api/users/${userId}/common-chats`),
 
-  // Opens (or returns) the DM with the support account.
   openSupportChat: () => req("/api/support/chat", { method: "POST" }),
-  // «Сообщить об ошибке» — DM с администрацией (живой человек), не с ботом.
   openBugReportChat: () => req("/api/support/report", { method: "POST" }),
   getPartnerInfo: () => req("/api/partners/me"),
-  // "Войти через Shalter" (server/routes/oauth.js) — managing apps you've
-  // registered, and the consent-screen calls oauthAuthorize.js's view makes.
   listOAuthApps: () => req("/api/oauth/apps"),
   createOAuthApp: (name, redirectUri) => req("/api/oauth/apps", { method: "POST", body: JSON.stringify({ name, redirectUri }) }),
   deleteOAuthApp: (id) => req(`/api/oauth/apps/${id}`, { method: "DELETE" }),
   regenerateOAuthApp: (id) => req(`/api/oauth/apps/${id}/regenerate`, { method: "POST" }),
-  // Показать секрет ещё раз (как «Показать токен» у бота).
   getOAuthAppSecret: (id) => req(`/api/oauth/apps/${id}/secret`),
   getOAuthAppInfo: (clientId, redirectUri) =>
     req(`/api/oauth/app-info?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}`),
@@ -197,20 +148,14 @@ export const api = {
   deleteChat: (id) => req(`/api/chats/${id}`, { method: "DELETE" }),
   deleteChatForMe: (id) => req(`/api/chats/${id}/delete-for-me`, { method: "POST" }),
   markChatRead: (id) => req(`/api/chats/${id}/read`, { method: "POST" }),
-  // Порядок закреплённых чатов после перетаскивания (routes/chats.js).
   setPinnedChatOrder: (chatIds) => req("/api/chats/pinned-order", { method: "POST", body: JSON.stringify({ chatIds }) }),
   startDm: (userId, title, avatarColor) =>
     req("/api/chats", { method: "POST", body: JSON.stringify({ userId, title, avatarColor }) }),
-  // `extra` carries what the create dialog now asks for up front: description,
-  // @username and whether it's public.
   createChannel: (title, avatarImage, memberIds, adminIds, extra = {}) =>
     req("/api/chats/channels", { method: "POST", body: JSON.stringify({ title, avatarImage, memberIds, adminIds, ...extra }) }),
   createGroup: (title, memberIds, avatarImage, adminIds, extra = {}) =>
     req("/api/chats/groups", { method: "POST", body: JSON.stringify({ title, memberIds, avatarImage, adminIds, ...extra }) }),
-  // The username auction (server/routes/usernames.js).
   listUsernameAuctions: () => req("/api/usernames"),
-  // Рынок перепродажи: владелец сам назначает цену, покупка мгновенная
-  // (в отличие от аукциона выше, где хендл раздаёт администрация).
   listUsernameMarket: () => req("/api/usernames/market"),
   sellUsername: (priceStars) => req("/api/usernames/market", { method: "POST", body: JSON.stringify({ priceStars }) }),
   withdrawUsernameListing: (id) => req(`/api/usernames/market/${id}`, { method: "DELETE" }),
@@ -220,40 +165,29 @@ export const api = {
   bidUsername: (id, stars) => req(`/api/usernames/${id}/bid`, { method: "POST", body: JSON.stringify({ stars }) }),
   closeUsernameAuction: (id) => req(`/api/usernames/${id}/close`, { method: "POST" }),
   deleteUsernameAuction: (id) => req(`/api/usernames/${id}`, { method: "DELETE" }),
-  // By phone number — that's what the admin is given, not an internal id.
   grantUsername: (phone, username) =>
     req("/api/usernames/grant", { method: "POST", body: JSON.stringify({ phone, username }) }),
-  // Renaming a bot / changing its picture and description.
   updateBot: (id, patch) => req(`/api/bots/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   removeCallParticipant: (callId, userId) => req(`/api/calls/${callId}/participants/${userId}`, { method: "DELETE" }),
-  // The command list a bot advertises — what the composer's "/" menu shows.
   setBotCommands: (id, commands) => req(`/api/bots/${id}/commands`, { method: "PUT", body: JSON.stringify({ commands }) }),
-  // The discussion group behind a channel's comments: "create" | "link" | "unlink".
   setChatDiscussion: (id, action, groupId) =>
     req(`/api/chats/${id}/discussion`, { method: "POST", body: JSON.stringify({ action, groupId }) }),
-  // Muting for a period (Telegram's 1h/8h/2d/forever), and slow mode.
   muteChat: (id, opts) => req(`/api/chats/${id}/mute`, { method: "POST", body: JSON.stringify(opts) }),
   setSlowMode: (id, seconds) => req(`/api/chats/${id}/slow-mode`, { method: "POST", body: JSON.stringify({ seconds }) }),
   setCommentPrice: (id, stars) => req(`/api/chats/${id}/comment-price`, { method: "POST", body: JSON.stringify({ stars }) }),
-  // Join requests — the queue an invite link feeds when approval is on.
   listJoinRequests: (id) => req(`/api/chats/${id}/join-requests`),
   answerJoinRequest: (id, userId, approve) =>
     req(`/api/chats/${id}/join-requests/${userId}`, { method: "POST", body: JSON.stringify({ approve }) }),
-  // approveJoins / signMessages
   setChatSettings: (id, patch) => req(`/api/chats/${id}/settings`, { method: "POST", body: JSON.stringify(patch) }),
-  // What ordinary members of a group may do (server/lib/chatPermissions.js).
   getChatPermissions: (id) => req(`/api/chats/${id}/permissions`),
   setChatPermissions: (id, permissions) =>
     req(`/api/chats/${id}/permissions`, { method: "POST", body: JSON.stringify({ permissions }) }),
-  // reactions: an array to restrict to, or null to allow anything again.
   setAllowedReactions: (id, reactions) =>
     req(`/api/chats/${id}/reactions`, { method: "POST", body: JSON.stringify({ reactions }) }),
   searchInChat: (id, q) => req(`/api/chats/${id}/messages/search?q=${encodeURIComponent(q)}`),
-  // Invite links — how anyone joins a private group or channel.
   chatInviteLink: (id, revoke = false) => req(`/api/chats/${id}/invite`, { method: "POST", body: JSON.stringify({ revoke }) }),
   inviteInfo: (code) => req(`/api/chats/invite/${encodeURIComponent(code)}`),
   joinByInvite: (code) => req(`/api/chats/invite/${encodeURIComponent(code)}/join`, { method: "POST" }),
-  // The palette this chat's level has unlocked (server/lib/chatFeatures.js).
   getChatFeatures: (id) => req(`/api/chats/${id}/features`),
   setChannelPublic: (id, isPublic, username) =>
     req(`/api/chats/${id}/public`, { method: "POST", body: JSON.stringify({ isPublic, username }) }),
@@ -262,38 +196,25 @@ export const api = {
   leaveChat: (id) => req(`/api/chats/${id}/leave`, { method: "POST" }),
   clearHistory: (id, forEveryone) =>
     req(`/api/chats/${id}/clear`, { method: "POST", body: JSON.stringify({ forEveryone: !!forEveryone }) }),
-  setChatWallpaper: (id, wallpaper, forEveryone) =>
-    req(`/api/chats/${id}/wallpaper`, { method: "POST", body: JSON.stringify({ wallpaper, forEveryone: !!forEveryone }) }),
+  setChatWallpaper: (id, wallpaper, forEveryone, label) =>
+    req(`/api/chats/${id}/wallpaper`, { method: "POST", body: JSON.stringify({ wallpaper, forEveryone: !!forEveryone, label: label ?? null }) }),
   setDraft: (id, text) => req(`/api/chats/${id}/draft`, { method: "POST", body: JSON.stringify({ text }) }),
   setMemberRole: (id, userId, role) =>
     req(`/api/chats/${id}/members`, { method: "POST", body: JSON.stringify({ userId, role }) }),
-  // The label the whole chat sees next to a member — owner-only, empty clears it.
   setMemberTitle: (id, userId, title) =>
     req(`/api/chats/${id}/title`, { method: "POST", body: JSON.stringify({ userId, title }) }),
   restrictMember: (id, userId, until) =>
     req(`/api/chats/${id}/restrict`, { method: "POST", body: JSON.stringify({ userId, until }) }),
   voteForGroup: (id) => req(`/api/chats/${id}/vote`, { method: "POST" }),
 
-  // Paged newest-first (server/routes/messages.js): omit `before` for the latest
-  // page, pass the oldest loaded message's createdAt to walk further back.
   listMessages: (chatId, opts = {}) => {
     const q = new URLSearchParams();
     if (opts.limit) q.set("limit", String(opts.limit));
     if (opts.before) q.set("before", opts.before);
-    // Tie-breaker for messages sharing the same createdAt down to the
-    // millisecond (a real occurrence — e.g. the system messages
-    // server/routes/chats.js posts alongside another message land in the
-    // same instant): "before" alone, compared with strict <, either skips or
-    // re-fetches whichever of the tied rows fell on the wrong side of the
-    // previous page's LIMIT cutoff. See server/data/messages.js's
-    // listMessagesPage for the matching (createdAt, id) cursor.
     if (opts.beforeId) q.set("beforeId", opts.beforeId);
     const qs = q.toString();
     return req(`/api/chats/${chatId}/messages${qs ? `?${qs}` : ""}`);
   },
-  // Календарь переписки: дни месяца с сообщениями и первое сообщение дня.
-  // tz — смещение часового пояса в минутах: «30 августа» зависит от того, кто
-  // смотрит, а createdAt лежит в UTC.
   getChatMessageDays: (chatId, month, tz) => req(`/api/chats/${chatId}/messages/days?month=${month}&tz=${tz}`),
   getChatMessageAt: (chatId, day, tz) => req(`/api/chats/${chatId}/messages/at?day=${day}&tz=${tz}`),
   sendMessage: (chatId, text, opts) =>
@@ -316,18 +237,11 @@ export const api = {
   retractPollVote: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/vote`, { method: "DELETE" }),
   closePoll: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/poll/close`, { method: "POST" }),
   getThread: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/thread`),
-  // Комментарии к отдельному посту канала — своя ветка на каждый пост
-  // (server/routes/posts.js). Вступление в группу обсуждения происходит само,
-  // первым отправленным комментарием.
-  // Один просмотр поста от текущего читателя. Сервер сам решает, засчитывать
-  // ли: повторные открытия и собственные посты не считаются.
   viewPost: (postId) => req(`/api/posts/${postId}/view`, { method: "POST", body: "{}" }),
-  // Статистика канала — только для тех, кто им управляет (routes/channels.js).
   getChannelStats: (chatId) => req(`/api/channels/${chatId}/stats`),
   getPostComments: (postId) => req(`/api/posts/${postId}/comments`),
   sendPostComment: (postId, text, extra = {}) =>
     req(`/api/posts/${postId}/comments`, { method: "POST", body: JSON.stringify({ text, ...extra }) }),
-  // action — см. server/data/typing.js; "cancel" снимает статус.
   sendTyping: (chatId, action = "typing") =>
     req(`/api/chats/${chatId}/typing`, { method: "POST", body: JSON.stringify({ action }) }),
   getTyping: (chatId) => req(`/api/chats/${chatId}/typing`),
@@ -356,19 +270,11 @@ export const api = {
   listContacts: () => req("/api/contacts"),
   addContact: (userId, localName) => req("/api/contacts", { method: "POST", body: JSON.stringify({ userId, localName }) }),
   renameContact: (userId, localName) => req("/api/contacts/rename", { method: "POST", body: JSON.stringify({ userId, localName }) }),
-  // Публичный канал/группа по @хендлу — вторая половина ссылки /@имя: первым
-  // спрашивается человек или бот, и только если такого нет — чат.
   findChatByUsername: (username) => req(`/api/chats/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
   findUserByUsername: (username) => req(`/api/users/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
-  // Address-book import (components/importContactsDialog.js): send [{name, phone}],
-  // get back who's already registered and who can be invited. Nothing is stored
-  // server-side — see server/routes/contacts.js's /match.
   matchContacts: (contacts) => req("/api/contacts/match", { method: "POST", body: JSON.stringify({ contacts }) }),
   removeContact: (userId) => req("/api/contacts", { method: "DELETE", body: JSON.stringify({ userId }) }),
 
-  // "Hugo" — the composer's writing checker (server/routes/hugo.js). Proxied
-  // server-side so the checking service never sees a user's IP and the endpoint
-  // stays swappable for a self-hosted one.
   hugoCheck: (text) => req("/api/hugo/check", { method: "POST", body: JSON.stringify({ text }) }),
 
   getSettings: () => req("/api/settings"),
@@ -383,8 +289,6 @@ export const api = {
   placeCall: (chatId, kind, { ringAll = false } = {}) =>
     req("/api/calls", { method: "POST", body: JSON.stringify({ chatId, kind, ringAll }) }),
   leaveCall: (id) => req(`/api/calls/${id}/leave`, { method: "POST" }),
-  // Fire-and-forget ping so a second logged-in device stops ringing once this
-  // one answers (server/routes/calls.js's /:id/answer) — see callController.js.
   answerCall: (id) => req(`/api/calls/${id}/answer`, { method: "POST" }),
   patchCall: (id, patch) => req(`/api/calls/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   getVoiceRoom: (chatId) => req(`/api/calls/room/${chatId}`),
@@ -402,18 +306,8 @@ export const api = {
   listBots: () => req("/api/bots"),
   createBot: (name, avatarImage, description) =>
     req("/api/bots", { method: "POST", body: JSON.stringify({ name, avatarImage, description }) }),
-  // Посмотреть токен ещё раз — без перевыпуска, который сломал бы работающего бота.
   getBotToken: (id) => req(`/api/bots/${id}/token`),
-  // Один бот вместе с сохранённым кодом — редактор кода спрашивает его при
-  // открытии, чтобы показывать то, что действительно лежит на сервере, а не
-  // снимок из списка ботов, загруженного когда-то раньше.
   getBot: (id) => req(`/api/bots/${id}`),
-  // Сколько людей пользуется ботом — показывается в шапке его чата. Заодно
-  // отвечает, есть ли у бота мини-приложение и как подписать кнопку.
-  // Эфиры в каналах и группах (server/routes/live.js). Медиа идёт мимо
-  // сервера — здесь только состояние: кто в эфире, у кого какая роль, чат.
-  // source: "webrtc" — вещаем из браузера, "rtmp" — картинку пришлёт OBS или
-  // другая программа (server/rtmp.js).
   startLive: (chatId, { title, withVideo, source } = {}) =>
     req("/api/live", { method: "POST", body: JSON.stringify({ chatId, title, withVideo, source }) }),
   getLiveForChat: (chatId) => req(`/api/live/chat/${chatId}`),
@@ -431,11 +325,8 @@ export const api = {
     req(`/api/live/${id}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ text }) }),
   deleteLiveMessage: (id, messageId) => req(`/api/live/${id}/messages/${messageId}`, { method: "DELETE" }),
 
-  // Кто уже в контактах — только идентификаторы, без аватаров.
   getContactIds: () => req("/api/contacts/ids"),
   getBotAudience: (userId) => req(`/api/bots/audience/${userId}`),
-  // Мини-приложения (components/miniApp.js). Адрес подписывается на сервере —
-  // ключ выводится из токена бота, и в браузер он не попадает.
   openBotApp: (botId, { url, chatId, theme } = {}) =>
     req(`/api/bots/${botId}/app/open`, { method: "POST", body: JSON.stringify({ url, chatId, theme }) }),
   sendBotAppData: (botId, data) => req(`/api/bots/${botId}/app/data`, { method: "POST", body: JSON.stringify({ data }) }),
@@ -452,13 +343,8 @@ export const api = {
   getVapidPublicKey: () => req("/api/push/vapid-public-key"),
   subscribePush: (subscription) => req("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription }) }),
   unsubscribePush: (endpoint) => req("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) }),
-  // Что сервер знает про мои устройства — для диагностики «пуши не приходят».
   listPushEndpoints: () => req("/api/push/endpoints"),
-  // Версия того, что сейчас отдаёт сервер — по ней приложение обновляет себя
-  // само (lib/appVersion.js).
   getAppVersion: () => req("/api/version"),
-  // Доска объявлений (server/routes/market.js). Оплаты и доставки здесь нет:
-  // договариваются в переписке, стоимость отправки СДЭК продавец пишет сам.
   listListings: (params = {}) => {
     const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "" && v != null));
     return req(`/api/market/listings?${q.toString()}`);
@@ -480,8 +366,6 @@ export const api = {
   getDonationAlertsStatus: () => req("/api/donation-alerts/status"),
 
   listStories: () => req("/api/stories"),
-  // Одна история — список кадров: выбрали в галерее пять файлов, получилась
-  // одна история на пять кадров, а не пять историй.
   postStory: (items) => req("/api/stories", { method: "POST", body: JSON.stringify({ items }) }),
   postChannelStory: (chatId, items) => req(`/api/stories/channel/${chatId}`, { method: "POST", body: JSON.stringify({ items }) }),
   viewStory: (id) => req(`/api/stories/${id}/view`, { method: "POST" }),
@@ -502,25 +386,19 @@ export const api = {
   buyPremiumWithStars: (plan) => req("/api/premium/buy-with-stars", { method: "POST", body: JSON.stringify({ plan }) }),
   getBusinessInfo: () => req("/api/business/me"),
   requestBusiness: (plan) => req("/api/business/request", { method: "POST", body: JSON.stringify({ plan }) }),
-  // Admin-only grants (server/routes/premium.js's and ads.js's /grant): pass a
-  // day count, or { forever: true } for permanent. premium/active false revokes.
   grantPremium: (userId, premium = true, opts = {}) =>
     req("/api/premium/grant", { method: "POST", body: JSON.stringify({ userId, premium, ...opts }) }),
   grantAds: (userId, active = true, opts = {}) =>
     req("/api/ads/grant", { method: "POST", body: JSON.stringify({ userId, active, ...opts }) }),
 
-  // User-made sticker packs (server/routes/stickers.js). The built-in set is
-  // client-side and isn't fetched.
   listStickerPacks: () => req("/api/stickers/packs"),
   createStickerPack: (pack) => req("/api/stickers/packs", { method: "POST", body: JSON.stringify(pack) }),
   updateStickerPack: (id, patch) => req(`/api/stickers/packs/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteStickerPack: (id) => req(`/api/stickers/packs/${id}`, { method: "DELETE" }),
 
-  // Stars — the in-app currency (server/routes/stars.js).
   getStars: () => req("/api/stars"),
   requestStars: (packId) => req("/api/stars/request", { method: "POST", body: JSON.stringify({ packId }) }),
   grantStars: (userId, stars) => req("/api/stars/grant", { method: "POST", body: JSON.stringify({ userId, stars }) }),
-  // Перевод звёзд другому человеку (server/routes/stars.js).
   transferStars: (userId, amount, note) =>
     req("/api/stars/transfer", { method: "POST", body: JSON.stringify({ userId, amount, note }) }),
   setMessagePrice: (stars) => req("/api/stars/price", { method: "POST", body: JSON.stringify({ stars }) }),
@@ -528,32 +406,22 @@ export const api = {
   paidDeleteMessage: (messageId) => req(`/api/stars/delete/${messageId}`, { method: "POST" }),
 
   listGifts: () => req("/api/gifts"),
-  // Buying a gift with stars — instant, no admin in the loop.
   buyGift: (giftId, recipientId, background, anonymous) => req("/api/gifts/buy", { method: "POST", body: JSON.stringify({ giftId, recipientId, background, anonymous }) }),
-  // Trading a received gift back for stars.
   convertGift: (entryId) => req(`/api/gifts/received/${encodeURIComponent(entryId)}/convert`, { method: "POST" }),
-  // Takes a received gift off your own profile shelf.
   removeReceivedGift: (entryId) => req(`/api/gifts/received/${encodeURIComponent(entryId)}`, { method: "DELETE" }),
   setGiftPinned: (entryId, pinned) =>
     req(`/api/gifts/received/${encodeURIComponent(entryId)}/pin`, { method: "POST", body: JSON.stringify({ pinned }) }),
-  // Admin-only catalogue management (server/routes/gifts.js's /catalog routes):
-  // change a limited run's size, mint a new gift, remove one never issued.
   adminGiftCatalog: () => req("/api/gifts/catalog"),
   adminSetGiftSupply: (id, supply) =>
     req(`/api/gifts/catalog/${encodeURIComponent(id)}/supply`, { method: "POST", body: JSON.stringify({ supply }) }),
-  // Перерисовать подарок в аниматоре (встроенный или custom). scene=null убирает рисунок.
   adminSetGiftScene: (id, scene) =>
     req(`/api/gifts/catalog/${encodeURIComponent(id)}/scene`, { method: "POST", body: JSON.stringify({ scene }) }),
   adminCreateGift: (gift) => req("/api/gifts/catalog", { method: "POST", body: JSON.stringify(gift) }),
-  // Удаляет свой custom-подарок (если не выпускался) или скрывает встроенный/
-  // уже выпущенный из витрины. Восстановление — adminRestoreGift.
   adminDeleteGift: (id) => req(`/api/gifts/catalog/${encodeURIComponent(id)}`, { method: "DELETE" }),
   adminRestoreGift: (id) => req(`/api/gifts/catalog/${encodeURIComponent(id)}/restore`, { method: "POST" }),
   requestGift: (giftId, recipientId) =>
     req("/api/gifts/request", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
 
-  // Личные подарки, нарисованные в аниматоре (server/routes/gifts.js's /custom):
-  // бесплатные, декоративные, дарятся без списания звёзд.
   listCustomGifts: () => req("/api/gifts/custom"),
   createCustomGift: (name, scene) => req("/api/gifts/custom", { method: "POST", body: JSON.stringify({ name, scene }) }),
   updateCustomGift: (id, patch) => req(`/api/gifts/custom/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) }),
@@ -561,7 +429,6 @@ export const api = {
   sendCustomGift: (giftId, recipientId, background, anonymous) =>
     req("/api/gifts/custom/send", { method: "POST", body: JSON.stringify({ giftId, recipientId, background, anonymous }) }),
 
-  // Кастомные эмодзи, нарисованные в аниматоре (server/routes/customEmoji.js).
   listCustomEmoji: () => req("/api/custom-emoji"),
   createCustomEmoji: (name, scene) => req("/api/custom-emoji", { method: "POST", body: JSON.stringify({ name, scene }) }),
   updateCustomEmoji: (id, patch) => req(`/api/custom-emoji/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) }),
@@ -573,8 +440,6 @@ export const api = {
   deliverGift: (giftId, recipientId) =>
     req("/api/gifts/deliver", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
 
-  // Admin-only lawful-request data export (server/routes/admin.js). Gated
-  // server-side to the ADMIN_PHONE holder — these will 403 for anyone else.
   adminLookupUser: (q) => req(`/api/admin/lookup?q=${encodeURIComponent(q)}`),
   adminLookupChat: (q) => req(`/api/admin/chats/lookup?q=${encodeURIComponent(q)}`),
   adminDirectory: (type, q = "") => req(`/api/admin/directory?type=${encodeURIComponent(type)}&q=${encodeURIComponent(q)}`),
@@ -582,40 +447,24 @@ export const api = {
     req("/api/admin/export", { method: "POST", body: JSON.stringify({ userId, reason }) }),
   adminListExports: () => req("/api/admin/exports"),
 
-
-  // Admin-only moderation (same 403 gate). Open reports + who's currently
-  // banned or carries a safety label, the reports filed against one account,
-  // and the two actions: ban/unban, set/clear label.
   adminModeration: () => req("/api/admin/moderation"),
   adminUserReports: (userId) => req(`/api/admin/users/${userId}/reports`),
   adminSetBanned: (userId, banned, reason) =>
     req(`/api/admin/users/${userId}/ban`, { method: "POST", body: JSON.stringify({ banned, reason }) }),
-  // The verified check — accounts, bots, channels and groups all go through
-  // these two (server/routes/admin.js).
   adminSetVerified: (userId, verified) =>
     req(`/api/admin/users/${userId}/verify`, { method: "POST", body: JSON.stringify({ verified }) }),
   adminSetChatVerified: (chatId, verified) =>
     req(`/api/admin/chats/${chatId}/verify`, { method: "POST", body: JSON.stringify({ verified }) }),
-  // Partial admin access grant — primary-admin-only, server side
-  // (server/lib/adminAccess.js's isPrimaryAdmin).
   adminSetSections: (userId, sections) =>
     req(`/api/admin/users/${userId}/admin-sections`, { method: "POST", body: JSON.stringify({ sections }) }),
-  // Deleting somebody else's account — developer only, needs the handle typed
-  // back and a reason for the journal.
   adminDeleteUser: (userId, confirm, reason) =>
     req(`/api/admin/users/${userId}`, { method: "DELETE", body: JSON.stringify({ confirm, reason }) }),
-  // Сброс чужого пароля — последняя дверь, когда все остальные закрыты
-  // (нет почты, нигде не выполнен вход). Требует того же, что и удаление:
-  // введённый юзернейм и основание для журнала.
   adminResetPassword: (userId, { password, confirm, reason, disableTwoFactor }) =>
     req(`/api/admin/users/${userId}/reset-password`, {
       method: "POST",
       body: JSON.stringify({ password, confirm, reason, disableTwoFactor }),
     }),
-  // Проверка отправки почты: логинится на SMTP-сервер и возвращает его ответ.
   adminMailStatus: () => req("/api/admin/mail-status"),
-  // Состояние машины: диск, процессор, память, размер базы и вложений
-  // (server/lib/serverStats.js). Опрашивается страницей «Сервер» по таймеру.
   adminServerStats: () => req("/api/admin/server"),
   adminSetSafetyLabel: (userId, label) =>
     req(`/api/admin/users/${userId}/label`, { method: "POST", body: JSON.stringify({ label }) }),

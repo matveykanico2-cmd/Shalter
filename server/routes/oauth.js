@@ -15,35 +15,11 @@ const {
   getTokenOwner,
 } = require("../data/oauthApps");
 
-// "Войти через Shalter" — a small OAuth-authorization-code flow so another
-// site can let people sign in with their Shalter account, the same idea as
-// "Войти через VK"/"Sign in with Google". Deliberately minimal: one grant
-// type (authorization code), no refresh tokens, no scopes — a third-party
-// app gets exactly one thing, the account's public profile (id/name/
-// username/avatar), never anything private.
-//
-// Flow:
-//  1. Third-party site sends the browser to
-//     https://<this app>/oauth/authorize?client_id=...&redirect_uri=...&state=...
-//     (a client-side route — public/js/router.js's "/oauth/authorize" —
-//     which renders the consent screen; requireUserId below only gates the
-//     API calls that screen makes, not the page itself).
-//  2. Account approves → browser is redirected to
-//     <redirect_uri>?code=...&state=...
-//  3. Third-party's own SERVER exchanges the code for an access token via
-//     POST /api/oauth/token (with client_secret — never exposed to the
-//     browser), then calls GET /api/oauth/userinfo with that token.
 const router = express.Router();
 
-// Only what a third-party site needs to know is public here, never a
-// secret. `avatarImage` is already a self-contained data:/uploads URL, not
-// something that needs a signed request.
 function publicProfile(user) {
   return { id: user.id, name: user.name, username: user.username || null, avatarImage: user.avatarImage || null };
 }
-
-// ── Server-to-server (no Shalter session — the third-party's backend calls
-// these directly, authenticated by client_secret / access token instead) ──
 
 router.post(
   "/token",
@@ -60,9 +36,6 @@ router.post(
     if (!user) return res.status(400).json({ error: "invalid_grant" });
 
     const accessToken = issueAccessToken({ clientId: app.clientId, userId: user.id });
-    // The profile rides along in the same response — saves the third-party
-    // an extra round trip for the common case of "just log them in", while
-    // /userinfo below still exists for re-checking the token later.
     res.json({ access_token: accessToken, token_type: "bearer", user: publicProfile(user) });
   })
 );
@@ -80,12 +53,8 @@ router.get(
   })
 );
 
-// ── Everything below needs a logged-in Shalter account ──────────────────
 router.use(requireUserId);
 
-// What the consent screen shows before the account approves — validated
-// against the app's own registered redirect_uri so a third-party can't
-// silently redirect the code somewhere else by tweaking the query string.
 router.get(
   "/app-info",
   asyncRoute(async (req, res) => {
@@ -97,9 +66,6 @@ router.get(
   })
 );
 
-// Approving the consent screen — mints the code the third-party will
-// exchange at /token. Re-validates redirect_uri for the same reason
-// /app-info does.
 router.post(
   "/authorize",
   asyncRoute(async (req, res) => {
@@ -115,8 +81,6 @@ router.post(
     res.json({ redirectUrl: url.toString() });
   })
 );
-
-// ── Managing your own registered apps (Settings → «Войти через Shalter») ─
 
 router.get(
   "/apps",
@@ -141,7 +105,7 @@ router.post(
       return res.status(400).json({ error: "redirect_uri должен быть https:// (кроме localhost для разработки)" });
     }
     const app = await createOAuthApp({ ownerId: req.uid, name, redirectUri });
-    res.json({ app }); // includes clientSecret — shown once, at creation
+    res.json({ app });
   })
 );
 
@@ -154,8 +118,6 @@ router.delete(
   })
 );
 
-// Показать секрет ещё раз (владельцу) — как «Показать токен» у бота. Вместе с
-// clientId, чтобы диалог мог показать/скопировать оба.
 router.get(
   "/apps/:id/secret",
   asyncRoute(async (req, res) => {
@@ -165,16 +127,12 @@ router.get(
   })
 );
 
-// Lost the secret? There's nowhere to look it up (see data/oauthApps.js's
-// header comment — it's shown once, on purpose) — regenerating is the way
-// out, same as resetting a bot's token. clientId/redirect_uri stay the same,
-// so the third-party's login link keeps working; only the secret changes.
 router.post(
   "/apps/:id/regenerate",
   asyncRoute(async (req, res) => {
     const app = await regenerateOAuthAppSecret(req.params.id, req.uid);
     if (!app) return res.status(404).json({ error: "Приложение не найдено" });
-    res.json({ app }); // includes the new clientSecret — shown once, at regeneration
+    res.json({ app });
   })
 );
 

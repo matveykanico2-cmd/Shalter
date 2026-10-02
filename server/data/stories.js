@@ -2,16 +2,11 @@ const db = require("../db");
 
 const TTL_MS = 24 * 60 * 60 * 1000;
 
-// Кадры истории. items появился позже kind/url, поэтому у старых записей его
-// нет — там кадр ровно один, и он собирается из этих двух полей. kind и url
-// продолжают отдаваться (это первый кадр): по ним рисуется обложка, и ломать
-// всё, что их читает, ради нового поля незачем.
 function itemsOf(row) {
   try {
     const parsed = row.items ? JSON.parse(row.items) : null;
     if (Array.isArray(parsed) && parsed.length) return parsed;
   } catch {
-    // Битый JSON — не причина потерять историю целиком.
   }
   return [{ kind: row.kind, url: row.url }];
 }
@@ -33,10 +28,6 @@ function rowToStory(row) {
 }
 
 async function listAllStories() {
-  // Expiry is filter-on-read (same approach as listMessages' chatClears
-  // overlay), not a cleanup job — nothing else in this app runs on a timer,
-  // and a story that's 25h old is equally "gone" whether or not a sweep
-  // has gotten to it yet.
   const nowIso = new Date().toISOString();
   return db.prepare("SELECT * FROM stories WHERE expiresAt > ?").all(nowIso).map(rowToStory);
 }
@@ -46,16 +37,6 @@ async function listStoriesForUsers(userIds) {
   return all.filter((s) => userIds.includes(s.userId));
 }
 
-// Архив: все истории человека, включая те, чьи сутки вышли.
-//
-// Отдельная функция, а не флаг у listAllStories: срок жизни истории — это её
-// суть, и место, где он не действует, должно быть ровно одно и называться так,
-// чтобы случайно им не воспользоваться. В ленте на «Чатах» и в кружках
-// по-прежнему только живые истории.
-//
-// Работает это только потому, что истёкшие истории физически остаются в базе:
-// срок проверяется при чтении, уборщика нет (см. listAllStories выше). То есть
-// архив ничего не сохраняет дополнительно — он показывает то, что и так лежит.
 async function listArchivedStoriesFor(userId) {
   return db
     .prepare("SELECT * FROM stories WHERE userId = ? ORDER BY createdAt DESC")
@@ -95,15 +76,11 @@ async function markViewed(id, viewerId) {
   return rowToStory(db.prepare("SELECT * FROM stories WHERE id = ?").get(id));
 }
 
-// Удаляется история целиком — со всеми кадрами: они лежат в той же записи, и
-// «удалить один снимок из пяти» здесь просто нет как действия.
 async function deleteStory(id, userId) {
   const result = db.prepare("DELETE FROM stories WHERE id = ? AND userId = ?").run(id, userId);
   return result.changes > 0;
 }
 
-// Toggle, not set — the route doesn't know the current state, the button
-// just says "переключить лайк на этой истории для этого зрителя".
 async function toggleLike(id, userId) {
   const row = db.prepare("SELECT likedByIds FROM stories WHERE id = ?").get(id);
   if (!row) return undefined;
@@ -125,10 +102,7 @@ function rowToComment(row) {
     text: row.text,
     createdAt: row.createdAt,
     editedAt: row.editedAt ?? undefined,
-    // Ответ на другой комментарий (id родителя) — иначе NULL.
     parentId: row.parentId ?? null,
-    // Лайки комментария: и число, и список — клиент по нему покажет, лайкнул ли
-    // текущий пользователь (как у самой истории).
     likedByIds,
     likeCount: likedByIds.length,
   };
@@ -166,7 +140,6 @@ async function addComment(comment) {
   return rowToComment(db.prepare("SELECT * FROM story_comments WHERE id = ?").get(comment.id));
 }
 
-// Лайк/снятие лайка комментария — тем же приёмом, что и лайк истории.
 async function toggleCommentLike(id, userId) {
   const row = db.prepare("SELECT likedByIds FROM story_comments WHERE id = ?").get(id);
   if (!row) return undefined;

@@ -1,15 +1,6 @@
 const dns = require("dns").promises;
 const { publicRecord } = require("./dkim");
 
-// Какие DNS-записи нужны, чтобы письма этого сервера принимали, и какие из них
-// уже опубликованы.
-//
-// Это единственная часть отправки почты, которую нельзя сделать кодом: записи —
-// подпись владельца домена под тем, что этот сервер вправе слать от его имени.
-// Зато можно сделать всё остальное: посчитать их точные значения, проверить, что
-// уже стоит в DNS, и показать это администратору в самом приложении — потому что
-// консоли у него может не быть вовсе (см. routes/admin.js's /mail-status).
-
 const MAIL_FROM_DEFAULT = "Shalter <no-reply@your-domain.example>";
 
 function senderDomain() {
@@ -17,8 +8,6 @@ function senderDomain() {
   return ((from.match(/<([^>]+)>/) || [null, from])[1].split("@")[1] || "").trim().toLowerCase();
 }
 
-// Адрес, с которого письма уходят наружу. Спросить об этом саму машину нельзя:
-// за NAT она знает только внутренний. Поэтому спрашиваем у того, кто нас видит.
 async function detectPublicIp() {
   try {
     const res = await fetch("https://api.ipify.org", { signal: AbortSignal.timeout(5000) });
@@ -37,10 +26,6 @@ async function txtRecords(name) {
   }
 }
 
-// Добавляет ip4:<ip> в существующую SPF-запись, не выбрасывая то, что там уже
-// есть. Затирать чужие механизмы нельзя: у домена может быть include почтового
-// провайдера, и без него перестанет проходить проверка у писем, отправленных
-// через него.
 function spfWith(existing, ip) {
   if (!ip) return existing || "v=spf1 ~all";
   if (!existing) return `v=spf1 ip4:${ip} ~all`;
@@ -69,9 +54,6 @@ async function buildDnsAdvice() {
         name: "@",
         value: wantSpf,
         current: currentSpf,
-        // Опубликованной считается запись, которая разрешает именно наш адрес,
-        // а не любая существующая: SPF у домена обычно уже есть и разрешает
-        // чужой почтовый сервис, а нас — нет.
         published: !!currentSpf && (!ip || currentSpf.includes(`ip4:${ip}`)),
         note: "Разрешает этому серверу слать письма от имени домена. Существующее значение сохранено — добавлен только адрес сервера.",
       },

@@ -1,26 +1,7 @@
-// Getting a phone's address book into the app, without a native plugin.
-//
-// Two routes, because no single one works everywhere:
-//
-//  1. The Contact Picker API (navigator.contacts.select). The user picks which
-//     contacts to share from a system sheet — the page never gets the whole
-//     address book, only what was ticked. Chrome/Edge on Android, secure
-//     context only; not implemented by desktop browsers or iOS Safari at all.
-//
-//  2. A vCard (.vcf) file. Every phone can export its contacts to one
-//     (Android: Contacts → Export; iOS: share a contact / iCloud export), and
-//     it works on desktop too. Parsed here in the browser; the file itself is
-//     never uploaded anywhere.
-//
-// Only names and phone numbers are read either way — emails, addresses, photos
-// and notes in a vCard are ignored rather than parsed and thrown away later.
-
 export function isContactPickerSupported() {
   return typeof navigator !== "undefined" && "contacts" in navigator && "ContactsManager" in window;
 }
 
-// Returns [{ name, phone }], one entry per number (a contact with three numbers
-// becomes three entries — any of them might be the one they registered with).
 export async function pickPhoneContacts() {
   const selected = await navigator.contacts.select(["name", "tel"], { multiple: true });
   const out = [];
@@ -33,15 +14,10 @@ export async function pickPhoneContacts() {
   return out;
 }
 
-// vCard 2.1/3.0/4.0 — the three versions phones actually export. Handled here:
-//   - CRLF or LF line endings
-//   - folded lines (a continuation starts with a space or tab)
-//   - property parameters (TEL;CELL;VOICE:, TEL;TYPE=CELL:, item1.TEL:)
-//   - quoted-printable names, which Android's older exports still emit
 export function parseVCard(text) {
   const unfolded = String(text ?? "")
     .replace(/\r\n/g, "\n")
-    .replace(/\n[ \t]/g, ""); // a line beginning with space/tab continues the previous one
+    .replace(/\n[ \t]/g, "");
 
   const out = [];
   let name = "";
@@ -60,7 +36,6 @@ export function parseVCard(text) {
     if (colon === -1) continue;
     const rawProp = line.slice(0, colon);
     const value = line.slice(colon + 1);
-    // "item1.TEL;TYPE=CELL" -> prop "TEL", params ["TYPE=CELL"]
     const parts = rawProp.split(";");
     const prop = parts[0].split(".").pop().toUpperCase();
     const params = parts.slice(1).map((p) => p.toUpperCase());
@@ -73,7 +48,6 @@ export function parseVCard(text) {
     } else if (prop === "FN" && !name) {
       name = decodeValue(value, params);
     } else if (prop === "N" && !name) {
-      // "Фамилия;Имя;;;" -> "Имя Фамилия"
       const [last = "", first = ""] = decodeValue(value, params).split(";");
       name = `${first} ${last}`.trim();
     } else if (prop === "TEL") {
@@ -81,13 +55,11 @@ export function parseVCard(text) {
       if (phone) phones.push(phone);
     }
   }
-  flush(); // tolerate a file whose last card has no END:VCARD
+  flush();
 
   return dedupe(out);
 }
 
-// Android's older exporter writes non-ASCII names as quoted-printable, which
-// otherwise shows up as "=D0=98=D0=B2=D0=B0=D0=BD" instead of "Иван".
 function decodeValue(value, params) {
   if (!params.some((p) => p.includes("QUOTED-PRINTABLE"))) return value;
   try {
@@ -106,9 +78,6 @@ function decodeValue(value, params) {
   }
 }
 
-// Mirrors server/lib/phoneMatch.js's phoneKey — the same number written two
-// ways has to collapse to one entry here too, or "+7 900 111 22 33" and
-// "8 900 111 22 33" get uploaded as two separate people.
 function phoneKey(raw) {
   const digits = String(raw ?? "").replace(/\D/g, "");
   if (!digits) return null;
@@ -116,7 +85,6 @@ function phoneKey(raw) {
   return digits;
 }
 
-// Same number listed under two contacts (or twice on one) is one person.
 function dedupe(entries) {
   const seen = new Set();
   const out = [];
@@ -138,38 +106,25 @@ export function readVCardFile(file) {
   });
 }
 
-// Several files at once. On iOS this is the realistic path: the share sheet hands
-// over one .vcf per contact, so importing an address book there means picking a
-// pile of files rather than a single export.
 export async function readVCardFiles(files) {
   const all = [];
   for (const file of files) {
     try {
       all.push(...(await readVCardFile(file)));
     } catch {
-      // One unreadable card shouldn't abort the rest of the selection.
     }
   }
   return dedupe(all);
 }
 
-// Free-typed or pasted text — the fallback that works on every platform,
-// including an iPhone with no Contact Picker and no export to hand. Accepts
-// anything people actually paste: one number per line, comma-separated, or a
-// "Имя +7 999 …" list copied out of a notes app.
 export function parsePastedContacts(text) {
   const out = [];
   for (const rawLine of String(text ?? "").split(/[\n,;]+/)) {
     const line = rawLine.trim();
     if (!line) continue;
-    // The longest run of phone-ish characters in the line is the number; whatever
-    // is left of it is treated as the name.
     const match = line.match(/\+?[\d][\d\s().-]{7,}\d/);
     if (!match) continue;
     const phone = match[0].trim();
-    // trim() first: the separator sits before the space that precedes the number,
-    // so stripping punctuation off the untrimmed string leaves "Вася:" and
-    // "Иван Петров —" with their tails.
     const name = line
       .slice(0, match.index)
       .trim()
@@ -180,9 +135,6 @@ export function parsePastedContacts(text) {
   return dedupe(out);
 }
 
-// iOS has no Contact Picker API at all (see the note at the top of this file), so
-// the UI needs to say something different there instead of offering a button that
-// can't exist.
 export function isIos() {
   return typeof navigator !== "undefined" && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (/Mac/.test(navigator.userAgent) && "ontouchend" in document));
 }

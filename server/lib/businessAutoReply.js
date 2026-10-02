@@ -1,15 +1,3 @@
-// Shalter для бизнеса — приветствие новому собеседнику и автоответ вне часов
-// работы, для DM. Called fire-and-forget from routes/messages.js right after
-// the Hugo/helper-bot dispatches, same "never throws, never delays the
-// sender" shape as those.
-//
-// Greeting fires once ever per chat (business_auto_replies_sent's
-// (chatId,"greeting","once") row); away fires at most once per calendar day
-// per chat ((chatId,"away",<today's date>)) — a customer writing five times
-// in one evening outside business hours gets the away message once, not five
-// times. «Рабочее ли сейчас время» и «какой сегодня день» считаются по
-// часовому поясу бизнеса (settings.business.timeZone, lib/businessHours.js);
-// у старых настроек без пояса — по поясу сервера, как раньше.
 const db = require("../db");
 const { getUser } = require("../data/users");
 const { getSettings } = require("../data/settings");
@@ -32,7 +20,7 @@ async function dispatchBusinessAutoReply(chat, message) {
   try {
     if (chat.type !== "dm" || message.type !== "text" || !message.text?.trim()) return;
     const recipientId = chat.memberIds.find((id) => id !== message.senderId);
-    if (!recipientId || recipientId === message.senderId) return; // self-chat, or malformed DM
+    if (!recipientId || recipientId === message.senderId) return;
 
     const recipient = await getUser(recipientId);
     if (!recipient?.isBusiness) return;
@@ -40,20 +28,15 @@ async function dispatchBusinessAutoReply(chat, message) {
     const business = settings.business;
     if (!business?.enabled) return;
 
-    // Есть что отправить, если задан текст ИЛИ вложение (голосовое, кружок,
-    // аудио, картинка, видео). Вложение уходит тем же путём, что у обычного
-    // сообщения, — через extra.attachments (lib/systemChat.js).
     const has = (m) => !!(m?.text || m?.attachments?.length);
 
     if (business.greeting?.enabled && has(business.greeting) && !alreadySent(chat.id, "greeting", "once")) {
       await sendMessageAndBroadcast(chat, recipientId, business.greeting.text || "", { attachments: business.greeting.attachments });
       markSent(chat.id, "greeting", "once");
-      return; // приветствие уже отвечает на первое сообщение — автоответ вне часов в тот же раз ни к чему
+      return;
     }
 
     if (business.away?.enabled && has(business.away) && !isWithinBusinessHours(business.hours, business.timeZone)) {
-      // «Раз в день» — в сутках бизнеса, а не UTC: иначе в Москве новый
-      // день для автоответа наступал бы в три часа ночи.
       const today = localNow(business.timeZone).date;
       if (!alreadySent(chat.id, "away", today)) {
         await sendMessageAndBroadcast(chat, recipientId, business.away.text || "", { attachments: business.away.attachments });

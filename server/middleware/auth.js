@@ -6,21 +6,9 @@ const { getUser, cancelAccountDeletion } = require("../data/users");
 const SESSIONS_COOKIE = "session_uids";
 const ACTIVE_COOKIE = "active_uid";
 const DEVICE_COOKIE = "device_id";
-// maxAge matches DEVICE_COOKIE_OPTS below (400 days, the Chrome-imposed cap
-// on Set-Cookie expiry) — without it these were session cookies that died
-// whenever the browser fully closed, which on a standalone/installed PWA
-// (see manifest.webmanifest) can happen between every single launch, making
-// "log in once per device" not actually hold.
 const COOKIE_OPTS = { httpOnly: true, sameSite: "lax", path: "/", maxAge: 400 * 24 * 60 * 60 * 1000 };
-// Long-lived and independent of login state — it identifies *this browser*,
-// not any particular account, so the Settings → Devices list (server/data/
-// sessions.js) can tell "same device, logged in again" from "a new device"
-// across logins/logouts/account switches.
 const DEVICE_COOKIE_OPTS = { httpOnly: true, sameSite: "lax", path: "/", maxAge: 400 * 24 * 60 * 60 * 1000 };
 
-// Identifies this browser for the Devices/Sessions list — issues a stable id
-// on first request and reuses it after. Call on any request that should be
-// attributable to a device (currently: login, register, switch account).
 function getOrCreateDeviceId(req, res) {
   let id = req.cookies?.[DEVICE_COOKIE];
   if (!id) {
@@ -51,8 +39,6 @@ function getCurrentUserId(req) {
   return ids[0] ?? null;
 }
 
-// Raw "Cookie" header parsing for contexts without cookie-parser (the WS
-// upgrade handshake in server/ws.js isn't a normal Express request).
 function parseCookieHeader(header) {
   const out = {};
   if (!header) return out;
@@ -85,19 +71,11 @@ function writeSessions(res, ids, active) {
   else res.clearCookie(ACTIVE_COOKIE, COOKIE_OPTS);
 }
 
-// Adds (or switches to, if already present) an account on this browser
-// without signing out any other accounts already open — the "add account"
-// flow from the nav-rail switcher.
-// Возвращает true, если аккаунт уже был в списке сессий этого браузера (т. е.
-// «вход» в него — повторный). Клиент показывает по этому флагу понятное
-// «Этот аккаунт уже добавлен» вместо тихого повторного входа.
 function addAccountSession(req, res, userId) {
   const ids = getSessionUserIds(req);
   const alreadyLinked = ids.includes(userId);
   const next = alreadyLinked ? ids : [...ids, userId];
   writeSessions(res, next, userId);
-  // Успешный вход отменяет отложенное удаление: раз человек снова зашёл,
-  // сносить аккаунт больше не нужно (server/data/users.js, accountDeletionSweep).
   try { cancelAccountDeletion(userId); } catch {}
   return alreadyLinked;
 }
@@ -108,8 +86,6 @@ function switchActiveAccount(req, res, userId) {
   writeSessions(res, ids, userId);
 }
 
-// Removes one account from this browser's session list. If it was the
-// active one, falls back to whichever account is left.
 function removeAccountSession(req, res, userId) {
   const ids = getSessionUserIds(req);
   const next = ids.filter((id) => id !== userId);
@@ -122,18 +98,6 @@ function clearAllSessions(req, res) {
   writeSessions(res, [], null);
 }
 
-// Express middleware: attaches req.uid, or short-circuits with 401. Trusts
-// the signed-cookie-derived uid for *identity*, but does check one thing
-// against the sessions table: whether this specific device was explicitly
-// revoked (Settings → Устройства → «Завершить», server/data/sessions.js's
-// revokeSession/revokeOtherSessions). An earlier version of this check used
-// to instead auto-logout whenever a device's session *row was missing at
-// all* — that caused real, confusing lockouts (a row could go missing for
-// reasons that had nothing to do with anyone terminating anything, e.g. a
-// stale/cleared DB, with no recovery except a fresh login and no explanation
-// why). This version only ever blocks on an *explicit* revokedAt flag, never
-// on absence — a missing row fails open (identity alone still governs),
-// exactly so that class of bug can't recur.
 const requireUserId = asyncRoute(async (req, res, next) => {
   const uid = getCurrentUserId(req);
   if (!uid) return res.status(401).json({ error: "unauthorized" });
@@ -141,12 +105,6 @@ const requireUserId = asyncRoute(async (req, res, next) => {
   if (deviceId) {
     const session = await getSession(uid, deviceId);
     if (session?.revokedAt) return res.status(401).json({ error: "session_revoked" });
-    // Держим запись устройства живой по ходу работы: время активности и, если
-    // сменился, IP. Одна строка на устройство остаётся той же (ключ — deviceId
-    // из cookie), новая не заводится. Пишем не на каждый запрос, а когда прошла
-    // минута или реально сменился адрес, — иначе это лишняя запись в БД на
-    // каждый опрос списка чатов. IP берётся из req.ip (trust proxy включён,
-    // server/index.js). Ошибка обновления не должна ронять сам запрос.
     if (session && !session.revokedAt) {
       const ip = req.ip || "";
       const stale = Date.now() - Date.parse(session.lastActive || 0) > 60_000;
@@ -155,16 +113,11 @@ const requireUserId = asyncRoute(async (req, res, next) => {
         try {
           touchSession(uid, deviceId, ip);
         } catch {
-          /* обновление активности — не повод ломать запрос */
         }
       }
     }
   }
-  // Same "explicit flag, never inferred" shape as the revokedAt check above —
-  // set from the reports moderation chat (routes/reports.js's /:id/ban).
   const user = await getUser(uid);
-  // banReason rides along so the login screen this bounces to (public/js/
-  // api.js) can say what the ban was for instead of a bare "заблокирован".
   if (user?.isBanned) return res.status(403).json({ error: "banned", banReason: user.banReason ?? null });
   req.uid = uid;
   next();

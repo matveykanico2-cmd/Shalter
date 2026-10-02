@@ -8,8 +8,6 @@ function rowToMessage(row) {
     chatId: row.chatId,
     senderId: row.senderId,
     type: row.type,
-    // В базе текст зашифрован (lib/textCrypto.js) — наружу из этого модуля
-    // он выходит уже открытым, остальной код о шифровании не знает.
     text: decryptText(row.id, row.text),
     createdAt: row.createdAt,
     editedAt: row.editedAt ?? undefined,
@@ -20,9 +18,6 @@ function rowToMessage(row) {
     keyboard: row.keyboard ? JSON.parse(row.keyboard) : undefined,
     gift: row.gift ? JSON.parse(row.gift) : undefined,
     sticker: row.sticker ? JSON.parse(row.sticker) : undefined,
-    // Кастомные эмодзи-сцены, вставленные в текст токенами [ce:N]
-    // (public/js/lib/customScene.js, formatText.js). Self-contained: сцена
-    // едет в самом сообщении, получателю не нужно ничего дозапрашивать.
     customEmoji: row.customEmoji ? JSON.parse(row.customEmoji) : undefined,
     linkPreview: row.linkPreview ? JSON.parse(row.linkPreview) : undefined,
     report: row.report ? JSON.parse(row.report) : undefined,
@@ -37,8 +32,6 @@ function rowToMessage(row) {
     signedBy: row.signedBy ?? undefined,
     anonymous: !!row.anonymous || undefined,
     boostedUntil: row.boostedUntil ?? undefined,
-    // Ноль не отдаём: обычных сообщений подавляющее большинство, и лишнее поле
-    // в каждом из них — это лишние байты в каждом ответе.
     paidStars: row.paidStars || undefined,
     boostedById: row.boostedById ?? undefined,
     views: row.views,
@@ -46,19 +39,6 @@ function rowToMessage(row) {
   };
 }
 
-// Новые сообщения для бота — то, что отдаёт опрос /api/bot-api/updates.
-//
-// Раньше маршрут читал **всю** таблицу сообщений и фильтровал в памяти: один
-// активный бот заставлял сервер перебирать десятки тысяч строк каждую секунду.
-// Теперь работу делает индекс (chatId, createdAt) — и делает её за один
-// запрос, вместе с проверкой членства.
-//
-// Единый запрос здесь не ради красоты. Пока это были два шага (сначала список
-// чатов бота, потом сообщения по нему), длинный опрос спотыкался ровно на
-// самом важном случае: человек пишет боту ВПЕРВЫЕ, диалог создаётся уже во
-// время ожидания, и первое в жизни сообщение бот не видел до конца опроса.
-// Проверено — висело все 20 секунд и возвращало пусто. Здесь членство берётся
-// тем же запросом, что и сообщения, поэтому «сейчас» означает сейчас.
 function listNewForBot(botUserId, { after, limit = 200 }) {
   return db
     .prepare(
@@ -71,14 +51,6 @@ function listNewForBot(botUserId, { after, limit = 200 }) {
     .map(rowToMessage);
 }
 
-// Поиск по тексту — через поисковый указатель (db.js, messages_search).
-// Текст в базе зашифрован, поэтому в указателе лежат не слова, а их
-// отпечатки (lib/textCrypto.js); запрос превращается в отпечатки тем же
-// ключом, и дальше это обычный поиск FTS5 по указателю, без перебора строк.
-//
-// Последнее слово ищется как начало слова: человек в строке поиска ещё
-// печатает, и «сообщ» должно находить «сообщение», а не молчать до последней
-// буквы.
 function searchInChats(chatIds, query, { limit = 40 } = {}) {
   if (!chatIds.length || !query) return [];
   const match = searchQuery(query);
@@ -100,10 +72,6 @@ function searchInChats(chatIds, query, { limit = 40 } = {}) {
   }
 }
 
-// Сообщения с вложениями или ссылками — для вкладок «Медиа», «Файлы»,
-// «Ссылки» в профиле. Раньше туда читалась вся переписка целиком, а нужны из
-// неё единицы: в чате на две тысячи сообщений это две тысячи разобранных
-// строк JSON ради десятка картинок.
 function listMediaMessages(chatId, viewerId, { limit = 300 } = {}) {
   return db
     .prepare(
@@ -123,52 +91,21 @@ function listAllMessages() {
   return db.prepare("SELECT * FROM messages").all().map(rowToMessage);
 }
 
-// viewerId + clearedBefore apply the per-viewer overlay: messages the viewer
-// deleted "for themselves" (deletedForIds) or that predate their own
-// "clear history for me" action (clearedBefore, from Settings.chatClears) are
-// hidden from *this* viewer only — everyone else still sees them normally.
 async function listMessages(chatId, viewerId, clearedBefore) {
   let rows = db.prepare("SELECT * FROM messages WHERE chatId = ? ORDER BY createdAt ASC").all(chatId).map(rowToMessage);
   if (viewerId) rows = rows.filter((m) => !m.deletedForIds?.includes(viewerId));
   if (clearedBefore) rows = rows.filter((m) => m.createdAt > clearedBefore);
-  // Thread replies (threadRootId set) live only in the thread panel
-  // (threadPanel.js's GET .../thread/:rootId below) — showing them here too
-  // would defeat the point of a thread (keeping the main timeline readable).
   return rows.filter((m) => !m.threadRootId);
 }
 
-// One page of history, newest-first in SQL and returned oldest-first so the
-// caller can append it straight into a timeline.
-//
-// This exists because the un-paginated version above returned *every* message
-// in the chat on every open and on every 15s poll: measured on a 5000-message
-// chat that was a 1.6MB payload and ~130k DOM nodes, and it was rebuilt from
-// scratch each poll. LIMIT in SQL rather than slicing in JS, so a long history
-// costs the same as a short one.
-//
-// The per-viewer overlay (deleted-for-me, cleared-history) is applied inside the
-// query for the same reason — filtering afterwards would mean reading the whole
-// table again just to throw most of it away. `before` is an exclusive cursor on
-// createdAt; ids break ties so two messages in the same millisecond can't cause
-// a page to repeat or skip one.
 function listMessagesPage(chatId, viewerId, clearedBefore, { limit = 60, before = null, beforeId = null } = {}) {
-  const params = { chatId, limit: limit + 1 }; // one extra row tells us if more exist
+  const params = { chatId, limit: limit + 1 };
   let sql = "SELECT * FROM messages WHERE chatId = @chatId AND threadRootId IS NULL";
   if (clearedBefore) {
     sql += " AND createdAt > @clearedBefore";
     params.clearedBefore = clearedBefore;
   }
   if (before) {
-    // The comment above promised id breaks ties, but the query never actually
-    // did that — plain "createdAt < @before" treats every message sharing the
-    // previous page's oldest timestamp as a single unit. Whichever of them
-    // didn't make that page's LIMIT cutoff (id DESC decides that) falls on the
-    // wrong side of this strict "<" forever: excluded here for having an equal
-    // createdAt, but already excluded from the previous page's LIMIT too — a
-    // message that can never be paged to. Jumping to a date (chatCalendarDialog
-    // → chatView.js's jumpTo → loadOlder in a loop) surfaced it as a message
-    // appearing to repeat, because the *next* page back would start over from
-    // the same instant instead of continuing past it.
     if (beforeId) {
       sql += " AND (createdAt < @before OR (createdAt = @before AND id < @beforeId))";
       params.beforeId = beforeId;
@@ -180,21 +117,14 @@ function listMessagesPage(chatId, viewerId, clearedBefore, { limit = 60, before 
   sql += " ORDER BY createdAt DESC, id DESC LIMIT @limit";
 
   let rows = db.prepare(sql).all(params).map(rowToMessage);
-  // deletedForIds is a JSON column, so this one stays in JS — it can't be
-  // indexed anyway, and it only ever runs over a single page now.
   if (viewerId) rows = rows.filter((m) => !m.deletedForIds?.includes(viewerId));
 
   const hasMore = rows.length > limit;
   if (hasMore) rows = rows.slice(0, limit);
-  rows.reverse(); // oldest-first, the order a chat is read in
+  rows.reverse();
   return { messages: rows, hasMore };
 }
 
-// The thread panel's own message list (public/js/components/threadPanel.js)
-// — everything replying *into* this root, in the order sent. No
-// deletedForIds/clearedBefore overlay here: threads are new enough in this
-// app that neither "clear history" nor "delete for me" needs to reach into
-// them for a first version.
 async function listThreadReplies(rootId) {
   return db.prepare("SELECT * FROM messages WHERE threadRootId = ? ORDER BY createdAt ASC").all(rootId).map(rowToMessage);
 }
@@ -246,10 +176,6 @@ async function deleteMessagesForChat(chatId) {
   db.prepare("DELETE FROM messages WHERE chatId = ?").run(chatId);
 }
 
-// Auto-delete sweep (server/lib/autoDelete.js) — finds and deletes everything
-// past its expiry in one query/transaction rather than select-then-delete-
-// one-by-one, and hands back the ids so the caller can broadcast exactly
-// what disappeared.
 function deleteExpiredMessages(chatId, cutoffIso) {
   const ids = db.prepare("SELECT id FROM messages WHERE chatId = ? AND createdAt < ?").all(chatId, cutoffIso).map((r) => r.id);
   if (ids.length === 0) return [];
@@ -271,10 +197,6 @@ async function mutate(id, fn) {
      WHERE id = @id`
   ).run({
     id,
-    // Реакции и прочтения идут через этот же путь, а текст при них не
-    // меняется — тогда остаётся прежний шифротекст, и триггер (db.js,
-    // messages_search_au) не перестраивает указатель зря. Изменённый текст
-    // шифруется заново, с новым случайным вектором.
     text: (updated.text ?? "") === existing.text ? row.text : encryptText(id, updated.text),
     hasLink: hasLink(updated.text),
     editedAt: updated.editedAt ?? null,
@@ -295,9 +217,6 @@ async function mutate(id, fn) {
   return getMessage(id);
 }
 
-// Highlights a message until `until` passes (server/routes/stars.js). Stored
-// rather than derived so the highlight survives a reload and every viewer sees
-// the same thing.
 function setBoost(id, until, byId) {
   db.prepare("UPDATE messages SET boostedUntil = ?, boostedById = ? WHERE id = ?").run(until, byId, id);
   return getMessage(id);
@@ -307,28 +226,19 @@ function setLinkPreview(id, linkPreview) {
   return mutate(id, (m) => ({ ...m, linkPreview }));
 }
 
-// Живая геолокация (composer.js's "Живая геолокация") — периодические
-// обновления координат того самого location-вложения, пока не истёк
-// meta.expiresAt (see sanitizeAttachments.js). senderId сверяется здесь же,
-// на уровне мутации: подменить чужую геолокацию нельзя, даже зная id
-// сообщения, потому что "не тот отправитель" оставляет сообщение как есть.
 function updateLiveLocation(id, senderId, lat, lng) {
   return mutate(id, (m) => {
     if (m.senderId !== senderId) return m;
     const nowIso = new Date().toISOString();
     const attachments = m.attachments?.map((a) => {
       if (a.kind !== "location" || !a.meta?.live) return a;
-      if (a.meta.expiresAt && a.meta.expiresAt <= nowIso) return a; // истекла — не обновляем
+      if (a.meta.expiresAt && a.meta.expiresAt <= nowIso) return a;
       return { ...a, meta: { ...a.meta, lat, lng } };
     });
     return { ...m, attachments };
   });
 }
 
-// Проставляет вложению облегчённую копию, досчитанную уже после отправки
-// (lib/mediaPreview.js). previewPending снимается в любом случае — в том числе
-// когда превью не получилось: висящий навсегда «сейчас будет» хуже, чем
-// вложение без превью, которое клиент покажет как раньше, оригиналом.
 function setAttachmentPreview(id, index, preview) {
   return mutate(id, (m) => {
     const attachments = m.attachments?.map((a, i) => {
@@ -343,9 +253,6 @@ function setAttachmentPreview(id, index, preview) {
   });
 }
 
-// Flips a report-notification message's embedded status once the admin acts
-// on it from messageBubble.js's ReportMessage (see routes/reports.js's
-// /:id/resolve) — the buttons there disappear once status !== "open".
 function setReportMessageStatus(id, status) {
   return mutate(id, (m) => (m.report ? { ...m, report: { ...m.report, status } } : m));
 }
@@ -354,13 +261,10 @@ function editMessage(id, text) {
   return mutate(id, (m) => ({ ...m, text, editedAt: new Date().toISOString() }));
 }
 
-// "Delete for everyone" — the message is gone, no tombstone left behind.
 async function deleteMessage(id) {
   db.prepare("DELETE FROM messages WHERE id = ?").run(id);
 }
 
-// "Delete for me" — hidden from just this viewer; still fully visible to
-// everyone else in the chat.
 function deleteMessageForMe(id, userId) {
   return mutate(id, (m) => {
     const ids = new Set(m.deletedForIds ?? []);
@@ -369,8 +273,6 @@ function deleteMessageForMe(id, userId) {
   });
 }
 
-// Заменить клавиатуру под сообщением, не трогая текст — бот так обновляет
-// кнопки после нажатия (routes/botApi.js's editMessageKeyboard).
 function setKeyboard(id, keyboard) {
   return mutate(id, (m) => ({ ...m, keyboard: Array.isArray(keyboard) && keyboard.length ? keyboard : undefined }));
 }
@@ -379,17 +281,7 @@ function togglePin(id, pinned) {
   return mutate(id, (m) => ({ ...m, pinned }));
 }
 
-// `maxReactionsPerUser`: сколько разных реакций один человек может оставить на
-// одном сообщении. Если он уже на лимите и ставит ещё одну, самая старая его
-// реакция снимается — это поведение Telegram: free-аккаунт при попытке
-// поставить вторую «меняет» старую, Premium даёт держать до трёх сразу.
-// По умолчанию Infinity — поведение до появления тарифов, чтобы не ломать
-// бота (routes/botApi.js), который этот параметр не передаёт.
 function toggleReaction(id, emoji, userId, { maxReactionsPerUser = Infinity } = {}) {
-  // Эмодзи приходит из запроса: пустое или неправдоподобно длинное значение —
-  // не реакция, а мусор в базе. Отсекаем до мутации. 40, не 16: реакция-стикер
-  // (public/js/components/messageBubble.js) хранится как "sticker:<id>", и у
-  // встроенного каталога (lib/stickers.js) есть id длиннее "art_congrats".
   const clean = typeof emoji === "string" ? emoji.trim().slice(0, 40) : "";
   if (!clean) return getMessage(id);
   emoji = clean;
@@ -397,14 +289,9 @@ function toggleReaction(id, emoji, userId, { maxReactionsPerUser = Infinity } = 
     const reactions = m.reactions.map((r) => ({ ...r, userIds: [...r.userIds] }));
     const existing = reactions.find((r) => r.emoji === emoji);
     if (existing) {
-      // Снятие собственной реакции лимитом не ограничивается никогда — иначе
-      // с лимита нельзя было бы «слезть», переставив свою же реакцию.
       if (existing.userIds.includes(userId)) {
         existing.userIds = existing.userIds.filter((u) => u !== userId);
       } else {
-        // Добавление к уже существующей чужой реакции — всё равно расходует
-        // лимит текущего пользователя, поэтому старую его реакцию снимаем,
-        // как и в ветке ниже.
         if (Number.isFinite(maxReactionsPerUser)) {
           const mine = reactions.filter((r) => r.userIds.includes(userId));
           while (mine.length >= maxReactionsPerUser) {
@@ -415,9 +302,6 @@ function toggleReaction(id, emoji, userId, { maxReactionsPerUser = Infinity } = 
         existing.userIds.push(userId);
       }
     } else {
-      // Новая эмодзи — та же проверка лимита. reactions хранится в порядке
-      // добавления, поэтому «первая, в которой есть userId» — это самая
-      // старая реакция этого человека.
       if (Number.isFinite(maxReactionsPerUser)) {
         const mine = reactions.filter((r) => r.userIds.includes(userId));
         while (mine.length >= maxReactionsPerUser) {
@@ -435,12 +319,6 @@ function markRead(id, userId) {
   return mutate(id, (m) => (m.readByIds.includes(userId) ? m : { ...m, readByIds: [...m.readByIds, userId] }));
 }
 
-// Bulk version of markRead for "viewer opened this chat" — one transaction
-// instead of one mutate() per message. Returns the ids that actually changed
-// (so callers can skip broadcasting a no-op read receipt).
-// Отметка «всё до этого момента прочитано» — ради скорости подсчёта
-// непрочитанных (db.js, chat_reads). Ставится ровно там, где чат и правда
-// прочитан целиком.
 function setReadWatermark(chatId, userId, at) {
   db.prepare(
     `INSERT INTO chat_reads (chatId, userId, lastReadAt) VALUES (?, ?, ?)
@@ -456,9 +334,6 @@ function readWatermarksFor(userId) {
 }
 
 async function markChatRead(chatId, viewerId) {
-  // Читаем только непрочитанное этим человеком, а не весь чат. Раньше здесь
-  // выбирались все сообщения чата — на каждое открытие переписки в тысячу
-  // сообщений это тысяча строк ради двух изменённых.
   const rows = db
     .prepare("SELECT id, senderId, readByIds, createdAt FROM messages WHERE chatId = ? AND senderId <> ? AND readByIds NOT LIKE ?")
     .all(chatId, viewerId, `%"${viewerId}"%`);
@@ -475,32 +350,19 @@ async function markChatRead(chatId, viewerId) {
     }
   });
   txn();
-  // Граница прочитанного — по самому свежему сообщению чата, а не по времени
-  // вызова: часы клиента и сервера могут разойтись, а порядок строк — нет.
   const newest = db.prepare("SELECT MAX(createdAt) AS at FROM messages WHERE chatId = ?").get(chatId)?.at;
   if (newest) setReadWatermark(chatId, viewerId, newest);
   return changedIds;
 }
 
-// Persisted poll voting — clicking your current option un-votes, clicking a
-// different one moves your vote (one choice per poll, like Telegram), or — in
-// a multiple-answer poll — toggles just that option. A closed poll no longer
-// takes votes.
 function votePoll(id, optionIndex, userId) {
   return mutate(id, (m) => {
     const attachments = m.attachments?.map((a) => {
       if (a.kind !== "poll") return a;
       if (a.meta?.closed) return a;
       const options = a.meta?.options ?? [];
-      // Номер варианта приходит из запроса — вне диапазона (подделанный или
-      // битый клиент) оставляет опрос как есть, а не роняет запрос обращением
-      // к voterIds[undefined].
       if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= options.length) return a;
       const voterIds = options.map((_, i) => [...(a.meta?.voterIds?.[i] ?? [])]);
-      // В викторине ответ даётся один раз и навсегда: иначе можно перебрать все
-      // варианты по очереди и «угадать» с гарантией, а вопрос «знал или нет»
-      // перестаёт что-либо значить. В обычном опросе голос по-прежнему
-      // переставляется и снимается.
       const isQuiz = Number.isInteger(a.meta?.correctIndex);
       if (isQuiz && voterIds.some((ids) => ids.includes(userId))) return a;
       if (a.meta?.multiple && !isQuiz) {
@@ -523,9 +385,6 @@ function votePoll(id, optionIndex, userId) {
   });
 }
 
-// «Отменить голос» — снимает все голоса человека в опросе разом (в опросе с
-// несколькими ответами их может быть несколько). В викторине и в закрытом
-// опросе ничего не делает: там ответ окончательный.
 function retractPollVote(id, userId) {
   return mutate(id, (m) => {
     const attachments = m.attachments?.map((a) => {
@@ -537,7 +396,6 @@ function retractPollVote(id, userId) {
   });
 }
 
-// «Остановить опрос»: итоги замораживаются, голосовать больше нельзя.
 function closePoll(id) {
   return mutate(id, (m) => ({
     ...m,
@@ -545,42 +403,22 @@ function closePoll(id) {
   }));
 }
 
-// Increments the view counter on a channel post (see server/routes/posts.js).
 function incrementViews(id) {
   return mutate(id, (m) => ({ ...m, views: (m.views ?? 0) + 1 }));
 }
 
-// Increments the comment counter on a channel post when a reply lands in the
-// linked discussion chat (see server/routes/messages.js).
 function incrementCommentCount(id) {
   return mutate(id, (m) => ({ ...m, commentCount: (m.commentCount ?? 0) + 1 }));
 }
 
-// Stamps the auto-forwarded copy of a post (in the linked discussion chat)
-// with the post's own id, so a reply to that copy can be traced back to the
-// post whose comment count it should increment (see server/routes/posts.js).
 function setAnchorForPost(id, postId) {
   return mutate(id, (m) => ({ ...m, anchorForPostId: postId }));
 }
 
-// Stamps the post itself with the id of its auto-forwarded copy in the
-// discussion chat, so the client can link "N comments" straight to it.
 function setDiscussionAnchor(id, anchorId) {
   return mutate(id, (m) => ({ ...m, discussionAnchorId: anchorId }));
 }
 
-// Сколько места занимают вложения в чатах человека — для экрана «Данные и
-// память».
-//
-// Считается в самой базе, а не в JavaScript. Прежний способ выгружал все
-// сообщения всех чатов в память и складывал длины там: замер на аккаунте с 212
-// чатами — 20 тысяч сообщений и 38 МБ вложений в памяти ради четырёх чисел, и
-// это на тестовой истории. У человека с перепиской за годы такой экран съедал
-// бы всю доступную память.
-//
-// json_each разбирает массив вложений средствами SQLite, наружу выходят только
-// итоговые суммы. Размер берётся так же, как раньше: явный size, а если его
-// нет — длина data:-URL, пересчитанная из base64 в байты (4 знака на 3 байта).
 function attachmentBytesByKind(chatIds) {
   if (!chatIds?.length) return {};
   const holes = chatIds.map(() => "?").join(",");
@@ -603,13 +441,6 @@ function attachmentBytesByKind(chatIds) {
   return Object.fromEntries(rows.filter((r) => r.kind).map((r) => [r.kind, r.bytes ?? 0]));
 }
 
-// Календарь переписки: в какие дни в этом чате вообще что-то писали.
-//
-// Даты считаются в часовом поясе того, кто смотрит: createdAt лежит в UTC, а
-// «30 августа» для человека в Москве и в Лиссабоне — разные отрезки времени.
-// Смещение приходит с клиента в минутах (как его отдаёт getTimezoneOffset, с
-// обратным знаком) и подставляется прямо в SQL — считать это перебором в
-// JavaScript значило бы вычитать из базы всю переписку ради списка дней.
 function listMessageDays(chatId, { month, tzOffsetMinutes = 0 } = {}) {
   const rows = db
     .prepare(
@@ -623,10 +454,6 @@ function listMessageDays(chatId, { month, tzOffsetMinutes = 0 } = {}) {
   return rows.map((r) => r.day);
 }
 
-// Первое сообщение выбранного дня — то, к которому нужно перепрыгнуть.
-// Если в этот день не писали, берётся ближайшее следующее: человек ткнул в
-// пустой день календаря, и показать ему «ничего нет» менее полезно, чем
-// перенести туда, где переписка продолжилась.
 function firstMessageOfDay(chatId, { day, tzOffsetMinutes = 0 } = {}) {
   return (
     db
@@ -642,8 +469,6 @@ function firstMessageOfDay(chatId, { day, tzOffsetMinutes = 0 } = {}) {
   );
 }
 
-// /stats and /top (server/lib/helperBot/moderation.js) — plain aggregate
-// queries, no need for a summary table given how infrequently these are asked.
 function chatMessageStats(chatId) {
   const total = db.prepare("SELECT COUNT(*) c FROM messages WHERE chatId = ?").get(chatId).c;
   const media = db.prepare("SELECT COUNT(*) c FROM messages WHERE chatId = ? AND attachments IS NOT NULL").get(chatId).c;
@@ -662,8 +487,6 @@ module.exports = {
   attachmentBytesByKind,
   listMessageDays,
   firstMessageOfDay,
-  // Нужен data/chat-summary.js: он читает строки своим запросом и превращает
-  // их в сообщения тем же способом, что и остальной код.
   rowToMessage,
   listAllMessages,
   listMediaMessages,

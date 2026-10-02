@@ -4,19 +4,9 @@ import { Avatar } from "../components/avatar.js";
 import { api } from "../api.js";
 import { LoginView } from "./login.js";
 
-// The page a *real* phone camera lands on after scanning the QR code shown
-// on the waiting device's /login screen (see login.js's qrCodeSvg — it
-// encodes a plain https:// URL to here, not a custom scheme, so any camera
-// app can open it with no Shalter-specific scanner needed). Whoever opens
-// this link just needs to be logged in *somewhere* to vouch for the other
-// device — if they aren't yet, they log in right here first.
 export async function QrLoginConfirmView(root) {
   const token = new URLSearchParams(window.location.search).get("token");
 
-  // Built once — the page-chrome entrance animations (logo, brand, card)
-  // should only ever play on the initial mount, not replay every time the
-  // confirm step below changes state (pending → done). Only contentSlot's
-  // contents get swapped after this.
   const contentSlot = el("div");
   mount(
     root,
@@ -109,9 +99,6 @@ export async function QrLoginConfirmView(root) {
       el("p", { class: "qr-login-instructions center" }, "Чтобы подтвердить вход на другом устройстве, сначала войдите в свой аккаунт."),
       el("div", { class: "qr-login-embedded-form" })
     );
-    // Re-uses the exact same login form as the main /login page — once it
-    // succeeds here, move straight to the confirm step instead of
-    // navigating away (see LoginView's onSuccess option).
     LoginView(contentSlot.querySelector(".qr-login-embedded-form"), {
       embedded: true,
       onSuccess: (loggedInUser) => renderConfirmStep(loggedInUser),

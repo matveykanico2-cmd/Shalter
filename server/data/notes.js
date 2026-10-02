@@ -1,5 +1,3 @@
-// Backing store for /note (server/lib/helperBot/utility.js) — a personal
-// scratch list, per user, unrelated to any chat.
 const db = require("../db");
 
 function addNote(userId, text) {
@@ -17,8 +15,6 @@ function listNotes(userId) {
   return db.prepare("SELECT * FROM notes WHERE userId = ? ORDER BY createdAt ASC").all(userId);
 }
 
-// 1-based index into that user's own list, as shown by /note list — not the
-// underlying row id, which nobody typing a chat command would know.
 function deleteNoteByIndex(userId, index) {
   const notes = listNotes(userId);
   const target = notes[index - 1];

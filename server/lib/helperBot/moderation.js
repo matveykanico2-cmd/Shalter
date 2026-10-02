@@ -27,8 +27,6 @@ async function kickTarget(ctx) {
 }
 
 const commands = {
-  // No persistent ban list in this app — same as the "ban" role in
-  // routes/chats.js's /:id/members, banning a group member means removing them.
   async ban(ctx) {
     const err = requireGroup(ctx) || (!isOwnerOrAdmin(ctx.chat, ctx.senderId) && NEED_STAFF);
     if (err) return err;
@@ -49,8 +47,6 @@ const commands = {
     if (isOwner(ctx.chat, target.id) || (ctx.chat.adminIds ?? []).includes(target.id)) {
       return "Нельзя ограничить владельца или администратора.";
     }
-    // Duration is whatever trails the target token — "/mute @ivan 1h" or
-    // "/mute 1h" as a reply both work.
     const durationArg = ctx.message.replyToId ? ctx.argv[0] : ctx.argv[1];
     const ms = parseDuration(durationArg);
     const until = ms ? new Date(Date.now() + ms).toISOString() : "forever";

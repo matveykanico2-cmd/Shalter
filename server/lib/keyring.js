@@ -1,39 +1,11 @@
 const crypto = require("crypto");
 
-// Ротация ключей шифрования — схема «конверта», как в облачных KMS.
-//
-// Два уровня ключей:
-// - мастер-ключ (MESSAGES_KEY / UPLOADS_KEY или data/*.key) ничего не шифрует
-//   сам — им только «заворачиваются» ключи данных;
-// - ключи данных шифруют сами сообщения (lib/textCrypto.js) и файлы
-//   (lib/fileCrypto.js). Каждый живёт не дольше KEY_ROTATION_SECONDS (по
-//   умолчанию 120 секунд, т.е. новый ключ каждые 2 минуты), потом для новых
-//   записей создаётся следующий.
-//
-// Старые ключи не удаляются: ими зашифрована вся переписка до этого момента,
-// и без них она не прочитается. Они лежат в таблице crypto_keys завёрнутыми
-// мастер-ключом, в открытом виде — только в памяти процесса. Каждая запись
-// помнит номер своего ключа, поэтому перешифровывать старое не нужно.
-//
-// Что это даёт: один ключ данных закрывает не больше двух минут переписки.
-// Утёкший из памяти или из дампа ключ открывает только этот отрезок, а не всё
-// сразу. Чего не даёт: защиты от утечки мастер-ключа — им разворачиваются все
-// ключи данных. Мастер-ключ меняет администратор (DEPLOY.md).
-//
-// Ключ создаётся лениво, при первой записи после истечения предыдущего, а не
-// по таймеру: на простаивающем сервере не копятся сотни ключей в сутки, при
-// этом ни одна запись не шифруется ключом старше двух минут.
 const ROTATE_MS = Math.max(10, Number(process.env.KEY_ROTATION_SECONDS) || 120) * 1000;
 
 let db = null;
-// Развёрнутые ключи: `${purpose}:${id}` → Buffer. По 32 байта, даже год
-// ротации каждые 2 минуты — это единицы мегабайт.
 const cache = new Map();
-// Действующий ключ для новых записей по назначению: purpose → { id, key, createdMs }.
 const current = new Map();
 
-// Вызывается из server/db.js, пока база открывается: db.js сам пользуется
-// шифрованием при миграции, поэтому require("../db") отсюда дал бы цикл.
 function init(database) {
   db = database;
   db.exec(`
@@ -52,8 +24,6 @@ function database() {
   return db;
 }
 
-// В AAD — назначение и номер ключа: завёрнутый ключ нельзя переставить в
-// другую строку или выдать за ключ другого назначения.
 function wrap(kek, purpose, id, key) {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", kek, iv);
@@ -70,8 +40,6 @@ function unwrap(kek, purpose, id, wrapped) {
   return Buffer.concat([decipher.update(raw.subarray(12, raw.length - 16)), decipher.final()]);
 }
 
-// Ключ для новой записи. После перезапуска подхватывает последний ключ из
-// базы, если тот ещё не истёк, — иначе каждый перезапуск плодил бы ключ.
 function currentKey(purpose, kek) {
   const now = Date.now();
   const cur = current.get(purpose);
@@ -91,8 +59,6 @@ function currentKey(purpose, kek) {
 
   const key = crypto.randomBytes(32);
   const createdAt = new Date(now).toISOString();
-  // Номер ключа входит в AAD обёртки, а известен только после вставки —
-  // поэтому вставка и обёртка в одной транзакции.
   const id = d.transaction(() => {
     const newId = Number(d.prepare("INSERT INTO crypto_keys (purpose, wrapped, createdAt) VALUES (?, '', ?)").run(purpose, createdAt).lastInsertRowid);
     d.prepare("UPDATE crypto_keys SET wrapped = ? WHERE id = ?").run(wrap(kek, purpose, newId, key), newId);
@@ -104,8 +70,6 @@ function currentKey(purpose, kek) {
   return fresh;
 }
 
-// Ключ, которым была сделана запись. Нет ключа — запись не прочитать; это
-// ошибка, а не повод молча вернуть что-то другое.
 function getKey(purpose, id, kek) {
   const cacheKey = `${purpose}:${id}`;
   const hit = cache.get(cacheKey);

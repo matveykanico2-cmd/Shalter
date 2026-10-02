@@ -1,13 +1,9 @@
-// Ключ задаётся через окружение до require — тогда textCrypto не создаёт
-// файл data/messages.key и тест ничего не пишет на диск.
 process.env.MESSAGES_KEY = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { searchTokens, searchQuery, hasLink } = require("../server/lib/textCrypto");
 
-// Отпечатки поиска: каждый токен запроса обязан присутствовать среди токенов
-// проиндексированного текста — иначе поиск молча перестаёт находить.
 function tokenSet(text) {
   return new Set(searchTokens(text).split(" ").filter(Boolean));
 }

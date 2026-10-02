@@ -1,32 +1,7 @@
-// Multi-part animated scenes for stickers and gifts.
-//
-// A sticker used to be one emoji with one looping CSS animation. That reads as
-// "a wobbling picture", not as something alive. A scene is instead a small cast
-// of emoji layered over each other, each with its own motion, delay and place —
-// so a bear can wave, and a moment later a jar of honey appears with a spoon
-// dipping into it, and the whole thing loops as one performance.
-//
-// Everything is declarative on purpose: with 286 gifts and dozens of stickers,
-// hand-writing DOM per item is not maintainable. A scene is data, the renderer
-// is one function, and anything without an explicit scene still gets a sensible
-// animated one from its own emoji.
-//
-// Part fields:
-//   e      emoji for this layer
-//   anim   CSS animation name (see .scene-<anim> in components.css)
-//   delay  seconds before this layer starts — this is what makes a sequence
-//   x, y   offset from the centre, in % of the scene box (positive y = down)
-//   size   scale relative to the base emoji (1 = same size)
-//   dur    animation duration in seconds (defaults per animation)
-
 import { characterFor, renderCharacter } from "./characters.js";
 import { artFor, renderArt } from "./drawnArt.js";
 
-// Named scenes, keyed by the id used in the catalogue. `base` is a shorthand:
-// the first part always uses the item's own emoji unless it names its own.
 export const SCENES = {
-  // The example from the brief: bear waves, then honey arrives, then the spoon
-  // dips into it.
   bear_honey: {
     parts: [
       { anim: "wave", dur: 1.6 },
@@ -35,7 +10,6 @@ export const SCENES = {
     ],
     loop: 3.6,
   },
-  // A rock doesn't move much — that's the joke. It just blinks.
   rock_blink: {
     parts: [
       { anim: "settle", dur: 3.2 },
@@ -118,12 +92,6 @@ export const SCENES = {
     ],
     loop: 3.2,
   },
-  // ── Второй набор: у каждой сцены есть сюжет, а не просто шевеление ────────
-  //
-  // Подарок — главная из них. Коробка вздрагивает, крышка отлетает, из неё
-  // поднимается содержимое, вокруг вспыхивают искры. Именно этот момент люди и
-  // ждут, открывая подарок, поэтому он разложен на четыре слоя с задержками, а
-  // не сведён к одному «подпрыгиванию».
   gift_open: {
     parts: [
       { anim: "shake-hard", dur: 1.6 },
@@ -134,7 +102,6 @@ export const SCENES = {
     ],
     loop: 2.6,
   },
-  // «Hi» — рука машет, слово всплывает над ней и тает.
   wave_hi: {
     parts: [
       { anim: "wave", dur: 1.5 },
@@ -142,7 +109,6 @@ export const SCENES = {
     ],
     loop: 2.6,
   },
-  // Рот открывается: вертикальное растяжение лица плюс всплывающее «!».
   gasp_open: {
     parts: [
       { anim: "gasp", dur: 1.8 },
@@ -150,7 +116,6 @@ export const SCENES = {
     ],
     loop: 2.2,
   },
-  // Огонь с угольками, улетающими вверх.
   flame_live: {
     parts: [
       { anim: "burn", dur: 1.1 },
@@ -246,14 +211,8 @@ export const SCENES = {
   },
 };
 
-// Single-layer fallbacks, so an item with no scene still moves like something
-// alive rather than sitting still.
 const SOLO = ["wave", "wiggle", "beat", "float", "tada", "swing", "flicker", "breathe", "settle"];
 
-// Emoji → scene, for the items worth a bespoke performance. Everything else
-// falls back to a solo animation picked deterministically from its own emoji, so
-// a given sticker always animates the same way rather than changing between
-// renders.
 const BY_EMOJI = {
   "🐻": "bear_honey",
   "🍯": "bear_honey",
@@ -285,7 +244,6 @@ const BY_EMOJI = {
   "💵": "money_rain",
   "🤑": "money_rain",
 
-  // Второй набор.
   "🎁": "gift_open",
   "🎀": "gift_open",
   "📦": "gift_open",
@@ -329,15 +287,12 @@ const BY_EMOJI = {
   "🍷": "champagne_pop",
 };
 
-// Deterministic: the same emoji always gets the same motion.
 function soloFor(emoji) {
   let hash = 0;
   for (const ch of String(emoji ?? "")) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
   return SOLO[hash % SOLO.length];
 }
 
-// Resolves what to play for an item. `preferred` is an explicit scene id (a
-// sticker pack can name one); otherwise the emoji decides.
 export function sceneFor(emoji, preferred) {
   if (preferred && SCENES[preferred]) return SCENES[preferred];
   const named = BY_EMOJI[emoji];
@@ -345,19 +300,7 @@ export function sceneFor(emoji, preferred) {
   return { parts: [{ anim: soloFor(emoji) }], loop: 0 };
 }
 
-// Builds the DOM for a scene. Returns a single element the caller can drop
-// anywhere; `size` is the base emoji's font size in px.
-//
-// No innerHTML: emoji come from user-creatable sticker packs, so they go in as
-// text nodes.
 export function renderScene(emoji, { size = 84, preferred, replay = true } = {}) {
-  // Нарисованный персонаж вместо системного эмодзи там, где он есть
-  // (lib/characters.js). Подстановка живёт здесь, а не у каждого вызывающего:
-  // стикеры, подарки, реакции и предпросмотр рисуются одной и той же функцией,
-  // и добавлять персонажа в четыре места по отдельности значит однажды забыть
-  // про одно из них.
-  // Нарисованные стикеры и подарки идут первыми: они и есть то, ради чего
-  // затевалось рисование, а персонажи (characters.js) — второй слой.
   const artId = artFor(emoji, preferred);
   if (artId) {
     const node = renderArt(artId, { size });
@@ -390,14 +333,10 @@ export function renderScene(emoji, { size = 84, preferred, replay = true } = {})
     span.textContent = part.e ?? emoji;
     const style = span.style;
     if (i > 0) {
-      // Accent layers are positioned relative to the centre; the base layer
-      // fills the box so the scene's size is predictable.
       style.position = "absolute";
       style.left = "50%";
       style.top = "50%";
       style.fontSize = `${Math.round(size * (part.size ?? 0.4))}px`;
-      // The translate has to come first in the transform list so the animation's
-      // own transform composes on top of it rather than replacing the position.
       style.setProperty("--x", `${part.x ?? 0}%`);
       style.setProperty("--y", `${part.y ?? 0}%`);
       style.marginLeft = `${((part.x ?? 0) / 100) * size}px`;

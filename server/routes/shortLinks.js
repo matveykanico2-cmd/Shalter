@@ -1,5 +1,3 @@
-// GET /s/:code — public redirect for links made with /short. Not under /api:
-// it's meant to be opened directly in a browser, like the target URL itself.
 const express = require("express");
 const { getShortLink, registerClick } = require("../data/shortLinks");
 

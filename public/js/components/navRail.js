@@ -6,11 +6,6 @@ import { api } from "../api.js";
 import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
 
-// isActive — предикат, а не готовое «да/нет»: рельс создаётся один раз за всё
-// время работы приложения (см. app.js), а маршрут меняется постоянно, и подсветку
-// надо пересчитывать на каждый переход. Раньше здесь стоял вычисленный при
-// создании флаг — и подсвеченной навсегда оставалась та вкладка, с которой
-// приложение открыли: уходишь в контакты, а горят по-прежнему «Чаты».
 function railButton(href, iconName, label, isActive) {
   const node = el(
     "a",
@@ -33,23 +28,11 @@ export function NavRail() {
 
   const accountBtn = el("button", { class: "nav-rail-account", title: "Аккаунты" });
 
-  // Рельс создаётся один раз за всё время работы приложения (см. app.js) и
-  // раньше рисовал аватар тоже один раз — по данным, какие были на момент
-  // запуска. Поэтому смена фото профиля не появлялась здесь никогда: человек
-  // менял аватар, везде он менялся, а в рельсе слева висело старое фото до
-  // перезагрузки страницы. То же и с именем, и со значком Premium.
-  //
-  // Перерисовывается только содержимое кнопки, а не сама кнопка: на ней висит
-  // обработчик и от неё же отсчитывается положение выпадающего меню.
   function paintAccount() {
     const { user } = getState();
     if (!user) return;
     accountBtn.textContent = "";
     accountBtn.appendChild(
-      // Без orbit: спутники вылетают за аватар на 14 пикселей в каждую
-      // сторону, а рельс узкий и прижат к краю окна — левый спутник просто
-      // срезался краем экрана на всех страницах сразу. Украшение остаётся там,
-      // где под него есть место: в профиле и в настройках.
       Avatar({ name: user.name || user.phone, color: user.avatarColor, image: user.avatarImage, size: 40, online: true, isPremium: user.isPremium, isDeveloper: user.isDeveloper })
     );
   }
@@ -69,7 +52,6 @@ export function NavRail() {
   const settingsBtn = railButton("/settings", "Settings", "Настройки", (p) => p.startsWith("/settings"));
   railButtons.push(settingsBtn);
 
-  // Всё, кроме настроек, — сверху; настройки прижаты к низу распоркой.
   nav.append(accountBtn, ...railButtons.slice(0, -1), el("div", { class: "nav-rail-spacer" }), settingsBtn);
 
   function paintActive(p) {
@@ -79,12 +61,8 @@ export function NavRail() {
   window.addEventListener("app:navigate", ({ detail }) => paintActive(detail.path));
 
   function showAccountSwitcher(pos) {
-    // Из состояния, а не из замыкания: список аккаунтов и текущий пользователь
-    // меняются, пока рельс живёт (переименование, вход вторым аккаунтом), а
-    // рельс создаётся один раз.
     const { user, accounts } = getState();
     const items = [
-      // Свой профиль карточкой — ровно так, как его видят другие люди.
       {
         icon: "User",
         label: "Мой профиль",
@@ -111,10 +89,6 @@ export function NavRail() {
     items.push({
       label: "Добавить аккаунт",
       icon: "Plus",
-      // A real navigation, not the SPA router's navigate() — /login has no
-      // client-side route registered in app.js (it's only ever handled by
-      // boot()'s special-case on a fresh page load), so navigate() here
-      // just fell through to notFound() and bounced straight back to "/".
       onClick: () => (window.location.href = "/login?add=1"),
     });
     items.push({ separator: true });
@@ -144,9 +118,6 @@ export function NavRail() {
       },
     });
     items.push({ separator: true });
-    // Открывает DM с администрацией (живой человек — владелец ADMIN_PHONE), а не
-    // с ботом кодов «shalter». Раньше вело на /u/shalter — служебный бот, куда
-    // приходят коды входа, и жалоба уходила «в коды».
     items.push({
       icon: "Bug",
       label: "Сообщить об ошибке",

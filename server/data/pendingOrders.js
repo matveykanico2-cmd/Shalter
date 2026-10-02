@@ -2,16 +2,8 @@ const crypto = require("crypto");
 const { genId } = require("../lib/genId");
 const db = require("../db");
 
-// Same "no ambiguous characters" alphabet as users.js's referral codes — a
-// donor has to type this into a free-text donation message field, so 0/O/1/I
-// mix-ups matter here even more than for a referral link.
 const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
-// What a generated code looks like, matched case-insensitively against a
-// donor's free-text message — shared by every poll sweep that scans a
-// donation feed for one (server/lib/donationAlerts.js, server/lib/
-// donatePay.js), so the two can't quietly drift out of sync with
-// generateOrderCode() below.
 const CODE_RE = /SHP-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}/i;
 
 function rowToOrder(row) {

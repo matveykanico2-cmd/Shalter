@@ -6,20 +6,9 @@ const { publicUser } = require("../data/sanitize");
 const { MAX_AVATARS, validateEntry } = require("../lib/avatars");
 const { notifyProfileChanged } = require("../lib/notifyProfileChanged");
 
-// Managing your own profile photos. Always your own: there is no :id here at
-// all, so there's no permission check to get wrong — the session decides whose
-// avatars these are.
-//
-// The file itself goes up through POST /api/uploads first (kind "avatar" or
-// "avatar-video", which have their own tight ceilings); what arrives here is the
-// resulting /uploads/… path plus the still to show in avatar circles.
 const router = express.Router();
 router.use(requireUserId);
 
-// Галерея аккаунта. У старых аккаунтов (и у тех, кто ставил фото ещё при
-// регистрации) её нет — есть только одиночный avatarImage. Просмотрщик такое
-// фото показывает, а значит, и удалить или отодвинуть его должно быть можно:
-// раньше «Удалить» на нём отвечало «Аватарка не найдена».
 function avatarList(me) {
   const list = me?.avatarImages ?? [];
   if (list.length || !me?.avatarImage) return list;
@@ -34,9 +23,6 @@ router.get(
   })
 );
 
-// Newest first: a freshly added photo becomes the current avatar, which is what
-// "add a photo" means everywhere else and saves a second "make it the main one"
-// step for the common case.
 router.post(
   "/",
   asyncRoute(async (req, res) => {
@@ -66,9 +52,6 @@ router.post(
       return res.status(404).json({ error: "Аватарка не найдена" });
     }
     const list = [...avatarList(me)];
-    // Moved to the front rather than swapped with whatever was first: the rest
-    // keeps its order, so the list doesn't reshuffle itself under the person
-    // flipping through it.
     const [picked] = list.splice(i, 1);
     const updated = await setAvatars(req.uid, [picked, ...list]);
     notifyProfileChanged(req.uid, updated);
@@ -76,9 +59,6 @@ router.post(
   })
 );
 
-// The file on disk is deliberately left alone. It may still be referenced by a
-// message someone forwarded, and an avatar is small; deleting shared uploads
-// from here is how you end up with broken images in other people's chats.
 router.delete(
   "/:index",
   asyncRoute(async (req, res) => {
@@ -88,8 +68,6 @@ router.delete(
       return res.status(404).json({ error: "Аватарка не найдена" });
     }
     const list = avatarList(me).filter((_, idx) => idx !== i);
-    // Removing the current avatar promotes the next one; removing the last one
-    // leaves the account on coloured initials, same as never having set one.
     const updated = await setAvatars(req.uid, list);
     notifyProfileChanged(req.uid, updated);
     res.json({ user: publicUser(updated), avatars: updated.avatarImages });

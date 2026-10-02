@@ -5,7 +5,6 @@ const liveStreams = require("./data/liveStreams");
 const { addSignal } = require("./data/signals");
 const { updateUser } = require("./data/users");
 
-// uid -> Set<WebSocket> (a user may have multiple tabs/devices open at once).
 const socketsByUser = new Map();
 
 function addSocket(uid, ws) {
@@ -31,8 +30,6 @@ function broadcastToUsers(userIds, message) {
   }
 }
 
-// Broadcasts to every connected user — used for presence, which any open
-// chat/contacts view might need to reflect regardless of which chat it's for.
 function broadcastToAll(message) {
   const payload = JSON.stringify(message);
   for (const set of socketsByUser.values()) {
@@ -42,9 +39,6 @@ function broadcastToAll(message) {
   }
 }
 
-// Real online/last-seen presence, tracked by WS connection lifetime rather
-// than a static seed flag — a user goes "online" on their first open socket
-// (any tab/device) and "offline" (with a fresh lastSeen) once the last one closes.
 async function markOnline(uid) {
   const user = await updateUser(uid, { online: true });
   if (user) broadcastToAll({ type: "presence:update", userId: uid, online: true, lastSeen: user.lastSeen });
@@ -56,23 +50,13 @@ async function markOffline(uid) {
   if (user) broadcastToAll({ type: "presence:update", userId: uid, online: false, lastSeen });
 }
 
-// Live push for call signaling (offer/answer/ICE), incoming-call/decline
-// notifications, and presence. HTTP polling (server/routes/calls.js signal
-// endpoints) stays as a fallback for reconnect/catch-up after a page reload
-// or dropped socket.
-// Real messages here are small JSON signaling frames (offer/answer/ICE
-// candidates, a few KB at most) — attachments never ride over this socket
-// (those go through the regular HTTP API instead). 64KB is generous
-// headroom over any real frame; ws's own default (no cap at all) would let
-// a client send an arbitrarily large frame and force the server to buffer
-// it before handleMessage() ever gets a chance to reject it.
 const MAX_WS_PAYLOAD_BYTES = 64 * 1024;
 
 function attachWebSocketServer(httpServer) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_WS_PAYLOAD_BYTES });
 
   httpServer.on("upgrade", (req, socket, head) => {
-    if (req.url !== "/ws") return; // let other upgrade handlers (if any) see it
+    if (req.url !== "/ws") return;
     const uid = getCurrentUserIdFromCookieHeader(req.headers.cookie);
     if (!uid) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
@@ -103,23 +87,15 @@ async function handleMessage(ws, raw) {
     return;
   }
 
-  // Сигналы эфира (routes/live.js). Отдельный тип, а не тот же call:signal:
-  // проверка прав другая — участником эфира человек становится сам, войдя в
-  // него, а участников звонка назначает звонящий.
   if (msg.type === "live:signal:send") {
     const { streamId, toUserId, kind, data } = msg;
     const stream = liveStreams.getStream(streamId);
     if (!stream || stream.status !== "live") return;
-    // Оба конца обязаны быть в этом эфире — иначе через сигналинг можно было
-    // бы достучаться до любого пользователя, минуя сам эфир.
     if (!liveStreams.getParticipant(streamId, ws.uid) || !liveStreams.getParticipant(streamId, toUserId)) return;
     broadcastToUsers([toUserId], { type: "live:signal", streamId, fromUserId: ws.uid, kind, data });
     return;
   }
 
-  // Client sends {type: "call:signal:send", callId, toUserId, kind, data}
-  // instead of the HTTP POST /api/calls/:id/signal fallback, for near-zero
-  // signaling latency (offer/answer/ICE round trips are what make calls feel slow).
   if (msg.type === "call:signal:send") {
     const { callId, toUserId, kind, data } = msg;
     const call = await getCall(callId);
@@ -129,10 +105,6 @@ async function handleMessage(ws, raw) {
   }
 }
 
-// Сколько сейчас живых соединений и сколько за ними людей — для страницы
-// состояния сервера (lib/serverStats.js). Счётчик в памяти процесса, как и всё
-// остальное присутствие: при нескольких процессах он покажет только свой (см.
-// AGENTS.md — приложение и не рассчитано на горизонтальное масштабирование).
 function wsStats() {
   let sockets = 0;
   for (const set of socketsByUser.values()) sockets += set.size;

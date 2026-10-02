@@ -1,15 +1,3 @@
-// Удаляет аккаунты, созданные нагрузочным тестом (scripts/loadtest.k6.js):
-// у всех них email на @loadtest.invalid — домен .invalid зарезервирован и
-// настоящему человеку принадлежать не может.
-//
-//   npm run loadtest:cleanup -- --dry-run   # только посчитать
-//   npm run loadtest:cleanup                # удалить
-//
-// Удаление — тем же путём, что «Удалить аккаунт» в настройках
-// (server/lib/deleteAccount.js): чаты, сообщения, сессии, контакты, боты.
-// Запускать на сервере, из папки проекта — скрипт открывает ту же базу
-// data/app.db, что и работающий сервер (SQLite это допускает), и берёт те же
-// ключи шифрования из окружения.
 const { listUsers } = require("../server/data/users");
 const { deleteAccount } = require("../server/lib/deleteAccount");
 

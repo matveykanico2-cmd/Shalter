@@ -1,15 +1,5 @@
 const db = require("../db");
 
-// «Люди рядом» — намеренно неточно, на каждом шаге:
-//   1. Координаты округляются здесь, на сервере, а не там, где их прислал
-//      браузер — округление на клиенте ничего не мешает обойти. 0.01° — это
-//      около 1.1 км по широте, то есть "координата" — это ячейка сетки
-//      километр на километр, а не точка.
-//   2. Другим отдаётся не расстояние в метрах, а один из пяти диапазонов
-//      (см. bucketFor) — точное число, повторённое с трёх точек обзора,
-//      превращается в триангуляцию; диапазон — нет.
-//   3. Присутствие само гаснет через полчаса без обновления (фильтр при
-//      чтении, без отдельного job — тот же приём, что и у историй).
 const GRID = 0.01;
 const PRESENCE_TTL_MS = 30 * 60 * 1000;
 
@@ -30,8 +20,6 @@ async function clearNearbyLocation(userId) {
   db.prepare("UPDATE users SET nearbyLat = NULL, nearbyLng = NULL, nearbyUpdatedAt = NULL WHERE id = ?").run(userId);
 }
 
-// Хаверсин по уже округлённым координатам — точность тут и не нужна, есть
-// только у той сетки, что и была сохранена.
 function distanceKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -69,7 +57,6 @@ async function listNearbyUsers(viewerId, viewerLat, viewerLng, viewerBlockedIds 
     .all(cutoff)
     .filter((r) => {
       if (r.id === viewerId || viewerBlocked.has(r.id)) return false;
-      // Заблокировал меня — значит, и его самого мне тоже не видно.
       const theirBlocked = JSON.parse(r.blockedUserIds || "[]");
       return !theirBlocked.includes(viewerId);
     });
@@ -80,8 +67,6 @@ async function listNearbyUsers(viewerId, viewerLat, viewerLng, viewerBlockedIds 
     return { id: r.id, name: r.name, username: r.username, avatarColor: r.avatarColor, avatarImage: r.avatarImage, ...bucket };
   });
 
-  // В пределах одного диапазона — вперемешку, не по точному расстоянию: иначе
-  // порядок сам по себе выдавал бы то, что диапазон нарочно скрывает.
   for (let i = withDistance.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [withDistance[i], withDistance[j]] = [withDistance[j], withDistance[i]];

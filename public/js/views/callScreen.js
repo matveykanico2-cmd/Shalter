@@ -36,33 +36,12 @@ export async function CallScreenView(root, callId) {
     return;
   }
 
-  // render() rebuilds the whole tree every tick (the elapsed-time timer calls
-  // notify() once a second). Reusing the actual <video>/<audio> nodes across
-  // renders — instead of calling el() fresh each time — means mount()'s
-  // clear+append just moves the existing element, which browsers treat as a
-  // no-op for an already-playing stream. Recreating the node instead would
-  // tear down and restart playback every second.
-  const remoteMediaEls = new Map(); // participantId -> { el, kind }
-  // По той же причине, что и <video> выше, ползунок громкости создаётся один
-  // раз: render() пересобирает дерево раз в секунду (таймер длительности), а
-  // ползунок, пересозданный под пальцем, бросает перетаскивание на полпути.
+  const remoteMediaEls = new Map();
   const volumeControl = VolumeControl();
 
-  // Кто сейчас в большом окне, а кто в маленьком. Нажатие меняет их местами —
-  // так же, как в других мессенджерах: во время видеозвонка чаще нужно
-  // разглядеть себя (что попадает в кадр), чем собеседника, и наоборот.
   let swapped = false;
-  // Идёт демонстрация экрана (своя или чья-то): экран на всю площадь, окна
-  // участников — полоской поверх него. Обмен местами тут не действует.
   let stageMode = false;
-  // Ставится сразу после перетаскивания своего окна — чтобы отпускание пальца
-  // не сработало ещё и как нажатие.
   let justDragged = false;
-  // Развернуть на весь экран — двойным нажатием по картинке. Работает и на
-  // телефоне, и на компьютере: браузеры принимают dblclick и там, и там.
-  //
-  // Разворачивается вся область звонка, а не один элемент: иначе кнопки
-  // управления и своё окно остались бы за кадром.
   function toggleFullscreen(node) {
     const target = node?.closest(".call-screen") ?? node;
     if (!target) return;
@@ -76,25 +55,6 @@ export async function CallScreenView(root, callId) {
     render(getCallState());
   };
 
-  // Своё окно камеры и полоску участников поверх демонстрации можно двигать
-  // пальцем.
-  //
-  // Окно камеры висело в правом нижнем углу и накрывало собой кнопку
-  // «Завершить» — особенно на узком экране, где панель кнопок переносится в две
-  // строки и становится выше. Кнопка под окном не нажимается вовсе, то есть из
-  // звонка не выйти. Полоска участников так же закрывает собой то, что
-  // показывают, — её убирают туда, где на экране пусто.
-  //
-  // Положение запоминается: человек один раз отодвинул — и оно там же в
-  // следующем звонке.
-  //
-  // Позиция держится здесь, а не только в стилях узла. render() пересобирает
-  // дерево раз в секунду — по таймеру длительности разговора. Пока окно
-  // тащили, положение жило в style у старого узла, и очередная перерисовка
-  // создавала новый — без него. Окно прыгало на место по умолчанию, а если его
-  // успели утащить далеко, выглядело это как «пропало». По той же причине
-  // движение слушается на window, а узел каждый раз ищется заново: старый к
-  // тому времени уже снят с экрана и событий не получает.
   function makeDraggable(key, selector) {
     let pos = null;
     let loaded = false;
@@ -109,8 +69,6 @@ export async function CallScreenView(root, callId) {
       }
       return pos;
     }
-    // Не даём утащить за край — вернуть оттуда было бы нечем. Координаты — от
-    // угла области, в которой узел лежит, а не от угла окна браузера.
     function clamp(node, x, y) {
       const parent = node.offsetParent;
       const pw = parent?.clientWidth ?? window.innerWidth;
@@ -127,9 +85,6 @@ export async function CallScreenView(root, callId) {
       node.style.bottom = "auto";
       node.style.transform = "none";
     }
-    // После сборки дерева, когда узел уже на экране и у него есть размеры.
-    // Окно браузера могли уменьшить с прошлого раза — тогда сохранённая точка
-    // окажется за краем; clamp возвращает её в видимую область.
     function apply(node) {
       const p = read();
       if (p) place(node, clamp(node, p.x, p.y));
@@ -144,7 +99,6 @@ export async function CallScreenView(root, callId) {
         const current = root.querySelector(selector);
         if (!current) return;
         const parentRect = current.offsetParent?.getBoundingClientRect() ?? { left: 0, top: 0 };
-        // Дрожание пальца при нажатии — ещё не перетаскивание.
         if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 4) return;
         moved = true;
         pos = clamp(current, ev.clientX - parentRect.left - dx, ev.clientY - parentRect.top - dy);
@@ -155,14 +109,11 @@ export async function CallScreenView(root, callId) {
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
         if (!moved) return;
-        // Тащили, а не нажимали: гасим ближайший клик, иначе каждое
-        // перетаскивание своего окна заодно меняло бы окна местами.
         justDragged = true;
         setTimeout(() => (justDragged = false), 250);
         try {
           localStorage.setItem(key, JSON.stringify(pos));
         } catch {
-          // Хранилище недоступно — останется где поставили, до конца звонка.
         }
       };
       window.addEventListener("pointermove", move);
@@ -173,12 +124,10 @@ export async function CallScreenView(root, callId) {
   }
   const pipDrag = makeDraggable("shalter.callPipPos", ".call-local-pip");
   const stripDrag = makeDraggable("shalter.callStripPos", ".call-stage-strip");
-  // Полоску участников поверх демонстрации можно свернуть в одну строку —
-  // когда нужно разглядеть экран целиком.
   let stripHidden = false;
   let localVideoEl = null;
   let screenPreviewEl = null;
-  let linkStatus = null; // null | "copying" | "copied" | error message
+  let linkStatus = null;
 
   async function inviteByLink() {
     if (!me.isPremium) return navigate("/settings/premium");
@@ -200,10 +149,6 @@ export async function CallScreenView(root, callId) {
 
   function render(s) {
     if (!s || s.call.id !== callId) return;
-    // Minimizing always navigates away as a direct user/router action (the
-    // minimize button below, or app.js's implicit-minimize-on-navigate-away) —
-    // never react to it here, since that would re-enter navigate() from
-    // inside the router's own dispatch and corrupt the in-flight navigation.
     if (s.minimized) return;
     if (s.phase === "ended") {
       mount(root, el("div", { class: "call-screen ended" }, [el("p", {}, "Звонок завершён")]));
@@ -212,19 +157,11 @@ export async function CallScreenView(root, callId) {
 
     const label = s.phase === "ringing" ? "Вызов…" : formatElapsed(s.elapsed);
 
-    // Что у собеседника с камерой и экраном — из его сигнала "media"
-    // (callController.js). Пока сигнал не дошёл, судим по виду звонка.
     const mediaOf = (p) => s.remoteMedia?.[p.id] ?? { camera: s.call.kind === "video", sharing: false };
-    // Чей экран в центре: свой важнее — показывающий должен видеть, что уходит.
     const remoteSharerId = s.sharing ? null : s.others.find((p) => mediaOf(p).sharing)?.id ?? null;
     stageMode = s.sharing || !!remoteSharerId;
     const swap = swapped && !stageMode;
 
-    // <video> переиспользуются между перерисовками — см. комментарий у
-    // remoteMediaEls. Все картинки идут без звука (muted): звук собеседников
-    // выводит постоянный <audio>-приёмник в оболочке приложения (app.js), а не
-    // экран звонка, — иначе он пропадал бы при уходе с экрана. Поэтому, где бы
-    // ни оказалась картинка собеседника, звук с ней не дублируется.
     const liveKeys = new Set();
     function mediaNode(key, kind, stream) {
       liveKeys.add(key);
@@ -237,14 +174,11 @@ export async function CallScreenView(root, callId) {
         cached = { el: node, kind };
         remoteMediaEls.set(key, cached);
       }
-      // el() only wires on*/props — srcObject needs a real assignment, not an attribute.
       if (cached.el.srcObject !== stream) cached.el.srcObject = stream;
       return cached.el;
     }
     const hasVideo = (stream) => !!stream && stream.getVideoTracks().some((t) => t.readyState === "live");
 
-    // role: "grid" — обычная сетка, "stage" — экран собеседника в центре,
-    // "strip" — маленькое окно в полоске поверх демонстрации.
     function buildTile(p, role) {
       const m = mediaOf(p);
       const main = s.remoteStreams[p.id] ?? null;
@@ -253,13 +187,9 @@ export async function CallScreenView(root, callId) {
       if (role === "stage") {
         stream = main;
       } else if (role === "strip" && p.id === remoteSharerId) {
-        // Экран этого собеседника уже в центре — здесь его камера, если
-        // включена: она приходит вторым потоком (callController.js).
         stream = m.camera ? s.remoteCamStreams?.[p.id] ?? null : null;
         key = `${p.id}:cam`;
       } else if (swap) {
-        // При обмене местами в большой плитке показывается своя картинка, а
-        // картинка собеседника уезжает в маленькое окно.
         stream = s.cameraOn ? s.localStream : null;
         key = `${p.id}:swap`;
       } else if (m.camera || m.sharing) {
@@ -279,9 +209,6 @@ export async function CallScreenView(root, callId) {
         role === "stage" ? el("p", { class: "call-stage-label" }, `Экран: ${p.name}`) : null,
         showVideo && small ? el("p", { class: "call-tile-caption" }, p.name) : null,
         el("p", { class: "call-tile-status" }, s.phase === "ringing" ? "вызов…" : isConnected ? "" : "соединение…"),
-        // The counterpart of "add participant": whoever started the call can
-        // put someone out of it. Without this a call you could pull anyone
-        // into could only be escaped by everyone else hanging up.
         s.call.callerId === me.id && role !== "stage"
           ? el("button", {
               class: "icon-btn call-tile-remove",
@@ -306,8 +233,6 @@ export async function CallScreenView(root, callId) {
         tile.style.cursor = "pointer";
         tile.title = swapped ? "Вернуть как было" : "Показать себя крупно";
         tile.addEventListener("click", (e) => {
-          // Не перехватываем нажатия на кнопки внутри плитки (например,
-          // «убрать участника»).
           if (e.target.closest("button")) return;
           toggleSwap();
         });
@@ -373,8 +298,6 @@ export async function CallScreenView(root, callId) {
       callArea = el(
         "div",
         {
-          // Один собеседник — картинка на всю площадь, а не окошко в
-          // четыреста точек посреди пустого экрана. Несколько — обычная сетка.
           class: `call-tiles-grid ${s.others.length === 1 ? "solo" : ""}`,
           style: { gridTemplateColumns: `repeat(${Math.min(s.others.length, 2) || 1}, minmax(0,1fr))` },
         },
@@ -386,8 +309,6 @@ export async function CallScreenView(root, callId) {
       if (!liveKeys.has(key)) remoteMediaEls.delete(key);
     }
 
-    // Своё окно — в любом звонке: голосовой звонок — это тот же видеозвонок с
-    // выключенной камерой, и камеру в нём можно включить (callController.js).
     const localPip = el("div", {
       class: "call-local-pip",
       onpointerdown: pipDrag.start,
@@ -400,8 +321,6 @@ export async function CallScreenView(root, callId) {
           : "Показать себя крупно · двойное нажатие — на весь экран",
     }, [
       (() => {
-        // При обмене местами здесь показывается собеседник, а своя картинка
-        // уходит в большое окно.
         const first = s.others[0];
         const pipStream = swap
           ? first && (mediaOf(first).camera || mediaOf(first).sharing) ? s.remoteStreams[first.id] ?? null : null
@@ -417,20 +336,13 @@ export async function CallScreenView(root, callId) {
         localVideoEl.classList.toggle("mirrored", !swap && !s.facingBack);
         return localVideoEl;
       })(),
-      // Кнопка есть, пока камер больше одной: на ноутбуке с единственной
-      // вебкой переворачивать нечего, и кнопка там только обманывала.
       s.cameraOn && (s.cameraCount ?? 1) > 1
         ? el("button", { class: "call-flip-btn", html: iconSvg("FlipCamera", 14), title: "Другая камера", onclick: flipCamera })
         : null,
-      // Причина неудачи — прямо на видео, а не в консоли.
       s.cameraError ? el("p", { class: "call-camera-error" }, s.cameraError) : null,
-      // Пока вторая камера просыпается — подпись поверх видео, чтобы чёрный
-      // кадр читался как ожидание, а не как сбой (callController.switchingCamera).
       s.switchingCamera ? el("div", { class: "call-camera-switching" }, "Переключаю камеру…") : null,
     ]);
 
-    // Any call, not just a group one: adding a third person to a one-to-one
-    // call is exactly how a group call starts, and it was refused outright.
     const canAddParticipant = true;
 
     mount(
@@ -475,10 +387,6 @@ export async function CallScreenView(root, callId) {
             html: iconSvg("Mic", 20),
             onclick: toggleMute,
           }),
-          // В любом звонке, не только в видео: голосовой — это видеозвонок с
-          // выключенной камерой. Подсветка — только у выключенной камеры в
-          // видеозвонке, как у выключенного микрофона: в голосовом выключенная
-          // камера — обычное состояние, а не «что-то отключено».
           el("button", {
             class: `call-control-btn ${!s.cameraOn && s.call.kind === "video" ? "active" : ""} ${s.cameraOn && s.call.kind !== "video" ? "accent" : ""}`,
             title: s.cameraOn ? "Выключить камеру" : "Включить камеру",
@@ -504,12 +412,7 @@ export async function CallScreenView(root, callId) {
         ]),
       ])
     );
-    // Новый участник — новый <video>, и он приходит с громкостью браузера по
-    // умолчанию. Прогоняем сохранённую громкость по всему, что сейчас на
-    // экране, после каждой сборки.
     applyVolumeToAll();
-    // Запомненное положение своего окна — после сборки дерева, когда узел уже
-    // на экране и у него есть размеры.
     const pip = root.querySelector(".call-local-pip");
     if (pip) pipDrag.apply(pip);
     const strip = root.querySelector(".call-stage-strip");
@@ -522,7 +425,6 @@ export async function CallScreenView(root, callId) {
     try {
       ({ members } = await api.getChat(s.call.chatId));
     } catch {
-      // A call can outlive access to its chat; the contact route below still works.
     }
     const candidates = members.filter((m) => !inCall(m.id));
 
@@ -537,9 +439,6 @@ export async function CallScreenView(root, callId) {
     };
 
     openDropdownMenu({ x: e.clientX, y: e.clientY }, [
-      // Chat members first — in a group call that's who you mean nine times out
-      // of ten. In a one-to-one call there are none left, so contacts is the
-      // whole menu rather than a dead "все уже в звонке" line.
       ...(candidates.length
         ? [
             ...candidates.map((c) => ({

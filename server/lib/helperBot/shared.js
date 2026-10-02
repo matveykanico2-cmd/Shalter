@@ -1,4 +1,3 @@
-// Small helpers shared by every command group under server/lib/helperBot/.
 const { getUser, findUserByUsername } = require("../../data/users");
 const { getMessage } = require("../../data/messages");
 
@@ -14,9 +13,6 @@ function isStaff(chat, userId) {
   return isOwnerOrAdmin(chat, userId) || (chat?.moderatorIds ?? []).includes(userId);
 }
 
-// Telegram-style target resolution: a moderation command run as a reply acts
-// on whoever sent the replied-to message; otherwise the first "@handle" (or
-// bare username) in the command's own arguments.
 async function resolveTarget(ctx) {
   if (ctx.message.replyToId) {
     const replied = await getMessage(ctx.message.replyToId);
@@ -30,8 +26,6 @@ async function resolveTarget(ctx) {
   return findUserByUsername(token.replace(/^@/, ""));
 }
 
-// "10", "10m", "2h", "3d" → milliseconds. Bare number defaults to minutes,
-// matching what someone typing "/mute 10" almost always means.
 function parseDuration(input) {
   const m = String(input ?? "").trim().match(/^(\d+)\s*([smhd])?$/i);
   if (!m) return null;

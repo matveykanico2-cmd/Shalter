@@ -55,7 +55,6 @@ const commands = {
   },
 
   async poll(ctx) {
-    // /poll Вопрос?|Вариант 1|Вариант 2|...
     const parts = ctx.args.split("|").map((s) => s.trim()).filter(Boolean);
     if (parts.length < 3) return "Использование: /poll Вопрос?|Вариант 1|Вариант 2";
     const [question, ...options] = parts;

@@ -10,18 +10,11 @@ const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
 const { getActiveDonationLink } = require("../lib/autoPayment");
 const { createPendingOrder } = require("../data/pendingOrders");
-// Очередь проверки общая с маркетом (routes/market.js → «Рекламировать»).
 const { notifyAdminOfReview } = require("../lib/adReview");
 
-// Ads get a small gallery of attachments, image/video/file only — no voice/
-// video-note/location/contact/poll, none of which make sense on a
-// promotional banner.
 const AD_ATTACHMENT_KINDS = new Set(["image", "video", "file"]);
 const MAX_AD_ATTACHMENTS = 6;
 
-// Same "never trust client-authored JSON" reasoning as sanitizeAttachments —
-// this is a standalone (rather than shared) check since ads don't need the
-// location/contact/poll meta handling that function also does.
 function sanitizeAdAttachment(a) {
   if (!a || !AD_ATTACHMENT_KINDS.has(a.kind) || !isSafeUrl(a.url)) return null;
   const out = { kind: a.kind, url: a.url };
@@ -30,19 +23,11 @@ function sanitizeAdAttachment(a) {
   return out;
 }
 
-// Invalid entries are dropped rather than failing the whole save — same
-// "recovered is more useful than 400'd" call as sanitizeAttachments.js makes
-// for message attachments.
 function sanitizeAdAttachments(list) {
   if (!Array.isArray(list)) return [];
   return list.slice(0, MAX_AD_ATTACHMENTS).map(sanitizeAdAttachment).filter(Boolean);
 }
 
-// "Кабинет рекламы" — 20₽/месяц, same no-payment-gateway trust model as
-// Premium (server/routes/premium.js): buying opens a DM with whoever holds
-// ADMIN_PHONE, the admin grants by hand once the transfer actually lands.
-// While active, the buyer can set one promotional text/link that shows on
-// their public profile (see profileDialog.js's ad banner).
 const ADS_PRICE_RUB = 20;
 const ADS_GRANT_DAYS = 30;
 const AD_TEXT_MAX = 200;
@@ -72,9 +57,6 @@ router.post(
     const admin = await findUserByPhone(ADMIN_PHONE);
     if (!admin) return res.status(503).json({ error: "Администрация Shalter ещё не зарегистрирована в приложении" });
 
-    // Same "nobody to ask" reasoning as premium.js/gifts.js's /request — the
-    // admin activates their own ad cabinet immediately instead of messaging
-    // themselves to wait for their own confirmation.
     if (admin.id === req.uid) {
       await grantAdsDays(req.uid, ADS_GRANT_DAYS);
       const chat = await findOrCreateDm(req.uid, req.uid);
@@ -86,7 +68,6 @@ router.post(
       return res.json({ chatId: chat.id, adminPhone: ADMIN_PHONE, priceRub: ADS_PRICE_RUB, delivered: true });
     }
 
-    // Same as premium.js's /request.
     const donation = getActiveDonationLink();
     if (donation) {
       const order = await createPendingOrder({ userId: req.uid, kind: "ads", amountRub: ADS_PRICE_RUB });
@@ -103,10 +84,6 @@ router.post(
   })
 );
 
-// Owner sets/edits their ad content — only while active, so an expired
-// subscription's old text doesn't linger displayed anywhere (see rowToUser's
-// isAdsActive computation; the profile banner checks that flag, not just
-// "adText is non-empty").
 router.put(
   "/content",
   asyncRoute(async (req, res) => {
@@ -126,8 +103,6 @@ router.put(
   })
 );
 
-// Grants (or revokes) the ad cabinet for another account — same
-// ADMIN_PHONE-holder-only gate as Premium's /grant.
 router.post(
   "/grant",
   asyncRoute(async (req, res) => {
@@ -139,9 +114,6 @@ router.post(
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
 
     const grant = active !== false;
-    // Same `forever` handling (and the same fix) as premium.js's /grant —
-    // grantAdsDays reads null as permanent, which `days ?? ADS_GRANT_DAYS`
-    // used to make unreachable.
     const dayCount = Number(days) > 0 ? Math.floor(Number(days)) : ADS_GRANT_DAYS;
     if (grant) await grantAdsDays(userId, forever ? null : dayCount);
     else await revokeAds(userId);
@@ -158,35 +130,9 @@ router.post(
   })
 );
 
-// ── Рекламный кабинет для бизнеса ───────────────────────────────────────────
-//
-// Что здесь есть и почему именно это.
-//
-// Кампании, а не одно объявление: у бизнеса обычно идёт несколько разных — на
-// новинку, на распродажу, на набор сотрудников, — и у каждой свои деньги и своя
-// статистика. Одно поле «текст рекламы» этого не выражает.
-//
-// Деньги — звёзды, уже существующая валюта приложения. Списывается за показы,
-// цена задаётся за тысячу (CPM): так объявление в маленьком канале стоит
-// столько, сколько стоит, а не «как повезёт».
-//
-// Модерация обязательна и до первого показа: реклама — единственное место, где
-// один человек платит за то, чтобы его текст увидели незнакомые люди, и пускать
-// это без проверки нельзя. Проверяет тот же администратор, что и жалобы.
-//
-// Чего здесь намеренно НЕТ: нацеливания на человека. Ни по переписке, ни по
-// контактам, ни по «интересам», собранным из поведения. Выбрать можно место
-// показа (каталог каналов или своя страница) — и всё. Это осознанное
-// ограничение, а не незаконченная работа: рекламный кабинет, который умеет
-// целиться в человека, требует слежки за ним, а мессенджер, который следит за
-// своими людьми, не нужен никому.
 const campaigns = require("../data/adCampaigns");
 const { balanceOf, spendStars } = require("../data/stars");
 
-// Куда объявление может попасть. "chats" — первая строка списка чатов, над
-// всеми разговорами. Показывается она лично: объявление приезжает запросом
-// самого читателя, нигде не хранится и ни в чей чужой список не попадает, —
-// поэтому её видит только тот, кому её показали, и стоит она ровно один показ.
 const PLACEMENTS = { chats: "Верх списка чатов", chat: "Внутри чата (сверху)", discover: "Каталог каналов", profile: "Своя страница профиля" };
 const MAX_TEXT = 200;
 
@@ -203,8 +149,6 @@ async function ownCampaign(req, res) {
   return c;
 }
 
-// Список кампаний кабинета + баланс звёзд, чтобы экран не делал второй запрос
-// ради одной цифры.
 router.get(
   "/campaigns",
   asyncRoute(async (req, res) => {
@@ -232,8 +176,6 @@ router.post(
       placement,
       cpmStars: Number(req.body?.cpmStars) || 20,
     });
-    // Создана — значит уже на проверке (см. adCampaigns.create): отдельного
-    // «отправить на проверку» после создания больше нет.
     await notifyAdminOfReview(created, req.uid);
     res.json({ campaign: created });
   })
@@ -244,8 +186,6 @@ router.patch(
   asyncRoute(async (req, res) => {
     const c = await ownCampaign(req, res);
     if (!c) return;
-    // Изменённое объявление снова уходит на проверку: иначе одобренный текст
-    // можно было бы подменить на любой другой сразу после одобрения.
     const patch = {};
     if (typeof req.body?.title === "string") patch.title = req.body.title.trim().slice(0, 60);
     if (typeof req.body?.text === "string") patch.text = req.body.text.trim().slice(0, MAX_TEXT);
@@ -274,9 +214,6 @@ router.delete(
   })
 );
 
-// Пополнение бюджета: звёзды уходят с баланса сразу. Возврата нет и он не
-// нужен — неизрасходованный бюджет остаётся в кампании и продолжает работать,
-// когда её снова включат.
 router.post(
   "/campaigns/:id/budget",
   asyncRoute(async (req, res) => {
@@ -290,9 +227,6 @@ router.post(
   })
 );
 
-// Запуск, пауза и отправка на проверку — одним маршрутом: это одно и то же
-// действие «поменять состояние», и разводить его по трём означало бы трижды
-// повторить проверки.
 router.post(
   "/campaigns/:id/status",
   asyncRoute(async (req, res) => {
@@ -308,8 +242,6 @@ router.post(
     }
     if (want === "paused") return res.json({ campaign: campaigns.update(c.id, { status: "paused" }) });
     if (want === "active") {
-      // Включить можно только проверенное. Черновик и отклонённое сначала идут
-      // на проверку — на этом и держится смысл модерации.
       if (c.status !== "paused" && c.status !== "finished") {
         return res.status(400).json({ error: "Сначала отправьте объявление на проверку" });
       }
@@ -329,16 +261,10 @@ router.get(
   })
 );
 
-// ── Показ ───────────────────────────────────────────────────────────────────
-// Что показать в этом месте. Каждый ответ — это показ: он считается и стоит
-// денег, поэтому запрос делается там, где объявление действительно появляется
-// на экране, а не «на всякий случай» при загрузке страницы.
 router.get(
   "/serve",
   asyncRoute(async (req, res) => {
     const placement = PLACEMENTS[req.query.placement] ? req.query.placement : "discover";
-    // Своя же реклама себе не показывается: платить за собственный показ
-    // бессмысленно, а в статистике это выглядит как накрутка.
     const c = campaigns.pickForPlacement(placement, req.uid);
     if (!c) return res.json({ ad: null });
     campaigns.recordImpression(c.id, c.cpmStars);
@@ -356,10 +282,6 @@ router.post(
   })
 );
 
-// ── Модерация ────────────────────────────────────────────────────────────────
-// Embedded inside Settings → Модерация (public/js/components/adModeration.js),
-// so it's gated the same way as the rest of that screen — a partial admin
-// granted "moderation" gets this too, not just a full admin.
 async function requireAdmin(req, res) {
   const me = await getUser(req.uid);
   if (!hasAdminSection(me, "moderation")) {
@@ -380,8 +302,6 @@ router.get(
         return { ...c, owner: owner ? { id: owner.id, name: owner.name, username: owner.username || null } : { id: c.ownerId } };
       })
     );
-    // Названия мест показа едут вместе с очередью: без них экран проверки
-    // показывал бы «discover» вместо «Каталог каналов».
     res.json({ campaigns: withOwners, placements: PLACEMENTS });
   })
 );
@@ -396,8 +316,6 @@ router.post(
     const reason = String(req.body?.reason ?? "").trim().slice(0, 300);
     if (!approve && !reason) return res.status(400).json({ error: "Укажите причину отказа — её увидит рекламодатель" });
 
-    // Одобренная кампания встаёт на паузу, а не запускается сама: включает её
-    // владелец, когда сочтёт нужным, — и тогда же начинают тратиться деньги.
     const updated = campaigns.update(c.id, approve ? { status: "paused", rejectReason: null } : { status: "rejected", rejectReason: reason });
 
     try {

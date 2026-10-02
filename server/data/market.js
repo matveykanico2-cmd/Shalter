@@ -1,15 +1,6 @@
 const db = require("../db");
 const { spendStars, addStars } = require("./stars");
 
-// Маркет: магазины, товары, заказы. Правила — в server/routes/market.js, здесь
-// хранение и деньги.
-//
-// Деньги живут тут, а не в маршруте, ровно по той же причине, что и в stars.js:
-// заказ, списание звёзд и уменьшение остатка — это одно изменение, и оно должно
-// либо произойти целиком, либо не произойти вовсе. Разложенное по трём запросам
-// из обработчика, оно ломается посередине и оставляет заказ, за который никто
-// не заплатил (или списанные звёзды без заказа).
-
 const MAX_TITLE = 80;
 const MAX_ABOUT = 600;
 const MAX_DESC = 1000;
@@ -43,8 +34,6 @@ function rowToProduct(row) {
     stock: row.stock,
     isActive: !!row.isActive,
     createdAt: row.createdAt,
-    // «Осталось 0» и «сколько угодно» — разные вещи, и решать это должен один
-    // и тот же код, а не каждый экран по-своему.
     inStock: row.stock < 0 || row.stock > 0,
     shopTitle: row.shopTitle ?? undefined,
     shopOwnerId: row.shopOwnerId ?? undefined,
@@ -73,8 +62,6 @@ function rowToOrder(row) {
   };
 }
 
-// ── Магазины ────────────────────────────────────────────────────────────────
-
 function getShop(id) {
   return rowToShop(db.prepare("SELECT * FROM shops WHERE id = ?").get(id));
 }
@@ -83,8 +70,6 @@ function getShopByOwner(ownerId) {
   return rowToShop(db.prepare("SELECT * FROM shops WHERE ownerId = ?").get(ownerId));
 }
 
-// Витрина каталога. Магазины без единого товара не показываются: пустая
-// вывеска в списке — это разочарование в один клик, а не выбор.
 function listShops(query = "", limit = 60) {
   const q = `%${query.trim().toLowerCase()}%`;
   return db
@@ -131,8 +116,6 @@ function updateShop(id, patch) {
   return getShop(id);
 }
 
-// ── Товары ──────────────────────────────────────────────────────────────────
-
 function getProduct(id) {
   return rowToProduct(
     db
@@ -153,8 +136,6 @@ function listProducts(shopId, { activeOnly = false } = {}) {
     .map(rowToProduct);
 }
 
-// Общая витрина: свежие товары всех открытых магазинов. Каталог начинается с
-// товаров, а не со списка вывесок, — человек ищет вещь, а не магазин.
 function listAllProducts(query = "", limit = 60) {
   const q = `%${query.trim().toLowerCase()}%`;
   return db
@@ -202,13 +183,9 @@ function updateProduct(id, patch) {
   return getProduct(id);
 }
 
-// Товар не удаляется вместе с заказами на него: заказ хранит своё название и
-// цену и продолжает читаться. Поэтому здесь настоящий DELETE, а не «скрыть».
 function removeProduct(id) {
   db.prepare("DELETE FROM shop_products WHERE id = ?").run(id);
 }
-
-// ── Заказы ──────────────────────────────────────────────────────────────────
 
 function getOrder(id) {
   return rowToOrder(
@@ -236,14 +213,9 @@ function listOrdersForShop(shopId) {
     .map(rowToOrder);
 }
 
-// Заказ целиком: проверка остатка, списание звёзд и сама запись — в одной
-// транзакции. Возвращает { error } вместо исключения, потому что каждая
-// причина отказа рассказывается человеку по-своему.
 const createOrder = db.transaction(({ product, buyerId, qty, note }) => {
   const row = db.prepare("SELECT * FROM shop_products WHERE id = ?").get(product.id);
   if (!row || !row.isActive) return { error: "gone" };
-  // Остаток перечитывается внутри транзакции: два одновременных заказа
-  // последней вещи иначе оба увидели бы «1 шт.» и оба прошли.
   if (row.stock >= 0 && row.stock < qty) return { error: "stock" };
 
   const amountStars = row.payKind === "stars" ? row.priceStars * qty : 0;
@@ -277,13 +249,6 @@ function attachChat(orderId, chatId) {
   db.prepare("UPDATE shop_orders SET chatId = ? WHERE id = ?").run(chatId, orderId);
 }
 
-// Смена состояния — тоже транзакция: здесь либо звёзды уходят продавцу, либо
-// возвращаются покупателю, и оба раза заодно чинится остаток товара.
-//
-// Звёзды всё время между заказом и выдачей лежат «в заказе»: с баланса
-// покупателя они уже списаны, продавцу ещё не зачислены. Так продавец не
-// получает деньги за то, чего не отдал, а покупатель не может передумать уже
-// после того, как товар ушёл.
 const setOrderStatus = db.transaction((orderId, status) => {
   const row = db.prepare("SELECT * FROM shop_orders WHERE id = ?").get(orderId);
   if (!row) return { error: "gone" };
@@ -293,8 +258,6 @@ const setOrderStatus = db.transaction((orderId, status) => {
   if (status === "done" && row.amountStars > 0) addStars(row.sellerId, row.amountStars);
   if (status === "cancelled") {
     if (row.amountStars > 0) addStars(row.buyerId, row.amountStars);
-    // Отменённый заказ возвращает вещь на витрину — но только если у товара
-    // вообще есть счётчик остатка и сам товар ещё существует.
     db.prepare("UPDATE shop_products SET stock = stock + ? WHERE id = ? AND stock >= 0").run(row.qty, row.productId);
   }
 

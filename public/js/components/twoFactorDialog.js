@@ -3,27 +3,8 @@ import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import qrcode from "../lib/qrcode.js";
 
-// Turning on two-factor authentication (server/lib/totp.js). Three steps in one
-// dialog: scan, confirm with a real code, then write down the recovery codes.
-//
-// The confirm step is not optional politeness — the secret is stored the moment
-// the QR is generated, so without proving that an authenticator app actually
-// holds it, closing this dialog halfway could leave an account demanding a code
-// nobody can produce. That's why the server keeps 2FA "off" until /2fa/enable
-// succeeds (see the totpEnabledAt column).
-//
-// The QR is drawn with the same vendored generator as QR login
-// (public/js/lib/qrcode.js), so the secret is rendered locally and never goes
-// near a third-party chart service.
 export function openTwoFactorSetupDialog(onEnabled) {
-  // "method" is the new first step: an authenticator app is a real barrier —
-  // it has to be installed and the QR has to be scannable — so the alternative
-  // is a code the Shalter service bot posts into your own chat, exactly like the
-  // login codes that already arrive there.
-  let step = "method"; // "method" | "loading" | "scan" | "recovery" | "cloud" | "error"
-  // Поля облачного пароля живут отдельно от `code`: там шесть цифр с фильтром,
-  // здесь произвольный текст, и смешивать их в одной переменной значит чистить
-  // чужой ввод чужими правилами.
+  let step = "method";
   let cloudPassword = "";
   let cloudRepeat = "";
   let cloudHint = "";
@@ -37,11 +18,6 @@ export function openTwoFactorSetupDialog(onEnabled) {
   let busy = false;
   let code = "";
   let copied = false;
-  // Focus is claimed at two moments only: when the scan step first appears, and
-  // after a rejected code (so the next attempt can be typed straight away).
-  // Grabbing it on *every* render fights whoever is typing — on a phone it
-  // re-snaps the caret mid-entry — and never grabbing it means a wrong code
-  // leaves focus on the button, so the keyboard goes nowhere. Both were real.
   let wantFocus = true;
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
@@ -100,22 +76,13 @@ export function openTwoFactorSetupDialog(onEnabled) {
     }
   }
 
-  // The code field is built once and kept across renders — rebuilding it on
-  // every keystroke would take the focus with it (the same bug the contacts
-  // search and the login code field had).
   const codeInput = el("input", {
     class: "login-input login-code-input mono",
     inputmode: "numeric",
     placeholder: "······",
-    // 20, а не 6: для метода «код в чате» в это же поле можно ввести номер
-    // телефона аккаунта (он длиннее шести цифр и может начинаться с «+»), и
-    // тогда включение подтверждается номером. Для остальных методов ниже всё
-    // равно остаётся шестизначный код.
     maxlength: 20,
     autocomplete: "one-time-code",
     oninput: (e) => {
-      // Метод «код в чате» допускает ввод номера телефона: оставляем цифры и
-      // ведущий «+». Остальные методы — строго шесть цифр кода.
       if (method === "chat") {
         e.target.value = e.target.value.replace(/[^\d+]/g, "").slice(0, 20);
       } else {
@@ -125,8 +92,6 @@ export function openTwoFactorSetupDialog(onEnabled) {
     },
   });
 
-  // Совпадение паролей проверяется здесь, а не на сервере: сервер видит один
-  // пароль и о втором поле ничего не знает — это забота формы.
   async function saveCloudPassword() {
     error = null;
     if (cloudPassword.length < 6) error = "Облачный пароль — не короче 6 знаков";
@@ -151,7 +116,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
     clear(bodyEl);
 
     if (step === "method") {
-      appendAll(bodyEl, 
+      appendAll(bodyEl,
         el("p", { class: "settings-toggle-hint" }, "Выберите, как подтверждать вход. Второй фактор можно будет сменить, отключив и включив защиту заново."),
         el("button", { class: "twofa-method-btn", onclick: () => start("chat") }, [
           el("span", { class: "twofa-method-title" }, "💬 Код в чате Shalter"),
@@ -191,7 +156,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
           el("span", { class: "settings-toggle-hint" }, label),
           el("input", { class: "login-input", value, ...opts, oninput: (e) => onInput(e.target.value) }),
         ]);
-      appendAll(bodyEl, 
+      appendAll(bodyEl,
         el(
           "p",
           { class: "settings-toggle-hint" },
@@ -216,7 +181,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
     }
 
     if (step === "error") {
-      appendAll(bodyEl, 
+      appendAll(bodyEl,
         el("p", { class: "login-error" }, error),
         el("button", { class: "modal-cancel", onclick: close }, "Закрыть")
       );
@@ -224,10 +189,6 @@ export function openTwoFactorSetupDialog(onEnabled) {
     }
 
     if (step === "scan") {
-      // filter(Boolean) before append(): native appendAll(Element, ) turns a null
-      // argument into a literal "null" text node, so the two conditional lines
-      // below printed the word "null" above and under the code field. It made
-      // the step look broken, which is exactly how it was reported.
       const totpSteps =
         method === "totp"
           ? [
@@ -255,8 +216,6 @@ export function openTwoFactorSetupDialog(onEnabled) {
             ]
           : [
               el("p", { class: "settings-toggle-hint" }, "Код отправлен в ваш чат с Shalter — откройте его и введите шесть цифр. Код действует 5 минут."),
-              // Если код в чат не виден (не дошёл, второго устройства нет) —
-              // включение можно подтвердить номером телефона аккаунта.
               el("p", { class: "settings-toggle-hint" }, "Не видите код? Введите в поле номер телефона этого аккаунта — этого достаточно, чтобы включить."),
               el(
                 "button",
@@ -280,7 +239,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
                 resending ? "Отправляем…" : "Отправить код ещё раз"
               ),
             ];
-      appendAll(bodyEl, 
+      appendAll(bodyEl,
         ...[
         ...totpSteps,
         codeInput,
@@ -290,22 +249,15 @@ export function openTwoFactorSetupDialog(onEnabled) {
         ].filter(Boolean)
       );
       codeInput.value = code;
-      // Focused once, when the step first appears — not on every render. Calling
-      // focus() repeatedly fights the person using the field: on a phone it
-      // re-snaps the caret and can dismiss the keyboard mid-entry.
       if (wantFocus) {
         wantFocus = false;
         codeInput.focus();
-        // The rejected code is selected rather than cleared: retyping replaces
-        // it, and it stays readable in case it was the right code entered a
-        // second too late.
         codeInput.select();
       }
       return;
     }
 
-    // step === "recovery"
-    appendAll(bodyEl, 
+    appendAll(bodyEl,
       el("p", { class: "twofa-enabled-note" }, "✅ Двухфакторная аутентификация включена"),
       el(
         "p",
@@ -321,7 +273,6 @@ export function openTwoFactorSetupDialog(onEnabled) {
             copied = true;
             render();
           } catch {
-            /* clipboard blocked — the codes are on screen to copy by hand */
           }
         },
       }, copied ? "Скопировано ✓" : "Скопировать все коды"),
@@ -332,9 +283,6 @@ export function openTwoFactorSetupDialog(onEnabled) {
   render();
 }
 
-// Turning it off needs a current code (or a recovery code) — see the /2fa/disable
-// route for why: an open session alone must not be enough to strip the
-// protection, or 2FA guards nothing once someone is already in.
 export function openTwoFactorDisableDialog(onDisabled) {
   let busy = false;
   let error = null;

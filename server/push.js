@@ -1,8 +1,3 @@
-// Real Web Push (works even with the tab/browser fully closed), not just the
-// foreground Notification API. VAPID keys are generated once and persisted
-// in the vapid_keys table — a push subscription is bound to the server's
-// public key, so regenerating them on every restart would silently break
-// every subscription made so far.
 const webpush = require("web-push");
 const db = require("./db");
 const { listSubscriptionsForUser, removeSubscriptionByEndpoint } = require("./data/pushSubscriptions");
@@ -26,21 +21,6 @@ function getPublicKey() {
   return publicKey;
 }
 
-// Sends to every subscription registered for this user (multiple
-// devices/browsers), pruning any the push service reports as gone
-// (404/410 — uninstalled browser, revoked permission, expired subscription)
-// so they don't fail forever on every future send.
-// options — то, что видит служба доставки (Google, Apple, Mozilla), а не наш
-// обработчик: срок жизни и срочность.
-//
-// Без них уходили значения по умолчанию: TTL четыре недели и обычная
-// срочность. Для переписки это терпимо, для звонка — нет. Телефон в
-// энергосбережении копит обычные уведомления и отдаёт их пачкой, когда
-// проснётся; звонок в такой пачке приезжает через час, показывает «вам
-// звонят», и человек жмёт «Ответить» на разговор, который давно закончился.
-//
-// Так это устроено и в других мессенджерах: звонок — срочно и ненадолго,
-// сообщение — обычным порядком, но храни, пока не доставишь.
 async function sendPushToUser(userId, payload, options = {}) {
   const subs = await listSubscriptionsForUser(userId);
   if (subs.length === 0) return;
@@ -60,24 +40,10 @@ async function sendPushToUser(userId, payload, options = {}) {
   );
 }
 
-// Готовые наборы, чтобы срочность не приходилось вспоминать на каждом вызове.
-//
-// Звонок живёт около минуты: доставить его позже — значит соврать. Служба
-// доставки выбросит просроченное сама, и это правильнее, чем показать человеку
-// звонок из прошлого.
 const CALL_PUSH = { urgency: "high", TTL: 45 };
-// Отмена звонка ещё короче: если её не доставили сразу, то и отменять уже
-// нечего — само уведомление о звонке к тому времени тоже просрочено.
 const CALL_CANCEL_PUSH = { urgency: "high", TTL: 30 };
-// Сообщение подождёт: телефон был вне сети — покажем, когда вернётся.
 const MESSAGE_PUSH = { urgency: "normal", TTL: 24 * 60 * 60 };
 
-// Аватар для уведомления: ссылка на картинку, цвет и имя — из них
-// public/sw.js рисует круглую иконку (фото или буквы на цветном фоне), как в
-// самом приложении. Вместо этого раньше у каждого уведомления стоял значок
-// приложения, и понять, от кого оно, можно было только по заголовку.
-// data:-ссылки не передаём: в уведомление влезает около 4 КБ, а встроенная
-// картинка весит больше.
 function pushAvatar(entity, fallbackName = "", { hideImage = false } = {}) {
   if (!entity) return {};
   const image = !hideImage && typeof entity.avatarImage === "string" && !entity.avatarImage.startsWith("data:") && entity.avatarImage.length < 1024 ? entity.avatarImage : null;
@@ -90,23 +56,15 @@ function pushAvatar(entity, fallbackName = "", { hideImage = false } = {}) {
   };
 }
 
-// Аватар человека для уведомления конкретному получателю — с теми же
-// проверками, что у профиля (routes/users.js GET /:id): настройка «Фото
-// профиля» с исключениями и чёрный список. Без них уведомление показывало
-// фото, скрытое от этого получателя, — тем, кому его видеть нельзя. Скрытое
-// фото заменяется буквами имени на цвете профиля.
 async function userPushAvatar(user, viewerId) {
   if (!user) return {};
   if (user.id === viewerId) return pushAvatar(user);
-  // Здесь, а не наверху файла: модули данных тянут за собой db.js, а этот
-  // файл подключается и там, где база ещё не нужна.
   const { allowsUser } = require("./lib/privacyRules");
   let hideImage = (user.blockedUserIds ?? []).includes(viewerId);
   if (!hideImage) {
     try {
       hideImage = !(await allowsUser(user.id, "photo", viewerId));
     } catch {
-      // Не смогли проверить — безопаснее не показывать фото.
       hideImage = true;
     }
   }

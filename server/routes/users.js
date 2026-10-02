@@ -18,24 +18,13 @@ const { businessStatus } = require("../lib/businessHours");
 
 const LINK_RE = /https?:\/\/\S+/;
 
-// Закреплённые каналы в профиле — «вот что я веду».
-//
-// Условие ровно одно и оно важное: канал должен быть публичным. Профиль видят
-// посторонние, и закреплённый в нём закрытый канал означал бы, что название
-// частного канала (а с ним и сам факт его существования) читает кто угодно,
-// кто открыл профиль, — при том что зайти туда всё равно нельзя. Публичный
-// канал и так находится поиском, поэтому показывать его не риск, а ссылка.
 const MAX_PINNED_CHANNELS = 6;
 
-// Каналы, которые этот человек вправе закрепить: его собственные — те, где он
-// владелец или администратор, — и публичные.
 async function pinnableChannelsFor(userId) {
   const chats = await listChatsForUser(userId);
   return chats.filter((c) => c.type === "channel" && c.isPublic && isStaff(c, userId));
 }
 
-// Карточка канала для профиля: ничего лишнего, только то, чем он подписан на
-// экране, и username — по нему делается переход.
 function channelCard(chat, viewerId) {
   return {
     id: chat.id,
@@ -45,25 +34,10 @@ function channelCard(chat, viewerId) {
     avatarImage: chat.avatarImage ?? null,
     isVerified: !!chat.isVerified,
     members: (chat.memberIds ?? []).length,
-    // Открыть канал может только тот, кто на него подписан: /api/chats/:id
-    // требует участия. Поэтому профиль должен знать заранее, что предложить —
-    // «Открыть» или «Подписаться», — а не выяснять это отказом сервера уже
-    // после нажатия.
     isMember: (chat.memberIds ?? []).includes(viewerId),
   };
 }
 
-// Что показать в профиле. Список хранится в настройках владельца профиля, но
-// проверяется на каждом чтении, а не только при сохранении: канал мог с тех пор
-// стать закрытым, его могли удалить, а самого человека — разжаловать из
-// администраторов. Закреплённая карточка пережила бы всё это и продолжала
-// висеть в профиле, ведя в никуда.
-//
-// Проверка здесь — не перестраховка, а единственная настоящая: pinnedChannelIds
-// лежит в общих настройках, а PATCH /api/settings принимает любые ключи как
-// есть. То есть записать в этот список чужой закрытый канал может кто угодно —
-// и не покажет его именно эта функция. Убрать её, положившись на проверку при
-// сохранении, значит открыть названия закрытых каналов всему свету.
 async function pinnedChannelsOf(userId, viewerId) {
   const { pinnedChannelIds } = await getSettings(userId);
   const ids = Array.isArray(pinnedChannelIds) ? pinnedChannelIds.slice(0, MAX_PINNED_CHANNELS) : [];
@@ -74,37 +48,23 @@ async function pinnedChannelsOf(userId, viewerId) {
     .map((chat) => channelCard(chat, viewerId));
 }
 
-// Общие группы — те, где состоят оба. Только группы, как в Telegram: канал —
-// это рассылка, и «мы оба подписаны на один канал» ничего о знакомстве не
-// говорит. Считается по моим чатам, поэтому закрытую группу, где меня нет,
-// этот список не выдаст.
 async function commonGroupsOf(viewerId, otherId) {
   if (viewerId === otherId) return [];
   const chats = await listChatsForUser(viewerId);
   return chats.filter((c) => c.type === "group" && (c.memberIds ?? []).includes(otherId));
 }
 
-// Пределы длины полей профиля. Раньше их не было вовсе: имя в десять тысяч
-// символов сохранялось и потом ломало вёрстку каждого списка, где оно стоит.
 const MAX_NAME = 64;
 const MAX_LAST_NAME = 60;
 const MAX_BIO = 300;
 const MAX_ADDRESS = 200;
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
-// Та же проверка кадра, что у галереи аватаров (lib/avatars.js).
 const POSTER_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
 const MAX_POSTER_BYTES = 400 * 1024;
 
 const router = express.Router();
 router.use(requireUserId);
 
-// Заблокированные — точечно по своему же списку.
-//
-// Раньше экран приватности получал этот список, выкачивая ВСЕХ пользователей
-// сервера (GET /api/users) и отбирая нужных на клиенте. Замер на 50 тысячах
-// аккаунтов: 1.2 секунды и +518 МБ памяти на сервере — на один заход в
-// настройки. Плюс сам ответ отдавал каждому желающему полный список аккаунтов
-// вместе с аватарами, чего он видеть не должен.
 router.get(
   "/blocked",
   asyncRoute(async (req, res) => {
@@ -115,12 +75,6 @@ router.get(
   })
 );
 
-// Exact-match-only lookup — the one legitimate way to find someone to add as
-// a contact (see public/js/views/contacts.js): unlike GET / above (which
-// dumps every user on the server and used to power a browse-and-click "add
-// contact" list), this can't be used to enumerate/browse anyone, only to
-// resolve a specific @username you already know, same as Telegram's own
-// "add by username" flow.
 router.get(
   "/by-username/:username",
   asyncRoute(async (req, res) => {
@@ -130,21 +84,8 @@ router.get(
   })
 );
 
-// Only profile fields may be edited this way — never credentials
-// (passwordHash/passwordSalt/email/id), even for your own account. username
-// and phone get their own uniqueness/format checks below (same rules as
-// registration — see server/lib/validators.js) since, unlike name/bio, other
-// people rely on these being unique to find/message the right account.
 const EDITABLE_FIELDS = ["name", "lastName", "username", "phone", "bio", "avatarColor", "avatarImage", "birthday", "businessAddress", "businessLat", "businessLng"];
 
-// Powers the profile view (public/js/components/profileDialog.js). Unlike
-// every other place a user object gets sent to a client (chat lists,
-// message senders, contacts...), this is the one spot that actually
-// enforces the target's Settings → Privacy choices for phone/last-seen —
-// those settings exist but nothing reads them anywhere else yet; scoping
-// the fix to this new profile endpoint rather than auditing every publicUser
-// call site is a deliberate, contained improvement, not a claim that
-// privacy is now enforced everywhere.
 router.get(
   "/:id",
   asyncRoute(async (req, res) => {
@@ -152,40 +93,22 @@ router.get(
     if (!user) return res.status(404).json({ error: "not found" });
 
     const isSelf = req.params.id === req.uid;
-    // Your own profile keeps the e-mail; everyone else's never carries it.
     const visible = isSelf ? selfUser(user) : publicUser(user);
-    // "contacts"-level privacy means "people *the target* has added" (same
-    // sense as Telegram's "My Contacts") — so this checks the target's own
-    // contact list for the viewer, not the other way around.
     const targetsContacts = isSelf ? [] : await listContactsFor(req.params.id);
     const isContact = !isSelf && targetsContacts.some((c) => c.userId === req.uid);
-    // А это обратное: есть ли этот человек в *моих* контактах. Кнопке
-    // «Добавить / Удалить из контактов» нужно именно оно — раньше она читала
-    // isContact выше и после добавления продолжала предлагать «Добавить».
     const myContact = isSelf ? null : (await listContactsFor(req.uid)).find((c) => c.userId === req.params.id);
 
     if (!isSelf) {
       const { privacy } = await getSettings(req.params.id);
-      // Уровень («Все / Мои контакты / Никто») плюс поимённые исключения —
-      // см. server/lib/privacyRules.js.
       const canSee = (key) => privacyAllows(privacy, key, req.uid, isContact);
       if (!canSee("phone")) delete visible.phone;
       if (!canSee("lastSeen")) delete visible.lastSeen;
       if (!canSee("bio")) delete visible.bio;
       if (!canSee("birthday")) delete visible.birthday;
-      // «Фото профиля» до сих пор было единственной настройкой из этого
-      // списка, которую нигде не читали: выставить «Никто» было можно, а
-      // аватар всё равно отдавался. Проверяется здесь же, вместе с остальными.
-      // Убирать надо оба поля: avatarImage — текущий снимок, avatarImages —
-      // вся галерея профиля (см. server/db.js), и второе без первого просто
-      // отдало бы то же самое фото другой дорогой.
       if (!canSee("photo")) {
         delete visible.avatarImage;
         delete visible.avatarImages;
       }
-      // Заблокировавший вас человек, как в Telegram, пропадает из виду: ни
-      // фото, ни «в сети», ни времени захода. Сам факт блокировки при этом не
-      // сообщается — профиль выглядит так же, как у скрывшего всё настройками.
       if ((user.blockedUserIds ?? []).includes(req.uid)) {
         delete visible.avatarImage;
         delete visible.avatarImages;
@@ -194,9 +117,6 @@ router.get(
       }
     }
 
-    // Часы работы бизнеса — в профиль, как в Telegram Business: «Открыто ·
-    // до 18:00» и расписание на неделю. Только пока подписка активна, режим
-    // бизнеса включён и владелец не скрыл часы (settings.business.showHours).
     if (user.isBusiness) {
       const { business } = await getSettings(req.params.id);
       if (business?.enabled && business.showHours !== false && business.hours) {
@@ -208,14 +128,10 @@ router.get(
       }
     }
 
-    // У бота вместо «был(а) в сети» показываем число пользователей — как в
-    // Telegram («бот · N пользователей»). Счёт по join-таблице (data/bots.js).
     if (user.isBot) {
       visible.botUserCount = countBotAudience(req.params.id);
     }
 
-    // Сколько групп у нас общих — строкой «Общие группы» в профиле, как в
-    // Telegram. Сам список грузится отдельно, когда её откроют.
     const commonGroupsCount = isSelf ? 0 : (await commonGroupsOf(req.uid, req.params.id)).length;
 
     res.json({
@@ -229,9 +145,6 @@ router.get(
   })
 );
 
-// Свои каналы, которые можно закрепить, — для окна выбора в собственном
-// профиле. Отдельным запросом, а не вместе с профилем: посторонним этот список
-// не нужен, а владельцу он нужен только когда он открыл выбор.
 router.get(
   "/me/pinnable-channels",
   asyncRoute(async (req, res) => {
@@ -240,44 +153,28 @@ router.get(
   })
 );
 
-// Сохранение выбора. Через отдельный маршрут, а не общим PATCH /api/settings:
-// тот принимает что прислали, и закрепить можно было бы любой чужой канал —
-// достаточно знать его идентификатор. Здесь список сверяется с тем, что человек
-// действительно вправе закрепить.
 router.put(
   "/me/pinned-channels",
   asyncRoute(async (req, res) => {
     const requested = Array.isArray(req.body?.chatIds) ? req.body.chatIds.filter((id) => typeof id === "string") : [];
     const allowed = new Set((await pinnableChannelsFor(req.uid)).map((c) => c.id));
-    // Порядок сохраняем тот, в котором прислали: в профиле карточки идут
-    // сверху вниз, и это единственный способ решить, какая из них первая.
     const chatIds = [...new Set(requested)].filter((id) => allowed.has(id)).slice(0, MAX_PINNED_CHANNELS);
     await updateSettings(req.uid, { pinnedChannelIds: chatIds });
     res.json({ pinnedChannels: await pinnedChannelsOf(req.uid, req.uid) });
   })
 );
 
-// Media/Files/Links tabs on the profile view (profileDialog.js) — scoped to
-// whatever DM already exists between the viewer and this user. Deliberately
-// looks up (never creates) that DM: opening someone's profile shouldn't have
-// the side effect of starting a chat with them, the same way it doesn't in
-// Telegram. No DM yet (or no matching attachments) just means empty tabs.
 router.get(
   "/:id/shared-media",
   asyncRoute(async (req, res) => {
     const empty = { chatId: null, media: [], files: [], links: [], voice: [] };
     if (req.params.id === req.uid) return res.json(empty);
 
-    // Запросом по join-таблице, а не перебором всех чатов сервера: вкладки
-    // «медиа/файлы/ссылки» открываются на каждый просмотр профиля.
     const chat = await findDmBetween(req.uid, req.params.id);
     if (!chat) return res.json(empty);
 
-    // «Очистить историю у себя» прячет сообщения до этой отметки — и из
-    // вкладок профиля тоже, иначе удалённые фото продолжали жить здесь.
     const clearedBefore = (await getSettings(req.uid)).chatClears?.[chat.id] ?? null;
 
-    // Только то, что может попасть в эти вкладки: вложения и ссылки.
     const messages = listMediaMessages(chat.id, req.uid).filter((m) => !clearedBefore || m.createdAt > clearedBefore);
     const media = [];
     const files = [];
@@ -298,7 +195,6 @@ router.get(
   })
 );
 
-// Список общих групп — по нажатию на «Общие группы» в профиле.
 router.get(
   "/:id/common-chats",
   asyncRoute(async (req, res) => {
@@ -325,9 +221,6 @@ router.patch(
       if (key in body) patch[key] = body[key];
     }
 
-    // Всё, что приходит сюда, — строки (или null там, где поле можно стереть).
-    // Объект или число в текстовом поле раньше доходили до SQLite и
-    // превращались в 500 вместо внятной ошибки.
     for (const key of ["name", "lastName", "username", "phone", "bio", "avatarColor", "birthday", "businessAddress"]) {
       if (key in patch && patch[key] != null && typeof patch[key] !== "string") {
         return res.status(400).json({ error: "Некорректное значение поля" });
@@ -362,11 +255,6 @@ router.patch(
         return res.status(400).json({ error: "Некорректные координаты" });
       }
     }
-    // Фото, выбранное при регистрации, приходит сюда одним кадром. Писать его
-    // только в avatarImage нельзя: галерея (avatarImages) о нём не знала, и
-    // такую аватарку потом нельзя было ни удалить, ни сделать неосновной —
-    // просмотрщик показывал её, а сервер отвечал «Аватарка не найдена».
-    // Поэтому кадр становится обычной первой записью галереи.
     let avatarPoster;
     if ("avatarImage" in patch) {
       avatarPoster = patch.avatarImage;
@@ -377,18 +265,11 @@ router.patch(
     }
 
     if ("username" in patch) {
-      // Shared with registration and with a channel claiming a public handle
-      // (lib/username.js). This branch used to check only the users table,
-      // while routes/chats.js's /:id/public checked both — so a person could
-      // take a handle a public channel already had, and /u/:username then
-      // resolved to whichever of the two the lookup happened to hit first.
       patch.username = normalizeUsername(patch.username);
       const problem = await checkUsername(patch.username, { forUserId: req.uid });
       if (problem) return res.status(problem.status).json({ error: problem.error });
     }
     if ("birthday" in patch) {
-      // Пустое значение — «не указана»: так дату можно стереть, а не только
-      // заменить другой.
       const value = String(patch.birthday ?? "").trim();
       if (!value) patch.birthday = null;
       else if (!isValidBirthday(value)) return res.status(400).json({ error: "Дата рождения указана неверно" });
@@ -425,8 +306,6 @@ router.post(
   "/:id/block",
   asyncRoute(async (req, res) => {
     const { blocked } = req.body ?? {};
-    // Себя заблокировать нельзя — иначе аккаунт заблокировал бы сам себе весь
-    // обмен сообщениями и не смог бы это откатить с чужой стороны.
     if (req.params.id === req.uid) return res.status(400).json({ error: "Нельзя заблокировать самого себя" });
     const user = await setBlocked(req.uid, req.params.id, blocked);
     res.json({ user: user ? publicUser(user) : null });

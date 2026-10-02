@@ -10,13 +10,6 @@ function qrSvg(text) {
   return qr.createSvgTag({ cellSize: 6, margin: 12, scalable: true });
 }
 
-// Scanning this with any camera opens /u/:username (see app.js's route),
-// which resolves the account and starts a DM — same "scan to add contact"
-// flow as /qr-login's "scan to sign in", just for a person instead of a
-// device (see project_shalter_qr_login memory: real scannable QR, no
-// in-app scanner needed). Layout (avatar badge overlapping a floating white
-// QR card, dark title bar with a close button above it) mirrors Telegram
-// Web's own "My QR Code" popover.
 export function openProfileQrDialog(user) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const url = `${window.location.origin}/u/${user.username}`;
@@ -52,7 +45,6 @@ export function openProfileQrDialog(user) {
   ]);
   overlay.appendChild(dialog);
 
-  // Esc закрывает, как и любое другое окно поверх приложения.
   function onKey(e) {
     if (e.key === "Escape") close();
   }

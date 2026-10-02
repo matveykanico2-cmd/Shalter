@@ -35,15 +35,6 @@ const { collectServerStats } = require("../lib/serverStats");
 const router = express.Router();
 router.use(requireUserId);
 
-// Every route here is gated per-section (server/lib/adminAccess.js), checked
-// fresh on each request (same convention as reports.js/premium.js — the
-// phone can move to a different account, so it's never cached). A full admin
-// (isAdminPhone) passes every section; a partial admin only the ones the
-// primary admin granted them. /export and /exports are the lawful-request
-// compliance surface: a single admin, acting on a stated legal basis,
-// exporting one named user's stored data. It deliberately has no "read
-// everyone" or "live wiretap" capability — see server/data/dataExport.js's
-// header for the boundary, especially around E2E.
 async function requireAdminSection(req, res, section) {
   const me = await getUser(req.uid);
   if (!me || !hasAdminSection(me, section)) {
@@ -53,17 +44,12 @@ async function requireAdminSection(req, res, section) {
   return me;
 }
 
-// Resolve the target by id, @username, or phone — a court order names a
-// person by handle/number, not by internal id, so accept all three.
 async function resolveTarget(query) {
   const q = (query ?? "").trim();
   if (!q) return null;
   return (await getUser(q)) || (await findUserByUsername(q.replace(/^@/, ""))) || (await findUserByPhone(q)) || (await findUserByEmail(q)) || null;
 }
 
-// Look up a target without exporting yet — lets the admin UI confirm "this
-// is the right person" (name/username/phone) before running, so a mistyped
-// handle doesn't produce someone else's file.
 router.get(
   "/lookup",
   asyncRoute(async (req, res) => {
@@ -74,17 +60,11 @@ router.get(
   })
 );
 
-// Группа или канал по @имени, ссылке (https://…/join/КОД, …/@имя) или id —
-// для модератора, который в этом чате не состоит и поэтому не может открыть
-// его в приложении. Удаляет потом клиент обычным DELETE /api/chats/:id: тот
-// пропускает модератора сервера и без членства (routes/chats.js).
 router.get(
   "/chats/lookup",
   asyncRoute(async (req, res) => {
     if (!(await requireAdminSection(req, res, "moderation"))) return;
     const raw = String(req.query.q ?? "").trim();
-    // Из ссылки берётся последний кусок пути: …/join/AbC123 → AbC123,
-    // …/@news → @news.
     const tail = raw.replace(/[?#].*$/, "").replace(/\/+$/, "").split("/").pop() ?? "";
     const handle = tail.replace(/^@/, "");
     const chat =
@@ -106,10 +86,6 @@ router.get(
   })
 );
 
-// The export itself. Requires a non-empty `reason` (the legal basis / case
-// reference) — refusing to run without one is what keeps the audit log
-// meaningful rather than a wall of blank entries. Returns the assembled
-// data plus the audit-row id; the client turns it into a downloaded file.
 router.post(
   "/export",
   asyncRoute(async (req, res) => {
@@ -130,8 +106,6 @@ router.post(
   })
 );
 
-// The transparency journal — every past export, newest first, with the
-// admin who ran it and the target resolved to a readable label.
 router.get(
   "/exports",
   asyncRoute(async (req, res) => {
@@ -154,20 +128,6 @@ router.get(
   })
 );
 
-// ── Модерация ────────────────────────────────────────────────────────────────
-// The review surface for bans and safety labels. Reports still arrive as
-// messages in the admin's chat with the service bot (routes/reports.js) —
-// that's the notification. This is the ledger: what's still open, who is
-// currently banned and why, and who carries a public safety label. Without it
-// a ban was a one-way door — the flag went up from a chat message that then
-// scrolled away, and there was no screen anywhere that could take it back
-// down.
-
-// Must match server/db.js's safetyLabel comment and the client's own list in
-// public/js/lib/safetyLabels.js.
-// Список меток теперь в базе (server/data/safetyLabels.js): администратор
-// заводит свои, не дожидаясь новой версии приложения. Пять прежних просто
-// засеяны при первом запуске.
 const labelsData = require("../data/safetyLabels");
 const statusCatalogData = require("../data/profileStatuses");
 
@@ -190,32 +150,21 @@ function userLabel(u, fallbackId) {
     id: u.id,
     name: u.name,
     username: u.username || null,
-    // Для панели супер-админа: найти и опознать человека по контактам.
     phone: u.phone || null,
     email: u.email || null,
     safetyLabel: u.safetyLabel || null,
     isBanned: !!u.isBanned,
-    // Current Premium / ads state, so the admin panel on a profile
-    // (public/js/components/adminUserPanel.js) can show what the account
-    // already has before handing over a purchase the buyer just transferred
-    // for — rather than granting blind and stacking a second month by mistake.
     isPremium: !!u.isPremium,
     premiumUntil: u.premiumUntil || null,
     premiumForever: !!u.premiumForever,
     isAdsActive: !!u.isAdsActive,
     adsUntil: u.adsUntil || null,
     adsForever: !!u.adsForever,
-    // Only meaningful to whoever can see the grant UI (isPrimaryAdmin, checked
-    // client-side) — riding along here is harmless either way, since this
-    // whole response already requires "moderation" section access to read.
     adminSections: u.adminSections ?? [],
     isDeveloper: isAdminPhone(u.phone) || undefined,
   };
 }
 
-// A report, resolved into something readable: who filed it, who it's about,
-// and — for a reported message — what the message actually said, since "спам"
-// on its own isn't a reason anyone can review.
 async function decorateReport(r) {
   const [reporter, subject] = await Promise.all([getUser(r.reporterId), r.subjectUserId ? getUser(r.subjectUserId) : null]);
   let quoted = null;
@@ -256,8 +205,6 @@ router.get(
   })
 );
 
-// Every report filed against one account — what the admin reads *before*
-// deciding whether a ban was right, and the answer to "покажи причину".
 router.get(
   "/users/:id/reports",
   asyncRoute(async (req, res) => {
@@ -272,10 +219,6 @@ router.get(
   })
 );
 
-// Ban or unban. Unbanning is the point of this route existing — a ban set
-// from a report card had no counterpart anywhere. Both directions tell the
-// user in their chat with the service bot, so being unbanned isn't something
-// they have to discover by trying to log in again.
 router.post(
   "/users/:id/ban",
   asyncRoute(async (req, res) => {
@@ -292,8 +235,6 @@ router.post(
 
     const updated = await setBanned(target.id, banned, reason);
 
-    // Best-effort: the notification is not what the ban depends on, so a
-    // failure here must not roll back or 500 the actual moderation action.
     try {
       const chat = await findOrCreateDm(SYSTEM_BOT_ID, target.id);
       await sendMessageAndBroadcast(
@@ -311,10 +252,6 @@ router.post(
   })
 );
 
-// Sets (or clears, with an empty/absent label) the public safety marker.
-// Separate from banning on purpose: a marked-but-active account is the useful
-// middle state — a suspected scammer people are warned about while the
-// evidence is still being reviewed, rather than a binary "untouched or gone".
 router.post(
   "/users/:id/label",
   asyncRoute(async (req, res) => {
@@ -331,14 +268,6 @@ router.post(
   })
 );
 
-// The verified check. Deliberately covers accounts, bots, channels and groups
-// through one pair of routes: a fake "official" channel misleads exactly the
-// way a fake official account does, and having two half-features would mean one
-// of them quietly not existing.
-//
-// It is a claim by the administration, nothing more — it says "we checked who
-// runs this", not "this is safe". Which is why it sits next to the safety label
-// rather than replacing it.
 router.post(
   "/users/:id/verify",
   asyncRoute(async (req, res) => {
@@ -348,8 +277,6 @@ router.post(
     const verified = !!req.body?.verified;
     const updated = await setVerified(target.id, verified);
 
-    // Told to the account, like every other administrative action here — a mark
-    // appearing on your profile without explanation is unsettling either way.
     try {
       const chat = await findOrCreateDm(SYSTEM_BOT_ID, target.id);
       await sendMessageAndBroadcast(
@@ -380,17 +307,6 @@ router.post(
   })
 );
 
-// Deleting somebody else's account. The developer's last resort — for the
-// accounts a ban isn't the right answer to: a bot farm, a duplicate, an account
-// created by mistake, or one whose owner asked for it to be removed and can no
-// longer sign in to do it themselves.
-//
-// It runs the same cascade as a person deleting their own account
-// (lib/deleteAccount.js): profile, messages, one-to-one chats, membership
-// everywhere else. Irreversible, so it asks for the account's @handle to be
-// typed back — an id in a URL is far too easy to be the wrong one — and it is
-// written into the export journal, because "the administration deleted an
-// account" is exactly the kind of act that should leave a trace.
 router.delete(
   "/users/:id",
   asyncRoute(async (req, res) => {
@@ -404,8 +320,6 @@ router.delete(
       return res.status(400).json({ error: "Служебные аккаунты Shalter удалять нельзя" });
     }
 
-    // Typed confirmation, checked server-side rather than trusted from a dialog:
-    // this route is reachable without the dialog.
     const confirm = String(req.body?.confirm ?? "").trim().replace(/^@/, "").toLowerCase();
     const handle = (target.username || target.id).toLowerCase();
     if (confirm !== handle) {
@@ -415,7 +329,6 @@ router.delete(
     const reason = String(req.body?.reason ?? "").trim().slice(0, 500);
     if (!reason) return res.status(400).json({ error: "Укажите основание — оно попадёт в журнал" });
 
-    // Logged before the deletion, while the account still exists to be named.
     await logExport({
       adminId: req.uid,
       targetUserId: target.id,
@@ -428,16 +341,6 @@ router.delete(
   })
 );
 
-// Resetting somebody else's password. The last door into an account when every
-// other one is shut: no e-mail attached, no device still signed in, nothing to
-// receive a code on. That situation is not hypothetical — it is what happens to
-// the very first account on a fresh deployment.
-//
-// The power is real (this is account takeover by definition), so it carries the
-// same discipline as deletion above: the handle typed back, a mandatory reason,
-// a journal entry written before anything changes, and the owner told in their
-// own chat afterwards. Every session is signed out, so a reset cannot be used
-// to quietly ride along beside the owner.
 router.post(
   "/users/:id/reset-password",
   asyncRoute(async (req, res) => {
@@ -458,10 +361,6 @@ router.post(
     const password = String(req.body?.password ?? "");
     if (password.length < 6) return res.status(400).json({ error: "Пароль — не короче 6 символов" });
 
-    // Two-factor authentication is *not* lifted by default: it exists precisely
-    // so that knowing the password isn't enough, and an administrator quietly
-    // stripping it would make it worthless. Lifting it is a separate, explicit
-    // choice, recorded separately in the journal.
     const liftTwoFactor = req.body?.disableTwoFactor === true && target.twoFactorEnabled;
 
     await logExport({
@@ -491,13 +390,6 @@ router.post(
   })
 );
 
-// Состояние отправки почты — «а работает ли вообще SMTP» без доступа к серверу.
-//
-// Обычно это выясняют командой в консоли (scripts/mail-test.js) и чтением
-// логов. Развёртывание, куда попадают только пушем, такой возможности не даёт:
-// человек видит «письмо не доставлено» и не может узнать, дело в пароле, в
-// закрытом порте или в самом адресе. Поэтому ответ сервера показывается здесь —
-// администратору, который и так видит куда более чувствительные вещи.
 router.get(
   "/mail-status",
   asyncRoute(async (req, res) => {
@@ -508,22 +400,12 @@ router.get(
       configured: check.configured === true,
       ok: check.ok === true,
       error: check.error ?? null,
-      // Без SMTP письмо отдаётся почтовому серверу получателя напрямую. Тогда
-      // за отправителя ручаются не чужой провайдер, а записи в DNS самого
-      // домена — их и показываем ниже (lib/mailDns.js).
       directEnabled: process.env.MAIL_DIRECT !== "0",
       dns: dnsAdvice,
     });
   })
 );
 
-// Состояние сервера: диск, процессор, память, размер базы и вложений
-// (lib/serverStats.js). Соседствует с проверкой почты выше по той же причине —
-// это вещи, которые иначе смотрят по ssh, а к развёртыванию, куда попадают
-// только пушем, консоли может не быть вовсе.
-// Управление каталогом меток. Удаление снимает метку со всех, кому она была
-// поставлена (data/safetyLabels.js) — значок, о происхождении которого никто
-// не помнит, хуже отсутствия значка.
 router.get(
   "/labels",
   asyncRoute(async (req, res) => {
@@ -561,10 +443,6 @@ router.delete(
   })
 );
 
-// Управление каталогом готовых статусов — тот же приём, что и с метками
-// выше: удаление ничего не трогает в users.statusItems (см. lib/
-// profileStatuses.js), потому что выданный кем-то статус — это своя копия
-// картинки, а не ссылка на каталог.
 router.post(
   "/status-catalog",
   asyncRoute(async (req, res) => {
@@ -592,11 +470,6 @@ router.get(
   })
 );
 
-// ── Частичный доступ к админке ──────────────────────────────────────────────
-// Выдаётся только главным администратором (isPrimaryAdmin — ровно тот номер,
-// что в PREMIUM_ADMIN_PHONE, а не любой из PREMIUM_ADMIN_PHONES) — иначе
-// "кто вообще может выдавать доступ" зависело бы от того, кто ещё когда-то
-// получил полный админский номер, а не от одной понятной переменной.
 router.post(
   "/users/:id/admin-sections",
   asyncRoute(async (req, res) => {
@@ -614,10 +487,6 @@ router.post(
   })
 );
 
-// Каталог для супер-админа: листать всех людей, ботов, группы и каналы,
-// искать по имени/юзернейму/телефону/почте и открывать карточку. Раздел
-// «Модерация». Отдаётся с ограничением (LIMIT) — не вся база разом; total
-// показывает, сколько всего нашлось.
 router.get(
   "/directory",
   asyncRoute(async (req, res) => {

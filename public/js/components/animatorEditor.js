@@ -10,19 +10,6 @@ import {
 } from "../lib/customScene.js";
 import { ALL_EMOJI } from "../lib/emojiList.js";
 
-// Аниматор — покадровый редактор 2D-анимаций («блендер для 2D»).
-//
-// Здесь не выбирают готовое движение из списка — его собирают сами: ставят
-// фигуру/эмодзи, встают на момент времени, двигают её (перетаскиванием на
-// холсте или ползунками) — и это записывается ключом. Между ключами браузер
-// сам плавно интерполирует (Web Animations API, см. lib/customScene.js). Так
-// анимируется что угодно — 🍾, нога персонажа, меняющийся по времени цвет.
-//
-// Модель: сцена = слои. У слоя есть «база» (форма, размер, цвет, положение) и
-// набор ключей во времени — поз относительно базы (смещение, поворот, масштаб,
-// прозрачность, необязательно цвет). Одним редактором создаются стикеры,
-// эмодзи и подарки — разница лишь в подписи и в том, кто вызвал (onSave).
-
 const COLOR_SWATCHES =["#ff8a3d", "#ff5d73", "#ffd23f", "#4ade80", "#38bdf8", "#a78bfa", "#f472b6", "#ffffff", "#2f2a24"];
 const PREVIEW = 240;
 
@@ -43,17 +30,16 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
   const scene = initial ? sanitizeCustomScene(initial) : blankScene();
   for (const l of scene.layers) if (!Array.isArray(l.keys)) l.keys = [];
   let selected = scene.layers.length ? 0 : -1;
-  let time = 0; // текущий момент таймлайна, сек
+  let time = 0;
   let playing = false;
-  let autokey = true; // перетаскивание/ползунки пишут ключ в текущий момент
+  let autokey = true;
   let error = null;
   let raf = 0;
   let playStart = 0;
-  // Кисть: рисование с нуля прямо на холсте (слой типа draw).
-  let brushMode = true; // на слое-кисти холст рисует, а не двигает
+  let brushMode = true;
   let brushColor = "#000000";
   let brushWidth = 4;
-  let curStroke = null; // штрих, который сейчас ведём
+  let curStroke = null;
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
 
@@ -67,15 +53,9 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
   const sel = () => (selected >= 0 ? scene.layers[selected] : null);
   const clampT = (t) => Math.min(scene.loop, Math.max(0, Math.round(t * 100) / 100));
 
-  // ── Предпросмотр ─────────────────────────────────────────────────────────
-
   function refreshPreview() {
     clear(previewBox);
-    // На паузе замораживаем сцену на текущем моменте; при проигрывании отдаём
-    // WAAPI (atTime не задаём).
     const svg = renderCustomScene(scene, { size: PREVIEW, atTime: playing ? null : time });
-    // Маркер выбранного слоя — кольцо в его текущем положении, чтобы видеть, что
-    // именно двигаешь. При проигрывании прячем (поза меняется сама).
     const L = sel();
     if (L && !playing && L.type !== "draw") {
       const p = sampleLayerAt(L, time);
@@ -89,8 +69,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     previewBox.appendChild(svg);
   }
 
-  // Экранные координаты → координаты вьюбокса 0..100. Берём прямоугольник
-  // самого <svg> (он центрирован в контейнере и может быть меньше него).
   function toViewbox(clientX, clientY) {
     const svg = previewBox.querySelector("svg");
     const r = (svg || previewBox).getBoundingClientRect();
@@ -100,8 +78,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     };
   }
 
-  // На холсте два действия: рисование кистью (слой draw + режим кисти) и
-  // перетаскивание слоя (двигаем/пишем ключ позиции).
   let dragging = false;
   const isBrush = () => brushMode && sel()?.type === "draw";
 
@@ -110,7 +86,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     if (!L || playing) return;
     previewBox.setPointerCapture(e.pointerId);
     if (isBrush()) {
-      // Новый штрих текущим цветом/толщиной.
       const v = toViewbox(e.clientX, e.clientY);
       curStroke = { color: brushColor, width: brushWidth, pts: [[round(v.x), round(v.y)]] };
       L.strokes.push(curStroke);
@@ -125,7 +100,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
       const v = toViewbox(e.clientX, e.clientY);
       const pts = curStroke.pts;
       const lastPt = pts[pts.length - 1];
-      // Не копим лишние точки: добавляем, только если сдвинулись заметно.
       if (!lastPt || Math.hypot(v.x - lastPt[0], v.y - lastPt[1]) > 0.6) {
         pts.push([round(v.x), round(v.y)]);
         refreshPreview();
@@ -145,7 +119,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     if (!L) return;
     const v = toViewbox(clientX, clientY);
     if (autokey) {
-      // Записываем позу: смещение от базы так, чтобы фигура оказалась под курсором.
       const p = sampleLayerAt(L, time);
       upsertKey(L, { ...poseFields(p), dx: v.x - L.x, dy: v.y - L.y });
     } else {
@@ -156,8 +129,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     renderPanel();
     drawTimeline();
   }
-
-  // ── Ключи ────────────────────────────────────────────────────────────────
 
   function poseFields(p) {
     const o = { dx: p.dx, dy: p.dy, rot: p.rot, scale: p.scale, opacity: p.opacity };
@@ -189,15 +160,12 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     if (i >= 0) L.keys.splice(i, 1);
   }
 
-  // ── Слои ───────────────────────────────────────────────────────────────────
-
   function selectLayer(i) { selected = i; renderAll(); }
   function addLayer(type) {
     if (scene.layers.length >= CE_MAX_LAYERS) { error = `Не больше ${CE_MAX_LAYERS} фигур`; renderAll(); return; }
     error = null;
     scene.layers.push(defaultLayer(type));
     selected = scene.layers.length - 1;
-    // Кисть сразу в режиме рисования; другие фигуры — в режиме перемещения.
     brushMode = type === "draw";
     renderAll();
   }
@@ -206,8 +174,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     if (selected >= scene.layers.length) selected = scene.layers.length - 1;
     renderAll();
   }
-  // Переставить слой в порядке отрисовки (z-порядок): dir -1 — назад (ниже),
-  // +1 — вперёд (поверх остальных). Выбор едет вместе со слоем.
   function moveLayer(i, dir) {
     const j = i + dir;
     if (j < 0 || j >= scene.layers.length) return;
@@ -216,8 +182,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     selected = j;
     renderAll();
   }
-
-  // ── Контролы ────────────────────────────────────────────────────────────────
 
   function slider(label, min, max, step, get, set) {
     const val = el("span", { class: "anim-ctl-val" }, String(round(get())));
@@ -236,18 +200,13 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     return el("div", { class: "anim-ctl" }, [el("span", { class: "anim-ctl-label" }, label), el("div", { class: "anim-swatches" }, [...swatches, picker])]);
   }
 
-  // ── Панель выбранного слоя ──────────────────────────────────────────────────
-
   function renderPanel() {
     clear(panelEl);
     const L = sel();
     if (!L) { panelEl.appendChild(el("p", { class: "anim-hint" }, "Добавьте фигуру или эмодзи, чтобы начать.")); return; }
 
-    // Базовые свойства фигуры (форма/размер/цвет).
     const baseRows = [];
     if (L.type === "draw") {
-      // Слой-кисть: рисование на холсте. Режим «рисовать» — штрихи; «двигать» —
-      // перетаскивание/ключи позиции.
       const modeBtn = el("button", { class: `anim-add-btn ${brushMode ? "" : "danger"}`, onclick: () => { brushMode = !brushMode; renderPanel(); } }, brushMode ? "✏️ Рисую" : "✋ Двигаю");
       baseRows.push(
         el("p", { class: "anim-hint" }, brushMode ? "Рисуйте прямо на холсте." : "Перетаскивайте рисунок на холсте (запишется ключом)."),
@@ -262,9 +221,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
       );
     } else if (L.type === "emoji") {
       const emojiInput = el("input", { type: "text", class: "anim-text-input", value: L.emoji, maxLength: 8, oninput: (e) => { L.emoji = e.target.value; refreshPreview(); } });
-      // Полная сетка эмодзи (lib/emojiList.js) — «все эмодзи». Выбор не
-      // пересобирает панель (чтобы прокрутка не прыгала): только меняет слой,
-      // поле ввода и предпросмотр.
       const grid = el(
         "div",
         { class: "anim-emoji-grid" },
@@ -293,11 +249,7 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
       baseRows.push(slider("Размер", 4, 100, 1, () => L.size, (v) => (L.size = v)), colorRow("Цвет", () => L.fill, (v) => (L.fill = v)));
     }
 
-    // Поза в текущем ключе. Ползунки редактируют позу на позиции таймлайна:
-    // меняешь — ставится/обновляется ключ в этот момент.
     const p = sampleLayerAt(L, time);
-    // Позу читаем заново на каждое изменение (а не из захваченного p): иначе
-    // правка одного поля затёрла бы значения, выставленные другими ползунками.
     const setPose = (patch) => { upsertKey(L, { ...poseFields(sampleLayerAt(L, time)), ...patch }); refreshPreview(); drawTimeline(); };
     const onKey = keyIndexAt(L, time) >= 0;
 
@@ -319,8 +271,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     panelEl.append(...baseRows, ...poseRows);
   }
 
-  // ── Список слоёв ────────────────────────────────────────────────────────────
-
   function layerLabel(L) {
     if (L.type === "emoji") return L.emoji;
     if (L.type === "text") return `«${L.text || "текст"}»`;
@@ -335,7 +285,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
           el("span", { class: "anim-layer-name" }, layerLabel(L)),
           el("span", { class: "anim-layer-anim" }, `${L.keys.length} ключей`),
           el("div", { class: "anim-layer-actions" }, [
-            // Порядок слоёв = кто на ком: слой ниже в списке рисуется поверх.
             el("button", { class: "anim-layer-mini", title: "Назад (ниже)", disabled: i === 0, onclick: (e) => { e.stopPropagation(); moveLayer(i, -1); } }, "↑"),
             el("button", { class: "anim-layer-mini", title: "Вперёд (выше)", disabled: i === scene.layers.length - 1, onclick: (e) => { e.stopPropagation(); moveLayer(i, 1); } }, "↓"),
             el("button", { class: "anim-layer-mini danger", title: "Удалить", onclick: (e) => { e.stopPropagation(); removeLayer(i); } }, "✕"),
@@ -344,8 +293,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
       );
     });
   }
-
-  // ── Таймлайн ─────────────────────────────────────────────────────────────────
 
   function drawTimeline() {
     clear(timelineEl);
@@ -358,8 +305,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     }
     const playhead = el("span", { class: "anim-playhead", style: { left: `${(time / scene.loop) * 100}%` } });
     track.appendChild(playhead);
-    // Во время перетаскивания НЕ пересобираем таймлайн (иначе оторвётся
-    // pointer-capture с текущего трека) — двигаем плейхед и подсветку на месте.
     const seek = (clientX) => {
       const r = track.getBoundingClientRect();
       time = clampT(((clientX - r.left) / r.width) * scene.loop);
@@ -394,7 +339,7 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     playing = true;
     playStart = 0;
     playBtn.textContent = "⏸";
-    refreshPreview(); // WAAPI-проигрывание
+    refreshPreview();
     raf = requestAnimationFrame(playTick);
   }
   function stopPlay() {
@@ -404,8 +349,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     refreshPreview();
     renderPanel();
   }
-
-  // ── Сборка ────────────────────────────────────────────────────────────────
 
   const playBtn = el("button", { class: "anim-play-btn", title: "Играть/пауза", onclick: () => (playing ? stopPlay() : startPlay()) }, "▶");
   const autokeyBtn = el("button", { class: `anim-autokey ${autokey ? "on" : ""}`, title: "Автоключ: запись при перемещении", onclick: () => { autokey = !autokey; autokeyBtn.classList.toggle("on", autokey); } }, "● Автоключ");
@@ -442,7 +385,6 @@ export function openAnimatorEditor({ title = "Аниматор", saveLabel = "С
     el("div", { class: "anim-body" }, [
       el("div", { class: "anim-stage" }, [
         previewBox,
-        // Кнопки добавления фигур — слева, под холстом.
         el("p", { class: "anim-section-title" }, "Добавить"),
         addBar,
         el("div", { class: "anim-transport" }, [playBtn, autokeyBtn, timeLabel]),

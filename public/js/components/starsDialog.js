@@ -3,18 +3,11 @@ import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { handlePurchaseResponse } from "../lib/purchase.js";
 
-// Buying stars and setting what strangers pay to write to you.
-//
-// Purchases follow the same route as everything else priced in this app:
-// DonationAlerts/DonatePay if the admin connected one (automatic — see
-// lib/purchase.js), otherwise the request lands in the administration's
-// chat and the balance is credited once the transfer arrives.
 export function openStarsDialog(onChanged) {
   let data = null;
   let error = null;
   let notice = null;
   let busy = false;
-  // Кому переводим: выбранный человек и найденные кандидаты.
   let transferTo = null;
   let found = [];
 
@@ -69,8 +62,6 @@ export function openStarsDialog(onChanged) {
     }
   }
 
-  // Uncontrolled input read on save — re-rendering per keystroke would take the
-  // focus with it.
   const priceInput = el("input", { class: "settings-input mono stars-price-input", type: "number", min: "0", step: "1" });
 
   async function savePrice() {
@@ -87,15 +78,11 @@ export function openStarsDialog(onChanged) {
     render();
   }
 
-  // Поля перевода живут вне render() по той же причине, что и priceInput:
-  // перерисовка на каждой букве уводила бы фокус из строки поиска.
   const toInput = el("input", { class: "settings-input", type: "text", placeholder: "Имя или @ник" });
   const amountInput = el("input", { class: "settings-input mono", type: "number", min: "1", step: "1", placeholder: "Сколько ⭐" });
 
   let searchTimer = null;
   toInput.oninput = () => {
-    // Выбор сбрасывается, как только строку правят: иначе можно было бы
-    // выбрать одного, дописать другое имя и перевести не тому.
     transferTo = null;
     const q = toInput.value.trim();
     clearTimeout(searchTimer);
@@ -148,10 +135,6 @@ export function openStarsDialog(onChanged) {
     error = null;
     notice = null;
     const amount = Math.floor(Number(amountInput.value));
-    // Человек ввёл @ник или имя, но не нажал на подсказку — не заставляем
-    // кликать: если есть точное совпадение по @нику или ровно один кандидат,
-    // выбираем его сами. Раньше в этом случае строго писало «Выберите
-    // получателя из списка», даже когда получатель очевиден.
     if (!transferTo) {
       const q = toInput.value.trim().replace(/^@/, "").toLowerCase();
       transferTo =
@@ -195,7 +178,7 @@ export function openStarsDialog(onChanged) {
     }
     priceInput.value = String(data.messagePriceStars ?? 0);
 
-    appendAll(bodyEl, 
+    appendAll(bodyEl,
       ...[
         el("p", { class: "stars-balance" }, [el("span", { class: "stars-balance-value" }, `${data.balance} ⭐`), el("span", {}, "на балансе")]),
         notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,

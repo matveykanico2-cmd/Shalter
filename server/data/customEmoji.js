@@ -1,15 +1,6 @@
 const db = require("../db");
 const { sanitizeScene } = require("../lib/sanitizeScene");
 
-// Кастомные эмодзи — общий каталог, как подарки: создаёт/правит/удаляет только
-// админ (см. server/routes/customEmoji.js), а вставлять их в сообщения может
-// кто угодно. Раньше это была личная библиотека каждого пользователя; теперь
-// набор один на всех, поэтому список — глобальный, а не по владельцу.
-//
-// Сцена — пользовательский (админский) контент, уходящий в чужие чаты, поэтому
-// её форма пинуется через sanitizeScene. `ownerId` остаётся как автор записи
-// (кто из админов её создал) — для истории, не для доступа.
-
 const MAX_EMOJI = 500;
 const MAX_NAME = 40;
 
@@ -23,7 +14,6 @@ function rowToEmoji(row) {
   };
 }
 
-// Весь каталог — для пикера у любого пользователя.
 function listAllEmoji() {
   return db.prepare("SELECT * FROM custom_emoji ORDER BY createdAt DESC").all().map(rowToEmoji);
 }
@@ -36,7 +26,6 @@ function getEmoji(id) {
   return rowToEmoji(db.prepare("SELECT * FROM custom_emoji WHERE id = ?").get(id));
 }
 
-// Создание — только админом (гейт в маршруте). Возвращает { emoji } или { error }.
 function createEmoji({ creatorId, name, scene }) {
   const clean = sanitizeScene(scene, { requireLayers: true });
   if (!clean) return { error: "Нарисуйте эмодзи — добавьте хотя бы одну фигуру" };
@@ -54,7 +43,6 @@ function createEmoji({ creatorId, name, scene }) {
   return { emoji: getEmoji(row.id) };
 }
 
-// Правка любого эмодзи каталога (админом). Возвращает { emoji } / { notFound } / { error }.
 function updateEmoji(id, { name, scene }) {
   const existing = db.prepare("SELECT * FROM custom_emoji WHERE id = ?").get(id);
   if (!existing) return { notFound: true };
