@@ -85,6 +85,7 @@ app.use("/api/auth/passkey/login", authLimiter);
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/chats", require("./routes/chats"));
+app.use("/api/link-check", require("./routes/linkCheck"));
 app.use("/api/channels", require("./routes/channels"));
 app.use("/api/contacts", require("./routes/contacts"));
 app.use("/api/folders", require("./routes/folders"));

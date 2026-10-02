@@ -1,5 +1,6 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
+import { api } from "../api.js";
 
 const SHORTENER_HOSTS = new Set(["bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly", "is.gd", "buff.ly"]);
 export function checkLinkSafety(url) {
@@ -42,35 +43,92 @@ function embedUrlFor(url) {
   return url;
 }
 
+function isEmbedPlayer(url) {
+  return /^https:\/\/(www\.youtube\.com\/embed\/|player\.vimeo\.com\/video\/)/.test(url);
+}
+
+function openExternally(url) {
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 export function openInAppBrowser(url, { warning, unsafe } = {}) {
   let host = url;
   try {
     host = new URL(url).hostname;
   } catch {
   }
+  const target = embedUrlFor(url);
 
   const overlay = el("div", { class: "inapp-browser-overlay" });
-  const iframe = el("iframe", {
-    class: "inapp-browser-frame",
-    src: embedUrlFor(url),
-    sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-presentation",
-    allow: "autoplay; fullscreen; picture-in-picture; encrypted-media",
-  });
+  const body = el("div", { class: "inapp-browser-body" }, el("div", { class: "inapp-browser-loading" }, "Загрузка…"));
 
   const header = el("div", { class: "inapp-browser-header" }, [
-    el("button", { class: "icon-btn", html: iconSvg("X", 18), onclick: close }),
+    el("button", { class: "icon-btn", title: "Закрыть", html: iconSvg("X", 18), onclick: close }),
     el("div", { class: "inapp-browser-host" }, [el("span", { html: iconSvg("Lock", 12) }), " ", host]),
-    el("a", { class: "icon-btn", href: url, target: "_blank", rel: "noreferrer", title: "Открыть в браузере", html: iconSvg("Globe", 16) }),
+    el("button", { class: "icon-btn", title: "Открыть в браузере", html: iconSvg("Globe", 16), onclick: () => openExternally(url) }),
   ]);
 
   const warningBar = warning
     ? el("div", { class: `inapp-browser-warning ${unsafe ? "danger" : ""}` }, [el("span", { html: iconSvg("Info", 14) }), " ", warning])
     : null;
 
-  overlay.append(...[header, warningBar, iframe].filter(Boolean));
+  overlay.append(...[header, warningBar, body].filter(Boolean));
   document.body.appendChild(overlay);
 
+  const onKey = (e) => {
+    if (e.key === "Escape") close();
+  };
+  document.addEventListener("keydown", onKey);
+
+  function showFrame() {
+    body.replaceChildren(
+      el("iframe", {
+        class: "inapp-browser-frame",
+        src: target,
+        sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-presentation",
+        allow: "autoplay; fullscreen; picture-in-picture; encrypted-media",
+        referrerpolicy: "no-referrer",
+      })
+    );
+  }
+
+  // Сайт запрещает показ внутри приложения (или ссылка http на https-странице) —
+  // вместо пустого окна объясняем и предлагаем открыть в браузере.
+  function showBlocked(reason) {
+    body.replaceChildren(
+      el("div", { class: "inapp-browser-blocked" }, [
+        el("span", { class: "inapp-browser-blocked-icon", html: iconSvg("Globe", 40) }),
+        el("p", { class: "inapp-browser-blocked-title" }, host),
+        el("p", { class: "inapp-browser-blocked-text" }, reason),
+        el("button", { class: "btn-accent", onclick: () => { openExternally(url); close(); } }, "Открыть в браузере"),
+        el("button", { class: "modal-cancel", onclick: () => navigator.clipboard?.writeText(url).catch(() => {}) }, "Скопировать ссылку"),
+      ])
+    );
+  }
+
+  let insecure = false;
+  try {
+    insecure = new URL(target).protocol === "http:" && window.location.protocol === "https:";
+  } catch {
+    showBlocked("Некорректная ссылка");
+  }
+  if (insecure) {
+    showBlocked("Сайт работает без шифрования (http), поэтому внутри приложения его открыть нельзя.");
+  } else if (isEmbedPlayer(target)) {
+    showFrame();
+  } else {
+    api
+      .checkFrameable(target)
+      .then((res) => {
+        if (!overlay.isConnected) return;
+        if (res.frameable === false) showBlocked("Этот сайт не разрешает открывать себя внутри других приложений.");
+        else showFrame();
+      })
+      .catch(() => overlay.isConnected && showFrame());
+  }
+
   function close() {
+    document.removeEventListener("keydown", onKey);
     overlay.remove();
   }
   return { close };

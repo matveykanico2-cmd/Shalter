@@ -3650,11 +3650,36 @@ pre.mono,
 .inapp-browser-warning.danger {
   color: var(--color-danger);
 }
+.inapp-browser-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
 .inapp-browser-frame {
   flex: 1;
   width: 100%;
   border: none;
+  background: #fff;
 }
+.inapp-browser-loading {
+  margin: auto;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+.inapp-browser-blocked {
+  margin: auto;
+  max-width: 360px;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.inapp-browser-blocked-icon { color: var(--color-muted); }
+.inapp-browser-blocked-title { margin: 0; font-weight: 600; font-size: 17px; overflow-wrap: anywhere; }
+.inapp-browser-blocked-text { margin: 0 0 6px; color: var(--color-muted); font-size: 14px; }
 
 .mini-app-overlay {
   position: fixed;

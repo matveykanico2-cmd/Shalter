@@ -155,4 +155,54 @@ async function fetchLinkPreview(text) {
   }
 }
 
-module.exports = { fetchLinkPreview, checkSafety, assertPublicUrl };
+// Можно ли показать страницу во встроенном браузере (iframe): многие сайты
+// запрещают это заголовками X-Frame-Options / CSP frame-ancestors, и тогда
+// iframe молча остаётся пустым. Результат кэшируется на 10 минут.
+const frameCache = new Map();
+const FRAME_CACHE_MS = 10 * 60_000;
+
+function frameAncestorsAllow(csp, ourOrigin) {
+  const directive = csp
+    .split(",")
+    .flatMap((policy) => policy.split(";"))
+    .map((d) => d.trim())
+    .find((d) => /^frame-ancestors\b/i.test(d));
+  if (!directive) return true;
+  const sources = directive.split(/\s+/).slice(1).map((x) => x.toLowerCase());
+  if (sources.includes("'none'")) return false;
+  if (sources.includes("*")) return true;
+  const ours = new URL(ourOrigin);
+  return sources.some((src) => {
+    const m = /^(?:(https?):\/\/)?(\*\.)?([^/:]+)(?::\d+)?\/?$/.exec(src);
+    if (!m) return src === `${ours.protocol}`;
+    if (m[1] && `${m[1]}:` !== ours.protocol) return false;
+    return m[2] ? ours.hostname.endsWith(`.${m[3]}`) : ours.hostname === m[3];
+  });
+}
+
+async function checkFrameable(url, ourOrigin) {
+  const key = `${ourOrigin} ${url}`;
+  const cached = frameCache.get(key);
+  if (cached && cached.at > Date.now() - FRAME_CACHE_MS) return cached.result;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let result;
+  try {
+    const res = await fetchPublic(url, { signal: controller.signal, headers: { "user-agent": "Mozilla/5.0 (compatible; ShalterBot/1.0)" } });
+    res.body?.cancel?.().catch(() => {});
+    const xfo = (res.headers.get("x-frame-options") ?? "").trim().toLowerCase();
+    const csp = res.headers.get("content-security-policy") ?? "";
+    const frameable = !(xfo === "deny" || xfo === "sameorigin") && frameAncestorsAllow(csp, ourOrigin);
+    result = { frameable, status: res.status };
+  } catch {
+    result = { frameable: null }; // не удалось проверить — пусть клиент попробует сам
+  } finally {
+    clearTimeout(timeout);
+  }
+  if (frameCache.size > 1000) frameCache.clear();
+  frameCache.set(key, { at: Date.now(), result });
+  return result;
+}
+
+module.exports = { fetchLinkPreview, checkSafety, assertPublicUrl, checkFrameable };

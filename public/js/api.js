@@ -267,6 +267,7 @@ export const api = {
   passkeyLoginFinish: (body) => req("/api/auth/passkey/login/finish", { method: "POST", body: JSON.stringify(body) }),
   listPasskeys: () => req("/api/auth/passkeys"),
   deletePasskey: (id) => req(`/api/auth/passkeys/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  checkFrameable: (url) => req(`/api/link-check?url=${encodeURIComponent(url)}`),
   listTopics: (chatId) => req(`/api/chats/${chatId}/topics`),
   setTopicsEnabled: (chatId, enabled) =>
     req(`/api/chats/${chatId}/topics/enabled`, { method: "POST", body: JSON.stringify({ enabled }) }),
