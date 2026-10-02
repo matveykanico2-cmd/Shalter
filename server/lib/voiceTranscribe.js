@@ -6,7 +6,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
-const ffmpegPath = require("ffmpeg-static");
+const { ffmpegPath } = require("./ffmpegBinary");
 const ffmpeg = require("fluent-ffmpeg");
 const { VOICE_STT_ENABLED, VOICE_STT_URL, VOICE_STT_MODEL, VOICE_STT_KEY } = require("../config");
 

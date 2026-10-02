@@ -2,7 +2,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
-const ffmpegPath = require("ffmpeg-static");
+const { ffmpegPath } = require("./ffmpegBinary");
 const ffmpeg = require("fluent-ffmpeg");
 const sharp = require("sharp");
 
