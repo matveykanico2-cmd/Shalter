@@ -7,6 +7,7 @@ const topics = require("../data/topics");
 const { can, isStaff, DENIED } = require("../lib/chatPermissions");
 const { logAdminAction } = require("../data/adminLog");
 const { broadcastToUsers } = require("../ws");
+const { serviceLine } = require("../lib/systemChat");
 
 const router = express.Router({ mergeParams: true });
 
@@ -57,6 +58,7 @@ router.post(
     const enabled = !!req.body?.enabled;
     const updated = await updateChat(chat.id, { topicsEnabled: enabled });
     logAdminAction(chat.id, req.uid, enabled ? "topics_on" : "topics_off");
+    if (enabled !== !!chat.topicsEnabled) await serviceLine(updated, req.uid, (name) => `${name} ${enabled ? "включил(а)" : "выключил(а)"} темы в группе`);
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     notify(updated);
     res.json({ chat: updated, enabled, topics: enabled ? topics.listTopics(chat.id) : [] });
@@ -77,6 +79,7 @@ router.post(
     }
     const topic = topics.createTopic(chat.id, { title, icon: cleanIcon(req.body?.icon), color: req.body?.color }, req.uid);
     logAdminAction(chat.id, req.uid, "topic_create", { details: { title } });
+    await serviceLine(chat, req.uid, (name) => `${name} создал(а) тему «${title}»`);
     notify(chat);
     res.json({ topic });
   })
@@ -104,6 +107,10 @@ router.patch(
     if (req.body?.color !== undefined) patch.color = req.body.color;
     if (req.body?.closed !== undefined) patch.closed = !!req.body.closed;
     const updated = topics.updateTopic(topic.id, patch);
+    if (patch.closed !== undefined && patch.closed !== topic.closed) {
+      await serviceLine(chat, req.uid, (name) => `${name} ${patch.closed ? "закрыл(а)" : "открыл(а)"} тему «${updated.title}»`);
+    }
+    if (patch.title && patch.title !== topic.title) await serviceLine(chat, req.uid, (name) => `${name} переименовал(а) тему «${topic.title}» в «${updated.title}»`);
     if (patch.closed !== undefined) logAdminAction(chat.id, req.uid, patch.closed ? "topic_close" : "topic_open", { details: { title: updated.title } });
     else logAdminAction(chat.id, req.uid, "topic_edit", { details: { title: updated.title } });
     notify(chat);
@@ -121,6 +128,7 @@ router.delete(
     if (!isAdmin(chat, req.uid)) return res.status(403).json({ error: "Удалять темы может только администратор" });
     const removedIds = topics.deleteTopic(topic.id);
     logAdminAction(chat.id, req.uid, "topic_delete", { details: { title: topic.title } });
+    await serviceLine(chat, req.uid, (name) => `${name} удалил(а) тему «${topic.title}»`);
     for (const id of removedIds) broadcastToUsers(chat.memberIds, { type: "message:deleted", chatId: chat.id, id });
     notify(chat);
     res.json({ ok: true });

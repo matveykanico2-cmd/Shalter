@@ -32,4 +32,19 @@ async function sendMessageAndBroadcast(chat, senderId, text, extra = {}) {
   return message;
 }
 
-module.exports = { findOrCreateDm, sendMessageAndBroadcast };
+// Служебная строка в ленте («Иван закрепил(а) …»). build(name) возвращает текст
+// или null, если объявлять нечего. Ошибка не роняет основное действие.
+async function serviceLine(chat, actorId, build) {
+  try {
+    const { getUser } = require("../data/users");
+    const { SYSTEM_BOT_ID } = require("../data/systemBot");
+    const actor = actorId ? await getUser(actorId) : null;
+    const text = build(actor?.name ?? "Кто-то");
+    if (text) return await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, text, { type: "system" });
+  } catch (err) {
+    console.error("service line failed:", err);
+  }
+  return null;
+}
+
+module.exports = { findOrCreateDm, sendMessageAndBroadcast, serviceLine };

@@ -187,6 +187,37 @@ async function invitableIds(ids, actorId) {
   return out;
 }
 
+function durationLabel(sec) {
+  if (sec % 86400 === 0) {
+    const d = sec / 86400;
+    return d === 7 ? "1 неделя" : d === 30 || d === 31 ? "1 месяц" : `${d} дн.`;
+  }
+  if (sec % 3600 === 0) return `${sec / 3600} ч`;
+  if (sec % 60 === 0) return `${sec / 60} мин`;
+  return `${sec} с`;
+}
+
+// Служебные строки в ленте группы о смене ролей, как в Telegram. kick/ban/add
+// и передача владения объявляются в своих ветках отдельно.
+const ROLE_NOTES = {
+  promote: (a, t) => `${a} назначил(а) ${t} администратором`,
+  demote: (a, t, self) => (self ? `${a} больше не администратор` : `${a} снял(а) ${t} с должности администратора`),
+  mod: (a, t) => `${a} назначил(а) ${t} модератором`,
+  unmod: (a, t) => `${a} снял(а) ${t} с должности модератора`,
+  owner: (a, t) => `${a} сделал(а) ${t} совладельцем группы`,
+  unowner: (a, t) => `${a} снял(а) с ${t} права владельца`,
+  unban: (a, t) => `${a} разблокировал(а) ${t}`,
+};
+
+function announceRole(chat, actorId, targetId, role) {
+  const build = ROLE_NOTES[role];
+  if (!build || chat.type !== "group") return;
+  (async () => {
+    const target = targetId ? await getUser(targetId) : null;
+    await serviceNote(chat, actorId, (name) => build(name, target?.name ?? "участника", actorId === targetId));
+  })().catch((err) => console.error("role note failed:", err));
+}
+
 async function serviceNote(chat, actorId, build) {
   const actor = actorId ? await getUser(actorId) : null;
   const name = actor?.name ?? "Кто-то";
@@ -344,6 +375,16 @@ router.patch(
       if (typeof patch.title === "string" && patch.title.trim() && patch.title.trim() !== chat.title) {
         await serviceNote(updated, req.uid, (name) =>
           chat.type === "channel" ? `Название канала изменено на «${updated.title}»` : `${name} изменил(а) название группы на «${updated.title}»`
+        );
+      }
+      if ("description" in patch && (patch.description ?? null) !== (chat.description ?? null)) {
+        await serviceNote(updated, req.uid, (name) =>
+          chat.type === "channel" ? null : patch.description ? `${name} изменил(а) описание группы` : `${name} удалил(а) описание группы`
+        );
+      }
+      if ("autoDeleteSeconds" in patch && (patch.autoDeleteSeconds ?? null) !== (chat.autoDeleteSeconds ?? null)) {
+        await serviceNote(updated, req.uid, (name) =>
+          patch.autoDeleteSeconds ? `${name} включил(а) автоудаление сообщений: ${durationLabel(patch.autoDeleteSeconds)}` : `${name} выключил(а) автоудаление сообщений`
         );
       }
       if ("avatarImage" in patch && patch.avatarImage !== chat.avatarImage) {
@@ -537,6 +578,7 @@ router.post(
     if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
     const updated = await updateChat(chat.id, { permissions: sanitizePermissions(req.body?.permissions) });
     logAdminAction(chat.id, req.uid, "permissions");
+    await serviceNote(updated, req.uid, (name) => `${name} изменил(а) права участников`);
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     res.json({ chat: updated, permissions: permissionsOf(updated) });
   })
@@ -647,6 +689,9 @@ router.post(
     const seconds = Math.max(0, Math.min(3600, Math.trunc(Number(req.body?.seconds) || 0)));
     const updated = await updateChat(chat.id, { slowModeSeconds: seconds || null });
     logAdminAction(chat.id, req.uid, "slow_mode", { details: { seconds } });
+    if ((chat.slowModeSeconds ?? 0) !== seconds) {
+      await serviceNote(updated, req.uid, (name) => (seconds ? `${name} включил(а) медленный режим: ${durationLabel(seconds)}` : `${name} выключил(а) медленный режим`));
+    }
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     res.json({ chat: updated, slowModeSeconds: updated.slowModeSeconds ?? 0 });
   })
@@ -897,7 +942,10 @@ router.post(
     }
 
     const { userId, role } = req.body ?? {};
-    const log = () => logAdminAction(chat.id, req.uid, `member_${role}`, { targetId: userId });
+    const log = () => {
+      logAdminAction(chat.id, req.uid, `member_${role}`, { targetId: userId });
+      announceRole(chat, req.uid, userId, role);
+    };
     if (!isOwnerOrAdmin && !["add", "kick", "ban", "unban"].includes(role)) {
       return res.status(403).json({ error: "Модератор может только добавлять и удалять участников" });
     }
@@ -1100,6 +1148,17 @@ router.post(
 
     const updated = await updateChat(req.params.id, { restrictions });
     logAdminAction(chat.id, req.uid, until ? "member_restrict" : "member_unrestrict", { targetId: userId, details: until ? { until } : null });
+    if (chat.type === "group") {
+      const target = await getUser(userId);
+      const who = target?.name ?? "участнику";
+      await serviceNote(updated, req.uid, (name) =>
+        !until
+          ? `${name} снова разрешил(а) писать ${who}`
+          : until === "forever"
+            ? `${name} запретил(а) писать ${who}`
+            : `${name} запретил(а) писать ${who} до ${new Date(until).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} (МСК)`
+      );
+    }
     res.json({ chat: updated });
   })
 );
@@ -1166,6 +1225,9 @@ router.post(
     const text = String(req.body?.text ?? "").trim().slice(0, 1000);
     const updated = await updateChat(chat.id, { welcomeText: text || null });
     logAdminAction(chat.id, req.uid, "welcome", { details: { value: text || null } });
+    if ((chat.welcomeText ?? "") !== text) {
+      await serviceNote(updated, req.uid, (name) => (text ? `${name} изменил(а) приветствие для новых участников` : `${name} выключил(а) приветствие`));
+    }
     broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     res.json({ chat: updated, welcomeText: updated.welcomeText ?? "" });
   })
@@ -1224,3 +1286,4 @@ router.use("/:id/messages", messagesRouter);
 router.use("/:id/topics", require("./topics"));
 
 module.exports = router;
+module.exports.serviceNote = serviceNote;

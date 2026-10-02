@@ -38,6 +38,7 @@ const { generateVideoPreview, generateImagePreview } = require("../lib/mediaPrev
 const { fetchUploadToTemp, storeGeneratedFile } = require("../lib/uploadTransfer");
 const { hasAdminSection } = require("../lib/adminAccess");
 const { getTopic } = require("../data/topics");
+const { serviceLine } = require("../lib/systemChat");
 
 const router = express.Router({ mergeParams: true });
 
@@ -701,9 +702,16 @@ router.post(
       return res.status(403).json({ error: "Закреплять сообщения могут владельцы, админы и модераторы" });
     }
     const { pinned } = req.body ?? {};
+    const wasPinned = !!found.message.pinned;
     const message = await togglePin(req.params.messageId, pinned);
     broadcastToOtherMembers(chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
     res.json({ message });
+    // «Иван закрепил(а) „…“» — как в Telegram; только в группах и только при закреплении.
+    if (chat.type === "group" && message?.pinned && !wasPinned) {
+      const snippet = (message.text ?? "").replace(/\s+/g, " ").trim();
+      const what = snippet ? `«${snippet.length > 40 ? `${snippet.slice(0, 40)}…` : snippet}»` : "сообщение";
+      serviceLine(chat, req.uid, (name) => `${name} закрепил(а) ${what}`);
+    }
   })
 );
 
