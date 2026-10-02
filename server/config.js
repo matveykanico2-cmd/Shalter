@@ -47,15 +47,20 @@ const OLLAMA_URL = (process.env.OLLAMA_URL || "").replace(/\/+$/, "");
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2";
 
 // Server-side voice message transcription (fallback when the browser couldn't).
-// Sends the recording's audio to this endpoint; VOICE_STT=off disables it.
-const VOICE_STT_ENABLED = !/^(0|off|false|no)$/i.test(process.env.VOICE_STT || "");
-const VOICE_STT_URL = process.env.VOICE_STT_URL || HUGO_AI_URL;
-const VOICE_STT_MODEL = process.env.VOICE_STT_MODEL || "openai-audio";
+// Sends the recording's audio to an OpenAI-compatible endpoint that accepts
+// `input_audio`. Pollinations' audio models need a key (enter.pollinations.ai/keys),
+// so this stays off until VOICE_STT_KEY (or a keyless VOICE_STT_URL) is set.
+const VOICE_STT_KEY = process.env.VOICE_STT_KEY || "";
+const VOICE_STT_URL = process.env.VOICE_STT_URL || "https://gen.pollinations.ai/v1/chat/completions";
+const VOICE_STT_MODEL = process.env.VOICE_STT_MODEL || "google/gemini-2.5-flash-lite";
+const VOICE_STT_ENABLED =
+  !/^(0|off|false|no)$/i.test(process.env.VOICE_STT || "") && !!(VOICE_STT_KEY || process.env.VOICE_STT_URL);
 
 module.exports = {
   VOICE_STT_ENABLED,
   VOICE_STT_URL,
   VOICE_STT_MODEL,
+  VOICE_STT_KEY,
   LANGUAGETOOL_URL,
   HUGO_AI_ENABLED,
   HUGO_AI_URL,

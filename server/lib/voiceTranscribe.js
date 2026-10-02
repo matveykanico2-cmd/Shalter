@@ -8,7 +8,7 @@ const path = require("path");
 const crypto = require("crypto");
 const ffmpegPath = require("ffmpeg-static");
 const ffmpeg = require("fluent-ffmpeg");
-const { VOICE_STT_ENABLED, VOICE_STT_URL, VOICE_STT_MODEL } = require("../config");
+const { VOICE_STT_ENABLED, VOICE_STT_URL, VOICE_STT_MODEL, VOICE_STT_KEY } = require("../config");
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -45,12 +45,10 @@ async function transcribeFile(inputPath) {
     const data = (await fs.promises.readFile(mp3)).toString("base64");
     const res = await fetch(VOICE_STT_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(VOICE_STT_KEY ? { Authorization: `Bearer ${VOICE_STT_KEY}` } : {}) },
       signal: AbortSignal.timeout(TIMEOUT_MS),
       body: JSON.stringify({
         model: VOICE_STT_MODEL,
-        private: true,
-        referrer: "shalter",
         messages: [
           {
             role: "user",
@@ -65,7 +63,7 @@ async function transcribeFile(inputPath) {
         ],
       }),
     });
-    if (!res.ok) throw new Error(`STT HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`STT HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const json = await res.json();
     const text = String(json?.choices?.[0]?.message?.content ?? "").trim();
     return /^["'«»]*$/.test(text) ? "" : text.slice(0, 4000);
