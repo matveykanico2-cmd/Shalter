@@ -388,6 +388,10 @@ router.post(
       return res.status(404).json({ error: "not found" });
     }
 
+    if (chat.type === "channel" && !isStaff(chat, req.uid)) {
+      return res.status(403).json({ error: "Публиковать в канале могут только администраторы" });
+    }
+
     const restrictedUntil = chat.restrictions?.[req.uid];
     if (restrictedUntil && (restrictedUntil === "forever" || restrictedUntil > new Date().toISOString())) {
       return res.status(403).json({ error: "Вам запрещено писать в этом чате" });

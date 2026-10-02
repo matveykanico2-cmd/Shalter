@@ -112,6 +112,8 @@ router.post(
     if (since < BROADCAST_COOLDOWN_MS) {
       return res.status(429).json({ error: `Следующую рассылку можно отправить через ${Math.ceil((BROADCAST_COOLDOWN_MS - since) / 1000)} с` });
     }
+    // Expired entries are useless, so prune them here to keep the map from growing forever.
+    for (const [id, at] of lastBroadcastAt) if (Date.now() - at >= BROADCAST_COOLDOWN_MS) lastBroadcastAt.delete(id);
     lastBroadcastAt.set(bot.id, Date.now());
 
     const botUser = await getUser(bot.userId);

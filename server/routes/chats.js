@@ -5,7 +5,7 @@ const { requireUserId } = require("../middleware/auth");
 const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findDmBetween, findChatByInviteCode, findChatByUsername, findChannelByDiscussionChatId } = require("../data/chats");
 const { checkUsername, normalizeUsername } = require("../lib/username");
 const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeatures");
-const { PERMISSIONS, permissionsOf, sanitizePermissions } = require("../lib/chatPermissions");
+const { PERMISSIONS, permissionsOf, sanitizePermissions, can } = require("../lib/chatPermissions");
 const { deleteMessagesForChat, markChatRead } = require("../data/messages");
 const { getSettings, updateSettings, mutedStateFor, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft } = require("../data/settings");
 const { allowsUser } = require("../lib/privacyRules");
@@ -64,6 +64,7 @@ router.post(
     const { userId, title, avatarColor } = req.body ?? {};
 
     const self = userId === req.uid;
+    if (!self && !(await getUser(userId))) return res.status(404).json({ error: "Пользователь не найден" });
     const existing = await findDmBetween(req.uid, self ? req.uid : userId);
     if (existing) return res.json({ chat: existing });
 
@@ -102,7 +103,7 @@ router.post(
     const identity = await resolveNewChatIdentity(req.body ?? {});
     if (identity.error) return res.status(identity.error.status).json({ error: identity.error.error });
     const now = new Date().toISOString();
-    const members = new Set([req.uid, ...(Array.isArray(memberIds) ? memberIds : [])]);
+    const members = new Set([req.uid, ...(await invitableIds(memberIds, req.uid))]);
     const admins = new Set([req.uid, ...(Array.isArray(adminIds) ? adminIds.filter((id) => members.has(id)) : [])]);
     const discussion = await createChat({
       id: `c_${Date.now()}_d`,
@@ -148,7 +149,7 @@ router.post(
     if (!title?.trim()) return res.status(400).json({ error: "Введите название группы" });
     const identity = await resolveNewChatIdentity(req.body ?? {});
     if (identity.error) return res.status(identity.error.status).json({ error: identity.error.error });
-    const members = new Set([req.uid, ...(Array.isArray(memberIds) ? memberIds : [])]);
+    const members = new Set([req.uid, ...(await invitableIds(memberIds, req.uid))]);
     const admins = new Set([req.uid, ...(Array.isArray(adminIds) ? adminIds.filter((id) => members.has(id)) : [])]);
     const chat = await createChat({
       id: genId("c"),
@@ -171,6 +172,18 @@ router.post(
     res.json({ chat });
   })
 );
+
+// Creating a chat with people in it is the same act as adding them, so it honours
+// the same "who can add me to chats" privacy setting the add-member route checks.
+async function invitableIds(ids, actorId) {
+  if (!Array.isArray(ids)) return [];
+  const out = [];
+  for (const id of new Set(ids)) {
+    if (typeof id !== "string" || id === actorId || !(await getUser(id))) continue;
+    if (await allowsUser(id, "invites", actorId)) out.push(id);
+  }
+  return out;
+}
 
 async function serviceNote(chat, actorId, build) {
   const actor = actorId ? await getUser(actorId) : null;
@@ -666,6 +679,9 @@ router.post(
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
     const forEveryone = !!(req.body ?? {}).forEveryone;
+    if (forEveryone && chat.type !== "dm" && !isOwnerOrAdminOf(chat, req.uid)) {
+      return res.status(403).json({ error: "Очистить историю у всех могут только владельцы и админы" });
+    }
     if (forEveryone) {
       await deleteMessagesForChat(req.params.id);
     } else {
@@ -681,6 +697,9 @@ router.post(
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
     const { wallpaper, forEveryone, label } = req.body ?? {};
+    if (forEveryone && chat.type !== "dm" && !isOwnerOrAdminOf(chat, req.uid)) {
+      return res.status(403).json({ error: "Менять фон для всех могут только владельцы и админы" });
+    }
     if (forEveryone) {
       const updated = await updateChat(chat.id, { wallpaper: wallpaper ?? null });
       broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
@@ -740,7 +759,9 @@ router.post(
     const memberIds = chat.memberIds.filter((m) => m !== req.uid);
     const adminIds = chat.adminIds?.filter((m) => m !== req.uid);
     const moderatorIds = chat.moderatorIds?.filter((m) => m !== req.uid);
-    let ownerIds = (chat.ownerIds ?? []).filter((m) => m !== req.uid);
+    // Chats created before ownerIds existed only carry ownerId; it must count here, or
+    // any ordinary member leaving would hand ownership to whoever is listed first.
+    let ownerIds = [...new Set([chat.ownerId, ...(chat.ownerIds ?? [])])].filter((m) => m && m !== req.uid);
 
     if (memberIds.length === 0) {
       await deleteMessagesForChat(req.params.id);
@@ -757,6 +778,7 @@ router.post(
       ownerIds,
       ownerId: chat.ownerId === req.uid ? ownerIds[0] : chat.ownerId,
     });
+    broadcastToUsers(memberIds, { type: "chat:updated", chat: afterLeave });
     if (chat.type === "group") await serviceNote(afterLeave, req.uid, (name) => `${name} покинул(а) группу`);
     res.json({ ok: true, deleted: false });
   })
@@ -769,7 +791,8 @@ router.post(
     if (!chat) return;
     const isOwnerOrAdmin = isOwnerOrAdminOf(chat, req.uid);
     const isModerator = chat.moderatorIds?.includes(req.uid);
-    if (!isOwnerOrAdmin && !isModerator) {
+    const memberMayAdd = req.body?.role === "add" && chat.type === "group" && can(chat, req.uid, "addMembers");
+    if (!isOwnerOrAdmin && !isModerator && !memberMayAdd) {
       return res.status(403).json({ error: "Недостаточно прав" });
     }
 
@@ -839,6 +862,10 @@ router.post(
     }
 
     if (role === "kick") {
+      if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "Пользователь не в чате" });
+      if ((chat.adminIds ?? []).includes(userId) && !isOwner(chat, req.uid)) {
+        return res.status(403).json({ error: "Удалить администратора может только владелец" });
+      }
       const kicked = await getUser(userId);
       const updated = await updateChat(req.params.id, {
         memberIds: chat.memberIds.filter((m) => m !== userId),
@@ -846,6 +873,8 @@ router.post(
         moderatorIds: chat.moderatorIds?.filter((m) => m !== userId),
         ownerIds: chat.ownerIds?.filter((m) => m !== userId),
       });
+      broadcastToUsers([userId], { type: "chat:deleted", chatId: chat.id });
+      broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
       if (chat.type === "group" && kicked) {
         const actor = await getUser(req.uid);
         await sendMessageAndBroadcast(updated, SYSTEM_BOT_ID, `${actor?.name ?? "Кто-то"} удалил(а) из группы ${kicked.name}`, {
@@ -855,15 +884,21 @@ router.post(
       return res.json({ chat: updated });
     }
     if (role === "promote") {
+      if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "Пользователь не в чате" });
       const admins = new Set(chat.adminIds ?? []);
       admins.add(userId);
       const updated = await updateChat(req.params.id, { adminIds: [...admins] });
+      broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
       return res.json({ chat: updated });
     }
     if (role === "demote") {
+      if (userId !== req.uid && !isOwner(chat, req.uid)) {
+        return res.status(403).json({ error: "Снять другого администратора может только владелец" });
+      }
       const updated = await updateChat(req.params.id, {
         adminIds: (chat.adminIds ?? []).filter((m) => m !== userId),
       });
+      broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
       return res.json({ chat: updated });
     }
     res.status(400).json({ error: "unknown role" });
