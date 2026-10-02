@@ -1230,8 +1230,15 @@ export async function ChatView(root, chatId) {
     updateScrollDown();
     updateFloatingDate();
   });
+  // Capture-phase listeners fire before the media element's own load handlers, which
+  // may still resize the bubble (e.g. VideoAttachment's aspect ratio) — scroll again
+  // on the next frame so the newest message isn't pushed out of view.
   const keepAtBottom = () => {
-    if (stuckToBottom) list.scrollTop = list.scrollHeight;
+    if (!stuckToBottom) return;
+    list.scrollTop = list.scrollHeight;
+    requestAnimationFrame(() => {
+      if (stuckToBottom) list.scrollTop = list.scrollHeight;
+    });
   };
   list.addEventListener("load", keepAtBottom, true);
   list.addEventListener("loadedmetadata", keepAtBottom, true);

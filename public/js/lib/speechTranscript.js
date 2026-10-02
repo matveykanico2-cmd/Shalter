@@ -4,13 +4,13 @@ export function isTranscriptSupported() {
   return !!Recognition;
 }
 
-// The UI is Russian, so default to Russian speech unless the browser explicitly
-// prefers another language the user listed alongside it. navigator.language alone
-// is often "en-US" on a Russian speaker's machine, which makes recognition return
-// nothing (or English gibberish) for Russian speech.
+// Prefer Russian if the user lists it at all: navigator.language alone is often
+// "en-US" on a Russian speaker's machine, which makes recognition return nothing
+// for Russian speech. Otherwise honor a non-English primary language (uk, de, ...),
+// and fall back to Russian (the UI language) for English-only browsers.
 function pickLang() {
   const langs = (navigator.languages?.length ? navigator.languages : [navigator.language]).filter(Boolean);
-  return langs.find((l) => /^ru\b/i.test(l)) || "ru-RU";
+  return langs.find((l) => /^ru\b/i.test(l)) || langs.find((l) => !/^en\b/i.test(l)) || "ru-RU";
 }
 
 // Errors after which restarting can't help (no permission, no mic, no speech

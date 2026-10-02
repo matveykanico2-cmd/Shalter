@@ -136,6 +136,14 @@ const { balanceOf, spendStars } = require("../data/stars");
 const PLACEMENTS = { chats: "Верх списка чатов", chat: "Внутри чата (сверху)", discover: "Каталог каналов", profile: "Своя страница профиля" };
 const MAX_TEXT = 200;
 
+// Body may carry `placements: [...]` (several places) or legacy `placement: "id"`.
+// Returns the valid ids, or null when the body names none.
+function pickPlacements(body) {
+  const raw = Array.isArray(body?.placements) ? body.placements : body?.placement != null ? [body.placement] : [];
+  const valid = raw.filter((p) => PLACEMENTS[p]);
+  return valid.length ? valid : null;
+}
+
 function publicCampaign(c) {
   return { id: c.id, title: c.title, text: c.text, url: c.url, imageUrl: c.imageUrl };
 }
@@ -166,7 +174,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const text = String(req.body?.text ?? "").trim().slice(0, MAX_TEXT);
     if (!text) return res.status(400).json({ error: "Напишите текст объявления" });
-    const placement = PLACEMENTS[req.body?.placement] ? req.body.placement : "discover";
+    const placement = pickPlacements(req.body) ?? ["discover"];
     const created = campaigns.create({
       ownerId: req.uid,
       title: String(req.body?.title ?? "").trim().slice(0, 60),
@@ -191,7 +199,8 @@ router.patch(
     if (typeof req.body?.text === "string") patch.text = req.body.text.trim().slice(0, MAX_TEXT);
     if (typeof req.body?.url === "string") patch.url = req.body.url.trim().slice(0, 300) || null;
     if (typeof req.body?.imageUrl === "string") patch.imageUrl = req.body.imageUrl.trim() || null;
-    if (PLACEMENTS[req.body?.placement]) patch.placement = req.body.placement;
+    const placements = pickPlacements(req.body);
+    if (placements) patch.placement = placements;
     if (Number.isFinite(Number(req.body?.cpmStars))) patch.cpmStars = Math.max(campaigns.CPM_MIN, Number(req.body.cpmStars));
     const touchesCreative = "text" in patch || "url" in patch || "imageUrl" in patch;
     if (touchesCreative && c.status !== "review") {

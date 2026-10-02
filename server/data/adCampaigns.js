@@ -11,7 +11,10 @@ function rowToCampaign(row) {
     text: row.text,
     url: row.url ?? null,
     imageUrl: row.imageUrl ?? null,
+    // Stored comma-separated so one campaign can run in several places at once;
+    // older rows hold a single id, which splits to a one-item list.
     placement: row.placement,
+    placements: String(row.placement || "discover").split(",").filter(Boolean),
     status: row.status,
     rejectReason: row.rejectReason ?? null,
     budgetStars: row.budgetStars,
@@ -41,12 +44,18 @@ function pickForPlacement(placement, excludeOwnerId) {
   const rows = db
     .prepare(
       `SELECT * FROM ad_campaigns
-        WHERE status = 'active' AND placement = ? AND budgetStars > spentStars
+        WHERE status = 'active' AND (',' || placement || ',') LIKE ('%,' || ? || ',%') AND budgetStars > spentStars
           AND (? IS NULL OR ownerId <> ?)
         ORDER BY RANDOM() LIMIT 1`
     )
     .get(placement, excludeOwnerId ?? null, excludeOwnerId ?? null);
   return rowToCampaign(rows);
+}
+
+// Accepts an array or a single id; returns the comma-joined column value.
+function joinPlacements(p) {
+  const list = [...new Set((Array.isArray(p) ? p : [p]).filter(Boolean).map(String))];
+  return list.length ? list.join(",") : "discover";
 }
 
 function create({ ownerId, title, text, url, imageUrl, placement, cpmStars, status = "review" }) {
@@ -62,7 +71,7 @@ function create({ ownerId, title, text, url, imageUrl, placement, cpmStars, stat
     text: text || "",
     url: url || null,
     imageUrl: imageUrl || null,
-    placement: placement || "discover",
+    placement: joinPlacements(placement),
     cpmStars: Math.max(CPM_MIN, Number(cpmStars) || 20),
     createdAt: new Date().toISOString(),
   });
@@ -71,6 +80,7 @@ function create({ ownerId, title, text, url, imageUrl, placement, cpmStars, stat
 
 function update(id, patch) {
   const allowed = ["title", "text", "url", "imageUrl", "placement", "status", "rejectReason", "budgetStars", "cpmStars"];
+  if ("placement" in patch) patch = { ...patch, placement: joinPlacements(patch.placement) };
   const fields = Object.keys(patch).filter((k) => allowed.includes(k));
   if (!fields.length) return get(id);
   const set = fields.map((f) => `${f} = @${f}`).join(", ");

@@ -125,7 +125,7 @@ export function AdReviewQueue(root) {
       el(
         "p",
         { class: "settings-toggle-hint" },
-        `Место показа: ${placements[c.placement] ?? c.placement} · ⭐ ${fmt(c.cpmStars)} за 1000 показов · бюджет ⭐ ${fmt(c.budgetStars)}`
+        `Места показа: ${(c.placements ?? [c.placement]).map((p) => placements[p] ?? p).join(", ")} · ⭐ ${fmt(c.cpmStars)} за 1000 показов · бюджет ⭐ ${fmt(c.budgetStars)}`
       ),
       c.rejectReason ? el("p", { class: "settings-toggle-hint" }, `Прошлый отказ: ${c.rejectReason}`) : null,
 

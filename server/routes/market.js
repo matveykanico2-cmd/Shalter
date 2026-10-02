@@ -287,7 +287,12 @@ router.post(
       text,
       url: `/market/shop/${shop.id}`,
       imageUrl: product?.imageUrl ?? shop.imageUrl ?? null,
-      placement: req.body?.placement === "chats" || req.body?.placement === "profile" ? req.body.placement : "discover",
+      placement: (() => {
+        const allowed = ["chats", "profile", "discover"];
+        const raw = Array.isArray(req.body?.placements) ? req.body.placements : [req.body?.placement];
+        const valid = raw.filter((p) => allowed.includes(p));
+        return valid.length ? valid : ["discover"];
+      })(),
       cpmStars: Number(req.body?.cpmStars) || 20,
     });
     await notifyAdminOfReview(campaign, req.uid);

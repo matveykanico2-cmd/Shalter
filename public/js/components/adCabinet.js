@@ -53,14 +53,14 @@ export function AdCabinet(root) {
     url: el("input", { class: "settings-input mono", placeholder: "Ссылка: https://…" }),
     cpm: el("input", { class: "settings-input mono", type: "number", min: 5, value: "20" }),
   };
-  let placement = "discover";
+  let placements = ["discover"];
 
   function fillForm(c) {
     fields.title.value = c?.title ?? "";
     fields.text.value = c?.text ?? "";
     fields.url.value = c?.url ?? "";
     fields.cpm.value = String(c?.cpmStars ?? 20);
-    placement = c?.placement ?? "discover";
+    placements = c?.placements?.length ? [...c.placements] : ["discover"];
   }
 
   function form(c) {
@@ -72,7 +72,7 @@ export function AdCabinet(root) {
       fields.text,
       el("p", { class: "settings-field-label" }, "Ссылка"),
       fields.url,
-      el("p", { class: "settings-field-label" }, "Где показывать"),
+      el("p", { class: "settings-field-label" }, "Где показывать — можно выбрать несколько"),
       el(
         "div",
         { class: "ad-placements" },
@@ -80,9 +80,11 @@ export function AdCabinet(root) {
           el(
             "button",
             {
-              class: `ad-placement ${placement === id ? "active" : ""}`,
+              class: `ad-placement ${placements.includes(id) ? "active" : ""}`,
               onclick: () => {
-                placement = id;
+                // Toggle, but always keep at least one place selected.
+                if (!placements.includes(id)) placements = [...placements, id];
+                else if (placements.length > 1) placements = placements.filter((p) => p !== id);
                 render();
               },
             },
@@ -109,7 +111,7 @@ export function AdCabinet(root) {
                   title: fields.title.value,
                   text: fields.text.value,
                   url: fields.url.value,
-                  placement,
+                  placements,
                   cpmStars: Number(fields.cpm.value),
                 };
                 if (isNew) await api.createAdCampaign(payload);
@@ -148,7 +150,7 @@ export function AdCabinet(root) {
       el("div", { class: "ad-card-head" }, [
         el("div", { class: "ad-card-titles" }, [
           el("p", { class: "ad-card-title" }, c.title || "Без названия"),
-          el("p", { class: "ad-card-place" }, data.placements[c.placement] ?? c.placement),
+          el("p", { class: "ad-card-place" }, (c.placements ?? [c.placement]).map((p) => data.placements[p] ?? p).join(" · ")),
         ]),
         el("span", { class: `ad-status ${st.tone}` }, st.label),
       ]),
