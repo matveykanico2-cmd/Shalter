@@ -312,8 +312,12 @@ async function boot() {
 
     try {
       const { chat } = await api.findChatByUsername(username);
-      if (chat.isMember) navigate(`/chat/${chat.id}`, { replace: true });
-      else navigate(`/discover-channels?q=${encodeURIComponent(chat.username || chat.title)}`, { replace: true });
+      if (chat.isMember) {
+        navigate(`/chat/${chat.id}`, { replace: true });
+        return;
+      }
+      const { JoinPublicView } = await import("./views/joinInvite.js");
+      await JoinPublicView(mainSlot, chat);
       return;
     } catch (err) {
       mount(

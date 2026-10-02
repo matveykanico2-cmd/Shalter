@@ -36,6 +36,7 @@ function rowToChat(row) {
     allowedReactions: row.allowedReactions ? JSON.parse(row.allowedReactions) : null,
     restrictions: row.restrictions ? JSON.parse(row.restrictions) : {},
     warnings: row.warnings ? JSON.parse(row.warnings) : {},
+    bannedIds: row.bannedIds ? JSON.parse(row.bannedIds) : [],
     rules: row.rules ?? undefined,
     points: row.points ?? 0,
     votes: row.votes ? JSON.parse(row.votes) : {},
@@ -200,6 +201,9 @@ async function updateChat(id, patch) {
   }
   if ("warnings" in patch) {
     db.prepare("UPDATE chats SET warnings = ? WHERE id = ?").run(JSON.stringify(patch.warnings ?? {}), id);
+  }
+  if ("bannedIds" in patch) {
+    db.prepare("UPDATE chats SET bannedIds = ? WHERE id = ?").run(JSON.stringify(patch.bannedIds ?? []), id);
   }
   if ("wallpaper" in patch) {
     db.prepare("UPDATE chats SET wallpaper = ? WHERE id = ?").run(

@@ -343,8 +343,56 @@ router.get(
         isVerified: !!chat.isVerified,
         subscribers: chat.memberIds.length,
         isMember: chat.memberIds.includes(req.uid),
+        banned: (chat.bannedIds ?? []).includes(req.uid),
+        approveJoins: !!chat.approveJoins,
+        requestPending: joinRequests.hasRequest(chat.id, req.uid),
       },
     });
+  })
+);
+
+// Join a public group or channel straight from its @username.
+router.post(
+  "/:id/join",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.isPublic || (chat.type !== "group" && chat.type !== "channel")) {
+      return res.status(404).json({ error: "Чат не найден" });
+    }
+    if (chat.memberIds.includes(req.uid)) return res.json({ chat });
+    if ((chat.bannedIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Вас заблокировали в этом чате" });
+
+    if (chat.approveJoins) {
+      joinRequests.addRequest(chat.id, req.uid);
+      const who = await getUser(req.uid);
+      broadcastToUsers(
+        chat.memberIds.filter((id) => isOwnerOrAdminOf(chat, id)),
+        { type: "chat:join-request", chatId: chat.id, user: publicUser(who) }
+      );
+      return res.json({ pending: true });
+    }
+
+    const updated = await updateChat(chat.id, { memberIds: [...chat.memberIds, req.uid] });
+    broadcastToUsers([req.uid], { type: "chat:added", chat: updated });
+    if (chat.type === "group") {
+      broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+      const joiner = await getUser(req.uid);
+      await sendMessageAndBroadcast(updated, SYSTEM_BOT_ID, `${joiner?.name ?? "Кто-то"} вступил(а) в группу`, { type: "system" });
+    }
+    res.json({ chat: updated });
+  })
+);
+
+router.get(
+  "/:id/banned",
+  asyncRoute(async (req, res) => {
+    const chat = await requireMemberChat(req, res);
+    if (!chat) return;
+    if (!isOwnerOrAdminOf(chat, req.uid) && !chat.moderatorIds?.includes(req.uid)) {
+      return res.status(403).json({ error: "Недостаточно прав" });
+    }
+    const users = await Promise.all((chat.bannedIds ?? []).map(async (id) => publicUser(await getUser(id))));
+    res.json({ users: users.filter(Boolean) });
   })
 );
 
@@ -609,6 +657,7 @@ router.get(
         isVerified: chat.isVerified,
         memberCount: chat.memberIds.length,
         alreadyMember: chat.memberIds.includes(req.uid),
+        banned: (chat.bannedIds ?? []).includes(req.uid),
         approveJoins: !!chat.approveJoins,
         requestPending: joinRequests.hasRequest(chat.id, req.uid),
       },
@@ -622,6 +671,7 @@ router.post(
     const chat = await findChatByInviteCode(req.params.code);
     if (!chat) return res.status(404).json({ error: "Ссылка недействительна или отозвана" });
     if (chat.memberIds.includes(req.uid)) return res.json({ chat });
+    if ((chat.bannedIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Вас заблокировали в этом чате" });
 
     if (chat.approveJoins) {
       joinRequests.addRequest(chat.id, req.uid);
@@ -797,8 +847,13 @@ router.post(
     }
 
     const { userId, role } = req.body ?? {};
-    if (!isOwnerOrAdmin && !["add", "kick"].includes(role)) {
+    if (!isOwnerOrAdmin && !["add", "kick", "ban", "unban"].includes(role)) {
       return res.status(403).json({ error: "Модератор может только добавлять и удалять участников" });
+    }
+
+    if (role === "unban") {
+      const updated = await updateChat(req.params.id, { bannedIds: (chat.bannedIds ?? []).filter((m) => m !== userId) });
+      return res.json({ chat: updated });
     }
 
     if (role === "add") {
@@ -811,8 +866,15 @@ router.post(
       if (!(await allowsUser(userId, "invites", req.uid))) {
         return res.status(403).json({ error: "Пользователь ограничил добавление в чаты" });
       }
+      const wasBanned = (chat.bannedIds ?? []).includes(userId);
+      if (wasBanned && !isOwnerOrAdmin && !isModerator) {
+        return res.status(403).json({ error: "Пользователь заблокирован в этом чате" });
+      }
 
-      const updated = await updateChat(req.params.id, { memberIds: [...chat.memberIds, userId] });
+      const updated = await updateChat(req.params.id, {
+        memberIds: [...chat.memberIds, userId],
+        ...(wasBanned ? { bannedIds: chat.bannedIds.filter((m) => m !== userId) } : {}),
+      });
       broadcastToUsers([userId], { type: "chat:added", chat: updated });
       if (chat.type === "group" || user.isBot) {
         const actor = await getUser(req.uid);
@@ -861,7 +923,7 @@ router.post(
       return res.json({ chat: updated });
     }
 
-    if (role === "kick") {
+    if (role === "kick" || role === "ban") {
       if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "Пользователь не в чате" });
       if ((chat.adminIds ?? []).includes(userId) && !isOwner(chat, req.uid)) {
         return res.status(403).json({ error: "Удалить администратора может только владелец" });
@@ -872,12 +934,14 @@ router.post(
         adminIds: chat.adminIds?.filter((m) => m !== userId),
         moderatorIds: chat.moderatorIds?.filter((m) => m !== userId),
         ownerIds: chat.ownerIds?.filter((m) => m !== userId),
+        ...(role === "ban" ? { bannedIds: [...new Set([...(chat.bannedIds ?? []), userId])] } : {}),
       });
+      joinRequests.removeRequest(chat.id, userId);
       broadcastToUsers([userId], { type: "chat:deleted", chatId: chat.id });
       broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
       if (chat.type === "group" && kicked) {
         const actor = await getUser(req.uid);
-        await sendMessageAndBroadcast(updated, SYSTEM_BOT_ID, `${actor?.name ?? "Кто-то"} удалил(а) из группы ${kicked.name}`, {
+        await sendMessageAndBroadcast(updated, SYSTEM_BOT_ID, `${actor?.name ?? "Кто-то"} ${role === "ban" ? "заблокировал(а)" : "удалил(а) из группы"} ${kicked.name}`, {
           type: "system",
         });
       }

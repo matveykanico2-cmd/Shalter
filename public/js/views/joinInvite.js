@@ -5,13 +5,31 @@ import { VerifiedBadge } from "../components/verifiedBadge.js";
 import { navigate } from "../router.js";
 import { setState } from "../state.js";
 
-export async function JoinInviteView(root, code) {
+export function JoinInviteView(root, code) {
+  return JoinView(root, {
+    load: async () => (await api.inviteInfo(code)).chat,
+    join: () => api.joinByInvite(code),
+    failTitle: "Ссылка не работает",
+  });
+}
+
+// A public group/channel opened by its @username.
+export function JoinPublicView(root, chat) {
+  return JoinView(root, {
+    load: async () => ({ ...chat, memberCount: chat.subscribers, alreadyMember: chat.isMember }),
+    join: () => api.joinPublicChat(chat.id),
+    failTitle: "Не удалось вступить",
+  });
+}
+
+async function JoinView(root, { load, join: doJoin, failTitle }) {
   let info = null;
   let error = null;
   let busy = false;
 
   try {
-    ({ chat: info } = await api.inviteInfo(code));
+    info = await load();
+    if (info.banned) error = "Вас заблокировали в этом чате";
   } catch (err) {
     error = err.message || "Ссылка недействительна";
   }
@@ -21,7 +39,7 @@ export async function JoinInviteView(root, code) {
     busy = true;
     render();
     try {
-      const res = await api.joinByInvite(code);
+      const res = await doJoin();
       if (res.pending) {
         info = { ...info, requestPending: true };
         busy = false;
@@ -42,7 +60,7 @@ export async function JoinInviteView(root, code) {
       mount(
         root,
         el("div", { class: "join-invite" }, [
-          el("h1", {}, "Ссылка не работает"),
+          el("h1", {}, failTitle),
           el("p", { class: "settings-toggle-hint" }, error),
           el("button", { class: "btn-accent", onclick: () => navigate("/") }, "К чатам"),
         ])

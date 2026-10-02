@@ -193,6 +193,8 @@ export const api = {
   searchInChat: (id, q) => req(`/api/chats/${id}/messages/search?q=${encodeURIComponent(q)}`),
   chatInviteLink: (id, revoke = false) => req(`/api/chats/${id}/invite`, { method: "POST", body: JSON.stringify({ revoke }) }),
   inviteInfo: (code) => req(`/api/chats/invite/${encodeURIComponent(code)}`),
+  joinPublicChat: (id) => req(`/api/chats/${id}/join`, { method: "POST" }),
+  listBannedMembers: (id) => req(`/api/chats/${id}/banned`),
   joinByInvite: (code) => req(`/api/chats/invite/${encodeURIComponent(code)}/join`, { method: "POST" }),
   getChatFeatures: (id) => req(`/api/chats/${id}/features`),
   setChannelPublic: (id, isPublic, username) =>

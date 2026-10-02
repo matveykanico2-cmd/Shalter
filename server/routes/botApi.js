@@ -364,9 +364,24 @@ router.post(
       return res.status(400).json({ error: "Cannot remove the owner or an admin" });
     }
     if (!chat.memberIds.includes(userId)) return res.status(404).json({ error: "User is not a member" });
-    const updated = await updateChat(chat.id, { memberIds: chat.memberIds.filter((id) => id !== userId) });
-    broadcastToUsers([...chat.memberIds], { type: "chat:updated", chat: updated });
+    const updated = await updateChat(chat.id, {
+      memberIds: chat.memberIds.filter((id) => id !== userId),
+      bannedIds: [...new Set([...(chat.bannedIds ?? []), userId])],
+    });
+    broadcastToUsers([userId], { type: "chat:deleted", chatId: chat.id });
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     res.json({ ok: true, memberCount: updated.memberIds.length });
+  })
+);
+
+router.post(
+  "/unbanChatMember",
+  asyncRoute(async (req, res) => {
+    const { chatId, userId } = req.body ?? {};
+    const chat = await requireBotAdmin(req, res, chatId);
+    if (!chat) return;
+    await updateChat(chat.id, { bannedIds: (chat.bannedIds ?? []).filter((id) => id !== userId) });
+    res.json({ ok: true });
   })
 );
 

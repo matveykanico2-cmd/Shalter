@@ -707,6 +707,7 @@ if (!existingChatColumns.has("votes")) db.exec("ALTER TABLE chats ADD COLUMN vot
 if (!existingChatColumns.has("autoDeleteSeconds")) db.exec("ALTER TABLE chats ADD COLUMN autoDeleteSeconds INTEGER");
 if (!existingChatColumns.has("warnings")) db.exec("ALTER TABLE chats ADD COLUMN warnings TEXT");
 if (!existingChatColumns.has("rules")) db.exec("ALTER TABLE chats ADD COLUMN rules TEXT");
+if (!existingChatColumns.has("bannedIds")) db.exec("ALTER TABLE chats ADD COLUMN bannedIds TEXT");
 
 const existingCallColumns = new Set(db.prepare("PRAGMA table_info(calls)").all().map((c) => c.name));
 if (!existingCallColumns.has("joinToken")) db.exec("ALTER TABLE calls ADD COLUMN joinToken TEXT");

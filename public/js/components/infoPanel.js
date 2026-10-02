@@ -178,6 +178,16 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
       });
     }
     items.push({ icon: "X", label: "Исключить из чата", danger: true, onClick: () => onMemberAction(member.id, "kick") });
+    items.push({
+      icon: "Lock",
+      label: "Заблокировать",
+      danger: true,
+      onClick: () => {
+        if (confirm(`Заблокировать ${member.name}? Он будет удалён и не сможет вернуться, пока его не разблокируют.`)) {
+          onMemberAction(member.id, "ban");
+        }
+      },
+    });
     openDropdownMenu({ x: e.clientX, y: e.clientY }, items);
   }
 

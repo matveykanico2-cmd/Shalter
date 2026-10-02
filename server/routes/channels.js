@@ -33,6 +33,7 @@ router.post(
     const chat = await getChat(req.params.id);
     if (!chat || chat.type !== "channel" || !chat.isPublic) return res.status(404).json({ error: "not found" });
     if (chat.memberIds.includes(req.uid)) return res.json({ chat });
+    if ((chat.bannedIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Вас заблокировали в этом канале" });
 
     const updated = await updateChat(req.params.id, { memberIds: [...chat.memberIds, req.uid] });
     broadcastToUsers([req.uid], { type: "chat:added", chat: updated });

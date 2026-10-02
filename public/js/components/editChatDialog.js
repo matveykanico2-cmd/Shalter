@@ -18,6 +18,7 @@ export function openEditChatDialog(chat, onSaved) {
   let isPublic = !!chat.isPublic;
   let colors = [];
   let requests = [];
+  let banned = [];
   let permissions = null;
   let permFields = [];
   let inviteLink = chat.inviteCode ? `${window.location.origin}/join/${chat.inviteCode}` : null;
@@ -147,6 +148,30 @@ export function openEditChatDialog(chat, onSaved) {
       render();
     })
     .catch(() => {});
+
+  api
+    .listBannedMembers(chat.id)
+    .then((res) => {
+      banned = res.users ?? [];
+      render();
+    })
+    .catch(() => {});
+
+  async function unban(userId) {
+    busy = true;
+    error = null;
+    render();
+    try {
+      await api.setMemberRole(chat.id, userId, "unban");
+      banned = banned.filter((u) => u.id !== userId);
+      notice = "Пользователь разблокирован";
+    } catch (err) {
+      error = err.message || "Не удалось разблокировать";
+    } finally {
+      busy = false;
+      render();
+    }
+  }
 
   api
     .getChatFeatures(chat.id)
@@ -422,6 +447,21 @@ export function openEditChatDialog(chat, onSaved) {
                   ].filter(Boolean)),
                   el("button", { class: "btn-accent-pill", disabled: busy, onclick: () => answer(r.user.id, true) }, "Принять"),
                   el("button", { class: "profile-action-btn danger", disabled: busy, onclick: () => answer(r.user.id, false) }, "Отклонить"),
+                ])
+              ),
+            ])
+          : null,
+        banned.length
+          ? el("div", {}, [
+              el("p", { class: "settings-field-label" }, `Заблокированные (${banned.length})`),
+              ...banned.map((u) =>
+                el("div", { class: "settings-device-row" }, [
+                  Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 32 }),
+                  el("div", { class: "settings-device-body" }, [
+                    el("p", {}, u.name),
+                    u.username ? el("p", { class: "mono settings-toggle-hint" }, `@${u.username}`) : null,
+                  ].filter(Boolean)),
+                  el("button", { class: "profile-action-btn", disabled: busy, onclick: () => unban(u.id) }, "Разблокировать"),
                 ])
               ),
             ])
