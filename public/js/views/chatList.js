@@ -996,7 +996,7 @@ function SponsoredRow(ad) {
 
 function chatListEmpty(tabId, folders) {
   return el("div", { class: "chat-empty" }, [
-    el("div", { class: "chat-empty-icon", html: iconSvg("Send", 38) }),
+    el("div", { class: "chat-empty-icon chat-empty-logo" }, [el("img", { src: "/icons/icon.svg", alt: "", draggable: false })]),
     el("p", { class: "chat-empty-title" }, "Здесь пока пусто"),
     el("p", { class: "chat-empty-text" }, emptyTextFor(tabId, folders)),
   ]);

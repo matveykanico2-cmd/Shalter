@@ -716,7 +716,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
                     render();
                   },
                 },
-                [el("span", { html: iconSvg("Send", 15) }), " Войти по коду из сообщения"]
+                [el("span", { html: iconSvg("MessageCircle", 15) }), " Войти по коду из сообщения"]
               ),
               el(
                 "button",
@@ -762,7 +762,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         ]),
         el("div", { class: "login-box" }, [
           el("div", { class: "login-header" }, [
-            el("div", { class: "login-logo" }, [el("span", { html: iconSvg("Send", 26) })]),
+            el("div", { class: "login-logo login-logo-shalter" }, [el("img", { src: "/icons/icon.svg", alt: "Shalter", draggable: false })]),
             el("h1", { class: "login-brand" }, addMode ? "Добавить аккаунт" : "Shalter"),
             el("p", { class: "login-subtitle" }, subtitle),
           ]),

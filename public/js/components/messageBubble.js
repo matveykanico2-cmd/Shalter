@@ -3,7 +3,6 @@ import { askText } from "./confirmDialog.js";
 import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
-import { translateLocally } from "../lib/localTranslate.js";
 import { Avatar } from "./avatar.js";
 import { cachedUser, fetchUsers } from "../lib/userLookup.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
@@ -53,7 +52,6 @@ function playExclusiveMedia(mediaEl) {
   currentAudibleMedia = mediaEl;
 }
 
-const translationCache = new Map();
 
 const QUICK_EMOJI = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏"];
 const PREMIUM_QUICK_EMOJI = ["💎", "👑", "🚀", "🥂", "💯", "🌟"];
@@ -181,8 +179,8 @@ function GiftMessage(message, mine, isChannel) {
           ? el("button", { type: "button", class: "tw-gift-button", onclick: () => convertGift(gift) }, `Обменять на ${formatRub(stars)} ⭐`)
           : null,
       ]),
+      el("div", { class: "tw-gift-meta" }, [entranceMessageMeta(message, mine, isChannel)]),
     ]),
-    entranceMessageMeta(message, mine, isChannel),
   ]);
 }
 
@@ -995,7 +993,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   }
 
   const canTranslate = !isSticker && !!message.text?.trim() && !message.attachments?.some((a) => a.kind === "poll");
-  let translationEl = null;
   // «Кратко» — ИИ-сводка длинного текста, показывается под сообщением, как перевод.
   let summaryEl = null;
   const canSummarize = (message.text ?? "").length >= 400 && !String(message.id).startsWith("local_") && !protectedContent;
@@ -1019,36 +1016,9 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     }
   }
 
-  async function toggleTranslation() {
-    if (translationEl) {
-      translationEl.remove();
-      translationEl = null;
-      return;
-    }
-    const lang = getState().settings?.translateLanguage || "ru";
-    const cacheKey = `${lang}\n${message.text}`;
-    const cached = translationCache.get(cacheKey);
-    if (cached) {
-      translationEl = el("p", { class: "message-translation" }, cached);
-      bubble.insertBefore(translationEl, meta);
-      return;
-    }
-    translationEl = el("p", { class: "message-translation" }, "Переводим…");
-    bubble.insertBefore(translationEl, meta);
-    try {
-      // Server (Google) first: Chrome's on-device translator often misdetects short or
-      // mixed-language messages and hands back the original text or a garbled one.
-      let text = await api
-        .translateText(message.text, lang)
-        .then((r) => (r.detectedLang && r.detectedLang === lang ? "Сообщение уже на этом языке" : r.translated))
-        .catch(() => null);
-      if (!text) text = await translateLocally(message.text, lang).catch(() => null);
-      if (!text) throw new Error("no translation");
-      translationCache.set(cacheKey, text);
-      if (translationEl) translationEl.textContent = text;
-    } catch {
-      if (translationEl) translationEl.textContent = "Не удалось перевести";
-    }
+  // Перевод — окном, как в tweb (popups/translate).
+  function toggleTranslation() {
+    import("./translatePopup.js").then(({ openTranslatePopup }) => openTranslatePopup(message.text));
   }
 
   const hoverActions = el("div", { class: "bubble-actions" }, [
@@ -1306,7 +1276,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       items.push({ icon: "MessageSquare", label: "Ответить в теме", onClick: () => onOpenThread(message) });
     }
     if (canTranslate) {
-      items.push({ icon: "Globe", label: translationEl ? "Скрыть перевод" : "Перевести", onClick: toggleTranslation });
+      items.push({ icon: "Globe", label: "Перевести", onClick: toggleTranslation });
     }
     if (canSummarize) {
       items.push({ icon: "Zap", label: summaryEl ? "Скрыть сводку" : "Кратко", onClick: toggleSummary });
