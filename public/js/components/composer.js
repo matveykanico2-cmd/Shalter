@@ -17,8 +17,7 @@ import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openScheduleSendDialog } from "./scheduleSendDialog.js";
 import { STICKERS, DRAWN_STICKERS, renderSticker } from "../lib/stickers.js";
 import { openStickerPackDialog } from "./stickerPackDialog.js";
-import { renderCustomScene } from "../lib/customScene.js";
-import { ALL_EMOJI } from "../lib/emojiList.js";
+import { EMOJI_GROUPS } from "../lib/emojiList.js";
 import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
 import { startLiveLocationSharing } from "../lib/liveLocation.js";
 import { messagePreview } from "../lib/messagePreview.js";
@@ -27,7 +26,6 @@ import { packWaveform } from "../lib/waveform.js";
 import { startTranscription } from "../lib/speech.js";
 import { parseSlashCommand, suggestSlashCommands } from "../lib/slashCommands.js";
 
-const EMOJI = ["😀", "😂", "😍", "👍", "🙏", "🔥", "🎉", "😢", "😮", "❤️", "👏", "🤔"];
 const TYPING_PING_MS = 2500;
 const DRAFT_SAVE_MS = 600;
 const HOLD_MS = 250;
@@ -965,7 +963,6 @@ export function Composer({
     }
 
     let emojiMenuEl = null;
-    let myEmoji = [];
     function insertPlainEmoji(e) {
       const pos = textarea.selectionStart ?? textarea.value.length;
       textarea.value = textarea.value.slice(0, pos) + e + textarea.value.slice(pos);
@@ -975,42 +972,69 @@ export function Composer({
       if (!editingMessage) scheduleDraftSave(textarea.value);
     }
 
+    // Панель эмодзи как в tweb (emoticonsDropdown/tabs/emoji): «Недавние» и семь категорий
+    // набора tweb, внизу — вкладки для быстрого перехода к разделу.
+    const RECENT_KEY = "shalter.recentEmoji";
+    const CATEGORY_ICONS = ["😀", "🐻", "🍔", "🚗", "⚽", "💡", "🏁"];
+    function readRecent() {
+      try {
+        const list = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+        return Array.isArray(list) ? list.slice(0, 32) : [];
+      } catch {
+        return [];
+      }
+    }
+    function pickEmoji(e) {
+      insertPlainEmoji(e);
+      try {
+        localStorage.setItem(RECENT_KEY, JSON.stringify([e, ...readRecent().filter((x) => x !== e)].slice(0, 32)));
+      } catch {}
+    }
     function renderEmojiMenu() {
       if (!emojiMenuEl) return;
       clear(emojiMenuEl);
-      emojiMenuEl.append(
-        el(
-          "div",
-          { class: "composer-emoji-row" },
-          EMOJI.map((e) => el("button", { onclick: () => insertPlainEmoji(e) }, e))
-        ),
-        el(
-          "div",
-          { class: "composer-emoji-all" },
-          ALL_EMOJI.map((e) => el("button", { onclick: () => insertPlainEmoji(e) }, e))
-        ),
-        el("div", { class: "composer-emoji-heading" }, [el("span", {}, "Эмодзи Shalter")]),
-        myEmoji.length
-          ? el(
-              "div",
-              { class: "composer-custom-emoji-row" },
-              myEmoji.map((em) =>
-                el(
-                  "button",
-                  {
-                    class: "composer-custom-emoji",
-                    title: em.name || "Эмодзи",
-                    onclick: () => {
-                      if (emojiMenuEl) { emojiMenuEl.remove(); emojiMenuEl = null; }
-                      onSend("", [], { sticker: { kind: "custom", scene: em.scene, name: em.name || "" } });
-                    },
-                  },
-                  [renderCustomScene(em.scene, { size: 26 })]
-                )
-              )
-            )
-          : el("p", { class: "composer-emoji-empty" }, "Пока нет анимированных эмодзи")
+      const recent = readRecent();
+      const sections = [
+        ...(recent.length ? [{ name: "Недавние", emojis: recent, icon: null }] : []),
+        ...EMOJI_GROUPS.map((g, i) => ({ ...g, icon: CATEGORY_ICONS[i] })),
+      ];
+      const scroller = el("div", { class: "tw-emoji-scroll" });
+      const tabs = el("div", { class: "tw-emoji-tabs" });
+      const sectionEls = sections.map((g) =>
+        el("div", { class: "tw-emoji-section" }, [
+          el("p", { class: "tw-emoji-title" }, g.name),
+          el(
+            "div",
+            { class: "tw-emoji-grid" },
+            g.emojis.map((e) => el("button", { type: "button", class: "tw-emoji-btn", onclick: () => pickEmoji(e) }, e))
+          ),
+        ])
       );
+      scroller.append(...sectionEls);
+      const tabBtns = sections.map((g, i) =>
+        el(
+          "button",
+          {
+            type: "button",
+            class: "tw-emoji-tab",
+            title: g.name,
+            onclick: () => scroller.scrollTo({ top: sectionEls[i].offsetTop - scroller.offsetTop, behavior: "smooth" }),
+          },
+          g.icon ? g.icon : [el("span", { html: iconSvg("Clock", 20) })]
+        )
+      );
+      tabs.append(...tabBtns);
+      const markActive = () => {
+        const top = scroller.scrollTop + 8;
+        let idx = 0;
+        sectionEls.forEach((s, i) => {
+          if (s.offsetTop - scroller.offsetTop <= top) idx = i;
+        });
+        tabBtns.forEach((b, i) => b.classList.toggle("active", i === idx));
+      };
+      scroller.addEventListener("scroll", markActive, { passive: true });
+      emojiMenuEl.append(scroller, tabs);
+      markActive();
     }
 
     function toggleEmoji(host = emojiSlot) {
@@ -1019,16 +1043,9 @@ export function Composer({
         emojiMenuEl = null;
         return;
       }
-      emojiMenuEl = el("div", { class: `composer-emoji-picker has-sections ${host === attachSlot ? "anchored-left" : ""}` });
+      emojiMenuEl = el("div", { class: `composer-emoji-picker tw-emoji-panel ${host === attachSlot ? "anchored-left" : ""}` });
       host.appendChild(emojiMenuEl);
       renderEmojiMenu();
-      api
-        .listCustomEmoji()
-        .then(({ emoji }) => {
-          myEmoji = emoji ?? [];
-          renderEmojiMenu();
-        })
-        .catch(() => {});
     }
     const emojiBtn = el("button", {
       class: "composer-icon-btn",

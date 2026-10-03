@@ -34,6 +34,7 @@ const PATHS = {
   ChevronLeft: '<path d="M15 5l-7 7 7 7"/>',
   ChevronRight: '<path d="M9 5l7 7-7 7"/>',
   ChevronDown: '<path d="M5 9l7 7 7-7"/>',
+  UserX: '<circle cx="10" cy="8" r="4"/><path d="M3 20a7 7 0 0 1 11.5-5.4"/><path d="M16.5 15.5l5 5M21.5 15.5l-5 5"/>',
   Moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/>',
   Sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   MessageCircle: '<path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 21l2.1-5.4A8.5 8.5 0 1 1 21 11.5Z"/>',

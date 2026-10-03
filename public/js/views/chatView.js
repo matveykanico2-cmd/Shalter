@@ -226,6 +226,12 @@ export async function ChatView(root, chatId) {
     // отправленное сообщение — не выкидываем его, пока сервер его не вернёт.
     const notYetListed = messages.filter((m) => justSent.has(m.id) && !freshIds.has(m.id) && m.createdAt >= cutoff);
     const stillPending = messages.filter((m) => m.pending);
+    // Реакции, которые сейчас меняет сам пользователь, берём локальные (см. handleReact).
+    for (let i = 0; i < fresh.length; i++) {
+      if (!reactionsLocked(fresh[i].id)) continue;
+      const local = messages.find((x) => x.id === fresh[i].id);
+      if (local) fresh[i] = { ...fresh[i], reactions: local.reactions };
+    }
     const merged = [...older, ...fresh, ...notYetListed, ...stillPending];
     const grew = merged.length > messagesCount;
     if (!grew && sameMessages(messages, merged)) return;
@@ -552,7 +558,19 @@ export async function ChatView(root, chatId) {
     writeCache(`chat.${chatId}`, me.id, { chat, members, messages: messages.filter((x) => !x.pending).slice(-PAGE_SIZE) });
   }
 
+  // Реакции: пока нажатие летит на сервер (и чуть после), обновления списка не трогают
+  // реакции этого сообщения, а ответ на устаревшее нажатие не применяется — иначе
+  // снятая реакция «возвращалась» из ответа, ушедшего до снятия.
+  const reactOps = new Map();
+  function reactionsLocked(id) {
+    const op = reactOps.get(id);
+    return !!op && (op.pending > 0 || Date.now() < op.until);
+  }
   async function handleReact(m, emoji) {
+    const op = reactOps.get(m.id) ?? { seq: 0, pending: 0, until: 0 };
+    const mySeq = ++op.seq;
+    op.pending += 1;
+    reactOps.set(m.id, op);
     const before = m.reactions.map((r) => ({ ...r, userIds: [...r.userIds] }));
     const existing = m.reactions.find((r) => r.emoji === emoji);
     const amAdding = !existing || !existing.userIds.includes(me.id);
@@ -573,11 +591,18 @@ export async function ChatView(root, chatId) {
     }
     try {
       const { message } = await api.react(chat.id, m.id, emoji);
-      // Сервер мог отказать (лимит реакций) — показываем его версию.
-      if (message?.reactions && JSON.stringify(message.reactions) !== JSON.stringify(m.reactions)) replaceMessage(message);
+      op.pending -= 1;
+      op.until = Date.now() + 2000;
+      // Сервер мог поправить (лимит реакций) — его версию берём только от последнего нажатия.
+      const latest = op.seq === mySeq && op.pending === 0;
+      const current = messages.find((x) => x.id === m.id) ?? m;
+      if (latest && message?.reactions && JSON.stringify(message.reactions) !== JSON.stringify(current.reactions)) replaceMessage(message);
     } catch (err) {
-      m.reactions = before;
-      rerenderListKeepingScroll();
+      op.pending -= 1;
+      if (op.seq === mySeq) {
+        m.reactions = before;
+        rerenderListKeepingScroll();
+      }
       alert(err.message || "Не удалось поставить реакцию");
     }
   }

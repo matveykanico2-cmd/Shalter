@@ -2681,19 +2681,20 @@ async function renderPrivacy(root) {
     });
   }
 
+  // Порядок — как в tweb (sidebarLeft/tabs/privacyAndSecurity), в конце — пункты Shalter.
   const RULES = [
-    { key: "phone", label: "Номер телефона", who: "Кто видит мой номер телефона" },
-    { key: "discoverByPhone", label: "Поиск по номеру", who: "Кто может найти меня по номеру" },
-    { key: "lastSeen", label: "Время захода", who: "Кто видит время моего последнего захода" },
-    { key: "photo", label: "Фото профиля", who: "Кто видит фото моего профиля" },
-    { key: "bio", label: "О себе", who: "Кто видит раздел «О себе»" },
-    { key: "birthday", label: "Дата рождения", who: "Кто видит мою дату рождения" },
-    { key: "forwards", label: "Пересылка сообщений", who: "Кто может ссылаться на мой аккаунт при пересылке" },
-    { key: "calls", label: "Звонки", who: "Кто может мне звонить" },
-    { key: "invites", label: "Группы и каналы", who: "Кто может добавлять меня в группы" },
-    { key: "messages", label: "Сообщения", who: "Кто может мне писать" },
-    { key: "botMessages", label: "Боты", who: "Какие боты могут писать первыми" },
-    { key: "storiesArchive", label: "Архив историй", who: "Кто видит архив моих историй" },
+    { key: "phone", label: "Номер телефона", who: "Кто видит мой номер телефона?" },
+    { key: "lastSeen", label: "Время захода", who: "Кто видит время моего последнего захода?" },
+    { key: "photo", label: "Фотографии профиля", who: "Кто видит фото моего профиля?" },
+    { key: "bio", label: "О себе", who: "Кто видит раздел «О себе»?" },
+    { key: "calls", label: "Звонки", who: "Кто может мне звонить?" },
+    { key: "forwards", label: "Пересылка сообщений", who: "Кто может ссылаться на мой аккаунт при пересылке?" },
+    { key: "invites", label: "Приглашения", who: "Кто может приглашать меня в группы и каналы?" },
+    { key: "messages", label: "Сообщения", who: "Кто может мне писать?" },
+    { key: "birthday", label: "Дата рождения", who: "Кто видит мою дату рождения?" },
+    { key: "discoverByPhone", label: "Поиск по номеру", who: "Кто может найти меня по номеру?" },
+    { key: "botMessages", label: "Боты", who: "Какие боты могут писать мне первыми?" },
+    { key: "storiesArchive", label: "Архив историй", who: "Кто видит архив моих историй?" },
   ];
   const optionLabel = (v) => OPTIONS.find((o) => o.value === v)?.label ?? "Все";
 
@@ -2879,103 +2880,121 @@ async function renderPrivacy(root) {
     else if (sub?.blocked) content = renderBlocked(blocked);
     else if (sub?.passkeys) content = renderPasskeys();
     else {
+      // Раскладка tweb: верхний блок без заголовка — безопасность, затем «Конфиденциальность».
+      const drafts = Object.keys(settings.drafts ?? {}).filter((k) => settings.drafts[k]).length;
       content = [
-        twSection("Безопасность", [
-          twRow({
-            icon: "User",
-            color: "red",
-            title: "Заблокированные",
-            titleRight: blocked.length ? String(blocked.length) : null,
-            subtitle: blocked.length ? null : "Нет",
-            onClick: () => openSub({ title: "Заблокированные", blocked: true }),
-          }),
-          twRow({
-            icon: "Lock",
-            color: "blue",
-            title: "Код-пароль",
-            titleRight: passcodeOn ? "Вкл." : "Выкл.",
-            subtitle: "Локальный PIN на этом устройстве",
-            onClick: () =>
-              passcodeOn
-                ? openChoiceDialog("Код-пароль", [
-                    { label: "Изменить код-пароль", onClick: changePasscode },
-                    { label: "Отключить код-пароль", danger: true, onClick: disablePasscode },
-                  ])
-                : changePasscode(),
-          }),
-          twRow({
-            icon: "Shield",
-            color: "green",
-            title: "Двухэтапная аутентификация",
-            titleRight: twoFactor.enabled ? "Вкл." : "Выкл.",
-            subtitle: twoFactor.enabled
-              ? twoFactor.method === "password"
-                ? `Облачный пароль${twoFactor.cloudPasswordHint ? ` · подсказка: ${twoFactor.cloudPasswordHint}` : ""}`
-                : `${twoFactor.method === "chat" ? "Код в чате Shalter" : "Приложение-аутентификатор"} · кодов восстановления: ${twoFactor.recoveryCodesLeft}`
-              : "Код при каждом входе",
-            onClick: twoFactor.enabled ? disableTwoFactor : enableTwoFactor,
-          }),
-          passkeysSupported()
-            ? twRow({
-                icon: "Key",
-                color: "orange",
-                title: "Ключи доступа",
-                titleRight: passkeyList.length ? String(passkeyList.length) : null,
-                subtitle: passkeyList.length ? null : "Вход без пароля",
-                onClick: () => openSub({ title: "Ключи доступа", passkeys: true }),
-              })
-            : null,
-          twRow({
-            icon: "Key",
-            color: "grey",
-            title: "Пароль",
-            subtitle: "При смене остальные сеансы завершаются",
-            onClick: () =>
-              openChangePasswordDialog(() => {
-                showToast("Пароль изменён, остальные сеансы завершены");
-              }),
-          }),
-          twRow({
-            icon: "At",
-            color: "purple",
-            title: "Почта для входа",
-            subtitle: email || "Не указана",
-            onClick: () =>
-              openChangeEmailDialog(email, (user) => {
-                if (user) updateSelf({ email: user.email });
-                showToast("Адрес почты изменён");
-                render();
-              }),
-          }),
-          biometricAvailable
-            ? twRow({
-                icon: "User",
-                color: "green",
-                title: "Face ID / отпечаток",
-                subtitle: passcodeOn ? "Вместо ввода код-пароля" : "Сначала включите код-пароль",
-                toggle: { checked: biometricOn, disabled: !passcodeOn, onChange: toggleBiometric },
-              })
-            : null,
-          twRow({
-            icon: "Lock",
-            color: "pink",
-            title: "Пароль при запуске",
-            subtitle: "Спрашивать пароль каждый раз",
-            toggle: {
-              checked: !!settings.requirePasswordOnLaunch,
-              onChange: async (v) => {
-                settings = { ...settings, requirePasswordOnLaunch: v };
-                render();
-                await api.patchSettings({ requirePasswordOnLaunch: v });
-              },
-            },
-          }),
-        ]),
+        twSection(
+          null,
+          [
+            twRow({
+              icon: "UserX",
+              title: "Заблокированные",
+              subtitle: blocked.length ? `${blocked.length} ${plural(blocked.length, "пользователь", "пользователя", "пользователей")}` : "Нет",
+              onClick: () => openSub({ title: "Заблокированные", blocked: true }),
+            }),
+            twRow({ icon: "Monitor", title: "Активные сеансы", subtitle: "Устройства, где выполнен вход", onClick: () => navigate("/settings/devices") }),
+            twRow({
+              icon: "Lock",
+              title: "Код-пароль",
+              subtitle: passcodeOn ? "Вкл." : "Выкл.",
+              onClick: () =>
+                passcodeOn
+                  ? openChoiceDialog("Код-пароль", [
+                      { label: "Изменить код-пароль", onClick: changePasscode },
+                      { label: "Отключить код-пароль", danger: true, onClick: disablePasscode },
+                    ])
+                  : changePasscode(),
+            }),
+            twRow({
+              icon: "Shield",
+              title: "Двухэтапная аутентификация",
+              subtitle: twoFactor.enabled
+                ? twoFactor.method === "password"
+                  ? "Вкл. · облачный пароль"
+                  : `Вкл. · ${twoFactor.method === "chat" ? "код в чате Shalter" : "приложение-аутентификатор"}`
+                : "Выкл.",
+              onClick: twoFactor.enabled ? disableTwoFactor : enableTwoFactor,
+            }),
+            twRow({
+              icon: "At",
+              title: "Почта для входа",
+              subtitle: email || "Не указана",
+              onClick: () =>
+                openChangeEmailDialog(email, (user) => {
+                  if (user) updateSelf({ email: user.email });
+                  showToast("Адрес почты изменён");
+                  render();
+                }),
+            }),
+            passkeysSupported()
+              ? twRow({
+                  icon: "Key",
+                  title: "Ключи доступа",
+                  subtitle: passkeyList.length ? `${passkeyList.length} ${plural(passkeyList.length, "ключ", "ключа", "ключей")}` : "Выкл.",
+                  onClick: () => openSub({ title: "Ключи доступа", passkeys: true }),
+                })
+              : null,
+          ],
+          "Сеансы на всех ваших устройствах можно посмотреть и завершить в «Активных сеансах»."
+        ),
         twSection(
           "Конфиденциальность",
-          RULES.map((rule) =>
-            twRow({ title: rule.label, subtitle: ruleSubtitle(rule.key), onClick: () => openSub({ title: rule.label, rule }) })
-          )
+          RULES.map((rule) => twRow({ title: rule.label, subtitle: ruleSubtitle(rule.key), onClick: () => openSub({ title: rule.label, rule }) })),
+          "Можно ограничить, кто видит ваши данные, может вам писать, звонить и приглашать в группы."
+        ),
+        twSection(
+          "Вход в аккаунт",
+          [
+            twRow({
+              icon: "Key",
+              title: "Пароль",
+              subtitle: "При смене остальные сеансы завершаются",
+              onClick: () =>
+                openChangePasswordDialog(() => {
+                  showToast("Пароль изменён, остальные сеансы завершены");
+                }),
+            }),
+            biometricAvailable
+              ? twRow({
+                  icon: "User",
+                  title: "Face ID / отпечаток",
+                  subtitle: passcodeOn ? "Вместо ввода код-пароля" : "Сначала включите код-пароль",
+                  toggle: { checked: biometricOn, disabled: !passcodeOn, onChange: toggleBiometric },
+                })
+              : null,
+            twRow({
+              icon: "Lock",
+              title: "Пароль при запуске",
+              subtitle: "Спрашивать пароль каждый раз",
+              toggle: {
+                checked: !!settings.requirePasswordOnLaunch,
+                onChange: async (v) => {
+                  settings = { ...settings, requirePasswordOnLaunch: v };
+                  render();
+                  await api.patchSettings({ requirePasswordOnLaunch: v });
+                },
+              },
+            }),
+          ]
+        ),
+        twSection(
+          "Черновики",
+          [
+            twButton({
+              icon: "Trash",
+              text: "Удалить все черновики",
+              danger: true,
+              onClick: async () => {
+                if (!drafts) return showToast("Черновиков нет");
+                if (!(await askConfirm(`Удалить все черновики (${drafts})? Набранный, но не отправленный текст пропадёт во всех чатах.`))) return;
+                settings = { ...settings, drafts: {} };
+                render();
+                await api.patchSettings({ drafts: {} });
+                api.listChats().then((r) => setState({ chats: r.chats })).catch(() => {});
+                showToast("Черновики удалены");
+              },
+            }),
+          ]
         ),
         twSection(
           null,

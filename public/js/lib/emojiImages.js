@@ -28,6 +28,17 @@ function imgFor(g) {
   img.decoding = "async";
   img.loading = "lazy";
   img.src = `/img/emoji/${encodeEmoji(g)}.png`;
+  // Нет картинки (не из набора tweb) — остаётся обычным текстом, без битой иконки.
+  img.addEventListener(
+    "error",
+    () => {
+      const span = document.createElement("span");
+      span.className = "no-emoji";
+      span.textContent = g;
+      img.replaceWith(span);
+    },
+    { once: true }
+  );
   return img;
 }
 
