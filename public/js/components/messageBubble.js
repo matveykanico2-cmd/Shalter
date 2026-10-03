@@ -1377,6 +1377,14 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       )
     : null;
 
+  // tweb кладёт реакции внутрь пузыря под текст, а время — в конец строки с реакциями
+  if (reactionsRow && inlineMeta) {
+    meta.remove();
+    reactionsRow.classList.add("reactions-in-bubble");
+    reactionsRow.appendChild(meta);
+    bubble.appendChild(reactionsRow);
+  }
+
   const keyboardRows = message.keyboard
     ? el(
         "div",
@@ -1417,7 +1425,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         )
       : null,
     bubbleWrap,
-    reactionsRow,
+    reactionsRow?.parentNode ? null : reactionsRow,
     keyboardRows,
   ]);
 

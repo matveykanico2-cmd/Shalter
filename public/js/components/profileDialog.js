@@ -730,29 +730,29 @@ export async function openProfileDialog(userId) {
                 ? el(
                     "button",
                     { class: "profile-action-btn", onclick: toggleContact },
-                    [el("span", { html: iconSvg(inContacts ? "Trash" : "Plus", 15) }), inContacts ? " Удалить из контактов" : " Добавить в контакты"]
+                    [el("span", { html: iconSvg(inContacts ? "Trash" : "Plus", 22) }), inContacts ? " Удалить из контактов" : " Добавить в контакты"]
                   )
                 : null,
               !user.isBot
                 ? el(
                     "button",
                     { class: "profile-action-btn", onclick: () => openGiftShopDialog({ recipient: { id: user.id, name: user.name } }) },
-                    [el("span", { html: iconSvg("Gift", 15) }), " Отправить подарок"]
+                    [el("span", { html: iconSvg("Gift", 22) }), " Отправить подарок"]
                   )
                 : null,
               !user.isBot && !isBlocked
-                ? el("button", { class: "profile-action-btn secret-chat-btn", onclick: startSecretChat }, [el("span", { html: iconSvg("Lock", 15) }), " Начать секретный чат"])
+                ? el("button", { class: "profile-action-btn secret-chat-btn", onclick: startSecretChat }, [el("span", { html: iconSvg("Lock", 22) }), " Начать секретный чат"])
                 : null,
-              el("button", { class: "profile-action-btn", onclick: shareContact }, [el("span", { html: iconSvg("Forward", 15) }), " Поделиться контактом"]),
+              el("button", { class: "profile-action-btn", onclick: shareContact }, [el("span", { html: iconSvg("Forward", 22) }), " Поделиться контактом"]),
               el(
                 "button",
                 { class: "profile-action-btn danger", onclick: toggleBlock },
-                [el("span", { html: iconSvg("Lock", 15) }), isBlocked ? " Разблокировать" : " Заблокировать"]
+                [el("span", { html: iconSvg("Lock", 22) }), isBlocked ? " Разблокировать" : " Заблокировать"]
               ),
               el(
                 "button",
                 { class: "profile-action-btn danger", onclick: () => openReportDialog("user", userId, user.name) },
-                [el("span", { html: iconSvg("Info", 15) }), " Пожаловаться"]
+                [el("span", { html: iconSvg("Info", 22) }), " Пожаловаться"]
               ),
             ].filter(Boolean)
           )

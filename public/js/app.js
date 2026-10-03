@@ -187,7 +187,10 @@ async function boot() {
   const callAudioSink = el("div", { class: "call-audio-sink", hidden: true });
   mount(root, shell);
   shell.append(listCol, mainSlot, callBubbleSlot, callAudioSink);
-  sidebar.append(ChatListPane());
+  // Как SidebarSlider в tweb: на компьютере настройки, контакты, звонки и архив выезжают
+  // поверх списка чатов, а открытый справа чат остаётся на месте.
+  const sidePage = el("div", { class: "shell-side-page" });
+  sidebar.append(ChatListPane(), sidePage);
   listCol.append(NavRail(), sidebar);
 
   function emptyChatPlaceholder() {
@@ -248,29 +251,91 @@ async function boot() {
   syncCallAudio();
 
   const FULL_PAGE_ROUTES = ["/contacts", "/calls", "/archive", "/discover-channels", "/settings"];
-  const isFullPage = (p) => FULL_PAGE_ROUTES.some((r) => p === r || p.startsWith(`${r}/`));
+  const SIDE_ROUTES = ["/contacts", "/calls", "/archive", "/settings"];
+  const matchesAny = (list, p) => list.some((r) => p === r || p.startsWith(`${r}/`));
+  const desktopQuery = window.matchMedia("(min-width: 768px)");
+  const isSide = (p) => desktopQuery.matches && matchesAny(SIDE_ROUTES, p);
+  const isFullPage = (p) => matchesAny(FULL_PAGE_ROUTES, p) && !isSide(p);
 
   const sectionOf = (p) => p.split("/")[1] ?? "";
   let prevPath = path;
+  // последний путь, отрисованный в правой колонке, — туда возвращаемся, закрыв боковую панель
+  let lastMainPath = isSide(path) ? "/" : path;
+  let closingSide = false;
+  let restoredPath = null;
+  let restoring = false;
+  function applyShellClasses(p) {
+    const side = isSide(p);
+    shell.classList.toggle("chat-open", side ? lastMainPath !== "/" : p !== "/");
+    shell.classList.toggle("full-open", isFullPage(p));
+    shell.classList.toggle("side-open", side);
+  }
   window.addEventListener("app:navigate", ({ detail }) => {
-    const fullScreen = detail.path !== "/";
-    shell.classList.toggle("chat-open", fullScreen);
-    shell.classList.toggle("full-open", isFullPage(detail.path));
-    if (sectionOf(prevPath) !== sectionOf(detail.path)) clear(mainSlot);
+    const side = isSide(detail.path);
+    const wasSide = isSide(prevPath);
+    closingSide = wasSide && !side;
+    applyShellClasses(detail.path);
+    if (side) {
+      if (!wasSide) restoredPath = lastMainPath;
+      if (sectionOf(prevPath) !== sectionOf(detail.path)) {
+        withCleanup(sidePage);
+        clear(sidePage);
+      }
+      if (!mainSlot.firstChild) mount(mainSlot, emptyChatPlaceholder());
+      prevPath = detail.path;
+      return;
+    }
+    if (wasSide) {
+      withCleanup(sidePage);
+      clear(sidePage);
+    }
+    if (restoring) {
+      // возврат к чату после боковой панели: правая колонка уже показывает его
+      restoring = false;
+      shell.classList.toggle("chat-open", true);
+    } else {
+      if (closingSide && detail.path === "/" && restoredPath && restoredPath !== "/") {
+        // кнопка «назад» в панели ведёт на «/» — вместо пустого экрана вернёмся к прежнему чату
+        prevPath = detail.path;
+        return;
+      }
+      // правая колонка сменит содержимое — чат, что там был, больше не «уже открыт»
+      if (!wasSide) mainSlot.dataset.path = "";
+      const from = wasSide ? lastMainPath : prevPath;
+      if (sectionOf(from) !== sectionOf(detail.path)) clear(mainSlot);
+    }
+    lastMainPath = detail.path;
     if (prevPath.startsWith("/call/") && !detail.path.startsWith("/call/")) {
       const s = getCallState();
       if (s && !s.minimized) minimize();
     }
     prevPath = detail.path;
   });
-  shell.classList.toggle("chat-open", path !== "/");
-  shell.classList.toggle("full-open", isFullPage(path));
+  applyShellClasses(path);
 
+  function sideOrMain(p) {
+    if (isSide(p)) return sidePage;
+    mainSlot.dataset.path = p;
+    return mainSlot;
+  }
+
+  // Закрыли боковую панель кнопкой «назад» (она ведёт на «/») — возвращаемся к чату, что был справа.
   route("/", () => {
+    if (closingSide && restoredPath && restoredPath !== "/") {
+      const back = restoredPath;
+      restoredPath = null;
+      restoring = true;
+      navigate(back, { replace: true });
+      return;
+    }
     withCleanup(mainSlot);
     mount(mainSlot, emptyChatPlaceholder());
+    mainSlot.dataset.path = "/";
   });
   route("/chat/:id", async (params) => {
+    // чат уже открыт справа (вернулись из боковой панели) — не перерисовываем
+    if (mainSlot.dataset.path === window.location.pathname && mainSlot.firstChild) return;
+    mainSlot.dataset.path = window.location.pathname;
     withCleanup(mainSlot);
     const { ChatView } = await import("./views/chatView.js");
     await ChatView(mainSlot, params.id);
@@ -365,9 +430,10 @@ async function boot() {
     await NearbyView(mainSlot);
   });
   route("/contacts", async () => {
-    withCleanup(mainSlot);
+    const slot = sideOrMain("/contacts");
+    withCleanup(slot);
     const { ContactsView } = await import("./views/contacts.js");
-    await ContactsView(mainSlot);
+    await ContactsView(slot);
   });
   route("/discover-channels", async () => {
     withCleanup(mainSlot);
@@ -375,19 +441,22 @@ async function boot() {
     await DiscoverChannelsView(mainSlot);
   });
   route("/calls", async () => {
-    withCleanup(mainSlot);
+    const slot = sideOrMain("/calls");
+    withCleanup(slot);
     const { CallsView } = await import("./views/calls.js");
-    await CallsView(mainSlot);
+    await CallsView(slot);
   });
   route("/archive", async () => {
-    withCleanup(mainSlot);
+    const slot = sideOrMain("/archive");
+    withCleanup(slot);
     const { ArchiveView } = await import("./views/archive.js");
-    await ArchiveView(mainSlot);
+    await ArchiveView(slot);
   });
   async function openSettings(page) {
-    withCleanup(mainSlot);
+    const slot = sideOrMain(window.location.pathname);
+    withCleanup(slot);
     const { SettingsView } = await import("./views/settings/index.js");
-    await SettingsView(mainSlot, page);
+    await SettingsView(slot, page);
   }
   route("/settings", () => openSettings(""));
   route("/settings/:page", (params) => openSettings(params.page));

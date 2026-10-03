@@ -328,7 +328,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
 
   return el("aside", { class: "info-panel" }, [
     el("div", { class: "info-panel-header" }, [
-      el("h2", {}, "Информация"),
+      el("h2", {}, isDm ? "Профиль" : chat.type === "channel" ? "Канал" : "Группа"),
       el("button", { class: "icon-btn", html: iconSvg("X", 18), onclick: onClose }),
     ]),
     el("div", { class: "info-panel-body" }, [
@@ -406,7 +406,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
         : null,
       !isDm && isOwnerOrAdmin
         ? el("button", { class: "info-panel-row", onclick: () => openEditChatDialog(chat, onChatUpdated) }, [
-            el("span", { class: "info-panel-row-icon", html: iconSvg("Edit", 15) }),
+            el("span", { class: "info-panel-row-icon", html: iconSvg("Edit", 22) }),
             `Редактировать ${chat.type === "channel" ? "канал" : "группу"}`,
           ])
         : null,
@@ -425,7 +425,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
               },
             },
             [
-              el("span", { class: "info-panel-row-icon", html: iconSvg("Verified", 15) }),
+              el("span", { class: "info-panel-row-icon", html: iconSvg("Verified", 22) }),
               chat.isVerified ? "Снять галочку верификации" : `Верифицировать ${chat.type === "channel" ? "канал" : "группу"}`,
             ]
           )
@@ -434,7 +434,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
         ? el(
             "button",
             { class: "info-panel-row", onclick: () => onTogglePremium(chat.otherUser.id, !chat.otherUser.isPremium) },
-            chat.otherUser.isPremium ? "Забрать Shalter Premium" : "Выдать Shalter Premium (30 дней)"
+            [el("span", { class: "info-panel-row-icon", html: iconSvg("Star", 22) }), chat.otherUser.isPremium ? "Забрать Shalter Premium" : "Выдать Shalter Premium (30 дней)"]
           )
         : null,
       isDm && chat.otherUser && isShalterAdmin && gifts?.length
@@ -452,12 +452,12 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
                   { search: "Поиск подарка" }
                 ),
             },
-            "🎁 Отправить подарок"
+            [el("span", { class: "info-panel-row-icon", html: iconSvg("Gift", 22) }), "Отправить подарок"]
           )
         : null,
-      el("button", { class: "info-panel-row", onclick: onToggleMute }, isChatMuted(chat) ? "Включить уведомления" : "Отключить уведомления"),
+      el("button", { class: "info-panel-row", onclick: onToggleMute }, [el("span", { class: "info-panel-row-icon", html: iconSvg(isChatMuted(chat) ? "Bell" : "BellOff", 22) }), isChatMuted(chat) ? "Включить уведомления" : "Отключить уведомления"]),
       chat.type === "channel" && isOwnerOrAdmin
-        ? el("button", { class: "info-panel-row", onclick: () => openChannelStats(chat) }, "Статистика канала")
+        ? el("button", { class: "info-panel-row", onclick: () => openChannelStats(chat) }, [el("span", { class: "info-panel-row-icon", html: iconSvg("BarChart", 22) }), "Статистика канала"])
         : null,
       canSetAutoDelete
         ? el(
@@ -473,24 +473,24 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
                   }))
                 ),
             },
-            `Автоудаление сообщений: ${autoDeleteLabel(chat.autoDeleteSeconds)}`
+            [el("span", { class: "info-panel-row-icon", html: iconSvg("Clock", 22) }), `Автоудаление сообщений: ${autoDeleteLabel(chat.autoDeleteSeconds)}`]
           )
         : null,
       chat.type === "channel" ? SimilarChannels(chat) : null,
 
-      isDm ? el("button", { class: "info-panel-row danger", onclick: onToggleBlock }, isBlocked ? "Разблокировать" : "Заблокировать") : null,
+      isDm ? el("button", { class: "info-panel-row danger", onclick: onToggleBlock }, [el("span", { class: "info-panel-row-icon", html: iconSvg("Lock", 22) }), isBlocked ? "Разблокировать" : "Заблокировать"]) : null,
       isDm && chat.otherUser
         ? el(
             "button",
             { class: "info-panel-row danger", onclick: () => openReportDialog("user", chat.otherUser.id, chat.otherUser.name) },
-            "Пожаловаться"
+            [el("span", { class: "info-panel-row-icon", html: iconSvg("Shield", 22) }), "Пожаловаться"]
           )
         : null,
       !isDm
         ? el(
             "button",
             { class: "info-panel-row danger", onclick: () => openReportDialog("chat", chat.id, title) },
-            `Пожаловаться на ${chat.type === "channel" ? "канал" : "группу"}`
+            [el("span", { class: "info-panel-row-icon", html: iconSvg("Shield", 22) }), `Пожаловаться на ${chat.type === "channel" ? "канал" : "группу"}`]
           )
         : null,
       !isDm && (chat.type !== "channel" || isOwnerOrAdmin)

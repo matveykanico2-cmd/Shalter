@@ -91,8 +91,10 @@ export function openDropdownMenu(pos, items, opts = {}) {
     menu.style.visibility = "hidden";
     menu.style.left = `${MARGIN}px`;
     menu.style.top = `${MARGIN}px`;
-    const width = menu.getBoundingClientRect().width;
-    const height = menu.getBoundingClientRect().height;
+    // offset*, а не getBoundingClientRect: у меню анимация появления со scale(0.8),
+    // и в этот момент «видимый» размер меньше настоящего — меню уезжало за край экрана
+    const width = menu.offsetWidth;
+    const height = menu.offsetHeight;
 
     let x = Math.min(pos.x, vw - width - MARGIN);
     let y = pos.y;

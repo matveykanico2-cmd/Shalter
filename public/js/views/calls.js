@@ -74,6 +74,7 @@ export async function CallsView(root) {
           name,
           color: c.group?.avatarColor ?? c.otherUser?.avatarColor ?? "#8A8F98",
           image: c.group?.avatarImage ?? c.otherUser?.avatarImage,
+          size: 54,
         }),
       ]),
       el("div", { class: "contact-row-body" }, [
@@ -98,7 +99,7 @@ export async function CallsView(root) {
   function contactRow(u) {
     const isBusy = busy === u.id;
     return el("div", { class: "contact-row" }, [
-      Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, online: u.online }),
+      Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, online: u.online, size: 54 }),
       el("div", { class: "contact-row-body" }, [
         el("p", { class: "contact-row-name" }, u.name),
         el("p", { class: `contact-row-status ${u.online ? "online" : ""}` }, isBusy ? "Соединяем…" : u.online ? "в сети" : u.username ? `@${u.username}` : "не в сети"),

@@ -395,7 +395,7 @@ async function renderProfile(root) {
           ),
       },
       [
-        Avatar({ name: name || "?", color: avatarColor, image: avatarImage, video: videoAvatarUrl({ avatarImages }), size: 72, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
+        Avatar({ name: name || "?", color: avatarColor, image: avatarImage, video: videoAvatarUrl({ avatarImages }), size: 120, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
         el("span", { class: "settings-avatar-edit", html: iconSvg("Edit", 12) }),
         avatarImages.length > 1 ? el("span", { class: "avatar-count-badge" }, String(avatarImages.length)) : null,
       ].filter(Boolean)

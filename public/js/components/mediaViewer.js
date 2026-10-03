@@ -16,7 +16,8 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
   const prevBtn = el("button", { class: "media-viewer-nav prev", title: "Предыдущее", html: iconSvg("ChevronLeft", 26), onclick: () => go(-1) });
   const nextBtn = el("button", { class: "media-viewer-nav next", title: "Следующее", html: iconSvg("ChevronRight", 26), onclick: () => go(1) });
 
-  appendAll(overlay, el("div", { class: "media-viewer" }, [head, stage]), items.length > 1 ? prevBtn : null, items.length > 1 ? nextBtn : null);
+  const captionEl = el("div", { class: "media-viewer-caption", hidden: true });
+  appendAll(overlay, el("div", { class: "media-viewer" }, [head, stage, captionEl]), items.length > 1 ? prevBtn : null, items.length > 1 ? nextBtn : null);
   document.body.appendChild(overlay);
   show();
 
@@ -74,7 +75,17 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
     clear(head);
     appendAll(
       head,
-      items.length > 1 ? el("span", { class: "mono media-viewer-counter" }, `${at + 1} из ${items.length}`) : null,
+      item.author
+        ? el("div", { class: "media-viewer-author" }, [
+            item.avatarHtml ? el("span", { class: "media-viewer-author-avatar", html: item.avatarHtml }) : null,
+            el("span", { class: "media-viewer-author-text" }, [
+              el("span", { class: "media-viewer-author-name" }, item.author),
+              el("span", { class: "media-viewer-author-time" }, [item.time, items.length > 1 ? ` · ${at + 1} из ${items.length}` : ""].join("")),
+            ]),
+          ])
+        : items.length > 1
+        ? el("span", { class: "mono media-viewer-counter" }, `${at + 1} из ${items.length}`)
+        : null,
       el("span", { class: "media-viewer-spacer" }),
       // В чате с запретом сохранения (chatView ставит класс на body) — без скачивания.
       document.body.classList.contains("protected-chat-open")
@@ -87,6 +98,8 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
         : el("a", { class: "icon-btn", title: "Скачать", href: item.url, download: item.name || "file", html: iconSvg("Download", 20) }),
       el("button", { class: "icon-btn", title: "Закрыть", html: iconSvg("X", 20), onclick: () => close() })
     );
+    captionEl.textContent = item.caption || "";
+    captionEl.hidden = !item.caption;
     prevBtn.disabled = at === 0;
     nextBtn.disabled = at === items.length - 1;
   }
@@ -193,6 +206,38 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
   return close;
 }
 
+// Автор, время и подпись сообщения с этим медиа — для шапки просмотрщика, как в tweb.
+function messageInfo(button) {
+  const row = button.closest(".message-row");
+  if (!row) return {};
+  const mine = row.classList.contains("mine");
+  let author = null;
+  let avatar = null;
+  if (mine) author = "Вы";
+  else {
+    // аватар и имя стоят только у последнего сообщения в группе — ищем вниз по ленте
+    for (let r = row; r; r = r.nextElementSibling) {
+      if (!r.classList?.contains("message-row") || r.classList.contains("mine")) break;
+      const btn = r.querySelector(".message-avatar-btn");
+      if (btn) {
+        author = (btn.title || "").replace(/^Профиль:\s*/, "") || null;
+        avatar = btn.querySelector(".avatar");
+        break;
+      }
+    }
+    author = author || row.querySelector(".sender-name-text")?.textContent || null;
+  }
+  const time = row.querySelector(".message-meta-inner .mono, .message-meta .mono")?.textContent || "";
+  const textEl = row.querySelector(".bubble .message-text");
+  let caption = "";
+  if (textEl) {
+    const copy = textEl.cloneNode(true);
+    copy.querySelectorAll(".message-meta").forEach((m) => m.remove());
+    caption = copy.textContent.trim();
+  }
+  return { author, avatarHtml: avatar?.outerHTML ?? null, time, caption };
+}
+
 export function galleryAround(button) {
   const scope = button?.closest?.(".message-list");
   if (!scope) return {};
@@ -206,6 +251,7 @@ export function galleryAround(button) {
       name: b.dataset.mediaName || "",
       originalUrl: b.dataset.mediaOriginal || null,
       thumbUrl: b.dataset.mediaThumb || null,
+      ...messageInfo(b),
     })),
     index,
   };

@@ -378,7 +378,7 @@ export async function ContactsView(root) {
         ...birthdays.map((c) =>
           el("div", { class: "contact-row contact-birthday-row" }, [
             el("button", { class: "contact-row-profile-btn", onclick: () => openProfileDialog(c.user.id) }, [
-              Avatar({ name: displayName(c), color: c.user.avatarColor, image: c.user.avatarImage, online: c.user.online }),
+              Avatar({ name: displayName(c), color: c.user.avatarColor, image: c.user.avatarImage, online: c.user.online, size: 54 }),
               el("div", { class: "contact-row-body" }, [el("p", { class: "contact-row-name" }, displayName(c)), el("p", { class: "contact-row-status" }, "Поздравьте!")]),
             ]),
             el("button", {
@@ -407,7 +407,7 @@ export async function ContactsView(root) {
         const user = c.user;
         return el("div", { class: "contact-row" }, [
           el("button", { class: "contact-row-profile-btn", onclick: () => openProfileDialog(user.id) }, [
-            Avatar({ name: displayName(c), color: user.avatarColor, image: user.avatarImage, online: user.online }),
+            Avatar({ name: displayName(c), color: user.avatarColor, image: user.avatarImage, online: user.online, size: 54 }),
             el("div", { class: "contact-row-body" }, [
               el("p", { class: "contact-row-name" }, [
                 displayName(c),
