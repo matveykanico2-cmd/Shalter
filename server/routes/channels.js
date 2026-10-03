@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { searchPublicChannels, getChat, updateChat } = require("../data/chats");
+const { searchPublicChannels, similarChannels, getChat, updateChat } = require("../data/chats");
 const { broadcastToUsers } = require("../ws");
 const { listMessages } = require("../data/messages");
 
@@ -23,6 +23,32 @@ router.get(
         subscriberCount: c.memberIds.length,
         isMember: c.memberIds.includes(req.uid),
       })),
+    });
+  })
+);
+
+router.get(
+  "/:id/similar",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    // Видно тем, кто может видеть сам канал: подписчикам или всем, если он публичный.
+    if (!chat || chat.type !== "channel" || (!chat.isPublic && !chat.memberIds.includes(req.uid))) {
+      return res.status(404).json({ error: "Канал не найден" });
+    }
+    const similar = await similarChannels(chat.id, 10);
+    res.json({
+      channels: similar
+        .filter((c) => !(c.bannedIds ?? []).includes(req.uid))
+        .map((c) => ({
+          id: c.id,
+          title: c.title,
+          username: c.username,
+          avatarColor: c.avatarColor,
+          avatarImage: c.avatarImage,
+          isVerified: !!c.isVerified,
+          subscriberCount: c.memberIds.length,
+          isMember: c.memberIds.includes(req.uid),
+        })),
     });
   })
 );

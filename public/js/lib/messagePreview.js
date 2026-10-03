@@ -10,7 +10,20 @@ const ATTACHMENT_LABEL = {
   contact: "👤 Контакт",
 };
 
-const ceText = (t) => (t ?? "").replace(/\[ce:\d+\]/g, "🎨");
+const ceText = (t) => plainText((t ?? "").replace(/\[ce:\d+\]/g, "🎨"));
+
+// Превью в списке чатов и плашках — без разметки: «**жирный**» → «жирный»,
+// спойлер прячется за точками, блок кода и цитата — просто текстом.
+export function plainText(t) {
+  return t
+    .replace(/```[a-z0-9+#-]*\n?([\s\S]*?)```/gi, "$1")
+    .replace(/\|\|([^|]+)\|\|/g, (_, s) => "⠿".repeat(Math.min(8, Math.max(3, s.length))))
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*|__([^_]+)__|~~([^~]+)~~|`([^`]+)`|\*([^*\s][^*]*)\*/g, (_, ...g) => g.slice(0, 5).find((x) => x != null))
+    .replace(/^> ?/gm, "")
+    .replace(/\s*\n\s*/g, " ")
+    .trim();
+}
 
 const SLOT_SYMBOLS = ["BAR", "🍇", "🍋", "7️⃣"];
 
@@ -42,6 +55,11 @@ export function messagePreview(m) {
     if (att.kind === "poll") return `📊 ${text || "Опрос"}`;
     if (att.kind === "checklist") return `☑️ ${text || "Чек-лист"}`;
     if (att.kind === "dice") return `${att.meta?.emoji ?? "🎲"} ${diceResult(att.meta)}`;
+    if (att.kind === "file" && att.name) {
+      const isAudio = att.mimeType?.startsWith("audio/") || /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|weba)$/i.test(att.name);
+      const label = isAudio ? `🎵 ${att.name.replace(/\.[a-z0-9]{1,5}$/i, "")}` : `📄 ${att.name}`;
+      return text ? `${label} · ${text}` : label;
+    }
     const label = ATTACHMENT_LABEL[att.kind];
     if (label) return text ? `${label} · ${text}` : label;
     return text || att.name || "Вложение";

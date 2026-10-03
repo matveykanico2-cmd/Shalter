@@ -28,6 +28,7 @@ import { openGiftShopDialog } from "../../components/giftShopDialog.js";
 import { openAvatarViewer } from "../../components/avatarViewer.js";
 import { openProfileStatusDialog } from "../../components/profileStatusDialog.js";
 import { Toggle } from "../../components/toggle.js";
+import { isSpeechSupported } from "../../lib/speech.js";
 import { openProfileQrDialog } from "../../components/profileQrDialog.js";
 import { handlePurchaseResponse } from "../../lib/purchase.js";
 import {
@@ -3262,7 +3263,8 @@ async function renderData(root) {
   async function patch(p) {
     settings = { ...settings, ...p };
     render();
-    await api.patchSettings(p);
+    const res = await api.patchSettings(p);
+    if (res?.settings) setState({ settings: res.settings });
   }
 
   const BUCKETS = [
@@ -3284,6 +3286,21 @@ async function renderData(root) {
               el("p", { class: "settings-toggle-hint" }, "Выключено — фото и видео открываются по нажатию, а не сразу"),
             ]),
             Toggle(settings.autoDownload, (v) => patch({ autoDownload: v })),
+          ]),
+        ]),
+        section("Голосовые сообщения", [
+          el("div", { class: "settings-toggle-row" }, [
+            el("div", {}, [
+              el("p", { class: "settings-toggle-title" }, "Расшифровка голосовых"),
+              el(
+                "p",
+                { class: "settings-toggle-hint" },
+                isSpeechSupported()
+                  ? "Во время записи браузер распознаёт речь, и текст уходит вместе с голосовым — собеседник откроет его кнопкой «→A». В Chrome распознавание идёт через серверы Google."
+                  : "Этот браузер не умеет распознавать речь — включите в Chrome, Edge или Safari"
+              ),
+            ]),
+            Toggle(!!settings.voiceTranscription, (v) => patch({ voiceTranscription: v })),
           ]),
         ]),
         section(

@@ -35,6 +35,14 @@ function sanitizeAttachments(attachments) {
         const dur = Number(a.durationSec);
         if (Number.isFinite(dur) && dur >= 0 && dur < 24 * 3600) out.durationSec = dur;
       }
+      if (a.kind === "voice") {
+        // Осциллограмма: до 100 уровней 0..31. Расшифровка: текст, распознанный при записи.
+        if (Array.isArray(a.waveform) && a.waveform.length && a.waveform.length <= 100) {
+          const wave = a.waveform.map((v) => Math.round(Number(v)));
+          if (wave.every((v) => Number.isInteger(v) && v >= 0 && v <= 31)) out.waveform = wave;
+        }
+        if (typeof a.transcript === "string" && a.transcript.trim()) out.transcript = a.transcript.trim().slice(0, 4000);
+      }
       if (a.kind === "location") {
         const lat = Number(a.meta?.lat);
         const lng = Number(a.meta?.lng);

@@ -23,6 +23,7 @@ import { hasPasscode } from "./lib/passcodeLock.js";
 import { showPasscodeLockScreen } from "./components/passcodeLockScreen.js";
 import { showPasswordLockScreen } from "./components/passwordLockScreen.js";
 import { initKeyboardShortcuts } from "./lib/keyboardShortcuts.js";
+import { initRipple } from "./lib/ripple.js";
 import { WaveBearMascot } from "./components/mascot.js";
 import { paintWallpaper } from "./lib/wallpapers.js";
 
@@ -131,6 +132,7 @@ async function boot() {
   });
   mountIncomingCallWatcher();
   initKeyboardShortcuts();
+  initRipple();
   bootData
     .then((data) => (data ? { settings: data.settings } : api.getSettings()))
     .then(({ settings }) => {

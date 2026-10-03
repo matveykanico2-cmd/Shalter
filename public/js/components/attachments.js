@@ -3,6 +3,7 @@ import { iconSvg } from "../icons.js";
 import { openInstantView } from "./instantView.js";
 import { openInAppBrowser } from "./inAppBrowser.js";
 import { openMediaViewer, galleryAround } from "./mediaViewer.js";
+import { setNowPlaying, playingMediaFor } from "../lib/audioPlayer.js";
 
 function MediaButton(className, item, children) {
   return el(
@@ -70,23 +71,98 @@ function formatSize(bytes) {
 
 const AUDIO_EXT_RE = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|weba)$/i;
 
-export function FileAttachment(a) {
-  const link = FileLink(a);
+// Цвет плитки файла по расширению — как в Telegram: PDF красный, таблицы
+// зелёные, архивы оранжевые, документы синие.
+const FILE_COLORS = [
+  [/^(pdf)$/, "#e65050"],
+  [/^(xls|xlsx|csv|ods|numbers)$/, "#4caf50"],
+  [/^(zip|rar|7z|tar|gz|bz2|xz|apk|ipa|dmg|exe|msi)$/, "#f39a2b"],
+  [/^(doc|docx|odt|rtf|txt|md|pages)$/, "#3f8fe8"],
+  [/^(ppt|pptx|key|odp)$/, "#ef7b3c"],
+  [/^(mp3|m4a|aac|ogg|oga|opus|wav|flac|weba)$/, "#9b62e0"],
+];
+
+function fileExt(name) {
+  const m = /\.([a-z0-9]{1,5})$/i.exec(name ?? "");
+  return m ? m[1].toLowerCase() : "";
+}
+
+function clockTime(sec) {
+  const s = Math.max(0, Math.floor(sec || 0));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+export function FileAttachment(a, ctx = {}) {
   const isAudio = a.mimeType?.startsWith("audio/") || AUDIO_EXT_RE.test(a.name ?? "");
-  if (!isAudio || !a.url) return link;
-  return el("div", { class: "audio-attachment" }, [
-    link,
-    el("audio", { src: a.url, controls: true, preload: "none", class: "audio-attachment-player" }),
-  ]);
+  if (!isAudio || !a.url) return FileLink(a);
+  return AudioFile(a, ctx);
 }
 
 function FileLink(a) {
+  const ext = fileExt(a.name);
+  const color = FILE_COLORS.find(([re]) => re.test(ext))?.[1];
   return el("a", { href: a.url, download: a.name || "file", class: "file-attachment" }, [
-    el("span", { html: iconSvg("Download", 18) }),
+    el("span", { class: "file-attachment-icon", style: color ? `--file-color:${color}` : "" }, [
+      el("span", { class: "file-attachment-ext" }, ext.slice(0, 4) || "file"),
+      el("span", { class: "file-attachment-dl", html: iconSvg("Download", 22) }),
+    ]),
     el("div", { class: "file-attachment-info" }, [
       el("p", { class: "file-attachment-name" }, a.name || "Файл"),
       el("p", { class: "mono file-attachment-size" }, a.size ? formatSize(a.size) : ""),
     ]),
+  ]);
+}
+
+// Музыка в сообщении: круглая кнопка, название и полоска перемотки. Играет
+// через общий плеер — полоска «сейчас играет» появляется под шапкой чата.
+function AudioFile(a, ctx) {
+  const key = ctx.message ? `${ctx.message.id}:${a.url}` : `file:${a.url}`;
+  const audio = playingMediaFor(key) ?? el("audio", { src: a.url, preload: "none", class: "hidden-audio" });
+  const title = (a.name || "Аудио").replace(AUDIO_EXT_RE, "");
+  const playBtn = el("button", { class: "audio-file-play", type: "button", "aria-label": "Слушать" });
+  const sub = el("span", { class: "audio-file-sub mono" }, a.size ? formatSize(a.size) : "");
+  const fill = el("span", { class: "audio-file-fill" });
+  const track = el("span", { class: "audio-file-track" }, fill);
+  const dl = el("a", { class: "icon-btn audio-file-dl", href: a.url, download: a.name || "audio", title: "Скачать", html: iconSvg("Download", 18) });
+
+  const paint = () => {
+    const playing = !audio.paused;
+    playBtn.innerHTML = iconSvg(playing ? "PauseFill" : "PlayFill", 22);
+    playBtn.classList.toggle("playing", playing);
+    const dur = Number.isFinite(audio.duration) ? audio.duration : 0;
+    const started = audio.currentTime > 0 || playing;
+    track.classList.toggle("visible", started);
+    fill.style.transform = `scaleX(${dur ? Math.min(1, audio.currentTime / dur) : 0})`;
+    sub.textContent = started && dur ? `${clockTime(audio.currentTime)} / ${clockTime(dur)}` : a.size ? formatSize(a.size) : dur ? clockTime(dur) : "";
+  };
+  playBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (audio.paused) audio.play().catch(() => {});
+    else audio.pause();
+  });
+  audio.addEventListener("play", () => {
+    setNowPlaying(audio, {
+      key,
+      kind: "audio",
+      title,
+      subtitle: ctx.sender?.name ?? "Музыка",
+      chatId: ctx.message?.chatId,
+      messageId: ctx.message?.id,
+    });
+    paint();
+  });
+  for (const ev of ["pause", "ended", "timeupdate", "loadedmetadata"]) audio.addEventListener(ev, paint);
+  track.addEventListener("pointerdown", (e) => {
+    e.stopPropagation();
+    const r = track.getBoundingClientRect();
+    if (Number.isFinite(audio.duration) && r.width) audio.currentTime = ((e.clientX - r.left) / r.width) * audio.duration;
+  });
+  paint();
+  return el("div", { class: "audio-file" }, [
+    audio,
+    playBtn,
+    el("div", { class: "audio-file-info" }, [el("p", { class: "audio-file-title" }, title), sub, track]),
+    dl,
   ]);
 }
 

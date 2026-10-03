@@ -5,6 +5,7 @@ import { openProfileDialog } from "../components/profileDialog.js";
 import { getState } from "../state.js";
 import { api } from "../api.js";
 import { renderCustomScene } from "./customScene.js";
+import { tokenize, langLabel } from "./highlight.js";
 
 const CE_TOKEN_RE = /\[ce:\d+\]/g;
 
@@ -19,7 +20,9 @@ export function formatText(text, members, emoji) {
   for (const part of parts) {
     if (!part) continue;
     if (part.length >= 6 && part.startsWith("```") && part.endsWith("```")) {
-      out.push(codeBlock(part.slice(3, -3).replace(/^[a-z0-9+#-]*\n/i, "").replace(/\n$/, "")));
+      const body = part.slice(3, -3);
+      const lang = /^([a-z0-9+#-]*)\n/i.exec(body)?.[1] ?? "";
+      out.push(codeBlock(body.replace(/^[a-z0-9+#-]*\n/i, "").replace(/\n$/, ""), lang));
       continue;
     }
     const lines = part.replace(/^\n|\n$/g, "").split("\n");
@@ -87,10 +90,11 @@ function tableBlock(rows, members, emoji) {
   return el("span", { class: "block message-table-wrap" }, table);
 }
 
-function codeBlock(code) {
+function codeBlock(code, lang) {
   const copy = el("button", {
     class: "code-block-copy",
     type: "button",
+    title: "Копировать код",
     onclick: (e) => {
       e.stopPropagation();
       navigator.clipboard?.writeText(code).then(() => {
@@ -99,7 +103,13 @@ function codeBlock(code) {
       }, () => {});
     },
   }, "Копировать");
-  return el("span", { class: "code-block" }, [copy, el("pre", {}, el("code", {}, code))]);
+  const label = langLabel(lang);
+  const tokens = code.length <= 20000 ? tokenize(code, lang) : [[null, code]];
+  const highlighted = tokens.map(([cls, text]) => (cls ? el("span", { class: cls }, text) : document.createTextNode(text)));
+  return el("span", { class: "code-block" }, [
+    el("span", { class: "code-block-head" }, [el("span", { class: "code-block-lang" }, label || "Код"), copy]),
+    el("pre", {}, el("code", {}, highlighted)),
+  ]);
 }
 
 function renderInline(text, members, emoji) {

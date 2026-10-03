@@ -80,3 +80,19 @@ test("опрос: несколько ответов — только у обыч
   const quiz = sanitizeAttachments([{ kind: "poll", meta: { options: ["a", "b"], multiple: true, correctIndex: 0 } }]);
   assert.equal(quiz[0].meta.multiple, false);
 });
+
+test("голосовое: осциллограмма и расшифровка сохраняются, мусор отбрасывается", () => {
+  const [ok] = sanitizeAttachments([
+    { kind: "voice", url: "/uploads/sha_deadbeefdeadbeef.webm", durationSec: 3, waveform: [0, 5, 31, 12], transcript: "  Привет  " },
+  ]);
+  assert.deepEqual(ok.waveform, [0, 5, 31, 12]);
+  assert.equal(ok.transcript, "Привет");
+  const [bad] = sanitizeAttachments([
+    { kind: "voice", url: "/uploads/sha_deadbeefdeadbeef.webm", waveform: [1, 99, "x"], transcript: 42 },
+  ]);
+  assert.equal(bad.waveform, undefined);
+  assert.equal(bad.transcript, undefined);
+  const [img] = sanitizeAttachments([{ kind: "image", url: "/uploads/sha_deadbeefdeadbeef.jpg", waveform: [1], transcript: "x" }]);
+  assert.equal(img.waveform, undefined);
+  assert.equal(img.transcript, undefined);
+});

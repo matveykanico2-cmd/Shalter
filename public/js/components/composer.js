@@ -1,6 +1,7 @@
 import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
+import { getState } from "../state.js";
 import { startRecording, isRecordingSupported, createLevelMeter, MAX_RECORD_SEC } from "../lib/recorder.js";
 import { uploadFile } from "../lib/upload.js";
 import { startChatAction, withChatAction, uploadActionFor } from "../lib/chatAction.js";
@@ -20,6 +21,9 @@ import { checkText, applyFix, applyAll, fragment } from "../lib/hugo.js";
 import { startLiveLocationSharing } from "../lib/liveLocation.js";
 import { messagePreview } from "../lib/messagePreview.js";
 import { previewText } from "../lib/formatText.js";
+import { packWaveform } from "../lib/waveform.js";
+import { startTranscription } from "../lib/speech.js";
+import { parseSlashCommand, suggestSlashCommands } from "../lib/slashCommands.js";
 
 const EMOJI = ["😀", "😂", "😍", "👍", "🙏", "🔥", "🎉", "😢", "😮", "❤️", "👏", "🤔"];
 const TYPING_PING_MS = 2500;
@@ -133,6 +137,15 @@ export function Composer({
     let mentionMatches = [];
     let mentionActiveIndex = 0;
 
+    // Меню над полем: либо @упоминания, либо /команды.
+    let menuMode = "mention";
+    function currentCommandQuery() {
+      if (editingMessage) return null;
+      const pos = textarea.selectionStart;
+      if (pos !== textarea.selectionEnd) return null;
+      const m = textarea.value.slice(0, pos).match(/^\/([\p{L}\d_]*)$/u);
+      return m ? m[1] : null;
+    }
     function currentMentionQuery() {
       const before = textarea.value.slice(0, textarea.selectionStart);
       const m = before.match(/(?:^|\s)@(\w*)$/);
@@ -140,6 +153,28 @@ export function Composer({
     }
     function renderMentionMenu() {
       clear(mentionMenu);
+      if (menuMode === "command") {
+        mentionMatches.forEach((c, i) =>
+          mentionMenu.appendChild(
+            el(
+              "button",
+              {
+                class: `composer-mention-item composer-command-item ${i === mentionActiveIndex ? "active" : ""}`,
+                onmousedown: (e) => {
+                  e.preventDefault();
+                  selectMention(c);
+                },
+              },
+              [
+                el("span", { class: "composer-command-item-name mono" }, [`/${c.name}`, c.hint ? el("span", { class: "composer-command-item-hint" }, ` ${c.hint}`) : null]),
+                el("span", { class: "composer-command-item-desc" }, c.bot ? c.description || "Команда бота" : c.description),
+              ]
+            )
+          )
+        );
+        mentionMenu.querySelector(".active")?.scrollIntoView({ block: "nearest" });
+        return;
+      }
       mentionMatches.forEach((u, i) =>
         mentionMenu.appendChild(
           el(
@@ -157,6 +192,17 @@ export function Composer({
       );
     }
     function updateMentionMenu() {
+      const commandQuery = currentCommandQuery();
+      if (commandQuery !== null) {
+        menuMode = "command";
+        mentionMatches = suggestSlashCommands(commandQuery, botCommands ?? []);
+        if (!mentionMatches.length) return closeMentionMenu();
+        mentionActiveIndex = 0;
+        renderMentionMenu();
+        mentionMenu.classList.remove("hidden");
+        return;
+      }
+      menuMode = "mention";
       const query = currentMentionQuery();
       const q = query?.toLowerCase();
       mentionMatches =
@@ -180,6 +226,18 @@ export function Composer({
       clear(mentionMenu);
     }
     function selectMention(user) {
+      if (menuMode === "command") {
+        const cmd = user;
+        closeMentionMenu();
+        textarea.value = `/${cmd.name}${cmd.takesArg ? " " : ""}`;
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        autoResize();
+        updateTrailingButtons();
+        // Команда без текста (кубик, опрос, команда бота) выполняется сразу.
+        if (!cmd.takesArg) submit();
+        return;
+      }
       const pos = textarea.selectionStart;
       const before = textarea.value.slice(0, pos).replace(/@(\w*)$/, `@${user.username} `);
       textarea.value = before + textarea.value.slice(pos);
@@ -214,13 +272,50 @@ export function Composer({
       if (!editingMessage) scheduleDraftSave(textarea.value);
     }
 
+    function resetInput() {
+      textarea.value = "";
+      autoResize();
+      updateTrailingButtons();
+      clearDraft();
+    }
+
+    // «/команда …» — превращаем в разметку или выполняем действие.
+    // Возвращает { text, silent } для отправки или null, если всё уже сделано.
+    function applySlashCommand(text) {
+      const reserved = (botCommands ?? []).map((c) => String(c.command ?? c.name ?? "").replace(/^\//, "").toLowerCase());
+      const cmd = parseSlashCommand(text, { reserved });
+      if (!cmd) return { text, silent: false };
+      if (cmd.error) {
+        showHint(cmd.error);
+        return null;
+      }
+      if (cmd.dice) {
+        onSend("", [{ kind: "dice", meta: { emoji: cmd.dice } }]);
+        resetInput();
+        return null;
+      }
+      if (cmd.action) {
+        resetInput();
+        const action = attachActions().find((a) => a.label === (cmd.action === "poll" ? "Опрос" : "Чек-лист"));
+        action?.run();
+        return null;
+      }
+      return cmd;
+    }
+
     function submit(opts = {}) {
+      let trimmed = textarea.value.trim();
+      if (!trimmed && !staged.length) return;
+      if (!editingMessage && trimmed.startsWith("/")) {
+        const res = applySlashCommand(trimmed);
+        if (!res) return;
+        trimmed = res.text;
+        if (res.silent) opts = { ...opts, silent: true };
+      }
       const silent = {
         ...(opts.silent === true ? { silent: true } : {}),
         ...(opts.effect ? { effect: opts.effect } : {}),
       };
-      const trimmed = textarea.value.trim();
-      if (!trimmed && !staged.length) return;
       if (editingMessage) {
         if (!trimmed) return;
         onSaveEdit(trimmed);
@@ -1341,6 +1436,9 @@ export function Composer({
     const dot = el("span", { class: "composer-recording-dot" });
     const waveEl = el("div", { class: "composer-wave" });
     let levels = [];
+    // Все уровни за запись — из них собирается осциллограмма голосового.
+    const recordedLevels = [];
+    let transcription = null;
     function buildWave() {
       const width = waveEl.clientWidth || 260;
       const count = Math.max(24, Math.min(400, Math.floor(width / 6)));
@@ -1464,14 +1562,19 @@ export function Composer({
       startedAt = Date.now();
       stopRecordAction = startChatAction(chatId, mode === "voice" ? "record_voice" : "record_video_note", recordingBar);
       if (videoPreview) videoPreview.srcObject = recordingHandle.previewStream ?? recordingHandle.stream;
+      if (mode === "voice" && getState().settings?.voiceTranscription) {
+        transcription = startTranscription();
+      }
 
       const meter = createLevelMeter(recordingHandle.stream);
       if (meter) {
         const step = () => {
           if (!recordingHandle) return;
           if (!recordingHandle.isPaused?.()) {
-            levels.push(meter.level());
+            const level = meter.level();
+            levels.push(level);
             levels.shift();
+            if (mode === "voice") recordedLevels.push(level);
             drawWave();
             drawTime();
           }
@@ -1497,13 +1600,20 @@ export function Composer({
       stopRecordAction?.();
       stopRecordAction = null;
       renderIdleBody();
-      if (!recorded) return;
+      if (!recorded) {
+        transcription?.cancel();
+        return;
+      }
 
       const ext = (recorded.mimeType || "").includes("mp4") ? "mp4" : mode === "voice" ? "webm" : "webm";
       const file = new File([recorded.blob], `${mode}-${Date.now()}.${ext}`, { type: recorded.mimeType });
       try {
-        const attachment = await withChatAction(chatId, mode === "voice" ? "upload_voice" : "upload_video_note", uploadFile(file, mode));
-        onSend("", [{ ...attachment, kind: mode, durationSec: recorded.durationSec }]);
+        const [attachment, transcript] = await Promise.all([
+          withChatAction(chatId, mode === "voice" ? "upload_voice" : "upload_video_note", uploadFile(file, mode)),
+          transcription?.stop() ?? "",
+        ]);
+        const extra = mode === "voice" ? { waveform: packWaveform(recordedLevels), transcript: transcript || undefined } : {};
+        onSend("", [{ ...attachment, kind: mode, durationSec: recorded.durationSec, ...extra }]);
       } catch (err) {
         alert(err.message || "Не удалось отправить запись");
       }

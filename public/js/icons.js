@@ -38,6 +38,8 @@ const PATHS = {
   Info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>',
   Play: '<path d="M7 5l12 7-12 7V5Z"/>',
   Pause: '<path d="M8 5v14M16 5v14"/>',
+  PlayFill: '<path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor"/>',
+  PauseFill: '<rect x="6.5" y="5" width="3.6" height="14" rx="1.2" fill="currentColor" stroke="none"/><rect x="13.9" y="5" width="3.6" height="14" rx="1.2" fill="currentColor" stroke="none"/>',
   Key: '<circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M17 6l2 2M14 9l2 2"/>',
   Download: '<path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/>',
   Accounts: '<circle cx="9" cy="9" r="5"/><path d="M15 6a5 5 0 0 1 0 9.8"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/>',

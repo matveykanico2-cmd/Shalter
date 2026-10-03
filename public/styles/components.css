@@ -1596,10 +1596,29 @@
   display: block;
 }
 .message-text .quote-line {
+  position: relative;
   display: block;
-  border-left: 2px solid var(--color-accent);
-  padding-left: 8px;
-  color: var(--color-muted);
+  margin: 2px 0;
+  border-left: 3px solid var(--quote-accent, var(--color-accent));
+  border-radius: 4px;
+  padding: 3px 22px 3px 8px;
+  background: color-mix(in srgb, var(--quote-accent, var(--color-accent)) 10%, transparent);
+}
+/* Кавычка в правом верхнем углу — как у цитат в Telegram. */
+.message-text .quote-line::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 11px;
+  height: 11px;
+  background: var(--quote-accent, var(--color-accent));
+  opacity: 0.85;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 13.5C4 9 6.6 5.6 10.4 4.5l.8 1.7C8.9 7.2 7.8 9 7.7 11H10v8H4zm10 0c0-4.5 2.6-7.9 6.4-9l.8 1.7c-2.3 1-3.4 2.8-3.5 4.8H20v8h-6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 13.5C4 9 6.6 5.6 10.4 4.5l.8 1.7C8.9 7.2 7.8 9 7.7 11H10v8H4zm10 0c0-4.5 2.6-7.9 6.4-9l.8 1.7c-2.3 1-3.4 2.8-3.5 4.8H20v8h-6z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.message-column.mine .message-text .quote-line {
+  --quote-accent: var(--color-bubble-out-accent);
 }
 .message-text .quote-line.quote-collapsed {
   max-height: 5.6em;
@@ -1670,31 +1689,50 @@
   position: relative;
   display: block;
   margin: 4px 0;
-  border-radius: 8px;
-  background: var(--color-surface-alt);
-  border-left: 3px solid var(--color-accent);
+  overflow: hidden;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--code-accent, var(--color-accent)) 9%, transparent);
+  border-left: 3px solid var(--code-accent, var(--color-accent));
+}
+.message-column.mine .code-block {
+  --code-accent: var(--color-bubble-out-accent);
+}
+.code-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px 0 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--code-accent, var(--color-accent));
+}
+.code-block-lang {
+  white-space: nowrap;
 }
 .code-block pre {
   margin: 0;
-  padding: 8px 10px;
+  padding: 4px 10px 8px;
   overflow-x: auto;
   font-family: var(--font-mono);
   font-size: 0.88em;
+  line-height: 1.45;
   white-space: pre;
 }
 .code-block-copy {
-  position: absolute;
-  top: 4px;
-  right: 4px;
   border: none;
   border-radius: 6px;
   padding: 2px 6px;
-  background: var(--color-surface);
-  color: var(--color-muted);
-  font-size: 11px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+.code-block-copy:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
 }
 .code-block:hover .code-block-copy,
 .code-block-copy:focus-visible {
@@ -1703,6 +1741,73 @@
 @media (hover: none) {
   .code-block-copy { opacity: 1; }
 }
+/* Цвета подсветки — светлая тема, затем тёмная и исходящие пузыри. */
+.code-block {
+  --tk-keyword: #b5268d;
+  --tk-string: #2f8a32;
+  --tk-number: #c25d00;
+  --tk-comment: #8a9199;
+  --tk-function: #1f6fd1;
+  --tk-type: #8a5a00;
+  --tk-prop: #0e7d8f;
+  --tk-literal: #c25d00;
+  --tk-operator: #6b7178;
+}
+:root[data-theme="dark"] .code-block {
+  --tk-keyword: #e48ad5;
+  --tk-string: #9ad48a;
+  --tk-number: #f6b26b;
+  --tk-comment: #7f868c;
+  --tk-function: #7cb7ff;
+  --tk-type: #f1d07a;
+  --tk-prop: #74d4e2;
+  --tk-literal: #f6b26b;
+  --tk-operator: #aab0b6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .code-block {
+    --tk-keyword: #e48ad5;
+    --tk-string: #9ad48a;
+    --tk-number: #f6b26b;
+    --tk-comment: #7f868c;
+    --tk-function: #7cb7ff;
+    --tk-type: #f1d07a;
+    --tk-prop: #74d4e2;
+    --tk-literal: #f6b26b;
+    --tk-operator: #aab0b6;
+  }
+  :root:not([data-theme="light"]) .message-column.mine .code-block {
+    --tk-keyword: #ffd1f4;
+    --tk-string: #d6ffc9;
+    --tk-number: #ffe0b8;
+    --tk-comment: rgba(255, 255, 255, 0.55);
+    --tk-function: #d2e6ff;
+    --tk-type: #fff1c2;
+    --tk-prop: #c9f6ff;
+    --tk-literal: #ffe0b8;
+    --tk-operator: rgba(255, 255, 255, 0.75);
+  }
+}
+:root[data-theme="dark"] .message-column.mine .code-block {
+  --tk-keyword: #ffd1f4;
+  --tk-string: #d6ffc9;
+  --tk-number: #ffe0b8;
+  --tk-comment: rgba(255, 255, 255, 0.55);
+  --tk-function: #d2e6ff;
+  --tk-type: #fff1c2;
+  --tk-prop: #c9f6ff;
+  --tk-literal: #ffe0b8;
+  --tk-operator: rgba(255, 255, 255, 0.75);
+}
+.tk-keyword { color: var(--tk-keyword); }
+.tk-string { color: var(--tk-string); }
+.tk-number { color: var(--tk-number); }
+.tk-comment { color: var(--tk-comment); font-style: italic; }
+.tk-function { color: var(--tk-function); }
+.tk-type { color: var(--tk-type); }
+.tk-prop { color: var(--tk-prop); }
+.tk-literal { color: var(--tk-literal); }
+.tk-operator { color: var(--tk-operator); }
 .text-link {
   color: var(--color-accent);
   text-decoration: underline;
@@ -14566,18 +14671,6 @@ video.story-reply-thumb { object-fit: cover; }
   to { transform: rotate(360deg); }
 }
 
-.audio-attachment {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 220px;
-  max-width: 100%;
-}
-.audio-attachment-player {
-  width: 100%;
-  height: 36px;
-}
-
 /* Настройки → Цены и тарифы */
 .pricing-row {
   display: grid;
@@ -15086,4 +15179,434 @@ video.story-reply-thumb { object-fit: cover; }
   color: var(--color-success);
   font-size: 13px;
   margin-left: 4px;
+}
+
+/* Ripple — волна от точки нажатия (lib/ripple.js). */
+.ripple-host {
+  position: relative;
+}
+.ripple-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.ripple-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.1;
+  transform: scale(0);
+  animation: ripple-grow 0.45s cubic-bezier(0.2, 0.6, 0.35, 1) forwards;
+}
+.btn-accent .ripple-circle,
+.btn-accent-pill .ripple-circle,
+.sidebar-fab .ripple-circle,
+.chat-list-item.active .ripple-circle {
+  background: #fff;
+  opacity: 0.22;
+}
+.ripple-circle.ripple-fade {
+  opacity: 0 !important;
+  transition: opacity 0.3s ease;
+}
+@keyframes ripple-grow {
+  to { transform: scale(1); }
+}
+
+/* Голосовое сообщение (messageBubble.js → VoicePlayer). */
+.voice-msg {
+  --voice-accent: var(--color-accent);
+  --voice-dim: color-mix(in srgb, var(--voice-accent) 30%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
+  max-width: 100%;
+  padding: 2px 0 4px;
+}
+.message-column.mine .voice-msg {
+  --voice-accent: var(--color-bubble-out-accent);
+}
+.voice-msg-play {
+  display: flex;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--voice-accent);
+  color: var(--color-bubble-in);
+  transition: transform 0.15s ease;
+}
+.message-column.mine .voice-msg-play {
+  color: var(--color-bubble-out);
+}
+.voice-msg-play:not(.playing) svg {
+  margin-left: 2px;
+}
+.voice-msg-play:active {
+  transform: scale(0.94);
+}
+.voice-msg-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+.voice-msg-wave {
+  display: flex;
+  height: 24px;
+  align-items: flex-end;
+  gap: 2px;
+  cursor: pointer;
+  touch-action: none;
+}
+.voice-msg-wave:focus-visible {
+  outline-offset: 3px;
+}
+.voice-msg-bar {
+  flex: 1;
+  max-width: 3px;
+  min-width: 2px;
+  height: calc(var(--h, 0.12) * 100%);
+  border-radius: 2px;
+  background: var(--voice-dim);
+  transition: background-color 0.15s ease;
+}
+.voice-msg-bar.played {
+  background: var(--voice-accent);
+}
+.voice-msg-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.message-column.mine .voice-msg-meta {
+  color: var(--color-bubble-out-meta);
+}
+.voice-msg-transcribe {
+  display: flex;
+  flex-shrink: 0;
+  align-self: center;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--voice-dim);
+  color: var(--voice-accent);
+  transition: background-color 0.15s ease;
+}
+.voice-msg-transcribe.open,
+.voice-msg-transcribe:hover {
+  background: color-mix(in srgb, var(--voice-accent) 40%, transparent);
+}
+.voice-transcript {
+  max-width: 300px;
+  padding: 0 2px 4px;
+  font-size: 15px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  animation: voice-transcript-in 0.2s ease;
+}
+.voice-transcript[hidden] {
+  display: none;
+}
+@keyframes voice-transcript-in {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+/* «Сейчас играет» под шапкой чата (components/audioPlayerBar.js). */
+.audio-bar-slot {
+  position: relative;
+  z-index: 3;
+}
+.audio-bar-slot:not(.open) {
+  display: none;
+}
+.audio-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 48px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  animation: audio-bar-in 0.2s ease;
+}
+@keyframes audio-bar-in {
+  from { opacity: 0; transform: translateY(-8px); }
+}
+.audio-bar-toggle {
+  color: var(--color-accent);
+}
+.audio-bar-info {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 2px 4px;
+  text-align: left;
+}
+.audio-bar-title {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.audio-bar-subtitle {
+  display: flex;
+  gap: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.audio-bar-rate {
+  flex-shrink: 0;
+  min-width: 36px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+.audio-bar-rate:hover {
+  background: var(--color-accent-soft);
+}
+.audio-bar-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  overflow: hidden;
+}
+.audio-bar-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+/* Файл в сообщении — цветная плитка с расширением, как в Telegram. */
+.file-attachment {
+  gap: 12px;
+  border: none;
+  background: transparent;
+  padding: 4px 4px 6px 0;
+  min-width: 200px;
+  max-width: 300px;
+  color: inherit;
+  text-decoration: none;
+}
+.file-attachment-icon {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  align-items: flex-end;
+  justify-content: flex-start;
+  overflow: hidden;
+  border-radius: 8px;
+  padding: 6px 7px;
+  background: var(--file-color, var(--color-accent));
+  color: #fff;
+}
+/* Загнутый уголок. */
+.file-attachment-icon::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  border-bottom-left-radius: 4px;
+  background: linear-gradient(225deg, var(--color-bubble-in) 50%, rgba(0, 0, 0, 0.22) 50%);
+}
+.message-column.mine .file-attachment-icon::before {
+  background: linear-gradient(225deg, var(--color-bubble-out) 50%, rgba(0, 0, 0, 0.22) 50%);
+}
+.file-attachment-ext {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  transition: opacity 0.15s ease;
+}
+.file-attachment-dl {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.file-attachment:hover .file-attachment-ext { opacity: 0; }
+.file-attachment:hover .file-attachment-dl { opacity: 1; }
+.file-attachment-name {
+  font-size: 15px;
+  font-weight: 500;
+}
+.file-attachment-size {
+  margin-top: 2px;
+  font-size: 13px;
+}
+.message-column.mine .file-attachment-size {
+  color: var(--color-bubble-out-meta);
+}
+
+/* Музыка в сообщении. */
+.audio-file {
+  --audio-accent: var(--color-accent);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 240px;
+  max-width: 320px;
+  padding: 2px 0 4px;
+}
+.message-column.mine .audio-file {
+  --audio-accent: var(--color-bubble-out-accent);
+}
+.audio-file-play {
+  display: flex;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--audio-accent);
+  color: var(--color-bubble-in);
+}
+.message-column.mine .audio-file-play {
+  color: var(--color-bubble-out);
+}
+.audio-file-play:not(.playing) svg {
+  margin-left: 2px;
+}
+.audio-file-info {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+.audio-file-title {
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.audio-file-sub {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.message-column.mine .audio-file-sub {
+  color: var(--color-bubble-out-meta);
+}
+.audio-file-track {
+  display: none;
+  height: 3px;
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--audio-accent) 25%, transparent);
+  cursor: pointer;
+}
+.audio-file-track.visible {
+  display: block;
+}
+.audio-file-fill {
+  display: block;
+  height: 100%;
+  background: var(--audio-accent);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.audio-file-dl {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* Похожие каналы в инфо-панели канала. */
+.similar-channels {
+  padding: 8px 0 4px;
+}
+.similar-channels[hidden] {
+  display: none;
+}
+.similar-channels-row {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px 8px 8px;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+.similar-channels-row::-webkit-scrollbar {
+  display: none;
+}
+.similar-channel {
+  display: flex;
+  flex-shrink: 0;
+  width: 80px;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  border-radius: 12px;
+  scroll-snap-align: start;
+}
+.similar-channel:hover {
+  background: var(--color-surface-alt);
+}
+.similar-channel-avatar {
+  position: relative;
+  display: flex;
+}
+.similar-channel-count {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border: 2px solid var(--color-surface);
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.similar-channel-title {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }

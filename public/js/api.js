@@ -208,6 +208,7 @@ export const api = {
     req(`/api/chats/${id}/public`, { method: "POST", body: JSON.stringify({ isPublic, username }) }),
   discoverChannels: (q) => req(`/api/channels?q=${encodeURIComponent(q ?? "")}`),
   subscribeChannel: (id) => req(`/api/channels/${id}/subscribe`, { method: "POST" }),
+  similarChannels: (id) => req(`/api/channels/${id}/similar`),
   leaveChat: (id) => req(`/api/chats/${id}/leave`, { method: "POST" }),
   clearHistory: (id, forEveryone) =>
     req(`/api/chats/${id}/clear`, { method: "POST", body: JSON.stringify({ forEveryone: !!forEveryone }) }),

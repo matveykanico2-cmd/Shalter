@@ -17,6 +17,68 @@ import { isChatMuted } from "../lib/chatSort.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 import { ProfileStatusBadge } from "./profileStatusBadge.js";
 import { openChannelStats } from "./channelStats.js";
+import { setState } from "../state.js";
+
+const similarCache = new Map();
+
+// «Похожие каналы» — горизонтальная лента, как в Telegram. Панель
+// перерисовывается часто, поэтому ответ кэшируется на минуту.
+function SimilarChannels(chat) {
+  const box = el("div", { class: "similar-channels", hidden: true });
+  const cached = similarCache.get(chat.id);
+  const load = cached && Date.now() - cached.at < 60_000 ? Promise.resolve(cached.data) : api.similarChannels(chat.id).then((r) => r.channels);
+  load
+    .then((channels) => {
+      similarCache.set(chat.id, { at: Date.now(), data: channels });
+      if (!channels?.length) return;
+      box.hidden = false;
+      box.append(
+        el("p", { class: "list-section-label" }, "Похожие каналы"),
+        el(
+          "div",
+          { class: "similar-channels-row" },
+          channels.map((c) =>
+            el(
+              "button",
+              {
+                class: "similar-channel",
+                "data-ripple": "",
+                title: c.title,
+                onclick: async () => {
+                  if (!c.isMember) {
+                    try {
+                      await api.subscribeChannel(c.id);
+                      const r = await api.listChats();
+                      setState({ chats: r.chats });
+                    } catch (err) {
+                      alert(err.message || "Не удалось подписаться");
+                      return;
+                    }
+                  }
+                  navigate(`/chat/${c.id}`);
+                },
+              },
+              [
+                el("span", { class: "similar-channel-avatar" }, [
+                  Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage, size: 56 }),
+                  el("span", { class: "similar-channel-count" }, [el("span", { html: iconSvg("Users", 10) }), compactCount(c.subscriberCount)]),
+                ]),
+                el("span", { class: "similar-channel-title" }, c.title),
+              ]
+            )
+          )
+        )
+      );
+    })
+    .catch(() => {});
+  return box;
+}
+
+function compactCount(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+  return String(n);
+}
 
 const RESTRICT_DURATIONS = [
   { label: "На 1 час", hours: 1 },
@@ -414,6 +476,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             `Автоудаление сообщений: ${autoDeleteLabel(chat.autoDeleteSeconds)}`
           )
         : null,
+      chat.type === "channel" ? SimilarChannels(chat) : null,
 
       isDm ? el("button", { class: "info-panel-row danger", onclick: onToggleBlock }, isBlocked ? "Разблокировать" : "Заблокировать") : null,
       isDm && chat.otherUser

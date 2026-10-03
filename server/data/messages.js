@@ -17,6 +17,21 @@ function openText(chatId, id, stored) {
   return inner.startsWith("sec1:") ? openSecret(chatId, secretKeyOf(chatId), id, inner) : inner;
 }
 
+// Расшифровка голосового — такой же текст переписки, поэтому в базе она
+// шифруется наравне с текстом сообщения, а не лежит открыто в JSON вложений.
+function sealAttachments(chatId, id, attachments) {
+  if (!attachments) return null;
+  return JSON.stringify(
+    attachments.map((a) => (a?.transcript ? { ...a, transcript: sealText(chatId, `${id}:transcript`, a.transcript) } : a))
+  );
+}
+function openAttachments(chatId, id, stored) {
+  if (!stored) return undefined;
+  return JSON.parse(stored).map((a) =>
+    a?.transcript ? { ...a, transcript: openText(chatId, `${id}:transcript`, a.transcript) } : a
+  );
+}
+
 function rowToMessage(row) {
   if (!row) return undefined;
   return {
@@ -30,7 +45,7 @@ function rowToMessage(row) {
     pinned: !!row.pinned,
     replyToId: row.replyToId ?? null,
     forwardedFrom: row.forwardedFrom ? JSON.parse(row.forwardedFrom) : undefined,
-    attachments: row.attachments ? JSON.parse(row.attachments) : undefined,
+    attachments: openAttachments(row.chatId, row.id, row.attachments),
     keyboard: row.keyboard ? JSON.parse(row.keyboard) : undefined,
     gift: row.gift ? JSON.parse(row.gift) : undefined,
     sticker: row.sticker ? JSON.parse(row.sticker) : undefined,
@@ -177,7 +192,7 @@ async function addMessage(message) {
     pinned: message.pinned ? 1 : 0,
     replyToId: message.replyToId ?? null,
     forwardedFrom: message.forwardedFrom ? JSON.stringify(message.forwardedFrom) : null,
-    attachments: message.attachments ? JSON.stringify(message.attachments) : null,
+    attachments: sealAttachments(message.chatId, message.id, message.attachments),
     keyboard: message.keyboard ? JSON.stringify(message.keyboard) : null,
     gift: message.gift ? JSON.stringify(message.gift) : null,
     sticker: message.sticker ? JSON.stringify(message.sticker) : null,
@@ -232,7 +247,7 @@ async function mutate(id, fn) {
     editedAt: updated.editedAt ?? null,
     pinned: updated.pinned ? 1 : 0,
     forwardedFrom: updated.forwardedFrom ? JSON.stringify(updated.forwardedFrom) : null,
-    attachments: updated.attachments ? JSON.stringify(updated.attachments) : null,
+    attachments: sealAttachments(existing.chatId, id, updated.attachments),
     keyboard: updated.keyboard ? JSON.stringify(updated.keyboard) : null,
     reactions: JSON.stringify(updated.reactions ?? []),
     readByIds: JSON.stringify(updated.readByIds ?? []),

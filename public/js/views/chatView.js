@@ -16,6 +16,7 @@ import { getState, setState } from "../state.js";
 import { playSentSound } from "../lib/ringtone.js";
 import { isChatAdmin, isChatModerator } from "../lib/chatRoles.js";
 import { messagePreview } from "../lib/messagePreview.js";
+import { AudioPlayerBar } from "../components/audioPlayerBar.js";
 import { noteMessageInChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache } from "../lib/localCache.js";
 import { cachedUser, fetchUsers, rememberUser } from "../lib/userLookup.js";
@@ -1072,7 +1073,8 @@ export async function ChatView(root, chatId) {
     );
   }
   renderContactBar();
-  const mainCol = el("div", { class: "chat-main-col" }, [header, topicsSlot, selectionBar, searchBar, liveBar, pinnedBar, contactBarSlot, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
+  const audioBar = AudioPlayerBar({ chatId });
+  const mainCol = el("div", { class: "chat-main-col" }, [header, audioBar, topicsSlot, selectionBar, searchBar, liveBar, pinnedBar, contactBarSlot, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
   api
     .serveAd("chat")
     .then((r) => {
@@ -2066,9 +2068,14 @@ export async function ChatView(root, chatId) {
 
   const onHashtag = (e) => openSearch(e.detail);
   window.addEventListener("shalter:hashtag", onHashtag);
+  const onJumpMessage = (e) => {
+    if (e.detail?.chatId === chatId && e.detail.messageId) jumpTo(e.detail.messageId);
+  };
+  window.addEventListener("shalter:jump-message", onJumpMessage);
 
   root._cleanup = () => {
     window.removeEventListener("shalter:hashtag", onHashtag);
+    window.removeEventListener("shalter:jump-message", onJumpMessage);
     document.body.classList.remove("protected-chat-open");
     document.removeEventListener("keydown", onChatKeydown, true);
     clearInterval(messagesIv);

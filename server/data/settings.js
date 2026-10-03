@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS = {
   translateLanguage: "ru",
   uiLanguage: "ru",
   autoDownload: true,
+  voiceTranscription: false,
   chatClears: {},
   hiddenChats: {},
   chatWallpapers: {},

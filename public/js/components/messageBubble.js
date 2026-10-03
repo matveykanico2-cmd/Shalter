@@ -22,6 +22,8 @@ import { openGiftShopDialog } from "./giftShopDialog.js";
 import { ALL_EMOJI } from "../lib/emojiList.js";
 import { STICKERS, DRAWN_STICKERS } from "../lib/stickers.js";
 import { openInAppBrowser, checkLinkSafety } from "./inAppBrowser.js";
+import { setNowPlaying, playingMediaFor } from "../lib/audioPlayer.js";
+import { resampleWaveform, decodeWaveform } from "../lib/waveform.js";
 
 const EXTENDED_PICTOGRAPHIC_RE = /\p{Extended_Pictographic}/u;
 const FLAG_RE = /^\p{Regional_Indicator}{2}$/u;
@@ -515,66 +517,119 @@ function clockTime(sec) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-function VoicePlayer(a) {
-  const audio = el("audio", { src: a.url, class: "hidden-audio", preload: "metadata" });
-  const playBtn = el("button", { class: "voice-play-btn", html: iconSvg("Play", 14) });
-  const barFill = el("div", { class: "voice-bar-fill" });
-  const timeLabelEl = el("p", { class: "voice-time mono" }, `0:00 / ${clockTime(a.durationSec ?? 0)}`);
-  const speedBtn = el("button", { class: "voice-speed-btn" }, "1×");
-  let playing = false;
-  let speed = 1;
+const VOICE_BARS = 40;
+let waveObserver = null;
 
-  playBtn.addEventListener("click", () => {
-    if (playing) audio.pause();
-    else audio.play();
-  });
-  audio.addEventListener("play", () => {
-    playing = true;
-    playExclusiveMedia(audio);
-    playBtn.innerHTML = "";
-    playBtn.appendChild(el("span", { class: "voice-pause-icon" }));
-  });
-  audio.addEventListener("pause", () => {
-    playing = false;
-    playBtn.innerHTML = iconSvg("Play", 14);
-  });
-  audio.addEventListener("ended", () => {
-    playing = false;
-    playBtn.innerHTML = iconSvg("Play", 14);
-  });
-  const bar = el("div", { class: "voice-bar seekable" }, [barFill, el("span", { class: "voice-bar-knob" })]);
+// Голосовое как в Telegram: круглая кнопка, осциллограмма, по которой можно
+// перематывать, длительность и кнопка «→A» с расшифровкой.
+function VoicePlayer(a, ctx = {}) {
+  const key = ctx.message ? `${ctx.message.id}:${a.url}` : null;
+  const audio = playingMediaFor(key) ?? el("audio", { src: a.url, class: "hidden-audio", preload: "metadata" });
+  const playBtn = el("button", { class: "voice-msg-play", "aria-label": "Слушать" });
+  const timeEl = el("span", { class: "voice-msg-time mono" }, clockTime(a.durationSec ?? 0));
+  const wave = el("div", { class: "voice-msg-wave", role: "slider", "aria-label": "Перемотка", tabindex: "0" });
 
+  const paintIcon = () => {
+    const playing = !audio.paused;
+    playBtn.innerHTML = iconSvg(playing ? "PauseFill" : "PlayFill", 24);
+    playBtn.classList.toggle("playing", playing);
+    playBtn.setAttribute("aria-label", playing ? "Пауза" : "Слушать");
+  };
+  const buildBars = (levels) => {
+    clear(wave);
+    const values = levels ? resampleWaveform(levels, VOICE_BARS) : new Array(VOICE_BARS).fill(0);
+    wave.append(...values.map((v) => el("span", { class: "voice-msg-bar", style: `--h:${Math.max(0.12, v).toFixed(3)}` })));
+    paintProgress();
+  };
   const durationOf = () => {
     if (a.durationSec && a.durationSec > 0) return a.durationSec;
     const known = audio.duration;
     return Number.isFinite(known) && known > 0 ? known : 0;
   };
-  const paint = () => {
-    const dur = durationOf() || 1;
-    const done = Math.min(100, (audio.currentTime / dur) * 100);
-    barFill.style.width = `${done}%`;
-    bar.style.setProperty("--voice-knob-left", `${done}%`);
-    timeLabelEl.textContent = `${clockTime(audio.currentTime)} / ${clockTime(dur)}`;
-  };
-  audio.addEventListener("timeupdate", paint);
-  audio.addEventListener("seeking", paint);
-  audio.addEventListener("loadedmetadata", paint);
-  speedBtn.addEventListener("click", () => {
-    speed = speed === 1 ? 1.5 : speed === 1.5 ? 2 : 1;
-    audio.playbackRate = speed;
-    speedBtn.textContent = `${speed}×`;
+  function paintProgress() {
+    const dur = durationOf();
+    const done = dur ? Math.min(1, audio.currentTime / dur) : 0;
+    const lit = Math.round(done * VOICE_BARS);
+    [...wave.children].forEach((bar, i) => bar.classList.toggle("played", i < lit));
+    const started = audio.currentTime > 0 && !audio.ended;
+    timeEl.textContent = started ? clockTime(audio.currentTime) : clockTime(dur);
+    wave.setAttribute("aria-valuenow", String(Math.round(done * 100)));
+  }
+
+  if (a.waveform?.length) buildBars(a.waveform);
+  else {
+    buildBars(null);
+    // Осциллограммы нет (старое голосовое) — считаем её из файла, когда пузырь виден.
+    waveObserver ??= new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        waveObserver.unobserve(e.target);
+        e.target._loadWave?.();
+      }
+    });
+    wave._loadWave = () => decodeWaveform(a.url).then((levels) => levels && buildBars(levels));
+    waveObserver.observe(wave);
+  }
+
+  playBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (audio.paused) {
+      playExclusiveMedia(audio);
+      audio.play().catch(() => {});
+    } else audio.pause();
   });
+  audio.addEventListener("play", () => {
+    playExclusiveMedia(audio);
+    setNowPlaying(audio, {
+      key,
+      kind: "voice",
+      title: ctx.sender?.name ?? "Голосовое сообщение",
+      subtitle: "Голосовое сообщение",
+      chatId: ctx.message?.chatId,
+      messageId: ctx.message?.id,
+    });
+    paintIcon();
+  });
+  audio.addEventListener("pause", paintIcon);
+  audio.addEventListener("ended", () => {
+    paintIcon();
+    paintProgress();
+  });
+  audio.addEventListener("timeupdate", paintProgress);
+  audio.addEventListener("seeking", paintProgress);
+  audio.addEventListener("loadedmetadata", paintProgress);
+  attachSeek(wave, audio, durationOf);
+  wave.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const dur = durationOf();
+    if (dur) audio.currentTime = Math.max(0, Math.min(dur, audio.currentTime + (e.key === "ArrowLeft" ? -5 : 5)));
+  });
+  paintIcon();
 
-  attachSeek(bar, audio, durationOf);
-
-  return el("div", { class: "voice-block" }, [
-    el("div", { class: "voice-player" }, [
-      audio,
-      playBtn,
-      el("div", { class: "voice-progress" }, [bar, timeLabelEl]),
-      speedBtn,
-    ]),
+  const block = el("div", { class: "voice-msg" }, [
+    audio,
+    playBtn,
+    el("div", { class: "voice-msg-body" }, [wave, el("div", { class: "voice-msg-meta" }, [timeEl])]),
   ]);
+  if (!a.transcript) return el("div", { class: "voice-block" }, block);
+
+  const transcriptEl = el("div", { class: "voice-transcript", hidden: true }, a.transcript);
+  const transcribeBtn = el("button", {
+    class: "voice-msg-transcribe",
+    title: "Расшифровка",
+    "aria-expanded": "false",
+    html: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h6M6.5 9 9 12l-2.5 3"/><path d="m12 18 4-11 4 11M13.4 14.5h5.2"/></svg>',
+    onclick: (e) => {
+      e.stopPropagation();
+      const open = transcriptEl.hidden;
+      transcriptEl.hidden = !open;
+      transcribeBtn.classList.toggle("open", open);
+      transcribeBtn.setAttribute("aria-expanded", String(open));
+    },
+  });
+  block.append(transcribeBtn);
+  return el("div", { class: "voice-block" }, [block, transcriptEl]);
 }
 
 function VideoNotePlayer(a) {
@@ -670,13 +725,13 @@ function typeOutOnce(node, messageId) {
   });
 }
 
-export function AttachmentView(a, me) {
+export function AttachmentView(a, me, ctx) {
   const autoDownload = getState().settings?.autoDownload !== false;
-  if (a.kind === "voice") return VoicePlayer(a);
+  if (a.kind === "voice") return VoicePlayer(a, ctx);
   if (a.kind === "video-note") return VideoNotePlayer(a);
   if (a.kind === "image") return autoDownload ? ImageAttachment(a) : TapToLoad("image", () => ImageAttachment(a));
   if (a.kind === "video") return autoDownload ? VideoAttachment(a) : TapToLoad("video", () => VideoAttachment(a));
-  if (a.kind === "file") return FileAttachment(a);
+  if (a.kind === "file") return FileAttachment(a, ctx);
   if (a.kind === "location") return LocationAttachment(a);
   if (a.kind === "contact") return ContactAttachment(a, me.id);
   if (a.kind === "birthday") return BirthdayAttachment(a);
@@ -766,7 +821,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         )
       );
     } else {
-      bubbleInner.push(AttachmentView(a, me));
+      bubbleInner.push(AttachmentView(a, me, { message, sender }));
     }
   }
   if (isSticker) {
