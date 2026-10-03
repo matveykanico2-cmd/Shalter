@@ -26,6 +26,9 @@ async function sendMessageAndBroadcast(chat, senderId, text, extra = {}) {
     type: "text",
     text,
     createdAt: new Date().toISOString(),
+    // Как у обычных сообщений: отправитель уже «прочитал» своё. Иначе после просмотра
+    // собеседником readByIds = [он один], и у отправителя навсегда одна галочка.
+    readByIds: [senderId],
     ...extra,
   });
   broadcastToUsers(chat.memberIds, { type: "message:new", chatId: chat.id, message });

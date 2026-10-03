@@ -8,6 +8,19 @@ const GIFTS = [
   { id: "tw_mailbox", emoji: "📬", name: "Почтовый ящик", priceRub: 20, premiumDays: 0 },
   { id: "tw_duck_birthday", emoji: "🐥", name: "Утёнок с тортом", priceRub: 35, premiumDays: 0 },
   { id: "tw_pirate_flag", emoji: "🏴‍☠️", name: "Пиратский флаг", priceRub: 45, premiumDays: 0 },
+  { id: "tw_duck_spy", emoji: "🕵️", name: "Утёнок-шпион", priceRub: 40, premiumDays: 0 },
+  { id: "tw_duck_popcorn", emoji: "🍿", name: "Утята с попкорном", priceRub: 30, premiumDays: 0 },
+  { id: "tw_duck_portal", emoji: "🌀", name: "Утёнок и портал", priceRub: 55, premiumDays: 0 },
+  { id: "tw_duck_safe", emoji: "🔐", name: "Утёнок с сейфом", priceRub: 60, premiumDays: 0 },
+  { id: "tw_duck_stop", emoji: "🚫", name: "Утёнок-бунтарь", priceRub: 25, premiumDays: 0 },
+  { id: "tw_duck_detective", emoji: "🔍", name: "Утёнок-сыщик", priceRub: 35, premiumDays: 0 },
+  { id: "tw_duck_album", emoji: "🖼️", name: "Фотоальбом", priceRub: 45, premiumDays: 0 },
+  { id: "tw_duck_vacation", emoji: "🏖️", name: "Утёнок на отдыхе", priceRub: 70, premiumDays: 0 },
+  { id: "tw_monkey", emoji: "🐵", name: "Обезьянка", priceRub: 30, premiumDays: 0 },
+  { id: "tw_hand", emoji: "✋", name: "Ладошка", priceRub: 10, premiumDays: 0 },
+  { id: "tw_chart", emoji: "📊", name: "График роста", priceRub: 20, premiumDays: 0 },
+  { id: "tw_folders", emoji: "🗂️", name: "Картотека", priceRub: 15, premiumDays: 0 },
+  { id: "tw_spider_folder", emoji: "🕸️", name: "Папка с паучком", priceRub: 15, premiumDays: 0 },
   { id: "premium_week", emoji: "⭐", name: "Premium на неделю", priceRub: 100, premiumDays: 7 },
   { id: "premium_month", emoji: "👑", name: "Premium на месяц", priceRub: 300, premiumDays: 30 },
   { id: "premium_quarter", emoji: "💎", name: "Premium на 3 месяца", priceRub: 1000, premiumDays: 90 },
@@ -342,6 +355,7 @@ const TWEB_GIFT_IDS = new Set([
   "cake", "premium_week", "premium_month", "premium_quarter", "premium_year", "premium_forever",
   "hlopushka_s_konfetti", "kubik", "podarochnaya_korobka", "zolotoy_klyuch",
   "tw_love_letter", "tw_mailbox", "tw_duck_birthday", "tw_pirate_flag",
+  "tw_duck_spy", "tw_duck_popcorn", "tw_duck_portal", "tw_duck_safe", "tw_duck_stop", "tw_duck_detective", "tw_duck_album", "tw_duck_vacation", "tw_monkey", "tw_hand", "tw_chart", "tw_folders", "tw_spider_folder",
 ]);
 
 function listGifts({ includeHidden = false } = {}) {

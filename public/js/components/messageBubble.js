@@ -5,6 +5,7 @@ import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { translateLocally } from "../lib/localTranslate.js";
 import { Avatar } from "./avatar.js";
+import { cachedUser, fetchUsers } from "../lib/userLookup.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { formatText, previewText } from "../lib/formatText.js";
 import { messagePreview, diceResult } from "../lib/messagePreview.js";
@@ -89,7 +90,7 @@ function entranceMessageMeta(message, mine, isChannel) {
   return el("div", { class: "entrance-message-meta" }, [
     el("span", { class: "mono" }, timeLabel(message.createdAt)),
     isChannel && typeof message.views === "number" ? el("span", { class: "mono" }, `${message.views} 👁`) : null,
-    mine ? el("span", { html: iconSvg(message.readByIds?.length > 1 ? "CheckCheck" : "Check", 13) }) : null,
+    mine ? el("span", { html: iconSvg(isReadByOthers(message) ? "CheckCheck" : "Check", 13) }) : null,
   ]);
 }
 
@@ -113,34 +114,74 @@ async function convertGift(gift) {
   }
 }
 
-const SPARKLE_ANGLES = [0, 60, 120, 180, 240, 300];
+// Прочитано, если сообщение видел кто-то кроме отправителя (у старых служебных
+// сообщений и подарков отправителя в readByIds нет).
+function isReadByOthers(message) {
+  return (message.readByIds ?? []).some((id) => id !== message.senderId);
+}
+
+// Подарок в чате, как в tweb (bubbles/starGift.tsx): служебная строка «… подарок за N ⭐»,
+// под ней карточка — анимация, «Подарок от …», пояснение и кнопка «Посмотреть».
 function GiftMessage(message, mine, isChannel) {
   const gift = message.gift;
   const isNew = !seenEntranceIds.has(message.id);
   seenEntranceIds.add(message.id);
   const isExclusive = !!gift.exclusive && gift.serial != null;
-  return el("div", { class: `gift-message ${isExclusive ? "gift-message-exclusive" : ""} ${isNew ? "" : "no-entrance"}` }, [
-    isExclusive ? el("p", { class: "gift-message-badge" }, `№${gift.serial} из ${gift.supply}`) : null,
-    el("div", { class: `gift-message-burst ${gift.background ? "has-bg" : ""}`, style: gift.background ? { background: giftBackgroundStyle(gift.background) } : {} }, [
-      el("div", { class: "gift-message-glow" }),
-      ...SPARKLE_ANGLES.map((deg, i) =>
-        el("span", { class: "gift-message-sparkle", style: `--angle: ${deg}deg; --delay: ${i * 0.05}s` }, "✨")
-      ),
-      el("div", { class: "gift-message-emoji" }, [renderGiftArt(gift, { size: 96, replay: isNew })]),
+  const stars = giftStars(gift);
+  const anon = !!gift.anon;
+  const fromName = anon ? "Аноним" : gift.fromName || (mine ? "Вы" : "Кто-то");
+  const fromUser = !anon && gift.fromId ? cachedUser(gift.fromId) : null;
+  const recipient = gift.recipientId ? cachedUser(gift.recipientId) : null;
+  const priceText = gift.custom ? "" : ` за ${formatRub(stars)} ⭐`;
+  const serviceText = mine
+    ? `Вы отправили подарок${priceText}`
+    : anon
+      ? `Вам анонимно подарили подарок${priceText}`
+      : `${fromName} отправил(а) вам подарок${priceText}`;
+  const note = mine
+    ? `${recipient?.name ?? "Получатель"} может показать этот подарок в своём профиле.`
+    : gift.custom
+      ? "Подарок уже на вашей полке в профиле."
+      : `Подарок на вашей полке в профиле. Его можно обменять на ${formatRub(stars)} ⭐.`;
+  const noteEl = el("p", { class: "tw-gift-note" }, note);
+  if (mine && gift.recipientId && !recipient) {
+    fetchUsers([gift.recipientId])
+      .then(() => {
+        const u = cachedUser(gift.recipientId);
+        if (u) noteEl.textContent = `${u.name} может показать этот подарок в своём профиле.`;
+      })
+      .catch(() => {});
+  }
+  const view = () => {
+    import("./giftCardDialog.js").then(({ openGiftCardDialog }) =>
+      openGiftCardDialog(gift, {
+        ownerName: recipient?.name ?? (mine ? null : getState().user?.name),
+        onSend: mine ? () => import("./giftShopDialog.js").then((m) => m.openGiftShopDialog({ recipient: recipient ? { id: recipient.id, name: recipient.name } : null })) : null,
+      })
+    );
+  };
+  return el("div", { class: `tw-gift ${isNew ? "" : "no-entrance"}` }, [
+    el("div", { class: "system-message" }, [el("span", { class: "system-message-text" }, serviceText)]),
+    el("div", { class: `tw-gift-box ${isExclusive ? "is-unique" : ""}` }, [
+      isExclusive ? el("span", { class: "tw-gift-ribbon" }, `${gift.serial} из ${formatRub(gift.supply)}`) : null,
+      gift.background ? el("div", { class: "tw-gift-backdrop", style: { background: giftBackgroundStyle(gift.background) } }) : null,
+      el("div", { class: "tw-gift-art" }, [renderGiftArt(gift, { size: 120, replay: isNew })]),
+      el("p", { class: "tw-gift-from" }, [
+        "Подарок от ",
+        el("span", { class: "tw-gift-from-user" }, [
+          !anon && (fromUser || gift.fromName) ? Avatar({ name: fromUser?.name ?? fromName, color: fromUser?.avatarColor, image: fromUser?.avatarImage, size: 16 }) : null,
+          el("span", {}, mine && !anon ? (getState().user?.name ?? fromName) : fromName),
+        ]),
+      ]),
+      el("p", { class: "tw-gift-name" }, gift.durationLabel ? `${gift.name} · ${gift.durationLabel}` : gift.name),
+      noteEl,
+      el("div", { class: "tw-gift-actions" }, [
+        el("button", { type: "button", class: "tw-gift-button", onclick: view }, "Посмотреть"),
+        !mine && !gift.custom
+          ? el("button", { type: "button", class: "tw-gift-button", onclick: () => convertGift(gift) }, `Обменять на ${formatRub(stars)} ⭐`)
+          : null,
+      ]),
     ]),
-    el("p", { class: "gift-message-name" }, gift.name),
-    gift.fromName ? el("p", { class: "gift-message-from" }, `от ${gift.fromName}`) : null,
-    isExclusive ? el("p", { class: "gift-message-exclusive-label" }, "Эксклюзивный подарок") : null,
-    gift.durationLabel ? el("p", { class: "gift-message-duration" }, gift.durationLabel) : null,
-    el("p", { class: "mono gift-message-price" }, gift.custom ? "Бесплатный подарок" : `⭐ ${formatRub(giftStars(gift))}`),
-    !mine
-      ? el("div", { class: "gift-message-actions" }, [
-          el("button", { class: "gift-card-action", onclick: () => openProfileDialog(gift.recipientId ?? getState().user.id) }, "Показать в профиле"),
-          gift.custom
-            ? null
-            : el("button", { class: "gift-card-action muted", onclick: () => convertGift(gift) }, `Обменять на ${formatRub(giftStars(gift))} ⭐`),
-        ])
-      : null,
     entranceMessageMeta(message, mine, isChannel),
   ]);
 }
@@ -904,7 +945,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     mine
       ? el("span", {
           class: message.pending ? "msg-status-pending" : "",
-          html: iconSvg(message.pending ? "Clock" : message.readByIds.length > 1 ? "CheckCheck" : "Check", 13),
+          html: iconSvg(message.pending ? "Clock" : isReadByOthers(message) ? "CheckCheck" : "Check", 13),
         })
       : null,
   ];

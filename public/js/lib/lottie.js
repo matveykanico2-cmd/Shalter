@@ -19,6 +19,19 @@ const BY_ID = {
   tw_mailbox: "Mailbox",
   tw_duck_birthday: "UtyanBirthday",
   tw_pirate_flag: "jolly_roger",
+  tw_duck_spy: "UtyanDisappear",
+  tw_duck_popcorn: "UtyanDiscussion",
+  tw_duck_portal: "UtyanLinks",
+  tw_duck_safe: "UtyanPasscode",
+  tw_duck_stop: "UtyanRestricted",
+  tw_duck_detective: "UtyanSearch",
+  tw_duck_album: "UtyanStories",
+  tw_duck_vacation: "ChatAutomation",
+  tw_monkey: "TwoFactorSetupMonkeyIdle",
+  tw_hand: "hand_stop",
+  tw_chart: "StatsEmoji",
+  tw_folders: "Folders_1",
+  tw_spider_folder: "EmptyFolder",
 };
 
 const BY_EMOJI = {
@@ -34,6 +47,19 @@ const BY_EMOJI = {
   "🔑": "key",
   "💎": "Diamond",
   "⭐": "StarReaction",
+  "🕵️": "UtyanDisappear",
+  "🍿": "UtyanDiscussion",
+  "🌀": "UtyanLinks",
+  "🔐": "UtyanPasscode",
+  "🚫": "UtyanRestricted",
+  "🔍": "UtyanSearch",
+  "🖼️": "UtyanStories",
+  "🏖️": "ChatAutomation",
+  "🐵": "TwoFactorSetupMonkeyIdle",
+  "✋": "hand_stop",
+  "📊": "StatsEmoji",
+  "🗂️": "Folders_1",
+  "🕸️": "EmptyFolder",
 };
 
 export function lottieNameFor(item) {

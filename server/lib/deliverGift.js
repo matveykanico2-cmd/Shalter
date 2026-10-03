@@ -52,6 +52,7 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId, backgrou
     {
       type: "gift",
       gift: {
+        giftId: gift.id,
         emoji: gift.emoji,
         name: gift.name,
         priceRub: gift.priceRub,

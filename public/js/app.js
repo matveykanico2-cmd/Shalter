@@ -24,7 +24,7 @@ import { showPasscodeLockScreen } from "./components/passcodeLockScreen.js";
 import { showPasswordLockScreen } from "./components/passwordLockScreen.js";
 import { initKeyboardShortcuts } from "./lib/keyboardShortcuts.js";
 import { initRipple } from "./lib/ripple.js";
-import { WaveBearMascot } from "./components/mascot.js";
+import { ChatTips } from "./components/chatTips.js";
 import { paintWallpaper } from "./lib/wallpapers.js";
 import { installToastAlert, installModalEscape } from "./components/toast.js";
 import { installEmojiImages } from "./lib/emojiImages.js";
@@ -202,11 +202,8 @@ async function boot() {
 
   function emptyChatPlaceholder() {
     const s = getState().settings;
-    const box = el("div", { class: "empty-chat message-list" }, [
-      WaveBearMascot(),
-      el("p", { class: "empty-chat-title" }, "Выберите чат"),
-      el("p", { class: "empty-hint" }, "Или начните новый — найдите человека во вкладке «Контакты»."),
-    ]);
+    // Как в tweb: вместо заглушки — карточки-подсказки (оформление, недавние чаты).
+    const box = el("div", { class: "empty-chat message-list empty-chat-tips" }, [ChatTips()]);
     paintWallpaper(box, { id: s?.chatWallpaper ?? "default", image: s?.chatWallpaperImage });
     return box;
   }
