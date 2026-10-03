@@ -190,7 +190,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
       },
       [
         g.exclusive ? el("span", { class: "gs-rare-badge" }, "Редкий") : null,
-        el("span", { class: "gs-card-art", style: background ? { background: giftBackgroundStyle(background) } : {} }, [renderGiftArt(g, { size: 44, replay: false })]),
+        el("span", { class: "gs-card-art", style: background ? { background: giftBackgroundStyle(background) } : {} }, [renderGiftArt(g, { size: 72, replay: false })]),
         el("span", { class: "gs-card-name" }, g.name),
         el("span", { class: `gs-card-price ${affordable ? "" : "short"}` }, `⭐ ${fmt(g.priceStars)}`),
         g.supply != null
@@ -216,7 +216,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
         "button",
         { class: "gs-card-inner", disabled: busyId === g.id, title: `Подарить «${g.name}»`, onclick: () => sendMine(g) },
         [
-          el("span", { class: "gs-card-art", style: background ? { background: giftBackgroundStyle(background) } : {} }, [renderGiftArt(g, { size: 44, replay: false })]),
+          el("span", { class: "gs-card-art", style: background ? { background: giftBackgroundStyle(background) } : {} }, [renderGiftArt(g, { size: 72, replay: false })]),
           el("span", { class: "gs-card-name" }, g.name),
           el("span", { class: "gs-card-price" }, "Бесплатно"),
         ]

@@ -15868,13 +15868,17 @@ video.story-reply-thumb { object-fit: cover; }
   left: -8.4px;
   right: auto;
   background: var(--color-bubble-in);
-  transform: none;
+  clip-path: none;
+  border-radius: 0;
+  transform: translateY(1px);
 }
 .message-row.group-end .message-column.mine .bubble::after {
   right: -8.4px;
   left: auto;
   background: var(--color-bubble-out);
-  transform: scaleX(-1);
+  clip-path: none;
+  border-radius: 0;
+  transform: translateY(1px) scaleX(-1);
 }
 .message-row.group-end .bubble.bubble-sticker::after,
 .message-row.group-end .bubble.bubble-videonote::after {
@@ -18707,4 +18711,23 @@ button.tw-row {
 .settings-content .settings-section p,
 .settings-content .settings-toggle-hint {
   overflow-wrap: anywhere;
+}
+
+/* Lottie-анимации подарков и стикеров из tweb */
+.lottie-art {
+  display: inline-block;
+  flex-shrink: 0;
+  line-height: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.lottie-art.ready {
+  opacity: 1;
+}
+.lottie-art svg {
+  width: 100% !important;
+  height: 100% !important;
+}
+.gift-message-emoji:has(.lottie-art) {
+  animation: none;
 }

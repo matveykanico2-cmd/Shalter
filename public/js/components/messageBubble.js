@@ -123,7 +123,7 @@ function GiftMessage(message, mine, isChannel) {
       ...SPARKLE_ANGLES.map((deg, i) =>
         el("span", { class: "gift-message-sparkle", style: `--angle: ${deg}deg; --delay: ${i * 0.05}s` }, "✨")
       ),
-      el("div", { class: "gift-message-emoji" }, [renderGiftArt(gift, { size: 56, replay: isNew })]),
+      el("div", { class: "gift-message-emoji" }, [renderGiftArt(gift, { size: 96, replay: isNew })]),
     ]),
     el("p", { class: "gift-message-name" }, gift.name),
     gift.fromName ? el("p", { class: "gift-message-from" }, `от ${gift.fromName}`) : null,

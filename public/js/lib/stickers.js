@@ -1,3 +1,4 @@
+import { lottieNameFor, renderLottie } from "./lottie.js";
 import { el } from "./dom.js";
 import { renderScene } from "./animScenes.js";
 import { renderCustomScene } from "./customScene.js";
@@ -66,5 +67,7 @@ export function renderSticker(s, { size = 30, replay = false } = {}) {
       style: { width: `${size}px`, height: `${size}px` },
     });
   }
+  const lottie = s?.scene ? null : lottieNameFor({ emoji: s?.emoji });
+  if (lottie) return renderLottie(lottie, { size, replay, fallback: () => renderScene(s.emoji, { size, preferred: s.scene, replay }) });
   return renderScene(s.emoji, { size, preferred: s.scene, replay });
 }

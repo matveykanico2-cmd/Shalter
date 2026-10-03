@@ -33,6 +33,7 @@ const SYMBOLS = [
 
 import { renderScene } from "./animScenes.js";
 import { renderCustomScene } from "./customScene.js";
+import { lottieNameFor, renderLottie } from "./lottie.js";
 
 function hash(str, salt) {
   let h = 2166136261 ^ salt;
@@ -76,5 +77,7 @@ export function renderGiftArt(gift, { size = 84, replay = true } = {}) {
     if (!replay) img.classList.add("no-entrance");
     return img;
   }
+  const lottie = lottieNameFor(gift);
+  if (lottie) return renderLottie(lottie, { size, replay, fallback: () => renderScene(gift?.emoji, { size, replay }) });
   return renderScene(gift?.emoji, { size, replay });
 }
