@@ -1,3 +1,6 @@
+import { showToast } from "./toast.js";
+import { navigate } from "../router.js";
+import { setState } from "../state.js";
 import { askText } from "./confirmDialog.js";
 import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
@@ -152,8 +155,17 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     try {
       const res = await api.buyGift(gift.id, target.id, background, anonymous);
       balance = res.balance ?? balance;
-      notice = `${gift.emoji} «${gift.name}» отправлен — ${target.name}${res.serial ? `, №${res.serial}` : ""}`;
       onSent?.();
+      // Как в Telegram: после покупки — сразу в чат с получателем, где лежит подарок.
+      if (res.chatId) {
+        showToast(`«${gift.name}» отправлен — ${target.name}`);
+        close();
+        document.querySelectorAll(".profile-panel-overlay").forEach((o) => o.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+        api.listChats().then((r) => setState({ chats: r.chats }), () => {});
+        navigate(`/chat/${res.chatId}`);
+        return;
+      }
+      notice = `${gift.emoji} «${gift.name}» отправлен — ${target.name}${res.serial ? `, №${res.serial}` : ""}`;
       const fresh = await api.listGifts();
       gifts = fresh.gifts;
       balance = fresh.balance ?? balance;

@@ -27,9 +27,11 @@ import { initRipple } from "./lib/ripple.js";
 import { WaveBearMascot } from "./components/mascot.js";
 import { paintWallpaper } from "./lib/wallpapers.js";
 import { installToastAlert, installModalEscape } from "./components/toast.js";
+import { installEmojiImages } from "./lib/emojiImages.js";
 
 installToastAlert();
 installModalEscape();
+installEmojiImages();
 
 const root = document.getElementById("view-root");
 

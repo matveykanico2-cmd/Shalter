@@ -1,3 +1,4 @@
+import { textWithEmoji } from "../lib/emojiImages.js";
 import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 
@@ -225,7 +226,7 @@ function messageInfo(button) {
         break;
       }
     }
-    author = author || row.querySelector(".sender-name-text")?.textContent || null;
+    author = author || textWithEmoji(row.querySelector(".sender-name-text")) || null;
   }
   const time = row.querySelector(".message-meta-inner .mono, .message-meta .mono")?.textContent || "";
   const textEl = row.querySelector(".bubble .message-text");
@@ -233,7 +234,7 @@ function messageInfo(button) {
   if (textEl) {
     const copy = textEl.cloneNode(true);
     copy.querySelectorAll(".message-meta").forEach((m) => m.remove());
-    caption = copy.textContent.trim();
+    caption = textWithEmoji(copy).trim();
   }
   return { author, avatarHtml: avatar?.outerHTML ?? null, time, caption };
 }

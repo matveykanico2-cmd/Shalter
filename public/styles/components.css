@@ -20031,3 +20031,26 @@ textarea.tw-input ~ .tw-input-label {
 .tw-name-color-swatch:hover {
   transform: scale(1.08);
 }
+
+/* эмодзи картинками (tweb img.emoji) */
+img.emoji {
+  display: inline-block;
+  width: 1.25em;
+  height: 1.25em;
+  margin: 0 0.05em;
+  vertical-align: -0.25em;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: text;
+}
+.message-text-jumbo img.emoji {
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: middle;
+}
+.reaction img.emoji,
+.reactions-row img.emoji,
+button img.emoji {
+  width: 1.2em;
+  height: 1.2em;
+}

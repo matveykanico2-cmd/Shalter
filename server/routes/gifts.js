@@ -9,6 +9,7 @@ const { getUser, findUserByPhone, removeReceivedGift, setGiftPinned } = require(
 const { balanceOf, spendStars, addStars } = require("../data/stars");
 const {
   listGifts,
+  isOnSale,
   getGift,
   listUserGifts,
   getUserGift,
@@ -73,6 +74,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const gift = getGift(req.body?.giftId);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
+    if (!isOnSale(gift.id)) return res.status(400).json({ error: "Этот подарок больше не продаётся" });
     const recipientId = req.body?.recipientId;
     if (recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
     const recipient = recipientId ? await getUser(recipientId) : null;
@@ -131,6 +133,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const gift = getGift(req.body?.giftId);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
+    if (!isOnSale(gift.id)) return res.status(400).json({ error: "Этот подарок больше не продаётся" });
     const recipientId = req.body?.recipientId;
     if (recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
     const recipient = recipientId ? await getUser(recipientId) : null;

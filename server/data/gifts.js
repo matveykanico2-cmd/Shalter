@@ -336,10 +336,19 @@ function withStars(g) {
   return { ...g, priceStars: starPrice(g) };
 }
 
+// В витрине — только подарки с анимациями из tweb (public/tgs). Остальные встроенные
+// сняты с продажи: уже подаренные остаются у людей, админ видит их в каталоге (includeHidden).
+const TWEB_GIFT_IDS = new Set([
+  "cake", "premium_week", "premium_month", "premium_quarter", "premium_year", "premium_forever",
+  "hlopushka_s_konfetti", "kubik", "podarochnaya_korobka", "zolotoy_klyuch",
+  "tw_love_letter", "tw_mailbox", "tw_duck_birthday", "tw_pirate_flag",
+]);
+
 function listGifts({ includeHidden = false } = {}) {
   const rows = overrides();
   const merged = [];
   for (const g of GIFTS) {
+    if (!includeHidden && !TWEB_GIFT_IDS.has(g.id)) continue;
     const row = rows.get(g.id);
     if (row?.hidden && !includeHidden) continue;
     if (!row) {
@@ -360,6 +369,10 @@ function listGifts({ includeHidden = false } = {}) {
     merged.push(rowToGift(row));
   }
   return merged.map(withStars);
+}
+
+function isOnSale(id) {
+  return listGifts().some((g) => g.id === id);
 }
 
 function getGift(id) {
@@ -488,6 +501,7 @@ function restoreBuiltin(id) {
 
 module.exports = {
   listGifts,
+  isOnSale,
   getGift,
   listUserGifts,
   getUserGift,
