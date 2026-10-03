@@ -3393,9 +3393,20 @@ async function renderModeration(root) {
   let dirItems = null;
   let dirTotal = 0;
   let dirLoading = false;
-  const dirQueryInput = el("input", { class: "settings-input", placeholder: "Поиск в каталоге (необязательно)" });
+  // Выбранные в каталоге группы, каналы и боты для массового удаления.
+  const dirSelected = new Map();
+  let dirDeleting = false;
+  let dirNotice = null;
+  const dirQueryInput = el("input", {
+    class: "settings-input",
+    placeholder: "Поиск в каталоге (необязательно)",
+    onkeydown: (e) => {
+      if (e.key === "Enter") loadDirectory();
+    },
+  });
   async function loadDirectory() {
     dirLoading = true;
+    dirSelected.clear();
     render();
     try {
       const r = await api.adminDirectory(dirTab, dirQueryInput.value.trim());
@@ -3448,7 +3459,107 @@ async function renderModeration(root) {
   }
 
   const DIR_TABS = [["users", "Люди"], ["groups", "Группы"], ["channels", "Каналы"], ["bots", "Боты"]];
+  const KIND_WORDS = { group: ["группу", "групп"], channel: ["канал", "каналов"], bot: ["бота", "ботов"] };
+  const deletable = (it) => it.kind !== "user" && !it.isSystem;
+
+  // Удаление из каталога: одной строки или всех отмеченных, с общей причиной.
+  async function deleteFromDirectory(items) {
+    if (!items.length || dirDeleting) return;
+    const one = items.length === 1;
+    const label = one
+      ? `${KIND_WORDS[items[0].kind][0]} «${items[0].title || items[0].name}»`
+      : `${items.length} шт. (${[...new Set(items.map((i) => KIND_WORDS[i.kind][1]))].join(", ")})`;
+    const reason = prompt(
+      `Удалить ${label} за нарушение правил? Это необратимо: пропадут вся переписка и файлы, у канала — и группа обсуждения.\n\nПричина — придёт владельцам и попадёт в журнал:`,
+      ""
+    )?.trim();
+    if (!reason) return;
+    dirDeleting = true;
+    dirNotice = null;
+    render();
+    try {
+      const { deleted, failed } = await api.adminBulkDelete(items.map((i) => ({ id: i.id, kind: i.kind })), reason);
+      const gone = new Set(deleted.map((d) => d.id));
+      dirItems = (dirItems ?? []).filter((i) => !gone.has(i.id));
+      dirTotal = Math.max(0, dirTotal - gone.size);
+      for (const id of gone) dirSelected.delete(id);
+      dirNotice = {
+        error: failed.length > 0,
+        text: [
+          deleted.length ? `Удалено: ${deleted.length}` : null,
+          failed.length ? `Не удалось: ${failed.map((f) => `${f.id} — ${f.error}`).join("; ")}` : null,
+        ].filter(Boolean).join(". "),
+      };
+    } catch (err) {
+      dirNotice = { error: true, text: err.message || "Не удалось удалить" };
+    } finally {
+      dirDeleting = false;
+      render();
+    }
+  }
+
+  function dirCheckbox(it) {
+    return el("input", {
+      type: "checkbox",
+      class: "moderation-check",
+      "aria-label": `Выбрать «${it.title || it.name}»`,
+      checked: dirSelected.has(it.id),
+      onclick: (e) => e.stopPropagation(),
+      onchange: (e) => {
+        if (e.target.checked) dirSelected.set(it.id, it);
+        else dirSelected.delete(it.id);
+        render();
+      },
+    });
+  }
+  function dirDeleteBtn(it) {
+    return el("button", {
+      class: "icon-btn moderation-delete-btn",
+      title: "Удалить за нарушение правил",
+      disabled: dirDeleting,
+      html: iconSvg("Trash", 17),
+      onclick: (e) => {
+        e.stopPropagation();
+        deleteFromDirectory([it]);
+      },
+    });
+  }
+
   function dirRow(it) {
+    const row = dirRowBody(it);
+    if (!deletable(it)) return row;
+    return el("div", { class: `moderation-row-wrap${dirSelected.has(it.id) ? " selected" : ""}` }, [dirCheckbox(it), row, dirDeleteBtn(it)]);
+  }
+
+  function dirToolbar() {
+    if (!dirItems?.some(deletable)) return null;
+    const visible = dirItems.filter(deletable);
+    const allOn = visible.every((i) => dirSelected.has(i.id));
+    return el("div", { class: "moderation-bulk-bar" }, [
+      el("label", { class: "moderation-bulk-all" }, [
+        el("input", {
+          type: "checkbox",
+          class: "moderation-check",
+          checked: allOn,
+          onchange: () => {
+            if (allOn) visible.forEach((i) => dirSelected.delete(i.id));
+            else visible.forEach((i) => dirSelected.set(i.id, i));
+            render();
+          },
+        }),
+        dirSelected.size ? `Выбрано: ${dirSelected.size}` : "Выбрать все",
+      ]),
+      dirSelected.size
+        ? el(
+            "button",
+            { class: "btn-danger-pill", disabled: dirDeleting, onclick: () => deleteFromDirectory([...dirSelected.values()]) },
+            dirDeleting ? "Удаляем…" : `Удалить выбранные (${dirSelected.size})`
+          )
+        : null,
+    ]);
+  }
+
+  function dirRowBody(it) {
     if (it.kind === "user" || it.kind === "bot") {
       return el("button", { class: "moderation-row", onclick: () => openPanel(it) }, [
         el("div", { class: "moderation-row-body" }, [
@@ -3478,6 +3589,7 @@ async function renderModeration(root) {
         )
       ),
       el("div", { class: "settings-toggle-row no-divider" }, [dirQueryInput, el("button", { class: "btn-accent", onclick: loadDirectory }, "Показать")]),
+      dirNotice ? el("p", { class: dirNotice.error ? "login-error" : "settings-toggle-hint moderation-notice-ok" }, dirNotice.text) : null,
       dirLoading
         ? el("p", { class: "settings-toggle-hint" }, "Загрузка…")
         : dirItems == null
@@ -3486,6 +3598,7 @@ async function renderModeration(root) {
             ? el("p", { class: "moderation-empty" }, "Пусто")
             : el("div", {}, [
                 el("p", { class: "settings-toggle-hint" }, dirTotal > dirItems.length ? `Показано ${dirItems.length} из ${dirTotal} — уточните поиск` : `Всего: ${dirTotal}`),
+                dirToolbar(),
                 ...dirItems.map(dirRow),
               ]),
     ]);

@@ -34,6 +34,7 @@ const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat")
 const { broadcastToUsers } = require("../ws");
 const { collectServerStats } = require("../lib/serverStats");
 const pricingData = require("../data/pricing");
+const { moderateDeleteChat, moderateDeleteBot, isServiceAccount } = require("../lib/moderationDelete");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -334,31 +335,54 @@ router.delete(
   "/bots/:userId",
   asyncRoute(async (req, res) => {
     if (!(await requireAdminSection(req, res, "moderation"))) return;
-    const botUser = await getUser(req.params.userId);
-    const bot = botUser?.isBot ? await getBotByUserId(botUser.id) : null;
-    if (!bot) return res.status(404).json({ error: "Бот не найден" });
-    if (botUser.id.startsWith("bot_")) return res.status(400).json({ error: "Служебных ботов Shalter удалять нельзя" });
     const reason = String(req.body?.reason ?? "").trim().slice(0, 500);
     if (!reason) return res.status(400).json({ error: "Укажите причину — она попадёт в журнал и придёт владельцу" });
-
-    await logExport({
-      adminId: req.uid,
-      targetUserId: bot.ownerId ?? botUser.id,
-      reason: `УДАЛЕНИЕ БОТА ${botUser.username ? `@${botUser.username}` : botUser.id} (${botUser.name}): ${reason}`,
-      messageCount: 0,
-    });
-    const chatIds = listBotDmChatIds(botUser.id);
-    await deleteBot(bot.id);
-    await deleteUser(botUser.id);
-    for (const chatId of chatIds) {
-      const chat = await getChat(chatId);
-      if (chat) broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: { id: chat.id } });
-    }
-    if (bot.ownerId) {
-      const dm = await findOrCreateDm(SYSTEM_BOT_ID, bot.ownerId);
-      await sendMessageAndBroadcast(dm, SYSTEM_BOT_ID, `🛡 Бот «${botUser.name}» удалён модерацией Shalter за нарушение правил.\nПричина: ${reason}`);
+    try {
+      await moderateDeleteBot(req.params.userId, { adminId: req.uid, reason });
+    } catch (err) {
+      if (err.status) return res.status(err.status).json({ error: err.message });
+      throw err;
     }
     res.json({ ok: true });
+  })
+);
+
+// Массовое удаление из каталога модерации: группы, каналы и боты одним
+// запросом с общей причиной. Ошибка по одному пункту не мешает остальным.
+const BULK_DELETE_MAX = 100;
+router.post(
+  "/moderation/delete",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
+    const reason = String(req.body?.reason ?? "").trim().slice(0, 500);
+    if (!reason) return res.status(400).json({ error: "Укажите причину — она попадёт в журнал и придёт владельцам" });
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!items.length) return res.status(400).json({ error: "Ничего не выбрано" });
+    if (items.length > BULK_DELETE_MAX) return res.status(400).json({ error: `Не больше ${BULK_DELETE_MAX} за раз` });
+
+    const deleted = [];
+    const failed = [];
+    const seen = new Set();
+    for (const it of items) {
+      const id = typeof it?.id === "string" ? it.id : "";
+      const kind = it?.kind;
+      if (!id || seen.has(id) || !["group", "channel", "bot"].includes(kind)) continue;
+      seen.add(id);
+      try {
+        if (kind === "bot") {
+          deleted.push(await moderateDeleteBot(id, { adminId: req.uid, reason }));
+        } else {
+          const chat = await getChat(id);
+          // Тип сверяем, чтобы «группой» нельзя было удалить личный чат.
+          if (!chat || chat.type !== kind) throw Object.assign(new Error("Не найдено"), { status: 404 });
+          deleted.push(await moderateDeleteChat(chat, { adminId: req.uid, reason }));
+        }
+      } catch (err) {
+        if (!err.status) console.error("bulk moderation delete failed:", err);
+        failed.push({ id, error: err.status ? err.message : "Не удалось удалить" });
+      }
+    }
+    res.json({ deleted, failed });
   })
 );
 
@@ -384,7 +408,7 @@ router.delete(
     if (target.id === req.uid) {
       return res.status(400).json({ error: "Свой аккаунт удаляется в настройках — там же, где у всех" });
     }
-    if (target.isBot && target.id.startsWith("bot_")) {
+    if (isServiceAccount(target.id)) {
       return res.status(400).json({ error: "Служебные аккаунты Shalter удалять нельзя" });
     }
     if (!(await outranks(req.uid, target))) return rankError(res);
@@ -613,6 +637,7 @@ router.get(
         phone: u.phone || null,
         email: u.email || null,
         isBanned: !!u.isBanned,
+        isSystem: isServiceAccount(u.id),
       }));
       return res.json({ items, total });
     }
@@ -628,6 +653,7 @@ router.get(
       title: c.title || c.name || "",
       username: c.username || null,
       members: c.memberIds.length,
+      isVerified: !!c.isVerified,
     }));
     res.json({ items, total });
   })

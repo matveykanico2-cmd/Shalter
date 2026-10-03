@@ -17,6 +17,9 @@ import { playSentSound } from "../lib/ringtone.js";
 import { isChatAdmin, isChatModerator } from "../lib/chatRoles.js";
 import { messagePreview } from "../lib/messagePreview.js";
 import { AudioPlayerBar } from "../components/audioPlayerBar.js";
+
+// Служебные аккаунты Shalter — их не удалить даже модерацией (lib/moderationDelete.js).
+const SERVICE_ACCOUNT_IDS = ["bot_shalter", "bot_helper", "bot_support"];
 import { noteMessageInChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache } from "../lib/localCache.js";
 import { cachedUser, fetchUsers, rememberUser } from "../lib/userLookup.js";
@@ -1333,7 +1336,7 @@ export async function ChatView(root, chatId) {
                 : []),
               // Модерация Shalter: удалить группу, канал или бота за нарушение прямо из чата.
               ...((me.isDeveloper || me.adminSections?.includes("moderation")) &&
-              ((isGroup || isChannel) && chat.ownerId !== me.id || (isDm && other?.isBot && !other.isServiceBot && !String(other.id).startsWith("bot_")))
+              ((isGroup || isChannel) && chat.ownerId !== me.id || (isDm && other?.isBot && !other.isServiceBot && !SERVICE_ACCOUNT_IDS.includes(other.id)))
                 ? [
                     {
                       icon: "Trash",

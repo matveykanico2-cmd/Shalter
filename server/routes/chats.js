@@ -24,6 +24,7 @@ const { markTyping, clearTyping, getTyping, normalizeAction } = require("../data
 const { broadcastToUsers } = require("../ws");
 const messagesRouter = require("./messages");
 const { logAdminAction, listAdminLog } = require("../data/adminLog");
+const { moderateDeleteChat } = require("../lib/moderationDelete");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -852,33 +853,14 @@ router.delete(
     if (!ownStaff && !moderator) {
       return res.status(403).json({ error: "Удалить чат для всех может только владелец или админ" });
     }
+    if (moderator) {
+      const reason = String(req.body?.reason ?? "").trim().slice(0, 500);
+      await moderateDeleteChat(chat, { adminId: req.uid, reason });
+      return res.json({ ok: true });
+    }
     broadcastToUsers(chat.memberIds, { type: "chat:deleted", chatId: chat.id });
     await deleteMessagesForChat(req.params.id);
     await deleteChat(req.params.id);
-    if (moderator) {
-      const kind = chat.type === "channel" ? "Канал" : "Группа";
-      const reason = String(req.body?.reason ?? "").trim().slice(0, 500);
-      const owners = [...new Set([chat.ownerId, ...(chat.ownerIds ?? [])].filter(Boolean))];
-      // Журнал модерации — тот же, что у удаления аккаунтов (admin.js).
-      try {
-        logExport({
-          adminId: req.uid,
-          targetUserId: owners[0] ?? req.uid,
-          reason: `УДАЛЕНИЕ ${chat.type === "channel" ? "КАНАЛА" : "ГРУППЫ"} «${chat.title ?? ""}»${chat.username ? ` @${chat.username}` : ""} (${chat.id}): ${reason || "нарушение правил"}`,
-          messageCount: 0,
-        });
-      } catch (err) {
-        console.error("moderation log failed:", err);
-      }
-      for (const ownerId of owners) {
-        const dm = await findOrCreateDm(SYSTEM_BOT_ID, ownerId);
-        await sendMessageAndBroadcast(
-          dm,
-          SYSTEM_BOT_ID,
-          `🛡 ${kind} «${chat.title ?? chat.name}» удалён${chat.type === "channel" ? "" : "а"} модерацией Shalter за нарушение правил.${reason ? `\nПричина: ${reason}` : ""}`
-        );
-      }
-    }
     res.json({ ok: true });
   })
 );

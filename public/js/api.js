@@ -471,6 +471,7 @@ export const api = {
 
   adminLookupUser: (q) => req(`/api/admin/lookup?q=${encodeURIComponent(q)}`),
   adminLookupChat: (q) => req(`/api/admin/chats/lookup?q=${encodeURIComponent(q)}`),
+  adminBulkDelete: (items, reason) => req("/api/admin/moderation/delete", { method: "POST", body: JSON.stringify({ items, reason }) }),
   adminDirectory: (type, q = "") => req(`/api/admin/directory?type=${encodeURIComponent(type)}&q=${encodeURIComponent(q)}`),
   adminExportUser: (userId, reason) =>
     req("/api/admin/export", { method: "POST", body: JSON.stringify({ userId, reason }) }),

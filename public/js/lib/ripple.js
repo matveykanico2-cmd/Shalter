@@ -10,6 +10,7 @@ const RIPPLE_SELECTOR = [
   ".btn-accent",
   ".btn-accent-pill",
   ".btn-secondary",
+  ".btn-danger-pill",
   ".dropdown-item",
   ".settings-row",
   ".settings-toggle-row",
