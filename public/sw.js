@@ -204,7 +204,9 @@ self.addEventListener("push", (event) => {
         return;
       }
 
-      const icon = (await avatarIcon(avatar)) || "/icons/icon-192.png";
+      // Аватар не дольше 1.5 с: iOS убивает воркер, если пуш долго не показан.
+      const icon =
+        (await Promise.race([avatarIcon(avatar), new Promise((r) => setTimeout(() => r(null), 1500))])) || "/icons/icon-192.png";
 
       let notifBody = body;
       let count = 1;
@@ -276,6 +278,34 @@ self.addEventListener("notificationclick", (event) => {
         }
       }
       await self.clients.openWindow(url);
+    })()
+  );
+});
+
+// Браузер (особенно Safari на iPhone) иногда сам меняет или отзывает подписку.
+// Без этого пуши шли только после того, как приложение открыли и оно
+// переподписалось. Переподписываемся прямо здесь, без открытия приложения.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        let sub = event.newSubscription;
+        if (!sub) {
+          const res = await fetch("/api/push/vapid-public-key", { credentials: "include" });
+          const { publicKey } = await res.json();
+          const pad = "=".repeat((4 - (publicKey.length % 4)) % 4);
+          const raw = atob((publicKey + pad).replace(/-/g, "+").replace(/_/g, "/"));
+          const key = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+          sub = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+        }
+        await fetch("/api/push/subscribe", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ subscription: sub.toJSON() }),
+        });
+      } catch {
+      }
     })()
   );
 });

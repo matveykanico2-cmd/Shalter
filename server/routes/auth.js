@@ -279,8 +279,9 @@ router.post(
       return res.status(401).json({ error: "Неверный пароль" });
     }
     await deleteAccount(req.uid);
-    removeAccountSession(req, res, req.uid);
-    res.json({ ok: true });
+    // Если на устройстве есть другие аккаунты — переключаемся на следующий.
+    const remaining = removeAccountSession(req, res, req.uid);
+    res.json({ ok: true, remaining });
   })
 );
 

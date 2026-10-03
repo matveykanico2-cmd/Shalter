@@ -2591,8 +2591,9 @@ async function renderPrivacy(root) {
 
   async function deleteAccount() {
     openDeleteAccountDialog(async (password) => {
-      await api.deleteAccount(password);
-      window.location.href = "/login";
+      const { remaining } = await api.deleteAccount(password);
+      clearCache();
+      window.location.href = remaining?.length ? "/" : "/login";
     });
   }
 

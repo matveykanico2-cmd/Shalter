@@ -360,21 +360,6 @@ async function boot() {
     const { DiscoverChannelsView } = await import("./views/discoverChannels.js");
     await DiscoverChannelsView(mainSlot);
   });
-  route("/market", async () => {
-    withCleanup(mainSlot);
-    const { MarketView } = await import("./views/market.js");
-    await MarketView(mainSlot, "");
-  });
-  route("/market/shop/:id", async (params) => {
-    withCleanup(mainSlot);
-    const { ShopView } = await import("./views/market.js");
-    await ShopView(mainSlot, params.id);
-  });
-  route("/market/:tab", async (params) => {
-    withCleanup(mainSlot);
-    const { MarketView } = await import("./views/market.js");
-    await MarketView(mainSlot, params.tab === "orders" || params.tab === "my" ? params.tab : "");
-  });
   route("/calls", async () => {
     withCleanup(mainSlot);
     const { CallsView } = await import("./views/calls.js");

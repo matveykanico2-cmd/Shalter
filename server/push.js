@@ -45,7 +45,9 @@ async function sendPushToUser(userId, payload, options = {}) {
 
 const CALL_PUSH = { urgency: "high", TTL: 45 };
 const CALL_CANCEL_PUSH = { urgency: "high", TTL: 30 };
-const MESSAGE_PUSH = { urgency: "normal", TTL: 24 * 60 * 60 };
+// "high": с "normal" Android в режиме сна и iOS откладывают пуш, пока телефон
+// не проснётся сам (или пока не откроют приложение) — уведомления «опаздывали».
+const MESSAGE_PUSH = { urgency: "high", TTL: 24 * 60 * 60 };
 
 function pushAvatar(entity, fallbackName = "", { hideImage = false } = {}) {
   if (!entity) return {};

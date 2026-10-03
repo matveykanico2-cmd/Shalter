@@ -65,17 +65,6 @@ export const api = {
   adsForReview: () => req("/api/ads/review"),
   reviewAd: (id, approve, reason) => req(`/api/ads/review/${id}`, { method: "POST", body: JSON.stringify({ approve, reason }) }),
 
-  marketFeed: (q) => req(`/api/market${q ? `?q=${encodeURIComponent(q)}` : ""}`),
-  marketShop: (id) => req(`/api/market/shops/${id}`),
-  myShop: () => req("/api/market/my"),
-  saveShop: (data) => req("/api/market/shop", { method: "POST", body: JSON.stringify(data) }),
-  createProduct: (data) => req("/api/market/products", { method: "POST", body: JSON.stringify(data) }),
-  updateProduct: (id, patch) => req(`/api/market/products/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
-  deleteProduct: (id) => req(`/api/market/products/${id}`, { method: "DELETE" }),
-  createOrder: (productId, qty, note) => req("/api/market/orders", { method: "POST", body: JSON.stringify({ productId, qty, note }) }),
-  myOrders: () => req("/api/market/orders"),
-  setOrderStatus: (id, status) => req(`/api/market/orders/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
-  promoteShop: (data) => req("/api/market/promote", { method: "POST", body: JSON.stringify(data) }),
 
   getSafetyLabels: () => req("/api/labels"),
   adminCreateLabel: (label) => req("/api/admin/labels", { method: "POST", body: JSON.stringify(label) }),
@@ -375,18 +364,6 @@ export const api = {
   unsubscribePush: (endpoint) => req("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) }),
   listPushEndpoints: () => req("/api/push/endpoints"),
   getAppVersion: () => req("/api/version"),
-  listListings: (params = {}) => {
-    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "" && v != null));
-    return req(`/api/market/listings?${q.toString()}`);
-  },
-  myListings: () => req("/api/market/listings/mine"),
-  favoriteListings: () => req("/api/market/listings/favorites"),
-  getListing: (id) => req(`/api/market/listings/${id}`),
-  createListing: (data) => req("/api/market/listings", { method: "POST", body: JSON.stringify(data) }),
-  updateListing: (id, patch) => req(`/api/market/listings/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
-  deleteListing: (id) => req(`/api/market/listings/${id}`, { method: "DELETE" }),
-  favoriteListing: (id, on) => req(`/api/market/listings/${id}/favorite`, { method: "POST", body: JSON.stringify({ on }) }),
-  contactSeller: (id) => req(`/api/market/listings/${id}/contact`, { method: "POST", body: "{}" }),
 
   submitReport: (targetType, targetId, reason, details) =>
     req("/api/reports", { method: "POST", body: JSON.stringify({ targetType, targetId, reason, details }) }),
