@@ -18,7 +18,7 @@ export function hasAnimatedEmoji(emoji) {
 /**
  * replay: true — играет при появлении; false — стоит на последнем кадре и оживает по наведению.
  */
-export function renderAnimatedEmoji(emoji, { size = 32, replay = false, loop = false } = {}) {
+export function renderAnimatedEmoji(emoji, { size = 32, replay = false, loop = false, playOnView = false } = {}) {
   const code = emojiCode(emoji);
   if (!AVAILABLE.has(code)) return document.createTextNode(emoji);
   const fallback = () => {
@@ -26,8 +26,26 @@ export function renderAnimatedEmoji(emoji, { size = 32, replay = false, loop = f
     s.textContent = emoji;
     return s;
   };
-  const box = renderLottie(`emoji/${code}`, { size, replay, loop, fallback, rest: "first" });
+  const box = renderLottie(`emoji/${code}`, { size, replay, loop, fallback, rest: "first", playOnView });
   box.classList.add("animated-emoji");
   box.setAttribute("aria-label", emoji);
   return box;
+}
+
+// Реакция «вылетает» крупно над сообщением и тает — как эффект реакции в Telegram.
+export function showReactionBurst(emoji, anchor) {
+  if (!anchor?.isConnected || !hasAnimatedEmoji(emoji)) return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const r = anchor.getBoundingClientRect();
+  const size = 96;
+  const fx = document.createElement("div");
+  fx.className = "reaction-burst";
+  fx.style.left = `${Math.max(8, Math.min(window.innerWidth - size - 8, r.left + Math.min(r.width, 160) / 2 - size / 2))}px`;
+  fx.style.top = `${Math.max(8, r.bottom - size + 12)}px`;
+  fx.style.width = `${size}px`;
+  fx.style.height = `${size}px`;
+  fx.appendChild(renderAnimatedEmoji(emoji, { size, replay: true }));
+  document.body.appendChild(fx);
+  setTimeout(() => fx.classList.add("out"), 1500);
+  setTimeout(() => fx.remove(), 1900);
 }

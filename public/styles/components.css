@@ -21408,3 +21408,20 @@ button img.emoji {
 .reaction-pill-glyph:has(.animated-emoji) {
   display: inline-flex;
 }
+
+/* крупная анимация поставленной реакции */
+.reaction-burst {
+  position: fixed;
+  z-index: 3000;
+  pointer-events: none;
+  animation: reaction-burst-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.reaction-burst.out {
+  opacity: 0;
+  transform: translateY(16px) scale(0.4);
+}
+@keyframes reaction-burst-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.3); }
+  to { opacity: 1; transform: none; }
+}

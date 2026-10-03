@@ -134,7 +134,22 @@ function track(entry) {
  * replay: true — играет при появлении и повторяет по наведению/нажатию;
  * replay: false — показывает статичный кадр и оживает только при наведении.
  */
-export function renderLottie(name, { size = 84, replay = true, loop = false, fallback = null, rest = "last" } = {}) {
+// Один наблюдатель на все анимации с playOnView: проигрываем, когда элемент впервые виден.
+let viewObserver = null;
+function observeView(box, play) {
+  if (typeof IntersectionObserver === "undefined") return play();
+  viewObserver ??= new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      viewObserver.unobserve(e.target);
+      e.target._playOnView?.();
+    }
+  }, { threshold: 0.6 });
+  box._playOnView = play;
+  viewObserver.observe(box);
+}
+
+export function renderLottie(name, { size = 84, replay = true, loop = false, fallback = null, rest = "last", playOnView = false } = {}) {
   const box = document.createElement("span");
   box.className = "lottie-art";
   box.style.width = `${size}px`;
@@ -158,6 +173,7 @@ export function renderLottie(name, { size = 84, replay = true, loop = false, fal
         box.classList.add("ready");
         if (replay) anim.play();
         else anim.goToAndStop(restFrame(), true);
+        if (playOnView && !replay) observeView(box, replayFromStart);
       });
       if (!replay) anim.addEventListener("complete", () => anim.goToAndStop(restFrame(), true));
       const host = () => box.closest("button, a, .gift-message, .gift-card-emoji") ?? box;

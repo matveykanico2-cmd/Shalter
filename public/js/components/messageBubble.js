@@ -5,7 +5,7 @@ import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { cachedUser, fetchUsers } from "../lib/userLookup.js";
-import { hasAnimatedEmoji, renderAnimatedEmoji } from "../lib/animatedEmoji.js";
+import { hasAnimatedEmoji, renderAnimatedEmoji, showReactionBurst } from "../lib/animatedEmoji.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { formatText, previewText } from "../lib/formatText.js";
 import { messagePreview, diceResult } from "../lib/messagePreview.js";
@@ -51,7 +51,7 @@ function justReacted(msgId, emoji) {
 }
 const playedJumbo = new Set();
 function pickerGlyph(e) {
-  return hasAnimatedEmoji(e) ? renderAnimatedEmoji(e, { size: 30 }) : e;
+  return hasAnimatedEmoji(e) ? renderAnimatedEmoji(e, { size: 30, playOnView: true }) : e;
 }
 function animatedJumbo(message, count) {
   const trimmed = (message.text ?? "").trim();
@@ -810,9 +810,13 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onPollAction, onKeyboardAction, onKeyboardApp, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
   const react = (m, emoji) => {
+    const had = (m.reactions ?? []).some((x) => x.emoji === emoji && x.userIds.includes(me.id));
     recentReactions.set(`${m.id}|${emoji}`, Date.now());
+    // Крупная анимация — только когда реакцию ставят, не когда снимают.
+    if (!had) showReactionBurst(emoji, bubbleRef);
     onReact(m, emoji);
   };
+  let bubbleRef = null;
 
   if (message.type === "system") {
     const text = String(message.text ?? "").replace(/^\s*🔒\s*/u, "");
@@ -1015,6 +1019,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     { class: `bubble ${mine && !isChannel ? "mine" : ""} ${mediaOnly ? "bubble-media-only" : ""} ${isSticker ? "bubble-sticker" : ""} ${isVideoNote ? "bubble-videonote" : ""} ${boosted ? "bubble-boosted" : ""}` },
     bubbleInner
   );
+  bubbleRef = bubble;
 
   // Эффект проигрываем один раз — для только что пришедшего/отправленного сообщения.
   if (message.effect && !message.pending && !playedEffects.has(message.id) && Date.now() - Date.parse(message.createdAt) < 10_000) {
@@ -1435,7 +1440,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
                 sticker
                   ? renderSticker(sticker, { size: 22 })
                   : hasAnimatedEmoji(r.emoji)
-                    ? renderAnimatedEmoji(r.emoji, { size: 22, replay: justReacted(message.id, r.emoji) })
+                    ? renderAnimatedEmoji(r.emoji, { size: 22, replay: justReacted(message.id, r.emoji), playOnView: true })
                     : r.emoji,
               ]),
               avatars.length
