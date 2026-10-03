@@ -23,7 +23,7 @@ import { passkeysSupported, registerPasskey, passkeyErrorText } from "../../lib/
 import { openChangePasswordDialog, openChangeEmailDialog } from "../../components/credentialsDialog.js";
 import { VerifiedBadge } from "../../components/verifiedBadge.js";
 import { ProfileStatusBadge } from "../../components/profileStatusBadge.js";
-import { openStarsDialog } from "../../components/starsDialog.js";
+import { StarsPanel } from "../../components/starsDialog.js";
 import { openGiftShopDialog } from "../../components/giftShopDialog.js";
 import { openAvatarViewer } from "../../components/avatarViewer.js";
 import { openProfileStatusDialog } from "../../components/profileStatusDialog.js";
@@ -51,7 +51,7 @@ import { startRecording, isRecordingSupported } from "../../lib/recorder.js";
 import { checkSize } from "../../lib/uploadLimits.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
 import { openAdminUserPanel } from "../../components/adminUserPanel.js";
-import { PremiumStar, PremiumStarRow } from "../../components/premiumStar.js";
+import { PremiumStar } from "../../components/premiumStar.js";
 import { AdCabinet } from "../../components/adCabinet.js";
 import { AdReviewQueue } from "../../components/adModeration.js";
 import { safetyLabelInfo } from "../../lib/safetyLabels.js";
@@ -585,15 +585,6 @@ function formatPremiumUntil(info) {
   return "Уберите ограничения и получите золотой значок";
 }
 
-const ORBIT_ITEMS = [
-  { icon: "Star", color: "#d9822e" },
-  { icon: "Zap", color: "#6e56c6" },
-  { icon: "Gift", color: "#2e56d9" },
-  { icon: "Shield", color: "#1f9d63" },
-  { icon: "Smile", color: "#c6403b" },
-  { icon: "Video", color: "#1c9bd9" },
-];
-
 const PREMIUM_COMPARE = [
   ["Платная личка незнакомцам", "⭐ звёздами", "Бесплатно"],
   ["Писать в «только контакты»", "—", "Да"],
@@ -637,25 +628,35 @@ const PREMIUM_PERKS = [
     desc: "💎 👑 🚀 🥂 💯 🌟 — доступны в любом чате",
   },
   {
-    icon: "Heart",
+    icon: "CheckCheck",
     title: "До 3 реакций на сообщение",
     desc: "Обычный аккаунт может оставить только одну реакцию под сообщением — Premium ставит до трёх разом",
   },
 ];
 
-function premiumOrbit() {
-  return el("div", { class: "premium-orbit" }, [
-    el("div", { class: "premium-orbit-core" }, [PremiumStar({ size: 56, variant: "violet", title: "Shalter Premium" })]),
-    el(
-      "div",
-      { class: "premium-orbit-ring" },
-      ORBIT_ITEMS.map((item, i) =>
-        el("div", { class: "premium-orbit-item", style: `--angle: ${(360 / ORBIT_ITEMS.length) * i}deg` }, [
-          el("div", { class: "premium-orbit-item-icon", style: `--orbit-color: ${item.color}`, html: iconSvg(item.icon, 15) }),
-        ])
-      )
-    ),
+// Цвета иконок возможностей — тот же градиент, что PREMIUM_FEATURES_COLORS в tweb.
+const PREMIUM_FEATURE_COLORS = ["#ef6922", "#e74e33", "#db374b", "#bc4395", "#9b4fed", "#676bff", "#4492ff", "#41a6a5", "#3dbd4a"];
+
+function twSection(name, children, caption) {
+  return el("div", { class: "tw-section-group" }, [
+    name ? el("p", { class: "tw-section-name" }, name) : null,
+    el("div", { class: "tw-section" }, children),
+    caption ? el("p", { class: "tw-section-caption" }, caption) : null,
   ]);
+}
+
+function twRow({ icon, color, title, subtitle, right, onClick, href, target }) {
+  const body = [
+    icon ? el("span", { class: color ? "tw-row-media" : "tw-row-icon", style: color ? `background: ${color}` : null, html: iconSvg(icon, color ? 20 : 24) }) : null,
+    el("span", { class: "tw-row-body" }, [
+      el("span", { class: "tw-row-title" }, title),
+      subtitle ? el("span", { class: "tw-row-subtitle" }, subtitle) : null,
+    ]),
+    right != null ? el("span", { class: "tw-row-right" }, right) : null,
+  ];
+  if (href) return el("a", { class: "tw-row clickable", href, target, rel: target ? "noopener" : null }, body);
+  if (onClick) return el("button", { type: "button", class: "tw-row clickable", onclick: onClick }, body);
+  return el("div", { class: "tw-row" }, body);
 }
 
 function premiumPlanRows(plans) {
@@ -711,13 +712,13 @@ async function renderPremium(root) {
     }
   }
 
-  function planCard(p) {
+  function planRow(p) {
     const selected = p.id === selectedPlan;
     return el(
       "button",
       {
         type: "button",
-        class: `premium-plan${selected ? " selected" : ""}`,
+        class: `tw-row clickable tw-plan${selected ? " selected" : ""}`,
         role: "radio",
         "aria-checked": selected ? "true" : "false",
         disabled: buying,
@@ -727,15 +728,15 @@ async function renderPremium(root) {
         },
       },
       [
-        el("span", { class: "premium-plan-radio" }),
-        el("span", { class: "premium-plan-body" }, [
-          el("span", { class: "premium-plan-title" }, [
+        el("span", { class: "tw-radio" }),
+        el("span", { class: "tw-row-body" }, [
+          el("span", { class: "tw-row-title" }, [
+            p.discount > 0 ? el("span", { class: "tw-plan-discount" }, `−${p.discount}%`) : null,
             p.label,
-            p.discount > 0 ? el("span", { class: "premium-plan-badge" }, `−${p.discount}%`) : null,
           ]),
-          el("span", { class: "premium-plan-sub" }, p.months > 1 ? `${p.priceRub} ₽ за ${p.label}` : "Оплата за месяц"),
+          el("span", { class: "tw-row-subtitle" }, p.months > 1 ? `${p.priceRub} ₽ за ${p.label}` : "Оплата за месяц"),
         ]),
-        el("span", { class: "premium-plan-price mono" }, `${Math.round(p.perMonth)} ₽/мес`),
+        el("span", { class: "tw-row-right" }, `${Math.round(p.perMonth)} ₽/мес`),
       ]
     );
   }
@@ -743,95 +744,74 @@ async function renderPremium(root) {
   function render() {
     const current = plans.find((p) => p.id === selectedPlan);
     const canBuy = !info.premiumForever && plans.length > 0;
+    const notEnoughStars = current?.stars && (info.starsBalance ?? 0) < current.stars;
+    setPanelTitle("Shalter Premium");
     mount(
       root,
-      pageWrap("Shalter Premium", "Подписка Shalter Premium и подарки", [
-        premiumOrbit(),
-        PremiumStarRow({ size: 42 }),
-        el("div", { class: `premium-status-card ${info.isPremium ? "active" : ""}` }, [
-          el("span", { class: "premium-status-icon" }, [PremiumStar({ size: 34, variant: "gold", title: "Premium" })]),
-          el("div", {}, [
-            el("p", { class: "premium-status-title" }, info.isPremium ? "У вас Shalter Premium" : "Shalter Premium не активен"),
-            el("p", { class: "premium-status-hint" }, formatPremiumUntil(info)),
-          ]),
+      el("div", { class: "settings-page tw-page tw-premium" }, [
+        el("div", { class: "tw-premium-hero" }, [
+          el("img", { class: "tw-premium-star", src: "/img/tweb/premium-star.png", alt: "", width: 100, height: 100 }),
+          el("h2", { class: "tw-media-title" }, info.isPremium ? "У вас Shalter Premium" : "Shalter Premium"),
+          el(
+            "p",
+            { class: "tw-media-subtitle" },
+            info.isPremium ? formatPremiumUntil(info) : "Больше возможностей, особый значок и эксклюзивные реакции — без ограничений обычного аккаунта."
+          ),
         ]),
         canBuy
-          ? el("div", { class: "settings-section-group" }, [
-              el("p", { class: "settings-section-title" }, info.isPremium ? "Продлить Premium" : "Выберите срок"),
-              el("div", { class: "premium-plans", role: "radiogroup" }, plans.map(planCard)),
+          ? twSection(
+              info.isPremium ? "Продлить Premium" : "Выберите срок",
+              [el("div", { role: "radiogroup" }, plans.map(planRow))],
+              info.isPremium
+                ? "Новый срок прибавится к текущей дате окончания. Автопродления нет — списаний без вашего ведома не будет."
+                : "Оплата переводом администрации Shalter. Автопродления нет — срок просто закончится сам."
+            )
+          : null,
+        buyError ? el("p", { class: "login-error tw-center" }, buyError) : null,
+        twSection(
+          "Что даёт Premium",
+          PREMIUM_PERKS.map((p, i) =>
+            twRow({ icon: p.icon, color: PREMIUM_FEATURE_COLORS[i % PREMIUM_FEATURE_COLORS.length], title: p.title, subtitle: p.desc })
+          )
+        ),
+        twSection("Сравнение", [
+          el("div", { class: "premium-compare-card tw-compare" }, [
+            el("div", { class: "premium-compare-head" }, [
+              el("span", {}, "Возможность"),
+              el("span", {}, "Бесплатно"),
+              el("span", {}, "Premium"),
+            ]),
+            ...PREMIUM_COMPARE.map((row) =>
+              el("div", { class: "premium-compare-row" }, [
+                el("span", { class: "premium-compare-title" }, row[0]),
+                el("span", { class: "premium-compare-free" }, row[1]),
+                el("span", { class: "premium-compare-prem" }, row[2]),
+              ])
+            ),
+          ]),
+        ]),
+        twSection(null, [
+          twRow({ icon: "Link", title: "Публичная страница Premium", subtitle: "Откроется у любого, даже без аккаунта", href: "/premium", target: "_blank" }),
+          twRow({ icon: "Gift", title: "Магазин подарков", subtitle: "Цены в звёздах, отправка мгновенная", onClick: () => openGiftShopDialog({}) }),
+        ]),
+        canBuy
+          ? el("div", { class: "tw-premium-footer" }, [
               el(
                 "button",
-                { class: "btn-accent premium-buy-btn", disabled: buying || !current, onclick: buyPremium },
-                buying
-                  ? "Открываем оплату…"
-                  : `${info.isPremium ? "Продлить" : "Подписаться"} за ${current?.priceRub ?? 0} ₽`
+                { class: "tw-premium-confirm", disabled: buying || !current, onclick: buyPremium },
+                buying ? "Открываем оплату…" : `${info.isPremium ? "Продлить" : "Подписаться"} за ${current?.priceRub ?? 0} ₽`
               ),
               current?.stars
                 ? el(
                     "button",
-                    {
-                      class: "premium-buy-stars-btn",
-                      disabled: buying || (info.starsBalance ?? 0) < current.stars,
-                      onclick: buyWithStars,
-                    },
-                    (info.starsBalance ?? 0) < current.stars
-                      ? `Не хватает звёзд — ${current.stars} ⭐ (у вас ${info.starsBalance ?? 0})`
-                      : `Купить за ${current.stars} ⭐ (у вас ${info.starsBalance})`
+                    { class: "tw-premium-stars", disabled: buying || notEnoughStars, onclick: buyWithStars },
+                    notEnoughStars
+                      ? `Не хватает звёзд: нужно ${current.stars} ⭐, у вас ${info.starsBalance ?? 0}`
+                      : `Или за ${current.stars} ⭐ (у вас ${info.starsBalance})`
                   )
                 : null,
-              el(
-                "p",
-                { class: "settings-toggle-hint premium-buy-hint" },
-                info.isPremium
-                  ? "Новый срок прибавится к текущей дате окончания. Автопродления нет — списаний без вашего ведома не будет."
-                  : "Оплата переводом администрации Shalter. Автопродления нет — срок просто закончится сам."
-              ),
-              buyError ? el("p", { class: "login-error" }, buyError) : null,
             ])
           : null,
-        el("p", { class: "settings-section-title" }, "Что даёт Premium"),
-        el(
-          "div",
-          { class: "premium-perks-card" },
-          PREMIUM_PERKS.map((p) =>
-            el("div", { class: "premium-perk-row" }, [
-              el("span", { class: "premium-perk-icon", html: iconSvg(p.icon, 20) }),
-              el("div", {}, [
-                el("p", { class: "premium-perk-title" }, p.title),
-                el("p", { class: "premium-perk-desc" }, p.desc),
-              ]),
-            ])
-          )
-        ),
-        el("p", { class: "settings-section-title" }, "Сравнение"),
-        el("div", { class: "premium-compare-card" }, [
-          el("div", { class: "premium-compare-head" }, [
-            el("span", {}, "Возможность"),
-            el("span", {}, "Бесплатно"),
-            el("span", {}, "Premium"),
-          ]),
-          ...PREMIUM_COMPARE.map((row) =>
-            el("div", { class: "premium-compare-row" }, [
-              el("span", { class: "premium-compare-title" }, row[0]),
-              el("span", { class: "premium-compare-free" }, row[1]),
-              el("span", { class: "premium-compare-prem" }, row[2]),
-            ])
-          ),
-        ]),
-        el("div", { class: "settings-toggle-row no-divider" }, [
-          el("div", {}, [
-            el("p", { class: "settings-toggle-title" }, "Публичная страница Premium"),
-            el("p", { class: "settings-toggle-hint" }, "Ссылка, которой можно поделиться — откроется у любого, даже без аккаунта"),
-          ]),
-          el("a", { class: "btn-accent-pill", href: "/premium", target: "_blank", rel: "noopener" }, "Открыть"),
-        ]),
-        el("div", { class: "settings-toggle-row no-divider" }, [
-          el("div", {}, [
-            el("p", { class: "settings-toggle-title" }, "Магазин подарков"),
-            el("p", { class: "settings-toggle-hint" }, "Цены в звёздах, отправка мгновенная"),
-          ]),
-          el("button", { class: "btn-accent-pill", onclick: () => openGiftShopDialog({}) }, "Открыть"),
-        ]),
       ])
     );
   }
@@ -4161,25 +4141,8 @@ async function renderServer(root) {
 }
 
 async function renderStars(root) {
-  let info = null;
-  try {
-    info = await api.getStars();
-  } catch {
-  }
-  mount(
-    root,
-    pageWrap("Звёзды", "Внутренняя валюта: платные сообщения, поднятие и удаление", [
-      section(null, [
-        el("div", { class: "settings-toggle-row no-divider" }, [
-          el("div", {}, [
-            el("p", { class: "settings-toggle-title" }, info ? `${info.balance} ⭐ на балансе` : "Звёзды"),
-            el("p", { class: "settings-toggle-hint" }, "Купить, посмотреть расценки и настроить плату за сообщения вам"),
-          ]),
-          el("button", { class: "btn-accent-pill", onclick: () => openStarsDialog(() => renderStars(root)) }, "Открыть"),
-        ]),
-      ]),
-    ])
-  );
+  setPanelTitle("Звёзды");
+  mount(root, el("div", { class: "settings-page tw-page" }, [StarsPanel()]));
 }
 
 async function renderUsernames(root) {
