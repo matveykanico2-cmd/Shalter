@@ -344,7 +344,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             color: chat.otherUser?.avatarColor ?? chat.avatarColor,
             image: chat.otherUser?.avatarImage ?? chat.avatarImage,
             video: videoAvatarUrl(chat.otherUser),
-            size: 72,
+            size: 120,
             isPremium: isDm && chat.otherUser?.isPremium,
             isDeveloper: isDm && chat.otherUser?.isDeveloper,
             orbit: true,

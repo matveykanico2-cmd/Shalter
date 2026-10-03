@@ -208,7 +208,7 @@ export async function ChatView(root, chatId) {
     if (seq !== msgSeq || filterAtStart !== topicFilter) return;
     rememberReplyTargets(res);
     const fresh = res.messages;
-    if (!fresh.length) {
+    if (!fresh.length && !justSent.size && !messages.some((m) => m.pending)) {
       messages = [];
       messagesCount = 0;
       saveChatCache();
@@ -216,9 +216,14 @@ export async function ChatView(root, chatId) {
       return;
     }
     const cutoff = fresh[0].createdAt;
+    const freshIds = new Set(fresh.map((m) => m.id));
+    for (const id of justSent) if (freshIds.has(id)) justSent.delete(id);
     const older = messages.filter((m) => m.createdAt < cutoff && !m.pending);
+    // Ответ мог уйти с сервера раньше, чем там сохранилось только что
+    // отправленное сообщение — не выкидываем его, пока сервер его не вернёт.
+    const notYetListed = messages.filter((m) => justSent.has(m.id) && !freshIds.has(m.id) && m.createdAt >= cutoff);
     const stillPending = messages.filter((m) => m.pending);
-    const merged = [...older, ...fresh, ...stillPending];
+    const merged = [...older, ...fresh, ...notYetListed, ...stillPending];
     const grew = merged.length > messagesCount;
     if (!grew && sameMessages(messages, merged)) return;
     messages = merged;
@@ -236,9 +241,8 @@ export async function ChatView(root, chatId) {
     const wasAtBottom = atBottom();
     const prevTop = list.scrollTop;
     renderList();
-    if (landOnUnread && scrollToUnreadDivider()) {
-    } else if (grew && wasAtBottom) {
-      list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+    if (grew && (wasAtBottom || stuckToBottom || landOnUnread)) {
+      list.scrollTop = list.scrollHeight;
     } else {
       list.scrollTop = prevTop;
       if (grew) missedWhileUp += 1;
@@ -294,6 +298,7 @@ export async function ChatView(root, chatId) {
   }
 
   let pendingSeq = 0;
+  const justSent = new Set();
   const localThumbs = new Map();
   const withLocalThumbs = (m) =>
     m.attachments?.some((a) => a.previewPending && !a.thumbUrl && localThumbs.has(a.url))
@@ -362,6 +367,7 @@ export async function ChatView(root, chatId) {
     draftText = "";
     renderList();
     renderComposer();
+    stuckToBottom = true;
     list.scrollTop = list.scrollHeight;
 
     const dropOptimistic = () => {
@@ -384,6 +390,8 @@ export async function ChatView(root, chatId) {
       sentMessage = message;
       if (getState().settings?.notifications?.sound !== false) playSentSound();
       noteMessageInChatList(chat.id, message);
+      justSent.add(message.id);
+      setTimeout(() => justSent.delete(message.id), 60000);
       const at = messages.findIndex((m) => m.id === localId);
       if (at >= 0) messages[at] = message;
       else messages = [...messages, message];
@@ -1559,15 +1567,34 @@ export async function ChatView(root, chatId) {
   list.addEventListener("load", keepAtBottom, true);
   list.addEventListener("loadedmetadata", keepAtBottom, true);
 
-  function scrollToUnreadDivider() {
-    const divider = list.querySelector(".unread-divider");
-    if (!divider) return false;
-    const offset = divider.getBoundingClientRect().top - list.getBoundingClientRect().top;
-    list.scrollTop += offset - 12;
-    stuckToBottom = atBottom();
-    updateScrollDown();
-    return true;
+  // Как в tweb: при открытии диалог стоит на последнем сообщении, даже если
+  // экран ещё доезжает анимацией, а картинки/эмодзи догружаются и меняют высоту.
+  // Держим низ, пока пользователь сам не начнёт листать.
+  function pinToBottomWhileOpening() {
+    let userScrolled = false;
+    const stop = () => {
+      userScrolled = true;
+    };
+    const opts = { passive: true, once: true };
+    list.addEventListener("wheel", stop, opts);
+    list.addEventListener("touchstart", stop, opts);
+    list.addEventListener("keydown", stop, opts);
+    const until = Date.now() + 2500;
+    const pin = () => {
+      if (userScrolled || !list.isConnected || Date.now() > until || !stuckToBottom) return;
+      if (list.scrollHeight - list.scrollTop - list.clientHeight > 1) list.scrollTop = list.scrollHeight;
+      requestAnimationFrame(pin);
+    };
+    requestAnimationFrame(pin);
+    if (typeof ResizeObserver === "function") {
+      const ro = new ResizeObserver(() => {
+        if (stuckToBottom && !userScrolled) list.scrollTop = list.scrollHeight;
+      });
+      ro.observe(list);
+      setTimeout(() => ro.disconnect(), 2500);
+    }
   }
+
 
   function senderOf(id) {
     return members.find((u) => u.id === id) ?? cachedUser(id);
@@ -1928,7 +1955,20 @@ export async function ChatView(root, chatId) {
   loadLive();
   loadVoiceRoom();
   mount(root, wrap);
-  list.scrollTo({ top: list.scrollHeight });
+  // Композер, как в tweb, плавает поверх обоев: список уходит под него,
+  // а снизу получает отступ ровно на высоту композера.
+  let composerObserver = null;
+  if (typeof ResizeObserver === "function") {
+    composerObserver = new ResizeObserver(() => {
+      const wasAtBottom = atBottom();
+      mainCol.style.setProperty("--composer-h", `${composerSlot.offsetHeight}px`);
+      if (wasAtBottom) list.scrollTop = list.scrollHeight;
+    });
+    composerObserver.observe(composerSlot);
+  }
+  mainCol.style.setProperty("--composer-h", `${composerSlot.offsetHeight}px`);
+  list.scrollTop = list.scrollHeight;
+  pinToBottomWhileOpening();
   const focusMessageId = new URLSearchParams(window.location.search).get("msg");
   if (focusMessageId) {
     window.history.replaceState(null, "", window.location.pathname);
@@ -1937,9 +1977,9 @@ export async function ChatView(root, chatId) {
       if (openedFromCache) await refreshMessages();
       await jumpTo(focusMessageId);
     })();
-  } else {
-    scrollToUnreadDivider();
   }
+  // Диалог открывается на последнем сообщении; плашка «Непрочитанные»
+  // остаётся в ленте отметкой, докуда было прочитано.
 
   const messagesIv = setInterval(refreshMessages, 15000);
   const lastSeenIv = setInterval(() => {
@@ -2099,5 +2139,6 @@ export async function ChatView(root, chatId) {
     unsubChatUpdated();
     unsubTopics();
     viewObserver?.disconnect();
+    composerObserver?.disconnect();
   };
 }

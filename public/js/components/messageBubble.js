@@ -853,7 +853,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     bubbleInner.push(LinkPreviewCard(message.linkPreview));
   }
 
-  const meta = el("span", { class: `message-meta ${isSticker ? "message-meta-sticker" : ""}` }, [
+  const metaParts = [
     message.visibleToId ? el("span", { class: "message-private-badge", title: "Это сообщение бота видите только вы" }, "👁 только вам") : null,
     message.effect
       ? el("button", {
@@ -875,8 +875,36 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
           html: iconSvg(message.pending ? "Clock" : message.readByIds.length > 1 ? "CheckCheck" : "Check", 13),
         })
       : null,
-  ]);
-  bubbleInner.push(meta);
+  ];
+  // Как в tweb: время с галочками встаёт в конец последней строки текста,
+  // если там есть место, иначе — на новую строку. Невидимая копия
+  // (float) резервирует место, видимая лежит поверх в правом нижнем углу.
+  const lastInner = bubbleInner[bubbleInner.length - 1];
+  const inlineMeta =
+    !isSticker &&
+    !message.paidStars &&
+    lastInner?.classList?.contains("message-text") &&
+    !lastInner.classList.contains("message-text-jumbo") &&
+    !lastInner.classList.contains("message-custom-jumbo");
+  let meta;
+  if (inlineMeta) {
+    const inner = el("span", { class: "message-meta-inner" }, metaParts);
+    const spacer = el("span", { class: "message-meta-spacer", "aria-hidden": "true" }, [...inner.cloneNode(true).childNodes]);
+    meta = el("span", { class: "message-meta message-meta-inline" }, [spacer, inner]);
+  } else {
+    meta = el("span", { class: `message-meta ${isSticker ? "message-meta-sticker" : ""}` }, metaParts);
+  }
+  if (inlineMeta) {
+    // formatText кладёт каждую строку в span.block — время должно жить
+    // внутри последней строки, иначе float уедет на новую строку.
+    let lastLine = lastInner;
+    while (lastLine.lastElementChild?.tagName === "SPAN" && ["", "block"].includes(lastLine.lastElementChild.className)) {
+      lastLine = lastLine.lastElementChild;
+    }
+    const plainLine = lastLine.className === "block" && !lastLine.querySelector(".block, .quote-line, pre, table");
+    (plainLine ? lastLine : lastInner).appendChild(meta);
+  }
+  else bubbleInner.push(meta);
 
   const boosted = !!message.boostedUntil && message.boostedUntil > new Date().toISOString();
   const bubble = el(
@@ -1479,7 +1507,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
               ? el(
                   "button",
                   { class: "message-avatar-btn", title: `Профиль: ${sender.name}`, onclick: () => openProfileDialog(sender.id) },
-                  [Avatar({ name: sender.name, color: sender.avatarColor, image: sender.avatarImage, size: 30 })]
+                  [Avatar({ name: sender.name, color: sender.avatarColor, image: sender.avatarImage, size: 34 })]
                 )
               : null
           )

@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Shalter</title>
   <meta name="theme-color" content="#2e56d9" />
   <link rel="manifest" href="/manifest.webmanifest" />
@@ -21,6 +21,7 @@
         var top = vv ? vv.offsetTop : 0;
         root.style.setProperty("--app-height", Math.round(h) + "px");
         root.style.setProperty("--app-top", Math.round(top) + "px");
+        root.classList.toggle("keyboard-open", !!vv && window.innerHeight - vv.height > 120);
       }
       setAppMetrics();
       if (vv) {

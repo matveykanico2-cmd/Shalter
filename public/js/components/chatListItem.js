@@ -100,7 +100,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
       chat.isSaved
         ? el("span", { class: "saved-avatar", html: iconSvg("Bookmark", 24) })
         : Avatar({
-            size: 52,
+            size: 54,
             name: chat.otherUser?.name ?? title,
             color: chat.otherUser?.avatarColor ?? chat.avatarColor,
             image: chat.otherUser?.avatarImage ?? chat.avatarImage,
