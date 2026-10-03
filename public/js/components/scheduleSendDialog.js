@@ -15,8 +15,9 @@ export function repeatLabel(repeat) {
   return REPEAT_OPTIONS.find(([id]) => id === repeat)?.[1] ?? "";
 }
 
-// onSchedule(iso, repeat) — repeat: null или один из REPEAT_OPTIONS.
-export function openScheduleSendDialog(onSchedule, { allowRepeat = true } = {}) {
+// onSchedule(iso, repeat, { whenOnline }) — repeat: null или один из REPEAT_OPTIONS;
+// при whenOnline iso и repeat — null.
+export function openScheduleSendDialog(onSchedule, { allowRepeat = true, allowWhenOnline = false } = {}) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
 
   function toLocalInputValue(date) {
@@ -63,6 +64,20 @@ export function openScheduleSendDialog(onSchedule, { allowRepeat = true } = {}) 
       },
       "Запланировать"
     ),
+    // Как в Telegram: в личке — «Отправить, когда будет в сети».
+    allowWhenOnline
+      ? el(
+          "button",
+          {
+            class: "modal-cancel",
+            onclick: () => {
+              close();
+              onSchedule(null, null, { whenOnline: true });
+            },
+          },
+          "Отправить, когда будет в сети"
+        )
+      : null,
     el("button", { class: "modal-cancel", onclick: () => close() }, "Отмена"),
   ]);
   overlay.appendChild(dialog);

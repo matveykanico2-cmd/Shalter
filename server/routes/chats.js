@@ -866,7 +866,7 @@ router.post(
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
     const { text } = req.body ?? {};
-    await setDraft(req.uid, req.params.id, typeof text === "string" ? text : "");
+    await setDraft(req.uid, req.params.id, typeof text === "string" ? text.slice(0, 8192) : "");
     res.json({ ok: true });
   })
 );

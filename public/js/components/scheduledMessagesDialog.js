@@ -18,12 +18,14 @@ export function openScheduledMessagesDialog(chatId, { onChange } = {}) {
   }
 
   function row(s) {
-    const when = new Date(s.sendAt).toLocaleString("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const when = s.sendAt.startsWith("9999-")
+      ? "Когда будет в сети"
+      : new Date(s.sendAt).toLocaleString("ru-RU", {
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
     return el("div", { class: "scheduled-msg-row" }, [
       el("div", { class: "scheduled-msg-body" }, [
         el("p", { class: "scheduled-msg-text" }, s.text || "Медиа"),
@@ -35,7 +37,11 @@ export function openScheduledMessagesDialog(chatId, { onChange } = {}) {
           title: "Отправить сейчас",
           html: iconSvg("Send", 15),
           onclick: async () => {
-            await api.editScheduled(chatId, s.id, { sendAt: new Date(Date.now() - 1000).toISOString() });
+            try {
+              await api.editScheduled(chatId, s.id, { sendNow: true });
+            } catch (err) {
+              alert(err.message || "Не удалось отправить");
+            }
             onChange?.();
             load();
           },

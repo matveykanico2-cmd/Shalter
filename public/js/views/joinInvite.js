@@ -14,15 +14,16 @@ export function JoinInviteView(root, code) {
 }
 
 // A public group/channel opened by its @username.
-export function JoinPublicView(root, chat) {
+export function JoinPublicView(root, chat, { msg = null } = {}) {
   return JoinView(root, {
+    afterJoin: msg ? `?msg=${encodeURIComponent(msg)}` : "",
     load: async () => ({ ...chat, memberCount: chat.subscribers, alreadyMember: chat.isMember }),
     join: () => api.joinPublicChat(chat.id),
     failTitle: "Не удалось вступить",
   });
 }
 
-async function JoinView(root, { load, join: doJoin, failTitle }) {
+async function JoinView(root, { load, join: doJoin, failTitle, afterJoin = "" }) {
   let info = null;
   let error = null;
   let busy = false;
@@ -47,7 +48,7 @@ async function JoinView(root, { load, join: doJoin, failTitle }) {
         return;
       }
       await api.listChats().then((r) => setState({ chats: r.chats }));
-      navigate(`/chat/${res.chat.id}`);
+      navigate(`/chat/${res.chat.id}${afterJoin}`);
     } catch (err) {
       error = err.message || "Не удалось присоединиться";
       busy = false;

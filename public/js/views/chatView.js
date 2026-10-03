@@ -1768,6 +1768,7 @@ export async function ChatView(root, chatId) {
         onScheduled: () => openScheduledMessagesDialog(chat.id),
         topicId: currentTopicId(),
         allowEffects: isDm && !isSaved,
+        allowWhenOnline: isDm && !isSaved && !!other && !other.isBot,
         onEditLast: () => {
           const last = [...messages]
             .reverse()

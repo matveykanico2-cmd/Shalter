@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
@@ -17,6 +18,13 @@ const {
 
 const router = express.Router();
 
+// Сравнение за постоянное время: иначе секрет можно подбирать по задержке ответа.
+function sameSecret(expected, given) {
+  const a = Buffer.from(String(expected ?? ""));
+  const b = Buffer.from(String(given ?? ""));
+  return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 function publicProfile(user) {
   return { id: user.id, name: user.name, username: user.username || null, avatarImage: user.avatarImage || null };
 }
@@ -26,7 +34,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const { client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri } = req.body ?? {};
     const app = clientId ? getOAuthAppByClientId(String(clientId)) : null;
-    if (!app || app.clientSecret !== clientSecret) {
+    if (!app || !sameSecret(app.clientSecret, clientSecret)) {
       return res.status(401).json({ error: "invalid_client" });
     }
     const redeemed = redeemAuthCode(String(code ?? ""), app.clientId, String(redirectUri ?? ""));

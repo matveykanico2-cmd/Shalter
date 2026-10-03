@@ -58,6 +58,7 @@ async function broadcastPresence(user, message) {
 async function markOnline(uid) {
   const user = await updateUser(uid, { online: true });
   if (user) await broadcastPresence(user, { type: "presence:update", userId: uid, online: true, lastSeen: user.lastSeen });
+  require("./lib/scheduledMessagesSweep").sendWhenOnline().catch((err) => console.error("when-online send failed:", err));
 }
 
 async function markOffline(uid) {

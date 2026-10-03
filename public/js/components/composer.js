@@ -67,6 +67,7 @@ export function Composer({
   disableDraftSync = false,
   topicId = null,
   allowEffects = false,
+  allowWhenOnline = false,
 }) {
   let lastTypingPing = 0;
   let staged = [];
@@ -934,9 +935,9 @@ export function Composer({
         alert("Сначала напишите сообщение — запланировать можно только то, что уже набрано");
         return;
       }
-      openScheduleSendDialog(async (sendAt, repeat) => {
+      openScheduleSendDialog(async (sendAt, repeat, { whenOnline = false } = {}) => {
         try {
-          await api.scheduleMessage(chatId, { text: textarea.value.trim(), replyToId: replyingTo?.id ?? null, sendAt, repeat, topicId });
+          await api.scheduleMessage(chatId, { text: textarea.value.trim(), replyToId: replyingTo?.id ?? null, sendAt, repeat, topicId, whenOnline });
           textarea.value = "";
           autoResize();
           updateTrailingButtons();
@@ -945,7 +946,7 @@ export function Composer({
         } catch (err) {
           alert(err.message || "Не удалось запланировать отправку");
         }
-      });
+      }, { allowWhenOnline });
     }
     const scheduleSlot = editingMessage
       ? null

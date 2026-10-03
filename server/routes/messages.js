@@ -22,7 +22,7 @@ const { getSettings, isQuietNow, clearUnreadMark } = require("../data/settings")
 const { listContactsFor } = require("../data/contacts");
 const { allowsUser, recordsReadTime } = require("../lib/privacyRules");
 const { messageCost } = require("../lib/messagePrice");
-const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled } = require("../data/scheduledMessages");
+const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled, WHEN_ONLINE } = require("../data/scheduledMessages");
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
 const { dispatchHugo } = require("../lib/hugoBot");
@@ -597,7 +597,11 @@ router.post(
     if (!body.text?.trim() && !body.attachments?.length) {
       return res.status(400).json({ error: "empty message" });
     }
-    if (typeof body.sendAt !== "string" || !Number.isFinite(Date.parse(body.sendAt)) || body.sendAt <= new Date().toISOString()) {
+    if (body.whenOnline === true) {
+      if (chat.type !== "dm") return res.status(400).json({ error: "«Когда будет в сети» — только в личных чатах" });
+      body.sendAt = WHEN_ONLINE;
+      body.repeat = null;
+    } else if (typeof body.sendAt !== "string" || !Number.isFinite(Date.parse(body.sendAt)) || body.sendAt <= new Date().toISOString()) {
       return res.status(400).json({ error: "Время отправки должно быть в будущем" });
     }
     const gate = await sendGate(chat, req.uid, body, { charge: false, skipSlowMode: true });
@@ -616,6 +620,7 @@ router.post(
       createdAt: new Date().toISOString(),
     });
     res.json({ scheduled });
+    if (body.whenOnline === true) require("../lib/scheduledMessagesSweep").sendWhenOnline().catch((err) => console.error("when-online send failed:", err));
   })
 );
 
@@ -627,6 +632,12 @@ router.patch(
       return res.status(404).json({ error: "not found" });
     }
     const body = req.body ?? {};
+    // «Отправить сейчас»: срок — текущий момент, и сразу запускаем отправку.
+    if (body.sendNow === true) {
+      await editScheduled(req.params.scheduledId, { sendAt: new Date().toISOString() });
+      await require("../lib/scheduledMessagesSweep").sweepOnce();
+      return res.json({ ok: true });
+    }
     if (body.sendAt !== undefined && (typeof body.sendAt !== "string" || !Number.isFinite(Date.parse(body.sendAt)) || body.sendAt <= new Date().toISOString())) {
       return res.status(400).json({ error: "Время отправки должно быть в будущем" });
     }
@@ -871,3 +882,4 @@ router.get(
 module.exports = router;
 module.exports.deliverMessage = deliverMessage;
 module.exports.sendGate = sendGate;
+module.exports.forwardOrigin = forwardOrigin;

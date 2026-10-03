@@ -1067,6 +1067,25 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     };
   }
 
+  async function replyPrivately() {
+    try {
+      const { chat } = await api.startDm(sender.id, sender.name, sender.avatarColor);
+      const source = (pendingQuote || message.text || "").trim().slice(0, 500);
+      const quote = source ? source.split("\n").map((line) => `> ${line}`).join("\n") + "\n" : "";
+      const { chats } = getState();
+      const known = chats.some((c) => c.id === chat.id);
+      const prev = known ? chats.find((c) => c.id === chat.id).draft ?? "" : "";
+      const draft = quote + prev;
+      setState({ chats: known ? chats.map((c) => (c.id === chat.id ? { ...c, draft } : c)) : [{ ...chat, draft }, ...chats] });
+      // Черновик и на сервер: чат может открыться со своим сохранённым черновиком.
+      await api.setDraft(chat.id, draft).catch(() => {});
+      pendingQuote = "";
+      navigate(`/chat/${chat.id}`);
+    } catch (err) {
+      alert(err.message || "Не удалось открыть чат");
+    }
+  }
+
   function openMessageMenu(pos) {
     const items = [
       { icon: "Reply", label: "Ответить", onClick: replyWithQuote },
@@ -1085,13 +1104,22 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         ? [{
             icon: "Link",
             label: "Копировать ссылку",
-            onClick: () => navigator.clipboard?.writeText(`${location.origin}/chat/${message.chatId}?msg=${message.id}`).catch(() => {}),
+            onClick: () => {
+              // Публичный чат — ссылка через @username: её откроет и тот, кто ещё не вступил.
+              const username = getState().chats.find((c) => c.id === message.chatId)?.username;
+              const path = username ? `/u/${username}` : `/chat/${message.chatId}`;
+              navigator.clipboard?.writeText(`${location.origin}${path}?msg=${message.id}`).catch(() => {});
+            },
           }]
         : []),
       ...(selection ? [{ icon: "Check", label: "Выбрать", onClick: () => selection.onToggle(message.id) }] : []),
       ...(readers.length ? [{ icon: "CheckCheck", label: `Прочитали: ${readers.length}`, onClick: () => showReaders(pos) }] : []),
       ...(isDm && mine && message.readAt ? [{ icon: "CheckCheck", label: readAtLabel(message.readAt) }] : []),
     ];
+    // «Ответить лично» — как в Telegram: открыть личку с автором, процитировав сообщение.
+    if (!isDm && !isChannel && !mine && sender && !sender.isBot && !message.anonymous) {
+      items.push({ icon: "User", label: "Ответить лично", onClick: () => replyPrivately() });
+    }
     if (onOpenThread && !message.threadRootId) {
       items.push({ icon: "MessageSquare", label: "Ответить в теме", onClick: () => onOpenThread(message) });
     }

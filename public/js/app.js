@@ -312,12 +312,13 @@ async function boot() {
 
     try {
       const { chat } = await api.findChatByUsername(username);
+      const msg = params.get("msg");
       if (chat.isMember) {
-        navigate(`/chat/${chat.id}`, { replace: true });
+        navigate(`/chat/${chat.id}${msg ? `?msg=${encodeURIComponent(msg)}` : ""}`, { replace: true });
         return;
       }
       const { JoinPublicView } = await import("./views/joinInvite.js");
-      await JoinPublicView(mainSlot, chat);
+      await JoinPublicView(mainSlot, chat, { msg });
       return;
     } catch (err) {
       mount(

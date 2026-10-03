@@ -6,11 +6,17 @@ function balanceOf(userId) {
 }
 
 const addStars = db.transaction((userId, amount) => {
+  if (!Number.isSafeInteger(amount)) throw new Error("bad stars amount");
   db.prepare("UPDATE users SET stars = stars + ? WHERE id = ?").run(amount, userId);
   return balanceOf(userId);
 });
 
+// Страховка от ошибок в маршрутах: отрицательная или дробная сумма
+// превратила бы списание в начисление.
+const isAmount = (n) => Number.isSafeInteger(n) && n > 0;
+
 const spendStars = db.transaction((userId, amount) => {
+  if (!isAmount(amount)) return false;
   const row = db.prepare("SELECT stars FROM users WHERE id = ?").get(userId);
   if (!row || row.stars < amount) return false;
   db.prepare("UPDATE users SET stars = stars - ? WHERE id = ?").run(amount, userId);
@@ -18,6 +24,7 @@ const spendStars = db.transaction((userId, amount) => {
 });
 
 const transferStars = db.transaction((fromId, toId, amount) => {
+  if (!isAmount(amount) || fromId === toId) return false;
   const row = db.prepare("SELECT stars FROM users WHERE id = ?").get(fromId);
   if (!row || row.stars < amount) return false;
   db.prepare("UPDATE users SET stars = stars - ? WHERE id = ?").run(amount, fromId);

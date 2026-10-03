@@ -6,7 +6,7 @@ const { getUser, findUserByUsername, updateUser } = require("../data/users");
 const { listChatsForUser, getChat, updateChat, findChatByUsername, createChat, findDmBetween } = require("../data/chats");
 const { listAllMessages, listNewForBot, listMessages, getMessage, editMessage, deleteMessage, togglePin, addMessage, listMessagesPage, toggleReaction, setKeyboard } = require("../data/messages");
 const { addScheduled, listScheduledFor, getScheduled, deleteScheduled } = require("../data/scheduledMessages");
-const { sanitizePermissions } = require("../lib/chatPermissions");
+const { sanitizePermissions, isStaff } = require("../lib/chatPermissions");
 const crypto = require("crypto");
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { broadcastToUsers } = require("../ws");
@@ -14,7 +14,8 @@ const { markTyping, normalizeAction } = require("../data/typing");
 const { updateBotApp, updateBotAppCode, updateBotCommands, updateBotDescription, getBotToken } = require("../data/bots");
 const { sendBotMessage, normalizeKeyboard } = require("../lib/botMessaging");
 const { findOrCreateDm } = require("../lib/systemChat");
-const { allowsUser } = require("../lib/privacyRules");
+const { allowsUser, publicUserFor } = require("../lib/privacyRules");
+const { forwardOrigin } = require("./messages");
 const { validateAppUrl, verifyInitData } = require("../lib/miniApp");
 const { checkUsername, normalizeUsername } = require("../lib/username");
 
@@ -89,8 +90,9 @@ router.post(
     if (!text?.trim()) return res.status(400).json({ error: "text is required" });
     const found = await botOwns(req.bot.userId, messageId);
     if (found.error) return res.status(found.status).json({ error: found.error });
+    if (found.message.forwardedFrom) return res.status(400).json({ error: "Forwarded messages can't be edited" });
 
-    const message = await editMessage(messageId, text);
+    const message = await editMessage(messageId, String(text).slice(0, 4096));
     broadcastToUsers(found.chat.memberIds, { type: "message:updated", chatId: found.chat.id, message });
     res.json({ message });
   })
@@ -215,7 +217,7 @@ router.get(
   asyncRoute(async (req, res) => {
     const user = await getUser(req.query.userId);
     if (!user) return res.status(404).json({ error: "User not found" });
-    res.json({ user: publicUser(user) });
+    res.json({ user: await publicUserFor(user, req.bot.userId) });
   })
 );
 
@@ -576,7 +578,7 @@ router.post(
     if (from.protectedBy?.length) return res.status(403).json({ error: "Forwarding is disabled in this chat" });
     const to = await botChat(req, res, toChatId);
     if (!to) return;
-    const author = await getUser(source.senderId);
+    if (to.type === "channel" && !isStaff(to, req.bot.userId)) return res.status(403).json({ error: "Bot must be an admin to post in a channel" });
     const message = await addMessage({
       id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       chatId: to.id,
@@ -585,7 +587,8 @@ router.post(
       text: source.text ?? "",
       createdAt: new Date().toISOString(),
       attachments: source.attachments,
-      forwardedFrom: { chatId: from.id, chatTitle: from.title, senderId: source.senderId, senderName: author?.name ?? "—" },
+      // Подпись — как при пересылке людьми: анонимных админов и посты каналов не раскрываем.
+      forwardedFrom: source.forwardedFrom ?? (await forwardOrigin(from, source, req.bot.userId)),
       readByIds: [],
     });
     broadcastToUsers(to.memberIds, { type: "message:new", chatId: to.id, message });

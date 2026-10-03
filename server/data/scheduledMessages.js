@@ -107,4 +107,13 @@ function listDue(nowIso) {
   return db.prepare("SELECT * FROM scheduled_messages WHERE sendAt <= ?").all(nowIso).map(rowToScheduled);
 }
 
-module.exports = { REPEATS, nextOccurrence, listScheduledFor, getScheduled, addScheduled, editScheduled, deleteScheduled, reschedule, listDue };
+// «Отправить, когда будет в сети»: дата-заглушка, которую обычный проход по
+// сроку никогда не достигает. Такие сообщения уходят, когда собеседник в личке
+// появится онлайн (scheduledMessagesSweep.js).
+const WHEN_ONLINE = "9999-12-31T00:00:00.000Z";
+
+function listWhenOnline() {
+  return db.prepare("SELECT * FROM scheduled_messages WHERE sendAt = ?").all(WHEN_ONLINE).map(rowToScheduled);
+}
+
+module.exports = { WHEN_ONLINE, listWhenOnline, REPEATS, nextOccurrence, listScheduledFor, getScheduled, addScheduled, editScheduled, deleteScheduled, reschedule, listDue };
