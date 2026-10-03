@@ -20411,3 +20411,44 @@ button img.emoji {
 .profile-panel-body .profile-tab-content {
   padding-top: 0;
 }
+
+/* магазин подарков: содержимое не сжимается, на телефоне — весь экран и прокрутка по всей высоте */
+.gs-body > * {
+  flex-shrink: 0;
+}
+.gs-body {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+.gs-tabs {
+  touch-action: pan-x;
+}
+@media (max-width: 560px) {
+  .modal-overlay:has(> .gs-dialog) {
+    padding: 0;
+    align-items: stretch;
+  }
+  .modal-dialog.gs-dialog {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .gs-dialog .gs-head {
+    flex-shrink: 0;
+    padding-top: max(8px, env(safe-area-inset-top));
+  }
+  .gs-dialog .gs-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+  .gs-dialog > .modal-cancel {
+    flex-shrink: 0;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+}
