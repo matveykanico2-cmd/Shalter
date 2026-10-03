@@ -286,7 +286,12 @@ export function Composer({
       const cmd = parseSlashCommand(text, { reserved });
       if (!cmd) return { text, silent: false };
       if (cmd.error) {
-        showHint(cmd.error);
+        closeMentionMenu();
+        mentionMenu.append(el("p", { class: "composer-command-error" }, cmd.error));
+        mentionMenu.classList.remove("hidden");
+        setTimeout(() => {
+          if (!mentionMatches.length) closeMentionMenu();
+        }, 2500);
         return null;
       }
       if (cmd.dice) {

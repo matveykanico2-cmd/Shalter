@@ -1813,16 +1813,42 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+/* Спойлер как в Telegram: текст спрятан под «шумом» из мерцающих точек. */
 .spoiler {
+  --spoiler-dot: var(--color-text);
   border-radius: 4px;
-  padding: 0 4px;
-  background: var(--color-text);
+  padding: 0 2px;
   color: transparent;
   cursor: pointer;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  background-color: color-mix(in srgb, var(--spoiler-dot) 6%, transparent);
+  background-image:
+    radial-gradient(circle, var(--spoiler-dot) 0.9px, transparent 1.3px),
+    radial-gradient(circle, color-mix(in srgb, var(--spoiler-dot) 75%, transparent) 0.8px, transparent 1.2px),
+    radial-gradient(circle, color-mix(in srgb, var(--spoiler-dot) 50%, transparent) 0.6px, transparent 1px);
+  background-size: 7px 9px, 11px 7px, 5px 6px;
+  background-position: 0 0, 3px 4px, 1px 2px;
+  animation: spoiler-drift 1.6s linear infinite;
+  transition: color 0.35s ease, background-color 0.35s ease;
+  user-select: none;
+}
+.spoiler:hover {
+  background-color: color-mix(in srgb, var(--spoiler-dot) 10%, transparent);
 }
 .spoiler.revealed {
   background: transparent;
   color: inherit;
+  animation: none;
+  cursor: auto;
+  user-select: text;
+}
+@keyframes spoiler-drift {
+  to { background-position: 7px -9px, -11px 14px, 5px 6px; }
+}
+.chat-list-item .spoiler,
+.reply-preview-text .spoiler {
+  animation: none;
 }
 .message-translation {
   display: block;
@@ -15609,4 +15635,30 @@ video.story-reply-thumb { object-fit: cover; }
   text-align: center;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+/* Подсказки слэш-команд над полем ввода (lib/slashCommands.js). */
+.composer-command-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+.composer-command-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+.composer-command-item-hint {
+  font-weight: 400;
+  color: var(--color-muted);
+}
+.composer-command-item-desc {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.composer-command-error {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  color: var(--color-danger);
 }

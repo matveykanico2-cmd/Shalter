@@ -214,7 +214,21 @@ function internalPath(href) {
 }
 
 function spoiler(text) {
-  const span = el("span", { class: "spoiler" }, text);
-  span.addEventListener("click", () => span.classList.add("revealed"), { once: true });
+  const span = el("span", { class: "spoiler", role: "button", tabindex: "0", "aria-label": "Скрытый текст — нажмите, чтобы показать" }, text);
+  const reveal = (e) => {
+    if (span.classList.contains("revealed")) return;
+    e.stopPropagation();
+    span.classList.add("revealed");
+    span.removeAttribute("role");
+    span.removeAttribute("tabindex");
+    span.removeAttribute("aria-label");
+  };
+  span.addEventListener("click", reveal);
+  span.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      reveal(e);
+    }
+  });
   return span;
 }
