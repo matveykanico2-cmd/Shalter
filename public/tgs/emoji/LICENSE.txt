@@ -2,3 +2,5 @@ Animated emoji in this folder: Noto Emoji Animation by Google.
 https://googlefonts.github.io/noto-emoji-animation/
 Licensed under CC BY 4.0 — https://creativecommons.org/licenses/by/4.0/
 Files are unmodified Lottie JSON, renamed to <codepoints>.json (without FE0F).
+Other Noto animations (not stored here) are loaded at runtime from
+fonts.gstatic.com/s/e/notoemoji — same project, same CC BY 4.0 license.

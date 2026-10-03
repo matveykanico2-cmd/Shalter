@@ -101,7 +101,7 @@ function loadData(name) {
   if (!dataCache.has(name)) {
     dataCache.set(
       name,
-      fetch(`/tgs/${name}.json`).then((r) => {
+      fetch(/^https:\/\//.test(name) ? name : `/tgs/${name}.json`).then((r) => {
         if (!r.ok) throw new Error(`tgs ${name}`);
         return r.text();
       })
