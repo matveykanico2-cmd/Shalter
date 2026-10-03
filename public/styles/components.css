@@ -20736,3 +20736,8 @@ button img.emoji {
   display: inline-flex;
   flex-shrink: 0;
 }
+
+/* профиль: блоки панели не сжимаются — иначе вкладка (подарки, медиа) обрезалась до 120px и не листалась */
+.profile-panel-body > * {
+  flex-shrink: 0;
+}
