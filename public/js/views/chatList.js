@@ -3,6 +3,13 @@ import { iconSvg } from "../icons.js";
 import { ChatListItem } from "../components/chatListItem.js";
 import { openDropdownMenu } from "../components/dropdownMenu.js";
 import { openMemberPickerDialog } from "../components/memberPickerDialog.js";
+
+async function getUsersByIds(ids) {
+  if (!ids.length) return [];
+  const { contacts } = await api.listContacts().catch(() => ({ contacts: [] }));
+  const byId = new Map(contacts.map((c) => [c.user?.id, c.user]));
+  return ids.map((id) => byId.get(id)).filter(Boolean);
+}
 import { openCreateChatDialog } from "../components/createChatDialog.js";
 import { openInviteLinkDialog } from "../components/inviteLinkDialog.js";
 import { openContactPickerDialog } from "../components/contactPickerDialog.js";
@@ -47,32 +54,50 @@ async function openNewChatMenu(e) {
         icon: "Users",
         label: "Новая группа",
         onClick: () => {
-          openCreateChatDialog("group", (title, avatarImage, extra) => {
-            openMemberPickerDialog(
-              async ({ userIds, adminIds }) => {
-                const { chat } = await api.createGroup(title, userIds, avatarImage, adminIds, extra);
-                await api.listChats().then((r) => setState({ chats: r.chats }));
-                navigate(`/chat/${chat.id}`);
-                if (!extra?.isPublic) openInviteLinkDialog(chat);
-              },
-              { title: "Участники группы", submitLabel: "Создать группу", allowRoles: true }
-            );
-          });
+          // Как в tweb: сначала участники, потом название и фото.
+          openMemberPickerDialog(
+            ({ userIds, adminIds }, pickerTab) => {
+              pickerTab.keepOpen = true;
+              getUsersByIds(userIds).then((members) =>
+                openCreateChatDialog(
+                  "group",
+                  async (title, avatarImage, extra, tab) => {
+                    const { chat } = await api.createGroup(title, userIds, avatarImage, adminIds, extra);
+                    tab.close({ all: true });
+                    await api.listChats().then((r) => setState({ chats: r.chats }));
+                    navigate(`/chat/${chat.id}`);
+                    if (!extra?.isPublic) openInviteLinkDialog(chat);
+                  },
+                  { members }
+                )
+              );
+            },
+            { title: "Добавить участников", submitLabel: "Далее", allowRoles: true }
+          );
         },
       },
       {
         icon: "Send",
         label: "Новый канал",
         onClick: () => {
-          openCreateChatDialog("channel", (title, avatarImage, extra) => {
+          // Как в tweb: название и описание, затем подписчики (можно пропустить).
+          openCreateChatDialog("channel", (title, avatarImage, extra, infoTab) => {
             openMemberPickerDialog(
-              async ({ userIds, adminIds }) => {
-                const { chat } = await api.createChannel(title, avatarImage, userIds, adminIds, extra);
-                await api.listChats().then((r) => setState({ chats: r.chats }));
-                navigate(`/chat/${chat.id}`);
-                if (!extra?.isPublic) openInviteLinkDialog(chat);
+              async ({ userIds, adminIds }, pickerTab) => {
+                pickerTab.keepOpen = true;
+                pickerTab.setFabBusy(true);
+                try {
+                  const { chat } = await api.createChannel(title, avatarImage, userIds, adminIds, extra);
+                  infoTab.close({ all: true });
+                  await api.listChats().then((r) => setState({ chats: r.chats }));
+                  navigate(`/chat/${chat.id}`);
+                  if (!extra?.isPublic) openInviteLinkDialog(chat);
+                } catch (err) {
+                  pickerTab.setFabBusy(false);
+                  alert(err?.message || "Не удалось создать канал");
+                }
               },
-              { title: "Подписчики канала (необязательно)", submitLabel: "Создать канал", allowRoles: true }
+              { title: "Добавить подписчиков", submitLabel: "Создать канал", allowRoles: true, fabIcon: "Check" }
             );
           });
         },

@@ -1,3 +1,4 @@
+import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -354,7 +355,7 @@ export function openEditChatDialog(chat, onSaved) {
                         class: "admin-label-btn",
                         disabled: busy,
                         onclick: async () => {
-                          if (!confirm("Отключить комментарии? Группа обсуждения останется на месте со всей перепиской.")) return;
+                          if (!(await askConfirm("Отключить комментарии? Группа обсуждения останется на месте со всей перепиской."))) return;
                           await discussion("unlink");
                         },
                       },

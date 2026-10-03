@@ -12,3 +12,14 @@ export function noteMessageInChatList(chatId, message) {
     chats: chats.map((c) => (c.id === chatId ? { ...c, lastMessage: message } : c)),
   });
 }
+
+// Правка или удаление последнего сообщения меняет превью в списке чатов.
+export function updateMessageInChatList(chatId, message) {
+  if (!message?.id) return;
+  const { chats } = getState();
+  const target = chats.find((c) => c.id === chatId);
+  if (!target || target.lastMessage?.id !== message.id) return;
+  setState({
+    chats: chats.map((c) => (c.id === chatId ? { ...c, lastMessage: { ...c.lastMessage, ...message } } : c)),
+  });
+}

@@ -1,3 +1,4 @@
+import { askText } from "./confirmDialog.js";
 import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -392,11 +393,11 @@ export function Composer({
       textarea.setRangeText(quoted.join("\n"), a, b, "select");
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     }
-    function linkSelection() {
+    async function linkSelection() {
       const { selectionStart: a, selectionEnd: b, value } = textarea;
       const label = value.slice(a, b).replace(/[\[\]\n]/g, " ").trim();
       if (!label) return;
-      let url = prompt("Адрес ссылки", "https://")?.trim();
+      let url = (await askText("Адрес ссылки", "https://"))?.trim();
       if (!url) return;
       if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
       textarea.setRangeText(`[${label}](${url.replace(/[\s)]/g, "")})`, a, b, "end");

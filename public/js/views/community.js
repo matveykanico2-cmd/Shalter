@@ -1,3 +1,5 @@
+import { askText } from "../components/confirmDialog.js";
+import { askConfirm } from "../components/confirmDialog.js";
 import { el, mount } from "../lib/dom.js";
 import { api } from "../api.js";
 import { Avatar } from "../components/avatar.js";
@@ -98,7 +100,7 @@ export async function CommunityView(root, id) {
             class: "icon-btn",
             title: "Убрать из сообщества",
             html: iconSvg("X", 15),
-            onclick: () => confirm(`Убрать «${c.title}» из сообщества?`) && run(() => api.removeCommunityChat(community.id, c.id), "Не удалось убрать чат"),
+            onclick: async () => (await askConfirm(`Убрать «${c.title}» из сообщества?`)) && run(() => api.removeCommunityChat(community.id, c.id), "Не удалось убрать чат"),
           })
         : null,
     ]);
@@ -112,10 +114,10 @@ export async function CommunityView(root, id) {
       }, [el("span", { html: iconSvg("Plus", 15) }), " Добавить чат"]),
       el("button", {
         class: "profile-action-btn",
-        onclick: () => {
-          const title = prompt("Название сообщества", community.title)?.trim();
+        onclick: async () => {
+          const title = (await askText("Название сообщества", community.title))?.trim();
           if (!title) return;
-          const description = prompt("Описание (можно оставить пустым)", community.description ?? "");
+          const description = (await askText("Описание (можно оставить пустым)", community.description ?? ""));
           if (description === null) return;
           run(() => api.updateCommunity(community.id, { title, description }), "Не удалось сохранить");
         },
@@ -123,7 +125,7 @@ export async function CommunityView(root, id) {
       el("button", {
         class: "profile-action-btn danger",
         onclick: async () => {
-          if (!confirm(`Удалить сообщество «${community.title}»? Сами группы и каналы останутся.`)) return;
+          if (!(await askConfirm(`Удалить сообщество «${community.title}»? Сами группы и каналы останутся.`))) return;
           try {
             await api.deleteCommunity(community.id);
             navigate("/");

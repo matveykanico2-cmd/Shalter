@@ -1,3 +1,4 @@
+import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
@@ -345,7 +346,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   async function removeComment(c) {
     const story = currentStory();
     const question = c.userId === meId ? "Удалить комментарий?" : `Удалить комментарий ${c.author?.name ?? "пользователя"}?`;
-    if (!confirm(question)) return;
+    if (!(await askConfirm(question))) return;
     try {
       await api.deleteStoryComment(story.id, c.id);
       comments = (comments ?? []).filter((x) => x.id !== c.id);
@@ -715,7 +716,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
                     : count > 1
                       ? `Удалить историю целиком — все ${count} кадра?`
                       : "Удалить историю?";
-                  if (!confirm(question)) return resume();
+                  if (!(await askConfirm(question))) return resume();
                   try {
                     await api.deleteStory(story.id);
                   } catch (err) {

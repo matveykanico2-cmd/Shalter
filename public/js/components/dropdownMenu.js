@@ -24,7 +24,7 @@ export function openDropdownMenu(pos, items, opts = {}) {
     );
   }
 
-  const rows = items.map((item) => ({ node: renderItem(item), text: String(item.label ?? "").toLowerCase() }));
+  const rows = items.filter(Boolean).map((item) => ({ node: renderItem(item), text: String(item.label ?? "").toLowerCase() }));
 
   const empty = el("p", { class: "dropdown-empty" }, "Ничего не найдено");
   empty.hidden = true;

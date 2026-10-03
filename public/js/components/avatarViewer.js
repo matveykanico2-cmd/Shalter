@@ -1,3 +1,4 @@
+import { askConfirm } from "./confirmDialog.js";
 import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -245,8 +246,8 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
               "button",
               {
                 class: "profile-action-btn danger",
-                onclick: () => {
-                  if (confirm("Удалить эту аватарку?")) act(() => api.removeAvatar(index), "Удаляем…");
+                onclick: async () => {
+                  if ((await askConfirm("Удалить эту аватарку?"))) act(() => api.removeAvatar(index), "Удаляем…");
                 },
               },
               "Удалить"

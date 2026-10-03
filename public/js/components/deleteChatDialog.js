@@ -1,3 +1,4 @@
+import { askConfirm } from "./confirmDialog.js";
 import { openCheckboxDialog } from "./confirmDialog.js";
 import { isChatAdmin } from "../lib/chatRoles.js";
 
@@ -42,11 +43,9 @@ export function openDeleteChatDialog(chat, meId, { onDelete, onLeave, moderator 
       confirmLabel: "Удалить",
       danger: true,
       extra: admin ? leave : [],
-      onConfirm: (forEveryone) => {
+      onConfirm: async (forEveryone) => {
         if (forEveryone && moderator && !admin) {
-          const ok = confirm(
-            `Удалить чужой ${what} «${title}» за нарушение правил? Все сообщения и файлы пропадут у всех, владельцу придёт уведомление. Это необратимо.`
-          );
+          const ok = (await askConfirm(`Удалить чужой ${what} «${title}» за нарушение правил? Все сообщения и файлы пропадут у всех, владельцу придёт уведомление. Это необратимо.`));
           if (!ok) return;
         }
         onDelete?.(forEveryone);

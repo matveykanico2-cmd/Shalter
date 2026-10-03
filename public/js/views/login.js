@@ -1,3 +1,4 @@
+import { askConfirm } from "../components/confirmDialog.js";
 import { el, mount } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -287,7 +288,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           type: "button",
           class: "login-link center",
           onclick: async () => {
-            if (!confirm("Не помните облачный пароль и не можете войти?\n\nМожно запросить удаление аккаунта — он будет удалён через 7 дней. Если вспомните пароль и войдёте до этого, удаление отменится.\n\nЗапросить удаление?")) return;
+            if (!(await askConfirm("Не помните облачный пароль и не можете войти?\n\nМожно запросить удаление аккаунта — он будет удалён через 7 дней. Если вспомните пароль и войдёте до этого, удаление отменится.\n\nЗапросить удаление?"))) return;
             try {
               const { deleteAt } = await api.scheduleAccountDeletion(twoFactor.ticket);
               const when = new Date(deleteAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long" });

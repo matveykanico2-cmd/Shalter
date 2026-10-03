@@ -1,108 +1,121 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
-import { fileToImageDataUrl } from "../lib/image.js";
+import { Avatar } from "./avatar.js";
+import { openSideTab, twInputField, twAvatarEdit } from "./twTab.js";
+import { showToast } from "./toast.js";
 
-export function openCreateChatDialog(kind, onSubmit) {
-  let avatarImage = null;
-  let isPublic = false;
+// Вкладка tweb «Новая группа» / «Новый канал» (AppNewGroupTab / AppNewChannelTab):
+// круглый аватар с камерой, название и описание с подписью на рамке, тип и ссылка, участники.
+export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon } = {}) {
   const isChannel = kind === "channel";
-  const heading = isChannel ? "Новый канал" : "Новая группа";
   const what = isChannel ? "канала" : "группы";
+  let isPublic = false;
 
-  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
-  const titleInput = el("input", { class: "login-input", placeholder: `Название ${what}`, autofocus: true });
-  const descInput = el("textarea", { class: "settings-input", rows: 2, placeholder: "Описание (необязательно)" });
-  const usernameInput = el("input", {
-    class: "login-input mono",
-    placeholder: "юзернейм",
+  const avatar = twAvatarEdit();
+  const name = twInputField({ label: `Название ${what}`, maxLength: 128 });
+  const desc = twInputField({ label: "Описание (необязательно)", multiline: true, maxLength: 255 });
+  const handle = twInputField({
+    label: "Ссылка",
+    prefix: "shalter.ru/",
+    inputClass: "mono",
     oninput: (e) => {
       e.target.value = e.target.value.replace(/^@+/, "").replace(/[^a-zA-Z0-9_]/g, "");
-      if (isPublic) typeHint.textContent = `Найти и открыть по ссылке сможет любой: shalter.ru/${e.target.value || "юзернейм"}`;
     },
   });
-  const errorSlot = el("p", { class: "login-error" });
 
-  const typeHint = el("p", { class: "settings-toggle-hint" });
-  const handleRow = el("div", { class: "create-chat-handle" }, [el("span", { class: "create-chat-at" }, "@"), usernameInput]);
+  const typeRows = el("div");
+  const handleSection = el("div", { class: "tw-section-group" }, [
+    el("div", { class: "tw-section tw-section-pad" }, [handle.field]),
+    el("p", { class: "tw-section-caption" }, "Можно использовать латиницу, цифры и подчёркивание. Минимум 3 символа."),
+  ]);
+  const typeCaption = el("p", { class: "tw-section-caption" });
 
-  function setType(pub) {
-    isPublic = pub;
-    handleRow.hidden = !pub;
-    typeHint.textContent = pub
-      ? `Найти и открыть по ссылке t.me-стиля сможет любой: shalter.ru/${usernameInput.value || "юзернейм"}`
-      : `Вступить можно только по пригласительной ссылке — она появится сразу после создания.`;
-    for (const b of typeRow.querySelectorAll(".contacts-add-mode")) b.classList.toggle("active", (b.dataset.pub === "1") === pub);
-    if (pub) usernameInput.focus();
+  function renderType() {
+    typeRows.replaceChildren(
+      ...[
+        { pub: false, title: isChannel ? "Частный канал" : "Частная группа", sub: "Вступить можно по пригласительной ссылке" },
+        { pub: true, title: isChannel ? "Публичный канал" : "Публичная группа", sub: "Найдут в поиске и откроют по ссылке" },
+      ].map((o) =>
+        el("button", { type: "button", class: `tw-row clickable tw-radio-row${isPublic === o.pub ? " selected" : ""}`, onclick: () => { isPublic = o.pub; renderType(); if (o.pub) handle.input.focus(); } }, [
+          el("span", { class: "tw-radio" }),
+          el("span", { class: "tw-row-body" }, [el("span", { class: "tw-row-title" }, o.title), el("span", { class: "tw-row-subtitle" }, o.sub)]),
+        ])
+      )
+    );
+    handleSection.hidden = !isPublic;
+    typeCaption.textContent = isPublic
+      ? `Любой сможет найти ${isChannel ? "канал" : "группу"} и открыть по ссылке.`
+      : "Пригласительная ссылка появится сразу после создания.";
   }
+  renderType();
 
-  const typeRow = el("div", { class: "contacts-add-modes" }, [
-    el("button", { class: "contacts-add-mode active", "data-pub": "0", onclick: () => setType(false) }, `Частн${isChannel ? "ый" : "ая"}`),
-    el("button", { class: "contacts-add-mode", "data-pub": "1", onclick: () => setType(true) }, `Публичн${isChannel ? "ый" : "ая"}`),
-  ]);
-  const publicRow = el("div", {}, [
-    el("p", { class: "settings-field-label" }, isChannel ? "Тип канала" : "Тип группы"),
-    typeRow,
-    typeHint,
-  ]);
-  handleRow.hidden = true;
+  const content = [
+    el("div", { class: "tw-create-head" }, [avatar.element]),
+    el("div", { class: "tw-section-group" }, [
+      el("div", { class: "tw-section tw-section-pad" }, [name.field, desc.field]),
+      el("p", { class: "tw-section-caption" }, isChannel ? "Можно добавить описание — его увидят в профиле канала." : "Название и фото увидят все участники."),
+    ]),
+    el("div", { class: "tw-section-group" }, [
+      el("p", { class: "tw-section-name" }, isChannel ? "Тип канала" : "Тип группы"),
+      el("div", { class: "tw-section" }, [typeRows]),
+      typeCaption,
+    ]),
+    handleSection,
+    members.length
+      ? el("div", { class: "tw-section-group" }, [
+          el("p", { class: "tw-section-name" }, `${members.length} ${plural(members.length, "участник", "участника", "участников")}`),
+          el(
+            "div",
+            { class: "tw-section" },
+            members.map((u) =>
+              el("div", { class: "tw-row tw-user-row" }, [
+                Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 42 }),
+                el("span", { class: "tw-row-body" }, [el("span", { class: "tw-row-title" }, u.name), u.username ? el("span", { class: "tw-row-subtitle" }, `@${u.username}`) : null]),
+              ])
+            )
+          ),
+        ])
+      : null,
+  ];
 
-  const avatarPreview = el("div", { class: "create-chat-avatar-preview" }, [el("span", { html: iconSvg("Users", 22) })]);
-  const avatarFileInput = el("input", {
-    type: "file",
-    accept: "image/*",
-    class: "hidden-input",
-    onchange: async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      avatarImage = await fileToImageDataUrl(file, 512);
-      avatarPreview.textContent = "";
-      avatarPreview.appendChild(el("img", { src: avatarImage, class: "create-chat-avatar-img" }));
-    },
-  });
-  const avatarBtn = el(
-    "button",
-    { class: "create-chat-avatar-btn", onclick: () => avatarFileInput.click() },
-    [avatarPreview, el("span", { class: "create-chat-avatar-label" }, "Фото (необязательно)")]
-  );
-
-  const dialog = el("div", { class: "modal-dialog" }, [
-    el("h2", { class: "modal-title" }, heading),
-    avatarBtn,
-    avatarFileInput,
-    titleInput,
-    descInput,
-    publicRow,
-    handleRow,
-    errorSlot,
-    el(
-      "button",
-      {
-        class: "btn-accent poll-create-btn",
-        onclick: () => {
-          const title = titleInput.value.trim();
-          if (!title) return (errorSlot.textContent = "Введите название");
-          const username = usernameInput.value.trim();
-          if (isPublic && username.length < 3) {
-            return (errorSlot.textContent = "Для публичного нужен юзернейм — от 3 символов, латиница, цифры и _");
-          }
-          close();
-          onSubmit(title, avatarImage, {
-            description: descInput.value.trim(),
-            username: isPublic ? username : null,
-            isPublic,
-          });
-        },
+  openSideTab({
+    title: isChannel ? "Новый канал" : "Новая группа",
+    content,
+    fab: {
+      icon: fabIcon ?? (isChannel ? "ChevronRight" : "Check"),
+      title: "Далее",
+      onClick: async (tab) => {
+        const title = name.input.value.trim();
+        if (!title) {
+          name.field.classList.add("error");
+          name.input.focus();
+          return;
+        }
+        name.field.classList.remove("error");
+        const username = handle.input.value.trim();
+        if (isPublic && username.length < 3) {
+          handle.field.classList.add("error");
+          handle.input.focus();
+          showToast("Для публичного нужна ссылка — от 3 символов");
+          return;
+        }
+        tab.setFabBusy(true);
+        try {
+          await onSubmit(title, avatar.image, { description: desc.input.value.trim(), username: isPublic ? username : null, isPublic }, tab);
+        } catch (err) {
+          showToast(err?.message || "Не получилось");
+        } finally {
+          tab.setFabBusy(false);
+        }
       },
-      "Далее"
-    ),
-    el("button", { class: "modal-cancel", onclick: () => close() }, "Отмена"),
-  ]);
-  overlay.appendChild(dialog);
+    },
+  });
+}
 
-  function close() {
-    overlay.remove();
-  }
-
-  document.body.appendChild(overlay);
-  setType(false);
+function plural(n, one, few, many) {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
 }

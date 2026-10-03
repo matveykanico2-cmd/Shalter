@@ -722,7 +722,8 @@ router.patch(
     if (!text.trim() && !existing.attachments?.length) return res.status(400).json({ error: "Сообщение не может быть пустым" });
     const message = await editMessage(req.params.messageId, text);
     const chat = await getChat(req.params.id);
-    if (chat) broadcastToOtherMembers(chat, req.uid, { type: "message:updated", chatId: req.params.id, message });
+    // Всем участникам, включая автора: его другие устройства и список чатов тоже должны обновиться.
+    if (chat) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: req.params.id, message });
     res.json({ message });
   })
 );

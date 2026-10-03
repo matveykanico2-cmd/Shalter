@@ -1,3 +1,4 @@
+import { askConfirm } from "./confirmDialog.js";
 import { el, clear, appendAll } from "../lib/dom.js";
 import { api } from "../api.js";
 import { uploadFile } from "../lib/upload.js";
@@ -79,7 +80,7 @@ export function openListingEditor({ listing = null, categories = [], onSaved } =
   }
 
   async function remove() {
-    if (!listing || !confirm("Удалить объявление? Это навсегда.")) return;
+    if (!listing || !(await askConfirm("Удалить объявление? Это навсегда."))) return;
     try {
       await api.deleteListing(listing.id);
       onSaved?.();

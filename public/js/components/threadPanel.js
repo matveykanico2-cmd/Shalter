@@ -1,3 +1,4 @@
+import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
@@ -84,7 +85,7 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
   }
 
   async function deleteReply(m) {
-    if (!confirm(m.senderId === me.id ? "Удалить комментарий?" : `Удалить комментарий ${memberOf(m.senderId)?.name ?? "участника"}?`)) return;
+    if (!(await askConfirm(m.senderId === me.id ? "Удалить комментарий?" : `Удалить комментарий ${memberOf(m.senderId)?.name ?? "участника"}?`))) return;
     try {
       await api.deleteMessage(m.chatId, m.id, true);
       replies = replies.filter((r) => r.id !== m.id);

@@ -1,3 +1,5 @@
+import { askText } from "./confirmDialog.js";
+import { askConfirm } from "./confirmDialog.js";
 import { el, mount, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -183,8 +185,8 @@ export function AdCabinet(root) {
           "button",
           {
             class: "profile-action-btn",
-            onclick: () => {
-              const stars = Number(prompt("Сколько звёзд добавить в бюджет?", "500"));
+            onclick: async () => {
+              const stars = Number((await askText("Сколько звёзд добавить в бюджет?", "500")));
               if (stars > 0) act(() => api.topUpAdCampaign(c.id, stars));
             },
           },
@@ -211,7 +213,7 @@ export function AdCabinet(root) {
           "button",
           {
             class: "profile-action-btn danger",
-            onclick: () => confirm(`Удалить кампанию «${c.title || "без названия"}»?`) && act(() => api.deleteAdCampaign(c.id)),
+            onclick: async () => (await askConfirm(`Удалить кампанию «${c.title || "без названия"}»?`)) && act(() => api.deleteAdCampaign(c.id)),
           },
           "Удалить"
         ),

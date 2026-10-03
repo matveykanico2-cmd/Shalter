@@ -1,62 +1,42 @@
 import { el } from "../lib/dom.js";
-import { iconSvg } from "../icons.js";
-import { fileToImageDataUrl } from "../lib/image.js";
+import { openSideTab, twInputField, twAvatarEdit } from "./twTab.js";
+import { showToast } from "./toast.js";
 
+// Вкладка «Новый бот» в стиле tweb: аватар с камерой, имя и описание с подписью на рамке.
 export function openCreateBotDialog(onSubmit) {
-  let avatarImage = null;
+  const avatar = twAvatarEdit();
+  const name = twInputField({ label: "Имя бота", maxLength: 64 });
+  const desc = twInputField({ label: "Описание (необязательно)", multiline: true, maxLength: 255 });
 
-  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
-  const nameInput = el("input", { class: "login-input", placeholder: "Имя бота", autofocus: true });
-  const descInput = el("textarea", { class: "settings-input", rows: 2, placeholder: "Описание (необязательно)" });
-  const errorSlot = el("p", { class: "login-error" });
-
-  const avatarPreview = el("div", { class: "create-chat-avatar-preview" }, [el("span", { html: iconSvg("Users", 22) })]);
-  const avatarFileInput = el("input", {
-    type: "file",
-    accept: "image/*",
-    class: "hidden-input",
-    onchange: async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      avatarImage = await fileToImageDataUrl(file, 512);
-      avatarPreview.textContent = "";
-      avatarPreview.appendChild(el("img", { src: avatarImage, class: "create-chat-avatar-img" }));
+  openSideTab({
+    title: "Новый бот",
+    content: [
+      el("div", { class: "tw-create-head" }, [avatar.element]),
+      el("div", { class: "tw-section-group" }, [
+        el("div", { class: "tw-section tw-section-pad" }, [name.field, desc.field]),
+        el("p", { class: "tw-section-caption" }, "После создания вы получите токен — с ним бота можно программировать через Bot API или прямо в Shalter."),
+      ]),
+    ],
+    fab: {
+      icon: "Check",
+      title: "Создать",
+      onClick: async (tab) => {
+        const value = name.input.value.trim();
+        if (!value) {
+          name.field.classList.add("error");
+          name.input.focus();
+          return;
+        }
+        tab.setFabBusy(true);
+        try {
+          await onSubmit(value, avatar.image, desc.input.value.trim());
+          tab.close({ all: true });
+        } catch (err) {
+          showToast(err?.message || "Не удалось создать бота");
+        } finally {
+          tab.setFabBusy(false);
+        }
+      },
     },
   });
-  const avatarBtn = el(
-    "button",
-    { class: "create-chat-avatar-btn", onclick: () => avatarFileInput.click() },
-    [avatarPreview, el("span", { class: "create-chat-avatar-label" }, "Аватарка (необязательно)")]
-  );
-
-  const dialog = el("div", { class: "modal-dialog" }, [
-    el("h2", { class: "modal-title" }, "Новый бот"),
-    el("p", { class: "settings-toggle-hint" }, "Вы получите токен для программирования бота — см. документацию после создания."),
-    avatarBtn,
-    avatarFileInput,
-    nameInput,
-    descInput,
-    errorSlot,
-    el(
-      "button",
-      {
-        class: "btn-accent poll-create-btn",
-        onclick: () => {
-          const name = nameInput.value.trim();
-          if (!name) return (errorSlot.textContent = "Введите имя бота");
-          close();
-          onSubmit(name, avatarImage, descInput.value.trim());
-        },
-      },
-      "Создать"
-    ),
-    el("button", { class: "modal-cancel", onclick: () => close() }, "Отмена"),
-  ]);
-  overlay.appendChild(dialog);
-
-  function close() {
-    overlay.remove();
-  }
-
-  document.body.appendChild(overlay);
 }

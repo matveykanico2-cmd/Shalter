@@ -1,3 +1,4 @@
+import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -49,8 +50,8 @@ export function TopicTabs({ chatId, topics, active, canCreate, isAdmin, meId, on
         icon: "Trash",
         label: "Удалить тему",
         danger: true,
-        onClick: () => {
-          if (!confirm(`Удалить тему «${topic.title}» вместе со всеми сообщениями?`)) return;
+        onClick: async () => {
+          if (!(await askConfirm(`Удалить тему «${topic.title}» вместе со всеми сообщениями?`))) return;
           api.deleteTopic(chatId, topic.id).then(() => {
             if (active === topic.id) onSelect(undefined);
             onChanged();

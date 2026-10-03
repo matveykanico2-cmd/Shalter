@@ -1,3 +1,6 @@
+import { openSideTab, twInputField } from "./twTab.js";
+import { askText } from "./confirmDialog.js";
+import { askConfirm } from "./confirmDialog.js";
 import { el } from "../lib/dom.js";
 import { PremiumStar } from "./premiumStar.js";
 import { api } from "../api.js";
@@ -178,16 +181,7 @@ function CommunityRow(chat, canManage) {
         el("div", { class: "info-community-actions" }, [
           el("button", {
             class: "settings-add-account-btn",
-            onclick: async () => {
-              const title = prompt("Название нового сообщества", chat.title)?.trim();
-              if (!title) return;
-              try {
-                const { community: created } = await api.createCommunity({ title, chatId: chat.id, avatarColor: chat.avatarColor });
-                navigate(`/community/${created.id}`);
-              } catch (err) {
-                alert(err.message || "Не удалось создать сообщество");
-              }
-            },
+            onclick: () => openCreateCommunityTab(chat),
           }, "Создать сообщество"),
           ...communities.map((c) =>
             el("button", {
@@ -218,7 +212,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
   async function editTitle(member) {
     const current = chat.memberTitles?.[member.id] ?? "";
     const self = member.id === meId;
-    const next = prompt(self ? "Ваш тег в группе (виден всем, до 24 символов). Пусто — убрать." : `Тег для ${member.name} (виден всем, до 24 символов). Пусто — вернуть обычную роль.`, current);
+    const next = (await askText(self ? "Ваш тег в группе (виден всем, до 24 символов). Пусто — убрать." : `Тег для ${member.name} (виден всем, до 24 символов). Пусто — вернуть обычную роль.`, current));
     if (next === null) return;
     try {
       const { chat: updated } = await api.setMemberTitle(chat.id, member.id, next);
@@ -233,9 +227,9 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
       icon: "Star",
       label: "Передать права владельца",
       danger: true,
-      onClick: () => {
+      onClick: async () => {
         const kind = chat.type === "channel" ? "канала" : "группы";
-        if (confirm(`Передать ${member.name} права владельца ${kind}? Вы останетесь администратором, но вернуть права сможет только новый владелец.`)) {
+        if ((await askConfirm(`Передать ${member.name} права владельца ${kind}? Вы останетесь администратором, но вернуть права сможет только новый владелец.`))) {
           onMemberAction(member.id, "transfer");
         }
       },
@@ -285,8 +279,8 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
         icon: "Star",
         label: "Сделать владельцем",
         danger: true,
-        onClick: () => {
-          if (confirm(`Сделать ${member.name} владельцем чата? У него будут те же права, что у вас, включая назначение владельцев.`)) {
+        onClick: async () => {
+          if ((await askConfirm(`Сделать ${member.name} владельцем чата? У него будут те же права, что у вас, включая назначение владельцев.`))) {
             onMemberAction(member.id, "owner");
           }
         },
@@ -317,8 +311,8 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
       icon: "Lock",
       label: "Заблокировать",
       danger: true,
-      onClick: () => {
-        if (confirm(`Заблокировать ${member.name}? Он будет удалён и не сможет вернуться, пока его не разблокируют.`)) {
+      onClick: async () => {
+        if ((await askConfirm(`Заблокировать ${member.name}? Он будет удалён и не сможет вернуться, пока его не разблокируют.`))) {
           onMemberAction(member.id, "ban");
         }
       },
@@ -326,7 +320,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
     openDropdownMenu({ x: e.clientX, y: e.clientY }, items);
   }
 
-  return el("aside", { class: "info-panel" }, [
+  const panelEl = el("aside", { class: "info-panel" }, [
     el("div", { class: "info-panel-header" }, [
       el("h2", {}, isDm ? "Профиль" : chat.type === "channel" ? "Канал" : "Группа"),
       el("button", { class: "icon-btn", html: iconSvg("X", 18), onclick: onClose }),
@@ -541,4 +535,62 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
         : null,
     ]),
   ]);
+  groupIntoCards(panelEl.querySelector(".info-panel-body"));
+  return panelEl;
+}
+
+// Соседние строки панели собираем в карточки, как секции sidebar-right в tweb.
+function groupIntoCards(body) {
+  if (!body) return;
+  let card = null;
+  for (const child of [...body.children]) {
+    if (child.classList.contains("info-panel-row")) {
+      if (!card) {
+        card = el("div", { class: "info-panel-card" });
+        child.before(card);
+      }
+      card.appendChild(child);
+    } else card = null;
+  }
+}
+
+
+// Вкладка «Новое сообщество» в стиле tweb: название и описание, первый чат — текущий.
+function openCreateCommunityTab(chat) {
+  const name = twInputField({ label: "Название сообщества", value: chat.title ?? "", maxLength: 128 });
+  const desc = twInputField({ label: "Описание (необязательно)", multiline: true, maxLength: 255 });
+  openSideTab({
+    title: "Новое сообщество",
+    content: [
+      el("div", { class: "tw-media-header" }, [
+        el("span", { class: "tw-media-sticker", html: iconSvg("Users", 56) }),
+        el("p", { class: "tw-media-subtitle" }, "Сообщество объединяет связанные группы и каналы под одной вкладкой — участникам проще найти всё нужное."),
+      ]),
+      el("div", { class: "tw-section-group" }, [
+        el("div", { class: "tw-section tw-section-pad" }, [name.field, desc.field]),
+        el("p", { class: "tw-section-caption" }, `«${chat.title}» станет первым чатом сообщества. Остальные можно добавить потом.`),
+      ]),
+    ],
+    fab: {
+      icon: "Check",
+      title: "Создать",
+      onClick: async (tab) => {
+        const title = name.input.value.trim();
+        if (!title) {
+          name.field.classList.add("error");
+          name.input.focus();
+          return;
+        }
+        tab.setFabBusy(true);
+        try {
+          const { community } = await api.createCommunity({ title, description: desc.input.value.trim(), chatId: chat.id, avatarColor: chat.avatarColor });
+          tab.close({ all: true });
+          navigate(`/community/${community.id}`);
+        } catch (err) {
+          tab.setFabBusy(false);
+          alert(err?.message || "Не удалось создать сообщество");
+        }
+      },
+    },
+  });
 }

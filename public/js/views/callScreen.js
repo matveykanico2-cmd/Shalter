@@ -1,3 +1,4 @@
+import { askConfirm } from "../components/confirmDialog.js";
 import { el, mount, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
@@ -215,7 +216,7 @@ export async function CallScreenView(root, callId) {
               title: `Убрать из звонка: ${p.name}`,
               html: iconSvg("X", 15),
               onclick: async () => {
-                if (!confirm(`Убрать ${p.name} из звонка?`)) return;
+                if (!(await askConfirm(`Убрать ${p.name} из звонка?`))) return;
                 try {
                   await api.removeCallParticipant(s.call.id, p.id);
                 } catch (err) {

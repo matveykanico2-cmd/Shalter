@@ -1,3 +1,4 @@
+import { askConfirm } from "./confirmDialog.js";
 import { el, mount, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -151,7 +152,7 @@ export function openLiveScreen(streamId, { chatTitle, canStopStream = false } = 
     lastState && render(lastState);
   }
   async function removeMessage(m, meId) {
-    if (!confirm(m.user?.id === meId ? "Удалить сообщение?" : `Удалить сообщение ${m.user?.name ?? "участника"}?`)) return;
+    if (!(await askConfirm(m.user?.id === meId ? "Удалить сообщение?" : `Удалить сообщение ${m.user?.name ?? "участника"}?`))) return;
     try {
       await api.deleteLiveMessage(streamId, m.id);
       if (editingMessage?.id === m.id) stopEditing();

@@ -1,3 +1,4 @@
+import { askText } from "../components/confirmDialog.js";
 import { el, mount, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
@@ -427,7 +428,7 @@ export async function ContactsView(root) {
             title: "Переименовать у себя",
             html: iconSvg("Edit", 15),
             onclick: async () => {
-              const next = prompt(`Как записать ${user.name}?`, c.localName ?? user.name);
+              const next = (await askText(`Как записать ${user.name}?`, c.localName ?? user.name));
               if (next == null) return;
               await api.renameContact(user.id, next.trim());
               ({ contacts } = await api.listContacts());

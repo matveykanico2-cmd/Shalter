@@ -1,3 +1,6 @@
+import { askText } from "../../components/confirmDialog.js";
+import { askConfirm } from "../../components/confirmDialog.js";
+import { showToast } from "../../components/toast.js";
 import { el, mount, clear } from "../../lib/dom.js";
 import { clearCache } from "../../lib/localCache.js";
 import { iconSvg } from "../../icons.js";
@@ -131,6 +134,10 @@ export async function SettingsView(root, page) {
   const section = page ?? "";
   const me = getState().user;
   const known = SECTIONS.find((s) => s.id === section);
+  if (known?.adminOnly && !me.isDeveloper && !me.adminSections?.includes(known.id)) {
+    navigate("/settings", { replace: true });
+    return;
+  }
 
   const backTo = section === "" ? "/" : "/settings";
   panelTitleEl = el("h2", { class: "settings-header-title" }, section === "" ? "Настройки" : known?.label ?? "Настройки");
@@ -291,18 +298,6 @@ function copyText(text, toast) {
   navigator.clipboard?.writeText(text).then(() => showToast(toast), () => {});
 }
 
-let toastTimer = null;
-function showToast(text) {
-  let t = document.querySelector(".tw-toast");
-  if (!t) {
-    t = el("div", { class: "tw-toast" });
-    document.body.appendChild(t);
-  }
-  t.textContent = text;
-  t.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
-}
 
 function pageWrap(title, subtitle, children) {
   setPanelTitle(title);
@@ -1458,7 +1453,7 @@ async function renderEmojiCatalog(root) {
       title: "Нарисовать эмодзи",
       saveLabel: "Сохранить эмодзи",
       onSave: async (scene) => {
-        const name = (prompt("Название эмодзи (необязательно)") || "").trim();
+        const name = ((await askText("Название эмодзи (необязательно)")) || "").trim();
         try {
           const { emoji: created } = await api.createCustomEmoji(name, scene);
           emoji = [created, ...emoji];
@@ -1490,7 +1485,7 @@ async function renderEmojiCatalog(root) {
   }
 
   async function remove(em) {
-    if (!confirm(`Удалить эмодзи${em.name ? ` «${em.name}»` : ""}?`)) return;
+    if (!(await askConfirm(`Удалить эмодзи${em.name ? ` «${em.name}»` : ""}?`))) return;
     try {
       await api.deleteCustomEmoji(em.id);
       emoji = emoji.filter((e) => e.id !== em.id);
@@ -1567,7 +1562,7 @@ async function renderOAuthApps(root) {
   }
 
   async function remove(app) {
-    if (!confirm(`Удалить приложение «${app.name}»? Все, кто вошёл через него, будут отключены.`)) return;
+    if (!(await askConfirm(`Удалить приложение «${app.name}»? Все, кто вошёл через него, будут отключены.`))) return;
     await api.deleteOAuthApp(app.id);
     apps = apps.filter((a) => a.id !== app.id);
     if (freshSecret?.clientId === app.clientId) freshSecret = null;
@@ -1575,7 +1570,7 @@ async function renderOAuthApps(root) {
   }
 
   async function regenerate(app) {
-    if (!confirm(`Перегенерировать секрет «${app.name}»? Старый секрет сразу перестанет работать.`)) return;
+    if (!(await askConfirm(`Перегенерировать секрет «${app.name}»? Старый секрет сразу перестанет работать.`))) return;
     const { app: updated } = await api.regenerateOAuthApp(app.id);
     freshSecret = { clientId: updated.clientId, clientSecret: updated.clientSecret };
     openOAuthSecretDialog(updated.name ?? app.name, { clientId: updated.clientId, clientSecret: updated.clientSecret }, { fresh: true });
@@ -1889,13 +1884,13 @@ async function renderBots(root) {
   }
 
   async function regenerate(bot) {
-    if (!confirm(`Обновить токен бота «${bot.user.name}»? Старый токен перестанет работать.`)) return;
+    if (!(await askConfirm(`Обновить токен бота «${bot.user.name}»? Старый токен перестанет работать.`))) return;
     const { token } = await api.regenerateBotToken(bot.id);
     openBotTokenDialog(bot.user.name, token);
   }
 
   async function remove(bot) {
-    if (!confirm(`Удалить бота «${bot.user.name}» безвозвратно?`)) return;
+    if (!(await askConfirm(`Удалить бота «${bot.user.name}» безвозвратно?`))) return;
     await api.deleteBot(bot.id);
     bots = bots.filter((b) => b.id !== bot.id);
     render();
@@ -1992,10 +1987,8 @@ async function renderBots(root) {
                     html: iconSvg("BarChart", 15),
                     onclick: async () => {
                       const current = (b.commands ?? []).map((c) => `${c.command} - ${c.description ?? ""}`.trim()).join("\n");
-                      const next = prompt(
-                        "Команды бота, по одной в строке:\n\nstart - Начать\nhelp - Помощь",
-                        current
-                      );
+                      const next = (await askText("Команды бота, по одной в строке:\n\nstart - Начать\nhelp - Помощь",
+                        current));
                       if (next === null) return;
                       const commands = next
                         .split("\n")
@@ -2539,7 +2532,7 @@ async function renderPrivacy(root) {
     render();
   }
   async function removePasskey(p) {
-    if (!confirm(`Удалить ключ «${p.name}»? Войти с ним больше не получится.`)) return;
+    if (!(await askConfirm(`Удалить ключ «${p.name}»? Войти с ним больше не получится.`))) return;
     try {
       await api.deletePasskey(p.id);
       passkeyList = passkeyList.filter((x) => x.id !== p.id);
@@ -3077,14 +3070,14 @@ async function renderAccounts(root) {
   }
   async function logout(uid) {
     const label = uid === me.id ? "Выйти из этого аккаунта?" : "Выйти из этого аккаунта на этом устройстве?";
-    if (!confirm(label)) return;
+    if (!(await askConfirm(label))) return;
     const { remaining } = await api.logout(uid);
     clearCache();
     if (remaining.length === 0) window.location.href = "/login";
     else window.location.reload();
   }
   async function logoutAll() {
-    if (!confirm("Выйти из всех аккаунтов на этом устройстве?")) return;
+    if (!(await askConfirm("Выйти из всех аккаунтов на этом устройстве?"))) return;
     await api.logout();
     clearCache();
     window.location.href = "/login";
@@ -3578,10 +3571,8 @@ async function renderModeration(root) {
     const label = one
       ? `${KIND_WORDS[items[0].kind][0]} «${items[0].title || items[0].name}»`
       : `${items.length} шт. (${[...new Set(items.map((i) => KIND_WORDS[i.kind][1]))].join(", ")})`;
-    const reason = prompt(
-      `Удалить ${label} за нарушение правил? Это необратимо: пропадут вся переписка и файлы, у канала — и группа обсуждения.\n\nПричина — придёт владельцам и попадёт в журнал:`,
-      ""
-    )?.trim();
+    const reason = (await askText(`Удалить ${label} за нарушение правил? Это необратимо: пропадут вся переписка и файлы, у канала — и группа обсуждения.\n\nПричина — придёт владельцам и попадёт в журнал:`,
+      ""))?.trim();
     if (!reason) return;
     dirDeleting = true;
     dirNotice = null;
@@ -3769,7 +3760,7 @@ async function renderModeration(root) {
       const c = foundChat;
       const what = c.type === "channel" ? "канал" : c.type === "bot" ? "бота" : "группу";
       const who = c.type === "bot" ? `${c.members} диалогов` : `${c.members} участников`;
-      const reason = prompt(`Удалить ${what} «${c.title}» (${who}) за нарушение правил? Это необратимо.\n\nПричина — придёт владельцу и попадёт в журнал:`, "")?.trim();
+      const reason = (await askText(`Удалить ${what} «${c.title}» (${who}) за нарушение правил? Это необратимо.\n\nПричина — придёт владельцу и попадёт в журнал:`, ""))?.trim();
       if (!reason) return;
       chatDeleting = true;
       render();
@@ -3929,7 +3920,7 @@ async function renderModeration(root) {
                 el("button", {
                   class: "settings-danger-link",
                   onclick: async () => {
-                    if (!confirm(`Удалить метку «${l.label}»? Она снимется со всех, кому поставлена.`)) return;
+                    if (!(await askConfirm(`Удалить метку «${l.label}»? Она снимется со всех, кому поставлена.`))) return;
                     await api.adminDeleteLabel(l.id);
                     await load();
                   },
@@ -3996,7 +3987,7 @@ async function renderModeration(root) {
                         class: "sticker-pack-remove",
                         title: "Удалить",
                         onclick: async () => {
-                          if (!confirm(`Удалить статус «${s.name || "без названия"}»? У тех, кто уже его выбрал, он останется.`)) return;
+                          if (!(await askConfirm(`Удалить статус «${s.name || "без названия"}»? У тех, кто уже его выбрал, он останется.`))) return;
                           await api.adminDeleteStatusCatalogItem(s.id);
                           await load();
                         },
@@ -4361,8 +4352,8 @@ async function renderUsernames(root) {
               {
                 class: "admin-label-btn",
                 disabled: busy,
-                onclick: () => {
-                  if (confirm(`Отменить аукцион @${a.username}? Ставки аннулируются, звёзды не списывались.`)) {
+                onclick: async () => {
+                  if ((await askConfirm(`Отменить аукцион @${a.username}? Ставки аннулируются, звёзды не списывались.`))) {
                     act(() => api.deleteUsernameAuction(a.id), "Аукцион отменён");
                   }
                 },
@@ -4574,7 +4565,7 @@ async function renderGiftShop(root) {
     error = null;
     notice = null;
     const canHardDelete = gift.custom && !gift.ownerId && (gift.issued ?? 0) === 0;
-    if (!canHardDelete && !confirm(`Скрыть «${gift.name}» из витрины? Уже подаренные экземпляры останутся у людей. Подарок можно вернуть.`)) return;
+    if (!canHardDelete && !(await askConfirm(`Скрыть «${gift.name}» из витрины? Уже подаренные экземпляры останутся у людей. Подарок можно вернуть.`))) return;
     try {
       const res = await api.adminDeleteGift(gift.id);
       notice = res.hidden ? `Подарок «${gift.name}» скрыт из витрины` : `Подарок «${gift.name}» удалён`;
@@ -4997,7 +4988,7 @@ async function renderPricing(root) {
   }
 
   async function reset() {
-    if (!confirm("Вернуть все цены к значениям по умолчанию?")) return;
+    if (!(await askConfirm("Вернуть все цены к значениям по умолчанию?"))) return;
     try {
       const res = await api.adminResetPricing();
       for (const k of Object.keys(draft)) delete draft[k];

@@ -26,6 +26,10 @@ import { initKeyboardShortcuts } from "./lib/keyboardShortcuts.js";
 import { initRipple } from "./lib/ripple.js";
 import { WaveBearMascot } from "./components/mascot.js";
 import { paintWallpaper } from "./lib/wallpapers.js";
+import { installToastAlert, installModalEscape } from "./components/toast.js";
+
+installToastAlert();
+installModalEscape();
 
 const root = document.getElementById("view-root");
 
@@ -370,6 +374,14 @@ async function boot() {
     const startPayload = params.get("start");
     const wantsApp = params.get("app") === "1" || params.has("startapp");
 
+    // Своя ссылка t.me/<ник> в Telegram открывает «Избранное».
+    const me = getState().user;
+    if (me?.username && me.username.toLowerCase() === username.toLowerCase()) {
+      const { openSavedMessages } = await import("./components/sidebarMenu.js");
+      await openSavedMessages();
+      return;
+    }
+
     try {
       const { user: found } = await api.findUserByUsername(username);
       const { chat } = await api.startDm(found.id, found.name, found.avatarColor);
@@ -399,6 +411,7 @@ async function boot() {
         el("div", { class: "empty-chat" }, [
           el("p", { class: "empty-chat-title" }, "Ничего не найдено"),
           el("p", { class: "empty-hint" }, `@${username} — такого аккаунта, бота или канала нет.`),
+          el("button", { class: "btn-accent empty-chat-action", onclick: () => navigate("/") }, "К чатам"),
         ])
       );
     }

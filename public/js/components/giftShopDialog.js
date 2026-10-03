@@ -1,3 +1,5 @@
+import { askText } from "./confirmDialog.js";
+import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -64,7 +66,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
       title: "Нарисовать подарок",
       saveLabel: "Сохранить подарок",
       onSave: async (scene) => {
-        const name = (prompt("Название подарка") || "").trim();
+        const name = ((await askText("Название подарка")) || "").trim();
         if (!name) return;
         try {
           const { gift } = await api.createCustomGift(name, scene);
@@ -124,7 +126,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
   }
 
   async function deleteMine(gift) {
-    if (!confirm(`Удалить подарок «${gift.name}»?`)) return;
+    if (!(await askConfirm(`Удалить подарок «${gift.name}»?`))) return;
     try {
       await api.deleteCustomGift(gift.id);
       myGifts = myGifts.filter((g) => g.id !== gift.id);
@@ -158,7 +160,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     } catch (err) {
       if (err.message && /не хватает/i.test(err.message)) {
         error = err.message;
-        if (confirm(`${err.message}. Открыть покупку звёзд?`)) openStarsDialog(load);
+        if ((await askConfirm(`${err.message}. Открыть покупку звёзд?`))) openStarsDialog(load);
       } else {
         error = err.message || "Не удалось отправить подарок";
         await load();

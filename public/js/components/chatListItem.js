@@ -1,3 +1,4 @@
+import { askText } from "./confirmDialog.js";
 import { el } from "../lib/dom.js";
 import { PremiumStar } from "./premiumStar.js";
 import { iconSvg } from "../icons.js";
@@ -246,7 +247,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
       icon: "Plus",
       label: "Новая папка",
       onClick: async () => {
-        const name = prompt("Название папки")?.trim();
+        const name = (await askText("Название папки"))?.trim();
         if (!name) return;
         try {
           const { folder } = await api.createFolder(name, [chat.id]);

@@ -1,3 +1,4 @@
+import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { api } from "../api.js";
 import { Avatar } from "./avatar.js";
@@ -62,7 +63,7 @@ export function openEditBotDialog(bot, onSaved) {
   async function sendBroadcast() {
     const text = broadcastInput.value.trim();
     if (broadcastBusy || !text) return;
-    if (!confirm("Отправить это сообщение всем пользователям бота?")) return;
+    if (!(await askConfirm("Отправить это сообщение всем пользователям бота?"))) return;
     broadcastBusy = true;
     broadcastNotice = null;
     broadcastError = null;

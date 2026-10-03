@@ -1,3 +1,4 @@
+import { askConfirm } from "../components/confirmDialog.js";
 import { el, mount, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
@@ -58,7 +59,7 @@ export async function DiscoverChannelsView(root) {
             {
               class: "profile-action-btn danger",
               onclick: async () => {
-                if (!confirm(`Отписаться от «${c.title}»?`)) return;
+                if (!(await askConfirm(`Отписаться от «${c.title}»?`))) return;
                 try {
                   await api.leaveChat(c.id);
                   await api.listChats().then((r) => setState({ chats: r.chats }));

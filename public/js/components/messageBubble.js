@@ -1,3 +1,5 @@
+import { askText } from "./confirmDialog.js";
+import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { translateLocally } from "../lib/localTranslate.js";
@@ -92,7 +94,7 @@ function entranceMessageMeta(message, mine, isChannel) {
 
 async function convertGift(gift) {
   const me = getState().user;
-  if (!confirm(`Обменять ${gift.emoji} «${gift.name}» на ${giftStars(gift)} ⭐? Подарок исчезнет с вашей полки.`)) return;
+  if (!(await askConfirm(`Обменять ${gift.emoji} «${gift.name}» на ${giftStars(gift)} ⭐? Подарок исчезнет с вашей полки.`))) return;
   try {
     const { user } = await api.getUser(me.id);
     const entry = (user.giftsReceived ?? [])
@@ -344,8 +346,8 @@ function PollAttachment(message, a, me, onVote, onPollAction) {
             "button",
             {
               class: "poll-action danger",
-              onclick: () => {
-                if (confirm("Остановить опрос? Голосовать больше будет нельзя, итоги сохранятся.")) onPollAction(message, "close");
+              onclick: async () => {
+                if ((await askConfirm("Остановить опрос? Голосовать больше будет нельзя, итоги сохранятся."))) onPollAction(message, "close");
               },
             },
             "Остановить"
@@ -468,8 +470,8 @@ function ChecklistAttachment(message, a, me, members, onRefresh) {
           "button",
           {
             class: "poll-action",
-            onclick: () => {
-              const text = prompt("Новый пункт");
+            onclick: async () => {
+              const text = (await askText("Новый пункт"));
               if (text?.trim()) run({ add: [text.trim()] });
             },
           },
@@ -1259,7 +1261,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       await fn();
     } catch (err) {
       if (/не хватает/i.test(err.message ?? "")) {
-        if (confirm(`${err.message}. Открыть покупку звёзд?`)) openStarsDialog();
+        if ((await askConfirm(`${err.message}. Открыть покупку звёзд?`))) openStarsDialog();
         return;
       }
       alert(err.message || fallbackMessage);
@@ -1452,11 +1454,12 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       const dy = Math.abs(e.clientY - swipeY);
       if (swiping === null) {
         if (Math.abs(dx) < SWIPE_START_PX && dy < SWIPE_START_PX) return;
-        swiping = Math.abs(dx) > dy && dx > 0;
+        // Как в Telegram: ответ — свайпом влево.
+        swiping = Math.abs(dx) > dy && dx < 0;
         if (!swiping) return;
       }
-      const shift = Math.min(72, Math.max(0, dx));
-      row.style.transform = `translateX(${shift}px)`;
+      const shift = Math.min(72, Math.max(0, -dx));
+      row.style.transform = `translateX(${-shift}px)`;
       row.classList.toggle("swipe-ready", shift >= SWIPE_REPLY_PX);
     },
     onpointerup: (e) => {
@@ -1467,7 +1470,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       row.classList.remove("swipe-ready");
       swiping = null;
       if (wasSwipe) {
-        if (dx >= SWIPE_REPLY_PX) replyWithQuote();
+        if (-dx >= SWIPE_REPLY_PX) replyWithQuote();
         return;
       }
       if (selection?.active || e.target.closest?.("button, a, input, video, audio, .bubble-actions")) {

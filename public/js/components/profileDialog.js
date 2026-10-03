@@ -1,3 +1,5 @@
+import { askText } from "./confirmDialog.js";
+import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { PremiumStar } from "./premiumStar.js";
 import { Avatar, videoAvatarUrl } from "./avatar.js";
@@ -39,7 +41,7 @@ export async function copyText(text, note = "Скопировано") {
   try {
     await navigator.clipboard.writeText(text);
   } catch {
-    prompt("Скопируйте вручную:", text);
+    (await askText("Скопируйте вручную:", text));
     return;
   }
   showToast(note);
@@ -68,7 +70,7 @@ export function infoRow({ icon, value, label, mono, accent, multiline, copy, onC
       onclick: clickable ? () => (onClick ? onClick() : copyText(copy, `${label}: скопировано`)) : null,
     },
     [
-      el("span", { class: "profile-info-row-icon", html: iconSvg(icon, 18) }),
+      el("span", { class: "profile-info-row-icon", html: iconSvg(icon, 24) }),
       el("span", { class: "profile-info-row-body" }, [
         el("span", { class: `profile-info-row-value${mono ? " mono" : ""}${accent ? " accent" : ""}${multiline ? " multiline" : ""}` }, value),
         el("span", { class: "profile-info-row-label" }, label),
@@ -211,7 +213,7 @@ export async function openProfileDialog(userId) {
 
   async function removeGift(entryId, gift) {
     const serialNote = gift.serial != null ? ` Номер №${gift.serial} останется занятым.` : "";
-    if (!confirm(`Убрать ${gift.emoji} «${gift.name}» с вашей полки?${serialNote}`)) return;
+    if (!(await askConfirm(`Убрать ${gift.emoji} «${gift.name}» с вашей полки?${serialNote}`))) return;
     try {
       const { user: updated } = await api.removeReceivedGift(entryId);
       user = { ...user, giftsReceived: updated.giftsReceived ?? [] };
@@ -274,10 +276,10 @@ export async function openProfileDialog(userId) {
   }
 
   async function toggleContact() {
-    if (inContacts && !confirm(`Удалить ${user.name} из контактов?`)) return;
+    if (inContacts && !(await askConfirm(`Удалить ${user.name} из контактов?`))) return;
     try {
       if (inContacts) await api.removeContact(userId);
-      else await api.addContact(userId, null, { sharePhone: !user.isBot && confirm(`Поделиться своим номером телефона с ${user.name}?`) });
+      else await api.addContact(userId, null, { sharePhone: !user.isBot && (await askConfirm(`Поделиться своим номером телефона с ${user.name}?`, { okLabel: "Поделиться", cancelLabel: "Не делиться" })) });
       inContacts = !inContacts;
       render();
     } catch (err) {
@@ -286,7 +288,7 @@ export async function openProfileDialog(userId) {
   }
 
   async function editNote() {
-    const next = prompt("Заметка о контакте — её видите только вы. Пусто — удалить.", contactNote ?? "");
+    const next = (await askText("Заметка о контакте — её видите только вы. Пусто — удалить.", contactNote ?? ""));
     if (next === null) return;
     try {
       const res = await api.setContactNote(user.id, next);
@@ -308,7 +310,7 @@ export async function openProfileDialog(userId) {
   }
 
   async function startSecretChat() {
-    if (!confirm(`Начать секретный чат с ${user.name}?\n\nСообщения шифруются отдельным ключом этого чата, их нельзя переслать или скопировать. Чат будет доступен только на этом устройстве.`)) return;
+    if (!(await askConfirm(`Начать секретный чат с ${user.name}?\n\nСообщения шифруются отдельным ключом этого чата, их нельзя переслать или скопировать. Чат будет доступен только на этом устройстве.`))) return;
     try {
       const { chat } = await api.startSecretChat(userId);
       api.listChats().then((r) => setState({ chats: r.chats })).catch(() => {});
@@ -615,24 +617,20 @@ export async function openProfileDialog(userId) {
                     ? el("span", { class: "collectible-badge", title: "Коллекционный юзернейм — выигран на аукционе" }, "💎")
                     : null,
                 ].filter(Boolean),
-                label: "Юзернейм",
-                accent: true,
+                label: "Имя пользователя",
                 copy: `@${user.username}`,
               })
             : null,
           user.bio ? infoRow({ icon: "Info", value: user.bio, label: user.isBot ? "Описание" : "О себе", multiline: true }) : null,
           inContacts && !isSelf
-            ? el(
-                "button",
-                { class: "profile-note-row", title: "Заметку видите только вы", onclick: editNote },
-                [
-                  el("span", { html: iconSvg("Edit", 16) }),
-                  el("span", { class: "profile-note-body" }, [
-                    el("span", { class: contactNote ? "profile-note-text" : "profile-note-empty" }, contactNote || "Добавить заметку"),
-                    el("span", { class: "profile-note-label" }, "Заметка · видите только вы"),
-                  ]),
-                ]
-              )
+            ? infoRow({
+                icon: "Edit",
+                value: contactNote || "Добавить заметку",
+                label: "Заметка · видите только вы",
+                accent: !contactNote,
+                multiline: !!contactNote,
+                onClick: editNote,
+              })
             : null,
           user.birthday
             ? infoRow({

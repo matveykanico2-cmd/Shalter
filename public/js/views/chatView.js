@@ -1,3 +1,5 @@
+import { askText } from "../components/confirmDialog.js";
+import { askConfirm } from "../components/confirmDialog.js";
 import { el, mount, clear, appendAll } from "../lib/dom.js";
 import { plural, statusLabel } from "../lib/presence.js";
 import { iconSvg } from "../icons.js";
@@ -20,7 +22,7 @@ import { AudioPlayerBar } from "../components/audioPlayerBar.js";
 
 // Служебные аккаунты Shalter — их не удалить даже модерацией (lib/moderationDelete.js).
 const SERVICE_ACCOUNT_IDS = ["bot_shalter", "bot_helper", "bot_support"];
-import { noteMessageInChatList } from "../lib/chatListSync.js";
+import { noteMessageInChatList, updateMessageInChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache } from "../lib/localCache.js";
 import { cachedUser, fetchUsers, rememberUser } from "../lib/userLookup.js";
 import { takePrefetched } from "../lib/chatPrefetch.js";
@@ -445,6 +447,7 @@ export async function ChatView(root, chatId) {
     messages = messages.map((m) => (m.id === id ? { ...m, text, editedAt: new Date().toISOString() } : m));
     rerenderListKeepingScroll();
     renderComposer();
+    updateMessageInChatList(chat.id, { id, text, editedAt: new Date().toISOString() });
     try {
       await api.editMessage(chat.id, id, text);
     } catch (err) {
@@ -456,6 +459,7 @@ export async function ChatView(root, chatId) {
 
   async function handleDelete(m, forEveryone) {
     if (m.pending) return;
+    const snapshot = messages.slice();
     messages = messages.filter((x) => x.id !== m.id);
     messagesCount = messages.length;
     rerenderListKeepingScroll();
@@ -463,7 +467,8 @@ export async function ChatView(root, chatId) {
     try {
       await api.deleteMessage(chat.id, m.id, forEveryone);
     } catch (err) {
-      alert(err.message || "Не удалось удалить сообщение");
+      undoWith(snapshot, err, "Не удалось удалить сообщение");
+      return;
     }
     scheduleRefresh();
   }
@@ -747,7 +752,7 @@ export async function ChatView(root, chatId) {
         renderHeader();
         renderInfoPanel();
       },
-      { title: "Добавить участников", submitLabel: "Добавить", excludeIds: chat.memberIds }
+      { title: "Добавить участников", submitLabel: "Добавить", excludeIds: chat.memberIds, fabIcon: "Check", skippable: false }
     );
   }
 
@@ -1046,10 +1051,10 @@ export async function ChatView(root, chatId) {
         el("button", {
           class: "contact-bar-btn",
           onclick: async () => {
-            const name = prompt("Как записать в контактах?", other.name)?.trim();
+            const name = (await askText("Как записать в контактах?", other.name))?.trim();
             if (name === undefined) return;
             try {
-              const sharePhone = confirm(`Поделиться своим номером телефона с ${other.name}?`);
+              const sharePhone = (await askConfirm(`Поделиться своим номером телефона с ${other.name}?`, { okLabel: "Поделиться", cancelLabel: "Не делиться" }));
               await api.addContact(other.id, name || null, { sharePhone });
               other = { ...other, inContacts: true, ...(name && name !== other.name ? { profileName: other.profileName ?? other.name, name } : {}) };
               renderContactBar();
@@ -1063,7 +1068,7 @@ export async function ChatView(root, chatId) {
           class: "contact-bar-btn danger",
           onclick: async () => {
             if (iBlockedThem) return toggleBlock();
-            if (!confirm(`Заблокировать ${other.name}? Он(а) не сможет писать и звонить вам.`)) return;
+            if (!(await askConfirm(`Заблокировать ${other.name}? Он(а) не сможет писать и звонить вам.`))) return;
             await toggleBlock();
             renderContactBar();
           },
@@ -1167,7 +1172,7 @@ export async function ChatView(root, chatId) {
   }
 
   async function stopLiveFromBar(stream) {
-    if (!confirm("Завершить эфир для всех?")) return;
+    if (!(await askConfirm("Завершить эфир для всех?"))) return;
     try {
       await api.stopLive(stream.id);
     } catch (err) {
@@ -1281,12 +1286,6 @@ export async function ChatView(root, chatId) {
               [el("span", { class: "chat-header-app-icon", html: iconSvg("Code", 15) }), el("span", { class: "chat-header-app-label" }, botApp.name)]
             )
           : null,
-        !isDm && liveInfo?.canHost && !liveInfo?.stream
-          ? el("button", { class: "icon-btn chat-header-live-btn", title: "Начать эфир", onclick: askLiveSource }, [
-              el("span", { class: "chat-header-live-dot" }),
-              el("span", { class: "chat-header-live-label" }, "Эфир"),
-            ])
-          : null,
         chat.type === "group" && voiceRoom
           ? el("button", { class: "icon-btn chat-header-live-btn", title: "Присоединиться к голосовому чату", onclick: () => joinVoiceRoom(chat.id, me) }, [
               el("span", { class: "chat-header-live-dot" }),
@@ -1326,7 +1325,7 @@ export async function ChatView(root, chatId) {
                       label: chat.topicsEnabled ? "Выключить темы" : "Включить темы",
                       onClick: async () => {
                         const enabled = !chat.topicsEnabled;
-                        if (!enabled && !confirm("Выключить темы? Сообщения останутся, но будут показаны одной лентой.")) return;
+                        if (!enabled && !(await askConfirm("Выключить темы? Сообщения останутся, но будут показаны одной лентой."))) return;
                         try {
                           const res = await api.setTopicsEnabled(chat.id, enabled);
                           chat = { ...chat, topicsEnabled: res.chat?.topicsEnabled };
@@ -1352,7 +1351,7 @@ export async function ChatView(root, chatId) {
                       label: "Удалить за нарушение",
                       onClick: async () => {
                         const what = isChannel ? "канал" : isGroup ? "группу" : "бота";
-                        const reason = prompt(`Удалить ${what} «${chatTitle()}» за нарушение правил? Это необратимо.\n\nПричина — придёт владельцу и попадёт в журнал:`, "")?.trim();
+                        const reason = (await askText(`Удалить ${what} «${chatTitle()}» за нарушение правил? Это необратимо.\n\nПричина — придёт владельцу и попадёт в журнал:`, ""))?.trim();
                         if (!reason) return;
                         try {
                           if (isDm) await api.adminDeleteBot(other.id, reason);
@@ -1385,13 +1384,14 @@ export async function ChatView(root, chatId) {
                           renderList();
                         } catch (err) {
                           if (err.premiumHelps || /Premium/.test(err.message ?? "")) {
-                            if (confirm(`${err.message}. Открыть Premium?`)) navigate("/settings/premium");
+                            if ((await askConfirm(`${err.message}. Открыть Premium?`))) navigate("/settings/premium");
                           } else alert(err.message || "Не удалось изменить настройку");
                         }
                       },
                     },
                   ]
                 : []),
+              !isDm && liveInfo?.canHost && !liveInfo?.stream ? { icon: "Video", label: "Начать эфир", onClick: askLiveSource } : null,
               { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
               { icon: "Image", label: "Фон чата", onClick: handleChooseWallpaper },
               { icon: "Clock", label: "Запланированные сообщения", onClick: () => openScheduledMessagesDialog(chat.id) },
@@ -2031,6 +2031,7 @@ export async function ChatView(root, chatId) {
   });
   const unsubMessageUpdated = onWsMessage("message:updated", (msg) => {
     if (msg.chatId !== chat.id) return;
+    updateMessageInChatList(chat.id, msg.message);
     scheduleRefresh();
   });
   const unsubMessageDeleted = onWsMessage("message:deleted", (msg) => {

@@ -1,3 +1,5 @@
+import { askText } from "./confirmDialog.js";
+import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -149,10 +151,8 @@ export function openAdminUserPanel(user, onChange) {
     );
   }
 
-  function runExport() {
-    const reason = prompt(
-      `Основание для выгрузки данных ${state.name} (номер дела / реквизиты постановления).\nОно будет записано в журнал выгрузок.`
-    );
+  async function runExport() {
+    const reason = (await askText(`Основание для выгрузки данных ${state.name} (номер дела / реквизиты постановления).\nОно будет записано в журнал выгрузок.`));
     if (reason == null || !reason.trim()) return;
     run(async () => {
       const { exportId, data } = await api.adminExportUser(state.id, reason.trim());
@@ -166,7 +166,7 @@ export function openAdminUserPanel(user, onChange) {
     });
   }
 
-  function toggleBan() {
+  async function toggleBan() {
     if (state.isBanned) {
       run(async () => {
         const { user: updated } = await api.adminSetBanned(state.id, false);
@@ -174,7 +174,7 @@ export function openAdminUserPanel(user, onChange) {
       }, "Блокировка снята — пользователь уведомлён в чате с Shalter.");
       return;
     }
-    const reason = prompt(`Причина блокировки ${state.name}. Её увидит сам пользователь на экране входа.`);
+    const reason = (await askText(`Причина блокировки ${state.name}. Её увидит сам пользователь на экране входа.`));
     if (reason == null || !reason.trim()) return;
     run(async () => {
       const { user: updated } = await api.adminSetBanned(state.id, true, reason.trim());
@@ -415,16 +415,16 @@ export function openAdminUserPanel(user, onChange) {
         {
           class: "profile-action-btn",
           disabled: busy,
-          onclick: () => {
+          onclick: async () => {
             const handle = state.username || state.id;
-            const password = prompt(`Новый пароль для ${state.name} (не короче 6 символов):`);
+            const password = (await askText(`Новый пароль для ${state.name} (не короче 6 символов):`));
             if (password == null || password.length < 6) return;
-            const typed = prompt(`Сбросить пароль ${state.name}?\n\nДля подтверждения введите @${handle}`);
+            const typed = (await askText(`Сбросить пароль ${state.name}?\n\nДля подтверждения введите @${handle}`));
             if (typed == null) return;
-            const reason = prompt("Основание — оно попадёт в журнал администрации:");
+            const reason = (await askText("Основание — оно попадёт в журнал администрации:"));
             if (reason == null || !reason.trim()) return;
             const disableTwoFactor = state.twoFactorEnabled
-              ? confirm("У аккаунта включена двухфакторная аутентификация — без неё войти по новому паролю не выйдет.\n\nСнять её тоже?")
+              ? (await askConfirm("У аккаунта включена двухфакторная аутентификация — без неё войти по новому паролю не выйдет.\n\nСнять её тоже?"))
               : false;
             run(async () => {
               const res = await api.adminResetPassword(state.id, { password, confirm: typed, reason: reason.trim(), disableTwoFactor });
@@ -446,13 +446,11 @@ export function openAdminUserPanel(user, onChange) {
         {
           class: "btn-accent danger",
           disabled: busy,
-          onclick: () => {
+          onclick: async () => {
             const handle = state.username || state.id;
-            const typed = prompt(
-              `Удалить аккаунт ${state.name} безвозвратно?\n\nДля подтверждения введите @${handle}`
-            );
+            const typed = (await askText(`Удалить аккаунт ${state.name} безвозвратно?\n\nДля подтверждения введите @${handle}`));
             if (typed == null) return;
-            const reason = prompt("Основание — оно попадёт в журнал администрации:");
+            const reason = (await askText("Основание — оно попадёт в журнал администрации:"));
             if (reason == null || !reason.trim()) return;
             run(async () => {
               await api.adminDeleteUser(state.id, typed, reason.trim());
