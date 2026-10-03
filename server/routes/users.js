@@ -85,7 +85,9 @@ router.get(
   })
 );
 
-const EDITABLE_FIELDS = ["name", "lastName", "username", "phone", "bio", "avatarColor", "avatarImage", "birthday", "businessAddress", "businessLat", "businessLng"];
+const EDITABLE_FIELDS = ["name", "lastName", "username", "phone", "bio", "avatarColor", "avatarImage", "birthday", "businessAddress", "businessLat", "businessLng", "nameColor"];
+// Цвета имени — палитра peer colors из Telegram.
+const NAME_COLORS = ["red", "orange", "violet", "green", "cyan", "blue", "pink"];
 
 router.get(
   "/:id",
@@ -252,6 +254,12 @@ router.patch(
       patch.businessAddress = String(patch.businessAddress ?? "").trim() || null;
       if (patch.businessAddress && patch.businessAddress.length > MAX_ADDRESS) {
         return res.status(400).json({ error: `Адрес — не длиннее ${MAX_ADDRESS} символов` });
+      }
+    }
+    if ("nameColor" in patch) {
+      if (patch.nameColor != null && !NAME_COLORS.includes(patch.nameColor)) return res.status(400).json({ error: "Некорректный цвет имени" });
+      if (patch.nameColor != null && !(await getUser(req.uid))?.isPremium) {
+        return res.status(403).json({ error: "Цвет имени доступен с Shalter Premium" });
       }
     }
     for (const key of ["businessLat", "businessLng"]) {

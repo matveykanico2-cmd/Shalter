@@ -528,6 +528,7 @@ if (!existingUserColumns.has("adUrl")) db.exec("ALTER TABLE users ADD COLUMN adU
 if (!existingUserColumns.has("businessUntil")) db.exec("ALTER TABLE users ADD COLUMN businessUntil TEXT");
 if (!existingUserColumns.has("businessAddress")) db.exec("ALTER TABLE users ADD COLUMN businessAddress TEXT");
 if (!existingUserColumns.has("businessLat")) db.exec("ALTER TABLE users ADD COLUMN businessLat REAL");
+if (!existingUserColumns.has("nameColor")) db.exec("ALTER TABLE users ADD COLUMN nameColor TEXT");
 if (!existingUserColumns.has("businessLng")) db.exec("ALTER TABLE users ADD COLUMN businessLng REAL");
 if (!existingUserColumns.has("adAttachments")) db.exec("ALTER TABLE users ADD COLUMN adAttachments TEXT");
 if (!existingUserColumns.has("birthday")) db.exec("ALTER TABLE users ADD COLUMN birthday TEXT");

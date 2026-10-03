@@ -437,7 +437,7 @@ router.patch(
           patch.autoDeleteSeconds ? `${name} включил(а) автоудаление сообщений: ${durationLabel(patch.autoDeleteSeconds)}` : `${name} выключил(а) автоудаление сообщений`
         );
       }
-      if ("avatarImage" in patch && patch.avatarImage !== chat.avatarImage) {
+      if ("avatarImage" in patch && (patch.avatarImage ?? null) !== (chat.avatarImage ?? null)) {
         await serviceNote(updated, req.uid, (name) =>
           patch.avatarImage
             ? chat.type === "channel" ? `Фото ${where} обновлено` : `${name} изменил(а) фото группы`

@@ -7,17 +7,25 @@ import { fileToImageDataUrl } from "../lib/image.js";
 // круглая кнопка внизу справа. На компьютере ложится поверх списка чатов, на телефоне — на весь экран.
 const stack = [];
 
-function host() {
-  return window.matchMedia("(min-width: 768px)").matches ? document.querySelector(".shell-sidebar") ?? document.body : document.body;
+function host(side) {
+  if (!window.matchMedia("(min-width: 768px)").matches) return document.body;
+  // Правая колонка (как sidebar-right в tweb) — поверх открытой панели информации о чате.
+  if (side === "right") {
+    const panel = document.querySelector(".info-panel-slot .info-panel")?.parentElement;
+    if (panel && panel.offsetWidth) return panel;
+  }
+  return document.querySelector(".shell-sidebar") ?? document.body;
 }
 
-export function openSideTab({ title, content, fab, onClose }) {
+export function openSideTab({ title, content, fab, onClose, side }) {
+  side ??= stack[stack.length - 1]?.side;
   const fabBtn = fab
     ? el("button", { class: "tw-tab-fab", title: fab.title ?? "", html: iconSvg(fab.icon ?? "ChevronRight", 26), onclick: () => fab.onClick?.(tab) })
     : null;
   const body = el("div", { class: "tw-tab-body" }, content);
   const titleEl = el("h2", { class: "tw-tab-title" }, title);
-  const root = el("div", { class: `tw-tab${host() === document.body ? " tw-tab-full" : ""}` }, [
+  const container = host(side);
+  const root = el("div", { class: `tw-tab${container === document.body ? " tw-tab-full" : ""}` }, [
     el("div", { class: "tw-tab-header" }, [
       el("button", { class: "tw-tab-back", title: "Назад", html: iconSvg(stack.length ? "ChevronLeft" : "X", 24), onclick: () => tab.close() }),
       titleEl,
@@ -33,6 +41,7 @@ export function openSideTab({ title, content, fab, onClose }) {
   }
 
   const tab = {
+    side,
     root,
     body,
     setTitle: (t) => (titleEl.textContent = t),
@@ -60,7 +69,7 @@ export function openSideTab({ title, content, fab, onClose }) {
   };
   stack.push(tab);
   document.addEventListener("keydown", onKey, true);
-  host().appendChild(root);
+  container.appendChild(root);
   requestAnimationFrame(() => root.querySelector("input:not([type=checkbox]):not([type=file]), textarea")?.focus({ preventScroll: true }));
   return tab;
 }

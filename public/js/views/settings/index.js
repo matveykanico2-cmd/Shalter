@@ -3,6 +3,7 @@ import { askConfirm } from "../../components/confirmDialog.js";
 import { showToast } from "../../components/toast.js";
 import { openLimitPopup } from "../../components/limitPopup.js";
 import { openPremiumFeatures } from "../../components/premiumFeatures.js";
+import { NAME_COLORS, nameColorValue } from "../../lib/nameColors.js";
 import { el, mount, clear } from "../../lib/dom.js";
 import { clearCache } from "../../lib/localCache.js";
 import { iconSvg } from "../../icons.js";
@@ -340,6 +341,25 @@ async function renderProfile(root) {
     } catch {
     }
   }
+  let nameColor = me.nameColor ?? null;
+  async function saveNameColor(key) {
+    if (!me.isPremium) {
+      showToast("Цвет имени — возможность Shalter Premium");
+      navigate("/settings/premium");
+      return;
+    }
+    const prev = nameColor;
+    nameColor = key;
+    render();
+    try {
+      await api.updateProfile(me.id, { nameColor: key });
+      updateSelf({ nameColor: key ?? undefined });
+    } catch (err) {
+      nameColor = prev;
+      render();
+      showToast(err.message || "Не удалось сохранить цвет");
+    }
+  }
   let statusIcon = me.statusIcon;
   const bioCounter = el("span", { class: "settings-toggle-hint settings-bio-counter" }, String(300 - (me.bio ?? "").length));
   let phoneField = null;
@@ -447,6 +467,30 @@ async function renderProfile(root) {
               ),
             ])
           : null,
+        twSection(
+          "Цвет имени",
+          [
+            el("div", { class: "tw-name-color-preview" }, [
+              el("div", { class: "tw-name-color-bubble" }, [
+                el("span", { class: "tw-name-color-name", style: nameColor ? `color:${nameColorValue(nameColor)}` : "" }, me.name || "Вы"),
+                el("span", {}, "Так ваше имя увидят в группах"),
+              ]),
+            ]),
+            el("div", { class: "tw-name-color-grid" }, [
+              el("button", { class: `tw-name-color-swatch none${!nameColor ? " active" : ""}`, title: "Без цвета", onclick: () => saveNameColor(null), html: iconSvg("X", 16) }),
+              ...Object.entries(NAME_COLORS).map(([key, c]) =>
+                el("button", {
+                  class: `tw-name-color-swatch${nameColor === key ? " active" : ""}${me.isPremium ? "" : " locked"}`,
+                  style: `--swatch:${nameColorValue(key)}`,
+                  title: me.isPremium ? c.label : `${c.label} — с Premium`,
+                  onclick: () => saveNameColor(key),
+                  html: me.isPremium ? "" : iconSvg("Lock", 12),
+                })
+              ),
+            ]),
+          ],
+          me.isPremium ? "Цвет имени видят все участники групп." : "Выбирать цвет имени можно с Shalter Premium."
+        ),
         section(null, [
           el("label", { class: "settings-field" }, [
             el("span", { class: "settings-field-label" }, "Имя"),
@@ -609,10 +653,16 @@ const PREMIUM_COMPARE = [
   ["Эксклюзивные реакции 💎 👑 🚀 🥂 💯 🌟", "—", "Да"],
   ["Реакций на одно сообщение", "1", "до 3"],
   ["Папок с чатами", "10", "20"],
+  ["Цвет имени в группах", "—", "7 цветов"],
   ["Реклама в списке чатов", "есть", "нет"],
 ];
 
 const PREMIUM_PERKS = [
+  {
+    icon: "Palette",
+    title: "Цвет имени",
+    desc: "Выберите цвет, которым ваше имя показывается в группах",
+  },
   {
     icon: "Folder",
     title: "Удвоенные лимиты",

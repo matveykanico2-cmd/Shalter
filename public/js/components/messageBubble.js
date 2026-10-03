@@ -1,3 +1,4 @@
+import { nameColorValue } from "../lib/nameColors.js";
 import { askText } from "./confirmDialog.js";
 import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
@@ -1423,7 +1424,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     showSender && !mine && sender
       ? el(
           "button",
-          { class: "sender-name", onclick: () => openProfileDialog(sender.id) },
+          { class: "sender-name", style: sender.nameColor ? `color:${nameColorValue(sender.nameColor)}` : null, onclick: () => openProfileDialog(sender.id) },
           [el("span", { class: "sender-name-text" }, sender.name), VerifiedBadge(sender, 12), sender.isPremium ? PremiumStar({ size: 13, seed: sender.id, title: "Shalter Premium" }) : null, senderTag ? el("span", { class: "sender-tag" }, senderTag) : null].filter(Boolean)
         )
       : null,

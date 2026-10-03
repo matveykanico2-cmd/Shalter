@@ -19929,3 +19929,105 @@ textarea.tw-input ~ .tw-input-label {
 .channel-comments-icon {
   display: flex;
 }
+
+/* вкладка «Изменить группу/канал» */
+.info-panel-slot {
+  position: relative;
+}
+.tw-edit-avatar .avatar {
+  width: 120px !important;
+  height: 120px !important;
+}
+.tw-edit-avatar .tw-avatar-edit-icon {
+  opacity: 0;
+  color: #fff;
+}
+.tw-edit-avatar:hover .tw-avatar-edit-icon {
+  opacity: 1;
+}
+.tw-invite-link {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 8px;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 12px;
+  background: var(--tw-filled);
+  font: inherit;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.tw-invite-link-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  text-align: left;
+}
+.tw-invite-link-copy {
+  display: flex;
+  color: var(--color-accent);
+}
+.tw-inline-btn {
+  width: 100%;
+  margin: 12px 0 0;
+}
+.tw-color-grid,
+.tw-reactions-grid {
+  padding: 8px;
+}
+
+/* цвет имени (Premium) */
+.tw-name-color-preview {
+  padding: 12px 8px 4px;
+}
+.tw-name-color-bubble {
+  display: inline-flex;
+  max-width: 100%;
+  flex-direction: column;
+  padding: 6px 12px 8px;
+  border-radius: 15px 15px 15px 4px;
+  background: var(--tw-filled);
+  font-size: 15px;
+}
+.tw-name-color-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+.tw-name-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 8px 8px;
+}
+.tw-name-color-swatch {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--swatch);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.tw-name-color-swatch.none {
+  background: var(--tw-filled);
+  color: var(--color-muted);
+}
+.tw-name-color-swatch.active {
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--swatch, var(--color-accent));
+}
+.tw-name-color-swatch.locked {
+  opacity: 0.55;
+}
+.tw-name-color-swatch:hover {
+  transform: scale(1.08);
+}

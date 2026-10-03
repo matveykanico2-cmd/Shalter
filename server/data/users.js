@@ -41,6 +41,7 @@ function rowToUser(row) {
     businessAddress: row.businessAddress ?? undefined,
     businessLat: row.businessLat ?? undefined,
     businessLng: row.businessLng ?? undefined,
+    nameColor: row.nameColor ?? undefined,
     adAttachments: row.adAttachments ? JSON.parse(row.adAttachments) : [],
     birthday: row.birthday ?? undefined,
     giftsReceived: JSON.parse(row.giftsReceived ?? "[]"),
@@ -191,7 +192,7 @@ async function createUser(user) {
   return getUser(user.id);
 }
 
-const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng"];
+const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng", "nameColor"];
 
 async function grantPremiumDays(userId, days) {
   const user = await getUser(userId);
