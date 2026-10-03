@@ -32,12 +32,13 @@ export function openTwoFactorSetupDialog(onEnabled) {
 
   // Код из чата с Shalter подставляется сам — не нужно уходить из настройки в чат.
   const stopCodeWatch = onWsMessage("message:new", ({ message }) => {
-    if (method !== "chat" || step !== "scan" || message?.senderId !== "bot_shalter") return;
+    if (method !== "chat" || (step !== "scan" && step !== "loading") || message?.senderId !== "bot_shalter") return;
     const found = String(message.text ?? "").match(/Код подтверждения:\s*(\d{6})/);
     if (!found) return;
     code = found[1];
     codeInput.value = code;
-    if (!busy) confirm();
+    // Пришёл раньше ответа на setup — отправим, когда окно перейдёт к вводу кода.
+    if (step === "scan" && !busy) confirm();
   });
 
   function close() {
@@ -54,6 +55,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
 
   async function start(chosen) {
     method = chosen;
+    code = "";
     step = "loading";
     render();
     try {
@@ -67,6 +69,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
       step = "error";
     }
     render();
+    if (step === "scan" && method === "chat" && code) confirm();
   }
 
   async function confirm() {
