@@ -1,5 +1,21 @@
 const db = require("../db");
-const { encryptText, decryptText, searchQuery, hasLink } = require("../lib/textCrypto");
+const { encryptText, decryptText, searchQuery, hasLink, sealSecret, openSecret } = require("../lib/textCrypto");
+
+// Секретные чаты: текст дополнительно шифруется ключом чата (lib/textCrypto.js),
+// снаружи — как обычно, общим ключом сообщений.
+const secretKeyStmt = db.prepare("SELECT secret, secretKey FROM chats WHERE id = ?");
+function secretKeyOf(chatId) {
+  const row = secretKeyStmt.get(chatId);
+  return row?.secret ? row.secretKey : null;
+}
+function sealText(chatId, id, text) {
+  const wrapped = secretKeyOf(chatId);
+  return encryptText(id, wrapped ? sealSecret(chatId, wrapped, id, text) : text);
+}
+function openText(chatId, id, stored) {
+  const inner = decryptText(id, stored);
+  return inner.startsWith("sec1:") ? openSecret(chatId, secretKeyOf(chatId), id, inner) : inner;
+}
 
 function rowToMessage(row) {
   if (!row) return undefined;
@@ -8,7 +24,7 @@ function rowToMessage(row) {
     chatId: row.chatId,
     senderId: row.senderId,
     type: row.type,
-    text: decryptText(row.id, row.text),
+    text: openText(row.chatId, row.id, row.text),
     createdAt: row.createdAt,
     editedAt: row.editedAt ?? undefined,
     pinned: !!row.pinned,
@@ -29,6 +45,7 @@ function rowToMessage(row) {
     topicId: row.topicId ?? undefined,
     readAt: row.readAt ?? undefined,
     effect: row.effect ?? undefined,
+    visibleToId: row.visibleToId ?? undefined,
     storyReply: row.storyReply ? JSON.parse(row.storyReply) : undefined,
     anchorForPostId: row.anchorForPostId ?? undefined,
     discussionAnchorId: row.discussionAnchorId ?? undefined,
@@ -145,15 +162,15 @@ async function getMessage(id) {
 
 async function addMessage(message) {
   db.prepare(
-    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, customEmoji, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, topicId, storyReply, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous, effect)
-     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @customEmoji, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @topicId, @storyReply, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous, @effect)`
+    `INSERT INTO messages (id, chatId, senderId, type, text, hasLink, createdAt, editedAt, pinned, replyToId, forwardedFrom, attachments, keyboard, gift, sticker, customEmoji, report, reactions, readByIds, deletedForIds, mentionedUserIds, threadRootId, topicId, storyReply, anchorForPostId, discussionAnchorId, signedBy, views, commentCount, paidStars, anonymous, effect, visibleToId)
+     VALUES (@id, @chatId, @senderId, @type, @text, @hasLink, @createdAt, @editedAt, @pinned, @replyToId, @forwardedFrom, @attachments, @keyboard, @gift, @sticker, @customEmoji, @report, @reactions, @readByIds, @deletedForIds, @mentionedUserIds, @threadRootId, @topicId, @storyReply, @anchorForPostId, @discussionAnchorId, @signedBy, @views, @commentCount, @paidStars, @anonymous, @effect, @visibleToId)`
   ).run({
     id: message.id,
     chatId: message.chatId,
     senderId: message.senderId,
     paidStars: message.paidStars ?? 0,
     type: message.type ?? "text",
-    text: encryptText(message.id, message.text),
+    text: sealText(message.chatId, message.id, message.text),
     hasLink: hasLink(message.text),
     createdAt: message.createdAt,
     editedAt: message.editedAt ?? null,
@@ -180,6 +197,7 @@ async function addMessage(message) {
     commentCount: message.commentCount ?? 0,
     anonymous: message.anonymous ? 1 : 0,
     effect: message.effect ?? null,
+    visibleToId: message.visibleToId ?? null,
   });
   return getMessage(message.id);
 }
@@ -209,7 +227,7 @@ async function mutate(id, fn) {
      WHERE id = @id`
   ).run({
     id,
-    text: (updated.text ?? "") === existing.text ? row.text : encryptText(id, updated.text),
+    text: (updated.text ?? "") === existing.text ? row.text : sealText(existing.chatId, id, updated.text),
     hasLink: hasLink(updated.text),
     editedAt: updated.editedAt ?? null,
     pinned: updated.pinned ? 1 : 0,

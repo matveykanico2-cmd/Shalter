@@ -86,6 +86,67 @@ function decryptText(id, stored) {
   }
 }
 
+// ── Секретные чаты ─────────────────────────────────────────────────────────
+// У каждого секретного чата свой случайный ключ. В базе он лежит обёрнутым
+// мастер-ключом (kek), поэтому сервер может расшифровать переписку, но утечка
+// одной таблицы messages ничего не даёт: текст зашифрован дважды — ключом чата
+// внутри и общим ключом сообщений снаружи (encryptText).
+const SECRET_KEY_PREFIX = "sk1:";
+const SECRET_PREFIX = "sec1:";
+const secretKeyCache = new Map();
+
+function gcmSeal(key, aad, plain) {
+  const iv = crypto.randomBytes(IV_LEN);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  cipher.setAAD(Buffer.from(String(aad)));
+  const body = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return Buffer.concat([iv, body, cipher.getAuthTag()]).toString("base64");
+}
+
+function gcmOpenRaw(key, aad, b64) {
+  const raw = Buffer.from(b64, "base64");
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, raw.subarray(0, IV_LEN));
+  decipher.setAAD(Buffer.from(String(aad)));
+  decipher.setAuthTag(raw.subarray(raw.length - TAG_LEN));
+  return Buffer.concat([decipher.update(raw.subarray(IV_LEN, raw.length - TAG_LEN)), decipher.final()]);
+}
+
+function newSecretChatKey(chatId) {
+  return SECRET_KEY_PREFIX + gcmSeal(loadKeys().kek, `secret-chat:${chatId}`, crypto.randomBytes(32));
+}
+
+function secretChatKey(chatId, wrapped) {
+  if (!wrapped?.startsWith(SECRET_KEY_PREFIX)) return null;
+  let key = secretKeyCache.get(chatId);
+  if (!key) {
+    key = gcmOpenRaw(loadKeys().kek, `secret-chat:${chatId}`, wrapped.slice(SECRET_KEY_PREFIX.length));
+    secretKeyCache.set(chatId, key);
+  }
+  return key;
+}
+
+function sealSecret(chatId, wrapped, messageId, text) {
+  const plain = String(text ?? "");
+  if (!plain) return "";
+  const key = secretChatKey(chatId, wrapped);
+  if (!key) throw new Error("secret chat key missing");
+  return SECRET_PREFIX + gcmSeal(key, messageId, Buffer.from(plain, "utf8"));
+}
+
+function isSealedSecret(text) {
+  return typeof text === "string" && text.startsWith(SECRET_PREFIX);
+}
+
+function openSecret(chatId, wrapped, messageId, text) {
+  if (!isSealedSecret(text)) return text;
+  try {
+    return gcmOpenRaw(secretChatKey(chatId, wrapped), messageId, text.slice(SECRET_PREFIX.length)).toString("utf8");
+  } catch {
+    console.error(`[messages] не удалось расшифровать сообщение секретного чата ${messageId}`);
+    return "⚠️ Сообщение не удалось расшифровать";
+  }
+}
+
 function words(text) {
   return (
     String(text ?? "")
@@ -122,4 +183,4 @@ function hasLink(text) {
   return /http/i.test(String(text ?? "")) ? 1 : 0;
 }
 
-module.exports = { encryptText, decryptText, isEncrypted, searchTokens, searchQuery, hasLink, loadKeys };
+module.exports = { encryptText, decryptText, isEncrypted, searchTokens, searchQuery, hasLink, loadKeys, newSecretChatKey, sealSecret, openSecret, isSealedSecret };

@@ -3513,7 +3513,7 @@ async function renderModeration(root) {
       }
     }
 
-    const chatLookupInput = el("input", { class: "settings-input", placeholder: "@канал, ссылка-приглашение или id" });
+    const chatLookupInput = el("input", { class: "settings-input", placeholder: "@канал, @бот, ссылка-приглашение или id" });
     async function lookupChat() {
       const q = chatLookupInput.value.trim();
       chatLookupError = null;
@@ -3522,20 +3522,23 @@ async function renderModeration(root) {
       try {
         ({ chat: foundChat } = await api.adminLookupChat(q));
       } catch (err) {
-        chatLookupError = err.message || "Группа или канал не найдены";
+        chatLookupError = err.message || "Группа, канал или бот не найдены";
       }
       render();
     }
     async function deleteFoundChat() {
       const c = foundChat;
-      const what = c.type === "channel" ? "канал" : "группу";
-      if (!confirm(`Удалить ${what} «${c.title}» (${c.members} участников) за нарушение правил? Все сообщения и файлы пропадут у всех, владельцу придёт уведомление. Это необратимо.`)) return;
+      const what = c.type === "channel" ? "канал" : c.type === "bot" ? "бота" : "группу";
+      const who = c.type === "bot" ? `${c.members} диалогов` : `${c.members} участников`;
+      const reason = prompt(`Удалить ${what} «${c.title}» (${who}) за нарушение правил? Это необратимо.\n\nПричина — придёт владельцу и попадёт в журнал:`, "")?.trim();
+      if (!reason) return;
       chatDeleting = true;
       render();
       try {
-        await api.deleteChat(c.id);
+        if (c.type === "bot") await api.adminDeleteBot(c.id, reason);
+        else await api.deleteChat(c.id, reason);
         foundChat = null;
-        chatLookupError = `«${c.title}» удалён${c.type === "channel" ? "" : "а"}.`;
+        chatLookupError = `«${c.title}» удалён${c.type === "group" ? "а" : ""}.`;
       } catch (err) {
         chatLookupError = err.message || "Не удалось удалить";
       } finally {
@@ -3559,19 +3562,19 @@ async function renderModeration(root) {
             "В карточке — выдача Premium, рекламы, звёзд и подарков, метка безопасности, блокировка и разблокировка, жалобы и выгрузка данных."
           ),
         ]),
-        section("Группа или канал", [
+        section("Группа, канал или бот", [
           chatLookupInput,
           el("button", { class: "btn-accent", onclick: lookupChat }, "Найти"),
           chatLookupError ? el("p", { class: foundChat ? "login-error" : "settings-toggle-hint" }, chatLookupError) : null,
           foundChat
             ? el("div", { class: "settings-notice-box" }, [
-                el("p", { class: "settings-toggle-title" }, `${foundChat.type === "channel" ? "Канал" : "Группа"} «${foundChat.title}»`),
+                el("p", { class: "settings-toggle-title" }, `${{ channel: "Канал", bot: "Бот" }[foundChat.type] ?? "Группа"} «${foundChat.title}»`),
                 el(
                   "p",
                   { class: "settings-toggle-hint" },
                   [
                     foundChat.username ? `@${foundChat.username}` : null,
-                    `${foundChat.members} участников`,
+                    foundChat.type === "bot" ? `${foundChat.members} диалогов` : `${foundChat.members} участников`,
                     foundChat.owner ? `владелец — ${foundChat.owner.name}${foundChat.owner.username ? ` (@${foundChat.owner.username})` : ""}` : null,
                   ].filter(Boolean).join(" · ")
                 ),

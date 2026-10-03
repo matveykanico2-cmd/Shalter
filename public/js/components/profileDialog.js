@@ -277,7 +277,7 @@ export async function openProfileDialog(userId) {
     if (inContacts && !confirm(`Удалить ${user.name} из контактов?`)) return;
     try {
       if (inContacts) await api.removeContact(userId);
-      else await api.addContact(userId);
+      else await api.addContact(userId, null, { sharePhone: !user.isBot && confirm(`Поделиться своим номером телефона с ${user.name}?`) });
       inContacts = !inContacts;
       render();
     } catch (err) {
@@ -304,6 +304,18 @@ export async function openProfileDialog(userId) {
       navigate(`/chat/${chat.id}`);
     } catch (err) {
       alert(err.message || "Не удалось открыть чат");
+    }
+  }
+
+  async function startSecretChat() {
+    if (!confirm(`Начать секретный чат с ${user.name}?\n\nСообщения шифруются отдельным ключом этого чата, их нельзя переслать или скопировать. Чат будет доступен только на этом устройстве.`)) return;
+    try {
+      const { chat } = await api.startSecretChat(userId);
+      api.listChats().then((r) => setState({ chats: r.chats })).catch(() => {});
+      close();
+      navigate(`/chat/${chat.id}`);
+    } catch (err) {
+      alert(err.message || "Не удалось начать секретный чат");
     }
   }
 
@@ -562,7 +574,9 @@ export async function openProfileDialog(userId) {
         safety ? el("span", { class: `safety-badge safety-${user.safetyLabel}`, title: safety.label }, safety.short) : null,
       ]),
       el("p", { class: `profile-status${user.online ? " online" : ""}` }, status ?? "был(а) недавно"),
-      contactName && contactName !== user.name ? el("p", { class: "profile-contact-name" }, `В контактах: ${contactName}`) : null,
+      // Имя уже показано так, как вы записали человека; его собственное — подсказкой.
+      user.profileName ? el("p", { class: "profile-contact-name" }, `Имя в профиле: ${user.profileName}`) : null,
+      user.mutualContact ? el("p", { class: "profile-contact-name" }, "⇄ Взаимный контакт") : null,
       safety
         ? el("div", { class: `safety-warning safety-${user.safetyLabel}` }, [
             el("span", { html: iconSvg("Info", 15) }),
@@ -725,6 +739,9 @@ export async function openProfileDialog(userId) {
                     { class: "profile-action-btn", onclick: () => openGiftShopDialog({ recipient: { id: user.id, name: user.name } }) },
                     [el("span", { html: iconSvg("Gift", 15) }), " Отправить подарок"]
                   )
+                : null,
+              !user.isBot && !isBlocked
+                ? el("button", { class: "profile-action-btn secret-chat-btn", onclick: startSecretChat }, [el("span", { html: iconSvg("Lock", 15) }), " Начать секретный чат"])
                 : null,
               el("button", { class: "profile-action-btn", onclick: shareContact }, [el("span", { html: iconSvg("Forward", 15) }), " Поделиться контактом"]),
               el(

@@ -799,6 +799,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   }
 
   const meta = el("span", { class: `message-meta ${isSticker ? "message-meta-sticker" : ""}` }, [
+    message.visibleToId ? el("span", { class: "message-private-badge", title: "Это сообщение бота видите только вы" }, "👁 только вам") : null,
     message.effect
       ? el("button", {
           class: "message-effect-badge",
@@ -837,6 +838,29 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
 
   const canTranslate = !isSticker && !!message.text?.trim() && !message.attachments?.some((a) => a.kind === "poll");
   let translationEl = null;
+  // «Кратко» — ИИ-сводка длинного текста, показывается под сообщением, как перевод.
+  let summaryEl = null;
+  const canSummarize = (message.text ?? "").length >= 400 && !String(message.id).startsWith("local_") && !protectedContent;
+  async function toggleSummary() {
+    if (summaryEl) {
+      summaryEl.remove();
+      summaryEl = null;
+      return;
+    }
+    summaryEl = el("div", { class: "message-summary", "data-no-translate": "" }, [
+      el("span", { class: "message-summary-label" }, "Кратко"),
+      el("p", { class: "message-summary-text" }, "Делаем сводку…"),
+    ]);
+    bubble.insertBefore(summaryEl, meta);
+    const textEl = summaryEl.querySelector(".message-summary-text");
+    try {
+      const { summary } = await api.summarizeMessage(message.chatId, message.id);
+      textEl.textContent = summary;
+    } catch (err) {
+      textEl.textContent = err.message || "Не удалось сделать сводку";
+    }
+  }
+
   async function toggleTranslation() {
     if (translationEl) {
       translationEl.remove();
@@ -1125,6 +1149,9 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     }
     if (canTranslate) {
       items.push({ icon: "Globe", label: translationEl ? "Скрыть перевод" : "Перевести", onClick: toggleTranslation });
+    }
+    if (canSummarize) {
+      items.push({ icon: "Zap", label: summaryEl ? "Скрыть сводку" : "Кратко", onClick: toggleSummary });
     }
     if (mine) {
       items.push({ icon: "Star", label: "Поднять за звёзды", onClick: () => boostForStars(message) });

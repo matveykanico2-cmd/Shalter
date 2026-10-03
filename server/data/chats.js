@@ -1,4 +1,6 @@
 const db = require("../db");
+const { createHash } = require("crypto");
+const { newSecretChatKey } = require("../lib/textCrypto");
 
 function rowToChat(row) {
   if (!row) return undefined;
@@ -44,6 +46,9 @@ function rowToChat(row) {
     points: row.points ?? 0,
     votes: row.votes ? JSON.parse(row.votes) : {},
     autoDeleteSeconds: row.autoDeleteSeconds ?? undefined,
+    // Ни ключ, ни привязку к устройствам наружу не отдаём: device_id — часть
+    // авторизации (middleware/auth.js), а ключ нужен только data/messages.js.
+    secret: !!row.secret || undefined,
   };
 }
 
@@ -58,7 +63,7 @@ async function findDmBetween(userIdA, userIdB) {
           .prepare(
             `SELECT c.* FROM chats c
                JOIN chat_members m ON m.chatId = c.id AND m.userId = ?
-              WHERE c.type = 'dm'
+              WHERE c.type = 'dm' AND c.secret = 0
                 AND (SELECT COUNT(*) FROM chat_members x WHERE x.chatId = c.id) = 1
               LIMIT 1`
           )
@@ -68,18 +73,25 @@ async function findDmBetween(userIdA, userIdB) {
             `SELECT c.* FROM chats c
                JOIN chat_members a ON a.chatId = c.id AND a.userId = ?
                JOIN chat_members b ON b.chatId = c.id AND b.userId = ?
-              WHERE c.type = 'dm'
+              WHERE c.type = 'dm' AND c.secret = 0
               LIMIT 1`
           )
           .get(userIdA, userIdB);
   return rowToChat(row);
 }
 
-async function listChatsForUser(userId) {
+// deviceId — скрыть секретные чаты, привязанные к другому устройству этого пользователя.
+async function listChatsForUser(userId, { deviceId } = {}) {
   const rows = db
     .prepare("SELECT c.* FROM chats c JOIN chat_members m ON m.chatId = c.id WHERE m.userId = ?")
     .all(userId);
-  return rows.map(rowToChat);
+  const chats = rows.map(rowToChat);
+  if (deviceId === undefined) return chats;
+  const hash = deviceHash(deviceId);
+  return chats.filter((c) => {
+    const bound = c.secret ? secretDeviceOf(c.id, userId) : null;
+    return !bound || bound === hash;
+  });
 }
 
 async function getChat(id) {
@@ -153,8 +165,50 @@ async function createChat(chat) {
     votes: chat.votes ? JSON.stringify(chat.votes) : null,
   });
   setMembers(chat.id, chat.memberIds ?? [], chat.adminIds ?? [], chat.moderatorIds ?? [], chat.ownerIds ?? (chat.ownerId ? [chat.ownerId] : []));
+  if (chat.secret) {
+    db.prepare("UPDATE chats SET secret = 1, secretKey = ?, secretDevices = ? WHERE id = ?").run(
+      newSecretChatKey(chat.id),
+      JSON.stringify(Object.fromEntries(Object.entries(chat.secretDevices ?? {}).map(([uid, dev]) => [uid, deviceHash(dev)]))),
+      chat.id
+    );
+  }
   return getChat(chat.id);
 }
+
+// Секретный чат живёт на одном устройстве каждого участника, как в Telegram:
+// у создателя — где создан, у собеседника — где он открыл его первым.
+// null — чат не секретный или участник ещё не выбрал устройство.
+// В базе — только хеш device_id: утечка таблицы не даёт подделать вход.
+function deviceHash(deviceId) {
+  return deviceId ? createHash("sha256").update(`secret-chat-device:${deviceId}`).digest("hex").slice(0, 32) : null;
+}
+
+function secretDevicesOf(chatId) {
+  const row = db.prepare("SELECT secret, secretDevices FROM chats WHERE id = ?").get(chatId);
+  return row?.secret ? JSON.parse(row.secretDevices || "{}") : null;
+}
+
+// Хеш устройства, к которому привязан чат у этого участника (null — не привязан).
+function secretDeviceOf(chatId, userId) {
+  return secretDevicesOf(chatId)?.[userId] ?? null;
+}
+
+function isSecretChat(chatId) {
+  return !!db.prepare("SELECT secret FROM chats WHERE id = ?").get(chatId)?.secret;
+}
+
+// Привязывает устройство, если ещё не привязано. true — чат доступен с этого устройства.
+const claimSecretDevice = db.transaction((chatId, userId, deviceId) => {
+  const row = db.prepare("SELECT secret, secretDevices FROM chats WHERE id = ?").get(chatId);
+  if (!row?.secret) return true;
+  if (!deviceId) return false;
+  const devices = JSON.parse(row.secretDevices || "{}");
+  const hash = deviceHash(deviceId);
+  if (devices[userId]) return devices[userId] === hash;
+  devices[userId] = hash;
+  db.prepare("UPDATE chats SET secretDevices = ? WHERE id = ?").run(JSON.stringify(devices), chatId);
+  return true;
+});
 
 const PATCHABLE_FIELDS = [
   "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage",
@@ -232,4 +286,5 @@ async function deleteChat(id) {
 }
 
 module.exports = {
+  secretDeviceOf, deviceHash, isSecretChat, claimSecretDevice,
   findChatByInviteCode, listChats, listChatsForUser, findDmBetween, getChat, updateChat, createChat, deleteChat, findChatByUsername, searchPublicChannels, findChannelByDiscussionChatId };

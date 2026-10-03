@@ -124,6 +124,7 @@ app.use("/api/profile-track", require("./routes/profileTrack"));
 app.use("/api/status", require("./routes/profileStatus"));
 app.get("/api/status-catalog", (req, res) => res.json({ items: require("./data/profileStatuses").listCatalog() }));
 app.use("/api/usernames", require("./routes/usernames"));
+app.use("/api/communities", require("./routes/communities"));
 app.use("/api/bootstrap", require("./routes/bootstrap"));
 app.use("/s", require("./routes/shortLinks"));
 

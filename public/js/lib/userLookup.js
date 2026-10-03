@@ -38,3 +38,7 @@ export async function fetchUsers(ids) {
 export function rememberUser(user) {
   if (user?.id && known.has(user.id)) known.set(user.id, { ...known.get(user.id), ...user });
 }
+
+export function forgetUser(id) {
+  known.delete(id);
+}

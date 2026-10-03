@@ -1,6 +1,7 @@
 import { el } from "../lib/dom.js";
 import { PremiumStar } from "./premiumStar.js";
 import { api } from "../api.js";
+import { navigate } from "../router.js";
 import { iconSvg } from "../icons.js";
 import { Avatar, videoAvatarUrl } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
@@ -91,6 +92,59 @@ function membersLine(chat, members) {
   const noun = chat.type === "channel" ? plural(count, "подписчик", "подписчика", "подписчиков") : plural(count, "участник", "участника", "участников");
   const online = members.filter((m) => m.online).length;
   return online > 1 && chat.type !== "channel" ? `${count} ${noun}, ${online} в сети` : `${count} ${noun}`;
+}
+
+// «Входит в сообщество …» — подгружается отдельно; владельцу/админу без
+// сообщества — кнопки «Создать сообщество» и «Добавить в своё».
+function CommunityRow(chat, canManage) {
+  const slot = el("div", { class: "community-row-slot" });
+  api
+    .communityOfChat(chat.id)
+    .then(async ({ community }) => {
+      if (community) {
+        slot.replaceChildren(
+          el("button", { class: "info-community-link", onclick: () => navigate(`/community/${community.id}`) }, [
+            el("span", { html: iconSvg("Users", 16) }),
+            el("span", {}, ["Сообщество: ", el("b", {}, community.title)]),
+          ])
+        );
+        return;
+      }
+      if (!canManage) return;
+      const { communities } = await api.myCommunities().catch(() => ({ communities: [] }));
+      slot.replaceChildren(
+        el("div", { class: "info-community-actions" }, [
+          el("button", {
+            class: "settings-add-account-btn",
+            onclick: async () => {
+              const title = prompt("Название нового сообщества", chat.title)?.trim();
+              if (!title) return;
+              try {
+                const { community: created } = await api.createCommunity({ title, chatId: chat.id, avatarColor: chat.avatarColor });
+                navigate(`/community/${created.id}`);
+              } catch (err) {
+                alert(err.message || "Не удалось создать сообщество");
+              }
+            },
+          }, "Создать сообщество"),
+          ...communities.map((c) =>
+            el("button", {
+              class: "settings-add-account-btn",
+              onclick: async () => {
+                try {
+                  await api.addCommunityChat(c.id, chat.id);
+                  navigate(`/community/${c.id}`);
+                } catch (err) {
+                  alert(err.message || "Не удалось добавить");
+                }
+              },
+            }, `Добавить в «${c.title}»`)
+          ),
+        ])
+      );
+    })
+    .catch(() => {});
+  return slot;
 }
 
 export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalterAdmin, gifts, onClose, onToggleMute, onToggleBlock, onMemberAction, onTogglePremium, onDeliverGift, onAddMember, onRestrictMember, onVoteForGroup, onSetAutoDelete, onChatUpdated }) {
@@ -258,6 +312,7 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
         ]
       ),
       isDm && chat.otherUser ? DmProfileRows(chat.otherUser) : null,
+      !isDm && !chat.secret ? CommunityRow(chat, isOwnerOrAdmin) : null,
       chat.type === "group"
         ? el("div", { class: "group-vote-row" }, [
             el("div", {}, [

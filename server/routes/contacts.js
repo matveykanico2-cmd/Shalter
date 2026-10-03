@@ -4,7 +4,8 @@ const { requireUserId } = require("../middleware/auth");
 const { listContactsFor, addContact, renameContact, removeContact, setContactNote, contactNote } = require("../data/contacts");
 const { listUsers, listUsersByIds, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
-const { allowsUser, publicUserFor } = require("../lib/privacyRules");
+const { allowsUser, publicUserFor, exceptionsFor, normalizePrivacy } = require("../lib/privacyRules");
+const { getSettings, updateSettings } = require("../data/settings");
 const { phoneKey, indexUsersByPhone } = require("../lib/phoneMatch");
 
 const router = express.Router();
@@ -52,6 +53,18 @@ router.post(
       addedAt: new Date().toISOString(),
       localName: typeof localName === "string" ? localName.trim().slice(0, 80) : null,
     });
+    // «Поделиться моим номером», как в Telegram: этот человек увидит ваш номер,
+    // даже если в приватности он скрыт (исключение «Всегда показывать»).
+    if (req.body?.sharePhone === true) {
+      const settings = await getSettings(req.uid);
+      const privacy = settings.privacy ?? {};
+      const { allow, deny } = exceptionsFor(privacy, "phone");
+      const exceptions = {
+        ...(privacy.exceptions ?? {}),
+        phone: { allow: [...new Set([...allow, userId])], deny: deny.filter((id) => id !== userId) },
+      };
+      await updateSettings(req.uid, { privacy: normalizePrivacy({ ...privacy, exceptions }) });
+    }
     res.json({ contact });
   })
 );

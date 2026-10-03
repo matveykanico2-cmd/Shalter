@@ -222,4 +222,4 @@ async function checkFrameable(url, ourOrigin) {
   return result;
 }
 
-module.exports = { fetchLinkPreview, checkSafety, assertPublicUrl, checkFrameable };
+module.exports = { fetchLinkPreview, checkSafety, assertPublicUrl, checkFrameable, fetchPublic, decodeEntities, metaTag };

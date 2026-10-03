@@ -458,7 +458,7 @@ export async function ChatView(root, chatId) {
 
   // Запрет пересылки и сохранения (включил кто-то из двоих в личке).
   function isProtected() {
-    return isDm && (chat.protectedBy ?? []).length > 0;
+    return (isDm && (chat.protectedBy ?? []).length > 0) || !!chat.secret;
   }
   function applyProtection() {
     document.body.classList.toggle("protected-chat-open", isProtected());
@@ -1017,7 +1017,62 @@ export async function ChatView(root, chatId) {
   }
 
   const chatAdSlot = el("div", { class: "chat-ad-slot" });
-  const mainCol = el("div", { class: "chat-main-col" }, [header, topicsSlot, selectionBar, searchBar, liveBar, pinnedBar, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
+  // Как в Telegram: в личке с человеком не из контактов — «Добавить в контакты»
+  // и «Заблокировать». Закрыть можно крестиком (запоминается для этого чата).
+  const contactBarSlot = el("div", { class: "contact-bar-slot" });
+  const contactBarKey = `shalter_contact_bar_hidden_${chat.id}`;
+  function renderContactBar() {
+    clear(contactBarSlot);
+    let dismissed = false;
+    try {
+      dismissed = localStorage.getItem(contactBarKey) === "1";
+    } catch {
+    }
+    if (!isDm || isSaved || !other || other.isBot || other.isServiceBot || other.inContacts || dismissed) return;
+    contactBarSlot.appendChild(
+      el("div", { class: "contact-bar" }, [
+        el("button", {
+          class: "contact-bar-btn",
+          onclick: async () => {
+            const name = prompt("Как записать в контактах?", other.name)?.trim();
+            if (name === undefined) return;
+            try {
+              const sharePhone = confirm(`Поделиться своим номером телефона с ${other.name}?`);
+              await api.addContact(other.id, name || null, { sharePhone });
+              other = { ...other, inContacts: true, ...(name && name !== other.name ? { profileName: other.profileName ?? other.name, name } : {}) };
+              renderContactBar();
+              renderHeader();
+            } catch (err) {
+              alert(err.message || "Не удалось добавить в контакты");
+            }
+          },
+        }, "Добавить в контакты"),
+        el("button", {
+          class: "contact-bar-btn danger",
+          onclick: async () => {
+            if (iBlockedThem) return toggleBlock();
+            if (!confirm(`Заблокировать ${other.name}? Он(а) не сможет писать и звонить вам.`)) return;
+            await toggleBlock();
+            renderContactBar();
+          },
+        }, iBlockedThem ? "Разблокировать" : "Заблокировать"),
+        el("button", {
+          class: "icon-btn contact-bar-close",
+          title: "Скрыть",
+          html: iconSvg("X", 15),
+          onclick: () => {
+            try {
+              localStorage.setItem(contactBarKey, "1");
+            } catch {
+            }
+            renderContactBar();
+          },
+        }),
+      ])
+    );
+  }
+  renderContactBar();
+  const mainCol = el("div", { class: "chat-main-col" }, [header, topicsSlot, selectionBar, searchBar, liveBar, pinnedBar, contactBarSlot, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
   api
     .serveAd("chat")
     .then((r) => {
@@ -1179,7 +1234,8 @@ export async function ChatView(root, chatId) {
               orbit: true,
             }),
             el("div", { class: "chat-header-titles" }, [
-              el("p", { class: "chat-header-title" }, [
+              el("p", { class: `chat-header-title${chat.secret ? " secret-chat-title" : ""}` }, [
+                chat.secret ? el("span", { class: "secret-chat-lock", title: "Секретный чат", html: iconSvg("Lock", 14) }) : null,
                 el("span", { class: "chat-header-title-text" }, chatTitle()),
                 ...(isSaved ? [] : [
                 VerifiedBadge(isDm ? other : chat, 15),
@@ -1273,12 +1329,36 @@ export async function ChatView(root, chatId) {
                     },
                   ]
                 : []),
+              // Модерация Shalter: удалить группу, канал или бота за нарушение прямо из чата.
+              ...((me.isDeveloper || me.adminSections?.includes("moderation")) &&
+              ((isGroup || isChannel) && chat.ownerId !== me.id || (isDm && other?.isBot && !other.isServiceBot && !String(other.id).startsWith("bot_")))
+                ? [
+                    {
+                      icon: "Trash",
+                      danger: true,
+                      label: "Удалить за нарушение",
+                      onClick: async () => {
+                        const what = isChannel ? "канал" : isGroup ? "группу" : "бота";
+                        const reason = prompt(`Удалить ${what} «${chatTitle()}» за нарушение правил? Это необратимо.\n\nПричина — придёт владельцу и попадёт в журнал:`, "")?.trim();
+                        if (!reason) return;
+                        try {
+                          if (isDm) await api.adminDeleteBot(other.id, reason);
+                          else await api.deleteChat(chat.id, reason);
+                          setState({ chats: getState().chats.filter((c) => c.id !== chat.id) });
+                          navigate("/");
+                        } catch (err) {
+                          alert(err.message || "Не удалось удалить");
+                        }
+                      },
+                    },
+                  ]
+                : []),
               {
                 icon: isChatMuted(chat) ? "Bell" : "BellOff",
                 label: isChatMuted(chat) ? "Включить уведомления" : "Отключить уведомления",
                 onClick: isChatMuted(chat) ? () => setMute({ off: true }) : () => openMuteDurationDialog(setMute),
               },
-              ...(isDm && !isSaved && !other?.isBot
+              ...(isDm && !isSaved && !other?.isBot && !chat.secret
                 ? [
                     {
                       icon: "Lock",
@@ -1975,6 +2055,7 @@ export async function ChatView(root, chatId) {
         paidMessages = res.paidMessages ?? null;
         other = chat.otherUser ?? (isDm ? members.find((u) => u.id !== me.id) : null) ?? null;
         renderHeader();
+        renderContactBar();
         renderInfoPanel();
         rerenderListKeepingScroll();
         renderComposer();

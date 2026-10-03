@@ -6,7 +6,7 @@ import { ProfileStatusBadge } from "../components/profileStatusBadge.js";
 import { api } from "../api.js";
 import { navigate } from "../router.js";
 import { getState, setState, updateSelf } from "../state.js";
-import { openProfileDialog } from "../components/profileDialog.js";
+import { openProfileDialog, isBirthdayToday } from "../components/profileDialog.js";
 import { statusLabel } from "../lib/presence.js";
 import { openImportContactsDialog } from "../components/importContactsDialog.js";
 import { PhoneField } from "../components/phoneField.js";
@@ -217,15 +217,40 @@ export async function ContactsView(root) {
 
   const displayName = (c) => c.localName || c.user.name;
 
+  // Сортировка как в Telegram: по умолчанию сначала те, кто в сети, затем по
+  // времени последнего визита; можно переключить на «по имени».
+  let sortMode = "seen";
+  try {
+    sortMode = localStorage.getItem("shalter_contacts_sort") === "name" ? "name" : "seen";
+  } catch {
+  }
+  function setSortMode(mode) {
+    sortMode = mode;
+    try {
+      localStorage.setItem("shalter_contacts_sort", mode);
+    } catch {
+    }
+    render();
+  }
+  const seenRank = (u) => (u.online ? "9" : u.lastSeen ? `1${u.lastSeen}` : "0");
+  function compareContacts(a, b) {
+    if (sortMode === "seen") {
+      const diff = seenRank(b.user).localeCompare(seenRank(a.user));
+      if (diff) return diff;
+    }
+    return displayName(a).localeCompare(displayName(b), "ru");
+  }
+
   function visibleContacts() {
     const q = filter.trim().toLowerCase();
-    const sorted = [...contacts].sort((a, b) => displayName(a).localeCompare(displayName(b), "ru"));
+    const sorted = [...contacts].sort(compareContacts);
     if (!q) return sorted;
     const qDigits = digits(q);
     return sorted.filter(
       (c) =>
         displayName(c).toLowerCase().includes(q) ||
         c.user.name.toLowerCase().includes(q) ||
+        (c.user.profileName ?? "").toLowerCase().includes(q) ||
         (c.user.username ?? "").toLowerCase().includes(q.replace(/^@/, "")) ||
         (qDigits.length >= 3 && digits(c.user.phone).includes(qDigits))
     );
@@ -345,12 +370,37 @@ export async function ContactsView(root) {
       listEl.appendChild(el("p", { class: "empty-hint" }, `По запросу «${filter.trim()}» никого нет`));
       return;
     }
+    // Дни рождения сегодня — отдельным блоком сверху, как в Telegram.
+    const birthdays = filter.trim() ? [] : sorted.filter((c) => c.user.birthday && isBirthdayToday(c.user.birthday));
+    if (birthdays.length) {
+      listEl.appendChild(el("p", { class: "list-section-label" }, "🎂 Сегодня день рождения"));
+      listEl.append(
+        ...birthdays.map((c) =>
+          el("div", { class: "contact-row contact-birthday-row" }, [
+            el("button", { class: "contact-row-profile-btn", onclick: () => openProfileDialog(c.user.id) }, [
+              Avatar({ name: displayName(c), color: c.user.avatarColor, image: c.user.avatarImage, online: c.user.online }),
+              el("div", { class: "contact-row-body" }, [el("p", { class: "contact-row-name" }, displayName(c)), el("p", { class: "contact-row-status" }, "Поздравьте!")]),
+            ]),
+            el("button", {
+              class: "btn-accent-pill",
+              onclick: async () => {
+                const { chat } = await api.startDm(c.user.id, c.user.name, c.user.avatarColor);
+                navigate(`/chat/${chat.id}`);
+              },
+            }, "Написать"),
+          ])
+        )
+      );
+    }
     listEl.appendChild(
-      el(
-        "p",
-        { class: "list-section-label" },
-        filter.trim() ? `Найдено — ${sorted.length}` : `Контакты — ${sorted.length}`
-      )
+      el("div", { class: "contacts-list-head" }, [
+        el("p", { class: "list-section-label" }, filter.trim() ? `Найдено — ${sorted.length}` : `Контакты — ${sorted.length}`),
+        el(
+          "button",
+          { class: "contacts-sort-btn", title: "Сортировка", onclick: () => setSortMode(sortMode === "seen" ? "name" : "seen") },
+          sortMode === "seen" ? "по времени входа" : "по имени"
+        ),
+      ])
     );
     listEl.append(
       ...sorted.map((c) => {
@@ -359,13 +409,16 @@ export async function ContactsView(root) {
           el("button", { class: "contact-row-profile-btn", onclick: () => openProfileDialog(user.id) }, [
             Avatar({ name: displayName(c), color: user.avatarColor, image: user.avatarImage, online: user.online }),
             el("div", { class: "contact-row-body" }, [
-              el("p", { class: "contact-row-name" }, [displayName(c), VerifiedBadge(user, 13), ProfileStatusBadge(user, 13)].filter(Boolean)),
+              el("p", { class: "contact-row-name" }, [
+                displayName(c),
+                user.mutualContact ? el("span", { class: "mutual-contact-mark", title: "Взаимный контакт — вы есть друг у друга в контактах" }, "⇄") : null,
+                VerifiedBadge(user, 13),
+                ProfileStatusBadge(user, 13),
+              ].filter(Boolean)),
               el(
                 "p",
                 { class: `contact-row-status ${user.online ? "online" : ""}` },
-                c.localName && c.localName !== user.name
-                  ? user.name
-                  : statusLabel(user) ?? (user.username ? `@${user.username}` : "недавно")
+                statusLabel(user) ?? (user.username ? `@${user.username}` : "был(а) недавно")
               ),
             ]),
           ]),

@@ -15,7 +15,7 @@ router.get(
   asyncRoute(async (req, res) => {
     const [settings, chats, folders, contacts] = await Promise.all([
       getSettings(req.uid),
-      listChatsForUser(req.uid),
+      listChatsForUser(req.uid, { deviceId: req.cookies?.device_id ?? null }),
       listFoldersFor(req.uid),
       listContactsFor(req.uid),
     ]);

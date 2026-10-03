@@ -21,7 +21,8 @@ async function buildUserExport(targetUserId) {
     return u ? { id, name: u.name, username: u.username || undefined, phone: u.phone || undefined } : { id };
   };
 
-  const memberChats = allChats.filter((c) => c.memberIds.includes(targetUserId));
+  // Секретные чаты в экспорт не попадают — как в Telegram.
+  const memberChats = allChats.filter((c) => c.memberIds.includes(targetUserId) && !c.secret);
 
   let messageCount = 0;
   const chats = memberChats.map((chat) => {

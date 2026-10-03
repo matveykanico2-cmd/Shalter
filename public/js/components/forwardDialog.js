@@ -8,7 +8,7 @@ export function openForwardDialog(onPick, { count = 1, allowHideAuthor = false }
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const titleOf = (c) => (c.isSaved ? "Избранное" : (c.otherUser?.name ?? c.title ?? ""));
   const candidates = chats
-    .filter((c) => !c.archived || c.isSaved)
+    .filter((c) => (!c.archived || c.isSaved) && !c.secret)
     .sort((a, b) => (b.isSaved ? 1 : 0) - (a.isSaved ? 1 : 0));
 
   const list = el("div", { class: "forward-list" });

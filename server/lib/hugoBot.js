@@ -237,4 +237,40 @@ async function dispatchHugo(chatId, message) {
   }
 }
 
-module.exports = { dispatchHugo, composeReply, HUGO_ID };
+// Гостевой ИИ-бот, как в Telegram: «@hugo вопрос» в любой группе или личке —
+// Хьюго отвечает прямо там, не вступая в чат. Контекстом идёт сообщение,
+// на которое ответили, — так можно спросить «@hugo кратко перескажи».
+const GUEST_MENTION = /(^|[^\w@])@hugo\b/i;
+const MAX_GUEST_CONTEXT = 4000;
+
+async function dispatchGuestHugo(chat, message) {
+  try {
+    if (message.senderId === HUGO_ID || message.type !== "text" || !GUEST_MENTION.test(message.text ?? "")) return;
+    // В секретный чат и каналы гость не заходит; там, где Хьюго участник, отвечает dispatchHugo.
+    if (chat.secret || chat.type === "channel" || chat.memberIds.includes(HUGO_ID)) return;
+    const question = message.text.replace(GUEST_MENTION, "$1").trim();
+    if (!question) {
+      await sendMessageAndBroadcast(chat, HUGO_ID, "Я Хьюго 👋 Напишите вопрос после @hugo — отвечу прямо здесь.", { replyToId: message.id });
+      return;
+    }
+    const { getMessage } = require("../data/messages");
+    const replied = message.replyToId ? await getMessage(message.replyToId) : null;
+    const context = replied?.text?.trim() ? replied.text.trim().slice(0, MAX_GUEST_CONTEXT) : "";
+    const prompt = context ? `Сообщение из чата:\n«${context}»\n\nВопрос: ${question}` : question;
+
+    let reply = null;
+    if (isAiAvailable() && !isCommand(question)) {
+      if (!takeRateSlot(message.senderId)) {
+        reply = "Слишком много вопросов подряд — подождите немного 🙏";
+      } else {
+        reply = (await generateReply([{ role: "user", content: prompt }], { knowledge: KNOWLEDGE }))?.text ?? null;
+      }
+    }
+    reply = reply ?? (await composeReply(question));
+    if (reply) await sendMessageAndBroadcast(chat, HUGO_ID, reply, { replyToId: message.id });
+  } catch (err) {
+    console.error("guest hugo reply failed:", err);
+  }
+}
+
+module.exports = { dispatchHugo, dispatchGuestHugo, composeReply, HUGO_ID };

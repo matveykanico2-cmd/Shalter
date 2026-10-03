@@ -32,7 +32,9 @@ function normalizeKeyboard(keyboard) {
   return rows.length ? rows : undefined;
 }
 
-async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId, attachments } = {}) {
+// visibleTo — id участника группы: сообщение увидит только он (как скрытые
+// ответы ботов в группах Telegram). Остальным оно сразу «удалено у себя».
+async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId, attachments, visibleTo } = {}) {
   if (!text?.trim()) throw new Error("text is required");
 
   const chat = await getChat(chatId);
@@ -45,6 +47,13 @@ async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId, at
     if (other?.blockedUserIds?.includes(botUserId)) throw new Error("User has blocked the bot");
   }
   const reply = typeof replyToId === "string" && replyToId ? await getMessage(replyToId) : null;
+  let visibleToId = null;
+  if (visibleTo != null) {
+    if (chat.type !== "group" || typeof visibleTo !== "string" || !chat.memberIds.includes(visibleTo)) {
+      throw new Error("visibleTo must be a member of this group");
+    }
+    visibleToId = visibleTo;
+  }
 
   const message = await addMessage({
     id: genId("m"),
@@ -58,10 +67,39 @@ async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId, at
     // Бот присылает вложения сам — те же проверки, что у людей (без javascript:-ссылок и т. п.).
     attachments: sanitizeAttachments(attachments),
     readByIds: [],
+    visibleToId,
+    deletedForIds: visibleToId ? chat.memberIds.filter((id) => id !== visibleToId && id !== botUserId) : [],
   });
   registerAttachments(chat.id, message.attachments);
-  broadcastToUsers(chat.memberIds, { type: "message:new", chatId, message });
+  broadcastToUsers(visibleToId ? [visibleToId, botUserId] : chat.memberIds, { type: "message:new", chatId, message });
+  if (!visibleToId) dispatchToOtherBots(chat, message);
   return message;
+}
+
+// Чаты бот-бот: сообщение бота получают другие боты с кодом в этом же чате
+// (msg.fromBot = true, чтобы бот мог их отличить). Чтобы два бота не
+// перебрасывались ответами бесконечно — не больше BOT_TO_BOT_MAX в минуту на чат.
+const BOT_TO_BOT_MAX = 20;
+const botToBotHits = new Map();
+function dispatchToOtherBots(chat, message) {
+  const others = chat.memberIds.filter((id) => id !== message.senderId);
+  if (!others.length) return;
+  const now = Date.now();
+  const hits = (botToBotHits.get(chat.id) ?? []).filter((t) => now - t < 60_000);
+  if (hits.length >= BOT_TO_BOT_MAX) return;
+  const { getBotByUserId } = require("../data/bots");
+  const { runBotCode } = require("./botSandbox");
+  for (const id of others) {
+    getBotByUserId(id)
+      .then((bot) => {
+        if (!bot?.code?.trim()) return;
+        hits.push(Date.now());
+        botToBotHits.set(chat.id, hits);
+        if (hits.length > BOT_TO_BOT_MAX) return;
+        return runBotCode(bot, bot.code, { id: message.id, chatId: chat.id, senderId: message.senderId, text: message.text, createdAt: message.createdAt, fromBot: true });
+      })
+      .catch((err) => console.error(`bot-to-bot dispatch failed for ${id}:`, err));
+  }
 }
 
 module.exports = { sendBotMessage, normalizeKeyboard };

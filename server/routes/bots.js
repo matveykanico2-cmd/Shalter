@@ -3,7 +3,7 @@ const { genId } = require("../lib/genId");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { countBotAudience, listBotDmChatIds, getBotByUserId, getBotToken, listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotApp, updateBotAppCode, updateBotCode, updateBotCommands, updateBotDescription } = require("../data/bots");
-const { createUser, getUser, updateUser } = require("../data/users");
+const { createUser, getUser, updateUser, deleteUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { checkUsername, normalizeUsername, generateBotUsername } = require("../lib/username");
 const { runBotCode } = require("../lib/botSandbox");
@@ -91,6 +91,8 @@ router.delete(
     const bot = await requireOwnedBot(req, res);
     if (!bot) return;
     await deleteBot(bot.id);
+    // Аккаунт бота тоже убираем — как при удалении аккаунта владельца (lib/deleteAccount.js).
+    await deleteUser(bot.userId);
     res.json({ ok: true });
   })
 );

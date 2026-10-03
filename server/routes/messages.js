@@ -25,7 +25,7 @@ const { messageCost } = require("../lib/messagePrice");
 const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled, WHEN_ONLINE } = require("../data/scheduledMessages");
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
-const { dispatchHugo } = require("../lib/hugoBot");
+const { dispatchHugo, dispatchGuestHugo } = require("../lib/hugoBot");
 const { dispatchHelperBot } = require("../lib/helperBot");
 const { dispatchBusinessAutoReply } = require("../lib/businessAutoReply");
 const { can, DENIED, isStaff } = require("../lib/chatPermissions");
@@ -104,7 +104,10 @@ async function pushNewMessage(chat, sender, message, { silent = false } = {}) {
       const settings = await getSettings(uid);
       if (isQuietNow(settings, chat.id)) return;
       const mentioned = message.mentionedUserIds?.includes(uid);
-      const body = !settings.notifications.previewText
+      // Секретный чат: ни текста, ни имени в уведомлении — как в Telegram.
+      const body = chat.secret
+        ? "🔒 Новое сообщение в секретном чате"
+        : !settings.notifications.previewText
         ? mentioned
           ? "Вас упомянули"
           : "Новое сообщение"
@@ -116,7 +119,7 @@ async function pushNewMessage(chat, sender, message, { silent = false } = {}) {
       const avatar = chatAvatar ?? (await userPushAvatar(sender, uid));
       await sendPushToUser(
         uid,
-        { title, body, ...avatar, url: `/chat/${chat.id}`, kind: "message", tag: `chat-${chat.id}`, ...(silent ? { silent: true } : {}) },
+        { title: chat.secret ? "Shalter" : title, body, ...(chat.secret ? {} : avatar), url: `/chat/${chat.id}`, kind: "message", tag: `chat-${chat.id}`, ...(silent ? { silent: true } : {}) },
         MESSAGE_PUSH
       );
     })
@@ -138,7 +141,10 @@ router.get(
     // ?topic=general — тема «Общее», ?topic=<id> — одна тема; без параметра — весь чат.
     const rawTopic = typeof req.query.topic === "string" && req.query.topic ? req.query.topic : null;
     const topic = !chat.topicsEnabled || !rawTopic ? undefined : rawTopic === "general" ? null : rawTopic;
-    const { messages, hasMore } = listMessagesPage(req.params.id, req.uid, settings.chatClears?.[req.params.id], { limit, before, beforeId, topic });
+    const page = listMessagesPage(req.params.id, req.uid, settings.chatClears?.[req.params.id], { limit, before, beforeId, topic });
+    // Скрытый ответ бота виден только адресату (и тем, кто вступил позже, тоже не виден).
+    const messages = page.messages.filter((m) => !m.visibleToId || m.visibleToId === req.uid || m.senderId === req.uid);
+    const { hasMore } = page;
 
     const firstUnreadId =
       messages.find((m) => m.senderId !== req.uid && !(m.readByIds ?? []).includes(req.uid))?.id ?? null;
@@ -197,6 +203,40 @@ router.get(
       .filter((m) => !m.deleted && !m.deletedForIds?.includes(req.uid) && (!clearedBefore || m.createdAt > clearedBefore))
       .reverse();
     res.json({ messages: found });
+  })
+);
+
+// «Кратко»: ИИ-сводка длинного сообщения или поста. Кэшируем по сообщению
+// и времени правки, чтобы модель не дёргалась на каждый клик.
+const SUMMARY_MIN_CHARS = 400;
+const summaryCache = new Map();
+const summaryHits = new Map();
+router.get(
+  "/:messageId/summary",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    // Переписку секретного чата во внешнюю модель не отправляем.
+    if (chat.secret) return res.status(403).json({ error: "В секретном чате сводки недоступны" });
+    const message = await getMessage(req.params.messageId);
+    if (!message || message.chatId !== chat.id || message.deletedForIds?.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    if ((message.text ?? "").length < SUMMARY_MIN_CHARS) return res.status(400).json({ error: "Сообщение слишком короткое для сводки" });
+
+    const key = `${message.id}:${message.editedAt ?? ""}`;
+    if (summaryCache.has(key)) return res.json({ summary: summaryCache.get(key) });
+
+    const { isAiAvailable, summarize } = require("../lib/hugoAi");
+    if (!isAiAvailable()) return res.status(503).json({ error: "ИИ сейчас недоступен" });
+    const now = Date.now();
+    const hits = (summaryHits.get(req.uid) ?? []).filter((t) => now - t < 60_000);
+    if (hits.length >= 10) return res.status(429).json({ error: "Слишком много сводок, подождите минуту" });
+    summaryHits.set(req.uid, [...hits, now]);
+
+    const summary = await summarize(message.text);
+    if (!summary) return res.status(502).json({ error: "Не удалось сделать сводку, попробуйте позже" });
+    if (summaryCache.size > 2000) summaryCache.delete(summaryCache.keys().next().value);
+    summaryCache.set(key, summary);
+    res.json({ summary });
   })
 );
 
@@ -354,6 +394,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   }
 
   dispatchHugo(chat.id, message);
+  dispatchGuestHugo(chat, message);
 
   dispatchHelperBot(chat, message);
 
@@ -370,7 +411,8 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
 
   attachPreviews(chat, message).catch((err) => console.error("attachment preview failed:", err));
 
-  if (message.type === "text" && message.text) {
+  // В секретном чате превью ссылок не запрашиваем: сервер не ходит по ссылкам из переписки.
+  if (message.type === "text" && message.text && !chat.secret) {
     fetchLinkPreview(message.text)
       .then(async (linkPreview) => {
         if (!linkPreview) return;
@@ -418,13 +460,14 @@ async function sendGate(chat, uid, body, { charge = true, skipSlowMode = false }
   // Нормализованный id кладётся обратно в body.topicId для deliverMessage.
   // Пересылка: подпись «Переслано от …» и содержимое берём из исходного
   // сообщения в базе, а не из тела запроса — иначе её можно подделать.
+  if (body.forwardedFrom && chat.secret) return fail(403, { error: "В секретный чат нельзя пересылать" });
   if (body.forwardedFrom) {
     const sourceMsg = typeof body.forwardedFrom.messageId === "string" ? await getMessage(body.forwardedFrom.messageId) : null;
     const source = sourceMsg ? await getChat(sourceMsg.chatId) : null;
     if (!sourceMsg || !source?.memberIds.includes(uid) || sourceMsg.deletedForIds?.includes(uid)) {
       return fail(404, { error: "Исходное сообщение не найдено" });
     }
-    if (source.protectedBy?.length) return fail(403, { error: "В этом чате запрещена пересылка" });
+    if (source.protectedBy?.length || source.secret) return fail(403, { error: "В этом чате запрещена пересылка" });
     // «Скрыть имя отправителя»: копия уходит как своё сообщение, без подписи.
     body.forwardedFrom = body.forwardedFrom.hideAuthor === true ? undefined : sourceMsg.forwardedFrom ?? (await forwardOrigin(source, sourceMsg, uid));
     body.text = sourceMsg.text ?? "";

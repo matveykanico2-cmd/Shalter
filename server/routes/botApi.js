@@ -64,12 +64,12 @@ router.get(
 router.post(
   "/sendMessage",
   asyncRoute(async (req, res) => {
-    const { chatId, text, keyboard, replyToId } = req.body ?? {};
+    const { chatId, text, keyboard, replyToId, visibleTo } = req.body ?? {};
     try {
-      const message = await sendBotMessage(req.bot.userId, chatId, text, { keyboard, replyToId });
+      const message = await sendBotMessage(req.bot.userId, chatId, text, { keyboard, replyToId, visibleTo });
       res.json({ message });
     } catch (err) {
-      res.status(err.message === "text is required" ? 400 : 404).json({ error: err.message });
+      res.status(err.message === "text is required" || err.message.startsWith("visibleTo") ? 400 : 404).json({ error: err.message });
     }
   })
 );

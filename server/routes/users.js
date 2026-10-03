@@ -4,7 +4,7 @@ const { requireUserId } = require("../middleware/auth");
 const { listUsersByIds, updateUser, getUser, setBlocked, findUserByUsername, findUserByPhone, setAvatars } = require("../data/users");
 const { publicUser, selfUser, publicUsers } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
-const { privacyAllows, publicUserFor, publicUsersFor } = require("../lib/privacyRules");
+const { privacyAllows, publicUserFor, publicUsersFor, applyContactName } = require("../lib/privacyRules");
 const { listContactsFor, contactNote } = require("../data/contacts");
 const { countBotAudience } = require("../data/bots");
 const { listChats, listChatsForUser, getChat, findDmBetween } = require("../data/chats");
@@ -117,6 +117,8 @@ router.get(
         visible.online = false;
       }
     }
+
+    if (!isSelf) applyContactName(visible, myContact, isContact);
 
     if (user.isBusiness) {
       const { business } = await getSettings(req.params.id);

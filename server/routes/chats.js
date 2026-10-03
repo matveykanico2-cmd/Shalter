@@ -1,8 +1,9 @@
 const express = require("express");
 const { genId } = require("../lib/genId");
+const { logExport } = require("../data/dataExport");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findDmBetween, findChatByInviteCode, findChatByUsername, findChannelByDiscussionChatId } = require("../data/chats");
+const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser, findDmBetween, findChatByInviteCode, findChatByUsername, findChannelByDiscussionChatId, isSecretChat, claimSecretDevice } = require("../data/chats");
 const { checkUsername, normalizeUsername } = require("../lib/username");
 const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeatures");
 const { PERMISSIONS, permissionsOf, sanitizePermissions, can } = require("../lib/chatPermissions");
@@ -14,7 +15,7 @@ const { attachSummaries } = require("../data/chat-summary");
 const { listUsers, listUsersByIds, getUser } = require("../data/users");
 const { hasAdminSection } = require("../lib/adminAccess");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
-const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
+const { findOrCreateDm, sendMessageAndBroadcast, serviceLine } = require("../lib/systemChat");
 const { publicUser } = require("../data/sanitize");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
 const { getBotByUserId } = require("../data/bots");
@@ -30,7 +31,7 @@ router.use(requireUserId);
 router.get(
   "/",
   asyncRoute(async (req, res) => {
-    const chats = await listChatsForUser(req.uid);
+    const chats = await listChatsForUser(req.uid, { deviceId: req.cookies?.device_id ?? null });
     const withSummary = await attachSummaries(chats, req.uid);
     const settings = await getSettings(req.uid);
     const hidden = settings.hiddenChats ?? {};
@@ -83,6 +84,52 @@ router.post(
     });
 
     res.json({ chat });
+  })
+);
+
+// Секретный чат: личка со своим ключом шифрования, привязанная к устройству.
+// Можно завести несколько с одним человеком — как в Telegram.
+router.post(
+  "/secret",
+  asyncRoute(async (req, res) => {
+    const userId = req.body?.userId;
+    const deviceId = req.cookies?.device_id;
+    if (!deviceId) return res.status(400).json({ error: "Не удалось определить устройство" });
+    if (typeof userId !== "string" || userId === req.uid) return res.status(400).json({ error: "Выберите собеседника" });
+    const other = await getUser(userId);
+    if (!other) return res.status(404).json({ error: "Пользователь не найден" });
+    if (other.isBot) return res.status(400).json({ error: "С ботом секретный чат не начать" });
+    if ((other.blockedUserIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Пользователь заблокировал вас" });
+
+    const chat = await createChat({
+      id: genId("c"),
+      type: "dm",
+      title: "",
+      memberIds: [req.uid, userId],
+      pinned: false,
+      muted: false,
+      archived: false,
+      createdAt: new Date().toISOString(),
+      secret: true,
+      secretDevices: { [req.uid]: deviceId },
+    });
+    // Без сообщения пустая личка не показывается в списке чатов.
+    await serviceLine(chat, req.uid, (name) => `🔒 ${name} начал(а) секретный чат. Сообщения шифруются ключом этого чата, их нельзя переслать, а сам чат доступен только на этом устройстве.`);
+    res.json({ chat: await getChat(chat.id) });
+  })
+);
+
+// Секретный чат доступен только с «своего» устройства. Собеседник привязывает
+// его, открыв в первый раз; с других его устройств чата как будто нет.
+router.use(
+  "/:id",
+  asyncRoute(async (req, res, next) => {
+    if (!isSecretChat(req.params.id)) return next();
+    const chat = await getChat(req.params.id);
+    if (!chat?.memberIds.includes(req.uid) || !claimSecretDevice(chat.id, req.uid, req.cookies?.device_id)) {
+      return res.status(404).json({ error: "not found" });
+    }
+    next();
   })
 );
 
@@ -810,9 +857,26 @@ router.delete(
     await deleteChat(req.params.id);
     if (moderator) {
       const kind = chat.type === "channel" ? "Канал" : "Группа";
-      for (const ownerId of new Set([chat.ownerId, ...(chat.ownerIds ?? [])].filter(Boolean))) {
+      const reason = String(req.body?.reason ?? "").trim().slice(0, 500);
+      const owners = [...new Set([chat.ownerId, ...(chat.ownerIds ?? [])].filter(Boolean))];
+      // Журнал модерации — тот же, что у удаления аккаунтов (admin.js).
+      try {
+        logExport({
+          adminId: req.uid,
+          targetUserId: owners[0] ?? req.uid,
+          reason: `УДАЛЕНИЕ ${chat.type === "channel" ? "КАНАЛА" : "ГРУППЫ"} «${chat.title ?? ""}»${chat.username ? ` @${chat.username}` : ""} (${chat.id}): ${reason || "нарушение правил"}`,
+          messageCount: 0,
+        });
+      } catch (err) {
+        console.error("moderation log failed:", err);
+      }
+      for (const ownerId of owners) {
         const dm = await findOrCreateDm(SYSTEM_BOT_ID, ownerId);
-        await sendMessageAndBroadcast(dm, SYSTEM_BOT_ID, `🛡 ${kind} «${chat.title ?? chat.name}» удалён${chat.type === "channel" ? "" : "а"} модерацией Shalter за нарушение правил.`);
+        await sendMessageAndBroadcast(
+          dm,
+          SYSTEM_BOT_ID,
+          `🛡 ${kind} «${chat.title ?? chat.name}» удалён${chat.type === "channel" ? "" : "а"} модерацией Shalter за нарушение правил.${reason ? `\nПричина: ${reason}` : ""}`
+        );
       }
     }
     res.json({ ok: true });

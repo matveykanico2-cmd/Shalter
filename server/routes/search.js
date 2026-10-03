@@ -22,7 +22,8 @@ router.get(
     if (!q) return res.json({ chats: [], channels: [], users: [], bots: [], messages: [] });
 
     const [chats, users, publicChannels] = await Promise.all([
-      listChatsForUser(req.uid),
+      // Секретные чаты в общий поиск не попадают — как в Telegram.
+      listChatsForUser(req.uid).then((list) => list.filter((c) => !c.secret)),
       searchUsers(raw, { limit: LIMIT }),
       searchPublicChannels(raw),
     ]);

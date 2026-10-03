@@ -1156,12 +1156,19 @@ CREATE TABLE IF NOT EXISTS translation_cache (
   if (!chatCols.has("topicsEnabled")) db.exec("ALTER TABLE chats ADD COLUMN topicsEnabled INTEGER NOT NULL DEFAULT 0");
   if (!chatCols.has("welcomeText")) db.exec("ALTER TABLE chats ADD COLUMN welcomeText TEXT");
   if (!chatCols.has("protectedBy")) db.exec("ALTER TABLE chats ADD COLUMN protectedBy TEXT");
+  // Секретные чаты: свой ключ на чат (хранится обёрнутым мастер-ключом) и
+  // привязка к устройству каждого участника — { userId: deviceId }.
+  if (!chatCols.has("secret")) db.exec("ALTER TABLE chats ADD COLUMN secret INTEGER NOT NULL DEFAULT 0");
+  if (!chatCols.has("secretKey")) db.exec("ALTER TABLE chats ADD COLUMN secretKey TEXT");
+  if (!chatCols.has("secretDevices")) db.exec("ALTER TABLE chats ADD COLUMN secretDevices TEXT");
   const msgCols = new Set(db.prepare("PRAGMA table_info(messages)").all().map((c) => c.name));
   if (!msgCols.has("topicId")) db.exec("ALTER TABLE messages ADD COLUMN topicId TEXT");
   // Когда сообщение в личке прочитали (для «Прочитано в 14:05»).
   if (!msgCols.has("readAt")) db.exec("ALTER TABLE messages ADD COLUMN readAt TEXT");
   // Эффект при отправке (🔥🎉…), как в личках Telegram.
   if (!msgCols.has("effect")) db.exec("ALTER TABLE messages ADD COLUMN effect TEXT");
+  // Сообщение бота в группе, видное только одному участнику (остальным оно в deletedForIds).
+  if (!msgCols.has("visibleToId")) db.exec("ALTER TABLE messages ADD COLUMN visibleToId TEXT");
   db.exec("CREATE INDEX IF NOT EXISTS idx_messages_topic ON messages(chatId, topicId, createdAt) WHERE topicId IS NOT NULL");
   const schedCols = new Set(db.prepare("PRAGMA table_info(scheduled_messages)").all().map((c) => c.name));
   if (!schedCols.has("repeat")) db.exec("ALTER TABLE scheduled_messages ADD COLUMN repeat TEXT");
@@ -1169,5 +1176,24 @@ CREATE TABLE IF NOT EXISTS translation_cache (
   const contactCols = new Set(db.prepare("PRAGMA table_info(contacts)").all().map((c) => c.name));
   if (!contactCols.has("note")) db.exec("ALTER TABLE contacts ADD COLUMN note TEXT");
 }
+
+// Сообщества (Communities): несколько групп и каналов под одной вывеской.
+// Чат входит максимум в одно сообщество — отсюда PRIMARY KEY по chatId.
+db.exec(`
+CREATE TABLE IF NOT EXISTS communities (
+  id TEXT PRIMARY KEY,
+  ownerId TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  avatarColor TEXT,
+  createdAt TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS community_chats (
+  chatId TEXT PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
+  communityId TEXT NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+  addedAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_community_chats_community ON community_chats(communityId);
+`);
 
 module.exports = db;

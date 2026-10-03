@@ -86,6 +86,20 @@ async function recordsReadTime(chat, readerId) {
   return !!other && (await allowsUser(readerId, "lastSeen", other));
 }
 
+// Как в Telegram: у себя в контактах человек подписан вашим именем для него —
+// везде (список чатов, заголовок, сообщения). Имя из профиля — в profileName.
+// inContacts — он у вас в контактах, mutualContact — и вы у него.
+function applyContactName(visible, myContact, theyHaveMe) {
+  visible.inContacts = !!myContact || undefined;
+  visible.mutualContact = (!!myContact && theyHaveMe) || undefined;
+  const localName = myContact?.localName?.trim();
+  if (localName && localName !== visible.name) {
+    visible.profileName = visible.name;
+    visible.name = localName;
+  }
+  return visible;
+}
+
 // publicUser(), но с учётом приватности того, чей профиль смотрят: время
 // визита, фото, «о себе» и день рождения — как в GET /users/:id.
 async function publicUserFor(user, viewerId) {
@@ -94,6 +108,7 @@ async function publicUserFor(user, viewerId) {
   if (!user || user.id === viewerId) return visible;
   const { privacy } = await getSettings(user.id);
   const isContact = (await listContactsFor(user.id)).some((c) => c.userId === viewerId);
+  applyContactName(visible, (await listContactsFor(viewerId)).find((c) => c.userId === user.id), isContact);
   const canSee = (key) => privacyAllows(privacy, key, viewerId, isContact);
   const blocked = (user.blockedUserIds ?? []).includes(viewerId);
   if (blocked || !canSee("lastSeen")) {
@@ -113,4 +128,4 @@ function publicUsersFor(users, viewerId) {
   return Promise.all(users.map((u) => publicUserFor(u, viewerId)));
 }
 
-module.exports = { PRIVACY_KEYS, privacyAllows, allowsUser, normalizePrivacy, exceptionsFor, recordsReadTime, publicUserFor, publicUsersFor };
+module.exports = { PRIVACY_KEYS, privacyAllows, allowsUser, normalizePrivacy, exceptionsFor, recordsReadTime, publicUserFor, publicUsersFor, applyContactName };

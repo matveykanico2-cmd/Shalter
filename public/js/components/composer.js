@@ -281,6 +281,74 @@ export function Composer({
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
+    // Панель форматирования, как в Telegram: появляется над полем, когда
+    // выделен текст. Кнопки оборачивают выделение той же разметкой, что и
+    // сочетания клавиш ниже (formatText.js её и отображает).
+    function quoteSelection() {
+      const { selectionStart: a, selectionEnd: b, value } = textarea;
+      const inner = value.slice(a, b);
+      const lines = inner.split("\n");
+      const quoted = lines.every((l) => l.startsWith("> ")) ? lines.map((l) => l.slice(2)) : lines.map((l) => `> ${l}`);
+      textarea.setRangeText(quoted.join("\n"), a, b, "select");
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    function linkSelection() {
+      const { selectionStart: a, selectionEnd: b, value } = textarea;
+      const label = value.slice(a, b).replace(/[\[\]\n]/g, " ").trim();
+      if (!label) return;
+      let url = prompt("Адрес ссылки", "https://")?.trim();
+      if (!url) return;
+      if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+      textarea.setRangeText(`[${label}](${url.replace(/[\s)]/g, "")})`, a, b, "end");
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      textarea.focus();
+    }
+    const FORMAT_ACTIONS = [
+      ["Ж", "Жирный (Ctrl+B)", () => wrapSelection("**"), "bold"],
+      ["К", "Курсив (Ctrl+I)", () => wrapSelection("*"), "italic"],
+      ["Ч", "Подчёркнутый (Ctrl+U)", () => wrapSelection("__"), "underline"],
+      ["З", "Зачёркнутый (Ctrl+Shift+X)", () => wrapSelection("~~"), "strike"],
+      ["</>", "Моноширинный (Ctrl+Shift+M)", () => wrapSelection("`"), "mono"],
+      ["▒", "Спойлер (Ctrl+Shift+P)", () => wrapSelection("||"), "spoiler"],
+      ["❝", "Цитата", quoteSelection, "quote"],
+      ["🔗", "Ссылка", linkSelection, "link"],
+    ];
+    const formatBar = editingMessage
+      ? null
+      : el(
+          "div",
+          { class: "composer-format-bar", hidden: true },
+          FORMAT_ACTIONS.map(([label, title, run, kind]) =>
+            el(
+              "button",
+              {
+                type: "button",
+                class: `composer-format-btn format-${kind}`,
+                title,
+                // mousedown + preventDefault — чтобы поле не теряло выделение.
+                onmousedown: (e) => e.preventDefault(),
+                onclick: () => {
+                  run();
+                  updateFormatBar();
+                },
+              },
+              label
+            )
+          )
+        );
+    function updateFormatBar() {
+      if (!formatBar) return;
+      const selected = document.activeElement === textarea && textarea.selectionEnd > textarea.selectionStart;
+      formatBar.hidden = !selected;
+    }
+    if (formatBar) {
+      document.addEventListener("selectionchange", function onSel() {
+        if (!textarea.isConnected) return document.removeEventListener("selectionchange", onSel);
+        updateFormatBar();
+      });
+      textarea.addEventListener("blur", () => setTimeout(updateFormatBar, 0));
+    }
+
     textarea.addEventListener("keydown", (e) => {
       if (mentionMatches.length) {
         if (e.key === "ArrowDown") {
@@ -1160,7 +1228,7 @@ export function Composer({
             : `⭐ Этот пользователь принимает сообщения за ${paidMessages.stars} ⭐ — спишется за каждое отправленное`
         )
       : null;
-    appendAll(bodySlot, paidHint, uploadSlot, hugoSlot, stagedTray, row);
+    appendAll(bodySlot, paidHint, uploadSlot, hugoSlot, stagedTray, formatBar, row);
     updateTrailingButtons();
 
     queueMicrotask(() => {

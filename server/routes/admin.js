@@ -17,7 +17,9 @@ const {
   disableTotp,
   setAdminSections,
   listUsers,
+  deleteUser,
 } = require("../data/users");
+const { getBotByUserId, deleteBot, listBotDmChatIds } = require("../data/bots");
 const { hashPassword } = require("../security");
 const { revokeAllSessions } = require("../data/sessions");
 const { verifySmtp } = require("../lib/mailer");
@@ -86,7 +88,23 @@ router.get(
     const chat =
       (await getChat(tail)) || (await findChatByUsername(handle)) || (await findChatByInviteCode(tail)) || null;
     if (!chat || chat.type === "dm" || chat.type === "bot") {
-      return res.status(404).json({ error: "Группа или канал не найдены" });
+      // Боты — это аккаунты: ищем по @username или id.
+      const botUser = (await findUserByUsername(handle)) || (await getUser(tail));
+      const bot = botUser?.isBot ? await getBotByUserId(botUser.id) : null;
+      if (bot) {
+        const owner = bot.ownerId ? await getUser(bot.ownerId) : null;
+        return res.json({
+          chat: {
+            id: botUser.id,
+            type: "bot",
+            title: botUser.name,
+            username: botUser.username || null,
+            members: listBotDmChatIds(botUser.id).length,
+            owner: owner ? { id: owner.id, name: owner.name, username: owner.username || null } : null,
+          },
+        });
+      }
+      return res.status(404).json({ error: "Группа, канал или бот не найдены" });
     }
     const owner = chat.ownerId ? await getUser(chat.ownerId) : null;
     res.json({
@@ -308,6 +326,39 @@ router.post(
     }
 
     res.json({ user: { ...userLabel(updated), isVerified: !!updated.isVerified } });
+  })
+);
+
+// Удаление бота за нарушение: бот и его аккаунт, владельцу — уведомление с причиной.
+router.delete(
+  "/bots/:userId",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdminSection(req, res, "moderation"))) return;
+    const botUser = await getUser(req.params.userId);
+    const bot = botUser?.isBot ? await getBotByUserId(botUser.id) : null;
+    if (!bot) return res.status(404).json({ error: "Бот не найден" });
+    if (botUser.id.startsWith("bot_")) return res.status(400).json({ error: "Служебных ботов Shalter удалять нельзя" });
+    const reason = String(req.body?.reason ?? "").trim().slice(0, 500);
+    if (!reason) return res.status(400).json({ error: "Укажите причину — она попадёт в журнал и придёт владельцу" });
+
+    await logExport({
+      adminId: req.uid,
+      targetUserId: bot.ownerId ?? botUser.id,
+      reason: `УДАЛЕНИЕ БОТА ${botUser.username ? `@${botUser.username}` : botUser.id} (${botUser.name}): ${reason}`,
+      messageCount: 0,
+    });
+    const chatIds = listBotDmChatIds(botUser.id);
+    await deleteBot(bot.id);
+    await deleteUser(botUser.id);
+    for (const chatId of chatIds) {
+      const chat = await getChat(chatId);
+      if (chat) broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: { id: chat.id } });
+    }
+    if (bot.ownerId) {
+      const dm = await findOrCreateDm(SYSTEM_BOT_ID, bot.ownerId);
+      await sendMessageAndBroadcast(dm, SYSTEM_BOT_ID, `🛡 Бот «${botUser.name}» удалён модерацией Shalter за нарушение правил.\nПричина: ${reason}`);
+    }
+    res.json({ ok: true });
   })
 );
 

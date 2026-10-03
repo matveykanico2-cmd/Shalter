@@ -5,6 +5,7 @@ const { getCall } = require("./data/calls");
 const liveStreams = require("./data/liveStreams");
 const { addSignal } = require("./data/signals");
 const { getUser, updateUser } = require("./data/users");
+const { isSecretChat, secretDeviceOf, deviceHash } = require("./data/chats");
 
 const socketsByUser = new Map();
 
@@ -22,10 +23,15 @@ function removeSocket(uid, ws) {
 
 function broadcastToUsers(userIds, message) {
   const payload = JSON.stringify(message);
+  // Событие секретного чата — только на устройство, к которому он привязан.
+  const chatId = message?.chatId ?? message?.chat?.id;
+  const secret = typeof chatId === "string" && isSecretChat(chatId);
   for (const uid of userIds) {
     const set = socketsByUser.get(uid);
     if (!set) continue;
+    const device = secret ? secretDeviceOf(chatId, uid) : null;
     for (const ws of set) {
+      if (device && deviceHash(ws.deviceId) !== device) continue;
       if (ws.readyState === ws.OPEN) ws.send(payload);
     }
   }

@@ -108,7 +108,8 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
           }),
       el("div", { class: "chat-list-item-body" }, [
         el("div", { class: "chat-list-item-row" }, [
-          el("span", { class: "chat-list-item-title" }, title),
+          chat.secret ? el("span", { class: "secret-chat-lock", title: "Секретный чат", html: iconSvg("Lock", 13) }) : null,
+          el("span", { class: `chat-list-item-title${chat.secret ? " secret-chat-title" : ""}` }, title),
           VerifiedBadge(chat.type === "dm" ? chat.otherUser : chat, 13),
           chat.otherUser?.isDeveloper ? el("span", { class: "developer-mini-badge", title: "Разработчик Shalter", html: iconSvg("Code", 13) }) : null,
           chat.otherUser?.isPremium ? PremiumStar({ size: 15, seed: chat.otherUser.id, title: "Shalter Premium" }) : null,

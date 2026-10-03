@@ -1,5 +1,6 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
+import { openInstantView } from "./instantView.js";
 import { openInAppBrowser } from "./inAppBrowser.js";
 import { openMediaViewer, galleryAround } from "./mediaViewer.js";
 
@@ -91,7 +92,7 @@ function FileLink(a) {
 
 export function LinkPreviewCard(p) {
   if (!p.title && !p.description && !p.image && !p.warning) return null;
-  return el(
+  const card = el(
     "button",
     { class: "link-preview-card", onclick: () => openInAppBrowser(p.url, { unsafe: p.unsafe, warning: p.warning }) },
     [
@@ -104,6 +105,16 @@ export function LinkPreviewCard(p) {
       ]),
     ]
   );
+  // Instant View — для статей (есть описание или заголовок), не для голых ссылок.
+  if (!p.title || !p.description || p.unsafe) return card;
+  return el("div", { class: "link-preview-wrap" }, [
+    card,
+    el(
+      "button",
+      { class: "link-preview-iv", onclick: (e) => (e.stopPropagation(), openInstantView(p.url, { unsafe: p.unsafe, warning: p.warning })) },
+      "⚡ Instant View"
+    ),
+  ]);
 }
 
 export function LocationAttachment(a) {

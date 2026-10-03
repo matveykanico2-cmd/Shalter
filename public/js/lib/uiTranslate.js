@@ -11,27 +11,24 @@ const BATCH_SIZE = 300;
 
 // Пользовательский контент не переводим. Внутри ленты сообщений переводим
 // только служебные надписи (разделители дат, «X сменил фото» и т.п.).
+// Строки статуса («в сети», «был(а) недавно», «печатает…») — это интерфейс,
+// их переводим: имена и @юзернеймы там латиницей и всё равно пропускаются.
 const SKIP_SELECTOR = [
   ".message-list .sender-name",
   ".pinned-bar-slot",
   ".chat-list-item-title",
   ".chat-list-item-preview",
   ".chat-header-title",
-  ".chat-header-subtitle",
   ".contact-row-name",
-  ".contact-row-status",
   ".contact-candidate-name",
   ".contact-candidate-username",
   ".profile-name",
   ".profile-username",
   ".profile-bio",
   ".profile-field-row",
-  ".profile-status",
   ".settings-profile-name",
-  ".settings-profile-sub",
   ".settings-device-body",
   ".settings-account-name",
-  ".settings-account-sub",
   ".info-panel-title",
   ".info-panel-member-name",
   ".sender-name",
@@ -59,6 +56,7 @@ let currentLang = "ru";
 const waiting = new Map();
 let fetchTimer = null;
 let fetching = false;
+let retryDelay = 0;
 
 function loadCache() {
   try {
@@ -174,15 +172,18 @@ async function fetchWaiting() {
     });
     saveCache();
   } catch (err) {
+    // Сбой сети или переводчика — не сдаёмся до перезагрузки, а повторяем
+    // с нарастающей паузой: строки остаются в очереди.
     console.error("UI translation pass failed:", err);
-    for (const text of batch) {
-      failedThisSession.add(text);
-      waiting.delete(text);
-    }
-  } finally {
+    retryDelay = Math.min(retryDelay ? retryDelay * 2 : 2000, 60_000);
     fetching = false;
-    scheduleFetch();
+    clearTimeout(fetchTimer);
+    fetchTimer = setTimeout(fetchWaiting, retryDelay);
+    return;
   }
+  retryDelay = 0;
+  fetching = false;
+  scheduleFetch();
 }
 
 function onMutations(mutations) {
@@ -197,6 +198,42 @@ function onMutations(mutations) {
   scheduleFetch();
 }
 
+// alert/confirm/prompt — не DOM, MutationObserver их не видит. Подменяем:
+// известная строка — сразу из кэша, новая — синхронным запросом (окно и так
+// блокирует страницу, а сервер ждёт переводчик не дольше 8 с).
+function translateNow(text) {
+  const raw = String(text ?? "");
+  if (!isTranslatable(raw)) return raw;
+  const key = raw.trim();
+  if (known[key]) return raw.replace(key, known[key]);
+  if (failedThisSession.has(key)) return raw;
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/translate/batch", false);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.send(JSON.stringify({ texts: [key], target: currentLang }));
+    const translated = xhr.status === 200 ? JSON.parse(xhr.responseText)?.translations?.[0] : null;
+    if (!translated) throw new Error(`status ${xhr.status}`);
+    known[key] = translated;
+    translatedValues.add(translated);
+    saveCache();
+    return raw.replace(key, translated);
+  } catch {
+    failedThisSession.add(key);
+    return raw;
+  }
+}
+
+let dialogsPatched = false;
+function patchNativeDialogs() {
+  if (dialogsPatched) return;
+  dialogsPatched = true;
+  const { alert, confirm, prompt } = window;
+  window.alert = (message) => alert.call(window, translateNow(message));
+  window.confirm = (message) => confirm.call(window, translateNow(message));
+  window.prompt = (message, value) => prompt.call(window, translateNow(message), value);
+}
+
 export function initUiTranslation(lang) {
   currentLang = lang || "ru";
   if (currentLang === "ru") return;
@@ -205,6 +242,7 @@ export function initUiTranslation(lang) {
   loadCache();
   known = cache[currentLang] ?? (cache[currentLang] = {});
   translatedValues = new Set(Object.values(known));
+  patchNativeDialogs();
 
   // Вся страница, а не только #view-root: диалоги, меню и тосты живут в <body>.
   // MutationObserver срабатывает до отрисовки, поэтому уже известные строки

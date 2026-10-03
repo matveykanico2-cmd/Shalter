@@ -1,5 +1,13 @@
 import { trackRequest } from "./lib/netStatus.js";
 
+// Имя контакта подставляется сервером везде (как в Telegram), поэтому после
+// добавления/переименования/удаления app.js перечитывает чаты и сбрасывает кэш.
+async function contactsChanged(userId, request) {
+  const result = await request;
+  window.dispatchEvent(new CustomEvent("shalter:contacts-changed", { detail: { userId } }));
+  return result;
+}
+
 async function req(url, init) {
   const res = await trackRequest(
     fetch(url, {
@@ -139,10 +147,12 @@ export const api = {
   listChats: () => req("/api/chats"),
   getChat: (id) => req(`/api/chats/${id}`),
   patchChat: (id, patch) => req(`/api/chats/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
-  deleteChat: (id) => req(`/api/chats/${id}`, { method: "DELETE" }),
+  deleteChat: (id, reason) => req(`/api/chats/${id}`, { method: "DELETE", ...(reason ? { body: JSON.stringify({ reason }) } : {}) }),
+  adminDeleteBot: (userId, reason) => req(`/api/admin/bots/${userId}`, { method: "DELETE", body: JSON.stringify({ reason }) }),
   deleteChatForMe: (id) => req(`/api/chats/${id}/delete-for-me`, { method: "POST" }),
   markChatRead: (id) => req(`/api/chats/${id}/read`, { method: "POST" }),
   setPinnedChatOrder: (chatIds) => req("/api/chats/pinned-order", { method: "POST", body: JSON.stringify({ chatIds }) }),
+  startSecretChat: (userId) => req("/api/chats/secret", { method: "POST", body: JSON.stringify({ userId }) }),
   startDm: (userId, title, avatarColor) =>
     req("/api/chats", { method: "POST", body: JSON.stringify({ userId, title, avatarColor }) }),
   createChannel: (title, avatarImage, memberIds, adminIds, extra = {}) =>
@@ -182,6 +192,14 @@ export const api = {
   searchInChat: (id, q) => req(`/api/chats/${id}/messages/search?q=${encodeURIComponent(q)}`),
   chatInviteLink: (id, revoke = false) => req(`/api/chats/${id}/invite`, { method: "POST", body: JSON.stringify({ revoke }) }),
   inviteInfo: (code) => req(`/api/chats/invite/${encodeURIComponent(code)}`),
+  getCommunity: (id) => req(`/api/communities/${id}`),
+  myCommunities: () => req("/api/communities/mine"),
+  communityOfChat: (chatId) => req(`/api/communities/by-chat/${chatId}`),
+  createCommunity: (body) => req("/api/communities", { method: "POST", body: JSON.stringify(body) }),
+  updateCommunity: (id, patch) => req(`/api/communities/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  addCommunityChat: (id, chatId) => req(`/api/communities/${id}/chats`, { method: "POST", body: JSON.stringify({ chatId }) }),
+  removeCommunityChat: (id, chatId) => req(`/api/communities/${id}/chats/${chatId}`, { method: "DELETE" }),
+  deleteCommunity: (id) => req(`/api/communities/${id}`, { method: "DELETE" }),
   joinPublicChat: (id) => req(`/api/chats/${id}/join`, { method: "POST" }),
   listBannedMembers: (id) => req(`/api/chats/${id}/banned`),
   joinByInvite: (code) => req(`/api/chats/invite/${encodeURIComponent(code)}/join`, { method: "POST" }),
@@ -264,6 +282,8 @@ export const api = {
   updateTopic: (chatId, topicId, patch) =>
     req(`/api/chats/${chatId}/topics/${topicId}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteTopic: (chatId, topicId) => req(`/api/chats/${chatId}/topics/${topicId}`, { method: "DELETE" }),
+  summarizeMessage: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/summary`),
+  instantView: (url) => req(`/api/link-check/instant-view?url=${encodeURIComponent(url)}`),
   listScheduled: (chatId) => req(`/api/chats/${chatId}/messages/scheduled`),
   scheduleMessage: (chatId, opts) =>
     req(`/api/chats/${chatId}/messages/scheduled`, { method: "POST", body: JSON.stringify(opts) }),
@@ -286,13 +306,14 @@ export const api = {
   stopNearbySharing: () => req("/api/nearby", { method: "DELETE" }),
 
   listContacts: () => req("/api/contacts"),
-  addContact: (userId, localName) => req("/api/contacts", { method: "POST", body: JSON.stringify({ userId, localName }) }),
+  addContact: (userId, localName, { sharePhone = false } = {}) =>
+    contactsChanged(userId, req("/api/contacts", { method: "POST", body: JSON.stringify({ userId, localName, sharePhone }) })),
   setContactNote: (userId, note) => req("/api/contacts/note", { method: "POST", body: JSON.stringify({ userId, note }) }),
-  renameContact: (userId, localName) => req("/api/contacts/rename", { method: "POST", body: JSON.stringify({ userId, localName }) }),
+  renameContact: (userId, localName) => contactsChanged(userId, req("/api/contacts/rename", { method: "POST", body: JSON.stringify({ userId, localName }) })),
   findChatByUsername: (username) => req(`/api/chats/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
   findUserByUsername: (username) => req(`/api/users/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
   matchContacts: (contacts) => req("/api/contacts/match", { method: "POST", body: JSON.stringify({ contacts }) }),
-  removeContact: (userId) => req("/api/contacts", { method: "DELETE", body: JSON.stringify({ userId }) }),
+  removeContact: (userId) => contactsChanged(userId, req("/api/contacts", { method: "DELETE", body: JSON.stringify({ userId }) })),
 
   hugoCheck: (text) => req("/api/hugo/check", { method: "POST", body: JSON.stringify({ text }) }),
 

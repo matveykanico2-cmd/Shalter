@@ -123,6 +123,12 @@ async function boot() {
   onWsMessage("contact:updated", (msg) => {
     if (msg.user?.id === getState().user?.id) updateSelf(msg.user);
   });
+  window.addEventListener("shalter:contacts-changed", async (e) => {
+    const { forgetUser, fetchUsers } = await import("./lib/userLookup.js");
+    forgetUser(e.detail?.userId);
+    fetchUsers([e.detail?.userId]).catch(() => {});
+    api.listChats().then((r) => setState({ chats: r.chats })).catch(() => {});
+  });
   mountIncomingCallWatcher();
   initKeyboardShortcuts();
   bootData
@@ -340,6 +346,11 @@ async function boot() {
     withCleanup(mainSlot);
     const { JoinInviteView } = await import("./views/joinInvite.js");
     await JoinInviteView(mainSlot, params.code);
+  });
+  route("/community/:id", async (params) => {
+    withCleanup(mainSlot);
+    const { CommunityView } = await import("./views/community.js");
+    await CommunityView(mainSlot, params.id);
   });
   route("/folder/:code", async (params) => {
     withCleanup(mainSlot);
