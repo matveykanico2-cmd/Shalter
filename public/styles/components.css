@@ -20054,3 +20054,360 @@ button img.emoji {
   width: 1.2em;
   height: 1.2em;
 }
+
+/* ---------- tweb: сообщение о звонке (.bubble-call) ---------- */
+.bubble:has(> .bubble-call) {
+  min-width: 200px;
+}
+.bubble-call {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2px 57px 2px 2px;
+  cursor: pointer;
+  user-select: none;
+}
+.bubble-call-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+}
+.bubble-call-subtitle {
+  display: flex;
+  align-items: center;
+  margin: 1px 0 0 -3px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-muted);
+}
+.bubble.mine .bubble-call-subtitle {
+  color: color-mix(in srgb, var(--color-bubble-out-text, #4fae4e) 70%, transparent);
+}
+.bubble-call-status {
+  white-space: nowrap;
+}
+.bubble-call-arrow {
+  display: inline-flex;
+  margin-right: 1px;
+}
+.bubble-call-arrow.out {
+  transform: rotate(-45deg);
+}
+.bubble-call-arrow.in {
+  transform: rotate(135deg);
+}
+.bubble-call-arrow.green {
+  color: #4fae4e;
+}
+.bubble-call-arrow.red {
+  color: #e53935;
+}
+.bubble-call-icon {
+  position: absolute;
+  top: 0;
+  right: 5px;
+  bottom: 0;
+  display: flex;
+  height: 24px;
+  margin: auto 0;
+  color: var(--color-accent);
+}
+.bubble.mine .bubble-call-icon {
+  color: #4fae4e;
+}
+
+/* ---------- tweb: окно отправки вложений (popup-new-media) ---------- */
+.modal-dialog.tw-nm-popup {
+  width: 420px;
+  background: var(--color-surface);
+}
+.tw-nm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 4px;
+}
+.tw-nm-title {
+  flex: 1;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+}
+.tw-nm-preview {
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  padding: 4px 16px 8px;
+}
+.tw-nm-album {
+  display: grid;
+  gap: 4px;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.tw-nm-album.count-1 {
+  grid-template-columns: 1fr;
+}
+.tw-nm-album.count-2 {
+  grid-template-columns: 1fr 1fr;
+}
+.tw-nm-album.count-3 {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.tw-nm-album.count-3 .tw-nm-media:first-child {
+  grid-row: span 2;
+}
+.tw-nm-album.count-4,
+.tw-nm-album.many {
+  grid-template-columns: 1fr 1fr;
+}
+.tw-nm-media {
+  position: relative;
+  min-height: 120px;
+  overflow: hidden;
+  background: var(--tw-filled);
+}
+.tw-nm-album.count-1 .tw-nm-media {
+  min-height: 0;
+}
+.tw-nm-media img,
+.tw-nm-media video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 420px;
+  object-fit: cover;
+}
+.tw-nm-album.count-1 .tw-nm-media img,
+.tw-nm-album.count-1 .tw-nm-media video {
+  height: auto;
+  object-fit: contain;
+}
+.tw-nm-video-badge {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  display: flex;
+  padding: 4px 6px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
+.tw-nm-remove {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.tw-nm-media:hover .tw-nm-remove,
+.tw-nm-doc:hover .tw-nm-remove {
+  opacity: 1;
+}
+@media (hover: none) {
+  .tw-nm-remove {
+    opacity: 1;
+  }
+}
+.tw-nm-docs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.tw-nm-doc {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+.tw-nm-doc .tw-nm-remove {
+  position: static;
+  margin-left: auto;
+  background: var(--tw-filled);
+  color: var(--color-muted);
+}
+.tw-nm-doc-icon,
+.tw-nm-doc-thumb {
+  display: flex;
+  width: 54px;
+  height: 54px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--color-accent) center / cover no-repeat;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tw-nm-doc-icon.audio {
+  border-radius: 50%;
+}
+.tw-nm-doc-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.tw-nm-doc-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 15px;
+  font-weight: 500;
+}
+.tw-nm-doc-size {
+  font-size: 14px;
+  color: var(--color-muted);
+}
+.tw-nm-footer {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 8px 16px 16px;
+}
+.tw-nm-caption-field {
+  flex: 1;
+  min-height: 48px;
+}
+.tw-nm-caption-field .tw-input {
+  padding: 13px 14px;
+  max-height: 160px;
+}
+.tw-nm-caption-field .tw-input-label {
+  top: 24px;
+}
+.tw-nm-send {
+  height: 48px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 12px;
+  background: var(--color-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.tw-nm-send:hover {
+  filter: brightness(1.06);
+}
+
+/* альбом во всю ширину пузыря, как в tweb (grouped media) */
+.bubble:has(> .message-album:first-child) {
+  width: min(420px, calc(100vw - 110px));
+  padding: 0;
+}
+.bubble > .message-album:first-child {
+  max-width: none;
+  gap: 2px;
+  margin: 0;
+  border-radius: 15px 15px 0 0;
+}
+.bubble:has(> .message-album:first-child) > :not(.message-album):not(.message-meta) {
+  margin-left: 11px;
+  margin-right: 10px;
+}
+.bubble:has(> .message-album:first-child) > .message-text {
+  display: flow-root;
+  padding: 6px 0 7px;
+}
+.bubble:has(> .message-album:first-child + .message-meta:last-child) > .message-album {
+  border-radius: 15px;
+}
+.bubble:has(> .message-album:first-child) > .message-meta:last-child {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  margin: 0;
+  padding: 3px 7px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+}
+.bubble:has(> .message-album:first-child) > .message-meta:last-child * {
+  color: #fff !important;
+}
+.message-album.album-3 .message-album-cell:first-child {
+  aspect-ratio: 2 / 1;
+}
+
+/* вкладки профиля и их содержимое — одна карточка, как shared media в tweb */
+.profile-panel-body .profile-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0;
+  margin: 0;
+  padding: 0 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 24px 24px 0 0;
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: none;
+  scrollbar-width: none;
+}
+.profile-panel-body .profile-tabs::-webkit-scrollbar {
+  display: none;
+}
+.profile-panel-body .profile-tab {
+  position: relative;
+  flex: 1 0 auto;
+  min-width: max-content;
+  padding: 16px 12px 14px;
+  border: none;
+  border-radius: 12px 12px 0 0;
+  background: none;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-muted);
+}
+.profile-panel-body .profile-tab.active {
+  color: var(--color-accent);
+}
+.profile-panel-body .profile-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--color-accent);
+}
+.profile-panel-body .profile-tab-content {
+  min-height: 120px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  border-radius: 0 0 24px 24px;
+  background: var(--color-surface);
+  box-shadow: var(--tw-section-shadow);
+}
+.profile-panel-body .profile-tabs,
+.profile-panel-body .profile-tab-content {
+  align-self: stretch;
+  width: auto;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+.profile-panel-body .profile-tabs {
+  background: var(--color-surface);
+}
+.profile-panel-body .profile-tab-content {
+  padding-top: 0;
+}

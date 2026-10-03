@@ -827,7 +827,9 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       bubbleInner.push(AttachmentView(a, me, { message, sender }));
     }
   }
-  if (isSticker) {
+  if (isCallLog) {
+    bubbleInner.push(CallBubble(message, mine, handlers.onCallBack));
+  } else if (isSticker) {
     bubbleInner.push(StickerBody(message));
   } else if (!message.attachments?.some((a) => a.kind === "poll" || a.kind === "checklist")) {
     const jumboCount = !message.attachments?.length ? jumboEmojiCount(message.text) : 0;
@@ -897,7 +899,9 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   } else {
     meta = el("span", { class: `message-meta ${isSticker ? "message-meta-sticker" : ""}` }, metaParts);
   }
-  if (inlineMeta) {
+  if (isCallLog) {
+    // У звонка, как в tweb, время уже в строке статуса — отдельной подписи нет.
+  } else if (inlineMeta) {
     // formatText кладёт каждую строку в span.block — время должно жить
     // внутри последней строки, иначе float уедет на новую строку.
     let lastLine = lastInner;
@@ -907,7 +911,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     const plainLine = lastLine.className === "block" && !lastLine.querySelector(".block, .quote-line, pre, table");
     (plainLine ? lastLine : lastInner).appendChild(meta);
   }
-  else bubbleInner.push(meta);
+  else if (!isCallLog) bubbleInner.push(meta);
 
   const boosted = !!message.boostedUntil && message.boostedUntil > new Date().toISOString();
   const bubble = el(
@@ -1537,6 +1541,38 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
 // so they can't be edited. Older ones predate type "call" and are plain text
 // (matched by wording, but only before the cut-over so typed text isn't caught).
 const CALL_LOG_RE = /^📞 (Звонок|Видеозвонок|Пропущенный звонок|Звонок отклонён)/;
+// Пузырь звонка как в tweb (wrappers/callBubble.ts): заголовок по исходу звонка,
+// стрелка направления (зелёная — разговор был, красная — нет), время и длительность,
+// справа иконка трубки — нажатие перезванивает.
+const CALL_ARROW = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
+
+function CallBubble(message, mine, onCallBack) {
+  const text = message.text ?? "";
+  const video = /видео/i.test(text);
+  const durMatch = text.match(/· (\d+):(\d{2})/);
+  const answered = !!durMatch;
+  const declined = /отклон/i.test(text);
+  const what = video ? "видеозвонок" : "звонок";
+  const title = mine
+    ? answered ? `Исходящий ${what}` : `Отменённый ${what}`
+    : answered ? `Входящий ${what}` : declined ? `Отклонённый ${what}` : `Пропущенный ${what}`;
+  let duration = "";
+  if (durMatch) {
+    const total = Number(durMatch[1]) * 60 + Number(durMatch[2]);
+    const m = Math.floor(total / 60);
+    const sec = total % 60;
+    duration = m ? `${m} мин${sec ? ` ${sec} с` : ""}` : `${sec} с`;
+  }
+  return el("div", { class: `bubble-call${answered ? "" : " missed"}`, role: "button", title: "Перезвонить", onclick: () => onCallBack?.(video ? "video" : "audio") }, [
+    el("span", { class: "bubble-call-title" }, title[0].toUpperCase() + title.slice(1)),
+    el("span", { class: "bubble-call-subtitle" }, [
+      el("span", { class: `bubble-call-arrow ${answered ? "green" : "red"} ${mine ? "out" : "in"}`, html: CALL_ARROW }),
+      el("span", { class: "bubble-call-status" }, `${timeLabel(message.createdAt)}${duration ? `, ${duration}` : ""}`),
+    ]),
+    el("span", { class: "bubble-call-icon", html: iconSvg(video ? "Video" : "Phone", 24) }),
+  ]);
+}
+
 export function isCallLogMessage(m) {
   if (m?.type === "call") return true;
   return m?.type === "text" && (m.createdAt ?? "") < "2026-10-03" && !m.attachments?.length && CALL_LOG_RE.test(m.text ?? "");

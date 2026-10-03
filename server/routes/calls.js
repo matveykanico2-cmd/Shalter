@@ -228,8 +228,8 @@ router.patch(
         const label = answered
           ? `📞 ${call.kind === "video" ? "Видеозвонок" : "Звонок"} · ${mins}:${String(secs).padStart(2, "0")}`
           : patch.status === "declined"
-            ? "📞 Звонок отклонён"
-            : "📞 Пропущенный звонок";
+            ? call.kind === "video" ? "📞 Видеозвонок отклонён" : "📞 Звонок отклонён"
+            : call.kind === "video" ? "📞 Пропущенный видеозвонок" : "📞 Пропущенный звонок";
         const chat = await getChat(call.chatId).catch(() => null);
         if (chat) {
           await sendMessageAndBroadcast(chat, call.callerId, label, { type: "call" }).catch(() => {});

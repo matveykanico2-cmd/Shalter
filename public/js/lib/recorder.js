@@ -1,8 +1,12 @@
 import { getFlippedTrack } from "./cameraSwitch.js";
 export const MAX_RECORD_SEC = 180;
 
-const VIDEO_NOTE_BITRATES = { videoBitsPerSecond: 700_000, audioBitsPerSecond: 96_000 };
-const VOICE_BITRATES = { audioBitsPerSecond: 96_000 };
+// Высокое качество: кружок 480×480 при 2,5 Мбит/с, голос — Opus 128 кбит/с.
+const VIDEO_NOTE_BITRATES = { videoBitsPerSecond: 2_500_000, audioBitsPerSecond: 128_000 };
+const VOICE_BITRATES = { audioBitsPerSecond: 128_000 };
+const SQUARE_SIZE = 480;
+// Просим у камеры HD-кадр: из него вырезается квадрат, поэтому запас по размеру нужен.
+const CAMERA_VIDEO = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 }, facingMode: "user" };
 
 const MIC_CONSTRAINTS = {
   channelCount: 1,
@@ -17,10 +21,10 @@ function pickMime(kind) {
   const list =
     kind === "audio"
       ? ["audio/webm;codecs=opus", "audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm"]
-      : ["video/webm;codecs=vp8,opus", "video/webm;codecs=vp9,opus", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm"];
+      : ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm"];
   return list.find((t) => MediaRecorder.isTypeSupported?.(t)) ?? "";
 }
-const AVATAR_VIDEO_BITRATES = { videoBitsPerSecond: 1_200_000, audioBitsPerSecond: 64_000 };
+const AVATAR_VIDEO_BITRATES = { videoBitsPerSecond: 2_500_000, audioBitsPerSecond: 96_000 };
 export const MAX_AVATAR_VIDEO_SEC = 180;
 const SQUARE_CAPTURE_MODES = {
   "video-note": { bitrates: VIDEO_NOTE_BITRATES, maxSec: MAX_RECORD_SEC },
@@ -134,7 +138,7 @@ async function startVoiceRecording(onTick) {
 }
 
 async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
-  let camStream = await getMic({ width: 240, height: 240, facingMode: "user" });
+  let camStream = await getMic(CAMERA_VIDEO);
 
   const camVideo = document.createElement("video");
   camVideo.muted = true;
@@ -143,14 +147,22 @@ async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
   await camVideo.play().catch(() => {});
 
   const canvas = document.createElement("canvas");
-  canvas.width = 240;
-  canvas.height = 240;
-  const ctx = canvas.getContext("2d");
+  canvas.width = SQUARE_SIZE;
+  canvas.height = SQUARE_SIZE;
+  const ctx = canvas.getContext("2d", { alpha: false });
+  ctx.imageSmoothingQuality = "high";
+  // Квадрат из центра кадра — без растягивания, как кружки в Telegram.
+  const drawFrame = () => {
+    const w = camVideo.videoWidth || SQUARE_SIZE;
+    const h = camVideo.videoHeight || SQUARE_SIZE;
+    const side = Math.min(w, h);
+    ctx.drawImage(camVideo, (w - side) / 2, (h - side) / 2, side, side, 0, 0, SQUARE_SIZE, SQUARE_SIZE);
+  };
 
   await new Promise((resolve) => {
     (function waitForFirstFrame() {
       if (camVideo.readyState >= 2) {
-        ctx.drawImage(camVideo, 0, 0, canvas.width, canvas.height);
+        drawFrame();
         resolve();
       } else {
         requestAnimationFrame(waitForFirstFrame);
@@ -161,7 +173,7 @@ async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
   let drawing = true;
   (function draw() {
     if (!drawing) return;
-    if (camVideo.readyState >= 2) ctx.drawImage(camVideo, 0, 0, canvas.width, canvas.height);
+    if (camVideo.readyState >= 2) drawFrame();
     requestAnimationFrame(draw);
   })();
 
@@ -174,7 +186,7 @@ async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
     const { track, error } = await getFlippedTrack({
       currentTrack,
       wantBack: !facingBack,
-      video: { width: 240, height: 240 },
+      video: { width: CAMERA_VIDEO.width, height: CAMERA_VIDEO.height, frameRate: CAMERA_VIDEO.frameRate },
     });
     if (!track) return { error };
 

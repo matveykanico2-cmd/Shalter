@@ -11,7 +11,8 @@ sharp.concurrency(1);
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 
-const PREVIEW_HEIGHT = 240;
+// Копия для просмотра в чате: до 720p — чётко, но легче оригинала.
+const PREVIEW_HEIGHT = 720;
 const JOB_TIMEOUT_MS = 30 * 60 * 1000;
 
 function createQueue(concurrency) {
@@ -91,13 +92,14 @@ async function generateVideoPreview(inputPath) {
           .input(inputPath)
           .videoCodec("libx264")
           .audioCodec("aac")
-          .audioBitrate("64k")
+          .audioBitrate("128k")
           .outputOptions([
-            `-vf scale=-2:${PREVIEW_HEIGHT}`,
+            // не растягиваем маленькие видео: высота не больше исходной
+            `-vf scale=-2:'min(${PREVIEW_HEIGHT},ih)'`,
             "-preset veryfast",
-            "-crf 30",
-            "-maxrate 400k",
-            "-bufsize 800k",
+            "-crf 23",
+            "-maxrate 3000k",
+            "-bufsize 6000k",
             "-pix_fmt yuv420p",
             "-movflags +faststart",
           ])
@@ -107,11 +109,11 @@ async function generateVideoPreview(inputPath) {
       const durationSec = Math.round(parseDuration(codecData?.duration));
       const posterAt = durationSec > 2 ? 1 : 0;
       await runFfmpeg((cmd) =>
-        cmd.input(previewPath).seekInput(posterAt).outputOptions(["-frames:v 1", "-q:v 4"]).output(posterPath)
+        cmd.input(previewPath).seekInput(posterAt).outputOptions(["-frames:v 1", "-q:v 3"]).output(posterPath)
       );
 
       const source = parseSize(codecData);
-      const height = PREVIEW_HEIGHT;
+      const height = source ? Math.min(PREVIEW_HEIGHT, source.height) : PREVIEW_HEIGHT;
       const width = source ? Math.round((source.width * height) / source.height / 2) * 2 : 0;
       return { previewPath, posterPath, width, height, durationSec };
     } catch (err) {

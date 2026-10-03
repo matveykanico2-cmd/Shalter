@@ -1,6 +1,6 @@
 import { api } from "../api.js";
 import { getFlippedTrack, cameraCount } from "./cameraSwitch.js";
-import { HD_VIDEO, HD_SCREEN, cameraConstraints, tuneVideoSender, hintScreenTrack } from "./mediaQuality.js";
+import { HD_VIDEO, HD_SCREEN, CALL_AUDIO, cameraConstraints, tuneVideoSender, hintScreenTrack, tuneOpusSdp } from "./mediaQuality.js";
 import { getState as getAppState } from "../state.js";
 import { onWsMessage, wsSend, isWsOpen } from "./wsClient.js";
 import { navigate } from "../router.js";
@@ -156,7 +156,7 @@ async function offerTo(userId) {
   state.offered.add(userId);
   const pc = state.peers.get(userId) ?? createPeer(userId);
   try {
-    const offer = await pc.createOffer();
+    const offer = tuneOpusSdp(await pc.createOffer());
     await pc.setLocalDescription(offer);
     sendSignal(userId, "offer", offer);
   } catch {
@@ -172,7 +172,7 @@ async function handleSignal(sig) {
       const pc = state.peers.get(sig.fromUserId) ?? createPeer(sig.fromUserId, { answering: true });
       await pc.setRemoteDescription(new RTCSessionDescription(sig.data));
       adoptTransceivers(pc);
-      const answer = await pc.createAnswer();
+      const answer = tuneOpusSdp(await pc.createAnswer());
       await pc.setLocalDescription(answer);
       sendSignal(sig.fromUserId, "answer", answer);
     } else if (sig.kind === "answer") {
@@ -315,7 +315,7 @@ async function join({ call, chatTitle, chatType, participants, me, isRoom = fals
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
+      audio: CALL_AUDIO,
       video: call.kind === "video" ? cameraConstraints({ facingMode: "user" }) : false,
     });
     if (!state) {

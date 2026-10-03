@@ -1767,6 +1767,7 @@ export async function ChatView(root, chatId) {
             onForward: (msg) => openForwardDialog((targetChatId, opts) => handleForward(msg, targetChatId, opts), { allowHideAuthor: true }),
             onVote: handleVote,
             onPollAction: handlePollAction,
+            onCallBack: (kind) => placeCall(kind),
             canClosePolls: !isDm && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id)),
             onKeyboardAction: (action) => handleSend(action, []),
             onKeyboardApp: (msg, appUrl) =>

@@ -1,3 +1,4 @@
+import { openMediaSendPopup } from "./mediaSendPopup.js";
 import { askText } from "./confirmDialog.js";
 import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
@@ -508,7 +509,7 @@ export function Composer({
       const files = [...(e.clipboardData?.files ?? [])];
       if (!files.length) return;
       e.preventDefault();
-      attachFiles(files.map((file) => ({ file, kind: fileKind(file) })));
+      pickToSend(files.map((file) => ({ file, kind: fileKind(file) })));
     });
     textarea.addEventListener("blur", () => closeMentionMenu());
 
@@ -567,7 +568,7 @@ export function Composer({
 
     const MAX_ATTACHMENTS_PER_MESSAGE = 10;
 
-    wrap.attachDropped = editingMessage ? null : (files) => attachFiles(files.map((file) => ({ file, kind: fileKind(file) })));
+    wrap.attachDropped = editingMessage ? null : (files) => pickToSend(files.map((file) => ({ file, kind: fileKind(file) })));
 
     async function attachFiles(picks) {
       const items = [];
@@ -682,6 +683,21 @@ export function Composer({
       }
     }
 
+    // Как в tweb: выбранные файлы сначала показываются в окне отправки с подписью.
+    function pickToSend(picks) {
+      if (!picks.length) return;
+      openMediaSendPopup({
+        picks,
+        caption: textarea.value,
+        onSend: async ({ picks: chosen, caption }) => {
+          textarea.value = caption;
+          textarea.dispatchEvent(new Event("input", { bubbles: true }));
+          await attachFiles(chosen);
+          if (staged.length) submit();
+        },
+      });
+    }
+
     function sendImageNow(file) {
       if (!canSendWhileUploading) return attachFiles([{ file, kind: "image" }]);
       const sizeError = checkSize(file, "image");
@@ -698,7 +714,7 @@ export function Composer({
       onchange: (e) => {
         const files = [...(e.target.files ?? [])];
         e.target.value = "";
-        attachFiles(
+        pickToSend(
           files.map((file) => ({
             file,
             kind: file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : "file",
@@ -713,7 +729,7 @@ export function Composer({
       onchange: (e) => {
         const files = [...(e.target.files ?? [])];
         e.target.value = "";
-        attachFiles(files.map((file) => ({ file, kind: "file" })));
+        pickToSend(files.map((file) => ({ file, kind: "file" })));
       },
     });
     // accept="audio/*" makes the phone open its music / audio files picker
@@ -726,7 +742,7 @@ export function Composer({
       onchange: (e) => {
         const files = [...(e.target.files ?? [])];
         e.target.value = "";
-        attachFiles(files.map((file) => ({ file, kind: "file" })));
+        pickToSend(files.map((file) => ({ file, kind: "file" })));
       },
     });
     const cameraPhotoInput = el("input", {
@@ -737,7 +753,7 @@ export function Composer({
       onchange: (e) => {
         const f = e.target.files?.[0];
         e.target.value = "";
-        if (f) attachFiles([{ file: f, kind: "image" }]);
+        if (f) pickToSend([{ file: f, kind: "image" }]);
       },
     });
     const cameraVideoInput = el("input", {
@@ -748,7 +764,7 @@ export function Composer({
       onchange: (e) => {
         const f = e.target.files?.[0];
         e.target.value = "";
-        if (f) attachFiles([{ file: f, kind: "video" }]);
+        if (f) pickToSend([{ file: f, kind: "video" }]);
       },
     });
 
