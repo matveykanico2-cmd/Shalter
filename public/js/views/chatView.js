@@ -1,3 +1,4 @@
+import { openBoostPopup } from "../components/boostPopup.js";
 import { askText } from "../components/confirmDialog.js";
 import { askConfirm } from "../components/confirmDialog.js";
 import { el, mount, clear, appendAll } from "../lib/dom.js";
@@ -716,14 +717,18 @@ export async function ChatView(root, chatId) {
     renderComposer();
   }
 
-  async function handleVoteForGroup() {
-    try {
-      const { chat: updated } = await api.voteForGroup(chat.id);
-      Object.assign(chat, updated);
-      renderInfoPanel();
-    } catch (err) {
-      alert(err.message || "Не удалось проголосовать");
-    }
+  function handleVoteForGroup() {
+    openBoostPopup({
+      chat,
+      isPremium: !!me.isPremium,
+      myLastBoostAt: chat.votes?.[me.id],
+      onBoost: async () => {
+        const { chat: updated } = await api.voteForGroup(chat.id);
+        Object.assign(chat, updated);
+        renderInfoPanel();
+        return chat;
+      },
+    });
   }
 
   async function handleSetAutoDelete(seconds) {
@@ -1091,23 +1096,55 @@ export async function ChatView(root, chatId) {
   renderContactBar();
   const audioBar = AudioPlayerBar({ chatId });
   const mainCol = el("div", { class: "chat-main-col" }, [header, audioBar, topicsSlot, selectionBar, searchBar, liveBar, pinnedBar, contactBarSlot, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
-  api
-    .serveAd("chat")
-    .then((r) => {
-      if (!r.ad) return;
-      clear(chatAdSlot);
-      chatAdSlot.appendChild(
-        el("button", { class: "chat-ad-banner", title: r.ad.url || "", onclick: () => openAd(r.ad) }, [
-          el("span", { class: "chat-ad-mark", html: iconSvg("Zap", 16) }),
-          el("span", { class: "chat-ad-body" }, [
-            el("span", { class: "chat-ad-title" }, r.ad.title || "Реклама"),
-            r.ad.text ? el("span", { class: "chat-ad-text" }, r.ad.text) : null,
+  // Рекламное сообщение как в tweb (sponsored message): только в каналах, в конце ленты.
+  var chatAd = null; // var: renderList может вызваться раньше этой строки
+  if (chat.type === "channel") {
+    api
+      .serveAd("chat")
+      .then((r) => {
+        if (!r.ad) return;
+        chatAd = r.ad;
+        rerenderListKeepingScroll();
+      })
+      .catch(() => {});
+  }
+  function SponsoredMessage(ad) {
+    const openMenu = (e) => {
+      e.stopPropagation();
+      const r = e.currentTarget.getBoundingClientRect();
+      openDropdownMenu({ x: r.left, y: r.bottom + 4 }, [
+        { icon: "Info", label: "Что это за реклама?", onClick: () => alert("Рекламу в каналах показывает Shalter: так авторы зарабатывают, а мессенджер остаётся бесплатным. Объявления не используют ваши личные данные.") },
+        {
+          icon: "X",
+          label: "Скрыть рекламу",
+          onClick: () => {
+            if (!me.isPremium) {
+              navigate("/settings/premium");
+              return;
+            }
+            chatAd = null;
+            rerenderListKeepingScroll();
+          },
+        },
+      ]);
+    };
+    return el("div", { class: "message-row group-start group-end sponsored-message-row" }, [
+      el("div", { class: "message-column" }, [
+        el("div", { class: "bubble-wrap" }, [
+          el("div", { class: "bubble sponsored-bubble" }, [
+            el("div", { class: "sponsored-bubble-head" }, [
+              el("span", { class: "sponsored-bubble-label" }, "Реклама"),
+              el("button", { class: "sponsored-bubble-more", title: "Ещё", html: iconSvg("More", 18), onclick: openMenu }),
+            ]),
+            ad.imageUrl ? el("img", { class: "sponsored-bubble-image", src: ad.imageUrl, alt: "", loading: "lazy" }) : null,
+            el("p", { class: "sponsored-bubble-title" }, ad.title || "Реклама"),
+            ad.text ? el("p", { class: "sponsored-bubble-text" }, ad.text) : null,
+            el("button", { class: "sponsored-bubble-btn", onclick: () => openAd(ad) }, ad.url ? "Открыть" : "Подробнее"),
           ]),
-          el("span", { class: "sponsored-badge" }, "РЕКЛАМА"),
-        ])
-      );
-    })
-    .catch(() => {});
+        ]),
+      ]),
+    ]);
+  }
   const infoSlot = el("div", { class: "info-panel-slot" });
   const wrap = el("div", { class: "chat-view" }, [mainCol, infoSlot]);
 
@@ -1743,16 +1780,23 @@ export async function ChatView(root, chatId) {
         viewObserver.observe(bubble);
       }
       if (isChannel && m.type !== "system" && chat.linkedDiscussionChatId) {
-        list.appendChild(
-          el(
-            "button",
-            {
-              class: `post-comments-link ${m.senderId === me.id ? "mine" : ""}`,
-              onclick: () => openPostComments(m),
+        // Как в tweb: полоса комментариев — нижняя часть самого пузыря поста.
+        const link = el(
+          "button",
+          {
+            class: "post-comments-link channel-comments",
+            onclick: (e) => {
+              e.stopPropagation();
+              openPostComments(m);
             },
-            commentsLabel(m.commentCount ?? 0)
-          )
+          },
+          [el("span", { class: "channel-comments-icon", html: iconSvg("MessageSquare", 20) }), commentsLabel(m.commentCount ?? 0).replace(/^💬\s*/u, "")]
         );
+        const bubble = list.lastElementChild?.querySelector?.(".bubble:not(.bubble-sticker)");
+        if (bubble) {
+          bubble.classList.add("has-comments-footer");
+          bubble.appendChild(link);
+        } else list.appendChild(link);
       }
       if (isGroup && m.type !== "system" && m.commentCount && !m.threadRootId) {
         list.appendChild(
@@ -1764,6 +1808,7 @@ export async function ChatView(root, chatId) {
         );
       }
     });
+    if (chatAd && messages.length) list.appendChild(SponsoredMessage(chatAd));
     renderPinnedBar();
     loadMissingSenders();
   }

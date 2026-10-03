@@ -1218,14 +1218,15 @@ router.post(
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    if (chat.type !== "group") return res.status(400).json({ error: "Голосование доступно только для групп" });
+    // Бусты, как в Telegram, — для групп и каналов.
+    if (chat.type !== "group" && chat.type !== "channel") return res.status(400).json({ error: "Бусты доступны только для групп и каналов" });
 
     const me = await getUser(req.uid);
-    if (!me?.isPremium) return res.status(403).json({ error: "Голосовать могут только пользователи с Shalter Premium" });
+    if (!me?.isPremium) return res.status(403).json({ error: "Бустить могут только пользователи с Shalter Premium" });
 
     const lastVote = chat.votes?.[req.uid];
     if (lastVote && Date.now() - new Date(lastVote).getTime() < 24 * 3600_000) {
-      return res.status(429).json({ error: "Вы уже голосовали за эту группу сегодня" });
+      return res.status(429).json({ error: "Вы уже бустили этот чат сегодня — следующий буст через сутки", nextAt: new Date(new Date(lastVote).getTime() + 24 * 3600_000).toISOString() });
     }
 
     const updated = await updateChat(req.params.id, {

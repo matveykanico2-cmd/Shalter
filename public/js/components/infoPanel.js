@@ -369,19 +369,22 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
       ),
       isDm && chat.otherUser ? DmProfileRows(chat.otherUser) : null,
       !isDm && !chat.secret ? CommunityRow(chat, isOwnerOrAdmin) : null,
-      chat.type === "group"
-        ? el("div", { class: "group-vote-row" }, [
-            el("div", {}, [
-              el("p", { class: "settings-toggle-title" }, `Баллы группы: ${chat.points ?? 0} (уровень ${levelForPoints(chat.points)})`),
-              el(
-                "p",
-                { class: "settings-toggle-hint" },
-                pointsToNextLevel(chat.points) != null ? `До следующего уровня: ${pointsToNextLevel(chat.points)}` : "Максимальный уровень"
-              ),
+      chat.type === "group" || chat.type === "channel"
+        ? el("div", { class: "info-panel-card tw-boost-card" }, [
+            el("button", { type: "button", class: "info-panel-row tw-boost-row", onclick: onVoteForGroup }, [
+              el("span", { class: "info-panel-row-icon tw-boost-row-icon", html: iconSvg("Zap", 20) }),
+              el("span", { class: "tw-boost-row-body" }, [
+                el("span", { class: "tw-boost-row-title" }, `Бусты · уровень ${levelForPoints(chat.points)}`),
+                el(
+                  "span",
+                  { class: "tw-boost-row-sub" },
+                  pointsToNextLevel(chat.points) != null
+                    ? `${chat.points ?? 0} ${pluralBoost(chat.points ?? 0)} · до уровня ${levelForPoints(chat.points) + 1} ещё ${pointsToNextLevel(chat.points)}`
+                    : `${chat.points ?? 0} ${pluralBoost(chat.points ?? 0)} · максимальный уровень`
+                ),
+              ]),
+              el("span", { class: "tw-boost-row-action" }, isMePremium ? "Бустнуть" : "Premium"),
             ]),
-            isMePremium
-              ? el("button", { class: "settings-add-account-btn", onclick: onVoteForGroup }, "Голосовать")
-              : el("span", { class: "settings-toggle-hint" }, "Только с Premium"),
           ])
         : null,
       !isDm && (chat.description || (chat.isPublic && chat.username))
@@ -593,4 +596,12 @@ function openCreateCommunityTab(chat) {
       },
     },
   });
+}
+
+function pluralBoost(n) {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return "буст";
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return "буста";
+  return "бустов";
 }

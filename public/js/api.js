@@ -22,7 +22,10 @@ async function req(url, init) {
       const why = body.banReason ? `&why=${encodeURIComponent(body.banReason)}` : "";
       window.location.href = `/login?reason=banned${why}`;
     }
-    throw new Error(body.error ?? `Request failed: ${res.status}`);
+    const err = new Error(body.error ?? `Request failed: ${res.status}`);
+    err.status = res.status;
+    if (body.limit) err.limit = body.limit;
+    throw err;
   }
   return res.json();
 }

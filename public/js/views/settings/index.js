@@ -1,6 +1,8 @@
 import { askText } from "../../components/confirmDialog.js";
 import { askConfirm } from "../../components/confirmDialog.js";
 import { showToast } from "../../components/toast.js";
+import { openLimitPopup } from "../../components/limitPopup.js";
+import { openPremiumFeatures } from "../../components/premiumFeatures.js";
 import { el, mount, clear } from "../../lib/dom.js";
 import { clearCache } from "../../lib/localCache.js";
 import { iconSvg } from "../../icons.js";
@@ -606,9 +608,21 @@ const PREMIUM_COMPARE = [
   ["Значок и кольцо Premium", "—", "Да"],
   ["Эксклюзивные реакции 💎 👑 🚀 🥂 💯 🌟", "—", "Да"],
   ["Реакций на одно сообщение", "1", "до 3"],
+  ["Папок с чатами", "10", "20"],
+  ["Реклама в списке чатов", "есть", "нет"],
 ];
 
 const PREMIUM_PERKS = [
+  {
+    icon: "Folder",
+    title: "Удвоенные лимиты",
+    desc: "До 20 папок с чатами вместо 10",
+  },
+  {
+    icon: "BarChart",
+    title: "Без рекламы",
+    desc: "Спонсорские объявления в списке чатов и каналах больше не показываются",
+  },
   {
     icon: "MessageSquare",
     title: "Пишите и звоните бесплатно",
@@ -830,7 +844,19 @@ async function renderPremium(root) {
         twSection(
           "Что даёт Premium",
           PREMIUM_PERKS.map((p, i) =>
-            twRow({ icon: p.icon, color: PREMIUM_FEATURE_COLORS[i % PREMIUM_FEATURE_COLORS.length], title: p.title, subtitle: p.desc })
+            twRow({
+              icon: p.icon,
+              color: PREMIUM_FEATURE_COLORS[i % PREMIUM_FEATURE_COLORS.length],
+              title: p.title,
+              subtitle: p.desc,
+              onClick: () =>
+                openPremiumFeatures({
+                  features: PREMIUM_PERKS.map((f, j) => ({ ...f, color: PREMIUM_FEATURE_COLORS[j % PREMIUM_FEATURE_COLORS.length] })),
+                  start: i,
+                  isPremium: info.isPremium,
+                  onSubscribe: () => root.querySelector(".tw-premium-confirm")?.click(),
+                }),
+            })
           )
         ),
         twSection("Сравнение", [
@@ -3115,14 +3141,25 @@ async function renderAccounts(root) {
 }
 
 async function renderFolders(root) {
-  const [{ folders: initialFolders }, { chats }] = await Promise.all([api.listFolders(), api.listChats()]);
+  const [{ folders: initialFolders, limit: folderLimit }, { chats }] = await Promise.all([api.listFolders(), api.listChats()]);
   let folders = initialFolders;
   let editing = null;
   let creating = false;
   let newName = "";
   let chatFilter = "";
   let error = null;
-  const MAX_FOLDERS = 10;
+  const MAX_FOLDERS = folderLimit?.value ?? 10;
+  const showFolderLimit = () =>
+    openLimitPopup({
+      icon: "Folder",
+      count: folders.length,
+      free: folderLimit?.free ?? 10,
+      premium: folderLimit?.premium ?? 20,
+      isPremium: !!folderLimit?.isPremium,
+      text: folderLimit?.isPremium
+        ? `У вас уже ${folders.length} папок — это максимум. Удалите ненужную, чтобы создать новую.`
+        : `Можно создать не больше ${folderLimit?.free ?? 10} папок. С Shalter Premium лимит вырастет до ${folderLimit?.premium ?? 20}.`,
+    });
 
   function sync() {
     setState({ folders });
@@ -3132,6 +3169,10 @@ async function renderFolders(root) {
     try {
       await fn();
     } catch (err) {
+      if (err.limit) {
+        showFolderLimit();
+        return;
+      }
       error = err.message || "Не удалось сохранить";
       render();
     }
@@ -3291,8 +3332,8 @@ async function renderFolders(root) {
           el("span", { class: "tw-media-sticker", html: iconSvg("Folder", 56) }),
           el("p", { class: "tw-media-subtitle" }, `Создавайте папки для разных групп чатов и быстро переключайтесь между ними — мышью или клавишами Ctrl+1…9. До ${MAX_FOLDERS} папок.`),
         ]),
-        !creating && !full
-          ? el("button", { class: "tw-primary-btn", onclick: () => { creating = true; editing = null; render(); root.querySelector(".settings-folder-create-row input")?.focus(); } }, [el("span", { html: iconSvg("Plus", 22) }), "Создать папку"])
+        !creating
+          ? el("button", { class: "tw-primary-btn", onclick: () => { if (full) return showFolderLimit(); creating = true; editing = null; render(); root.querySelector(".settings-folder-create-row input")?.focus(); } }, [el("span", { html: iconSvg("Plus", 22) }), "Создать папку"])
           : null,
         error ? el("p", { class: "tw-row-note danger" }, error) : null,
         folders.length

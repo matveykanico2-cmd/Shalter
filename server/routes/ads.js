@@ -135,7 +135,7 @@ router.post(
 const campaigns = require("../data/adCampaigns");
 const { balanceOf, spendStars } = require("../data/stars");
 
-const PLACEMENTS = { chats: "Верх списка чатов", chat: "Внутри чата (сверху)", discover: "Каталог каналов", profile: "Своя страница профиля" };
+const PLACEMENTS = { chats: "Верх списка чатов", chat: "В каналах — рекламное сообщение", discover: "Каталог каналов", profile: "Своя страница профиля" };
 const MAX_TEXT = 200;
 
 // Body may carry `placements: [...]` (several places) or legacy `placement: "id"`.
@@ -298,6 +298,8 @@ router.get(
     const placement = PLACEMENTS[req.query.placement] ? req.query.placement : "discover";
     const owner = placement === "profile" ? String(req.query.owner || "") : "";
     if (placement === "profile" && !owner) return res.json({ ad: null });
+    // Как в Telegram: подписчики Premium не видят спонсорских объявлений.
+    if (placement !== "profile" && (await getUser(req.uid))?.isPremium) return res.json({ ad: null, premium: true });
     const c = owner ? campaigns.pickForOwner(placement, owner) : campaigns.pickForPlacement(placement, req.uid);
     if (!c) return res.json({ ad: null });
     // Advertisers viewing their own profile don't pay for the impression.

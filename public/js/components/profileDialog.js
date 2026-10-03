@@ -79,6 +79,55 @@ export function infoRow({ icon, value, label, mono, accent, multiline, copy, onC
   );
 }
 
+// Часы работы как в tweb (businessHours.tsx): «Открыто»/«Закрыто» цветом, сегодня справа,
+// по нажатию — вся неделя, начиная с сегодняшнего дня.
+function businessHoursRow(bh) {
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  const order = [...DAY_KEYS.slice(todayIdx), ...DAY_KEYS.slice(0, todayIdx)];
+  const allDay = DAY_KEYS.every((k) => bh.hours[k] && !bh.hours[k].closed && bh.hours[k].open === "00:00" && bh.hours[k].close === "24:00");
+  const statusText = formatStatus(bh.status, bh.hours).replace(/^(Открыто|Закрыто)( · )?/, "");
+  const details = el("div", { class: "tw-bhours" }, [
+    ...order.map((k, i) =>
+      el("div", { class: "tw-bhours-row" }, [
+        el("span", { class: "tw-bhours-day" }, i === 0 ? "Сегодня" : DAY_LABELS[k]),
+        el("span", { class: "tw-bhours-time" }, formatDayHours(bh.hours[k])),
+      ])
+    ),
+    bh.timeZone && bh.timeZone !== browserTimeZone()
+      ? el("p", { class: "tw-bhours-tz" }, `Время по поясу ${bh.timeZone.replace(/_/g, " ")}`)
+      : null,
+  ]);
+  const row = el("button", { type: "button", class: "profile-info-row clickable tw-bhours-container", onclick: () => !allDay && row.classList.toggle("is-expanded") }, [
+    el("span", { class: "profile-info-row-icon", html: iconSvg("Clock", 24) }),
+    el("span", { class: "profile-info-row-body" }, [
+      el("span", { class: `profile-info-row-value tw-bhours-status ${bh.status.open ? "open" : "closed"}` }, bh.status.open ? "Открыто" : "Закрыто"),
+      el("span", { class: "tw-bhours-sub" }, [
+        el("span", { class: "profile-info-row-label" }, "Часы работы"),
+        el("span", { class: "profile-info-row-label tw-bhours-right" }, allDay ? "круглосуточно" : statusText || formatDayHours(bh.hours[order[0]])),
+      ]),
+      allDay ? null : details,
+    ]),
+  ]);
+  return row;
+}
+
+// Адрес бизнеса (tweb .business-location): нажатие открывает карту, без координат — копирует.
+function businessLocationRow(user) {
+  const hasGeo = typeof user.businessLat === "number" && typeof user.businessLng === "number";
+  return infoRow({
+    icon: "MapPin",
+    value: user.businessAddress,
+    label: "Местоположение",
+    multiline: true,
+    onClick: async () => {
+      if (!hasGeo) return copyText(user.businessAddress, "Адрес скопирован");
+      if (await askConfirm("Открыть адрес на карте?", { okLabel: "Открыть" })) {
+        window.open(`https://yandex.ru/maps/?pt=${user.businessLng},${user.businessLat}&z=17&l=map`, "_blank", "noopener");
+      }
+    },
+  });
+}
+
 export function birthdayText(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -659,40 +708,10 @@ export async function openProfileDialog(userId) {
             el("audio", { class: "profile-track-player", controls: true, preload: "none", src: user.profileTrack.url }),
           ])
         : null,
-      user.isBusiness && user.businessAddress
-        ? el("div", { class: "profile-info" }, [
-            el("span", { class: "profile-info-label" }, "Адрес"),
-            el("div", { class: "profile-field-row" }, [el("span", { html: iconSvg("MapPin", 15) }), el("span", {}, user.businessAddress)]),
-          ])
-        : null,
-      user.businessHours
-        ? el("div", { class: "profile-business-hours" }, [
-            el(
-              "button",
-              { class: "profile-field-row profile-hours-toggle", onclick: () => ((hoursExpanded = !hoursExpanded), render()) },
-              [
-                el("span", { html: iconSvg("Clock", 15) }),
-                el(
-                  "span",
-                  { class: `business-status ${user.businessHours.status.open ? "open" : "closed"}` },
-                  formatStatus(user.businessHours.status, user.businessHours.hours)
-                ),
-                el("span", { class: `profile-hours-chevron${hoursExpanded ? " expanded" : ""}`, html: iconSvg("ChevronRight", 14) }),
-              ]
-            ),
-            hoursExpanded
-              ? el("div", { class: "profile-hours-table" }, [
-                  ...DAY_KEYS.map((k) =>
-                    el("div", { class: "profile-hours-day" }, [
-                      el("span", {}, DAY_LABELS[k]),
-                      el("span", { class: "mono" }, formatDayHours(user.businessHours.hours[k])),
-                    ])
-                  ),
-                  user.businessHours.timeZone && user.businessHours.timeZone !== browserTimeZone()
-                    ? el("p", { class: "settings-toggle-hint" }, `Время указано по поясу ${user.businessHours.timeZone.replace(/_/g, " ")}`)
-                    : null,
-                ])
-              : null,
+      user.businessHours || (user.isBusiness && user.businessAddress)
+        ? el("div", { class: "profile-info-card" }, [
+            user.businessHours ? businessHoursRow(user.businessHours) : null,
+            user.isBusiness && user.businessAddress ? businessLocationRow(user) : null,
           ])
         : null,
       user.isAdsActive && user.adText

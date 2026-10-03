@@ -911,7 +911,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   const boosted = !!message.boostedUntil && message.boostedUntil > new Date().toISOString();
   const bubble = el(
     "div",
-    { class: `bubble ${mine ? "mine" : ""} ${isSticker ? "bubble-sticker" : ""} ${isVideoNote ? "bubble-videonote" : ""} ${boosted ? "bubble-boosted" : ""}` },
+    { class: `bubble ${mine && !isChannel ? "mine" : ""} ${isSticker ? "bubble-sticker" : ""} ${isVideoNote ? "bubble-videonote" : ""} ${boosted ? "bubble-boosted" : ""}` },
     bubbleInner
   );
 
@@ -1418,7 +1418,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       )
     : null;
 
-  const column = el("div", { class: `message-column ${mine ? "mine" : ""}` }, [
+  // Посты канала, как в Telegram, всегда слева — даже у владельца (права на правку не меняются).
+  const column = el("div", { class: `message-column ${mine && !isChannel ? "mine" : ""}` }, [
     showSender && !mine && sender
       ? el(
           "button",
@@ -1494,7 +1495,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   const row = el(
     "div",
     {
-      class: `message-row ${mine ? "mine" : ""} ${groupStart ? "group-start" : ""} ${groupEnd ? "group-end" : ""} ${selection?.active ? "selecting" : ""} ${isSelected ? "selected" : ""}`,
+      class: `message-row ${mine && !isChannel ? "mine" : ""} ${isChannel ? "channel-post" : ""} ${groupStart ? "group-start" : ""} ${groupEnd ? "group-end" : ""} ${selection?.active ? "selecting" : ""} ${isSelected ? "selected" : ""}`,
       id: `msg-${message.id}`,
       ...gestures,
     },

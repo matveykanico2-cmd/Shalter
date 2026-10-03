@@ -9,3 +9,9 @@ export function pointsToNextLevel(points) {
   return next === undefined ? null : next - (points ?? 0);
 }
 
+
+// Порог текущего и следующего уровня — для полосы прогресса в окне буста.
+export function levelBounds(points) {
+  const level = levelForPoints(points);
+  return { level, from: level === 0 ? 0 : LEVEL_THRESHOLDS[level - 1], to: LEVEL_THRESHOLDS[level] ?? null };
+}
