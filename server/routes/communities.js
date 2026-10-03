@@ -81,6 +81,31 @@ router.get(
   })
 );
 
+// Для списка чатов (как в tweb): сообщество — отдельная строка, его чаты — в выезжающей панели.
+router.get(
+  "/joined",
+  asyncRoute(async (req, res) => {
+    const list = communities.listCommunitiesForUser(req.uid);
+    const out = [];
+    for (const c of list) {
+      const visible = [];
+      for (const id of c.chatIds) {
+        const chat = await getChat(id);
+        if (chat && !chat.secret) visible.push(id);
+      }
+      out.push({
+        id: c.id,
+        title: c.title,
+        description: c.description ?? null,
+        avatarColor: c.avatarColor ?? null,
+        isOwner: c.ownerId === req.uid,
+        chatIds: visible,
+      });
+    }
+    res.json({ communities: out });
+  })
+);
+
 router.get(
   "/by-chat/:chatId",
   asyncRoute(async (req, res) => {

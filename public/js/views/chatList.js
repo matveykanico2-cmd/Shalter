@@ -28,6 +28,18 @@ import { noteMessageInChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache, dropCachedMessage } from "../lib/localCache.js";
 import { openSidebarMenu, openSavedMessages } from "../components/sidebarMenu.js";
 import { sortChats } from "../lib/chatSort.js";
+import {
+  CommunityRow,
+  CommunityAvatar,
+  CommunityChildBadge,
+  communityActivity,
+  communityDetails,
+  forgetCommunityDetails,
+  setCommunityDetails,
+  memberChatsOf,
+  plural,
+} from "../components/communityList.js";
+import { askText, askConfirm } from "../components/confirmDialog.js";
 
 async function openNewChatMenu(e) {
   const rect = e.currentTarget.getBoundingClientRect();
@@ -103,6 +115,21 @@ async function openNewChatMenu(e) {
         },
       },
       {
+        icon: "Users",
+        label: "Новое сообщество",
+        onClick: async () => {
+          const title = (await askText("Название сообщества"))?.trim();
+          if (!title) return;
+          try {
+            const { community } = await api.createCommunity({ title });
+            const { openCommunityPanel } = await import("../components/communityList.js");
+            await openCommunityPanel(community.id);
+          } catch (err) {
+            alert(err.message || "Не удалось создать сообщество");
+          }
+        },
+      },
+      {
         icon: "Code",
         label: "Новый бот",
         onClick: () => {
@@ -175,8 +202,8 @@ export function ChatListPane() {
   const unsubState = subscribe(() => renderInto(listSlot));
   window.addEventListener("app:navigate", ({ detail }) => {
     const p = detail?.path ?? window.location.pathname;
-    if (getState().sidebarArchive && p !== "/" && !p.startsWith("/chat/")) {
-      setState({ sidebarArchive: false });
+    if ((getState().sidebarArchive || getState().sidebarCommunity) && p !== "/" && !p.startsWith("/chat/")) {
+      setState({ sidebarArchive: false, sidebarCommunity: null });
     }
     renderInto(listSlot);
   });
@@ -207,10 +234,12 @@ export function ChatListPane() {
     inFlight = true;
     const seq = ++latestSeq;
     try {
-      const [chatsRes, foldersRes] = await withTimeout(Promise.all([api.listChats(), api.listFolders()]));
+      const [chatsRes, foldersRes, commRes] = await withTimeout(
+        Promise.all([api.listChats(), api.listFolders(), api.joinedCommunities().catch(() => null)])
+      );
       if (seq !== latestSeq) return;
       notifyNewMessages(chatsRes.chats);
-      setState({ chats: chatsRes.chats, folders: foldersRes.folders });
+      setState({ chats: chatsRes.chats, folders: foldersRes.folders, ...(commRes ? { communities: commRes.communities } : {}) });
       writeCache("chats", getState().user?.id, { chats: chatsRes.chats, folders: foldersRes.folders });
     } catch {
     } finally {
@@ -519,6 +548,15 @@ function renderResults(container) {
     return;
   }
 
+  if (getState().sidebarCommunity) {
+    const community = (getState().communities ?? []).find((c) => c.id === getState().sidebarCommunity);
+    if (community) {
+      renderCommunityPanel(container, community, currentId);
+      scrollSlot.scrollTop = keepScroll;
+      return;
+    }
+  }
+
   if (getState().sidebarArchive) {
     const archived = sortChats(chats.filter((c) => c.archived));
     bodySlot.appendChild(
@@ -617,13 +655,176 @@ function renderResults(container) {
         : chatListEmpty(tab, folders)
     );
   }
+  // Сообщества (tweb): отдельная строка среди чатов, по времени самого свежего из своих чатов.
+  const communities = ["all", "groups", "channels"].includes(tab) && !unreadOnly ? (getState().communities ?? []) : [];
+  const communityQueue = communities
+    .map((cm) => ({ cm, at: communityActivity(cm, notArchived) }))
+    .sort((a, b) => b.at.localeCompare(a.at));
+  const flushCommunities = (beforeAt) => {
+    while (communityQueue.length && (beforeAt === null || communityQueue[0].at >= beforeAt)) {
+      scroll.appendChild(CommunityRow(communityQueue.shift().cm, notArchived));
+    }
+  };
   for (const c of list) {
+    if (!c.pinned) flushCommunities(c.lastMessage?.createdAt ?? c.createdAt ?? "");
     const row = ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally });
+    addCommunityBadge(row, c.id, communities);
     if (c.pinned) makePinnedDraggable(row, c.id, container);
     scroll.appendChild(row);
   }
+  flushCommunities(null);
   bodySlot.appendChild(scroll);
   scrollSlot.scrollTop = keepScroll;
+}
+
+function addCommunityBadge(row, chatId, communities) {
+  const community = communities.find((cm) => cm.chatIds.includes(chatId));
+  const avatar = community && row.querySelector(".chat-list-item > .avatar");
+  if (!avatar) return;
+  avatar.classList.add("has-community-badge");
+  avatar.appendChild(CommunityChildBadge(community));
+}
+
+async function reloadCommunities() {
+  try {
+    const { communities } = await api.joinedCommunities();
+    setState({ communities });
+  } catch {}
+}
+
+// Панель сообщества поверх списка чатов (tweb: forum tab / CommunityPeerDialogList).
+function renderCommunityPanel(container, community, currentId) {
+  const { chats, user } = getState();
+  const rerender = () => renderResults(container);
+  const info = communityDetails(community.id, rerender);
+  const mine = sortChats(memberChatsOf(community, chats));
+  const others = (info?.chats ?? []).filter((c) => !c.isMember);
+  const isOwner = info?.isOwner ?? community.isOwner;
+  const count = community.chatIds.length;
+  const close = () => setState({ sidebarCommunity: null });
+  const act = async (fn, fallback) => {
+    try {
+      const res = await fn();
+      if (res?.community) setCommunityDetails(community.id, res.community);
+      else forgetCommunityDetails(community.id);
+      await reloadCommunities();
+    } catch (err) {
+      alert(err.message || fallback);
+    }
+  };
+
+  bodySlot.appendChild(
+    el("div", { class: "community-panel-head" }, [
+      el("button", { class: "icon-btn community-panel-back", title: "Назад к чатам", html: iconSvg("ChevronLeft", 22), onclick: close }),
+      CommunityAvatar(community, 40),
+      el("div", { class: "community-panel-titles" }, [
+        el("span", { class: "community-panel-title" }, community.title),
+        el("span", { class: "community-panel-subtitle" }, `сообщество · ${count} ${plural(count, "чат", "чата", "чатов")}`),
+      ]),
+      el("button", {
+        class: "icon-btn",
+        title: "Ещё",
+        html: iconSvg("MoreVertical", 20),
+        onclick: (e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          const link = `${location.origin}/community/${community.id}`;
+          openDropdownMenu({ x: r.right - 8, y: r.bottom + 2 }, [
+            { icon: "Link", label: "Скопировать ссылку", onClick: () => navigator.clipboard?.writeText(link).catch(() => {}) },
+            isOwner && {
+              icon: "Edit",
+              label: "Изменить сообщество",
+              onClick: async () => {
+                const title = (await askText("Название сообщества", community.title))?.trim();
+                if (!title) return;
+                const description = await askText("Описание (можно оставить пустым)", info?.description ?? community.description ?? "");
+                if (description === null) return;
+                act(() => api.updateCommunity(community.id, { title, description }), "Не удалось сохранить");
+              },
+            },
+            isOwner && {
+              icon: "Trash",
+              label: "Удалить сообщество",
+              danger: true,
+              onClick: async () => {
+                if (!(await askConfirm(`Удалить сообщество «${community.title}»? Сами группы и каналы останутся.`))) return;
+                try {
+                  await api.deleteCommunity(community.id);
+                  close();
+                  await reloadCommunities();
+                } catch (err) {
+                  alert(err.message || "Не удалось удалить");
+                }
+              },
+            },
+          ].filter(Boolean));
+        },
+      }),
+    ])
+  );
+
+  const box = scrollSlot;
+  if (info?.description) box.appendChild(el("p", { class: "community-panel-description" }, info.description));
+  if (isOwner) {
+    box.appendChild(
+      el("button", {
+        class: "community-add-chat",
+        onclick: async () => {
+          const { openOwnChatPicker } = await import("./community.js");
+          openOwnChatPicker((chatId) => act(() => api.addCommunityChat(community.id, chatId), "Не удалось добавить чат"), { exclude: community.chatIds });
+        },
+      }, [el("span", { class: "community-add-chat-icon", html: iconSvg("Plus", 22) }), el("span", {}, "Добавить чат в сообщество")])
+    );
+  }
+  if (mine.length) {
+    box.appendChild(el("p", { class: "list-section-label" }, "Ваши чаты"));
+    for (const c of mine) {
+      box.appendChild(
+        ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally })
+      );
+    }
+  }
+  if (others.length) {
+    box.appendChild(el("p", { class: "list-section-label" }, "Другие чаты сообщества"));
+    for (const c of others) {
+      const joinBtn = c.isPublic
+        ? el("button", {
+            class: "community-join-btn",
+            onclick: async (e) => {
+              e.stopPropagation();
+              e.currentTarget.disabled = true;
+              try {
+                const res = await api.joinPublicChat(c.id);
+                if (res.pending) alert("Заявка отправлена — администратор чата её рассмотрит");
+                await api.listChats().then((r) => setState({ chats: r.chats }));
+                forgetCommunityDetails(community.id);
+                if (!res.pending) navigate(`/chat/${c.id}`);
+              } catch (err) {
+                alert(err.message || "Не удалось вступить");
+              }
+              rerender();
+            },
+          }, c.type === "channel" ? "Подписаться" : "Вступить")
+        : el("span", { class: "community-invite-only" }, "по приглашению");
+      box.appendChild(
+        el("div", { class: "chat-list-item-wrap" }, [
+          el("div", { class: "chat-list-item community-other-chat" }, [
+            Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage, size: 54 }),
+            el("div", { class: "chat-list-item-body" }, [
+              el("div", { class: "chat-list-item-row" }, [el("span", { class: "chat-list-item-title" }, c.title)]),
+              el("div", { class: "chat-list-item-row" }, [
+                el("span", { class: "chat-list-item-preview" }, `${c.members} ${c.type === "channel" ? plural(c.members, "подписчик", "подписчика", "подписчиков") : plural(c.members, "участник", "участника", "участников")}`),
+              ]),
+            ]),
+            joinBtn,
+          ]),
+        ])
+      );
+    }
+  }
+  if (!mine.length && !others.length) {
+    box.appendChild(el("p", { class: "empty-hint" }, info ? (isOwner ? "Добавьте сюда свои группы и каналы" : "В сообществе пока нет чатов") : "Загрузка…"));
+  }
+  bodySlot.appendChild(box);
 }
 
 function hasUnread(c) {

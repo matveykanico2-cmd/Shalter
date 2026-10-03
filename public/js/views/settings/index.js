@@ -52,7 +52,7 @@ import { renderGiftArt } from "../../lib/giftTraits.js";
 import { openAnimatorEditor } from "../../components/animatorEditor.js";
 import { renderCustomScene } from "../../lib/customScene.js";
 import { timeAgo, plural } from "../../lib/presence.js";
-import { applyAccentSetting, isThemeAccent } from "../../lib/accent.js";
+import { applyAccentSetting, isThemeAccent, applyFontSizeSetting, effectiveFontSize } from "../../lib/accent.js";
 import { startRecording, isRecordingSupported } from "../../lib/recorder.js";
 import { checkSize } from "../../lib/uploadLimits.js";
 import { WALLPAPER_GROUPS } from "../../lib/wallpapers.js";
@@ -2159,6 +2159,45 @@ async function renderAppearance(root) {
     }
   }
 
+  // Ползунок не перерисовывает страницу на каждый сдвиг — иначе он пересоздаётся
+  // под пальцем и перетаскивание обрывается. Размер применяется сразу, сохраняется по отпусканию.
+  function fontSizeControl() {
+    const MIN = 12;
+    const MAX = 20;
+    let size = effectiveFontSize(settings.fontSize);
+    const valueEl = el("span", { class: "tw-range-value" }, `${size}`);
+    const fill = (n) => `${((n - MIN) / (MAX - MIN)) * 100}%`;
+    const input = el("input", {
+      type: "range",
+      min: MIN,
+      max: MAX,
+      step: 1,
+      value: size,
+      class: "settings-range",
+      style: `--p: ${fill(size)}`,
+      "aria-label": "Размер текста сообщений",
+      oninput: (e) => {
+        size = Number(e.target.value);
+        valueEl.textContent = `${size}`;
+        e.target.style.setProperty("--p", fill(size));
+        applyFontSizeSetting(size);
+      },
+      onchange: () => {
+        if (size === effectiveFontSize(settings.fontSize)) return;
+        settings = { ...settings, fontSize: size };
+        setState({ settings });
+        api.patchSettings({ fontSize: size }).catch(() => {});
+      },
+    });
+    return el("div", { class: "settings-font-size" }, [
+      el("div", { class: "settings-toggle-row no-divider" }, [
+        el("span", { class: "settings-toggle-title" }, "Размер текста сообщений"),
+        valueEl,
+      ]),
+      input,
+    ]);
+  }
+
   function render() {
     const wallpaperFileInput = el("input", {
       type: "file",
@@ -2169,21 +2208,7 @@ async function renderAppearance(root) {
     mount(
       root,
       pageWrap("Внешний вид", null, [
-        section("Размер текста", [
-          el("div", { class: "settings-toggle-row no-divider" }, [
-            el("span", { class: "settings-toggle-title" }, "Размер текста сообщений"),
-            el("span", { class: "tw-range-value" }, `${settings.fontSize}`),
-          ]),
-          el("input", {
-            type: "range",
-            min: 13,
-            max: 19,
-            value: settings.fontSize,
-            class: "settings-range",
-            style: `--p: ${((settings.fontSize - 13) / 6) * 100}%`,
-            oninput: (e) => patch({ fontSize: Number(e.target.value) }),
-          }),
-        ]),
+        section("Размер текста", [fontSizeControl()]),
         twSection(
           "Тема",
           THEMES.map((t) =>

@@ -1,4 +1,4 @@
-import { applyAccentSetting } from "./lib/accent.js";
+import { applyAccentSetting, applyFontSizeSetting } from "./lib/accent.js";
 import { el, mount, clear } from "./lib/dom.js";
 import { api } from "./api.js";
 import { setState, getState, updateSelf } from "./state.js";
@@ -146,6 +146,7 @@ async function boot() {
       initUiTranslation(settings.uiLanguage);
       if (settings.theme && settings.theme !== "system") document.documentElement.setAttribute("data-theme", settings.theme);
       applyAccentSetting(settings.accent);
+      applyFontSizeSetting(settings.fontSize);
       document.documentElement.toggleAttribute("data-reduce-motion", !!settings.reduceMotion);
     })
     .catch(() => {});

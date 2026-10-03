@@ -2,6 +2,7 @@ import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import qrcode from "../lib/qrcode.js";
+import { onWsMessage } from "../lib/wsClient.js";
 
 export function openTwoFactorSetupDialog(onEnabled) {
   let step = "method";
@@ -29,7 +30,18 @@ export function openTwoFactorSetupDialog(onEnabled) {
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
 
+  // Код из чата с Shalter подставляется сам — не нужно уходить из настройки в чат.
+  const stopCodeWatch = onWsMessage("message:new", ({ message }) => {
+    if (method !== "chat" || step !== "scan" || message?.senderId !== "bot_shalter") return;
+    const found = String(message.text ?? "").match(/Код подтверждения:\s*(\d{6})/);
+    if (!found) return;
+    code = found[1];
+    codeInput.value = code;
+    if (!busy) confirm();
+  });
+
   function close() {
+    stopCodeWatch?.();
     overlay.remove();
   }
 
@@ -215,7 +227,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
               copied ? el("p", { class: "settings-toggle-hint" }, "Ключ скопирован ✓") : null,
             ]
           : [
-              el("p", { class: "settings-toggle-hint" }, "Код отправлен в ваш чат с Shalter — откройте его и введите шесть цифр. Код действует 5 минут."),
+              el("p", { class: "settings-toggle-hint" }, "Код отправлен в ваш чат с Shalter и придёт уведомлением. Если приложение открыто, код подставится сам. Код действует 5 минут."),
               el("p", { class: "settings-toggle-hint" }, "Не видите код? Введите в поле номер телефона этого аккаунта — этого достаточно, чтобы включить."),
               el(
                 "button",

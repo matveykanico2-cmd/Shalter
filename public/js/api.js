@@ -197,6 +197,7 @@ export const api = {
   inviteInfo: (code) => req(`/api/chats/invite/${encodeURIComponent(code)}`),
   getCommunity: (id) => req(`/api/communities/${id}`),
   myCommunities: () => req("/api/communities/mine"),
+  joinedCommunities: () => req("/api/communities/joined"),
   communityOfChat: (chatId) => req(`/api/communities/by-chat/${chatId}`),
   createCommunity: (body) => req("/api/communities", { method: "POST", body: JSON.stringify(body) }),
   updateCommunity: (id, patch) => req(`/api/communities/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),

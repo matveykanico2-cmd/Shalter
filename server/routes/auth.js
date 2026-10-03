@@ -649,6 +649,13 @@ async function sendTwoFactorCode(userId) {
     SYSTEM_BOT_ID,
     `🔢 Код подтверждения: ${code}\n\nНикому не сообщайте его — даже сотрудникам Shalter. Действует 5 минут.`
   );
+  // Пока приложение свёрнуто (переключились ввести код), WebSocket спит — без пуша код «не приходит».
+  const { sendPushToUser, MESSAGE_PUSH } = require("../push");
+  sendPushToUser(
+    userId,
+    { title: "Shalter", body: `Код подтверждения: ${code}. Никому его не сообщайте.`, url: `/chat/${chat.id}`, tag: "shalter-login-code" },
+    { ...MESSAGE_PUSH, TTL: 5 * 60 }
+  ).catch(() => {});
 }
 
 async function verifySecondFactor(user, rawCode) {

@@ -33,6 +33,7 @@ const PATHS = {
   MoreVertical: '<circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none"/>',
   ChevronLeft: '<path d="M15 5l-7 7 7 7"/>',
   ChevronRight: '<path d="M9 5l7 7-7 7"/>',
+  ChevronDown: '<path d="M5 9l7 7 7-7"/>',
   X: '<path d="M6 6l12 12M18 6L6 18"/>',
   Plus: '<path d="M12 5v14M5 12h14"/>',
   Info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>',

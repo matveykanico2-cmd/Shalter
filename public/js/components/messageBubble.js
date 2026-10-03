@@ -746,7 +746,24 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   const mine = message.senderId === me.id;
 
   if (message.type === "system") {
-    return el("div", { class: "system-message" }, message.text);
+    const text = String(message.text ?? "").replace(/^\s*🔒\s*/u, "");
+    // Начало секретного чата — карточка по центру, как в tweb (без замка сбоку строки).
+    const secret = text.match(/^(.+?) начал\(а\) секретный чат/);
+    if (secret) {
+      const point = (t) => el("li", {}, [el("span", { class: "secret-start-icon", html: iconSvg("Lock", 13) }), el("span", {}, t)]);
+      return el("div", { class: "system-message" }, [
+        el("div", { class: "secret-start-card" }, [
+          el("p", { class: "secret-start-title" }, `${secret[1]} начал(а) секретный чат`),
+          el("p", { class: "secret-start-sub" }, "Секретные чаты:"),
+          el("ul", { class: "secret-start-list" }, [
+            point("Шифруются ключом этого чата"),
+            point("Доступны только на этом устройстве"),
+            point("Сообщения нельзя переслать"),
+          ]),
+        ]),
+      ]);
+    }
+    return el("div", { class: "system-message" }, [el("span", { class: "system-message-text" }, text)]);
   }
 
   if (message.type === "gift" && message.gift) {
@@ -827,10 +844,20 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       bubbleInner.push(AttachmentView(a, me, { message, sender }));
     }
   }
+  const mediaOnly =
+    !isCallLog &&
+    !isSticker &&
+    mediaAtts.length > 0 &&
+    mediaAtts.length === atts.length &&
+    !message.text?.trim() &&
+    !message.linkPreview &&
+    !message.paidStars;
   if (isCallLog) {
     bubbleInner.push(CallBubble(message, mine, handlers.onCallBack));
   } else if (isSticker) {
     bubbleInner.push(StickerBody(message));
+  } else if (mediaOnly) {
+    // Фото/видео без подписи: пустой строки текста нет, время лежит поверх медиа (как в tweb).
   } else if (!message.attachments?.some((a) => a.kind === "poll" || a.kind === "checklist")) {
     const jumboCount = !message.attachments?.length ? jumboEmojiCount(message.text) : 0;
     const ceOnly =
@@ -897,7 +924,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     const spacer = el("span", { class: "message-meta-spacer", "aria-hidden": "true" }, [...inner.cloneNode(true).childNodes]);
     meta = el("span", { class: "message-meta message-meta-inline" }, [spacer, inner]);
   } else {
-    meta = el("span", { class: `message-meta ${isSticker ? "message-meta-sticker" : ""}` }, metaParts);
+    meta = el("span", { class: `message-meta ${isSticker ? "message-meta-sticker" : ""} ${mediaOnly ? "message-meta-media" : ""}` }, metaParts);
   }
   if (isCallLog) {
     // У звонка, как в tweb, время уже в строке статуса — отдельной подписи нет.
@@ -916,7 +943,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   const boosted = !!message.boostedUntil && message.boostedUntil > new Date().toISOString();
   const bubble = el(
     "div",
-    { class: `bubble ${mine && !isChannel ? "mine" : ""} ${isSticker ? "bubble-sticker" : ""} ${isVideoNote ? "bubble-videonote" : ""} ${boosted ? "bubble-boosted" : ""}` },
+    { class: `bubble ${mine && !isChannel ? "mine" : ""} ${mediaOnly ? "bubble-media-only" : ""} ${isSticker ? "bubble-sticker" : ""} ${isVideoNote ? "bubble-videonote" : ""} ${boosted ? "bubble-boosted" : ""}` },
     bubbleInner
   );
 

@@ -24,6 +24,20 @@ function listCommunitiesOwnedBy(ownerId) {
   return db.prepare("SELECT * FROM communities WHERE ownerId = ? ORDER BY createdAt DESC").all(ownerId).map(rowToCommunity);
 }
 
+// Сообщества, которые видит пользователь: свои и те, где он состоит хотя бы в одном чате.
+function listCommunitiesForUser(uid) {
+  return db
+    .prepare(
+      `SELECT DISTINCT c.* FROM communities c
+       LEFT JOIN community_chats cc ON cc.communityId = c.id
+       LEFT JOIN chat_members m ON m.chatId = cc.chatId AND m.userId = ?
+       WHERE c.ownerId = ? OR m.userId IS NOT NULL
+       ORDER BY c.createdAt DESC`
+    )
+    .all(uid, uid)
+    .map(rowToCommunity);
+}
+
 function communityOfChat(chatId) {
   const row = db.prepare("SELECT communityId FROM community_chats WHERE chatId = ?").get(chatId);
   return row ? getCommunity(row.communityId) : undefined;
@@ -71,6 +85,7 @@ function deleteCommunity(id) {
 module.exports = {
   getCommunity,
   listCommunitiesOwnedBy,
+  listCommunitiesForUser,
   communityOfChat,
   createCommunity,
   updateCommunity,

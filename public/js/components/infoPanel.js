@@ -1,3 +1,4 @@
+import { openCommunityPanel } from "./communityList.js";
 import { openSideTab, twInputField } from "./twTab.js";
 import { askText } from "./confirmDialog.js";
 import { askConfirm } from "./confirmDialog.js";
@@ -168,7 +169,7 @@ function CommunityRow(chat, canManage) {
     .then(async ({ community }) => {
       if (community) {
         slot.replaceChildren(
-          el("button", { class: "info-community-link", onclick: () => navigate(`/community/${community.id}`) }, [
+          el("button", { class: "info-community-link", onclick: () => openCommunityPanel(community.id) }, [
             el("span", { html: iconSvg("Users", 16) }),
             el("span", {}, ["Сообщество: ", el("b", {}, community.title)]),
           ])
@@ -189,7 +190,7 @@ function CommunityRow(chat, canManage) {
               onclick: async () => {
                 try {
                   await api.addCommunityChat(c.id, chat.id);
-                  navigate(`/community/${c.id}`);
+                  openCommunityPanel(c.id);
                 } catch (err) {
                   alert(err.message || "Не удалось добавить");
                 }
@@ -588,7 +589,7 @@ function openCreateCommunityTab(chat) {
         try {
           const { community } = await api.createCommunity({ title, description: desc.input.value.trim(), chatId: chat.id, avatarColor: chat.avatarColor });
           tab.close({ all: true });
-          navigate(`/community/${community.id}`);
+          openCommunityPanel(community.id);
         } catch (err) {
           tab.setFabBusy(false);
           alert(err?.message || "Не удалось создать сообщество");
