@@ -5,7 +5,7 @@ import { api } from "../api.js";
 import { passkeysSupported, loginWithPasskey, passkeyErrorText } from "../lib/passkey.js";
 import { navigate } from "../router.js";
 import { fileToAvatarDataUrl } from "../lib/image.js";
-import qrcode from "../lib/qrcode.js";
+import { prettyQrSvg } from "../lib/prettyQr.js";
 import { PhoneField } from "../components/phoneField.js";
 
 const QR_POLL_MS = 1500;
@@ -121,10 +121,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   }
 
   function qrCodeSvg(text) {
-    const qr = qrcode(0, "M");
-    qr.addData(text);
-    qr.make();
-    return qr.createSvgTag({ cellSize: 6, margin: 12, scalable: true });
+    return prettyQrSvg(text);
   }
 
   function renderQrPanel() {

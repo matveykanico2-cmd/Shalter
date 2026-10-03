@@ -122,7 +122,7 @@ function track(entry) {
  * replay: true — играет при появлении и повторяет по наведению/нажатию;
  * replay: false — показывает статичный кадр и оживает только при наведении.
  */
-export function renderLottie(name, { size = 84, replay = true, loop = false, fallback = null } = {}) {
+export function renderLottie(name, { size = 84, replay = true, loop = false, fallback = null, rest = "last" } = {}) {
   const box = document.createElement("span");
   box.className = "lottie-art";
   box.style.width = `${size}px`;
@@ -139,13 +139,15 @@ export function renderLottie(name, { size = 84, replay = true, loop = false, fal
         rendererSettings: { preserveAspectRatio: "xMidYMid meet", progressiveLoad: true },
       });
       track({ box, anim });
+      // Кадр покоя: у подарков — последний (собранная картинка), у эмодзи Noto — первый.
+      const restFrame = () => (rest === "first" ? 0 : Math.max(0, anim.totalFrames - 1));
       const replayFromStart = () => anim.goToAndPlay(0, true);
       anim.addEventListener("DOMLoaded", () => {
         box.classList.add("ready");
         if (replay) anim.play();
-        else anim.goToAndStop(Math.max(0, anim.totalFrames - 1), true);
+        else anim.goToAndStop(restFrame(), true);
       });
-      if (!replay) anim.addEventListener("complete", () => anim.goToAndStop(Math.max(0, anim.totalFrames - 1), true));
+      if (!replay) anim.addEventListener("complete", () => anim.goToAndStop(restFrame(), true));
       const host = () => box.closest("button, a, .gift-message, .gift-card-emoji") ?? box;
       host().addEventListener("mouseenter", () => anim.isPaused && replayFromStart());
       box.addEventListener("click", () => anim.isPaused && replayFromStart());

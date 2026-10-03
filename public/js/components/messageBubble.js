@@ -5,6 +5,7 @@ import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { cachedUser, fetchUsers } from "../lib/userLookup.js";
+import { hasAnimatedEmoji, renderAnimatedEmoji } from "../lib/animatedEmoji.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { formatText, previewText } from "../lib/formatText.js";
 import { messagePreview, diceResult } from "../lib/messagePreview.js";
@@ -39,6 +40,31 @@ function jumboEmojiCount(text) {
   const graphemes = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(trimmed)].map((s) => s.segment);
   if (graphemes.length > 3) return 0;
   return graphemes.every(isEmojiGrapheme) ? graphemes.length : 0;
+}
+
+// Анимированные эмодзи: реакция, которую только что поставили, проигрывается;
+// сообщение из 1–3 эмодзи играет один раз при первом показе.
+const recentReactions = new Map();
+function justReacted(msgId, emoji) {
+  const t = recentReactions.get(`${msgId}|${emoji}`);
+  return !!t && Date.now() - t < 4000;
+}
+const playedJumbo = new Set();
+function pickerGlyph(e) {
+  return hasAnimatedEmoji(e) ? renderAnimatedEmoji(e, { size: 30 }) : e;
+}
+function animatedJumbo(message, count) {
+  const trimmed = (message.text ?? "").trim();
+  const graphemes = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(trimmed)].map((x) => x.segment);
+  if (!graphemes.every(hasAnimatedEmoji)) return null;
+  const size = count === 1 ? 128 : count === 2 ? 88 : 72;
+  const play = !playedJumbo.has(message.id);
+  playedJumbo.add(message.id);
+  return el(
+    "span",
+    { class: `message-text message-text-jumbo message-animated-jumbo jumbo-${count}` },
+    graphemes.map((g) => renderAnimatedEmoji(g, { size, replay: play }))
+  );
 }
 
 let currentAudibleMedia = null;
@@ -783,6 +809,10 @@ export function AttachmentView(a, me, ctx) {
 export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, replyToSender = null, members, handlers, allowedReactions = null, canViewReactionDetails = true, protectedContent = false, senderTag = null }) {
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onPollAction, onKeyboardAction, onKeyboardApp, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
+  const react = (m, emoji) => {
+    recentReactions.set(`${m.id}|${emoji}`, Date.now());
+    onReact(m, emoji);
+  };
 
   if (message.type === "system") {
     const text = String(message.text ?? "").replace(/^\s*🔒\s*/u, "");
@@ -915,7 +945,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
             )
           )
         : jumboCount
-          ? el("span", { class: `message-text message-text-jumbo jumbo-${jumboCount}` }, message.text)
+          ? animatedJumbo(message, jumboCount) ?? el("span", { class: `message-text message-text-jumbo jumbo-${jumboCount}` }, message.text)
           : el("span", { class: "message-text" }, formatText(message.text, members, message.customEmoji));
     if (message.paidStars) typeOutOnce(textNode, message.id);
     bubbleInner.push(textNode);
@@ -1063,7 +1093,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
               "div",
               { class: "emoji-picker-row" },
               allowedReactions.map((e) =>
-                el("button", { onclick: () => { onReact(message, e); closePicker(); } }, e)
+                el("button", { onclick: () => { react(message, e); closePicker(); } }, [pickerGlyph(e)])
               )
             ),
           ]
@@ -1076,11 +1106,11 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
                   "button",
                   {
                     onclick: () => {
-                      onReact(message, e);
+                      react(message, e);
                       closePicker();
                     },
                   },
-                  e
+                  [pickerGlyph(e)]
                 )
               )
             ),
@@ -1095,11 +1125,11 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
                     title: me?.isPremium ? "" : "Реакция для Premium",
                     onclick: () => {
                       closePicker();
-                      if (me?.isPremium) onReact(message, e);
+                      if (me?.isPremium) react(message, e);
                       else navigate("/settings/premium");
                     },
                   },
-                  [e, !me?.isPremium ? el("span", { class: "emoji-picker-lock", html: iconSvg("Lock", 9) }) : null]
+                  [pickerGlyph(e), !me?.isPremium ? el("span", { class: "emoji-picker-lock", html: iconSvg("Lock", 9) }) : null]
                 )
               )
             ),
@@ -1107,7 +1137,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
               "div",
               { class: "emoji-picker-all" },
               ALL_EMOJI.map((e) =>
-                el("button", { onclick: () => { onReact(message, e); closePicker(); } }, e)
+                el("button", { onclick: () => { react(message, e); closePicker(); } }, e)
               )
             ),
             el(
@@ -1116,7 +1146,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
               REACTION_STICKERS.map((s) =>
                 el(
                   "button",
-                  { title: s.name, onclick: () => { onReact(message, REACTION_STICKER_PREFIX + s.id); closePicker(); } },
+                  { title: s.name, onclick: () => { react(message, REACTION_STICKER_PREFIX + s.id); closePicker(); } },
                   [renderSticker(s, { size: 26 })]
                 )
               )
@@ -1176,7 +1206,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     ]);
   }
   function reactionPillHandlers(r) {
-    if (!canViewReactionDetails) return { onclick: () => onReact(message, r.emoji) };
+    if (!canViewReactionDetails) return { onclick: () => react(message, r.emoji) };
     const HOLD_MS = 450;
     const SLOP = 10;
     let timer = null;
@@ -1214,7 +1244,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
           justHeld = false;
           return;
         }
-        onReact(message, r.emoji);
+        react(message, r.emoji);
       },
     };
   }
@@ -1402,7 +1432,11 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
             },
             [
               el("span", { class: "reaction-pill-glyph" }, [
-                sticker ? renderSticker(sticker, { size: 22 }) : r.emoji,
+                sticker
+                  ? renderSticker(sticker, { size: 22 })
+                  : hasAnimatedEmoji(r.emoji)
+                    ? renderAnimatedEmoji(r.emoji, { size: 22, replay: justReacted(message.id, r.emoji) })
+                    : r.emoji,
               ]),
               avatars.length
                 ? el(

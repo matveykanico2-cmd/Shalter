@@ -21329,3 +21329,82 @@ button img.emoji {
 .tw-tr-ok:hover {
   filter: brightness(1.06);
 }
+
+/* QR профиля, как «Мой QR-код» в tweb: цветной фон, белая карточка, код цветом темы */
+.qr-profile-dialog {
+  max-width: 360px;
+  width: 360px;
+}
+.qr-profile-stage {
+  display: flex;
+  justify-content: center;
+  padding: 52px 28px 28px;
+  border-radius: 20px;
+  transition: background 0.3s ease;
+}
+.qr-profile-stage .qr-profile-card {
+  width: 100%;
+  padding: 40px 16px 16px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+.qr-profile-stage .qr-profile-avatar {
+  top: -32px;
+  border: 4px solid #fff;
+  border-radius: 50%;
+}
+.qr-profile-stage .qr-login-code {
+  width: 220px;
+  height: 220px;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: none;
+}
+.qr-profile-stage .qr-profile-username {
+  margin-top: 10px;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.qr-profile-themes {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.qr-profile-theme {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.qr-profile-theme:hover {
+  transform: scale(1.08);
+}
+.qr-profile-theme.active {
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent);
+}
+
+/* анимированные эмодзи (Noto Animated Emoji) */
+.animated-emoji {
+  display: inline-block;
+  vertical-align: middle;
+}
+.message-animated-jumbo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  line-height: 1;
+}
+.emoji-picker-row button .animated-emoji,
+.reaction-pill-glyph .animated-emoji {
+  pointer-events: none;
+}
+.reaction-pill-glyph:has(.animated-emoji) {
+  display: inline-flex;
+}

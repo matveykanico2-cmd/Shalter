@@ -1,7 +1,7 @@
 import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
-import qrcode from "../lib/qrcode.js";
+import { prettyQrSvg } from "../lib/prettyQr.js";
 import { onWsMessage } from "../lib/wsClient.js";
 
 export function openTwoFactorSetupDialog(onEnabled) {
@@ -47,10 +47,7 @@ export function openTwoFactorSetupDialog(onEnabled) {
   }
 
   function qrSvg(text) {
-    const qr = qrcode(0, "M");
-    qr.addData(text);
-    qr.make();
-    return qr.createSvgTag({ cellSize: 5, margin: 10, scalable: true });
+    return prettyQrSvg(text, { logo: false });
   }
 
   async function start(chosen) {
