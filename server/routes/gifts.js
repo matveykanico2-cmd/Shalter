@@ -38,6 +38,14 @@ const { fetchUploadToTemp, storeGeneratedFile } = require("../lib/uploadTransfer
 const { cutGifBackground } = require("../lib/giftMedia");
 const { FILENAME_RE } = require("../lib/serveUpload");
 
+// Куда вести отправителя после подарка: его личка с получателем. При анонимном
+// подарке сообщение пишет бот Shalter, но открыть отправителю надо свой чат.
+async function senderChatId(result, uid, recipientId) {
+  if (result.chat?.memberIds?.includes(uid)) return result.chat.id;
+  const dm = await findOrCreateDm(uid, recipientId);
+  return dm.id;
+}
+
 const router = express.Router();
 router.use(requireUserId);
 
@@ -157,7 +165,7 @@ router.post(
       addStars(req.uid, price);
       return res.status(410).json({ error: soldOutError(gift), balance: balanceOf(req.uid) });
     }
-    res.json({ chatId: result.chat.id, serial: result.serial, delivered: true, balance: balanceOf(req.uid) });
+    res.json({ chatId: await senderChatId(result, req.uid, recipientId), serial: result.serial, delivered: true, balance: balanceOf(req.uid) });
   })
 );
 
@@ -448,7 +456,7 @@ router.post(
     const anonymous = await resolveAnonymous(req);
     const result = await deliverGift({ gift, recipientId: recipient.id, fromId: req.uid, announceFromId: req.uid, background, anonymous });
     if (!result.ok) return res.status(500).json({ error: "Не удалось отправить подарок" });
-    res.json({ chatId: result.chat.id, delivered: true });
+    res.json({ chatId: await senderChatId(result, req.uid, recipient.id), delivered: true });
   })
 );
 

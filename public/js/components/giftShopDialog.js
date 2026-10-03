@@ -84,6 +84,17 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     });
   }
 
+  // Как в Telegram: после отправки — сразу в чат с получателем, где лежит подарок.
+  function openChatAfterGift(chatId, gift) {
+    showToast(`«${gift.name}» отправлен — ${target.name}`);
+    busyId = null;
+    close();
+    document.querySelectorAll(".profile-panel-overlay").forEach((o) => o.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    document.querySelectorAll(".modal-overlay").forEach((o) => o.querySelector(".profile-dialog, .gift-card-dialog") && o.remove());
+    api.listChats().then((r) => setState({ chats: r.chats }), () => {});
+    navigate(`/chat/${chatId}`);
+  }
+
   async function sendMine(gift) {
     if (!target) {
       openContactPickerDialog((picked) => {
@@ -98,9 +109,10 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
     notice = null;
     render();
     try {
-      await api.sendCustomGift(gift.id, target.id, background, anonymous);
-      notice = `«${gift.name}» отправлен — ${target.name}`;
+      const res = await api.sendCustomGift(gift.id, target.id, background, anonymous);
       onSent?.();
+      if (res?.chatId) return openChatAfterGift(res.chatId, gift);
+      notice = `«${gift.name}» отправлен — ${target.name}`;
     } catch (err) {
       error = err.message || "Не удалось отправить подарок";
     } finally {
@@ -157,14 +169,7 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
       balance = res.balance ?? balance;
       onSent?.();
       // Как в Telegram: после покупки — сразу в чат с получателем, где лежит подарок.
-      if (res.chatId) {
-        showToast(`«${gift.name}» отправлен — ${target.name}`);
-        close();
-        document.querySelectorAll(".profile-panel-overlay").forEach((o) => o.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-        api.listChats().then((r) => setState({ chats: r.chats }), () => {});
-        navigate(`/chat/${res.chatId}`);
-        return;
-      }
+      if (res.chatId) return openChatAfterGift(res.chatId, gift);
       notice = `${gift.emoji} «${gift.name}» отправлен — ${target.name}${res.serial ? `, №${res.serial}` : ""}`;
       const fresh = await api.listGifts();
       gifts = fresh.gifts;

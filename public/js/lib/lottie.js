@@ -32,6 +32,12 @@ const BY_ID = {
   tw_chart: "StatsEmoji",
   tw_folders: "Folders_1",
   tw_spider_folder: "EmptyFolder",
+  tw_monkey_close: "TwoFactorSetupMonkeyClose",
+  tw_monkey_peek: "TwoFactorSetupMonkeyPeek",
+  tw_monkey_curious: "TwoFactorSetupMonkeyTracking",
+  tw_blueprints: "Folders_2",
+  tw_cloud_folder: "Folders_Shared",
+  tw_halo_star: "StarReactionSelect",
 };
 
 const BY_EMOJI = {
@@ -60,6 +66,12 @@ const BY_EMOJI = {
   "📊": "StatsEmoji",
   "🗂️": "Folders_1",
   "🕸️": "EmptyFolder",
+  "🙈": "TwoFactorSetupMonkeyClose",
+  "🫣": "TwoFactorSetupMonkeyPeek",
+  "🐒": "TwoFactorSetupMonkeyTracking",
+  "🗃️": "Folders_2",
+  "☁️": "Folders_Shared",
+  "😇": "StarReactionSelect",
 };
 
 export function lottieNameFor(item) {

@@ -21,6 +21,12 @@ const GIFTS = [
   { id: "tw_chart", emoji: "📊", name: "График роста", priceRub: 20, premiumDays: 0 },
   { id: "tw_folders", emoji: "🗂️", name: "Картотека", priceRub: 15, premiumDays: 0 },
   { id: "tw_spider_folder", emoji: "🕸️", name: "Папка с паучком", priceRub: 15, premiumDays: 0 },
+  { id: "tw_monkey_close", emoji: "🙈", name: "Обезьянка «Не вижу»", priceRub: 35, premiumDays: 0 },
+  { id: "tw_monkey_peek", emoji: "🫣", name: "Подглядывающая обезьянка", priceRub: 40, premiumDays: 0 },
+  { id: "tw_monkey_curious", emoji: "🐒", name: "Любопытная обезьянка", priceRub: 30, premiumDays: 0 },
+  { id: "tw_blueprints", emoji: "🗃️", name: "Папка с чертежами", priceRub: 15, premiumDays: 0 },
+  { id: "tw_cloud_folder", emoji: "☁️", name: "Облачная папка", priceRub: 20, premiumDays: 0 },
+  { id: "tw_halo_star", emoji: "😇", name: "Звезда с нимбом", priceRub: 60, premiumDays: 0 },
   { id: "premium_week", emoji: "⭐", name: "Premium на неделю", priceRub: 100, premiumDays: 7 },
   { id: "premium_month", emoji: "👑", name: "Premium на месяц", priceRub: 300, premiumDays: 30 },
   { id: "premium_quarter", emoji: "💎", name: "Premium на 3 месяца", priceRub: 1000, premiumDays: 90 },
@@ -356,6 +362,7 @@ const TWEB_GIFT_IDS = new Set([
   "hlopushka_s_konfetti", "kubik", "podarochnaya_korobka", "zolotoy_klyuch",
   "tw_love_letter", "tw_mailbox", "tw_duck_birthday", "tw_pirate_flag",
   "tw_duck_spy", "tw_duck_popcorn", "tw_duck_portal", "tw_duck_safe", "tw_duck_stop", "tw_duck_detective", "tw_duck_album", "tw_duck_vacation", "tw_monkey", "tw_hand", "tw_chart", "tw_folders", "tw_spider_folder",
+  "tw_monkey_close", "tw_monkey_peek", "tw_monkey_curious", "tw_blueprints", "tw_cloud_folder", "tw_halo_star",
 ]);
 
 function listGifts({ includeHidden = false } = {}) {
