@@ -8,7 +8,7 @@ const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeat
 const { PERMISSIONS, permissionsOf, sanitizePermissions, can } = require("../lib/chatPermissions");
 const { deleteMessagesForChat, markChatRead } = require("../data/messages");
 const { getSettings, updateSettings, mutedStateFor, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft, clearUnreadMark } = require("../data/settings");
-const { allowsUser, recordsReadTime } = require("../lib/privacyRules");
+const { allowsUser, recordsReadTime, publicUsersFor } = require("../lib/privacyRules");
 const { messageCost } = require("../lib/messagePrice");
 const { attachSummaries } = require("../data/chat-summary");
 const { listUsers, listUsersByIds, getUser } = require("../data/users");
@@ -265,10 +265,10 @@ router.get(
     const [summary] = await attachSummaries([chat], req.uid);
     const users = await listUsersByIds(chat.memberIds);
     const byId = new Map(users.map((u) => [u.id, u]));
-    const members = chat.memberIds
+    const memberUsers = chat.memberIds
       .map((mid) => byId.get(mid))
-      .filter((u) => u !== undefined)
-      .map(publicUser);
+      .filter((u) => u !== undefined);
+    const members = await publicUsersFor(memberUsers, req.uid);
 
     const botMember = members.find((u) => u.isBot && u.id !== req.uid);
     const bot = botMember ? await getBotByUserId(botMember.id) : null;

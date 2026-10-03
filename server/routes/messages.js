@@ -89,6 +89,8 @@ async function resolveMentions(text, memberIds, senderId) {
     .map((u) => u.id);
 }
 
+// Как в Telegram: 4096 символов текста (подпись к медиа — тоже).
+const MAX_MESSAGE_TEXT = 4096;
 const MESSAGE_EFFECTS = ["🔥", "👍", "👎", "❤️", "🎉", "💩"];
 
 async function pushNewMessage(chat, sender, message, { silent = false } = {}) {
@@ -381,12 +383,28 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   return message;
 }
 
+async function forwardOrigin(source, message, uid) {
+  // Анонимные админы и посты каналов подписываются названием чата.
+  if (source.type === "channel" || message.anonymous) {
+    return { chatId: source.id, chatTitle: source.title, senderName: source.title };
+  }
+  const author = await getUser(message.senderId);
+  let chatTitle = source.title;
+  if (source.type === "dm") {
+    const otherId = source.memberIds.find((id) => id !== uid) ?? uid;
+    chatTitle = (await getUser(otherId))?.name ?? source.title;
+  }
+  return { chatId: source.id, chatTitle, senderId: message.senderId, senderName: author?.name ?? "Аноним" };
+}
+
 // Все проверки «можно ли этому человеку сюда писать». Общие для обычной
 // отправки и отложенной: иначе через расписание можно было постить в чужой
 // канал, писать при запрете или тому, кто заблокировал. charge — списывать ли
 // звёзды за платные сообщения (при планировании нет, при отправке да).
 async function sendGate(chat, uid, body, { charge = true, skipSlowMode = false } = {}) {
   const fail = (status, payload) => ({ status, payload });
+  if (body.text != null && typeof body.text !== "string") return fail(400, { error: "Некорректный текст" });
+  if ((body.text ?? "").length > MAX_MESSAGE_TEXT) return fail(400, { error: `Сообщение длиннее ${MAX_MESSAGE_TEXT} символов` });
   if (chat.type === "channel" && !isStaff(chat, uid)) {
     return fail(403, { error: "Публиковать в канале могут только администраторы" });
   }
@@ -398,9 +416,23 @@ async function sendGate(chat, uid, body, { charge = true, skipSlowMode = false }
 
   // Тема: только существующая тема этого чата; в закрытую пишут только админы.
   // Нормализованный id кладётся обратно в body.topicId для deliverMessage.
-  if (body.forwardedFrom?.chatId) {
-    const source = await getChat(body.forwardedFrom.chatId);
-    if (source?.protectedBy?.length) return fail(403, { error: "В этом чате запрещена пересылка" });
+  // Пересылка: подпись «Переслано от …» и содержимое берём из исходного
+  // сообщения в базе, а не из тела запроса — иначе её можно подделать.
+  if (body.forwardedFrom) {
+    const sourceMsg = typeof body.forwardedFrom.messageId === "string" ? await getMessage(body.forwardedFrom.messageId) : null;
+    const source = sourceMsg ? await getChat(sourceMsg.chatId) : null;
+    if (!sourceMsg || !source?.memberIds.includes(uid) || sourceMsg.deletedForIds?.includes(uid)) {
+      return fail(404, { error: "Исходное сообщение не найдено" });
+    }
+    if (source.protectedBy?.length) return fail(403, { error: "В этом чате запрещена пересылка" });
+    // «Скрыть имя отправителя»: копия уходит как своё сообщение, без подписи.
+    body.forwardedFrom = body.forwardedFrom.hideAuthor === true ? undefined : sourceMsg.forwardedFrom ?? (await forwardOrigin(source, sourceMsg, uid));
+    body.text = sourceMsg.text ?? "";
+    body.attachments = (sourceMsg.attachments ?? []).map((a) =>
+      a.kind === "poll" ? { ...a, meta: { ...a.meta, voterIds: [], votes: [] } } : a
+    );
+    body.sticker = sourceMsg.sticker;
+    body.customEmoji = sourceMsg.customEmoji;
   }
 
   if (!chat.topicsEnabled) body.topicId = null;
@@ -626,11 +658,13 @@ router.patch(
       return res.status(403).json({ error: "forbidden" });
     }
     const legacyCallLog = existing.createdAt < "2026-10-03" && /^📞 (Звонок|Видеозвонок|Пропущенный звонок|Звонок отклонён)/.test(existing.text ?? "");
-    if (existing.type === "call" || legacyCallLog) {
+    // Пересланное нельзя править: иначе подпись «Переслано от …» стояла бы под чужим текстом.
+    if (existing.type === "call" || legacyCallLog || existing.forwardedFrom) {
       return res.status(400).json({ error: "Это сообщение нельзя изменить" });
     }
     const { text } = req.body ?? {};
     if (typeof text !== "string") return res.status(400).json({ error: "Некорректный текст" });
+    if (text.length > MAX_MESSAGE_TEXT) return res.status(400).json({ error: `Сообщение длиннее ${MAX_MESSAGE_TEXT} символов` });
     if (!text.trim() && !existing.attachments?.length) return res.status(400).json({ error: "Сообщение не может быть пустым" });
     const message = await editMessage(req.params.messageId, text);
     const chat = await getChat(req.params.id);

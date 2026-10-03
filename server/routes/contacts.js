@@ -4,7 +4,7 @@ const { requireUserId } = require("../middleware/auth");
 const { listContactsFor, addContact, renameContact, removeContact, setContactNote, contactNote } = require("../data/contacts");
 const { listUsers, listUsersByIds, getUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
-const { allowsUser } = require("../lib/privacyRules");
+const { allowsUser, publicUserFor } = require("../lib/privacyRules");
 const { phoneKey, indexUsersByPhone } = require("../lib/phoneMatch");
 
 const router = express.Router();
@@ -21,7 +21,7 @@ router.get(
         contacts.map(async (c) => {
           const user = byId.get(c.userId);
           if (!user) return null;
-          const visible = publicUser(user);
+          const visible = await publicUserFor(user, req.uid);
           if (await allowsUser(user.id, "phone", req.uid)) visible.phone = user.phone;
           return { ...c, localName: c.localName ?? null, note: contactNote(c), user: visible };
         })

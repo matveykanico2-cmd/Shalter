@@ -40,15 +40,30 @@ function broadcastToAll(message) {
   }
 }
 
+// Онлайн и «был(а) в сети» видят только те, кому это разрешено настройками
+// приватности, — как в профиле (routes/users.js). Заблокированные — никогда.
+async function broadcastPresence(user, message) {
+  const { getSettings } = require("./data/settings");
+  const { listContactsFor } = require("./data/contacts");
+  const { privacyAllows } = require("./lib/privacyRules");
+  const { privacy } = await getSettings(user.id);
+  const contactIds = new Set((await listContactsFor(user.id)).map((c) => c.userId));
+  const blocked = new Set(user.blockedUserIds ?? []);
+  const viewers = [...socketsByUser.keys()].filter(
+    (viewerId) => viewerId === user.id || (!blocked.has(viewerId) && privacyAllows(privacy, "lastSeen", viewerId, contactIds.has(viewerId)))
+  );
+  broadcastToUsers(viewers, message);
+}
+
 async function markOnline(uid) {
   const user = await updateUser(uid, { online: true });
-  if (user) broadcastToAll({ type: "presence:update", userId: uid, online: true, lastSeen: user.lastSeen });
+  if (user) await broadcastPresence(user, { type: "presence:update", userId: uid, online: true, lastSeen: user.lastSeen });
 }
 
 async function markOffline(uid) {
   const lastSeen = new Date().toISOString();
   const user = await updateUser(uid, { online: false, lastSeen });
-  if (user) broadcastToAll({ type: "presence:update", userId: uid, online: false, lastSeen });
+  if (user) await broadcastPresence(user, { type: "presence:update", userId: uid, online: false, lastSeen });
 }
 
 const MAX_WS_PAYLOAD_BYTES = 64 * 1024;
@@ -69,11 +84,11 @@ function attachWebSocketServer(httpServer) {
       ws.deviceId = deviceIdFromCookieHeader(req.headers.cookie);
       const wasOffline = !socketsByUser.has(uid);
       addSocket(uid, ws);
-      if (wasOffline) markOnline(uid);
+      if (wasOffline) markOnline(uid).catch((err) => console.error("presence online failed:", err));
       ws.on("message", (raw) => handleMessage(ws, raw));
       ws.on("close", () => {
         removeSocket(uid, ws);
-        if (!socketsByUser.has(uid)) markOffline(uid);
+        if (!socketsByUser.has(uid)) markOffline(uid).catch((err) => console.error("presence offline failed:", err));
       });
     });
   });

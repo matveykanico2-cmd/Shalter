@@ -3,7 +3,7 @@ import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { getState } from "../state.js";
 
-export function openForwardDialog(onPick, { count = 1 } = {}) {
+export function openForwardDialog(onPick, { count = 1, allowHideAuthor = false } = {}) {
   const { chats } = getState();
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const titleOf = (c) => (c.isSaved ? "Избранное" : (c.otherUser?.name ?? c.title ?? ""));
@@ -36,7 +36,7 @@ export function openForwardDialog(onPick, { count = 1 } = {}) {
             onclick: async () => {
               close();
               try {
-                await onPick(c.id);
+                await onPick(c.id, { hideAuthor: hideAuthor.checked });
               } catch (err) {
                 alert(err?.message || "Не удалось переслать");
               }
@@ -54,10 +54,17 @@ export function openForwardDialog(onPick, { count = 1 } = {}) {
   }
   renderList();
 
+  // Как в Telegram: «Скрыть имя отправителя» — сообщение уходит как своё, без подписи «Переслано от».
+  const hideAuthor = el("input", { type: "checkbox" });
+  const hideAuthorRow = allowHideAuthor
+    ? el("label", { class: "forward-hide-author" }, [hideAuthor, el("span", {}, "Скрыть имя отправителя")])
+    : null;
+
   const dialog = el("div", { class: "modal-dialog" }, [
     el("h2", { class: "modal-title" }, count > 1 ? `Переслать сообщения (${count})` : "Переслать сообщение"),
     search,
     list,
+    hideAuthorRow,
     el("button", { class: "modal-cancel", onclick: () => close() }, "Отмена"),
   ]);
   overlay.appendChild(dialog);

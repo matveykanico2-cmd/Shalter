@@ -301,7 +301,37 @@ export async function ChatView(root, chatId) {
         }
       : m;
 
+  // Как в Telegram: текст длиннее 4096 символов уходит несколькими
+  // сообщениями, вложения и прочее — с первым.
+  const MAX_TEXT = 4096;
+  function splitLongText(text) {
+    const parts = [];
+    let rest = text;
+    while (rest.length > MAX_TEXT) {
+      const slice = rest.slice(0, MAX_TEXT);
+      let cut = slice.lastIndexOf("\n");
+      if (cut < MAX_TEXT / 2) cut = slice.lastIndexOf(" ");
+      if (cut < MAX_TEXT / 2) cut = MAX_TEXT;
+      parts.push(rest.slice(0, cut));
+      rest = rest.slice(cut).replace(/^[\s]+/, "");
+    }
+    if (rest) parts.push(rest);
+    return parts;
+  }
+
   async function handleSend(text, attachments, extraIn) {
+    if (typeof text !== "string" || text.length <= MAX_TEXT || extraIn?.sticker) return sendOne(text, attachments, extraIn);
+    const [first, ...others] = splitLongText(text);
+    const sent = await sendOne(first, attachments, extraIn);
+    if (!sent) return sent;
+    const { silent } = extraIn ?? {};
+    for (const part of others) {
+      if (!(await sendOne(part, [], silent ? { silent } : undefined))) break;
+    }
+    return sent;
+  }
+
+  async function sendOne(text, attachments, extraIn) {
     const { uploading, ...extra } = extraIn ?? {};
     const replyToId = replyingTo?.id ?? null;
     const topicId = currentTopicId() ?? replyingTo?.topicId ?? null;
@@ -373,7 +403,7 @@ export async function ChatView(root, chatId) {
     }
   }
 
-  async function handleForward(message, targetChatId) {
+  async function handleForward(message, targetChatId, { hideAuthor = false } = {}) {
     const sender = senderOf(message.senderId);
     const title = isDm ? (other?.name ?? chat.title) : chat.title;
     await api.sendMessage(targetChatId, message.text, {
@@ -382,7 +412,7 @@ export async function ChatView(root, chatId) {
       ),
       ...(message.sticker ? { sticker: message.sticker } : {}),
       ...(message.customEmoji ? { customEmoji: message.customEmoji } : {}),
-      forwardedFrom: { chatId: chat.id, chatTitle: title, senderId: message.senderId, senderName: sender?.name ?? "Аноним" },
+      forwardedFrom: { messageId: message.id, hideAuthor, chatId: chat.id, chatTitle: title, senderId: message.senderId, senderName: sender?.name ?? "Аноним" },
     });
   }
 
@@ -918,11 +948,11 @@ export async function ChatView(root, chatId) {
           html: iconSvg("Forward", 17),
           onclick: () => {
             openForwardDialog(
-              async (targetChatId) => {
+              async (targetChatId, opts) => {
                 clearSelection();
-                for (const m of picked) await handleForward(m, targetChatId);
+                for (const m of picked) await handleForward(m, targetChatId, opts);
               },
-              { count: picked.length }
+              { count: picked.length, allowHideAuthor: true }
             );
           },
         }),
@@ -1585,7 +1615,7 @@ export async function ChatView(root, chatId) {
             onPin: handlePin,
             onJumpTo: jumpTo,
           onRefresh: refreshMessages,
-            onForward: (msg) => openForwardDialog((targetChatId) => handleForward(msg, targetChatId)),
+            onForward: (msg) => openForwardDialog((targetChatId, opts) => handleForward(msg, targetChatId, opts), { allowHideAuthor: true }),
             onVote: handleVote,
             onPollAction: handlePollAction,
             canClosePolls: !isDm && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id)),

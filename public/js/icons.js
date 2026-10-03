@@ -48,6 +48,8 @@ const PATHS = {
     '<path d="M3 8l4 3 5-6 5 6 4-3-2 11H5L3 8Z"/><path d="M5 21h14"/>',
   Gift:
     '<rect x="4" y="9" width="16" height="11" rx="1"/><path d="M4 9h16v4H4z"/><path d="M12 9v11"/><path d="M12 9C10.5 9 8 8 8 5.8A2.2 2.2 0 0 1 12 4.5"/><path d="M12 9c1.5 0 4-1 4-3.2A2.2 2.2 0 0 0 12 4.5"/>',
+  Link:
+    '<path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/>',
   Copy:
     '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
   Qrcode:

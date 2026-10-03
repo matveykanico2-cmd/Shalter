@@ -1,7 +1,7 @@
 const db = require("../db");
 const { rowToMessage, readWatermarksFor } = require("./messages");
 const { getUser } = require("./users");
-const { publicUser } = require("./sanitize");
+const { publicUserFor } = require("../lib/privacyRules");
 const { getSettings, updateSettings, mutedStateFor, isQuietNow } = require("./settings");
 
 function jsonHas(id) {
@@ -43,7 +43,7 @@ async function attachSummaries(chats, userId) {
   const peers = new Map();
   for (const id of peerIds) {
     const user = await getUser(id);
-    if (user) peers.set(id, publicUser(user));
+    if (user) peers.set(id, await publicUserFor(user, userId));
   }
 
   const pinnedOrder = settings.pinnedOrder ?? [];

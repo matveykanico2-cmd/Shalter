@@ -4,7 +4,7 @@ const { requireUserId } = require("../middleware/auth");
 const { listUsersByIds, updateUser, getUser, setBlocked, findUserByUsername, findUserByPhone, setAvatars } = require("../data/users");
 const { publicUser, selfUser, publicUsers } = require("../data/sanitize");
 const { getSettings } = require("../data/settings");
-const { privacyAllows } = require("../lib/privacyRules");
+const { privacyAllows, publicUserFor, publicUsersFor } = require("../lib/privacyRules");
 const { listContactsFor, contactNote } = require("../data/contacts");
 const { countBotAudience } = require("../data/bots");
 const { listChats, listChatsForUser, getChat, findDmBetween } = require("../data/chats");
@@ -72,7 +72,7 @@ router.get(
     const me = await getUser(req.uid);
     const ids = me?.blockedUserIds ?? [];
     if (!ids.length) return res.json({ users: [] });
-    res.json({ users: publicUsers(await listUsersByIds(ids)) });
+    res.json({ users: await publicUsersFor(await listUsersByIds(ids), req.uid) });
   })
 );
 
@@ -81,7 +81,7 @@ router.get(
   asyncRoute(async (req, res) => {
     const user = await findUserByUsername(req.params.username);
     if (!user || user.id === req.uid) return res.status(404).json({ error: "not found" });
-    res.json({ user: publicUser(user) });
+    res.json({ user: await publicUserFor(user, req.uid) });
   })
 );
 
@@ -316,7 +316,7 @@ router.post(
     const { blocked } = req.body ?? {};
     if (req.params.id === req.uid) return res.status(400).json({ error: "Нельзя заблокировать самого себя" });
     const user = await setBlocked(req.uid, req.params.id, blocked);
-    res.json({ user: user ? publicUser(user) : null });
+    res.json({ user: user ? await publicUserFor(user, req.uid) : null });
   })
 );
 

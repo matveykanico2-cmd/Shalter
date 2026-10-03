@@ -1080,6 +1080,14 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
             onClick: () => navigator.clipboard?.writeText(message.text).catch(() => {}),
           }]
         : []),
+      // Ссылка на сообщение (не в личке) — открывает чат и прокручивает к нему.
+      ...(!isDm && !protectedContent && !String(message.id).startsWith("local_")
+        ? [{
+            icon: "Link",
+            label: "Копировать ссылку",
+            onClick: () => navigator.clipboard?.writeText(`${location.origin}/chat/${message.chatId}?msg=${message.id}`).catch(() => {}),
+          }]
+        : []),
       ...(selection ? [{ icon: "Check", label: "Выбрать", onClick: () => selection.onToggle(message.id) }] : []),
       ...(readers.length ? [{ icon: "CheckCheck", label: `Прочитали: ${readers.length}`, onClick: () => showReaders(pos) }] : []),
       ...(isDm && mine && message.readAt ? [{ icon: "CheckCheck", label: readAtLabel(message.readAt) }] : []),
@@ -1095,7 +1103,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     } else if (isDm) {
       items.push({ icon: "Trash", label: "Удалить за звёзды", danger: true, onClick: () => deleteForStars(message) });
     }
-    if (mine && !isSticker && !isCallLog) items.push({ icon: "Edit", label: "Изменить", onClick: () => onEdit(message) });
+    if (mine && !isSticker && !isCallLog && !message.forwardedFrom) items.push({ icon: "Edit", label: "Изменить", onClick: () => onEdit(message) });
     else if (!mine) {
       items.push({
         icon: "Info",

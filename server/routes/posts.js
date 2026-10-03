@@ -26,6 +26,9 @@ router.post(
     if (!body.text?.trim() && !body.attachments?.length) {
       return res.status(400).json({ error: "empty post" });
     }
+    if (typeof body.text === "string" && body.text.length > 4096) {
+      return res.status(400).json({ error: "Пост длиннее 4096 символов" });
+    }
 
     let post = await addMessage({
       id: genId("m"),

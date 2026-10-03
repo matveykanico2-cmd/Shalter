@@ -5,8 +5,31 @@
 // пустым окружением. Даже если код бота выберется из vm-контекста (а из vm
 // выбраться легко — это не граница безопасности), он окажется в этом процессе,
 // а не в сервере: ни базы, ни ключей шифрования, ни секретов из env.
+"use strict";
 const vm = require("vm");
 const { assertPublicUrl } = require("./linkPreview");
+
+// --permission не ограничивает сеть, поэтому код, выбравшийся из vm, мог бы
+// взять настоящий fetch / require("net") и пойти на localhost или в метаданные
+// облака в обход assertPublicUrl. Убираем из процесса все пути к сети, модулям
+// и сигналам: настоящий fetch остаётся только в замыкании guardedFetch.
+// "use strict" выше — чтобы через стек вызовов (CallSite.getFunction) нельзя
+// было достать функции этого модуля.
+const rawFetch = globalThis.fetch;
+for (const name of ["fetch", "WebSocket", "EventSource", "XMLHttpRequest"]) delete globalThis[name];
+const denied = () => {
+  throw new Error("Недоступно в коде бота");
+};
+for (const name of ["binding", "_linkedBinding", "dlopen", "getBuiltinModule", "kill"]) {
+  try {
+    Object.defineProperty(process, name, { value: denied, writable: false, configurable: false });
+  } catch {
+  }
+}
+try {
+  Object.defineProperty(process, "mainModule", { value: undefined, writable: false, configurable: false });
+} catch {
+}
 
 function safeStringify(value) {
   if (typeof value === "string") return value;
@@ -32,7 +55,7 @@ function callParent(payload) {
 async function guardedFetch(input, init) {
   const url = typeof input === "string" ? input : input?.url;
   await assertPublicUrl(String(url));
-  return fetch(input, { ...init, redirect: "error" });
+  return rawFetch(input, { ...init, redirect: "error" });
 }
 
 async function run({ code, msg }) {

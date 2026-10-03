@@ -14844,3 +14844,13 @@ video.story-reply-thumb { object-fit: cover; }
   flex-shrink: 0;
 }
 .inapp-browser-external span { display: inline-flex; }
+
+.forward-hide-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px 0;
+  font-size: 14px;
+  color: var(--color-muted);
+  cursor: pointer;
+}

@@ -86,4 +86,31 @@ async function recordsReadTime(chat, readerId) {
   return !!other && (await allowsUser(readerId, "lastSeen", other));
 }
 
-module.exports = { PRIVACY_KEYS, privacyAllows, allowsUser, normalizePrivacy, exceptionsFor, recordsReadTime };
+// publicUser(), но с учётом приватности того, чей профиль смотрят: время
+// визита, фото, «о себе» и день рождения — как в GET /users/:id.
+async function publicUserFor(user, viewerId) {
+  const { publicUser } = require("../data/sanitize");
+  const visible = publicUser(user);
+  if (!user || user.id === viewerId) return visible;
+  const { privacy } = await getSettings(user.id);
+  const isContact = (await listContactsFor(user.id)).some((c) => c.userId === viewerId);
+  const canSee = (key) => privacyAllows(privacy, key, viewerId, isContact);
+  const blocked = (user.blockedUserIds ?? []).includes(viewerId);
+  if (blocked || !canSee("lastSeen")) {
+    delete visible.lastSeen;
+    visible.online = false;
+  }
+  if (blocked || !canSee("photo")) {
+    delete visible.avatarImage;
+    delete visible.avatarImages;
+  }
+  if (!canSee("bio")) delete visible.bio;
+  if (!canSee("birthday")) delete visible.birthday;
+  return visible;
+}
+
+function publicUsersFor(users, viewerId) {
+  return Promise.all(users.map((u) => publicUserFor(u, viewerId)));
+}
+
+module.exports = { PRIVACY_KEYS, privacyAllows, allowsUser, normalizePrivacy, exceptionsFor, recordsReadTime, publicUserFor, publicUsersFor };

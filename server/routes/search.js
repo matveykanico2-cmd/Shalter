@@ -1,4 +1,5 @@
 const express = require("express");
+const { publicUsersFor } = require("../lib/privacyRules");
 const { getSettings } = require("../data/settings");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
@@ -90,7 +91,7 @@ router.get(
     res.json({
       chats: matchedChats,
       channels: matchedChannels,
-      users: publicUsers(matchedAccounts.filter((u) => !u.isBot)).slice(0, LIMIT),
+      users: await publicUsersFor(matchedAccounts.filter((u) => !u.isBot).slice(0, LIMIT), req.uid),
       bots: publicUsers(matchedAccounts.filter((u) => u.isBot)).slice(0, LIMIT),
       messages: matchedMessages,
     });
