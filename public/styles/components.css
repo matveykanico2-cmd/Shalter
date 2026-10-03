@@ -18192,3 +18192,519 @@ textarea.settings-input:focus {
   text-transform: none;
   font-weight: 400;
 }
+
+/* ---------- tweb: строки настроек с цветными иконками (Row.Icon) ---------- */
+/* фон иконки — цвет + белый блик 14% сверху вниз, как getRowIconBackground */
+.tw-row-media {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0));
+  margin: 0 12px 0 -2px;
+}
+.tw-row-media svg {
+  width: 20px;
+  height: 20px;
+}
+.tw-row {
+  min-height: 48px;
+  padding: 6px 16px 6px 18px;
+}
+.tw-row:has(.tw-row-subtitle),
+.tw-row:has(.tw-row-midtitle) {
+  min-height: 56px;
+}
+.tw-row-title {
+  min-width: 0;
+}
+.tw-row-title-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tw-row-title-right {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 15px;
+  color: var(--color-muted);
+}
+.tw-row-midtitle {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tw-row-subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tw-row-right .settings-toggle {
+  pointer-events: none;
+}
+button.tw-row {
+  font: inherit;
+}
+.tw-row.danger .tw-row-title,
+.tw-row.danger .tw-row-icon {
+  color: #e53935;
+}
+.tw-row.accent .tw-row-title,
+.tw-row.accent .tw-row-icon {
+  color: var(--color-accent);
+}
+.tw-section-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tw-section-name > button,
+.tw-section-name > a {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+.tw-section-caption:empty {
+  display: none;
+}
+
+/* кнопка-строка btn-primary btn-transparent */
+.tw-btn-row {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 32px;
+  padding: 0 16px 0 18px;
+  border: none;
+  border-radius: 16px;
+  background: none;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-accent);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.tw-btn-row:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+.tw-btn-row.danger {
+  color: #e53935;
+}
+.tw-btn-row.danger:hover:not(:disabled) {
+  background: rgba(229, 57, 53, 0.08);
+}
+.tw-btn-row:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.tw-btn-row-icon {
+  display: flex;
+  width: 24px;
+  flex-shrink: 0;
+}
+
+/* шапка профиля в настройках (tweb renderPeerProfile) */
+.tw-profile-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px 22px;
+  margin-bottom: 16px;
+  border-radius: 24px;
+  background: var(--color-surface);
+  box-shadow: var(--tw-section-shadow);
+}
+.tw-profile-hero-avatar {
+  border: none;
+  background: none;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.tw-profile-hero-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 26px;
+}
+.tw-profile-hero-status {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--color-accent);
+}
+
+/* заголовок со значком (tweb MediaHeader) */
+.tw-media-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0 16px;
+}
+.tw-media-sticker {
+  display: flex;
+  width: 100px;
+  height: 100px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+.tw-media-header .tw-media-subtitle {
+  margin-top: 14px;
+}
+
+/* сеансы */
+.tw-session-row .tw-row-title-text {
+  font-weight: 500;
+}
+.tw-session-row .tw-row-title-right {
+  font-size: 12px;
+}
+.modal-dialog.tw-session-popup {
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+.tw-session-popup > .tw-popup-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+.tw-session-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 16px 20px;
+}
+.tw-session-hero-icon {
+  display: flex;
+  width: 100px;
+  height: 100px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 30px;
+  color: #fff;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0));
+}
+.tw-session-popup .tw-row-right {
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* радио-строки правил приватности */
+.tw-radio-row.selected .tw-radio {
+  border-color: var(--color-accent);
+}
+.tw-radio-row.selected .tw-radio::after {
+  transform: scale(1);
+}
+.tw-radio-row .tw-radio {
+  margin: 0 22px 0 4px;
+}
+
+/* аккаунты, пользователи */
+.tw-account-row,
+.tw-user-row {
+  gap: 12px;
+  padding-left: 12px;
+}
+.tw-account-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 14px;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tw-account-check {
+  display: flex;
+  color: var(--color-accent);
+}
+.tw-user-row .avatar,
+.tw-account-row .avatar {
+  margin-right: 2px;
+}
+.tw-link-btn {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+.tw-link-btn:hover {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+.tw-empty {
+  margin: 0;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--color-muted);
+}
+.tw-row-note {
+  margin: 4px 16px 8px;
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--color-muted);
+}
+.tw-row-note.danger {
+  color: #e53935;
+}
+
+/* горячие клавиши */
+.tw-kbd-group {
+  display: flex;
+  gap: 4px;
+}
+.tw-kbd {
+  min-width: 26px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--tw-filled);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  text-align: center;
+}
+
+/* всплывающее уведомление (tweb toast) */
+.tw-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 10000;
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 15px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.tw-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---------- tweb: общие элементы страниц настроек ---------- */
+.settings-content .settings-danger-link {
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+.settings-content .settings-danger-link:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+.settings-content .icon-btn.danger {
+  color: #e53935;
+}
+/* btn-primary tweb: 48px, радиус 12px, на всю ширину карточки */
+.settings-content .btn-accent {
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  text-transform: none;
+}
+.settings-content .settings-section > .btn-accent,
+.settings-content .settings-page > .btn-accent,
+.settings-content .settings-notice-box > .btn-accent {
+  width: 100%;
+  margin-top: 8px;
+}
+.settings-content .settings-input {
+  min-height: 54px;
+  padding: 0 16px;
+  font-size: 16px;
+}
+.settings-content textarea.settings-input {
+  padding: 15px 16px;
+}
+.settings-content .settings-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+.settings-content .settings-notice-box {
+  border: none;
+  border-radius: 24px;
+  background: var(--color-surface);
+  box-shadow: var(--tw-section-shadow);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.settings-content .settings-toggle-row {
+  min-height: 48px;
+  padding: 10px 0;
+  border-bottom: none;
+}
+.settings-content .empty-hint {
+  padding: 24px 16px;
+  color: var(--color-muted);
+  text-align: center;
+}
+.settings-content .login-error {
+  color: #e53935;
+  font-size: 14px;
+}
+.settings-content .btn-accent-pill {
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+/* текст внутри секции, иконки-логотипы */
+.tw-section-text {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 15px;
+  line-height: 21px;
+  white-space: pre-wrap;
+}
+.tw-about-logo {
+  width: 100px;
+  height: 100px;
+  border-radius: 28px;
+}
+.tw-business-hero .tw-session-hero-icon,
+.tw-media-header .tw-session-hero-icon {
+  margin-top: 8px;
+}
+.tw-business-meter {
+  width: 100%;
+  max-width: 320px;
+  margin-top: 16px;
+}
+.tw-business-meter-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+.tw-business-bar {
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 3px;
+  background: var(--tw-filled);
+  overflow: hidden;
+}
+.tw-business-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--color-accent);
+}
+.tw-business-bar.warn > span {
+  background: #e53935;
+}
+.tw-business-footer {
+  position: static;
+  margin: 0 0 16px;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* кнопка btn-primary btn-color-primary tweb */
+.tw-primary-btn {
+  display: flex;
+  width: calc(100% - 16px);
+  height: 48px;
+  margin: 0 8px 16px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 12px;
+  background: var(--color-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.tw-primary-btn:hover {
+  filter: brightness(1.06);
+}
+.tw-folder-row {
+  gap: 4px;
+  padding-left: 14px;
+}
+.tw-folder-row .tw-row-media {
+  margin-right: 14px;
+}
+.tw-folder-row.open {
+  background: var(--tw-hover);
+}
+.settings-content .settings-folder-create-row,
+.settings-content .settings-folder-editor {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 24px;
+  background: var(--color-surface);
+  box-shadow: var(--tw-section-shadow);
+}
+.tw-range-value {
+  font-size: 15px;
+  color: var(--color-accent);
+}
+/* range tweb: тонкая дорожка 2px, круглый ползунок 12px */
+.settings-content .settings-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2px;
+  margin: 8px 0 14px;
+  border-radius: 1px;
+  background: linear-gradient(var(--color-accent), var(--color-accent)) no-repeat, var(--tw-filled);
+  background-size: var(--p, 50%) 100%, auto;
+}
+.settings-content .settings-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+}
+.settings-content .settings-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+.settings-content .settings-section p,
+.settings-content .settings-toggle-hint {
+  overflow-wrap: anywhere;
+}

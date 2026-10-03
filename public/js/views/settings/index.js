@@ -58,37 +58,37 @@ import { safetyLabelInfo } from "../../lib/safetyLabels.js";
 import { openDropdownMenu } from "../../components/dropdownMenu.js";
 import { openPrivacyExceptionsDialog } from "../../components/privacyExceptionsDialog.js";
 import { openProfileDialog } from "../../components/profileDialog.js";
-import { openCheckboxDialog } from "../../components/confirmDialog.js";
+import { openCheckboxDialog, openChoiceDialog } from "../../components/confirmDialog.js";
 
 const UNSUPPORTED_LANGUAGE_NOTE = "Украинский язык не поддерживается в нашем мессенджере.";
 
 const SECTIONS = [
-  { id: "profile", label: "Изменить профиль", icon: "Edit" },
-  { id: "notifications", label: "Уведомления", icon: "Bell", group: "main" },
-  { id: "holidays", label: "Праздники", icon: "Gift", group: "main" },
-  { id: "data", label: "Данные и память", icon: "Download", group: "main" },
-  { id: "privacy", label: "Конфиденциальность", icon: "Lock", group: "main" },
-  { id: "appearance", label: "Внешний вид", icon: "Palette", group: "main" },
-  { id: "folders", label: "Папки с чатами", icon: "Folder", group: "main" },
-  { id: "devices", label: "Устройства", icon: "Monitor", group: "main" },
-  { id: "accounts", label: "Аккаунты", icon: "Accounts", group: "main" },
-  { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", group: "main" },
-  { id: "premium", label: "Shalter Premium", icon: "Star", group: "extra" },
-  { id: "business", label: "Shalter для бизнеса", icon: "Bag", group: "extra" },
-  { id: "partners", label: "Партнёрка", icon: "Users", group: "extra" },
-  { id: "oauth", label: "Войти через Shalter", icon: "Lock", group: "extra" },
-  { id: "stars", label: "Звёзды", icon: "Zap", group: "extra" },
-  { id: "usernames", label: "Аукцион юзернеймов", icon: "Globe", group: "extra" },
-  { id: "ads", label: "Реклама", icon: "BarChart", group: "extra" },
-  { id: "bots", label: "Боты", icon: "Code", group: "extra" },
-  { id: "about", label: "О приложении", icon: "Info", group: "extra" },
-  { id: "moderation", label: "Модерация", icon: "Shield", group: "admin", adminOnly: true },
-  { id: "server", label: "Состояние сервера", icon: "BarChart", group: "admin", adminOnly: true },
-  { id: "giftshop", label: "Каталог подарков", icon: "Gift", group: "admin", adminOnly: true },
-  { id: "emojicatalog", label: "Эмодзи", icon: "Smile", group: "admin", adminOnly: true },
-  { id: "donations", label: "Донаты", icon: "Zap", group: "admin", adminOnly: true },
-  { id: "pricing", label: "Цены и тарифы", icon: "Star", group: "admin", adminOnly: true },
-  { id: "legal", label: "Запросы органов", icon: "Shield", group: "admin", adminOnly: true },
+  { id: "profile", label: "Изменить профиль", icon: "Edit", color: "blue" },
+  { id: "notifications", label: "Уведомления", icon: "Bell", color: "red", group: "main" },
+  { id: "holidays", label: "Праздники", icon: "Gift", color: "orange", group: "main" },
+  { id: "data", label: "Данные и память", icon: "Download", color: "green", group: "main" },
+  { id: "privacy", label: "Конфиденциальность", icon: "Lock", color: "grey", group: "main" },
+  { id: "appearance", label: "Внешний вид", icon: "Palette", color: "orange", group: "main" },
+  { id: "folders", label: "Папки с чатами", icon: "Folder", color: "blue", group: "main" },
+  { id: "devices", label: "Устройства", icon: "Monitor", color: "blue", group: "main" },
+  { id: "accounts", label: "Аккаунты", icon: "Accounts", color: "purple", group: "main" },
+  { id: "shortcuts", label: "Горячие клавиши", icon: "Keyboard", color: "orange", group: "main" },
+  { id: "premium", label: "Shalter Premium", icon: "Star", color: "premium", group: "extra" },
+  { id: "business", label: "Shalter для бизнеса", icon: "Bag", color: "green", group: "extra" },
+  { id: "partners", label: "Партнёрка", icon: "Users", color: "purple", group: "extra" },
+  { id: "oauth", label: "Войти через Shalter", icon: "Lock", color: "blue", group: "extra" },
+  { id: "stars", label: "Звёзды", icon: "Zap", color: "orange", group: "extra" },
+  { id: "usernames", label: "Аукцион юзернеймов", icon: "Globe", color: "blue", group: "extra" },
+  { id: "ads", label: "Реклама", icon: "BarChart", color: "pink", group: "extra" },
+  { id: "bots", label: "Боты", icon: "Code", color: "green", group: "extra" },
+  { id: "about", label: "О приложении", icon: "Info", color: "grey", group: "extra" },
+  { id: "moderation", label: "Модерация", icon: "Shield", color: "red", group: "admin", adminOnly: true },
+  { id: "server", label: "Состояние сервера", icon: "BarChart", color: "purple", group: "admin", adminOnly: true },
+  { id: "giftshop", label: "Каталог подарков", icon: "Gift", color: "orange", group: "admin", adminOnly: true },
+  { id: "emojicatalog", label: "Эмодзи", icon: "Smile", color: "orange", group: "admin", adminOnly: true },
+  { id: "donations", label: "Донаты", icon: "Zap", color: "pink", group: "admin", adminOnly: true },
+  { id: "pricing", label: "Цены и тарифы", icon: "Star", color: "green", group: "admin", adminOnly: true },
+  { id: "legal", label: "Запросы органов", icon: "Shield", color: "grey", group: "admin", adminOnly: true },
 ];
 
 let panelTitleEl = null;
@@ -224,67 +224,84 @@ async function openSupport() {
   }
 }
 
+let sessionsCount = null;
+
 function renderMenu(root) {
   const me = getState().user;
   const accounts = getState().accounts ?? [];
   const groupOf = (g) =>
     SECTIONS.filter((s) => s.group === g && (!s.adminOnly || me.isDeveloper || me.adminSections?.includes(s.id)));
 
+  if (sessionsCount == null) {
+    sessionsCount = "";
+    api.listSessions().then((r) => {
+      sessionsCount = String(r.sessions?.length ?? "");
+      if (root.isConnected) renderMenu(root);
+    }, () => {});
+  }
+
+  const rightFor = (s) => {
+    if (s.id === "accounts" && accounts.length > 1) return String(accounts.length);
+    if (s.id === "devices" && sessionsCount) return sessionsCount;
+    if (s.id === "stars" && me.starsBalance) return String(me.starsBalance);
+    return null;
+  };
+
   const rowFor = (s) =>
-    menuRow({
-      icon: s.icon,
-      label: s.label,
-      href: `/settings/${s.id}`,
-      value: s.id === "accounts" && accounts.length > 1 ? accounts.length : null,
-    });
+    twRow({ icon: s.icon, color: s.color, title: s.label, titleRight: rightFor(s), href: `/settings/${s.id}` });
 
   const admin = groupOf("admin");
 
   mount(
     root,
-    el("div", { class: "settings-page" }, [
-      el("div", { class: "settings-profile-header" }, [
+    el("div", { class: "settings-page tw-page tw-settings-menu" }, [
+      el("div", { class: "tw-profile-hero" }, [
         el("button", {
-          class: "settings-avatar-btn",
+          class: "tw-profile-hero-avatar",
           onclick: () => (me.avatarImage ? openAvatarViewer(me) : navigate("/settings/profile")),
         }, [
-          Avatar({ name: me.name || "?", color: me.avatarColor, image: me.avatarImage, video: videoAvatarUrl(me), size: 112, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
+          Avatar({ name: me.name || "?", color: me.avatarColor, image: me.avatarImage, video: videoAvatarUrl(me), size: 120, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
         ]),
-        el("p", { class: "settings-profile-name" }, [me.name || "Профиль", me.isPremium ? PremiumStar({ size: 18, seed: me.id, title: "Shalter Premium" }) : null, ProfileStatusBadge(me, 18)]),
-        el("p", { class: "settings-profile-sub online" }, "в сети"),
+        el("p", { class: "tw-profile-hero-name" }, [me.name || "Профиль", me.isPremium ? PremiumStar({ size: 18, seed: me.id, title: "Shalter Premium" }) : null, ProfileStatusBadge(me, 18)]),
+        el("p", { class: "tw-profile-hero-status" }, "в сети"),
       ]),
-      el("div", { class: "settings-section-group" }, [
-        el("div", { class: "settings-section rows" }, [
-          menuRow({ icon: "User", label: "Мой профиль", onClick: () => openProfileDialog(me.id) }),
-          me.phone ? copyRow({ icon: "Phone", value: me.phone, label: "Телефон" }) : null,
-          me.username
-            ? copyRow({ icon: "At", value: `@${me.username}`, label: "Юзернейм" })
-            : menuRow({ icon: "At", label: "Добавить юзернейм", href: "/settings/profile" }),
-        ]),
+      twSection(null, [
+        me.phone ? twRow({ icon: "Phone", title: me.phone, subtitle: "Телефон", onClick: () => copyText(me.phone, "Номер скопирован") }) : null,
+        me.username
+          ? twRow({ icon: "At", title: `@${me.username}`, subtitle: "Имя пользователя", onClick: () => copyText(`@${me.username}`, "Имя пользователя скопировано") })
+          : twRow({ icon: "At", title: "Добавить имя пользователя", subtitle: "Имя пользователя", href: "/settings/profile" }),
+        me.bio ? twRow({ icon: "Info", title: me.bio, subtitle: "О себе", href: "/settings/profile" }) : null,
+        twRow({ icon: "User", title: "Мой профиль", onClick: () => openProfileDialog(me.id) }),
       ]),
-      el("div", { class: "settings-section-group" }, [
-        el("div", { class: "settings-section rows" }, groupOf("main").map(rowFor)),
-      ]),
-      el("div", { class: "settings-section-group" }, [
-        el("div", { class: "settings-section rows" }, groupOf("extra").map(rowFor)),
-      ]),
-      admin.length
-        ? el("div", { class: "settings-section-group" }, [
-            el("p", { class: "settings-section-title" }, "Администрирование"),
-            el("div", { class: "settings-section rows" }, admin.map(rowFor)),
-          ])
-        : null,
-      el("div", { class: "settings-section-group" }, [
-        el("div", { class: "settings-section rows" }, [
-          menuRow({ icon: "Info", label: "Поддержка — Hugo", onClick: openSupport }),
-          el("a", { class: "settings-row", href: "/download" }, [
-            el("span", { class: "settings-row-icon", html: iconSvg("Download", 22) }),
-            el("span", { class: "settings-row-label" }, "Скачать приложение"),
-          ]),
+      twSection(null, groupOf("main").map(rowFor)),
+      twSection(null, groupOf("extra").map(rowFor)),
+      admin.length ? twSection("Администрирование", admin.map(rowFor)) : null,
+      twSection(null, [
+        twRow({ icon: "MessageSquare", color: "blue", title: "Поддержка — Hugo", onClick: openSupport }),
+        el("a", { class: "tw-row clickable", href: "/download" }, [
+          twRowIcon("Download", "green"),
+          el("span", { class: "tw-row-body" }, [el("span", { class: "tw-row-title" }, "Скачать приложение")]),
         ]),
       ]),
     ])
   );
+}
+
+function copyText(text, toast) {
+  navigator.clipboard?.writeText(text).then(() => showToast(toast), () => {});
+}
+
+let toastTimer = null;
+function showToast(text) {
+  let t = document.querySelector(".tw-toast");
+  if (!t) {
+    t = el("div", { class: "tw-toast" });
+    document.body.appendChild(t);
+  }
+  t.textContent = text;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
 }
 
 function pageWrap(title, subtitle, children) {
@@ -637,26 +654,73 @@ const PREMIUM_PERKS = [
 // Цвета иконок возможностей — тот же градиент, что PREMIUM_FEATURES_COLORS в tweb.
 const PREMIUM_FEATURE_COLORS = ["#ef6922", "#e74e33", "#db374b", "#bc4395", "#9b4fed", "#676bff", "#4492ff", "#41a6a5", "#3dbd4a"];
 
-function twSection(name, children, caption) {
+// Цвета иконок строк — ROW_ICON_COLORS из tweb (helpers/rowIconBackground.ts).
+const TW_ROW_COLORS = {
+  blue: "#2196F3",
+  green: "#4CAF50",
+  grey: "#78909C",
+  orange: "#FB8C00",
+  pink: "#E91E63",
+  purple: "#7E57C2",
+  red: "#F44336",
+  premium: "var(--tw-premium-gradient)",
+};
+
+function twRowIcon(icon, color) {
+  const bg = TW_ROW_COLORS[color] ?? color;
+  return el("span", {
+    class: "tw-row-media",
+    style: color === "premium" ? `background-image: ${bg}` : `background-color: ${bg}`,
+    html: iconSvg(icon, 20),
+  });
+}
+
+function twSection(name, children, caption, nameRight) {
   return el("div", { class: "tw-section-group" }, [
-    name ? el("p", { class: "tw-section-name" }, name) : null,
+    name ? el("p", { class: "tw-section-name" }, [el("span", {}, name), nameRight ?? null]) : null,
     el("div", { class: "tw-section" }, children),
     caption ? el("p", { class: "tw-section-caption" }, caption) : null,
   ]);
 }
 
-function twRow({ icon, color, title, subtitle, right, onClick, href, target }) {
+// Строка tweb (Row): иконка слева, заголовок, подзаголовок, справа значение или переключатель.
+function twRow({ icon, color, title, titleRight, midtitle, subtitle, right, onClick, href, target, toggle, danger, accent, cls, disabled }) {
   const body = [
-    icon ? el("span", { class: color ? "tw-row-media" : "tw-row-icon", style: color ? `background: ${color}` : null, html: iconSvg(icon, color ? 20 : 24) }) : null,
+    icon ? (color ? twRowIcon(icon, color) : el("span", { class: "tw-row-icon", html: iconSvg(icon, 24) })) : null,
     el("span", { class: "tw-row-body" }, [
-      el("span", { class: "tw-row-title" }, title),
+      el("span", { class: "tw-row-title" }, [
+        el("span", { class: "tw-row-title-text" }, title),
+        titleRight != null ? el("span", { class: "tw-row-title-right" }, titleRight) : null,
+      ]),
+      midtitle ? el("span", { class: "tw-row-midtitle" }, midtitle) : null,
       subtitle ? el("span", { class: "tw-row-subtitle" }, subtitle) : null,
     ]),
-    right != null ? el("span", { class: "tw-row-right" }, right) : null,
+    toggle
+      ? el("span", { class: "tw-row-right" }, Toggle(!!toggle.checked, () => {}, { disabled: toggle.disabled }))
+      : right != null
+        ? el("span", { class: "tw-row-right" }, right)
+        : null,
   ];
-  if (href) return el("a", { class: "tw-row clickable", href, target, rel: target ? "noopener" : null }, body);
-  if (onClick) return el("button", { type: "button", class: "tw-row clickable", onclick: onClick }, body);
-  return el("div", { class: "tw-row" }, body);
+  const classes = ["tw-row", cls, danger ? "danger" : null, accent ? "accent" : null];
+  if (toggle) {
+    return el("button", {
+      type: "button",
+      class: [...classes, "clickable"].filter(Boolean).join(" "),
+      disabled: toggle.disabled || disabled,
+      onclick: () => !toggle.disabled && toggle.onChange(!toggle.checked),
+    }, body);
+  }
+  if (href) return el("a", { class: [...classes, "clickable"].filter(Boolean).join(" "), href, target, rel: target ? "noopener" : null, "data-route": target ? null : "1" }, body);
+  if (onClick) return el("button", { type: "button", class: [...classes, "clickable"].filter(Boolean).join(" "), disabled, onclick: onClick }, body);
+  return el("div", { class: classes.filter(Boolean).join(" ") }, body);
+}
+
+// Кнопка tweb btn-primary btn-transparent: строка с иконкой, синяя или красная.
+function twButton({ icon, text, onClick, danger, disabled }) {
+  return el("button", { type: "button", class: `tw-btn-row${danger ? " danger" : ""}`, disabled, onclick: onClick }, [
+    icon ? el("span", { class: "tw-btn-row-icon", html: iconSvg(icon, 24) }) : null,
+    el("span", {}, text),
+  ]);
 }
 
 function premiumPlanRows(plans) {
@@ -819,10 +883,10 @@ async function renderPremium(root) {
 }
 
 const BUSINESS_PERKS = [
-  { icon: "Clock", color: "#f0a23b", title: "Часы работы", desc: "Покажите, когда вы на связи — и автоответ сам знает, когда включаться" },
-  { icon: "MessageSquare", color: "#3b9bf0", title: "Приветствие и автоответ", desc: "Новому клиенту — приветствие, вне часов работы — автоответ. От вашего имени, автоматически" },
-  { icon: "Zap", color: "#8b5cf6", title: "Быстрые ответы", desc: "Заготовленные шаблоны — не печатать одно и то же каждый раз" },
-  { icon: "MapPin", color: "#e0513f", title: "Адрес на профиле", desc: "Покажите, где вас найти" },
+  { icon: "Clock", color: "orange", title: "Часы работы", desc: "Покажите, когда вы на связи — и автоответ сам знает, когда включаться" },
+  { icon: "MessageSquare", color: "blue", title: "Приветствие и автоответ", desc: "Новому клиенту — приветствие, вне часов работы — автоответ. От вашего имени, автоматически" },
+  { icon: "Zap", color: "purple", title: "Быстрые ответы", desc: "Заготовленные шаблоны — не печатать одно и то же каждый раз" },
+  { icon: "MapPin", color: "red", title: "Адрес на профиле", desc: "Покажите, где вас найти" },
 ];
 
 async function renderBusiness(root) {
@@ -853,26 +917,25 @@ async function renderBusiness(root) {
     const left = daysLeft();
     const maxDays = Math.max(365, ...plans.map((p) => p.days));
     const soon = active && !info.businessForever && left <= 7;
-    return el("div", { class: `business-hero${active ? " active" : ""}` }, [
-      el("div", { class: "business-hero-glow" }),
-      el("div", { class: "business-hero-icon", html: iconSvg("Bag", 36) }),
-      el("h2", { class: "business-hero-title" }, "Shalter для бизнеса"),
+    return el("div", { class: "tw-media-header tw-business-hero" }, [
+      el("span", { class: "tw-session-hero-icon", style: `background-color: ${TW_ROW_COLORS.green}`, html: iconSvg("Bag", 52) }),
+      el("h2", { class: "tw-media-title" }, active ? "У вас Shalter для бизнеса" : "Shalter для бизнеса"),
       el(
         "p",
-        { class: "business-hero-sub" },
+        { class: "tw-media-subtitle" },
         active
           ? info.businessForever
-            ? "Подписка активна навсегда"
-            : `Активна до ${new Date(info.businessUntil).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}`
-          : "Превратите аккаунт в витрину: часы работы, автоответы и адрес прямо в профиле"
+            ? "Подписка активна навсегда."
+            : `Активна до ${new Date(info.businessUntil).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}.`
+          : "Превратите аккаунт в витрину: часы работы, автоответы и адрес прямо в профиле."
       ),
       active && !info.businessForever
-        ? el("div", { class: "business-hero-meter" }, [
-            el("div", { class: "business-hero-meter-row" }, [
+        ? el("div", { class: "tw-business-meter" }, [
+            el("div", { class: "tw-business-meter-row" }, [
               el("span", {}, soon ? "Скоро закончится" : "Осталось"),
-              el("span", { class: "mono" }, `${left} ${plural(left, "день", "дня", "дней")}`),
+              el("span", {}, `${left} ${plural(left, "день", "дня", "дней")}`),
             ]),
-            el("div", { class: `business-hero-bar${soon ? " warn" : ""}` }, [
+            el("div", { class: `tw-business-bar${soon ? " warn" : ""}` }, [
               el("span", { style: `width: ${Math.min(100, Math.max(3, (left / maxDays) * 100))}%` }),
             ]),
           ])
@@ -883,18 +946,16 @@ async function renderBusiness(root) {
   function businessPlans() {
     const current = plans.find((p) => p.id === selectedPlan);
     const extending = info.isBusiness;
-    return el("div", { class: "settings-section-group" }, [
-      el("p", { class: "settings-section-title" }, extending ? "Продлить подписку" : "Тарифы"),
-      el(
-        "div",
-        { class: "premium-plans business-plans", role: "radiogroup" },
+    return el("div", {}, [
+      twSection(
+        extending ? "Продлить подписку" : "Тарифы",
         plans.map((p) => {
           const selected = p.id === selectedPlan;
           return el(
             "button",
             {
               type: "button",
-              class: `premium-plan${selected ? " selected" : ""}`,
+              class: `tw-row clickable tw-plan${selected ? " selected" : ""}`,
               role: "radio",
               "aria-checked": selected ? "true" : "false",
               disabled: !!buyingPlan,
@@ -904,32 +965,30 @@ async function renderBusiness(root) {
               },
             },
             [
-              el("span", { class: "premium-plan-radio" }),
-              el("span", { class: "premium-plan-body" }, [
-                el("span", { class: "premium-plan-title" }, [
+              el("span", { class: "tw-radio" }),
+              el("span", { class: "tw-row-body" }, [
+                el("span", { class: "tw-row-title" }, [
+                  p.discount > 0 ? el("span", { class: "tw-plan-discount" }, `−${p.discount}%`) : null,
                   p.label,
-                  p.discount > 0 ? el("span", { class: "premium-plan-badge business-plan-badge" }, `−${p.discount}%`) : null,
                 ]),
-                el("span", { class: "premium-plan-sub" }, p.months > 1 ? `${p.priceRub} ₽ за ${p.label}` : "Оплата за месяц"),
+                el("span", { class: "tw-row-subtitle" }, p.months > 1 ? `${p.priceRub} ₽ за ${p.label}` : "Оплата за месяц"),
               ]),
-              el("span", { class: "premium-plan-price mono" }, `${Math.round(p.perMonth)} ₽/мес`),
+              el("span", { class: "tw-row-right" }, `${Math.round(p.perMonth)} ₽/мес`),
             ]
           );
-        })
-      ),
-      el(
-        "button",
-        { class: "btn-accent premium-buy-btn business-buy-btn", disabled: !!buyingPlan || !current, onclick: () => current && buyBusiness(current.id) },
-        buyingPlan ? "Открываем оплату…" : `${extending ? "Продлить" : "Подключить"} за ${current?.priceRub ?? 0} ₽`
-      ),
-      el(
-        "p",
-        { class: "settings-toggle-hint premium-buy-hint" },
+        }),
         extending
           ? "Новый срок прибавится к текущей дате окончания. Автопродления нет — списаний без вашего ведома не будет."
           : "Оплата переводом администрации Shalter. Автопродления нет — срок просто закончится сам."
       ),
-      buyError ? el("p", { class: "login-error" }, buyError) : null,
+      buyError ? el("p", { class: "tw-row-note danger" }, buyError) : null,
+      el("div", { class: "tw-premium-footer tw-business-footer" }, [
+        el(
+          "button",
+          { class: "tw-premium-confirm tw-business-confirm", disabled: !!buyingPlan || !current, onclick: () => current && buyBusiness(current.id) },
+          buyingPlan ? "Открываем оплату…" : `${extending ? "Продлить" : "Подключить"} за ${current?.priceRub ?? 0} ₽`
+        ),
+      ]),
     ]);
   }
 
@@ -1214,16 +1273,9 @@ async function renderBusiness(root) {
     if (!info.isBusiness && plans.length) rows.push(businessPlans());
     if (!info.isBusiness) {
       rows.push(
-        el("p", { class: "settings-section-title" }, "Что входит"),
-        el(
-          "div",
-          { class: "premium-perks-card" },
-          BUSINESS_PERKS.map((p) =>
-            el("div", { class: "premium-perk-row" }, [
-              el("span", { class: "premium-perk-icon business-perk-icon", style: `--perk-color: ${p.color}`, html: iconSvg(p.icon, 20) }),
-              el("div", {}, [el("p", { class: "premium-perk-title" }, p.title), el("p", { class: "premium-perk-desc" }, p.desc)]),
-            ])
-          )
+        twSection(
+          "Что входит",
+          BUSINESS_PERKS.map((p) => twRow({ icon: p.icon, color: p.color, title: p.title, subtitle: p.desc }))
         )
       );
     } else {
@@ -1305,15 +1357,11 @@ async function renderBusiness(root) {
 
     if (info.isBusiness && !info.businessForever && plans.length) rows.push(businessPlans());
     rows.push(
-      el("div", { class: "settings-toggle-row no-divider" }, [
-        el("div", {}, [
-          el("p", { class: "settings-toggle-title" }, "Публичная страница"),
-          el("p", { class: "settings-toggle-hint" }, "Ссылка о Premium и бизнес-подписке — откроется даже без аккаунта"),
-        ]),
-        el("a", { class: "btn-accent-pill", href: "/premium#pm-business", target: "_blank", rel: "noopener" }, "Открыть"),
+      twSection(null, [
+        twRow({ icon: "Link", color: "blue", title: "Публичная страница", subtitle: "Ссылка о Premium и бизнес-подписке — откроется даже без аккаунта", href: "/premium#pm-business", target: "_blank" }),
       ])
     );
-    mount(root, pageWrap("Shalter для бизнеса", "Часы работы, автоответчик, быстрые ответы и адрес на профиле", rows));
+    mount(root, pageWrap("Shalter для бизнеса", null, rows));
   }
   render();
 }
@@ -1329,33 +1377,22 @@ async function renderAbout(root) {
 
   mount(
     root,
-    pageWrap("О приложении", "Версия, команда и полезные ссылки", [
-      section("Shalter", [
-        el("p", { class: "settings-toggle-hint" }, "Мессенджер с чатами, звонками, историями, ботами и звёздами — без стороннего сервера: всё работает на вашей собственной инсталляции."),
-        version ? el("p", { class: "settings-toggle-hint mono" }, `Версия: ${version}`) : null,
+    pageWrap("О приложении", null, [
+      el("div", { class: "tw-media-header" }, [
+        el("img", { class: "tw-about-logo", src: "/icons/icon-192.png", alt: "", onerror: (e) => e.target.remove() }),
+        el("h2", { class: "tw-media-title" }, "Shalter"),
+        el("p", { class: "tw-media-subtitle" }, "Мессенджер с чатами, звонками, историями, ботами и звёздами — без стороннего сервера: всё работает на вашей собственной инсталляции."),
       ]),
-      section(
-        "Команда",
-        ABOUT_TEAM.map((m) =>
-          el("div", { class: "settings-toggle-row" }, [
-            el("div", {}, [
-              el("p", { class: "settings-toggle-title" }, m.name),
-              el("p", { class: "settings-toggle-hint" }, m.role),
-            ]),
-            m.url ? el("a", { class: "icon-btn", href: m.url, target: "_blank", rel: "noopener", title: m.name, html: iconSvg("Globe", 16) }) : null,
-          ])
-        )
-      ),
-      section("Ссылки", [
-        el("a", { class: "settings-row", href: "/download" }, [
-          el("span", { class: "settings-row-icon", html: iconSvg("Download", 22) }),
-          el("span", { class: "settings-row-label" }, "Скачать приложение"),
-        ]),
-        el("a", { class: "settings-row", href: "/promo" }, [
-          el("span", { class: "settings-row-icon", html: iconSvg("Users", 22) }),
-          el("span", { class: "settings-row-label" }, "Сотрудничество"),
-        ]),
-        menuRow({ icon: "Info", label: "Поддержка — Hugo", onClick: openSupport }),
+      twSection(null, [
+        twRow({ icon: "Info", color: "grey", title: "Версия", titleRight: version || "—" }),
+        ...ABOUT_TEAM.map((m) =>
+          twRow({ icon: "Users", color: "purple", title: m.name, subtitle: m.role, href: m.url, target: m.url ? "_blank" : null })
+        ),
+      ]),
+      twSection("Ссылки", [
+        twRow({ icon: "Download", color: "green", title: "Скачать приложение", href: "/download" }),
+        twRow({ icon: "Users", color: "orange", title: "Сотрудничество", href: "/promo" }),
+        twRow({ icon: "MessageSquare", color: "blue", title: "Поддержка — Hugo", onClick: openSupport }),
       ]),
     ])
   );
@@ -1389,13 +1426,17 @@ async function renderPartners(root) {
   function render() {
     mount(
       root,
-      pageWrap("Партнёрка", "Условия сотрудничества и связь с администрацией", [
-        loadError ? el("p", { class: "login-error" }, loadError) : null,
-        info
-          ? section("Тарифы", [el("p", { class: "settings-toggle-hint" }, info.tariffText)])
-          : null,
-        el("button", { class: "btn-accent", disabled: opening, onclick: openChat }, opening ? "Открываем чат…" : "Написать администратору"),
-        openError ? el("p", { class: "login-error" }, openError) : null,
+      pageWrap("Партнёрка", null, [
+        el("div", { class: "tw-media-header" }, [
+          el("span", { class: "tw-session-hero-icon", style: `background-color: ${TW_ROW_COLORS.purple}`, html: iconSvg("Users", 52) }),
+          el("h2", { class: "tw-media-title" }, "Партнёрская программа"),
+          el("p", { class: "tw-media-subtitle" }, "Условия сотрудничества и связь с администрацией."),
+        ]),
+        loadError ? el("p", { class: "tw-row-note danger" }, loadError) : null,
+        info ? twSection("Тарифы", [el("p", { class: "tw-section-text" }, info.tariffText)]) : null,
+        twSection(null, [
+          twButton({ icon: "MessageSquare", text: opening ? "Открываем чат…" : "Написать администратору", disabled: opening, onClick: openChat }),
+        ], openError),
       ])
     );
   }
@@ -2058,11 +2099,11 @@ async function renderAppearance(root) {
     });
     mount(
       root,
-      pageWrap("Внешний вид", "Тема, акцентный цвет и фон переписки", [
-        section("Настройки", [
+      pageWrap("Внешний вид", null, [
+        section("Размер текста", [
           el("div", { class: "settings-toggle-row no-divider" }, [
-            el("span", { class: "settings-toggle-title" }, "Размер шрифта сообщений"),
-            el("span", { class: "mono settings-toggle-hint" }, `${settings.fontSize}px`),
+            el("span", { class: "settings-toggle-title" }, "Размер текста сообщений"),
+            el("span", { class: "tw-range-value" }, `${settings.fontSize}`),
           ]),
           el("input", {
             type: "range",
@@ -2070,22 +2111,19 @@ async function renderAppearance(root) {
             max: 19,
             value: settings.fontSize,
             class: "settings-range",
+            style: `--p: ${((settings.fontSize - 13) / 6) * 100}%`,
             oninput: (e) => patch({ fontSize: Number(e.target.value) }),
           }),
         ]),
-        section("Тема", [
-          el(
-            "div",
-            { class: "settings-chip-row" },
-            THEMES.map((t) =>
-              el(
-                "button",
-                { class: `settings-chip ${settings.theme === t.id ? "active" : ""}`, onclick: () => patch({ theme: t.id }) },
-                t.label
-              )
-            )
-          ),
-        ]),
+        twSection(
+          "Тема",
+          THEMES.map((t) =>
+            el("button", { type: "button", class: `tw-row clickable tw-radio-row${settings.theme === t.id ? " selected" : ""}`, onclick: () => patch({ theme: t.id }) }, [
+              el("span", { class: "tw-radio" }),
+              el("span", { class: "tw-row-body" }, [el("span", { class: "tw-row-title" }, t.label)]),
+            ])
+          )
+        ),
         section("Акцентный цвет", [
           el(
             "div",
@@ -2201,70 +2239,74 @@ async function renderNotifications(root) {
   refreshDiag();
 
   function chainRow(label, ok, hint) {
-    return el("div", { class: "settings-toggle-row" }, [
-      el("div", {}, [
-        el("p", { class: "settings-toggle-title" }, `${ok ? "✓" : "✕"} ${label}`),
-        hint ? el("p", { class: "settings-toggle-hint" }, hint) : null,
-      ]),
-    ]);
+    return twRow({
+      cls: `tw-check-row ${ok ? "ok" : "fail"}`,
+      icon: ok ? "Check" : "X",
+      color: ok ? "green" : "red",
+      title: label,
+      subtitle: hint,
+    });
   }
 
   function render() {
     const canRequest = typeof Notification !== "undefined" && Notification.permission === "default";
     mount(
       root,
-      pageWrap("Уведомления", "Как мессенджер сообщает о новых событиях", [
-        section("Уведомления", [
-          el("div", { class: "settings-toggle-row" }, [
-            el("div", {}, [
-              el("p", { class: "settings-toggle-title" }, "Показывать текст в превью"),
-              el("p", { class: "settings-toggle-hint" }, "Иначе — «Новое сообщение» без содержимого"),
-            ]),
-            Toggle(settings.notifications.previewText, (v) => patch({ previewText: v })),
-          ]),
-          el("div", { class: "settings-toggle-row" }, [
-            el("span", { class: "settings-toggle-title" }, "Звук"),
-            Toggle(settings.notifications.sound, (v) => patch({ sound: v })),
-          ]),
+      pageWrap("Уведомления", null, [
+        twSection("Уведомления о сообщениях", [
+          twRow({
+            icon: "MessageSquare",
+            color: "blue",
+            title: "Предпросмотр сообщений",
+            subtitle: settings.notifications.previewText ? "Текст сообщения в уведомлении" : "«Новое сообщение» без содержимого",
+            toggle: { checked: settings.notifications.previewText, onChange: (v) => patch({ previewText: v }) },
+          }),
+          twRow({
+            icon: "Volume",
+            color: "green",
+            title: "Звук",
+            toggle: { checked: settings.notifications.sound, onChange: (v) => patch({ sound: v }) },
+          }),
         ]),
-        el("div", { class: "settings-notice-box" }, [
-          el("p", { class: "settings-toggle-title" }, "Уведомления браузера"),
-          el("p", { class: "settings-toggle-hint" }, `Статус: ${permLabel()}`),
-          iosNeedsHomeScreen()
-            ? el("p", { class: "login-error" }, "На iPhone уведомления приходят, только если Shalter добавлен на экран «Домой»: в Safari нажмите «Поделиться» → «На экран „Домой“», откройте Shalter с иконки и разрешите уведомления (нужна iOS 16.4 или новее).")
-            : null,
+        twSection(
+          "Уведомления браузера",
+          [
+            twRow({ icon: "Bell", color: "red", title: "Статус", titleRight: permLabel() }),
+            iosNeedsHomeScreen()
+              ? el("p", { class: "tw-row-note danger" }, "На iPhone уведомления приходят, только если Shalter добавлен на экран «Домой»: в Safari нажмите «Поделиться» → «На экран „Домой“», откройте Shalter с иконки и разрешите уведомления (нужна iOS 16.4 или новее).")
+              : null,
+            canRequest
+              ? twButton({ icon: "Bell", text: "Включить уведомления", onClick: async () => { await requestPushPermission().catch(() => {}); refreshDiag(); } })
+              : null,
+            twButton({
+              icon: "Download",
+              text: checking ? "Проверяем…" : "Переподключить уведомления",
+              disabled: checking,
+              onClick: async () => {
+                checking = true;
+                render();
+                const res = await resubscribePush();
+                checking = false;
+                if (!res.ok) diag = { ...(diag ?? {}), ошибка: res.ошибка };
+                refreshDiag();
+              },
+            }),
+          ],
+          "Уведомления приходят, даже когда вкладка закрыта."
+        ),
+        twSection(
+          "Проверка",
           diag
-            ? el("div", {}, [
+            ? [
                 chainRow("Защищённый адрес (https)", diag.защищённыйАдрес, diag.защищённыйАдрес ? null : "Push работает только по https — по http браузер его не даёт вовсе"),
                 chainRow("Браузер поддерживает push", diag.поддержка, null),
                 chainRow("Разрешение выдано", diag.разрешение === "granted", diag.разрешение === "denied" ? "Запрещено в настройках браузера — снимите запрет для этого сайта" : null),
                 chainRow("Подписка создана в браузере", diag.подпискаВБраузере, null),
                 chainRow("Сервер знает это устройство", diag.подпискаНаСервере, null),
-                diag.ошибка ? el("p", { class: "login-error" }, diag.ошибка) : null,
-              ])
-            : el("p", { class: "settings-toggle-hint" }, "Проверяем…"),
-          el("div", { class: "settings-notice-actions" }, [
-            canRequest
-              ? el("button", { class: "btn-accent", onclick: async () => { await requestPushPermission().catch(() => {}); refreshDiag(); } }, "Разрешить уведомления")
-              : null,
-            el(
-              "button",
-              {
-                class: "btn-secondary",
-                disabled: checking,
-                onclick: async () => {
-                  checking = true;
-                  render();
-                  const res = await resubscribePush();
-                  checking = false;
-                  if (!res.ok) diag = { ...(diag ?? {}), ошибка: res.ошибка };
-                  refreshDiag();
-                },
-              },
-              checking ? "Проверяем…" : "Переподключить уведомления"
-            ),
-          ]),
-        ]),
+                diag.ошибка ? el("p", { class: "tw-row-note danger" }, diag.ошибка) : null,
+              ]
+            : [twRow({ title: "Проверяем…" })]
+        ),
       ])
     );
   }
@@ -2545,29 +2587,137 @@ async function renderPrivacy(root) {
     });
   }
 
-  function row(label, key) {
+  const RULES = [
+    { key: "phone", label: "Номер телефона", who: "Кто видит мой номер телефона" },
+    { key: "discoverByPhone", label: "Поиск по номеру", who: "Кто может найти меня по номеру" },
+    { key: "lastSeen", label: "Время захода", who: "Кто видит время моего последнего захода" },
+    { key: "photo", label: "Фото профиля", who: "Кто видит фото моего профиля" },
+    { key: "bio", label: "О себе", who: "Кто видит раздел «О себе»" },
+    { key: "birthday", label: "Дата рождения", who: "Кто видит мою дату рождения" },
+    { key: "forwards", label: "Пересылка сообщений", who: "Кто может ссылаться на мой аккаунт при пересылке" },
+    { key: "calls", label: "Звонки", who: "Кто может мне звонить" },
+    { key: "invites", label: "Группы и каналы", who: "Кто может добавлять меня в группы" },
+    { key: "messages", label: "Сообщения", who: "Кто может мне писать" },
+    { key: "botMessages", label: "Боты", who: "Какие боты могут писать первыми" },
+    { key: "storiesArchive", label: "Архив историй", who: "Кто видит архив моих историй" },
+  ];
+  const optionLabel = (v) => OPTIONS.find((o) => o.value === v)?.label ?? "Все";
+
+  // Подстраница внутри раздела: правило приватности, заблокированные, ключи доступа.
+  let sub = null;
+  // «Назад» в шапке на подстранице возвращает к списку, а не в меню настроек.
+  root.closest(".settings-panel")?.querySelector(".settings-header-back")?.addEventListener(
+    "click",
+    (e) => {
+      if (!sub || !root.isConnected) return;
+      e.stopImmediatePropagation();
+      openSub(null);
+    },
+    true
+  );
+  function openSub(next) {
+    sub = next;
+    setPanelTitle(sub ? sub.title : "Конфиденциальность");
+    root.scrollTop = 0;
+    render();
+  }
+
+  function exceptionCounts(key) {
     const exc = settings.privacy?.exceptions?.[key] ?? {};
-    const allowed = exc.allow?.length ?? 0;
-    const denied = exc.deny?.length ?? 0;
-    const summary = [allowed ? `+${allowed}` : null, denied ? `−${denied}` : null].filter(Boolean).join(" · ");
-    return el("div", { class: "settings-toggle-row privacy-row" }, [
-      el("div", { class: "privacy-row-label" }, [
-        el("span", { class: "settings-toggle-title" }, label),
-        summary ? el("p", { class: "settings-toggle-hint" }, `Исключения: ${summary}`) : null,
-      ]),
-      el("div", { class: "privacy-row-controls" }, [
-        el(
-          "select",
-          { class: "settings-select", onchange: (e) => patch({ [key]: e.target.value }) },
-          OPTIONS.map((o) => el("option", { value: o.value, selected: settings.privacy[key] === o.value }, o.label))
+    return { allow: exc.allow?.length ?? 0, deny: exc.deny?.length ?? 0 };
+  }
+
+  function ruleSubtitle(key) {
+    const { allow, deny } = exceptionCounts(key);
+    const extra = [allow ? `+${allow}` : null, deny ? `−${deny}` : null].filter(Boolean).join(" ");
+    return extra ? `${optionLabel(settings.privacy[key])} (${extra})` : optionLabel(settings.privacy[key]);
+  }
+
+  function editExceptions(rule, kind) {
+    const current = settings.privacy?.exceptions?.[rule.key] ?? {};
+    openPrivacyExceptionsDialog({
+      title: kind === "allow" ? "Всегда разрешать" : "Никогда не разрешать",
+      users: [],
+      value: current,
+      onSave: (value) => patch({ exceptions: { ...(settings.privacy?.exceptions ?? {}), [rule.key]: value } }),
+    });
+  }
+
+  function renderRule(rule) {
+    const value = settings.privacy[rule.key] ?? "everyone";
+    const { allow, deny } = exceptionCounts(rule.key);
+    return [
+      twSection(
+        rule.who,
+        OPTIONS.map((o) =>
+          el("button", { type: "button", class: `tw-row clickable tw-radio-row${value === o.value ? " selected" : ""}`, onclick: () => patch({ [rule.key]: o.value }) }, [
+            el("span", { class: "tw-radio" }),
+            el("span", { class: "tw-row-body" }, [el("span", { class: "tw-row-title" }, o.label)]),
+          ])
         ),
-        el(
-          "button",
-          { class: `privacy-exceptions-link ${summary ? "active" : ""}`, title: "Исключения из этого правила", onclick: () => openExceptions(label, key) },
-          summary ? `Исключения · ${allowed + denied}` : "Исключения"
-        ),
+        "Можно добавить пользователей в исключения — они будут видеть или не видеть это вне зависимости от выбора."
+      ),
+      twSection(
+        "Исключения",
+        [
+          value !== "everyone"
+            ? twRow({ icon: "Plus", color: "green", title: "Всегда разрешать", titleRight: allow ? String(allow) : null, subtitle: allow ? null : "Добавить пользователей", onClick: () => editExceptions(rule, "allow") })
+            : null,
+          value !== "nobody"
+            ? twRow({ icon: "X", color: "red", title: "Никогда не разрешать", titleRight: deny ? String(deny) : null, subtitle: deny ? null : "Добавить пользователей", onClick: () => editExceptions(rule, "deny") })
+            : null,
+        ],
+        "Исключения переопределяют настройку выше."
+      ),
+    ];
+  }
+
+  function renderBlocked(blocked) {
+    return [
+      twSection(
+        null,
+        blocked.length
+          ? blocked.map((u) =>
+              el("div", { class: "tw-row tw-user-row" }, [
+                Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 42 }),
+                el("span", { class: "tw-row-body" }, [
+                  el("span", { class: "tw-row-title" }, u.name),
+                  u.username ? el("span", { class: "tw-row-subtitle" }, `@${u.username}`) : null,
+                ]),
+                el("button", { class: "tw-link-btn", onclick: () => unblock(u.id) }, "Разблокировать"),
+              ])
+            )
+          : [el("p", { class: "tw-empty" }, "Никого не заблокировано")],
+        "Заблокированные пользователи не могут писать вам, звонить и добавлять вас в группы."
+      ),
+    ];
+  }
+
+  function renderPasskeys() {
+    return [
+      el("div", { class: "tw-media-header" }, [
+        el("span", { class: "tw-media-sticker", html: iconSvg("Key", 56) }),
+        el("p", { class: "tw-media-subtitle" }, "Вход по отпечатку, лицу или PIN-коду устройства — без пароля и кода. Ключ нельзя украсть фишингом."),
       ]),
-    ]);
+      twSection(
+        "Ваши ключи",
+        [
+          ...passkeyList.map((p) =>
+            twRow({
+              icon: "Key",
+              color: "orange",
+              title: p.name,
+              subtitle: p.lastUsedAt
+                ? `Последний вход: ${new Date(p.lastUsedAt).toLocaleDateString("ru-RU")}`
+                : `Добавлен ${new Date(p.createdAt).toLocaleDateString("ru-RU")}`,
+              right: el("button", { class: "icon-btn danger", title: "Удалить", html: iconSvg("Trash", 20), onclick: (e) => { e.stopPropagation(); removePasskey(p); } }),
+            })
+          ),
+          twButton({ icon: "Plus", text: "Создать ключ доступа", onClick: addPasskey }),
+        ],
+        passkeyNotice
+      ),
+    ];
   }
 
   async function deleteAccount() {
@@ -2629,180 +2779,118 @@ async function renderPrivacy(root) {
 
   function render() {
     const blocked = blockedUsers.filter((u) => blockedIds.has(u.id));
-    mount(
-      root,
-      pageWrap("Конфиденциальность", "Кто видит вашу информацию", [
-        section("Приватность", [
-          row("Последний визит", "lastSeen"),
-          row("Номер телефона", "phone"),
-          row("Кто найдёт меня по номеру", "discoverByPhone"),
-          row("Фото профиля", "photo"),
-          row("О себе", "bio"),
-          row("Дата рождения", "birthday"),
-          row("Ссылка при пересылке", "forwards"),
-          row("Кто добавляет меня в группы", "invites"),
-          row("Кто может мне звонить", "calls"),
-          row("Кто может мне писать", "messages"),
-          row("Боты могут писать первыми", "botMessages"),
-          row("Кто видит архив историй", "storiesArchive"),
-        ]),
-        section("Безопасность", [
-          passkeysSupported()
-            ? el("div", {}, [
-                el("div", { class: "settings-toggle-row" }, [
-                  el("div", {}, [
-                    el("p", { class: "settings-toggle-title" }, "Ключи доступа"),
-                    el(
-                      "p",
-                      { class: "settings-toggle-hint" },
-                      passkeyList.length
-                        ? `Добавлено: ${passkeyList.length}. Вход по отпечатку, лицу или PIN-коду устройства`
-                        : "Вход по отпечатку, лицу или PIN-коду устройства — без пароля и кода. Ключ нельзя украсть фишингом"
-                    ),
-                  ]),
-                  el("button", { class: "settings-danger-link", onclick: addPasskey }, "Добавить"),
-                ]),
-                ...passkeyList.map((p) =>
-                  el("div", { class: "settings-device-row" }, [
-                    el("span", { html: iconSvg("Lock", 18) }),
-                    el("div", { class: "settings-device-body" }, [
-                      el("p", {}, p.name),
-                      el(
-                        "p",
-                        { class: "settings-toggle-hint" },
-                        p.lastUsedAt
-                          ? `Последний вход: ${new Date(p.lastUsedAt).toLocaleDateString("ru-RU")}`
-                          : `Добавлен ${new Date(p.createdAt).toLocaleDateString("ru-RU")}`
-                      ),
-                    ]),
-                    el("button", { class: "settings-danger-link", onclick: () => removePasskey(p) }, "Удалить"),
+    const email = getState().user.email;
+    let content;
+    if (sub?.rule) content = renderRule(sub.rule);
+    else if (sub?.blocked) content = renderBlocked(blocked);
+    else if (sub?.passkeys) content = renderPasskeys();
+    else {
+      content = [
+        twSection("Безопасность", [
+          twRow({
+            icon: "User",
+            color: "red",
+            title: "Заблокированные",
+            titleRight: blocked.length ? String(blocked.length) : null,
+            subtitle: blocked.length ? null : "Нет",
+            onClick: () => openSub({ title: "Заблокированные", blocked: true }),
+          }),
+          twRow({
+            icon: "Lock",
+            color: "blue",
+            title: "Код-пароль",
+            titleRight: passcodeOn ? "Вкл." : "Выкл.",
+            subtitle: "Локальный PIN на этом устройстве",
+            onClick: () =>
+              passcodeOn
+                ? openChoiceDialog("Код-пароль", [
+                    { label: "Изменить код-пароль", onClick: changePasscode },
+                    { label: "Отключить код-пароль", danger: true, onClick: disablePasscode },
                   ])
-                ),
-                passkeyNotice ? el("p", { class: "settings-toggle-hint" }, passkeyNotice) : null,
-              ])
+                : changePasscode(),
+          }),
+          twRow({
+            icon: "Shield",
+            color: "green",
+            title: "Двухэтапная аутентификация",
+            titleRight: twoFactor.enabled ? "Вкл." : "Выкл.",
+            subtitle: twoFactor.enabled
+              ? twoFactor.method === "password"
+                ? `Облачный пароль${twoFactor.cloudPasswordHint ? ` · подсказка: ${twoFactor.cloudPasswordHint}` : ""}`
+                : `${twoFactor.method === "chat" ? "Код в чате Shalter" : "Приложение-аутентификатор"} · кодов восстановления: ${twoFactor.recoveryCodesLeft}`
+              : "Код при каждом входе",
+            onClick: twoFactor.enabled ? disableTwoFactor : enableTwoFactor,
+          }),
+          passkeysSupported()
+            ? twRow({
+                icon: "Key",
+                color: "orange",
+                title: "Ключи доступа",
+                titleRight: passkeyList.length ? String(passkeyList.length) : null,
+                subtitle: passkeyList.length ? null : "Вход без пароля",
+                onClick: () => openSub({ title: "Ключи доступа", passkeys: true }),
+              })
             : null,
-          el("div", { class: "settings-toggle-row" }, [
-            el("div", {}, [
-              el("p", { class: "settings-toggle-title" }, "Двухфакторная аутентификация"),
-              el(
-                "p",
-                { class: "settings-toggle-hint" },
-                twoFactor.enabled
-                  ? twoFactor.method === "password"
-                    ?
-                      `Включена (облачный пароль)${twoFactor.cloudPasswordHint ? `. Подсказка: ${twoFactor.cloudPasswordHint}` : ""}`
-                    : `Включена (${twoFactor.method === "chat" ? "код в чате Shalter" : "приложение-аутентификатор"}). Кодов восстановления осталось: ${twoFactor.recoveryCodesLeft}`
-                  : "Код при каждом входе — в чате Shalter или из приложения-аутентификатора. Знать пароль или ваш номер будет недостаточно"
-              ),
-            ]),
-            twoFactor.enabled
-              ? el("button", { class: "settings-danger-link", onclick: disableTwoFactor }, "Отключить")
-              : el("button", { class: "settings-danger-link", onclick: enableTwoFactor }, "Включить"),
-          ]),
-          el("div", { class: "settings-toggle-row" }, [
-            el("div", {}, [
-              el("p", { class: "settings-toggle-title" }, "Пароль"),
-              el("p", { class: "settings-toggle-hint" }, "Пароль от аккаунта. При смене все остальные сеансы завершаются"),
-            ]),
-            el(
-              "button",
-              {
-                class: "settings-danger-link",
-                onclick: () =>
-                  openChangePasswordDialog(() => {
-                    securityNotice = "Пароль изменён, остальные сеансы завершены";
-                    render();
-                  }),
-              },
-              "Изменить"
-            ),
-          ]),
-          el("div", { class: "settings-toggle-row" }, [
-            el("div", {}, [
-              el("p", { class: "settings-toggle-title" }, "Почта"),
-              el(
-                "p",
-                { class: "settings-toggle-hint" },
-                getState().user.email
-                  ? `${getState().user.email} — по этому адресу восстанавливают доступ`
-                  : "Не указана. По ней восстанавливают доступ, если забыт пароль"
-              ),
-            ]),
-            el(
-              "button",
-              {
-                class: "settings-danger-link",
-                onclick: () =>
-                  openChangeEmailDialog(getState().user.email, (user) => {
-                    if (user) updateSelf({ email: user.email });
-                    securityNotice = "Адрес почты изменён";
-                    render();
-                  }),
-              },
-              getState().user.email ? "Изменить" : "Указать"
-            ),
-          ]),
-          el("div", { class: "settings-toggle-row" }, [
-            el("div", {}, [
-              el("p", { class: "settings-toggle-title" }, "Код-пароль"),
-              el("p", { class: "settings-toggle-hint" }, "Локальный PIN на этом устройстве — не связан с аккаунтом"),
-            ]),
-            passcodeOn
-              ? el("div", { class: "settings-passcode-actions" }, [
-                  el("button", { class: "settings-danger-link", onclick: changePasscode }, "Изменить"),
-                  el("button", { class: "settings-danger-link", onclick: disablePasscode }, "Отключить"),
-                ])
-              : el("button", { class: "settings-danger-link", onclick: changePasscode }, "Включить"),
-          ]),
+          twRow({
+            icon: "Key",
+            color: "grey",
+            title: "Пароль",
+            subtitle: "При смене остальные сеансы завершаются",
+            onClick: () =>
+              openChangePasswordDialog(() => {
+                showToast("Пароль изменён, остальные сеансы завершены");
+              }),
+          }),
+          twRow({
+            icon: "At",
+            color: "purple",
+            title: "Почта для входа",
+            subtitle: email || "Не указана",
+            onClick: () =>
+              openChangeEmailDialog(email, (user) => {
+                if (user) updateSelf({ email: user.email });
+                showToast("Адрес почты изменён");
+                render();
+              }),
+          }),
           biometricAvailable
-            ? el("div", { class: "settings-toggle-row" }, [
-                el("div", {}, [
-                  el("p", { class: "settings-toggle-title" }, "Face ID / отпечаток"),
-                  el(
-                    "p",
-                    { class: "settings-toggle-hint" },
-                    passcodeOn ? "Разблокировка биометрией вместо ввода код-пароля" : "Сначала включите код-пароль"
-                  ),
-                ]),
-                Toggle(biometricOn, toggleBiometric, { disabled: !passcodeOn }),
-              ])
+            ? twRow({
+                icon: "User",
+                color: "green",
+                title: "Face ID / отпечаток",
+                subtitle: passcodeOn ? "Вместо ввода код-пароля" : "Сначала включите код-пароль",
+                toggle: { checked: biometricOn, disabled: !passcodeOn, onChange: toggleBiometric },
+              })
             : null,
-          el("div", { class: "settings-toggle-row" }, [
-            el("div", {}, [
-              el("p", { class: "settings-toggle-title" }, "Пароль при запуске"),
-              el("p", { class: "settings-toggle-hint" }, "Спрашивать пароль от аккаунта каждый раз, даже если вход уже выполнен"),
-            ]),
-            Toggle(!!settings.requirePasswordOnLaunch, async (v) => {
-              settings = { ...settings, requirePasswordOnLaunch: v };
-              render();
-              await api.patchSettings({ requirePasswordOnLaunch: v });
-            }),
-          ]),
-          securityNotice ? el("p", { class: "settings-toggle-hint success" }, securityNotice) : null,
+          twRow({
+            icon: "Lock",
+            color: "pink",
+            title: "Пароль при запуске",
+            subtitle: "Спрашивать пароль каждый раз",
+            toggle: {
+              checked: !!settings.requirePasswordOnLaunch,
+              onChange: async (v) => {
+                settings = { ...settings, requirePasswordOnLaunch: v };
+                render();
+                await api.patchSettings({ requirePasswordOnLaunch: v });
+              },
+            },
+          }),
         ]),
-        el("p", { class: "settings-section-title" }, `Заблокированные пользователи (${blocked.length})`),
-        blocked.length === 0
-          ? el("p", { class: "empty-hint" }, "Никого не заблокировано")
-          : el(
-              "div",
-              { class: "settings-devices-list" },
-              blocked.map((u) =>
-                el("div", { class: "settings-device-row" }, [
-                  Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 28 }),
-                  el("div", { class: "settings-device-body" }, [el("p", {}, u.name)]),
-                  el("button", { class: "settings-danger-link", onclick: () => unblock(u.id) }, "Разблокировать"),
-                ])
-              )
-            ),
-        el("div", { class: "settings-logout-block" }, [
-          el("button", { class: "settings-logout-btn", onclick: deleteAccount }, [
-            el("span", { html: iconSvg("Trash", 16) }),
-            " Удалить аккаунт",
-          ]),
-          el("p", { class: "settings-toggle-hint" }, "Безвозвратно удаляет аккаунт, чаты и ботов. Отменить нельзя."),
-        ]),
-      ])
-    );
+        twSection(
+          "Конфиденциальность",
+          RULES.map((rule) =>
+            twRow({ title: rule.label, subtitle: ruleSubtitle(rule.key), onClick: () => openSub({ title: rule.label, rule }) })
+          )
+        ),
+        twSection(
+          null,
+          [twButton({ icon: "Trash", text: "Удалить аккаунт", danger: true, onClick: deleteAccount })],
+          "Безвозвратно удаляет аккаунт, чаты и ботов. Отменить нельзя."
+        ),
+      ];
+    }
+    mount(root, pageWrap(sub ? sub.title : "Конфиденциальность", null, content));
   }
   render();
 }
@@ -2854,38 +2942,99 @@ function openDeleteAccountDialog(onConfirm) {
   document.body.appendChild(overlay);
 }
 
+// Иконка платформы сеанса — как getSessionPlatformIcon в tweb.
+function sessionPlatform(device = "") {
+  const d = device.toLowerCase();
+  if (/iphone|ipad|ios|mac/.test(d)) return { icon: "Phone", color: "blue" };
+  if (/android/.test(d)) return { icon: "Phone", color: "green" };
+  if (/windows/.test(d)) return { icon: "Monitor", color: "blue" };
+  if (/linux|ubuntu/.test(d)) return { icon: "Monitor", color: "orange" };
+  return { icon: "Globe", color: "purple" };
+}
+
+function sessionAppName(device = "") {
+  const [app, ...rest] = device.split(",").map((x) => x.trim());
+  return { app: app || "Shalter Web", system: rest.join(", ") };
+}
+
+function openSessionPopup(session, onTerminate) {
+  const { app, system } = sessionAppName(session.device);
+  const platform = sessionPlatform(session.device);
+  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
+  function onKey(e) {
+    if (e.key === "Escape") close();
+  }
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  }
+  const dialog = el("div", { class: "modal-dialog tw-popup tw-session-popup" }, [
+    el("button", { class: "tw-popup-close", title: "Закрыть", html: iconSvg("X", 22), onclick: close }),
+    el("div", { class: "tw-session-hero" }, [
+      el("span", { class: "tw-session-hero-icon", style: `background-color: ${TW_ROW_COLORS[platform.color]}`, html: iconSvg(platform.icon, 48) }),
+      el("p", { class: "tw-media-title" }, app),
+      el("p", { class: "tw-media-subtitle" }, session.current ? "в сети" : timeAgo(session.lastActive)),
+    ]),
+    twSection("Информация", [
+      twRow({ title: "Приложение", right: app }),
+      twRow({ title: "Система", right: system || "—" }),
+      twRow({ title: "Местоположение", right: session.location || "—" }),
+    ], session.location ? "Местоположение определено по IP-адресу и может быть неточным." : null),
+    onTerminate
+      ? twSection(null, [twButton({ icon: "X", text: "Завершить сеанс", danger: true, onClick: () => { close(); onTerminate(); } })])
+      : null,
+  ]);
+  overlay.appendChild(dialog);
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+}
+
 async function renderDevices(root) {
   let { sessions } = await api.listSessions();
-  let busyId = null;
 
-  function timeLabel(iso) {
-    return timeAgo(iso);
+  function terminate(deviceId) {
+    openCheckboxDialog({
+      title: "Завершить сеанс?",
+      text: "Устройство будет разлогинено.",
+      confirmLabel: "Завершить",
+      danger: true,
+      onConfirm: async () => {
+        await api.terminateSession(deviceId);
+        sessions = sessions.filter((s) => s.deviceId !== deviceId);
+        sessionsCount = String(sessions.length);
+        render();
+      },
+    });
   }
 
-  async function terminate(deviceId) {
-    if (!confirm("Завершить этот сеанс? Устройство будет разлогинено.")) return;
-    busyId = deviceId;
-    render();
-    try {
-      await api.terminateSession(deviceId);
-      sessions = sessions.filter((s) => s.deviceId !== deviceId);
-    } finally {
-      busyId = null;
-      render();
-    }
+  function terminateOthers() {
+    openCheckboxDialog({
+      title: "Завершить сеансы?",
+      text: "Все устройства, кроме этого, будут разлогинены.",
+      confirmLabel: "Завершить",
+      danger: true,
+      onConfirm: async () => {
+        await api.terminateOtherSessions();
+        sessions = sessions.filter((s) => s.current);
+        sessionsCount = String(sessions.length);
+        render();
+      },
+    });
   }
 
-  async function terminateOthers() {
-    if (!confirm("Завершить все остальные сеансы? Все устройства, кроме этого, будут разлогинены.")) return;
-    busyId = "others";
-    render();
-    try {
-      await api.terminateOtherSessions();
-      sessions = sessions.filter((s) => s.current);
-    } finally {
-      busyId = null;
-      render();
-    }
+  function sessionRow(s) {
+    const { app, system } = sessionAppName(s.device);
+    const platform = sessionPlatform(s.device);
+    return twRow({
+      cls: "tw-session-row",
+      icon: platform.icon,
+      color: platform.color,
+      title: app,
+      titleRight: s.current ? null : timeAgo(s.lastActive),
+      midtitle: system || "Shalter",
+      subtitle: s.current ? `${s.location || ""}${s.location ? " · " : ""}в сети` : s.location,
+      onClick: () => openSessionPopup(s, s.current ? null : () => terminate(s.deviceId)),
+    });
   }
 
   function render() {
@@ -2894,44 +3043,22 @@ async function renderDevices(root) {
     mount(
       root,
       pageWrap("Устройства", null, [
+        el("div", { class: "tw-media-header" }, [
+          el("span", { class: "tw-media-sticker", html: iconSvg("Monitor", 56) }),
+          el("p", { class: "tw-media-subtitle" }, "Здесь все устройства, на которых выполнен вход в ваш аккаунт Shalter."),
+        ]),
         current
-          ? section("Это устройство", [
-              el("div", { class: "settings-device-row current" }, [
-                el("div", { class: "settings-device-body" }, [
-                  el("p", { class: "settings-device-name" }, [
-                    current.device,
-                    el("span", { class: "settings-device-online" }, "в сети"),
-                  ]),
-                  el("p", { class: "mono settings-toggle-hint" }, current.location),
-                ]),
-              ]),
-              others.length
-                ? el(
-                    "button",
-                    { class: "settings-danger-link with-icon", disabled: busyId === "others", onclick: terminateOthers },
-                    [el("span", { html: iconSvg("X", 14) }), "Завершить все остальные сеансы"]
-                  )
-                : null,
-            ])
-          : null,
-        others.length ? el("p", { class: "settings-toggle-hint device-list-hint" }, "Выйти на всех устройствах, кроме этого.") : null,
-        others.length
-          ? section(
-              "Активные сеансы",
-              others.map((s) =>
-                el("div", { class: "settings-device-row" }, [
-                  el("div", { class: "settings-device-body" }, [
-                    el("p", { class: "settings-device-name" }, [s.device, el("span", { class: "settings-device-time" }, timeLabel(s.lastActive))]),
-                    el("p", { class: "mono settings-toggle-hint" }, s.location),
-                  ]),
-                  el(
-                    "button",
-                    { class: "icon-btn danger", title: "Завершить", disabled: busyId === s.deviceId, onclick: () => terminate(s.deviceId) },
-                    busyId === s.deviceId ? "…" : el("span", { html: iconSvg("X", 14) })
-                  ),
-                ])
-              )
+          ? twSection(
+              "Это устройство",
+              [
+                sessionRow(current),
+                others.length ? twButton({ icon: "X", text: "Завершить все другие сеансы", danger: true, onClick: terminateOthers }) : null,
+              ],
+              others.length ? "Выйти на всех устройствах, кроме этого." : null
             )
+          : null,
+        others.length
+          ? twSection("Активные сеансы", others.map(sessionRow), "Нажмите на сеанс, чтобы посмотреть подробности или завершить его.")
           : null,
       ])
     );
@@ -2965,30 +3092,30 @@ async function renderAccounts(root) {
 
   mount(
     root,
-    pageWrap("Аккаунты", "Аккаунты, открытые на этом устройстве", [
-      el(
-        "div",
-        { class: "settings-accounts-list" },
-        accounts.map((a) =>
-          el("div", { class: `settings-account-row ${a.id === me.id ? "current" : ""}` }, [
-            el("button", { class: "settings-account-main", onclick: () => switchTo(a.id) }, [
-              Avatar({ name: a.name || a.phone, color: a.avatarColor, image: a.avatarImage, size: 36 }),
-              el("span", { class: "settings-account-info" }, [
-                el("span", { class: "settings-account-name" }, [a.name || a.phone || a.email, a.id === me.id ? el("span", { class: "settings-account-current-tag" }, " (текущий)") : null]),
-                el("span", { class: "settings-account-sub" }, a.phone || a.email),
+    pageWrap("Аккаунты", null, [
+      twSection(
+        "Аккаунты на этом устройстве",
+        [
+          ...accounts.map((a) =>
+            el("div", { class: `tw-row clickable tw-account-row${a.id === me.id ? " current" : ""}` }, [
+              el("button", { type: "button", class: "tw-account-main", onclick: () => switchTo(a.id) }, [
+                Avatar({ name: a.name || a.phone, color: a.avatarColor, image: a.avatarImage, size: 42 }),
+                el("span", { class: "tw-row-body" }, [
+                  el("span", { class: "tw-row-title" }, a.name || a.phone || a.email),
+                  el("span", { class: "tw-row-subtitle" }, a.id === me.id ? "текущий аккаунт" : a.phone || a.email),
+                ]),
+                a.id === me.id ? el("span", { class: "tw-account-check", html: iconSvg("Check", 20) }) : null,
               ]),
-            ]),
-            el("button", { class: "icon-btn", title: "Выйти из аккаунта", html: iconSvg("LogOut", 16), onclick: () => logout(a.id) }),
-          ])
-        )
+              el("button", { class: "icon-btn", title: "Выйти из аккаунта", html: iconSvg("LogOut", 20), onclick: () => logout(a.id) }),
+            ])
+          ),
+          twButton({ icon: "Plus", text: "Добавить аккаунт", onClick: () => (window.location.href = "/login?add=1") }),
+        ],
+        "Можно держать несколько аккаунтов открытыми и переключаться между ними."
       ),
-      el("button", { class: "settings-add-account-btn", onclick: () => (window.location.href = "/login?add=1") }, [
-        el("span", { html: iconSvg("Plus", 16) }),
-        " Добавить аккаунт",
-      ]),
-      el("div", { class: "settings-logout-block" }, [
-        el("button", { class: "settings-logout-btn", onclick: () => logout(me.id) }, [el("span", { html: iconSvg("LogOut", 16) }), " Выйти из текущего аккаунта"]),
-        accounts.length > 1 ? el("button", { class: "settings-logout-all", onclick: logoutAll }, "Выйти из всех аккаунтов") : null,
+      twSection(null, [
+        twButton({ icon: "LogOut", text: "Выйти из текущего аккаунта", danger: true, onClick: () => logout(me.id) }),
+        accounts.length > 1 ? twButton({ icon: "LogOut", text: "Выйти из всех аккаунтов", danger: true, onClick: logoutAll }) : null,
       ]),
     ])
   );
@@ -3166,24 +3293,35 @@ async function renderFolders(root) {
     const full = folders.length >= MAX_FOLDERS;
     mount(
       root,
-      pageWrap("Папки с чатами", `До ${MAX_FOLDERS} папок, в каждой — любой набор чатов. Папки — это вкладки над списком чатов; переключаться между ними можно и клавишами Ctrl+1…9.`, [
-        error ? el("p", { class: "login-error" }, error) : null,
-        el(
-          "div",
-          { class: "settings-folders-list" },
-          folders.map((f, i) =>
-            el("div", { class: `settings-folder-row${editing?.id === f.id ? " open" : ""}` }, [
-              el("button", { class: "settings-folder-name-btn", onclick: () => { editing = editing?.id === f.id ? null : f; chatFilter = ""; render(); } }, [
-                el("span", { class: "settings-row-icon", html: iconSvg("Folder", 18) }),
-                f.name,
-                el("span", { class: "mono settings-toggle-hint" }, ` · ${f.chatIds.length}`),
-              ]),
-              el("button", { class: "icon-btn", title: "Выше", disabled: i === 0, html: iconSvg("ChevronLeft", 15, "rot-up"), onclick: () => move(f, -1) }),
-              el("button", { class: "icon-btn", title: "Ниже", disabled: i === folders.length - 1, html: iconSvg("ChevronLeft", 15, "rot-down"), onclick: () => move(f, 1) }),
-              el("button", { class: "icon-btn", title: "Удалить папку", html: iconSvg("Trash", 15), onclick: () => remove(f) }),
-            ])
-          )
-        ),
+      pageWrap("Папки с чатами", null, [
+        el("div", { class: "tw-media-header" }, [
+          el("span", { class: "tw-media-sticker", html: iconSvg("Folder", 56) }),
+          el("p", { class: "tw-media-subtitle" }, `Создавайте папки для разных групп чатов и быстро переключайтесь между ними — мышью или клавишами Ctrl+1…9. До ${MAX_FOLDERS} папок.`),
+        ]),
+        !creating && !full
+          ? el("button", { class: "tw-primary-btn", onclick: () => { creating = true; editing = null; render(); root.querySelector(".settings-folder-create-row input")?.focus(); } }, [el("span", { html: iconSvg("Plus", 22) }), "Создать папку"])
+          : null,
+        error ? el("p", { class: "tw-row-note danger" }, error) : null,
+        folders.length
+          ? twSection(
+              "Папки",
+              folders.map((f, i) =>
+                el("div", { class: `tw-row clickable tw-folder-row${editing?.id === f.id ? " open" : ""}` }, [
+                  el("button", { type: "button", class: "tw-account-main", onclick: () => { editing = editing?.id === f.id ? null : f; chatFilter = ""; render(); } }, [
+                    twRowIcon("Folder", "blue"),
+                    el("span", { class: "tw-row-body" }, [
+                      el("span", { class: "tw-row-title" }, f.name),
+                      el("span", { class: "tw-row-subtitle" }, `${f.chatIds.length} ${plural(f.chatIds.length, "чат", "чата", "чатов")}`),
+                    ]),
+                  ]),
+                  el("button", { class: "icon-btn", title: "Выше", disabled: i === 0, html: iconSvg("ChevronLeft", 18, "rot-up"), onclick: () => move(f, -1) }),
+                  el("button", { class: "icon-btn", title: "Ниже", disabled: i === folders.length - 1, html: iconSvg("ChevronLeft", 18, "rot-down"), onclick: () => move(f, 1) }),
+                  el("button", { class: "icon-btn danger", title: "Удалить папку", html: iconSvg("Trash", 18), onclick: () => remove(f) }),
+                ])
+              ),
+              "Нажмите на папку, чтобы выбрать, какие чаты в неё входят."
+            )
+          : null,
         editing ? editorFor(editing) : null,
         creating
           ? el("div", { class: "settings-folder-create-row" }, [
@@ -3206,8 +3344,8 @@ async function renderFolders(root) {
               el("button", { class: "btn-accent", onclick: createFolder }, "Создать"),
             ])
           : full
-            ? el("p", { class: "settings-toggle-hint" }, `Папок уже ${MAX_FOLDERS} — чтобы завести новую, удалите одну из них.`)
-            : el("button", { class: "settings-add-account-btn", onclick: () => { creating = true; editing = null; render(); root.querySelector(".settings-folder-create-row input")?.focus(); } }, [el("span", { html: iconSvg("Plus", 15) }), " Новая папка"]),
+            ? el("p", { class: "tw-row-note" }, `Папок уже ${MAX_FOLDERS} — чтобы завести новую, удалите одну из них.`)
+            : null,
       ])
     );
   }
@@ -3248,57 +3386,51 @@ async function renderData(root) {
   }
 
   const BUCKETS = [
-    { key: "photos", label: "Фото" },
-    { key: "videos", label: "Видео" },
-    { key: "files", label: "Файлы" },
-    { key: "voice", label: "Голосовые" },
+    { key: "photos", label: "Фото", icon: "Image", color: "orange" },
+    { key: "videos", label: "Видео", icon: "Video", color: "blue" },
+    { key: "files", label: "Файлы", icon: "File", color: "green" },
+    { key: "voice", label: "Голосовые", icon: "Mic", color: "purple" },
   ];
 
   function render() {
     const total = usage ? Object.values(usage.bytesByBucket).reduce((a, b) => a + b, 0) : 0;
+    const size = (v) => (usageError ? "—" : usage ? formatBytes(v ?? 0) : "Считаем…");
     mount(
       root,
-      pageWrap("Данные и память", "Автозагрузка медиа и реальный объём вложений в переписке", [
-        section("Автозагрузка", [
-          el("div", { class: "settings-toggle-row" }, [
-            el("div", {}, [
-              el("p", { class: "settings-toggle-title" }, "Автозагрузка медиа"),
-              el("p", { class: "settings-toggle-hint" }, "Выключено — фото и видео открываются по нажатию, а не сразу"),
-            ]),
-            Toggle(settings.autoDownload, (v) => patch({ autoDownload: v })),
-          ]),
-        ]),
-        section("Голосовые сообщения", [
-          el("div", { class: "settings-toggle-row" }, [
-            el("div", {}, [
-              el("p", { class: "settings-toggle-title" }, "Расшифровка голосовых"),
-              el(
-                "p",
-                { class: "settings-toggle-hint" },
-                isSpeechSupported()
-                  ? "Во время записи браузер распознаёт речь, и текст уходит вместе с голосовым — собеседник откроет его кнопкой «→A». В Chrome распознавание идёт через серверы Google."
-                  : "Этот браузер не умеет распознавать речь — включите в Chrome, Edge или Safari"
-              ),
-            ]),
-            Toggle(!!settings.voiceTranscription, (v) => patch({ voiceTranscription: v })),
-          ]),
-        ]),
-        section(
-          usage ? `Использовано места — ${formatBytes(total)}` : "Использовано места",
-          usageError
-            ? [el("p", { class: "empty-hint" }, usageError)]
-            : !usage
-              ? [el("p", { class: "empty-hint" }, "Считаем…")]
-              : BUCKETS.map((b) =>
-                  el("div", { class: "settings-toggle-row" }, [
-                    el("span", { class: "settings-toggle-title" }, b.label),
-                    el(
-                      "span",
-                      { class: "mono settings-toggle-hint" },
-                      formatBytes(usage.bytesByBucket[b.key] ?? 0)
-                    ),
-                  ])
-                )
+      pageWrap("Данные и память", null, [
+        twSection(
+          "Использование памяти",
+          [
+            twRow({ title: "Вложения в переписке", subtitle: usageError || size(total) }),
+            ...BUCKETS.map((b) =>
+              twRow({ icon: b.icon, color: b.color, title: b.label, subtitle: size(usage?.bytesByBucket[b.key]) })
+            ),
+          ],
+          "Реальный объём фото, видео, файлов и голосовых, которые вы отправили в чаты."
+        ),
+        twSection(
+          "Автозагрузка медиа",
+          [
+            twRow({
+              title: "Автозагрузка медиа",
+              toggle: { checked: settings.autoDownload, onChange: (v) => patch({ autoDownload: v }) },
+            }),
+          ],
+          "Если выключено, фото и видео загружаются только по нажатию."
+        ),
+        twSection(
+          "Голосовые сообщения",
+          [
+            twRow({
+              icon: "Mic",
+              color: "red",
+              title: "Расшифровка голосовых",
+              toggle: { checked: !!settings.voiceTranscription, onChange: (v) => patch({ voiceTranscription: v }) },
+            }),
+          ],
+          isSpeechSupported()
+            ? "Во время записи браузер распознаёт речь, и текст уходит вместе с голосовым — собеседник откроет его кнопкой «→A». В Chrome распознавание идёт через серверы Google."
+            : "Этот браузер не умеет распознавать речь — включите в Chrome, Edge или Safari."
         ),
       ])
     );
@@ -3307,14 +3439,11 @@ async function renderData(root) {
 }
 
 function shortcutRow(label, keys) {
-  return el("div", { class: "settings-shortcut-row" }, [
-    el("span", {}, label),
-    el(
-      "span",
-      { class: "settings-shortcut-keys" },
-      keys.map((k) => el("kbd", { class: "kbd" }, k))
-    ),
-  ]);
+  return twRow({
+    cls: "tw-shortcut-row",
+    title: label,
+    right: el("span", { class: "tw-kbd-group" }, keys.map((k) => el("kbd", { class: "tw-kbd" }, k))),
+  });
 }
 
 async function renderShortcuts(root) {
@@ -3323,14 +3452,14 @@ async function renderShortcuts(root) {
   mount(
     root,
     pageWrap("Горячие клавиши", null, [
-      section("Поиск", [
+      twSection("Поиск", [
         shortcutRow("Открыть поиск", [mod, "F"]),
         shortcutRow("Открыть поиск", [mod, "K"]),
         shortcutRow("Выбрать результат", ["↑", "↓"]),
         shortcutRow("Открыть выбранный", ["Enter"]),
         shortcutRow("Очистить поиск", ["Esc"]),
       ]),
-      section("Навигация", [
+      twSection("Навигация", [
         shortcutRow("Следующий чат", ["Alt", "↓"]),
         shortcutRow("Предыдущий чат", ["Alt", "↑"]),
         shortcutRow("Избранное", [mod, "0"]),
