@@ -15774,7 +15774,6 @@ video.story-reply-thumb { object-fit: cover; }
   --tw-bubble-radius-small: 5px;
   --tw-bubble-shadow: 0 1px 2px 0 rgba(16, 35, 47, 0.15);
   --tw-input-shadow: 0 1px 8px 1px rgba(0, 0, 0, 0.12);
-  --tw-chat-width: 728px;
   --tw-messages-text: 16px;
   --tw-line-height: 1.3125;
   --tw-tail: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 20'%3E%3Cg transform='translate(9 -14)'%3E%3Cpath transform='matrix(1 0 0 -1 0 49)' d='M-6 16h6v17c-.193-2.84-.876-5.767-2.05-8.782-.904-2.325-2.446-4.485-4.625-6.48A1 1 0 01-6 16z'/%3E%3C/g%3E%3C/svg%3E");
@@ -15785,11 +15784,6 @@ video.story-reply-thumb { object-fit: cover; }
   padding-top: 8px;
   padding-bottom: calc(var(--composer-h, 64px) + 6px);
   overscroll-behavior: contain;
-}
-.message-list > * {
-  max-width: var(--tw-chat-width);
-  margin-left: auto;
-  margin-right: auto;
 }
 .message-row {
   padding: 1px 12px;
@@ -15984,8 +15978,8 @@ video.story-reply-thumb { object-fit: cover; }
   padding: 0;
 }
 .composer {
-  max-width: var(--tw-chat-width);
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   border: none;
   border-radius: 24px;
   background: var(--color-surface);
@@ -16286,4 +16280,349 @@ video.story-reply-thumb { object-fit: cover; }
   html.keyboard-open .composer-slot:not(:empty) {
     padding-bottom: 8px;
   }
+}
+
+/* ---------- tweb: общие компоненты ---------- */
+:root {
+  --tw-secondary: #c4c9cc;
+  --tw-menu-bg: color-mix(in srgb, var(--color-surface) 85%, transparent);
+  --tw-menu-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+  --tw-hover: color-mix(in srgb, var(--color-text) 8%, transparent);
+  --tw-input-border: #dfe1e5;
+}
+:root[data-theme="dark"] {
+  --tw-secondary: #707579;
+  --tw-menu-bg: color-mix(in srgb, var(--color-surface) 75%, transparent);
+  --tw-input-border: #2f2f2f;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --tw-secondary: #707579;
+    --tw-menu-bg: color-mix(in srgb, var(--color-surface) 75%, transparent);
+    --tw-input-border: #2f2f2f;
+  }
+}
+
+/* контекстные меню (tweb .btn-menu) */
+@keyframes tw-menu-in {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+.dropdown-menu:not(.dropdown-sheet) {
+  min-width: 180px;
+  padding: 4px 0;
+  border: none;
+  border-radius: 16px;
+  background: var(--tw-menu-bg);
+  -webkit-backdrop-filter: blur(50px);
+  backdrop-filter: blur(50px);
+  box-shadow: var(--tw-menu-shadow);
+  animation: tw-menu-in 0.2s cubic-bezier(0.4, 0, 0.2, 1) both;
+  transform-origin: top left;
+}
+.dropdown-item {
+  gap: 20px;
+  width: calc(100% - 8px);
+  min-height: 32px;
+  margin: 0 4px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 18px;
+  transition: transform 0.1s;
+}
+.dropdown-item:hover {
+  background: var(--tw-hover);
+}
+.dropdown-item:active {
+  transform: scale(0.98);
+}
+.dropdown-icon {
+  width: 20px;
+  justify-content: center;
+  color: var(--color-muted);
+}
+.dropdown-item.danger .dropdown-icon {
+  color: inherit;
+}
+.dropdown-heading {
+  padding: 6px 16px 4px;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.dropdown-separator {
+  margin: 4px 0;
+  height: 1px;
+  background: var(--color-border);
+}
+.dropdown-search-input {
+  height: 36px;
+  border-radius: 18px;
+  border: 1px solid var(--tw-input-border);
+  background: var(--color-surface);
+  padding: 0 14px;
+  font-size: 14px;
+}
+.dropdown-search-input:focus {
+  outline: none;
+  border: 2px solid var(--color-accent);
+  padding: 0 13px;
+}
+@media (max-width: 767px) {
+  .dropdown-menu.dropdown-sheet {
+    border: none;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .dropdown-sheet .dropdown-item {
+    min-height: 48px;
+    font-size: 16px;
+    font-weight: 400;
+  }
+}
+
+/* диалоги (tweb .popup) */
+.modal-overlay {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 16px;
+}
+.modal-dialog {
+  max-width: 400px;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 24px;
+  background: var(--color-surface);
+  box-shadow: var(--tw-menu-shadow);
+}
+@keyframes tw-popup-in {
+  from { opacity: 0; transform: translateY(48px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.modal-dialog {
+  animation: tw-popup-in 0.25s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.modal-title {
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 26px;
+}
+.modal-cancel,
+.choice-dialog-btn {
+  min-height: 40px;
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 15px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  color: var(--color-accent);
+}
+.choice-dialog-btn {
+  text-align: right;
+}
+.modal-cancel:hover,
+.choice-dialog-btn:hover {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+.modal-cancel.danger,
+.choice-dialog-btn.danger {
+  color: var(--color-danger);
+}
+.modal-cancel.danger:hover,
+.choice-dialog-btn.danger:hover {
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+}
+
+/* кнопки (tweb .btn-primary: 16px радиус, жирный текст) */
+.btn-accent,
+.btn-secondary {
+  min-height: 40px;
+  justify-content: center;
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 15px;
+  font-weight: 500;
+  transition: background-color 0.15s, filter 0.15s, transform 0.1s;
+}
+.btn-accent:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 88%, #000);
+}
+.btn-accent.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-danger) 88%, #000);
+}
+.btn-accent:active:not(:disabled),
+.btn-secondary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.btn-secondary {
+  border: none;
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-accent);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+/* переключатель (tweb .checkbox-field-toggle) */
+.settings-toggle {
+  width: 42px;
+  height: 24px;
+  border: 2px solid var(--tw-secondary);
+  border-radius: 24px;
+  background: transparent;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+.settings-toggle.on {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+.settings-toggle-knob {
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--tw-secondary);
+  box-shadow: none;
+  transform: scale(0.75);
+  transition: transform 0.2s, background-color 0.2s;
+}
+.settings-toggle.on .settings-toggle-knob {
+  background: var(--color-surface);
+  transform: translateX(18px) scale(1);
+}
+
+/* поля ввода (tweb .input-field) */
+.settings-input {
+  min-height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--tw-input-border);
+  background: var(--color-surface);
+  padding: 0 15px;
+  font-size: 16px;
+}
+textarea.settings-input {
+  padding: 12px 15px;
+}
+.settings-input:focus {
+  outline: none;
+  border: 2px solid var(--color-accent);
+  padding: 0 14px;
+}
+textarea.settings-input:focus {
+  padding: 11px 14px;
+}
+
+/* поиск в левой колонке (tweb .input-search) */
+.chat-search-bar {
+  gap: 8px;
+  padding: 6px 12px 8px 8px;
+}
+.sidebar-menu-btn {
+  width: 40px;
+  height: 40px;
+}
+.sidebar-menu-btn:hover {
+  background: var(--tw-hover);
+}
+.chat-search-icon {
+  left: 13px;
+}
+.chat-search-input {
+  height: 44px;
+  border-radius: 22px;
+  border: 1px solid var(--tw-input-border);
+  background: var(--color-surface);
+  padding: 0 16px 0 44px;
+  font-size: 16px;
+}
+.chat-search-input::placeholder {
+  color: #9ba0a5;
+}
+.chat-search-input:focus {
+  outline: none;
+  border: 2px solid var(--color-accent);
+  padding: 0 15px 0 43px;
+}
+.chat-search-input-wrap:focus-within .chat-search-icon {
+  color: var(--color-accent);
+}
+.sidebar-fab {
+  width: 54px;
+  height: 54px;
+  box-shadow: 0 1px 8px 1px rgba(0, 0, 0, 0.12);
+  transition: background-color 0.15s, transform 0.2s;
+}
+.sidebar-fab:hover {
+  filter: none;
+  background: color-mix(in srgb, var(--color-accent) 88%, #000);
+}
+
+/* вкладки папок (tweb .menu-horizontal-div: текст + полоска снизу) */
+.chat-tabs-row {
+  gap: 0;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+.chat-tab {
+  position: relative;
+  padding: 12px 12px 11px;
+  border: none;
+  border-radius: 12px 12px 0 0;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+.chat-tab:hover {
+  border-color: transparent;
+  background: var(--tw-hover);
+  color: var(--color-muted);
+}
+.chat-tab.active {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-accent);
+}
+.chat-tab.active:hover {
+  background: var(--tw-hover);
+}
+.chat-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--color-accent);
+}
+.chat-tab-count {
+  height: 20px;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--tw-secondary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+.chat-tab.active .chat-tab-count {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+/* тонкий скроллбар, как в tweb */
+.message-list,
+.chat-list-scroll,
+.info-panel-body,
+.modal-dialog,
+.dropdown-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+:root[data-theme="dark"] :is(.message-list, .chat-list-scroll, .info-panel-body, .modal-dialog, .dropdown-list) {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
