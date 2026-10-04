@@ -6,8 +6,10 @@ import { getState, setState } from "../state.js";
 import { navigate } from "../router.js";
 import { messagePreview } from "../lib/messagePreview.js";
 import { isChatMuted } from "../lib/chatSort.js";
-import { openSideTab, twInputField, twAvatarEdit } from "./twTab.js";
-import { showToast } from "./toast.js";
+
+// Редактирование и создание сообщества живут в communityEditor.js (экраны tweb
+// communities/createCommunity и editCommunity) — здесь только список и панель.
+export { openEditCommunityDialog, openCreateCommunityDialog, openOwnChatPicker, openCommunityChatSettings } from "./communityEditor.js";
 
 // Сообщества в списке чатов, как в tweb (components/communities): строка со
 // «стопкой» вместо круглой аватарки, по нажатию — панель с чатами сообщества.
@@ -20,49 +22,6 @@ export function CommunityAvatar(community, size = 54) {
     el("span", { html: DECORATION, class: "community-avatar-decoration-wrap" }),
     Avatar({ name: community.title, color: community.avatarColor, image: community.avatarImage, size }),
   ]);
-}
-
-// Редактирование сообщества: тот же интерфейс, что и у группы/канала —
-// аватарка, название, описание.
-export function openEditCommunityDialog(community, onSaved) {
-  const avatar = twAvatarEdit({ initial: community.avatarImage ?? null });
-  const name = twInputField({ label: "Название сообщества", value: community.title ?? "", maxLength: 128 });
-  const desc = twInputField({ label: "Описание (необязательно)", value: community.description ?? "", multiline: true, maxLength: 255 });
-  openSideTab({
-    title: "Изменить сообщество",
-    content: [
-      el("div", { class: "tw-create-head" }, [avatar.element]),
-      el("div", { class: "tw-section-group" }, [
-        el("div", { class: "tw-section tw-section-pad" }, [name.field, desc.field]),
-        el("p", { class: "tw-section-caption" }, "Название, фото и описание сообщества видят все участники."),
-      ]),
-    ],
-    fab: {
-      icon: "Check",
-      title: "Сохранить",
-      onClick: async (tab) => {
-        const title = name.input.value.trim();
-        if (!title) {
-          name.field.classList.add("error");
-          name.input.focus();
-          return;
-        }
-        tab.setFabBusy(true);
-        try {
-          const { community: updated } = await api.updateCommunity(community.id, {
-            title,
-            description: desc.input.value.trim(),
-            avatarImage: avatar.image ?? null,
-          });
-          tab.close();
-          onSaved?.(updated);
-        } catch (err) {
-          tab.setFabBusy(false);
-          showToast(err?.message || "Не удалось сохранить");
-        }
-      },
-    },
-  });
 }
 
 export async function openCommunityPanel(id) {

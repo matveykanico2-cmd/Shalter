@@ -1180,6 +1180,7 @@ CREATE TABLE IF NOT EXISTS translation_cache (
 
 // Сообщества (Communities): несколько групп и каналов под одной вывеской.
 // Чат входит максимум в одно сообщество — отсюда PRIMARY KEY по chatId.
+// addMode — кто может добавлять чаты (all/admins), visible — виден ли чат в списке.
 db.exec(`
 CREATE TABLE IF NOT EXISTS communities (
   id TEXT PRIMARY KEY,
@@ -1188,11 +1189,13 @@ CREATE TABLE IF NOT EXISTS communities (
   description TEXT,
   avatarColor TEXT,
   avatarImage TEXT,
+  addMode TEXT NOT NULL DEFAULT 'all',
   createdAt TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS community_chats (
   chatId TEXT PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
   communityId TEXT NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+  visible INTEGER NOT NULL DEFAULT 1,
   addedAt TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_community_chats_community ON community_chats(communityId);
@@ -1200,6 +1203,9 @@ CREATE INDEX IF NOT EXISTS idx_community_chats_community ON community_chats(comm
 {
   const communityCols = new Set(db.prepare("PRAGMA table_info(communities)").all().map((c) => c.name));
   if (!communityCols.has("avatarImage")) db.exec("ALTER TABLE communities ADD COLUMN avatarImage TEXT");
+  if (!communityCols.has("addMode")) db.exec("ALTER TABLE communities ADD COLUMN addMode TEXT NOT NULL DEFAULT 'all'");
+  const chatCols = new Set(db.prepare("PRAGMA table_info(community_chats)").all().map((c) => c.name));
+  if (!chatCols.has("visible")) db.exec("ALTER TABLE community_chats ADD COLUMN visible INTEGER NOT NULL DEFAULT 1");
 }
 
 module.exports = db;

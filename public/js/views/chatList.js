@@ -39,6 +39,8 @@ import {
   memberChatsOf,
   plural,
   openEditCommunityDialog,
+  openCreateCommunityDialog,
+  openOwnChatPicker,
 } from "../components/communityList.js";
 import { askConfirm } from "../components/confirmDialog.js";
 
@@ -119,11 +121,11 @@ async function openNewChatMenu(e) {
         icon: "Users",
         label: "Новое сообщество",
         onClick: () => {
-          openCreateChatDialog("community", async (title, avatarImage, extra, tab) => {
-            const { community } = await api.createCommunity({ title, description: extra.description, avatarImage });
-            tab.close({ all: true });
-            const { openCommunityPanel } = await import("../components/communityList.js");
-            await openCommunityPanel(community.id);
+          openCreateCommunityDialog({
+            onCreated: async (community) => {
+              const { openCommunityPanel } = await import("../components/communityList.js");
+              await openCommunityPanel(community.id);
+            },
           });
         },
       },
@@ -812,8 +814,7 @@ function renderCommunityPanel(container, community, currentId) {
     box.appendChild(
       el("button", {
         class: "community-add-chat",
-        onclick: async () => {
-          const { openOwnChatPicker } = await import("./community.js");
+        onclick: () => {
           openOwnChatPicker((chatId) => act(() => api.addCommunityChat(community.id, chatId), "Не удалось добавить чат"), { exclude: community.chatIds });
         },
       }, [el("span", { class: "community-add-chat-icon", html: iconSvg("Plus", 22) }), el("span", {}, "Добавить чат в сообщество")])

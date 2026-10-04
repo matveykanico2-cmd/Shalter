@@ -1,5 +1,5 @@
 import { openCommunityPanel } from "./communityList.js";
-import { openCreateChatDialog } from "./createChatDialog.js";
+import { openCreateCommunityDialog } from "./communityEditor.js";
 import { askText } from "./confirmDialog.js";
 import { askConfirm } from "./confirmDialog.js";
 import { el } from "../lib/dom.js";
@@ -559,18 +559,15 @@ function groupIntoCards(body) {
 }
 
 
-// «Новое сообщество» — тот же интерфейс, что у группы: аватар, название,
-// описание; текущий чат становится первым в сообществе.
+// «Новое сообщество» — экран tweb createCommunity: аватар, название, описание,
+// кто может добавлять чаты и видимость текущего чата; текущий чат становится
+// первым в сообществе.
 function openCreateCommunityTab(chat) {
-  openCreateChatDialog(
-    "community",
-    async (title, avatarImage, extra, tab) => {
-      const { community } = await api.createCommunity({ title, description: extra.description, avatarImage, chatId: chat.id });
-      tab.close({ all: true });
-      openCommunityPanel(community.id);
-    },
-    { firstChatId: chat.id }
-  );
+  openCreateCommunityDialog({
+    firstChatId: chat.id,
+    firstChat: { id: chat.id, type: chat.type, title: chat.title, username: chat.username, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage, members: chat.members },
+    onCreated: (community) => openCommunityPanel(community.id),
+  });
 }
 
 function pluralBoost(n) {

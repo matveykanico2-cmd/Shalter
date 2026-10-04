@@ -13325,33 +13325,53 @@ p.business-status {
 .composer-custom-emoji-item:hover .composer-custom-emoji-edit,
 .composer-custom-emoji-item:hover .composer-custom-emoji-del { display: flex; align-items: center; justify-content: center; }
 
-.gs-bg-picker {
+/* Выбор фона подарка (окно отправки): название выбранного фона и лента образцов. */
+.sg-bg-picker {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin: 4px 0 2px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px 4px;
 }
-.gs-bg-label { font-size: 13px; opacity: 0.7; }
-.gs-bg-swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.gs-bg-swatch {
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-  border: 2px solid transparent;
-  cursor: pointer;
+.sg-bg-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary, rgba(128, 128, 128, 0.9));
+}
+.sg-bg-swatches {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
+}
+.sg-bg-swatch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
   padding: 0;
-  color: #fff;
-  font-size: 11px;
-  line-height: 1;
+  border: 2px solid transparent;
+  border-radius: 12px;
   background: var(--color-surface-alt, rgba(128, 128, 128, 0.15));
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  cursor: pointer;
+  overflow: hidden;
+  scroll-snap-align: start;
+  -webkit-tap-highlight-color: transparent;
 }
-.gs-bg-swatch.sel { border-color: var(--accent, #ff8a3d); }
-.gs-card-art { border-radius: 12px; }
-.gift-message-burst.has-bg { border-radius: 20px; padding: 10px; }
+.sg-bg-swatch.sel {
+  border-color: var(--accent, #ff8a3d);
+}
+.sg-bg-preview {
+  --tw-gift-halo: 96px;
+  --tw-gift-halo-top: -24px;
+}
+.sg-bg-preview .tw-gift-backdrop-pattern {
+  -webkit-mask-size: 13px 13px;
+  mask-size: 13px 13px;
+  opacity: 0.35;
+}
 
 .anim-preview { cursor: crosshair; touch-action: none; }
 .anim-marker {
@@ -15087,6 +15107,38 @@ video.story-reply-thumb { object-fit: cover; }
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
+}
+/* Сообщество: создание и редактирование (tweb components/communities). */
+.community-hidden-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--color-surface-alt, rgba(128, 128, 128, 0.18));
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.tw-section-empty {
+  padding: 0 10px 10px;
+  margin: 0;
+}
+.tw-danger-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 14px;
+  border: none;
+  border-radius: 10px;
+  background: color-mix(in srgb, #e53935 14%, transparent);
+  color: #e53935;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tw-danger-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* Плашка в личке с человеком не из контактов. */
@@ -20972,11 +21024,47 @@ button img.emoji {
   position: relative;
   z-index: 1;
 }
+/* Фон подарка — три слоя как в tweb (stargiftBackdrop.module.scss): заливка цветом
+   края, радиальное свечение в центре, узор символом в цвете pattern_color. */
 .tw-gift-backdrop {
+  --tw-gift-inset: 4px;
+  --tw-gift-radius: 16px;
+  --tw-gift-halo: 400px;
+  --tw-gift-halo-top: -100px;
   position: absolute;
-  inset: 4px;
-  border-radius: 16px;
-  opacity: 0.9;
+  inset: var(--tw-gift-inset);
+  border-radius: var(--tw-gift-radius);
+  overflow: hidden;
+  background-color: var(--gift-backdrop-edge, transparent);
+  pointer-events: none;
+  transition: background-color 0.5s ease-in-out;
+}
+.tw-gift-backdrop-small {
+  --tw-gift-inset: 0px;
+  --tw-gift-radius: 0px;
+  --tw-gift-halo: 200px;
+  --tw-gift-halo-top: -50px;
+}
+.tw-gift-backdrop-halo {
+  position: absolute;
+  left: 50%;
+  top: var(--tw-gift-halo-top);
+  width: var(--tw-gift-halo);
+  height: var(--tw-gift-halo);
+  transform: translateX(-50%);
+  background: radial-gradient(var(--gift-backdrop-center, transparent) 0%, var(--gift-backdrop-edge, transparent) 50%);
+  transition: background 0.5s ease-in-out;
+}
+.tw-gift-backdrop-pattern {
+  position: absolute;
+  inset: 0;
+  background: var(--gift-backdrop-pattern, transparent);
+  -webkit-mask: var(--gift-symbol) 0 0 / 22px 22px space;
+  mask: var(--gift-symbol) 0 0 / 22px 22px space;
+  opacity: 0.3;
+}
+.tw-gift-backdrop-slot {
+  display: contents;
 }
 .tw-gift-art {
   position: relative;
@@ -22169,16 +22257,6 @@ button img.emoji {
   width: 20px;
   height: 20px;
   opacity: 0.4;
-}
-.tw-gift-pattern {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background: var(--gift-pattern);
-  -webkit-mask: var(--gift-symbol) 0 0 / 22px 22px space;
-  mask: var(--gift-symbol) 0 0 / 22px 22px space;
-  opacity: 0.3;
-  pointer-events: none;
 }
 .sg-balance {
   flex-shrink: 0;

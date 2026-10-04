@@ -86,11 +86,11 @@ router.get(
 router.post(
   "/request",
   asyncRoute(async (req, res) => {
+    const recipientId = req.body?.recipientId;
+    if (recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
     const gift = getGift(req.body?.giftId);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
     if (!isOnSale(gift.id)) return res.status(400).json({ error: "Этот подарок больше не продаётся" });
-    const recipientId = req.body?.recipientId;
-    if (recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
     const recipient = recipientId ? await getUser(recipientId) : null;
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
 
@@ -145,11 +145,11 @@ router.post(
 router.post(
   "/buy",
   asyncRoute(async (req, res) => {
+    const recipientId = req.body?.recipientId;
+    if (recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
     const gift = getGift(req.body?.giftId);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
     if (!isOnSale(gift.id)) return res.status(400).json({ error: "Этот подарок больше не продаётся" });
-    const recipientId = req.body?.recipientId;
-    if (recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
     const recipient = recipientId ? await getUser(recipientId) : null;
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
     if ((recipient.blockedUserIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Пользователь ограничил вам доступ" });
@@ -453,9 +453,9 @@ router.delete(
 router.post(
   "/custom/send",
   asyncRoute(async (req, res) => {
+    if (req.body?.recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
     const gift = getUserGift(req.body?.giftId, req.uid);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
-    if (req.body?.recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
     const recipient = await getUser(req.body?.recipientId);
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
     const background = sanitizeGiftBackground(req.body?.background);

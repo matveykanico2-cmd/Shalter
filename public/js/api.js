@@ -202,6 +202,8 @@ export const api = {
   createCommunity: (body) => req("/api/communities", { method: "POST", body: JSON.stringify(body) }),
   updateCommunity: (id, patch) => req(`/api/communities/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   addCommunityChat: (id, chatId) => req(`/api/communities/${id}/chats`, { method: "POST", body: JSON.stringify({ chatId }) }),
+  setCommunityChatVisible: (id, chatId, visible) =>
+    req(`/api/communities/${id}/chats/${chatId}`, { method: "PATCH", body: JSON.stringify({ visible }) }),
   removeCommunityChat: (id, chatId) => req(`/api/communities/${id}/chats/${chatId}`, { method: "DELETE" }),
   deleteCommunity: (id) => req(`/api/communities/${id}`, { method: "DELETE" }),
   joinPublicChat: (id) => req(`/api/chats/${id}/join`, { method: "POST" }),

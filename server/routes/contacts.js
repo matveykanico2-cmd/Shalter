@@ -14,7 +14,9 @@ router.use(requireUserId);
 router.get(
   "/",
   asyncRoute(async (req, res) => {
-    const contacts = await listContactsFor(req.uid);
+    // Себя в списке контактов не показываем: подарок себе, звонок себе и «отправить
+    // контакт» себе невозможны, а импорт контактов может добавить собственный номер.
+    const contacts = (await listContactsFor(req.uid)).filter((c) => c.userId !== req.uid);
     const users = await listUsersByIds(contacts.map((c) => c.userId));
     const byId = new Map(users.map((u) => [u.id, u]));
     const resolved = (

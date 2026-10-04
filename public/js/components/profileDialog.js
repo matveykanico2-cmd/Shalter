@@ -22,7 +22,7 @@ import { openGiftCardDialog } from "./giftCardDialog.js";
 import { openGiftShopDialog } from "./giftShopDialog.js";
 import { openStoryViewer } from "./storyViewer.js";
 import { giftTraits, renderGiftArt } from "../lib/giftTraits.js";
-import { giftBackgroundStyle } from "../lib/giftBackground.js";
+import { giftBackdrop, renderGiftBackdrop } from "../lib/giftBackground.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 import { ProfileStatusBadge } from "./profileStatusBadge.js";
 import { openPinnedChannelsDialog } from "./pinnedChannelsDialog.js";
@@ -459,8 +459,11 @@ export async function openProfileDialog(userId) {
           const entryId = g.id ?? `${g.emoji}|${g.at}`;
           const exclusive = g.serial != null;
           const traits = giftTraits(g);
-          const [c1, c2] = traits.backdrop.colors;
-          const backdrop = g.background ? giftBackgroundStyle(g.background) : exclusive ? `radial-gradient(circle at 50% 40%, ${c1}, ${c2})` : null;
+          // Фон подарка: выбранный при отправке, а у коллекционных без выбора —
+          // детерминированный фон серии (tweb: collectibleAttributes.backdrop).
+          const bd = giftBackdrop(g.background ?? (exclusive ? traits.backdrop : null));
+          const c1 = bd?.center ?? "#6f8cff";
+          const c2 = bd?.edge ?? "#2a3dff";
           const fromBadge = g.pinned
             ? el("span", { class: "tw-gift-pin", title: "Закреплён", html: iconSvg("Pin", 14) })
             : g.anon || !g.fromId
@@ -470,8 +473,8 @@ export async function openProfileDialog(userId) {
             "button",
             {
               type: "button",
-              class: `tw-gift-item${backdrop ? " tw-gift-item-backdrop" : ""}`,
-              style: `--gift-overlay: ${c2};${backdrop ? ` background: ${backdrop};` : ""}`,
+              class: `tw-gift-item${bd ? " tw-gift-item-backdrop" : ""}`,
+              style: `--gift-overlay: ${c2}`,
               title: exclusive ? `${g.name} — №${g.serial} из ${g.supply}${from}` : `${g.name}${from}`,
               "aria-label": g.name,
               onclick: () =>
@@ -483,9 +486,7 @@ export async function openProfileDialog(userId) {
                 }),
             },
             [
-              exclusive && !g.background
-                ? el("span", { class: "tw-gift-pattern", style: `--gift-symbol: url("${traits.symbol.image}"); --gift-pattern: ${traits.backdrop.pattern}` })
-                : null,
+              renderGiftBackdrop(bd, { small: true }),
               fromBadge,
               exclusive
                 ? el("span", { class: "tw-gift-badge", style: { background: `linear-gradient(180deg, ${c1} 0%, ${c2} 100%)` } }, [
@@ -792,7 +793,7 @@ export async function openProfileDialog(userId) {
                     [el("span", { html: iconSvg(inContacts ? "Trash" : "Plus", 22) }), inContacts ? " Удалить из контактов" : " Добавить в контакты"]
                   )
                 : null,
-              !user.isBot
+              !user.isBot && !isSelf
                 ? el(
                     "button",
                     { class: "profile-action-btn", onclick: () => openGiftShopDialog({ recipient: { id: user.id, name: user.name } }) },

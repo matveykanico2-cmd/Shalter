@@ -1,7 +1,12 @@
 const db = require("../db");
 
+const ADD_MODES = new Set(["all", "admins"]);
+
 function rowToCommunity(row) {
   if (!row) return undefined;
+  const chats = db
+    .prepare("SELECT chatId, visible FROM community_chats WHERE communityId = ? ORDER BY addedAt ASC")
+    .all(row.id);
   return {
     id: row.id,
     ownerId: row.ownerId,
@@ -9,11 +14,11 @@ function rowToCommunity(row) {
     description: row.description ?? undefined,
     avatarColor: row.avatarColor ?? undefined,
     avatarImage: row.avatarImage ?? undefined,
+    addMode: ADD_MODES.has(row.addMode) ? row.addMode : "all",
     createdAt: row.createdAt,
-    chatIds: db
-      .prepare("SELECT chatId FROM community_chats WHERE communityId = ? ORDER BY addedAt ASC")
-      .all(row.id)
-      .map((r) => r.chatId),
+    chatIds: chats.map((c) => c.chatId),
+    // Скрытые чаты остаются в сообществе, но не показываются в списке (tweb: linked_peers.visible).
+    hiddenChatIds: chats.filter((c) => !c.visible).map((c) => c.chatId),
   };
 }
 
@@ -44,41 +49,53 @@ function communityOfChat(chatId) {
   return row ? getCommunity(row.communityId) : undefined;
 }
 
-function createCommunity({ id, ownerId, title, description, avatarColor, avatarImage }) {
-  db.prepare("INSERT INTO communities (id, ownerId, title, description, avatarColor, avatarImage, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+function createCommunity({ id, ownerId, title, description, avatarColor, avatarImage, addMode }) {
+  db.prepare("INSERT INTO communities (id, ownerId, title, description, avatarColor, avatarImage, addMode, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
     id,
     ownerId,
     title,
     description ?? null,
     avatarColor ?? null,
     avatarImage ?? null,
+    ADD_MODES.has(addMode) ? addMode : "all",
     new Date().toISOString()
   );
   return getCommunity(id);
 }
 
-function updateCommunity(id, { title, description, avatarImage }) {
+function updateCommunity(id, { title, description, avatarImage, addMode }) {
   const existing = getCommunity(id);
   if (!existing) return undefined;
-  db.prepare("UPDATE communities SET title = ?, description = ?, avatarImage = ? WHERE id = ?").run(
+  db.prepare("UPDATE communities SET title = ?, description = ?, avatarImage = ?, addMode = ? WHERE id = ?").run(
     title ?? existing.title,
     description === undefined ? existing.description ?? null : description || null,
     avatarImage === undefined ? existing.avatarImage ?? null : avatarImage || null,
+    addMode === undefined ? existing.addMode : ADD_MODES.has(addMode) ? addMode : existing.addMode,
     id
   );
   return getCommunity(id);
 }
 
 // false — чат уже в другом сообществе.
-function addChatToCommunity(communityId, chatId) {
+function addChatToCommunity(communityId, chatId, { visible = true } = {}) {
   const taken = db.prepare("SELECT communityId FROM community_chats WHERE chatId = ?").get(chatId);
   if (taken) return taken.communityId === communityId;
-  db.prepare("INSERT INTO community_chats (chatId, communityId, addedAt) VALUES (?, ?, ?)").run(chatId, communityId, new Date().toISOString());
+  db.prepare("INSERT INTO community_chats (chatId, communityId, visible, addedAt) VALUES (?, ?, ?, ?)").run(
+    chatId,
+    communityId,
+    visible ? 1 : 0,
+    new Date().toISOString()
+  );
   return true;
 }
 
 function removeChatFromCommunity(communityId, chatId) {
   db.prepare("DELETE FROM community_chats WHERE communityId = ? AND chatId = ?").run(communityId, chatId);
+}
+
+// Скрытие чата не трогает его видимость для участников самого чата — только список сообщества.
+function setCommunityChatVisible(communityId, chatId, visible) {
+  db.prepare("UPDATE community_chats SET visible = ? WHERE communityId = ? AND chatId = ?").run(visible ? 1 : 0, communityId, chatId);
 }
 
 function deleteCommunity(id) {
@@ -94,5 +111,6 @@ module.exports = {
   updateCommunity,
   addChatToCommunity,
   removeChatFromCommunity,
+  setCommunityChatVisible,
   deleteCommunity,
 };

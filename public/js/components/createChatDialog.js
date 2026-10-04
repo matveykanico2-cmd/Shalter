@@ -6,10 +6,10 @@ import { showToast } from "./toast.js";
 
 // Вкладка tweb «Новая группа» / «Новый канал» (AppNewGroupTab / AppNewChannelTab):
 // круглый аватар с камерой, название и описание с подписью на рамке, тип и ссылка, участники.
-export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon, firstChatId = null } = {}) {
+// Сообщества создаются отдельно — components/communityEditor.js.
+export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon } = {}) {
   const isChannel = kind === "channel";
-  const isCommunity = kind === "community";
-  const what = isCommunity ? "сообщества" : isChannel ? "канала" : "группы";
+  const what = isChannel ? "канала" : "группы";
   let isPublic = false;
 
   const avatar = twAvatarEdit();
@@ -47,28 +47,22 @@ export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon, fi
       ? `Любой сможет найти ${isChannel ? "канал" : "группу"} и открыть по ссылке.`
       : "Пригласительная ссылка появится сразу после создания.";
   }
-  if (!isCommunity) renderType();
+  renderType();
 
   const content = [
     el("div", { class: "tw-create-head" }, [avatar.element]),
     el("div", { class: "tw-section-group" }, [
       el("div", { class: "tw-section tw-section-pad" }, [name.field, desc.field]),
-      el("p", { class: "tw-section-caption" }, isCommunity
-        ? "Название, фото и описание сообщества видят все участники."
-        : isChannel
-          ? "Можно добавить описание — его увидят в профиле канала."
-          : "Название и фото увидят все участники."),
+      el("p", { class: "tw-section-caption" }, isChannel
+        ? "Можно добавить описание — его увидят в профиле канала."
+        : "Название и фото увидят все участники."),
     ]),
-    ...(isCommunity
-      ? []
-      : [
-          el("div", { class: "tw-section-group" }, [
-            el("p", { class: "tw-section-name" }, isChannel ? "Тип канала" : "Тип группы"),
-            el("div", { class: "tw-section" }, [typeRows]),
-            typeCaption,
-          ]),
-          handleSection,
-        ]),
+    el("div", { class: "tw-section-group" }, [
+      el("p", { class: "tw-section-name" }, isChannel ? "Тип канала" : "Тип группы"),
+      el("div", { class: "tw-section" }, [typeRows]),
+      typeCaption,
+    ]),
+    handleSection,
     members.length
       ? el("div", { class: "tw-section-group" }, [
           el("p", { class: "tw-section-name" }, `${members.length} ${plural(members.length, "участник", "участника", "участников")}`),
@@ -87,7 +81,7 @@ export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon, fi
   ];
 
   openSideTab({
-    title: isCommunity ? "Новое сообщество" : isChannel ? "Новый канал" : "Новая группа",
+    title: isChannel ? "Новый канал" : "Новая группа",
     content,
     fab: {
       icon: fabIcon ?? (isChannel ? "ChevronRight" : "Check"),
@@ -101,7 +95,7 @@ export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon, fi
         }
         name.field.classList.remove("error");
         const username = handle.input.value.trim();
-        if (!isCommunity && isPublic && username.length < 3) {
+        if (isPublic && username.length < 3) {
           handle.field.classList.add("error");
           handle.input.focus();
           showToast("Для публичного нужна ссылка — от 3 символов");
@@ -109,9 +103,7 @@ export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon, fi
         }
         tab.setFabBusy(true);
         try {
-          const extra = isCommunity
-            ? { description: desc.input.value.trim(), ...(firstChatId ? { chatId: firstChatId } : {}) }
-            : { description: desc.input.value.trim(), username: isPublic ? username : null, isPublic };
+          const extra = { description: desc.input.value.trim(), username: isPublic ? username : null, isPublic };
           await onSubmit(title, avatar.image, extra, tab);
         } catch (err) {
           showToast(err?.message || "Не получилось");

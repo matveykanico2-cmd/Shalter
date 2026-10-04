@@ -10,25 +10,25 @@ const MODELS = [
 ];
 
 // Фоны и узоры — настоящие из коллекций Telegram (scripts/import-telegram-gifts.js),
-// редкость — их доля среди выпущенных подарков.
-const BACKDROPS = TG_BACKDROPS;
+// редкость — их доля среди выпущенных подарков. Фоны приводим к той же форме,
+// что и выбранные при отправке (giftBackground.js), чтобы рисовались одинаково.
+const BACKDROPS = TG_BACKDROPS.map((b) => ({
+  name: b.name,
+  center: b.colors[0],
+  edge: b.colors[1],
+  pattern: b.pattern,
+  rarity: b.rarity,
+  symbol: null,
+}));
 const SYMBOLS = TG_SYMBOLS.map((sym) => ({ ...sym, image: `/gift-symbols/${sym.id}.webp` }));
 // У подарков-коллекций из Telegram — свои модели.
 const COLLECTION_MODELS = { tg_plush_pepe: TG_MODELS.plushpepe };
 
 import { renderScene } from "./animScenes.js";
 import { renderCustomScene } from "./customScene.js";
+import { hash01 } from "./giftBackground.js";
 import { lottieNameFor, renderLottie } from "./lottie.js";
 import { TG_BACKDROPS, TG_SYMBOLS, TG_MODELS } from "./tgGiftData.js";
-
-function hash(str, salt) {
-  let h = 2166136261 ^ salt;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) / 4294967295;
-}
 
 function pick(list, roll) {
   const total = list.reduce((sum, item) => sum + item.rarity, 0);
@@ -42,10 +42,12 @@ function pick(list, roll) {
 
 export function giftTraits(gift) {
   const seed = `${gift?.giftId ?? gift?.id ?? gift?.emoji ?? "gift"}#${gift?.serial ?? 0}`;
+  const symbol = pick(SYMBOLS, hash01(seed, 3));
   return {
-    model: pick(COLLECTION_MODELS[gift?.giftId ?? gift?.id] ?? MODELS, hash(seed, 1)),
-    backdrop: pick(BACKDROPS, hash(seed, 2)),
-    symbol: pick(SYMBOLS, hash(seed, 3)),
+    model: pick(COLLECTION_MODELS[gift?.giftId ?? gift?.id] ?? MODELS, hash01(seed, 1)),
+    // Фон серии сразу со своим узором — как collectibleAttributes.backdrop + pattern в tweb.
+    backdrop: { ...pick(BACKDROPS, hash01(seed, 2)), symbol },
+    symbol,
   };
 }
 

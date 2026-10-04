@@ -6,6 +6,7 @@ import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { renderGiftArt } from "../lib/giftTraits.js";
+import { GIFT_BACKDROUNDS, giftBackdropById, giftBackgroundValue, renderGiftBackdrop } from "../lib/giftBackground.js";
 import { openStarsDialog } from "./starsDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openAnimatorEditor } from "./animatorEditor.js";
@@ -50,6 +51,7 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
   let chosen = null; // { gift, mine }
   let note = "";
   let anonymous = false;
+  let backdropId = ""; // выбранный фон подарка, "" — без фона
   let sending = false;
   let listScrollTop = 0;
 
@@ -296,6 +298,41 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
     render();
   }
 
+  // Выбор фона подарка — как в tweb, где фон задаётся вместе с подарком и
+  // рисуется теми же тремя слоями (край, свечение, узор символом).
+  function backdropPicker(onPick) {
+    const label = el("span", { class: "sg-bg-label" });
+    const swatches = el("div", { class: "sg-bg-swatches", role: "radiogroup", "aria-label": "Фон подарка" });
+    const paint = () => {
+      const picked = giftBackdropById(backdropId);
+      label.textContent = `Фон подарка · ${picked?.name ?? "Без фона"}`;
+      clear(swatches);
+      for (const option of GIFT_BACKDROUNDS) {
+        const selected = option.id === backdropId;
+        const swatch = el(
+          "button",
+          {
+            type: "button",
+            role: "radio",
+            "aria-checked": String(selected),
+            class: `sg-bg-swatch${selected ? " sel" : ""}`,
+            title: option.rarity != null ? `${option.name} — ${option.rarity}%` : option.name,
+            "aria-label": option.name,
+            onclick: () => {
+              backdropId = option.id;
+              paint();
+              onPick();
+            },
+          },
+          [renderGiftBackdrop(option.id ? option : null, { small: true, className: "sg-bg-preview" })]
+        );
+        swatches.append(swatch);
+      }
+    };
+    paint();
+    return el("div", { class: "sg-bg-picker" }, [label, swatches]);
+  }
+
   function renderChosen() {
     const { gift, mine } = chosen;
     const price = mine ? 0 : gift.priceStars ?? 0;
@@ -368,6 +405,15 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
       sending ? "Отправляем…" : mine ? "Отправить подарок" : `Отправить подарок за ⭐ ${fmt(price)}`
     );
 
+    // Фон в превью — тот же, что уедет с подарком.
+    const backdropSlot = el("div", { class: "tw-gift-backdrop-slot" });
+    const syncBackdrop = () => {
+      const layer = renderGiftBackdrop(backdropId ? giftBackdropById(backdropId) : null);
+      clear(backdropSlot);
+      if (layer) backdropSlot.append(layer);
+    };
+    syncBackdrop();
+
     const page = el("div", { class: "sg-page sg-page-chosen" }, [
       el("div", { class: "sg-header sg-header-solid" }, [
         iconBtn("ChevronLeft", "Назад", back),
@@ -382,6 +428,7 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
             ]),
             el("div", { class: `tw-gift-box${gift.supply ? " is-unique" : ""}` }, [
               gift.supply ? el("span", { class: "tw-gift-ribbon" }, `1 из ${fmt(gift.supply)}`) : null,
+              backdropSlot,
               el("div", { class: "tw-gift-art" }, [renderGiftArt(gift, { size: 120, replay: true })]),
               el("p", { class: "tw-gift-from" }, ["Подарок от ", fromAvatarSlot]),
               el("p", { class: "tw-gift-name" }, gift.name),
@@ -398,6 +445,7 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
             el("span", { class: "sg-toggle" }, [toggle, el("span", { class: "sg-toggle-track" })]),
           ]),
         ].filter(Boolean)),
+        backdropPicker(syncBackdrop),
         el(
           "p",
           { class: "sg-hint" },
@@ -416,13 +464,21 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
 
   async function send() {
     if (!chosen || sending || !target) return;
+    // Последняя проверка перед запросом: подарок себе не отправляем.
+    if (target.id === me?.id) {
+      showToast("Нельзя подарить подарок самому себе");
+      target = null;
+      back();
+      return;
+    }
     const { gift, mine } = chosen;
     sending = true;
     render();
     try {
+      const background = giftBackgroundValue(backdropId ? giftBackdropById(backdropId) : null);
       const res = mine
-        ? await api.sendCustomGift(gift.id, target.id, null, anonymous, note.trim() || null)
-        : await api.buyGift(gift.id, target.id, null, anonymous, note.trim() || null);
+        ? await api.sendCustomGift(gift.id, target.id, background, anonymous, note.trim() || null)
+        : await api.buyGift(gift.id, target.id, background, anonymous, note.trim() || null);
       if (res?.balance != null) balance = res.balance;
       onSent?.();
       return finish(res?.chatId, gift, res?.serial);

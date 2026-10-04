@@ -16,7 +16,7 @@ import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard, Loca
 import { getState, setState } from "../state.js";
 import { renderSticker } from "../lib/stickers.js";
 import { renderGiftArt } from "../lib/giftTraits.js";
-import { giftBackgroundStyle } from "../lib/giftBackground.js";
+import { renderGiftBackdrop } from "../lib/giftBackground.js";
 import { renderCustomScene } from "../lib/customScene.js";
 import { openStarsDialog } from "./starsDialog.js";
 import { navigate } from "../router.js";
@@ -188,7 +188,7 @@ function GiftMessage(message, mine, isChannel) {
     el("div", { class: "system-message" }, [el("span", { class: "system-message-text" }, serviceText)]),
     el("div", { class: `tw-gift-box ${isExclusive ? "is-unique" : ""}` }, [
       isExclusive ? el("span", { class: "tw-gift-ribbon" }, `${gift.serial} из ${formatRub(gift.supply)}`) : null,
-      gift.background ? el("div", { class: "tw-gift-backdrop", style: { background: giftBackgroundStyle(gift.background) } }) : null,
+      gift.background ? renderGiftBackdrop(gift.background) : null,
       el("div", { class: "tw-gift-art" }, [renderGiftArt(gift, { size: 120, replay: isNew })]),
       el("p", { class: "tw-gift-from" }, [
         "Подарок от ",
@@ -296,13 +296,15 @@ function ReportMessage(message, mine, me, isChannel) {
 
 function BirthdayAttachment(a) {
   const { userId, name, avatarImage } = a.meta ?? {};
+  // Общий контакт может оказаться вашим собственным — подарить себе нельзя.
+  const canGift = !!userId && userId !== getState().user?.id;
   return el("div", { class: "contact-attachment birthday-attachment" }, [
     Avatar({ name, image: avatarImage, size: 36 }),
     el("div", { class: "contact-attachment-body" }, [
       el("p", { class: "contact-attachment-name" }, [el("span", {}, "🎂 "), name || "Друг"]),
       el("p", { class: "settings-toggle-hint" }, "День рождения сегодня"),
     ]),
-    userId
+    canGift
       ? el(
           "button",
           { class: "contact-attachment-add", onclick: () => openGiftShopDialog({ recipient: { id: userId, name } }) },

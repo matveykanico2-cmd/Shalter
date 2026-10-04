@@ -1,6 +1,7 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { giftTraits, renderGiftArt } from "../lib/giftTraits.js";
+import { giftBackdrop } from "../lib/giftBackground.js";
 
 function row(label, value, rarity) {
   return el("div", { class: "gift-card-row" }, [
@@ -14,15 +15,18 @@ function row(label, value, rarity) {
 
 export function openGiftCardDialog(gift, { ownerName, onSend, onRemove, onTogglePin } = {}) {
   const traits = giftTraits(gift);
-  const [from, to] = traits.backdrop.colors;
+  // Выбранный при отправке фон — он и показываем; у коллекционных без выбора —
+  // детерминированный фон серии (tweb: collectibleAttributes.backdrop).
+  const backdrop = giftBackdrop(gift.background ?? traits.backdrop);
+  const symbol = backdrop.symbol;
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const dialog = el("div", { class: "modal-dialog gift-card-dialog" }, [
-    el("div", { class: "gift-card-hero", style: `--gift-from: ${from}; --gift-to: ${to}` }, [
+    el("div", { class: "gift-card-hero", style: `--gift-from: ${backdrop.center}; --gift-to: ${backdrop.edge}` }, [
       // Узор фона как у коллекционных подарков Telegram: символ, окрашенный в цвет узора фона.
       el(
         "div",
-        { class: "gift-card-pattern", style: `--gift-symbol: url("${traits.symbol.image}"); --gift-pattern: ${traits.backdrop.pattern}` },
+        { class: "gift-card-pattern", style: `--gift-symbol: url("${symbol.image}"); --gift-pattern: ${backdrop.pattern}` },
         Array.from({ length: 18 }, () => el("span", {}))
       ),
       el("div", { class: "gift-card-emoji" }, [renderGiftArt(gift, { size: 96, replay: true })]),
@@ -38,8 +42,8 @@ export function openGiftCardDialog(gift, { ownerName, onSend, onRemove, onToggle
       gift.fromName ? row("От кого", gift.fromName) : null,
       gift.note ? row("Сообщение", gift.note) : null,
       row("Модель", traits.model.name, traits.model.rarity),
-      row("Фон", traits.backdrop.name, traits.backdrop.rarity),
-      row("Узор", traits.symbol.name, traits.symbol.rarity),
+      row("Фон", backdrop.name || "Без фона", backdrop.rarity),
+      row("Узор", symbol.name, symbol.rarity),
       gift.serial != null && gift.supply ? row("Количество", `${gift.serial}/${gift.supply} выпущено`) : null,
       gift.priceStars ? row("Цена", `⭐ ${Number(gift.priceStars).toLocaleString("ru-RU")}`) : null,
     ].filter(Boolean)),

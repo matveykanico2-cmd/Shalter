@@ -21,6 +21,16 @@ function cleanTitle(raw) {
 function cleanDescription(raw) {
   return String(raw ?? "").trim().slice(0, 500);
 }
+// Кто может добавлять чаты в сообщество (tweb Community.AddMode): «all» — все
+// участники, «admins» — только администраторы.
+function cleanAddMode(raw) {
+  return raw === "admins" ? "admins" : raw === "all" ? "all" : undefined;
+}
+function cleanVisible(raw) {
+  if (raw === false || raw === 0 || raw === "false" || raw === "0") return false;
+  if (raw === true || raw === 1 || raw === "true" || raw === "1") return true;
+  return undefined;
+}
 
 // Аватар — либо data-URL, либо ссылка на загрузку/внешний https; иначе не принимаем.
 function cleanAvatarImage(raw) {
@@ -30,8 +40,7 @@ function cleanAvatarImage(raw) {
 
 // Карточка чата для страницы сообщества: закрытые чаты показываем по
 // названию, но вступить в них можно только по приглашению.
-async function chatCard(chatId, uid) {
-  const chat = await getChat(chatId);
+async function chatCard(chat, uid) {
   if (!chat || chat.secret) return null;
   return {
     id: chat.id,
@@ -43,19 +52,29 @@ async function chatCard(chatId, uid) {
     isPublic: !!chat.isPublic,
     members: chat.memberIds.length,
     isMember: chat.memberIds.includes(uid),
+    canManage: isOwnerOrAdmin(chat, uid),
   };
 }
 
+// Скрытые чаты (linked_peers.visible === false в tweb) видит только владелец —
+// остальным в списке сообщества они не показываются.
 async function view(community, uid) {
-  const chats = (await Promise.all(community.chatIds.map((id) => chatCard(id, uid)))).filter(Boolean);
+  const hidden = new Set(community.hiddenChatIds);
+  const cards = (await Promise.all(community.chatIds.map(async (id) => chatCard(await getChat(id), uid)))).filter(Boolean);
+  const chats = cards
+    .map((c) => ({ ...c, visible: !hidden.has(c.id) }))
+    .filter((c) => c.visible || community.ownerId === uid);
   return {
     id: community.id,
     title: community.title,
     description: community.description ?? null,
     avatarColor: community.avatarColor ?? null,
     avatarImage: community.avatarImage ?? null,
+    addMode: community.addMode,
     isOwner: community.ownerId === uid,
     chats,
+    // Чаты сообщества, где пользователь состоит — по ним и «все участники» могут добавлять.
+    isMember: community.ownerId === uid || chats.some((c) => c.isMember),
   };
 }
 
@@ -70,6 +89,15 @@ async function requireOwned(req, res) {
     return null;
   }
   return community;
+}
+
+// Право управлять чатами сообщества: владелец всегда, остальные — когда
+// сообщество открыто для всех его участников (addMode === "all").
+async function canManageChats(community, uid) {
+  if (community.ownerId === uid) return true;
+  if (community.addMode !== "all") return false;
+  const chats = await Promise.all(community.chatIds.map((id) => getChat(id)));
+  return chats.some((chat) => chat && chat.memberIds.includes(uid));
 }
 
 // Добавлять можно только свои группы и каналы (где вы владелец или админ).
@@ -96,8 +124,10 @@ router.get(
     const list = communities.listCommunitiesForUser(req.uid);
     const out = [];
     for (const c of list) {
+      const hidden = new Set(c.ownerId === req.uid ? [] : c.hiddenChatIds);
       const visible = [];
       for (const id of c.chatIds) {
+        if (hidden.has(id)) continue;
         const chat = await getChat(id);
         if (chat && !chat.secret) visible.push(id);
       }
@@ -143,8 +173,9 @@ router.post(
       description: cleanDescription(req.body?.description),
       avatarColor: typeof req.body?.avatarColor === "string" ? req.body.avatarColor.slice(0, 20) : null,
       avatarImage: cleanAvatarImage(req.body?.avatarImage),
+      addMode: cleanAddMode(req.body?.addMode) ?? "all",
     });
-    if (firstChatId) communities.addChatToCommunity(community.id, firstChatId);
+    if (firstChatId) communities.addChatToCommunity(community.id, firstChatId, { visible: cleanVisible(req.body?.chatVisible) ?? true });
     res.json({ community: await view(communities.getCommunity(community.id), req.uid) });
   })
 );
@@ -174,6 +205,11 @@ router.patch(
       if (avatarImage === undefined) return res.status(400).json({ error: "Некорректное изображение" });
       patch.avatarImage = avatarImage;
     }
+    if (req.body?.addMode !== undefined) {
+      const addMode = cleanAddMode(req.body.addMode);
+      if (!addMode) return res.status(400).json({ error: "Некорректный режим добавления чатов" });
+      patch.addMode = addMode;
+    }
     res.json({ community: await view(communities.updateCommunity(community.id, patch), req.uid) });
   })
 );
@@ -181,13 +217,30 @@ router.patch(
 router.post(
   "/:id/chats",
   asyncRoute(async (req, res) => {
-    const community = await requireOwned(req, res);
-    if (!community) return;
+    const community = communities.getCommunity(req.params.id);
+    if (!community) return res.status(404).json({ error: "Сообщество не найдено" });
+    if (!(await canManageChats(community, req.uid))) return res.status(403).json({ error: "Добавлять чаты может только владелец сообщества" });
     const check = await checkAddable(req.body?.chatId, req.uid);
     if (check.error) return res.status(check.status).json({ error: check.error });
-    if (!communities.addChatToCommunity(community.id, check.chat.id)) {
+    const visible = cleanVisible(req.body?.visible) ?? true;
+    if (!communities.addChatToCommunity(community.id, check.chat.id, { visible })) {
       return res.status(409).json({ error: "Этот чат уже входит в другое сообщество" });
     }
+    res.json({ community: await view(communities.getCommunity(community.id), req.uid) });
+  })
+);
+
+// Видимость чата в сообществе (tweb CommunityChatSettings): скрытый чат остаётся
+// в сообществе, но не показывается в его списке.
+router.patch(
+  "/:id/chats/:chatId",
+  asyncRoute(async (req, res) => {
+    const community = communities.getCommunity(req.params.id);
+    if (!community || !community.chatIds.includes(req.params.chatId)) return res.status(404).json({ error: "not found" });
+    if (!(await canManageChats(community, req.uid))) return res.status(403).json({ error: "Недостаточно прав" });
+    const visible = cleanVisible(req.body?.visible);
+    if (visible === undefined) return res.status(400).json({ error: "Нужно visible: true или false" });
+    communities.setCommunityChatVisible(community.id, req.params.chatId, visible);
     res.json({ community: await view(communities.getCommunity(community.id), req.uid) });
   })
 );

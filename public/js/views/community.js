@@ -3,44 +3,11 @@ import { el, mount } from "../lib/dom.js";
 import { api } from "../api.js";
 import { Avatar } from "../components/avatar.js";
 import { navigate } from "../router.js";
-import { getState, setState } from "../state.js";
 import { iconSvg } from "../icons.js";
-import { openEditCommunityDialog } from "../components/communityList.js";
+import { openEditCommunityDialog, openOwnChatPicker } from "../components/communityEditor.js";
 
-// Свои группы и каналы, которые можно добавить в сообщество (владелец или админ).
-function ownChats() {
-  const { chats, user } = getState();
-  return chats.filter(
-    (c) =>
-      (c.type === "group" || c.type === "channel") &&
-      (c.ownerId === user?.id || (c.ownerIds ?? []).includes(user?.id) || (c.adminIds ?? []).includes(user?.id))
-  );
-}
-
-export function openOwnChatPicker(onPick, { exclude = [] } = {}) {
-  const candidates = ownChats().filter((c) => !exclude.includes(c.id));
-  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
-  const close = () => overlay.remove();
-  overlay.appendChild(
-    el("div", { class: "modal-dialog" }, [
-      el("h2", { class: "modal-title" }, "Добавить чат в сообщество"),
-      candidates.length
-        ? el(
-            "div",
-            { class: "forward-list" },
-            candidates.map((c) =>
-              el("button", { class: "forward-row", onclick: () => (close(), onPick(c.id)) }, [
-                Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage, size: 36 }),
-                el("span", {}, `${c.type === "channel" ? "📢 " : ""}${c.title}`),
-              ])
-            )
-          )
-        : el("p", { class: "empty-hint" }, "Нет групп и каналов, где вы владелец или администратор"),
-      el("button", { class: "modal-cancel", onclick: close }, "Отмена"),
-    ])
-  );
-  document.body.appendChild(overlay);
-}
+// Страница сообщества по ссылке /community/:id — с неё вступают в открытые чаты,
+// а владелец управляет составом (communityEditor.js, как в tweb communities).
 
 export async function CommunityView(root, id) {
   let community = null;
@@ -94,6 +61,7 @@ export async function CommunityView(root, id) {
         el("p", {}, `${c.type === "channel" ? "📢 " : ""}${c.title}`),
         el("p", { class: "settings-toggle-hint" }, `${c.members} ${c.type === "channel" ? "подписчиков" : "участников"}${c.username ? ` · @${c.username}` : ""}`),
       ]),
+      c.visible === false ? el("span", { class: "community-hidden-badge" }, "Скрыт") : null,
       action,
       community.isOwner
         ? el("button", {

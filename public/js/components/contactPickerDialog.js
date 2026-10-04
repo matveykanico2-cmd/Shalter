@@ -1,14 +1,18 @@
 import { el } from "../lib/dom.js";
 import { Avatar } from "./avatar.js";
 import { api } from "../api.js";
+import { getState } from "../state.js";
 
-export async function openContactPickerDialog(onPick, title = "Отправить контакт", { extra = [] } = {}) {
+export async function openContactPickerDialog(onPick, title = "Отправить контакт", { extra = [], exclude = [] } = {}) {
+  // Себя выбрать нельзя — ни подарок себе, ни звонок себе, ни «отправить контакт».
+  const meId = getState().user?.id;
+  const skip = new Set([meId, ...exclude].filter(Boolean));
   const { contacts } = await api.listContacts();
   const seen = new Set(contacts.map((c) => c.user.id));
   const people = [
     ...contacts.map((c) => c.user),
     ...extra.filter((u) => u && u.id && !seen.has(u.id)),
-  ];
+  ].filter((u) => u.id && !skip.has(u.id));
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const list = el(
     "div",
