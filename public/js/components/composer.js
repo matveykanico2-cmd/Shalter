@@ -966,10 +966,11 @@ export function Composer({
     function insertPlainEmoji(e) {
       const pos = textarea.selectionStart ?? textarea.value.length;
       textarea.value = textarea.value.slice(0, pos) + e + textarea.value.slice(pos);
-      textarea.focus();
+      // На телефоне не открываем клавиатуру поверх панели эмодзи — как в tweb.
+      if (!window.matchMedia?.("(pointer: coarse)").matches) textarea.focus();
       textarea.setSelectionRange(pos + e.length, pos + e.length);
-      autoResize();
-      if (!editingMessage) scheduleDraftSave(textarea.value);
+      // Как при наборе: размер поля, кнопка «Отправить» вместо микрофона, черновик, «печатает…».
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
     // Панель эмодзи как в tweb (emoticonsDropdown/tabs/emoji): «Недавние» и семь категорий

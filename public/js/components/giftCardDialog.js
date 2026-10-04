@@ -19,7 +19,12 @@ export function openGiftCardDialog(gift, { ownerName, onSend, onRemove, onToggle
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const dialog = el("div", { class: "modal-dialog gift-card-dialog" }, [
     el("div", { class: "gift-card-hero", style: `--gift-from: ${from}; --gift-to: ${to}` }, [
-      el("div", { class: "gift-card-pattern" }, Array.from({ length: 18 }, () => el("span", {}, traits.symbol.glyph))),
+      // Узор фона как у коллекционных подарков Telegram: символ, окрашенный в цвет узора фона.
+      el(
+        "div",
+        { class: "gift-card-pattern", style: `--gift-symbol: url("${traits.symbol.image}"); --gift-pattern: ${traits.backdrop.pattern}` },
+        Array.from({ length: 18 }, () => el("span", {}))
+      ),
       el("div", { class: "gift-card-emoji" }, [renderGiftArt(gift, { size: 96, replay: true })]),
       el("p", { class: "gift-card-name" }, gift.name),
       el(

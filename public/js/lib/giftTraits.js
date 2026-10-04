@@ -9,31 +9,17 @@ const MODELS = [
   { name: "Затмение", rarity: 2 },
 ];
 
-const BACKDROPS = [
-  { name: "Молочный", rarity: 30, colors: ["#f6d9e7", "#e7c3f0"] },
-  { name: "Мятный", rarity: 20, colors: ["#c8f0e2", "#a5d8f3"] },
-  { name: "Персиковый", rarity: 16, colors: ["#ffd8b0", "#ffb3c1"] },
-  { name: "Электрик", rarity: 12, colors: ["#a78bfa", "#7c3aed"] },
-  { name: "Кобальт", rarity: 9, colors: ["#5b8def", "#2b3fa0"] },
-  { name: "Изумруд", rarity: 7, colors: ["#34d399", "#059669"] },
-  { name: "Пурпур", rarity: 4, colors: ["#f472b6", "#7e22ce"] },
-  { name: "Оникс", rarity: 2, colors: ["#4b5563", "#111827"] },
-];
-
-const SYMBOLS = [
-  { name: "Сердце", rarity: 26, glyph: "❤️" },
-  { name: "Звезда", rarity: 20, glyph: "⭐" },
-  { name: "Дельфин", rarity: 15, glyph: "🐬" },
-  { name: "Молния", rarity: 12, glyph: "⚡" },
-  { name: "Перо", rarity: 10, glyph: "🪶" },
-  { name: "Чили", rarity: 8, glyph: "🌶️" },
-  { name: "Комета", rarity: 6, glyph: "☄️" },
-  { name: "Корона", rarity: 3, glyph: "👑" },
-];
+// Фоны и узоры — настоящие из коллекций Telegram (scripts/import-telegram-gifts.js),
+// редкость — их доля среди выпущенных подарков.
+const BACKDROPS = TG_BACKDROPS;
+const SYMBOLS = TG_SYMBOLS.map((sym) => ({ ...sym, image: `/gift-symbols/${sym.id}.webp` }));
+// У подарков-коллекций из Telegram — свои модели.
+const COLLECTION_MODELS = { tg_plush_pepe: TG_MODELS.plushpepe };
 
 import { renderScene } from "./animScenes.js";
 import { renderCustomScene } from "./customScene.js";
 import { lottieNameFor, renderLottie } from "./lottie.js";
+import { TG_BACKDROPS, TG_SYMBOLS, TG_MODELS } from "./tgGiftData.js";
 
 function hash(str, salt) {
   let h = 2166136261 ^ salt;
@@ -57,7 +43,7 @@ function pick(list, roll) {
 export function giftTraits(gift) {
   const seed = `${gift?.giftId ?? gift?.id ?? gift?.emoji ?? "gift"}#${gift?.serial ?? 0}`;
   return {
-    model: pick(MODELS, hash(seed, 1)),
+    model: pick(COLLECTION_MODELS[gift?.giftId ?? gift?.id] ?? MODELS, hash(seed, 1)),
     backdrop: pick(BACKDROPS, hash(seed, 2)),
     symbol: pick(SYMBOLS, hash(seed, 3)),
   };
@@ -78,6 +64,7 @@ export function renderGiftArt(gift, { size = 84, replay = true } = {}) {
     return img;
   }
   const lottie = lottieNameFor(gift);
-  if (lottie) return renderLottie(lottie, { size, replay, fallback: () => renderScene(gift?.emoji, { size, replay }) });
+  // У эмодзи Noto кадр покоя — из середины (края бывают пустыми), у анимаций tweb — последний.
+  if (lottie) return renderLottie(lottie, { size, replay, rest: lottie.startsWith("emoji/") ? "mid" : "last", fallback: () => renderScene(gift?.emoji, { size, replay }) });
   return renderScene(gift?.emoji, { size, replay });
 }

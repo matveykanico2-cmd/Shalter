@@ -26,7 +26,6 @@ const BY_ID = {
   tw_duck_stop: "UtyanRestricted",
   tw_duck_detective: "UtyanSearch",
   tw_duck_album: "UtyanStories",
-  tw_duck_vacation: "ChatAutomation",
   tw_monkey: "TwoFactorSetupMonkeyIdle",
   tw_hand: "hand_stop",
   tw_chart: "StatsEmoji",
@@ -38,6 +37,49 @@ const BY_ID = {
   tw_blueprints: "Folders_2",
   tw_cloud_folder: "Folders_Shared",
   tw_halo_star: "StarReactionSelect",
+  tw_star_fall: "StarReactionAppear",
+  tg_plush_pepe: "PlushPepe",
+  tw_monkey_shy: "TwoFactorSetupMonkeyCloseAndPeek",
+  tw_gift_blue: "Gift6",
+  tw_gift_red: "Gift12",
+  // анимированные эмодзи Noto (public/tgs/emoji)
+  raduga: "emoji/1f308",
+  rose: "emoji/1f339",
+  pitstsa: "emoji/1f355",
+  shampanskoe: "emoji/1f37e",
+  sharik: "emoji/1f388",
+  serpantin: "emoji/1f38a",
+  kotenok: "emoji/1f431",
+  buket_tsvetov: "emoji/1f490",
+  ogonek: "emoji/1f525",
+  edinorog: "emoji/1f984",
+  coffee: "emoji/2615",
+  futbolnyy_myach: "emoji/26bd",
+  snezhinka: "emoji/2744",
+  heart: "emoji/2764",
+  iskry: "emoji/2728",
+  bokaly: "emoji/1f942",
+  raketa: "emoji/1f680",
+  nt_ghost: "emoji/1f47b",
+  nt_alien: "emoji/1f47d",
+  nt_kiss: "emoji/1f48b",
+  nt_sparkling_heart: "emoji/1f496",
+  nt_heart_arrow: "emoji/1f498",
+  nt_blue_heart: "emoji/1f499",
+  nt_green_heart: "emoji/1f49a",
+  nt_yellow_heart: "emoji/1f49b",
+  nt_purple_heart: "emoji/1f49c",
+  nt_orange_heart: "emoji/1f9e1",
+  nt_black_heart: "emoji/1f5a4",
+  nt_hundred: "emoji/1f4af",
+  nt_cool: "emoji/1f60e",
+  nt_love_eyes: "emoji/1f60d",
+  nt_robot: "emoji/1f916",
+  nt_cowboy: "emoji/1f920",
+  nt_clown: "emoji/1f921",
+  nt_hands_heart: "emoji/1faf6",
+  nt_hug: "emoji/1f917",
+  nt_devil: "emoji/1f608",
 };
 
 const BY_EMOJI = {
@@ -60,7 +102,6 @@ const BY_EMOJI = {
   "🚫": "UtyanRestricted",
   "🔍": "UtyanSearch",
   "🖼️": "UtyanStories",
-  "🏖️": "ChatAutomation",
   "🐵": "TwoFactorSetupMonkeyIdle",
   "✋": "hand_stop",
   "📊": "StatsEmoji",
@@ -167,7 +208,9 @@ export function renderLottie(name, { size = 84, replay = true, loop = false, fal
       });
       track({ box, anim });
       // Кадр покоя: у подарков — последний (собранная картинка), у эмодзи Noto — первый.
-      const restFrame = () => (rest === "first" ? 0 : Math.max(0, anim.totalFrames - 1));
+      // "mid" — у анимированных эмодзи-подарков: первый кадр бывает пустым или «нейтральным».
+      const restFrame = () =>
+        rest === "first" ? 0 : rest === "mid" ? Math.floor(Math.max(0, anim.totalFrames - 1) * 0.6) : Math.max(0, anim.totalFrames - 1);
       const replayFromStart = () => anim.goToAndPlay(0, true);
       anim.addEventListener("DOMLoaded", () => {
         box.classList.add("ready");

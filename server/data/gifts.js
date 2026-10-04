@@ -27,6 +27,30 @@ const GIFTS = [
   { id: "tw_blueprints", emoji: "🗃️", name: "Папка с чертежами", priceRub: 15, premiumDays: 0 },
   { id: "tw_cloud_folder", emoji: "☁️", name: "Облачная папка", priceRub: 20, premiumDays: 0 },
   { id: "tw_halo_star", emoji: "😇", name: "Звезда с нимбом", priceRub: 60, premiumDays: 0 },
+  { id: "tw_star_fall", emoji: "🌠", name: "Падающая звезда", priceRub: 55, premiumDays: 0 },
+  { id: "tw_monkey_shy", emoji: "🐵", name: "Стеснительная обезьянка", priceRub: 45, premiumDays: 0 },
+  { id: "tw_gift_blue", emoji: "🎁", name: "Голубая коробка", priceRub: 65, premiumDays: 0 },
+  { id: "tw_gift_red", emoji: "🎁", name: "Красная коробка", priceRub: 75, premiumDays: 0 },
+  { id: "nt_ghost", emoji: "👻", name: "Привидение", priceRub: 20, premiumDays: 0 },
+  { id: "nt_alien", emoji: "👽", name: "Инопланетянин", priceRub: 25, premiumDays: 0 },
+  { id: "nt_kiss", emoji: "💋", name: "Поцелуй", priceRub: 15, premiumDays: 0 },
+  { id: "nt_sparkling_heart", emoji: "💖", name: "Сияющее сердце", priceRub: 20, premiumDays: 0 },
+  { id: "nt_heart_arrow", emoji: "💘", name: "Сердце со стрелой", priceRub: 25, premiumDays: 0 },
+  { id: "nt_blue_heart", emoji: "💙", name: "Синее сердце", priceRub: 10, premiumDays: 0 },
+  { id: "nt_green_heart", emoji: "💚", name: "Зелёное сердце", priceRub: 10, premiumDays: 0 },
+  { id: "nt_yellow_heart", emoji: "💛", name: "Жёлтое сердце", priceRub: 10, premiumDays: 0 },
+  { id: "nt_purple_heart", emoji: "💜", name: "Фиолетовое сердце", priceRub: 10, premiumDays: 0 },
+  { id: "nt_orange_heart", emoji: "🧡", name: "Оранжевое сердце", priceRub: 10, premiumDays: 0 },
+  { id: "nt_black_heart", emoji: "🖤", name: "Чёрное сердце", priceRub: 10, premiumDays: 0 },
+  { id: "nt_hundred", emoji: "💯", name: "Сто из ста", priceRub: 15, premiumDays: 0 },
+  { id: "nt_cool", emoji: "😎", name: "Крутой", priceRub: 15, premiumDays: 0 },
+  { id: "nt_love_eyes", emoji: "😍", name: "Влюблённость", priceRub: 15, premiumDays: 0 },
+  { id: "nt_robot", emoji: "🤖", name: "Робот", priceRub: 30, premiumDays: 0 },
+  { id: "nt_cowboy", emoji: "🤠", name: "Ковбой", priceRub: 25, premiumDays: 0 },
+  { id: "nt_clown", emoji: "🤡", name: "Клоун", priceRub: 20, premiumDays: 0 },
+  { id: "nt_hands_heart", emoji: "🫶", name: "Сердце руками", priceRub: 20, premiumDays: 0 },
+  { id: "nt_hug", emoji: "🤗", name: "Обнимашки", priceRub: 15, premiumDays: 0 },
+  { id: "nt_devil", emoji: "😈", name: "Чертёнок", priceRub: 20, premiumDays: 0 },
   { id: "premium_week", emoji: "⭐", name: "Premium на неделю", priceRub: 100, premiumDays: 7 },
   { id: "premium_month", emoji: "👑", name: "Premium на месяц", priceRub: 300, premiumDays: 30 },
   { id: "premium_quarter", emoji: "💎", name: "Premium на 3 месяца", priceRub: 1000, premiumDays: 90 },
@@ -309,6 +333,7 @@ const GIFTS = [
   { id: "excl_meteorite", emoji: "☄️", name: "Метеорит", priceRub: 100000, premiumDays: null, supply: 50000, exclusive: true },
   { id: "excl_trident", emoji: "🔱", name: "Трезубец", priceRub: 250000, premiumDays: null, supply: 10000, exclusive: true },
   { id: "excl_monument", emoji: "🗿", name: "Монумент", priceRub: 500000, premiumDays: null, supply: 5000, exclusive: true },
+  { id: "tg_plush_pepe", emoji: "🐸", name: "Плюшевый Пепе", priceRub: 5000, premiumDays: 0, supply: 3000, exclusive: true },
   { id: "excl_absolute", emoji: "💠", name: "Абсолют", priceRub: 1000000, premiumDays: null, supply: 1000, exclusive: true },
 ];
 
@@ -355,14 +380,18 @@ function withStars(g) {
   return { ...g, priceStars: starPrice(g) };
 }
 
-// В витрине — только подарки с анимациями из tweb (public/tgs). Остальные встроенные
+// В витрине — только подарки с анимациями (public/tgs: из tweb и анимированные эмодзи). Остальные встроенные
 // сняты с продажи: уже подаренные остаются у людей, админ видит их в каталоге (includeHidden).
 const TWEB_GIFT_IDS = new Set([
   "cake", "premium_week", "premium_month", "premium_quarter", "premium_year", "premium_forever",
   "hlopushka_s_konfetti", "kubik", "podarochnaya_korobka", "zolotoy_klyuch",
   "tw_love_letter", "tw_mailbox", "tw_duck_birthday", "tw_pirate_flag",
-  "tw_duck_spy", "tw_duck_popcorn", "tw_duck_portal", "tw_duck_safe", "tw_duck_stop", "tw_duck_detective", "tw_duck_album", "tw_duck_vacation", "tw_monkey", "tw_hand", "tw_chart", "tw_folders", "tw_spider_folder",
+  "tw_duck_spy", "tw_duck_popcorn", "tw_duck_portal", "tw_duck_safe", "tw_duck_stop", "tw_duck_detective", "tw_duck_album", "tw_monkey", "tw_hand", "tw_chart", "tw_folders", "tw_spider_folder",
   "tw_monkey_close", "tw_monkey_peek", "tw_monkey_curious", "tw_blueprints", "tw_cloud_folder", "tw_halo_star",
+  "tw_star_fall", "tw_monkey_shy", "tw_gift_blue", "tw_gift_red", "tg_plush_pepe",
+  // анимированные эмодзи (public/tgs/emoji)
+  "raduga", "rose", "pitstsa", "shampanskoe", "sharik", "serpantin", "kotenok", "buket_tsvetov", "ogonek", "edinorog", "coffee", "futbolnyy_myach", "snezhinka", "heart", "iskry", "bokaly", "raketa",
+  "nt_ghost", "nt_alien", "nt_kiss", "nt_sparkling_heart", "nt_heart_arrow", "nt_blue_heart", "nt_green_heart", "nt_yellow_heart", "nt_purple_heart", "nt_orange_heart", "nt_black_heart", "nt_hundred", "nt_cool", "nt_love_eyes", "nt_robot", "nt_cowboy", "nt_clown", "nt_hands_heart", "nt_hug", "nt_devil"
 ]);
 
 function listGifts({ includeHidden = false } = {}) {

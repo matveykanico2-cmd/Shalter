@@ -454,7 +454,8 @@ export async function openProfileDialog(userId) {
           const from = g.fromName ? ` · от ${g.fromName}` : "";
           const entryId = g.id ?? `${g.emoji}|${g.at}`;
           const exclusive = g.serial != null;
-          const [c1, c2] = giftTraits(g).backdrop.colors;
+          const traits = giftTraits(g);
+          const [c1, c2] = traits.backdrop.colors;
           const backdrop = g.background ? giftBackgroundStyle(g.background) : exclusive ? `radial-gradient(circle at 50% 40%, ${c1}, ${c2})` : null;
           const fromBadge = g.pinned
             ? el("span", { class: "tw-gift-pin", title: "Закреплён", html: iconSvg("Pin", 14) })
@@ -478,6 +479,9 @@ export async function openProfileDialog(userId) {
                 }),
             },
             [
+              exclusive && !g.background
+                ? el("span", { class: "tw-gift-pattern", style: `--gift-symbol: url("${traits.symbol.image}"); --gift-pattern: ${traits.backdrop.pattern}` })
+                : null,
               fromBadge,
               exclusive
                 ? el("span", { class: "tw-gift-badge", style: { background: `linear-gradient(180deg, ${c1} 0%, ${c2} 100%)` } }, [

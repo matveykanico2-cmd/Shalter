@@ -22149,3 +22149,34 @@ button img.emoji {
   height: 100%;
   align-items: center;
 }
+
+/* карточка подарка: фон и узор как у коллекционных подарков Telegram (данные — telegram-gifts) */
+.gift-card-hero {
+  background: radial-gradient(circle at 50% 38%, var(--gift-from), var(--gift-to) 75%);
+}
+.gift-card-pattern {
+  opacity: 1;
+}
+.gift-card-pattern > span {
+  width: 26px;
+  height: 26px;
+  background: var(--gift-pattern, rgba(0, 0, 0, 0.5));
+  -webkit-mask: var(--gift-symbol) center / contain no-repeat;
+  mask: var(--gift-symbol) center / contain no-repeat;
+  opacity: 0.55;
+}
+.gift-card-pattern > span:nth-child(odd) {
+  width: 20px;
+  height: 20px;
+  opacity: 0.4;
+}
+.tw-gift-pattern {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--gift-pattern);
+  -webkit-mask: var(--gift-symbol) 0 0 / 22px 22px space;
+  mask: var(--gift-symbol) 0 0 / 22px 22px space;
+  opacity: 0.3;
+  pointer-events: none;
+}
