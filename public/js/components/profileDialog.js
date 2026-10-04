@@ -472,7 +472,7 @@ export async function openProfileDialog(userId) {
               onclick: () =>
                 openGiftCardDialog(g, {
                   ownerName: user.name,
-                  onSend: () => openGiftShopDialog({ recipient: { id: user.id, name: user.name } }),
+                  onSend: () => openGiftShopDialog({ recipient: isSelf ? null : { id: user.id, name: user.name }, gift: g }),
                   onRemove: isSelf ? () => removeGift(entryId, g) : undefined,
                   onTogglePin: isSelf ? () => toggleGiftPin(entryId, g) : undefined,
                 }),

@@ -22145,3 +22145,7 @@ button img.emoji {
     padding: 0 8px 16px;
   }
 }
+.sg-preset-loading {
+  height: 100%;
+  align-items: center;
+}

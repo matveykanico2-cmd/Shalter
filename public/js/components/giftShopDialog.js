@@ -28,7 +28,9 @@ const NOTE_MAX = 128;
 const fmt = (n) => Number(n ?? 0).toLocaleString("ru-RU");
 const firstName = (name) => String(name ?? "").trim().split(/\s+/)[0] || "получателю";
 
-export function openGiftShopDialog({ recipient = null, onSent } = {}) {
+// gift — подарок, выбранный заранее (карточка подарка в профиле или в чате → «Отправить такой же»):
+// как в tweb, окно сразу открывается на странице отправки этого подарка.
+export function openGiftShopDialog({ recipient = null, onSent, gift: preset = null } = {}) {
   const me = getState().user;
   let gifts = [];
   let myGifts = [];
@@ -73,7 +75,28 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
       loadError = err.message || "Не удалось загрузить подарки";
     }
     loaded = true;
+    if (openPreset()) return;
     render();
+  }
+
+  function openPreset() {
+    if (!preset) return false;
+    const wanted = preset;
+    preset = null;
+    const presetId = wanted.giftId ?? wanted.id;
+    const fromCatalog = gifts.find((g) => g.id === presetId);
+    const fromMine = !fromCatalog ? myGifts.find((g) => g.id === presetId) : null;
+    const found = fromCatalog ?? fromMine;
+    if (!found) {
+      showToast(`«${wanted.name ?? "Этот подарок"}» сейчас нельзя купить — выберите другой`);
+      return false;
+    }
+    if (fromCatalog && fromCatalog.supply != null && (fromCatalog.remaining ?? 0) <= 0) {
+      showToast(`«${fromCatalog.name}» распродан — выберите другой`);
+      return false;
+    }
+    choose(found, !!fromMine);
+    return true;
   }
 
   function balancePill() {
@@ -233,7 +256,12 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
       el("div", { class: "sg-header-title" }, "Отправить подарок"),
       balancePill(),
     ]);
-    const scroll = el("div", { class: "sg-scroll" }, [recipientHero(), chips(), gridSection()]);
+    // Подарок выбран заранее — пока грузится каталог, не мелькаем сеткой, сразу ждём страницу отправки.
+    const scroll = el(
+      "div",
+      { class: "sg-scroll" },
+      preset && !loaded ? [el("div", { class: "sg-empty sg-preset-loading" }, [el("div", { class: "qr-login-spinner" })])] : [recipientHero(), chips(), gridSection()]
+    );
     scroll.addEventListener("scroll", () => popup.classList.toggle("sg-scrolled", scroll.scrollTop > 8), { passive: true });
     const page = el("div", { class: "sg-page sg-page-list" }, [header, scroll]);
     popup.append(page);

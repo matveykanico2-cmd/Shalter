@@ -180,7 +180,7 @@ function GiftMessage(message, mine, isChannel) {
     import("./giftCardDialog.js").then(({ openGiftCardDialog }) =>
       openGiftCardDialog(gift, {
         ownerName: recipient?.name ?? (mine ? null : getState().user?.name),
-        onSend: mine ? () => import("./giftShopDialog.js").then((m) => m.openGiftShopDialog({ recipient: recipient ? { id: recipient.id, name: recipient.name } : null })) : null,
+        onSend: () => import("./giftShopDialog.js").then((m) => m.openGiftShopDialog({ recipient: mine && recipient ? { id: recipient.id, name: recipient.name } : null, gift })),
       })
     );
   };
