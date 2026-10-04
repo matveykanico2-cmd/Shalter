@@ -49,6 +49,12 @@ async function senderChatId(result, uid, recipientId) {
 const router = express.Router();
 router.use(requireUserId);
 
+// Подпись к подарку, как в Telegram: одна строка, до 128 символов.
+function giftNote(req) {
+  const note = String(req.body?.note ?? "").replace(/\s+/g, " ").trim().slice(0, 128);
+  return note || null;
+}
+
 async function resolveAnonymous(req) {
   if (!req.body?.anonymous) return false;
   const me = await getUser(req.uid);
@@ -160,7 +166,7 @@ router.post(
 
     const background = sanitizeGiftBackground(req.body?.background);
     const anonymous = await resolveAnonymous(req);
-    const result = await deliverGift({ gift, recipientId, fromId: req.uid, announceFromId: req.uid, background, anonymous });
+    const result = await deliverGift({ gift, recipientId, fromId: req.uid, announceFromId: req.uid, background, anonymous, note: giftNote(req) });
     if (!result.ok) {
       addStars(req.uid, price);
       return res.status(410).json({ error: soldOutError(gift), balance: balanceOf(req.uid) });
@@ -454,7 +460,7 @@ router.post(
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
     const background = sanitizeGiftBackground(req.body?.background);
     const anonymous = await resolveAnonymous(req);
-    const result = await deliverGift({ gift, recipientId: recipient.id, fromId: req.uid, announceFromId: req.uid, background, anonymous });
+    const result = await deliverGift({ gift, recipientId: recipient.id, fromId: req.uid, announceFromId: req.uid, background, anonymous, note: giftNote(req) });
     if (!result.ok) return res.status(500).json({ error: "Не удалось отправить подарок" });
     res.json({ chatId: await senderChatId(result, req.uid, recipient.id), delivered: true });
   })

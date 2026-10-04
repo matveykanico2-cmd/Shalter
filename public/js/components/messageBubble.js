@@ -198,7 +198,7 @@ function GiftMessage(message, mine, isChannel) {
         ]),
       ]),
       el("p", { class: "tw-gift-name" }, gift.durationLabel ? `${gift.name} · ${gift.durationLabel}` : gift.name),
-      noteEl,
+      gift.note ? el("p", { class: "tw-gift-message" }, gift.note) : noteEl,
       el("div", { class: "tw-gift-actions" }, [
         el("button", { type: "button", class: "tw-gift-button", onclick: view }, "Посмотреть"),
         !mine && !gift.custom

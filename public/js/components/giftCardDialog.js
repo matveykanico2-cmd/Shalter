@@ -31,6 +31,7 @@ export function openGiftCardDialog(gift, { ownerName, onSend, onRemove, onToggle
     el("div", { class: "gift-card-rows" }, [
       ownerName ? row("Владелец", ownerName) : null,
       gift.fromName ? row("От кого", gift.fromName) : null,
+      gift.note ? row("Сообщение", gift.note) : null,
       row("Модель", traits.model.name, traits.model.rarity),
       row("Фон", traits.backdrop.name, traits.backdrop.rarity),
       row("Узор", traits.symbol.name, traits.symbol.rarity),

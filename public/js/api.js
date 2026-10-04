@@ -439,7 +439,7 @@ export const api = {
   paidDeleteMessage: (messageId) => req(`/api/stars/delete/${messageId}`, { method: "POST" }),
 
   listGifts: () => req("/api/gifts"),
-  buyGift: (giftId, recipientId, background, anonymous) => req("/api/gifts/buy", { method: "POST", body: JSON.stringify({ giftId, recipientId, background, anonymous }) }),
+  buyGift: (giftId, recipientId, background, anonymous, note) => req("/api/gifts/buy", { method: "POST", body: JSON.stringify({ giftId, recipientId, background, anonymous, note }) }),
   convertGift: (entryId) => req(`/api/gifts/received/${encodeURIComponent(entryId)}/convert`, { method: "POST" }),
   removeReceivedGift: (entryId) => req(`/api/gifts/received/${encodeURIComponent(entryId)}`, { method: "DELETE" }),
   setGiftPinned: (entryId, pinned) =>
@@ -459,8 +459,8 @@ export const api = {
   createCustomGift: (name, scene) => req("/api/gifts/custom", { method: "POST", body: JSON.stringify({ name, scene }) }),
   updateCustomGift: (id, patch) => req(`/api/gifts/custom/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteCustomGift: (id) => req(`/api/gifts/custom/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  sendCustomGift: (giftId, recipientId, background, anonymous) =>
-    req("/api/gifts/custom/send", { method: "POST", body: JSON.stringify({ giftId, recipientId, background, anonymous }) }),
+  sendCustomGift: (giftId, recipientId, background, anonymous, note) =>
+    req("/api/gifts/custom/send", { method: "POST", body: JSON.stringify({ giftId, recipientId, background, anonymous, note }) }),
 
   listCustomEmoji: () => req("/api/custom-emoji"),
   createCustomEmoji: (name, scene) => req("/api/custom-emoji", { method: "POST", body: JSON.stringify({ name, scene }) }),

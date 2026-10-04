@@ -1,8 +1,7 @@
 import { showToast } from "./toast.js";
 import { navigate } from "../router.js";
-import { setState } from "../state.js";
-import { askText } from "./confirmDialog.js";
-import { askConfirm } from "./confirmDialog.js";
+import { setState, getState } from "../state.js";
+import { askText, askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -10,59 +9,412 @@ import { renderGiftArt } from "../lib/giftTraits.js";
 import { openStarsDialog } from "./starsDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openAnimatorEditor } from "./animatorEditor.js";
-import { GIFT_BACKGROUNDS, giftBackgroundStyle } from "../lib/giftBackground.js";
-import { getState } from "../state.js";
+import { Avatar } from "./avatar.js";
+import { cachedUser, fetchUsers } from "../lib/userLookup.js";
 
-const TABS = [
-  { id: "all", label: "Все подарки" },
+// Окно «Отправить подарок» как popups/sendGift.tsx в tweb: первая страница — получатель
+// и сетка подарков с чипами-категориями, вторая — превью подарка в чате, подпись,
+// «Скрыть моё имя» и кнопка «Отправить за ⭐ N».
+
+const CATEGORIES = [
+  { id: "all", label: "Все" },
   { id: "rare", label: "Редкие" },
   { id: "available", label: "В наличии" },
   { id: "mine", label: "Мои" },
 ];
-const PRICE_TABS = [10, 20, 30, 50];
+const PRICE_CHIPS = [10, 20, 30, 50];
+const NOTE_MAX = 128;
+
+const fmt = (n) => Number(n ?? 0).toLocaleString("ru-RU");
+const firstName = (name) => String(name ?? "").trim().split(/\s+/)[0] || "получателю";
 
 export function openGiftShopDialog({ recipient = null, onSent } = {}) {
+  const me = getState().user;
   let gifts = [];
-  let balance = 0;
-  let tab = "all";
-  let priceFilter = null;
-  let error = null;
-  let notice = null;
-  let busyId = null;
   let myGifts = [];
-  let background = null;
+  let balance = 0;
+  let loaded = false;
+  let category = "all";
+  let priceFilter = null;
+  let loadError = null;
+  let target = recipient?.id === me?.id ? null : recipient;
+  let chosen = null; // { gift, mine }
+  let note = "";
   let anonymous = false;
-  let target = recipient?.id === getState().user?.id ? null : recipient;
+  let sending = false;
+  let listScrollTop = 0;
 
-  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
-  const bodyEl = el("div", { class: "gs-body" });
-  const balanceEl = el("button", { class: "gs-balance", title: "Купить звёзды", onclick: () => openStarsDialog(load) });
-  const dialog = el("div", { class: "modal-dialog gs-dialog" }, [
-    el("div", { class: "gs-head" }, [el("h2", { class: "modal-title" }, "Подарки"), balanceEl]),
-    bodyEl,
-    el("button", { class: "modal-cancel", onclick: () => close() }, "Закрыть"),
-  ]);
-  overlay.appendChild(dialog);
+  const overlay = el("div", { class: "modal-overlay sg-overlay", onclick: (e) => e.target === overlay && close() });
+  const popup = el("div", { class: "sg-popup", role: "dialog", "aria-modal": "true", "aria-label": "Отправить подарок" });
+  overlay.appendChild(popup);
   document.body.appendChild(overlay);
 
+  const onKey = (e) => {
+    if (e.key !== "Escape" || overlay.nextElementSibling) return;
+    e.stopPropagation();
+    if (chosen) back();
+    else close();
+  };
+  document.addEventListener("keydown", onKey);
+
   function close() {
+    document.removeEventListener("keydown", onKey);
     overlay.remove();
   }
 
-  const fmt = (n) => Number(n).toLocaleString("ru-RU");
-
   async function load() {
     try {
-      const res = await api.listGifts();
-      gifts = res.gifts;
+      const [res, mine] = await Promise.all([api.listGifts(), api.listCustomGifts().catch(() => ({ gifts: [] }))]);
+      gifts = res.gifts ?? [];
       balance = res.balance ?? 0;
-      const mine = await api.listCustomGifts();
       myGifts = mine.gifts ?? [];
+      loadError = null;
     } catch (err) {
-      error = err.message || "Не удалось загрузить подарки";
+      loadError = err.message || "Не удалось загрузить подарки";
     }
+    loaded = true;
     render();
   }
+
+  function balancePill() {
+    return el(
+      "button",
+      { type: "button", class: "sg-balance", title: "Купить звёзды", onclick: () => openStarsDialog(load) },
+      [el("span", { class: "sg-balance-label" }, "Баланс"), el("span", { class: "sg-balance-value" }, `⭐ ${fmt(balance)}`)]
+    );
+  }
+
+  function iconBtn(icon, label, onclick) {
+    return el("button", { type: "button", class: "sg-icon-btn", "aria-label": label, title: label, html: iconSvg(icon, 22), onclick });
+  }
+
+  function pickRecipient(then) {
+    openContactPickerDialog((picked) => {
+      if (picked?.id === me?.id) return showToast("Нельзя подарить подарок самому себе");
+      target = picked;
+      then?.();
+      render();
+    }, "Кому подарить");
+  }
+
+  // ---------- страница 1: выбор подарка ----------
+
+  function visibleGifts() {
+    let list = gifts;
+    if (category === "rare") list = list.filter((g) => g.exclusive || g.supply);
+    if (category === "available") list = list.filter((g) => !g.supply || (g.remaining ?? 0) > 0);
+    if (priceFilter) list = list.filter((g) => g.priceStars <= priceFilter);
+    return list;
+  }
+
+  function giftTile(g) {
+    const soldOut = g.supply != null && (g.remaining ?? 0) <= 0;
+    let badge = null;
+    if (soldOut) badge = el("span", { class: "tw-gift-badge sg-badge-soldout" }, [el("span", { class: "tw-gift-badge-text" }, "распродан")]);
+    else if (g.supply) badge = el("span", { class: "tw-gift-badge" }, [el("span", { class: "tw-gift-badge-text" }, "лимит")]);
+    else if (g.exclusive) badge = el("span", { class: "tw-gift-badge sg-badge-rare" }, [el("span", { class: "tw-gift-badge-text" }, "редкий")]);
+    return el(
+      "button",
+      {
+        type: "button",
+        class: `tw-gift-item sg-gift${soldOut ? " sg-gift-soldout" : ""}`,
+        title: soldOut ? `${g.name} — распродан` : `${g.name} — ⭐ ${fmt(g.priceStars)}`,
+        "aria-label": g.name,
+        onclick: () => {
+          if (soldOut) return showToast(`«${g.name}» распродан`);
+          choose(g, false);
+        },
+      },
+      [
+        badge,
+        el("span", { class: "tw-gift-sticker" }, [renderGiftArt(g, { size: 72, replay: false })]),
+        el("span", { class: "tw-gift-price" }, [el("span", { class: "tw-gift-star" }, "⭐"), fmt(g.priceStars)]),
+      ].filter(Boolean)
+    );
+  }
+
+  function mineTile(g) {
+    return el("div", { class: "sg-mine-wrap" }, [
+      el(
+        "button",
+        { type: "button", class: "tw-gift-item sg-gift", title: `Подарить «${g.name}»`, "aria-label": g.name, onclick: () => choose(g, true) },
+        [
+          el("span", { class: "tw-gift-sticker" }, [renderGiftArt(g, { size: 72, replay: false })]),
+          el("span", { class: "tw-gift-price sg-price-free" }, "Бесплатно"),
+        ]
+      ),
+      el("div", { class: "sg-mine-tools" }, [
+        el("button", { type: "button", class: "sg-mine-tool", title: "Изменить", "aria-label": "Изменить", html: iconSvg("Edit", 14), onclick: () => editMine(g) }),
+        el("button", { type: "button", class: "sg-mine-tool danger", title: "Удалить", "aria-label": "Удалить", html: iconSvg("Trash", 14), onclick: () => deleteMine(g) }),
+      ]),
+    ]);
+  }
+
+  function recipientHero() {
+    const u = target ? cachedUser(target.id) ?? target : null;
+    if (target && !cachedUser(target.id)) fetchUsers([target.id]).then((changed) => changed && !chosen && render()).catch(() => {});
+    return el("div", { class: "sg-hero" }, [
+      el("div", { class: "sg-hero-glow" }),
+      u
+        ? el("button", { type: "button", class: "sg-hero-avatar", title: "Сменить получателя", onclick: () => pickRecipient() }, [
+            Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 100 }),
+          ])
+        : el("button", { type: "button", class: "sg-hero-avatar sg-hero-empty", title: "Выбрать получателя", html: iconSvg("Gift", 44), onclick: () => pickRecipient() }),
+      el("h2", { class: "sg-title" }, "Отправить подарок"),
+      el(
+        "p",
+        { class: "sg-subtitle" },
+        target
+          ? `Подарите ${target.name} подарок — он появится у него в профиле и в чате с вами.`
+          : "Выберите получателя и подарок — он появится в профиле и в чате."
+      ),
+      el("button", { type: "button", class: "sg-recipient-chip", onclick: () => pickRecipient() }, target ? `Кому: ${target.name} · изменить` : "Выбрать получателя"),
+    ]);
+  }
+
+  function chips() {
+    return el("div", { class: "sg-chips", role: "tablist" }, [
+      ...CATEGORIES.map((c) =>
+        el(
+          "button",
+          {
+            type: "button",
+            role: "tab",
+            "aria-selected": String(category === c.id && !priceFilter),
+            class: `sg-chip${category === c.id && !priceFilter ? " active" : ""}`,
+            onclick: () => {
+              category = c.id;
+              priceFilter = null;
+              render();
+            },
+          },
+          c.label
+        )
+      ),
+      ...(category === "mine"
+        ? []
+        : PRICE_CHIPS.map((p) =>
+            el(
+              "button",
+              {
+                type: "button",
+                class: `sg-chip${priceFilter === p ? " active" : ""}`,
+                onclick: () => {
+                  priceFilter = priceFilter === p ? null : p;
+                  render();
+                },
+              },
+              `⭐ ${p}`
+            )
+          )),
+    ]);
+  }
+
+  function gridSection() {
+    if (!loaded) return el("div", { class: "sg-empty" }, [el("div", { class: "qr-login-spinner" })]);
+    if (loadError) return el("p", { class: "sg-empty" }, loadError);
+    if (category === "mine") {
+      return el("div", { class: "tw-gifts-grid" }, [
+        el("button", { type: "button", class: "tw-gift-item sg-gift sg-create", onclick: createMine }, [
+          el("span", { class: "sg-create-icon", html: iconSvg("Plus", 28) }),
+          el("span", { class: "sg-create-label" }, "Нарисовать"),
+        ]),
+        ...myGifts.map(mineTile),
+      ]);
+    }
+    const list = visibleGifts();
+    if (!list.length) return el("p", { class: "sg-empty" }, "Под фильтр ничего не подошло");
+    return el("div", { class: "tw-gifts-grid" }, list.map(giftTile));
+  }
+
+  function renderList() {
+    const header = el("div", { class: "sg-header" }, [
+      iconBtn("X", "Закрыть", close),
+      el("div", { class: "sg-header-title" }, "Отправить подарок"),
+      balancePill(),
+    ]);
+    const scroll = el("div", { class: "sg-scroll" }, [recipientHero(), chips(), gridSection()]);
+    scroll.addEventListener("scroll", () => popup.classList.toggle("sg-scrolled", scroll.scrollTop > 8), { passive: true });
+    const page = el("div", { class: "sg-page sg-page-list" }, [header, scroll]);
+    popup.append(page);
+    scroll.scrollTop = listScrollTop;
+    popup.classList.toggle("sg-scrolled", scroll.scrollTop > 8);
+    return scroll;
+  }
+
+  // ---------- страница 2: отправка выбранного подарка ----------
+
+  function choose(gift, mine) {
+    const go = () => {
+      listScrollTop = popup.querySelector(".sg-scroll")?.scrollTop ?? 0;
+      chosen = { gift, mine };
+      note = "";
+      sending = false;
+      render();
+    };
+    if (!target) return pickRecipient(go);
+    go();
+  }
+
+  function back() {
+    chosen = null;
+    render();
+  }
+
+  function renderChosen() {
+    const { gift, mine } = chosen;
+    const price = mine ? 0 : gift.priceStars ?? 0;
+    const canAnon = !!me?.isPremium;
+    const short = price > balance;
+
+    const fromName = el("span", {}, "");
+    const fromAvatarSlot = el("span", { class: "tw-gift-from-user" });
+    const msgEl = el("p", { class: "tw-gift-message" });
+    const hintEl = el("p", { class: "tw-gift-note" }, `${target.name} сможет показать этот подарок в своём профиле.`);
+    const syncPreview = () => {
+      clear(fromAvatarSlot);
+      if (!anonymous) fromAvatarSlot.append(Avatar({ name: me?.name ?? "Вы", color: me?.avatarColor, image: me?.avatarImage, size: 16 }));
+      fromName.textContent = anonymous ? "Аноним" : me?.name ?? "Вы";
+      fromAvatarSlot.append(fromName);
+      msgEl.textContent = note;
+      msgEl.hidden = !note;
+      hintEl.hidden = !!note;
+      counter.textContent = `${NOTE_MAX - note.length}`;
+    };
+
+    const counter = el("span", { class: "sg-input-counter" });
+    const input = el("input", {
+      type: "text",
+      class: "sg-input",
+      placeholder: "Добавить сообщение",
+      maxlength: String(NOTE_MAX),
+      "aria-label": "Сообщение к подарку",
+      value: note,
+      oninput: (e) => {
+        note = e.target.value.slice(0, NOTE_MAX);
+        syncPreview();
+      },
+      onkeydown: (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          send();
+        }
+      },
+    });
+
+    const toggle = el("input", {
+      type: "checkbox",
+      class: "sg-toggle-input",
+      checked: anonymous,
+      disabled: !canAnon,
+      onchange: (e) => {
+        anonymous = e.target.checked;
+        syncPreview();
+      },
+    });
+
+    const limited = !mine && gift.supply
+      ? (() => {
+          const left = Math.max(0, gift.remaining ?? 0);
+          const sold = gift.supply - left;
+          const pct = Math.max(4, Math.min(100, (sold / gift.supply) * 100));
+          return el("div", { class: "sg-limited" }, [
+            el("div", { class: "sg-limited-bar" }, [
+              el("div", { class: "sg-limited-fill", style: `width: ${pct}%` }),
+              el("div", { class: "sg-limited-text" }, [el("span", {}, `осталось ${fmt(left)}`), el("span", {}, `продано ${fmt(sold)}`)]),
+            ]),
+          ]);
+        })()
+      : null;
+
+    const sendBtn = el(
+      "button",
+      { type: "button", class: `sg-send${sending ? " busy" : ""}`, disabled: sending, onclick: () => send() },
+      sending ? "Отправляем…" : mine ? "Отправить подарок" : `Отправить подарок за ⭐ ${fmt(price)}`
+    );
+
+    const page = el("div", { class: "sg-page sg-page-chosen" }, [
+      el("div", { class: "sg-header sg-header-solid" }, [
+        iconBtn("ChevronLeft", "Назад", back),
+        el("div", { class: "sg-header-title" }, "Отправить подарок"),
+        balancePill(),
+      ]),
+      el("div", { class: "sg-scroll sg-chosen-scroll" }, [
+        el("div", { class: "sg-preview" }, [
+          el("div", { class: "tw-gift sg-preview-gift" }, [
+            el("div", { class: "system-message" }, [
+              el("span", { class: "system-message-text" }, mine ? "Вы отправили подарок" : `Вы отправили подарок за ${fmt(price)} ⭐`),
+            ]),
+            el("div", { class: `tw-gift-box${gift.supply ? " is-unique" : ""}` }, [
+              gift.supply ? el("span", { class: "tw-gift-ribbon" }, `1 из ${fmt(gift.supply)}`) : null,
+              el("div", { class: "tw-gift-art" }, [renderGiftArt(gift, { size: 120, replay: true })]),
+              el("p", { class: "tw-gift-from" }, ["Подарок от ", fromAvatarSlot]),
+              el("p", { class: "tw-gift-name" }, gift.name),
+              msgEl,
+              hintEl,
+            ].filter(Boolean)),
+          ]),
+        ]),
+        el("div", { class: "sg-sheet" }, [
+          limited,
+          el("label", { class: "sg-input-wrap" }, [input, counter]),
+          el("label", { class: `sg-row${canAnon ? "" : " disabled"}` }, [
+            el("span", { class: "sg-row-title" }, "Скрыть моё имя"),
+            el("span", { class: "sg-toggle" }, [toggle, el("span", { class: "sg-toggle-track" })]),
+          ]),
+        ].filter(Boolean)),
+        el(
+          "p",
+          { class: "sg-hint" },
+          canAnon
+            ? `${target.name} и посетители профиля не увидят, от кого этот подарок.`
+            : "Анонимные подарки доступны с Premium."
+        ),
+        short ? el("p", { class: "sg-hint sg-hint-warn" }, `Не хватает ${fmt(price - balance)} ⭐ — при отправке предложим докупить.`) : null,
+      ].filter(Boolean)),
+      el("div", { class: "sg-footer" }, [sendBtn]),
+    ]);
+    popup.append(page);
+    syncPreview();
+    if (window.matchMedia?.("(pointer: fine)").matches) input.focus();
+  }
+
+  async function send() {
+    if (!chosen || sending || !target) return;
+    const { gift, mine } = chosen;
+    sending = true;
+    render();
+    try {
+      const res = mine
+        ? await api.sendCustomGift(gift.id, target.id, null, anonymous, note.trim() || null)
+        : await api.buyGift(gift.id, target.id, null, anonymous, note.trim() || null);
+      if (res?.balance != null) balance = res.balance;
+      onSent?.();
+      return finish(res?.chatId, gift, res?.serial);
+    } catch (err) {
+      sending = false;
+      if (err.message && /не хватает/i.test(err.message)) {
+        render();
+        if (await askConfirm(`${err.message}. Открыть покупку звёзд?`)) openStarsDialog(load);
+        return;
+      }
+      showToast(err.message || "Не удалось отправить подарок");
+      await load();
+    }
+  }
+
+  // Как в Telegram: после отправки — сразу в чат с получателем, где лежит подарок.
+  function finish(chatId, gift, serial) {
+    showToast(`«${gift.name}» отправлен — ${target.name}${serial ? `, №${serial}` : ""}`);
+    close();
+    if (!chatId) return;
+    document.querySelectorAll(".profile-panel-overlay").forEach((o) => o.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    document.querySelectorAll(".modal-overlay").forEach((o) => o.querySelector(".profile-dialog, .gift-card-dialog") && o.remove());
+    api.listChats().then((r) => setState({ chats: r.chats }), () => {});
+    navigate(`/chat/${chatId}`);
+  }
+
+  // ---------- свои нарисованные подарки ----------
 
   function createMine() {
     openAnimatorEditor({
@@ -74,51 +426,13 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
         try {
           const { gift } = await api.createCustomGift(name, scene);
           myGifts = [gift, ...myGifts];
-          notice = `Подарок «${gift.name}» сохранён`;
+          showToast(`Подарок «${gift.name}» сохранён`);
           render();
         } catch (err) {
-          error = err.message || "Не удалось сохранить";
-          render();
+          showToast(err.message || "Не удалось сохранить");
         }
       },
     });
-  }
-
-  // Как в Telegram: после отправки — сразу в чат с получателем, где лежит подарок.
-  function openChatAfterGift(chatId, gift) {
-    showToast(`«${gift.name}» отправлен — ${target.name}`);
-    busyId = null;
-    close();
-    document.querySelectorAll(".profile-panel-overlay").forEach((o) => o.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    document.querySelectorAll(".modal-overlay").forEach((o) => o.querySelector(".profile-dialog, .gift-card-dialog") && o.remove());
-    api.listChats().then((r) => setState({ chats: r.chats }), () => {});
-    navigate(`/chat/${chatId}`);
-  }
-
-  async function sendMine(gift) {
-    if (!target) {
-      openContactPickerDialog((picked) => {
-        target = picked;
-        sendMine(gift);
-      }, "Кому подарить");
-      return;
-    }
-    if (busyId) return;
-    busyId = gift.id;
-    error = null;
-    notice = null;
-    render();
-    try {
-      const res = await api.sendCustomGift(gift.id, target.id, background, anonymous);
-      onSent?.();
-      if (res?.chatId) return openChatAfterGift(res.chatId, gift);
-      notice = `«${gift.name}» отправлен — ${target.name}`;
-    } catch (err) {
-      error = err.message || "Не удалось отправить подарок";
-    } finally {
-      busyId = null;
-      render();
-    }
   }
 
   function editMine(gift) {
@@ -130,11 +444,9 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
         try {
           const { gift: updated } = await api.updateCustomGift(gift.id, { scene });
           myGifts = myGifts.map((g) => (g.id === updated.id ? updated : g));
-          notice = `Подарок «${updated.name}» обновлён`;
           render();
         } catch (err) {
-          error = err.message || "Не удалось сохранить";
-          render();
+          showToast(err.message || "Не удалось сохранить");
         }
       },
     });
@@ -146,189 +458,22 @@ export function openGiftShopDialog({ recipient = null, onSent } = {}) {
       await api.deleteCustomGift(gift.id);
       myGifts = myGifts.filter((g) => g.id !== gift.id);
     } catch (err) {
-      error = err.message || "Не удалось удалить";
+      showToast(err.message || "Не удалось удалить");
     }
     render();
-  }
-
-  async function buy(gift) {
-    if (!target) {
-      openContactPickerDialog((picked) => {
-        target = picked;
-        buy(gift);
-      }, "Кому подарить");
-      return;
-    }
-    if (busyId) return;
-    busyId = gift.id;
-    error = null;
-    notice = null;
-    render();
-    try {
-      const res = await api.buyGift(gift.id, target.id, background, anonymous);
-      balance = res.balance ?? balance;
-      onSent?.();
-      // Как в Telegram: после покупки — сразу в чат с получателем, где лежит подарок.
-      if (res.chatId) return openChatAfterGift(res.chatId, gift);
-      notice = `${gift.emoji} «${gift.name}» отправлен — ${target.name}${res.serial ? `, №${res.serial}` : ""}`;
-      const fresh = await api.listGifts();
-      gifts = fresh.gifts;
-      balance = fresh.balance ?? balance;
-    } catch (err) {
-      if (err.message && /не хватает/i.test(err.message)) {
-        error = err.message;
-        if ((await askConfirm(`${err.message}. Открыть покупку звёзд?`))) openStarsDialog(load);
-      } else {
-        error = err.message || "Не удалось отправить подарок";
-        await load();
-      }
-    } finally {
-      busyId = null;
-      render();
-    }
-  }
-
-  function visible() {
-    let list = gifts;
-    if (tab === "rare") list = list.filter((g) => g.exclusive || g.supply);
-    if (tab === "available") list = list.filter((g) => !g.supply || (g.remaining ?? 0) > 0);
-    if (priceFilter) list = list.filter((g) => g.priceStars <= priceFilter);
-    return list;
-  }
-
-  function card(g) {
-    const soldOut = g.supply != null && (g.remaining ?? 0) <= 0;
-    const affordable = balance >= g.priceStars;
-    return el(
-      "button",
-      {
-        class: `gs-card ${g.exclusive ? "gs-card-rare" : ""} ${soldOut ? "gs-card-sold" : ""}`,
-        disabled: soldOut || busyId === g.id,
-        title: soldOut ? "Распродан" : `${g.name} — ${fmt(g.priceStars)} ⭐`,
-        onclick: () => buy(g),
-      },
-      [
-        g.exclusive ? el("span", { class: "gs-rare-badge" }, "Редкий") : null,
-        el("span", { class: "gs-card-art", style: background ? { background: giftBackgroundStyle(background) } : {} }, [renderGiftArt(g, { size: 72, replay: false })]),
-        el("span", { class: "gs-card-name" }, g.name),
-        el("span", { class: `gs-card-price ${affordable ? "" : "short"}` }, `⭐ ${fmt(g.priceStars)}`),
-        g.supply != null
-          ? el("span", { class: "gs-card-supply" }, soldOut ? "Распродан" : `${fmt(g.remaining)} из ${fmt(g.supply)}`)
-          : null,
-      ]
-    );
-  }
-
-  function mineCard(g) {
-    return el("div", { class: "gs-card gs-card-mine" }, [
-      el("button", {
-        class: "gs-card-edit",
-        title: "Изменить",
-        onclick: (e) => { e.stopPropagation(); editMine(g); },
-      }, "✎"),
-      el("button", {
-        class: "gs-card-del",
-        title: "Удалить",
-        onclick: (e) => { e.stopPropagation(); deleteMine(g); },
-      }, "✕"),
-      el(
-        "button",
-        { class: "gs-card-inner", disabled: busyId === g.id, title: `Подарить «${g.name}»`, onclick: () => sendMine(g) },
-        [
-          el("span", { class: "gs-card-art", style: background ? { background: giftBackgroundStyle(background) } : {} }, [renderGiftArt(g, { size: 72, replay: false })]),
-          el("span", { class: "gs-card-name" }, g.name),
-          el("span", { class: "gs-card-price" }, "Бесплатно"),
-        ]
-      ),
-    ]);
-  }
-
-  function backgroundPicker() {
-    const isSel = (bg) => (bg.id === "" ? !background : background && background.from === bg.from && background.to === bg.to);
-    const swatches = GIFT_BACKGROUNDS.map((bg) =>
-      el(
-        "button",
-        {
-          class: `gs-bg-swatch ${isSel(bg) ? "sel" : ""}`,
-          title: bg.label,
-          style: bg.from ? { background: giftBackgroundStyle({ from: bg.from, to: bg.to }) } : {},
-          onclick: () => { background = bg.id === "" ? null : { from: bg.from, to: bg.to }; render(); },
-        },
-        bg.id === "" ? "✕" : ""
-      )
-    );
-    const fromInput = el("input", {
-      type: "color",
-      class: "anim-color-input",
-      title: "Цвет в центре",
-      value: background?.from || "#ffe08a",
-      onchange: (e) => { background = { from: e.target.value, to: background?.to || "#c8860b" }; render(); },
-    });
-    const toInput = el("input", {
-      type: "color",
-      class: "anim-color-input",
-      title: "Цвет по краям",
-      value: background?.to || "#c8860b",
-      onchange: (e) => { background = { from: background?.from || "#ffe08a", to: e.target.value }; render(); },
-    });
-    return el("div", { class: "gs-bg-picker" }, [
-      el("span", { class: "gs-bg-label" }, "Фон подарка"),
-      el("div", { class: "gs-bg-swatches" }, [...swatches, fromInput, toInput]),
-    ]);
   }
 
   function render() {
-    balanceEl.textContent = "";
-    balanceEl.append(el("span", { class: "gs-balance-label" }, "Баланс"), el("span", { class: "gs-balance-value" }, `⭐ ${fmt(balance)}`));
-
-    clear(bodyEl);
-    const list = visible();
-    bodyEl.append(
-      ...[
-        el("div", { class: "gs-recipient" }, [
-          el("span", {}, target ? `Кому: ${target.name}` : "Кому подарить?"),
-          el("button", {
-            class: "gs-recipient-btn",
-            onclick: () =>
-              openContactPickerDialog((picked) => {
-                target = picked;
-                render();
-              }, "Кому подарить"),
-          }, target ? "Изменить" : "Выбрать"),
-        ]),
-        backgroundPicker(),
-        getState().user?.isPremium
-          ? el("label", { class: "gs-anon" }, [
-              el("input", { type: "checkbox", checked: anonymous, onchange: (e) => { anonymous = e.target.checked; } }),
-              el("span", {}, "Анонимно — получатель не увидит, что подарок от вас"),
-            ])
-          : null,
-        notice ? el("p", { class: "admin-panel-notice" }, `✅ ${notice}`) : null,
-        error ? el("p", { class: "login-error" }, error) : null,
-        el(
-          "div",
-          { class: "gs-tabs" },
-          [
-            ...TABS.map((t) =>
-              el("button", { class: `gs-tab ${tab === t.id && !priceFilter ? "active" : ""}`, onclick: () => { tab = t.id; priceFilter = null; render(); } }, t.label)
-            ),
-            ...PRICE_TABS.map((p) =>
-              el("button", { class: `gs-tab ${priceFilter === p ? "active" : ""}`, onclick: () => { priceFilter = priceFilter === p ? null : p; render(); } }, `⭐ ${p}`)
-            ),
-          ]
-        ),
-        tab === "mine"
-          ? el("div", { class: "gs-mine" }, [
-              el("button", { class: "gs-recipient-btn gs-create-gift", onclick: createMine }, "✏️ Нарисовать подарок"),
-              myGifts.length
-                ? el("div", { class: "gs-grid" }, myGifts.map(mineCard))
-                : el("p", { class: "moderation-empty" }, "Пока нет своих подарков — нарисуйте первый"),
-            ])
-          : list.length
-            ? el("div", { class: "gs-grid" }, list.map(card))
-            : el("p", { class: "moderation-empty" }, "Под фильтр ничего не подошло"),
-      ].filter(Boolean)
-    );
+    const prev = popup.querySelector(".sg-page-list .sg-scroll");
+    if (prev) listScrollTop = prev.scrollTop;
+    const wasChosen = popup.classList.contains("sg-is-chosen");
+    clear(popup);
+    popup.classList.toggle("sg-is-chosen", !!chosen);
+    popup.classList.remove("sg-scrolled");
+    if (chosen) renderChosen();
+    else renderList();
+    const page = popup.lastElementChild;
+    if (wasChosen !== !!chosen) page?.classList.add(chosen ? "sg-enter-forward" : "sg-enter-back");
   }
 
   render();

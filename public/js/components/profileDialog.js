@@ -459,8 +459,8 @@ export async function openProfileDialog(userId) {
           const fromBadge = g.pinned
             ? el("span", { class: "tw-gift-pin", title: "Закреплён", html: iconSvg("Pin", 14) })
             : g.anon || !g.fromId
-              ? el("span", { class: "tw-gift-from tw-gift-from-anon", title: g.fromName ?? "Аноним" }, "?")
-              : el("span", { class: "tw-gift-from", title: g.fromName ?? "" }, [Avatar({ name: g.fromName ?? "?", size: 20 })]);
+              ? el("span", { class: "tw-gift-sender tw-gift-sender-anon", title: g.fromName ?? "Аноним" }, "?")
+              : el("span", { class: "tw-gift-sender", title: g.fromName ?? "" }, [Avatar({ name: g.fromName ?? "?", size: 20 })]);
           return el(
             "button",
             {

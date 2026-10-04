@@ -11,7 +11,7 @@ function durationLabel(days) {
   return `Premium на ${days} дней`;
 }
 
-async function deliverGift({ gift, recipientId, fromId, announceFromId, background = null, anonymous = false }) {
+async function deliverGift({ gift, recipientId, fromId, announceFromId, background = null, anonymous = false, note = null }) {
   const sender = fromId ? await getUser(fromId) : null;
   const fromName = anonymous ? "Аноним" : sender?.name ?? null;
 
@@ -33,6 +33,7 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId, backgrou
     ...(gift.ownerId || (gift.scene && !gift.priceStars) ? { custom: true } : {}),
     ...(background ? { background } : {}),
     ...(anonymous ? { anon: true } : {}),
+    ...(note ? { note } : {}),
     fromId: fromId ?? null,
     fromName,
     at: new Date().toISOString(),
@@ -64,6 +65,7 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId, backgrou
         ...(gift.ownerId || (gift.scene && !gift.priceStars) ? { custom: true } : {}),
         ...(background ? { background } : {}),
         ...(anonymous ? { anon: true } : {}),
+        ...(note ? { note } : {}),
         fromId: fromId ?? null,
         fromName,
         recipientId,
