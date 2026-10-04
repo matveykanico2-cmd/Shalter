@@ -1524,12 +1524,18 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   let swiping = null;
   let lastTapAt = 0;
 
+  const hasTextSelection = () => {
+    const sel = window.getSelection?.();
+    return !!sel && !sel.isCollapsed && sel.toString().trim() !== "";
+  };
+
   const gestures = {
     onpointerdown: (e) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
       swipeX = e.clientX;
       swipeY = e.clientY;
-      swiping = null;
+      // Как в tweb: свайп-ответ только пальцем — мышью тянут, чтобы выделить текст.
+      swiping = e.pointerType === "mouse" ? false : null;
     },
     onpointermove: (e) => {
       if (swipeX === 0 || swiping === false) return;
@@ -1537,9 +1543,19 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       const dy = Math.abs(e.clientY - swipeY);
       if (swiping === null) {
         if (Math.abs(dx) < SWIPE_START_PX && dy < SWIPE_START_PX) return;
+        // Идёт выделение текста (ручки выделения на телефоне) — сообщение не двигаем.
+        if (hasTextSelection()) {
+          swiping = false;
+          return;
+        }
         // Как в Telegram: ответ — свайпом влево.
         swiping = Math.abs(dx) > dy && dx < 0;
         if (!swiping) return;
+      } else if (hasTextSelection()) {
+        swiping = false;
+        row.style.transform = "";
+        row.classList.remove("swipe-ready");
+        return;
       }
       const shift = Math.min(72, Math.max(0, -dx));
       row.style.transform = `translateX(${-shift}px)`;
