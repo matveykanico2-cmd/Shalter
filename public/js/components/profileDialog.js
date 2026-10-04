@@ -445,39 +445,53 @@ export async function openProfileDialog(userId) {
         .slice()
         .reverse()
         .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+      // Сетка подарков как StarGiftsGrid (view: profile) в tweb: плитка на фоне поверхности,
+      // аватар дарителя в углу, номер — в уголке-ленте, фон-узор только у эксклюзивных.
       return el(
         "div",
-        { class: "profile-gifts-grid" },
+        { class: "tw-gifts-grid" },
         ordered.map((g) => {
-            const from = g.fromName ? ` · от ${g.fromName}` : "";
-            const entryId = g.id ?? `${g.emoji}|${g.at}`;
-            const traits = giftTraits(g);
-            const [c1, c2] = traits.backdrop.colors;
-            return el(
-              "button",
-              {
-                class: `profile-gift-card ${g.serial != null ? "profile-gift-card-exclusive" : ""}`,
-                style: `--gift-from: ${c1}; --gift-to: ${c2}`,
-                title: g.serial != null ? `${g.name} — №${g.serial} из ${g.supply}${from}` : `${g.name}${from}`,
-                onclick: () =>
-                  openGiftCardDialog(g, {
-                    ownerName: user.name,
-                    onSend: () => openGiftShopDialog({ recipient: { id: user.id, name: user.name } }),
-                    onRemove: isSelf ? () => removeGift(entryId, g) : undefined,
-                    onTogglePin: isSelf ? () => toggleGiftPin(entryId, g) : undefined,
-                  }),
-              },
-              [
-                g.pinned
-                  ? el("span", { class: "profile-gift-pin", title: "Закреплён", html: iconSvg("Pin", 12) })
-                  : null,
-                g.serial != null ? el("span", { class: "profile-gift-ribbon" }, `№${g.serial}`) : null,
-                el("span", { class: "profile-gift-art", style: g.background ? { background: giftBackgroundStyle(g.background) } : {} }, [renderGiftArt(g, { size: 44, replay: false })]),
-                el("span", { class: "profile-gift-title" }, g.name),
-                el("span", { class: "profile-gift-price" }, `⭐ ${Number(g.priceStars ?? 0).toLocaleString("ru-RU")}`),
-              ].filter(Boolean)
-            );
-          })
+          const from = g.fromName ? ` · от ${g.fromName}` : "";
+          const entryId = g.id ?? `${g.emoji}|${g.at}`;
+          const exclusive = g.serial != null;
+          const [c1, c2] = giftTraits(g).backdrop.colors;
+          const backdrop = g.background ? giftBackgroundStyle(g.background) : exclusive ? `radial-gradient(circle at 50% 40%, ${c1}, ${c2})` : null;
+          const fromBadge = g.pinned
+            ? el("span", { class: "tw-gift-pin", title: "Закреплён", html: iconSvg("Pin", 14) })
+            : g.anon || !g.fromId
+              ? el("span", { class: "tw-gift-from tw-gift-from-anon", title: g.fromName ?? "Аноним" }, "?")
+              : el("span", { class: "tw-gift-from", title: g.fromName ?? "" }, [Avatar({ name: g.fromName ?? "?", size: 20 })]);
+          return el(
+            "button",
+            {
+              type: "button",
+              class: `tw-gift-item${backdrop ? " tw-gift-item-backdrop" : ""}`,
+              style: `--gift-overlay: ${c2};${backdrop ? ` background: ${backdrop};` : ""}`,
+              title: exclusive ? `${g.name} — №${g.serial} из ${g.supply}${from}` : `${g.name}${from}`,
+              "aria-label": g.name,
+              onclick: () =>
+                openGiftCardDialog(g, {
+                  ownerName: user.name,
+                  onSend: () => openGiftShopDialog({ recipient: { id: user.id, name: user.name } }),
+                  onRemove: isSelf ? () => removeGift(entryId, g) : undefined,
+                  onTogglePin: isSelf ? () => toggleGiftPin(entryId, g) : undefined,
+                }),
+            },
+            [
+              fromBadge,
+              exclusive
+                ? el("span", { class: "tw-gift-badge", style: { background: `linear-gradient(180deg, ${c1} 0%, ${c2} 100%)` } }, [
+                    el("span", { class: "tw-gift-badge-text" }, g.pinned ? `#${g.serial}` : `1 из ${Number(g.supply).toLocaleString("ru-RU")}`),
+                  ])
+                : null,
+              el("span", { class: "tw-gift-sticker" }, [renderGiftArt(g, { size: 72, replay: false })]),
+              el("span", { class: "tw-gift-price" }, [
+                el("span", { class: "tw-gift-star" }, "⭐"),
+                Number(g.priceStars ?? 0).toLocaleString("ru-RU"),
+              ]),
+            ].filter(Boolean)
+          );
+        })
       );
     }
     if (activeTab === "stories") {

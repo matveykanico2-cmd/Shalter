@@ -4021,73 +4021,6 @@ pre.mono,
 .thread-panel .composer-textarea {
   min-width: 0;
 }
-.profile-gifts-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  width: 100%;
-}
-.profile-gift-card {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 12px 8px 10px;
-  border-radius: 14px;
-  border: 1px solid var(--color-border);
-  background: linear-gradient(160deg, var(--gift-from, #f2f4f8), var(--gift-to, #dfe4ee));
-  color: #1b1f2a;
-  cursor: pointer;
-}
-.profile-gift-card-exclusive {
-  border-color: #d9a441;
-  box-shadow: 0 0 0 1px rgba(217, 164, 65, 0.5) inset;
-}
-.profile-gift-pin {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  display: flex;
-  height: 18px;
-  width: 18px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.75);
-  color: #1b1f2a;
-}
-.profile-gift-ribbon {
-  position: absolute;
-  top: 8px;
-  right: -22px;
-  width: 72px;
-  transform: rotate(35deg);
-  background: #d9524a;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 600;
-  text-align: center;
-  padding: 2px 0;
-}
-.profile-gift-title {
-  font-size: 12px;
-  font-weight: 500;
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-.profile-gift-price {
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.65);
-}
-
 .gift-card-dialog {
   padding: 0;
   overflow: hidden;
@@ -13419,7 +13352,6 @@ p.business-status {
 .gs-bg-swatch.sel { border-color: var(--accent, #ff8a3d); }
 .gs-card-art { border-radius: 12px; }
 .gift-message-burst.has-bg { border-radius: 20px; padding: 10px; }
-.profile-gift-art { border-radius: 10px; }
 
 .anim-preview { cursor: crosshair; touch-action: none; }
 .anim-marker {
@@ -21563,5 +21495,151 @@ button img.emoji {
   .message-list {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+  }
+}
+
+/* ---------- tweb: подарки в профиле (components/stargifts/stargiftsGrid, view: profile) ---------- */
+.tw-gifts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+.tw-gift-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 10px 10px;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text);
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+.tw-gift-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.tw-gift-item:hover::before {
+  opacity: 0.05;
+}
+.tw-gift-item:active::before {
+  opacity: 0.1;
+}
+.tw-gift-item-backdrop {
+  box-shadow: none;
+  color: #fff;
+}
+.tw-gift-sticker {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 90px;
+  aspect-ratio: 1;
+}
+.tw-gift-sticker > * {
+  max-width: 100%;
+  max-height: 100%;
+}
+.tw-gift-from,
+.tw-gift-pin {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 2;
+  display: flex;
+}
+.tw-gift-from .avatar {
+  font-size: 9px;
+}
+.tw-gift-from-anon {
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #6ed2ff 1.72%, #34a4fc 94.83%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.tw-gift-pin {
+  top: 4px;
+  left: 4px;
+  color: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+.tw-gift-item:not(.tw-gift-item-backdrop) .tw-gift-pin {
+  color: var(--color-muted);
+  filter: none;
+}
+/* уголок-лента как StarGiftBadge */
+.tw-gift-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  z-index: 2;
+  width: 58px;
+  height: 58px;
+  background: linear-gradient(180deg, #6ed2ff 1.72%, #34a4fc 94.83%);
+  clip-path: path("M51.8187 26.4853L28.8481 3.51472C26.5977 1.26428 23.5454 0 20.3628 0H2.1618C0.379992 0 -0.51234 2.15429 0.74759 3.41422L51.9192 54.5858C53.1791 55.8457 55.3334 54.9534 55.3334 53.1716V34.9706C55.3334 31.788 54.0691 28.7357 51.8187 26.4853Z");
+}
+.tw-gift-badge-text {
+  display: block;
+  width: 60px;
+  transform: rotate(45deg) translate(15px, 10px);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+.tw-gift-price {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #ffbb2d33;
+  color: #e88011;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+}
+.tw-gift-item-backdrop .tw-gift-price {
+  background: color-mix(in srgb, var(--gift-overlay) 85%, #000);
+  color: #fff;
+}
+.tw-gift-star {
+  font-size: 10px;
+}
+@media (max-width: 600px) {
+  .tw-gifts-grid {
+    gap: 8px;
+    padding: 8px;
+  }
+  .tw-gift-sticker {
+    width: 72px;
+    height: 72px;
+    max-width: none;
+    aspect-ratio: auto;
   }
 }
