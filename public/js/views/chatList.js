@@ -23,7 +23,7 @@ import { api } from "../api.js";
 import { openAd } from "../lib/adLink.js";
 import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
-import { onWsMessage } from "../lib/wsClient.js";
+import { isWsOpen, onWsMessage } from "../lib/wsClient.js";
 import { noteMessageInChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache, dropCachedMessage } from "../lib/localCache.js";
 import { openSidebarMenu, openSavedMessages } from "../components/sidebarMenu.js";
@@ -241,6 +241,8 @@ export function ChatListPane() {
   let pending = false;
   let latestSeq = 0;
 
+  let lastListSig = "";
+  let lastSetChats = null;
   async function refetch() {
     if (inFlight) {
       pending = true;
@@ -253,6 +255,13 @@ export function ChatListPane() {
         Promise.all([api.listChats(), api.listFolders(), api.joinedCommunities().catch(() => null)])
       );
       if (seq !== latestSeq) return;
+      // Ничего не поменялось — не трогаем состояние: иначе весь список с аватарками
+      // перерисовывается и в localStorage синхронно пишется весь список (на iPhone — рывок).
+      const sig = JSON.stringify([chatsRes.chats, foldersRes.folders, commRes?.communities ?? null]);
+      // Пропускаем, только если и список локально с тех пор не менялся (отправка, удаление).
+      if (sig === lastListSig && getState().chats === lastSetChats) return;
+      lastListSig = sig;
+      lastSetChats = chatsRes.chats;
       notifyNewMessages(chatsRes.chats);
       setState({ chats: chatsRes.chats, folders: foldersRes.folders, ...(commRes ? { communities: commRes.communities } : {}) });
       writeCache("chats", getState().user?.id, { chats: chatsRes.chats, folders: foldersRes.folders });
@@ -310,9 +319,27 @@ export function ChatListPane() {
     setState({ chats: getState().chats.filter((c) => c.id !== chatId) });
     if (window.location.pathname === `/chat/${chatId}`) navigate("/");
   });
-  const iv = setInterval(refetch, 15000);
+  // Свежие события приходят по WebSocket; опрос — только подстраховка: раз в 15 с, если
+  // сокет отвалился, иначе раз в минуту, и никогда — пока вкладка/приложение в фоне.
+  let lastPoll = Date.now();
+  const iv = setInterval(() => {
+    if (document.hidden) return;
+    const every = isWsOpen() ? 60000 : 15000;
+    if (Date.now() - lastPoll < every) return;
+    lastPoll = Date.now();
+    refetch();
+  }, 5000);
+  const onVisible = () => {
+    if (document.hidden) return;
+    lastPoll = Date.now();
+    scheduleRefetch(0);
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  const unsubReconnected = onWsMessage("ws:reconnected", () => scheduleRefetch(0));
   container._cleanup = () => {
     clearInterval(iv);
+    document.removeEventListener("visibilitychange", onVisible);
+    unsubReconnected();
     cancelAnimationFrame(listFrame);
     clearTimeout(refetchTimer);
     storiesBar.cleanup?.();

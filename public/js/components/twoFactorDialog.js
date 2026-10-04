@@ -295,20 +295,46 @@ export function openTwoFactorSetupDialog(onEnabled) {
   render();
 }
 
-export function openTwoFactorDisableDialog(onDisabled) {
+// method — как сейчас подтверждается вход: "totp" (приложение), "chat" (код в чате) или "password" (облачный пароль).
+export function openTwoFactorDisableDialog(onDisabled, method = "totp") {
   let busy = false;
   let error = null;
   let code = "";
+  const byChat = method === "chat";
+  const byPassword = method === "password";
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const errorSlot = el("p", { class: "login-error" });
-  const codeInput = el("input", {
-    class: "login-input login-code-input mono",
-    placeholder: "······",
-    autofocus: true,
-    autocomplete: "one-time-code",
-    oninput: (e) => (code = e.target.value.trim()),
+  const codeInput = byPassword
+    ? el("input", {
+        class: "login-input",
+        type: "password",
+        placeholder: "Облачный пароль",
+        autofocus: true,
+        autocomplete: "current-password",
+        oninput: (e) => (code = e.target.value),
+      })
+    : el("input", {
+        class: "login-input login-code-input mono",
+        placeholder: "······",
+        autofocus: true,
+        autocomplete: "one-time-code",
+        oninput: (e) => (code = e.target.value.trim()),
+      });
+  codeInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitBtn.click();
   });
+  // Код в чат приходит не сам — присылаем его, как только открыли окно.
+  const sendCode = () =>
+    api
+      .sendTwoFactorCode()
+      .then(() => {
+        errorSlot.textContent = "";
+      })
+      .catch((err) => {
+        errorSlot.textContent = err.message || "Не удалось отправить код";
+      });
+  const resendBtn = byChat ? el("button", { class: "modal-cancel", onclick: () => sendCode() }, "Отправить код ещё раз") : null;
   const submitBtn = el("button", { class: "btn-accent danger" }, "Отключить");
 
   submitBtn.addEventListener("click", async () => {
@@ -330,12 +356,21 @@ export function openTwoFactorDisableDialog(onDisabled) {
 
   const dialog = el("div", { class: "modal-dialog" }, [
     el("h2", { class: "modal-title" }, "Отключить двухфакторную аутентификацию?"),
-    el("p", { class: "settings-toggle-hint" }, "Введите текущий код из аутентификатора или код восстановления."),
+    el(
+      "p",
+      { class: "settings-toggle-hint" },
+      byPassword
+        ? "Введите облачный пароль."
+        : byChat
+          ? "Мы отправили код в чат «Shalter». Введите его или код восстановления."
+          : "Введите текущий код из аутентификатора или код восстановления."
+    ),
     codeInput,
     errorSlot,
     submitBtn,
+    resendBtn,
     el("button", { class: "modal-cancel", onclick: () => close() }, "Отмена"),
-  ]);
+  ].filter(Boolean));
   overlay.appendChild(dialog);
 
   function close() {
@@ -343,4 +378,5 @@ export function openTwoFactorDisableDialog(onDisabled) {
   }
 
   document.body.appendChild(overlay);
+  if (byChat) sendCode();
 }

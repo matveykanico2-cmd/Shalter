@@ -23,7 +23,7 @@ function MediaButton(className, item, children) {
 }
 
 export function ImageAttachment(a) {
-  const img = el("img", { src: a.thumbUrl || a.url, alt: a.name || "photo", class: "image-attachment", loading: "lazy" });
+  const img = el("img", { loading: "lazy", decoding: "async", src: a.thumbUrl || a.url, alt: a.name || "photo", class: "image-attachment" });
   return MediaButton("image-attachment-btn", { kind: "image", url: a.url, name: a.name, thumbUrl: a.thumbUrl || a.url }, [img]);
 }
 
@@ -36,7 +36,7 @@ export function VideoAttachment(a) {
   const poster = a.posterUrl || (localVideo ? null : a.thumbUrl);
   const frameSrc = localVideo || a.url;
   const cover = poster
-    ? el("img", { src: poster, alt: "", class: "video-attachment-poster" })
+    ? el("img", { loading: "lazy", decoding: "async", src: poster, alt: "", class: "video-attachment-poster" })
     : el("video", { class: "video-attachment-poster", src: frameSrc.includes("#") ? frameSrc : `${frameSrc}#t=0.1`, preload: "metadata", muted: true, playsinline: true });
   const btn = MediaButton(
     "video-attachment-btn",
@@ -172,7 +172,7 @@ export function LinkPreviewCard(p) {
     "button",
     { class: "link-preview-card", onclick: () => openInAppBrowser(p.url, { unsafe: p.unsafe, warning: p.warning }) },
     [
-      p.image ? el("img", { class: "link-preview-image", src: p.image, alt: "" }) : null,
+      p.image ? el("img", { loading: "lazy", decoding: "async", class: "link-preview-image", src: p.image, alt: "" }) : null,
       el("div", { class: "link-preview-body" }, [
         p.warning ? el("p", { class: `link-preview-warning ${p.unsafe ? "danger" : ""}` }, [el("span", { html: iconSvg("Info", 12) }), " ", p.warning]) : null,
         p.siteName ? el("p", { class: "link-preview-site" }, p.siteName) : null,

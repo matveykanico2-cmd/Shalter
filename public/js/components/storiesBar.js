@@ -5,8 +5,10 @@ import { api } from "../api.js";
 import { getState } from "../state.js";
 import { fileToImageUpload } from "../lib/image.js";
 import { uploadFile } from "../lib/upload.js";
-import { openStoryViewer } from "./storyViewer.js";
-import { openStoryEditor } from "./storyEditor.js";
+// Просмотрщик и редактор историй (а за ними профиль, подарки, QR…) грузим по нажатию,
+// чтобы они не утяжеляли запуск приложения.
+const openStoryViewer = (...args) => import("./storyViewer.js").then((m) => m.openStoryViewer(...args));
+const openStoryEditor = (...args) => import("./storyEditor.js").then((m) => m.openStoryEditor(...args));
 import { onWsMessage } from "../lib/wsClient.js";
 
 const MAX_STORY_DIMENSION = 1080;

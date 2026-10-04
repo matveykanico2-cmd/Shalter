@@ -64,7 +64,7 @@ export function Avatar({ name, color, image, video = null, size = 44, online, cl
   }
 
   function imageNode() {
-    const img = el("img", { src: image, alt: name ?? "", class: "avatar-img", style: { width: `${size}px`, height: `${size}px` } });
+    const img = el("img", { loading: "lazy", decoding: "async", src: image, alt: name ?? "", class: "avatar-img", style: { width: `${size}px`, height: `${size}px` } });
     img.addEventListener("error", () => img.replaceWith(fallback()));
     return img;
   }

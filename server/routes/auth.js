@@ -875,8 +875,15 @@ router.post(
       return res.json({ enabled: false });
     }
 
-    const ok = totp.verifyCode(me.totpSecret, code) || (await consumeRecoveryCode(uid, totp.hashRecoveryCode(code)));
-    if (!ok) return res.status(400).json({ error: "Неверный код" });
+    // Проверяем тем же способом, каким вход подтверждается: код из чата или из приложения-аутентификатора
+    // (раньше у способа «код в чате» сверялся несуществующий TOTP-секрет — отключить было нельзя).
+    const ok =
+      (await verifySecondFactor(me, code)) || (code.trim() && (await consumeRecoveryCode(uid, totp.hashRecoveryCode(code.trim()))));
+    if (!ok) {
+      return res.status(400).json({
+        error: me.twoFactorMethod === "chat" ? "Неверный код — введите код из чата или код восстановления" : "Неверный код",
+      });
+    }
 
     await disableTotp(uid);
     try {

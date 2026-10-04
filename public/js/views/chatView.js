@@ -29,7 +29,7 @@ import { cachedUser, fetchUsers, rememberUser } from "../lib/userLookup.js";
 import { takePrefetched } from "../lib/chatPrefetch.js";
 import { navigate } from "../router.js";
 import { placeCall as placeCallController, joinVoiceRoom } from "../lib/callController.js";
-import { onWsMessage } from "../lib/wsClient.js";
+import { isWsOpen, onWsMessage } from "../lib/wsClient.js";
 import { paintWallpaper } from "../lib/wallpapers.js";
 import { openMuteDurationDialog } from "../lib/muteDurations.js";
 import { openWallpaperDialog } from "../components/wallpaperDialog.js";
@@ -1694,24 +1694,43 @@ export async function ChatView(root, chatId) {
     list.scrollTop = wasAtBottom ? list.scrollHeight : prevTop;
   }
 
+  const nodeCache = new Map();
+  let nodeCacheEpoch = null;
   function renderList() {
-    clear(list);
+    // Ленту не пересобираем целиком: узлы пузырей кешируются по сообщению и его окружению,
+    // пересоздаются только изменившиеся, а неизменившиеся остаются в DOM на месте —
+    // так новое сообщение не перестраивает весь чат (и не останавливает играющее голосовое).
+    const epoch = [members, getState().settings, chat, me];
+    if (!nodeCacheEpoch || epoch.some((x, i) => x !== nodeCacheEpoch[i])) nodeCache.clear();
+    nodeCacheEpoch = epoch;
+    const out = [];
+    const used = new Set();
+    const memo = (key, sig, build) => {
+      used.add(key);
+      const hit = nodeCache.get(key);
+      if (hit && hit.sig === sig) return hit.node;
+      const node = build();
+      nodeCache.set(key, { sig, node });
+      return node;
+    };
     missingSenders = new Set();
     if (hasMoreHistory) {
-      list.appendChild(
-        el("div", { class: "history-top" }, [
-          el("button", { class: "history-top-btn", onclick: loadOlder }, loadingHistory ? "Загружаем…" : "Показать более ранние"),
-        ])
+      out.push(
+        memo("history-top", String(loadingHistory), () =>
+          el("div", { class: "history-top" }, [
+            el("button", { class: "history-top-btn", onclick: loadOlder }, loadingHistory ? "Загружаем…" : "Показать более ранние"),
+          ])
+        )
       );
     }
     if (!messages.length) {
-      list.appendChild(el("p", { class: "empty-hint" }, "Сообщений пока нет — напишите первым"));
+      out.push(memo("empty", "", () => el("p", { class: "empty-hint" }, "Сообщений пока нет — напишите первым")));
     }
     messages.forEach((m, i) => {
       const prev = messages[i - 1];
       if (!prev || !sameDay(prev.createdAt, m.createdAt)) {
-        list.appendChild(
-          el(
+        out.push(
+          memo(`day:${m.id}`, dayLabel(m.createdAt), () => el(
             "div",
             { class: "date-divider" },
             el(
@@ -1729,11 +1748,11 @@ export async function ChatView(root, chatId) {
               },
               dayLabel(m.createdAt)
             )
-          )
+          ))
         );
       }
       if (m.id === firstUnreadId) {
-        list.appendChild(el("div", { class: "unread-divider" }, el("span", {}, "Непрочитанные сообщения")));
+        out.push(memo(`unread:${m.id}`, "", () => el("div", { class: "unread-divider" }, el("span", {}, "Непрочитанные сообщения"))));
       }
       const next = messages[i + 1];
       const GROUP_WINDOW_MS = 5 * 60 * 1000;
@@ -1759,8 +1778,33 @@ export async function ChatView(root, chatId) {
             ? { name: chat.title }
             : senderOf(replyToMessage.senderId)
           : null;
-      const bubble = MessageBubble({
-          message: withLocalThumbs(m),
+      const shown = withLocalThumbs(m);
+      const withComments = isChannel && m.type !== "system" && !!chat.linkedDiscussionChatId;
+      const bubbleSig = JSON.stringify([
+        shown,
+        groupStart,
+        groupEnd,
+        showSender,
+        sender?.name,
+        sender?.avatarImage,
+        sender?.avatarColor,
+        replyToMessage?.id,
+        replyToMessage?.text,
+        replyToMessage?.deleted,
+        replyToSender?.name,
+        selecting,
+        selected.has(m.id),
+        isProtected(),
+        canPin,
+        canViewReactionDetails,
+        chat.allowedReactions,
+        chat.memberTitles?.[m.senderId],
+        withComments,
+      ]);
+      const bubble = memo(`msg:${m.id}`, bubbleSig, () => buildBubble());
+      function buildBubble() {
+      const built = MessageBubble({
+          message: shown,
           me,
           sender,
           showSender,
@@ -1815,12 +1859,7 @@ export async function ChatView(root, chatId) {
             onOpenThread: isGroup ? (msg) => openThreadPanel({ chat, rootMessage: msg, members, me, onReplySent: refreshMessages }) : undefined,
           },
         });
-      list.appendChild(bubble);
-      if (isChannel && m.type !== "system" && m.senderId !== me.id && viewObserver && !countedViews.has(m.id)) {
-        bubble.dataset.postId = m.id;
-        viewObserver.observe(bubble);
-      }
-      if (isChannel && m.type !== "system" && chat.linkedDiscussionChatId) {
+      if (withComments) {
         // Как в tweb: полоса комментариев — нижняя часть самого пузыря поста.
         const link = el(
           "button",
@@ -1833,23 +1872,52 @@ export async function ChatView(root, chatId) {
           },
           [el("span", { class: "channel-comments-icon", html: iconSvg("MessageSquare", 20) }), commentsLabel(m.commentCount ?? 0).replace(/^💬\s*/u, "")]
         );
-        const bubble = list.lastElementChild?.querySelector?.(".bubble:not(.bubble-sticker)");
-        if (bubble) {
-          bubble.classList.add("has-comments-footer");
-          bubble.appendChild(link);
-        } else list.appendChild(link);
+        const inner = built.querySelector?.(".bubble:not(.bubble-sticker)");
+        if (inner) {
+          inner.classList.add("has-comments-footer");
+          inner.appendChild(link);
+        } else built.appendChild(link);
+      }
+      return built;
+      }
+      out.push(bubble);
+      if (isChannel && m.type !== "system" && m.senderId !== me.id && viewObserver && !countedViews.has(m.id)) {
+        bubble.dataset.postId = m.id;
+        viewObserver.observe(bubble);
       }
       if (isGroup && m.type !== "system" && m.commentCount && !m.threadRootId) {
-        list.appendChild(
-          el(
+        out.push(
+          memo(`thread:${m.id}`, String(m.commentCount), () => el(
             "button",
             { class: "post-comments-link", onclick: () => openThreadPanel({ chat, rootMessage: m, members, me, onReplySent: refreshMessages }) },
             `💬 ${m.commentCount} ответ${m.commentCount === 1 ? "" : m.commentCount < 5 ? "а" : "ов"}`
-          )
+          ))
         );
       }
     });
-    if (chatAd && messages.length) list.appendChild(SponsoredMessage(chatAd));
+    if (chatAd && messages.length) out.push(memo("ad", JSON.stringify(chatAd), () => SponsoredMessage(chatAd)));
+    // Сводим DOM к нужному порядку: узлы на своих местах не трогаем.
+    const keep = new Set(out);
+    let cursor = list.firstChild;
+    for (const node of out) {
+      // Узлы, которых больше нет в ленте, убираем сразу — иначе всё после них переставлялось бы.
+      while (cursor && cursor !== node && !keep.has(cursor)) {
+        const nextNode = cursor.nextSibling;
+        cursor.remove();
+        cursor = nextNode;
+      }
+      if (node === cursor) {
+        cursor = cursor.nextSibling;
+        continue;
+      }
+      list.insertBefore(node, cursor);
+    }
+    while (cursor) {
+      const nextNode = cursor.nextSibling;
+      cursor.remove();
+      cursor = nextNode;
+    }
+    for (const key of nodeCache.keys()) if (!used.has(key)) nodeCache.delete(key);
     renderPinnedBar();
     loadMissingSenders();
   }
@@ -2067,11 +2135,28 @@ export async function ChatView(root, chatId) {
   // Диалог открывается на последнем сообщении; плашка «Непрочитанные»
   // остаётся в ленте отметкой, докуда было прочитано.
 
-  const messagesIv = setInterval(refreshMessages, 15000);
+  // Новые сообщения приходят по WebSocket; опрос — подстраховка: раз в 15 с без сокета,
+  // раз в минуту с ним, и не в фоне.
+  let lastMessagesPoll = Date.now();
+  const messagesIv = setInterval(() => {
+    if (document.hidden) return;
+    if (Date.now() - lastMessagesPoll < (isWsOpen() ? 60000 : 15000)) return;
+    lastMessagesPoll = Date.now();
+    refreshMessages();
+  }, 5000);
+  const catchUp = () => {
+    if (document.hidden) return;
+    lastMessagesPoll = Date.now();
+    scheduleRefresh(0);
+  };
+  document.addEventListener("visibilitychange", catchUp);
+  const unsubReconnected = onWsMessage("ws:reconnected", catchUp);
   const lastSeenIv = setInterval(() => {
     if (isDm && other && !other.online && header.isConnected) renderHeader();
   }, 60000);
   const typingIv = setInterval(async () => {
+    // «Печатает…» приходит по WebSocket — опрашиваем, только когда он отвалился.
+    if (document.hidden || isWsOpen()) return;
     const r = await api.getTyping(chat.id);
     if (r.typingUserId === typingUserId && (r.typingAction ?? null) === typingAction) return;
     typingUserId = r.typingUserId;
@@ -2210,6 +2295,8 @@ export async function ChatView(root, chatId) {
     document.body.classList.remove("protected-chat-open");
     document.removeEventListener("keydown", onChatKeydown, true);
     clearInterval(messagesIv);
+    document.removeEventListener("visibilitychange", catchUp);
+    unsubReconnected();
     clearInterval(lastSeenIv);
     clearInterval(typingIv);
     clearTimeout(typingClearTimer);

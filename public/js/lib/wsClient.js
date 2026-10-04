@@ -2,12 +2,21 @@ const handlers = new Map();
 let socket = null;
 let reconnectTimer = null;
 let reconnectDelay = 1000;
+let everOpened = false;
+
+function emit(msg) {
+  const set = handlers.get(msg.type);
+  if (set) set.forEach((fn) => fn(msg));
+}
 
 function connect() {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   socket = new WebSocket(`${proto}//${window.location.host}/ws`);
   socket.addEventListener("open", () => {
     reconnectDelay = 1000;
+    // Пока сокета не было, события могли потеряться — экраны догоняют пропущенное.
+    if (everOpened) emit({ type: "ws:reconnected" });
+    everOpened = true;
   });
   socket.addEventListener("message", (ev) => {
     let msg;
@@ -16,8 +25,7 @@ function connect() {
     } catch {
       return;
     }
-    const set = handlers.get(msg.type);
-    if (set) set.forEach((fn) => fn(msg));
+    emit(msg);
   });
   socket.addEventListener("close", scheduleReconnect);
   socket.addEventListener("error", () => socket.close());

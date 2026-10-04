@@ -2869,7 +2869,7 @@ async function renderPrivacy(root) {
     openTwoFactorDisableDialog(() => {
       twoFactor = { enabled: false, recoveryCodesLeft: 0 };
       render();
-    });
+    }, twoFactor.method);
   }
 
   function render() {

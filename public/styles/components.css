@@ -22180,3 +22180,13 @@ button img.emoji {
   opacity: 0.3;
   pointer-events: none;
 }
+.sg-balance {
+  flex-shrink: 0;
+  max-width: 45%;
+}
+.sg-balance-value {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

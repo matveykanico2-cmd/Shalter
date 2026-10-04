@@ -26,6 +26,13 @@ const PRICE_CHIPS = [10, 20, 30, 50];
 const NOTE_MAX = 128;
 
 const fmt = (n) => Number(n ?? 0).toLocaleString("ru-RU");
+// Баланс в шапке — коротко, как в Telegram: «12 345», «1,2 млн», «5 млрд»; огромное — «999+ трлн».
+function fmtShort(n) {
+  const v = Number(n ?? 0);
+  if (!Number.isFinite(v) || v >= 1e15) return "999+ трлн";
+  if (v < 100000) return fmt(v);
+  return new Intl.NumberFormat("ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(v);
+}
 const firstName = (name) => String(name ?? "").trim().split(/\s+/)[0] || "получателю";
 
 // gift — подарок, выбранный заранее (карточка подарка в профиле или в чате → «Отправить такой же»):
@@ -102,8 +109,8 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
   function balancePill() {
     return el(
       "button",
-      { type: "button", class: "sg-balance", title: "Купить звёзды", onclick: () => openStarsDialog(load) },
-      [el("span", { class: "sg-balance-label" }, "Баланс"), el("span", { class: "sg-balance-value" }, `⭐ ${fmt(balance)}`)]
+      { type: "button", class: "sg-balance", title: `Баланс: ${fmt(balance)} ⭐ — купить звёзды`, onclick: () => openStarsDialog(load) },
+      [el("span", { class: "sg-balance-label" }, "Баланс"), el("span", { class: "sg-balance-value" }, `⭐ ${fmtShort(balance)}`)]
     );
   }
 
@@ -188,8 +195,8 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
         "p",
         { class: "sg-subtitle" },
         target
-          ? `Подарите ${target.name} подарок — он появится у него в профиле и в чате с вами.`
-          : "Выберите получателя и подарок — он появится в профиле и в чате."
+          ? `${target.name} получит подарок в профиль, а в вашем чате появится сообщение о нём.`
+          : "Выберите, кому подарить, — подарок появится в профиле получателя и в чате."
       ),
       el("button", { type: "button", class: "sg-recipient-chip", onclick: () => pickRecipient() }, target ? `Кому: ${target.name} · изменить` : "Выбрать получателя"),
     ]);
