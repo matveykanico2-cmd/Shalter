@@ -2127,12 +2127,16 @@ export async function ChatView(root, chatId) {
   mainCol.style.setProperty("--composer-h", `${composerSlot.offsetHeight}px`);
   list.scrollTop = list.scrollHeight;
   pinToBottomWhileOpening();
+  // Из кэша рисуем мгновенно, но сообщения обновляем сразу: иначе чат, открытый
+  // повторно (например, сразу после отправки подарка), остаётся со старой лентой
+  // до следующего опроса — до минуты, если сокет открыт.
+  const cacheRefresh = openedFromCache ? refreshMessages() : null;
   const focusMessageId = new URLSearchParams(window.location.search).get("msg");
   if (focusMessageId) {
     window.history.replaceState(null, "", window.location.pathname);
     awaitingUnreadMark = false;
     (async () => {
-      if (openedFromCache) await refreshMessages();
+      if (cacheRefresh) await cacheRefresh;
       await jumpTo(focusMessageId);
     })();
   }

@@ -4078,6 +4078,23 @@ pre.mono,
 .gift-card-row:last-child {
   border-bottom: none;
 }
+/* Клик по фону/узору открывает отправку с этим фоном — как handleAttributeClick
+   в tweb (starGiftInfo.tsx). */
+.gift-card-row.gift-card-attr {
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+}
+.gift-card-row.gift-card-attr:hover,
+.gift-card-row.gift-card-attr:focus-visible {
+  background: color-mix(in srgb, var(--color-surface-alt) 70%, transparent);
+  outline: none;
+}
+.gift-card-row.gift-card-attr .gift-card-row-value::after {
+  content: " →";
+  color: var(--color-muted);
+  font-weight: 400;
+}
 .gift-card-row-label {
   color: var(--color-muted);
 }
@@ -7639,6 +7656,16 @@ button.profile-ad-banner {
 .gift-media-art {
   object-fit: contain;
   display: block;
+}
+/* подарки-эмодзи: картинка из tweb вместо голого символа */
+.gift-emoji-art {
+  object-fit: contain;
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.22));
+  user-select: none;
+  -webkit-user-drag: none;
 }
 .gift-create-gif-picker {
   display: flex;
@@ -15891,6 +15918,7 @@ video.story-reply-thumb { object-fit: cover; }
 }
 
 /* время с галочками в конце последней строки (tweb .time / .time-inner) */
+.message-meta-anchor,
 .message-text:has(.message-meta-inline) {
   position: relative;
 }
@@ -15907,8 +15935,8 @@ video.story-reply-thumb { object-fit: cover; }
 }
 .message-meta-inline .message-meta-inner {
   position: absolute;
-  right: -2px;
-  bottom: -1px;
+  right: 0;
+  bottom: 0;
   display: flex;
   align-items: center;
   gap: 3px;
@@ -15917,6 +15945,9 @@ video.story-reply-thumb { object-fit: cover; }
   white-space: nowrap;
   visibility: visible;
   pointer-events: auto;
+  /* Подпись лежит поверх текста последней строки, как в tweb, но не должна
+     вылезать за пузырь и перекрывать соседние сообщения. */
+  max-width: 100%;
 }
 .message-meta {
   font-size: 12px;
@@ -21143,7 +21174,7 @@ button img.emoji {
   font-size: 10px;
   font-weight: 600;
 }
-.tw-gift > .entrance-message-meta {
+.tw-gift-box > .tw-gift-meta {
   align-self: center;
 }
 
@@ -21173,11 +21204,13 @@ button img.emoji {
 .tw-gift-box {
   padding-bottom: 26px;
 }
+/* Время с галочками — строкой под карточкой подарка. Раньше блок висел
+   position:absolute поверх подарка и налезал на него; читается только у
+   отправленных сообщений, поэтому замечалось именно после отправки. */
 .tw-gift-meta {
-  position: absolute;
-  right: 10px;
-  bottom: 7px;
-  z-index: 2;
+  position: relative;
+  margin-top: 6px;
+  align-self: center;
 }
 .tw-gift-meta .entrance-message-meta {
   margin: 0;

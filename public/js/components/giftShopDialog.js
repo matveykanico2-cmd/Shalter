@@ -38,7 +38,7 @@ const firstName = (name) => String(name ?? "").trim().split(/\s+/)[0] || "пол
 
 // gift — подарок, выбранный заранее (карточка подарка в профиле или в чате → «Отправить такой же»):
 // как в tweb, окно сразу открывается на странице отправки этого подарка.
-export function openGiftShopDialog({ recipient = null, onSent, gift: preset = null } = {}) {
+export function openGiftShopDialog({ recipient = null, onSent, gift: preset = null, backdropId: presetBackdrop = null } = {}) {
   const me = getState().user;
   let gifts = [];
   let myGifts = [];
@@ -51,7 +51,7 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
   let chosen = null; // { gift, mine }
   let note = "";
   let anonymous = false;
-  let backdropId = ""; // выбранный фон подарка, "" — без фона
+  let backdropId = presetBackdrop ?? ""; // выбранный фон подарка, "" — без фона
   let sending = false;
   let listScrollTop = 0;
 

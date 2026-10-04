@@ -20,6 +20,31 @@ export function openGiftCardDialog(gift, { ownerName, onSend, onRemove, onToggle
   const backdrop = giftBackdrop(gift.background ?? traits.backdrop);
   const symbol = backdrop.symbol;
 
+  // В tweb нажатие на атрибут подарка (фон, узор, модель) сразу открывает
+  // отправку этого же подарка с выбранным атрибутом — handleAttributeClick
+  // в starGiftInfo.tsx. Здесь строка кликабельна, если есть куда отправлять.
+  const sendWithBackdrop = () => {
+    if (!onSend) return;
+    close();
+    onSend(backdrop?.id ?? null);
+  };
+  const attrRow = (label, value, rarity) => {
+    const node = row(label, value, rarity);
+    if (!onSend) return node;
+    node.classList.add("gift-card-attr");
+    node.setAttribute("role", "button");
+    node.setAttribute("tabindex", "0");
+    node.title = `Отправить подарок с этим фоном`;
+    node.addEventListener("click", sendWithBackdrop);
+    node.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        sendWithBackdrop();
+      }
+    });
+    return node;
+  };
+
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const dialog = el("div", { class: "modal-dialog gift-card-dialog" }, [
     el("div", { class: "gift-card-hero", style: `--gift-from: ${backdrop.center}; --gift-to: ${backdrop.edge}` }, [
@@ -42,8 +67,8 @@ export function openGiftCardDialog(gift, { ownerName, onSend, onRemove, onToggle
       gift.fromName ? row("От кого", gift.fromName) : null,
       gift.note ? row("Сообщение", gift.note) : null,
       row("Модель", traits.model.name, traits.model.rarity),
-      row("Фон", backdrop.name || "Без фона", backdrop.rarity),
-      row("Узор", symbol.name, symbol.rarity),
+      attrRow("Фон", backdrop.name || "Без фона", backdrop.rarity),
+      attrRow("Узор", symbol.name, symbol.rarity),
       gift.serial != null && gift.supply ? row("Количество", `${gift.serial}/${gift.supply} выпущено`) : null,
       gift.priceStars ? row("Цена", `⭐ ${Number(gift.priceStars).toLocaleString("ru-RU")}`) : null,
     ].filter(Boolean)),

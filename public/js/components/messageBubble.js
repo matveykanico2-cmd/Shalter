@@ -180,7 +180,10 @@ function GiftMessage(message, mine, isChannel) {
     import("./giftCardDialog.js").then(({ openGiftCardDialog }) =>
       openGiftCardDialog(gift, {
         ownerName: recipient?.name ?? (mine ? null : getState().user?.name),
-        onSend: () => import("./giftShopDialog.js").then((m) => m.openGiftShopDialog({ recipient: mine && recipient ? { id: recipient.id, name: recipient.name } : null, gift })),
+        onSend: (backdropId) =>
+          import("./giftShopDialog.js").then((m) =>
+            m.openGiftShopDialog({ recipient: mine && recipient ? { id: recipient.id, name: recipient.name } : null, gift, backdropId })
+          ),
       })
     );
   };
@@ -1011,7 +1014,12 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       lastLine = lastLine.lastElementChild;
     }
     const plainLine = lastLine.className === "block" && !lastLine.querySelector(".block, .quote-line, pre, table");
-    (plainLine ? lastLine : lastInner).appendChild(meta);
+    // Якорь для position:absolute у видимого времени с галочками — последняя
+    // строка текста. Без него подпись позиционируется от внешнего контейнера
+    // и уезжает на панель сообщений поверх пузыря.
+    const anchor = plainLine ? lastLine : lastInner;
+    anchor.classList.add("message-meta-anchor");
+    anchor.appendChild(meta);
   }
   else if (!isCallLog) bubbleInner.push(meta);
 

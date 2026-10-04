@@ -27,7 +27,7 @@ const COLLECTION_MODELS = { tg_plush_pepe: TG_MODELS.plushpepe };
 import { renderScene } from "./animScenes.js";
 import { renderCustomScene } from "./customScene.js";
 import { hash01 } from "./giftBackground.js";
-import { lottieNameFor, renderLottie } from "./lottie.js";
+import { lottieNameFor, renderEmojiArt, renderLottie } from "./lottie.js";
 import { TG_BACKDROPS, TG_SYMBOLS, TG_MODELS } from "./tgGiftData.js";
 
 function pick(list, roll) {
@@ -66,7 +66,10 @@ export function renderGiftArt(gift, { size = 84, replay = true } = {}) {
     return img;
   }
   const lottie = lottieNameFor(gift);
+  const asEmoji = () => renderScene(gift?.emoji, { size, replay });
+  // Подарки-эмодзи — статичная картинка из tweb, lottie для них нет.
+  if (lottie?.startsWith("emoji/")) return renderEmojiArt(lottie, { size, replay, fallback: asEmoji });
   // У эмодзи Noto кадр покоя — из середины (края бывают пустыми), у анимаций tweb — последний.
-  if (lottie) return renderLottie(lottie, { size, replay, rest: lottie.startsWith("emoji/") ? "mid" : "last", fallback: () => renderScene(gift?.emoji, { size, replay }) });
-  return renderScene(gift?.emoji, { size, replay });
+  if (lottie) return renderLottie(lottie, { size, replay, rest: "last", fallback: asEmoji });
+  return asEmoji();
 }

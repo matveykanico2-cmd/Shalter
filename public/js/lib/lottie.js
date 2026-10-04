@@ -190,8 +190,30 @@ function observeView(box, play) {
   viewObserver.observe(box);
 }
 
-export function renderLottie(name, { size = 84, replay = true, loop = false, fallback = null, rest = "last", playOnView = false } = {}) {
+// Подарки-эмодзи (rose, heart, nt_robot…) в tweb — это PNG-картинки из
+// assets/img/emoji, а не lottie-файлы. Раньше таких файлов не было, и подарок
+// показывался голым символом эмодзи. Рисуем картинку, а при её отсутствии — эмодзи.
+export function renderEmojiArt(name, { size = 84, replay = true, fallback = null } = {}) {
+  const cp = String(name ?? "").replace(/^emoji\//, "");
+  if (!cp) return fallback ? fallback() : null;
   const box = document.createElement("span");
+  box.className = "lottie-art gift-emoji-art-box";
+  box.style.width = `${size}px`;
+  box.style.height = `${size}px`;
+  const img = document.createElement("img");
+  img.className = "gift-emoji-art";
+  img.alt = "";
+  img.decoding = "async";
+  img.draggable = false;
+  img.width = size;
+  img.height = size;
+  img.src = `/gift-emoji/${cp}.png`;
+  img.addEventListener("error", () => box.replaceWith(fallback ? fallback() : document.createComment("")), { once: true });
+  box.appendChild(img);
+  return box;
+}
+
+export function renderLottie(name, { size = 84, replay = true, loop = false, fallback = null, rest = "last", playOnView = false } = {}) {  const box = document.createElement("span");
   box.className = "lottie-art";
   box.style.width = `${size}px`;
   box.style.height = `${size}px`;
