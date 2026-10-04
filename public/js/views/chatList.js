@@ -57,7 +57,7 @@ async function openNewChatMenu(e) {
             const { chat } = await api.startDm(user.id, user.name, user.avatarColor);
             await api.listChats().then((r) => setState({ chats: r.chats }));
             navigate(`/chat/${chat.id}`);
-          }, "Новый чат");
+          }, "Новый чат", { exclude: [getState().user?.id] });
         },
       },
       {

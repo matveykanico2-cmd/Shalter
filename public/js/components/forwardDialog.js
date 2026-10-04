@@ -3,12 +3,13 @@ import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { getState } from "../state.js";
 
-export function openForwardDialog(onPick, { count = 1, allowHideAuthor = false } = {}) {
+export function openForwardDialog(onPick, { count = 1, allowHideAuthor = false, excludeChats = [] } = {}) {
   const { chats } = getState();
+  const skip = new Set(excludeChats.filter(Boolean));
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const titleOf = (c) => (c.isSaved ? "Избранное" : (c.otherUser?.name ?? c.title ?? ""));
   const candidates = chats
-    .filter((c) => (!c.archived || c.isSaved) && !c.secret)
+    .filter((c) => (!c.archived || c.isSaved) && !c.secret && !skip.has(c.id))
     .sort((a, b) => (b.isSaved ? 1 : 0) - (a.isSaved ? 1 : 0));
 
   const list = el("div", { class: "forward-list" });

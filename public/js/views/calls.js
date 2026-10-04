@@ -160,7 +160,7 @@ export async function CallsView(root) {
             {
               class: "btn-accent calls-start-btn",
               onclick: () =>
-                openContactPickerDialog((user) => callUser(user, "audio"), "Кому позвонить"),
+                openContactPickerDialog((user) => callUser(user, "audio"), "Кому позвонить", { exclude: [getState().user?.id] }),
             },
             [el("span", { html: iconSvg("Phone", 17) }), " Позвонить"]
           ),

@@ -436,7 +436,7 @@ export async function CallScreenView(root, callId) {
         openContactPickerDialog((user) => {
           if (inCall(user.id)) return;
           addParticipant(user.id).catch((err) => alert(err.message || "Не удалось добавить участника"));
-        }, "Кого добавить в звонок"),
+        }, "Кого добавить в звонок", { exclude: [getState().user?.id] }),
     };
 
     openDropdownMenu({ x: e.clientX, y: e.clientY }, [

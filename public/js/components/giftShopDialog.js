@@ -121,12 +121,15 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
   }
 
   function pickRecipient(then) {
-    openContactPickerDialog((picked) => {
-      if (picked?.id === me?.id) return showToast("Нельзя подарить подарок самому себе");
-      target = picked;
-      then?.();
-      render();
-    }, "Кому подарить");
+    openContactPickerDialog(
+      (picked) => {
+        target = picked;
+        then?.();
+        render();
+      },
+      "Кому подарить",
+      { exclude: [me?.id] }
+    );
   }
 
   // ---------- страница 1: выбор подарка ----------

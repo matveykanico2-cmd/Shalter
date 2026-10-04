@@ -772,6 +772,10 @@ export function Composer({
       attachMenuEl = null;
     }
     function attachActions() {
+      // В личном чате нельзя отправить собеседнику его же собственный контакт
+      // (tweb: контакт, который уже открыт в диалоге, не предлагается).
+      const chat = getState().chats?.find((c) => c.id === chatId);
+      const dmPeerId = chat?.type === "dm" ? chat.otherUser?.id ?? null : null;
       return [
         { icon: "Image", label: "Фото или видео", run: () => mediaFileInput.click() },
         { icon: "Video", label: "Снять фото", run: () => cameraPhotoInput.click() },
@@ -864,7 +868,7 @@ export function Composer({
             openContactPickerDialog(
               (user) => onSend("", [{ kind: "contact", meta: { userId: user.id, name: user.name, phone: user.phone } }]),
               "Отправить контакт",
-              { extra: members ?? [] }
+              { extra: members ?? [], exclude: [dmPeerId] }
             ),
         },
         ...(isRecordingSupported()

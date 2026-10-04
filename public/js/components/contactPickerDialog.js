@@ -1,12 +1,11 @@
 import { el } from "../lib/dom.js";
 import { Avatar } from "./avatar.js";
 import { api } from "../api.js";
-import { getState } from "../state.js";
 
+// exclude — кого нельзя выбрать в этом сценарии: себя (подарок, звонок, новый чат)
+// или собеседника, когда речь о контакте внутри личного чата.
 export async function openContactPickerDialog(onPick, title = "Отправить контакт", { extra = [], exclude = [] } = {}) {
-  // Себя выбрать нельзя — ни подарок себе, ни звонок себе, ни «отправить контакт».
-  const meId = getState().user?.id;
-  const skip = new Set([meId, ...exclude].filter(Boolean));
+  const skip = new Set(exclude.filter(Boolean));
   const { contacts } = await api.listContacts();
   const seen = new Set(contacts.map((c) => c.user.id));
   const people = [

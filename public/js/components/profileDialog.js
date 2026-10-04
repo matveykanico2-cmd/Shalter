@@ -407,16 +407,33 @@ export async function openProfileDialog(userId) {
   const profileLink = () => `${location.origin}/u/${user.username}`;
 
   function shareContact() {
-    openForwardDialog(async (chatId) => {
-      try {
-        await api.sendMessage(chatId, "", {
-          attachments: [{ kind: "contact", meta: { userId: user.id, name: user.name, phone: user.phone } }],
-        });
-        showToast("Контакт отправлен");
-      } catch (err) {
-        alert(err.message || "Не удалось отправить контакт");
-      }
-    });
+    // Нет смысла слать человеку его же контакт в его же личный чат.
+    const selfDm = (getState().chats ?? [])
+      .filter((c) => c.type === "dm" && !c.secret && c.otherUser?.id === user.id)
+      .map((c) => c.id);
+    if (!chatsForForward(selfDm)) {
+      return showToast(`Некому отправить контакт — вы не переписываетесь с ${user.name}`);
+    }
+    openForwardDialog(
+      async (chatId) => {
+        try {
+          await api.sendMessage(chatId, "", {
+            attachments: [{ kind: "contact", meta: { userId: user.id, name: user.name, phone: user.phone } }],
+          });
+          showToast("Контакт отправлен");
+        } catch (err) {
+          alert(err.message || "Не удалось отправить контакт");
+        }
+      },
+      { excludeChats: selfDm }
+    );
+  }
+
+  // Список чатов, куда вообще можно отправить контакт — с учётом исключений.
+  function chatsForForward(excludeChats) {
+    return (getState().chats ?? []).some(
+      (c) => (!c.archived || c.isSaved) && !c.secret && !excludeChats.includes(c.id)
+    );
   }
 
   async function loadCommonGroups() {
