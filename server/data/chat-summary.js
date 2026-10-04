@@ -1,6 +1,6 @@
 const db = require("../db");
 const { rowToMessage, readWatermarksFor } = require("./messages");
-const { getUser } = require("./users");
+const { listUsersByIds } = require("./users");
 const { publicUserFor } = require("../lib/privacyRules");
 const { getSettings, updateSettings, mutedStateFor, isQuietNow } = require("./settings");
 
@@ -41,10 +41,12 @@ async function attachSummaries(chats, userId) {
     }
   }
   const peers = new Map();
-  for (const id of peerIds) {
-    const user = await getUser(id);
-    if (user) peers.set(id, await publicUserFor(user, userId));
-  }
+  const peerUsers = await listUsersByIds([...peerIds]);
+  await Promise.all(
+    peerUsers.map(async (user) => {
+      peers.set(user.id, await publicUserFor(user, userId));
+    })
+  );
 
   const pinnedOrder = settings.pinnedOrder ?? [];
   const unarchive = [];

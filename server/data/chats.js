@@ -2,9 +2,11 @@ const db = require("../db");
 const { createHash } = require("crypto");
 const { newSecretChatKey } = require("../lib/textCrypto");
 
-function rowToChat(row) {
+function rowToChat(row, members) {
   if (!row) return undefined;
-  const members = db.prepare("SELECT userId, isAdmin, isModerator, isOwner FROM chat_members WHERE chatId = ?").all(row.id);
+  if (!members) {
+    members = db.prepare("SELECT userId, isAdmin, isModerator, isOwner FROM chat_members WHERE chatId = ?").all(row.id);
+  }
   return {
     id: row.id,
     type: row.type,
@@ -52,8 +54,30 @@ function rowToChat(row) {
   };
 }
 
+// Один запрос на все чаты вместо запроса на каждый: список чатов грузится
+// заметно быстрее, когда у пользователя их много.
+const MEMBERS_CHUNK = 500;
+function membersByChat(ids) {
+  const byChat = new Map();
+  for (let i = 0; i < ids.length; i += MEMBERS_CHUNK) {
+    const chunk = ids.slice(i, i + MEMBERS_CHUNK);
+    const placeholders = chunk.map(() => "?").join(",");
+    const rows = db
+      .prepare(`SELECT chatId, userId, isAdmin, isModerator, isOwner FROM chat_members WHERE chatId IN (${placeholders})`)
+      .all(...chunk);
+    for (const m of rows) {
+      let list = byChat.get(m.chatId);
+      if (!list) byChat.set(m.chatId, (list = []));
+      list.push(m);
+    }
+  }
+  return byChat;
+}
+
 async function listChats() {
-  return db.prepare("SELECT * FROM chats").all().map(rowToChat);
+  const rows = db.prepare("SELECT * FROM chats").all();
+  const byChat = membersByChat(rows.map((r) => r.id));
+  return rows.map((r) => rowToChat(r, byChat.get(r.id) ?? []));
 }
 
 async function findDmBetween(userIdA, userIdB) {
@@ -85,7 +109,8 @@ async function listChatsForUser(userId, { deviceId } = {}) {
   const rows = db
     .prepare("SELECT c.* FROM chats c JOIN chat_members m ON m.chatId = c.id WHERE m.userId = ?")
     .all(userId);
-  const chats = rows.map(rowToChat);
+  const byChat = membersByChat(rows.map((r) => r.id));
+  const chats = rows.map((r) => rowToChat(r, byChat.get(r.id) ?? []));
   if (deviceId === undefined) return chats;
   const hash = deviceHash(deviceId);
   return chats.filter((c) => {
@@ -121,10 +146,11 @@ async function searchPublicChannels(query) {
   const rows = db
     .prepare("SELECT * FROM chats WHERE type IN ('channel', 'group') AND isPublic = 1 ORDER BY title ASC")
     .all();
-  return rows
+  const filtered = rows
     .filter((r) => !q || (r.title ?? "").toLowerCase().includes(q) || (r.username ?? "").toLowerCase().includes(handle))
-    .slice(0, 50)
-    .map(rowToChat);
+    .slice(0, 50);
+  const byChat = membersByChat(filtered.map((r) => r.id));
+  return filtered.map((r) => rowToChat(r, byChat.get(r.id) ?? []));
 }
 
 // Похожие каналы, как в Telegram: публичные каналы, на которые чаще всего

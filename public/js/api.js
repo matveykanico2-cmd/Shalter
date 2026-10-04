@@ -322,7 +322,14 @@ export const api = {
 
   hugoCheck: (text) => req("/api/hugo/check", { method: "POST", body: JSON.stringify({ text }) }),
 
-  getSettings: () => req("/api/settings"),
+  getSettings: () => {
+    const early = window.__boot?.settings;
+    if (early) {
+      window.__boot.settings = null;
+      return early.then((r) => r ?? req("/api/settings"));
+    }
+    return req("/api/settings");
+  },
   patchSettings: (patch) => req("/api/settings", { method: "PATCH", body: JSON.stringify(patch) }),
   getStorageUsage: () => req("/api/settings/storage"),
 

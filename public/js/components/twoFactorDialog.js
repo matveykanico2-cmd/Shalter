@@ -337,6 +337,19 @@ export function openTwoFactorDisableDialog(onDisabled, method = "totp") {
   const resendBtn = byChat ? el("button", { class: "modal-cancel", onclick: () => sendCode() }, "Отправить код ещё раз") : null;
   const submitBtn = el("button", { class: "btn-accent danger" }, "Отключить");
 
+  // Как и при включении: код из чата Shalter подставляется сам и сразу
+  // отправляется — не нужно вручную копировать его из чата.
+  const stopCodeWatch = byChat
+    ? onWsMessage("message:new", ({ message }) => {
+        if (message?.senderId !== "bot_shalter") return;
+        const found = String(message.text ?? "").match(/Код подтверждения:\s*(\d{6})/);
+        if (!found) return;
+        code = found[1];
+        codeInput.value = code;
+        if (!busy) submitBtn.click();
+      })
+    : null;
+
   submitBtn.addEventListener("click", async () => {
     if (busy) return;
     busy = true;
@@ -374,6 +387,7 @@ export function openTwoFactorDisableDialog(onDisabled, method = "totp") {
   overlay.appendChild(dialog);
 
   function close() {
+    stopCodeWatch?.();
     overlay.remove();
   }
 

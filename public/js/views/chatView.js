@@ -1079,6 +1079,9 @@ export async function ChatView(root, chatId) {
     } catch {
     }
     if (!isDm || isSaved || !other || other.isBot || other.isServiceBot || other.inContacts || dismissed) return;
+    // На случай устаревшего inContacts в кэше чата: если он уже в контактах по
+    // общему состоянию — панель «Добавить в контакты» не показываем.
+    if (getState().contactIds?.includes(other.id)) return;
     contactBarSlot.appendChild(
       el("div", { class: "contact-bar" }, [
         el("button", {
@@ -1090,6 +1093,7 @@ export async function ChatView(root, chatId) {
               const sharePhone = (await askConfirm(`Поделиться своим номером телефона с ${other.name}?`, { okLabel: "Поделиться", cancelLabel: "Не делиться" }));
               await api.addContact(other.id, name || null, { sharePhone });
               other = { ...other, inContacts: true, ...(name && name !== other.name ? { profileName: other.profileName ?? other.name, name } : {}) };
+              setState({ contactIds: [...new Set([...(getState().contactIds ?? []), other.id])] });
               renderContactBar();
               renderHeader();
             } catch (err) {

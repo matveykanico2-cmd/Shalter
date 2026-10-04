@@ -64,6 +64,7 @@
     window.__boot = {
       session: fetch("/api/auth/session", { credentials: "include" }).then((r) => r.json()).catch(() => null),
       data: fetch("/api/bootstrap", { credentials: "include" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      settings: fetch("/api/settings", { credentials: "include" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
     };
   }
 </script>

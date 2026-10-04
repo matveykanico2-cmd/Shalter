@@ -350,6 +350,10 @@ export async function openProfileDialog(userId) {
       if (inContacts) await api.removeContact(userId);
       else await api.addContact(userId, null, { sharePhone: !user.isBot && (await askConfirm(`Поделиться своим номером телефона с ${user.name}?`, { okLabel: "Поделиться", cancelLabel: "Не делиться" })) });
       inContacts = !inContacts;
+      const contactIds = new Set(getState().contactIds ?? []);
+      if (inContacts) contactIds.add(userId);
+      else contactIds.delete(userId);
+      setState({ contactIds: [...contactIds] });
       render();
     } catch (err) {
       alert(err.message || "Не удалось изменить контакт");

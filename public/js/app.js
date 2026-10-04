@@ -85,12 +85,6 @@ async function boot() {
   }
   removeSplash();
   if (hasPasscode()) await showPasscodeLockScreen();
-  try {
-    const { settings: s } = await api.getSettings();
-    setState({ settings: s });
-    if (s?.requirePasswordOnLaunch) await showPasswordLockScreen(root);
-  } catch {
-  }
   const RELOCK_THRESHOLD_MS = 5000;
   let hiddenAt = 0;
   document.addEventListener("visibilitychange", () => {
@@ -135,6 +129,7 @@ async function boot() {
     forgetUser(e.detail?.userId);
     fetchUsers([e.detail?.userId]).catch(() => {});
     api.listChats().then((r) => setState({ chats: r.chats })).catch(() => {});
+    api.getContactIds().then((r) => setState({ contactIds: r.ids })).catch(() => {});
   });
   mountIncomingCallWatcher();
   initKeyboardShortcuts();
@@ -143,6 +138,7 @@ async function boot() {
     .then((data) => (data ? { settings: data.settings } : api.getSettings()))
     .then(({ settings }) => {
       setState({ settings });
+      if (settings?.requirePasswordOnLaunch) showPasswordLockScreen(root);
       initUiTranslation(settings.uiLanguage);
       if (settings.theme && settings.theme !== "system") document.documentElement.setAttribute("data-theme", settings.theme);
       applyAccentSetting(settings.accent);
