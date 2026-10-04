@@ -1187,6 +1187,7 @@ CREATE TABLE IF NOT EXISTS communities (
   title TEXT NOT NULL,
   description TEXT,
   avatarColor TEXT,
+  avatarImage TEXT,
   createdAt TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS community_chats (
@@ -1196,5 +1197,9 @@ CREATE TABLE IF NOT EXISTS community_chats (
 );
 CREATE INDEX IF NOT EXISTS idx_community_chats_community ON community_chats(communityId);
 `);
+{
+  const communityCols = new Set(db.prepare("PRAGMA table_info(communities)").all().map((c) => c.name));
+  if (!communityCols.has("avatarImage")) db.exec("ALTER TABLE communities ADD COLUMN avatarImage TEXT");
+}
 
 module.exports = db;

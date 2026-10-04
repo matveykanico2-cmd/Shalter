@@ -6,17 +6,17 @@ import { showToast } from "./toast.js";
 
 // Вкладка tweb «Новая группа» / «Новый канал» (AppNewGroupTab / AppNewChannelTab):
 // круглый аватар с камерой, название и описание с подписью на рамке, тип и ссылка, участники.
-export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon } = {}) {
+export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon, firstChatId = null } = {}) {
   const isChannel = kind === "channel";
-  const what = isChannel ? "канала" : "группы";
+  const isCommunity = kind === "community";
+  const what = isCommunity ? "сообщества" : isChannel ? "канала" : "группы";
   let isPublic = false;
 
   const avatar = twAvatarEdit();
   const name = twInputField({ label: `Название ${what}`, maxLength: 128 });
   const desc = twInputField({ label: "Описание (необязательно)", multiline: true, maxLength: 255 });
   const handle = twInputField({
-    label: "Ссылка",
-    prefix: "shalter.ru/",
+    label: "Юзернейм",
     inputClass: "mono",
     oninput: (e) => {
       e.target.value = e.target.value.replace(/^@+/, "").replace(/[^a-zA-Z0-9_]/g, "");
@@ -47,20 +47,28 @@ export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon } =
       ? `Любой сможет найти ${isChannel ? "канал" : "группу"} и открыть по ссылке.`
       : "Пригласительная ссылка появится сразу после создания.";
   }
-  renderType();
+  if (!isCommunity) renderType();
 
   const content = [
     el("div", { class: "tw-create-head" }, [avatar.element]),
     el("div", { class: "tw-section-group" }, [
       el("div", { class: "tw-section tw-section-pad" }, [name.field, desc.field]),
-      el("p", { class: "tw-section-caption" }, isChannel ? "Можно добавить описание — его увидят в профиле канала." : "Название и фото увидят все участники."),
+      el("p", { class: "tw-section-caption" }, isCommunity
+        ? "Название, фото и описание сообщества видят все участники."
+        : isChannel
+          ? "Можно добавить описание — его увидят в профиле канала."
+          : "Название и фото увидят все участники."),
     ]),
-    el("div", { class: "tw-section-group" }, [
-      el("p", { class: "tw-section-name" }, isChannel ? "Тип канала" : "Тип группы"),
-      el("div", { class: "tw-section" }, [typeRows]),
-      typeCaption,
-    ]),
-    handleSection,
+    ...(isCommunity
+      ? []
+      : [
+          el("div", { class: "tw-section-group" }, [
+            el("p", { class: "tw-section-name" }, isChannel ? "Тип канала" : "Тип группы"),
+            el("div", { class: "tw-section" }, [typeRows]),
+            typeCaption,
+          ]),
+          handleSection,
+        ]),
     members.length
       ? el("div", { class: "tw-section-group" }, [
           el("p", { class: "tw-section-name" }, `${members.length} ${plural(members.length, "участник", "участника", "участников")}`),
@@ -79,7 +87,7 @@ export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon } =
   ];
 
   openSideTab({
-    title: isChannel ? "Новый канал" : "Новая группа",
+    title: isCommunity ? "Новое сообщество" : isChannel ? "Новый канал" : "Новая группа",
     content,
     fab: {
       icon: fabIcon ?? (isChannel ? "ChevronRight" : "Check"),
@@ -93,7 +101,7 @@ export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon } =
         }
         name.field.classList.remove("error");
         const username = handle.input.value.trim();
-        if (isPublic && username.length < 3) {
+        if (!isCommunity && isPublic && username.length < 3) {
           handle.field.classList.add("error");
           handle.input.focus();
           showToast("Для публичного нужна ссылка — от 3 символов");
@@ -101,7 +109,10 @@ export function openCreateChatDialog(kind, onSubmit, { members = [], fabIcon } =
         }
         tab.setFabBusy(true);
         try {
-          await onSubmit(title, avatar.image, { description: desc.input.value.trim(), username: isPublic ? username : null, isPublic }, tab);
+          const extra = isCommunity
+            ? { description: desc.input.value.trim(), ...(firstChatId ? { chatId: firstChatId } : {}) }
+            : { description: desc.input.value.trim(), username: isPublic ? username : null, isPublic };
+          await onSubmit(title, avatar.image, extra, tab);
         } catch (err) {
           showToast(err?.message || "Не получилось");
         } finally {

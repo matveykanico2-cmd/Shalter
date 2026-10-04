@@ -4,7 +4,9 @@ import { iconSvg } from "../icons.js";
 export function openDropdownMenu(pos, items, opts = {}) {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const sheet = !!opts.search && vw <= 560;
+  // На телефоне меню действий (не только с поиском) показываем шторкой снизу:
+  // маленький поповер в точке нажатия пальцем неудобен и легко промахивается.
+  const sheet = opts.sheet ?? (!!opts.search && vw <= 560);
   const left = Math.min(pos.x, vw - 220);
   const top = pos.y;
 

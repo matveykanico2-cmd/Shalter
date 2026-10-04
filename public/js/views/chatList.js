@@ -38,8 +38,9 @@ import {
   setCommunityDetails,
   memberChatsOf,
   plural,
+  openEditCommunityDialog,
 } from "../components/communityList.js";
-import { askText, askConfirm } from "../components/confirmDialog.js";
+import { askConfirm } from "../components/confirmDialog.js";
 
 async function openNewChatMenu(e) {
   const rect = e.currentTarget.getBoundingClientRect();
@@ -117,16 +118,13 @@ async function openNewChatMenu(e) {
       {
         icon: "Users",
         label: "Новое сообщество",
-        onClick: async () => {
-          const title = (await askText("Название сообщества"))?.trim();
-          if (!title) return;
-          try {
-            const { community } = await api.createCommunity({ title });
+        onClick: () => {
+          openCreateChatDialog("community", async (title, avatarImage, extra, tab) => {
+            const { community } = await api.createCommunity({ title, description: extra.description, avatarImage });
+            tab.close({ all: true });
             const { openCommunityPanel } = await import("../components/communityList.js");
             await openCommunityPanel(community.id);
-          } catch (err) {
-            alert(err.message || "Не удалось создать сообщество");
-          }
+          });
         },
       },
       {
@@ -776,12 +774,15 @@ function renderCommunityPanel(container, community, currentId) {
             isOwner && {
               icon: "Edit",
               label: "Изменить сообщество",
-              onClick: async () => {
-                const title = (await askText("Название сообщества", community.title))?.trim();
-                if (!title) return;
-                const description = await askText("Описание (можно оставить пустым)", info?.description ?? community.description ?? "");
-                if (description === null) return;
-                act(() => api.updateCommunity(community.id, { title, description }), "Не удалось сохранить");
+              onClick: () => {
+                openEditCommunityDialog(
+                  { id: community.id, title: community.title, description: info?.description ?? community.description, avatarImage: info?.avatarImage ?? community.avatarImage },
+                  (updated) => {
+                    setCommunityDetails(community.id, { ...info, ...updated });
+                    reloadCommunities();
+                    rerender();
+                  }
+                );
               },
             },
             isOwner && {

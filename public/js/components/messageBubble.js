@@ -1331,7 +1331,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       });
     }
     items.push({ icon: "Trash", label: "Удалить", danger: true, onClick: () => onDelete(message) });
-    openDropdownMenu(pos, items);
+    openDropdownMenu(pos, items, { sheet: window.matchMedia("(max-width: 560px)").matches });
   }
 
   async function runPaid(fn, fallbackMessage) {
@@ -1390,6 +1390,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     let timer = null;
     let startX = 0;
     let startY = 0;
+    let pointerType = "mouse";
 
     const cancel = () => {
       clearTimeout(timer);
@@ -1397,11 +1398,20 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     };
     bubbleWrap.addEventListener("pointerdown", (e) => {
       if (e.button && e.button !== 0) return;
+      pointerType = e.pointerType || "mouse";
       startX = e.clientX;
       startY = e.clientY;
       timer = setTimeout(() => {
         timer = null;
-        selection.onToggle(message.id);
+        // Пальцем на телефоне долгое нажатие открывает меню действий (как в
+        // Telegram): иначе на тач-экране сообщение вообще нельзя было открыть
+        // на действия — hover и правый клик там недоступны.
+        if (pointerType !== "mouse") {
+          rememberQuote();
+          openMessageMenu({ x: startX, y: startY });
+        } else {
+          selection.onToggle(message.id);
+        }
         bubbleWrap.addEventListener("click", (ev) => ev.stopPropagation(), { capture: true, once: true });
         navigator.vibrate?.(12);
       }, HOLD_MS);

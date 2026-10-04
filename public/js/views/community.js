@@ -1,4 +1,3 @@
-import { askText } from "../components/confirmDialog.js";
 import { askConfirm } from "../components/confirmDialog.js";
 import { el, mount } from "../lib/dom.js";
 import { api } from "../api.js";
@@ -6,6 +5,7 @@ import { Avatar } from "../components/avatar.js";
 import { navigate } from "../router.js";
 import { getState, setState } from "../state.js";
 import { iconSvg } from "../icons.js";
+import { openEditCommunityDialog } from "../components/communityList.js";
 
 // Свои группы и каналы, которые можно добавить в сообщество (владелец или админ).
 function ownChats() {
@@ -114,13 +114,11 @@ export async function CommunityView(root, id) {
       }, [el("span", { html: iconSvg("Plus", 15) }), " Добавить чат"]),
       el("button", {
         class: "profile-action-btn",
-        onclick: async () => {
-          const title = (await askText("Название сообщества", community.title))?.trim();
-          if (!title) return;
-          const description = (await askText("Описание (можно оставить пустым)", community.description ?? ""));
-          if (description === null) return;
-          run(() => api.updateCommunity(community.id, { title, description }), "Не удалось сохранить");
-        },
+        onclick: () =>
+          openEditCommunityDialog(community, (updated) => {
+            community = { ...community, ...updated };
+            render();
+          }),
       }, [el("span", { html: iconSvg("Edit", 15) }), " Изменить"]),
       el("button", {
         class: "profile-action-btn danger",
@@ -153,7 +151,7 @@ export async function CommunityView(root, id) {
     mount(
       root,
       el("div", { class: "join-invite community-page" }, [
-        Avatar({ name: community.title, color: community.avatarColor, size: 72 }),
+        Avatar({ name: community.title, color: community.avatarColor, image: community.avatarImage, size: 72 }),
         el("h1", {}, community.title),
         el("p", { class: "settings-toggle-hint" }, `Сообщество · ${community.chats.length} чатов и каналов`),
         community.description ? el("p", { class: "join-invite-description" }, community.description) : null,

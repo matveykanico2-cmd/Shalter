@@ -173,8 +173,7 @@ export function openEditChatDialog(chat, onSaved) {
   function openTypeTab() {
     let isPublic = !!chat.isPublic;
     const handle = twInputField({
-      label: "Ссылка",
-      prefix: `${location.host}/`,
+      label: "Юзернейм",
       value: chat.username ?? "",
       inputClass: "mono",
       oninput: (e) => (e.target.value = e.target.value.replace(/^@+/, "").replace(/[^a-zA-Z0-9_]/g, "")),

@@ -110,9 +110,10 @@ export function twInputField({ label, value = "", multiline = false, maxLength, 
 const CAMERA_ADD = `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5H9.4L8 7H5.5A2.5 2.5 0 0 0 3 9.5v8A2.5 2.5 0 0 0 5.5 20h13a2.5 2.5 0 0 0 2.5-2.5V11"/><circle cx="12" cy="13.5" r="3.5"/><path d="M19 3v6M16 6h6"/></svg>`;
 
 // Круглый выбор аватарки с камерой (tweb AvatarEdit, 120px).
-export function twAvatarEdit({ onChange, size = 120 } = {}) {
-  let image = null;
+export function twAvatarEdit({ onChange, size = 120, initial = null } = {}) {
+  let image = initial;
   const preview = el("span", { class: "tw-avatar-edit-preview" });
+  if (initial) preview.replaceChildren(el("img", { src: initial, alt: "" }));
   const file = el("input", {
     type: "file",
     accept: "image/*",
@@ -126,7 +127,7 @@ export function twAvatarEdit({ onChange, size = 120 } = {}) {
       onChange?.(image);
     },
   });
-  const btn = el("button", { type: "button", class: "tw-avatar-edit", style: `width:${size}px;height:${size}px`, title: "Выбрать фото", onclick: () => file.click() }, [
+  const btn = el("button", { type: "button", class: `tw-avatar-edit${initial ? " has-image" : ""}`, style: `width:${size}px;height:${size}px`, title: "Выбрать фото", onclick: () => file.click() }, [
     preview,
     el("span", { class: "tw-avatar-edit-icon", html: CAMERA_ADD }),
     file,

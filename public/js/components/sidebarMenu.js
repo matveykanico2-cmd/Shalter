@@ -2,6 +2,7 @@ import { openDropdownMenu } from "./dropdownMenu.js";
 import { api } from "../api.js";
 import { getState, setState } from "../state.js";
 import { navigate } from "../router.js";
+import { switchAccount } from "../lib/accountSwitch.js";
 
 // Меню ☰ как в tweb (sidebarLeft.createToolsMenu): аккаунты, затем Избранное, Архив,
 // Контакты, Звонки, Настройки и «Ещё ▸» с темой, анимациями и прочим.
@@ -16,8 +17,7 @@ export function openSidebarMenu(pos) {
       icon: "Accounts",
       label: a.name || a.phone || a.email,
       onClick: async () => {
-        await api.switchAccount(a.id);
-        window.location.reload();
+        await switchAccount(a.id);
       },
     });
   }

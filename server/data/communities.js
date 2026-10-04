@@ -8,6 +8,7 @@ function rowToCommunity(row) {
     title: row.title,
     description: row.description ?? undefined,
     avatarColor: row.avatarColor ?? undefined,
+    avatarImage: row.avatarImage ?? undefined,
     createdAt: row.createdAt,
     chatIds: db
       .prepare("SELECT chatId FROM community_chats WHERE communityId = ? ORDER BY addedAt ASC")
@@ -43,24 +44,26 @@ function communityOfChat(chatId) {
   return row ? getCommunity(row.communityId) : undefined;
 }
 
-function createCommunity({ id, ownerId, title, description, avatarColor }) {
-  db.prepare("INSERT INTO communities (id, ownerId, title, description, avatarColor, createdAt) VALUES (?, ?, ?, ?, ?, ?)").run(
+function createCommunity({ id, ownerId, title, description, avatarColor, avatarImage }) {
+  db.prepare("INSERT INTO communities (id, ownerId, title, description, avatarColor, avatarImage, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
     id,
     ownerId,
     title,
     description ?? null,
     avatarColor ?? null,
+    avatarImage ?? null,
     new Date().toISOString()
   );
   return getCommunity(id);
 }
 
-function updateCommunity(id, { title, description }) {
+function updateCommunity(id, { title, description, avatarImage }) {
   const existing = getCommunity(id);
   if (!existing) return undefined;
-  db.prepare("UPDATE communities SET title = ?, description = ? WHERE id = ?").run(
+  db.prepare("UPDATE communities SET title = ?, description = ?, avatarImage = ? WHERE id = ?").run(
     title ?? existing.title,
     description === undefined ? existing.description ?? null : description || null,
+    avatarImage === undefined ? existing.avatarImage ?? null : avatarImage || null,
     id
   );
   return getCommunity(id);

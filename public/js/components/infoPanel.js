@@ -1,5 +1,5 @@
 import { openCommunityPanel } from "./communityList.js";
-import { openSideTab, twInputField } from "./twTab.js";
+import { openCreateChatDialog } from "./createChatDialog.js";
 import { askText } from "./confirmDialog.js";
 import { askConfirm } from "./confirmDialog.js";
 import { el } from "../lib/dom.js";
@@ -559,44 +559,18 @@ function groupIntoCards(body) {
 }
 
 
-// Вкладка «Новое сообщество» в стиле tweb: название и описание, первый чат — текущий.
+// «Новое сообщество» — тот же интерфейс, что у группы: аватар, название,
+// описание; текущий чат становится первым в сообществе.
 function openCreateCommunityTab(chat) {
-  const name = twInputField({ label: "Название сообщества", value: chat.title ?? "", maxLength: 128 });
-  const desc = twInputField({ label: "Описание (необязательно)", multiline: true, maxLength: 255 });
-  openSideTab({
-    title: "Новое сообщество",
-    content: [
-      el("div", { class: "tw-media-header" }, [
-        el("span", { class: "tw-media-sticker", html: iconSvg("Users", 56) }),
-        el("p", { class: "tw-media-subtitle" }, "Сообщество объединяет связанные группы и каналы под одной вкладкой — участникам проще найти всё нужное."),
-      ]),
-      el("div", { class: "tw-section-group" }, [
-        el("div", { class: "tw-section tw-section-pad" }, [name.field, desc.field]),
-        el("p", { class: "tw-section-caption" }, `«${chat.title}» станет первым чатом сообщества. Остальные можно добавить потом.`),
-      ]),
-    ],
-    fab: {
-      icon: "Check",
-      title: "Создать",
-      onClick: async (tab) => {
-        const title = name.input.value.trim();
-        if (!title) {
-          name.field.classList.add("error");
-          name.input.focus();
-          return;
-        }
-        tab.setFabBusy(true);
-        try {
-          const { community } = await api.createCommunity({ title, description: desc.input.value.trim(), chatId: chat.id, avatarColor: chat.avatarColor });
-          tab.close({ all: true });
-          openCommunityPanel(community.id);
-        } catch (err) {
-          tab.setFabBusy(false);
-          alert(err?.message || "Не удалось создать сообщество");
-        }
-      },
+  openCreateChatDialog(
+    "community",
+    async (title, avatarImage, extra, tab) => {
+      const { community } = await api.createCommunity({ title, description: extra.description, avatarImage, chatId: chat.id });
+      tab.close({ all: true });
+      openCommunityPanel(community.id);
     },
-  });
+    { firstChatId: chat.id }
+  );
 }
 
 function pluralBoost(n) {

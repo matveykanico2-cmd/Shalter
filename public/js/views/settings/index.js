@@ -1,7 +1,6 @@
 import { askText } from "../../components/confirmDialog.js";
 import { askConfirm } from "../../components/confirmDialog.js";
 import { showToast } from "../../components/toast.js";
-import { openLimitPopup } from "../../components/limitPopup.js";
 import { openPremiumFeatures } from "../../components/premiumFeatures.js";
 import { NAME_COLORS, nameColorValue } from "../../lib/nameColors.js";
 import { el, mount, clear } from "../../lib/dom.js";
@@ -652,7 +651,6 @@ const PREMIUM_COMPARE = [
   ["Значок и кольцо Premium", "—", "Да"],
   ["Эксклюзивные реакции 💎 👑 🚀 🥂 💯 🌟", "—", "Да"],
   ["Реакций на одно сообщение", "1", "до 3"],
-  ["Папок с чатами", "10", "20"],
   ["Цвет имени в группах", "—", "7 цветов"],
   ["Реклама в списке чатов", "есть", "нет"],
 ];
@@ -662,11 +660,6 @@ const PREMIUM_PERKS = [
     icon: "Palette",
     title: "Цвет имени",
     desc: "Выберите цвет, которым ваше имя показывается в группах",
-  },
-  {
-    icon: "Folder",
-    title: "Удвоенные лимиты",
-    desc: "До 20 папок с чатами вместо 10",
   },
   {
     icon: "BarChart",
@@ -3235,25 +3228,13 @@ async function renderAccounts(root) {
 }
 
 async function renderFolders(root) {
-  const [{ folders: initialFolders, limit: folderLimit }, { chats }] = await Promise.all([api.listFolders(), api.listChats()]);
+  const [{ folders: initialFolders }, { chats }] = await Promise.all([api.listFolders(), api.listChats()]);
   let folders = initialFolders;
   let editing = null;
   let creating = false;
   let newName = "";
   let chatFilter = "";
   let error = null;
-  const MAX_FOLDERS = folderLimit?.value ?? 10;
-  const showFolderLimit = () =>
-    openLimitPopup({
-      icon: "Folder",
-      count: folders.length,
-      free: folderLimit?.free ?? 10,
-      premium: folderLimit?.premium ?? 20,
-      isPremium: !!folderLimit?.isPremium,
-      text: folderLimit?.isPremium
-        ? `У вас уже ${folders.length} папок — это максимум. Удалите ненужную, чтобы создать новую.`
-        : `Можно создать не больше ${folderLimit?.free ?? 10} папок. С Shalter Premium лимит вырастет до ${folderLimit?.premium ?? 20}.`,
-    });
 
   function sync() {
     setState({ folders });
@@ -3263,10 +3244,6 @@ async function renderFolders(root) {
     try {
       await fn();
     } catch (err) {
-      if (err.limit) {
-        showFolderLimit();
-        return;
-      }
       error = err.message || "Не удалось сохранить";
       render();
     }
@@ -3418,16 +3395,15 @@ async function renderFolders(root) {
   }
 
   function render() {
-    const full = folders.length >= MAX_FOLDERS;
     mount(
       root,
       pageWrap("Папки с чатами", null, [
         el("div", { class: "tw-media-header" }, [
           el("span", { class: "tw-media-sticker", html: iconSvg("Folder", 56) }),
-          el("p", { class: "tw-media-subtitle" }, `Создавайте папки для разных групп чатов и быстро переключайтесь между ними — мышью или клавишами Ctrl+1…9. До ${MAX_FOLDERS} папок.`),
+          el("p", { class: "tw-media-subtitle" }, "Создавайте папки для разных групп чатов и быстро переключайтесь между ними — мышью или клавишами Ctrl+1…9."),
         ]),
         !creating
-          ? el("button", { class: "tw-primary-btn", onclick: () => { if (full) return showFolderLimit(); creating = true; editing = null; render(); root.querySelector(".settings-folder-create-row input")?.focus(); } }, [el("span", { html: iconSvg("Plus", 22) }), "Создать папку"])
+          ? el("button", { class: "tw-primary-btn", onclick: () => { creating = true; editing = null; render(); root.querySelector(".settings-folder-create-row input")?.focus(); } }, [el("span", { html: iconSvg("Plus", 22) }), "Создать папку"])
           : null,
         error ? el("p", { class: "tw-row-note danger" }, error) : null,
         folders.length
@@ -3471,9 +3447,7 @@ async function renderFolders(root) {
               }),
               el("button", { class: "btn-accent", onclick: createFolder }, "Создать"),
             ])
-          : full
-            ? el("p", { class: "tw-row-note" }, `Папок уже ${MAX_FOLDERS} — чтобы завести новую, удалите одну из них.`)
-            : null,
+          : null,
       ])
     );
   }

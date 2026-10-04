@@ -7,6 +7,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { genId } = require("../lib/genId");
 const { getChat } = require("../data/chats");
+const { isSafeUrl } = require("../lib/sanitizeAttachments");
 // Владелец или админ (модераторов чата не считаем).
 const isOwnerOrAdmin = (chat, uid) => chat.ownerId === uid || (chat.ownerIds ?? []).includes(uid) || (chat.adminIds ?? []).includes(uid);
 const communities = require("../data/communities");
@@ -19,6 +20,12 @@ function cleanTitle(raw) {
 }
 function cleanDescription(raw) {
   return String(raw ?? "").trim().slice(0, 500);
+}
+
+// Аватар — либо data-URL, либо ссылка на загрузку/внешний https; иначе не принимаем.
+function cleanAvatarImage(raw) {
+  if (raw == null || raw === "") return null;
+  return typeof raw === "string" && isSafeUrl(raw) ? raw : undefined;
 }
 
 // Карточка чата для страницы сообщества: закрытые чаты показываем по
@@ -46,6 +53,7 @@ async function view(community, uid) {
     title: community.title,
     description: community.description ?? null,
     avatarColor: community.avatarColor ?? null,
+    avatarImage: community.avatarImage ?? null,
     isOwner: community.ownerId === uid,
     chats,
   };
@@ -98,6 +106,7 @@ router.get(
         title: c.title,
         description: c.description ?? null,
         avatarColor: c.avatarColor ?? null,
+        avatarImage: c.avatarImage ?? null,
         isOwner: c.ownerId === req.uid,
         chatIds: visible,
       });
@@ -133,6 +142,7 @@ router.post(
       title,
       description: cleanDescription(req.body?.description),
       avatarColor: typeof req.body?.avatarColor === "string" ? req.body.avatarColor.slice(0, 20) : null,
+      avatarImage: cleanAvatarImage(req.body?.avatarImage),
     });
     if (firstChatId) communities.addChatToCommunity(community.id, firstChatId);
     res.json({ community: await view(communities.getCommunity(community.id), req.uid) });
@@ -159,6 +169,11 @@ router.patch(
       if (!patch.title) return res.status(400).json({ error: "Введите название сообщества" });
     }
     if (req.body?.description !== undefined) patch.description = cleanDescription(req.body.description);
+    if (req.body?.avatarImage !== undefined) {
+      const avatarImage = cleanAvatarImage(req.body.avatarImage);
+      if (avatarImage === undefined) return res.status(400).json({ error: "Некорректное изображение" });
+      patch.avatarImage = avatarImage;
+    }
     res.json({ community: await view(communities.updateCommunity(community.id, patch), req.uid) });
   })
 );

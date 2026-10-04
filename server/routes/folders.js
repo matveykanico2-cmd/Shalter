@@ -14,7 +14,6 @@ const {
 } = require("../data/folders");
 const { getChat, updateChat } = require("../data/chats");
 const { broadcastToUsers } = require("../ws");
-const { getUser } = require("../data/users");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -23,22 +22,10 @@ router.get(
   "/",
   asyncRoute(async (req, res) => {
     const folders = await listFoldersFor(req.uid);
-    res.json({ folders, limit: await folderLimit(req.uid) });
+    res.json({ folders });
   })
 );
 
-// Как в Telegram: Premium удваивает лимит папок.
-const MAX_FOLDERS_FREE = 10;
-const MAX_FOLDERS_PREMIUM = 20;
-
-async function folderLimit(uid) {
-  const me = await getUser(uid);
-  return { type: "folders", value: me?.isPremium ? MAX_FOLDERS_PREMIUM : MAX_FOLDERS_FREE, free: MAX_FOLDERS_FREE, premium: MAX_FOLDERS_PREMIUM, isPremium: !!me?.isPremium };
-}
-
-function limitReached(res, limit, extra = "") {
-  return res.status(400).json({ error: `Можно создать не больше ${limit.value} папок${extra}`, limit });
-}
 const MAX_FOLDER_NAME = 32;
 const MAX_FOLDER_CHATS = 500;
 
@@ -62,8 +49,6 @@ router.post(
     const chatIds = cleanChatIds(rawIds);
     if (!chatIds) return res.status(400).json({ error: "Некорректный список чатов" });
     const folders = await listFoldersFor(req.uid);
-    const limit = await folderLimit(req.uid);
-    if (folders.length >= limit.value) return limitReached(res, limit);
     const folder = await createFolder({
       id: genId("f"),
       ownerId: req.uid,
@@ -151,8 +136,6 @@ router.post(
   asyncRoute(async (req, res) => {
     const folder = await findFolderByInviteCode(req.params.code);
     if (!folder) return res.status(404).json({ error: "Ссылка недействительна или отозвана" });
-    const limit = await folderLimit(req.uid);
-    if ((await listFoldersFor(req.uid)).length >= limit.value) return limitReached(res, limit, " — удалите лишнюю в Настройки → Папки");
 
     const chatIds = [];
     for (const id of folder.chatIds) {

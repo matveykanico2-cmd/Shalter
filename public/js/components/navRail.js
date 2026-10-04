@@ -5,6 +5,7 @@ import { openDropdownMenu } from "./dropdownMenu.js";
 import { api } from "../api.js";
 import { getState, setState, subscribe } from "../state.js";
 import { navigate } from "../router.js";
+import { switchAccount } from "../lib/accountSwitch.js";
 
 function railButton(href, iconName, label, isActive) {
   const node = el(
@@ -80,8 +81,7 @@ export function NavRail() {
         icon: undefined,
         onClick: async () => {
           if (a.id === user.id) return;
-          await api.switchAccount(a.id);
-          window.location.reload();
+          await switchAccount(a.id);
         },
       });
     }
