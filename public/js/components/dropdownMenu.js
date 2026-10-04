@@ -8,8 +8,35 @@ export function openDropdownMenu(pos, items, opts = {}) {
   const left = Math.min(pos.x, vw - 220);
   const top = pos.y;
 
+  // Вложенное меню («Ещё ▸» как в tweb): открывается рядом с пунктом, выбор в нём закрывает оба.
+  let childClose = null;
+  let childMenu = null;
+  function openSubmenu(item, btn) {
+    childClose?.();
+    const r = btn.getBoundingClientRect();
+    const narrow = vw <= 560;
+    childClose = openDropdownMenu(
+      narrow ? { x: r.left + 24, y: r.top } : { x: r.right - 6, y: r.top - 4 },
+      item.submenu(),
+      { onPick: () => close(), onClosed: () => ((childClose = null), (childMenu = null)), registerMenu: (m) => (childMenu = m) }
+    );
+  }
+
   function renderItem(item) {
     if (item.separator) return el("div", { class: "dropdown-separator" });
+    if (item.submenu) {
+      const btn = el(
+        "button",
+        { class: "dropdown-item has-submenu", "aria-haspopup": "menu", onclick: () => openSubmenu(item, btn) },
+        [
+          item.icon ? el("span", { class: "dropdown-icon", html: iconSvg(item.icon, 16) }) : null,
+          item.label,
+          el("span", { class: "dropdown-submenu-arrow", html: iconSvg("ChevronRight", 14) }),
+        ]
+      );
+      if (window.matchMedia?.("(hover: hover)").matches) btn.addEventListener("mouseenter", () => !childMenu && openSubmenu(item, btn));
+      return btn;
+    }
     if (item.label && !item.onClick) return el("p", { class: "dropdown-heading" }, item.label);
     return el(
       "button",
@@ -18,6 +45,7 @@ export function openDropdownMenu(pos, items, opts = {}) {
         onclick: () => {
           item.onClick();
           close();
+          opts.onPick?.();
         },
       },
       [item.icon ? el("span", { class: "dropdown-icon", html: iconSvg(item.icon, 16) }) : null, item.label]
@@ -63,7 +91,12 @@ export function openDropdownMenu(pos, items, opts = {}) {
     menu.style.setProperty("--kb", `${kb}px`);
   }
 
+  let closed = false;
   function close() {
+    if (closed) return;
+    closed = true;
+    childClose?.();
+    opts.onClosed?.();
     document.removeEventListener("mousedown", onDown);
     document.removeEventListener("keydown", onKey);
     vv?.removeEventListener("resize", onVv);
@@ -72,13 +105,14 @@ export function openDropdownMenu(pos, items, opts = {}) {
     menu.remove();
   }
   function onDown(e) {
-    if (!menu.contains(e.target)) close();
+    if (!menu.contains(e.target) && !childMenu?.contains(e.target)) close();
   }
   function onKey(e) {
     if (e.key === "Escape") close();
   }
 
   document.body.appendChild(menu);
+  opts.registerMenu?.(menu);
 
   if (sheet) {
     backdrop = el("div", { class: "dropdown-sheet-backdrop", onclick: () => close() });

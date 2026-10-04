@@ -22190,3 +22190,15 @@ button img.emoji {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* вложенное меню «Ещё ▸» (tweb: createSubmenuTrigger) */
+.dropdown-item.has-submenu {
+  display: flex;
+  align-items: center;
+}
+.dropdown-submenu-arrow {
+  display: flex;
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--color-muted);
+}
