@@ -1609,7 +1609,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
             },
           })
         : null,
-      !mine
+      // Как в Telegram: в личном чате аватаров у сообщений нет — только в группах.
+      !mine && !isDm
         ? el(
             "div",
             { class: "message-avatar-slot" },
