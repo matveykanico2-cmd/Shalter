@@ -199,7 +199,22 @@ export function ChatListPane() {
     })
   );
 
-  const unsubState = subscribe(() => renderInto(listSlot));
+  // Перерисовываем список только когда поменялось то, что он показывает, и не чаще
+  // раза за кадр: раньше любой setState (печатает, настройки, пачка WS-событий)
+  // пересобирал весь список с аватарками — на iPhone это и тормозило.
+  const LIST_KEYS = ["chats", "chatsLoaded", "folders", "user", "settings", "contactIds", "communities", "sidebarArchive", "sidebarCommunity"];
+  let seenState = LIST_KEYS.map((k) => getState()[k]);
+  let listFrame = 0;
+  const unsubState = subscribe((st) => {
+    const next = LIST_KEYS.map((k) => st[k]);
+    if (next.every((v, i) => v === seenState[i])) return;
+    seenState = next;
+    if (listFrame) return;
+    listFrame = requestAnimationFrame(() => {
+      listFrame = 0;
+      renderInto(listSlot);
+    });
+  });
   window.addEventListener("app:navigate", ({ detail }) => {
     const p = detail?.path ?? window.location.pathname;
     if ((getState().sidebarArchive || getState().sidebarCommunity) && p !== "/" && !p.startsWith("/chat/")) {
@@ -298,6 +313,7 @@ export function ChatListPane() {
   const iv = setInterval(refetch, 15000);
   container._cleanup = () => {
     clearInterval(iv);
+    cancelAnimationFrame(listFrame);
     clearTimeout(refetchTimer);
     storiesBar.cleanup?.();
     unsubState();

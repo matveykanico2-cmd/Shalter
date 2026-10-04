@@ -6,6 +6,7 @@ import { Avatar, videoAvatarUrl } from "./avatar.js";
 import { iconSvg } from "../icons.js";
 import { openAd } from "../lib/adLink.js";
 import { api } from "../api.js";
+import { onWsMessage } from "../lib/wsClient.js";
 import { navigate } from "../router.js";
 import { getState, setState, updateSelf } from "../state.js";
 import { openReportDialog } from "./reportDialog.js";
@@ -187,12 +188,31 @@ export async function openProfileDialog(userId) {
   }
   function close() {
     document.removeEventListener("keydown", onKey);
+    window.removeEventListener("shalter:messages-deleted", onLocalDelete);
+    unsubDeleted();
     overlay.remove();
   }
   document.addEventListener("keydown", onKey);
 
   let user, inContacts, contactName, contactNote, isBlocked;
   let sharedMedia = { chatId: null, media: [], files: [], links: [], voice: [] };
+  // Удалили сообщение в чате — оно пропадает из «Медиа», «Голосовых», «Файлов», «Ссылок».
+  function dropShared(chatId, ids) {
+    if (!sharedMedia.chatId || chatId !== sharedMedia.chatId) return;
+    const gone = new Set(ids);
+    const keep = (list) => (list ?? []).filter((x) => !gone.has(x.messageId));
+    sharedMedia = {
+      ...sharedMedia,
+      media: keep(sharedMedia.media),
+      files: keep(sharedMedia.files),
+      links: keep(sharedMedia.links),
+      voice: keep(sharedMedia.voice),
+    };
+    if (user) render();
+  }
+  const onLocalDelete = (e) => dropShared(e.detail?.chatId, e.detail?.ids ?? []);
+  window.addEventListener("shalter:messages-deleted", onLocalDelete);
+  const unsubDeleted = onWsMessage("message:deleted", (msg) => dropShared(msg.chatId, [msg.id]));
   let commonGroupsCount = 0;
   let commonGroups = null;
   let storiesGroup = null;
@@ -887,6 +907,14 @@ export async function openProfileDialog(userId) {
       tabs.length ? el("div", { class: "profile-tab-content" }, [renderTabContent()]) : null,
     ];
     body.append(...children.filter(Boolean));
+    // Выбранная вкладка всегда видна в полоске, даже если она в конце (Голосовые, Группы).
+    const strip = body.querySelector(".profile-tabs");
+    const active = strip?.querySelector(".profile-tab.active");
+    if (strip && active && strip.scrollWidth > strip.clientWidth) {
+      const a = active.getBoundingClientRect();
+      const s = strip.getBoundingClientRect();
+      strip.scrollLeft += a.left - s.left - (s.width - a.width) / 2;
+    }
   }
   render();
   loadStories();

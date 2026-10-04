@@ -23,7 +23,7 @@ import { AudioPlayerBar } from "../components/audioPlayerBar.js";
 
 // Служебные аккаунты Shalter — их не удалить даже модерацией (lib/moderationDelete.js).
 const SERVICE_ACCOUNT_IDS = ["bot_shalter", "bot_helper", "bot_support"];
-import { noteMessageInChatList, updateMessageInChatList } from "../lib/chatListSync.js";
+import { noteMessageInChatList, updateMessageInChatList, dropMessageFromChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache } from "../lib/localCache.js";
 import { cachedUser, fetchUsers, rememberUser } from "../lib/userLookup.js";
 import { takePrefetched } from "../lib/chatPrefetch.js";
@@ -471,6 +471,7 @@ export async function ChatView(root, chatId) {
     messagesCount = messages.length;
     rerenderListKeepingScroll();
     saveChatCache();
+    dropMessageFromChatList(chat.id, m.id, messages);
     try {
       await api.deleteMessage(chat.id, m.id, forEveryone);
     } catch (err) {
@@ -1022,6 +1023,8 @@ export async function ChatView(root, chatId) {
   }
 
   async function deleteMany(list, forEveryone) {
+    const ids = list.map((m) => m.id);
+    dropMessageFromChatList(chat.id, ids, messages.filter((m) => !ids.includes(m.id)));
     for (const m of list) {
       try {
         await api.deleteMessage(chat.id, m.id, forEveryone);
@@ -1610,12 +1613,24 @@ export async function ChatView(root, chatId) {
 
   let stuckToBottom = true;
   let noStickUntil = 0;
-  list.addEventListener("scroll", () => {
-    if (list.scrollTop < 120) loadOlder();
-    stuckToBottom = Date.now() > noStickUntil && atBottom();
-    updateScrollDown();
-    updateFloatingDate();
-  });
+  // Не чаще раза за кадр и passive: на iPhone scroll сыплется десятками за кадр,
+  // а дата сверху меряет каждый разделитель — лента дёргалась.
+  let scrollFrame = 0;
+  list.addEventListener(
+    "scroll",
+    () => {
+      stuckToBottom = Date.now() > noStickUntil && atBottom();
+      if (scrollFrame) return;
+      scrollFrame = requestAnimationFrame(() => {
+        scrollFrame = 0;
+        if (!list.isConnected) return;
+        if (list.scrollTop < 120) loadOlder();
+        updateScrollDown();
+        updateFloatingDate();
+      });
+    },
+    { passive: true }
+  );
   // Capture-phase listeners fire before the media element's own load handlers, which
   // may still resize the bubble (e.g. VideoAttachment's aspect ratio) — scroll again
   // on the next frame so the newest message isn't pushed out of view.
@@ -2107,6 +2122,7 @@ export async function ChatView(root, chatId) {
   });
   const unsubMessageDeleted = onWsMessage("message:deleted", (msg) => {
     if (msg.chatId !== chat.id) return;
+    dropMessageFromChatList(chat.id, msg.id, messages);
     scheduleRefresh();
   });
   const unsubMessageRead = onWsMessage("message:read", (msg) => {

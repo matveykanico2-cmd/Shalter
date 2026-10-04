@@ -21513,3 +21513,55 @@ button img.emoji {
   background: var(--color-surface-alt);
   color: var(--color-accent);
 }
+
+/* профиль: вкладки (Медиа, Истории, Подарки…) не вылезают за экран — листается только полоска вкладок, а не вся панель */
+.profile-panel-body {
+  overflow-x: hidden;
+  width: 100%;
+  min-width: 0;
+}
+.profile-panel-body .profile-tabs,
+.profile-panel-body .profile-tab-content {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.profile-panel-body .profile-tabs {
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  scroll-padding: 0 24px;
+}
+.profile-panel-body .profile-tab {
+  flex: 1 0 auto;
+  min-width: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.profile-panel-body .profile-tab-content > * {
+  max-width: 100%;
+}
+@media (max-width: 600px) {
+  .profile-panel-body .profile-tab {
+    padding: 14px 10px 12px;
+    font-size: 14px;
+  }
+}
+
+/* iPhone: бесконечные декоративные анимации в списке чатов и полоске историй
+   перерисовывали экран каждый кадр — на сенсорных экранах они статичны */
+@media (pointer: coarse) {
+  .story-avatar-ring.unseen::before,
+  .chat-list-item .premium-mini-badge,
+  .chat-list-item .developer-mini-badge,
+  .chat-list-item .premium-status-icon,
+  .chat-list-item .premium-status-icon::after,
+  .chat-list-item .avatar-orbit-ring,
+  .chat-list-item .avatar-orbit-item-icon {
+    animation: none !important;
+  }
+  .message-list {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+}
