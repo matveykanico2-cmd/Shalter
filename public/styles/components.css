@@ -21454,6 +21454,15 @@ button img.emoji {
   justify-content: center;
   gap: 10px;
 }
+/* «Скопировать ссылку» и «Поделиться картинкой» в ряд — на узком экране столбиком */
+.qr-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.qr-profile-actions > * {
+  flex: 1 1 160px;
+}
 .qr-profile-theme {
   width: 34px;
   height: 34px;

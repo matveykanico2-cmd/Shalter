@@ -13,6 +13,7 @@ const { errorHandler } = require("./middleware/errors");
 const { apiLimiter, authLimiter } = require("./middleware/rateLimit");
 const { attachWebSocketServer } = require("./ws");
 const { getCurrentUserId } = require("./middleware/auth");
+const { takeSharePayload } = require("./routes/shareTarget");
 const { initPush } = require("./push");
 const { ensureSystemBot } = require("./data/systemBot");
 const { ensureHugoAccount } = require("./data/hugoBot");
@@ -127,6 +128,14 @@ app.use("/api/usernames", require("./routes/usernames"));
 app.use("/api/communities", require("./routes/communities"));
 app.use("/api/bootstrap", require("./routes/bootstrap"));
 app.use("/s", require("./routes/shortLinks"));
+// Системное «Поделиться»: принимаем содержимое из меню «Поделиться» и отдаём
+// его приложению по одноразовому токену.
+app.use("/share-target", require("./routes/shareTarget"));
+app.get("/api/share/:token", require("./middleware/auth").requireUserId, (req, res) => {
+  const payload = takeSharePayload(req.params.token);
+  if (!payload) return res.status(404).json({ error: "Ссылка устарела — поделитесь ещё раз" });
+  res.json({ share: payload });
+});
 
 if (useBuilt) {
   app.use("/dist", expressStaticGzip(DIST_DIR, { enableBrotli: true, orderPreference: ["br", "gz"], serveStatic: { maxAge: "1y", immutable: true } }));

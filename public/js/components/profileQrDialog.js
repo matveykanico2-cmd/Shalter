@@ -19,6 +19,38 @@ function qrSvg(text, ink) {
   return prettyQrSvg(text, { color: ink });
 }
 
+// Поделиться кодом картинкой: системное меню умеет отдавать файл, поэтому
+// рисуем ту же карточку на canvas и отдаём PNG (или сохраняем файлом).
+async function shareImage() {
+  copiedNote.textContent = "Готовим картинку…";
+  try {
+    const blob = await qrCardPng({
+      url,
+      name: user.name,
+      username: user.username,
+      theme: theme(),
+      avatarImage: user.avatarImage,
+      avatarColor: user.avatarColor,
+      hint: "Отсканируйте, чтобы открыть профиль",
+    });
+    const file = new File([blob], `shalter-${user.username || "qr"}.png`, { type: "image/png" });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: user.name, text: `${user.name} — Shalter` });
+      copiedNote.textContent = "Картинка отправлена ✓";
+      return;
+    }
+    const href = URL.createObjectURL(blob);
+    const a = el("a", { href, download: file.name });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(href);
+    copiedNote.textContent = "Картинка сохранена ✓";
+  } catch (err) {
+    copiedNote.textContent = err?.name === "AbortError" ? "" : "Не удалось поделиться картинкой";
+  }
+}
+
 export function openProfileQrDialog(user) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const url = `${window.location.origin}/u/${user.username}`;
@@ -66,21 +98,27 @@ export function openProfileQrDialog(user) {
       stage,
     ]),
     swatches,
-    el(
-      "button",
-      {
-        class: "btn-accent",
-        onclick: async () => {
-          try {
-            await navigator.clipboard.writeText(url);
-            copiedNote.textContent = "Ссылка скопирована ✓";
-          } catch {
-            copiedNote.textContent = "Не удалось скопировать — выделите вручную";
-          }
+    el("div", { class: "qr-profile-actions" }, [
+      el(
+        "button",
+        {
+          class: "btn-accent",
+          onclick: async () => {
+            try {
+              await navigator.clipboard.writeText(url);
+              copiedNote.textContent = "Ссылка скопирована ✓";
+            } catch {
+              copiedNote.textContent = "Не удалось скопировать — выделите вручную";
+            }
+          },
         },
-      },
-      [el("span", { html: iconSvg("Copy", 16) }), "Скопировать ссылку"]
-    ),
+        [el("span", { html: iconSvg("Copy", 16) }), "Скопировать ссылку"]
+      ),
+      el("button", { class: "btn-secondary", onclick: () => shareImage() }, [
+        el("span", { html: iconSvg("Share", 16) }),
+        "Поделиться картинкой",
+      ]),
+    ]),
     copiedNote,
   ]);
   stage.append(

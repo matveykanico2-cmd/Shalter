@@ -242,6 +242,8 @@ export const api = {
   getChatMessageAt: (chatId, day, tz) => req(`/api/chats/${chatId}/messages/at?day=${day}&tz=${tz}`),
   sendMessage: (chatId, text, opts) =>
     req(`/api/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify({ text, ...opts }) }),
+  // Содержимое из системного меню «Поделиться» по одноразовому токену.
+  getSharePayload: (token) => req(`/api/share/${encodeURIComponent(token)}`),
   editMessage: (chatId, messageId, text) =>
     req(`/api/chats/${chatId}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ text }) }),
   updateLiveLocation: (chatId, messageId, lat, lng) =>
