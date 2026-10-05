@@ -143,6 +143,9 @@ router.post(
     if (message.senderId === req.uid) {
       return res.status(400).json({ error: "Своё сообщение удаляется бесплатно" });
     }
+    if (message.type === "gift") {
+      return res.status(400).json({ error: "Сообщение с подарком удалить нельзя" });
+    }
 
     const DELETE_COST = getPricing().starCosts.delete;
     if (!spendStars(req.uid, DELETE_COST)) {

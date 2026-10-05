@@ -713,7 +713,8 @@ router.patch(
     }
     const legacyCallLog = existing.createdAt < "2026-10-03" && /^📞 (Звонок|Видеозвонок|Пропущенный звонок|Звонок отклонён)/.test(existing.text ?? "");
     // Пересланное нельзя править: иначе подпись «Переслано от …» стояла бы под чужим текстом.
-    if (existing.type === "call" || legacyCallLog || existing.forwardedFrom) {
+    // Подарок — тоже: его текст и сумма заданы при отправке, а не пишутся вручную.
+    if (existing.type === "call" || legacyCallLog || existing.forwardedFrom || existing.type === "gift") {
       return res.status(400).json({ error: "Это сообщение нельзя изменить" });
     }
     const { text } = req.body ?? {};
@@ -735,6 +736,12 @@ router.delete(
     const found = await loadMessageInChat(req, res, { allowModerator: forEveryone });
     if (!found) return;
     const existing = found.message;
+
+    // Подарок удалить нельзя: запись о нём — часть истории чата, и по ней видно,
+    // кто и что подарил. Ограничение общее для всех, включая модераторов.
+    if (existing.type === "gift") {
+      return res.status(400).json({ error: "Сообщение с подарком удалить нельзя" });
+    }
 
     if (forEveryone) {
       const chatForDelete = found.chat;

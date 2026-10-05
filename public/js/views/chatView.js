@@ -41,6 +41,7 @@ import { ProfileStatusBadge } from "../components/profileStatusBadge.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openMiniApp } from "../components/miniApp.js";
 import { openDeleteMessageDialog } from "../components/deleteMessageDialog.js";
+import { openStarsDialog, starIconSvg } from "../components/starsDialog.js";
 import { openLiveScreen } from "../components/liveScreen.js";
 import { CHAT_ACTION_LABELS } from "../lib/chatAction.js";
 import { isServerModerator } from "../lib/moderation.js";
@@ -1953,6 +1954,16 @@ export async function ChatView(root, chatId) {
     return `💬 ${n} комментариев`;
   }
 
+  // Платные комментарии: цену видно до отправки. Для Premium и админов канала
+  // платы нет — тогда подсказка не показывается вовсе.
+  function commentPriceHint({ commentPriceStars, commentPriceFree }) {
+    if (!commentPriceStars || commentPriceFree) return null;
+    return el("p", { class: "thread-composer-hint" }, [
+      el("span", { class: "thread-composer-hint-price" }, ["за ", el("span", { html: starIconSvg() }), String(commentPriceStars)]),
+      el("button", { class: "thread-composer-hint-buy", onclick: () => openStarsDialog() }, "Купить звёзды"),
+    ]);
+  }
+
   async function openPostComments(post) {
     let data;
     try {
@@ -1973,6 +1984,7 @@ export async function ChatView(root, chatId) {
         load: () => api.getPostComments(post.id).then((r) => r.replies),
         send: (text, attachments, extra) => api.sendPostComment(post.id, text, { attachments, ...extra }),
       },
+      composerHint: commentPriceHint(data),
       onReplySent: refreshMessages,
     });
   }
@@ -2049,6 +2061,8 @@ export async function ChatView(root, chatId) {
                 !m.forwardedFrom &&
                 m.type !== "system" &&
                 m.type !== "sticker" &&
+                // Подарок править нельзя — вверх-стрелка должна пропускать его.
+                m.type !== "gift" &&
                 !isCallLogMessage(m) &&
                 !!m.text?.trim() &&
                 !m.attachments?.some((a) => a.kind === "poll")

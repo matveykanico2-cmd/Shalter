@@ -844,9 +844,11 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     return el("div", { class: "system-message" }, [el("span", { class: "system-message-text" }, text)]);
   }
 
-  if (message.type === "gift" && message.gift) {
-    return GiftMessage(message, mine, isChannel);
-  }
+  // Подарок — обычное сообщение чата: на нём работают ответ, реакции, закрепление,
+  // пересылка и жалоба. Править и удалять его нельзя (openMessageMenu), а само
+  // оформление остаётся карточкой подарка, поэтому обычный текст и метаданные
+  // ниже не строятся.
+  const isGift = message.type === "gift" && !!message.gift;
 
   if (message.type === "report" && message.report) {
     return ReportMessage(message, mine, me, isChannel);
@@ -896,6 +898,10 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       ])
     );
   }
+  if (isGift) {
+    // Карточка подарка уже содержит и текст, и время — ниже они не строятся.
+    bubbleInner.push(GiftMessage(message, mine, isChannel));
+  }
   const atts = message.attachments ?? [];
   const mediaAtts = atts.filter((a) => a.kind === "image" || a.kind === "video");
   const album = mediaAtts.length >= 2;
@@ -936,7 +942,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     bubbleInner.push(StickerBody(message));
   } else if (mediaOnly) {
     // Фото/видео без подписи: пустой строки текста нет, время лежит поверх медиа (как в tweb).
-  } else if (!message.attachments?.some((a) => a.kind === "poll" || a.kind === "checklist")) {
+  } else if (!isGift && !message.attachments?.some((a) => a.kind === "poll" || a.kind === "checklist")) {
     const jumboCount = !message.attachments?.length ? jumboEmojiCount(message.text) : 0;
     const ceOnly =
       !message.attachments?.length && message.customEmoji && /^\s*(\[ce:\d+\]\s*)+$/.test(message.text || "")
@@ -1021,12 +1027,12 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     anchor.classList.add("message-meta-anchor");
     anchor.appendChild(meta);
   }
-  else if (!isCallLog) bubbleInner.push(meta);
+  else if (!isCallLog && !isGift) bubbleInner.push(meta);
 
   const boosted = !!message.boostedUntil && message.boostedUntil > new Date().toISOString();
   const bubble = el(
     "div",
-    { class: `bubble ${mine && !isChannel ? "mine" : ""} ${mediaOnly ? "bubble-media-only" : ""} ${isSticker ? "bubble-sticker" : ""} ${isVideoNote ? "bubble-videonote" : ""} ${boosted ? "bubble-boosted" : ""}` },
+    { class: `bubble ${mine && !isChannel ? "mine" : ""} ${mediaOnly ? "bubble-media-only" : ""} ${isSticker ? "bubble-sticker" : ""} ${isGift ? "bubble-gift" : ""} ${isVideoNote ? "bubble-videonote" : ""} ${boosted ? "bubble-boosted" : ""}` },
     bubbleInner
   );
   bubbleRef = bubble;
@@ -1037,10 +1043,11 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     requestAnimationFrame(() => bubble.isConnected && playMessageEffect(message.effect, bubble));
   }
 
-  const canTranslate = !isSticker && !!message.text?.trim() && !message.attachments?.some((a) => a.kind === "poll");
+  const canTranslate = !isSticker && !isGift && !!message.text?.trim() && !message.attachments?.some((a) => a.kind === "poll");
   // «Кратко» — ИИ-сводка длинного текста, показывается под сообщением, как перевод.
   let summaryEl = null;
-  const canSummarize = (message.text ?? "").length >= 400 && !String(message.id).startsWith("local_") && !protectedContent;
+  const canSummarize =
+    !isGift && (message.text ?? "").length >= 400 && !String(message.id).startsWith("local_") && !protectedContent;
   async function toggleSummary() {
     if (summaryEl) {
       summaryEl.remove();
@@ -1309,7 +1316,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
             },
           }]
         : []),
-      ...(selection ? [{ icon: "Check", label: "Выбрать", onClick: () => selection.onToggle(message.id) }] : []),
+      ...(selection && !isGift ? [{ icon: "Check", label: "Выбрать", onClick: () => selection.onToggle(message.id) }] : []),
       ...(readers.length ? [{ icon: "CheckCheck", label: `Прочитали: ${readers.length}`, onClick: () => showReaders(pos) }] : []),
       ...(isDm && mine && message.readAt ? [{ icon: "CheckCheck", label: readAtLabel(message.readAt) }] : []),
     ];
@@ -1328,10 +1335,10 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     }
     if (mine) {
       items.push({ icon: "Star", label: "Поднять за звёзды", onClick: () => boostForStars(message) });
-    } else if (isDm) {
+    } else if (isDm && !isGift) {
       items.push({ icon: "Trash", label: "Удалить за звёзды", danger: true, onClick: () => deleteForStars(message) });
     }
-    if (mine && !isSticker && !isCallLog && !message.forwardedFrom) items.push({ icon: "Edit", label: "Изменить", onClick: () => onEdit(message) });
+    if (mine && !isSticker && !isCallLog && !isGift && !message.forwardedFrom) items.push({ icon: "Edit", label: "Изменить", onClick: () => onEdit(message) });
     else if (!mine) {
       items.push({
         icon: "Info",
@@ -1340,7 +1347,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         onClick: () => openReportDialog("message", message.id, sender?.name ? `сообщение от ${sender.name}` : "сообщение"),
       });
     }
-    items.push({ icon: "Trash", label: "Удалить", danger: true, onClick: () => onDelete(message) });
+    // Подарок — часть истории чата: удалить его нельзя ни себе, ни за звёзды.
+    if (!isGift) items.push({ icon: "Trash", label: "Удалить", danger: true, onClick: () => onDelete(message) });
     openDropdownMenu(pos, items, { sheet: window.matchMedia("(max-width: 560px)").matches });
   }
 
@@ -1375,14 +1383,15 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     oncontextmenu: (e) => {
       e.preventDefault();
       rememberQuote();
-      if (selection?.active) {
+      if (selection?.active && !isGift) {
         selection.onToggle(message.id);
         return;
       }
       openMessageMenu({ x: e.clientX, y: e.clientY });
     },
   }, [bubble, hoverActions]);
-  if (selection?.active) {
+  // Подарок не выбирается: иначе пакетное удаление задело бы его вместе с текстом.
+  if (selection?.active && !isGift) {
     bubbleWrap.addEventListener(
       "click",
       (e) => {
@@ -1394,7 +1403,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     );
   }
 
-  if (selection) {
+  if (selection && !isGift) {
     const HOLD_MS = 450;
     const SLOP = 10;
     let timer = null;
@@ -1633,7 +1642,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       ...gestures,
     },
     [
-      selection?.active
+      selection?.active && !isGift
         ? el("button", {
             class: `message-select-mark ${isSelected ? "on" : ""}`,
             title: isSelected ? "Убрать из выбранных" : "Выбрать",

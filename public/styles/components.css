@@ -4042,6 +4042,46 @@ pre.mono,
   text-align: left;
   gap: 0;
 }
+/* Плата за комментарий канала — над полем ввода. */
+.thread-composer-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 7px 12px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.3;
+}
+.thread-composer-hint-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text);
+  font-weight: 500;
+}
+.thread-composer-hint-price svg {
+  width: 15px;
+  height: 15px;
+  vertical-align: -2px;
+}
+.thread-composer-hint-buy {
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 11px;
+  background: var(--color-accent, #4c9aff);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.thread-composer-hint-buy:hover {
+  filter: brightness(1.08);
+}
 .thread-panel .composer-secondary {
   display: none;
 }
@@ -21134,6 +21174,20 @@ button img.emoji {
 }
 
 /* ---------- tweb: подарок в чате (bubbles/starGift) ---------- */
+/* Сообщение-подарок ходит по общим правилам (ответ, реакции, закрепление), но
+   оформлено карточкой: пузырю-обёртке фон, поля и скругления не нужны. */
+.bubble-gift {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.message-column.mine .bubble-gift {
+  background: none;
+}
+.message-row:not(.group-start) .message-column.mine .bubble-gift {
+  border-top-right-radius: 0;
+}
 .tw-gift {
   display: flex;
   flex-direction: column;

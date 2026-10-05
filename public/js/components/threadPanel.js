@@ -15,13 +15,16 @@ function timeLabel(iso) {
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, title = "Тема", emptyHint, source }) {
+export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, title = "Тема", emptyHint, source, composerHint }) {
   let replies = [];
   const load = source?.load ?? (() => api.getThread(chat.id, rootMessage.id).then((r) => r.replies));
   const send = source?.send ?? ((text, attachments, extra) => api.sendMessage(chat.id, text, { threadRootId: rootMessage.id, attachments, ...extra }));
 
   const overlay = el("div", { class: "profile-panel-overlay", onclick: (e) => e.target === overlay && close() });
   const body = el("div", { class: "info-panel-body thread-panel-body" });
+  // Плата за участие (звёзды за комментарий канала) — прямо над полем ввода,
+  // чтобы цену было видно до отправки, а не после отказа от платежа.
+  const hintSlot = el("div", {}, composerHint ? [typeof composerHint === "string" ? el("p", { class: "thread-composer-hint" }, composerHint) : composerHint] : []);
   const composerSlot = el("div", {});
   const panel = el("aside", { class: "profile-panel thread-panel" }, [
     el("div", { class: "info-panel-header" }, [
@@ -29,6 +32,7 @@ export function openThreadPanel({ chat, rootMessage, members, me, onReplySent, t
       el("button", { class: "icon-btn", html: iconSvg("X", 18), onclick: () => close() }),
     ]),
     body,
+    hintSlot,
     composerSlot,
   ]);
   overlay.appendChild(panel);

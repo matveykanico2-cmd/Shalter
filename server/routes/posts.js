@@ -8,6 +8,7 @@ const { recordView } = require("../data/postViews");
 const { getUser } = require("../data/users");
 const { publicUsers } = require("../data/sanitize");
 const { deliverMessage, sendGate } = require("./messages");
+const { isStaff } = require("../lib/chatPermissions");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 
 const router = express.Router();
@@ -114,6 +115,12 @@ router.get(
 
     const replies = await listThreadReplies(found.anchor.id);
     const members = await Promise.all(found.discussion.memberIds.map((id) => getUser(id)));
+    // Сколько стоит комментарий и берёт ли его этот пользователь: платёж живёт
+    // в sendGate, условия логики повторяем здесь, чтобы панель показала цену
+    // заранее, а не после неудачной отправки.
+    const price = found.channel.commentPriceStars ?? 0;
+    const sender = await getUser(req.uid);
+    const priceFree = !price || sender?.isPremium || isStaff(found.channel, req.uid);
     res.json({
       post: found.post,
       anchor: found.anchor,
@@ -121,6 +128,8 @@ router.get(
       members: publicUsers([...members, ...(await Promise.all(replies.map((r) => getUser(r.senderId))))].filter(Boolean)),
       replies,
       canComment: found.discussion.memberIds.includes(req.uid) || !!found.discussion.username || !!found.channel.username,
+      commentPriceStars: price,
+      commentPriceFree: priceFree,
     });
   })
 );
