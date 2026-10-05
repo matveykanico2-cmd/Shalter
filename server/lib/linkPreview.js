@@ -2,7 +2,9 @@ const dns = require("dns").promises;
 const net = require("net");
 
 const URL_RE = /https?:\/\/[^\s<>"]+/;
-const MAX_RESPONSE_BYTES = 512 * 1024;
+// YouTube и VK отдают <head> ближе к мегабайту (скрипты идут после метатегов),
+// при 512 КБ заголовок не попадал в разбор и превью оставалось без названия.
+const MAX_RESPONSE_BYTES = 1024 * 1024;
 const FETCH_TIMEOUT_MS = 6000;
 
 const SHORTENER_HOSTS = new Set(["bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly", "is.gd", "buff.ly"]);
@@ -216,12 +218,14 @@ function youtubePreview(id) {
 function videoFields(url) {
   const known = videoPreviewFor(url);
   if (!known) return {};
-  const image = known.video?.images?.[0] ?? null;
+  // Картинки кладём наверх, в video — только id: превью хранится в базе вместе
+  // с каждым сообщением, и повторять три URL в двух местах незачем.
+  const { images, embedUrl } = known.video ?? {};
   return {
     siteName: known.siteName,
-    image,
-    images: known.video?.images ?? undefined,
-    video: known.video,
+    image: images?.[0] ?? null,
+    images,
+    video: { id: known.video?.id, ...(embedUrl ? { embedUrl } : {}) },
   };
 }
 

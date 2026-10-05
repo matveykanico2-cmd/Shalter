@@ -80,6 +80,12 @@ async function boot() {
 
   const { user, accounts } = await api.session();
   if (!user || !user.name) {
+    // Отправка из системного меню «Поделиться»: содержимое дожидается входа.
+    if (path.startsWith("/share/")) {
+      try {
+        sessionStorage.setItem("shalter.share", path.slice("/share/".length));
+      } catch {}
+    }
     window.location.href = "/login";
     return;
   }
@@ -418,6 +424,14 @@ async function boot() {
     await openByUsername(params.username, window.location.search);
   });
 
+  // Системное «Поделиться»: содержимое уже лежит на сервере по токену, показываем
+  // окно отправки и сразу возвращаемся к чатам — сам маршрут одноразовый.
+  route("/share/:token", async (params) => {
+    const { openShareFromToken } = await import("./components/shareInboxDialog.js");
+    openShareFromToken(params.token);
+    navigate("/", { replace: true });
+  });
+
   route("/join/:code", async (params) => {
     withCleanup(mainSlot);
     const { JoinInviteView } = await import("./views/joinInvite.js");
@@ -474,7 +488,7 @@ async function boot() {
   const RESERVED_PATHS = new Set([
     "u", "chat", "call", "call-join", "join", "folder", "nearby", "contacts",
     "discover-channels", "market", "calls", "archive", "settings", "login",
-    "download", "promo", "bots", "oauth-docs",
+    "download", "promo", "bots", "oauth-docs", "share",
   ]);
   const handleInPath = window.location.pathname.match(/^\/@?([A-Za-z0-9_]{3,32})\/?$/);
   if (handleInPath && !RESERVED_PATHS.has(handleInPath[1].toLowerCase())) {
@@ -482,6 +496,16 @@ async function boot() {
   }
 
   startRouter();
+
+  // Отправка из «Поделиться», пережившая вход в аккаунт.
+  try {
+    const pendingShare = sessionStorage.getItem("shalter.share");
+    if (pendingShare) {
+      sessionStorage.removeItem("shalter.share");
+      const { openShareFromToken } = await import("./components/shareInboxDialog.js");
+      openShareFromToken(pendingShare);
+    }
+  } catch {}
 }
 
 boot().catch((err) => {

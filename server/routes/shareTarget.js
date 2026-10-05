@@ -84,8 +84,27 @@ function parseMultipart(buffer, boundary) {
   return { fields, files };
 }
 
+// Тело разбираем в память, поэтому запросов с одного адреса не больше 20 в минуту.
+const HITS = new Map();
+function allow(ip) {
+  const now = Date.now();
+  const recent = (HITS.get(ip) ?? []).filter((t) => now - t < 60_000);
+  if (recent.length >= 20) {
+    HITS.set(ip, recent);
+    return false;
+  }
+  recent.push(now);
+  HITS.set(ip, recent);
+  if (HITS.size > 5000) HITS.clear();
+  return true;
+}
+
 router.post(
   "/",
+  (req, res, next) => {
+    if (!allow(req.ip ?? "?")) return res.status(429).json({ error: "Слишком много отправок — подождите минуту" });
+    next();
+  },
   express.raw({ type: "*/*", limit: MAX_BODY_BYTES }),
   (req, res) => {
     const { type, boundary } = parseContentType(req.headers["content-type"]);

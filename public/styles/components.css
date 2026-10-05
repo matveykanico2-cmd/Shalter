@@ -4633,6 +4633,95 @@ button.profile-ad-banner {
 .forward-row:hover {
   background: var(--color-surface-alt);
 }
+/* Окно «Поделиться в Shalter» (components/shareInboxDialog.js) */
+.share-inbox-dialog {
+  max-height: 86vh;
+}
+.share-inbox-preview {
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+}
+.share-inbox-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.4;
+  max-height: 88px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.share-inbox-link {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--color-accent);
+  overflow-wrap: anywhere;
+}
+.share-inbox-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-muted);
+}
+.share-inbox-file p {
+  margin: 0;
+}
+.share-inbox-file-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.share-inbox-search {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+  font-size: 14px;
+  outline: none;
+}
+.share-inbox-search:focus {
+  border-color: var(--color-accent);
+}
+.share-inbox-list {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.share-inbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  text-align: left;
+}
+.share-inbox-row:hover:not(:disabled) {
+  background: var(--color-surface-alt);
+}
+.share-inbox-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.share-inbox-row-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.share-inbox-row p {
+  margin: 0;
+}
 .modal-cancel {
   margin-top: 2px;
   width: 100%;
