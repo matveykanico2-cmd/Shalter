@@ -502,16 +502,30 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
     showToast(`«${gift.name}» отправлен — ${target.name}${serial ? `, №${serial}` : ""}`);
     close();
     if (!chatId) return;
-    document.querySelectorAll(".profile-panel-overlay").forEach((o) => o.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    document.querySelectorAll(".modal-overlay").forEach((o) => o.querySelector(".profile-dialog, .gift-card-dialog") && o.remove());
-    // Панель «Информация о чате» (у личного чата она называется «Профиль») закрываем
-    // её же кнопкой: событие ниже слушает только уже открытый чат, а он мог не
-    // успеть подписаться — и профиль остался бы поверх переписки с подарком.
-    document.querySelectorAll(".info-panel").forEach((p) => p.querySelector(".info-panel-header .icon-btn")?.click());
+    closeOverlays();
     api.listChats().then((r) => setState({ chats: r.chats }), () => {});
     // Переход в тот же чат для роутера ничего не меняет, поэтому открываем чат явно.
     window.dispatchEvent(new CustomEvent("shalter:chat-opened", { detail: { chatId } }));
     navigate(`/chat/${chatId}`);
+  }
+
+  // После отправки пользователь должен оказаться в чате с подарком, а не в профиле
+  // отправителя. Панель профиля и «Информация о чате» (в личном чате она так и
+  // называется — «Профиль») закрываем наверняка: синтетический клик по оверлею,
+  // его кнопка закрытия, а если панель ещё висит — снимаем её с разметки.
+  function closeOverlays() {
+    for (const overlay of document.querySelectorAll(".profile-panel-overlay")) {
+      overlay.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      overlay.remove();
+    }
+    for (const panel of document.querySelectorAll(".info-panel")) {
+      panel.querySelector(".info-panel-header .icon-btn")?.click();
+      panel.closest(".info-panel-slot")?.remove();
+      panel.remove();
+    }
+    for (const overlay of document.querySelectorAll(".modal-overlay")) {
+      if (overlay.querySelector(".profile-dialog, .gift-card-dialog")) overlay.remove();
+    }
   }
 
   // ---------- свои нарисованные подарки ----------

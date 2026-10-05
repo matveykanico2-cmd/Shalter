@@ -1543,6 +1543,12 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   let swipeY = 0;
   let swiping = null;
   let lastTapAt = 0;
+  // На касаниях первое нажатие «приклеивает» :hover к сообщению, панель реакций
+  // над пузырём становится кликабельной — и второе нажатие двойного тапа попадает
+  // в её кнопку «Реакция»: открывался список эмодзи вместо сердечка. Такое касание
+  // считаем вторым тапом и гасим следующий click, отдаём сердечко.
+  let lastTapOnBar = false;
+  let heartQueued = false;
 
   const hasTextSelection = () => {
     const sel = window.getSelection?.();
@@ -1593,14 +1599,23 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         return;
       }
       if (selection?.active || e.target.closest?.("button, a, input, video, audio, .bubble-actions")) {
-        lastTapAt = 0;
+        const onBar = !!e.target.closest?.(".bubble-actions");
+        const isDouble = Date.now() - lastTapAt < DOUBLE_TAP_MS && !lastTapOnBar;
+        if (onBar && isDouble) {
+          lastTapAt = 0;
+          heartQueued = true;
+        } else {
+          lastTapAt = Date.now();
+        }
+        lastTapOnBar = onBar;
         return;
       }
       const now = Date.now();
-      if (now - lastTapAt < DOUBLE_TAP_MS) {
+      if (now - lastTapAt < DOUBLE_TAP_MS && !lastTapOnBar) {
         lastTapAt = 0;
         onReact?.(message, "❤️");
       } else lastTapAt = now;
+      lastTapOnBar = false;
     },
     onpointercancel: () => {
       swipeX = 0;
@@ -1645,6 +1660,20 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         : null,
       column,
     ]
+  );
+  // Клик по кнопке панели реакций, который нажатием двойного тапа уже превратился
+  // в сердечко, — не открываем список эмодзи. Перехват на лету (capture), иначе
+  // обработчик кнопки отработает раньше bubble.
+  row.addEventListener(
+    "click",
+    (e) => {
+      if (!heartQueued) return;
+      heartQueued = false;
+      e.preventDefault();
+      e.stopPropagation();
+      onReact?.(message, "❤️");
+    },
+    true
   );
 
   return row;
