@@ -199,9 +199,10 @@ function observeView(box, play) {
   viewObserver.observe(box);
 }
 
-// Подарки-эмодзи (rose, heart, nt_robot…) в tweb — это PNG-картинки из
-// assets/img/emoji, а не lottie-файлы. Раньше таких файлов не было, и подарок
-// показывался голым символом эмодзи. Рисуем картинку, а при её отсутствии — эмодзи.
+// Подарки-эмодзи (rose, heart, nt_robot…) — это анимированные эмодзи Noto из
+// public/tgs/emoji/<кодовые точки>.json, а не статичные картинки. Статичная картинка
+// из public/gift-emoji остаётся запасным вариантом, если lottie-файла нет: рисуем
+// картинку, а при её отсутствии — эмодзи.
 export function renderEmojiArt(name, { size = 84, replay = true, fallback = null } = {}) {
   const cp = String(name ?? "").replace(/^emoji\//, "");
   if (!cp) return fallback ? fallback() : null;

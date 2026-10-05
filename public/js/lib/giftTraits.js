@@ -57,14 +57,15 @@ export function renderGiftArt(gift, { size = 84, replay = true } = {}) {
   }
   const asEmoji = () => renderScene(gift?.emoji, { size, replay });
   const lottie = lottieNameFor(gift);
-  // Подарки-эмодзи — статичная картинка из tweb, lottie для них нет.
-  // У эмодзи Noto кадр покоя — из середины (края бывают пустыми), у анимаций tweb — последний.
+  // Подарки-эмодзи (rose, heart, nt_robot…): кадр покоя анимированного эмодзи берём из
+  // середины — край бывает пустым. Не приехал lottie — статичная картинка из gift-emoji,
+  // не приехала и она — сам символ эмодзи.
+  const asPicture = () => renderEmojiArt(lottie ?? emojiArtName(gift?.emoji), { size, replay, fallback: asEmoji });
   const art = lottie?.startsWith("emoji/")
-    ? () => renderEmojiArt(lottie, { size, replay, fallback: asEmoji })
+    ? () => renderLottie(lottie, { size, replay, rest: "mid", fallback: asPicture, placeholder: asEmoji })
     : lottie
       ? () => renderLottie(lottie, { size, replay, rest: "last", fallback: asEmoji, placeholder: asEmoji })
-      : // Своей анимации нет — сперва картинка эмодзи из gift-emoji, если она есть.
-        () => renderEmojiArt(emojiArtName(gift?.emoji), { size, replay, fallback: asEmoji });
+      : asPicture;
   if (!gift?.mediaUrl) return art();
   const img = document.createElement("img");
   img.src = gift.mediaUrl;
