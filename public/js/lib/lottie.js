@@ -216,8 +216,12 @@ export function renderEmojiArt(name, { size = 84, replay = true, fallback = null
   img.draggable = false;
   img.width = size;
   img.height = size;
-  img.src = `/gift-emoji/${cp}.png`;
+  // .lottie-art намеренно прозрачен до класса ready (CSS) — без него картинка
+  // подарка не видна вовсе. Событие load ловим до установки src, иначе уже
+  // закэшированная картинка успеет отрисоваться мимо слушателя.
+  img.addEventListener("load", () => box.classList.add("ready"), { once: true });
   img.addEventListener("error", () => box.replaceWith(fallback ? fallback() : document.createComment("")), { once: true });
+  img.src = `/gift-emoji/${cp}.png`;
   box.appendChild(img);
   return box;
 }

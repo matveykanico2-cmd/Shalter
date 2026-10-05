@@ -88,7 +88,7 @@ export function openGiftPickerDialog({ gifts = [], title = "Выдать под�
   }
 
   popup.append(
-    el("div", { class: "sg-header" }, [
+    el("div", { class: "sg-header sg-header-solid" }, [
       el("button", { type: "button", class: "sg-icon-btn", "aria-label": "Закрыть", title: "Закрыть", html: iconSvg("X", 22), onclick: close }),
       el("div", { class: "sg-header-title" }, title),
     ]),
