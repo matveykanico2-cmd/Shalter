@@ -504,11 +504,12 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
     if (!chatId) return;
     document.querySelectorAll(".profile-panel-overlay").forEach((o) => o.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     document.querySelectorAll(".modal-overlay").forEach((o) => o.querySelector(".profile-dialog, .gift-card-dialog") && o.remove());
+    // Панель «Информация о чате» (у личного чата она называется «Профиль») закрываем
+    // её же кнопкой: событие ниже слушает только уже открытый чат, а он мог не
+    // успеть подписаться — и профиль остался бы поверх переписки с подарком.
+    document.querySelectorAll(".info-panel").forEach((p) => p.querySelector(".info-panel-header .icon-btn")?.click());
     api.listChats().then((r) => setState({ chats: r.chats }), () => {});
-    // Панель «Информация о чате» (у личного чата она называется «Профиль») часто
-    // остаётся открытой — из неё подарок и отправляют. Переход в тот же чат для
-    // роутера ничего не меняет, поэтому чат открываем явно: иначе после отправки
-    // остаётся профиль вместо чата с подарком.
+    // Переход в тот же чат для роутера ничего не меняет, поэтому открываем чат явно.
     window.dispatchEvent(new CustomEvent("shalter:chat-opened", { detail: { chatId } }));
     navigate(`/chat/${chatId}`);
   }

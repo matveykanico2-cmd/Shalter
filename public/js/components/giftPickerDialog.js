@@ -10,11 +10,11 @@ const fmt = (n) => Number(n ?? 0).toLocaleString("ru-RU");
 // раньше открывали ленту строк «эмодзи + название»: картинки подарка не было
 // видно, а «Пиратский флаг» и прочие ZWJ-эмодзи местами рисовались квадратами.
 export function openGiftPickerDialog({ gifts = [], title = "Выдать подарок", searchPlaceholder = "Поиск подарка", onPick } = {}) {
-  let query = "";
-
   const overlay = el("div", { class: "modal-overlay sg-overlay", onclick: (e) => e.target === overlay && close() });
   const popup = el("div", { class: "sg-popup", role: "dialog", "aria-modal": "true", "aria-label": title });
   const results = el("div", { class: "sg-scroll" });
+  let query = "";
+
   const search = el("input", {
     class: "sg-input",
     type: "search",
@@ -25,6 +25,20 @@ export function openGiftPickerDialog({ gifts = [], title = "Выдать под�
       paint();
     },
   });
+  // Свой крестик: системный у input[type=search] рисуется поверх текста.
+  const clearBtn = el("button", {
+    type: "button",
+    class: "sg-input-clear",
+    "aria-label": "Очистить",
+    html: iconSvg("X", 16),
+    onclick: () => {
+      search.value = "";
+      query = "";
+      paint();
+      search.focus();
+    },
+  });
+  const inputWrap = el("div", { class: "sg-input-wrap" }, [search, clearBtn]);
 
   function tile(g) {
     const soldOut = g.supply != null && (g.remaining ?? 0) <= 0;
@@ -56,6 +70,8 @@ export function openGiftPickerDialog({ gifts = [], title = "Выдать под�
 
   function paint() {
     clear(results);
+    clearBtn.hidden = !query;
+    inputWrap.classList.toggle("has-clear", !!query);
     const list = query ? gifts.filter((g) => `${g.name ?? ""} ${g.emoji ?? ""}`.toLowerCase().includes(query)) : gifts;
     if (!list.length) return results.append(el("p", { class: "sg-empty" }, "Ничего не найдено"));
     results.append(el("div", { class: "tw-gifts-grid" }, list.map(tile)));
@@ -76,7 +92,7 @@ export function openGiftPickerDialog({ gifts = [], title = "Выдать под�
       el("button", { type: "button", class: "sg-icon-btn", "aria-label": "Закрыть", title: "Закрыть", html: iconSvg("X", 22), onclick: close }),
       el("div", { class: "sg-header-title" }, title),
     ]),
-    el("div", { class: "sg-input-wrap" }, [search]),
+    inputWrap,
     results
   );
   paint();

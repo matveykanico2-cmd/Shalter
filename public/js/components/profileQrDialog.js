@@ -1,16 +1,18 @@
 import { el } from "../lib/dom.js";
 import { prettyQrSvg } from "../lib/prettyQr.js";
+import { qrCardPng } from "../lib/qrCard.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 
 // Темы как в tweb (popups/myQrCode): фон-градиент, код и имя — цветом темы.
+// Цвета градиента по отдельности нужны картинке для «Поделиться».
 const QR_THEMES = [
-  { id: "blue", bg: "linear-gradient(135deg, #8fd0ff, #5b8cff 55%, #7c6cf0)", ink: "#2f5bd8" },
-  { id: "violet", bg: "linear-gradient(135deg, #d7a6ff, #9b6cf5 55%, #6b5ce7)", ink: "#6a3fd1" },
-  { id: "pink", bg: "linear-gradient(135deg, #ffc1d9, #f57aa6 55%, #c85ce0)", ink: "#c0397a" },
-  { id: "orange", bg: "linear-gradient(135deg, #ffe08a, #ffad5c 55%, #f0735a)", ink: "#d5602b" },
-  { id: "green", bg: "linear-gradient(135deg, #c8f2a0, #6fd08c 55%, #33a9a0)", ink: "#23886f" },
-  { id: "night", bg: "linear-gradient(135deg, #3b4a6b, #23304d 55%, #151c2f)", ink: "#23304d" },
+  { id: "blue", bg: "linear-gradient(135deg, #8fd0ff, #5b8cff 55%, #7c6cf0)", ink: "#2f5bd8", from: "#8fd0ff", via: "#5b8cff", to: "#7c6cf0" },
+  { id: "violet", bg: "linear-gradient(135deg, #d7a6ff, #9b6cf5 55%, #6b5ce7)", ink: "#6a3fd1", from: "#d7a6ff", via: "#9b6cf5", to: "#6b5ce7" },
+  { id: "pink", bg: "linear-gradient(135deg, #ffc1d9, #f57aa6 55%, #c85ce0)", ink: "#c0397a", from: "#ffc1d9", via: "#f57aa6", to: "#c85ce0" },
+  { id: "orange", bg: "linear-gradient(135deg, #ffe08a, #ffad5c 55%, #f0735a)", ink: "#d5602b", from: "#ffe08a", via: "#ffad5c", to: "#f0735a" },
+  { id: "green", bg: "linear-gradient(135deg, #c8f2a0, #6fd08c 55%, #33a9a0)", ink: "#23886f", from: "#c8f2a0", via: "#6fd08c", to: "#33a9a0" },
+  { id: "night", bg: "linear-gradient(135deg, #3b4a6b, #23304d 55%, #151c2f)", ink: "#23304d", from: "#3b4a6b", via: "#23304d", to: "#151c2f" },
 ];
 const THEME_KEY = "shalter.qrTheme";
 function qrSvg(text, ink) {

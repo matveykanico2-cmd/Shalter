@@ -62,7 +62,7 @@ export function renderGiftArt(gift, { size = 84, replay = true } = {}) {
   const art = lottie?.startsWith("emoji/")
     ? () => renderEmojiArt(lottie, { size, replay, fallback: asEmoji })
     : lottie
-      ? () => renderLottie(lottie, { size, replay, rest: "last", fallback: asEmoji })
+      ? () => renderLottie(lottie, { size, replay, rest: "last", fallback: asEmoji, placeholder: asEmoji })
       : // Своей анимации нет — сперва картинка эмодзи из gift-emoji, если она есть.
         () => renderEmojiArt(emojiArtName(gift?.emoji), { size, replay, fallback: asEmoji });
   if (!gift?.mediaUrl) return art();

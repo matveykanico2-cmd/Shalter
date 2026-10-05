@@ -1905,6 +1905,33 @@
   object-fit: cover;
   display: block;
 }
+/* заставка ролика: 16:9 как в Telegram, с кнопкой play поверх */
+.link-preview-media {
+  position: relative;
+  background: var(--color-surface-alt);
+}
+.link-preview-media.video {
+  aspect-ratio: 16 / 9;
+}
+.link-preview-media.video .link-preview-image {
+  height: 100%;
+  max-height: none;
+}
+.link-preview-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  pointer-events: none;
+}
 .link-preview-body {
   padding: 8px 10px;
 }
@@ -22135,6 +22162,36 @@ button img.emoji {
 .sg-input-wrap:focus-within {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 1px var(--color-accent);
+}
+/* Свой крестик очистки: системный у input[type=search] рисуется поверх текста. */
+.sg-input[type="search"]::-webkit-search-cancel-button,
+.sg-input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.sg-input-wrap.has-clear .sg-input {
+  padding-right: 40px;
+}
+.sg-input-clear {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.sg-input-clear:hover {
+  color: var(--color-text);
+  background: var(--color-surface-alt);
+}
+.sg-input-clear[hidden] {
+  display: none;
 }
 .sg-input {
   flex: 1;

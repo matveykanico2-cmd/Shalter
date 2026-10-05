@@ -44,35 +44,50 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId, backgrou
 
   const duration = durationLabel(gift.premiumDays);
   const serialLabel = serial != null ? ` (№${serial} из ${gift.supply})` : "";
+  const giftAttachment = {
+    type: "gift",
+    gift: {
+      giftId: gift.id,
+      emoji: gift.emoji,
+      name: gift.name,
+      priceRub: gift.priceRub,
+      premiumDays: gift.premiumDays,
+      durationLabel: duration,
+      priceStars: gift.priceStars,
+      mediaUrl: gift.mediaUrl,
+      scene: gift.scene,
+      ...(gift.ownerId || (gift.scene && !gift.priceStars) ? { custom: true } : {}),
+      ...(background ? { background } : {}),
+      ...(anonymous ? { anon: true } : {}),
+      ...(note ? { note } : {}),
+      fromId: fromId ?? null,
+      fromName,
+      recipientId,
+      ...(serial != null ? { serial, supply: gift.supply, exclusive: true } : {}),
+    },
+  };
+
   const announcerId = anonymous ? SYSTEM_BOT_ID : announceFromId;
   const chat = await findOrCreateDm(announcerId, recipientId);
   await sendMessageAndBroadcast(
     chat,
     announcerId,
     `🎁 Вам ${anonymous ? "анонимно " : ""}подарили: ${gift.emoji} «${gift.name}»${serialLabel}!${duration ? ` ${duration} активирован.` : ""}`,
-    {
-      type: "gift",
-      gift: {
-        giftId: gift.id,
-        emoji: gift.emoji,
-        name: gift.name,
-        priceRub: gift.priceRub,
-        premiumDays: gift.premiumDays,
-        durationLabel: duration,
-        priceStars: gift.priceStars,
-        mediaUrl: gift.mediaUrl,
-        scene: gift.scene,
-        ...(gift.ownerId || (gift.scene && !gift.priceStars) ? { custom: true } : {}),
-        ...(background ? { background } : {}),
-        ...(anonymous ? { anon: true } : {}),
-        ...(note ? { note } : {}),
-        fromId: fromId ?? null,
-        fromName,
-        recipientId,
-        ...(serial != null ? { serial, supply: gift.supply, exclusive: true } : {}),
-      },
-    }
+    giftAttachment
   );
+
+  // Анонимный подарок получателю объявляет бот, но запись нужна и в чате с
+  // отправителем: после отправки открывается именно этот чат, и без записи он
+  // выглядит пустым — кажется, что подарок никуда не ушёл.
+  if (anonymous && fromId) {
+    const senderChat = await findOrCreateDm(fromId, recipientId);
+    await sendMessageAndBroadcast(
+      senderChat,
+      fromId,
+      `🎁 Вы отправили анонимный подарок: ${gift.emoji} «${gift.name}»${serialLabel}!`,
+      giftAttachment
+    );
+  }
 
   return { ok: true, serial, chat, duration };
 }

@@ -167,12 +167,33 @@ function AudioFile(a, ctx) {
 }
 
 export function LinkPreviewCard(p) {
-  if (!p.title && !p.description && !p.image && !p.warning) return null;
+  if (!p.title && !p.description && !p.image && !p.video && !p.warning) return null;
+  // Заставка ролика: maxresdefault есть не у всех видео, поэтому перебираем
+  // варианты, пока не отдаст картинку.
+  const img = p.image ? el("img", { loading: "lazy", decoding: "async", class: "link-preview-image", src: p.image, alt: "" }) : null;
+  if (img && Array.isArray(p.images) && p.images.length > 1) {
+    const rest = p.images.slice(1);
+    img.addEventListener(
+      "error",
+      () => {
+        const next = rest.shift();
+        if (next) img.src = next;
+        else img.remove();
+      },
+      { once: true }
+    );
+  }
+  const media = p.image
+    ? el("div", { class: `link-preview-media${p.video ? " video" : ""}` }, [
+        img,
+        p.video ? el("span", { class: "link-preview-play", html: iconSvg("PlayFill", 22) }) : null,
+      ])
+    : null;
   const card = el(
     "button",
     { class: "link-preview-card", onclick: () => openInAppBrowser(p.url, { unsafe: p.unsafe, warning: p.warning }) },
     [
-      p.image ? el("img", { loading: "lazy", decoding: "async", class: "link-preview-image", src: p.image, alt: "" }) : null,
+      media,
       el("div", { class: "link-preview-body" }, [
         p.warning ? el("p", { class: `link-preview-warning ${p.unsafe ? "danger" : ""}` }, [el("span", { html: iconSvg("Info", 12) }), " ", p.warning]) : null,
         p.siteName ? el("p", { class: "link-preview-site" }, p.siteName) : null,

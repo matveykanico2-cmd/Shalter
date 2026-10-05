@@ -222,10 +222,37 @@ export function renderEmojiArt(name, { size = 84, replay = true, fallback = null
   return box;
 }
 
-export function renderLottie(name, { size = 84, replay = true, loop = false, fallback = null, rest = "last", playOnView = false } = {}) {  const box = document.createElement("span");
+const READY_TIMEOUT_MS = 8000;
+
+export function renderLottie(name, { size = 84, replay = true, loop = false, fallback = null, placeholder = null, rest = "last", playOnView = false } = {}) {
+  const box = document.createElement("span");
   box.className = "lottie-art";
   box.style.width = `${size}px`;
   box.style.height = `${size}px`;
+
+  // Пока анимация едет и рисуется, показываем заглушку — иначе плитка подарка
+  // выглядит пустой: .lottie-art намеренно прозрачен до класса ready.
+  const placeholderNode = placeholder ? placeholder() : null;
+  if (placeholderNode) box.appendChild(placeholderNode);
+
+  let ready = false;
+  function markReady() {
+    if (ready) return;
+    ready = true;
+    clearTimeout(guard);
+    placeholderNode?.remove();
+    box.classList.add("ready");
+  }
+  // Не дождались кадра — показываем то, чему есть что показать, вместо пустоты.
+  function giveUp() {
+    if (ready) return;
+    ready = true;
+    clearTimeout(guard);
+    placeholderNode?.remove();
+    if (fallback && box.isConnected) box.replaceWith(fallback());
+    else markReady();
+  }
+  const guard = setTimeout(giveUp, READY_TIMEOUT_MS);
 
   Promise.all([loadPlayer(), loadData(name)])
     .then(([lottie, text]) => {
@@ -244,19 +271,25 @@ export function renderLottie(name, { size = 84, replay = true, loop = false, fal
         rest === "first" ? 0 : rest === "mid" ? Math.floor(Math.max(0, anim.totalFrames - 1) * 0.6) : Math.max(0, anim.totalFrames - 1);
       const replayFromStart = () => anim.goToAndPlay(0, true);
       anim.addEventListener("DOMLoaded", () => {
-        box.classList.add("ready");
+        markReady();
         if (replay) anim.play();
         else anim.goToAndStop(restFrame(), true);
         if (playOnView && !replay) observeView(box, replayFromStart);
       });
+      // DOMLoaded иногда прилетает синхронно внутри loadAnimation — слушатель
+      // ниже тогда уже не сработает, и подарок остался бы прозрачным навсегда.
+      if (anim.isLoaded) {
+        markReady();
+        if (replay) anim.play();
+        else anim.goToAndStop(restFrame(), true);
+        if (playOnView && !replay) observeView(box, replayFromStart);
+      }
       if (!replay) anim.addEventListener("complete", () => anim.goToAndStop(restFrame(), true));
       const host = () => box.closest("button, a, .gift-message, .gift-card-emoji") ?? box;
       host().addEventListener("mouseenter", () => anim.isPaused && replayFromStart());
       box.addEventListener("click", () => anim.isPaused && replayFromStart());
     })
-    .catch(() => {
-      if (fallback) box.replaceWith(fallback());
-    });
+    .catch(giveUp);
 
   return box;
 }
