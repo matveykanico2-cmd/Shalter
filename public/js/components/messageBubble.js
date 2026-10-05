@@ -176,6 +176,26 @@ function GiftMessage(message, mine, isChannel) {
       })
       .catch(() => {});
   }
+  const fromUserSlot = el("span", { class: "tw-gift-from-user" });
+  if (!anon && gift.fromId && !fromUser) {
+    fetchUsers([gift.fromId])
+      .then(() => {
+        const u = cachedUser(gift.fromId);
+        if (!u) return;
+        fromUserSlot.replaceWith(
+          el("span", { class: "tw-gift-from-user" }, [
+            Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 16 }),
+            el("span", {}, mine && !anon ? (getState().user?.name ?? fromName) : fromName),
+          ])
+        );
+      })
+      .catch(() => {});
+  } else if (!anon && (fromUser || gift.fromName)) {
+    fromUserSlot.append(
+      Avatar({ name: fromUser?.name ?? fromName, color: fromUser?.avatarColor, image: fromUser?.avatarImage, size: 16 }),
+      el("span", {}, mine && !anon ? (getState().user?.name ?? fromName) : fromName)
+    );
+  }
   const view = () => {
     import("./giftCardDialog.js").then(({ openGiftCardDialog }) =>
       openGiftCardDialog(gift, {
@@ -195,10 +215,7 @@ function GiftMessage(message, mine, isChannel) {
       el("div", { class: "tw-gift-art" }, [renderGiftArt(gift, { size: 120, replay: isNew })]),
       el("p", { class: "tw-gift-from" }, [
         "Подарок от ",
-        el("span", { class: "tw-gift-from-user" }, [
-          !anon && (fromUser || gift.fromName) ? Avatar({ name: fromUser?.name ?? fromName, color: fromUser?.avatarColor, image: fromUser?.avatarImage, size: 16 }) : null,
-          el("span", {}, mine && !anon ? (getState().user?.name ?? fromName) : fromName),
-        ]),
+        fromUserSlot,
       ]),
       el("p", { class: "tw-gift-name" }, gift.durationLabel ? `${gift.name} · ${gift.durationLabel}` : gift.name),
       gift.note ? el("p", { class: "tw-gift-message" }, gift.note) : noteEl,
@@ -845,8 +862,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   }
 
   // Подарок — обычное сообщение чата: на нём работают ответ, реакции, закрепление,
-  // пересылка и жалоба. Править и удалять его нельзя (openMessageMenu), а само
-  // оформление остаётся карточкой подарка, поэтому обычный текст и метаданные
+  // пересылка и жалоба. Править его нельзя (openMessageMenu), но удалять — можно.
+  // Оформление остаётся карточкой подарка, поэтому обычный текст и метаданные
   // ниже не строятся.
   const isGift = message.type === "gift" && !!message.gift;
 
@@ -1347,8 +1364,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         onClick: () => openReportDialog("message", message.id, sender?.name ? `сообщение от ${sender.name}` : "сообщение"),
       });
     }
-    // Подарок — часть истории чата: удалить его нельзя ни себе, ни за звёзды.
-    if (!isGift) items.push({ icon: "Trash", label: "Удалить", danger: true, onClick: () => onDelete(message) });
+    items.push({ icon: "Trash", label: "Удалить", danger: true, onClick: () => onDelete(message) });
     openDropdownMenu(pos, items, { sheet: window.matchMedia("(max-width: 560px)").matches });
   }
 

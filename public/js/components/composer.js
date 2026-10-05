@@ -967,6 +967,11 @@ export function Composer({
     }
 
     let emojiMenuEl = null;
+    function closeEmojiMenu() {
+      if (!emojiMenuEl) return;
+      emojiMenuEl.remove();
+      emojiMenuEl = null;
+    }
     function insertPlainEmoji(e) {
       const pos = textarea.selectionStart ?? textarea.value.length;
       textarea.value = textarea.value.slice(0, pos) + e + textarea.value.slice(pos);
@@ -1044,10 +1049,10 @@ export function Composer({
 
     function toggleEmoji(host = emojiSlot) {
       if (emojiMenuEl) {
-        emojiMenuEl.remove();
-        emojiMenuEl = null;
+        closeEmojiMenu();
         return;
       }
+      closeStickerMenu();
       emojiMenuEl = el("div", { class: `composer-emoji-picker tw-emoji-panel ${host === attachSlot ? "anchored-left" : ""}` });
       host.appendChild(emojiMenuEl);
       renderEmojiMenu();
@@ -1056,7 +1061,7 @@ export function Composer({
       class: "composer-icon-btn",
       title: "Эмодзи",
       html: iconSvg("Smile", 19),
-      onclick: () => toggleEmoji(),
+      onclick: () => { closeAttachMenu(); toggleEmoji(); },
     });
     const emojiSlot = el("div", { class: "composer-attach-slot composer-secondary" }, [emojiBtn]);
 
@@ -1117,6 +1122,7 @@ export function Composer({
         closeStickerMenu();
         return;
       }
+      closeEmojiMenu();
       stickerMenuEl = el("div", { class: `composer-emoji-picker sticker-picker ${host === attachSlot ? "anchored-left" : ""}` });
       renderStickerPicker();
       host.appendChild(stickerMenuEl);
@@ -1133,7 +1139,7 @@ export function Composer({
       class: "composer-icon-btn",
       title: "Стикеры",
       html: iconSvg("Sticker", 19),
-      onclick: () => toggleStickers(),
+      onclick: () => { closeAttachMenu(); toggleStickers(); },
     });
     const stickerSlot = el("div", { class: "composer-attach-slot composer-secondary" }, [stickerBtn]);
 

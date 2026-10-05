@@ -1,7 +1,7 @@
 // Эмодзи картинками, как в tweb (wrapRichText → <img class="emoji" src="assets/img/emoji/…png">):
 // на любом устройстве смайлы выглядят одинаково, а не системным шрифтом.
 const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
-const SKIP = "input, textarea, select, option, script, style, svg, canvas, [contenteditable=''], [contenteditable='true'], .no-emoji, .mono, code, pre, kbd";
+const SKIP = "input, textarea, select, option, script, style, svg, canvas, [contenteditable=''], [contenteditable='true'], .no-emoji, .mono, code, pre, kbd, .composer-banner-text";
 const segmenter = typeof Intl !== "undefined" && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
 
 // encodeEmoji из tweb: кодовые точки через «-», без FE0F (если нет ZWJ), первая — минимум 4 знака.

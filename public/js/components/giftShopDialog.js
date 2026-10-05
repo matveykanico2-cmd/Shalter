@@ -497,12 +497,12 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
     }
   }
 
-  // Как в Telegram: после отправки — сразу в чат с получателем, где лежит подарок.
+   // Как в Telegram: после отправки — сразу в чат с получателем, где лежит подарок.
   function finish(chatId, gift, serial) {
     showToast(`«${gift.name}» отправлен — ${target.name}${serial ? `, №${serial}` : ""}`);
     close();
     if (!chatId) return;
-    closeOverlays();
+    try { closeOverlays(); } catch { /* ignore: overlays may already be gone */ }
     api.listChats().then((r) => setState({ chats: r.chats }), () => {});
     // Переход в тот же чат для роутера ничего не меняет, поэтому открываем чат явно.
     window.dispatchEvent(new CustomEvent("shalter:chat-opened", { detail: { chatId } }));
