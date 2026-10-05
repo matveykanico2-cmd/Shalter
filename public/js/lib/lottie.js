@@ -120,6 +120,15 @@ export function lottieNameFor(item) {
   return BY_ID[item.giftId] ?? BY_ID[item.id] ?? BY_EMOJI[item.emoji] ?? null;
 }
 
+// Картинка эмодзи-подарка из public/gift-emoji/<кодовые точки>.png — тем же
+// именем, что и в BY_ID/BY_EMOJI. Нужна там, где своего lottie у подарка нет:
+// файла есть не для каждого эмодзи, и тогда renderEmojiArt откатится на эмодзи.
+export function emojiArtName(emoji) {
+  const key = String(emoji ?? "").trim();
+  if (!key) return null;
+  return `emoji/${[...key].map((ch) => ch.codePointAt(0).toString(16)).join("")}`;
+}
+
 let playerPromise = null;
 function loadPlayer() {
   if (window.lottie) return Promise.resolve(window.lottie);

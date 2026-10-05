@@ -9,6 +9,7 @@ import { navigate } from "../router.js";
 import { iconSvg } from "../icons.js";
 import { Avatar, videoAvatarUrl } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
+import { openGiftPickerDialog } from "./giftPickerDialog.js";
 import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog, infoRow, birthdayText, isBirthdayToday } from "./profileDialog.js";
 import { statusLabel, plural } from "../lib/presence.js";
@@ -440,15 +441,12 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             "button",
             {
               class: "info-panel-row",
-              onclick: (e) =>
-                openDropdownMenu(
-                  { x: e.clientX, y: e.clientY },
-                  gifts.map((g) => ({
-                    label: `${g.emoji} ${g.name} — ⭐ ${g.priceStars}`,
-                    onClick: () => onDeliverGift(g.id, chat.otherUser.id),
-                  })),
-                  { search: "Поиск подарка" }
-                ),
+              onclick: () =>
+                openGiftPickerDialog({
+                  gifts,
+                  title: "Отправить подарок",
+                  onPick: (g) => onDeliverGift(g.id, chat.otherUser.id),
+                }),
             },
             [el("span", { class: "info-panel-row-icon", html: iconSvg("Gift", 22) }), "Отправить подарок"]
           )

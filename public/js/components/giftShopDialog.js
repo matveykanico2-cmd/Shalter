@@ -505,6 +505,11 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
     document.querySelectorAll(".profile-panel-overlay").forEach((o) => o.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     document.querySelectorAll(".modal-overlay").forEach((o) => o.querySelector(".profile-dialog, .gift-card-dialog") && o.remove());
     api.listChats().then((r) => setState({ chats: r.chats }), () => {});
+    // Панель «Информация о чате» (у личного чата она называется «Профиль») часто
+    // остаётся открытой — из неё подарок и отправляют. Переход в тот же чат для
+    // роутера ничего не меняет, поэтому чат открываем явно: иначе после отправки
+    // остаётся профиль вместо чата с подарком.
+    window.dispatchEvent(new CustomEvent("shalter:chat-opened", { detail: { chatId } }));
     navigate(`/chat/${chatId}`);
   }
 

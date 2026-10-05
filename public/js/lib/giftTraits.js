@@ -27,7 +27,7 @@ const COLLECTION_MODELS = { tg_plush_pepe: TG_MODELS.plushpepe };
 import { renderScene } from "./animScenes.js";
 import { renderCustomScene } from "./customScene.js";
 import { hash01 } from "./giftBackground.js";
-import { lottieNameFor, renderEmojiArt, renderLottie } from "./lottie.js";
+import { lottieNameFor, emojiArtName, renderEmojiArt, renderLottie } from "./lottie.js";
 import { TG_BACKDROPS, TG_SYMBOLS, TG_MODELS } from "./tgGiftData.js";
 
 function pick(list, roll) {
@@ -55,21 +55,26 @@ export function renderGiftArt(gift, { size = 84, replay = true } = {}) {
   if (gift?.scene) {
     return renderCustomScene(gift.scene, { size, replay });
   }
-  if (gift?.mediaUrl) {
-    const img = document.createElement("img");
-    img.src = gift.mediaUrl;
-    img.alt = gift.name ?? "";
-    img.className = "gift-media-art";
-    img.style.width = `${size}px`;
-    img.style.height = `${size}px`;
-    if (!replay) img.classList.add("no-entrance");
-    return img;
-  }
-  const lottie = lottieNameFor(gift);
   const asEmoji = () => renderScene(gift?.emoji, { size, replay });
+  const lottie = lottieNameFor(gift);
   // Подарки-эмодзи — статичная картинка из tweb, lottie для них нет.
-  if (lottie?.startsWith("emoji/")) return renderEmojiArt(lottie, { size, replay, fallback: asEmoji });
   // У эмодзи Noto кадр покоя — из середины (края бывают пустыми), у анимаций tweb — последний.
-  if (lottie) return renderLottie(lottie, { size, replay, rest: "last", fallback: asEmoji });
-  return asEmoji();
+  const art = lottie?.startsWith("emoji/")
+    ? () => renderEmojiArt(lottie, { size, replay, fallback: asEmoji })
+    : lottie
+      ? () => renderLottie(lottie, { size, replay, rest: "last", fallback: asEmoji })
+      : // Своей анимации нет — сперва картинка эмодзи из gift-emoji, если она есть.
+        () => renderEmojiArt(emojiArtName(gift?.emoji), { size, replay, fallback: asEmoji });
+  if (!gift?.mediaUrl) return art();
+  const img = document.createElement("img");
+  img.src = gift.mediaUrl;
+  img.alt = gift.name ?? "";
+  img.className = "gift-media-art";
+  img.style.width = `${size}px`;
+  img.style.height = `${size}px`;
+  if (!replay) img.classList.add("no-entrance");
+  // Загруженная картинка может оказаться недоступной (файл уехал в S3, удалён) —
+  // тогда показываем art подарка, а не «битое изображение».
+  img.addEventListener("error", () => img.replaceWith(art()), { once: true });
+  return img;
 }

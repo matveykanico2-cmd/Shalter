@@ -21751,6 +21751,19 @@ button img.emoji {
 .tw-gift-star {
   font-size: 10px;
 }
+/* подпись подарка в сетке выбора (components/giftPickerDialog.js) */
+.gp-tile-name {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 @media (max-width: 600px) {
   .tw-gifts-grid {
     gap: 8px;

@@ -2296,10 +2296,21 @@ export async function ChatView(root, chatId) {
     if (e.detail?.chatId === chatId && e.detail.messageId) jumpTo(e.detail.messageId);
   };
   window.addEventListener("shalter:jump-message", onJumpMessage);
+  // Открытие этого же чата извне (например, переход в чат с только что отправленным
+  // подарком): показываем переписку, а не панель «Информация о чате» — у личного чата
+  // она называется «Профиль», и подарок из неё отправляют чаще всего.
+  const onChatOpened = (e) => {
+    if (e.detail?.chatId && e.detail.chatId !== chatId) return;
+    if (infoOpen) setInfoOpen(false);
+    stuckToBottom = true;
+    scheduleRefresh(0);
+  };
+  window.addEventListener("shalter:chat-opened", onChatOpened);
 
   root._cleanup = () => {
     window.removeEventListener("shalter:hashtag", onHashtag);
     window.removeEventListener("shalter:jump-message", onJumpMessage);
+    window.removeEventListener("shalter:chat-opened", onChatOpened);
     document.body.classList.remove("protected-chat-open");
     document.removeEventListener("keydown", onChatKeydown, true);
     clearInterval(messagesIv);

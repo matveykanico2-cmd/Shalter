@@ -3,7 +3,7 @@ import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
-import { openDropdownMenu } from "./dropdownMenu.js";
+import { openGiftPickerDialog } from "./giftPickerDialog.js";
 import { SAFETY_LABELS } from "../lib/safetyLabels.js";
 import { getState } from "../state.js";
 
@@ -244,15 +244,12 @@ export function openAdminUserPanel(user, onChange) {
             {
               class: "profile-action-btn admin-gift-btn",
               disabled: busy,
-              onclick: (e) =>
-                openDropdownMenu(
-                  { x: e.clientX, y: e.clientY },
-                  gifts.map((g) => ({
-                    label: `${g.emoji} ${g.name} — ⭐ ${g.priceStars}${g.supply ? ` (осталось ${g.remaining})` : ""}`,
-                    onClick: () => sendGift(g),
-                  })),
-                  { search: "Поиск подарка" }
-                ),
+              onclick: () =>
+                openGiftPickerDialog({
+                  gifts,
+                  title: `Подарить: ${state.name}`,
+                  onPick: (g) => sendGift(g),
+                }),
             },
             "🎁 Отправить подарок"
           )
