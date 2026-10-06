@@ -1,0 +1,72 @@
+name: Build Mobile
+
+on:
+  push:
+    branches: [main, master]
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci --no-audit || npm install
+
+      - name: Build web
+        run: |
+          npm run build
+          npx cap sync android
+
+      - name: Build APK
+        run: |
+          cd android
+          ./gradlew assembleRelease -x signingReport
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Shalter-android-apk
+
+  ios:
+    name: iOS IPA (только на macOS)
+    runs-on: macos-latest
+    if: github.repository == 'matveykanico2-cmd/Shalter'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci --no-audit || npm install
+
+      - name: Build web
+        run: |
+          npm run build
+          npx cap sync ios
+
+      - name: Build IPA
+        uses: ruby/setup-xcode@v3
+        with:
+          xcode-version: latest-stable
+        run: |
+          cd ios/App
+          # Для CI требуется provisioning profile + сертификаты через env
+          xcodebuild -scheme App -configuration Release -archivePath $PWD/build/App.xcarch archive -destination 'generic/platform=iOS'
+          xcodebuild -exportArchive -archivePath $PWD/build/App.xcarch -exportPath $PWD/build -exportOptionsPlist App/exportOptions.plist
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Shalter-ios-ipa
