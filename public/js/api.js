@@ -1,20 +1,108 @@
 import { trackRequest } from "./lib/netStatus.js";
 
+// Очередь POST/PUT/DELETE при офлайне — отправим, когда сеть вернётся.
+// Запрос и результат хранятся в localStorage, чтобы пережить refresh страницы.
+const OFFLINE_Q = "shalter.offline-q";
+const OFFLINE_Q_MAX = 100;
+
+function enqueueOffline(method, url, body) {
+  try {
+    const item = { id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, method, url, body, ts: Date.now(), tries: 0 };
+    const arr = JSON.parse(localStorage.getItem(OFFLINE_Q) || "[]");
+    arr.push(item);
+    if (arr.length > OFFLINE_Q_MAX) arr.splice(0, arr.length - OFFLINE_Q_MAX);
+    localStorage.setItem(OFFLINE_Q, JSON.stringify(arr));
+    scheduleFlush();
+  } catch {
+  }
+}
+
+function readOfflineQueue() {
+  try {
+    return JSON.parse(localStorage.getItem(OFFLINE_Q) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function writeOfflineQueue(arr) {
+  try {
+    localStorage.setItem(OFFLINE_Q, JSON.stringify(arr));
+  } catch {
+  }
+}
+
+function scheduleFlush() {
+  if (typeof window !== "undefined" && window.addEventListener) {
+    const handler = () => flushOfflineQueue();
+    window.addEventListener("online", handler, { once: true });
+    if (navigator.onLine) setTimeout(flushOfflineQueue, 2000);
+  }
+}
+
+function offlineError(url) {
+  const err = new Error(`offline`);
+  err.status = 0;
+  err.offline = true;
+  err.url = url;
+  return err;
+}
+
+export function clearApiCache() {
+  try {
+    localStorage.removeItem(OFFLINE_Q + ".data");
+  } catch {
+  }
+}
+
 // Имя контакта подставляется сервером везде (как в Telegram), поэтому после
 // добавления/переименования/удаления app.js перечитывает чаты и сбрасывает кэш.
-async function contactsChanged(userId, request) {
+export async function contactsChanged(userId, request) {
+  clearApiCache();
   const result = await request;
   window.dispatchEvent(new CustomEvent("shalter:contacts-changed", { detail: { userId } }));
   return result;
 }
 
+export async function flushOfflineQueue() {
+  const arr = readOfflineQueue();
+  if (!arr.length) return;
+  const remaining = [];
+  for (const item of arr) {
+    try {
+      const res = await fetch(item.url, {
+        method: item.method,
+        headers: { "Content-Type": "application/json", },
+        body: item.body,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("not-ok");
+    } catch {
+      item.tries++;
+      if (item.tries < 5) remaining.push(item);
+    }
+  }
+  writeOfflineQueue(remaining);
+}
+
 async function req(url, init) {
-  const res = await trackRequest(
-    fetch(url, {
-      ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    })
-  );
+  let res;
+  try {
+    res = await trackRequest(
+      fetch(url, {
+        ...init,
+        headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      })
+    );
+  } catch {
+    // Сеть недоступна: мутируем запросы в очередь, GET — из клиентского кэша.
+    if (init?.method && init.method !== "GET") {
+      enqueueOffline(init.method, url, init?.body);
+      throw offlineError(url);
+    }
+    if (init?.method === "GET") return apiCacheRead(url);
+    throw offlineError(url);
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     if (body.error === "session_revoked") window.location.href = "/login?reason=revoked";
@@ -27,7 +115,31 @@ async function req(url, init) {
     if (body.limit) err.limit = body.limit;
     throw err;
   }
-  return res.json();
+  const data = await res.json();
+  // Кешируем "тёплые" GET-ответы для offline fallback на клиенте.
+  if (!init?.method || init.method === "GET") cacheApiResponse(url, data);
+  return data;
+}
+
+function cacheApiResponse(url, data) {
+  try {
+    const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
+    obj[url] = { data, ts: Date.now() };
+    const now = Date.now();
+    for (const k of Object.keys(obj)) if (now - (obj[k].ts ?? 0) > 60_000) delete obj[k];
+    localStorage.setItem(OFFLINE_Q + ".data", JSON.stringify(obj));
+  } catch {
+  }
+}
+
+function apiCacheRead(url) {
+  try {
+    const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
+    const hit = obj[url];
+    if (hit && Date.now() - hit.ts < 60_000) return hit.data;
+  } catch {
+  }
+  throw offlineError(url);
 }
 
 export const api = {

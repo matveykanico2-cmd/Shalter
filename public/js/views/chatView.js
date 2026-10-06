@@ -120,9 +120,19 @@ export async function ChatView(root, chatId) {
     rememberReplyTargets(first);
     firstUnreadId = first.firstUnreadId ?? null;
     writeCache(`chat.${chatId}`, me.id, { chat, members, messages: messages.slice(-PAGE_SIZE) });
-  } catch {
+  } catch (err) {
     if (!openedFromCache) {
-      mount(root, el("div", { class: "empty-chat" }, "Чат не найден"));
+      const offline = err?.offline ?? !navigator.onLine;
+      mount(
+        root,
+        el(
+          "div",
+          { class: "empty-chat" },
+          offline
+            ? "Нет соединения с Shalter — сообщения появятся, когда вы включите интернет. Отправленные в это время сообщения сохранятся и уйдут автоматически."
+            : "Чат не найден"
+        )
+      );
       return;
     }
   }

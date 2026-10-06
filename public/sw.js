@@ -3,11 +3,35 @@ const SHELL_CACHE = "shalter-shell-v2";
 const MEDIA_CACHE = "shalter-media-v1";
 const MEDIA_CACHE_MAX = 300;
 
+// API-ответы: подкачка «свежили» — сразу из кэша, фоном свежее от сервера.
+// На плохом интернете история и список чатов открываются мгновенно.
+const API_CACHE = "shalter-api-v1";
+const API_CACHE_MAX = 200;
+const API_STALE_MS = 10_000;
+
 async function trimMediaCache() {
   const cache = await caches.open(MEDIA_CACHE);
   const keys = await cache.keys();
   if (keys.length <= MEDIA_CACHE_MAX) return;
   await Promise.all(keys.slice(0, keys.length - MEDIA_CACHE_MAX).map((k) => cache.delete(k)));
+}
+
+async function trimApiCache(cache) {
+  const keys = await cache.keys();
+  if (keys.length <= API_CACHE_MAX) return;
+  await Promise.all(keys.slice(0, keys.length - API_CACHE_MAX).map((k) => cache.delete(k)));
+}
+
+function isCacheableApi(url) {
+  const p = url.pathname;
+  // Только GET-истории и каталоги — не мутируют, можно кэшировать.
+  return (
+    p === "/api/chats" ||
+    p.startsWith("/api/chats?") ||
+    (p.startsWith("/api/messages/") && !p.endsWith("/send") && !p.endsWith("/read")) ||
+    p === "/api/gifts" ||
+    p.startsWith("/api/users/")
+  );
 }
 
 self.addEventListener("install", () => {
@@ -43,6 +67,38 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (url.pathname.startsWith("/api/")) return;
+
+  // API GET: stale-while-revalidate + offлайн fallback на кэш.
+  if (req.method === "GET" && isCacheableApi(url)) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(API_CACHE);
+        const cached = await cache.match(req);
+        const serve = cached?.headers.get("x-stale-at")
+          ? (() => {
+              const age = Date.now() - Number(cached.headers.get("x-stale-at"));
+              return age < API_STALE_MS ? cached : null;
+            })()
+          : cached;
+        const network = fetch(req).then((res) => {
+          if (res.ok) {
+            cache.put(req, res.clone());
+            trimApiCache(cache);
+            // Признак «свежести» для сравнения в следующий раз.
+            const headers = new Headers(res.headers);
+            headers.set("x-stale-at", String(Date.now()));
+            return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+          }
+          return res;
+        }).catch(() => cached || new Response(JSON.stringify({ error: "offline" }), { status: 503, headers: { "content-type": "application/json" } }));
+        // Не старше TTL — сразу из кэша, фоном подхватим свежее.
+        if (serve) return Promise.race([network, cached]);
+        return network;
+      })()
+    );
+    return;
+  }
+
 
   if (url.pathname.startsWith("/uploads/")) {
     event.respondWith(

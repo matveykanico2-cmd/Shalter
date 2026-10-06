@@ -1,6 +1,6 @@
 import { applyAccentSetting, applyFontSizeSetting } from "./lib/accent.js";
 import { el, mount, clear } from "./lib/dom.js";
-import { api } from "./api.js";
+import { api, flushOfflineQueue } from "./api.js";
 import { setState, getState, updateSelf } from "./state.js";
 import { playIncomingMessageSound } from "./lib/ringtone.js";
 import { isChatMuted } from "./lib/chatSort.js";
@@ -116,6 +116,9 @@ async function boot() {
   loadSafetyLabels(api).catch(() => {});
   startWsClient();
   initNetStatus();
+  // Отправляем отложенные POSTы, если сеть пришла или включился сокет.
+  if (navigator.onLine) flushOfflineQueue();
+  window.addEventListener("online", () => flushOfflineQueue());
   onWsMessage("self:updated", (msg) => {
     if (msg.user?.id === getState().user?.id) updateSelf(msg.user);
   });
