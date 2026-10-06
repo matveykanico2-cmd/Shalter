@@ -4,7 +4,7 @@ const path = require("path");
 // Linux: Chrome sandbox внутри Electron часто не настроен в контейнерах/образах.
 // Отключаем sandbox только если он не работает (app.commandLine до ready).
 if (process.platform === "linux" && !process.env.SHALTER_ENABLE_SANDBOX) {
-  app.commandLine.appendSwitch("no-sandbox");
+  app.commandLine.appendSwitch("--no-sandbox");
 }
 
 const SHALTER_ROOT = path.join(__dirname, "..");

@@ -61,7 +61,7 @@ export function PhoneField({ value = "", onChange, autofocus = false, placeholde
   const searchInput = el("input", {
     class: "login-input phone-country-search",
     placeholder: "Страна или код",
-    oninput: () => renderList(),
+    oninput: () => renderListRaf(),
     onkeydown: (e) => {
       if (e.key === "Escape") {
         open = false;
@@ -88,7 +88,7 @@ export function PhoneField({ value = "", onChange, autofocus = false, placeholde
     numberInput.focus();
   }
 
-  function renderList() {
+   function renderList() {
     clear(listEl);
     const found = searchCountries(searchInput.value);
     if (!found.length) {
@@ -104,6 +104,16 @@ export function PhoneField({ value = "", onChange, autofocus = false, placeholde
         ])
       )
     );
+  }
+
+  let renderListScheduled = false;
+  function renderListRaf() {
+    if (renderListScheduled) return;
+    renderListScheduled = true;
+    requestAnimationFrame(() => {
+      renderListScheduled = false;
+      renderList();
+    });
   }
 
   function renderMenu() {

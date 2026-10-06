@@ -1,4 +1,15 @@
-const SHELL_CACHE = "shalter-shell-v2";
+const SHELL_CACHE = "shalter-shell-v3";
+
+const SHELL_ASSETS = [
+  "/",
+  "/index.html",
+  "/manifest.webmanifest",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/icons/favicon-32.png",
+  "/icons/favicon-16.png",
+  "/icons/apple-touch-icon.png",
+];
 
 const MEDIA_CACHE = "shalter-media-v1";
 const MEDIA_CACHE_MAX = 300;
@@ -36,6 +47,8 @@ function isCacheableApi(url) {
 
 self.addEventListener("install", () => {
   self.skipWaiting();
+  self.registration.showNotification = self.registration.showNotification;
+  caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_ASSETS));
 });
 
 self.addEventListener("activate", (event) => {
@@ -53,7 +66,12 @@ self.addEventListener("activate", (event) => {
 function isShellAsset(url) {
   return (
     url.origin === self.location.origin &&
-    (url.pathname.startsWith("/dist/") || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest")
+    (url.pathname.startsWith("/dist/") ||
+      url.pathname.startsWith("/js/") ||
+      url.pathname.startsWith("/styles/") ||
+      url.pathname.startsWith("/icons/") ||
+      url.pathname === "/index.html" ||
+      url.pathname === "/manifest.webmanifest")
   );
 }
 
@@ -137,13 +155,14 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       (async () => {
         const cache = await caches.open(SHELL_CACHE);
+        caches.match("/index.html").then((shell) => { if (shell) cache.put("/index.html", shell); });
+        const cached = await cache.match(req) ?? (await cache.match("/index.html"));
         const fromNetwork = fetch(req)
           .then((res) => {
             if (res.ok) cache.put(req, res.clone());
             return res;
           })
           .catch(() => null);
-        const cached = await cache.match(req);
         if (!cached) return (await fromNetwork) ?? Response.error();
         const raced = await Promise.race([fromNetwork, new Promise((r) => setTimeout(() => r(null), 300))]);
         return raced ?? cached;

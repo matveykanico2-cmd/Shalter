@@ -48,10 +48,43 @@ function offlineError(url) {
   return err;
 }
 
-export function clearApiCache() {
+function apiCacheWrite(url, data) {
+  try {
+    const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
+    obj[url] = { data, ts: Date.now() };
+    if (url === "/api/auth/session") obj[url].ttl = 30 * 60 * 1000;
+    localStorage.setItem(OFFLINE_Q + ".data", JSON.stringify(obj));
+  } catch {
+  }
+}
+
+function apiCacheRead(url) {
+  try {
+    const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
+    const hit = obj[url];
+    if (hit?.ttl && Date.now() - hit.ts > hit.ttl) return null;
+    if (hit && Date.now() - hit.ts < 60_000) return hit.data;
+    if (hit) return hit.data;
+  } catch {
+  }
+  throw offlineError(url);
+}
+
+export async function clearApiCache() {
   try {
     localStorage.removeItem(OFFLINE_Q + ".data");
   } catch {
+  }
+}
+
+export function getCachedData(url) {
+  try {
+    const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
+    const hit = obj[url];
+    if (hit?.ttl && Date.now() - hit.ts > hit.ttl) return null;
+    return hit?.data ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -117,29 +150,8 @@ async function req(url, init) {
   }
   const data = await res.json();
   // Кешируем "тёплые" GET-ответы для offline fallback на клиенте.
-  if (!init?.method || init.method === "GET") cacheApiResponse(url, data);
+  if (!init?.method || init.method === "GET") apiCacheWrite(url, data);
   return data;
-}
-
-function cacheApiResponse(url, data) {
-  try {
-    const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
-    obj[url] = { data, ts: Date.now() };
-    const now = Date.now();
-    for (const k of Object.keys(obj)) if (now - (obj[k].ts ?? 0) > 60_000) delete obj[k];
-    localStorage.setItem(OFFLINE_Q + ".data", JSON.stringify(obj));
-  } catch {
-  }
-}
-
-function apiCacheRead(url) {
-  try {
-    const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
-    const hit = obj[url];
-    if (hit && Date.now() - hit.ts < 60_000) return hit.data;
-  } catch {
-  }
-  throw offlineError(url);
 }
 
 export const api = {
@@ -149,7 +161,11 @@ export const api = {
       window.__boot.session = null;
       return early.then((r) => r ?? req("/api/auth/session"));
     }
-    return req("/api/auth/session");
+    return req("/api/auth/session").catch(() => {
+      const cached = getCachedData("/api/auth/session");
+      if (cached) return cached;
+      throw offlineError("/api/auth/session");
+    });
   },
   bootstrap: () => {
     const early = window.__boot?.data;
@@ -157,7 +173,11 @@ export const api = {
       window.__boot.data = null;
       return early.then((r) => r ?? req("/api/bootstrap"));
     }
-    return req("/api/bootstrap");
+    return req("/api/bootstrap").catch(() => {
+      const cached = getCachedData("/api/bootstrap");
+      if (cached) return cached;
+      throw offlineError("/api/bootstrap");
+    });
   },
   registerEmail: (name, email, password, phone, username, lastName) =>
     req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, username, lastName }) }),

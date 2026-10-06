@@ -1,6 +1,6 @@
 import { applyAccentSetting, applyFontSizeSetting } from "./lib/accent.js";
 import { el, mount, clear } from "./lib/dom.js";
-import { api, flushOfflineQueue } from "./api.js";
+import { api, flushOfflineQueue, getCachedData } from "./api.js";
 import { setState, getState, updateSelf } from "./state.js";
 import { playIncomingMessageSound } from "./lib/ringtone.js";
 import { isChatMuted } from "./lib/chatSort.js";
@@ -40,6 +40,23 @@ function removeSplash() {
   if (!splash) return;
   splash.classList.add("boot-splash-hidden");
   setTimeout(() => splash.remove(), 300);
+}
+
+function initOfflineBanner() {
+  let banner = document.getElementById("offline-banner");
+  if (!banner) {
+    banner = el("div", { id: "offline-banner", class: "offline-banner hidden" }, [
+      el("span", { class: "offline-banner-text" }, "Ожидание сети…"),
+    ]);
+    document.documentElement.appendChild(banner);
+  }
+  const update = () => {
+    const offline = !navigator.onLine;
+    banner.classList.toggle("hidden", !offline);
+  };
+  update();
+  window.addEventListener("online", update);
+  window.addEventListener("offline", update);
 }
 
 function withCleanup(mainSlot) {
@@ -89,7 +106,8 @@ async function boot() {
     window.location.href = "/login";
     return;
   }
-  removeSplash();
+   removeSplash();
+  initOfflineBanner();
   if (hasPasscode()) await showPasscodeLockScreen();
   const RELOCK_THRESHOLD_MS = 5000;
   let hiddenAt = 0;
