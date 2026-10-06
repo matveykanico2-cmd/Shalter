@@ -5504,11 +5504,13 @@ button.profile-ad-banner {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  contain: layout style;
 }
 .avatar-orbit-ring {
   position: absolute;
   inset: 0;
   animation: premium-orbit-spin 14s linear infinite;
+  will-change: transform;
 }
 .avatar-orbit-item {
   position: absolute;
@@ -5528,6 +5530,7 @@ button.profile-ad-banner {
   color: var(--orbit-color, #d9822e);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
   animation: premium-orbit-counter-spin 14s linear infinite;
+  will-change: transform;
 }
 .premium-plans {
   display: flex;

@@ -1277,8 +1277,10 @@ export async function ChatView(root, chatId) {
     );
   }
 
+  let subtitleEl = null;
+  let prevSubtitleText = null;
+
   function renderHeader() {
-    clear(header);
     const subtitle = (() => {
       if (typingUserId) {
         const label = CHAT_ACTION_LABELS[typingAction] ?? CHAT_ACTION_LABELS.typing;
@@ -1300,6 +1302,16 @@ export async function ChatView(root, chatId) {
       if (chat.type === "channel") return `${members.length} ${plural(members.length, "подписчик", "подписчика", "подписчиков")}`;
       return "";
     })();
+
+    // При печати не трогаем шапку полностью — только подпись, чтобы анимация
+    // орбиты премиума не пересоздавалась и не мерцала.
+    const subtitleClass = `chat-header-subtitle${typingUserId ? " is-typing" : isDm && other?.online ? " is-online" : ""}`;
+    if (subtitleEl && prevSubtitleText !== undefined && subtitle === prevSubtitleText && subtitleEl.className === subtitleClass) {
+      return;
+    }
+    prevSubtitleText = subtitle;
+    clear(header);
+    subtitleEl = null;
 
     appendAll(
       header,
@@ -1341,7 +1353,7 @@ export async function ChatView(root, chatId) {
                   : null,
                 ]),
               ]),
-              el("p", { class: `chat-header-subtitle${typingUserId ? " is-typing" : isDm && other?.online ? " is-online" : ""}` }, subtitle),
+              subtitleEl = el("p", { class: `chat-header-subtitle${typingUserId ? " is-typing" : isDm && other?.online ? " is-online" : ""}` }, subtitle),
             ]),
           ]
         ),
