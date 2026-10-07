@@ -450,6 +450,7 @@ export const api = {
     req(`/api/chats/${chatId}/topics/${topicId}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteTopic: (chatId, topicId) => req(`/api/chats/${chatId}/topics/${topicId}`, { method: "DELETE" }),
   summarizeMessage: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/summary`),
+  getMessageReaders: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/readers`),
   instantView: (url) => req(`/api/link-check/instant-view?url=${encodeURIComponent(url)}`),
   listScheduled: (chatId) => req(`/api/chats/${chatId}/messages/scheduled`),
   scheduleMessage: (chatId, opts) =>

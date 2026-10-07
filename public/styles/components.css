@@ -256,6 +256,11 @@
   justify-content: center;
   background: rgba(8, 9, 13, 0.94);
 }
+/* Подтверждения и диалоги, открытые из истории (удалить историю/комментарий),
+   должны быть поверх неё — иначе окно пряталось под историей, и она «зависала». */
+.story-viewer-overlay ~ .modal-overlay {
+  z-index: 93;
+}
 .story-shell {
   position: relative;
   display: flex;
@@ -16026,13 +16031,15 @@ video.story-reply-thumb { object-fit: cover; }
   position: relative;
 }
 .message-meta.message-meta-inline {
-  float: right;
+  /* Не float: в Safari плавающий резерв места иногда не вставал в конец
+     последней строки, и время с галочками ложилось поверх текста. Inline-блок
+     в конце строки переносится на новую строку сам, если места не хватает. */
   visibility: hidden;
   display: inline-flex;
   height: 12px;
-  margin: 0 0 0 7px;
+  margin: 0 0 0 8px;
   line-height: 1;
-  vertical-align: middle;
+  vertical-align: baseline;
   white-space: nowrap;
   pointer-events: none;
 }
@@ -22791,6 +22798,10 @@ button img.emoji {
 }
 .rmenu-emoji {
   font-size: 26px;
+  line-height: 1;
+}
+.rmenu-stub {
+  display: block;
 }
 .rmenu-more {
   display: flex;
@@ -22839,6 +22850,10 @@ button img.emoji {
   width: 38px;
   height: 38px;
   font-size: 24px;
+}
+.rmenu-grid-items .rmenu-emoji {
+  font-size: 24px;
+  line-height: 1;
 }
 
 /* Превью публичного канала/группы (tweb: chat input → «Join»/«Subscribe») */

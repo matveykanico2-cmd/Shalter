@@ -57,7 +57,9 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   const currentStory = () => currentFrame()?.story;
   const isMine = () => currentStory()?.userId === meId || currentGroup()?.user?.id === meId || !!currentGroup()?.user?.canManage;
 
+  let closed = false;
   function close() {
+    closed = true;
     clearTimeout(timer);
     videoEl?.pause();
     document.removeEventListener("keydown", onKey);
@@ -378,6 +380,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   }
 
   function dropStory(storyId) {
+    if (closed) return;
     const was = currentFrame();
     for (const group of groups) group.stories = group.stories.filter((st) => st.id !== storyId);
     for (let i = groups.length - 1; i >= 0; i--) {
@@ -451,6 +454,9 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
   document.addEventListener("keydown", onKey);
 
   function render() {
+    // Просмотр уже закрыт (например, пока висело подтверждение) — не оживляем его
+    // в отсоединённом оверлее: таймеры и звук видео шли бы невидимо.
+    if (closed) return;
     clearTimeout(timer);
     videoEl?.pause();
     const group = currentGroup();
@@ -716,7 +722,7 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
                     : count > 1
                       ? `Удалить историю целиком — все ${count} кадра?`
                       : "Удалить историю?";
-                  if (!(await askConfirm(question))) return resume();
+                  if (!(await askConfirm(question))) return closed ? undefined : resume();
                   try {
                     await api.deleteStory(story.id);
                   } catch (err) {

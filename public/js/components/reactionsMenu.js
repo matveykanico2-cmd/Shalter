@@ -30,8 +30,15 @@ export function openReactionsBar(pos, opts) {
     else onReact(emoji);
   };
 
-  const reactionBtn = (emoji, { locked = false, size = 30, title } = {}) =>
-    el(
+  // Анимации (Lottie) не создаются сразу: десяток плееров, стартующих разом,
+  // дёргал появление плашки, а на ~1900 эмодзи раскрытого списка вешал интерфейс.
+  // Кнопка рисуется обычным символом, а живой glyph подставляется позже (upgrade).
+  // plain — так и остаётся символом (эмодзи раскрытого списка).
+  const reactionBtn = (emoji, { locked = false, size = 30, title, plain = false, sticker = false } = {}) => {
+    const stub = sticker
+      ? el("span", { class: "rmenu-stub", style: { width: `${size}px`, height: `${size}px` } })
+      : el("span", { class: "rmenu-emoji" }, emoji);
+    const btn = el(
       "button",
       {
         type: "button",
@@ -40,13 +47,22 @@ export function openReactionsBar(pos, opts) {
         "aria-label": title ?? emoji,
         onclick: () => pick(emoji, locked),
       },
-      [glyph(emoji, size), locked ? el("span", { class: "rmenu-lock", html: iconSvg("Lock", 9) }) : null]
+      [stub, locked ? el("span", { class: "rmenu-lock", html: iconSvg("Lock", 9) }) : null]
     );
+    if (!plain) {
+      btn._upgrade = () => {
+        btn._upgrade = null;
+        if (!closed && stub.isConnected) stub.replaceWith(glyph(emoji, size));
+      };
+    }
+    return btn;
+  };
 
-  const strip = el("div", { class: "rmenu-strip" }, [
-    ...quick.map((e) => reactionBtn(e)),
-    ...premium.map((e) => reactionBtn(e, { locked: !isPremium })),
-  ]);
+  const stripButtons = [...quick.map((e) => reactionBtn(e)), ...premium.map((e) => reactionBtn(e, { locked: !isPremium }))];
+  const strip = el("div", { class: "rmenu-strip" }, stripButtons);
+  // После анимации появления — по одной, чтобы не стартовать все плееры в одном кадре.
+  const upgradeTimers = [];
+  stripButtons.forEach((b, i) => upgradeTimers.push(setTimeout(() => b._upgrade?.(), 220 + i * 45)));
   const moreBtn = full
     ? el("button", { type: "button", class: "rmenu-more", title: "Все реакции", "aria-label": "Все реакции", html: iconSvg("ChevronDown", 18), onclick: () => expand() })
     : null;
@@ -56,16 +72,31 @@ export function openReactionsBar(pos, opts) {
   function expand() {
     if (!full || bar.classList.contains("expanded")) return;
     bar.classList.add("expanded");
-    bar.appendChild(
-      el("div", { class: "rmenu-grid" }, [
-        el("p", { class: "rmenu-grid-title" }, "Эмодзи"),
-        el("div", { class: "rmenu-grid-items" }, full.emojis.map((e) => reactionBtn(e, { size: 26 }))),
-        full.stickers?.length ? el("p", { class: "rmenu-grid-title" }, "Стикеры") : null,
-        full.stickers?.length
-          ? el("div", { class: "rmenu-grid-items" }, full.stickers.map((s) => reactionBtn(s.value, { size: 28, title: s.name })))
-          : null,
-      ])
-    );
+    const stickerButtons = (full.stickers ?? []).map((s) => reactionBtn(s.value, { size: 28, title: s.name, sticker: true }));
+    const grid = el("div", { class: "rmenu-grid" }, [
+      el("p", { class: "rmenu-grid-title" }, "Эмодзи"),
+      el("div", { class: "rmenu-grid-items" }, full.emojis.map((e) => reactionBtn(e, { size: 26, plain: true }))),
+      stickerButtons.length ? el("p", { class: "rmenu-grid-title" }, "Стикеры") : null,
+      stickerButtons.length ? el("div", { class: "rmenu-grid-items" }, stickerButtons) : null,
+    ]);
+    bar.appendChild(grid);
+    // Стикеры оживают, только когда до них доскроллили.
+    if (stickerButtons.length) {
+      if (typeof IntersectionObserver === "undefined") stickerButtons.forEach((b) => b._upgrade?.());
+      else {
+        gridObserver = new IntersectionObserver(
+          (entries) => {
+            for (const e of entries) {
+              if (!e.isIntersecting) continue;
+              gridObserver.unobserve(e.target);
+              e.target._upgrade?.();
+            }
+          },
+          { root: grid, rootMargin: "80px" }
+        );
+        stickerButtons.forEach((b) => gridObserver.observe(b));
+      }
+    }
     place();
   }
 
@@ -100,9 +131,12 @@ export function openReactionsBar(pos, opts) {
   }
 
   let closed = false;
+  let gridObserver = null;
   function close() {
     if (closed) return;
     closed = true;
+    upgradeTimers.forEach(clearTimeout);
+    gridObserver?.disconnect();
     if (closeOpen === close) closeOpen = null;
     document.removeEventListener("pointerdown", onDown, true);
     document.removeEventListener("keydown", onKey, true);

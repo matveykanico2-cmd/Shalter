@@ -1162,11 +1162,21 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   }
 
   const readers = !isDm && !isChannel && mine ? (message.readByIds ?? []).filter((id) => id !== me.id) : [];
-  function showReaders(pos) {
-    const known = readers.map((id) => members?.find((u) => u.id === id)).filter(Boolean);
+  // Кто и во сколько прочитал; время — если человек его не скрывает.
+  async function showReaders(pos) {
+    let list;
+    try {
+      ({ readers: list } = await api.getMessageReaders(message.chatId, message.id));
+    } catch {
+      list = readers.map((id) => ({ user: members?.find((u) => u.id === id), readAt: null })).filter((r) => r.user);
+    }
     openDropdownMenu(pos, [
-      { label: `Прочитали: ${readers.length}` },
-      ...known.map((u) => ({ icon: "User", label: u.name, onClick: () => openProfileDialog(u.id) })),
+      { label: `Прочитали: ${list.length || readers.length}` },
+      ...list.map(({ user, readAt }) => ({
+        icon: "User",
+        label: readAt ? `${user.name} · ${readAtLabel(readAt).replace(/^Прочитано /, "")}` : user.name,
+        onClick: () => openProfileDialog(user.id),
+      })),
     ]);
   }
 

@@ -298,16 +298,20 @@ export async function ChatView(root, chatId) {
   async function loadOlder() {
     if (loadingHistory || !hasMoreHistory || !messages.length) return;
     loadingHistory = true;
-    const anchorHeight = list.scrollHeight;
-    const anchorTop = list.scrollTop;
     try {
       const res = await api.listMessages(chat.id, { limit: PAGE_SIZE, before: messages[0].createdAt, beforeId: messages[0].id, ...topicQuery() });
       rememberReplyTargets(res);
       if (res.messages.length) {
         messages = [...res.messages, ...messages];
         messagesCount = messages.length;
+        // Позицию берём сейчас, а не до запроса: пока он шёл, ленту листали,
+        // и возврат к старой позиции отбрасывал назад. Держим расстояние до низа.
+        const fromBottom = list.scrollHeight - list.scrollTop;
         renderList();
-        list.scrollTop = anchorTop + (list.scrollHeight - anchorHeight);
+        // iOS Safari игнорирует scrollTop во время инерции — гасим её на кадр.
+        list.style.overflowY = "hidden";
+        list.scrollTop = list.scrollHeight - fromBottom;
+        list.style.overflowY = "";
         stuckToBottom = atBottom();
       }
       hasMoreHistory = !!res.hasMore;

@@ -382,18 +382,22 @@ function readWatermarksFor(userId) {
 // скрывает время захода от отправителя; это решает маршрут).
 async function markChatRead(chatId, viewerId, { recordTime = false } = {}) {
   const rows = db
-    .prepare("SELECT id, senderId, readByIds, createdAt FROM messages WHERE chatId = ? AND senderId <> ? AND readByIds NOT LIKE ?")
+    .prepare("SELECT id, senderId, readByIds, readTimes, createdAt FROM messages WHERE chatId = ? AND senderId <> ? AND readByIds NOT LIKE ?")
     .all(chatId, viewerId, `%"${viewerId}"%`);
   const changedIds = [];
-  const update = db.prepare("UPDATE messages SET readByIds = ?, readAt = COALESCE(readAt, ?) WHERE id = ?");
-  const now = recordTime ? new Date().toISOString() : null;
+  const update = db.prepare("UPDATE messages SET readByIds = ?, readAt = COALESCE(readAt, ?), readTimes = ? WHERE id = ?");
+  const readNow = new Date().toISOString();
+  const now = recordTime ? readNow : null;
   const txn = db.transaction(() => {
     for (const row of rows) {
       if (row.senderId === viewerId) continue;
       const readByIds = JSON.parse(row.readByIds);
       if (readByIds.includes(viewerId)) continue;
       readByIds.push(viewerId);
-      update.run(JSON.stringify(readByIds), now, row.id);
+      // Время пишем всегда, а показываем с учётом приватности — см. readersOf.
+      const readTimes = row.readTimes ? JSON.parse(row.readTimes) : {};
+      readTimes[viewerId] = readNow;
+      update.run(JSON.stringify(readByIds), now, JSON.stringify(readTimes), row.id);
       changedIds.push(row.id);
     }
   });
@@ -401,6 +405,14 @@ async function markChatRead(chatId, viewerId, { recordTime = false } = {}) {
   const newest = db.prepare("SELECT MAX(createdAt) AS at FROM messages WHERE chatId = ?").get(chatId)?.at;
   if (newest) setReadWatermark(chatId, viewerId, newest);
   return changedIds;
+}
+
+// Прочитавшие сообщение со временем прочтения ({ userId, readAt | null }).
+function readersOf(messageId) {
+  const row = db.prepare("SELECT readByIds, readTimes FROM messages WHERE id = ?").get(messageId);
+  if (!row) return [];
+  const times = row.readTimes ? JSON.parse(row.readTimes) : {};
+  return JSON.parse(row.readByIds).map((userId) => ({ userId, readAt: times[userId] ?? null }));
 }
 
 function votePoll(id, optionIndex, userId) {
@@ -592,6 +604,7 @@ module.exports = {
   markRead,
   markChatRead,
   setReadWatermark,
+  readersOf,
   readWatermarksFor,
   votePoll,
   retractPollVote,

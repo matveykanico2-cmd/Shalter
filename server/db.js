@@ -1166,6 +1166,8 @@ CREATE TABLE IF NOT EXISTS translation_cache (
   if (!msgCols.has("topicId")) db.exec("ALTER TABLE messages ADD COLUMN topicId TEXT");
   // Когда сообщение в личке прочитали (для «Прочитано в 14:05»).
   if (!msgCols.has("readAt")) db.exec("ALTER TABLE messages ADD COLUMN readAt TEXT");
+  // Кто во сколько прочитал: { userId: ISO } — для «Прочитали» в группах.
+  if (!msgCols.has("readTimes")) db.exec("ALTER TABLE messages ADD COLUMN readTimes TEXT");
   // Эффект при отправке (🔥🎉…), как в личках Telegram.
   if (!msgCols.has("effect")) db.exec("ALTER TABLE messages ADD COLUMN effect TEXT");
   // Сообщение бота в группе, видное только одному участнику (остальным оно в deletedForIds).

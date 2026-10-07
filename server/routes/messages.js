@@ -13,14 +13,14 @@ function sanitizeMessageEmoji(input) {
   const cleaned = input.slice(0, MAX_MESSAGE_EMOJI).map((scene) => sanitizeScene(scene, { requireLayers: true }) ?? null);
   return cleaned.some(Boolean) ? cleaned : undefined;
 }
-const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, retractPollVote, closePoll, toggleChecklistItem, addChecklistItems, markChatRead, setLinkPreview, updateLiveLocation, setAttachmentPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
-const { getUser, findUserIdsByUsernames } = require("../data/users");
+const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, retractPollVote, closePoll, toggleChecklistItem, addChecklistItems, markChatRead, readersOf, setLinkPreview, updateLiveLocation, setAttachmentPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
+const { getUser, findUserIdsByUsernames, listUsersByIds } = require("../data/users");
 const { transferStars, balanceOf } = require("../data/stars");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
 const { getSettings, isQuietNow, clearUnreadMark } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
-const { allowsUser, recordsReadTime } = require("../lib/privacyRules");
+const { allowsUser, recordsReadTime, publicUserFor } = require("../lib/privacyRules");
 const { messageCost } = require("../lib/messagePrice");
 const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getScheduled, WHEN_ONLINE } = require("../data/scheduledMessages");
 const { getBotByUserId } = require("../data/bots");
@@ -237,6 +237,29 @@ router.get(
     if (summaryCache.size > 2000) summaryCache.delete(summaryCache.keys().next().value);
     summaryCache.set(key, summary);
     res.json({ summary });
+  })
+);
+
+// Кто и во сколько прочитал — только автору сообщения. Время показываем, если
+// читатель не скрывает от автора «время захода» (как «Прочитано в …» в личке).
+router.get(
+  "/:messageId/readers",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
+    const message = await getMessage(req.params.messageId);
+    if (!message || message.chatId !== chat.id || message.senderId !== req.uid) return res.status(404).json({ error: "not found" });
+    const readers = readersOf(message.id).filter((r) => r.userId !== req.uid && chat.memberIds.includes(r.userId));
+    const users = new Map((await listUsersByIds(readers.map((r) => r.userId))).map((u) => [u.id, u]));
+    const result = [];
+    for (const r of readers) {
+      const user = users.get(r.userId);
+      if (!user) continue;
+      const showTime = r.readAt && (await allowsUser(r.userId, "lastSeen", req.uid));
+      result.push({ user: await publicUserFor(user, req.uid), readAt: showTime ? r.readAt : null });
+    }
+    result.sort((a, b) => String(b.readAt ?? "").localeCompare(String(a.readAt ?? "")));
+    res.json({ readers: result });
   })
 );
 
