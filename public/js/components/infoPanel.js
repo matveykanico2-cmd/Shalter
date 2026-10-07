@@ -1,5 +1,5 @@
 import { openCommunityPanel } from "./communityList.js";
-import { openCreateCommunityDialog } from "./communityEditor.js";
+import { openCreateCommunityDialog, addChatToCommunity, removeChatFromCommunity } from "./communityEditor.js";
 import { askText } from "./confirmDialog.js";
 import { askConfirm } from "./confirmDialog.js";
 import { el } from "../lib/dom.js";
@@ -161,47 +161,52 @@ function membersLine(chat, members) {
   return online > 1 && chat.type !== "channel" ? `${count} ${noun}, ${online} в сети` : `${count} ${noun}`;
 }
 
-// «Входит в сообщество …» — подгружается отдельно; владельцу/админу без
-// сообщества — кнопки «Создать сообщество» и «Добавить в своё».
+// «Входит в сообщество …» — подгружается отдельно (tweb editChat → community section).
+// Админ чата или сообщества может убрать чат; если чат ни в каком сообществе —
+// создать новое, добавить в своё или предложить (режим «только админы»).
 function CommunityRow(chat, canManage) {
   const slot = el("div", { class: "community-row-slot" });
-  api
-    .communityOfChat(chat.id)
-    .then(async ({ community }) => {
-      if (community) {
+  const load = () =>
+    api
+      .communityOfChat(chat.id)
+      .then(async ({ community }) => {
+        if (community) {
+          slot.replaceChildren(
+            el("div", { class: "info-community-actions" }, [
+              el("button", { class: "info-community-link", onclick: () => openCommunityPanel(community.id) }, [
+                el("span", { html: iconSvg("Users", 16) }),
+                el("span", {}, ["Сообщество: ", el("b", {}, community.title)]),
+              ]),
+              community.canRemoveChat
+                ? el("button", {
+                    class: "settings-add-account-btn danger",
+                    onclick: async () => (await removeChatFromCommunity(community, chat)) && load(),
+                  }, chat.type === "channel" ? "Убрать канал из сообщества" : "Убрать группу из сообщества")
+                : null,
+            ])
+          );
+          return;
+        }
+        if (!canManage) return slot.replaceChildren();
+        const { communities } = await api.myCommunities().catch(() => ({ communities: [] }));
         slot.replaceChildren(
-          el("button", { class: "info-community-link", onclick: () => openCommunityPanel(community.id) }, [
-            el("span", { html: iconSvg("Users", 16) }),
-            el("span", {}, ["Сообщество: ", el("b", {}, community.title)]),
+          el("div", { class: "info-community-actions" }, [
+            el("button", { class: "settings-add-account-btn", onclick: () => openCreateCommunityTab(chat) }, "Создать сообщество"),
+            ...communities.map((c) =>
+              el("button", {
+                class: "settings-add-account-btn",
+                onclick: async () => {
+                  const res = await addChatToCommunity(c, chat);
+                  if (res && !res.requested) openCommunityPanel(c.id);
+                  load();
+                },
+              }, c.addPolicy === "suggest" ? `Предложить в «${c.title}»` : `Добавить в «${c.title}»`)
+            ),
           ])
         );
-        return;
-      }
-      if (!canManage) return;
-      const { communities } = await api.myCommunities().catch(() => ({ communities: [] }));
-      slot.replaceChildren(
-        el("div", { class: "info-community-actions" }, [
-          el("button", {
-            class: "settings-add-account-btn",
-            onclick: () => openCreateCommunityTab(chat),
-          }, "Создать сообщество"),
-          ...communities.map((c) =>
-            el("button", {
-              class: "settings-add-account-btn",
-              onclick: async () => {
-                try {
-                  await api.addCommunityChat(c.id, chat.id);
-                  openCommunityPanel(c.id);
-                } catch (err) {
-                  alert(err.message || "Не удалось добавить");
-                }
-              },
-            }, `Добавить в «${c.title}»`)
-          ),
-        ])
-      );
-    })
-    .catch(() => {});
+      })
+      .catch(() => {});
+  load();
   return slot;
 }
 
@@ -563,7 +568,7 @@ function groupIntoCards(body) {
 function openCreateCommunityTab(chat) {
   openCreateCommunityDialog({
     firstChatId: chat.id,
-    firstChat: { id: chat.id, type: chat.type, title: chat.title, username: chat.username, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage, members: chat.members },
+    firstChat: { id: chat.id, type: chat.type, title: chat.title, username: chat.username, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage, members: (chat.memberIds ?? []).length },
     onCreated: (community) => openCommunityPanel(community.id),
   });
 }

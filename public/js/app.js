@@ -1,7 +1,7 @@
 import { applyAccentSetting, applyFontSizeSetting } from "./lib/accent.js";
 import { el, mount, clear } from "./lib/dom.js";
 import { api, flushOfflineQueue, getCachedData } from "./api.js";
-import { setState, getState, updateSelf } from "./state.js";
+import { setState, getState, updateSelf, subscribe } from "./state.js";
 import { playIncomingMessageSound } from "./lib/ringtone.js";
 import { isChatMuted } from "./lib/chatSort.js";
 import { route, notFound, startRouter, navigate } from "./router.js";
@@ -40,23 +40,6 @@ function removeSplash() {
   if (!splash) return;
   splash.classList.add("boot-splash-hidden");
   setTimeout(() => splash.remove(), 300);
-}
-
-function initOfflineBanner() {
-  let banner = document.getElementById("offline-banner");
-  if (!banner) {
-    banner = el("div", { id: "offline-banner", class: "offline-banner hidden" }, [
-      el("span", { class: "offline-banner-text" }, "Ожидание сети…"),
-    ]);
-    document.documentElement.appendChild(banner);
-  }
-  const update = () => {
-    const offline = !navigator.onLine;
-    banner.classList.toggle("hidden", !offline);
-  };
-  update();
-  window.addEventListener("online", update);
-  window.addEventListener("offline", update);
 }
 
 function withCleanup(mainSlot) {
@@ -107,7 +90,6 @@ async function boot() {
     return;
   }
    removeSplash();
-  initOfflineBanner();
   if (hasPasscode()) await showPasscodeLockScreen();
   const RELOCK_THRESHOLD_MS = 5000;
   let hiddenAt = 0;
@@ -134,6 +116,16 @@ async function boot() {
   loadSafetyLabels(api).catch(() => {});
   startWsClient();
   initNetStatus();
+  // Десктоп (electron/preload.js): число непрочитанных без заглушённых чатов → бейдж и трей.
+  if (window.shalterDesktop) {
+    let lastUnread = -1;
+    const reportUnread = () => {
+      const n = (getState().chats ?? []).filter((c) => !c.archived && !isChatMuted(c)).reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+      if (n !== lastUnread) window.shalterDesktop.setUnread((lastUnread = n));
+    };
+    subscribe(reportUnread);
+    reportUnread();
+  }
   // Отправляем отложенные POSTы, если сеть пришла или включился сокет.
   if (navigator.onLine) flushOfflineQueue();
   window.addEventListener("online", () => flushOfflineQueue());

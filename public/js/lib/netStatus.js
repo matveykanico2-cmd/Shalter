@@ -1,8 +1,7 @@
 import { isWsStarted, isWsOpen } from "./wsClient.js";
 
-// A small "Соединение…" pill with a spinner, shown while the network is bad:
-// the device is offline, the live socket has been down for a moment, or an API
-// request has been hanging for a couple of seconds.
+// Статус сети: устройство без сети, сокет какое-то время не на связи или запрос
+// к API висит дольше пары секунд.
 const SLOW_MS = 2000;
 const WS_GRACE_MS = 2000;
 
@@ -20,23 +19,40 @@ export function trackRequest(promise) {
   return promise;
 }
 
+// Как в tweb (components/connectionStatus.ts): статус сети пишется в плейсхолдер
+// поиска над списком чатов, а вместо лупы крутится спиннер — без цветных полос.
+// Если поиска на экране нет (телефон, открыт чат), показываем маленькую «таблетку».
+// Короткие сбои (< WS_GRACE_MS) не показываем вовсе, чтобы статус не мигал.
+let hadConnect = false;
+
 function currentText() {
   if (!navigator.onLine) return "Ожидание сети…";
   const now = Date.now();
   if (isWsStarted() && !isWsOpen()) {
     if (!wsDownSince) wsDownSince = now;
-    if (now - wsDownSince > WS_GRACE_MS) return "Соединение…";
+    if (now - wsDownSince > WS_GRACE_MS) return hadConnect ? "Переподключение…" : "Соединение…";
   } else {
+    if (isWsOpen()) hadConnect = true;
     wsDownSince = 0;
   }
-  for (const started of pending.values()) if (now - started > SLOW_MS) return "Загрузка…";
+  for (const started of pending.values()) if (now - started > SLOW_MS) return "Обновление…";
   return null;
+}
+
+function applyToSearch(text) {
+  const input = document.querySelector(".chat-search-input");
+  if (!input || !input.offsetParent) return false;
+  if (!input.dataset.placeholder) input.dataset.placeholder = input.placeholder;
+  input.placeholder = text ?? input.dataset.placeholder;
+  input.closest(".chat-search-input-wrap")?.classList.toggle("connecting", !!text);
+  return true;
 }
 
 function tick() {
   const text = currentText();
+  const inSearch = applyToSearch(text);
   if (!pill) {
-    if (!text || !document.body) return;
+    if (!text || inSearch || !document.body) return;
     label = document.createElement("span");
     pill = document.createElement("div");
     pill.className = "net-status-pill";
@@ -48,7 +64,7 @@ function tick() {
     document.body.appendChild(pill);
   }
   if (text) label.textContent = text;
-  pill.classList.toggle("visible", !!text);
+  pill.classList.toggle("visible", !!text && !inSearch);
 }
 
 export function initNetStatus() {

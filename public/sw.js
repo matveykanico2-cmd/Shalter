@@ -1,4 +1,5 @@
-const SHELL_CACHE = "shalter-shell-v3";
+// v4: статика больше не «залипает» в кэше после обновления сервера (см. fetch ниже).
+const SHELL_CACHE = "shalter-shell-v4";
 
 const SHELL_ASSETS = [
   "/",
@@ -14,12 +15,6 @@ const SHELL_ASSETS = [
 const MEDIA_CACHE = "shalter-media-v1";
 const MEDIA_CACHE_MAX = 300;
 
-// API-ответы: подкачка «свежили» — сразу из кэша, фоном свежее от сервера.
-// На плохом интернете история и список чатов открываются мгновенно.
-const API_CACHE = "shalter-api-v1";
-const API_CACHE_MAX = 200;
-const API_STALE_MS = 10_000;
-
 async function trimMediaCache() {
   const cache = await caches.open(MEDIA_CACHE);
   const keys = await cache.keys();
@@ -27,28 +22,9 @@ async function trimMediaCache() {
   await Promise.all(keys.slice(0, keys.length - MEDIA_CACHE_MAX).map((k) => cache.delete(k)));
 }
 
-async function trimApiCache(cache) {
-  const keys = await cache.keys();
-  if (keys.length <= API_CACHE_MAX) return;
-  await Promise.all(keys.slice(0, keys.length - API_CACHE_MAX).map((k) => cache.delete(k)));
-}
-
-function isCacheableApi(url) {
-  const p = url.pathname;
-  // Только GET-истории и каталоги — не мутируют, можно кэшировать.
-  return (
-    p === "/api/chats" ||
-    p.startsWith("/api/chats?") ||
-    (p.startsWith("/api/messages/") && !p.endsWith("/send") && !p.endsWith("/read")) ||
-    p === "/api/gifts" ||
-    p.startsWith("/api/users/")
-  );
-}
-
-self.addEventListener("install", () => {
+self.addEventListener("install", (event) => {
   self.skipWaiting();
-  self.registration.showNotification = self.registration.showNotification;
-  caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_ASSETS));
+  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_ASSETS)).catch(() => {}));
 });
 
 self.addEventListener("activate", (event) => {
@@ -86,38 +62,6 @@ self.addEventListener("fetch", (event) => {
   }
   if (url.pathname.startsWith("/api/")) return;
 
-  // API GET: stale-while-revalidate + offлайн fallback на кэш.
-  if (req.method === "GET" && isCacheableApi(url)) {
-    event.respondWith(
-      (async () => {
-        const cache = await caches.open(API_CACHE);
-        const cached = await cache.match(req);
-        const serve = cached?.headers.get("x-stale-at")
-          ? (() => {
-              const age = Date.now() - Number(cached.headers.get("x-stale-at"));
-              return age < API_STALE_MS ? cached : null;
-            })()
-          : cached;
-        const network = fetch(req).then((res) => {
-          if (res.ok) {
-            cache.put(req, res.clone());
-            trimApiCache(cache);
-            // Признак «свежести» для сравнения в следующий раз.
-            const headers = new Headers(res.headers);
-            headers.set("x-stale-at", String(Date.now()));
-            return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
-          }
-          return res;
-        }).catch(() => cached || new Response(JSON.stringify({ error: "offline" }), { status: 503, headers: { "content-type": "application/json" } }));
-        // Не старше TTL — сразу из кэша, фоном подхватим свежее.
-        if (serve) return Promise.race([network, cached]);
-        return network;
-      })()
-    );
-    return;
-  }
-
-
   if (url.pathname.startsWith("/uploads/")) {
     event.respondWith(
       (async () => {
@@ -135,41 +79,50 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Неизменяемые файлы (хешированные чанки сборки, ссылки с ?v=) — сразу из кэша.
+  // Всё остальное (index.html, dist/app.js, исходники /js и /styles) — сначала из сети:
+  // раньше они отдавались из кэша навсегда, и после обновления сервера старые модули
+  // смешивались с новыми — приложение не запускалось до повторной перезагрузки.
   if (isShellAsset(url)) {
-    event.respondWith(
-      (async () => {
-        const cached = await caches.match(req);
-        if (cached) return cached;
-        const res = await fetch(req);
-        if (res.ok) {
-          const cache = await caches.open(SHELL_CACHE);
-          cache.put(req, res.clone());
-        }
-        return res;
-      })()
-    );
+    event.respondWith(isImmutable(url) ? cacheFirst(req) : networkFirst(req));
     return;
   }
 
   if (req.mode === "navigate") {
-    event.respondWith(
-      (async () => {
-        const cache = await caches.open(SHELL_CACHE);
-        caches.match("/index.html").then((shell) => { if (shell) cache.put("/index.html", shell); });
-        const cached = await cache.match(req) ?? (await cache.match("/index.html"));
-        const fromNetwork = fetch(req)
-          .then((res) => {
-            if (res.ok) cache.put(req, res.clone());
-            return res;
-          })
-          .catch(() => null);
-        if (!cached) return (await fromNetwork) ?? Response.error();
-        const raced = await Promise.race([fromNetwork, new Promise((r) => setTimeout(() => r(null), 300))]);
-        return raced ?? cached;
-      })()
-    );
+    event.respondWith(networkFirst(req, "/index.html"));
   }
 });
+
+const NETWORK_TIMEOUT_MS = 4000;
+
+function isImmutable(url) {
+  return url.searchParams.has("v") || /^\/dist\/chunk-[A-Z0-9]+\.js$/.test(url.pathname) || url.pathname.startsWith("/icons/");
+}
+
+async function cacheFirst(req) {
+  const cached = await caches.match(req);
+  if (cached) return cached;
+  const res = await fetch(req);
+  if (res.ok) (await caches.open(SHELL_CACHE)).put(req, res.clone());
+  return res;
+}
+
+// Сеть с таймаутом; без сети или при зависании — последняя сохранённая копия.
+async function networkFirst(req, fallbackPath) {
+  const cache = await caches.open(SHELL_CACHE);
+  const network = fetch(req).then((res) => {
+    if (res.ok) cache.put(fallbackPath ?? req, res.clone());
+    return res;
+  });
+  const timeout = new Promise((resolve) => setTimeout(() => resolve(null), NETWORK_TIMEOUT_MS));
+  try {
+    const res = await Promise.race([network, timeout]);
+    if (res) return res;
+  } catch {}
+  const cached = (await cache.match(req)) ?? (fallbackPath && (await cache.match(fallbackPath)));
+  if (cached) return cached;
+  return network.catch(() => Response.error());
+}
 
 async function avatarIcon(avatar) {
   if (!avatar || typeof OffscreenCanvas === "undefined") return null;

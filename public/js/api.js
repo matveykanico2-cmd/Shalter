@@ -48,7 +48,13 @@ function offlineError(url) {
   return err;
 }
 
+// В localStorage храним только то, без чего приложение не откроется без сети.
+// Раньше туда писался каждый GET (вместе с историями чатов): весь объект
+// разбирался и сериализовался на каждый запрос, тормозил интерфейс и упирался в квоту.
+const OFFLINE_CACHED = new Set(["/api/auth/session", "/api/bootstrap", "/api/chats", "/api/folders", "/api/settings", "/api/communities/joined"]);
+
 function apiCacheWrite(url, data) {
+  if (!OFFLINE_CACHED.has(url)) return;
   try {
     const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
     obj[url] = { data, ts: Date.now() };
@@ -118,23 +124,29 @@ export async function flushOfflineQueue() {
   writeOfflineQueue(remaining);
 }
 
+// GET, повисший на плохой сети, не должен держать экран вечно: обрываем и
+// отвечаем из кэша. Запросы с телом (загрузки, отправка) не ограничиваем.
+const GET_TIMEOUT_MS = 15000;
+
 async function req(url, init) {
+  const isGet = !init?.method || init.method === "GET";
   let res;
   try {
+    const signal = isGet && !init?.signal && typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(GET_TIMEOUT_MS) : init?.signal;
     res = await trackRequest(
       fetch(url, {
         ...init,
+        signal,
         headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
       })
     );
   } catch {
-    // Сеть недоступна: мутируем запросы в очередь, GET — из клиентского кэша.
-    if (init?.method && init.method !== "GET") {
+    // Сеть недоступна: мутирующие запросы — в очередь, GET — из клиентского кэша.
+    if (!isGet) {
       enqueueOffline(init.method, url, init?.body);
       throw offlineError(url);
     }
-    if (init?.method === "GET") return apiCacheRead(url);
-    throw offlineError(url);
+    return apiCacheRead(url);
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -154,31 +166,28 @@ async function req(url, init) {
   return data;
 }
 
+// Сессия и стартовые данные: ранний запрос из index.html, при неудаче — повтор,
+// а без сети — последняя сохранённая копия. Успешный ранний ответ тоже кэшируем.
+function bootRequest(key, url) {
+  const early = window.__boot?.[key];
+  if (window.__boot) window.__boot[key] = null;
+  const fresh = early
+    ? early.then((r) => {
+        if (r == null) return req(url);
+        apiCacheWrite(url, r);
+        return r;
+      })
+    : req(url);
+  return fresh.catch(() => {
+    const cached = getCachedData(url);
+    if (cached) return cached;
+    throw offlineError(url);
+  });
+}
+
 export const api = {
-  session: () => {
-    const early = window.__boot?.session;
-    if (early) {
-      window.__boot.session = null;
-      return early.then((r) => r ?? req("/api/auth/session"));
-    }
-    return req("/api/auth/session").catch(() => {
-      const cached = getCachedData("/api/auth/session");
-      if (cached) return cached;
-      throw offlineError("/api/auth/session");
-    });
-  },
-  bootstrap: () => {
-    const early = window.__boot?.data;
-    if (early) {
-      window.__boot.data = null;
-      return early.then((r) => r ?? req("/api/bootstrap"));
-    }
-    return req("/api/bootstrap").catch(() => {
-      const cached = getCachedData("/api/bootstrap");
-      if (cached) return cached;
-      throw offlineError("/api/bootstrap");
-    });
-  },
+  session: () => bootRequest("session", "/api/auth/session"),
+  bootstrap: () => bootRequest("data", "/api/bootstrap"),
   registerEmail: (name, email, password, phone, username, lastName) =>
     req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, username, lastName }) }),
   checkUsername: (u) => req(`/api/auth/username-available?u=${encodeURIComponent(u)}`),
@@ -333,11 +342,29 @@ export const api = {
   communityOfChat: (chatId) => req(`/api/communities/by-chat/${chatId}`),
   createCommunity: (body) => req("/api/communities", { method: "POST", body: JSON.stringify(body) }),
   updateCommunity: (id, patch) => req(`/api/communities/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
-  addCommunityChat: (id, chatId) => req(`/api/communities/${id}/chats`, { method: "POST", body: JSON.stringify({ chatId }) }),
+  deleteCommunity: (id) => req(`/api/communities/${id}`, { method: "DELETE" }),
+  joinCommunity: (id) => req(`/api/communities/${id}/join`, { method: "POST" }),
+  leaveCommunity: (id) => req(`/api/communities/${id}/leave`, { method: "POST" }),
+  setCommunityPrefs: (id, prefs) => req(`/api/communities/${id}/prefs`, { method: "POST", body: JSON.stringify(prefs) }),
+  muteCommunity: (id, opts) => req(`/api/communities/${id}/mute`, { method: "POST", body: JSON.stringify(opts) }),
+  readCommunity: (id) => req(`/api/communities/${id}/read`, { method: "POST" }),
+  communityMembers: (id, q = "") => req(`/api/communities/${id}/members?q=${encodeURIComponent(q)}`),
+  addCommunityChat: (id, chatId, visible = true) =>
+    req(`/api/communities/${id}/chats`, { method: "POST", body: JSON.stringify({ chatId, visible }) }),
   setCommunityChatVisible: (id, chatId, visible) =>
     req(`/api/communities/${id}/chats/${chatId}`, { method: "PATCH", body: JSON.stringify({ visible }) }),
   removeCommunityChat: (id, chatId) => req(`/api/communities/${id}/chats/${chatId}`, { method: "DELETE" }),
-  deleteCommunity: (id) => req(`/api/communities/${id}`, { method: "DELETE" }),
+  communityRequests: (id) => req(`/api/communities/${id}/requests`),
+  resolveCommunityRequest: (id, requestId, approve) =>
+    req(`/api/communities/${id}/requests/${requestId}`, { method: "POST", body: JSON.stringify({ approve }) }),
+  communityAdmins: (id) => req(`/api/communities/${id}/admins`),
+  setCommunityAdmin: (id, userId, rights) =>
+    req(`/api/communities/${id}/admins/${userId}`, { method: "PUT", body: JSON.stringify({ rights }) }),
+  removeCommunityAdmin: (id, userId) => req(`/api/communities/${id}/admins/${userId}`, { method: "DELETE" }),
+  communityBans: (id) => req(`/api/communities/${id}/bans`),
+  communityBanPreview: (id, userId) => req(`/api/communities/${id}/bans/${userId}/preview`),
+  banFromCommunity: (id, userId) => req(`/api/communities/${id}/bans/${userId}`, { method: "PUT" }),
+  unbanFromCommunity: (id, userId) => req(`/api/communities/${id}/bans/${userId}`, { method: "DELETE" }),
   joinPublicChat: (id) => req(`/api/chats/${id}/join`, { method: "POST" }),
   listBannedMembers: (id) => req(`/api/chats/${id}/banned`),
   joinByInvite: (code) => req(`/api/chats/invite/${encodeURIComponent(code)}/join`, { method: "POST" }),

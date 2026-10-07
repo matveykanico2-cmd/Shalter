@@ -1206,6 +1206,45 @@ CREATE INDEX IF NOT EXISTS idx_community_chats_community ON community_chats(comm
   if (!communityCols.has("addMode")) db.exec("ALTER TABLE communities ADD COLUMN addMode TEXT NOT NULL DEFAULT 'all'");
   const chatCols = new Set(db.prepare("PRAGMA table_info(community_chats)").all().map((c) => c.name));
   if (!chatCols.has("visible")) db.exec("ALTER TABLE community_chats ADD COLUMN visible INTEGER NOT NULL DEFAULT 1");
+  if (!chatCols.has("addedBy")) db.exec("ALTER TABLE community_chats ADD COLUMN addedBy TEXT");
 }
+
+// Участие в сообществе (tweb: у сообщества своё членство, «покинуть» выходит только
+// из сообщества, не из его чатов). Строка нужна не каждому: участником считается и
+// тот, кто состоит хоть в одном чате сообщества, — строка хранит роль, права админа,
+// «вышел», закрепление и «показывать одной строкой».
+// community_bans — удалённые из сообщества (tweb ChannelBlockedUsers),
+// community_requests — чаты, предложенные участниками при режиме «только админы».
+db.exec(`
+CREATE TABLE IF NOT EXISTS community_members (
+  communityId TEXT NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+  userId TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'member',
+  rights TEXT,
+  left INTEGER NOT NULL DEFAULT 0,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  collapsed INTEGER NOT NULL DEFAULT 1,
+  joinedAt TEXT NOT NULL,
+  PRIMARY KEY (communityId, userId)
+);
+CREATE INDEX IF NOT EXISTS idx_community_members_user ON community_members(userId);
+CREATE TABLE IF NOT EXISTS community_bans (
+  communityId TEXT NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+  userId TEXT NOT NULL,
+  bannedBy TEXT,
+  bannedAt TEXT NOT NULL,
+  PRIMARY KEY (communityId, userId)
+);
+CREATE TABLE IF NOT EXISTS community_requests (
+  id TEXT PRIMARY KEY,
+  communityId TEXT NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+  chatId TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  suggestedBy TEXT NOT NULL,
+  visible INTEGER NOT NULL DEFAULT 1,
+  createdAt TEXT NOT NULL,
+  UNIQUE (communityId, chatId)
+);
+CREATE INDEX IF NOT EXISTS idx_community_requests_community ON community_requests(communityId);
+`);
 
 module.exports = db;

@@ -30,17 +30,11 @@ import { openSidebarMenu, openSavedMessages } from "../components/sidebarMenu.js
 import { sortChats } from "../lib/chatSort.js";
 import {
   CommunityRow,
-  CommunityAvatar,
   CommunityChildBadge,
   communityActivity,
-  communityDetails,
   forgetCommunityDetails,
-  setCommunityDetails,
-  memberChatsOf,
-  plural,
-  openEditCommunityDialog,
+  renderCommunityPanel,
   openCreateCommunityDialog,
-  openOwnChatPicker,
 } from "../components/communityList.js";
 import { askConfirm } from "../components/confirmDialog.js";
 
@@ -315,6 +309,10 @@ export function ChatListPane() {
   });
   const unsubAdded = onWsMessage("chat:added", () => scheduleRefetch());
   const unsubChatUpdated = onWsMessage("chat:updated", () => scheduleRefetch());
+  const unsubCommunity = onWsMessage("community:updated", ({ communityId }) => {
+    forgetCommunityDetails(communityId);
+    scheduleRefetch();
+  });
   const unsubGone = onWsMessage("chat:deleted", ({ chatId }) => {
     setState({ chats: getState().chats.filter((c) => c.id !== chatId) });
     if (window.location.pathname === `/chat/${chatId}`) navigate("/");
@@ -345,6 +343,7 @@ export function ChatListPane() {
     storiesBar.cleanup?.();
     unsubState();
     unsubChatUpdated();
+    unsubCommunity();
     unsubNew();
     unsubUpdated();
     unsubDeleted();
@@ -594,7 +593,14 @@ function renderResults(container) {
   if (getState().sidebarCommunity) {
     const community = (getState().communities ?? []).find((c) => c.id === getState().sidebarCommunity);
     if (community) {
-      renderCommunityPanel(container, community, currentId);
+      renderCommunityPanel({
+        bodySlot,
+        scrollSlot,
+        community,
+        rerender: () => renderResults(container),
+        renderChat: (c, extraMenu) =>
+          ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally, extraMenu }),
+      });
       scrollSlot.scrollTop = keepScroll;
       return;
     }
@@ -698,9 +704,16 @@ function renderResults(container) {
         : chatListEmpty(tab, folders)
     );
   }
-  // Сообщества (tweb): отдельная строка среди чатов, по времени самого свежего из своих чатов.
+  // Сообщества (tweb): отдельная строка среди чатов, по времени самого свежего из
+  // своих чатов. «Одной строкой» (collapsed) — чаты сообщества в общем списке не
+  // повторяются; закреплённые сообщества идут первыми.
   const communities = ["all", "groups", "channels"].includes(tab) && !unreadOnly ? (getState().communities ?? []) : [];
+  const allCommunities = getState().communities ?? [];
+  const folded = new Set(communities.filter((cm) => cm.collapsed).flatMap((cm) => cm.chatIds));
+  if (folded.size) list = list.filter((c) => !folded.has(c.id) || c.id === currentId);
+  for (const cm of communities.filter((x) => x.pinned)) scroll.appendChild(CommunityRow(cm, notArchived));
   const communityQueue = communities
+    .filter((cm) => !cm.pinned)
     .map((cm) => ({ cm, at: communityActivity(cm, notArchived) }))
     .sort((a, b) => b.at.localeCompare(a.at));
   const flushCommunities = (beforeAt) => {
@@ -711,7 +724,7 @@ function renderResults(container) {
   for (const c of list) {
     if (!c.pinned) flushCommunities(c.lastMessage?.createdAt ?? c.createdAt ?? "");
     const row = ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally });
-    addCommunityBadge(row, c.id, communities);
+    addCommunityBadge(row, c.id, allCommunities);
     if (c.pinned) makePinnedDraggable(row, c.id, container);
     scroll.appendChild(row);
   }
@@ -726,150 +739,6 @@ function addCommunityBadge(row, chatId, communities) {
   if (!avatar) return;
   avatar.classList.add("has-community-badge");
   avatar.appendChild(CommunityChildBadge(community));
-}
-
-async function reloadCommunities() {
-  try {
-    const { communities } = await api.joinedCommunities();
-    setState({ communities });
-  } catch {}
-}
-
-// Панель сообщества поверх списка чатов (tweb: forum tab / CommunityPeerDialogList).
-function renderCommunityPanel(container, community, currentId) {
-  const { chats, user } = getState();
-  const rerender = () => renderResults(container);
-  const info = communityDetails(community.id, rerender);
-  const mine = sortChats(memberChatsOf(community, chats));
-  const others = (info?.chats ?? []).filter((c) => !c.isMember);
-  const isOwner = info?.isOwner ?? community.isOwner;
-  const count = community.chatIds.length;
-  const close = () => setState({ sidebarCommunity: null });
-  const act = async (fn, fallback) => {
-    try {
-      const res = await fn();
-      if (res?.community) setCommunityDetails(community.id, res.community);
-      else forgetCommunityDetails(community.id);
-      await reloadCommunities();
-    } catch (err) {
-      alert(err.message || fallback);
-    }
-  };
-
-  bodySlot.appendChild(
-    el("div", { class: "community-panel-head" }, [
-      el("button", { class: "icon-btn community-panel-back", title: "Назад к чатам", html: iconSvg("ChevronLeft", 22), onclick: close }),
-      CommunityAvatar(community, 40),
-      el("div", { class: "community-panel-titles" }, [
-        el("span", { class: "community-panel-title" }, community.title),
-        el("span", { class: "community-panel-subtitle" }, `сообщество · ${count} ${plural(count, "чат", "чата", "чатов")}`),
-      ]),
-      el("button", {
-        class: "icon-btn",
-        title: "Ещё",
-        html: iconSvg("MoreVertical", 20),
-        onclick: (e) => {
-          const r = e.currentTarget.getBoundingClientRect();
-          const link = `${location.origin}/community/${community.id}`;
-          openDropdownMenu({ x: r.right - 8, y: r.bottom + 2 }, [
-            { icon: "Link", label: "Скопировать ссылку", onClick: () => navigator.clipboard?.writeText(link).catch(() => {}) },
-            isOwner && {
-              icon: "Edit",
-              label: "Изменить сообщество",
-              onClick: () => {
-                openEditCommunityDialog(
-                  { id: community.id, title: community.title, description: info?.description ?? community.description, avatarImage: info?.avatarImage ?? community.avatarImage },
-                  (updated) => {
-                    setCommunityDetails(community.id, { ...info, ...updated });
-                    reloadCommunities();
-                    rerender();
-                  }
-                );
-              },
-            },
-            isOwner && {
-              icon: "Trash",
-              label: "Удалить сообщество",
-              danger: true,
-              onClick: async () => {
-                if (!(await askConfirm(`Удалить сообщество «${community.title}»? Сами группы и каналы останутся.`))) return;
-                try {
-                  await api.deleteCommunity(community.id);
-                  close();
-                  await reloadCommunities();
-                } catch (err) {
-                  alert(err.message || "Не удалось удалить");
-                }
-              },
-            },
-          ].filter(Boolean));
-        },
-      }),
-    ])
-  );
-
-  const box = scrollSlot;
-  if (info?.description) box.appendChild(el("p", { class: "community-panel-description" }, info.description));
-  if (isOwner) {
-    box.appendChild(
-      el("button", {
-        class: "community-add-chat",
-        onclick: () => {
-          openOwnChatPicker((chatId) => act(() => api.addCommunityChat(community.id, chatId), "Не удалось добавить чат"), { exclude: community.chatIds });
-        },
-      }, [el("span", { class: "community-add-chat-icon", html: iconSvg("Plus", 22) }), el("span", {}, "Добавить чат в сообщество")])
-    );
-  }
-  if (mine.length) {
-    box.appendChild(el("p", { class: "list-section-label" }, "Ваши чаты"));
-    for (const c of mine) {
-      box.appendChild(
-        ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally })
-      );
-    }
-  }
-  if (others.length) {
-    box.appendChild(el("p", { class: "list-section-label" }, "Другие чаты сообщества"));
-    for (const c of others) {
-      const joinBtn = c.isPublic
-        ? el("button", {
-            class: "community-join-btn",
-            onclick: async (e) => {
-              e.stopPropagation();
-              e.currentTarget.disabled = true;
-              try {
-                const res = await api.joinPublicChat(c.id);
-                if (res.pending) alert("Заявка отправлена — администратор чата её рассмотрит");
-                await api.listChats().then((r) => setState({ chats: r.chats }));
-                forgetCommunityDetails(community.id);
-                if (!res.pending) navigate(`/chat/${c.id}`);
-              } catch (err) {
-                alert(err.message || "Не удалось вступить");
-              }
-              rerender();
-            },
-          }, c.type === "channel" ? "Подписаться" : "Вступить")
-        : el("span", { class: "community-invite-only" }, "по приглашению");
-      box.appendChild(
-        el("div", { class: "chat-list-item-wrap" }, [
-          el("div", { class: "chat-list-item community-other-chat" }, [
-            Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage, size: 54 }),
-            el("div", { class: "chat-list-item-body" }, [
-              el("div", { class: "chat-list-item-row" }, [el("span", { class: "chat-list-item-title" }, c.title)]),
-              el("div", { class: "chat-list-item-row" }, [
-                el("span", { class: "chat-list-item-preview" }, `${c.members} ${c.type === "channel" ? plural(c.members, "подписчик", "подписчика", "подписчиков") : plural(c.members, "участник", "участника", "участников")}`),
-              ]),
-            ]),
-            joinBtn,
-          ]),
-        ])
-      );
-    }
-  }
-  if (!mine.length && !others.length) {
-    box.appendChild(el("p", { class: "empty-hint" }, info ? (isOwner ? "Добавьте сюда свои группы и каналы" : "В сообществе пока нет чатов") : "Загрузка…"));
-  }
-  bodySlot.appendChild(box);
 }
 
 function hasUnread(c) {

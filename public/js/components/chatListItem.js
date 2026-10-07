@@ -35,7 +35,8 @@ function preview(chat, meId) {
   return `${who}${messagePreview(m)}`;
 }
 
-export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, onLeave, onOpen, onRead }) {
+// extraMenu — дополнительные пункты меню (например, «Убрать из сообщества» в панели сообщества).
+export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, onLeave, onOpen, onRead, extraMenu }) {
   const title = chat.type === "dm" ? (chat.otherUser?.name ?? chat.title) : chat.title;
   const online = chat.type === "dm" && chat.otherUser?.online;
   const muted = isChatMuted(chat);
@@ -208,6 +209,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
             label: "Отметить как непрочитанное",
             onClick: () => onPatch(chat.id, { unread: true }),
           },
+      ...(extraMenu?.length ? [{ separator: true }, ...extraMenu] : []),
       { separator: true },
       {
         icon: "Trash",

@@ -61,10 +61,17 @@
   <meta name="google-site-verification" content="H5Gkar6C14mDnFw1EAZHJSq6fHveNpDeEzKUmDXUcDE" />
 <script>
   if (!/^\/(login|qr-login)/.test(location.pathname)) {
+    // Ранние запросы — параллельно с загрузкой скриптов. Ошибка, не-OK ответ или
+    // зависание дольше 10 с дают null, и api.js повторяет запрос сам (с кэшем).
+    var bootGet = function (url) {
+      var opts = { credentials: "include" };
+      if (window.AbortSignal && AbortSignal.timeout) opts.signal = AbortSignal.timeout(10000);
+      return fetch(url, opts).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+    };
     window.__boot = {
-      session: fetch("/api/auth/session", { credentials: "include" }).then((r) => r.json()).catch(() => null),
-      data: fetch("/api/bootstrap", { credentials: "include" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      settings: fetch("/api/settings", { credentials: "include" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      session: bootGet("/api/auth/session"),
+      data: bootGet("/api/bootstrap"),
+      settings: bootGet("/api/settings"),
     };
   }
 </script>
