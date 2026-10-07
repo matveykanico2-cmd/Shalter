@@ -27,6 +27,36 @@ self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_ASSETS)).catch(() => {}));
 });
 
+// Пока есть сеть — скачиваем всю текущую сборку (все экраны, а не только открытые),
+// чтобы без интернета приложение открывалось целиком из кэша. Файлы прошлых сборок
+// удаляем. Страница просит об этом при запуске и когда сеть возвращается.
+let precaching = null;
+async function precacheBuild() {
+  const res = await fetch("/dist/build.json", { cache: "no-store" });
+  if (!res.ok) return; // dev-режим без сборки — кэшируем по ходу работы
+  const { version, precache = [] } = await res.json();
+  const cache = await caches.open(SHELL_CACHE);
+  if ((await cache.match("/__precached"))?.headers.get("x-version") === version) return;
+  const wanted = new Set(precache.map((u) => new URL(u, self.location.origin).href));
+  for (const url of wanted) {
+    if (await cache.match(url)) continue;
+    const r = await fetch(url, { cache: "no-cache" });
+    if (r.ok) await cache.put(url, r);
+  }
+  const shell = await fetch("/", { cache: "no-cache" });
+  if (shell.ok) await cache.put("/index.html", shell);
+  for (const req of await cache.keys()) {
+    if (new URL(req.url).pathname.startsWith("/dist/") && !wanted.has(req.url)) await cache.delete(req);
+  }
+  await cache.put("/__precached", new Response("", { headers: { "x-version": version } }));
+}
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "precache") return;
+  precaching ??= precacheBuild().catch(() => {}).finally(() => (precaching = null));
+  event.waitUntil?.(precaching);
+});
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {

@@ -2,6 +2,7 @@ import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { giftTraits, renderGiftArt } from "../lib/giftTraits.js";
 import { giftBackdrop } from "../lib/giftBackground.js";
+import { Avatar } from "./avatar.js";
 
 function row(label, value, rarity) {
   return el("div", { class: "gift-card-row" }, [
@@ -64,7 +65,14 @@ export function openGiftCardDialog(gift, { ownerName, onSend, onRemove, onToggle
     ]),
     el("div", { class: "gift-card-rows" }, [
       ownerName ? row("Владелец", ownerName) : null,
-      gift.fromName ? row("От кого", gift.fromName) : null,
+      gift.fromName
+        ? row(
+            "От кого",
+            gift.anon || !gift.fromId
+              ? gift.fromName
+              : el("span", { class: "gift-card-sender" }, [Avatar({ name: gift.fromName, color: gift.fromAvatarColor, image: gift.fromAvatarImage, size: 20 }), gift.fromName])
+          )
+        : null,
       gift.note ? row("Сообщение", gift.note) : null,
       row("Модель", traits.model.name, traits.model.rarity),
       attrRow("Фон", backdrop.name || "Без фона", backdrop.rarity),

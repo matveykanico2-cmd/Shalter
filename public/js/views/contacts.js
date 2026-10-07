@@ -411,7 +411,9 @@ export async function ContactsView(root) {
             Avatar({ name: displayName(c), color: user.avatarColor, image: user.avatarImage, online: user.online, size: 54 }),
             el("div", { class: "contact-row-body" }, [
               el("p", { class: "contact-row-name" }, [
-                displayName(c),
+                // Имя — отдельным элементом: голый текст во flex-строке не сжимается
+                // с многоточием и выталкивает значок взаимного контакта за край.
+                el("span", { class: "contact-row-name-text" }, displayName(c)),
                 user.mutualContact ? el("span", { class: "mutual-contact-mark", title: "Взаимный контакт — вы есть друг у друга в контактах" }, "⇄") : null,
                 VerifiedBadge(user, 13),
                 ProfileStatusBadge(user, 13),

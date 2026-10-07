@@ -485,7 +485,7 @@ export async function openProfileDialog(userId) {
             ? el("span", { class: "tw-gift-pin", title: "Закреплён", html: iconSvg("Pin", 14) })
             : g.anon || !g.fromId
               ? el("span", { class: "tw-gift-sender tw-gift-sender-anon", title: g.fromName ?? "Аноним" }, "?")
-              : el("span", { class: "tw-gift-sender", title: g.fromName ?? "" }, [Avatar({ name: g.fromName ?? "?", size: 20 })]);
+              : el("span", { class: "tw-gift-sender", title: g.fromName ?? "" }, [Avatar({ name: g.fromName ?? "?", color: g.fromAvatarColor, image: g.fromAvatarImage, size: 20 })]);
           return el(
             "button",
             {

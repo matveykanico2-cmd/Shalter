@@ -54,7 +54,18 @@ async function build() {
   fs.writeFileSync(path.join(DIST_DIR, "index.html"), html);
   fs.writeFileSync(
     path.join(DIST_DIR, "build.json"),
-    JSON.stringify({ version: jsV, builtAt: new Date().toISOString(), sourceStamp: sourceStamp() })
+    JSON.stringify({
+      version: jsV,
+      builtAt: new Date().toISOString(),
+      sourceStamp: sourceStamp(),
+      // Всё, что нужно приложению без сети: sw.js скачивает это заранее, пока сеть есть.
+      precache: [
+        `/dist/app.js?v=${jsV}`,
+        `/dist/styles/base.css?v=${baseV}`,
+        `/dist/styles/components.css?v=${compV}`,
+        ...fs.readdirSync(DIST_DIR).filter((f) => /^chunk-[A-Z0-9]+\.js$/.test(f)).map((f) => `/dist/${f}`),
+      ],
+    })
   );
 
   for (const f of fs.readdirSync(DIST_DIR)) if (f.endsWith(".js")) precompress(path.join(DIST_DIR, f));

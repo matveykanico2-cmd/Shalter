@@ -10,11 +10,10 @@
 # `git pull` deploy on the server brings everything EXCEPT these two. This
 # script is that missing step.
 #
-# The small PWABuilder wrappers (Shalter.apk, Shalter-Windows.zip) are ~1MB
-# each and ARE committed, so they arrive with a normal `git pull` — nothing
-# to do for those.
+# Windows и macOS теперь тоже нативные Electron-сборки (~100МБ), поэтому
+# загружаются здесь же. Маленький Shalter.apk закоммичен и приходит с git pull.
 #
-# Usage (from the repo root, after `npm run electron:build:linux`):
+# Usage (from the repo root, after `npm run electron:build:linux / :win / :mac`):
 #   ./scripts/upload-downloads.sh
 #   SERVER=user@1.2.3.4 APP_DIR=/opt/shalter ./scripts/upload-downloads.sh
 set -euo pipefail
@@ -23,7 +22,7 @@ SERVER="${SERVER:-shalter@31.40.154.105}"
 APP_DIR="${APP_DIR:-/opt/shalter}"
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/dist-electron"
-FILES=(Shalter.AppImage Shalter.deb)
+FILES=(Shalter.AppImage Shalter.deb Shalter-Windows.zip Shalter-macOS-arm64.zip Shalter-macOS-x64.zip)
 
 missing=0
 for f in "${FILES[@]}"; do

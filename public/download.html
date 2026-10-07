@@ -45,7 +45,11 @@
     <section class="dl-help">
       <details>
         <summary>Как установить на Windows</summary>
-        <p>Распакуйте архив и запустите <code>install.ps1</code> — правой кнопкой → «Выполнить с помощью PowerShell». Пакет подписан тестовым сертификатом, скрипт сам добавит его в доверенные, отдельных действий не нужно. Если Windows покажет «SmartScreen», нажмите «Подробнее» → «Выполнить в любом случае».</p>
+        <p>Распакуйте архив в любую папку (например, «Документы\Shalter») и запустите <code>Shalter.exe</code>. Если Windows покажет «SmartScreen», нажмите «Подробнее» → «Выполнить в любом случае». Для ярлыка на рабочем столе — правой кнопкой по <code>Shalter.exe</code> → «Отправить» → «Рабочий стол».</p>
+      </details>
+      <details>
+        <summary>Как установить на macOS</summary>
+        <p>Скачайте версию для своего Mac (меню  → «Об этом Mac»: «Apple M…» — Apple Silicon, «Intel» — Intel), распакуйте и перетащите <code>Shalter.app</code> в «Программы». Приложение пока не заверено Apple, поэтому в первый раз откройте его правой кнопкой → «Открыть» → «Открыть». Если macOS всё равно не пускает, выполните в «Терминале»: <code>xattr -cr /Applications/Shalter.app</code>.</p>
       </details>
       <details>
         <summary>Как установить на Linux</summary>
@@ -76,11 +80,12 @@
   };
 
   var PLATFORMS = [
-    { id: "windows",   name: "Windows",     icon: "windows",    accent: "#0b7ec4", format: ".zip",      note: "Windows 10 и новее" },
+    { id: "windows",   name: "Windows",     icon: "windows",    accent: "#0b7ec4", format: ".zip",      note: "Windows 10 и новее · распакуйте и запустите Shalter.exe" },
     { id: "android",   name: "Android",     icon: "android",    accent: "#3ab04a", format: ".apk",      note: "Android 8 и новее" },
     { id: "linux",     name: "Linux",       icon: "linux",      accent: "#c88a1a", format: "AppImage",  note: "Запускается без установки" },
     { id: "linux-deb", name: "Linux (.deb)", icon: "linux-deb", accent: "#a5343a", format: ".deb",      note: "Debian, Ubuntu и производные" },
-    { id: "macos",     name: "macOS",       icon: "apple",      accent: "#6b7280", soon: true,          note: "Пока откройте сайт в Safari и добавьте в Dock" },
+    { id: "macos-arm64", name: "macOS (Apple M1–M4)", icon: "apple", accent: "#6b7280", format: ".zip", note: "macOS 11 и новее, Mac на Apple Silicon" },
+    { id: "macos-x64",   name: "macOS (Intel)",       icon: "apple", accent: "#6b7280", format: ".zip", note: "macOS 10.15 и новее, Mac на Intel" },
     { id: "ios",       name: "iOS",         icon: "apple",      accent: "#6b7280", soon: true,          note: "Пока откройте сайт в Safari → «На экран „Домой“»" },
   ];
 
@@ -95,7 +100,7 @@
     var ua = navigator.userAgent;
     if (/Android/i.test(ua)) return "android";
     if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
-    if (/Mac OS X/i.test(ua) && !/Mobi/i.test(ua)) return "macos";
+    if (/Mac OS X/i.test(ua) && !/Mobi/i.test(ua)) return "macos-arm64";
     if (/Windows/i.test(ua)) return "windows";
     if (/Linux/i.test(ua)) return "linux";
     return null;

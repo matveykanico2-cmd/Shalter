@@ -71,10 +71,16 @@
     "icon": "electron/icon.png",
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "electron/icon.png",
-      "artifactName": "Shalter-Setup.${ext}"
+      "artifactName": "Shalter-Windows.${ext}",
+      "signAndEditExecutable": false
     },
     "linux": {
       "target": [
@@ -93,12 +99,18 @@
     },
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "electron/icon.png",
-      "artifactName": "Shalter.${ext}",
-      "category": "public.app-category.social-networking"
+      "artifactName": "Shalter-macOS-${arch}.${ext}",
+      "category": "public.app-category.social-networking",
+      "identity": null
     },
     "protocols": [
       {
@@ -107,6 +119,12 @@
           "shalter"
         ]
       }
-    ]
+    ],
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "Shalter"
+    }
   }
 }

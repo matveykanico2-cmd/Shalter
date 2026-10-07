@@ -127,6 +127,35 @@ export async function CallScreenView(root, callId) {
   const stripDrag = makeDraggable("shalter.callStripPos", ".call-stage-strip");
   let stripHidden = false;
   let localVideoEl = null;
+  // Последний кадр своей камеры поверх превью, пока камера переключается
+  // (как в Telegram) — вместо чёрного экрана до первого кадра новой камеры.
+  let freezeEl = null;
+  function freezeFrame(video) {
+    if (!video?.videoWidth) return null;
+    const canvas = el("canvas", { class: `call-local-video call-local-freeze${video.classList.contains("mirrored") ? " mirrored" : ""}` });
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    try {
+      canvas.getContext("2d").drawImage(video, 0, 0);
+    } catch {
+      return null;
+    }
+    return canvas;
+  }
+  function releaseFreezeOnNextFrame(video) {
+    const frozen = freezeEl;
+    if (!frozen || frozen.dataset.releasing) return;
+    frozen.dataset.releasing = "1";
+    const drop = () => {
+      frozen.classList.add("leaving");
+      setTimeout(() => {
+        frozen.remove();
+        if (freezeEl === frozen) freezeEl = null;
+      }, 180);
+    };
+    const timer = setTimeout(drop, 1500);
+    if (video?.requestVideoFrameCallback) video.requestVideoFrameCallback(() => (clearTimeout(timer), drop()));
+  }
   let screenPreviewEl = null;
   let linkStatus = null;
 
@@ -326,22 +355,26 @@ export async function CallScreenView(root, callId) {
         const pipStream = swap
           ? first && (mediaOf(first).camera || mediaOf(first).sharing) ? s.remoteStreams[first.id] ?? null : null
           : s.cameraOn ? s.localStream : null;
-        if (!hasVideo(pipStream)) {
+        const ownPreview = !swap && s.cameraOn;
+        if (ownPreview && s.switchingCamera && !freezeEl) freezeEl = freezeFrame(localVideoEl);
+        const frozen = ownPreview ? freezeEl : null;
+        if (!hasVideo(pipStream) && !frozen) {
           const who = swap && first ? first : me;
           return el("div", { class: "call-local-avatar" }, [Avatar({ name: who.name, color: who.avatarColor, image: who.avatarImage, size: 48 })]);
         }
         if (!localVideoEl) {
           localVideoEl = el("video", { autoplay: true, muted: true, playsinline: true, class: "call-local-video" });
         }
-        if (localVideoEl.srcObject !== pipStream) localVideoEl.srcObject = pipStream;
+        if (pipStream && localVideoEl.srcObject !== pipStream) localVideoEl.srcObject = pipStream;
         localVideoEl.classList.toggle("mirrored", !swap && !s.facingBack);
-        return localVideoEl;
+        if (!frozen) return localVideoEl;
+        if (!s.switchingCamera) releaseFreezeOnNextFrame(localVideoEl);
+        return el("div", { class: "call-local-stack" }, [localVideoEl, frozen]);
       })(),
       s.cameraOn && (s.cameraCount ?? 1) > 1
         ? el("button", { class: "call-flip-btn", html: iconSvg("FlipCamera", 14), title: "Другая камера", onclick: flipCamera })
         : null,
       s.cameraError ? el("p", { class: "call-camera-error" }, s.cameraError) : null,
-      s.switchingCamera ? el("div", { class: "call-camera-switching" }, "Переключаю камеру…") : null,
     ]);
 
     const canAddParticipant = true;

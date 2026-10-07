@@ -28,7 +28,7 @@
 /dist-electron
 
 # Downloadable app packages served by public/download.html. The two thin
-# PWABuilder wrappers (.apk ~1MB, the Windows .zip ~1MB) ARE committed — at
+# PWABuilder wrapper (.apk ~1MB) IS committed — at
 # that size they cost nothing and a plain `git pull` deploy puts them on the
 # server for free. The Electron desktop builds are a different story: they
 # bundle all of Chromium, so Shalter.AppImage is ~119MB — past GitHub's hard
@@ -40,6 +40,10 @@
 /public/downloads/*.deb
 /public/downloads/*.dmg
 /public/downloads/*.exe
+# Нативные Electron-сборки для Windows и macOS (~100МБ каждая) — тоже не в git,
+# на сервер их кладёт scripts/upload-downloads.sh.
+/public/downloads/Shalter-Windows.zip
+/public/downloads/Shalter-macOS-*.zip
 
 # misc
 .DS_Store

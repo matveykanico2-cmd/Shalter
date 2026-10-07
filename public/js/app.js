@@ -165,7 +165,13 @@ async function boot() {
       document.documentElement.toggleAttribute("data-reduce-motion", !!settings.reduceMotion);
     })
     .catch(() => {});
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+  if ("serviceWorker" in navigator) {
+    // Без сети приложение открывается из кэша: просим SW докачать всю сборку
+    // при запуске и каждый раз, когда сеть возвращается.
+    const precache = () => navigator.serviceWorker.ready.then((reg) => reg.active?.postMessage({ type: "precache" })).catch(() => {});
+    navigator.serviceWorker.register("/sw.js").then(precache, () => {});
+    window.addEventListener("online", precache);
+  }
   ensurePushSubscribed().catch(() => {});
   import("./components/permissionsDialog.js")
     .then(({ openPermissionsDialog, permissionsAlreadyAsked }) => {

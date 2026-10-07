@@ -469,10 +469,16 @@ export async function flipCamera() {
 
   state.facingBack = !state.facingBack;
   state.cameraError = null;
-  oldTrack?.stop();
-  const rest = state.localStream?.getTracks().filter((t) => t !== oldTrack) ?? [];
-  state.localStream = new MediaStream([...rest, newTrack]);
+  // Меняем трек внутри того же потока: <video> с этим srcObject не перезагружается
+  // и не мигает чёрным, а экран звонка держит последний кадр до первого нового.
+  if (state.localStream) {
+    state.localStream.addTrack(newTrack);
+    if (oldTrack) state.localStream.removeTrack(oldTrack);
+  } else {
+    state.localStream = new MediaStream([newTrack]);
+  }
   state.peers.forEach(applyOutgoing);
+  oldTrack?.stop();
   notify();
 }
 

@@ -122,6 +122,24 @@ export function createLevelMeter(stream) {
   };
 }
 
+// Ждём первый настоящий кадр видео (не дольше 1,5 с).
+function firstFrame(video) {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(done, 1500);
+    if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => done());
+    else {
+      (function check() {
+        if (video.readyState >= 2 && video.videoWidth) return done();
+        requestAnimationFrame(check);
+      })();
+    }
+  });
+}
+
 async function getMic(video) {
   try {
     return await navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS, ...(video ? { video } : {}) });
@@ -140,7 +158,7 @@ async function startVoiceRecording(onTick) {
 async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
   let camStream = await getMic(CAMERA_VIDEO);
 
-  const camVideo = document.createElement("video");
+  let camVideo = document.createElement("video");
   camVideo.muted = true;
   camVideo.playsInline = true;
   camVideo.srcObject = camStream;
@@ -171,9 +189,11 @@ async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
   });
 
   let drawing = true;
+  // Пока переключаем камеру, кадры не рисуем: на холсте остаётся последний.
+  let switching = false;
   (function draw() {
     if (!drawing) return;
-    if (camVideo.readyState >= 2) drawFrame();
+    if (!switching && camVideo.readyState >= 2) drawFrame();
     requestAnimationFrame(draw);
   })();
 
@@ -183,17 +203,43 @@ async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
   let facingBack = false;
   async function flipCamera() {
     const currentTrack = camStream.getVideoTracks()[0] ?? null;
+    // Замораживаем кадр сразу: на части телефонов старую камеру приходится
+    // остановить до открытия новой.
+    switching = true;
     const { track, error } = await getFlippedTrack({
       currentTrack,
       wantBack: !facingBack,
       video: { width: CAMERA_VIDEO.width, height: CAMERA_VIDEO.height, frameRate: CAMERA_VIDEO.frameRate },
     });
-    if (!track) return { error };
+    if (!track) {
+      switching = false;
+      return { error };
+    }
 
-    camStream.getVideoTracks().forEach((t) => t.stop());
-    camStream = new MediaStream([track, ...camStream.getAudioTracks()]);
-    camVideo.srcObject = camStream;
-    await camVideo.play().catch(() => {});
+    // Новую камеру грузим в отдельный <video> и подменяем источник кадров только
+    // после её первого кадра — до этого в кружке остаётся последний кадр старой
+    // камеры, а не чёрный экран (остановленный трек отдаёт чёрные кадры).
+    const oldVideoTracks = camStream.getVideoTracks();
+    const nextStream = new MediaStream([track, ...camStream.getAudioTracks()]);
+    const nextVideo = document.createElement("video");
+    nextVideo.muted = true;
+    nextVideo.playsInline = true;
+    nextVideo.srcObject = nextStream;
+    await nextVideo.play().catch(() => {});
+    await firstFrame(nextVideo);
+    if (!drawing) {
+      // Запись закончилась, пока камера переключалась.
+      track.stop();
+      nextVideo.srcObject = null;
+      return { error: "Запись уже остановлена" };
+    }
+    const oldVideo = camVideo;
+    camVideo = nextVideo;
+    camStream = nextStream;
+    switching = false;
+    oldVideoTracks.forEach((t) => t.stop());
+    oldVideo.pause();
+    oldVideo.srcObject = null;
     facingBack = !facingBack;
     return { ok: true };
   }

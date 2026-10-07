@@ -55,6 +55,28 @@ async function commonGroupsOf(viewerId, otherId) {
   return chats.filter((c) => c.type === "group" && (c.memberIds ?? []).includes(otherId));
 }
 
+// У полученного подарка хранится только fromId и имя на момент отправки — аватар
+// отправителя подставляем актуальный, с учётом его приватности фото и того, как
+// смотрящий записал его в контактах. Анонимные подарки не раскрываем.
+async function withGiftSenders(gifts, viewerId) {
+  const senders = new Map();
+  const senderOf = async (id) => {
+    if (!senders.has(id)) {
+      const user = await getUser(id);
+      senders.set(id, user ? await publicUserFor(user, viewerId) : null);
+    }
+    return senders.get(id);
+  };
+  return Promise.all(
+    gifts.map(async (g) => {
+      if (g.anon || !g.fromId) return g;
+      const sender = await senderOf(g.fromId);
+      if (!sender) return g;
+      return { ...g, fromName: sender.name ?? g.fromName, fromAvatarColor: sender.avatarColor ?? null, fromAvatarImage: sender.avatarImage ?? null };
+    })
+  );
+}
+
 const MAX_NAME = 64;
 const MAX_LAST_NAME = 60;
 const MAX_BIO = 300;
@@ -138,6 +160,8 @@ router.get(
     }
 
     const commonGroupsCount = isSelf ? 0 : (await commonGroupsOf(req.uid, req.params.id)).length;
+
+    if (Array.isArray(visible.giftsReceived)) visible.giftsReceived = await withGiftSenders(visible.giftsReceived, req.uid);
 
     res.json({
       user: visible,

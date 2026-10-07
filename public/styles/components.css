@@ -22707,3 +22707,39 @@ button img.emoji {
   color: var(--color-text);
   opacity: 0.75;
 }
+
+/* Переключение камеры в звонке: последний кадр поверх превью до первого нового */
+.call-local-stack {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.call-local-freeze {
+  position: absolute;
+  inset: 0;
+  filter: blur(6px) brightness(0.85);
+  transition: opacity 0.18s ease;
+}
+.call-local-freeze.leaving {
+  opacity: 0;
+}
+
+/* Контакты: длинное имя сжимается с многоточием, значки (⇄, галочка, статус) всегда видны */
+.contact-row-name .contact-row-name-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.contact-row-name > :not(.contact-row-name-text) {
+  flex-shrink: 0;
+}
+.contact-row-name .mutual-contact-mark {
+  margin-left: 0;
+}
+.gift-card-sender {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

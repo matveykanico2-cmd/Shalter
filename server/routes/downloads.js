@@ -10,6 +10,8 @@ const ARTIFACTS = [
   { id: "android", file: "Shalter.apk" },
   { id: "linux", file: "Shalter.AppImage" },
   { id: "linux-deb", file: "Shalter.deb" },
+  { id: "macos-arm64", file: "Shalter-macOS-arm64.zip" },
+  { id: "macos-x64", file: "Shalter-macOS-x64.zip" },
 ];
 
 const router = express.Router();
