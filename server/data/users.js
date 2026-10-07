@@ -90,6 +90,12 @@ function rowToUser(row) {
   };
 }
 
+// После перезапуска сервера сокетов нет ни у кого, а в базе остались
+// «в сети» те, кто был подключён в момент остановки, — снимаем (кроме ботов).
+function resetStalePresence() {
+  return db.prepare("UPDATE users SET online = 0, lastSeen = ? WHERE online = 1 AND isBot = 0").run(new Date().toISOString()).changes;
+}
+
 async function listUsersByIds(ids) {
   const unique = [...new Set(ids ?? [])].filter(Boolean);
   if (!unique.length) return [];
@@ -462,6 +468,7 @@ module.exports = {
   setProfileTrack,
   listUsers,
   listUsersByIds,
+  resetStalePresence,
   searchUsers,
   getUser,
   findUserByEmail,

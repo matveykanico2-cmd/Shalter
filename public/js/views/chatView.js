@@ -2226,10 +2226,15 @@ export async function ChatView(root, chatId) {
   });
 
   const unsubPresence = onWsMessage("presence:update", (msg) => {
-    if (!other || msg.userId !== other.id) return;
-    other.online = msg.online;
-    other.lastSeen = msg.lastSeen;
+    const presence = { online: msg.online, lastSeen: msg.lastSeen };
+    const idx = members.findIndex((u) => u.id === msg.userId);
+    if (idx !== -1) members[idx] = { ...members[idx], ...presence };
+    // Панель «Информация» читает chat.otherUser — это не тот же объект, что other.
+    if (chat.otherUser?.id === msg.userId) chat = { ...chat, otherUser: { ...chat.otherUser, ...presence } };
+    if (other && msg.userId === other.id) Object.assign(other, presence);
+    else if (chat.otherUser?.id !== msg.userId && idx === -1) return;
     renderHeader();
+    renderInfoPanel();
   });
   const unsubContactUpdated = onWsMessage("contact:updated", (msg) => {
     if (!msg.user?.id) return;

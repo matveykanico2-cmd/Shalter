@@ -4,7 +4,7 @@ const { isSessionActive } = require("./data/sessions");
 const { getCall } = require("./data/calls");
 const liveStreams = require("./data/liveStreams");
 const { addSignal } = require("./data/signals");
-const { getUser, updateUser } = require("./data/users");
+const { getUser, updateUser, resetStalePresence } = require("./data/users");
 const { isSecretChat, secretDeviceOf, deviceHash } = require("./data/chats");
 
 const socketsByUser = new Map();
@@ -75,8 +75,33 @@ async function markOffline(uid) {
 
 const MAX_WS_PAYLOAD_BYTES = 64 * 1024;
 
+// Телефон, закрывший приложение или потерявший сеть, не закрывает сокет —
+// событие close не приходит, и человек висел «в сети» часами. Пингуем:
+// кто не ответил за интервал, того отключаем (а с ним снимается и «в сети»).
+const HEARTBEAT_MS = 30_000;
+
 function attachWebSocketServer(httpServer) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_WS_PAYLOAD_BYTES });
+  try {
+    resetStalePresence();
+  } catch (err) {
+    console.error("presence reset failed:", err);
+  }
+
+  setInterval(() => {
+    for (const set of socketsByUser.values()) {
+      for (const ws of set) {
+        if (ws.isAlive === false) {
+          ws.terminate();
+          continue;
+        }
+        ws.isAlive = false;
+        try {
+          ws.ping();
+        } catch {}
+      }
+    }
+  }, HEARTBEAT_MS).unref();
 
   httpServer.on("upgrade", (req, socket, head) => {
     if (req.url !== "/ws") return;
@@ -89,6 +114,10 @@ function attachWebSocketServer(httpServer) {
     wss.handleUpgrade(req, socket, head, (ws) => {
       ws.uid = uid;
       ws.deviceId = deviceIdFromCookieHeader(req.headers.cookie);
+      ws.isAlive = true;
+      ws.on("pong", () => {
+        ws.isAlive = true;
+      });
       const wasOffline = !socketsByUser.has(uid);
       addSocket(uid, ws);
       if (wasOffline) markOnline(uid).catch((err) => console.error("presence online failed:", err));

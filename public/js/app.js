@@ -154,6 +154,16 @@ async function boot() {
     if (chat && isChatMuted(chat)) return;
     playIncomingMessageSound();
   });
+  // «В сети» в списке чатов: без этого зелёная точка оставалась после выхода.
+  onWsMessage("presence:update", (msg) => {
+    const chats = getState().chats ?? [];
+    if (!chats.some((c) => c.otherUser?.id === msg.userId)) return;
+    setState({
+      chats: chats.map((c) =>
+        c.otherUser?.id === msg.userId ? { ...c, otherUser: { ...c.otherUser, online: msg.online, lastSeen: msg.lastSeen } } : c
+      ),
+    });
+  });
   onWsMessage("contact:updated", async (msg) => {
     if (!msg.user?.id) return;
     // Без фото (удалено или скрыто приватностью) сервер поле не присылает —
