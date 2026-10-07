@@ -19,8 +19,8 @@ export function trackRequest(promise) {
   return promise;
 }
 
-// Как в tweb (components/connectionStatus.ts): статус сети пишется в плейсхолдер
-// поиска над списком чатов, а вместо лупы крутится спиннер — без цветных полос.
+// Как в Telegram: статус сети — в заголовке над списком чатов («Shalter» →
+// «Ожидание сети…» со спиннером), без цветных полос.
 // Если поиска на экране нет (телефон, открыт чат), показываем маленькую «таблетку».
 // Короткие сбои (< WS_GRACE_MS) не показываем вовсе, чтобы статус не мигал.
 let hadConnect = false;
@@ -39,18 +39,20 @@ function currentText() {
   return null;
 }
 
-function applyToSearch(text) {
-  const input = document.querySelector(".chat-search-input");
-  if (!input || !input.offsetParent) return false;
-  if (!input.dataset.placeholder) input.dataset.placeholder = input.placeholder;
-  input.placeholder = text ?? input.dataset.placeholder;
-  input.closest(".chat-search-input-wrap")?.classList.toggle("connecting", !!text);
+// Статус — в заголовок над списком чатов («Shalter» ↔ «Ожидание сети…»).
+function applyToTitle(text) {
+  const bar = document.querySelector(".chat-list-title-bar");
+  if (!bar || !bar.offsetParent) return false;
+  const label = bar.querySelector(".chat-list-title-text");
+  const next = text ?? "Shalter";
+  if (label && label.textContent !== next) label.textContent = next;
+  bar.classList.toggle("connecting", !!text);
   return true;
 }
 
 function tick() {
   const text = currentText();
-  const inSearch = applyToSearch(text);
+  const inSearch = applyToTitle(text);
   if (!pill) {
     if (!text || inSearch || !document.body) return;
     label = document.createElement("span");

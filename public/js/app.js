@@ -78,7 +78,21 @@ async function boot() {
     return;
   }
 
-  const { user, accounts } = await api.session();
+  // Мгновенный запуск, как в Telegram: если сессия уже сохранена, сразу
+  // показываем чаты из кэша, а сервер сверяем в фоне. Заставка — только при
+  // самом первом входе. Сессия больше не действует — уводим на вход.
+  const cachedSession = getCachedData("/api/auth/session");
+  const sessionReq = api.session();
+  const { user, accounts } = cachedSession?.user?.name ? cachedSession : await sessionReq;
+  if (cachedSession?.user?.name) {
+    sessionReq.then(
+      (fresh) => {
+        if (!fresh?.user?.name) window.location.href = "/login";
+        else setState({ user: fresh.user, accounts: fresh.accounts });
+      },
+      () => {}
+    );
+  }
   if (!user || !user.name) {
     // Отправка из системного меню «Поделиться»: содержимое дожидается входа.
     if (path.startsWith("/share/")) {

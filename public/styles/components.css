@@ -22690,23 +22690,6 @@ button img.emoji {
   color: var(--color-danger);
 }
 
-/* Статус соединения в поле поиска, как в tweb (connectionStatus + inputSearch.toggleLoading) */
-.chat-search-input-wrap.connecting .chat-search-icon svg {
-  display: none;
-}
-.chat-search-input-wrap.connecting .chat-search-icon::before {
-  content: "";
-  width: 14px;
-  height: 14px;
-  border: 2px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
-  border-top-color: var(--color-accent);
-  border-radius: 50%;
-  animation: net-status-spin 0.8s linear infinite;
-}
-.chat-search-input-wrap.connecting .chat-search-input::placeholder {
-  color: var(--color-text);
-  opacity: 0.75;
-}
 
 /* Переключение камеры в звонке: последний кадр поверх превью до первого нового */
 .call-local-stack {
@@ -22762,4 +22745,35 @@ button img.emoji {
 .tw-gift-name-link:hover > span,
 .gift-card-name-link:hover {
   text-decoration: underline;
+}
+
+/* Заголовок над чатами: «Shalter» / «Ожидание сети…» / «Соединение…» */
+.chat-list-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 34px;
+  padding: 6px 16px 0;
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.chat-list-title-spinner {
+  display: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: net-status-spin 0.8s linear infinite;
+}
+.chat-list-title-bar.connecting {
+  color: var(--color-muted);
+  font-size: 16px;
+  font-weight: 500;
+}
+.chat-list-title-bar.connecting .chat-list-title-spinner {
+  display: block;
 }

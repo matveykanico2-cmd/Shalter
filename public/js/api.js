@@ -58,7 +58,6 @@ function apiCacheWrite(url, data) {
   try {
     const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
     obj[url] = { data, ts: Date.now() };
-    if (url === "/api/auth/session") obj[url].ttl = 30 * 60 * 1000;
     localStorage.setItem(OFFLINE_Q + ".data", JSON.stringify(obj));
   } catch {
   }

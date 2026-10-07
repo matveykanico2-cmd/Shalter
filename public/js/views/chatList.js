@@ -182,7 +182,13 @@ export function ChatListPane() {
   const storiesBar = StoriesBar();
   storiesBarEl = storiesBar;
   listSlotRef = listSlot;
-  container.append(SidebarHeader(listSlot), storiesBar, listSlot);
+  // Заголовок над чатами, как в Telegram: «Shalter», а без связи — «Ожидание сети…»,
+  // «Соединение…» со спиннером (текст ставит lib/netStatus.js).
+  const titleBar = el("div", { class: "chat-list-title-bar", role: "status", "aria-live": "polite" }, [
+    el("span", { class: "chat-list-title-spinner" }),
+    el("span", { class: "chat-list-title-text" }, "Shalter"),
+  ]);
+  container.append(titleBar, SidebarHeader(listSlot), storiesBar, listSlot);
   renderInto(listSlot);
   container.appendChild(
     el("button", {
