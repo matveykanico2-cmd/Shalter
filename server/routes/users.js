@@ -16,6 +16,7 @@ const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib
 const { notifyProfileChanged } = require("../lib/notifyProfileChanged");
 const { businessStatus } = require("../lib/businessHours");
 const { isAdminPhone } = require("../config");
+const { withGiftSenders } = require("../lib/giftSenders");
 
 const LINK_RE = /https?:\/\/\S+/;
 
@@ -53,28 +54,6 @@ async function commonGroupsOf(viewerId, otherId) {
   if (viewerId === otherId) return [];
   const chats = await listChatsForUser(viewerId);
   return chats.filter((c) => c.type === "group" && (c.memberIds ?? []).includes(otherId));
-}
-
-// У полученного подарка хранится только fromId и имя на момент отправки — аватар
-// отправителя подставляем актуальный, с учётом его приватности фото и того, как
-// смотрящий записал его в контактах. Анонимные подарки не раскрываем.
-async function withGiftSenders(gifts, viewerId) {
-  const senders = new Map();
-  const senderOf = async (id) => {
-    if (!senders.has(id)) {
-      const user = await getUser(id);
-      senders.set(id, user ? await publicUserFor(user, viewerId) : null);
-    }
-    return senders.get(id);
-  };
-  return Promise.all(
-    gifts.map(async (g) => {
-      if (g.anon || !g.fromId) return g;
-      const sender = await senderOf(g.fromId);
-      if (!sender) return g;
-      return { ...g, fromName: sender.name ?? g.fromName, fromAvatarColor: sender.avatarColor ?? null, fromAvatarImage: sender.avatarImage ?? null };
-    })
-  );
 }
 
 const MAX_NAME = 64;

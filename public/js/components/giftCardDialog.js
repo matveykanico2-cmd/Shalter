@@ -14,7 +14,7 @@ function row(label, value, rarity) {
   ]);
 }
 
-export function openGiftCardDialog(gift, { ownerName, onSend, onRemove, onTogglePin } = {}) {
+export function openGiftCardDialog(gift, { ownerName, ownerId, onSend, onRemove, onTogglePin } = {}) {
   const traits = giftTraits(gift);
   // Выбранный при отправке фон — он и показываем; у коллекционных без выбора —
   // детерминированный фон серии (tweb: collectibleAttributes.backdrop).
@@ -47,6 +47,22 @@ export function openGiftCardDialog(gift, { ownerName, onSend, onRemove, onToggle
   };
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
+  // Имя — ссылка на профиль: карточка закрывается, открывается профиль.
+  // profileDialog.js сам импортирует этот модуль, поэтому подгружаем его лениво.
+  const profileLink = (userId, name, avatar = null) =>
+    el(
+      "button",
+      {
+        type: "button",
+        class: "gift-card-sender gift-card-name-link",
+        title: "Открыть профиль",
+        onclick: () => {
+          close();
+          import("./profileDialog.js").then((m) => m.openProfileDialog(userId));
+        },
+      },
+      [avatar, name].filter(Boolean)
+    );
   const dialog = el("div", { class: "modal-dialog gift-card-dialog" }, [
     el("div", { class: "gift-card-hero", style: `--gift-from: ${backdrop.center}; --gift-to: ${backdrop.edge}` }, [
       // Узор фона как у коллекционных подарков Telegram: символ, окрашенный в цвет узора фона.
@@ -64,13 +80,13 @@ export function openGiftCardDialog(gift, { ownerName, onSend, onRemove, onToggle
       ),
     ]),
     el("div", { class: "gift-card-rows" }, [
-      ownerName ? row("Владелец", ownerName) : null,
+      ownerName ? row("Владелец", ownerId ? profileLink(ownerId, ownerName) : ownerName) : null,
       gift.fromName
         ? row(
             "От кого",
             gift.anon || !gift.fromId
               ? gift.fromName
-              : el("span", { class: "gift-card-sender" }, [Avatar({ name: gift.fromName, color: gift.fromAvatarColor, image: gift.fromAvatarImage, size: 20 }), gift.fromName])
+              : profileLink(gift.fromId, gift.fromName, Avatar({ name: gift.fromName, color: gift.fromAvatarColor, image: gift.fromAvatarImage, size: 20 }))
           )
         : null,
       gift.note ? row("Сообщение", gift.note) : null,

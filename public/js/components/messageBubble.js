@@ -167,39 +167,60 @@ function GiftMessage(message, mine, isChannel) {
     : gift.custom
       ? "Подарок уже на вашей полке в профиле."
       : `Подарок на вашей полке в профиле. Его можно обменять на ${formatRub(stars)} ⭐.`;
-  const noteEl = el("p", { class: "tw-gift-note" }, note);
+  // Имена в подарке кликабельны — открывают профиль (как в Telegram).
+  const profileLink = (userId, name, avatar) =>
+    el(
+      "button",
+      {
+        type: "button",
+        class: "tw-gift-from-user tw-gift-name-link",
+        title: "Открыть профиль",
+        onclick: (e) => {
+          e.stopPropagation();
+          openProfileDialog(userId);
+        },
+      },
+      [avatar, el("span", {}, name)].filter(Boolean)
+    );
+  const recipientNote = (name) =>
+    el("p", { class: "tw-gift-note" }, [profileLink(gift.recipientId, name, null), " может показать этот подарок в своём профиле."]);
+  let noteEl = mine && gift.recipientId && recipient ? recipientNote(recipient.name) : el("p", { class: "tw-gift-note" }, note);
   if (mine && gift.recipientId && !recipient) {
     fetchUsers([gift.recipientId])
       .then(() => {
         const u = cachedUser(gift.recipientId);
-        if (u) noteEl.textContent = `${u.name} может показать этот подарок в своём профиле.`;
+        if (!u) return;
+        const next = recipientNote(u.name);
+        noteEl.replaceWith(next);
+        noteEl = next;
       })
       .catch(() => {});
   }
-  const fromUserSlot = el("span", { class: "tw-gift-from-user" });
-  if (!anon && gift.fromId && !fromUser) {
-    fetchUsers([gift.fromId])
-      .then(() => {
-        const u = cachedUser(gift.fromId);
-        if (!u) return;
-        fromUserSlot.replaceWith(
-          el("span", { class: "tw-gift-from-user" }, [
-            Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 16 }),
-            el("span", {}, mine && !anon ? (getState().user?.name ?? fromName) : fromName),
-          ])
-        );
-      })
-      .catch(() => {});
-  } else if (!anon && (fromUser || gift.fromName)) {
-    fromUserSlot.append(
-      Avatar({ name: fromUser?.name ?? fromName, color: fromUser?.avatarColor, image: fromUser?.avatarImage, size: 16 }),
-      el("span", {}, mine && !anon ? (getState().user?.name ?? fromName) : fromName)
-    );
+  // Аватар отправителя: из кэша пользователей, иначе — сохранённый в самом подарке.
+  const senderChip = (u) => {
+    const name = mine ? (getState().user?.name ?? fromName) : (u?.name ?? fromName);
+    const avatar = Avatar({ name, color: u?.avatarColor ?? gift.fromAvatarColor, image: u?.avatarImage ?? gift.fromAvatarImage, size: 16 });
+    return profileLink(gift.fromId, name, avatar);
+  };
+  let fromUserSlot;
+  if (anon || !gift.fromId) {
+    fromUserSlot = el("span", { class: "tw-gift-from-user" }, fromName);
+  } else {
+    fromUserSlot = senderChip(fromUser);
+    if (!fromUser) {
+      fetchUsers([gift.fromId])
+        .then(() => {
+          const u = cachedUser(gift.fromId);
+          if (u) fromUserSlot.replaceWith((fromUserSlot = senderChip(u)));
+        })
+        .catch(() => {});
+    }
   }
   const view = () => {
     import("./giftCardDialog.js").then(({ openGiftCardDialog }) =>
       openGiftCardDialog(gift, {
         ownerName: recipient?.name ?? (mine ? null : getState().user?.name),
+        ownerId: gift.recipientId ?? (mine ? null : getState().user?.id),
         onSend: (backdropId) =>
           import("./giftShopDialog.js").then((m) =>
             m.openGiftShopDialog({ recipient: mine && recipient ? { id: recipient.id, name: recipient.name } : null, gift, backdropId })

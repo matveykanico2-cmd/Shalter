@@ -14,6 +14,11 @@ function durationLabel(days) {
 async function deliverGift({ gift, recipientId, fromId, announceFromId, background = null, anonymous = false, note = null }) {
   const sender = fromId ? await getUser(fromId) : null;
   const fromName = anonymous ? "Аноним" : sender?.name ?? null;
+  // Аватар отправителя таким, каким его видит получатель (приватность фото), —
+  // сохраняем в подарок, чтобы он был на полке и в чате, а не только буква.
+  const { publicUserFor } = require("./privacyRules");
+  const seen = !anonymous && sender ? await publicUserFor(sender, recipientId) : null;
+  const fromAvatar = seen ? { fromAvatarColor: seen.avatarColor ?? null, fromAvatarImage: seen.avatarImage ?? null } : {};
 
   let serial = null;
   if (gift.supply) {
@@ -36,6 +41,7 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId, backgrou
     ...(note ? { note } : {}),
     fromId: fromId ?? null,
     fromName,
+    ...fromAvatar,
     at: new Date().toISOString(),
     ...(serial != null ? { serial, supply: gift.supply } : {}),
   });
@@ -62,6 +68,7 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId, backgrou
       ...(note ? { note } : {}),
       fromId: fromId ?? null,
       fromName,
+      ...fromAvatar,
       recipientId,
       ...(serial != null ? { serial, supply: gift.supply, exclusive: true } : {}),
     },

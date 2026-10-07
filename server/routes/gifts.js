@@ -28,6 +28,7 @@ const {
 } = require("../data/gifts");
 const { sanitizeScene, sceneSummaryEmoji } = require("../lib/sanitizeScene");
 const { sanitizeGiftBackground } = require("../lib/giftBackground");
+const { withGiftSendersOn } = require("../lib/giftSenders");
 const { remaining, issuedCount } = require("../data/giftIssues");
 const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -138,7 +139,7 @@ router.post(
     if (!result.ok) {
       return res.status(410).json({ error: soldOutError(gift) });
     }
-    res.json({ user: publicUser(await getUser(recipient.id)), serial: result.serial });
+    res.json({ user: await withGiftSendersOn(publicUser(await getUser(recipient.id)), req.uid), serial: result.serial });
   })
 );
 
@@ -192,7 +193,7 @@ router.post(
       return res.status(404).json({ error: "Подарок не найден на вашей полке" });
     }
     const balance = addStars(req.uid, value);
-    res.json({ balance, gained: value, user: publicUser(await getUser(req.uid)) });
+    res.json({ balance, gained: value, user: await withGiftSendersOn(publicUser(await getUser(req.uid)), req.uid) });
   })
 );
 
@@ -202,7 +203,7 @@ router.delete(
     if (!removeReceivedGift(req.uid, req.params.entryId)) {
       return res.status(404).json({ error: "Подарок не найден на вашей полке" });
     }
-    res.json({ user: publicUser(await getUser(req.uid)) });
+    res.json({ user: await withGiftSendersOn(publicUser(await getUser(req.uid)), req.uid) });
   })
 );
 
@@ -212,7 +213,7 @@ router.post(
     if (!setGiftPinned(req.uid, req.params.entryId, req.body?.pinned !== false)) {
       return res.status(404).json({ error: "Подарок не найден на вашей полке" });
     }
-    res.json({ user: publicUser(await getUser(req.uid)) });
+    res.json({ user: await withGiftSendersOn(publicUser(await getUser(req.uid)), req.uid) });
   })
 );
 

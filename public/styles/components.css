@@ -22743,3 +22743,23 @@ button img.emoji {
   align-items: center;
   gap: 6px;
 }
+/* Имена в подарках — ссылки на профиль */
+.tw-gift-name-link,
+.gift-card-name-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.tw-gift-name-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+}
+.tw-gift-name-link:hover > span,
+.gift-card-name-link:hover {
+  text-decoration: underline;
+}
