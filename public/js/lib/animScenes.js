@@ -239,7 +239,6 @@ const BY_EMOJI = {
   "💠": "crown_shine",
   "😴": "sleep_z",
   "🥱": "sleep_z",
-  "🔥": "fire_burn",
   "💰": "money_rain",
   "💵": "money_rain",
   "🤑": "money_rain",

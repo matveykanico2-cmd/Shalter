@@ -19,38 +19,6 @@ function qrSvg(text, ink) {
   return prettyQrSvg(text, { color: ink });
 }
 
-// Поделиться кодом картинкой: системное меню умеет отдавать файл, поэтому
-// рисуем ту же карточку на canvas и отдаём PNG (или сохраняем файлом).
-async function shareImage() {
-  copiedNote.textContent = "Готовим картинку…";
-  try {
-    const blob = await qrCardPng({
-      url,
-      name: user.name,
-      username: user.username,
-      theme: theme(),
-      avatarImage: user.avatarImage,
-      avatarColor: user.avatarColor,
-      hint: "Отсканируйте, чтобы открыть профиль",
-    });
-    const file = new File([blob], `shalter-${user.username || "qr"}.png`, { type: "image/png" });
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: user.name, text: `${user.name} — Shalter` });
-      copiedNote.textContent = "Картинка отправлена ✓";
-      return;
-    }
-    const href = URL.createObjectURL(blob);
-    const a = el("a", { href, download: file.name });
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(href);
-    copiedNote.textContent = "Картинка сохранена ✓";
-  } catch (err) {
-    copiedNote.textContent = err?.name === "AbortError" ? "" : "Не удалось поделиться картинкой";
-  }
-}
-
 export function openProfileQrDialog(user) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const url = `${window.location.origin}/u/${user.username}`;
@@ -61,6 +29,39 @@ export function openProfileQrDialog(user) {
     themeId = localStorage.getItem(THEME_KEY) || "blue";
   } catch {}
   const theme = () => QR_THEMES.find((t) => t.id === themeId) ?? QR_THEMES[0];
+
+  // Поделиться кодом картинкой: системное меню умеет отдавать файл, поэтому
+  // рисуем ту же карточку на canvas и отдаём PNG (или сохраняем файлом).
+  async function shareImage() {
+    copiedNote.textContent = "Готовим картинку…";
+    try {
+      const blob = await qrCardPng({
+        url,
+        name: user.name,
+        username: user.username,
+        theme: theme(),
+        avatarImage: user.avatarImage,
+        avatarColor: user.avatarColor,
+        hint: "Отсканируйте, чтобы открыть профиль",
+      });
+      const file = new File([blob], `shalter-${user.username || "qr"}.png`, { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: user.name, text: `${user.name} — Shalter` });
+        copiedNote.textContent = "Картинка отправлена ✓";
+        return;
+      }
+      const href = URL.createObjectURL(blob);
+      const a = el("a", { href, download: file.name });
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+      copiedNote.textContent = "Картинка сохранена ✓";
+    } catch (err) {
+      copiedNote.textContent = err?.name === "AbortError" ? "" : "Не удалось поделиться картинкой";
+    }
+  }
+
   const stage = el("div", { class: "qr-profile-stage" });
   const codeBox = el("div", { class: "qr-login-code" });
   const nameEl = el("p", { class: "mono qr-profile-username" }, `@${user.username}`);

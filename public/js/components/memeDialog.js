@@ -148,6 +148,7 @@ export function openMemeDialog(onDone) {
       const img = new Image();
       img.onload = () => {
         if (imgEl !== img) return;
+        errorEl.textContent = "";
         drawMeme(canvas, img, topInput.value, bottomInput.value);
         renderStructure();
         topInput.focus();
