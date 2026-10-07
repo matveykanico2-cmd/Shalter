@@ -110,7 +110,13 @@ export async function ChatView(root, chatId) {
 
   try {
     if (openedFromCache) throw new Error("показано сохранённое");
-    const [chatRes, first] = await (takePrefetched(chatId) ?? Promise.all([api.getChat(chatId), api.listMessages(chatId, { limit: PAGE_SIZE })]));
+    const fetchFresh = () => Promise.all([api.getChat(chatId), api.listMessages(chatId, { limit: PAGE_SIZE })]);
+    // Предзагрузка при наведении могла упасть на сбое сети — тогда грузим заново;
+    // временную ошибку (сеть, 5xx, 429) пробуем ещё раз, а не показываем «не найден».
+    const isMissing = (e) => e?.status === 404 || e?.status === 403;
+    const [chatRes, first] = await (takePrefetched(chatId) ?? fetchFresh())
+      .catch((e) => (isMissing(e) ? Promise.reject(e) : fetchFresh()))
+      .catch((e) => (isMissing(e) || e?.offline ? Promise.reject(e) : new Promise((r) => setTimeout(r, 800)).then(fetchFresh)));
     chat = chatRes.chat;
     members = chatRes.members;
     botCommands = chatRes.commands ?? null;
@@ -123,6 +129,7 @@ export async function ChatView(root, chatId) {
   } catch (err) {
     if (!openedFromCache) {
       const offline = err?.offline ?? !navigator.onLine;
+      const missing = err?.status === 404 || err?.status === 403;
       mount(
         root,
         el(
@@ -130,7 +137,12 @@ export async function ChatView(root, chatId) {
           { class: "empty-chat" },
           offline
             ? "Нет соединения с Shalter — сообщения появятся, когда вы включите интернет. Отправленные в это время сообщения сохранятся и уйдут автоматически."
-            : "Чат не найден"
+            : missing
+              ? "Чат не найден"
+              : [
+                  el("p", {}, "Не удалось загрузить чат"),
+                  el("button", { class: "btn-accent", onclick: () => ChatView(root, chatId) }, "Повторить"),
+                ]
         )
       );
       return;
