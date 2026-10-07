@@ -5892,11 +5892,15 @@ button.profile-ad-banner {
 }
 .settings-avatar-btn {
   position: relative;
+  display: inline-flex;
+  border-radius: 50%;
+  line-height: 0;
 }
 .settings-avatar-edit {
   position: absolute;
-  bottom: 2px;
-  right: 2px;
+  bottom: -2px;
+  right: -2px;
+  z-index: 2;
   display: flex;
   height: 32px;
   width: 32px;
@@ -16882,6 +16886,16 @@ textarea.settings-input:focus {
   background: var(--color-surface);
   box-shadow: var(--tw-section-shadow);
   gap: 4px;
+}
+.settings-avatar-btn:has(.avatar-orbit-wrap) {
+  margin: 24px 0;
+}
+.settings-avatar-btn .avatar-count-badge {
+  right: auto;
+  left: -2px;
+  bottom: -2px;
+  z-index: 2;
+  line-height: 1;
 }
 .settings-profile-name {
   font-family: inherit;
