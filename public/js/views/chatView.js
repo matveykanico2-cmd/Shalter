@@ -78,6 +78,11 @@ function lastSeenLabel(user) {
 }
 
 export async function ChatView(root, chatId) {
+  // Быстро нажали другой чат — эта загрузка устарела и не должна ничего рисовать
+  // поверх нового (иначе ответ, пришедший позже, «перескакивал» обратно).
+  const viewToken = {};
+  root._chatViewToken = viewToken;
+  const superseded = () => root._chatViewToken !== viewToken;
   const me = getState().user;
   let chat, members, messages;
   const PAGE_SIZE = 60;
@@ -108,6 +113,31 @@ export async function ChatView(root, chatId) {
     awaitingUnreadMark = true;
   }
 
+  // Сохранённой копии нет — сразу показываем шапку нового чата (из списка чатов)
+  // и индикатор загрузки, а не держим на экране прежний чат до ответа сервера.
+  if (!openedFromCache) {
+    const listed = getState().chats?.find((c) => c.id === chatId);
+    const peer = listed?.otherUser;
+    const title = peer?.name ?? listed?.title ?? "";
+    mount(
+      root,
+      el("div", { class: "chat-view" }, [
+        el("div", { class: "chat-main-col" }, [
+          el("header", { class: "chat-header" }, [
+            el("button", { class: "chat-header-back", html: iconSvg("ChevronLeft", 20), onclick: () => navigate("/") }),
+            listed
+              ? el("div", { class: "chat-header-info-btn" }, [
+                  Avatar({ name: title || "?", color: peer?.avatarColor ?? listed.avatarColor, image: peer ? peer.avatarImage : listed.avatarImage, size: 38 }),
+                  el("div", { class: "chat-header-titles" }, [el("p", { class: "chat-header-title" }, [el("span", { class: "chat-header-title-text" }, title)])]),
+                ])
+              : null,
+          ]),
+          el("div", { class: "message-list chat-loading" }, [el("span", { class: "chat-loading-spinner", "aria-label": "Загрузка" })]),
+        ]),
+      ])
+    );
+  }
+
   try {
     if (openedFromCache) throw new Error("показано сохранённое");
     const fetchFresh = () => Promise.all([api.getChat(chatId), api.listMessages(chatId, { limit: PAGE_SIZE })]);
@@ -127,6 +157,7 @@ export async function ChatView(root, chatId) {
     firstUnreadId = first.firstUnreadId ?? null;
     writeCache(`chat.${chatId}`, me.id, { chat, members, messages: messages.slice(-PAGE_SIZE) });
   } catch (err) {
+    if (superseded()) return;
     if (!openedFromCache) {
       const offline = err?.offline ?? !navigator.onLine;
       const missing = err?.status === 404 || err?.status === 403;
@@ -148,6 +179,8 @@ export async function ChatView(root, chatId) {
       return;
     }
   }
+
+  if (superseded()) return;
 
   const { chats: sharedChats } = getState();
   if (sharedChats.some((c) => c.id === chatId && (c.unreadCount > 0 || c.unread))) {
