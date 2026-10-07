@@ -16397,10 +16397,7 @@ video.story-reply-thumb { object-fit: cover; }
 }
 @media (max-width: 767px) {
   .composer-slot:not(:empty) {
-    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  }
-  html.keyboard-open .composer-slot:not(:empty) {
-    padding-bottom: 8px;
+    padding-bottom: calc(8px + max(0px, env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px)));
   }
 }
 

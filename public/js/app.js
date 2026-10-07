@@ -154,8 +154,22 @@ async function boot() {
     if (chat && isChatMuted(chat)) return;
     playIncomingMessageSound();
   });
-  onWsMessage("contact:updated", (msg) => {
-    if (msg.user?.id === getState().user?.id) updateSelf(msg.user);
+  onWsMessage("contact:updated", async (msg) => {
+    if (!msg.user?.id) return;
+    // Без фото (удалено или скрыто приватностью) сервер поле не присылает —
+    // сбрасываем явно, иначе при слиянии осталась бы старая аватарка.
+    const user = { avatarImage: null, avatarImages: [], ...msg.user };
+    if (user.id === getState().user?.id) {
+      updateSelf(user);
+      return;
+    }
+    // Список чатов и кэш профилей тоже держат копию — иначе там остаётся старая аватарка.
+    const chats = getState().chats ?? [];
+    if (chats.some((c) => c.otherUser?.id === user.id)) {
+      setState({ chats: chats.map((c) => (c.otherUser?.id === user.id ? { ...c, otherUser: { ...c.otherUser, ...user } } : c)) });
+    }
+    const { rememberUser } = await import("./lib/userLookup.js");
+    rememberUser(user);
   });
   window.addEventListener("shalter:contacts-changed", async (e) => {
     const { forgetUser, fetchUsers } = await import("./lib/userLookup.js");

@@ -16,20 +16,38 @@
     (function () {
       var root = document.documentElement;
       var vv = window.visualViewport;
+      var last = {};
+      function setVar(name, value) {
+        if (last[name] === value) return;
+        last[name] = value;
+        root.style.setProperty(name, value);
+      }
       function setAppMetrics() {
+        frame = 0;
         var h = (vv && vv.height) || window.innerHeight;
         var top = vv ? vv.offsetTop : 0;
-        root.style.setProperty("--app-height", Math.round(h) + "px");
-        root.style.setProperty("--app-top", Math.round(top) + "px");
-        root.classList.toggle("keyboard-open", !!vv && window.innerHeight - vv.height > 120);
+        // Сколько экрана снизу закрывает клавиатура. Отступ под «домашнюю полоску»
+        // у композера уменьшается вместе с ней плавно, а не скачком по классу —
+        // иначе при закрытии клавиатуры низ экрана дёргается.
+        var kb = vv ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
+        setVar("--app-height", Math.round(h) + "px");
+        setVar("--app-top", Math.round(top) + "px");
+        setVar("--kb-inset", kb + "px");
+        root.classList.toggle("keyboard-open", kb > 120);
+        // iOS после закрытия клавиатуры иногда оставляет страницу прокрученной.
+        if (kb <= 120 && (window.scrollY || window.scrollX)) window.scrollTo(0, 0);
+      }
+      var frame = 0;
+      function scheduleAppMetrics() {
+        if (!frame) frame = requestAnimationFrame(setAppMetrics);
       }
       setAppMetrics();
       if (vv) {
-        vv.addEventListener("resize", setAppMetrics);
-        vv.addEventListener("scroll", setAppMetrics);
+        vv.addEventListener("resize", scheduleAppMetrics);
+        vv.addEventListener("scroll", scheduleAppMetrics);
       }
-      window.addEventListener("resize", setAppMetrics);
-      window.addEventListener("orientationchange", setAppMetrics);
+      window.addEventListener("resize", scheduleAppMetrics);
+      window.addEventListener("orientationchange", scheduleAppMetrics);
     })();
   
   </script>

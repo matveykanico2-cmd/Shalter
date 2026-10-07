@@ -2229,13 +2229,19 @@ export async function ChatView(root, chatId) {
   });
   const unsubContactUpdated = onWsMessage("contact:updated", (msg) => {
     if (!msg.user?.id) return;
-    rememberUser(msg.user);
-    const idx = members.findIndex((u) => u.id === msg.user.id);
-    if (idx !== -1) members[idx] = { ...members[idx], ...msg.user };
-    if (other && msg.user.id === other.id) {
-      Object.assign(other, msg.user);
+    const user = { avatarImage: null, avatarImages: [], ...msg.user };
+    rememberUser(user);
+    const idx = members.findIndex((u) => u.id === user.id);
+    if (idx !== -1) members[idx] = { ...members[idx], ...user };
+    // Панель «Информация» читает chat.otherUser, а шапка — other: после
+    // `chat = { ...chat }` это уже разные объекты, обновляем оба.
+    const isOther = other && user.id === other.id;
+    if (isOther) Object.assign(other, user);
+    if (chat.otherUser?.id === user.id) chat = { ...chat, otherUser: { ...chat.otherUser, ...user } };
+    if (isOther || chat.otherUser?.id === user.id || idx !== -1) {
       renderHeader();
       renderInfoPanel();
+      saveChatCache();
     }
     if (idx !== -1 && !isDm) rerenderListKeepingScroll();
   });
@@ -2334,6 +2340,8 @@ export async function ChatView(root, chatId) {
       scheduleRefresh(0);
     }
     renderHeader();
+    renderInfoPanel();
+    saveChatCache();
     applyWallpaper(list, chat);
     api
       .getChat(chat.id)
@@ -2353,6 +2361,7 @@ export async function ChatView(root, chatId) {
         botCommands = res.commands ?? null;
         paidMessages = res.paidMessages ?? null;
         other = chat.otherUser ?? (isDm ? members.find((u) => u.id !== me.id) : null) ?? null;
+        saveChatCache();
         renderHeader();
         renderContactBar();
         renderInfoPanel();
