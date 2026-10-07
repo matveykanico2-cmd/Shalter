@@ -275,10 +275,23 @@ export function ChatListPane() {
     }
   }
 
+  // Перезапрос списка — один на пачку событий: таймер, который сработает раньше,
+  // не откладываем. Раньше каждое входящее сообщение сбрасывало таймер и слало
+  // три запроса (чаты, папки, сообщества) — в активных группах это упиралось в
+  // лимит запросов, и приложение «замирало». Само сообщение в списке появляется
+  // сразу (noteMessageInChatList), запрос лишь сверяет счётчики.
+  let refetchDueAt = 0;
   function scheduleRefetch(delay = 250) {
+    const due = Date.now() + delay;
+    if (refetchTimer && refetchDueAt <= due) return;
     clearTimeout(refetchTimer);
-    refetchTimer = setTimeout(refetch, delay);
+    refetchDueAt = due;
+    refetchTimer = setTimeout(() => {
+      refetchTimer = null;
+      refetch();
+    }, delay);
   }
+  const EVENT_REFETCH_MS = 1200;
 
   const REFETCH_TIMEOUT_MS = 10000;
   function withTimeout(promise) {
@@ -305,13 +318,13 @@ export function ChatListPane() {
   else refetch();
   const unsubNew = onWsMessage("message:new", (msg) => {
     noteMessageInChatList(msg.chatId, msg.message);
-    scheduleRefetch();
+    scheduleRefetch(EVENT_REFETCH_MS);
   });
-  const unsubUpdated = onWsMessage("message:updated", () => scheduleRefetch());
+  const unsubUpdated = onWsMessage("message:updated", () => scheduleRefetch(EVENT_REFETCH_MS));
   const unsubDeleted = onWsMessage("message:deleted", (msg) => {
     const myId = getState().user?.id;
     if (myId && msg.chatId && msg.id) dropCachedMessage(msg.chatId, msg.id, myId);
-    scheduleRefetch();
+    scheduleRefetch(EVENT_REFETCH_MS);
   });
   const unsubAdded = onWsMessage("chat:added", () => scheduleRefetch());
   const unsubChatUpdated = onWsMessage("chat:updated", () => scheduleRefetch());

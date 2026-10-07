@@ -2239,15 +2239,52 @@ export async function ChatView(root, chatId) {
     }
     if (idx !== -1 && !isDm) rerenderListKeepingScroll();
   });
+  // Сообщение из события показываем сразу, без ожидания запроса к серверу (на
+  // плохой сети это секунды). Сверка со списком сервера — одна на пачку событий.
+  const LIVE_RECONCILE_MS = 1000;
+  let reconcileAt = 0;
+  const reconcileSoon = () => {
+    const now = Date.now();
+    if (reconcileAt > now) return;
+    reconcileAt = now + LIVE_RECONCILE_MS;
+    scheduleRefresh(LIVE_RECONCILE_MS);
+  };
+  // Свои сообщения показывает сама отправка (временный пузырь → настоящий id),
+  // иначе событие, пришедшее раньше ответа сервера, дало бы дубль.
+  const canApplyLive = (m) => !!m?.id && !m.threadRootId && m.chatId === chat.id && m.senderId !== me.id && !(chat.topicsEnabled && topicFilter);
+  function applyLive(m, { insert }) {
+    const i = messages.findIndex((x) => x.id === m.id);
+    if (i >= 0) {
+      if (reactionsLocked(m.id)) m = { ...m, reactions: messages[i].reactions };
+      messages = messages.map((x, j) => (j === i ? { ...x, ...m } : x));
+    } else if (insert) {
+      const last = messages[messages.length - 1];
+      if (last && m.createdAt < last.createdAt) return false;
+      messages = [...messages, m];
+      messagesCount = messages.length;
+    } else {
+      return false;
+    }
+    const wasAtBottom = atBottom();
+    const prevTop = list.scrollTop;
+    renderList();
+    const follow = insert && i < 0 && (wasAtBottom || stuckToBottom);
+    list.scrollTop = follow ? list.scrollHeight : prevTop;
+    if (insert && i < 0 && !follow) missedWhileUp += 1;
+    updateScrollDown();
+    return true;
+  }
   const unsubMessageNew = onWsMessage("message:new", (msg) => {
     if (msg.chatId !== chat.id) return;
     if (typingUserId && msg.message?.senderId === typingUserId) clearTypingStatus();
-    scheduleRefresh();
+    if (canApplyLive(msg.message) && applyLive(msg.message, { insert: true })) reconcileSoon();
+    else scheduleRefresh();
   });
   const unsubMessageUpdated = onWsMessage("message:updated", (msg) => {
     if (msg.chatId !== chat.id) return;
     updateMessageInChatList(chat.id, msg.message);
-    scheduleRefresh();
+    if (canApplyLive(msg.message) && applyLive(msg.message, { insert: false })) reconcileSoon();
+    else scheduleRefresh();
   });
   const unsubMessageDeleted = onWsMessage("message:deleted", (msg) => {
     if (msg.chatId !== chat.id) return;

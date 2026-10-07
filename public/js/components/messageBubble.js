@@ -7,6 +7,7 @@ import { Avatar } from "./avatar.js";
 import { cachedUser, fetchUsers } from "../lib/userLookup.js";
 import { hasAnimatedEmoji, renderAnimatedEmoji, showReactionBurst } from "../lib/animatedEmoji.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
+import { openReactionsBar } from "./reactionsMenu.js";
 import { formatText, previewText } from "../lib/formatText.js";
 import { messagePreview, diceResult } from "../lib/messagePreview.js";
 import { api } from "../api.js";
@@ -50,9 +51,6 @@ function justReacted(msgId, emoji) {
   return !!t && Date.now() - t < 4000;
 }
 const playedJumbo = new Set();
-function pickerGlyph(e) {
-  return hasAnimatedEmoji(e) ? renderAnimatedEmoji(e, { size: 30, playOnView: true }) : e;
-}
 function animatedJumbo(message, count) {
   const trimmed = (message.text ?? "").trim();
   const graphemes = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(trimmed)].map((x) => x.segment);
@@ -1111,16 +1109,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     import("./translatePopup.js").then(({ openTranslatePopup }) => openTranslatePopup(message.text));
   }
 
+  // Реакции — в меню сообщения (двойное нажатие, правый клик, «Ещё»), как в tweb.
   const hoverActions = el("div", { class: "bubble-actions" }, [
-        el("button", {
-          class: "bubble-action-btn",
-          title: "Реакция",
-          html: iconSvg("Smile", 15),
-          onclick: (e) => {
-            e.stopPropagation();
-            togglePicker({ x: e.clientX, y: e.clientY });
-          },
-        }),
         el("button", {
           class: "bubble-action-btn",
           title: "Ответить",
@@ -1136,103 +1126,27 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         }),
       ]);
 
-  let picker = null;
-  let closePicker = null;
+  // Что показывать в плашке реакций: разрешённые в чате или быстрые + Premium,
+  // а под ▾ — все эмодзи и стикеры (если чат не ограничивает список).
   const restricted = Array.isArray(allowedReactions);
-  function togglePicker(pos) {
-    if (picker) {
-      closePicker();
-      return;
-    }
-    picker = el(
-      "div",
-      { class: "emoji-picker" },
-      restricted
-        ? [
-            el(
-              "div",
-              { class: "emoji-picker-row" },
-              allowedReactions.map((e) =>
-                el("button", { onclick: () => { react(message, e); closePicker(); } }, [pickerGlyph(e)])
-              )
-            ),
-          ]
-        : [
-            el(
-              "div",
-              { class: "emoji-picker-row" },
-              QUICK_EMOJI.map((e) =>
-                el(
-                  "button",
-                  {
-                    onclick: () => {
-                      react(message, e);
-                      closePicker();
-                    },
-                  },
-                  [pickerGlyph(e)]
-                )
-              )
-            ),
-            el(
-              "div",
-              { class: "emoji-picker-row emoji-picker-row-premium" },
-              PREMIUM_QUICK_EMOJI.map((e) =>
-                el(
-                  "button",
-                  {
-                    class: me?.isPremium ? "" : "locked",
-                    title: me?.isPremium ? "" : "Реакция для Premium",
-                    onclick: () => {
-                      closePicker();
-                      if (me?.isPremium) react(message, e);
-                      else navigate("/settings/premium");
-                    },
-                  },
-                  [pickerGlyph(e), !me?.isPremium ? el("span", { class: "emoji-picker-lock", html: iconSvg("Lock", 9) }) : null]
-                )
-              )
-            ),
-            el(
-              "div",
-              { class: "emoji-picker-all" },
-              ALL_EMOJI.map((e) =>
-                el("button", { onclick: () => { react(message, e); closePicker(); } }, e)
-              )
-            ),
-            el(
-              "div",
-              { class: "emoji-picker-all emoji-picker-stickers" },
-              REACTION_STICKERS.map((s) =>
-                el(
-                  "button",
-                  { title: s.name, onclick: () => { react(message, REACTION_STICKER_PREFIX + s.id); closePicker(); } },
-                  [renderSticker(s, { size: 26 })]
-                )
-              )
-            ),
-          ]
-    );
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    picker.style.left = `${Math.min(pos.x, vw - 260)}px`;
-    picker.style.top = `${Math.min(Math.max(pos.y - 50, 8), vh - 50)}px`;
-    document.body.appendChild(picker);
-    const pickerRect = picker.getBoundingClientRect();
-    if (pickerRect.bottom > vh - 8) {
-      picker.style.top = `${Math.max(8, vh - pickerRect.height - 8)}px`;
-    }
-
-    closePicker = () => {
-      document.removeEventListener("mousedown", onOutsideClick);
-      picker.remove();
-      picker = null;
-      closePicker = null;
+  function reactionsMenuOptions() {
+    const chosen = new Set((message.reactions ?? []).filter((r) => r.userIds.includes(me.id)).map((r) => r.emoji));
+    return {
+      quick: restricted ? allowedReactions : QUICK_EMOJI,
+      premium: restricted ? [] : PREMIUM_QUICK_EMOJI,
+      isPremium: !!me?.isPremium,
+      full: restricted
+        ? null
+        : { emojis: ALL_EMOJI, stickers: REACTION_STICKERS.map((st) => ({ value: REACTION_STICKER_PREFIX + st.id, name: st.name })) },
+      chosen,
+      glyph: (e, size) => {
+        const st = reactionSticker(e);
+        if (st) return renderSticker(st, { size });
+        return hasAnimatedEmoji(e) ? renderAnimatedEmoji(e, { size, playOnView: true }) : el("span", { class: "rmenu-emoji" }, e);
+      },
+      onReact: (e) => react(message, e),
+      onLocked: () => navigate("/settings/premium"),
     };
-    function onOutsideClick(e) {
-      if (!picker.contains(e.target)) closePicker();
-    }
-    setTimeout(() => document.addEventListener("mousedown", onOutsideClick), 0);
   }
 
   let pendingQuote = "";
@@ -1331,7 +1245,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   function openMessageMenu(pos) {
     const items = [
       { icon: "Reply", label: "Ответить", onClick: replyWithQuote },
-      { icon: "Smile", label: "Реакция", onClick: () => togglePicker(pos) },
       ...(canPin ? [{ icon: "Pin", label: message.pinned ? "Открепить" : "Закрепить", onClick: () => onPin(message) }] : []),
       ...(protectedContent ? [] : [{ icon: "Forward", label: "Переслать", onClick: () => onForward(message) }]),
       ...(message.text?.trim() && !protectedContent
@@ -1349,7 +1262,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
             onClick: () => {
               // Публичный чат — ссылка через @username: её откроет и тот, кто ещё не вступил.
               const username = getState().chats.find((c) => c.id === message.chatId)?.username;
-              const path = username ? `/u/${username}` : `/chat/${message.chatId}`;
+              const path = username ? `/@${username}` : `/chat/${message.chatId}`;
               navigator.clipboard?.writeText(`${location.origin}${path}?msg=${message.id}`).catch(() => {});
             },
           }]
@@ -1387,6 +1300,13 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     }
     items.push({ icon: "Trash", label: "Удалить", danger: true, onClick: () => onDelete(message) });
     openDropdownMenu(pos, items, { sheet: window.matchMedia("(max-width: 560px)").matches });
+  }
+
+  // Реакции — отдельно от меню действий: двойное нажатие на сообщение.
+  function openReactions(pos) {
+    // Реакции в чате выключены (пустой список разрешённых) — плашку не показываем.
+    if (isCallLog || isGift || (restricted && !allowedReactions.length)) return;
+    openReactionsBar(pos, reactionsMenuOptions());
   }
 
   async function runPaid(fn, fallbackMessage) {
@@ -1589,13 +1509,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   let swipeY = 0;
   let swiping = null;
   let lastTapAt = 0;
-  // На касаниях первое нажатие «приклеивает» :hover к сообщению, панель реакций
-  // над пузырём становится кликабельной — и второе нажатие двойного тапа попадает
-  // в её кнопку «Реакция»: открывался список эмодзи вместо сердечка. Такое касание
-  // считаем вторым тапом и гасим следующий click, отдаём сердечко.
-  let lastTapOnBar = false;
-  let heartQueued = false;
-
+  let lastTapX = 0;
+  let lastTapY = 0;
   const hasTextSelection = () => {
     const sel = window.getSelection?.();
     return !!sel && !sel.isCollapsed && sel.toString().trim() !== "";
@@ -1644,24 +1559,23 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         if (-dx >= SWIPE_REPLY_PX) replyWithQuote();
         return;
       }
-      if (selection?.active || e.target.closest?.("button, a, input, video, audio, .bubble-actions")) {
-        const onBar = !!e.target.closest?.(".bubble-actions");
-        const isDouble = Date.now() - lastTapAt < DOUBLE_TAP_MS && !lastTapOnBar;
-        if (onBar && isDouble) {
-          lastTapAt = 0;
-          heartQueued = true;
-        } else {
-          lastTapAt = Date.now();
-        }
-        lastTapOnBar = onBar;
+      if (selection?.active || e.target.closest?.("button, a, input, video, audio, .bubble-actions, .reactions-row")) {
+        lastTapAt = 0;
         return;
       }
+      // Двойное нажатие — плашка реакций, как в tweb (раньше сразу ставилось ❤️).
       const now = Date.now();
-      if (now - lastTapAt < DOUBLE_TAP_MS && !lastTapOnBar) {
+      const near = Math.abs(e.clientX - lastTapX) < 24 && Math.abs(e.clientY - lastTapY) < 24;
+      if (now - lastTapAt < DOUBLE_TAP_MS && near) {
         lastTapAt = 0;
-        onReact?.(message, "❤️");
-      } else lastTapAt = now;
-      lastTapOnBar = false;
+        // Двойной клик мышью выделяет слово — снимаем выделение, иначе оно уйдёт в цитату.
+        if (e.pointerType === "mouse") window.getSelection?.()?.removeAllRanges();
+        openReactions({ x: e.clientX, y: e.clientY });
+      } else {
+        lastTapAt = now;
+        lastTapX = e.clientX;
+        lastTapY = e.clientY;
+      }
     },
     onpointercancel: () => {
       swipeX = 0;
@@ -1707,21 +1621,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       column,
     ]
   );
-  // Клик по кнопке панели реакций, который нажатием двойного тапа уже превратился
-  // в сердечко, — не открываем список эмодзи. Перехват на лету (capture), иначе
-  // обработчик кнопки отработает раньше bubble.
-  row.addEventListener(
-    "click",
-    (e) => {
-      if (!heartQueued) return;
-      heartQueued = false;
-      e.preventDefault();
-      e.stopPropagation();
-      onReact?.(message, "❤️");
-    },
-    true
-  );
-
   return row;
 }
 

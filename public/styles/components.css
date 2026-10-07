@@ -2026,74 +2026,6 @@
   background: var(--color-surface-alt);
   color: var(--color-text);
 }
-.emoji-picker {
-  position: fixed;
-  z-index: 55;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 224px;
-  border-radius: 18px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  padding: 4px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-}
-.emoji-picker-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-}
-.emoji-picker-row-premium {
-  border-top: 1px solid var(--color-border);
-  padding-top: 4px;
-  margin-top: 2px;
-}
-.emoji-picker-all {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 2px;
-  max-height: 180px;
-  overflow-y: auto;
-  border-top: 1px solid var(--color-border);
-  padding-top: 4px;
-  margin-top: 2px;
-}
-.emoji-picker button {
-  position: relative;
-  padding: 4px;
-  border-radius: 999px;
-  font-size: 16px;
-}
-.emoji-picker-stickers {
-  grid-template-columns: repeat(5, 1fr);
-}
-.emoji-picker-stickers button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  border-radius: 8px;
-}
-.emoji-picker button:hover {
-  background: var(--color-surface-alt);
-}
-.emoji-picker button.locked {
-  opacity: 0.55;
-}
-.emoji-picker-lock {
-  position: absolute;
-  right: -1px;
-  bottom: -1px;
-  display: flex;
-  height: 12px;
-  width: 12px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: var(--color-accent);
-  color: var(--color-accent-contrast);
-}
 .reactions-row {
   margin-top: 6px;
   display: flex;
@@ -22776,4 +22708,179 @@ button img.emoji {
 }
 .chat-list-title-bar.connecting .chat-list-title-spinner {
   display: block;
+}
+
+/* ---------- Реакции в меню сообщения, как в tweb (chat/reactionsMenu.ts) ---------- */
+.rmenu {
+  position: fixed;
+  z-index: 10002;
+  max-width: calc(100vw - 16px);
+  border-radius: 24px;
+  background: var(--color-surface);
+  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transform: scale(0.85);
+  transform-origin: 30% 100%;
+  transition: opacity 0.16s ease, transform 0.2s cubic-bezier(0.2, 0.8, 0.3, 1.2);
+}
+.rmenu.is-visible {
+  opacity: 1;
+  transform: none;
+}
+.rmenu-row {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+}
+.rmenu-strip {
+  display: flex;
+  gap: 2px;
+  max-width: 320px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rmenu-strip::-webkit-scrollbar {
+  display: none;
+}
+.rmenu-reaction {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.rmenu-reaction:hover {
+  transform: scale(1.18);
+}
+.rmenu-reaction.chosen {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+.rmenu-reaction.locked > :first-child {
+  opacity: 0.45;
+}
+.rmenu-lock {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: flex;
+  padding: 2px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+.rmenu-emoji {
+  font-size: 26px;
+}
+.rmenu-more {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: 2px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.rmenu-more:hover {
+  color: var(--color-text);
+}
+.rmenu.expanded {
+  border-radius: 18px;
+}
+.rmenu.expanded .rmenu-more {
+  display: none;
+}
+.rmenu-grid {
+  width: min(340px, calc(100vw - 32px));
+  max-height: min(320px, 50vh);
+  padding: 0 8px 8px;
+  overflow-y: auto;
+}
+.rmenu-grid-title {
+  position: sticky;
+  top: 0;
+  margin: 0;
+  padding: 6px 4px 4px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+.rmenu-grid-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+}
+.rmenu-grid-items .rmenu-reaction {
+  width: 38px;
+  height: 38px;
+  font-size: 24px;
+}
+
+/* Превью публичного канала/группы (tweb: chat input → «Join»/«Subscribe») */
+.chat-preview .chat-header-info-btn {
+  cursor: default;
+}
+.chat-preview-list {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+.chat-preview-about {
+  max-width: 420px;
+  margin: 16px auto 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.22);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
+  white-space: pre-wrap;
+}
+.chat-preview-about p {
+  margin: 0;
+}
+.chat-preview-about-title {
+  margin-bottom: 4px !important;
+  font-weight: 600;
+}
+.chat-preview-bottom {
+  display: flex;
+  justify-content: center;
+  padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+}
+.chat-preview-join {
+  width: min(100%, 480px);
+  height: 52px;
+  border: none;
+  border-radius: 14px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+}
+.chat-preview-join:hover:not(:disabled) {
+  background: var(--color-surface-alt);
+}
+.chat-preview-join:disabled {
+  color: var(--color-muted);
+  cursor: default;
 }

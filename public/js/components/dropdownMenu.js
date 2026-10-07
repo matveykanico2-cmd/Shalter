@@ -93,6 +93,12 @@ export function openDropdownMenu(pos, items, opts = {}) {
     menu.style.setProperty("--kb", `${kb}px`);
   }
 
+  // Меню, открытое касанием (двойной тап, долгое нажатие), получает следом
+  // синтетический click того же касания — он не должен его сразу закрыть.
+  const openedAt = Date.now();
+  const GHOST_CLICK_MS = 400;
+  const isGhost = () => Date.now() - openedAt < GHOST_CLICK_MS;
+
   let closed = false;
   function close() {
     if (closed) return;
@@ -100,24 +106,29 @@ export function openDropdownMenu(pos, items, opts = {}) {
     childClose?.();
     opts.onClosed?.();
     document.removeEventListener("mousedown", onDown);
-    document.removeEventListener("keydown", onKey);
+    document.removeEventListener("keydown", onKey, true);
     vv?.removeEventListener("resize", onVv);
     vv?.removeEventListener("scroll", onVv);
     backdrop?.remove();
     menu.remove();
   }
   function onDown(e) {
+    if (isGhost()) return;
     if (!menu.contains(e.target) && !childMenu?.contains(e.target)) close();
   }
+  // Escape закрывает только меню — не чат и не окно под ним.
   function onKey(e) {
-    if (e.key === "Escape") close();
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    close();
   }
 
   document.body.appendChild(menu);
   opts.registerMenu?.(menu);
 
   if (sheet) {
-    backdrop = el("div", { class: "dropdown-sheet-backdrop", onclick: () => close() });
+    backdrop = el("div", { class: "dropdown-sheet-backdrop", onclick: () => !isGhost() && close() });
     document.body.appendChild(backdrop);
     vv?.addEventListener("resize", onVv);
     vv?.addEventListener("scroll", onVv);
@@ -144,7 +155,7 @@ export function openDropdownMenu(pos, items, opts = {}) {
 
   setTimeout(() => {
     document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     searchInput?.focus();
   }, 0);
 

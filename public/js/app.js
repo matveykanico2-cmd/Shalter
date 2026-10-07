@@ -183,8 +183,11 @@ async function boot() {
     // Без сети приложение открывается из кэша: просим SW докачать всю сборку
     // при запуске и каждый раз, когда сеть возвращается.
     const precache = () => navigator.serviceWorker.ready.then((reg) => reg.active?.postMessage({ type: "precache" })).catch(() => {});
-    navigator.serviceWorker.register("/sw.js").then(precache, () => {});
-    window.addEventListener("online", precache);
+    // Докачку откладываем, пока приложение не открылось и не простаивает, —
+    // иначе на медленной сети 70 файлов сборки отбирали канал у самих чатов.
+    const precacheLater = () => setTimeout(() => ("requestIdleCallback" in window ? requestIdleCallback(precache, { timeout: 10000 }) : precache()), 15000);
+    navigator.serviceWorker.register("/sw.js").then(precacheLater, () => {});
+    window.addEventListener("online", precacheLater);
   }
   ensurePushSubscribed().catch(() => {});
   import("./components/permissionsDialog.js")
@@ -417,8 +420,22 @@ async function boot() {
       return;
     }
 
+    // Как t.me/<ник>: человек — его профиль (написать можно оттуда), бот — чат
+    // с ним, канал или группа — сама лента; если вы ещё не вступили — превью
+    // с кнопкой «Подписаться» / «Вступить», как в tweb.
+    let found = null;
     try {
-      const { user: found } = await api.findUserByUsername(username);
+      ({ user: found } = await api.findUserByUsername(username));
+    } catch {}
+    if (found && !found.isBot) {
+      const dm = (getState().chats ?? []).find((c) => c.type === "dm" && c.otherUser?.id === found.id);
+      if (dm) navigate(`/chat/${dm.id}`, { replace: true });
+      else mount(mainSlot, el("div", { class: "empty-chat message-list empty-chat-tips" }, [ChatTips()]));
+      const { openProfileDialog } = await import("./components/profileDialog.js");
+      openProfileDialog(found.id);
+      return;
+    }
+    if (found) try {
       const { chat } = await api.startDm(found.id, found.name, found.avatarColor);
       if (found.isBot && startPayload) {
         await api.sendMessage(chat.id, `/start ${startPayload}`.trim()).catch(() => {});
@@ -437,8 +454,8 @@ async function boot() {
         navigate(`/chat/${chat.id}${msg ? `?msg=${encodeURIComponent(msg)}` : ""}`, { replace: true });
         return;
       }
-      const { JoinPublicView } = await import("./views/joinInvite.js");
-      await JoinPublicView(mainSlot, chat, { msg });
+      const { ChatPreviewView } = await import("./views/chatPreview.js");
+      await ChatPreviewView(mainSlot, chat.id, { msg });
       return;
     } catch (err) {
       mount(
@@ -453,6 +470,10 @@ async function boot() {
   }
 
   route("/u/:username", async (params) => {
+    withCleanup(mainSlot);
+    await openByUsername(params.username, window.location.search);
+  });
+  route("/@:username", async (params) => {
     withCleanup(mainSlot);
     await openByUsername(params.username, window.location.search);
   });
@@ -525,7 +546,7 @@ async function boot() {
   ]);
   const handleInPath = window.location.pathname.match(/^\/@?([A-Za-z0-9_]{3,32})\/?$/);
   if (handleInPath && !RESERVED_PATHS.has(handleInPath[1].toLowerCase())) {
-    window.history.replaceState(null, "", `/u/${handleInPath[1]}${window.location.search}`);
+    window.history.replaceState(null, "", `/@${handleInPath[1]}${window.location.search}`);
   }
 
   startRouter();

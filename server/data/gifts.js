@@ -386,9 +386,11 @@ const TWEB_GIFT_IDS = new Set([
   "cake", "premium_week", "premium_month", "premium_quarter", "premium_year", "premium_forever",
   "hlopushka_s_konfetti", "kubik", "podarochnaya_korobka", "zolotoy_klyuch",
   "tw_love_letter", "tw_mailbox", "tw_duck_birthday", "tw_pirate_flag",
-  "tw_duck_spy", "tw_duck_popcorn", "tw_duck_portal", "tw_duck_safe", "tw_duck_stop", "tw_duck_detective", "tw_duck_album", "tw_monkey", "tw_hand", "tw_chart", "tw_folders", "tw_spider_folder",
+  "tw_duck_spy", "tw_duck_popcorn", "tw_duck_portal", "tw_duck_safe", "tw_duck_stop", "tw_duck_detective", "tw_duck_album", "tw_duck_vacation", "tw_monkey", "tw_hand", "tw_chart", "tw_folders", "tw_spider_folder",
   "tw_monkey_close", "tw_monkey_peek", "tw_monkey_curious", "tw_blueprints", "tw_cloud_folder", "tw_halo_star",
   "tw_star_fall", "tw_monkey_shy", "tw_gift_blue", "tw_gift_red", "tg_plush_pepe",
+  // «Утёнок на отдыхе»: своей анимации в tweb нет — рисуется встроенной сценой
+  // (public/js/lib/giftTraits.js, BUILTIN_GIFT_SCENES).
   // анимированные эмодзи (public/tgs/emoji)
   "raduga", "rose", "pitstsa", "shampanskoe", "sharik", "serpantin", "kotenok", "buket_tsvetov", "ogonek", "edinorog", "coffee", "futbolnyy_myach", "snezhinka", "heart", "iskry", "bokaly", "raketa",
   "nt_ghost", "nt_alien", "nt_kiss", "nt_sparkling_heart", "nt_heart_arrow", "nt_blue_heart", "nt_green_heart", "nt_yellow_heart", "nt_purple_heart", "nt_orange_heart", "nt_black_heart", "nt_hundred", "nt_cool", "nt_love_eyes", "nt_robot", "nt_cowboy", "nt_clown", "nt_hands_heart", "nt_hug", "nt_devil"

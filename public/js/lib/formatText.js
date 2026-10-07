@@ -154,9 +154,9 @@ function renderInline(text, members, emoji) {
             try {
               const { user } = await api.findUserByUsername(handle);
               if (user?.id) return openProfileDialog(user.id);
-              navigate(`/u/${handle}`);
+              navigate(`/@${handle}`);
             } catch {
-              navigate(`/u/${handle}`);
+              navigate(`/@${handle}`);
             }
           },
         },

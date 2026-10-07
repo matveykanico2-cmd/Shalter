@@ -477,6 +477,7 @@ export const api = {
     contactsChanged(userId, req("/api/contacts", { method: "POST", body: JSON.stringify({ userId, localName, sharePhone }) })),
   setContactNote: (userId, note) => req("/api/contacts/note", { method: "POST", body: JSON.stringify({ userId, note }) }),
   renameContact: (userId, localName) => contactsChanged(userId, req("/api/contacts/rename", { method: "POST", body: JSON.stringify({ userId, localName }) })),
+  chatPreview: (id) => req(`/api/chats/${id}/preview`),
   findChatByUsername: (username) => req(`/api/chats/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
   findUserByUsername: (username) => req(`/api/users/by-username/${encodeURIComponent(username.replace(/^@/, ""))}`),
   matchContacts: (contacts) => req("/api/contacts/match", { method: "POST", body: JSON.stringify({ contacts }) }),

@@ -14,6 +14,11 @@ function toMatcher(pattern) {
           keys.push(seg.slice(1));
           return "([^/]+)";
         }
+        // «/@:username» — ссылки как у t.me/<ник>.
+        if (seg.startsWith("@:")) {
+          keys.push(seg.slice(2));
+          return "@([^/]+)";
+        }
         return seg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       })
       .join("/") +

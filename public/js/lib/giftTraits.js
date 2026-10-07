@@ -51,10 +51,32 @@ export function giftTraits(gift) {
   };
 }
 
+// Подарки каталога без своей анимации в tweb — нарисованы встроенной сценой
+// (тот же движок, что у нарисованных подарков). «Утёнок на отдыхе» раньше
+// показывался просто эмодзи пляжа 🏖️ — без утёнка.
+const BUILTIN_GIFT_SCENES = {
+  tw_duck_vacation: {
+    v: 1,
+    loop: 3,
+    bg: null,
+    layers: [
+      { type: "circle", x: 78, y: 20, r: 11, fill: "#ffd23f", anim: "pulse", dur: 2.6 },
+      { type: "ellipse", x: 50, y: 70, w: 96, h: 18, fill: "#4fb6ea", opacity: 0.9, anim: "float", dur: 3.2 },
+      { type: "ellipse", x: 50, y: 86, w: 94, h: 24, fill: "#f4d48f" },
+      { type: "emoji", emoji: "⛱️", x: 28, y: 52, size: 44, anim: "swing", dur: 3.4 },
+      { type: "emoji", emoji: "🐥", x: 60, y: 72, size: 34, anim: "bounce", dur: 1.8 },
+      { type: "emoji", emoji: "🕶️", x: 61, y: 66, size: 15, anim: "bounce", dur: 1.8 },
+      { type: "emoji", emoji: "🍹", x: 84, y: 80, size: 17, anim: "wiggle", dur: 2.2 },
+    ],
+  },
+};
+
 export function renderGiftArt(gift, { size = 84, replay = true } = {}) {
   if (gift?.scene) {
     return renderCustomScene(gift.scene, { size, replay });
   }
+  const builtin = BUILTIN_GIFT_SCENES[gift?.giftId] ?? BUILTIN_GIFT_SCENES[gift?.id];
+  if (builtin && !gift?.mediaUrl) return renderCustomScene(builtin, { size, replay });
   const asEmoji = () => renderScene(gift?.emoji, { size, replay });
   const lottie = lottieNameFor(gift);
   // Подарки-эмодзи (rose, heart, nt_robot…): кадр покоя анимированного эмодзи берём из

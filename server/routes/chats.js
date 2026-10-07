@@ -7,7 +7,7 @@ const { getChat, updateChat, deleteChat, createChat, listChats, listChatsForUser
 const { checkUsername, normalizeUsername } = require("../lib/username");
 const { colorUnlocked, lockedColorError, colorState } = require("../lib/chatFeatures");
 const { PERMISSIONS, permissionsOf, sanitizePermissions, can } = require("../lib/chatPermissions");
-const { deleteMessagesForChat, markChatRead } = require("../data/messages");
+const { deleteMessagesForChat, markChatRead, listMessagesPage } = require("../data/messages");
 const { getSettings, updateSettings, mutedStateFor, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft, clearUnreadMark } = require("../data/settings");
 const { allowsUser, recordsReadTime, publicUsersFor } = require("../lib/privacyRules");
 const { messageCost } = require("../lib/messagePrice");
@@ -455,6 +455,44 @@ router.get(
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
     res.json({ colors: colorState(chat), points: chat.points ?? 0 });
+  })
+);
+
+// Превью публичного канала или группы для тех, кто ещё не вступил (как в tweb:
+// открываешь @канал — видишь ленту и кнопку «Подписаться»). Только публичные
+// чаты, без скрытых ответов ботов; прочитанным ничего не отмечаем.
+router.get(
+  "/:id/preview",
+  asyncRoute(async (req, res) => {
+    const chat = await getChat(req.params.id);
+    if (!chat || !chat.isPublic || chat.secret || (chat.type !== "group" && chat.type !== "channel")) {
+      return res.status(404).json({ error: "Чат не найден" });
+    }
+    if ((chat.bannedIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Вас заблокировали в этом чате" });
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+    const page = listMessagesPage(chat.id, req.uid, undefined, { limit });
+    const messages = page.messages.filter((m) => !m.visibleToId && !m.threadRootId);
+    const senderIds = [...new Set(messages.map((m) => m.senderId).filter(Boolean))];
+    const senders = await publicUsersFor(await listUsersByIds(senderIds), req.uid);
+    res.json({
+      chat: {
+        id: chat.id,
+        type: chat.type,
+        title: chat.title,
+        username: chat.username,
+        description: chat.description ?? null,
+        avatarColor: chat.avatarColor,
+        avatarImage: chat.avatarImage,
+        isVerified: !!chat.isVerified,
+        subscribers: chat.memberIds.length,
+        isMember: chat.memberIds.includes(req.uid),
+        approveJoins: !!chat.approveJoins,
+        requestPending: joinRequests.hasRequest(chat.id, req.uid),
+      },
+      messages,
+      senders,
+      hasMore: page.hasMore,
+    });
   })
 );
 
