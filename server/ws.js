@@ -150,6 +150,14 @@ async function handleMessage(ws, raw) {
   } catch {
     return;
   }
+  ws.isAlive = true;
+
+  // Проверка живости от клиента (wsClient.js): браузер не умеет слать ping-кадры
+  // протокола, а «зомби»-сокет после сна телефона иначе выглядел бы открытым минутами.
+  if (msg.type === "ping") {
+    if (ws.readyState === ws.OPEN) ws.send('{"type":"pong"}');
+    return;
+  }
 
   if (msg.type === "live:signal:send") {
     const { streamId, toUserId, kind, data } = msg;
