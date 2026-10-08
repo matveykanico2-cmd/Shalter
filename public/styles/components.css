@@ -5466,6 +5466,7 @@ button.profile-ad-banner {
   position: absolute;
   inset: 0;
   animation: premium-orbit-spin 14s linear infinite;
+  animation-delay: var(--orbit-phase, 0s);
   will-change: transform;
 }
 .avatar-orbit-item {
@@ -5486,6 +5487,7 @@ button.profile-ad-banner {
   color: var(--orbit-color, #d9822e);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
   animation: premium-orbit-counter-spin 14s linear infinite;
+  animation-delay: var(--orbit-phase, 0s);
   will-change: transform;
 }
 .premium-plans {
@@ -8987,15 +8989,29 @@ button.profile-ad-banner {
 .avatar-viewer-dots {
   display: flex;
   justify-content: center;
-  gap: 6px;
+  gap: 0;
 }
+/* Точка 7px, а область нажатия — 28px: по самой точке на телефоне не попасть. */
 .avatar-viewer-dot {
+  position: relative;
+  z-index: 1;
+  height: 28px;
+  width: 20px;
+  padding: 0;
+  background: none;
+}
+.avatar-viewer-dot::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
   height: 7px;
   width: 7px;
+  margin: -3.5px 0 0 -3.5px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.35);
 }
-.avatar-viewer-dot.active {
+.avatar-viewer-dot.active::before {
   background: #fff;
 }
 .avatar-viewer-empty,
@@ -22928,4 +22944,18 @@ button img.emoji {
 .chat-preview-join:disabled {
   color: var(--color-muted);
   cursor: default;
+}
+
+/* Отправка ждёт догрузки файла — кнопка «дышит», текст уйдёт вместе с файлом. */
+.composer.send-queued .composer-send-btn {
+  animation: composer-send-wait 1s ease-in-out infinite alternate;
+}
+@keyframes composer-send-wait {
+  to {
+    opacity: 0.45;
+  }
+}
+
+.sg-page[hidden] {
+  display: none !important;
 }

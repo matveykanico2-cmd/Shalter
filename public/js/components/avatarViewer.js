@@ -207,7 +207,17 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
             playsInline: true,
             controls: true,
           })
-        : el("img", { class: "avatar-viewer-media", src: current.url, alt: user.name ?? "" })
+        : el("img", {
+            class: "avatar-viewer-media",
+            src: current.url,
+            alt: user.name ?? "",
+            // Как в Telegram: нажатие на левую/правую половину фото листает.
+            onclick: (e) => {
+              if (avatars.length < 2) return;
+              const r = e.currentTarget.getBoundingClientRect();
+              go(e.clientX < r.left + r.width / 2 ? -1 : 1);
+            },
+          })
     );
     if (avatars.length > 1) {
       appendAll(stage,

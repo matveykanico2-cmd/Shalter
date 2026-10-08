@@ -11,6 +11,9 @@ function initials(name) {
     .toUpperCase();
 }
 
+// Должен совпадать с длительностью premium-orbit-spin у .avatar-orbit-ring (components.css).
+const ORBIT_PERIOD_MS = 14_000;
+
 const DEV_ORBIT_ICON = { icon: "Code", color: "#1c9bd9" };
 const PREMIUM_ORBIT_ICONS = [
   { icon: "Crown", color: "#d9822e" },
@@ -82,7 +85,10 @@ export function Avatar({ name, color, image, video = null, size = 44, online, cl
     const items = orbitItemsFor(isPremium, isDeveloper);
     const radius = size / 2 + Math.max(8, size * 0.16);
     const itemSize = Math.max(14, Math.round(size * 0.24));
-    const orbitWrap = el("div", { class: "avatar-orbit-wrap", style: `width:${size}px;height:${size}px` }, [
+    // Фаза вращения от общих часов: аватар пересоздаётся при каждой перерисовке
+    // шапки/списка, и без этого кольцо каждый раз отпрыгивало в начальное положение.
+    const phase = -(performance.now() % ORBIT_PERIOD_MS) / 1000;
+    const orbitWrap = el("div", { class: "avatar-orbit-wrap", style: `width:${size}px;height:${size}px;--orbit-phase:${phase}s` }, [
       wrap,
       el(
         "div",

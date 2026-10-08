@@ -290,15 +290,37 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
       chosen = { gift, mine };
       note = "";
       sending = false;
+      enteringChosen = true;
       render();
     };
     if (!target) return pickRecipient(go);
     go();
   }
 
+  // Сетка с анимациями подарков при выборе подарка не удаляется, а прячется:
+  // раньше «Назад» пересоздавал все плееры заново — окно подвисало и дёргалось.
+  let enteringChosen = false;
+  // Пока была открыта страница отправки, данные могли смениться (догрузился
+  // каталог, баланс) — тогда спрятанную сетку честно перерисовываем.
+  let listStale = false;
   function back() {
     chosen = null;
-    render();
+    const listPage = popup.querySelector(".sg-page-list");
+    if (!listPage || listStale) {
+      listStale = false;
+      return render();
+    }
+    popup.querySelectorAll(".sg-page:not(.sg-page-list)").forEach((p) => p.remove());
+    popup.classList.remove("sg-is-chosen");
+    listPage.hidden = false;
+    listPage.classList.remove("sg-enter-forward", "sg-enter-back");
+    void listPage.offsetWidth;
+    listPage.classList.add("sg-enter-back");
+    const scroll = listPage.querySelector(".sg-scroll");
+    if (scroll) {
+      scroll.scrollTop = listScrollTop;
+      popup.classList.toggle("sg-scrolled", scroll.scrollTop > 8);
+    }
   }
 
   // Выбор фона подарка — как в tweb, где фон задаётся вместе с подарком и
@@ -581,6 +603,18 @@ export function openGiftShopDialog({ recipient = null, onSent, gift: preset = nu
     const prev = popup.querySelector(".sg-page-list .sg-scroll");
     if (prev) listScrollTop = prev.scrollTop;
     const wasChosen = popup.classList.contains("sg-is-chosen");
+    const listPage = popup.querySelector(".sg-page-list");
+    if (chosen && listPage) {
+      if (!enteringChosen) listStale = true;
+      enteringChosen = false;
+      popup.querySelectorAll(".sg-page:not(.sg-page-list)").forEach((p) => p.remove());
+      listPage.hidden = true;
+      popup.classList.add("sg-is-chosen");
+      popup.classList.remove("sg-scrolled");
+      renderChosen();
+      if (!wasChosen) popup.lastElementChild?.classList.add("sg-enter-forward");
+      return;
+    }
     clear(popup);
     popup.classList.toggle("sg-is-chosen", !!chosen);
     popup.classList.remove("sg-scrolled");

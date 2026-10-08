@@ -10,6 +10,7 @@ import { iconSvg } from "../icons.js";
 import { Avatar, videoAvatarUrl } from "./avatar.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { openGiftPickerDialog } from "./giftPickerDialog.js";
+import { openGiftShopDialog } from "./giftShopDialog.js";
 import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog, infoRow, birthdayText, isBirthdayToday } from "./profileDialog.js";
 import { statusLabel, plural } from "../lib/presence.js";
@@ -441,6 +442,17 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             [el("span", { class: "info-panel-row-icon", html: iconSvg("Star", 22) }), chat.otherUser.isPremium ? "Забрать Shalter Premium" : "Выдать Shalter Premium (30 дней)"]
           )
         : null,
+      // Тот же магазин подарков, что и в профиле.
+      isDm && chat.otherUser && !chat.otherUser.isBot && chat.otherUser.id !== meId
+        ? el(
+            "button",
+            {
+              class: "info-panel-row",
+              onclick: () => openGiftShopDialog({ recipient: { id: chat.otherUser.id, name: chat.otherUser.name } }),
+            },
+            [el("span", { class: "info-panel-row-icon", html: iconSvg("Gift", 22) }), "Отправить подарок"]
+          )
+        : null,
       isDm && chat.otherUser && isShalterAdmin && gifts?.length
         ? el(
             "button",
@@ -449,11 +461,11 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
               onclick: () =>
                 openGiftPickerDialog({
                   gifts,
-                  title: "Отправить подарок",
+                  title: "Выдать подарок (админ)",
                   onPick: (g) => onDeliverGift(g.id, chat.otherUser.id),
                 }),
             },
-            [el("span", { class: "info-panel-row-icon", html: iconSvg("Gift", 22) }), "Отправить подарок"]
+            [el("span", { class: "info-panel-row-icon", html: iconSvg("Shield", 22) }), "Выдать подарок (админ)"]
           )
         : null,
       el("button", { class: "info-panel-row", onclick: onToggleMute }, [el("span", { class: "info-panel-row-icon", html: iconSvg(isChatMuted(chat) ? "Bell" : "BellOff", 22) }), isChatMuted(chat) ? "Включить уведомления" : "Отключить уведомления"]),

@@ -308,7 +308,24 @@ export function Composer({
       return cmd;
     }
 
+    // Нажали «Отправить», пока файл ещё грузится: раньше уходил один текст,
+    // а файл оставался в поле. Теперь ждём загрузку и отправляем всё вместе.
+    let pendingUploads = 0;
+    let queuedSubmit = null;
+    function flushQueuedSubmit() {
+      if (pendingUploads > 0 || !queuedSubmit) return;
+      const opts = queuedSubmit;
+      queuedSubmit = null;
+      wrap.classList.remove("send-queued");
+      submit(opts);
+    }
+
     function submit(opts = {}) {
+      if (pendingUploads > 0 && !editingMessage) {
+        queuedSubmit = opts;
+        wrap.classList.add("send-queued");
+        return;
+      }
       let trimmed = textarea.value.trim();
       if (!trimmed && !staged.length) return;
       if (!editingMessage && trimmed.startsWith("/")) {
@@ -569,6 +586,16 @@ export function Composer({
     wrap.attachDropped = editingMessage ? null : (files) => pickToSend(files.map((file) => ({ file, kind: fileKind(file) })));
 
     async function attachFiles(picks) {
+      pendingUploads++;
+      try {
+        await uploadPicks(picks);
+      } finally {
+        pendingUploads--;
+        flushQueuedSubmit();
+      }
+    }
+
+    async function uploadPicks(picks) {
       const items = [];
       for (const { file, kind } of picks) {
         const sizeError = checkSize(file, kind);
