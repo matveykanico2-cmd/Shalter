@@ -23,6 +23,7 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
   console.log(`${name}: иконки и заставки → ${target.to}`);
   if (name === "ios") describeIosPermissions();
   if (name === "android") {
+    pinDebugSigningKey();
     dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
     wirePushNotifications();
   }
@@ -125,4 +126,30 @@ function describeIosPermissions() {
   }
   fs.writeFileSync(plistPath, plist);
   console.log("ios: описания разрешений в Info.plist");
+}
+
+// Постоянный ключ для debug-сборок (resources/android/debug.keystore). Иначе каждая
+// сборка в CI подписывалась новым случайным ключом, и Android не ставил новую версию
+// поверх старой («конфликт пакетов»). Прописываем явно в build.gradle: положить файл
+// в ~/.android недостаточно — на раннере Android-инструменты ищут его в другом месте.
+function pinDebugSigningKey() {
+  const gradlePath = path.join(ROOT, "android/app/build.gradle");
+  let gradle = fs.readFileSync(gradlePath, "utf8");
+  if (gradle.includes("shalterDebugKey")) return;
+  gradle = gradle.replace(
+    /android \{\n/,
+    `android {
+    // shalterDebugKey — scripts/apply-native-resources.js
+    signingConfigs {
+        debug {
+            storeFile file("\${rootDir}/../resources/android/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+`
+  );
+  fs.writeFileSync(gradlePath, gradle);
+  console.log("android: debug-сборки подписываются постоянным ключом");
 }
