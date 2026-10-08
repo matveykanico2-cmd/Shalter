@@ -2,6 +2,7 @@ import { el, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { api } from "../api.js";
+import { matchAndAddAll, canReadPhoneBook, readPhoneBook } from "../lib/contactSync.js";
 import { isContactPickerSupported, pickPhoneContacts, readVCardFiles, parsePastedContacts, isIos } from "../lib/phoneContacts.js";
 
 export function openImportContactsDialog(onAdded) {
@@ -10,6 +11,7 @@ export function openImportContactsDialog(onAdded) {
   let found = [];
   let notFound = [];
   let checked = 0;
+  let addedCount = 0;
   let addedIds = new Set();
   let invitedPhones = new Set();
   const inviteLink = `${window.location.origin}/login`;
@@ -75,16 +77,9 @@ export function openImportContactsDialog(onAdded) {
     error = null;
     render();
     try {
-      const CHUNK = 500;
-      found = [];
-      notFound = [];
-      checked = 0;
-      for (let i = 0; i < entries.length; i += CHUNK) {
-        const res = await api.matchContacts(entries.slice(i, i + CHUNK));
-        found.push(...res.found);
-        notFound.push(...res.notFound);
-        checked += res.checked;
-      }
+      // Как в Telegram: всех найденных — сразу в контакты, без «Добавить» у каждого.
+      ({ found, notFound, checked, added: addedCount } = await matchAndAddAll(entries));
+      if (addedCount) onAdded?.();
       step = "results";
     } catch (err) {
       error = err.message || "Не удалось проверить контакты";
@@ -96,7 +91,7 @@ export function openImportContactsDialog(onAdded) {
   async function usePicker() {
     error = null;
     try {
-      const entries = await pickPhoneContacts();
+      const entries = canReadPhoneBook() ? await readPhoneBook() : await pickPhoneContacts();
       if (!entries.length) return;
       await match(entries);
     } catch (err) {
@@ -157,7 +152,7 @@ export function openImportContactsDialog(onAdded) {
 
   function personRow(entry) {
     const u = entry.user;
-    const added = addedIds.has(u.id) || entry.alreadyContact;
+    const added = addedIds.has(u.id) || entry.alreadyContact || entry.justAdded;
     return el("div", { class: "import-contact-row" }, [
       Avatar({ name: u.name, color: u.avatarColor, image: u.avatarImage, size: 36, online: u.online }),
       el("div", { class: "import-contact-body" }, [
@@ -211,7 +206,11 @@ export function openImportContactsDialog(onAdded) {
           { class: "settings-toggle-hint" },
           "Найдём, кто из ваших контактов уже в Shalter, а остальных можно пригласить. Номера проверяются на сервере и нигде не сохраняются."
         ),
-        isContactPickerSupported() ? el("button", { class: "btn-accent", onclick: usePicker }, "Выбрать из контактов телефона") : null,
+        canReadPhoneBook()
+          ? el("button", { class: "btn-accent", onclick: usePicker }, "Найти друзей из контактов телефона")
+          : isContactPickerSupported()
+            ? el("button", { class: "btn-accent", onclick: usePicker }, "Выбрать из контактов телефона")
+            : null,
         el("button", { class: "profile-action-btn import-vcf-btn", onclick: () => fileInput.click() }, [
           el("span", { html: iconSvg("Download", 15) }),
           " Выбрать файлы контактов (.vcf)",
@@ -220,7 +219,7 @@ export function openImportContactsDialog(onAdded) {
         el(
           "p",
           { class: "settings-toggle-hint" },
-          isContactPickerSupported()
+          canReadPhoneBook() || isContactPickerSupported()
             ? "Файл подойдёт, если хотите проверить контакты с другого устройства."
             : isIos()
               ? "На iPhone Safari не даёт странице доступ к адресной книге — это ограничение самой iOS, а не приложения. Два рабочих способа: в «Контактах» выделите людей → «Поделиться» → сохраните карточки в «Файлы» и выберите их здесь (можно сразу несколько), либо просто вставьте номера ниже."
@@ -236,7 +235,7 @@ export function openImportContactsDialog(onAdded) {
 
     noticeEl = el("p", { class: "settings-toggle-hint" }, "");
     show([
-      el("p", { class: "settings-toggle-hint" }, `Проверено номеров: ${checked}`),
+      el("p", { class: "settings-toggle-hint" }, `Проверено номеров: ${checked}${addedCount ? ` · добавлено в контакты: ${addedCount}` : ""}`),
       error ? el("p", { class: "login-error" }, error) : null,
       el("p", { class: "settings-section-title" }, `Уже в Shalter (${found.length})`),
       found.length

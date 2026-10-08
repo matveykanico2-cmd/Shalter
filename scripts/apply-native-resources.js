@@ -40,13 +40,28 @@ function wirePushNotifications() {
     // Без Firebase вызов register() роняет приложение («Default FirebaseApp is not
     // initialized») — выключаем плагин целиком: приложение работает, просто без push.
     dropAndroidPlugin("@capacitor/push-notifications", "capacitor-push-notifications");
-    console.log("android: НЕТ google-services.json — push-плагин выключен, уведомлений не будет");
+    console.log("android: нет google-services.json — Firebase выключен, уведомления через фоновую службу (lib/nativeNotify.js)");
   } else {
     console.log("android: google-services.json на месте — push-уведомления включены");
   }
 
   const manifestPath = path.join(ROOT, "android/app/src/main/AndroidManifest.xml");
   let manifest = fs.readFileSync(manifestPath, "utf8");
+  // Фоновая служба (lib/nativeNotify.js): держит приложение на связи без Firebase.
+  if (!manifest.includes("AndroidForegroundService")) {
+    manifest = manifest
+      .replace(
+        /<application([^>]*)>/,
+        `<application$1>
+        <receiver android:name="io.capawesome.capacitorjs.plugins.foregroundservice.NotificationActionBroadcastReceiver" />
+        <service android:name="io.capawesome.capacitorjs.plugins.foregroundservice.AndroidForegroundService" android:foregroundServiceType="remoteMessaging" />`
+      );
+  }
+  // Каждое разрешение — отдельно, чтобы повторный запуск дописал недостающие.
+  for (const perm of ["FOREGROUND_SERVICE", "FOREGROUND_SERVICE_REMOTE_MESSAGING", "POST_NOTIFICATIONS", "READ_CONTACTS"]) {
+    const line = `<uses-permission android:name="android.permission.${perm}" />`;
+    if (!manifest.includes(`android.permission.${perm}"`)) manifest = manifest.replace("</manifest>", `    ${line}\n</manifest>`);
+  }
   if (!manifest.includes("default_notification_icon")) {
     manifest = manifest.replace(
       /<application([^>]*)>/,
@@ -55,8 +70,8 @@ function wirePushNotifications() {
         <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ic_launcher_background" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="messages" />`
     );
-    fs.writeFileSync(manifestPath, manifest);
   }
+  fs.writeFileSync(manifestPath, manifest);
 }
 
 // Сборка (scripts/build.js) кладёт рядом с app.js сжатые копии app.js.gz/.br для

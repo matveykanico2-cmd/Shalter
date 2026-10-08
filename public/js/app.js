@@ -215,6 +215,10 @@ async function boot() {
     window.addEventListener("online", precacheLater);
   }
   ensurePushSubscribed().catch(() => {});
+  // Android-приложение без Firebase: свои уведомления через фоновую службу.
+  import("./lib/nativeNotify.js").then((m) => m.startNativeNotifications()).catch(() => {});
+  // Android-приложение: друзья из телефонной книги — сразу в контакты (раз в 6 ч).
+  setTimeout(() => import("./lib/contactSync.js").then((m) => m.autoSyncPhoneBook()).catch(() => {}), 4000);
   import("./components/permissionsDialog.js")
     .then(({ openPermissionsDialog, permissionsAlreadyAsked }) => {
       if (permissionsAlreadyAsked()) return;
