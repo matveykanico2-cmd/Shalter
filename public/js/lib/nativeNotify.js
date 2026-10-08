@@ -50,12 +50,13 @@ let started = false;
 export async function startNativeNotifications() {
   const p = plugins();
   if (!p || started) return;
-  started = true;
   const { local, service } = p;
 
   let { display } = await local.checkPermissions().catch(() => ({ display: "denied" }));
   if (display !== "granted") ({ display } = await local.requestPermissions().catch(() => ({ display: "denied" })));
-  if (display !== "granted") return;
+  // Запретили — не запоминаем запуск: включат в настройках, и requestPushPermission запустит снова.
+  if (display !== "granted" || started) return;
+  started = true;
 
   await local.createChannel?.({ id: "messages", name: "Сообщения", importance: 4, visibility: 1, vibration: true }).catch(() => {});
   await local.createChannel?.({ id: "calls", name: "Звонки", importance: 5, visibility: 1, vibration: true }).catch(() => {});

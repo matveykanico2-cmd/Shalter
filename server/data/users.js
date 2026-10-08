@@ -67,7 +67,9 @@ function rowToUser(row) {
     banReason: row.banReason ?? undefined,
     bannedAt: row.bannedAt ?? undefined,
     adminSections: row.adminSections ? JSON.parse(row.adminSections) : [],
-    profileTrack: row.profileTrack ? JSON.parse(row.profileTrack) : null,
+    // Колонка хранит список треков (раньше — один объект). Первый — основной: его
+    // показывает профиль, остальные — в списке по нажатию (как музыка в профиле Telegram).
+    ...profileTracksOf(row.profileTrack),
     safetyLabel: row.safetyLabel ?? undefined,
     isVerified: !!row.isVerified || undefined,
     usernameAuctionId: row.usernameAuctionId ?? undefined,
@@ -279,11 +281,25 @@ async function setAvatars(userId, list) {
   return getUser(userId);
 }
 
-async function setProfileTrack(userId, track) {
+function profileTracksOf(raw) {
+  let parsed = null;
+  try {
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch {}
+  const list = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+  return { profileTrack: list[0] ?? null, profileTracks: list };
+}
+
+// Весь список треков профиля целиком (пустой — снять все).
+async function setProfileTracks(userId, tracks) {
   const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
   if (!existing) return undefined;
-  db.prepare("UPDATE users SET profileTrack = ? WHERE id = ?").run(track ? JSON.stringify(track) : null, userId);
+  db.prepare("UPDATE users SET profileTrack = ? WHERE id = ?").run(tracks?.length ? JSON.stringify(tracks) : null, userId);
   return getUser(userId);
+}
+
+async function setProfileTrack(userId, track) {
+  return setProfileTracks(userId, track ? [track] : []);
 }
 
 function getStatusState(userId) {
@@ -466,6 +482,7 @@ module.exports = {
   setAdminSections,
   setGiftPinned,
   setProfileTrack,
+  setProfileTracks,
   listUsers,
   listUsersByIds,
   resetStalePresence,

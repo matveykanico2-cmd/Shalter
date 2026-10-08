@@ -22973,3 +22973,161 @@ button img.emoji {
   text-align: center;
   pointer-events: none;
 }
+
+/* ---------- Музыка в профиле (components/profileTracks.js), как в Telegram ---------- */
+.ptrack-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: var(--tw-section-shadow, 0 1px 2px rgba(0, 0, 0, 0.08));
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+.ptrack-card:hover {
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+}
+.ptrack-play {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast, #fff);
+  transition: transform 0.12s ease;
+}
+.ptrack-play:active {
+  transform: scale(0.92);
+}
+.ptrack-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+}
+.ptrack-name {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ptrack-name > span:first-child {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+.ptrack-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ptrack-progress {
+  position: relative;
+  height: 3px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-text) 12%, transparent);
+}
+.ptrack-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--color-accent);
+  transition: width 0.25s linear;
+}
+.ptrack-time {
+  flex-shrink: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ptrack-more {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ptrack-chevron {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--color-muted);
+}
+.ptrack-sheet {
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+}
+.ptrack-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ptrack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px -8px 0;
+  overflow-y: auto;
+}
+.ptrack-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.ptrack-row:hover,
+.ptrack-row.playing {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+.ptrack-time-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ptrack-badge {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+.ptrack-manage {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+.ptrack-manage-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+}
+.ptrack-manage-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: 14px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

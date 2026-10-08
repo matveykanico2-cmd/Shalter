@@ -32,6 +32,7 @@ import { ProfileStatusBadge } from "../../components/profileStatusBadge.js";
 import { StarsPanel } from "../../components/starsDialog.js";
 import { openGiftShopDialog } from "../../components/giftShopDialog.js";
 import { openAvatarViewer } from "../../components/avatarViewer.js";
+import { ProfileTrackCard } from "../../components/profileTracks.js";
 import { openProfileStatusDialog } from "../../components/profileStatusDialog.js";
 import { Toggle } from "../../components/toggle.js";
 import { isSpeechSupported } from "../../lib/speech.js";
@@ -367,42 +368,76 @@ async function renderProfile(root) {
   let phoneField = null;
   let saved = false;
   let profileError = null;
-  let profileTrack = me.profileTrack ?? null;
+  // Музыка в профиле: несколько треков, первый — основной (виден в профиле карточкой,
+  // остальные — в списке по нажатию на неё).
+  let profileTracks = me.profileTracks ?? (me.profileTrack ? [me.profileTrack] : []);
   let trackBusy = false;
   let trackError = null;
+
+  const audioDuration = (file) =>
+    new Promise((resolve) => {
+      const probe = new Audio();
+      const url = URL.createObjectURL(file);
+      const done = (v) => {
+        URL.revokeObjectURL(url);
+        resolve(v);
+      };
+      probe.preload = "metadata";
+      probe.onloadedmetadata = () => done(Number.isFinite(probe.duration) ? probe.duration : undefined);
+      probe.onerror = () => done(undefined);
+      setTimeout(() => done(undefined), 5000);
+      probe.src = url;
+    });
+
+  const applyTracks = (user) => {
+    profileTracks = user.profileTracks ?? [];
+    updateSelf({ profileTrack: user.profileTrack ?? null, profileTracks });
+  };
+
+  async function trackAction(fn, failText) {
+    trackError = null;
+    trackBusy = true;
+    render();
+    try {
+      await fn();
+    } catch (err) {
+      trackError = err.message || failText;
+    } finally {
+      trackBusy = false;
+      render();
+    }
+  }
 
   const trackFileInput = el("input", {
     type: "file",
     accept: "audio/*",
+    multiple: true,
     class: "hidden-input",
     onchange: async (e) => {
-      const file = e.target.files?.[0];
+      // Можно выбрать сразу несколько: добавляем по очереди, последний выбранный — основной.
+      const files = [...(e.target.files ?? [])];
       e.target.value = "";
-      if (!file) return;
-      trackError = null;
-      trackBusy = true;
-      render();
-      try {
-        const uploaded = await uploadFile(file, "profile-track");
-        const { user } = await api.setProfileTrack(uploaded);
-        profileTrack = user.profileTrack;
-        updateSelf({ profileTrack });
-      } catch (err) {
-        trackError = err.message || "Не удалось загрузить трек";
-      } finally {
-        trackBusy = false;
-        render();
-      }
+      if (!files.length) return;
+      await trackAction(async () => {
+        for (const file of files) {
+          const duration = await audioDuration(file);
+          const uploaded = await uploadFile(file, "profile-track");
+          const { user } = await api.setProfileTrack({ ...uploaded, duration });
+          applyTracks(user);
+          render();
+        }
+      }, "Не удалось загрузить трек");
     },
   });
+
+  const makeMainTrack = (i) => trackAction(async () => applyTracks((await api.setMainProfileTrack(i)).user), "Не удалось сделать основным");
+  const removeTrackAt = (i) => trackAction(async () => applyTracks((await api.removeProfileTrack(i)).user), "Не удалось убрать трек");
 
   async function removeTrack() {
     trackBusy = true;
     render();
     try {
-      const { user } = await api.clearProfileTrack();
-      profileTrack = user.profileTrack;
-      updateSelf({ profileTrack });
+      applyTracks((await api.clearProfileTrack()).user);
     } catch (err) {
       trackError = err.message || "Не удалось убрать трек";
     } finally {
@@ -567,30 +602,35 @@ async function renderProfile(root) {
             ),
           ]),
         ]),
-        section("Закреплённый трек", [
-          el("div", { class: "settings-toggle-row" }, [
-            el("div", {}, [
-              el("p", { class: "settings-toggle-title" }, profileTrack ? profileTrack.name : "Ничего не закреплено"),
-              el(
-                "p",
-                { class: "settings-toggle-hint" },
-                "Свой аудиофайл на профиле — виден всем, кто его открывает. Один трек, до 5 ГБ."
-              ),
-            ]),
+        section("Музыка в профиле", [
+          el(
+            "p",
+            { class: "settings-toggle-hint" },
+            "Треки видны всем, кто открывает ваш профиль: основной — карточкой, остальные — списком по нажатию на неё. До 20 треков."
+          ),
+          profileTracks.length ? ProfileTrackCard(profileTracks) : null,
+          el(
+            "div",
+            { class: "ptrack-manage" },
+            profileTracks.map((t, i) =>
+              el("div", { class: "ptrack-manage-row" }, [
+                el("span", { class: "ptrack-manage-name" }, t.name || "Трек"),
+                i === 0
+                  ? el("span", { class: "ptrack-badge" }, "основной")
+                  : el("button", { class: "icon-btn", title: "Сделать основным", disabled: trackBusy, html: iconSvg("Star", 16), onclick: () => makeMainTrack(i) }),
+                el("button", { class: "icon-btn", title: "Убрать", disabled: trackBusy, html: iconSvg("Trash", 16), onclick: () => removeTrackAt(i) }),
+              ])
+            )
+          ),
+          el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" }, [
             el(
-              "div",
-              { style: "display:flex; gap:8px;" },
-              [
-                el(
-                  "button",
-                  { class: "profile-action-btn", disabled: trackBusy, onclick: () => trackFileInput.click() },
-                  trackBusy ? "…" : profileTrack ? "Заменить" : "Загрузить"
-                ),
-                profileTrack
-                  ? el("button", { class: "profile-action-btn danger", disabled: trackBusy, onclick: removeTrack }, "Убрать")
-                  : null,
-              ].filter(Boolean)
+              "button",
+              { class: "profile-action-btn", disabled: trackBusy || profileTracks.length >= 20, onclick: () => trackFileInput.click() },
+              trackBusy ? "Загружаем…" : profileTracks.length ? "Добавить треки" : "Загрузить треки"
             ),
+            profileTracks.length > 1
+              ? el("button", { class: "profile-action-btn danger", disabled: trackBusy, onclick: removeTrack }, "Убрать все")
+              : null,
           ]),
           trackError ? el("p", { class: "login-error" }, trackError) : null,
           trackFileInput,
@@ -2311,9 +2351,13 @@ async function renderNotifications(root) {
     await api.patchSettings({ notifications: settings.notifications });
   }
 
+  // В приложениях (Android, десктоп) браузерного Notification нет — берём состояние из
+  // проверки (pushDiagnostics знает и нативные уведомления), а не пишем «не поддерживаются».
+  const permState = () => diag?.разрешение ?? (typeof Notification !== "undefined" ? Notification.permission : null);
   function permLabel() {
-    if (typeof Notification === "undefined") return "не поддерживаются";
-    return { granted: "разрешены", denied: "запрещены", default: "не запрошены" }[Notification.permission];
+    const state = permState();
+    if (!state) return diag ? "не поддерживаются" : "проверяем…";
+    return { granted: "разрешены", denied: "запрещены", default: "не запрошены" }[state] ?? state;
   }
 
   let diag = null;
@@ -2339,7 +2383,7 @@ async function renderNotifications(root) {
   }
 
   function render() {
-    const canRequest = typeof Notification !== "undefined" && Notification.permission === "default";
+    const canRequest = permState() === "default";
     mount(
       root,
       pageWrap("Уведомления", null, [
@@ -2359,7 +2403,7 @@ async function renderNotifications(root) {
           }),
         ]),
         twSection(
-          "Уведомления браузера",
+          "Уведомления на этом устройстве",
           [
             twRow({ icon: "Bell", color: "red", title: "Статус", titleRight: permLabel() }),
             iosNeedsHomeScreen()

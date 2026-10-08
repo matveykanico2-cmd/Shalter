@@ -16,6 +16,26 @@ function isDesktopShell() {
   return !!window.shalterDesktop?.notify;
 }
 
+// Android-приложение без Firebase: уведомления локальные (lib/nativeNotify.js).
+function localNotificationsPlugin() {
+  const cap = window.Capacitor;
+  if (!cap?.isNativePlatform?.() || nativePushPlugin()) return null;
+  return cap.Plugins?.LocalNotifications ?? null;
+}
+
+async function requestLocal() {
+  const plugin = localNotificationsPlugin();
+  let { display } = await plugin.checkPermissions().catch(() => ({ display: "denied" }));
+  if (display !== "granted") ({ display } = await plugin.requestPermissions().catch(() => ({ display: "denied" })));
+  if (display !== "granted") {
+    lastError = "Уведомления запрещены в настройках Android для Shalter.";
+    return false;
+  }
+  const { startNativeNotifications } = await import("./nativeNotify.js");
+  await startNativeNotifications();
+  return true;
+}
+
 export function isNativeApp() {
   return !!window.Capacitor?.isNativePlatform?.();
 }
@@ -62,7 +82,7 @@ async function registerNative({ prompt }) {
 }
 
 export function isPushSupported() {
-  if (nativePushPlugin() || isDesktopShell()) return true;
+  if (nativePushPlugin() || localNotificationsPlugin() || isDesktopShell()) return true;
   return "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined";
 }
 
@@ -122,6 +142,13 @@ export function iosNeedsHomeScreen() {
 }
 
 export async function pushDiagnostics() {
+  const local = localNotificationsPlugin();
+  if (local) {
+    const { display } = await local.checkPermissions().catch(() => ({ display: "denied" }));
+    const granted = display === "granted";
+    // prompt/prompt-with-rationale → «ещё не спрашивали», как Notification.permission "default".
+    return { защищённыйАдрес: true, поддержка: true, разрешение: granted ? "granted" : display === "denied" ? "denied" : "default", подпискаВБраузере: granted, подпискаНаСервере: granted, ошибка: lastError };
+  }
   if (isDesktopShell()) {
     return { защищённыйАдрес: true, поддержка: true, разрешение: "granted", подпискаВБраузере: true, подпискаНаСервере: true, ошибка: null };
   }
@@ -164,6 +191,7 @@ export async function pushDiagnostics() {
 export async function resubscribePush() {
   lastError = null;
   if (isDesktopShell()) return { ok: true };
+  if (localNotificationsPlugin()) return (await requestLocal()) ? { ok: true } : { ok: false, ошибка: lastError };
   if (nativePushPlugin()) {
     const ok = await registerNative({ prompt: true }).catch((err) => ((lastError = err.message), false));
     return ok ? { ok: true } : { ok: false, ошибка: lastError ?? "Не получилось" };
@@ -188,7 +216,7 @@ export async function resubscribePush() {
 }
 
 export async function ensurePushSubscribed() {
-  if (isDesktopShell()) return;
+  if (isDesktopShell() || localNotificationsPlugin()) return; // nativeNotify.js сам спрашивает при запуске
   // В приложении спрашиваем разрешение сразу при запуске — как любой мессенджер.
   if (nativePushPlugin()) return void (await registerNative({ prompt: true }));
   if (!isPushSupported()) return;
@@ -198,6 +226,7 @@ export async function ensurePushSubscribed() {
 
 export async function requestPushPermission() {
   if (isDesktopShell()) return true;
+  if (localNotificationsPlugin()) return requestLocal();
   if (nativePushPlugin()) return registerNative({ prompt: true });
   if (!isPushSupported()) return false;
   const result = await Notification.requestPermission();

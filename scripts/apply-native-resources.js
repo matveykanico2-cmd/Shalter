@@ -23,6 +23,8 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
   console.log(`${name}: иконки и заставки → ${target.to}`);
   if (name === "ios") describeIosPermissions();
   if (name === "android") {
+    // Свой нативный код (MainActivity + плагин SystemBars) поверх сгенерированного.
+    fs.cpSync(path.join(ROOT, "resources/android/java"), path.join(ROOT, "android/app/src/main/java/ru/shalter/app"), { recursive: true });
     pinDebugSigningKey();
     dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
     wirePushNotifications();

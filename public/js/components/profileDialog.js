@@ -19,6 +19,7 @@ import { SAFETY_LABELS, safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openAdminUserPanel } from "./adminUserPanel.js";
 import { openAvatarViewer } from "./avatarViewer.js";
 import { openGiftCardDialog } from "./giftCardDialog.js";
+import { ProfileTrackCard } from "./profileTracks.js";
 import { openGiftShopDialog } from "./giftShopDialog.js";
 import { openStoryViewer } from "./storyViewer.js";
 import { giftTraits, renderGiftArt } from "../lib/giftTraits.js";
@@ -764,12 +765,7 @@ export async function openProfileDialog(userId) {
             : null,
         ].filter(Boolean)
       ),
-      user.profileTrack
-        ? el("div", { class: "profile-track-row" }, [
-            el("span", { class: "profile-track-icon", html: iconSvg("Volume", 15) }),
-            el("audio", { class: "profile-track-player", controls: true, preload: "none", src: user.profileTrack.url }),
-          ])
-        : null,
+      ProfileTrackCard(user.profileTracks ?? (user.profileTrack ? [user.profileTrack] : [])),
       user.businessHours || (user.isBusiness && user.businessAddress)
         ? el("div", { class: "profile-info-card" }, [
             user.businessHours ? businessHoursRow(user.businessHours) : null,
