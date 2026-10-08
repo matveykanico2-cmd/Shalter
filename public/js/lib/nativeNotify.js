@@ -138,3 +138,31 @@ export async function startNativeNotifications() {
     if (id) local.cancel({ notifications: [{ id: numericId(id) }] }).catch(() => {});
   });
 }
+
+// ---------- Десктопное приложение (Tauri) ----------
+// Окно живёт в трее и держит сокет, поэтому уведомления показываем сами — через мост
+// shalterDesktop.notify (системное уведомление ОС), пока окно свёрнуто или не в фокусе.
+let desktopStarted = false;
+export function startDesktopNotifications() {
+  const bridge = window.shalterDesktop;
+  if (!bridge?.notify || desktopStarted) return;
+  desktopStarted = true;
+  const away = () => document.hidden || !document.hasFocus();
+
+  onWsMessage("message:new", (msg) => {
+    const m = msg.message;
+    const { user: me, chats, settings } = getState();
+    if (!m || msg.silent || m.senderId === me?.id || settings?.notifications?.desktop === false) return;
+    if (!away()) return; // в открытом окне хватает звука и счётчика
+    const chat = (chats ?? []).find((c) => c.id === msg.chatId);
+    if (chat && isChatMuted(chat)) return;
+    bridge.notify(chat?.otherUser?.name ?? chat?.title ?? "Shalter", messagePreview(m), `${location.origin}/chat/${msg.chatId}`);
+  });
+
+  onWsMessage("call:incoming", (msg) => {
+    const call = msg.call;
+    if (!call || !away()) return;
+    bridge.notify(call.otherUser?.name ?? "Входящий звонок", call.kind === "video" ? "📹 Видеозвонок" : "📞 Звонок", `${location.origin}/call/${call.id}`);
+    bridge.focus?.();
+  });
+}

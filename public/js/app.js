@@ -218,7 +218,12 @@ async function boot() {
   // Android-приложение: WebView сам не скачивает файлы — сохраняем через Filesystem.
   import("./lib/nativeDownload.js").then((m) => m.installNativeDownloads()).catch(() => {});
   // Android-приложение без Firebase: свои уведомления через фоновую службу.
-  import("./lib/nativeNotify.js").then((m) => m.startNativeNotifications()).catch(() => {});
+  import("./lib/nativeNotify.js")
+    .then((m) => {
+      m.startNativeNotifications();
+      m.startDesktopNotifications();
+    })
+    .catch(() => {});
   // Android-приложение: друзья из телефонной книги — сразу в контакты (раз в 6 ч).
   setTimeout(() => import("./lib/contactSync.js").then((m) => m.autoSyncPhoneBook()).catch(() => {}), 4000);
   import("./components/permissionsDialog.js")

@@ -4,6 +4,7 @@ import { showToast } from "../../components/toast.js";
 import { openPremiumFeatures } from "../../components/premiumFeatures.js";
 import { NAME_COLORS, nameColorValue } from "../../lib/nameColors.js";
 import { el, mount, clear } from "../../lib/dom.js";
+import { isInstalledApp } from "../../lib/platform.js";
 import { clearCache } from "../../lib/localCache.js";
 import { iconSvg } from "../../icons.js";
 import { Avatar, videoAvatarUrl } from "../../components/avatar.js";
@@ -287,10 +288,12 @@ function renderMenu(root) {
       admin.length ? twSection("Администрирование", admin.map(rowFor)) : null,
       twSection(null, [
         twRow({ icon: "MessageSquare", color: "blue", title: "Поддержка — Hugo", onClick: openSupport }),
-        el("a", { class: "tw-row clickable", href: "/download" }, [
-          twRowIcon("Download", "green"),
-          el("span", { class: "tw-row-body" }, [el("span", { class: "tw-row-title" }, "Скачать приложение")]),
-        ]),
+        isInstalledApp()
+          ? null
+          : el("a", { class: "tw-row clickable", href: "/download" }, [
+              twRowIcon("Download", "green"),
+              el("span", { class: "tw-row-body" }, [el("span", { class: "tw-row-title" }, "Скачать приложение")]),
+            ]),
       ]),
     ])
   );
@@ -1454,7 +1457,7 @@ async function renderAbout(root) {
         ),
       ]),
       twSection("Ссылки", [
-        twRow({ icon: "Download", color: "green", title: "Скачать приложение", href: "/download" }),
+        isInstalledApp() ? null : twRow({ icon: "Download", color: "green", title: "Скачать приложение", href: "/download" }),
         twRow({ icon: "Users", color: "orange", title: "Сотрудничество", href: "/promo" }),
         twRow({ icon: "MessageSquare", color: "blue", title: "Поддержка — Hugo", onClick: openSupport }),
       ]),

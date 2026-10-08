@@ -1,3 +1,14 @@
+/* base.css запрещает прокрутку страницы (у приложения своя), а здесь обычная
+   длинная страница — без этого её нельзя было пролистать до кнопок и инструкций. */
+html,
+body {
+  height: auto;
+}
+body {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .dl-page {
   position: relative;
   min-height: 100vh;

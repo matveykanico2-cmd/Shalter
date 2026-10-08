@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { getState, setState } from "../state.js";
 import { navigate } from "../router.js";
 import { switchAccount } from "../lib/accountSwitch.js";
+import { isInstalledApp } from "../lib/platform.js";
 
 // Меню ☰ как в tweb (sidebarLeft.createToolsMenu): аккаунты, затем Избранное, Архив,
 // Контакты, Звонки, Настройки и «Ещё ▸» с темой, анимациями и прочим.
@@ -75,7 +76,8 @@ function moreItems(settings) {
     },
     { separator: true },
     { icon: "Globe", label: "Каталог каналов", onClick: () => navigate("/discover-channels") },
-    { icon: "Download", label: "Скачать приложение", onClick: () => (window.location.href = "/download") },
+    // Внутри установленного приложения скачивать его незачем — пункт только в вебе.
+    ...(isInstalledApp() ? [] : [{ icon: "Download", label: "Скачать приложение", onClick: () => (window.location.href = "/download") }]),
     {
       icon: "Bug",
       label: "Сообщить об ошибке",

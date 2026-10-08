@@ -1,5 +1,6 @@
 import { askConfirm } from "../components/confirmDialog.js";
 import { el, mount } from "../lib/dom.js";
+import { isInstalledApp } from "../lib/platform.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
 import { passkeysSupported, loginWithPasskey, passkeyErrorText } from "../lib/passkey.js";
@@ -730,7 +731,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
               ),
             ])
           : null,
-        !embedded ? el("a", { class: "login-link muted login-download-link", href: "/download" }, "Скачать приложение для Windows, Linux и Android") : null,
+        !embedded && !isInstalledApp() ? el("a", { class: "login-link muted login-download-link", href: "/download" }, "Скачать приложение для Windows, Linux и Android") : null,
       ]
     );
 

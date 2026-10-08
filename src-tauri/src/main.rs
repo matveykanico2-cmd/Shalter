@@ -13,6 +13,7 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 #[cfg(target_os = "macos")]
 use tauri::RunEvent;
+use tauri::webview::DownloadEvent;
 use tauri::{AppHandle, Manager, State, UserAttentionType, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_notification::NotificationExt;
@@ -228,6 +229,34 @@ fn create_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .min_inner_size(380.0, 480.0)
         .background_color(tauri::window::Color(0xf5, 0xf6, 0xf9, 0xff))
         .initialization_script(&bridge_script(&shell.origin))
+        // Скачивания: в «Загрузки», не затирая файл с тем же именем, и уведомление по
+        // окончании. Без этого обработчика скачивание из окна молча не происходило.
+        .on_download(move |webview, event| {
+            match event {
+                DownloadEvent::Requested { url, destination } => {
+                    let name = destination
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .filter(|n| !n.is_empty())
+                        .or_else(|| url.path_segments().and_then(|mut s| s.next_back()).map(str::to_owned))
+                        .filter(|n| !n.is_empty())
+                        .unwrap_or_else(|| "file".into());
+                    if let Ok(dir) = webview.app_handle().path().download_dir() {
+                        *destination = unique_path(&dir, &name);
+                    }
+                }
+                DownloadEvent::Finished { path, success, .. } => {
+                    let body = match (success, path) {
+                        (true, Some(p)) => format!("Сохранено: {}", p.display()),
+                        (true, None) => "Файл сохранён в «Загрузки»".into(),
+                        (false, _) => "Не удалось скачать файл".into(),
+                    };
+                    let _ = webview.app_handle().notification().builder().title("Shalter").body(body).show();
+                }
+                _ => {}
+            }
+            true
+        })
         // Свои страницы — в окне, всё остальное — в браузере по умолчанию.
         .on_navigation(move |url| {
             let shell = nav_app.state::<Shell>();
@@ -240,6 +269,21 @@ fn create_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             false
         })
         .build()
+}
+
+// «фото.jpg» → «фото (2).jpg», если такой файл уже есть.
+fn unique_path(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let candidate = dir.join(name);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let path = std::path::Path::new(name);
+    let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| name.to_owned());
+    let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    (2..1000)
+        .map(|i| dir.join(format!("{stem} ({i}){ext}")))
+        .find(|p| !p.exists())
+        .unwrap_or(candidate)
 }
 
 fn create_tray(app: &AppHandle) -> tauri::Result<()> {
@@ -269,11 +313,26 @@ fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
+fn only_nvidia_gpus() -> bool {
+    let vendors: Vec<String> = std::fs::read_dir("/sys/class/drm")
+        .map(|dir| {
+            dir.flatten()
+                .filter_map(|e| std::fs::read_to_string(e.path().join("device/vendor")).ok())
+                .map(|v| v.trim().to_lowercase())
+                .collect()
+        })
+        .unwrap_or_default();
+    !vendors.is_empty() && vendors.iter().all(|v| v == "0x10de")
+}
+
 fn main() {
-    // WebKitGTK с аппаратным dmabuf-рендером на части видеокарт (NVIDIA) показывает
-    // белое окно — выключаем, если пользователь не задал сам.
+    // WebKitGTK с аппаратным dmabuf-рендером на проприетарном драйвере NVIDIA показывает
+    // белое окно. Выключаем его только там, где все видеокарты — NVIDIA: на остальных
+    // (в том числе ноутбуках Intel + NVIDIA, где экран рисует Intel) отключение лишь
+    // замедляет отрисовку и прокрутку.
     #[cfg(target_os = "linux")]
-    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() && only_nvidia_gpus() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }
 

@@ -10,6 +10,12 @@ function nativePushPlugin() {
   return cap?.isNativePlatform?.() ? cap.Plugins?.PushNotifications ?? null : null;
 }
 
+// Десктопное приложение (Tauri): уведомления показывает оно само (nativeNotify.js),
+// веб-push там не нужен и недоступен.
+function isDesktopShell() {
+  return !!window.shalterDesktop?.notify;
+}
+
 export function isNativeApp() {
   return !!window.Capacitor?.isNativePlatform?.();
 }
@@ -56,7 +62,7 @@ async function registerNative({ prompt }) {
 }
 
 export function isPushSupported() {
-  if (nativePushPlugin()) return true;
+  if (nativePushPlugin() || isDesktopShell()) return true;
   return "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined";
 }
 
@@ -116,6 +122,9 @@ export function iosNeedsHomeScreen() {
 }
 
 export async function pushDiagnostics() {
+  if (isDesktopShell()) {
+    return { защищённыйАдрес: true, поддержка: true, разрешение: "granted", подпискаВБраузере: true, подпискаНаСервере: true, ошибка: null };
+  }
   const plugin = nativePushPlugin();
   if (plugin) {
     const { receive } = await plugin.checkPermissions().catch(() => ({ receive: "нет" }));
@@ -154,6 +163,7 @@ export async function pushDiagnostics() {
 
 export async function resubscribePush() {
   lastError = null;
+  if (isDesktopShell()) return { ok: true };
   if (nativePushPlugin()) {
     const ok = await registerNative({ prompt: true }).catch((err) => ((lastError = err.message), false));
     return ok ? { ok: true } : { ok: false, ошибка: lastError ?? "Не получилось" };
@@ -178,6 +188,7 @@ export async function resubscribePush() {
 }
 
 export async function ensurePushSubscribed() {
+  if (isDesktopShell()) return;
   // В приложении спрашиваем разрешение сразу при запуске — как любой мессенджер.
   if (nativePushPlugin()) return void (await registerNative({ prompt: true }));
   if (!isPushSupported()) return;
@@ -186,6 +197,7 @@ export async function ensurePushSubscribed() {
 }
 
 export async function requestPushPermission() {
+  if (isDesktopShell()) return true;
   if (nativePushPlugin()) return registerNative({ prompt: true });
   if (!isPushSupported()) return false;
   const result = await Notification.requestPermission();
