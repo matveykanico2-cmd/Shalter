@@ -59,6 +59,11 @@ function wirePushNotifications() {
         <service android:name="io.capawesome.capacitorjs.plugins.foregroundservice.AndroidForegroundService" android:foregroundServiceType="remoteMessaging" />`
       );
   }
+  // Клавиатура должна сжимать окно, а не наезжать на поле ввода (вместе с
+  // Keyboard.resizeOnFullScreen в capacitor.config.json — на Android 15 окно во весь экран).
+  if (!manifest.includes("windowSoftInputMode")) {
+    manifest = manifest.replace(/<activity\b/, '<activity android:windowSoftInputMode="adjustResize"');
+  }
   // Каждое разрешение — отдельно, чтобы повторный запуск дописал недостающие.
   for (const perm of ["FOREGROUND_SERVICE", "FOREGROUND_SERVICE_REMOTE_MESSAGING", "POST_NOTIFICATIONS", "READ_CONTACTS"]) {
     const line = `<uses-permission android:name="android.permission.${perm}" />`;

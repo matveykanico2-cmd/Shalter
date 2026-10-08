@@ -10,5 +10,11 @@
     "allowMixedContent": false,
     "adjustMarginsForEdgeToEdge": "force"
   },
-  "backgroundColor": "#f5f6f9"
+  "backgroundColor": "#f5f6f9",
+  "plugins": {
+    "Keyboard": {
+      "resize": "native",
+      "resizeOnFullScreen": true
+    }
+  }
 }
