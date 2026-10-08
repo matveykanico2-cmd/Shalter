@@ -66,6 +66,12 @@ jobs:
           # Можно и просто положить его в resources/android/google-services.json.
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
 
+      # Постоянный ключ подписи debug-сборок. Без него каждый запуск генерировал
+      # новый случайный ключ, и Android отказывался ставить новую версию поверх
+      # старой («конфликт пакетов»). Ключ отладочный, не для магазина, — хранится в git.
+      - name: Fixed debug signing key
+        run: mkdir -p ~/.android && cp resources/android/debug.keystore ~/.android/debug.keystore
+
       - name: Assemble debug APK
         working-directory: android
         run: ./gradlew assembleDebug
