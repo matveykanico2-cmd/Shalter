@@ -20,8 +20,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-latest — Apple Silicon (arm64), macos-13 — Intel (x64).
-        os: [ubuntu-22.04, windows-latest, macos-latest, macos-13]
+        # Mac на Intel собираем на том же macos-latest (Apple M) кросс-компиляцией:
+        # машины macos-13 (Intel) GitHub выводит из работы — задача часами ждала раннера.
+        include:
+          - { os: ubuntu-22.04, name: ubuntu-22.04 }
+          - { os: windows-latest, name: windows-latest }
+          - { os: macos-latest, name: macos-arm64 }
+          - { os: macos-latest, name: macos-x64, target: x86_64-apple-darwin }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -31,10 +36,13 @@ jobs:
           node-version: 22
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target || '' }}
 
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          key: ${{ matrix.name }}
 
       # Системный WebView (WebKitGTK) и трей для Linux-сборки.
       - name: Linux dependencies
@@ -48,14 +56,24 @@ jobs:
       # Tauri CLI и esbuild приходят готовыми бинарниками и без скриптов.
       - run: npm ci --ignore-scripts
 
-      - run: npm run desktop:build
+      - name: Build
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.target }}" ]; then
+            npx tauri build --target "${{ matrix.target }}"
+          else
+            npx tauri build
+          fi
+          node scripts/collect-desktop.js
+        env:
+          TAURI_TARGET: ${{ matrix.target }}
 
       # Unsigned: macOS artifacts will hit Gatekeeper, Windows will hit
       # SmartScreen, on first launch — see DEPLOY_DESKTOP.md's "code signing"
       # notes for what removing those warnings actually requires.
       - uses: actions/upload-artifact@v4
         with:
-          name: shalter-desktop-${{ matrix.os }}
+          name: shalter-desktop-${{ matrix.name }}
           path: |
             public/downloads/Shalter.AppImage
             public/downloads/Shalter.deb

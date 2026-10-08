@@ -6,7 +6,10 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 
 const ROOT = path.join(__dirname, "..");
-const BUNDLE = path.join(ROOT, "src-tauri", "target", "release", "bundle");
+// Сборка под другую архитектуру (`tauri build --target …`, см. build-desktop.yml)
+// кладёт результат в target/<triple>/release.
+const TARGET = process.env.TAURI_TARGET || "";
+const BUNDLE = path.join(ROOT, "src-tauri", "target", ...(TARGET ? [TARGET] : []), "release", "bundle");
 const OUT = path.join(ROOT, "public", "downloads");
 
 function firstFile(dir, test) {
@@ -34,7 +37,7 @@ copy(firstFile(path.join(BUNDLE, "nsis"), (n) => n.endsWith("-setup.exe")), "Sha
 // macOS: .app в zip (ditto сохраняет права и подписи внутри пакета).
 const app = path.join(BUNDLE, "macos", "Shalter.app");
 if (process.platform === "darwin" && fs.existsSync(app)) {
-  const arch = process.arch === "arm64" ? "arm64" : "x64";
+  const arch = TARGET ? (TARGET.startsWith("x86_64") ? "x64" : "arm64") : process.arch === "arm64" ? "arm64" : "x64";
   const zip = path.join(OUT, `Shalter-macOS-${arch}.zip`);
   fs.rmSync(zip, { force: true });
   execFileSync("ditto", ["-c", "-k", "--keepParent", app, zip]);
