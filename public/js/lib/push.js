@@ -1,6 +1,62 @@
 import { api } from "../api.js";
+import { navigate } from "../router.js";
+
+// ---------- Android-приложение (Capacitor): уведомления через FCM ----------
+// Веб-push в WebView приложения не работает: там плагин PushNotifications выдаёт
+// токен устройства, а сервер шлёт на него через Firebase (server/lib/fcm.js).
+
+function nativePushPlugin() {
+  const cap = window.Capacitor;
+  return cap?.isNativePlatform?.() ? cap.Plugins?.PushNotifications ?? null : null;
+}
+
+export function isNativeApp() {
+  return !!window.Capacitor?.isNativePlatform?.();
+}
+
+let nativeReady = null;
+let nativeToken = null;
+function setupNativePush(plugin) {
+  nativeReady ??= (async () => {
+    // Свои каналы: звонки громче и поверх всего, сообщения — обычные с звуком.
+    await plugin.createChannel?.({ id: "messages", name: "Сообщения", importance: 4, visibility: 1, vibration: true }).catch(() => {});
+    await plugin.createChannel?.({ id: "calls", name: "Звонки", importance: 5, visibility: 1, vibration: true }).catch(() => {});
+    await plugin.addListener("registration", ({ value }) => {
+      nativeToken = value;
+      api.subscribeNativePush(value).catch(() => {});
+    });
+    await plugin.addListener("registrationError", (err) => {
+      lastError = `Не удалось получить токен уведомлений: ${err?.error || "ошибка"}`;
+    });
+    // Нажали на уведомление — открываем тот чат/звонок, о котором оно.
+    await plugin.addListener("pushNotificationActionPerformed", ({ notification }) => {
+      const url = notification?.data?.url;
+      if (!url) return;
+      try {
+        const u = new URL(url, location.origin);
+        if (u.origin === location.origin) navigate(u.pathname + u.search);
+      } catch {}
+    });
+  })();
+  return nativeReady;
+}
+
+async function registerNative({ prompt }) {
+  const plugin = nativePushPlugin();
+  if (!plugin) return false;
+  await setupNativePush(plugin);
+  let { receive } = await plugin.checkPermissions();
+  if (receive !== "granted" && prompt) ({ receive } = await plugin.requestPermissions());
+  if (receive !== "granted") {
+    lastError = "Уведомления запрещены в настройках Android для Shalter.";
+    return false;
+  }
+  await plugin.register();
+  return true;
+}
 
 export function isPushSupported() {
+  if (nativePushPlugin()) return true;
   return "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined";
 }
 
@@ -60,6 +116,19 @@ export function iosNeedsHomeScreen() {
 }
 
 export async function pushDiagnostics() {
+  const plugin = nativePushPlugin();
+  if (plugin) {
+    const { receive } = await plugin.checkPermissions().catch(() => ({ receive: "нет" }));
+    const { endpoints } = await api.listPushEndpoints().catch(() => ({ endpoints: [] }));
+    return {
+      защищённыйАдрес: true,
+      поддержка: true,
+      разрешение: receive,
+      подпискаВБраузере: !!nativeToken,
+      подпискаНаСервере: !!nativeToken && (endpoints ?? []).includes(`fcm:${nativeToken}`),
+      ошибка: lastError,
+    };
+  }
   const out = {
     защищённыйАдрес: typeof window !== "undefined" && window.isSecureContext,
     поддержка: isPushSupported(),
@@ -85,6 +154,10 @@ export async function pushDiagnostics() {
 
 export async function resubscribePush() {
   lastError = null;
+  if (nativePushPlugin()) {
+    const ok = await registerNative({ prompt: true }).catch((err) => ((lastError = err.message), false));
+    return ok ? { ok: true } : { ok: false, ошибка: lastError ?? "Не получилось" };
+  }
   if (!isPushSupported()) return { ok: false, ошибка: "Браузер не умеет push-уведомления." };
   try {
     if (Notification.permission !== "granted") {
@@ -105,12 +178,15 @@ export async function resubscribePush() {
 }
 
 export async function ensurePushSubscribed() {
+  // В приложении спрашиваем разрешение сразу при запуске — как любой мессенджер.
+  if (nativePushPlugin()) return void (await registerNative({ prompt: true }));
   if (!isPushSupported()) return;
   if (Notification.permission !== "granted") return;
   await subscribeNow();
 }
 
 export async function requestPushPermission() {
+  if (nativePushPlugin()) return registerNative({ prompt: true });
   if (!isPushSupported()) return false;
   const result = await Notification.requestPermission();
   if (result === "granted") await subscribeNow();

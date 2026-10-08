@@ -13,6 +13,22 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Shalter" />
   <script>
+    // Тема до первой отрисовки: настройки приходят с сервера позже, и до них
+    // мелькала светлая тема. Последнюю выбранную помним в localStorage.
+    (function () {
+      var root = document.documentElement;
+      try {
+        var saved = localStorage.getItem("shalter.theme");
+        if (saved === "dark" || saved === "light") root.setAttribute("data-theme", saved);
+      } catch (e) {}
+      new MutationObserver(function () {
+        try {
+          var t = root.getAttribute("data-theme");
+          if (t) localStorage.setItem("shalter.theme", t);
+          else localStorage.removeItem("shalter.theme");
+        } catch (e) {}
+      }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    })();
     (function () {
       var root = document.documentElement;
       var vv = window.visualViewport;

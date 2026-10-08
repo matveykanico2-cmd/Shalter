@@ -198,6 +198,7 @@ async function boot() {
       if (settings?.requirePasswordOnLaunch) showPasswordLockScreen(root);
       initUiTranslation(settings.uiLanguage);
       if (settings.theme && settings.theme !== "system") document.documentElement.setAttribute("data-theme", settings.theme);
+      else document.documentElement.removeAttribute("data-theme");
       applyAccentSetting(settings.accent);
       applyFontSizeSetting(settings.fontSize);
       document.documentElement.toggleAttribute("data-reduce-motion", !!settings.reduceMotion);

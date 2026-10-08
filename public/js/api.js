@@ -558,6 +558,7 @@ export const api = {
 
   getVapidPublicKey: () => req("/api/push/vapid-public-key"),
   subscribePush: (subscription) => req("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription }) }),
+  subscribeNativePush: (token) => req("/api/push/subscribe-native", { method: "POST", body: JSON.stringify({ token }) }),
   unsubscribePush: (endpoint) => req("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) }),
   listPushEndpoints: () => req("/api/push/endpoints"),
   getAppVersion: () => req("/api/version"),

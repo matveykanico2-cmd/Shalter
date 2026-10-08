@@ -1,3 +1,4 @@
+const { sendFcm } = require("./lib/fcm");
 const webpush = require("web-push");
 const db = require("./db");
 const { listSubscriptionsForUser, removeSubscriptionByEndpoint } = require("./data/pushSubscriptions");
@@ -30,6 +31,16 @@ async function sendPushToUser(userId, payload, options = {}) {
   const body = JSON.stringify(payload);
   await Promise.all(
     subs.map(async (row) => {
+      // Android-приложение: токен FCM вместо веб-подписки (см. lib/fcm.js).
+      if (row.subscription.fcmToken) {
+        try {
+          const result = await sendFcm(row.subscription.fcmToken, payload, { ttlSeconds: options.TTL });
+          if (result === "gone") await removeSubscriptionByEndpoint(row.subscription.endpoint);
+        } catch (err) {
+          console.error("fcm send failed:", err.message);
+        }
+        return;
+      }
       try {
         await webpush.sendNotification(row.subscription, body, options);
       } catch (err) {

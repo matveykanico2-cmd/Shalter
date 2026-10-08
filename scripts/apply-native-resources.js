@@ -21,7 +21,42 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
   }
   fs.cpSync(path.join(ROOT, target.from), to, { recursive: true });
   console.log(`${name}: иконки и заставки → ${target.to}`);
-  if (name === "android") dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
+  if (name === "android") {
+    dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
+    wirePushNotifications();
+  }
+}
+
+// Push через Firebase: google-services.json (файл resources/android/google-services.json
+// или секрет GOOGLE_SERVICES_JSON в CI) — без него android/app/build.gradle не подключает
+// Firebase, и уведомлений нет. Плюс белая иконка и канал для уведомлений, которые
+// Android показывает сам, пока приложение закрыто.
+function wirePushNotifications() {
+  const target = path.join(ROOT, "android/app/google-services.json");
+  const file = path.join(ROOT, "resources/android/google-services.json");
+  if (process.env.GOOGLE_SERVICES_JSON) fs.writeFileSync(target, process.env.GOOGLE_SERVICES_JSON);
+  else if (fs.existsSync(file)) fs.copyFileSync(file, target);
+  if (!fs.existsSync(target)) {
+    // Без Firebase вызов register() роняет приложение («Default FirebaseApp is not
+    // initialized») — выключаем плагин целиком: приложение работает, просто без push.
+    dropAndroidPlugin("@capacitor/push-notifications", "capacitor-push-notifications");
+    console.log("android: НЕТ google-services.json — push-плагин выключен, уведомлений не будет");
+  } else {
+    console.log("android: google-services.json на месте — push-уведомления включены");
+  }
+
+  const manifestPath = path.join(ROOT, "android/app/src/main/AndroidManifest.xml");
+  let manifest = fs.readFileSync(manifestPath, "utf8");
+  if (!manifest.includes("default_notification_icon")) {
+    manifest = manifest.replace(
+      /<application([^>]*)>/,
+      `<application$1>
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_shalter" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ic_launcher_background" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="messages" />`
+    );
+    fs.writeFileSync(manifestPath, manifest);
+  }
 }
 
 // Сборка (scripts/build.js) кладёт рядом с app.js сжатые копии app.js.gz/.br для
@@ -37,4 +72,18 @@ function dropPrecompressed(dir) {
     }
   }
   console.log(`android: убрано сжатых копий .gz/.br — ${removed}`);
+}
+
+function dropAndroidPlugin(pkg, gradleName) {
+  const pluginsJson = path.join(ROOT, "android/app/src/main/assets/capacitor.plugins.json");
+  if (fs.existsSync(pluginsJson)) {
+    const list = JSON.parse(fs.readFileSync(pluginsJson, "utf8")).filter((p) => p.pkg !== pkg);
+    fs.writeFileSync(pluginsJson, JSON.stringify(list, null, "\t"));
+  }
+  for (const file of ["android/capacitor.settings.gradle", "android/app/capacitor.build.gradle"]) {
+    const full = path.join(ROOT, file);
+    if (!fs.existsSync(full)) continue;
+    const kept = fs.readFileSync(full, "utf8").split("\n").filter((line) => !line.includes(`:${gradleName}'`));
+    fs.writeFileSync(full, kept.join("\n"));
+  }
 }
