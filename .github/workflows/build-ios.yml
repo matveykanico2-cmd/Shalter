@@ -35,6 +35,8 @@ jobs:
       # ios/ is gitignored (same as android/) — regenerated fresh every run.
       - run: npx cap add ios
       - run: npx cap sync ios
+      # Иконки и заставки Shalter поверх стандартных от `cap add` (resources/).
+      - run: node scripts/apply-native-resources.js ios
 
       - name: pod install
         working-directory: ios/App

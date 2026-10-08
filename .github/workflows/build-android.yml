@@ -53,6 +53,8 @@ jobs:
       # regenerated fresh every run, same as any other machine would.
       - run: npx cap add android
       - run: npx cap sync android
+      # Иконки и заставки Shalter поверх стандартных от `cap add` (resources/).
+      - run: node scripts/apply-native-resources.js android
 
       - name: Assemble debug APK
         working-directory: android
