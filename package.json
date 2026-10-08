@@ -50,6 +50,7 @@
     "@capacitor/cli": "^7.6.9",
     "@capacitor/core": "^7.6.9",
     "@capacitor/ios": "^7.6.8",
+    "@tauri-apps/cli": "^2.12.1",
     "electron": "^32.3.3",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.28.1",
