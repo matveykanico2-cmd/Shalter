@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "local",
+  "description": "Стартовая страница оболочки (ui/index.html): узнать, какой адрес открыть.",
+  "windows": ["main"],
+  "permissions": ["allow-startup-target"]
+}

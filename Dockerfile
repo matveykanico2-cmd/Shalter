@@ -14,13 +14,11 @@ WORKDIR /app
 # runs lifecycle scripts for *everything* in package.json regardless, which
 # on this project means node-gyp compiling better-sqlite3 from source (dead
 # weight — собирать его не нужно нигде: в пакете лежат готовые двоичные файлы,
-# см. комментарий ко второму этапу) *and* Electron's postinstall downloading and
-# unzipping its multi-hundred-MB runtime binary (electron/electron-builder
-# are devDependencies too, for the desktop-shell packaging flow, unrelated to
-# this build). That combination — a large g++ compile plus a large postinstall
-# download/extract, on top of npm's own memory use — is almost certainly what
-# was actually driving the container over its memory limit, not merely how
-# many jobs ran in parallel.
+# см. комментарий ко второму этапу) (the desktop shell used to add Electron's
+# multi-hundred-MB postinstall download here too; it's Tauri now, whose npm
+# CLI is small). A large g++ compile on top of npm's own memory use is what
+# was driving the container over its memory limit, not merely how many jobs
+# ran in parallel.
 #
 # --ignore-scripts skips every package's lifecycle scripts (so neither of
 # those happens), then esbuild's own install.js is run by hand afterwards —

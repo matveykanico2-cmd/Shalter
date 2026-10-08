@@ -24,24 +24,22 @@
 /android
 /ios
 
-# electron-builder output (installers/binaries per platform)
-/dist-electron
+# Tauri build output (src-tauri/target) is ignored by src-tauri/.gitignore
 
 # Downloadable app packages served by public/download.html. The two thin
 # PWABuilder wrapper (.apk ~1MB) IS committed — at
 # that size they cost nothing and a plain `git pull` deploy puts them on the
-# server for free. The Electron desktop builds are a different story: they
-# bundle all of Chromium, so Shalter.AppImage is ~119MB — past GitHub's hard
-# 100MB-per-file limit, which would make the push itself fail — and the
-# ~82MB .deb would balloon this 11MB repo permanently (git history never
-# forgets a blob). Both are reproducible with `npm run electron:build:linux`
-# and get onto the server via scripts/upload-downloads.sh instead.
+# server for free. The desktop builds (Tauri) are binaries
+# that would grow this repo's history with every release (git never forgets
+# a blob). They're reproducible with `npm run desktop:build` and get onto the
+# server via scripts/upload-downloads.sh instead.
 /public/downloads/*.AppImage
 /public/downloads/*.deb
 /public/downloads/*.dmg
 /public/downloads/*.exe
-# Нативные Electron-сборки для Windows и macOS (~100МБ каждая) — тоже не в git,
+# Десктоп-сборки Tauri для Windows и macOS (~5–15МБ) — тоже не в git,
 # на сервер их кладёт scripts/upload-downloads.sh.
+/public/downloads/Shalter-Windows-Setup.exe
 /public/downloads/Shalter-Windows.zip
 /public/downloads/Shalter-macOS-*.zip
 
@@ -80,3 +78,6 @@ yarn-error.log*
 /data/outbox/
 # рабочий каталог RTMP-сервера (эфиры из OBS, server/rtmp.js)
 /data/rtmp/
+
+# Старые сборки Electron (до перехода на Tauri) — не для git.
+/dist-electron

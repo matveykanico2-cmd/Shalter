@@ -1,19 +1,13 @@
 #!/usr/bin/env bash
-# Uploads the big Electron desktop builds to the deployed server's
-# public/downloads/, which is what public/download.html's Linux buttons
-# link to.
+# Uploads the desktop builds (Tauri, ~5–15MB each) to the deployed server's
+# public/downloads/, which is what public/download.html's buttons link to.
+# They're gitignored (binaries would permanently grow the repo's history), so
+# a `git pull` deploy brings everything EXCEPT these; this script is that step.
+# Маленький Shalter.apk закоммичен и приходит с git pull.
 #
-# Why this exists instead of just committing them: Shalter.AppImage is
-# ~119MB (Electron bundles all of Chromium), past GitHub's hard 100MB
-# per-file limit — the push itself would be rejected — and the ~82MB .deb
-# would permanently balloon an 11MB repo. So they're gitignored, and a
-# `git pull` deploy on the server brings everything EXCEPT these two. This
-# script is that missing step.
+# Tauri собирает только под свою ОС, поэтому загружаем те сборки, что есть.
 #
-# Windows и macOS теперь тоже нативные Electron-сборки (~100МБ), поэтому
-# загружаются здесь же. Маленький Shalter.apk закоммичен и приходит с git pull.
-#
-# Usage (from the repo root, after `npm run electron:build:linux / :win / :mac`):
+# Usage (from the repo root, after `npm run desktop:build`):
 #   ./scripts/upload-downloads.sh
 #   SERVER=user@1.2.3.4 APP_DIR=/opt/shalter ./scripts/upload-downloads.sh
 set -euo pipefail
@@ -21,21 +15,18 @@ set -euo pipefail
 SERVER="${SERVER:-shalter@31.40.154.105}"
 APP_DIR="${APP_DIR:-/opt/shalter}"
 
-SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/dist-electron"
-FILES=(Shalter.AppImage Shalter.deb Shalter-Windows.zip Shalter-macOS-arm64.zip Shalter-macOS-x64.zip)
+SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/public/downloads"
+FILES=(Shalter.AppImage Shalter.deb Shalter-Windows-Setup.exe Shalter-macOS-arm64.zip Shalter-macOS-x64.zip)
 
-missing=0
+present=()
 for f in "${FILES[@]}"; do
-  if [[ ! -f "$SRC_DIR/$f" ]]; then
-    echo "нет файла: $SRC_DIR/$f" >&2
-    missing=1
-  fi
+  if [[ -f "$SRC_DIR/$f" ]]; then present+=("$f"); else echo "пропускаю (не собран): $f" >&2; fi
 done
-if [[ $missing -eq 1 ]]; then
-  echo >&2
-  echo "Сначала соберите их:  npm run electron:build:linux" >&2
+if [[ ${#present[@]} -eq 0 ]]; then
+  echo "Нет ни одной сборки. Сначала:  npm run desktop:build" >&2
   exit 1
 fi
+FILES=("${present[@]}")
 
 echo "Загружаю на $SERVER:$APP_DIR/public/downloads/ ..."
 ssh "$SERVER" "mkdir -p '$APP_DIR/public/downloads'"

@@ -4,137 +4,95 @@ Same idea as [DEPLOY_MOBILE.md](DEPLOY_MOBILE.md): Shalter is a server-backed
 app (WebSocket signaling, SQLite, sessions — see AGENTS.md), so the desktop
 build isn't "bundle the app and run it standalone," it's "open a native
 window pointed at your already-deployed HTTPS server" (get that running via
-DEPLOY.md first). The shell is [Electron](https://www.electronjs.org/)
-(`electron/main.js`) — one `BrowserWindow` loading the same live URL, for
-all three OSes from one codebase.
+DEPLOY.md first).
 
-`electron` and `electron-builder` are already in `devDependencies`, and
-`npm run electron:*` scripts are wired up in `package.json`. Linux packaging
-was built and verified end-to-end in this repo (see below); Windows and
-macOS builds need to run on their own OS (or CI) — cross-building an NSIS
-installer or a signed .dmg from Linux isn't realistic (no Wine/codesign here).
+The shell is [Tauri 2](https://v2.tauri.app/) (`src-tauri/`). Unlike the
+Electron shell it replaced, it does **not** ship its own Chromium: the page is
+rendered by the OS's own web engine — WebKitGTK on Linux, WKWebView (Safari's
+engine) on macOS, WebView2 on Windows (preinstalled on Windows 10/11). Builds
+are ~5–15MB instead of ~100–120MB, and use far less memory.
+
+What `src-tauri/src/main.rs` does (feature parity with the old Electron shell):
+
+- one window loading the live server; own-origin links stay in it, everything
+  else opens in the default browser;
+- `ui/index.html` — a local start page that checks the server is reachable and
+  shows "Ожидание сети…" with auto-retry when it isn't;
+- tray icon with the unread count (closing the window hides to tray), Dock /
+  Unity badge, taskbar attention flash on Windows;
+- `window.shalterDesktop` bridge (`setUnread`, `focus`, `notify`, `retry`) —
+  injected only into the app's own origin, and only those commands are allowed
+  over IPC for it (runtime capability in `main.rs`, command permissions from
+  `build.rs`);
+- single instance, `shalter://` links, remembered window size/position;
+- system notifications, also for the page's own `Notification` API.
+
+Not carried over: the custom right-click menu (the system WebView's own one is
+used) and clicking a desktop notification to open a specific chat (Tauri's
+notification plugin doesn't report clicks on desktop).
 
 ## 1. Point it at your real server
 
-Desktop reuses `capacitor.config.json`'s `server.url` — the same one edit
-covers mobile and desktop:
+Desktop reuses `capacitor.config.json`'s `server.url` (read at compile time) —
+the same one edit covers mobile and desktop:
 
 ```json
 "server": { "url": "https://your-real-domain.example" }
 ```
 
-## Try it locally first (any OS, against `npm run dev`)
+`SHALTER_APP_URL` overrides it at runtime.
+
+## 2. Toolchain (once per machine)
+
+- Rust: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- Linux: `sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf build-essential`
+- macOS: Xcode command-line tools. Windows: Microsoft C++ Build Tools.
+
+## Try it locally (against `npm run dev`)
 
 ```bash
-npm run dev          # starts the Express server on :3000
-npm run electron:dev # opens a window pointed at http://localhost:3000
+npm run dev          # Express server on :3000
+npm run desktop:dev  # Tauri window pointed at http://localhost:3000
 ```
 
-This is how the window and login screen were actually verified working
-during development — `electron/main.js` reads `SHALTER_APP_URL` first (set by
-`electron:dev`) before falling back to `capacitor.config.json`.
-
-## Linux — built and verified here
+## Build
 
 ```bash
-npm run electron:build:linux
+npm run desktop:build
 ```
 
-Produces an AppImage and a `.deb` under `dist-electron/`. Verified in this
-repo: `electron-builder --linux --dir` successfully produced a working
-`dist-electron/linux-unpacked/shalter` executable with the app code
-(`electron/main.js`, `capacitor.config.json`) correctly bundled — `npmRebuild:
-false` in `package.json`'s `build` config is required here, otherwise
-electron-builder tries to rebuild `better-sqlite3` (a *server*-only native
-dependency the desktop shell never touches) for Electron's ABI and fails
-without a C toolchain (`make`/`node-gyp`) installed.
+`tauri build` only targets the OS (and CPU architecture) it runs on, then
+`scripts/collect-desktop.js` copies the result into `public/downloads/` under
+the names the download page expects:
+
+| OS | File |
+|---|---|
+| Linux | `Shalter.AppImage`, `Shalter.deb` |
+| Windows | `Shalter-Windows-Setup.exe` (NSIS, per-user install, no admin) |
+| macOS | `Shalter-macOS-arm64.zip` / `Shalter-macOS-x64.zip` (zipped `.app`) |
+
+## Building all platforms: CI
+
+**`.github/workflows/build-desktop.yml`** runs `npm run desktop:build` on
+`ubuntu-22.04`, `windows-latest`, `macos-latest` (Apple Silicon) and `macos-13`
+(Intel). Trigger it from the Actions tab or by pushing a `v*` tag (which also
+attaches the files to a GitHub Release).
 
 ## Getting the builds onto the download page
 
-`public/download.html` (served at `/download.html`) links each platform to a
-file under `public/downloads/`. How each one gets there differs by size, and
-the split is not arbitrary:
-
-| File | Size | How it reaches the server |
-|---|---|---|
-| `Shalter.apk` | ~1MB | committed → arrives with `git pull` |
-| `Shalter-Windows.zip` | ~1MB | committed → arrives with `git pull` |
-| `Shalter.AppImage` | ~119MB | gitignored → `./scripts/upload-downloads.sh` |
-| `Shalter.deb` | ~82MB | gitignored → `./scripts/upload-downloads.sh` |
-
-The two Electron builds can't be committed: GitHub hard-rejects any file
-over 100MB (the AppImage is past it, so the `git push` itself would fail),
-and the .deb alone would permanently grow an 11MB repo by 8x — git history
-never drops a blob once it's in. So after building them:
+`Shalter.apk` (~1MB) is committed and arrives with `git pull`. The desktop
+builds are gitignored (binaries would grow the repo's history every release);
+after building, upload whichever ones you have:
 
 ```bash
-npm run electron:build:linux
-./scripts/upload-downloads.sh            # rsyncs both to the server
+./scripts/upload-downloads.sh
 SERVER=user@host APP_DIR=/opt/shalter ./scripts/upload-downloads.sh   # or override
 ```
 
-Until that runs, the Linux buttons on the download page 404 while Windows
-and Android work — worth checking after a fresh deploy to a new server.
+## Code signing
 
-One caveat worth knowing: serving a 119MB file from the app itself puts that
-traffic through the same small box running the messenger (DEPLOY.md sizes it
-at 2 cores/2GB). Fine at a trickle, but if Linux downloads ever pick up,
-move those two files to GitHub Releases (2GB/file, free CDN) and point the
-page's `href` there instead — the page is plain HTML, it's a two-line edit.
-
-## Windows
-
-Needs to run on Windows (or Linux/macOS with Wine installed — electron-builder
-uses it to edit the .exe's icon/resources for NSIS):
-
-```bash
-npm run electron:build:win
-```
-
-Produces an NSIS installer (`Shalter Setup.exe`) under `dist-electron/`.
-Unsigned installers trigger a Windows SmartScreen warning on first run — a
-code-signing certificate (EV or standard, from any CA) removes that, applied
-via electron-builder's `win.certificateFile`/`certificatePassword` config.
-
-## macOS
-
-Needs an actual Mac with Xcode's command-line tools, same hard requirement
-as iOS in DEPLOY_MOBILE.md — Apple's toolchain doesn't run on Linux:
-
-```bash
-npm run electron:build:mac
-```
-
-Produces a `.dmg` and a `.zip` under `dist-electron/`. Distributing outside
-the Mac App Store still requires **notarization** (an Apple Developer
-Program membership, `xcrun notarytool`) or Gatekeeper blocks the app on
-first launch — electron-builder automates this via `afterSign` hooks once
-you have Apple credentials configured locally.
-
-## Building all three from one machine
-
-Not really possible correctly — Windows needs Wine (or a Windows box) and
-macOS needs an actual Mac. The fix is CI: **`.github/workflows/build-desktop.yml`**
-is exactly that — a build matrix (`windows-latest`, `macos-latest`,
-`ubuntu-latest`) each running its own `npm run electron:build:*` on GitHub's
-own machines (which actually have Wine and a real Mac, unlike this repo's own
-dev environment) and uploading the three artifacts. Trigger it from the
-Actions tab (workflow_dispatch) or by pushing a `v*` tag; download the
-`shalter-desktop-*` artifacts from the run once it's green. These builds are
-unsigned (see the signing notes above) — fine for testing, not for handing to
-real users yet.
-
-## What's already done vs. what's still yours to do
-
-Done: `electron/main.js`, the icon, the `build` config in `package.json`,
-the npm scripts, a verified working Linux package (both `.AppImage` and
-`.deb`, built and tested in this repo), and the
-`.github/workflows/build-desktop.yml` CI matrix that gets you unsigned
-Windows/macOS/Linux builds without needing that hardware yourself.
-
-Still needed: an icon at each platform's preferred format if you want
-something sharper than electron-builder's auto-generated one (`.ico` for
-Windows, `.icns` for macOS — currently generated on the fly from
-`electron/icon.png`), and code signing for both Windows and macOS once
-you're ready to distribute past your own testing (SmartScreen/Gatekeeper
-otherwise warn on first launch).
+Builds are unsigned: Windows shows SmartScreen and macOS Gatekeeper blocks the
+app on first launch. Removing that needs a code-signing certificate (Windows,
+`bundle.windows.certificateThumbprint` in `src-tauri/tauri.conf.json`) and an
+Apple Developer membership for signing + notarization (`APPLE_*` env vars that
+`tauri build` picks up) — see Tauri's distribution docs.

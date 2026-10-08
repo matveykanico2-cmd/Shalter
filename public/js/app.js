@@ -130,7 +130,7 @@ async function boot() {
   loadSafetyLabels(api).catch(() => {});
   startWsClient();
   initNetStatus();
-  // Десктоп (electron/preload.js): число непрочитанных без заглушённых чатов → бейдж и трей.
+  // Десктоп (мост из src-tauri/src/main.rs): число непрочитанных без заглушённых чатов → бейдж и трей.
   if (window.shalterDesktop) {
     let lastUnread = -1;
     const reportUnread = () => {

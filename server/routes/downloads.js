@@ -6,7 +6,7 @@ const DOWNLOAD_DIR = path.join(__dirname, "..", "..", "public", "downloads");
 const PACKAGE_JSON = path.join(__dirname, "..", "..", "package.json");
 
 const ARTIFACTS = [
-  { id: "windows", file: "Shalter-Windows.zip" },
+  { id: "windows", file: "Shalter-Windows-Setup.exe" },
   { id: "android", file: "Shalter.apk" },
   { id: "linux", file: "Shalter.AppImage" },
   { id: "linux-deb", file: "Shalter.deb" },

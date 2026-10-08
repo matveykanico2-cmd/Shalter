@@ -269,7 +269,7 @@ function renderMenu(root) {
           class: "tw-profile-hero-avatar",
           onclick: () => (me.avatarImage ? openAvatarViewer(me) : navigate("/settings/profile")),
         }, [
-          Avatar({ name: me.name || "?", color: me.avatarColor, image: me.avatarImage, video: videoAvatarUrl(me), size: 120, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
+          Avatar({ name: me.name || "?", color: me.avatarColor, image: me.avatarImage, video: videoAvatarUrl(me), size: 120, isPremium: me.isPremium, isDeveloper: me.isDeveloper }),
         ]),
         el("p", { class: "tw-profile-hero-name" }, [me.name || "Профиль", me.isPremium ? PremiumStar({ size: 18, seed: me.id, title: "Shalter Premium" }) : null, ProfileStatusBadge(me, 18)]),
         el("p", { class: "tw-profile-hero-status" }, "в сети"),
@@ -428,7 +428,7 @@ async function renderProfile(root) {
           ),
       },
       [
-        Avatar({ name: name || "?", color: avatarColor, image: avatarImage, video: videoAvatarUrl({ avatarImages }), size: 120, isPremium: me.isPremium, isDeveloper: me.isDeveloper, orbit: true }),
+        Avatar({ name: name || "?", color: avatarColor, image: avatarImage, video: videoAvatarUrl({ avatarImages }), size: 120, isPremium: me.isPremium, isDeveloper: me.isDeveloper }),
         el("span", { class: "settings-avatar-edit", html: iconSvg("Edit", 12) }),
         avatarImages.length > 1 ? el("span", { class: "avatar-count-badge" }, String(avatarImages.length)) : null,
       ].filter(Boolean)

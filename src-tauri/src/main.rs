@@ -11,7 +11,9 @@ use std::sync::Mutex;
 use tauri::ipc::CapabilityBuilder;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, RunEvent, State, UserAttentionType, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry};
+#[cfg(target_os = "macos")]
+use tauri::RunEvent;
+use tauri::{AppHandle, Manager, State, UserAttentionType, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
@@ -347,10 +349,11 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("не удалось запустить Shalter");
 
-    app.run(|app, event| {
+    app.run(|_app, _event| {
         // macOS: нажатие на иконку в Dock возвращает скрытое окно.
-        if let RunEvent::Reopen { .. } = event {
-            show_window(app);
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Reopen { .. } = _event {
+            show_window(_app);
         }
     });
 }

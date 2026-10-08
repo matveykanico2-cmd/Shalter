@@ -1,10 +1,9 @@
 {
   "name": "shalter",
   "version": "1.0.0",
-  "description": "Shalter messenger — desktop shell",
+  "description": "Shalter messenger",
   "author": "Shalter <mtvniko@gmail.com>",
   "private": true,
-  "main": "electron/main.js",
   "engines": {
     "node": ">=22"
   },
@@ -21,11 +20,8 @@
     "cap:sync": "npm run build && npx cap sync",
     "cap:open:android": "npx cap open android",
     "cap:open:ios": "npx cap open ios",
-    "electron:dev": "SHALTER_APP_URL=http://localhost:3000 electron .",
-    "electron:build:linux": "electron-builder --linux",
-    "electron:build:win": "electron-builder --win",
-    "electron:build:mac": "electron-builder --mac",
-    "electron:build": "electron-builder -mwl"
+    "desktop:dev": "SHALTER_APP_URL=http://localhost:3000 tauri dev",
+    "desktop:build": "tauri build && node scripts/collect-desktop.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1127.0",
@@ -51,81 +47,7 @@
     "@capacitor/core": "^7.6.9",
     "@capacitor/ios": "^7.6.8",
     "@tauri-apps/cli": "^2.12.1",
-    "electron": "^32.3.3",
-    "electron-builder": "^25.1.8",
     "esbuild": "^0.28.1",
     "nodemon": "^3.1.9"
-  },
-  "build": {
-    "appId": "ru.shalter.app",
-    "productName": "Shalter",
-    "directories": {
-      "output": "dist-electron"
-    },
-    "npmRebuild": false,
-    "files": [
-      "electron/**/*",
-      "capacitor.config.json",
-      "package.json",
-      "!node_modules/**/*"
-    ],
-    "icon": "electron/icon.png",
-    "win": {
-      "target": [
-        {
-          "target": "zip",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "electron/icon.png",
-      "artifactName": "Shalter-Windows.${ext}",
-      "signAndEditExecutable": false
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "category": "Network",
-      "icon": "electron/icon.png",
-      "artifactName": "Shalter.${ext}",
-      "mimeTypes": [
-        "x-scheme-handler/shalter"
-      ],
-      "desktop": {
-        "StartupWMClass": "Shalter"
-      }
-    },
-    "mac": {
-      "target": [
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ],
-      "icon": "electron/icon.png",
-      "artifactName": "Shalter-macOS-${arch}.${ext}",
-      "category": "public.app-category.social-networking",
-      "identity": null
-    },
-    "protocols": [
-      {
-        "name": "Shalter",
-        "schemes": [
-          "shalter"
-        ]
-      }
-    ],
-    "nsis": {
-      "oneClick": true,
-      "perMachine": false,
-      "createDesktopShortcut": true,
-      "shortcutName": "Shalter"
-    }
   }
 }

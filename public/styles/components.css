@@ -16926,9 +16926,6 @@ textarea.settings-input:focus {
   box-shadow: var(--tw-section-shadow);
   gap: 4px;
 }
-.settings-avatar-btn:has(.avatar-orbit-wrap) {
-  margin: 24px 0;
-}
 .settings-avatar-btn .avatar-count-badge {
   right: auto;
   left: -2px;
