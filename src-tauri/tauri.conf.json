@@ -22,7 +22,7 @@
       "app"
     ],
     "category": "SocialNetworking",
-    "shortDescription": "Shalter",
+    "shortDescription": "Мессенджер Shalter",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -41,6 +41,15 @@
     },
     "macOS": {
       "minimumSystemVersion": "10.15"
+    },
+    "longDescription": "Shalter — мессенджер: личные чаты, группы, каналы, звонки и истории. Приложение для рабочего стола с уведомлениями и значком в трее.",
+    "publisher": "Shalter",
+    "homepage": "https://shalter.ru",
+    "linux": {
+      "deb": {
+        "section": "net",
+        "priority": "optional"
+      }
     }
   },
   "plugins": {
