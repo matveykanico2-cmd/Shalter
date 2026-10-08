@@ -21,4 +21,20 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
   }
   fs.cpSync(path.join(ROOT, target.from), to, { recursive: true });
   console.log(`${name}: иконки и заставки → ${target.to}`);
+  if (name === "android") dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
+}
+
+// Сборка (scripts/build.js) кладёт рядом с app.js сжатые копии app.js.gz/.br для
+// сервера. Android при упаковке отбрасывает «.gz», и app.js.gz сталкивается с app.js
+// («Duplicate resources»). Приложению они не нужны — оно грузит сайт с server.url.
+function dropPrecompressed(dir) {
+  if (!fs.existsSync(dir)) return;
+  let removed = 0;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true, recursive: true })) {
+    if (entry.isFile() && /\.(gz|br)$/.test(entry.name)) {
+      fs.rmSync(path.join(entry.parentPath ?? entry.path, entry.name));
+      removed++;
+    }
+  }
+  console.log(`android: убрано сжатых копий .gz/.br — ${removed}`);
 }
