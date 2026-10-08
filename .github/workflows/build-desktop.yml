@@ -43,7 +43,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
-      - run: npm ci
+      # --ignore-scripts: иначе npm компилирует better-sqlite3 — базу данных *сервера*,
+      # десктопной оболочке ненужную; на windows-latest для этого нет Visual Studio C++.
+      # Tauri CLI и esbuild приходят готовыми бинарниками и без скриптов.
+      - run: npm ci --ignore-scripts
 
       - run: npm run desktop:build
 

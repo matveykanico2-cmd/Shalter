@@ -21,6 +21,7 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
   }
   fs.cpSync(path.join(ROOT, target.from), to, { recursive: true });
   console.log(`${name}: иконки и заставки → ${target.to}`);
+  if (name === "ios") describeIosPermissions();
   if (name === "android") {
     dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
     wirePushNotifications();
@@ -101,4 +102,27 @@ function dropAndroidPlugin(pkg, gradleName) {
     const kept = fs.readFileSync(full, "utf8").split("\n").filter((line) => !line.includes(`:${gradleName}'`));
     fs.writeFileSync(full, kept.join("\n"));
   }
+}
+
+// iOS: без строк «зачем приложению камера/микрофон/контакты» Apple отклоняет сборку,
+// а без ITSAppUsesNonExemptEncryption каждая загрузка ждёт ручного ответа про шифрование.
+function describeIosPermissions() {
+  const plistPath = path.join(ROOT, "ios/App/App/Info.plist");
+  if (!fs.existsSync(plistPath)) return;
+  let plist = fs.readFileSync(plistPath, "utf8");
+  const entries = {
+    NSCameraUsageDescription: "<string>Камера нужна для видеозвонков, видеосообщений и фото.</string>",
+    NSMicrophoneUsageDescription: "<string>Микрофон нужен для звонков и голосовых сообщений.</string>",
+    NSContactsUsageDescription: "<string>Чтобы найти друзей, которые уже пользуются Shalter.</string>",
+    NSPhotoLibraryUsageDescription: "<string>Чтобы отправлять фото и видео из галереи.</string>",
+    NSPhotoLibraryAddUsageDescription: "<string>Чтобы сохранять фото и видео из чатов.</string>",
+    ITSAppUsesNonExemptEncryption: "<false/>",
+  };
+  for (const [key, value] of Object.entries(entries)) {
+    if (plist.includes(`<key>${key}</key>`)) continue;
+    const at = plist.lastIndexOf("</dict>");
+    plist = `${plist.slice(0, at)}\t<key>${key}</key>\n\t${value}\n${plist.slice(at)}`;
+  }
+  fs.writeFileSync(plistPath, plist);
+  console.log("ios: описания разрешений в Info.plist");
 }

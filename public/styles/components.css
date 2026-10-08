@@ -22956,3 +22956,20 @@ button img.emoji {
 .sg-page[hidden] {
   display: none !important;
 }
+
+/* Android-приложение: «Скачиваем…» / «Сохранено: Документы/…» (lib/nativeDownload.js) */
+.native-download-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 10050;
+  max-width: calc(100vw - 32px);
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  font-size: 14px;
+  text-align: center;
+  pointer-events: none;
+}

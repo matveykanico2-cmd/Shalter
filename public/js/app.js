@@ -215,6 +215,8 @@ async function boot() {
     window.addEventListener("online", precacheLater);
   }
   ensurePushSubscribed().catch(() => {});
+  // Android-приложение: WebView сам не скачивает файлы — сохраняем через Filesystem.
+  import("./lib/nativeDownload.js").then((m) => m.installNativeDownloads()).catch(() => {});
   // Android-приложение без Firebase: свои уведомления через фоновую службу.
   import("./lib/nativeNotify.js").then((m) => m.startNativeNotifications()).catch(() => {});
   // Android-приложение: друзья из телефонной книги — сразу в контакты (раз в 6 ч).

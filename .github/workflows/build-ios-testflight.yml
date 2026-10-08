@@ -1,0 +1,85 @@
+name: Build iOS → TestFlight
+
+# Подписанная сборка для настоящих iPhone: архив → подпись → загрузка в TestFlight.
+# Сертификаты и профили Xcode создаёт сам (автоподпись) через ключ App Store Connect API —
+# ничего вручную в Xcode делать не нужно. Нужны секреты репозитория
+# (Settings → Secrets and variables → Actions):
+#   APPLE_TEAM_ID          10 символов, developer.apple.com → Account → Membership
+#   ASC_KEY_ID             App Store Connect → Users and Access → Integrations → Keys
+#   ASC_ISSUER_ID          там же, над списком ключей
+#   ASC_KEY_P8_BASE64      скачанный AuthKey_XXXX.p8 в base64 (`base64 -w0 AuthKey_XXXX.p8`)
+# И приложение с Bundle ID ru.shalter.app, заведённое в App Store Connect (My Apps → «+»).
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check secrets
+        run: |
+          for v in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64; do
+            if [ -z "${!v}" ]; then echo "::error::Нет секрета $v — см. комментарий в начале файла"; exit 1; fi
+          done
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+
+      - run: npm ci
+      - run: npm run build
+
+      # ios/ не в git — создаётся заново, как и в build-ios.yml.
+      - run: npx cap add ios
+      - run: npx cap sync ios
+      - run: node scripts/apply-native-resources.js ios
+
+      - name: pod install
+        working-directory: ios/App
+        run: pod install
+
+      - name: API key
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          echo "${{ secrets.ASC_KEY_P8_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey.p8"
+
+      # Номер сборки должен расти с каждой загрузкой — берём номер запуска.
+      - name: Archive (signed)
+        working-directory: ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
+            -destination "generic/platform=iOS" -archivePath "$RUNNER_TEMP/Shalter.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" CODE_SIGN_STYLE=Automatic \
+            PRODUCT_BUNDLE_IDENTIFIER=ru.shalter.app \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            archive
+
+      - name: Upload to TestFlight
+        run: |
+          cat > "$RUNNER_TEMP/export.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${{ secrets.APPLE_TEAM_ID }}</string>
+            <key>signingStyle</key><string>automatic</string>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Shalter.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
