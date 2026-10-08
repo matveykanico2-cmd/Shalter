@@ -11,7 +11,6 @@ const ARTIFACTS = [
   { id: "linux", file: "Shalter.AppImage" },
   { id: "linux-deb", file: "Shalter.deb" },
   { id: "macos-arm64", file: "Shalter-macOS-arm64.zip" },
-  { id: "macos-x64", file: "Shalter-macOS-x64.zip" },
 ];
 
 // Десктопные сборки не хранятся в git и попадали на сервер только ручной выгрузкой
