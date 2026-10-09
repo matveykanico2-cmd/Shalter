@@ -67,9 +67,15 @@ function wirePushNotifications() {
     manifest = manifest.replace(/<activity\b/, '<activity android:windowSoftInputMode="adjustResize"');
   }
   // Каждое разрешение — отдельно, чтобы повторный запуск дописал недостающие.
-  for (const perm of ["FOREGROUND_SERVICE", "FOREGROUND_SERVICE_REMOTE_MESSAGING", "POST_NOTIFICATIONS", "READ_CONTACTS"]) {
+  // CAMERA/RECORD_AUDIO/MODIFY_AUDIO_SETTINGS: без них в манифесте WebView отказывал
+  // getUserMedia, не спрашивая, — звонки, голосовые и кружки на Android не работали.
+  for (const perm of ["FOREGROUND_SERVICE", "FOREGROUND_SERVICE_REMOTE_MESSAGING", "POST_NOTIFICATIONS", "READ_CONTACTS", "CAMERA", "RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS"]) {
     const line = `<uses-permission android:name="android.permission.${perm}" />`;
     if (!manifest.includes(`android.permission.${perm}"`)) manifest = manifest.replace("</manifest>", `    ${line}\n</manifest>`);
+  }
+  // Разрешение CAMERA иначе делает камеру обязательной — телефоны без неё не смогут поставить приложение.
+  if (!manifest.includes("android.hardware.camera\"")) {
+    manifest = manifest.replace("</manifest>", `    <uses-feature android:name="android.hardware.camera" android:required="false" />\n</manifest>`);
   }
   if (!manifest.includes("default_notification_icon")) {
     manifest = manifest.replace(

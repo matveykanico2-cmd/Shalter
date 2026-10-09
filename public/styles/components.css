@@ -11774,6 +11774,7 @@ button.profile-ad-banner {
 
 .profile-channels {
   margin-top: 18px;
+  margin-bottom: 16px;
 }
 .profile-channels-head {
   display: flex;
@@ -16359,7 +16360,8 @@ video.story-reply-thumb { object-fit: cover; }
   padding: 16px 16px 12px;
 }
 .info-panel-avatar-row.clickable {
-  border-radius: 0;
+  /* как у некликабельной шапки ниже и остальных карточек профиля */
+  border-radius: 24px;
   padding: 16px 16px 12px;
 }
 .info-panel-title {
@@ -20545,8 +20547,10 @@ button img.emoji {
 .profile-panel-body .profile-tab.active::after {
   content: "";
   position: absolute;
-  left: 8px;
-  right: 8px;
+  /* по центру вкладки: общее правило выше добавляет translateX(-50%) и max-width,
+     и с left: 8px полоска уезжала влево от подписи */
+  left: 50%;
+  right: auto;
   bottom: -1px;
   height: 3px;
   border-radius: 3px 3px 0 0;
@@ -21946,9 +21950,15 @@ button img.emoji {
   white-space: nowrap;
 }
 @media (max-width: 600px) {
+  /* Ровно 3 колонки на узком телефоне сжимали плитку уже рисунка (72px) — подарок
+     обрезался. Колонок столько, сколько влезает плиток не уже 96px. */
   .tw-gifts-grid {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
     gap: 8px;
     padding: 8px;
+  }
+  .tw-gift-item {
+    padding: 12px 6px 8px;
   }
   .tw-gift-sticker {
     width: 72px;
@@ -23139,4 +23149,40 @@ button img.emoji {
   font-size: 14px;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* ---------- Телефоны: без размытия фона ----------
+   backdrop-filter на элементах ленты (разделители дат, время у стикера) и на меню
+   пересчитывается на каждый кадр прокрутки — на Android-телефонах лента и меню
+   заметно тормозили, а где WebView размытие не рисует, сквозь меню просвечивал текст.
+   На сенсорных экранах — тот же цвет, но непрозрачный. */
+@media (pointer: coarse) {
+  .chat-floating-date span,
+  .date-divider span,
+  .date-divider-btn,
+  .message-meta.message-meta-sticker,
+  .composer-round-flip,
+  .call-stage-strip,
+  .tw-toast {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .dropdown-menu:not(.dropdown-sheet),
+  .composer-attach-menu {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--color-surface);
+  }
+  .date-divider span {
+    background: var(--color-surface);
+  }
+}
+
+/* Клавиатура открыта (телефон): нижнее меню и кнопка «Новый чат» не поднимаются над
+   ней и не съедают половину экрана — как в Telegram, пока печатаешь, их не видно. */
+@media (max-width: 767px) {
+  .keyboard-open .nav-rail,
+  .keyboard-open .sidebar-fab {
+    display: none !important;
+  }
 }

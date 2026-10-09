@@ -377,6 +377,23 @@ let searchInputEl = null;
 const bodySlot = el("div", { class: "chat-list-body" });
 const scrollSlot = el("div", { class: "chat-list-scroll" });
 let lastShown = null;
+// Позицию прокрутки помним сами. Список пересобирается на каждое новое сообщение, а на
+// телефоне он в это время скрыт под открытым чатом — у скрытого элемента scrollTop
+// всегда 0, и после возврата из чата список оказывался в самом верху.
+let savedScrollTop = 0;
+scrollSlot.addEventListener(
+  "scroll",
+  () => {
+    if (scrollSlot.isConnected && scrollSlot.clientHeight) savedScrollTop = scrollSlot.scrollTop;
+  },
+  { passive: true }
+);
+// Список снова показан (вернулись из чата на телефоне) — возвращаем позицию.
+if (typeof ResizeObserver === "function") {
+  new ResizeObserver(() => {
+    if (scrollSlot.clientHeight && Math.abs(scrollSlot.scrollTop - savedScrollTop) > 1) scrollSlot.scrollTop = savedScrollTop;
+  }).observe(scrollSlot);
+}
 let sponsoredAd = null;
 let tabsRowEl = null;
 
@@ -483,7 +500,8 @@ function renderResults(container) {
   if (storiesBarEl) storiesBarEl.hidden = !!results;
   const currentId = (window.location.pathname.match(/^\/chat\/([^/]+)/) || [])[1];
   const shown = results ? "search" : getState().sidebarArchive ? "archive" : tab;
-  const keepScroll = shown === lastShown ? scrollSlot.scrollTop : 0;
+  if (shown !== lastShown) savedScrollTop = 0;
+  const keepScroll = savedScrollTop;
   lastShown = shown;
   clear(bodySlot);
   clear(scrollSlot);

@@ -2407,6 +2407,15 @@ async function renderNotifications(root) {
           "Уведомления на этом устройстве",
           [
             twRow({ icon: "Bell", color: "red", title: "Статус", titleRight: permLabel() }),
+            // В браузере на Android уведомления сайта система подписывает «Chrome» —
+            // сайт на это не влияет. От имени Shalter их показывает только приложение.
+            /Android/i.test(navigator.userAgent) && !isInstalledApp() && !window.matchMedia?.("(display-mode: standalone)").matches
+              ? el("p", { class: "tw-row-note" }, [
+                  "В браузере уведомления приходят от имени Chrome. Чтобы они были от Shalter — со своей иконкой, звуком и без браузера, ",
+                  el("a", { href: "/download" }, "установите приложение для Android"),
+                  ".",
+                ])
+              : null,
             iosNeedsHomeScreen()
               ? el("p", { class: "tw-row-note danger" }, "На iPhone уведомления приходят, только если Shalter добавлен на экран «Домой»: в Safari нажмите «Поделиться» → «На экран „Домой“», откройте Shalter с иконки и разрешите уведомления (нужна iOS 16.4 или новее).")
               : null,
@@ -2426,8 +2435,13 @@ async function renderNotifications(root) {
                 refreshDiag();
               },
             }),
+            twButton({
+              icon: "Lock",
+              text: "Камера, микрофон и другие разрешения",
+              onClick: () => import("../../components/permissionsDialog.js").then((m) => m.openPermissionsDialog({ onDone: refreshDiag })),
+            }),
           ],
-          "Уведомления приходят, даже когда вкладка закрыта."
+          isInstalledApp() ? "Уведомления приходят, даже когда приложение закрыто." : "Уведомления приходят, даже когда вкладка закрыта."
         ),
         twSection(
           "Проверка",

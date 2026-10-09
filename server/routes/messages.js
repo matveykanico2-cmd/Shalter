@@ -18,7 +18,7 @@ const { getUser, findUserIdsByUsernames, listUsersByIds } = require("../data/use
 const { transferStars, balanceOf } = require("../data/stars");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
-const { getSettings, isQuietNow, clearUnreadMark } = require("../data/settings");
+const { getSettings, isQuietNow, clearUnreadMark, setDraft } = require("../data/settings");
 const { listContactsFor } = require("../data/contacts");
 const { allowsUser, recordsReadTime, publicUserFor } = require("../lib/privacyRules");
 const { messageCost } = require("../lib/messagePrice");
@@ -40,6 +40,7 @@ const { hasAdminSection } = require("../lib/adminAccess");
 const { getTopic } = require("../data/topics");
 const { serviceLine } = require("../lib/systemChat");
 
+const { sendOnce } = require("../lib/sendOnce");
 const router = express.Router({ mergeParams: true });
 
 async function isServerModerator(uid) {
@@ -615,12 +616,18 @@ router.post(
     if (!body.text?.trim() && !body.attachments?.length && !body.sticker) {
       return res.status(400).json({ error: "empty message" });
     }
-    const gate = await sendGate(chat, req.uid, body);
-    if (gate.status) return res.status(gate.status).json(gate.payload);
-    const charged = gate.charged;
-
-    const message = await deliverMessage(chat, req.uid, body, { paidStars: charged });
-    res.json({ message, ...(charged ? { chargedStars: charged, balance: balanceOf(req.uid) } : {}) });
+    const { clientId, ...fields } = body;
+    const result = await sendOnce(req.uid, chat.id, clientId, async () => {
+      const gate = await sendGate(chat, req.uid, fields);
+      if (gate.status) return { status: gate.status, payload: gate.payload };
+      const charged = gate.charged;
+      const message = await deliverMessage(chat, req.uid, fields, { paidStars: charged });
+      // Отправили — черновик этого чата больше не нужен (иначе «Черновик: …» мог
+      // вернуться в списке чатов, если очистка с клиента разошлась с сохранением).
+      if ((await getSettings(req.uid)).drafts?.[chat.id]) await setDraft(req.uid, chat.id, "");
+      return { payload: { message, ...(charged ? { chargedStars: charged, balance: balanceOf(req.uid) } : {}) } };
+    });
+    res.status(result.status ?? 200).json(result.payload);
   })
 );
 

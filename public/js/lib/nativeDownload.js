@@ -75,3 +75,14 @@ export function installNativeDownloads() {
     true
   );
 }
+
+// Системное «Поделиться» файлом в приложении (Android и iOS): в WebView нет
+// navigator.share. false — плагинов нет, пусть вызывающий поделится сам.
+export async function shareFileNative(blob, name, text) {
+  const cap = window.Capacitor;
+  const { Filesystem, Share } = cap?.isNativePlatform?.() ? (cap.Plugins ?? {}) : {};
+  if (!Filesystem || !Share) return false;
+  const { uri } = await Filesystem.writeFile({ path: safeName(name), data: await blobToBase64(blob), directory: "CACHE" });
+  await Share.share({ title: name, text, files: [uri], dialogTitle: "Поделиться" });
+  return true;
+}

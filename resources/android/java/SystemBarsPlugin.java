@@ -1,6 +1,7 @@
 package ru.shalter.app;
 
 import android.graphics.Color;
+import android.os.Build;
 import android.view.View;
 import android.view.Window;
 import androidx.core.view.WindowCompat;
@@ -37,6 +38,11 @@ public class SystemBarsPlugin extends Plugin {
             if (content != null) content.setBackgroundColor(color);
             if (getBridge().getWebView() != null && getBridge().getWebView().getParent() instanceof View) {
                 ((View) getBridge().getWebView().getParent()).setBackgroundColor(color);
+            }
+            // До Android 15 окно не во весь экран, и полосы красит не фон окна, а их собственный цвет.
+            if (Build.VERSION.SDK_INT < 35) {
+                window.setStatusBarColor(color);
+                window.setNavigationBarColor(color);
             }
             WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(window, decor);
             controller.setAppearanceLightStatusBars(light);

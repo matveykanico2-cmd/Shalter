@@ -1,5 +1,5 @@
 import { el, clear } from "../lib/dom.js";
-import { requestPushPermission } from "../lib/push.js";
+import { requestPushPermission, isPushSupported } from "../lib/push.js";
 import { isContactPickerSupported } from "../lib/phoneContacts.js";
 
 const SEEN_KEY = "shalter.permissionsAsked";
@@ -49,7 +49,8 @@ export function openPermissionsDialog({ onDone } = {}) {
       key: "notifications",
       title: "Уведомления",
       hint: "Сообщения и звонки, когда приложение закрыто",
-      available: typeof Notification !== "undefined",
+      // В приложениях (Android, десктоп) браузерного Notification нет — уведомления там свои.
+      available: isPushSupported(),
       run: async () => {
         const ok = await requestPushPermission();
         if (!ok) throw new Error("Отказано в браузере");

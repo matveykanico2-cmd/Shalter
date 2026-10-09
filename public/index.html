@@ -49,9 +49,20 @@
         setVar("--app-height", Math.round(h) + "px");
         setVar("--app-top", Math.round(top) + "px");
         setVar("--kb-inset", kb + "px");
-        root.classList.toggle("keyboard-open", kb > 120);
+        // В приложении на Android клавиатура не наезжает на страницу, а ужимает само
+        // окно (MainActivity) — тогда kb = 0, и открытую клавиатуру узнаём по тому, что
+        // окно стало заметно ниже обычного при фокусе в поле ввода.
+        var key = window.innerWidth;
+        if (fullH.w !== key || !isTyping()) fullH = { w: key, h: Math.max(window.innerHeight, fullH.w === key ? fullH.h : 0) };
+        var shrunk = fullH.h - window.innerHeight;
+        root.classList.toggle("keyboard-open", kb > 120 || (shrunk > 120 && isTyping()));
         // iOS после закрытия клавиатуры иногда оставляет страницу прокрученной.
         if (kb <= 120 && (window.scrollY || window.scrollX)) window.scrollTo(0, 0);
+      }
+      var fullH = { w: 0, h: 0 };
+      function isTyping() {
+        var a = document.activeElement;
+        return !!a && (a.tagName === "TEXTAREA" || a.isContentEditable || (a.tagName === "INPUT" && !/^(checkbox|radio|button|submit|range|file|color)$/.test(a.type)));
       }
       var frame = 0;
       function scheduleAppMetrics() {
@@ -64,6 +75,8 @@
       }
       window.addEventListener("resize", scheduleAppMetrics);
       window.addEventListener("orientationchange", scheduleAppMetrics);
+      document.addEventListener("focusin", scheduleAppMetrics);
+      document.addEventListener("focusout", function () { setTimeout(scheduleAppMetrics, 50); });
     })();
   
   </script>

@@ -118,10 +118,19 @@ export async function contactsChanged(userId, request) {
   return result;
 }
 
-export async function flushOfflineQueue() {
+// Один проход за раз: каждый запрос в очереди ставил свой таймер, проходы шли
+// параллельно по одной и той же очереди, и каждый запрос уходил по нескольку раз.
+let flushing = null;
+export function flushOfflineQueue() {
+  flushing ??= doFlushOfflineQueue().finally(() => (flushing = null));
+  return flushing;
+}
+
+async function doFlushOfflineQueue() {
   const arr = readOfflineQueue();
   if (!arr.length) return;
-  const remaining = [];
+  const done = new Set();
+  const retry = new Map();
   for (const item of arr) {
     try {
       const res = await fetch(item.url, {
@@ -130,13 +139,20 @@ export async function flushOfflineQueue() {
         body: item.body,
         credentials: "include",
       });
-      if (!res.ok) throw new Error("not-ok");
+      // Сервер ответил — запрос дошёл; ошибку 4xx повтор не исправит.
+      if (res.ok || (res.status >= 400 && res.status < 500)) done.add(item.id);
+      else throw new Error("not-ok");
     } catch {
-      item.tries++;
-      if (item.tries < 5) remaining.push(item);
+      if (item.tries + 1 < 5) retry.set(item.id, item.tries + 1);
+      else done.add(item.id);
     }
   }
-  writeOfflineQueue(remaining);
+  // Пока шёл проход, в очередь могли добавиться новые запросы — их не теряем.
+  writeOfflineQueue(
+    readOfflineQueue()
+      .filter((item) => !done.has(item.id))
+      .map((item) => (retry.has(item.id) ? { ...item, tries: retry.get(item.id) } : item))
+  );
 }
 
 // GET, повисший на плохой сети, не должен держать экран вечно: обрываем и
@@ -158,7 +174,9 @@ async function req(url, init) {
   } catch {
     // Сеть недоступна: мутирующие запросы — в очередь, GET — из клиентского кэша.
     if (!isGet) {
-      enqueueOffline(init.method, url, init?.body);
+      // Отправку сообщения повторяет сам чат (с тем же clientId), а не очередь: иначе
+      // запрос, дошедший до сервера без ответа, уходил второй раз — дубль в чате.
+      if (!init.noQueue) enqueueOffline(init.method, url, init?.body);
       throw offlineError(url);
     }
     return apiCacheRead(url);
@@ -417,7 +435,7 @@ export const api = {
   getChatMessageDays: (chatId, month, tz) => req(`/api/chats/${chatId}/messages/days?month=${month}&tz=${tz}`),
   getChatMessageAt: (chatId, day, tz) => req(`/api/chats/${chatId}/messages/at?day=${day}&tz=${tz}`),
   sendMessage: (chatId, text, opts) =>
-    req(`/api/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify({ text, ...opts }) }),
+    req(`/api/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify({ text, ...opts }), noQueue: true }),
   // Содержимое из системного меню «Поделиться» по одноразовому токену.
   getSharePayload: (token) => req(`/api/share/${encodeURIComponent(token)}`),
   editMessage: (chatId, messageId, text) =>
@@ -571,8 +589,8 @@ export const api = {
   getBotLogs: (id) => req(`/api/bots/${id}/logs`),
   search: (q) => req(`/api/search?q=${encodeURIComponent(q)}`),
 
-  publishPost: (channelId, text, attachments) =>
-    req(`/api/posts/${channelId}/publish`, { method: "POST", body: JSON.stringify({ text, attachments }) }),
+  publishPost: (channelId, text, attachments, clientId) =>
+    req(`/api/posts/${channelId}/publish`, { method: "POST", body: JSON.stringify({ text, attachments, clientId }), noQueue: true }),
 
   getVapidPublicKey: () => req("/api/push/vapid-public-key"),
   subscribePush: (subscription) => req("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription }) }),

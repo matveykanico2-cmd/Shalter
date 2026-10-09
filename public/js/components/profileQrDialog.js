@@ -3,6 +3,10 @@ import { prettyQrSvg } from "../lib/prettyQr.js";
 import { qrCardPng } from "../lib/qrCard.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
+import { openForwardDialog } from "./forwardDialog.js";
+import { shareFileNative } from "../lib/nativeDownload.js";
+import { uploadFile } from "../lib/upload.js";
+import { api } from "../api.js";
 
 // Темы как в tweb (popups/myQrCode): фон-градиент, код и имя — цветом темы.
 // Цвета градиента по отдельности нужны картинке для «Поделиться».
@@ -32,25 +36,43 @@ export function openProfileQrDialog(user) {
 
   // Поделиться кодом картинкой: системное меню умеет отдавать файл, поэтому
   // рисуем ту же карточку на canvas и отдаём PNG (или сохраняем файлом).
+  async function cardFile() {
+    const blob = await qrCardPng({
+      url,
+      name: user.name,
+      username: user.username,
+      theme: theme(),
+      avatarImage: user.avatarImage,
+      avatarColor: user.avatarColor,
+      hint: "Отсканируйте, чтобы открыть профиль",
+    });
+    return new File([blob], `shalter-${user.username || "qr"}.png`, { type: "image/png" });
+  }
+
+  // Отправить код в чат Shalter — с выбором, кому.
+  function sendToChat() {
+    openForwardDialog(async (chatId) => {
+      copiedNote.textContent = "Отправляем…";
+      const attachment = await uploadFile(await cardFile(), "image");
+      await api.sendMessage(chatId, url, { attachments: [attachment] });
+      copiedNote.textContent = "QR-код отправлен ✓";
+    });
+  }
+
   async function shareImage() {
     copiedNote.textContent = "Готовим картинку…";
     try {
-      const blob = await qrCardPng({
-        url,
-        name: user.name,
-        username: user.username,
-        theme: theme(),
-        avatarImage: user.avatarImage,
-        avatarColor: user.avatarColor,
-        hint: "Отсканируйте, чтобы открыть профиль",
-      });
-      const file = new File([blob], `shalter-${user.username || "qr"}.png`, { type: "image/png" });
+      const file = await cardFile();
+      if (await shareFileNative(file, file.name, `${user.name} — Shalter ${url}`)) {
+        copiedNote.textContent = "";
+        return;
+      }
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: user.name, text: `${user.name} — Shalter` });
         copiedNote.textContent = "Картинка отправлена ✓";
         return;
       }
-      const href = URL.createObjectURL(blob);
+      const href = URL.createObjectURL(file);
       const a = el("a", { href, download: file.name });
       document.body.appendChild(a);
       a.click();
@@ -58,7 +80,8 @@ export function openProfileQrDialog(user) {
       URL.revokeObjectURL(href);
       copiedNote.textContent = "Картинка сохранена ✓";
     } catch (err) {
-      copiedNote.textContent = err?.name === "AbortError" ? "" : "Не удалось поделиться картинкой";
+      // Отмена системного меню — не ошибка (в браузере AbortError, в приложении «canceled»).
+      copiedNote.textContent = err?.name === "AbortError" || /cancel/i.test(err?.message ?? "") ? "" : "Не удалось поделиться картинкой";
     }
   }
 
@@ -115,9 +138,13 @@ export function openProfileQrDialog(user) {
         },
         [el("span", { html: iconSvg("Copy", 16) }), "Скопировать ссылку"]
       ),
+      el("button", { class: "btn-secondary", onclick: sendToChat }, [
+        el("span", { html: iconSvg("Send", 16) }),
+        "Отправить в чат",
+      ]),
       el("button", { class: "btn-secondary", onclick: () => shareImage() }, [
         el("span", { html: iconSvg("Share", 16) }),
-        "Поделиться картинкой",
+        "Поделиться",
       ]),
     ]),
     copiedNote,

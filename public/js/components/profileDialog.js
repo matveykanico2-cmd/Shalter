@@ -40,6 +40,14 @@ const TABS = [
   { id: "groups", label: "Группы" },
 ];
 
+// «1 из 10 000» не влезал в уголок-ленту и обрезался: большие тиражи — «10K».
+function compactCount(n) {
+  const v = Number(n) || 0;
+  if (v < 1000) return String(v);
+  if (v < 1_000_000) return `${Math.round(v / 100) / 10}K`.replace(".", ",");
+  return `${Math.round(v / 100_000) / 10}M`.replace(".", ",");
+}
+
 export async function copyText(text, note = "Скопировано") {
   try {
     await navigator.clipboard.writeText(text);
@@ -525,7 +533,7 @@ export async function openProfileDialog(userId) {
               fromBadge,
               exclusive
                 ? el("span", { class: "tw-gift-badge", style: { background: `linear-gradient(180deg, ${c1} 0%, ${c2} 100%)` } }, [
-                    el("span", { class: "tw-gift-badge-text" }, g.pinned ? `#${g.serial}` : `1 из ${Number(g.supply).toLocaleString("ru-RU")}`),
+                    el("span", { class: "tw-gift-badge-text" }, g.pinned ? `#${g.serial}` : `1 из ${compactCount(g.supply)}`),
                   ])
                 : null,
               el("span", { class: "tw-gift-sticker" }, [renderGiftArt(g, { size: 72, replay: false })]),

@@ -14,7 +14,7 @@
   "plugins": {
     "Keyboard": {
       "resize": "native",
-      "resizeOnFullScreen": true
+      "resizeOnFullScreen": false
     }
   }
 }

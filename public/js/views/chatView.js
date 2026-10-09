@@ -409,11 +409,34 @@ export async function ChatView(root, chatId) {
     return sent;
   }
 
+  // Нет сети — пузырь остаётся «отправляется», а запрос повторяем сами (до ~2 минут),
+  // вместо ошибки и возврата текста в поле ввода.
+  async function sendRetryingOffline(send) {
+    const giveUpAt = Date.now() + 120_000;
+    for (let delay = 1500; ; delay = Math.min(delay * 2, 15_000)) {
+      try {
+        return await send();
+      } catch (err) {
+        if (!err?.offline || Date.now() > giveUpAt) throw err;
+        await new Promise((resolve) => {
+          const done = () => {
+            clearTimeout(timer);
+            window.removeEventListener("online", done);
+            resolve();
+          };
+          const timer = setTimeout(done, delay);
+          window.addEventListener("online", done);
+        });
+      }
+    }
+  }
+
   async function sendOne(text, attachments, extraIn) {
     const { uploading, ...extra } = extraIn ?? {};
     const replyToId = replyingTo?.id ?? null;
     const topicId = currentTopicId() ?? replyingTo?.topicId ?? null;
     if (topicId) extra.topicId = topicId;
+    const hadReply = !!replyingTo;
     replyingTo = null;
 
     const localId = `local_${++pendingSeq}_${Date.now()}`;
@@ -435,7 +458,9 @@ export async function ChatView(root, chatId) {
     messagesCount = messages.length;
     draftText = "";
     renderList();
-    renderComposer();
+    // Поле ввода композер очищает сам; пересобираем его, только чтобы убрать плашку
+    // «Ответ …» — лишняя пересборка на телефоне дёргала клавиатуру на каждую отправку.
+    if (hadReply) renderComposer();
     stuckToBottom = true;
     list.scrollTop = list.scrollHeight;
 
@@ -453,25 +478,33 @@ export async function ChatView(root, chatId) {
           if (localAtts[i]?.url?.startsWith("blob:")) localThumbs.set(a.url, localAtts[i].url);
         });
       }
-      const { message } = isChannel
-        ? await api.publishPost(chat.id, text, attachments)
-        : await api.sendMessage(chat.id, text, { replyToId, attachments, ...extra });
+      // localId — метка отправки: повтор после обрыва сети сервер узнаёт и не создаёт дубль.
+      const { message } = await sendRetryingOffline(() =>
+        isChannel
+          ? api.publishPost(chat.id, text, attachments, localId)
+          : api.sendMessage(chat.id, text, { replyToId, attachments, ...extra, clientId: localId })
+      );
       sentMessage = message;
       if (getState().settings?.notifications?.sound !== false) playSentSound();
       noteMessageInChatList(chat.id, message);
       justSent.add(message.id);
       setTimeout(() => justSent.delete(message.id), 60000);
-      const at = messages.findIndex((m) => m.id === localId);
-      if (at >= 0) messages[at] = message;
+      // Пока ждали ответа, сообщение могло уже прийти обновлением ленты — тогда
+      // временный пузырь просто убираем, а не превращаем во второй такой же.
+      if (messages.some((m) => m.id === message.id)) messages = messages.filter((m) => m.id !== localId);
+      else if (messages.some((m) => m.id === localId)) messages = messages.map((m) => (m.id === localId ? message : m));
       else messages = [...messages, message];
+      messagesCount = messages.length;
       rerenderListKeepingScroll();
     } catch (err) {
       dropOptimistic();
       rerenderListKeepingScroll();
-      alert(err.message || "Не удалось отправить сообщение");
-      if (text) draftText = text;
+      alert(err.offline ? "Нет связи с сервером — сообщение не отправлено" : err.message || "Не удалось отправить сообщение");
+      if (text && !draftText) draftText = text;
+      renderComposer();
     }
-    renderComposer();
+    // После успешной отправки поле ввода не пересобираем: человек уже мог начать
+    // следующее сообщение, и пересборка сбивала набор (и клавиатуру на телефоне).
     await refreshMessages();
     return sentMessage;
   }
@@ -2226,6 +2259,7 @@ export async function ChatView(root, chatId) {
   // Композер, как в tweb, плавает поверх обоев: список уходит под него,
   // а снизу получает отступ ровно на высоту композера.
   let composerObserver = null;
+  let listObserver = null;
   if (typeof ResizeObserver === "function") {
     composerObserver = new ResizeObserver(() => {
       const wasAtBottom = atBottom();
@@ -2233,6 +2267,20 @@ export async function ChatView(root, chatId) {
       if (wasAtBottom) list.scrollTop = list.scrollHeight;
     });
     composerObserver.observe(composerSlot);
+    // Клавиатура открылась/закрылась (окно стало ниже или выше): как в нативных
+    // мессенджерах, держим низ ленты — у прижатой к низу ленты последнее сообщение
+    // остаётся над полем ввода, у пролистанной вверх видимое не уезжает под клавиатуру.
+    let listHeight = list.clientHeight;
+    const keepBottomOnResize = () => {
+      const h = list.clientHeight;
+      if (!h || h === listHeight) return;
+      const shrunk = listHeight - h;
+      listHeight = h;
+      if (stuckToBottom) list.scrollTop = list.scrollHeight;
+      else if (shrunk > 0) list.scrollTop += shrunk;
+    };
+    listObserver = new ResizeObserver(keepBottomOnResize);
+    listObserver.observe(list);
   }
   mainCol.style.setProperty("--composer-h", `${composerSlot.offsetHeight}px`);
   list.scrollTop = list.scrollHeight;
@@ -2498,5 +2546,6 @@ export async function ChatView(root, chatId) {
     unsubTopics();
     viewObserver?.disconnect();
     composerObserver?.disconnect();
+    listObserver?.disconnect();
   };
 }

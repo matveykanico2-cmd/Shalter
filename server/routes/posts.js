@@ -10,6 +10,7 @@ const { publicUsers } = require("../data/sanitize");
 const { deliverMessage, sendGate } = require("./messages");
 const { isStaff } = require("../lib/chatPermissions");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
+const { sendOnce } = require("../lib/sendOnce");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -31,47 +32,51 @@ router.post(
       return res.status(400).json({ error: "Пост длиннее 4096 символов" });
     }
 
-    let post = await addMessage({
-      id: genId("m"),
-      chatId: chat.id,
-      senderId: req.uid,
-      type: "text",
-      text: body.text ?? "",
-      createdAt: new Date().toISOString(),
-      pinned: false,
-      reactions: [],
-      attachments: sanitizeAttachments(body.attachments),
-      readByIds: [req.uid],
-      views: 0,
-      commentCount: 0,
-      signedBy: chat.signMessages ? (await getUser(req.uid))?.name ?? null : null,
-    });
-
-    if (chat.linkedDiscussionChatId) {
-      const discussionChat = await getChat(chat.linkedDiscussionChatId);
-      if (discussionChat) {
-        const author = await getUser(req.uid);
-        const anchor = await addMessage({
-          id: genId("m"),
-          chatId: discussionChat.id,
-          senderId: req.uid,
-          type: "text",
-          text: post.text,
-          createdAt: new Date().toISOString(),
-          pinned: false,
-          reactions: [],
-          attachments: post.attachments,
-          readByIds: [req.uid],
-          forwardedFrom: { chatId: chat.id, chatTitle: chat.title, senderId: req.uid, senderName: author?.name ?? "Канал" },
-        });
-        await setAnchorForPost(anchor.id, post.id);
-        post = await setDiscussionAnchor(post.id, anchor.id);
-      }
-    }
-
+    const post = await sendOnce(req.uid, chat.id, body.clientId, () => publishPost(chat, req.uid, body));
     res.json({ message: post });
   })
 );
+
+async function publishPost(chat, uid, body) {
+  let post = await addMessage({
+    id: genId("m"),
+    chatId: chat.id,
+    senderId: uid,
+    type: "text",
+    text: body.text ?? "",
+    createdAt: new Date().toISOString(),
+    pinned: false,
+    reactions: [],
+    attachments: sanitizeAttachments(body.attachments),
+    readByIds: [uid],
+    views: 0,
+    commentCount: 0,
+    signedBy: chat.signMessages ? (await getUser(uid))?.name ?? null : null,
+  });
+
+  if (chat.linkedDiscussionChatId) {
+    const discussionChat = await getChat(chat.linkedDiscussionChatId);
+    if (discussionChat) {
+      const author = await getUser(uid);
+      const anchor = await addMessage({
+        id: genId("m"),
+        chatId: discussionChat.id,
+        senderId: uid,
+        type: "text",
+        text: post.text,
+        createdAt: new Date().toISOString(),
+        pinned: false,
+        reactions: [],
+        attachments: post.attachments,
+        readByIds: [uid],
+        forwardedFrom: { chatId: chat.id, chatTitle: chat.title, senderId: uid, senderName: author?.name ?? "Канал" },
+      });
+      await setAnchorForPost(anchor.id, post.id);
+      post = await setDiscussionAnchor(post.id, anchor.id);
+    }
+  }
+  return post;
+}
 
 router.post(
   "/:postId/view",

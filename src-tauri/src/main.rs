@@ -13,7 +13,7 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 #[cfg(target_os = "macos")]
 use tauri::RunEvent;
-use tauri::webview::DownloadEvent;
+use tauri::webview::{DownloadEvent, PermissionKind, PermissionResponse};
 use tauri::{AppHandle, Manager, State, UserAttentionType, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_notification::NotificationExt;
@@ -243,7 +243,8 @@ fn open_external(app: AppHandle, url: String) {
 fn create_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let shell = app.state::<Shell>();
     let nav_app = app.clone();
-    WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
+    let perm_origin = shell.origin.clone();
+    let window = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
         .title("Shalter")
         .inner_size(1280.0, 840.0)
         .min_inner_size(380.0, 480.0)
@@ -277,6 +278,19 @@ fn create_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             }
             true
         })
+        // Камера, микрофон, показ экрана и уведомления — своему серверу без вопросов, как
+        // в Telegram Desktop: системный WebView иначе молча отказывал (WebKitGTK) или
+        // спрашивал на каждый звонок, а в настройках приложения таких переключателей нет.
+        // Системный запрос ОС (macOS — доступ к камере) при этом остаётся.
+        .on_permission_request(move |webview, kind| {
+            let ours = webview.url().map(|u| u.origin().ascii_serialization() == perm_origin).unwrap_or(false);
+            match kind {
+                PermissionKind::Microphone | PermissionKind::Camera | PermissionKind::DisplayCapture | PermissionKind::Notifications if ours => {
+                    PermissionResponse::Allow
+                }
+                _ => PermissionResponse::Default,
+            }
+        })
         // Свои страницы — в окне, всё остальное — в браузере по умолчанию.
         .on_navigation(move |url| {
             let shell = nav_app.state::<Shell>();
@@ -288,8 +302,29 @@ fn create_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             }
             false
         })
-        .build()
+        .build()?;
+    enable_media(&window);
+    Ok(window)
 }
+
+// WebKitGTK по умолчанию выключает getUserMedia и WebRTC: navigator.mediaDevices нет
+// вовсе, и звонки, голосовые и кружки на Linux были «недоступны». Настройки действуют
+// со следующей загрузки — первой грузится своя стартовая страница, так что сайт их получает.
+#[cfg(target_os = "linux")]
+fn enable_media(window: &WebviewWindow) {
+    let _ = window.with_webview(|wv| {
+        use webkit2gtk::{SettingsExt, WebViewExt};
+        if let Some(settings) = WebViewExt::settings(&wv.inner()) {
+            settings.set_enable_media_stream(true);
+            settings.set_enable_webrtc(true);
+            settings.set_enable_mediasource(true);
+            settings.set_media_playback_requires_user_gesture(false);
+        }
+    });
+}
+
+#[cfg(not(target_os = "linux"))]
+fn enable_media(_window: &WebviewWindow) {}
 
 // «фото.jpg» → «фото (2).jpg», если такой файл уже есть.
 fn unique_path(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
