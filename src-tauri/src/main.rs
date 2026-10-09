@@ -167,6 +167,26 @@ fn startup_target(shell: State<Shell>) -> String {
     shell.pending_target.lock().unwrap().take().unwrap_or_else(|| shell.app_url.clone())
 }
 
+// Есть ли связь с сервером — проверяем прямым TCP-соединением, а не fetch() со стартовой
+// страницы: у части пользователей WebKit отклонял такой запрос (страница на схеме
+// tauri://), и приложение висело на «Ожидание сети…» при работающем интернете.
+#[tauri::command]
+async fn server_reachable(shell: State<'_, Shell>) -> Result<bool, ()> {
+    let Ok(url) = Url::parse(&shell.app_url) else { return Ok(false) };
+    let Some(host) = url.host_str().map(str::to_owned) else { return Ok(false) };
+    let port = url.port_or_known_default().unwrap_or(443);
+    Ok(tauri::async_runtime::spawn_blocking(move || {
+        use std::net::{TcpStream, ToSocketAddrs};
+        use std::time::Duration;
+        (host.as_str(), port)
+            .to_socket_addrs()
+            .map(|addrs| addrs.into_iter().any(|a| TcpStream::connect_timeout(&a, Duration::from_secs(5)).is_ok()))
+            .unwrap_or(false)
+    })
+    .await
+    .unwrap_or(false))
+}
+
 #[tauri::command]
 fn set_unread(app: AppHandle, shell: State<Shell>, count: u32) {
     let label = if count > 0 { format!("Открыть Shalter ({count})") } else { "Открыть Shalter".into() };
@@ -354,7 +374,7 @@ fn main() {
             tray_open_item: Mutex::new(None),
             quitting: AtomicBool::new(false),
         })
-        .invoke_handler(tauri::generate_handler![startup_target, set_unread, focus_window, notify, retry, open_external])
+        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external])
         .setup(move |app| {
             let handle = app.handle().clone();
 

@@ -3,6 +3,7 @@ fn main() {
     // разрешение (allow-set-unread …), и странице сервера выдаются только они.
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
         "startup_target",
+        "server_reachable",
         "set_unread",
         "focus_window",
         "notify",

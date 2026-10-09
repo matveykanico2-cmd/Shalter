@@ -1,7 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "local",
-  "description": "Стартовая страница оболочки (ui/index.html): узнать, какой адрес открыть.",
-  "windows": ["main"],
-  "permissions": ["allow-startup-target"]
+  "description": "Стартовая страница оболочки (ui/index.html): узнать, какой адрес открыть, и есть ли связь с сервером.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-startup-target",
+    "allow-server-reachable"
+  ]
 }
