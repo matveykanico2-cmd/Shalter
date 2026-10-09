@@ -476,12 +476,22 @@ export async function ChatView(root, chatId) {
     return sentMessage;
   }
 
+  // Черновик в списке чатов («Черновик: …») обновляем, когда набор затих, а не на
+  // каждую букву: каждое setState({ chats }) перерисовывало список, и набор тормозил.
+  let draftSyncTimer = null;
+  function syncDraftToList() {
+    clearTimeout(draftSyncTimer);
+    draftSyncTimer = null;
+    const { chats: sharedChats } = getState();
+    const current = sharedChats.find((c) => c.id === chat.id);
+    if (current && (current.draft ?? "") !== draftText) {
+      setState({ chats: sharedChats.map((c) => (c.id === chat.id ? { ...c, draft: draftText } : c)) });
+    }
+  }
   function handleDraftChange(text) {
     draftText = text;
-    const { chats: sharedChats } = getState();
-    if (sharedChats.some((c) => c.id === chat.id)) {
-      setState({ chats: sharedChats.map((c) => (c.id === chat.id ? { ...c, draft: text } : c)) });
-    }
+    clearTimeout(draftSyncTimer);
+    draftSyncTimer = setTimeout(syncDraftToList, text ? 800 : 0);
   }
 
   async function handleForward(message, targetChatId, { hideAuthor = false } = {}) {
@@ -2060,7 +2070,22 @@ export async function ChatView(root, chatId) {
     });
   }
 
+  // Поле ввода пересоздаётся (ответ, обновление чата с сервера, тема…). Если в нём
+  // печатали, возвращаем фокус и курсор: иначе клавиатура на телефоне закрывалась
+  // посреди набора, и курсор «слетал».
   function renderComposer() {
+    const active = document.activeElement;
+    const typing = active?.tagName === "TEXTAREA" && composerSlot.contains(active) ? [active.selectionStart, active.selectionEnd] : null;
+    buildComposer();
+    if (!typing) return;
+    const textarea = composerSlot.querySelector("textarea");
+    if (!textarea) return;
+    textarea.focus({ preventScroll: true });
+    const len = textarea.value.length;
+    textarea.setSelectionRange(Math.min(typing[0], len), Math.min(typing[1], len));
+  }
+
+  function buildComposer() {
     clear(bodyBottomSlot);
     clear(composerSlot);
     if (iBlockedThem) {
@@ -2400,7 +2425,9 @@ export async function ChatView(root, chatId) {
     api
       .getChat(chat.id)
       .then((res) => {
-        paidMessages = res.paidMessages ?? null;
+        const next = res.paidMessages ?? null;
+        if (JSON.stringify(next) === JSON.stringify(paidMessages)) return;
+        paidMessages = next;
         renderComposer();
       })
       .catch(() => {});
@@ -2444,6 +2471,7 @@ export async function ChatView(root, chatId) {
   window.addEventListener("shalter:chat-opened", onChatOpened);
 
   root._cleanup = () => {
+    if (draftSyncTimer) syncDraftToList();
     window.removeEventListener("shalter:hashtag", onHashtag);
     window.removeEventListener("shalter:jump-message", onJumpMessage);
     window.removeEventListener("shalter:chat-opened", onChatOpened);

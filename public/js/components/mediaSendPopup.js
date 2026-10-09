@@ -20,12 +20,9 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel }) {
   const captionInput = el("textarea", {
     class: "tw-input tw-nm-caption",
     placeholder: " ",
-    rows: 1,
+    rows: 3,
     maxlength: 4096,
-    oninput: (e) => {
-      e.target.style.height = "auto";
-      e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
-    },
+    oninput: () => fitCaption(),
     onkeydown: (e) => {
       if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
@@ -34,6 +31,11 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel }) {
     },
   });
   captionInput.value = caption;
+  // Поле подписи — от трёх строк и растёт с текстом (раньше была одна строка).
+  function fitCaption() {
+    captionInput.style.height = "auto";
+    captionInput.style.height = `${Math.min(captionInput.scrollHeight, 240)}px`;
+  }
   const sendBtn = el("button", { class: "tw-nm-send", onclick: () => send() }, "Отправить");
 
   const isMedia = (it) => (it.kind === "image" || it.kind === "video") && !asFiles;
@@ -174,6 +176,7 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel }) {
   render();
   document.addEventListener("keydown", onKey, true);
   document.body.appendChild(overlay);
+  fitCaption();
   captionInput.focus();
   captionInput.setSelectionRange(captionInput.value.length, captionInput.value.length);
 }

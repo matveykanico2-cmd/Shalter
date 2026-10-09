@@ -75,6 +75,22 @@ function apiCacheRead(url) {
   throw offlineError(url);
 }
 
+// После смены аккаунта сохранённая сессия и стартовые данные — от прошлого аккаунта.
+// Приложение запускалось из них мгновенно прошлым аккаунтом и лишь потом, дождавшись
+// сервера, переключалось — смена выглядела медленной, с мельканием чужих чатов.
+// Подставляем новый аккаунт сразу; чаты нового аккаунта приходят из его собственного
+// кэша (lib/localCache.js хранит их по id пользователя).
+export function rememberSwitchedAccount(user) {
+  try {
+    const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
+    const session = obj["/api/auth/session"]?.data;
+    for (const url of OFFLINE_CACHED) delete obj[url];
+    if (user?.name && session?.accounts) obj["/api/auth/session"] = { data: { ...session, user }, ts: Date.now() };
+    localStorage.setItem(OFFLINE_Q + ".data", JSON.stringify(obj));
+  } catch {
+  }
+}
+
 export async function clearApiCache() {
   try {
     localStorage.removeItem(OFFLINE_Q + ".data");

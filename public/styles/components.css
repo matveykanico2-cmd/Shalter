@@ -20658,6 +20658,15 @@ button img.emoji {
 .tw-nm-caption-field .tw-input {
   width: 100%;
   box-sizing: border-box;
+  min-height: 88px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.tw-nm-footer {
+  align-items: flex-end;
+}
+.modal-dialog.tw-popup.tw-nm-popup {
+  width: 480px;
 }
 .tw-nm-send {
   flex-shrink: 0;

@@ -9,6 +9,7 @@ import { clearCache } from "../../lib/localCache.js";
 import { iconSvg } from "../../icons.js";
 import { Avatar, videoAvatarUrl } from "../../components/avatar.js";
 import { api } from "../../api.js";
+import { switchAccount } from "../../lib/accountSwitch.js";
 import { getState, setState, updateSelf, subscribe } from "../../state.js";
 import { navigate } from "../../router.js";
 import { fileToImageDataUrl, fileToDataUrl } from "../../lib/image.js";
@@ -3225,8 +3226,7 @@ async function renderAccounts(root) {
 
   async function switchTo(uid) {
     if (uid === me.id) return;
-    await api.switchAccount(uid);
-    window.location.href = "/";
+    await switchAccount(uid, { to: "/" });
   }
   async function logout(uid) {
     const label = uid === me.id ? "Выйти из этого аккаунта?" : "Выйти из этого аккаунта на этом устройстве?";

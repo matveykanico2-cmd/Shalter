@@ -7,6 +7,7 @@ import { iconSvg } from "../icons.js";
 import { openAd } from "../lib/adLink.js";
 import { api } from "../api.js";
 import { onWsMessage } from "../lib/wsClient.js";
+import { cachedUser } from "../lib/userLookup.js";
 import { navigate } from "../router.js";
 import { getState, setState, updateSelf } from "../state.js";
 import { openReportDialog } from "./reportDialog.js";
@@ -167,11 +168,25 @@ function storyWord(n) {
   return "историй";
 }
 
+const MEDIA_PAGE = 30;
+
 export async function openProfileDialog(userId) {
   const me = getState().user;
 
   const overlay = el("div", { class: "profile-panel-overlay", onclick: (e) => e.target === overlay && close() });
-  const body = el("div", { class: "info-panel-body profile-panel-body" }, [el("div", { class: "profile-loading-spinner" })]);
+  // Пока профиль грузится — сразу аватар и имя, если человек уже известен (из списка
+  // чатов): раньше панель стояла пустой (на телефоне — белый экран) до ответа сервера.
+  const known = cachedUser(userId) ?? (getState().chats ?? []).find((c) => c.otherUser?.id === userId)?.otherUser ?? (userId === me.id ? me : null);
+  const body = el(
+    "div",
+    { class: "info-panel-body profile-panel-body" },
+    known
+      ? [
+          el("div", { class: "profile-avatar-row" }, [Avatar({ name: known.name, color: known.avatarColor, image: known.avatarImage, size: 88 })]),
+          el("p", { class: "profile-name" }, known.name || ""),
+        ]
+      : [el("div", { class: "profile-loading-spinner" })]
+  );
   const panel = el("aside", { class: "profile-panel" }, [
     el("div", { class: "info-panel-header" }, [
       el("h2", {}, "Профиль"),
@@ -218,12 +233,13 @@ export async function openProfileDialog(userId) {
   let commonGroups = null;
   let storiesGroup = null;
   async function loadStories() {
+    const before = storiesGroup;
     try {
       ({ group: storiesGroup } = await api.getUserStories(userId));
     } catch {
       storiesGroup = null;
     }
-    render();
+    if (storiesGroup || before) scheduleRender();
   }
   // An ad campaign this user runs with the "profile" placement.
   let campaignAd = null;
@@ -233,7 +249,7 @@ export async function openProfileDialog(userId) {
     } catch {
       campaignAd = null;
     }
-    if (campaignAd) render();
+    if (campaignAd) scheduleRender();
   }
   let activeTab = "media";
   let hoursExpanded = false;
@@ -253,14 +269,12 @@ export async function openProfileDialog(userId) {
     render();
   }
 
+  // Медиа из переписки сервер собирает по всей истории чата — профиль его не ждёт,
+  // вкладки дорисуются, когда оно придёт.
+  let sharedMediaLoaded = false;
+  const sharedMediaReq = api.getSharedMedia(userId).catch(() => null);
   try {
-    const [res] = await Promise.all([
-      api.getUser(userId),
-      api
-        .getSharedMedia(userId)
-        .then((r) => (sharedMedia = r))
-        .catch(() => {}),
-    ]);
+    const res = await api.getUser(userId);
     user = res.user;
     inContacts = !!res.inContacts;
     contactName = res.contactName ?? null;
@@ -448,7 +462,8 @@ export async function openProfileDialog(userId) {
 
   function visibleTabs() {
     const has = {
-      media: sharedMedia.media.length > 0,
+      // Пока медиа грузится, вкладка видна с «Загрузка…» — чтобы она не перескакивала.
+      media: sharedMedia.media.length > 0 || (!sharedMediaLoaded && !isSelf),
       stories: !user.isBot,
       gifts: (user.giftsReceived ?? []).length > 0,
       files: sharedMedia.files.length > 0,
@@ -558,7 +573,7 @@ export async function openProfileDialog(userId) {
             },
             [
               item.kind === "video"
-                ? el("video", { class: "profile-story-cell-media", src: item.url, muted: true })
+                ? el("video", { class: "profile-story-cell-media", src: item.url, muted: true, preload: "metadata" })
                 : el("img", { class: "profile-story-cell-media", src: item.url, alt: "" }),
               item.kind === "video" ? el("span", { class: "profile-story-cell-play", html: iconSvg("Play", 14) }) : null,
               el("span", { class: "profile-story-date" }, storyDate(story.createdAt)),
@@ -619,12 +634,21 @@ export async function openProfileDialog(userId) {
       );
     }
     if (activeTab === "media") {
-      if (!sharedMedia.media.length) return el("p", { class: "profile-empty-tab" }, "Медиа пока нет");
-      return el(
-        "div",
-        { class: "profile-media-grid" },
-        sharedMedia.media.map((m) => (m.attachment.kind === "video" ? VideoAttachment(m.attachment) : ImageAttachment(m.attachment)))
-      );
+      if (!sharedMedia.media.length) return el("p", { class: sharedMediaLoaded ? "profile-empty-tab" : "profile-empty-tab profile-tab-loading" }, sharedMediaLoaded ? "Медиа пока нет" : "Загрузка…");
+      // Плитки — порциями: раньше сразу создавались все фото и видео переписки,
+      // и на большом чате профиль открывался с подвисанием.
+      const grid = el("div", { class: "profile-media-grid" });
+      const more = el("button", { class: "profile-action-btn profile-media-more" }, "Показать ещё");
+      let shown = 0;
+      const showMore = () => {
+        const next = sharedMedia.media.slice(shown, shown + MEDIA_PAGE);
+        shown += next.length;
+        grid.append(...next.map((m) => (m.attachment.kind === "video" ? VideoAttachment(m.attachment) : ImageAttachment(m.attachment))));
+        if (shown >= sharedMedia.media.length) more.remove();
+      };
+      more.onclick = showMore;
+      showMore();
+      return shown < sharedMedia.media.length ? el("div", {}, [grid, more]) : grid;
     }
     if (activeTab === "files") {
       if (!sharedMedia.files.length) return el("p", { class: "profile-empty-tab" }, "Файлов пока нет");
@@ -644,7 +668,19 @@ export async function openProfileDialog(userId) {
     );
   }
 
+  let renderFrame = 0;
+  function scheduleRender() {
+    if (renderFrame || !user) return;
+    renderFrame = requestAnimationFrame(() => {
+      renderFrame = 0;
+      if (overlay.isConnected) render();
+    });
+  }
+
   function render() {
+    cancelAnimationFrame(renderFrame);
+    renderFrame = 0;
+    const scrollTop = body.scrollTop;
     clear(body);
     const status =
       user.isBot && typeof user.botUserCount === "number"
@@ -881,7 +917,7 @@ export async function openProfileDialog(userId) {
                     class: `story-avatar-ring ${storiesGroup.stories.some((st) => !st.viewed) ? "unseen" : "seen"}`,
                   }),
                   storiesGroup.stories[0].kind === "video"
-                    ? el("video", { class: "profile-stories-thumb", src: storiesGroup.stories[0].url, muted: true })
+                    ? el("video", { class: "profile-stories-thumb", src: storiesGroup.stories[0].url, muted: true, preload: "metadata" })
                     : el("img", { class: "profile-stories-thumb", src: storiesGroup.stories[0].url, alt: "" }),
                 ]
               ),
@@ -904,7 +940,7 @@ export async function openProfileDialog(userId) {
                     },
                     [
                       item.kind === "video"
-                        ? el("video", { class: "profile-story-cell-media", src: item.url, muted: true })
+                        ? el("video", { class: "profile-story-cell-media", src: item.url, muted: true, preload: "metadata" })
                         : el("img", { class: "profile-story-cell-media", src: item.url, alt: "" }),
                       item.kind === "video" ? el("span", { class: "profile-story-cell-play", html: iconSvg("Play", 14) }) : null,
                     ]
@@ -953,8 +989,14 @@ export async function openProfileDialog(userId) {
       const s = strip.getBoundingClientRect();
       strip.scrollLeft += a.left - s.left - (s.width - a.width) / 2;
     }
+    body.scrollTop = scrollTop;
   }
   render();
   loadStories();
   loadCampaignAd();
+  sharedMediaReq.then((r) => {
+    sharedMediaLoaded = true;
+    if (r) sharedMedia = r;
+    scheduleRender();
+  });
 }

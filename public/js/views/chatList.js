@@ -27,7 +27,7 @@ import { isWsOpen, onWsMessage } from "../lib/wsClient.js";
 import { noteMessageInChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache, dropCachedMessage } from "../lib/localCache.js";
 import { openSidebarMenu, openSavedMessages } from "../components/sidebarMenu.js";
-import { sortChats } from "../lib/chatSort.js";
+import { sortChats, isChatMuted } from "../lib/chatSort.js";
 import {
   CommunityRow,
   CommunityChildBadge,
@@ -642,9 +642,12 @@ function renderResults(container) {
     if (!archived.length) scrollSlot.appendChild(el("p", { class: "empty-hint" }, "В архиве пусто"));
     for (const c of archived) {
       scrollSlot.appendChild(
-        ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally })
+        cachedChatRow(c, currentId === c.id, user.id, () =>
+          ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally })
+        )
       );
     }
+    dropStaleRows();
     bodySlot.appendChild(scrollSlot);
     scrollSlot.scrollTop = keepScroll;
     return;
@@ -742,18 +745,42 @@ function renderResults(container) {
   };
   for (const c of list) {
     if (!c.pinned) flushCommunities(c.lastMessage?.createdAt ?? c.createdAt ?? "");
-    const row = ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally });
-    addCommunityBadge(row, c.id, allCommunities);
-    if (c.pinned) makePinnedDraggable(row, c.id, container);
+    const community = allCommunities.find((cm) => cm.chatIds.includes(c.id));
+    const row = cachedChatRow(c, currentId === c.id, user.id, () => {
+      const fresh = ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally });
+      addCommunityBadge(fresh, community);
+      if (c.pinned) makePinnedDraggable(fresh, c.id, container);
+      return fresh;
+    }, community);
     scroll.appendChild(row);
   }
   flushCommunities(null);
+  dropStaleRows();
   bodySlot.appendChild(scroll);
   scrollSlot.scrollTop = keepScroll;
 }
 
-function addCommunityBadge(row, chatId, communities) {
-  const community = communities.find((cm) => cm.chatIds.includes(chatId));
+// Готовые строки списка по id чата. Раньше любое изменение (новое сообщение, переход
+// в другой чат, черновик) пересобирало весь список с нуля — аватарки заново
+// декодировались, и список мигал, а на телефоне каждый клик подтормаживал. Теперь
+// строка пересобирается, только если поменялось то, что она показывает.
+const rowCache = new Map();
+let rowsSeen = new Set();
+function cachedChatRow(chat, active, meId, build, community = null) {
+  const sig = JSON.stringify([chat, active, meId, isChatMuted(chat), new Date().toDateString(), community]);
+  rowsSeen.add(chat.id);
+  const hit = rowCache.get(chat.id);
+  if (hit && hit.sig === sig) return hit.row;
+  const row = build();
+  rowCache.set(chat.id, { sig, row });
+  return row;
+}
+function dropStaleRows() {
+  for (const id of rowCache.keys()) if (!rowsSeen.has(id)) rowCache.delete(id);
+  rowsSeen = new Set();
+}
+
+function addCommunityBadge(row, community) {
   const avatar = community && row.querySelector(".chat-list-item > .avatar");
   if (!avatar) return;
   avatar.classList.add("has-community-badge");
