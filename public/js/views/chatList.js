@@ -381,6 +381,12 @@ let lastShown = null;
 // телефоне он в это время скрыт под открытым чатом — у скрытого элемента scrollTop
 // всегда 0, и после возврата из чата список оказывался в самом верху.
 let savedScrollTop = 0;
+// Только ненулевую: запись scrollTop заставляет браузер тут же пересчитать раскладку
+// всего списка (~30 мс на телефоне), а список перерисовывается на каждое сообщение.
+// Заново вставленный в страницу список и так стоит наверху.
+function restoreScroll(top) {
+  if (top) scrollSlot.scrollTop = top;
+}
 scrollSlot.addEventListener(
   "scroll",
   () => {
@@ -623,7 +629,7 @@ function renderResults(container) {
       for (const m of results.messages) box.appendChild(SearchMessageRow(m, chats, user, results.query));
     }
     bodySlot.appendChild(box);
-    scrollSlot.scrollTop = keepScroll;
+    restoreScroll(keepScroll);
     return;
   }
 
@@ -638,7 +644,7 @@ function renderResults(container) {
         renderChat: (c, extraMenu) =>
           ChatListItem({ chat: c, active: currentId === c.id, meId: user.id, onPatch: patchChat, onMute: muteChatFor, onDelete: deleteChatItem, onLeave: leaveChatItem, onRead: markReadLocally, extraMenu }),
       });
-      scrollSlot.scrollTop = keepScroll;
+      restoreScroll(keepScroll);
       return;
     }
   }
@@ -667,7 +673,7 @@ function renderResults(container) {
     }
     dropStaleRows();
     bodySlot.appendChild(scrollSlot);
-    scrollSlot.scrollTop = keepScroll;
+    restoreScroll(keepScroll);
     return;
   }
 
@@ -723,7 +729,7 @@ function renderResults(container) {
     },
   });
   bodySlot.appendChild(el("div", { class: "chat-tabs-bar" }, [tabsRow, filterBtn]));
-  tabsRow.scrollLeft = tabsScrollLeft;
+  if (tabsScrollLeft) tabsRow.scrollLeft = tabsScrollLeft;
 
   let list = sortChats(inTab(tab));
   if (unreadOnly) list = list.filter((c) => hasUnread(c) || c.id === currentId);
@@ -775,7 +781,7 @@ function renderResults(container) {
   flushCommunities(null);
   dropStaleRows();
   bodySlot.appendChild(scroll);
-  scrollSlot.scrollTop = keepScroll;
+  restoreScroll(keepScroll);
 }
 
 // Готовые строки списка по id чата. Раньше любое изменение (новое сообщение, переход

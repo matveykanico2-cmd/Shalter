@@ -1898,7 +1898,7 @@ export async function ChatView(root, chatId) {
             : senderOf(replyToMessage.senderId)
           : null;
       const shown = withLocalThumbs(m);
-      const withComments = isChannel && m.type !== "system" && !!chat.linkedDiscussionChatId;
+      const withComments = isChannel && m.type !== "system" && !!chat.linkedDiscussionChatId && !chat.commentsOff && !!m.discussionAnchorId;
       const bubbleSig = JSON.stringify([
         shown,
         groupStart,
@@ -2456,10 +2456,14 @@ export async function ChatView(root, chatId) {
     const { pinned, archived, muted, mutedUntil, ...shared } = msg.chat;
     const topicsWas = !!chat.topicsEnabled;
     const protectedWas = isProtected();
+    const commentsWere = !chat.commentsOff && !!chat.linkedDiscussionChatId;
     chat = { ...chat, ...shared };
     if (protectedWas !== isProtected()) {
       applyProtection();
       renderList();
+    } else if (commentsWere !== (!chat.commentsOff && !!chat.linkedDiscussionChatId)) {
+      // Комментарии включили или выключили — кнопка «Комментарии» под постами.
+      rerenderListKeepingScroll();
     }
     if (topicsWas !== !!chat.topicsEnabled) {
       if (!chat.topicsEnabled) topicFilter = undefined;
@@ -2485,8 +2489,23 @@ export async function ChatView(root, chatId) {
     api
       .getChat(chatId)
       .then((res) => {
-        chat = res.chat;
-        members = res.members;
+        // Свежие данные чаще всего совпадают с сохранёнными (меняется разве что «был(а) в
+        // сети»). Новые объекты chat/members сбрасывали кэш пузырей (renderList), и вся
+        // лента строилась второй раз — присутствие в пузырях не показывается, его
+        // обновляем на месте.
+        const withoutPresence = (list) => (list ?? []).map(({ online, lastSeen, ...rest }) => rest);
+        const changed =
+          JSON.stringify(res.chat) !== JSON.stringify(chat) ||
+          JSON.stringify(withoutPresence(res.members)) !== JSON.stringify(withoutPresence(members));
+        if (changed) {
+          chat = res.chat;
+          members = res.members;
+        } else {
+          for (const fresh of res.members ?? []) {
+            const local = members.find((u) => u.id === fresh.id);
+            if (local) Object.assign(local, { online: fresh.online, lastSeen: fresh.lastSeen });
+          }
+        }
         botCommands = res.commands ?? null;
         paidMessages = res.paidMessages ?? null;
         other = chat.otherUser ?? (isDm ? members.find((u) => u.id !== me.id) : null) ?? null;
@@ -2494,7 +2513,7 @@ export async function ChatView(root, chatId) {
         renderHeader();
         renderContactBar();
         renderInfoPanel();
-        rerenderListKeepingScroll();
+        if (changed) rerenderListKeepingScroll();
         renderComposer();
       })
       .catch(() => {});

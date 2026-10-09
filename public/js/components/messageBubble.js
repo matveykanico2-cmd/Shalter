@@ -102,8 +102,11 @@ function TapToLoad(kind, render) {
   return placeholder;
 }
 
+// Один форматтер на всё: toLocaleTimeString создаёт его заново на каждый вызов,
+// а подпись времени есть у каждого пузыря.
+const TIME_FORMAT = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 function timeLabel(iso) {
-  return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return TIME_FORMAT.format(new Date(iso));
 }
 
 const seenEntranceIds = new Set();
@@ -742,7 +745,9 @@ function VoicePlayer(a, ctx = {}) {
 }
 
 function VideoNotePlayer(a) {
-  const video = el("video", { src: a.url, class: "video-note-el", playsinline: true, preload: "metadata" });
+  // #t=0.001 — браузер (и Android WebView) показывает первый кадр кружка ещё до нажатия,
+  // а не пустой круг.
+  const video = el("video", { src: `${a.url}#t=0.001`, class: "video-note-el", playsinline: true, preload: "metadata", ...(a.thumbUrl ? { poster: a.thumbUrl } : {}) });
   const overlay = el("span", { class: "video-note-overlay", html: iconSvg("Play", 28) });
 
   const RADIUS = 48;

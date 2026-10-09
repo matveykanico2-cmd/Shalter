@@ -3185,6 +3185,8 @@ pre.mono,
   height: 100%;
   width: 100%;
   object-fit: cover;
+  /* пока первый кадр не загрузился — тёмный круг, а не пустое место */
+  background: #1f2329;
 }
 .video-note-overlay {
   position: absolute;

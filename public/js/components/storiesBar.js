@@ -10,6 +10,7 @@ import { uploadFile } from "../lib/upload.js";
 const openStoryViewer = (...args) => import("./storyViewer.js").then((m) => m.openStoryViewer(...args));
 const openStoryEditor = (...args) => import("./storyEditor.js").then((m) => m.openStoryEditor(...args));
 import { onWsMessage } from "../lib/wsClient.js";
+import { readCache, writeCache } from "../lib/localCache.js";
 
 const MAX_STORY_DIMENSION = 1080;
 
@@ -22,6 +23,7 @@ export function StoriesBar() {
     const res = await api.listStories().catch(() => null);
     if (!res) return;
     groups = res.groups;
+    writeCache("stories", getState().user?.id, { groups });
     render();
   }
 
@@ -119,6 +121,10 @@ export function StoriesBar() {
   ];
   container.cleanup = () => unsubs.forEach((u) => u());
 
+  // Полосу рисуем сразу (своя «Моя история» + истории из прошлого запуска), а не после
+  // ответа сервера: иначе она появлялась через долю секунды и сдвигала весь список вниз.
+  groups = readCache("stories", getState().user?.id)?.groups ?? [];
+  if (getState().user) render();
   refetch();
   return container;
 }

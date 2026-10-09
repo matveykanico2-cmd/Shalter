@@ -104,7 +104,9 @@ export function openEditChatDialog(chat, onSaved) {
   async function saveSetting(patch) {
     try {
       const { chat: updated } = await api.setChatSettings(chat.id, patch);
-      changed(updated);
+      // Выключенные флаги сервер в ответе не присылает (поле пропадает из JSON), и на
+      // экране оставалось старое «вкл» — поверх ответа кладём то, что сохраняли.
+      changed({ ...updated, ...patch });
     } catch (err) {
       toastError(err, "Не удалось сохранить");
     }
@@ -623,6 +625,34 @@ export function openEditChatDialog(chat, onSaved) {
         section(null, [
           isChannel
             ? row({ title: "Подписывать посты", subtitle: "Под постом будет имя автора", toggle: { checked: !!chat.signMessages, onChange: (v) => saveSetting({ signMessages: v }) } })
+            : null,
+          // Комментарии одним переключателем. Группа обсуждения при выключении остаётся
+          // привязанной со всей перепиской — включить обратно можно тут же.
+          isChannel
+            ? row({
+                title: "Комментарии",
+                subtitle: !chat.linkedDiscussionChatId
+                  ? "Включение создаст группу обсуждения"
+                  : chat.commentsOff
+                    ? "Под постами комментариев нет"
+                    : "Под постами можно оставлять комментарии",
+                toggle: {
+                  checked: !!chat.linkedDiscussionChatId && !chat.commentsOff,
+                  onChange: async (v) => {
+                    if (v && !chat.linkedDiscussionChatId) {
+                      try {
+                        const res = await api.setChatDiscussion(chat.id, "create");
+                        changed(res.chat);
+                      } catch (err) {
+                        toastError(err, "Не удалось включить комментарии");
+                        return;
+                      }
+                    }
+                    await saveSetting({ commentsOff: !v });
+                    showToast(v ? "Комментарии включены" : "Комментарии отключены");
+                  },
+                },
+              })
             : null,
           row({ icon: "User", color: "blue", title: "Заявки на вступление", right: requests.length ? String(requests.length) : null, onClick: openRequestsTab }),
           row({ icon: "Shield", color: "red", title: "Заблокированные", right: banned.length ? String(banned.length) : null, onClick: openBannedTab }),

@@ -18,6 +18,9 @@ function rowToChat(row, members) {
     inviteCode: row.inviteCode ?? undefined,
     approveJoins: !!row.approveJoins || undefined,
     signMessages: !!row.signMessages || undefined,
+    // Всегда true/false, не undefined: открытый канал сливает обновление поверх старого
+    // объекта, и пропавшее из JSON поле оставило бы комментарии выключенными.
+    commentsOff: !!row.commentsOff,
     anonymousAdmins: !!row.anonymousAdmins || undefined,
     permissions: row.permissions ? JSON.parse(row.permissions) : null,
     avatarColor: row.avatarColor ?? undefined,
@@ -272,7 +275,7 @@ const PATCHABLE_FIELDS = [
   "type", "title", "description", "username", "isPublic", "avatarColor", "avatarImage",
   "ownerId", "pinned", "muted", "archived", "createdAt", "linkedDiscussionChatId", "points",
   "autoDeleteSeconds", "isVerified", "inviteCode", "mutedUntil", "slowModeSeconds", "commentPriceStars",
-  "approveJoins", "signMessages", "rules", "anonymousAdmins", "topicsEnabled", "welcomeText",
+  "approveJoins", "signMessages", "commentsOff", "rules", "anonymousAdmins", "topicsEnabled", "welcomeText",
 ];
 
 async function updateChat(id, patch) {

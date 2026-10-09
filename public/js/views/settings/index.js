@@ -1209,7 +1209,10 @@ async function renderBusiness(root) {
       ]);
       if (recordMode !== "video-note") return bar;
       if (!recordPreviewEl) recordPreviewEl = el("video", { autoplay: true, muted: true, playsinline: true, class: "composer-round-preview" });
-      if (recordingHandle?.stream && recordPreviewEl.srcObject !== recordingHandle.stream) recordPreviewEl.srcObject = recordingHandle.stream;
+      if (recordingHandle?.stream && recordPreviewEl.srcObject !== recordingHandle.stream) {
+        recordPreviewEl.srcObject = recordingHandle.stream;
+        recordPreviewEl.play?.().catch(() => {});
+      }
       const flip = el("button", {
         class: "composer-round-flip",
         title: "Другая камера",

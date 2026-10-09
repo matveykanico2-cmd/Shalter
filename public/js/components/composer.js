@@ -1638,7 +1638,11 @@ export function Composer({
       recordingHandle = handle;
       startedAt = Date.now();
       stopRecordAction = startChatAction(chatId, mode === "voice" ? "record_voice" : "record_video_note", recordingBar);
-      if (videoPreview) videoPreview.srcObject = recordingHandle.previewStream ?? recordingHandle.stream;
+      if (videoPreview) {
+        videoPreview.srcObject = recordingHandle.previewStream ?? recordingHandle.stream;
+        // autoplay у потока с камеры Android WebView соблюдает не всегда — запускаем сами.
+        videoPreview.play?.().catch(() => {});
+      }
       if (mode === "voice" && getState().settings?.voiceTranscription) {
         transcription = startTranscription();
       }

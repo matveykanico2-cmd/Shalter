@@ -16,12 +16,15 @@ import { getState, setState } from "../state.js";
 import { isChatMuted } from "../lib/chatSort.js";
 import { openMuteDurationDialog } from "../lib/muteDurations.js";
 
+// Форматтеры создаём один раз: toLocale*String собирает новый на каждый вызов, а время
+// есть у каждой строки списка.
+const TIME_FORMAT = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
+const DATE_FORMAT = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" });
 function timeLabel(iso) {
   const d = new Date(iso);
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+  return (sameDay ? TIME_FORMAT : DATE_FORMAT).format(d);
 }
 
 const ceStrip = (t) => (t ?? "").replace(/\[ce:\d+\]/g, "🎨");

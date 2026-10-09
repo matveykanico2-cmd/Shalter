@@ -54,7 +54,8 @@ async function publishPost(chat, uid, body) {
     signedBy: chat.signMessages ? (await getUser(uid))?.name ?? null : null,
   });
 
-  if (chat.linkedDiscussionChatId) {
+  // Комментарии выключены — пост не копируем в группу обсуждения: под ним их не будет.
+  if (chat.linkedDiscussionChatId && !chat.commentsOff) {
     const discussionChat = await getChat(chat.linkedDiscussionChatId);
     if (discussionChat) {
       const author = await getUser(uid);
@@ -103,6 +104,7 @@ async function resolveComments(postId, uid) {
   if (!channel) return { status: 404, error: "Канал не найден" };
   const canSee = channel.memberIds.includes(uid) || !!channel.username;
   if (!canSee) return { status: 403, error: "Комментарии доступны подписчикам канала" };
+  if (channel.commentsOff) return { status: 403, error: "В этом канале комментарии отключены" };
   if (!post.discussionAnchorId || !channel.linkedDiscussionChatId) {
     return { status: 404, error: "У канала нет группы обсуждения — комментарии выключены" };
   }

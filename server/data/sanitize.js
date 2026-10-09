@@ -27,6 +27,12 @@ function publicUser(user) {
   rest.isDeveloper = isAdminPhone(user.phone) || undefined;
   rest.isVerified = user.isVerified ?? (isAdminPhone(user.phone) || undefined);
   rest.isServiceBot = user.id === SYSTEM_BOT_ID || undefined;
+  // Боты в базе «в сети» всегда — зелёная точка на их аватарках ничего не значила.
+  // Вместо «в сети» у бота и так пишется «бот».
+  if (user.isBot) {
+    rest.online = false;
+    delete rest.lastSeen;
+  }
   return rest;
 }
 

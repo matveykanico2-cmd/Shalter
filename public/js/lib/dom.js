@@ -1,5 +1,10 @@
+// Прозрачная картинка 1×1. Android WebView у <video> без обложки, пока нет кадра, рисует
+// серый экран с большой кнопкой «воспроизвести» — на кружках при записи и в чате.
+const BLANK_POSTER = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
 export function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
+  if (tag === "video") node.poster = BLANK_POSTER;
   for (const [key, value] of Object.entries(props ?? {})) {
     if (value == null || value === false) continue;
     if (key === "class") node.className = value;

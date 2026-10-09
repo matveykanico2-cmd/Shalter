@@ -187,6 +187,7 @@ export function openAvatarViewer(user, { canEdit = false, onChange } = {}) {
     if (recording) {
       const preview = el("video", { class: "avatar-viewer-media recording", autoplay: true, muted: true, playsInline: true });
       preview.srcObject = recording.stream;
+      preview.play?.().catch(() => {});
       stage.appendChild(preview);
       return;
     }
