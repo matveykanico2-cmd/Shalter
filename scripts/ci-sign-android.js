@@ -10,6 +10,8 @@ const signingConfigsBlock = `android {
             def props = new Properties()
             file("../keystore.properties").withInputStream { props.load(it) }
             storeFile file("../" + props["storeFile"])
+            // PKCS12 — формат и keytool (JDK 9+), и openssl; JKS-файлы JDK тоже читает этим типом.
+            storeType "pkcs12"
             storePassword props["storePassword"]
             keyAlias props["keyAlias"]
             keyPassword props["keyPassword"]

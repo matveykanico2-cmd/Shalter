@@ -26,6 +26,7 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
     // Свой нативный код (MainActivity + плагин SystemBars) поверх сгенерированного.
     fs.cpSync(path.join(ROOT, "resources/android/java"), path.join(ROOT, "android/app/src/main/java/ru/shalter/app"), { recursive: true });
     pinDebugSigningKey();
+    setAppVersion();
     dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
     wirePushNotifications();
   }
@@ -139,6 +140,22 @@ function describeIosPermissions() {
   }
   fs.writeFileSync(plistPath, plist);
   console.log("ios: описания разрешений в Info.plist");
+}
+
+// Версия приложения — из package.json. Шаблон Capacitor ставит versionCode 1 и
+// versionName "1.0" навсегда, а магазины (RuStore, Google Play) принимают обновление,
+// только если versionCode больше прежнего: 1.0.2 → 10002, 1.2.0 → 10200.
+function setAppVersion() {
+  const gradlePath = path.join(ROOT, "android/app/build.gradle");
+  const version = require(path.join(ROOT, "package.json")).version;
+  const [major = 0, minor = 0, patch = 0] = version.split(".").map((n) => parseInt(n, 10) || 0);
+  const code = major * 10000 + minor * 100 + patch;
+  const gradle = fs
+    .readFileSync(gradlePath, "utf8")
+    .replace(/versionCode \d+/, `versionCode ${code}`)
+    .replace(/versionName "[^"]*"/, `versionName "${version}"`);
+  fs.writeFileSync(gradlePath, gradle);
+  console.log(`android: версия ${version} (versionCode ${code})`);
 }
 
 // Постоянный ключ для debug-сборок (resources/android/debug.keystore). Иначе каждая

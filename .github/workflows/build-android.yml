@@ -123,6 +123,18 @@ jobs:
           name: shalter-android-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
 
+      # Google Play принимает новые приложения только в формате AAB (RuStore — и APK, и AAB).
+      - name: Assemble signed release AAB
+        if: steps.has_signing.outputs.configured == 'true'
+        working-directory: android
+        run: ./gradlew bundleRelease
+
+      - uses: actions/upload-artifact@v4
+        if: steps.has_signing.outputs.configured == 'true'
+        with:
+          name: shalter-android-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+
       # Actions artifacts (above) need a GitHub login and expire after 90
       # days — no good for public/download.html, which links straight to a
       # permanent, public, no-login file. Only the *signed* release APK is
