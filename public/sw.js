@@ -15,11 +15,18 @@ const SHELL_ASSETS = [
 const MEDIA_CACHE = "shalter-media-v1";
 const MEDIA_CACHE_MAX = 300;
 
-async function trimMediaCache() {
-  const cache = await caches.open(MEDIA_CACHE);
+// Встроенные картинки и анимации приложения: эмодзи, подарки, стикеры (lottie),
+// баннеры. Раньше их кэшировал только браузер (на час), и без интернета в чатах были
+// битые картинки и пустые подарки. Отдаём сразу из кэша и обновляем его в фоне.
+const STATIC_MEDIA_CACHE = "shalter-static-media-v1";
+const STATIC_MEDIA_MAX = 2000;
+const STATIC_MEDIA_PREFIXES = ["/img/", "/tgs/", "/gift-emoji/", "/gift-symbols/", "/banners/"];
+
+async function trimMediaCache(name = MEDIA_CACHE, max = MEDIA_CACHE_MAX) {
+  const cache = await caches.open(name);
   const keys = await cache.keys();
-  if (keys.length <= MEDIA_CACHE_MAX) return;
-  await Promise.all(keys.slice(0, keys.length - MEDIA_CACHE_MAX).map((k) => cache.delete(k)));
+  if (keys.length <= max) return;
+  await Promise.all(keys.slice(0, keys.length - max).map((k) => cache.delete(k)));
 }
 
 self.addEventListener("install", (event) => {
@@ -62,7 +69,7 @@ self.addEventListener("activate", (event) => {
     (async () => {
       const names = await caches.keys();
       await Promise.all(
-        names.filter((n) => n.startsWith("shalter-") && n !== SHELL_CACHE && n !== MEDIA_CACHE).map((n) => caches.delete(n))
+        names.filter((n) => n.startsWith("shalter-") && n !== SHELL_CACHE && n !== MEDIA_CACHE && n !== STATIC_MEDIA_CACHE).map((n) => caches.delete(n))
       );
       await self.clients.claim();
     })()
@@ -109,6 +116,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (url.origin === self.location.origin && STATIC_MEDIA_PREFIXES.some((p) => url.pathname.startsWith(p)) && !req.headers.has("range")) {
+    event.respondWith(staleWhileRevalidate(event, req));
+    return;
+  }
+
   // Неизменяемые файлы (хешированные чанки сборки, ссылки с ?v=) — сразу из кэша.
   // Всё остальное (index.html, dist/app.js, исходники /js и /styles) — сначала из сети:
   // раньше они отдавались из кэша навсегда, и после обновления сервера старые модули
@@ -135,6 +147,23 @@ async function cacheFirst(req) {
   const res = await fetch(req);
   if (res.ok) (await caches.open(SHELL_CACHE)).put(req, res.clone());
   return res;
+}
+
+async function staleWhileRevalidate(event, req) {
+  const cache = await caches.open(STATIC_MEDIA_CACHE);
+  const cached = await cache.match(req);
+  const network = fetch(req).then(async (res) => {
+    if (res.ok && res.status === 200) {
+      await cache.put(req, res.clone());
+      trimMediaCache(STATIC_MEDIA_CACHE, STATIC_MEDIA_MAX);
+    }
+    return res;
+  });
+  if (cached) {
+    event.waitUntil(network.catch(() => {}));
+    return cached;
+  }
+  return network;
 }
 
 // Сеть с таймаутом; без сети или при зависании — последняя сохранённая копия.

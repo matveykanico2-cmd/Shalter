@@ -41,7 +41,8 @@ function scheduleFlush() {
 }
 
 function offlineError(url) {
-  const err = new Error(`offline`);
+  // Текст показывают экраны («Не удалось загрузить профиль: …»), поэтому по-русски.
+  const err = new Error("Нет подключения к интернету");
   err.status = 0;
   err.offline = true;
   err.url = url;
@@ -53,11 +54,22 @@ function offlineError(url) {
 // разбирался и сериализовался на каждый запрос, тормозил интерфейс и упирался в квоту.
 const OFFLINE_CACHED = new Set(["/api/auth/session", "/api/bootstrap", "/api/chats", "/api/folders", "/api/settings", "/api/communities/joined"]);
 
+// Профили, которые уже открывали, — чтобы без сети они открывались, а не показывали
+// пустой экран с ошибкой. Храним последние USER_CACHE_MAX.
+const USER_URL = /^\/api\/users\/[^/?]+$/;
+const USER_CACHE_MAX = 50;
+const isOfflineCached = (url) => OFFLINE_CACHED.has(url) || USER_URL.test(url);
+
 function apiCacheWrite(url, data) {
-  if (!OFFLINE_CACHED.has(url)) return;
+  if (!isOfflineCached(url)) return;
   try {
     const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
     obj[url] = { data, ts: Date.now() };
+    const users = Object.keys(obj).filter((k) => USER_URL.test(k));
+    if (users.length > USER_CACHE_MAX) {
+      users.sort((a, b) => obj[a].ts - obj[b].ts);
+      for (const k of users.slice(0, users.length - USER_CACHE_MAX)) delete obj[k];
+    }
     localStorage.setItem(OFFLINE_Q + ".data", JSON.stringify(obj));
   } catch {
   }
@@ -84,7 +96,7 @@ export function rememberSwitchedAccount(user) {
   try {
     const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
     const session = obj["/api/auth/session"]?.data;
-    for (const url of OFFLINE_CACHED) delete obj[url];
+    for (const url of Object.keys(obj)) if (isOfflineCached(url)) delete obj[url];
     if (user?.name && session?.accounts) obj["/api/auth/session"] = { data: { ...session, user }, ts: Date.now() };
     localStorage.setItem(OFFLINE_Q + ".data", JSON.stringify(obj));
   } catch {

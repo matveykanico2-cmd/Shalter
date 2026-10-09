@@ -1,6 +1,7 @@
 export function statusLabel(user, now = new Date()) {
   if (user.isBot) return "бот";
-  if (user.online) return "в сети";
+  // Сами без сети — «в сети» у собеседника устаревшее: показываем, когда видели.
+  if (user.online && typeof navigator !== "undefined" && navigator.onLine !== false) return "в сети";
   if (!user.lastSeen) return null;
   const ago = timeAgo(user.lastSeen, now);
   return ago ? `был(а) ${ago}` : null;

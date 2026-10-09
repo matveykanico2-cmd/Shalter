@@ -53,6 +53,12 @@ function formatElapsed(sec) {
   return `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
 }
 
+// Запрос, упавший из-за отсутствия сети, в фоне никому не мешает — экран сам покажет
+// «Ожидание сети…». Не засоряем консоль необработанными ошибками на каждый опрос.
+window.addEventListener("unhandledrejection", (e) => {
+  if (e.reason?.offline) e.preventDefault();
+});
+
 async function boot() {
   const path = window.location.pathname;
 

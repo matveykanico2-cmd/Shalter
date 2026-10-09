@@ -105,7 +105,10 @@ export function mountIncomingCallWatcher() {
 
   async function tick() {
     if (primed && isWsOpen()) return;
-    const { calls } = await api.listCalls();
+    // Без сети опрос просто пропускаем — раньше каждые несколько секунд летела ошибка.
+    const res = await api.listCalls().catch(() => null);
+    if (!res) return;
+    const { calls } = res;
     if (!primed) {
       primed = true;
       for (const c of calls) if (c.status !== "ongoing") seen.add(c.id);
