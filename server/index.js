@@ -73,6 +73,13 @@ app.use(cookieParser());
 app.use(express.json({ limit: "25mb" }));
 
 app.use("/api", apiLimiter);
+// Ответы API всегда сверяются с сервером: иначе WebView/Safari мог отдать список
+// чатов из своего кэша, и новое появлялось только после перезагрузки. Маршруты,
+// которым кэш нужен (файлы, аватарки), ставят свой Cache-Control поверх этого.
+app.use("/api", (req, res, next) => {
+  if (req.method === "GET") res.set("Cache-Control", "no-cache");
+  next();
+});
 app.use("/api/auth/login-email", authLimiter);
 app.use("/api/auth/register-email", authLimiter);
 app.use("/api/auth/code/start", authLimiter);

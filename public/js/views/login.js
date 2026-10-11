@@ -11,6 +11,26 @@ import { PhoneField } from "../components/phoneField.js";
 
 const QR_POLL_MS = 1500;
 
+// iPhone: клавиатура не уменьшает fixed-экран входа, и Safari, пока поле в фокусе,
+// подкручивает к нему всё окно — листаешь форму регистрации, а её тянет обратно
+// вверх. Подгоняем экран под видимую область (над клавиатурой): поле и так видно,
+// окну крутиться незачем, а форма листается внутри экрана.
+let loginViewportFit = null;
+function fitLoginPageToViewport() {
+  const vv = window.visualViewport;
+  if (!vv || loginViewportFit) return;
+  loginViewportFit = () => {
+    const page = document.querySelector(".login-page");
+    if (!page) return;
+    const keyboardOpen = window.innerHeight - vv.height > 80;
+    page.style.bottom = keyboardOpen ? "auto" : "";
+    page.style.height = keyboardOpen ? `${vv.height}px` : "";
+    page.style.top = keyboardOpen ? `${vv.offsetTop}px` : "";
+  };
+  vv.addEventListener("resize", loginViewportFit);
+  vv.addEventListener("scroll", loginViewportFit);
+}
+
 export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   const revokedNotice = new URLSearchParams(window.location.search).get("reason") === "revoked";
   const bannedNotice = new URLSearchParams(window.location.search).get("reason") === "banned";
@@ -773,6 +793,8 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         ].filter(Boolean)),
       ])
     );
+    fitLoginPageToViewport();
+    loginViewportFit?.();
   }
 
   render();

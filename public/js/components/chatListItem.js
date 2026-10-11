@@ -54,7 +54,15 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
   let startX = 0;
   let startY = 0;
   let sliding = null;
+  // Долгое нажатие пальцем — меню чата, как в Telegram (на iPhone contextmenu не приходит).
+  let holdTimer = null;
+  let held = false;
+  const cancelHold = () => {
+    clearTimeout(holdTimer);
+    holdTimer = null;
+  };
   function resetSlide() {
+    cancelHold();
     btn.style.transform = "";
     wrap.classList.remove("swiping");
     sliding = null;
@@ -65,9 +73,14 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
     "button",
     {
       class: `chat-list-item ${active ? "active" : ""}`,
-      onclick: () => (onOpen ? onOpen(chat.id) : navigate(`/chat/${chat.id}`)),
+      onclick: () => {
+        if (held) return void (held = false);
+        onOpen ? onOpen(chat.id) : navigate(`/chat/${chat.id}`);
+      },
       oncontextmenu: (e) => {
         e.preventDefault();
+        if (holdTimer === null && held) return;
+        cancelHold();
         openMenu({ x: e.clientX, y: e.clientY });
       },
       onpointerenter: (e) => {
@@ -79,6 +92,15 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
         startX = e.clientX;
         startY = e.clientY;
         sliding = null;
+        held = false;
+        cancelHold();
+        holdTimer = setTimeout(() => {
+          holdTimer = null;
+          if (sliding === true) return;
+          held = true;
+          navigator.vibrate?.(12);
+          openMenu({ x: startX, y: startY });
+        }, 450);
       },
       onpointermove: (e) => {
         if (!startX || sliding === false) return;
@@ -86,6 +108,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
         const dy = Math.abs(e.clientY - startY);
         if (sliding === null) {
           if (Math.abs(dx) < 12 && dy < 12) return;
+          cancelHold();
           sliding = Math.abs(dx) > dy && dx < 0;
           if (!sliding) return;
           wrap.classList.add("swiping");
@@ -93,6 +116,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
         btn.style.transform = `translateX(${Math.max(-140, dx)}px)`;
       },
       onpointerup: (e) => {
+        cancelHold();
         if (sliding !== true) return resetSlide();
         const dx = e.clientX - startX;
         resetSlide();

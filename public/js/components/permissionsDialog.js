@@ -1,5 +1,5 @@
 import { el, clear } from "../lib/dom.js";
-import { requestPushPermission, isPushSupported } from "../lib/push.js";
+import { requestPushPermission, isPushSupported, pushDiagnostics } from "../lib/push.js";
 import { isContactPickerSupported } from "../lib/phoneContacts.js";
 
 const SEEN_KEY = "shalter.permissionsAsked";
@@ -23,6 +23,23 @@ async function askMedia(kind) {
   const constraints = kind === "camera" ? { video: true } : { audio: true };
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
   stream.getTracks().forEach((t) => t.stop());
+}
+
+// Уже выданное разрешение показываем галочкой сразу: раньше окно всегда открывалось
+// с кнопками «Разрешить», и казалось, что всё надо разрешать заново.
+async function mediaGranted(kind) {
+  try {
+    const { state } = await navigator.permissions.query({ name: kind === "camera" ? "camera" : "microphone" });
+    return state === "granted";
+  } catch {
+    return false;
+  }
+}
+
+async function alreadyGranted(key) {
+  if (key === "notifications") return (await pushDiagnostics().catch(() => null))?.разрешение === "granted";
+  if (key === "mic" || key === "camera") return mediaGranted(key);
+  return false;
 }
 
 export function openPermissionsDialog({ onDone } = {}) {
@@ -122,5 +139,8 @@ export function openPermissionsDialog({ onDone } = {}) {
   }
 
   render();
+  Promise.all(items.map(async (item) => item.available && !state[item.key] && (await alreadyGranted(item.key)) && (state[item.key] = "ok"))).then(
+    () => overlay.isConnected && render()
+  );
   return { close };
 }

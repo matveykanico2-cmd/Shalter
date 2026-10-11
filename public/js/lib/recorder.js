@@ -169,11 +169,14 @@ async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
   canvas.height = SQUARE_SIZE;
   const ctx = canvas.getContext("2d", { alpha: false });
   ctx.imageSmoothingQuality = "high";
-  // Квадрат из центра кадра — без растягивания, как кружки в Telegram.
+  let facingBack = false;
+  // Квадрат из центра кадра — без растягивания, как кружки в Telegram. Фронталку
+  // отражаем, как зеркало: иначе и в превью, и в записи всё «наоборот».
   const drawFrame = () => {
     const w = camVideo.videoWidth || SQUARE_SIZE;
     const h = camVideo.videoHeight || SQUARE_SIZE;
     const side = Math.min(w, h);
+    ctx.setTransform(facingBack ? 1 : -1, 0, 0, 1, facingBack ? 0 : SQUARE_SIZE, 0);
     ctx.drawImage(camVideo, (w - side) / 2, (h - side) / 2, side, side, 0, 0, SQUARE_SIZE, SQUARE_SIZE);
   };
 
@@ -200,7 +203,6 @@ async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
   const canvasStream = canvas.captureStream(30);
   const finalStream = new MediaStream([...canvasStream.getVideoTracks(), ...camStream.getAudioTracks()]);
 
-  let facingBack = false;
   async function flipCamera() {
     const currentTrack = camStream.getVideoTracks()[0] ?? null;
     // Замораживаем кадр сразу: на части телефонов старую камеру приходится

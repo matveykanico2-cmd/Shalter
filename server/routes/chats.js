@@ -188,6 +188,8 @@ router.post(
     });
     await serviceNote(channel, null, () => `Канал «${channel.title}» создан`);
     await serviceNote(discussion, null, () => `Группа обсуждения канала «${channel.title}» создана`);
+    // Приглашённые видят новый канал сразу, без перезагрузки списка чатов.
+    broadcastToUsers(channel.memberIds.filter((id) => id !== req.uid), { type: "chat:added", chat: channel });
     res.json({ chat: channel });
   })
 );
@@ -219,6 +221,7 @@ router.post(
       createdAt: new Date().toISOString(),
     });
     await serviceNote(chat, req.uid, (name) => `${name} создал(а) группу «${chat.title}»`);
+    broadcastToUsers(chat.memberIds.filter((id) => id !== req.uid), { type: "chat:added", chat });
     res.json({ chat });
   })
 );

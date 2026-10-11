@@ -23188,3 +23188,103 @@ button img.emoji {
     display: none !important;
   }
 }
+
+/* «Выделить текст»: обычное системное выделение, без меню по долгому нажатию. */
+.select-text-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* ── Доводка под Telegram ─────────────────────────────────────────────── */
+
+/* Плашка «Добавить в контакты / Заблокировать» — в одну строку, как в Telegram. */
+.contact-bar-btn {
+  min-width: 0;
+  padding: 8px 4px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Служебные сообщения — узкая «таблетка», а не полоса во всю ширину. */
+.system-message-text {
+  max-width: min(420px, 82%);
+  padding: 4px 12px;
+}
+
+/* Неактивная кнопка не должна выглядеть как активная («Недоступно» в разрешениях). */
+.btn-accent-pill:disabled {
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+  box-shadow: none;
+  cursor: default;
+}
+
+/* Меню чата на телефоне — долгим нажатием, как в Telegram: «⋮» в каждой строке
+   там лишний шум. На компьютере «⋮» появляется только при наведении. */
+@media (pointer: coarse) {
+  .chat-list-item-more {
+    display: none;
+  }
+  .chat-list-item-wrap.with-more > .chat-list-item {
+    padding-right: 12px;
+  }
+  .chat-list-item {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+@media (pointer: fine) {
+  .chat-list-item-more {
+    opacity: 0;
+  }
+}
+
+/* Тёмная тема: входящий пузырь сливался с тёмными обоями. */
+:root[data-theme="dark"] .bubble:not(.mine):not(.bubble-sticker):not(.bubble-media-only) {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bubble:not(.mine):not(.bubble-sticker):not(.bubble-media-only) {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  }
+}
+
+/* «ПОДПИСАТЬСЯ / ОТПИСАТЬСЯ» — плоская нижняя панель, как в Telegram, а не карточка на полосе. */
+.chat-preview-bottom {
+  padding: 0 12px env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.chat-preview-join {
+  height: 52px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.chat-preview-join:hover:not(:disabled) {
+  background: transparent;
+  opacity: 0.8;
+}
+
+/* Имя автора внутри пузыря (группы), как в Telegram. */
+.bubble > .sender-name-inside {
+  display: flex;
+  max-width: 100%;
+  margin: 0 0 1px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 18px;
+  cursor: pointer;
+}

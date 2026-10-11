@@ -318,7 +318,9 @@ export function ChatListPane() {
   else refetch();
   const unsubNew = onWsMessage("message:new", (msg) => {
     noteMessageInChatList(msg.chatId, msg.message);
-    scheduleRefetch(EVENT_REFETCH_MS);
+    // Сообщение из чата, которого в списке ещё нет (новая личка, группа) — тянем сразу.
+    const known = (getState().chats ?? []).some((c) => c.id === msg.chatId);
+    scheduleRefetch(known ? EVENT_REFETCH_MS : 0);
   });
   const unsubUpdated = onWsMessage("message:updated", () => scheduleRefetch(EVENT_REFETCH_MS));
   const unsubDeleted = onWsMessage("message:deleted", (msg) => {
@@ -341,7 +343,7 @@ export function ChatListPane() {
   let lastPoll = Date.now();
   const iv = setInterval(() => {
     if (document.hidden) return;
-    const every = isWsOpen() ? 60000 : 15000;
+    const every = isWsOpen() ? 30000 : 15000;
     if (Date.now() - lastPoll < every) return;
     lastPoll = Date.now();
     refetch();

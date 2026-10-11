@@ -12,7 +12,7 @@ import { formatText, previewText } from "../lib/formatText.js";
 import { messagePreview, diceResult } from "../lib/messagePreview.js";
 import { api } from "../api.js";
 import { openReportDialog } from "./reportDialog.js";
-import { openProfileDialog } from "./profileDialog.js";
+import { openProfileDialog, copyText } from "./profileDialog.js";
 import { ImageAttachment, VideoAttachment, FileAttachment, LinkPreviewCard, LocationAttachment } from "./attachments.js";
 import { getState, setState } from "../state.js";
 import { renderSticker } from "../lib/stickers.js";
@@ -1266,7 +1266,13 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         ? [{
             icon: "Copy",
             label: "Копировать текст",
-            onClick: () => navigator.clipboard?.writeText(message.text).catch(() => {}),
+            onClick: () => copyText(message.text, "Текст скопирован"),
+          }, {
+            // На телефоне долгое нажатие открывает это меню, а не выделение —
+            // часть текста выделяют в отдельном окне, где выделение системное.
+            icon: "Edit",
+            label: "Выделить текст",
+            onClick: () => openSelectTextDialog(message.text),
           }]
         : []),
       // Ссылка на сообщение (не в личке) — открывает чат и прокручивает к нему.
@@ -1278,7 +1284,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
               // Публичный чат — ссылка через @username: её откроет и тот, кто ещё не вступил.
               const username = getState().chats.find((c) => c.id === message.chatId)?.username;
               const path = username ? `/@${username}` : `/chat/${message.chatId}`;
-              navigator.clipboard?.writeText(`${location.origin}${path}?msg=${message.id}`).catch(() => {});
+              copyText(`${location.origin}${path}?msg=${message.id}`, "Ссылка скопирована");
             },
           }]
         : []),
@@ -1502,14 +1508,22 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     : null;
 
   // Посты канала, как в Telegram, всегда слева — даже у владельца (права на правку не меняются).
+  const senderBtn = showSender && !mine && sender
+    ? el(
+        "button",
+        { class: "sender-name", style: sender.nameColor ? `color:${nameColorValue(sender.nameColor)}` : null, onclick: () => openProfileDialog(sender.id) },
+        [el("span", { class: "sender-name-text" }, sender.name), VerifiedBadge(sender, 12), sender.isPremium ? PremiumStar({ size: 13, seed: sender.id, title: "Shalter Premium" }) : null, senderTag ? el("span", { class: "sender-tag" }, senderTag) : null].filter(Boolean)
+      )
+    : null;
+  // Как в Telegram: имя автора — первой строкой внутри пузыря. Стикеры, кружки и
+  // медиа без подписи пузыря не имеют — у них имя остаётся над сообщением.
+  const senderInside = senderBtn && !isSticker && !isVideoNote && !mediaOnly && !isGift;
+  if (senderInside) {
+    senderBtn.classList.add("sender-name-inside");
+    bubble.prepend(senderBtn);
+  }
   const column = el("div", { class: `message-column ${mine && !isChannel ? "mine" : ""}` }, [
-    showSender && !mine && sender
-      ? el(
-          "button",
-          { class: "sender-name", style: sender.nameColor ? `color:${nameColorValue(sender.nameColor)}` : null, onclick: () => openProfileDialog(sender.id) },
-          [el("span", { class: "sender-name-text" }, sender.name), VerifiedBadge(sender, 12), sender.isPremium ? PremiumStar({ size: 13, seed: sender.id, title: "Shalter Premium" }) : null, senderTag ? el("span", { class: "sender-tag" }, senderTag) : null].filter(Boolean)
-        )
-      : null,
+    senderInside ? null : senderBtn,
     bubbleWrap,
     reactionsRow?.parentNode ? null : reactionsRow,
     keyboardRows,
@@ -1620,7 +1634,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
           })
         : null,
       // Как в Telegram: в личном чате аватаров у сообщений нет — только в группах.
-      !mine && !isDm
+      !mine && !isDm && !isChannel
         ? el(
             "div",
             { class: "message-avatar-slot" },
@@ -1679,4 +1693,16 @@ function CallBubble(message, mine, onCallBack) {
 export function isCallLogMessage(m) {
   if (m?.type === "call") return true;
   return m?.type === "text" && (m.createdAt ?? "") < "2026-10-03" && !m.attachments?.length && CALL_LOG_RE.test(m.text ?? "");
+}
+
+function openSelectTextDialog(text) {
+  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && overlay.remove() });
+  overlay.appendChild(
+    el("div", { class: "modal-dialog select-text-dialog" }, [
+      el("h2", { class: "modal-title" }, "Выделить текст"),
+      el("div", { class: "select-text-body" }, text),
+      el("button", { class: "modal-cancel", onclick: () => overlay.remove() }, "Закрыть"),
+    ])
+  );
+  document.body.appendChild(overlay);
 }

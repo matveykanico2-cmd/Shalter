@@ -301,8 +301,12 @@ function renderMenu(root) {
   );
 }
 
+// Буфер обмена бывает недоступен (WebView, http) — тогда показываем текст, чтобы
+// скопировать вручную, а не молчим.
 function copyText(text, toast) {
-  navigator.clipboard?.writeText(text).then(() => showToast(toast), () => {});
+  const manual = () => askText("Скопируйте вручную:", text);
+  if (!navigator.clipboard?.writeText) return void manual();
+  navigator.clipboard.writeText(text).then(() => showToast(toast), manual);
 }
 
 

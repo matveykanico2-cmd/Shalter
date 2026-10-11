@@ -1885,7 +1885,8 @@ export async function ChatView(root, chatId) {
         Math.abs(new Date(b.createdAt) - new Date(a.createdAt)) < GROUP_WINDOW_MS;
       const groupStart = !runsWith(prev, m);
       const groupEnd = !runsWith(m, next);
-      const showSender = (chat.type === "group" || chat.type === "channel") && groupStart;
+      // Как в Telegram: автор поста в канале — сам канал, имя админа не показываем.
+      const showSender = chat.type === "group" && groupStart;
       const sender = m.anonymous
         ? { id: chat.id, name: chat.title, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage }
         : senderOf(m.senderId);
@@ -2130,8 +2131,25 @@ export async function ChatView(root, chatId) {
       );
       return;
     }
+    // Подписчик канала вместо поля ввода видит «ОТПИСАТЬСЯ»; после отписки от
+    // публичного канала открывается его превью, где кнопка уже «ПОДПИСАТЬСЯ».
     if (isChannel && !isChannelAdmin) {
-      bodyBottomSlot.appendChild(el("p", { class: "channel-readonly-hint" }, "Публиковать в этот канал могут только администраторы"));
+      const leaveBtn = el("button", { type: "button", class: "chat-preview-join" }, "ОТПИСАТЬСЯ");
+      leaveBtn.onclick = async () => {
+        if (!chat.isPublic && !(await askConfirm("Канал закрытый — вернуться в него можно будет только по приглашению. Отписаться?", { okLabel: "Отписаться" }))) return;
+        leaveBtn.disabled = true;
+        leaveBtn.textContent = "…";
+        try {
+          await api.leaveChat(chat.id);
+          setState({ chats: (getState().chats ?? []).filter((c) => c.id !== chat.id) });
+          navigate(chat.isPublic && chat.username ? `/@${chat.username}` : "/", { replace: true });
+        } catch (err) {
+          leaveBtn.disabled = false;
+          leaveBtn.textContent = "ОТПИСАТЬСЯ";
+          alert(err.message || "Не удалось отписаться");
+        }
+      };
+      bodyBottomSlot.appendChild(el("div", { class: "chat-preview-bottom" }, [leaveBtn]));
       return;
     }
     if (isDm && other?.isServiceBot) {

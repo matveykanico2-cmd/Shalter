@@ -53,16 +53,21 @@ export function openProfileQrDialog(user) {
   function sendToChat() {
     openForwardDialog(async (chatId) => {
       copiedNote.textContent = "Отправляем…";
-      const attachment = await uploadFile(await cardFile(), "image");
+      const attachment = await uploadFile(await preparedCard(), "image");
       await api.sendMessage(chatId, url, { attachments: [attachment] });
       copiedNote.textContent = "QR-код отправлен ✓";
     });
   }
 
+  // Картинку готовим заранее: Safari открывает системное «Поделиться» только сразу
+  // после нажатия, а рисование карточки занимало это время — и ничего не происходило.
+  let cardReady = null;
+  const preparedCard = () => (cardReady ??= cardFile().catch((err) => ((cardReady = null), Promise.reject(err))));
+
   async function shareImage() {
     copiedNote.textContent = "Готовим картинку…";
     try {
-      const file = await cardFile();
+      const file = await preparedCard();
       if (await shareFileNative(file, file.name, `${user.name} — Shalter ${url}`)) {
         copiedNote.textContent = "";
         return;
@@ -90,6 +95,8 @@ export function openProfileQrDialog(user) {
   const nameEl = el("p", { class: "mono qr-profile-username" }, `@${user.username}`);
   const swatches = el("div", { class: "qr-profile-themes" });
   function paint() {
+    cardReady = null;
+    setTimeout(() => preparedCard().catch(() => {}), 0);
     const t = theme();
     stage.style.background = t.bg;
     codeBox.innerHTML = qrSvg(url, t.ink);
