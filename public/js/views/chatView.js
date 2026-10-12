@@ -161,19 +161,38 @@ export async function ChatView(root, chatId) {
     if (!openedFromCache) {
       const offline = err?.offline ?? !navigator.onLine;
       const missing = err?.status === 404 || err?.status === 403;
+      // Иначе повторное нажатие на этот же чат в списке ничего не делало (маршрутизатор
+      // считал его уже открытым), и чат оставался «сломанным» до перезапуска.
+      delete root.dataset.path;
+      // Связь вернулась — загружаем сами, без кнопки.
+      const retry = () => {
+        stopAutoRetry();
+        if (!superseded()) ChatView(root, chatId);
+      };
+      const unsubReconnect = missing ? null : onWsMessage("ws:reconnected", retry);
+      if (!missing) window.addEventListener("online", retry);
+      function stopAutoRetry() {
+        unsubReconnect?.();
+        window.removeEventListener("online", retry);
+      }
+      root._cleanup = stopAutoRetry;
       mount(
         root,
         el(
           "div",
           { class: "empty-chat" },
-          offline
-            ? "Нет соединения с Shalter — сообщения появятся, когда вы включите интернет. Отправленные в это время сообщения сохранятся и уйдут автоматически."
-            : missing
-              ? "Чат не найден"
-              : [
-                  el("p", {}, "Не удалось загрузить чат"),
-                  el("button", { class: "btn-accent", onclick: () => ChatView(root, chatId) }, "Повторить"),
-                ]
+          missing
+            ? "Чат не найден"
+            : [
+                el(
+                  "p",
+                  {},
+                  offline
+                    ? "Нет соединения с Shalter — чат загрузится сам, когда связь вернётся. Отправленные в это время сообщения сохранятся и уйдут автоматически."
+                    : "Не удалось загрузить чат"
+                ),
+                el("button", { class: "btn-accent", onclick: retry }, "Повторить"),
+              ]
         )
       );
       return;

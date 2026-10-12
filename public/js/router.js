@@ -54,7 +54,26 @@ async function render() {
     lastRenderOk = true;
   } catch (err) {
     console.error("Не удалось открыть", path, err);
+    // На плохой сети чаще всего не догрузился сам модуль экрана: сообщаем шеллу
+    // (покажет, что случилось) и пробуем ещё раз, когда связь вернётся.
+    window.dispatchEvent(new CustomEvent("app:route-error", { detail: { path, error: err } }));
+    retryWhenOnline(path);
   }
+}
+
+let retryArmed = false;
+function retryWhenOnline(path) {
+  if (retryArmed) return;
+  retryArmed = true;
+  const again = () => {
+    window.removeEventListener("online", again);
+    clearTimeout(timer);
+    retryArmed = false;
+    if (currentPath === path && !lastRenderOk) render();
+  };
+  window.addEventListener("online", again);
+  // Сеть могла и не пропадать целиком (просто медленная) — тогда события online не будет.
+  const timer = setTimeout(again, 5000);
 }
 
 export function navigate(path, { replace = false } = {}) {

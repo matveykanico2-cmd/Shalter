@@ -5,6 +5,8 @@
 // запоминание окна и экран «нет связи» с автоповтором (ui/index.html).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_icons;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
@@ -86,7 +88,8 @@ fn bridge_script(origin: &str) -> String {
     setUnread: function (count) {{ return inv("set_unread", {{ count: Math.max(0, Math.floor(Number(count) || 0)) }}); }},
     focus: function () {{ return inv("focus_window"); }},
     notify: function (title, body, url) {{ return inv("notify", {{ title: String(title == null ? "Shalter" : title), body: String(body == null ? "" : body), url: url || null }}); }},
-    retry: function (target) {{ return inv("retry", {{ target: target || null }}); }}
+    retry: function (target) {{ return inv("retry", {{ target: target || null }}); }},
+    setIcon: function (id) {{ return inv("set_app_icon", {{ id: String(id) }}); }}
   }};
   // Свои ссылки открываем в этом же окне, всё остальное — в браузере по умолчанию.
   var nativeOpen = window.open;
@@ -227,6 +230,41 @@ fn retry(app: AppHandle, shell: State<Shell>, target: Option<String>) {
     if let (Some(win), Ok(url)) = (main_window(&app), Url::parse(&target)) {
         let _ = win.navigate(url);
     }
+}
+
+// ---------- иконка приложения (Настройки → Внешний вид) ----------
+
+// Выбор хранится в app_config_dir/app-icon: окно и трей при следующем запуске
+// сразу получают выбранную иконку.
+fn app_icon_file(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join("app-icon"))
+}
+
+fn apply_app_icon(app: &AppHandle, id: &str) -> bool {
+    let Some((_, bytes)) = app_icons::APP_ICONS.iter().find(|(name, _)| *name == id) else { return false };
+    let Ok(image) = tauri::image::Image::from_bytes(bytes) else { return false };
+    // Окно — это и значок на панели задач (Windows, Linux).
+    if let Some(win) = main_window(app) {
+        let _ = win.set_icon(image.clone());
+    }
+    if let Some(tray) = app.tray_by_id(MAIN) {
+        let _ = tray.set_icon(Some(image));
+    }
+    true
+}
+
+#[tauri::command]
+fn set_app_icon(app: AppHandle, id: String) -> Result<(), String> {
+    if !apply_app_icon(&app, &id) {
+        return Err(format!("неизвестная иконка: {id}"));
+    }
+    if let Some(file) = app_icon_file(&app) {
+        if let Some(dir) = file.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(file, &id);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -409,7 +447,7 @@ fn main() {
             tray_open_item: Mutex::new(None),
             quitting: AtomicBool::new(false),
         })
-        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external])
+        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external, set_app_icon])
         .setup(move |app| {
             let handle = app.handle().clone();
 
@@ -423,6 +461,7 @@ fn main() {
                     .permission("allow-notify")
                     .permission("allow-retry")
                     .permission("allow-open-external")
+                    .permission("allow-set-app-icon")
                     .permission("notification:default"),
             )?;
 
@@ -446,6 +485,9 @@ fn main() {
             // Трей не обязателен: без поддержки в окружении (часть Linux-сред) просто живём без него.
             if let Err(err) = create_tray(&handle) {
                 eprintln!("tray unavailable: {err}");
+            }
+            if let Some(id) = app_icon_file(&handle).and_then(|f| std::fs::read_to_string(f).ok()) {
+                apply_app_icon(&handle, id.trim());
             }
             Ok(())
         })

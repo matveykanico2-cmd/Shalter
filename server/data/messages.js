@@ -302,6 +302,19 @@ function setReportMessageStatus(id, status) {
   return mutate(id, (m) => (m.report ? { ...m, report: { ...m.report, status } } : m));
 }
 
+// Жалоба приходит каждому модератору своим сообщением — решённой она должна стать у всех.
+async function setReportStatusEverywhere(reportId, status) {
+  const rows = db
+    .prepare("SELECT id FROM messages WHERE report IS NOT NULL AND json_extract(report, '$.reportId') = ?")
+    .all(reportId);
+  const updated = [];
+  for (const { id } of rows) {
+    const m = await setReportMessageStatus(id, status);
+    if (m) updated.push(m);
+  }
+  return updated;
+}
+
 function editMessage(id, text) {
   return mutate(id, (m) => ({ ...m, text, editedAt: new Date().toISOString() }));
 }
@@ -617,5 +630,6 @@ module.exports = {
   updateLiveLocation,
   setAttachmentPreview,
   setReportMessageStatus,
+  setReportStatusEverywhere,
   setBoost,
 };

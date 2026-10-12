@@ -2,12 +2,14 @@ const express = require("express");
 const { genId } = require("../lib/genId");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { ADMIN_PHONE, isAdminPhone } = require("../config");
+const { ADMIN_PHONES } = require("../config");
+const { hasAdminSection, outranks } = require("../lib/adminAccess");
+const { broadcastToUsers } = require("../ws");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { addReport, getReport, setReportStatus } = require("../data/reports");
-const { getUser, findUserByPhone, setBanned, setSafetyLabel } = require("../data/users");
+const { getUser, findUserByPhone, listUsersWithAdminSection, setBanned, setSafetyLabel } = require("../data/users");
 const { getChat, deleteChat } = require("../data/chats");
-const { getMessage, deleteMessage, setReportMessageStatus } = require("../data/messages");
+const { getMessage, deleteMessage, setReportStatusEverywhere } = require("../data/messages");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 
 const router = express.Router();
@@ -90,21 +92,29 @@ router.post(
       status: "open",
     });
 
-    const admin = await findUserByPhone(ADMIN_PHONE);
-    if (admin) {
-      const canBan = !!subjectUserId;
-      const chat = await findOrCreateDm(SYSTEM_BOT_ID, admin.id);
-      const summary = targetSummary(targetType, target);
-      const details2 = report.details ? `\n«${report.details}»` : "";
-      await sendMessageAndBroadcast(
-        chat,
-        SYSTEM_BOT_ID,
-        `🚩 Новая жалоба (${REASON_LABELS[reason]}) от ${reporter.name}\n${summary}${details2}`,
-        {
-          type: "report",
-          report: { reportId: report.id, reason, reporterName: reporter.name, targetType, targetSummary: summary, status: "open", canBan },
-        }
-      );
+    // Жалобу получают админы и каждый, кому выдан раздел «Модерация»:
+    // раньше она шла только на телефон главного админа, и модераторы её не видели.
+    const admins = await Promise.all(ADMIN_PHONES.filter(Boolean).map((p) => findUserByPhone(p)));
+    const moderators = [...admins, ...(await listUsersWithAdminSection("moderation"))].filter((u) => u && u.id !== req.uid);
+    const recipients = [...new Map(moderators.map((u) => [u.id, u])).values()];
+    const canBan = !!subjectUserId;
+    const summary = targetSummary(targetType, target);
+    const details2 = report.details ? `\n«${report.details}»` : "";
+    for (const admin of recipients) {
+      try {
+        const chat = await findOrCreateDm(SYSTEM_BOT_ID, admin.id);
+        await sendMessageAndBroadcast(
+          chat,
+          SYSTEM_BOT_ID,
+          `🚩 Новая жалоба (${REASON_LABELS[reason]}) от ${reporter.name}\n${summary}${details2}`,
+          {
+            type: "report",
+            report: { reportId: report.id, reason, reporterName: reporter.name, targetType, targetSummary: summary, status: "open", canBan },
+          }
+        );
+      } catch (err) {
+        console.error("report notification failed:", err);
+      }
     }
 
     res.json({ report });
@@ -115,9 +125,9 @@ router.post(
   "/:id/resolve",
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
-    if (!isAdminPhone(me.phone)) return res.status(403).json({ error: "Недостаточно прав" });
+    if (!hasAdminSection(me, "moderation")) return res.status(403).json({ error: "Недостаточно прав" });
 
-    const { action, messageId } = req.body ?? {};
+    const { action } = req.body ?? {};
     if (!["delete", "ban", "dismiss"].includes(action)) {
       return res.status(400).json({ error: "invalid action" });
     }
@@ -146,6 +156,10 @@ router.post(
     } else if (action === "ban") {
       const userId = report.subjectUserId ?? (target ? await responsibleUserId(report.targetType, target) : null);
       if (!userId) return res.status(400).json({ error: "Не удалось определить, кого блокировать" });
+      const subject = await getUser(userId);
+      if (subject && (subject.id === me.id || !outranks(me, subject))) {
+        return res.status(403).json({ error: "Нельзя применять это к администратору вашего уровня или выше" });
+      }
       await setBanned(userId, true, `Жалоба: ${REASON_LABELS[report.reason] ?? report.reason}`);
       const label = REASON_TO_LABEL[report.reason];
       if (label) {
@@ -156,7 +170,10 @@ router.post(
     }
 
     await setReportStatus(report.id, nextStatus);
-    if (messageId) await setReportMessageStatus(messageId, nextStatus);
+    for (const m of await setReportStatusEverywhere(report.id, nextStatus)) {
+      const chat = await getChat(m.chatId);
+      if (chat) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: m });
+    }
     res.json({ status: nextStatus });
   })
 );

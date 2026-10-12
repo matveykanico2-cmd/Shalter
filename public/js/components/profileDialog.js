@@ -18,6 +18,7 @@ import { openForwardDialog } from "./forwardDialog.js";
 import { openProfileQrDialog } from "./profileQrDialog.js";
 import { SAFETY_LABELS, safetyLabelInfo } from "../lib/safetyLabels.js";
 import { openAdminUserPanel } from "./adminUserPanel.js";
+import { isServerModerator } from "../lib/moderation.js";
 import { openAvatarViewer } from "./avatarViewer.js";
 import { openGiftCardDialog } from "./giftCardDialog.js";
 import { ProfileTrackCard } from "./profileTracks.js";
@@ -958,12 +959,12 @@ export async function openProfileDialog(userId) {
           ])
         : null,
 
-      me.isDeveloper && user.id !== me.id
+      isServerModerator() && user.id !== me.id
         ? el("div", { class: "profile-admin-block" }, [
-            el("p", { class: "profile-admin-title" }, [el("span", { html: iconSvg("Shield", 13) }), " Инструменты разработчика"]),
+            el("p", { class: "profile-admin-title" }, [el("span", { html: iconSvg("Shield", 13) }), me.isDeveloper ? " Инструменты разработчика" : " Инструменты модератора"]),
             el("button", { class: "profile-action-btn", onclick: () => openAdminUserPanel(user, onAdminChange) }, [
               el("span", { html: iconSvg("Shield", 14) }),
-              " Выдать покупку, модерация, данные",
+              me.isDeveloper ? " Выдать покупку, модерация, данные" : " Модерация",
             ]),
           ])
         : null,

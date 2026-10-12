@@ -21,7 +21,10 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
   }
   fs.cpSync(path.join(ROOT, target.from), to, { recursive: true });
   console.log(`${name}: иконки и заставки → ${target.to}`);
-  if (name === "ios") describeIosPermissions();
+  if (name === "ios") {
+    describeIosPermissions();
+    wireIosAppIcons();
+  }
   if (name === "android") {
     // Свой нативный код (MainActivity + плагин SystemBars) поверх сгенерированного.
     fs.cpSync(path.join(ROOT, "resources/android/java"), path.join(ROOT, "android/app/src/main/java/ru/shalter/app"), { recursive: true });
@@ -29,7 +32,81 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
     setAppVersion();
     dropPrecompressed(path.join(ROOT, "android/app/src/main/assets/public"));
     wirePushNotifications();
+    wireAndroidAppIcons();
   }
+}
+
+// Варианты иконки (scripts/gen-app-icons.mjs → resources/app-icons.json).
+function appIconIds() {
+  return JSON.parse(fs.readFileSync(path.join(ROOT, "resources/app-icons.json"), "utf8"));
+}
+
+// Android: значок в лаунчере — у включённого activity-alias. Запуск (MAIN/LAUNCHER)
+// переносим с MainActivity на алиасы ".Icon_<id>"; включён стандартный, остальные
+// включает плагин AppIcon (resources/android/java/AppIconPlugin.java).
+function wireAndroidAppIcons() {
+  const manifestPath = path.join(ROOT, "android/app/src/main/AndroidManifest.xml");
+  let manifest = fs.readFileSync(manifestPath, "utf8");
+  if (manifest.includes(".Icon_")) return;
+  const launcher = /\s*<intent-filter>\s*<action android:name="android\.intent\.action\.MAIN" \/>\s*<category android:name="android\.intent\.category\.LAUNCHER" \/>\s*<\/intent-filter>/;
+  if (!launcher.test(manifest)) {
+    console.log("android: не нашёл MAIN/LAUNCHER у MainActivity — смена иконки не подключена");
+    return;
+  }
+  manifest = manifest.replace(launcher, "");
+  const { default: def, icons } = appIconIds();
+  const aliases = icons
+    .map((id) => {
+      const res = id === def ? "ic_launcher" : `ic_launcher_${id}`;
+      return `        <activity-alias
+            android:name=".Icon_${id}"
+            android:targetActivity=".MainActivity"
+            android:enabled="${id === def}"
+            android:exported="true"
+            android:label="@string/title_activity_main"
+            android:icon="@mipmap/${res}"
+            android:roundIcon="@mipmap/${res}_round">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>`;
+    })
+    .join("\n");
+  manifest = manifest.replace(/(<activity\b[^>]*android:name="\.MainActivity"[\s\S]*?<\/activity>)/, `$1\n\n${aliases}`);
+  fs.writeFileSync(manifestPath, manifest);
+  console.log(`android: иконок приложения — ${icons.length} (activity-alias)`);
+}
+
+// iOS: альтернативные иконки — наборы AppIcon-<id> в Assets.xcassets (их скопировали
+// выше); Xcode включает их в сборку с ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS.
+// Плагин AppIcon — в AppDelegate.swift (файл уже в проекте), регистрирует его свой
+// контроллер, который ставим в Main.storyboard вместо CAPBridgeViewController.
+function wireIosAppIcons() {
+  const pbxPath = path.join(ROOT, "ios/App/App.xcodeproj/project.pbxproj");
+  if (fs.existsSync(pbxPath)) {
+    let pbx = fs.readFileSync(pbxPath, "utf8");
+    if (!pbx.includes("ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS")) {
+      pbx = pbx.replace(/(\t*)ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;/g, "$1ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;\n$1ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;");
+      fs.writeFileSync(pbxPath, pbx);
+    }
+  }
+  const boardPath = path.join(ROOT, "ios/App/App/Base.lproj/Main.storyboard");
+  if (fs.existsSync(boardPath)) {
+    const board = fs.readFileSync(boardPath, "utf8");
+    fs.writeFileSync(
+      boardPath,
+      board.replace('customClass="CAPBridgeViewController" customModule="Capacitor"', 'customClass="ShalterBridgeViewController" customModule="App" customModuleProvider="target"')
+    );
+  }
+  const delegatePath = path.join(ROOT, "ios/App/App/AppDelegate.swift");
+  if (fs.existsSync(delegatePath)) {
+    const delegate = fs.readFileSync(delegatePath, "utf8");
+    if (!delegate.includes("AppIconPlugin")) {
+      fs.writeFileSync(delegatePath, `${delegate}\n${fs.readFileSync(path.join(ROOT, "resources/ios-native/AppIcon.swift"), "utf8")}`);
+    }
+  }
+  console.log("ios: альтернативные иконки приложения подключены");
 }
 
 // Push через Firebase: google-services.json (файл resources/android/google-services.json

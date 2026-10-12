@@ -23,6 +23,12 @@ const PREMIUM_DURATIONS = [
   { label: "365 дней", opts: { days: 365 } },
   { label: "Навсегда", opts: { forever: true } },
 ];
+const BUSINESS_DURATIONS = [
+  { label: "30 дней", opts: { days: 30 } },
+  { label: "90 дней", opts: { days: 90 } },
+  { label: "365 дней", opts: { days: 365 } },
+  { label: "Навсегда", opts: { forever: true } },
+];
 const ADS_DURATIONS = [
   { label: "30 дней", opts: { days: 30 } },
   { label: "90 дней", opts: { days: 90 } },
@@ -44,7 +50,12 @@ const STATUS_LABELS = {
 
 export function openAdminUserPanel(user, onChange) {
   let state = { ...user };
-  const canGrantSections = !!getState().user?.isPrimaryAdmin;
+  const me = getState().user;
+  const canGrantSections = !!me?.isPrimaryAdmin;
+  // Выдача покупок, звёзд и подарков — только полным админам (сервер проверяет телефон),
+  // выгрузка данных — разделу «Запросы органов». Модератору эти кнопки отвечали 403.
+  const canGrantPurchases = !!me?.isDeveloper;
+  const canExport = !!me?.isDeveloper || (me?.adminSections ?? []).includes("legal");
   let pendingSections = new Set(state.adminSections ?? []);
   let reports = null;
   let reportsError = null;
@@ -120,6 +131,22 @@ export function openAdminUserPanel(user, onChange) {
       const { user: updated } = await api.grantPremium(state.id, false);
       return { patch: { isPremium: !!updated.isPremium, premiumUntil: updated.premiumUntil ?? null, premiumForever: !!updated.premiumForever } };
     }, "Premium отключён — пользователь уведомлён в чате.");
+  }
+
+  const businessPatch = (u) => ({ isBusiness: !!u.isBusiness, businessUntil: u.businessUntil ?? null, businessForever: !!u.businessForever });
+
+  function grantBusiness(opts, label) {
+    run(async () => {
+      const { user: updated } = await api.grantBusiness(state.id, true, opts);
+      return { patch: businessPatch(updated) };
+    }, `Shalter для бизнеса выдан (${label}) — пользователь уведомлён в чате.`);
+  }
+
+  function revokeBusiness() {
+    run(async () => {
+      const { user: updated } = await api.grantBusiness(state.id, false);
+      return { patch: businessPatch(updated) };
+    }, "Shalter для бизнеса отключён — пользователь уведомлён в чате.");
   }
 
   function grantAds(opts, label) {
@@ -220,64 +247,76 @@ export function openAdminUserPanel(user, onChange) {
           )
         : null,
 
-      el("p", { class: "admin-panel-section-title" }, "Выдать покупку"),
-      el("p", { class: "settings-toggle-hint" }, "Оплата — обычным переводом на телефон администрации. Получив перевод, выдайте купленное здесь: пользователю придёт уведомление в чат."),
-      el("p", { class: "admin-grant-status" }, [
-        el("span", {}, "Shalter Premium"),
-        el("span", { class: "admin-grant-state" }, untilLabel({ active: state.isPremium, forever: state.premiumForever, until: state.premiumUntil })),
-      ]),
-      durationRow(PREMIUM_DURATIONS, grantPremium),
-      state.isPremium
-        ? el("button", { class: "settings-danger-link", disabled: busy, onclick: revokePremium }, "Забрать Premium")
-        : null,
-      el("p", { class: "admin-grant-status" }, [
-        el("span", {}, "Кабинет рекламы"),
-        el("span", { class: "admin-grant-state" }, untilLabel({ active: state.isAdsActive, forever: state.adsForever, until: state.adsUntil })),
-      ]),
-      durationRow(ADS_DURATIONS, grantAds),
-      state.isAdsActive
-        ? el("button", { class: "settings-danger-link", disabled: busy, onclick: revokeAds }, "Забрать кабинет рекламы")
-        : null,
-      gifts.length
-        ? el(
-            "button",
-            {
-              class: "profile-action-btn admin-gift-btn",
-              disabled: busy,
-              onclick: () =>
-                openGiftPickerDialog({
-                  gifts,
-                  title: `Подарить: ${state.name}`,
-                  onPick: (g) => sendGift(g),
-                }),
-            },
-            "🎁 Отправить подарок"
-          )
-        : null,
+      canGrantPurchases
+        ? el("div", {}, [
+          el("p", { class: "admin-panel-section-title" }, "Выдать покупку"),
+          el("p", { class: "settings-toggle-hint" }, "Оплата — обычным переводом на телефон администрации. Получив перевод, выдайте купленное здесь: пользователю придёт уведомление в чат."),
+          el("p", { class: "admin-grant-status" }, [
+            el("span", {}, "Shalter Premium"),
+            el("span", { class: "admin-grant-state" }, untilLabel({ active: state.isPremium, forever: state.premiumForever, until: state.premiumUntil })),
+          ]),
+          durationRow(PREMIUM_DURATIONS, grantPremium),
+          state.isPremium
+            ? el("button", { class: "settings-danger-link", disabled: busy, onclick: revokePremium }, "Забрать Premium")
+            : null,
+          el("p", { class: "admin-grant-status" }, [
+            el("span", {}, "Shalter для бизнеса"),
+            el("span", { class: "admin-grant-state" }, untilLabel({ active: state.isBusiness, forever: state.businessForever, until: state.businessUntil })),
+          ]),
+          durationRow(BUSINESS_DURATIONS, grantBusiness),
+          state.isBusiness
+            ? el("button", { class: "settings-danger-link", disabled: busy, onclick: revokeBusiness }, "Забрать Shalter для бизнеса")
+            : null,
+          el("p", { class: "admin-grant-status" }, [
+            el("span", {}, "Кабинет рекламы"),
+            el("span", { class: "admin-grant-state" }, untilLabel({ active: state.isAdsActive, forever: state.adsForever, until: state.adsUntil })),
+          ]),
+          durationRow(ADS_DURATIONS, grantAds),
+          state.isAdsActive
+            ? el("button", { class: "settings-danger-link", disabled: busy, onclick: revokeAds }, "Забрать кабинет рекламы")
+            : null,
+          gifts.length
+            ? el(
+                "button",
+                {
+                  class: "profile-action-btn admin-gift-btn",
+                  disabled: busy,
+                  onclick: () =>
+                    openGiftPickerDialog({
+                      gifts,
+                      title: `Подарить: ${state.name}`,
+                      onPick: (g) => sendGift(g),
+                    }),
+                },
+                "🎁 Отправить подарок"
+              )
+            : null,
 
-      el("p", { class: "admin-panel-section-title" }, "Звёзды"),
-      el("p", { class: "settings-toggle-hint" }, "Начислить после перевода — или списать, указав отрицательное число."),
-      (() => {
-        const input = el("input", { class: "settings-input mono", type: "number", step: "1", placeholder: "например 130" });
-        return el("div", { class: "admin-stars-row" }, [
-          input,
-          el(
-            "button",
-            {
-              class: "btn-accent-pill",
-              disabled: busy,
-              onclick: () =>
-                run(async () => {
-                  const amount = Number(input.value);
-                  if (!amount) throw new Error("Укажите количество звёзд");
-                  const { balance } = await api.grantStars(state.id, amount);
-                  return { notice: `Баланс: ${balance} ⭐` };
-                }, "Звёзды начислены"),
-            },
-            "Начислить"
-          ),
-        ]);
-      })(),
+          el("p", { class: "admin-panel-section-title" }, "Звёзды"),
+          el("p", { class: "settings-toggle-hint" }, "Начислить после перевода — или списать, указав отрицательное число."),
+          (() => {
+            const input = el("input", { class: "settings-input mono", type: "number", step: "1", placeholder: "например 130" });
+            return el("div", { class: "admin-stars-row" }, [
+              input,
+              el(
+                "button",
+                {
+                  class: "btn-accent-pill",
+                  disabled: busy,
+                  onclick: () =>
+                    run(async () => {
+                      const amount = Number(input.value);
+                      if (!amount) throw new Error("Укажите количество звёзд");
+                      const { balance } = await api.grantStars(state.id, amount);
+                      return { notice: `Баланс: ${balance} ⭐` };
+                    }, "Звёзды начислены"),
+                },
+                "Начислить"
+              ),
+            ]);
+          })(),
+          ])
+        : null,
 
       el("p", { class: "admin-panel-section-title" }, "Верификация"),
       el("p", { class: "settings-toggle-hint" }, "Галочка рядом с именем — «мы проверили, кто за этим аккаунтом». Это не отметка о безопасности: для предупреждений есть метка ниже."),
@@ -394,12 +433,16 @@ export function openAdminUserPanel(user, onChange) {
           : el("div", { class: "admin-reports-list" }, reports.map(reportRow)),
       reportsError ? el("p", { class: "login-error" }, reportsError) : null,
 
-      el("p", { class: "admin-panel-section-title" }, "Данные аккаунта"),
-      el("p", { class: "settings-toggle-hint" }, "Выгрузка всех хранимых данных этого пользователя (чаты и сообщения) одним файлом. Требует основания и записывается в журнал выгрузок."),
-      el("button", { class: "profile-action-btn", disabled: busy, onclick: runExport }, [
-        el("span", { html: iconSvg("Download", 14) }),
-        " Экспорт данных",
-      ]),
+      canExport
+        ? el("div", {}, [
+          el("p", { class: "admin-panel-section-title" }, "Данные аккаунта"),
+          el("p", { class: "settings-toggle-hint" }, "Выгрузка всех хранимых данных этого пользователя (чаты и сообщения) одним файлом. Требует основания и записывается в журнал выгрузок."),
+          el("button", { class: "profile-action-btn", disabled: busy, onclick: runExport }, [
+            el("span", { html: iconSvg("Download", 14) }),
+            " Экспорт данных",
+          ]),
+          ])
+        : null,
 
       el("p", { class: "admin-panel-section-title" }, "Пароль"),
       el(

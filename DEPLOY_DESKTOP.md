@@ -20,7 +20,9 @@ What `src-tauri/src/main.rs` does (feature parity with the old Electron shell):
   shows "Ожидание сети…" with auto-retry when it isn't;
 - tray icon with the unread count (closing the window hides to tray), Dock /
   Unity badge, taskbar attention flash on Windows;
-- `window.shalterDesktop` bridge (`setUnread`, `focus`, `notify`, `retry`) —
+- `window.shalterDesktop` bridge (`setUnread`, `focus`, `notify`, `retry`,
+  `setIcon` — the app icon variant from Settings → Appearance, see
+  `scripts/gen-app-icons.mjs`) —
   injected only into the app's own origin, and only those commands are allowed
   over IPC for it (runtime capability in `main.rs`, command permissions from
   `build.rs`);

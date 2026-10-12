@@ -26,8 +26,9 @@ import { initKeyboardShortcuts } from "./lib/keyboardShortcuts.js";
 import { initRipple } from "./lib/ripple.js";
 import { ChatTips } from "./components/chatTips.js";
 import { paintWallpaper } from "./lib/wallpapers.js";
-import { installToastAlert, installModalEscape } from "./components/toast.js";
+import { installToastAlert, installModalEscape, showToast } from "./components/toast.js";
 import { installEmojiImages } from "./lib/emojiImages.js";
+import { syncAppIcon } from "./lib/appIcons.js";
 
 installToastAlert();
 installModalEscape();
@@ -57,6 +58,11 @@ function formatElapsed(sec) {
 // «Ожидание сети…». Не засоряем консоль необработанными ошибками на каждый опрос.
 window.addEventListener("unhandledrejection", (e) => {
   if (e.reason?.offline) e.preventDefault();
+});
+// Экран не открылся (чаще всего не догрузился на плохой сети) — говорим об этом,
+// а не оставляем пустое место; маршрутизатор сам повторит, когда связь вернётся.
+window.addEventListener("app:route-error", () => {
+  showToast(navigator.onLine ? "Не удалось открыть — повторим автоматически" : "Нет сети — откроется, когда связь вернётся");
 });
 
 async function boot() {
@@ -124,6 +130,16 @@ async function boot() {
   });
 
   setState({ user, accounts });
+  // Иконка приложения: значок вкладки по выбору; Premium-иконка после окончания
+  // подписки возвращается к стандартной (проверяем и когда Premium меняется на ходу).
+  let iconPremium = !!user.isPremium;
+  syncAppIcon(user, { fresh: !cachedSession?.user?.name });
+  sessionReq.then((fresh) => fresh?.user && syncAppIcon(fresh.user), () => {});
+  subscribe((st) => {
+    if (!st.user || !!st.user.isPremium === iconPremium) return;
+    iconPremium = !!st.user.isPremium;
+    syncAppIcon(st.user);
+  });
   const bootData = api
     .bootstrap()
     .then((data) => {
@@ -423,7 +439,14 @@ async function boot() {
     if (mainSlot.dataset.path === window.location.pathname && mainSlot.firstChild) return;
     mainSlot.dataset.path = window.location.pathname;
     withCleanup(mainSlot);
-    const { ChatView } = await import("./views/chatView.js");
+    let ChatView;
+    try {
+      ({ ChatView } = await import("./views/chatView.js"));
+    } catch (err) {
+      // Модуль чата не догрузился — чат не открыт, повторное нажатие должно сработать.
+      delete mainSlot.dataset.path;
+      throw err;
+    }
     await ChatView(mainSlot, params.id);
   });
   route("/call/:id", async (params) => {

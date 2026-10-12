@@ -67,6 +67,7 @@ import { openDropdownMenu } from "../../components/dropdownMenu.js";
 import { openPrivacyExceptionsDialog } from "../../components/privacyExceptionsDialog.js";
 import { openProfileDialog } from "../../components/profileDialog.js";
 import { openCheckboxDialog, openChoiceDialog } from "../../components/confirmDialog.js";
+import { APP_ICONS, appIconSvg, getAppIconId, setAppIcon, canUseAppIcon, appIconScope } from "../../lib/appIcons.js";
 
 const UNSUPPORTED_LANGUAGE_NOTE = "Украинский язык не поддерживается в нашем мессенджере.";
 
@@ -2242,6 +2243,59 @@ async function renderAppearance(root) {
     ]);
   }
 
+  // Иконка приложения — как в Telegram: часть вариантов только с Premium.
+  let appIconId = getAppIconId();
+  let appIconBusy = false;
+  async function pickAppIcon(icon) {
+    if (appIconBusy || icon.id === appIconId) return;
+    if (!canUseAppIcon(icon.id, getState().user)) {
+      showToast("Эта иконка — с Shalter Premium");
+      navigate("/settings/premium");
+      return;
+    }
+    appIconBusy = true;
+    const prev = appIconId;
+    appIconId = icon.id;
+    render();
+    try {
+      await setAppIcon(icon.id);
+    } catch (err) {
+      // Нативная часть не смогла (старая версия приложения без плагина и т. п.) —
+      // значок вкладки и заставка всё равно сменились, говорим честно.
+      showToast(err?.message ? `Не удалось сменить иконку: ${err.message}` : "Не удалось сменить иконку на рабочем столе");
+      if (prev !== appIconId) appIconId = getAppIconId();
+    } finally {
+      appIconBusy = false;
+      render();
+    }
+  }
+  function appIconPicker() {
+    const user = getState().user;
+    return el(
+      "div",
+      { class: "app-icon-grid" },
+      APP_ICONS.map((icon) => {
+        const locked = !canUseAppIcon(icon.id, user);
+        return el(
+          "button",
+          {
+            type: "button",
+            class: `app-icon-tile${icon.id === appIconId ? " active" : ""}${locked ? " locked" : ""}`,
+            disabled: appIconBusy,
+            "aria-pressed": icon.id === appIconId ? "true" : "false",
+            title: locked ? `${icon.label} — с Premium` : icon.label,
+            onclick: () => pickAppIcon(icon),
+          },
+          [
+            el("span", { class: "app-icon-tile-img", html: appIconSvg(icon, { shape: "square" }) }),
+            icon.premium ? el("span", { class: "app-icon-tile-badge", html: iconSvg(locked ? "Lock" : "Star", 11) }) : null,
+            el("span", { class: "app-icon-tile-label" }, icon.label),
+          ]
+        );
+      })
+    );
+  }
+
   function render() {
     const wallpaperFileInput = el("input", {
       type: "file",
@@ -2261,6 +2315,13 @@ async function renderAppearance(root) {
               el("span", { class: "tw-row-body" }, [el("span", { class: "tw-row-title" }, t.label)]),
             ])
           )
+        ),
+        twSection(
+          "Иконка приложения",
+          [appIconPicker()],
+          appIconScope() === "native"
+            ? "Меняет значок на рабочем столе и заставку при запуске."
+            : "В браузере меняются значок вкладки и заставка. Значок на рабочем столе меняется в приложении Shalter для Android, iOS и компьютера."
         ),
         section("Акцентный цвет", [
           el(

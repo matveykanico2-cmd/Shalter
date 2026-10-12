@@ -29,6 +29,7 @@ import { STICKERS, DRAWN_STICKERS } from "../lib/stickers.js";
 import { openInAppBrowser, checkLinkSafety } from "./inAppBrowser.js";
 import { setNowPlaying, playingMediaFor } from "../lib/audioPlayer.js";
 import { resampleWaveform, decodeWaveform } from "../lib/waveform.js";
+import { isServerModerator } from "../lib/moderation.js";
 
 const EXTENDED_PICTOGRAPHIC_RE = /\p{Extended_Pictographic}/u;
 const FLAG_RE = /^\p{Regional_Indicator}{2}$/u;
@@ -290,7 +291,7 @@ const REPORT_STATUS_LABELS = {
 
 function ReportMessage(message, mine, me, isChannel) {
   const report = message.report;
-  const isAdmin = !!me?.isDeveloper;
+  const isAdmin = isServerModerator();
   let resolving = false;
   let status = report.status;
 

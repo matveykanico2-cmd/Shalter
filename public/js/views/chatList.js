@@ -212,7 +212,7 @@ export function ChatListPane() {
     if (listFrame) return;
     listFrame = requestAnimationFrame(() => {
       listFrame = 0;
-      renderInto(listSlot);
+      renderWhenIdle(() => renderInto(listSlot));
     });
   });
   window.addEventListener("app:navigate", ({ detail }) => {
@@ -389,13 +389,53 @@ let savedScrollTop = 0;
 function restoreScroll(top) {
   if (top) scrollSlot.scrollTop = top;
 }
+// Пока список листают (палец на экране или ещё идёт инерция), фоновые перерисовки
+// (новое сообщение, «в сети», «печатает») откладываем до остановки: пересборка
+// вынимает прокручиваемый блок из страницы, и прокрутка дёргалась и вставала.
+const SCROLL_IDLE_MS = 200;
+let touching = false;
+let lastScrollAt = 0;
+let idleTimer = 0;
+let pendingIdleRender = null;
+function userIsScrolling() {
+  return touching || performance.now() - lastScrollAt < SCROLL_IDLE_MS;
+}
+function flushWhenIdle() {
+  clearTimeout(idleTimer);
+  if (!pendingIdleRender) return;
+  if (userIsScrolling()) {
+    idleTimer = setTimeout(flushWhenIdle, SCROLL_IDLE_MS);
+    return;
+  }
+  const run = pendingIdleRender;
+  pendingIdleRender = null;
+  run();
+}
+function renderWhenIdle(fn) {
+  if (!userIsScrolling()) return fn();
+  pendingIdleRender = fn;
+  flushWhenIdle();
+}
 scrollSlot.addEventListener(
   "scroll",
   () => {
+    lastScrollAt = performance.now();
     if (scrollSlot.isConnected && scrollSlot.clientHeight) savedScrollTop = scrollSlot.scrollTop;
+    if (pendingIdleRender) flushWhenIdle();
   },
   { passive: true }
 );
+scrollSlot.addEventListener("touchstart", () => (touching = true), { passive: true });
+for (const type of ["touchend", "touchcancel"]) {
+  scrollSlot.addEventListener(
+    type,
+    () => {
+      touching = false;
+      if (pendingIdleRender) flushWhenIdle();
+    },
+    { passive: true }
+  );
+}
 // Список снова показан (вернулись из чата на телефоне) — возвращаем позицию.
 if (typeof ResizeObserver === "function") {
   new ResizeObserver(() => {

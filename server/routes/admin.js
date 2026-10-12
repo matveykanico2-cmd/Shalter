@@ -2,7 +2,7 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { ADMIN_PHONE, isAdminPhone } = require("../config");
-const { ADMIN_SECTIONS, hasAdminSection, isPrimaryAdmin } = require("../lib/adminAccess");
+const { ADMIN_SECTIONS, hasAdminSection, isPrimaryAdmin, outranks } = require("../lib/adminAccess");
 const {
   getUser,
   findUserByPhone,
@@ -46,17 +46,6 @@ async function requireAdminSection(req, res, section) {
     return null;
   }
   return me;
-}
-
-// Модератор не может банить, удалять и сбрасывать пароль тем, кто выше или
-// наравне: иначе выданный раздел «moderation» превращался в захват главного
-// админа (сброс пароля + снятие 2FA).
-async function outranks(adminId, target) {
-  const me = await getUser(adminId);
-  if (isPrimaryAdmin(me?.phone)) return !isPrimaryAdmin(target.phone);
-  if (isAdminPhone(target.phone)) return false;
-  if ((target.adminSections ?? []).length) return isAdminPhone(me?.phone);
-  return true;
 }
 
 function rankError(res) {
@@ -192,6 +181,9 @@ function userLabel(u, fallbackId) {
     isPremium: !!u.isPremium,
     premiumUntil: u.premiumUntil || null,
     premiumForever: !!u.premiumForever,
+    isBusiness: !!u.isBusiness,
+    businessUntil: u.businessUntil || null,
+    businessForever: !!u.businessForever,
     isAdsActive: !!u.isAdsActive,
     adsUntil: u.adsUntil || null,
     adsForever: !!u.adsForever,
@@ -263,7 +255,7 @@ router.post(
     const target = await getUser(req.params.id);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
     if (target.id === admin.id) return res.status(400).json({ error: "Нельзя заблокировать самого себя" });
-    if (!(await outranks(admin.id, target))) return rankError(res);
+    if (!outranks(admin, target)) return rankError(res);
 
     const banned = req.body?.banned !== false;
     const reason = (req.body?.reason ?? "").trim();
@@ -402,7 +394,8 @@ router.post(
 router.delete(
   "/users/:id",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdminSection(req, res, "moderation"))) return;
+    const admin = await requireAdminSection(req, res, "moderation");
+    if (!admin) return;
     const target = await getUser(req.params.id);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
     if (target.id === req.uid) {
@@ -411,7 +404,7 @@ router.delete(
     if (isServiceAccount(target.id)) {
       return res.status(400).json({ error: "Служебные аккаунты Shalter удалять нельзя" });
     }
-    if (!(await outranks(req.uid, target))) return rankError(res);
+    if (!outranks(admin, target)) return rankError(res);
 
     const confirm = String(req.body?.confirm ?? "").trim().replace(/^@/, "").toLowerCase();
     const handle = (target.username || target.id).toLowerCase();
@@ -437,11 +430,12 @@ router.delete(
 router.post(
   "/users/:id/reset-password",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdminSection(req, res, "moderation"))) return;
+    const admin = await requireAdminSection(req, res, "moderation");
+    if (!admin) return;
     const target = await getUser(req.params.id);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
     if (target.isBot) return res.status(400).json({ error: "У ботов нет пароля — им управляет владелец через токен" });
-    if (target.id !== req.uid && !(await outranks(req.uid, target))) return rankError(res);
+    if (target.id !== req.uid && !outranks(admin, target)) return rankError(res);
 
     const confirm = String(req.body?.confirm ?? "").trim().replace(/^@/, "").toLowerCase();
     const handle = (target.username || target.id).toLowerCase();
@@ -603,6 +597,9 @@ router.post(
     const requested = Array.isArray(req.body?.sections) ? req.body.sections : [];
     const sections = requested.filter((s) => ADMIN_SECTIONS.includes(s));
     const updated = await setAdminSections(target.id, sections);
+    // Без этого выданный доступ появлялся у человека только после перезагрузки,
+    // а снятый — продолжал показываться (с ошибкой 403 на каждое действие).
+    broadcastToUsers([target.id], { type: "self:updated", user: { id: updated.id, adminSections: updated.adminSections } });
     res.json({ user: { id: updated.id, adminSections: updated.adminSections } });
   })
 );

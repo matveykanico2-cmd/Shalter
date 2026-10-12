@@ -1,0 +1,15 @@
+{
+  "default": "classic",
+  "icons": [
+    "classic",
+    "night",
+    "mint",
+    "sunset",
+    "light",
+    "premium",
+    "gold",
+    "aurora",
+    "cosmos",
+    "neon"
+  ]
+}

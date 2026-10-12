@@ -127,6 +127,15 @@ async function searchUsers(query, { limit = 40 } = {}) {
     .map(rowToUser);
 }
 
+// Выданные разделы лежат JSON-массивом: LIKE отсекает лишнее, точная проверка — после разбора.
+async function listUsersWithAdminSection(section) {
+  return db
+    .prepare("SELECT * FROM users WHERE adminSections LIKE ?")
+    .all(`%"${section}"%`)
+    .map(rowToUser)
+    .filter((u) => u.adminSections.includes(section));
+}
+
 async function listUsers() {
   return db.prepare("SELECT * FROM users").all().map(rowToUser);
 }
@@ -484,6 +493,7 @@ module.exports = {
   setProfileTrack,
   setProfileTracks,
   listUsers,
+  listUsersWithAdminSection,
   listUsersByIds,
   resetStalePresence,
   searchUsers,

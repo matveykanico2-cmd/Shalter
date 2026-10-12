@@ -171,18 +171,33 @@ async function doFlushOfflineQueue() {
 // отвечаем из кэша. Запросы с телом (загрузки, отправка) не ограничиваем.
 const GET_TIMEOUT_MS = 15000;
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function fetchJson(url, init, isGet) {
+  const signal = isGet && !init?.signal && typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(GET_TIMEOUT_MS) : init?.signal;
+  return trackRequest(
+    fetch(url, {
+      ...init,
+      signal,
+      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    })
+  );
+}
+
 async function req(url, init) {
   const isGet = !init?.method || init.method === "GET";
   let res;
   try {
-    const signal = isGet && !init?.signal && typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(GET_TIMEOUT_MS) : init?.signal;
-    res = await trackRequest(
-      fetch(url, {
-        ...init,
-        signal,
-        headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-      })
-    );
+    try {
+      res = await fetchJson(url, init, isGet);
+    } catch (err) {
+      // Мгновенный обрыв на плохой сети (переключение Wi-Fi/LTE, сброс соединения) —
+      // GET повторяем один раз, прежде чем сдаться. Таймаут и отмену не повторяем:
+      // они и так ждали долго, а отменённый запрос больше никому не нужен.
+      if (!isGet || init?.signal || err?.name === "TimeoutError" || err?.name === "AbortError" || !navigator.onLine) throw err;
+      await sleep(800);
+      res = await fetchJson(url, init, isGet);
+    }
   } catch {
     // Сеть недоступна: мутирующие запросы — в очередь, GET — из клиентского кэша.
     if (!isGet) {
@@ -205,9 +220,18 @@ async function req(url, init) {
     if (body.limit) err.limit = body.limit;
     throw err;
   }
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    // Ответ оборвался посреди тела (или прокси подсунул HTML) — для экранов это то же,
+    // что нет сети, а не «упавшее» приложение. GET — из кэша; запрос с телом до сервера
+    // уже дошёл, поэтому в очередь его не ставим.
+    if (isGet) return apiCacheRead(url);
+    throw offlineError(url);
+  }
   // Кешируем "тёплые" GET-ответы для offline fallback на клиенте.
-  if (!init?.method || init.method === "GET") apiCacheWrite(url, data);
+  if (isGet) apiCacheWrite(url, data);
   return data;
 }
 
@@ -643,6 +667,8 @@ export const api = {
     req("/api/premium/grant", { method: "POST", body: JSON.stringify({ userId, premium, ...opts }) }),
   grantAds: (userId, active = true, opts = {}) =>
     req("/api/ads/grant", { method: "POST", body: JSON.stringify({ userId, active, ...opts }) }),
+  grantBusiness: (userId, business = true, opts = {}) =>
+    req("/api/business/grant", { method: "POST", body: JSON.stringify({ userId, business, ...opts }) }),
 
   listStickerPacks: () => req("/api/stickers/packs"),
   createStickerPack: (pack) => req("/api/stickers/packs", { method: "POST", body: JSON.stringify(pack) }),

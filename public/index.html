@@ -149,6 +149,21 @@
     <span>by Shalter-Bach</span>
   </div>
   <script>
+    // Выбранная иконка приложения (lib/appIcons.js) — на заставке и во вкладке сразу,
+    // ещё до загрузки модулей.
+    try {
+      var iconSvg = localStorage.getItem("shalter.appIcon.splash");
+      var splashEl = document.getElementById("boot-splash");
+      if (iconSvg && splashEl) {
+        var holder = document.createElement("div");
+        holder.innerHTML = iconSvg;
+        var svgEl = holder.querySelector("svg");
+        if (svgEl) {
+          svgEl.setAttribute("aria-hidden", "true");
+          splashEl.replaceChild(svgEl, splashEl.querySelector("svg"));
+        }
+      }
+    } catch (e) {}
     setTimeout(function () {
       var s = document.getElementById("boot-splash");
       if (s) s.remove();

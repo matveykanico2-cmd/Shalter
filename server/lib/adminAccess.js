@@ -12,4 +12,14 @@ function isPrimaryAdmin(phone) {
   return !!ADMIN_PHONE && phone === ADMIN_PHONE;
 }
 
-module.exports = { ADMIN_SECTIONS, hasAdminSection, isPrimaryAdmin };
+// Модератор не может банить, удалять и сбрасывать пароль тем, кто выше или
+// наравне: иначе выданный раздел «moderation» превращался в захват главного
+// админа (сброс пароля + снятие 2FA).
+function outranks(me, target) {
+  if (isPrimaryAdmin(me?.phone)) return !isPrimaryAdmin(target.phone);
+  if (isAdminPhone(target.phone)) return false;
+  if ((target.adminSections ?? []).length) return isAdminPhone(me?.phone);
+  return true;
+}
+
+module.exports = { ADMIN_SECTIONS, hasAdminSection, isPrimaryAdmin, outranks };

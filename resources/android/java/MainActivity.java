@@ -8,13 +8,15 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
 
-// Регистрирует свой плагин SystemBars (цвет полос под системными панелями) и запуск
+// Регистрирует свои плагины SystemBars (цвет полос под системными панелями) и AppIcon
+// (иконка на рабочем столе), и запуск
 // без интернета из сборки в APK (OfflineShell).
 // Файл копирует scripts/apply-native-resources.js поверх сгенерированного `cap add`.
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SystemBarsPlugin.class);
+        registerPlugin(AppIconPlugin.class);
         super.onCreate(savedInstanceState);
     }
 
