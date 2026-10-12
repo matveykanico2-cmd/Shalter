@@ -49,7 +49,8 @@ function setupNativePush(plugin) {
     await plugin.createChannel?.({ id: "calls", name: "Звонки", importance: 5, visibility: 1, vibration: true }).catch(() => {});
     await plugin.addListener("registration", ({ value }) => {
       nativeToken = value;
-      api.subscribeNativePush(value).catch(() => {});
+      // callUi: сборка умеет сама показывать экран звонка — сервер шлёт звонок data-сообщением.
+      api.subscribeNativePush(value, { callUi: !!window.Capacitor?.Plugins?.IncomingCall }).catch(() => {});
     });
     await plugin.addListener("registrationError", (err) => {
       lastError = `Не удалось получить токен уведомлений: ${err?.error || "ошибка"}`;

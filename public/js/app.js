@@ -457,6 +457,14 @@ async function boot() {
   });
   route("/call/:id", async (params) => {
     withCleanup(mainSlot);
+    // «Отклонить» в уведомлении-звонке (Android): отклоняем и возвращаемся к чатам.
+    if (new URLSearchParams(window.location.search).get("decline") === "1") {
+      const { decline } = await import("./lib/callController.js");
+      const call = await api.listCalls().then((r) => r.calls.find((c) => c.id === params.id)).catch(() => null);
+      await decline(call ?? { id: params.id }).catch(() => {});
+      navigate("/", { replace: true });
+      return;
+    }
     if (new URLSearchParams(window.location.search).get("answer") === "1") {
       window.history.replaceState(null, "", `/call/${params.id}`);
       await answerCall(params.id).catch(() => {});
@@ -623,6 +631,8 @@ async function boot() {
   }
 
   startRouter();
+  // Переход из нативной части (уведомление-звонок на Android) без перезагрузки страницы.
+  window.__shalterOpen = (path) => navigate(path);
 
   // Отправка из «Поделиться», пережившая вход в аккаунт.
   try {

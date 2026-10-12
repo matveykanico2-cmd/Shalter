@@ -126,6 +126,7 @@ function wireIosAppIcons() {
 // или секрет GOOGLE_SERVICES_JSON в CI) — без него android/app/build.gradle не подключает
 // Firebase, и уведомлений нет. Плюс белая иконка и канал для уведомлений, которые
 // Android показывает сам, пока приложение закрыто.
+var useShalterMessagingService = false; // var: функцию вызывают выше по файлу, до этой строки
 function wirePushNotifications() {
   const target = path.join(ROOT, "android/app/google-services.json");
   const file = path.join(ROOT, "resources/android/google-services.json");
@@ -138,10 +139,27 @@ function wirePushNotifications() {
     console.log("android: нет google-services.json — Firebase выключен, уведомления через фоновую службу (lib/nativeNotify.js)");
   } else {
     console.log("android: google-services.json на месте — push-уведомления включены");
+    // Свой обработчик push вместо плагинного: звонок (data-сообщение) показывает экран
+    // входящего звонка, даже когда приложение закрыто (ShalterMessagingService.java).
+    fs.cpSync(path.join(ROOT, "resources/android/java-firebase"), path.join(ROOT, "android/app/src/main/java/ru/shalter/app"), { recursive: true });
+    useShalterMessagingService = true;
   }
 
   const manifestPath = path.join(ROOT, "android/app/src/main/AndroidManifest.xml");
   let manifest = fs.readFileSync(manifestPath, "utf8");
+  if (useShalterMessagingService && !manifest.includes("ShalterMessagingService")) {
+    if (!manifest.includes("xmlns:tools=")) manifest = manifest.replace("<manifest ", '<manifest xmlns:tools="http://schemas.android.com/tools" ');
+    manifest = manifest.replace(
+      /<application([^>]*)>/,
+      `<application$1>
+        <service android:name="com.capacitorjs.plugins.pushnotifications.MessagingService" tools:node="remove" />
+        <service android:name=".ShalterMessagingService" android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>`
+    );
+  }
   // Фоновая служба (lib/nativeNotify.js): держит приложение на связи без Firebase.
   if (!manifest.includes("AndroidForegroundService")) {
     manifest = manifest
@@ -160,7 +178,8 @@ function wirePushNotifications() {
   // Каждое разрешение — отдельно, чтобы повторный запуск дописал недостающие.
   // CAMERA/RECORD_AUDIO/MODIFY_AUDIO_SETTINGS: без них в манифесте WebView отказывал
   // getUserMedia, не спрашивая, — звонки, голосовые и кружки на Android не работали.
-  for (const perm of ["FOREGROUND_SERVICE", "FOREGROUND_SERVICE_REMOTE_MESSAGING", "POST_NOTIFICATIONS", "READ_CONTACTS", "CAMERA", "RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS"]) {
+  // USE_FULL_SCREEN_INTENT — экран входящего звонка поверх блокировки (CallNotifier.java).
+  for (const perm of ["FOREGROUND_SERVICE", "FOREGROUND_SERVICE_REMOTE_MESSAGING", "POST_NOTIFICATIONS", "READ_CONTACTS", "CAMERA", "RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "USE_FULL_SCREEN_INTENT", "VIBRATE"]) {
     const line = `<uses-permission android:name="android.permission.${perm}" />`;
     if (!manifest.includes(`android.permission.${perm}"`)) manifest = manifest.replace("</manifest>", `    ${line}\n</manifest>`);
   }

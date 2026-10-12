@@ -67,6 +67,7 @@ async function pushCallCancelled(call, recipientIds, { missed = false, callerNam
                 url: `/chat/${call.chatId}`,
                 tag: `call-${call.id}`,
                 kind: "call-missed",
+                callId: call.id,
               },
               CALL_CANCEL_PUSH
             ).catch(() => {})
@@ -100,6 +101,7 @@ async function pushIncomingCall(call, callerId, recipientIds) {
           requireInteraction: true,
           kind: "call",
           callId: call.id,
+          video: call.kind === "video" ? "1" : "0",
         }, CALL_PUSH)
       )
   );

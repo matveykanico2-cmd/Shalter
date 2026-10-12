@@ -33,7 +33,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
     if (!token || token.length > 4096) return res.status(400).json({ error: "invalid token" });
-    await addSubscription(req.uid, { endpoint: `fcm:${token}`, fcmToken: token, platform: "android" });
+    await addSubscription(req.uid, { endpoint: `fcm:${token}`, fcmToken: token, platform: "android", callUi: req.body?.callUi === true });
     res.json({ ok: true, configured: isFcmConfigured() });
   })
 );

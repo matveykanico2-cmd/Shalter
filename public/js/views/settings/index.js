@@ -68,6 +68,7 @@ import { openPrivacyExceptionsDialog } from "../../components/privacyExceptionsD
 import { openProfileDialog } from "../../components/profileDialog.js";
 import { openCheckboxDialog, openChoiceDialog } from "../../components/confirmDialog.js";
 import { APP_ICONS, appIconSvg, getAppIconId, setAppIcon, canUseAppIcon, appIconScope } from "../../lib/appIcons.js";
+import { MESSAGE_SOUNDS, RINGTONES, getSoundChoice, setSoundChoice, previewSound } from "../../lib/ringtone.js";
 
 const UNSUPPORTED_LANGUAGE_NOTE = "Украинский язык не поддерживается в нашем мессенджере.";
 
@@ -2451,6 +2452,29 @@ async function renderNotifications(root) {
     });
   }
 
+  // Звуки — на этом устройстве; нажатие сразу проигрывает выбранный.
+  function soundPicker(title, kind, list) {
+    const current = getSoundChoice()[kind];
+    return twSection(
+      title,
+      list.map((snd) =>
+        el(
+          "button",
+          {
+            type: "button",
+            class: `tw-row clickable tw-radio-row${current === snd.id ? " selected" : ""}`,
+            onclick: () => {
+              setSoundChoice(kind, snd.id);
+              previewSound(kind, snd.id);
+              render();
+            },
+          },
+          [el("span", { class: "tw-radio" }), el("span", { class: "tw-row-body" }, [el("span", { class: "tw-row-title" }, snd.label)])]
+        )
+      )
+    );
+  }
+
   function render() {
     const canRequest = permState() === "default";
     mount(
@@ -2471,6 +2495,8 @@ async function renderNotifications(root) {
             toggle: { checked: settings.notifications.sound, onChange: (v) => patch({ sound: v }) },
           }),
         ]),
+        soundPicker("Звук сообщения", "message", MESSAGE_SOUNDS),
+        soundPicker("Мелодия звонка", "ringtone", RINGTONES),
         twSection(
           "Уведомления на этом устройстве",
           [

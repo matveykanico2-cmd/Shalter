@@ -57,7 +57,10 @@ async function accessToken() {
 // Все поля — в data (строками), чтобы приложение знало, куда вести по нажатию;
 // заголовок и текст — ещё и в notification, чтобы Android показал их сам, даже
 // когда приложение закрыто. Возвращает "gone", если токен устарел и его пора удалить.
-async function sendFcm(token, payload, { ttlSeconds = 24 * 60 * 60 } = {}) {
+// callUi: сборка сама показывает экран входящего звонка (ShalterMessagingService) —
+// звонок и его отмену шлём только data, без notification: иначе Android при закрытом
+// приложении показал бы обычное уведомление, а наш экран звонка не получил бы push.
+async function sendFcm(token, payload, { ttlSeconds = 24 * 60 * 60, callUi = false } = {}) {
   const sa = serviceAccount();
   if (!sa) return "skipped";
   const data = {};
@@ -66,13 +69,14 @@ async function sendFcm(token, payload, { ttlSeconds = 24 * 60 * 60 } = {}) {
     data[k] = typeof v === "string" ? v : JSON.stringify(v);
   }
   const isCall = payload?.kind === "call";
+  const dataOnly = callUi && (isCall || payload?.kind === "call-cancelled");
   const message = {
     token,
     data,
     android: {
       priority: "high",
       ttl: `${ttlSeconds}s`,
-      ...(payload?.title
+      ...(payload?.title && !dataOnly
         ? {
             notification: {
               title: String(payload.title).slice(0, 200),

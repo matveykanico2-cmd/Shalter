@@ -34,7 +34,7 @@ async function sendPushToUser(userId, payload, options = {}) {
       // Android-приложение: токен FCM вместо веб-подписки (см. lib/fcm.js).
       if (row.subscription.fcmToken) {
         try {
-          const result = await sendFcm(row.subscription.fcmToken, payload, { ttlSeconds: options.TTL });
+          const result = await sendFcm(row.subscription.fcmToken, payload, { ttlSeconds: options.TTL, callUi: !!row.subscription.callUi });
           if (result === "gone") await removeSubscriptionByEndpoint(row.subscription.endpoint);
         } catch (err) {
           console.error("fcm send failed:", err.message);

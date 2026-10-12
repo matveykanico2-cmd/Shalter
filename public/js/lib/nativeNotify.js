@@ -109,10 +109,17 @@ export async function startNativeNotifications() {
   });
 
   // Входящий звонок, пока приложение свёрнуто: в самом приложении есть свой баннер.
+  // Свёрнуто или экран погас: нативный экран входящего звонка на весь экран, с
+  // рингтоном (IncomingCallPlugin.java). В старых сборках без плагина — уведомление.
+  const callUi = window.Capacitor?.Plugins?.IncomingCall ?? null;
   onWsMessage("call:incoming", (msg) => {
     const call = msg.call;
     if (!call || document.visibilityState === "visible") return;
     const caller = call.otherUser?.name ?? "Входящий звонок";
+    if (callUi) {
+      callUi.show({ callId: call.id, name: caller, video: call.kind === "video" }).catch(() => {});
+      return;
+    }
     local
       .schedule({
         notifications: [
@@ -129,8 +136,11 @@ export async function startNativeNotifications() {
       .catch(() => {});
   });
   const clearCall = (msg) => {
-    if (msg.call?.id && msg.call.status !== "ringing") local.cancel({ notifications: [{ id: numericId(`call:${msg.call.id}`) }] }).catch(() => {});
+    if (!msg.call?.id || msg.call.status === "ringing") return;
+    local.cancel({ notifications: [{ id: numericId(`call:${msg.call.id}`) }] }).catch(() => {});
+    callUi?.hide({ callId: msg.call.id }).catch(() => {});
   };
+  onWsMessage("call:answered", clearCall);
   onWsMessage("call:updated", clearCall);
 
   // Открыли чат — его уведомление больше не нужно.
