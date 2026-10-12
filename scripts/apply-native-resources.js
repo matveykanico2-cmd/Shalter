@@ -21,6 +21,7 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
   }
   fs.cpSync(path.join(ROOT, target.from), to, { recursive: true });
   console.log(`${name}: иконки и заставки → ${target.to}`);
+  markNativeVersion(name);
   if (name === "ios") {
     describeIosPermissions();
     wireIosAppIcons();
@@ -34,6 +35,18 @@ for (const name of wanted.length ? wanted : Object.keys(TARGETS)) {
     wirePushNotifications();
     wireAndroidAppIcons();
   }
+}
+
+// Версия оболочки — в User-Agent («ShalterNative/1.0.2»): по ней lib/nativeUpdate.js
+// понимает, что вышла новая сборка, и предлагает обновиться.
+function markNativeVersion(name) {
+  const file = path.join(ROOT, name === "android" ? "android/app/src/main/assets/capacitor.config.json" : "ios/App/App/capacitor.config.json");
+  if (!fs.existsSync(file)) return;
+  const version = require(path.join(ROOT, "package.json")).version;
+  const config = JSON.parse(fs.readFileSync(file, "utf8"));
+  config.appendUserAgent = `ShalterNative/${version}`;
+  fs.writeFileSync(file, JSON.stringify(config, null, "\t"));
+  console.log(`${name}: версия оболочки ${version} в User-Agent`);
 }
 
 // Варианты иконки (scripts/gen-app-icons.mjs → resources/app-icons.json).

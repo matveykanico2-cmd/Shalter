@@ -346,6 +346,7 @@ export const api = {
   getCommonChats: (userId) => req(`/api/users/${userId}/common-chats`),
 
   openSupportChat: () => req("/api/support/chat", { method: "POST" }),
+  openShalterAiChat: () => req("/api/ai/chat", { method: "POST" }),
   openBugReportChat: () => req("/api/support/report", { method: "POST" }),
   getPartnerInfo: () => req("/api/partners/me"),
   listOAuthApps: () => req("/api/oauth/apps"),
@@ -634,6 +635,7 @@ export const api = {
   unsubscribePush: (endpoint) => req("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) }),
   listPushEndpoints: () => req("/api/push/endpoints"),
   getAppVersion: () => req("/api/version"),
+  getNativeLatest: (platform) => req(`/api/downloads/latest?platform=${encodeURIComponent(platform)}`),
 
   submitReport: (targetType, targetId, reason, details) =>
     req("/api/reports", { method: "POST", body: JSON.stringify({ targetType, targetId, reason, details }) }),

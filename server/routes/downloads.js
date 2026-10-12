@@ -19,12 +19,13 @@ const ARTIFACTS = [
 // публикуют workflows build-desktop.yml / build-android.yml при пуше тега v*.
 const GITHUB_REPO = process.env.DOWNLOADS_GITHUB_REPO || "matveykanico2-cmd/Shalter";
 const RELEASE_TTL_MS = 10 * 60 * 1000;
-let releaseCache = { at: 0, assets: new Map(), pending: null };
+let releaseCache = { at: 0, assets: new Map(), version: "", pending: null };
 
 async function latestReleaseAssets() {
   if (Date.now() - releaseCache.at < RELEASE_TTL_MS) return releaseCache.assets;
   releaseCache.pending ??= (async () => {
     const assets = new Map();
+    let version = "";
     try {
       const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
         headers: { Accept: "application/vnd.github+json", "User-Agent": "shalter-server" },
@@ -32,6 +33,7 @@ async function latestReleaseAssets() {
       });
       if (res.ok) {
         const release = await res.json();
+        version = String(release.tag_name ?? "").replace(/^v/i, "");
         for (const a of release.assets ?? []) {
           if (a.size > 0) assets.set(a.name, { url: a.browser_download_url, size: a.size, updatedAt: a.updated_at });
         }
@@ -39,7 +41,7 @@ async function latestReleaseAssets() {
     } catch {
       // GitHub недоступен — просто показываем то, что есть на сервере.
     }
-    releaseCache = { at: Date.now(), assets, pending: null };
+    releaseCache = { at: Date.now(), assets, version, pending: null };
     return assets;
   })();
   return releaseCache.pending;
@@ -74,6 +76,34 @@ router.get("/", async (_req, res) => {
 
   res.setHeader("Cache-Control", "no-store");
   res.json({ version, artifacts });
+});
+
+// Обновление нативной оболочки (APK, десктоп, iOS). Интерфейс приложения грузится с
+// сервера и обновляется сам (lib/appVersion.js), а оболочку — плагины, иконки, мост —
+// нужно поставить заново. Последняя версия — тег последнего релиза на GitHub: его
+// публикуют сборки CI, так что предложение появляется, только когда сборка уже выложена.
+// Можно задать вручную: NATIVE_LATEST_VERSION (и IOS_APP_URL — ссылка на App Store/TestFlight).
+const UPDATE_FILES = {
+  android: "Shalter.apk",
+  windows: "Shalter-Windows-Setup.exe",
+  linux: "Shalter.AppImage",
+  "macos-arm64": "Shalter-macOS-arm64.zip",
+};
+
+router.get("/latest", async (req, res) => {
+  const platform = String(req.query.platform ?? "");
+  res.setHeader("Cache-Control", "no-store");
+  await latestReleaseAssets();
+  const version = process.env.NATIVE_LATEST_VERSION || releaseCache.version;
+  if (!version) return res.json({ version: null });
+  let url = null;
+  if (platform === "ios") {
+    url = process.env.IOS_APP_URL || null;
+  } else if (UPDATE_FILES[platform]) {
+    const file = UPDATE_FILES[platform];
+    url = releaseCache.assets.get(file)?.url ?? localArtifact(file)?.url ?? null;
+  }
+  res.json({ version, url, page: "/download" });
 });
 
 module.exports = router;

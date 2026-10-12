@@ -1369,6 +1369,60 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       openMessageMenu({ x: e.clientX, y: e.clientY });
     },
   }, [bubble, hoverActions]);
+  // Долгое нажатие пальцем — меню сообщения, как в Telegram. На iPhone contextmenu не
+  // приходит вовсе, и меню (ответить, копировать, удалить…) было не открыть; кнопки
+  // над сообщением показывались только «залипшим» :hover.
+  {
+    let holdTimer = null;
+    let heldAt = 0;
+    let startX = 0;
+    let startY = 0;
+    const cancelHold = () => {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    };
+    bubbleWrap.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" || e.target.closest?.(".bubble-actions, .reactions-row, input, textarea")) return;
+      startX = e.clientX;
+      startY = e.clientY;
+      cancelHold();
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        heldAt = Date.now();
+        navigator.vibrate?.(12);
+        rememberQuote();
+        if (selection?.active && !isGift) selection.onToggle(message.id);
+        else openMessageMenu({ x: startX, y: startY });
+      }, 450);
+    });
+    bubbleWrap.addEventListener("pointermove", (e) => {
+      if (holdTimer && (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10)) cancelHold();
+    });
+    for (const type of ["pointerup", "pointercancel", "pointerleave"]) bubbleWrap.addEventListener(type, cancelHold);
+    // Android после долгого нажатия присылает ещё и contextmenu, а отпускание пальца —
+    // click (открыл бы фото или ссылку): после своего меню оба гасим.
+    bubbleWrap.addEventListener(
+      "contextmenu",
+      (e) => {
+        cancelHold();
+        if (Date.now() - heldAt < 1000) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+      },
+      true
+    );
+    bubbleWrap.addEventListener(
+      "click",
+      (e) => {
+        if (Date.now() - heldAt < 1000) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+      },
+      true
+    );
+  }
   // Подарок не выбирается: иначе пакетное удаление задело бы его вместе с текстом.
   if (selection?.active && !isGift) {
     bubbleWrap.addEventListener(

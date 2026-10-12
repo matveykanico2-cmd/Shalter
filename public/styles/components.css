@@ -1766,6 +1766,21 @@
 }
 @media (hover: none) {
   .code-block-copy { opacity: 1; }
+  /* Долгое нажатие на сообщение открывает наше меню (там «Копировать» и «Выделить текст»),
+     а не системную лупу и выделение iOS поверх него. */
+  .bubble-wrap {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+/* Серая вспышка iOS при касании — у кнопок и строк своя подсветка. */
+button,
+a,
+[role="button"],
+.chat-list-item,
+.bubble-wrap {
+  -webkit-tap-highlight-color: transparent;
 }
 /* Цвета подсветки — светлая тема, затем тёмная и исходящие пузыри. */
 .code-block {
@@ -22880,6 +22895,10 @@ button img.emoji {
   max-width: 320px;
   overflow-x: auto;
   scrollbar-width: none;
+  /* Прокручиваемая полоса обрезает всё, что за её краем: запас под увеличенный
+     эмодзи и высокие глифы, иначе их верх и низ срезались. */
+  padding: 4px 2px;
+  margin: -4px 0;
 }
 .rmenu-strip::-webkit-scrollbar {
   display: none;
@@ -22959,6 +22978,8 @@ button img.emoji {
 .rmenu-grid-title {
   position: sticky;
   top: 0;
+  /* Над эмодзи: кнопки с transform иначе рисовались поверх заголовка при прокрутке. */
+  z-index: 2;
   margin: 0;
   padding: 6px 4px 4px;
   background: var(--color-surface);
@@ -22969,6 +22990,9 @@ button img.emoji {
 .rmenu-grid-items {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+}
+.rmenu-grid-items .rmenu-reaction:hover {
+  transform: scale(1.1);
 }
 .rmenu-grid-items .rmenu-reaction {
   width: 38px;

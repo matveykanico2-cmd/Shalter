@@ -27,11 +27,20 @@ const LANGUAGETOOL_URL = process.env.LANGUAGETOOL_URL || "https://api.languageto
 
 const HUGO_AI_ENABLED = !/^(0|off|false|no)$/i.test(process.env.HUGO_AI || "");
 const HUGO_AI_URL = process.env.HUGO_AI_URL ?? "https://text.pollinations.ai/openai";
-const HUGO_AI_MODEL = process.env.HUGO_AI_MODEL || "openai";
+const HUGO_AI_MODEL = process.env.HUGO_AI_MODEL || "openai-fast"; // без ключа Pollinations отдаёт только эту модель
 const HUGO_AI_GET_URL = process.env.HUGO_AI_GET_URL ?? "https://text.pollinations.ai/";
 const HUGO_AI_TIMEOUT_MS = Number(process.env.HUGO_AI_TIMEOUT_MS) || 25000;
 const OLLAMA_URL = (process.env.OLLAMA_URL || "").replace(/\/+$/, "");
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2";
+
+// Shalter AI (lib/shalterAi.js): GigaChat (Сбер, бесплатный пакет для физлиц, работает
+// из России) — если задан ключ; иначе Pollinations (без ключа — только текст).
+const SHALTER_AI_ENABLED = !/^(0|off|false|no)$/i.test(process.env.SHALTER_AI || "");
+const GIGACHAT_AUTH_KEY = process.env.GIGACHAT_AUTH_KEY || "";
+const GIGACHAT_SCOPE = process.env.GIGACHAT_SCOPE || "GIGACHAT_API_PERS";
+const GIGACHAT_MODEL = process.env.GIGACHAT_MODEL || "GigaChat-2";
+const GIGACHAT_VISION_MODEL = process.env.GIGACHAT_VISION_MODEL || "GigaChat-2-Max";
+const POLLINATIONS_TOKEN = process.env.POLLINATIONS_TOKEN || "";
 
 module.exports = {
   LANGUAGETOOL_URL,
@@ -42,6 +51,12 @@ module.exports = {
   HUGO_AI_TIMEOUT_MS,
   OLLAMA_URL,
   OLLAMA_MODEL,
+  SHALTER_AI_ENABLED,
+  GIGACHAT_AUTH_KEY,
+  GIGACHAT_SCOPE,
+  GIGACHAT_MODEL,
+  GIGACHAT_VISION_MODEL,
+  POLLINATIONS_TOKEN,
   ADMIN_PHONE,
   ADMIN_PHONES,
   isAdminPhone,

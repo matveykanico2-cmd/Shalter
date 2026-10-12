@@ -3,8 +3,26 @@ let activeStop = null;
 
 function getCtx() {
   if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (ctx.state === "suspended") ctx.resume().catch(() => {});
+  if (ctx.state !== "running") ctx.resume().catch(() => {});
   return ctx;
+}
+
+// iPhone: звук разрешается только из касания. Контекст, созданный позже (пришло
+// сообщение, звонок), оставался «suspended» — звуков и гудков не было. Включаем его
+// на касании; iOS снова приостанавливает его после сворачивания, поэтому слушаем всегда.
+function unlockAudio() {
+  try {
+    const audioCtx = getCtx();
+    if (audioCtx.state === "running") return;
+    // Тихий звук в момент касания — так iOS считает контекст «запущенным пользователем».
+    const src = audioCtx.createBufferSource();
+    src.buffer = audioCtx.createBuffer(1, 1, 22050);
+    src.connect(audioCtx.destination);
+    src.start(0);
+  } catch {}
+}
+if (typeof window !== "undefined") {
+  for (const type of ["touchend", "pointerdown", "keydown"]) window.addEventListener(type, unlockAudio, { passive: true, capture: true });
 }
 
 function beep(when, duration, freq) {

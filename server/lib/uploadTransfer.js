@@ -53,4 +53,35 @@ async function storeGeneratedFile(localPath) {
   return `/uploads/${await storage.finalizeDedup(tempName, dedupName)}`;
 }
 
-module.exports = { fetchUploadToTemp, storeGeneratedFile };
+// Содержимое загрузки в памяти (до maxBytes) — для Shalter AI: только вложения, которые
+// пользователь сам отправил боту в личный чат (см. lib/shalterAi.js).
+async function readUploadBuffer(url, maxBytes) {
+  const filename = /^\/uploads\/([a-z0-9]+_[a-f0-9]{16}(\.[a-z0-9]{1,12})?)$/.exec(String(url ?? ""))?.[1];
+  if (!filename) throw new Error("not an upload");
+  const size = await storage.sizeOf(filename);
+  if (size == null) throw new Error("upload not found");
+  // Сжатый файл не больше исходного: заведомо большой не качаем вовсе.
+  if (size > maxBytes + 64 * 1024) throw new Error("upload too large");
+  const localPath = await fetchUploadToTemp(filename);
+  try {
+    let buf = await fs.promises.readFile(localPath);
+    const { MAGIC, decompressStream } = require("./fileCompression");
+    if (buf.length >= MAGIC.length && buf.subarray(0, MAGIC.length).equals(MAGIC)) {
+      const { Readable } = require("stream");
+      const chunks = [];
+      let total = 0;
+      for await (const chunk of Readable.from([buf.subarray(MAGIC.length)]).pipe(decompressStream())) {
+        total += chunk.length;
+        if (total > maxBytes) throw new Error("upload too large");
+        chunks.push(chunk);
+      }
+      buf = Buffer.concat(chunks);
+    }
+    if (buf.length > maxBytes) throw new Error("upload too large");
+    return buf;
+  } finally {
+    await fs.promises.unlink(localPath).catch(() => {});
+  }
+}
+
+module.exports = { fetchUploadToTemp, storeGeneratedFile, readUploadBuffer };

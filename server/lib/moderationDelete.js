@@ -11,10 +11,11 @@ const { logExport } = require("../data/dataExport");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { HELPER_BOT_ID } = require("../data/helperBot");
 const { HUGO_ID } = require("../data/hugoBot");
+const { SHALTER_AI_ID } = require("../data/shalterAiBot");
 
 // Служебные аккаунты Shalter. Префикс «bot_» тут не годится: его носят и
 // обычные боты, созданные пользователями (genId("bot")).
-const SERVICE_ACCOUNT_IDS = new Set([SYSTEM_BOT_ID, HELPER_BOT_ID, HUGO_ID]);
+const SERVICE_ACCOUNT_IDS = new Set([SYSTEM_BOT_ID, HELPER_BOT_ID, HUGO_ID, SHALTER_AI_ID]);
 function isServiceAccount(id) {
   return SERVICE_ACCOUNT_IDS.has(id);
 }

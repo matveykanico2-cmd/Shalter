@@ -37,6 +37,18 @@ export function openSidebarMenu(pos) {
       openProfileDialog(user.id);
     },
   });
+  items.push({
+    icon: "Zap",
+    label: "Shalter AI",
+    onClick: async () => {
+      try {
+        const { chatId } = await api.openShalterAiChat();
+        navigate(`/chat/${chatId}`);
+      } catch (err) {
+        alert(err.message || "Не удалось открыть Shalter AI");
+      }
+    },
+  });
   items.push({ icon: "Bookmark", label: "Избранное", onClick: () => openSavedMessages() });
   items.push({ icon: "Archive", label: "Архив", onClick: () => navigate("/archive") });
   items.push({ icon: "Users", label: "Контакты", onClick: () => navigate("/contacts") });

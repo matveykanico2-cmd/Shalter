@@ -14,6 +14,7 @@ import { startWsClient, onWsMessage } from "./lib/wsClient.js";
 import { initNetStatus } from "./lib/netStatus.js";
 import { ensurePushSubscribed } from "./lib/push.js";
 import { startVersionWatch } from "./lib/appVersion.js";
+import { startNativeUpdateCheck } from "./lib/nativeUpdate.js";
 import { subscribeCall, getCallState, minimize, restore } from "./lib/callController.js";
 import { applyVolume } from "./lib/mediaVolume.js";
 import { Avatar } from "./components/avatar.js";
@@ -29,10 +30,14 @@ import { paintWallpaper } from "./lib/wallpapers.js";
 import { installToastAlert, installModalEscape, showToast } from "./components/toast.js";
 import { installEmojiImages } from "./lib/emojiImages.js";
 import { syncAppIcon } from "./lib/appIcons.js";
+import { installTouchHover } from "./lib/touchHover.js";
+import { installIosLongPress } from "./lib/iosLongPress.js";
 
 installToastAlert();
 installModalEscape();
 installEmojiImages();
+installTouchHover();
+installIosLongPress();
 
 const root = document.getElementById("view-root");
 
@@ -257,6 +262,7 @@ async function boot() {
     })
     .catch(() => {});
   startVersionWatch();
+  startNativeUpdateCheck();
   const prefetchChat = () => import("./views/chatView.js").catch(() => {});
   if ("requestIdleCallback" in window) requestIdleCallback(prefetchChat, { timeout: 3000 });
   else setTimeout(prefetchChat, 1200);

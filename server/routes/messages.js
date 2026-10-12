@@ -26,6 +26,7 @@ const { listScheduledFor, addScheduled, editScheduled, deleteScheduled, getSched
 const { getBotByUserId } = require("../data/bots");
 const { runBotCode } = require("../lib/botSandbox");
 const { dispatchHugo, dispatchGuestHugo } = require("../lib/hugoBot");
+const { dispatchShalterAi } = require("../lib/shalterAi");
 const { dispatchHelperBot } = require("../lib/helperBot");
 const { dispatchBusinessAutoReply } = require("../lib/businessAutoReply");
 const { can, DENIED, isStaff } = require("../lib/chatPermissions");
@@ -419,6 +420,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
 
   dispatchHugo(chat.id, message);
   dispatchGuestHugo(chat, message);
+  dispatchShalterAi(chat.id, message);
 
   dispatchHelperBot(chat, message);
 

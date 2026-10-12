@@ -74,7 +74,7 @@ fn platform() -> &'static str {
 
 // Мост window.shalterDesktop — тот же, что давал preload.js в Electron. Только для своего
 // сервера: чужие страницы его не получают (и IPC им всё равно не разрешён).
-fn bridge_script(origin: &str) -> String {
+fn bridge_script(origin: &str, version: &str) -> String {
     format!(
         r#"(function () {{
   var ORIGIN = {origin:?};
@@ -85,6 +85,7 @@ fn bridge_script(origin: &str) -> String {
   }};
   window.shalterDesktop = {{
     platform: {platform:?},
+    version: {version:?},
     setUnread: function (count) {{ return inv("set_unread", {{ count: Math.max(0, Math.floor(Number(count) || 0)) }}); }},
     focus: function () {{ return inv("focus_window"); }},
     notify: function (title, body, url) {{ return inv("notify", {{ title: String(title == null ? "Shalter" : title), body: String(body == null ? "" : body), url: url || null }}); }},
@@ -105,7 +106,8 @@ fn bridge_script(origin: &str) -> String {
   }};
 }})();"#,
         origin = origin,
-        platform = platform()
+        platform = platform(),
+        version = version
     )
 }
 
@@ -287,7 +289,7 @@ fn create_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .inner_size(1280.0, 840.0)
         .min_inner_size(380.0, 480.0)
         .background_color(tauri::window::Color(0xf5, 0xf6, 0xf9, 0xff))
-        .initialization_script(&bridge_script(&shell.origin))
+        .initialization_script(&bridge_script(&shell.origin, &app.package_info().version.to_string()))
         // Скачивания: в «Загрузки», не затирая файл с тем же именем, и уведомление по
         // окончании. Без этого обработчика скачивание из окна молча не происходило.
         .on_download(move |webview, event| {

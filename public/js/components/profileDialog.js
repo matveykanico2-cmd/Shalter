@@ -328,9 +328,11 @@ export async function openProfileDialog(userId) {
 
   let joiningChannelId = null;
 
+  // Не подписан — /chat/<id> отвечал «Чат не найден»: открываем превью канала по нику.
   function openChannel(channel) {
     close();
-    navigate(`/chat/${channel.id}`);
+    const member = (getState().chats ?? []).some((c) => c.id === channel.id);
+    navigate(!member && channel.username ? `/@${channel.username}` : `/chat/${channel.id}`);
   }
 
   async function joinChannel(channel) {

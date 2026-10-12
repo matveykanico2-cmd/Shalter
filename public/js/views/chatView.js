@@ -2153,19 +2153,28 @@ export async function ChatView(root, chatId) {
     // Подписчик канала вместо поля ввода видит «ОТПИСАТЬСЯ»; после отписки от
     // публичного канала открывается его превью, где кнопка уже «ПОДПИСАТЬСЯ».
     if (isChannel && !isChannelAdmin) {
+      // Кнопка меняется на месте: раньше после отписки открывалась страница превью,
+      // и весь канал моргал, перерисовываясь заново.
       const leaveBtn = el("button", { type: "button", class: "chat-preview-join" }, "ОТПИСАТЬСЯ");
+      let subscribed = true;
       leaveBtn.onclick = async () => {
-        if (!chat.isPublic && !(await askConfirm("Канал закрытый — вернуться в него можно будет только по приглашению. Отписаться?", { okLabel: "Отписаться" }))) return;
+        if (subscribed && !chat.isPublic && !(await askConfirm("Канал закрытый — вернуться в него можно будет только по приглашению. Отписаться?", { okLabel: "Отписаться" }))) return;
         leaveBtn.disabled = true;
-        leaveBtn.textContent = "…";
         try {
-          await api.leaveChat(chat.id);
-          setState({ chats: (getState().chats ?? []).filter((c) => c.id !== chat.id) });
-          navigate(chat.isPublic && chat.username ? `/@${chat.username}` : "/", { replace: true });
+          if (subscribed) {
+            await api.leaveChat(chat.id);
+            setState({ chats: (getState().chats ?? []).filter((c) => c.id !== chat.id) });
+            if (!chat.isPublic) return void navigate("/", { replace: true });
+          } else {
+            await api.subscribeChannel(chat.id);
+            api.listChats().then((r) => setState({ chats: r.chats })).catch(() => {});
+          }
+          subscribed = !subscribed;
+          leaveBtn.textContent = subscribed ? "ОТПИСАТЬСЯ" : "ПОДПИСАТЬСЯ";
         } catch (err) {
+          alert(err.message || (subscribed ? "Не удалось отписаться" : "Не удалось подписаться"));
+        } finally {
           leaveBtn.disabled = false;
-          leaveBtn.textContent = "ОТПИСАТЬСЯ";
-          alert(err.message || "Не удалось отписаться");
         }
       };
       bodyBottomSlot.appendChild(el("div", { class: "chat-preview-bottom" }, [leaveBtn]));

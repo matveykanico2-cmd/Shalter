@@ -17,6 +17,7 @@ const { takeSharePayload } = require("./routes/shareTarget");
 const { initPush } = require("./push");
 const { ensureSystemBot } = require("./data/systemBot");
 const { ensureHugoAccount } = require("./data/hugoBot");
+const { ensureShalterAiAccount } = require("./data/shalterAiBot");
 const { ensureHelperBotAccount } = require("./data/helperBot");
 const { startAutoDeleteSweep } = require("./lib/autoDelete");
 const { startDonationAlertsSweep } = require("./lib/donationAlerts");
@@ -29,6 +30,7 @@ const { startAccountDeletionSweep } = require("./lib/accountDeletionSweep");
 
 ensureSystemBot();
 ensureHugoAccount();
+ensureShalterAiAccount();
 ensureHelperBotAccount();
 
 const app = express();
@@ -125,6 +127,7 @@ app.use("/api/stickers", require("./routes/stickers"));
 app.use("/api/custom-emoji", require("./routes/customEmoji"));
 app.use("/api/stars", require("./routes/stars"));
 app.use("/api/support", require("./routes/support"));
+app.use("/api/ai", require("./routes/shalterAi"));
 app.use("/api/partners", require("./routes/partners"));
 app.use("/api/oauth", require("./routes/oauth"));
 app.use("/api/avatars", require("./routes/avatars"));
