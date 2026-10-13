@@ -12,7 +12,9 @@ const openStoryEditor = (...args) => import("./storyEditor.js").then((m) => m.op
 import { onWsMessage } from "../lib/wsClient.js";
 import { readCache, writeCache } from "../lib/localCache.js";
 
-const MAX_STORY_DIMENSION = 1080;
+// Длинная сторона фото истории. Было 1080 — вертикальное фото 1080×1920 ужималось до
+// 608×1080 и выглядело мыльным; 2160 — полное качество для экрана телефона.
+const MAX_STORY_DIMENSION = 2160;
 
 export function StoriesBar() {
   const container = el("div", { class: "stories-bar" });
@@ -27,10 +29,12 @@ export function StoriesBar() {
     render();
   }
 
+  const MAX_STORY_BYTES = 3 * 1024 ** 3; // история — до 3 ГБ
   async function postStory(files) {
     const items = [];
     for (const [i, file] of files.entries()) {
       const isVideo = file.type.startsWith("video/");
+      if (file.size > MAX_STORY_BYTES) throw new Error(`«${file.name}» больше 3 ГБ — для истории выберите файл поменьше`);
       let upload = file;
       if (!isVideo) {
         progress = `Редактируем ${i + 1} из ${files.length}…`;
@@ -117,6 +121,8 @@ export function StoriesBar() {
 
   const unsubs = [
     onWsMessage("story:new", refetch),
+    // видео истории обработано (H.264 1080p) — подтягиваем, чтобы играла обработанная версия
+    onWsMessage("story:updated", refetch),
     onWsMessage("story:deleted", refetch),
   ];
   container.cleanup = () => unsubs.forEach((u) => u());

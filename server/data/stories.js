@@ -61,6 +61,15 @@ async function addStory(story) {
   return rowToStory(db.prepare("SELECT * FROM stories WHERE id = ?").get(story.id));
 }
 
+// Дописать данные в элемент истории (обработанное видео, обложка).
+function updateStoryItem(id, index, patch) {
+  const row = db.prepare("SELECT * FROM stories WHERE id = ?").get(id);
+  if (!row) return undefined;
+  const items = itemsOf(row).map((it, i) => (i === index ? { ...it, ...patch } : it));
+  db.prepare("UPDATE stories SET items = ? WHERE id = ?").run(JSON.stringify(items), id);
+  return rowToStory(db.prepare("SELECT * FROM stories WHERE id = ?").get(id));
+}
+
 async function getStoryById(id) {
   return rowToStory(db.prepare("SELECT * FROM stories WHERE id = ?").get(id));
 }
@@ -152,6 +161,7 @@ async function toggleCommentLike(id, userId) {
 }
 
 module.exports = {
+  updateStoryItem,
   TTL_MS,
   listAllStories,
   listStoriesForUsers,

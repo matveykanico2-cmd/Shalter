@@ -346,6 +346,21 @@ async function deleteChat(id) {
   db.prepare("DELETE FROM chats WHERE id = ?").run(id);
 }
 
+// С кем у человека есть личная переписка (для историй: их видят и собеседники,
+// а не только контакты).
+function dmPartnerIds(userId) {
+  return db
+    .prepare(
+      `SELECT DISTINCT m2.userId AS id FROM chat_members m1
+         JOIN chats c ON c.id = m1.chatId AND c.type = 'dm'
+         JOIN chat_members m2 ON m2.chatId = c.id AND m2.userId != m1.userId
+        WHERE m1.userId = ?`
+    )
+    .all(userId)
+    .map((r) => r.id);
+}
+
 module.exports = {
+  dmPartnerIds,
   secretDeviceOf, deviceHash, isSecretChat, claimSecretDevice,
   findChatByInviteCode, listChats, listChatsForUser, findDmBetween, getChat, updateChat, createChat, deleteChat, findChatByUsername, searchPublicChannels, similarChannels, findChannelByDiscussionChatId };

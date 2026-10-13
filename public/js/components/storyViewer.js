@@ -477,15 +477,23 @@ export function openStoryViewer(groups, groupIndex, meId, onChanged, startIndex 
 
     let media;
     if (frame.item.kind === "video") {
+      // Обработанное сервером видео (H.264, 1080p) — открывается везде; пока его нет — оригинал.
       videoEl = el("video", {
-        src: frame.item.url,
+        src: frame.item.previewUrl || frame.item.url,
         class: "story-media",
         autoplay: true,
         playsinline: true,
         muted,
+        ...(frame.item.posterUrl ? { poster: frame.item.posterUrl } : {}),
         onended: goNextStory,
         onloadedmetadata: () => setBarAnimation(0, false),
       });
+      const shownVideo = videoEl;
+      videoEl.addEventListener("error", () => {
+        // оригинал в формате, который это устройство не играет (HEVC с iPhone и т. п.)
+        if (!shownVideo.isConnected || frame.item.previewUrl) return;
+        shownVideo.replaceWith(el("div", { class: "story-media story-processing" }, [el("span", { class: "media-viewer-spinner" }), el("p", {}, "Видео обрабатывается — откроется через минуту")]));
+      }, { once: true });
       media = videoEl;
     } else {
       videoEl = null;

@@ -81,7 +81,8 @@ function runFfmpeg(build) {
   });
 }
 
-async function generateVideoPreview(inputPath) {
+// opts — для историй качество выше: 1080p, crf 21, звук 160 кбит/с.
+async function generateVideoPreview(inputPath, { height: maxHeight = PREVIEW_HEIGHT, crf = 23, audioBitrate = "128k", maxrate = "3000k" } = {}) {
   return videoQueue(async () => {
     const previewPath = tempPath(".mp4");
     const posterPath = tempPath(".jpg");
@@ -92,14 +93,14 @@ async function generateVideoPreview(inputPath) {
           .input(inputPath)
           .videoCodec("libx264")
           .audioCodec("aac")
-          .audioBitrate("128k")
+          .audioBitrate(audioBitrate)
           .outputOptions([
             // не растягиваем маленькие видео: высота не больше исходной
-            `-vf scale=-2:'min(${PREVIEW_HEIGHT},ih)'`,
+            `-vf scale=-2:'min(${maxHeight},ih)'`,
             "-preset veryfast",
-            "-crf 23",
-            "-maxrate 3000k",
-            "-bufsize 6000k",
+            `-crf ${crf}`,
+            `-maxrate ${maxrate}`,
+            `-bufsize ${parseInt(maxrate, 10) * 2}k`,
             "-pix_fmt yuv420p",
             "-movflags +faststart",
           ])
@@ -113,7 +114,7 @@ async function generateVideoPreview(inputPath) {
       );
 
       const source = parseSize(codecData);
-      const height = source ? Math.min(PREVIEW_HEIGHT, source.height) : PREVIEW_HEIGHT;
+      const height = source ? Math.min(maxHeight, source.height) : maxHeight;
       const width = source ? Math.round((source.width * height) / source.height / 2) * 2 : 0;
       return { previewPath, posterPath, width, height, durationSec };
     } catch (err) {

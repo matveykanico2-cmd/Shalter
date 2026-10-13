@@ -4,6 +4,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const {
   TTL_MS,
+  updateStoryItem,
   listStoriesForUsers,
   listArchivedStoriesFor,
   addStory,
@@ -25,7 +26,7 @@ const { getUser } = require("../data/users");
 const { hasAdminSection } = require("../lib/adminAccess");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
-const { getChat, listChatsForUser } = require("../data/chats");
+const { getChat, listChatsForUser, dmPartnerIds } = require("../data/chats");
 const { publicUser } = require("../data/sanitize");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
 const { broadcastToUsers } = require("../ws");
@@ -68,8 +69,40 @@ function sanitizeStoryItems(body) {
     .map((it) => ({ kind: it.kind, url: it.url }));
 }
 
+// Кому видна история: те, у кого автор в контактах, и те, с кем у автора есть
+// личная переписка (раньше только контакты — и историю не видели собеседники).
 function audienceOf(authorId) {
-  return [...new Set([authorId, ...listOwnersOf(authorId)])];
+  return [...new Set([authorId, ...listOwnersOf(authorId), ...dmPartnerIds(authorId)])];
+}
+
+// Видео истории — как в сообщениях: перекодируем в H.264/AAC (1080p, звук 160 кбит/с,
+// быстрый старт), чтобы оно открывалось везде (видео с iPhone в HEVC/MOV не играло
+// на Android и в браузерах) и не грузилось часами в 4K. Пока идёт обработка — оригинал.
+async function processStoryVideos(story) {
+  const { generateVideoPreview } = require("../lib/mediaPreview");
+  const { fetchUploadToTemp, storeGeneratedFile } = require("../lib/uploadTransfer");
+  const fs = require("fs");
+  for (const [index, item] of story.items.entries()) {
+    if (item.kind !== "video" || !String(item.url).startsWith("/uploads/")) continue;
+    let source = null;
+    try {
+      source = await fetchUploadToTemp(item.url.slice("/uploads/".length));
+      const out = await generateVideoPreview(source, { height: 1080, crf: 21, audioBitrate: "160k", maxrate: "6000k" });
+      try {
+        const previewUrl = await storeGeneratedFile(out.previewPath);
+        const posterUrl = await storeGeneratedFile(out.posterPath);
+        updateStoryItem(story.id, index, { previewUrl, posterUrl, width: out.width, height: out.height, durationSec: out.durationSec });
+        broadcastToUsers(audienceOf(story.userId), { type: "story:updated", storyId: story.id, userId: story.userId });
+      } finally {
+        fs.promises.unlink(out.previewPath).catch(() => {});
+        fs.promises.unlink(out.posterPath).catch(() => {});
+      }
+    } catch (err) {
+      console.error(`story video processing failed for ${story.id}#${index}:`, err.message);
+    } finally {
+      if (source) fs.promises.unlink(source).catch(() => {});
+    }
+  }
 }
 
 const router = express.Router();
@@ -101,7 +134,7 @@ async function visibleAuthorIds(uid) {
   const contacts = await listContactsFor(uid);
   const chats = await listChatsForUser(uid);
   const channelIds = chats.filter((c) => c.type === "channel").map((c) => c.id);
-  return [uid, ...contacts.map((c) => c.userId), ...channelIds];
+  return [...new Set([uid, ...contacts.map((c) => c.userId), ...dmPartnerIds(uid), ...channelIds])];
 }
 
 router.get(
@@ -208,6 +241,7 @@ router.post(
     });
     broadcastToUsers(audienceOf(req.uid), { type: "story:new", storyId: story.id, userId: req.uid });
     res.json({ story });
+    processStoryVideos(story).catch((err) => console.error("story videos failed:", err));
 
     (async () => {
       try {
@@ -247,6 +281,7 @@ router.post(
     });
     broadcastToUsers(chat.memberIds, { type: "story:new", storyId: story.id, userId: chat.id });
     res.json({ story });
+    processStoryVideos(story).catch((err) => console.error("story videos failed:", err));
   })
 );
 
