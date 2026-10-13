@@ -158,6 +158,7 @@ async function boot() {
   startWsClient();
   initNetStatus();
   import("./lib/downloads.js").then((m) => m.startDownloadTracking()).catch(() => {});
+  watchBrokenImages();
   // Десктоп (мост из src-tauri/src/main.rs): число непрочитанных без заглушённых чатов → бейдж и трей.
   if (window.shalterDesktop) {
     let lastUnread = -1;
@@ -666,3 +667,42 @@ boot().catch((err) => {
     ])
   );
 });
+
+
+// Картинки, которые не загрузились (нет сети, сбой): вместо значка «битой
+// картинки» — пустое место, а когда связь вернётся, все такие картинки
+// загружаются заново сами. У фото в ленте и просмотрщика своя обработка.
+function watchBrokenImages() {
+  const broken = new Set();
+  document.addEventListener(
+    "error",
+    (e) => {
+      const img = e.target;
+      if (!(img instanceof HTMLImageElement) || !img.getAttribute("src") || img.closest(".image-attachment-btn, .media-viewer-overlay")) return;
+      img.classList.add("img-broken");
+      broken.add(img);
+    },
+    true
+  );
+  document.addEventListener(
+    "load",
+    (e) => {
+      if (e.target instanceof HTMLImageElement && broken.delete(e.target)) e.target.classList.remove("img-broken");
+    },
+    true
+  );
+  const retry = () => {
+    for (const img of broken) {
+      if (!img.isConnected) {
+        broken.delete(img);
+        continue;
+      }
+      const src = img.getAttribute("src");
+      img.removeAttribute("src");
+      img.setAttribute("src", src);
+    }
+  };
+  window.addEventListener("online", retry);
+  // Сеть могла «вернуться» без события (медленная связь) — пробуем и раз в 30 с.
+  setInterval(() => broken.size && navigator.onLine !== false && retry(), 30_000);
+}

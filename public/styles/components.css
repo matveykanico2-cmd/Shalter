@@ -24582,3 +24582,17 @@ video.media-viewer-media {
 .ptrack-row {
   min-width: 0;
 }
+
+/* незагрузившаяся картинка (нет сети): без значка «битой картинки» —
+   мягкая заглушка, сама загрузится, когда связь вернётся */
+img.img-broken {
+  color: transparent;
+  background: color-mix(in srgb, var(--color-muted, #888) 14%, transparent);
+  border-radius: inherit;
+}
+img.img-broken {
+  /* подменяем содержимое прозрачной картинкой — значок «битой» не рисуется */
+  content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E");
+  min-width: 24px;
+  min-height: 24px;
+}
