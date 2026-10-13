@@ -104,6 +104,7 @@ app.use("/api/sessions", require("./routes/sessions"));
 app.use("/api/settings", require("./routes/settings"));
 app.use("/api/bots", require("./routes/bots"));
 app.use("/api/games", require("./routes/games"));
+app.use("/api/game-api", require("./routes/gameApi"));
 app.use("/api/bot-api", require("./routes/botApi"));
 app.use("/api/posts", require("./routes/posts"));
 app.use("/api/search", require("./routes/search"));

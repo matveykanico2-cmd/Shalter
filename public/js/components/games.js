@@ -27,18 +27,29 @@ function writeStore(gameId, data) {
 }
 
 // SDK, который вставляется в игру перед её кодом.
-function sdk(gameId, player) {
-  const init = JSON.stringify({ store: readStore(gameId), player }).replace(/</g, "\\u003c");
+function sdk(gameId, player, extra = {}) {
+  const init = JSON.stringify({ store: readStore(gameId), player, ...extra }).replace(/</g, "\\u003c");
   return `<script>(function(){var I=${init};var data=I.store||{};
 function post(m){try{parent.postMessage(Object.assign({__shalterGame:1},m),"*")}catch(e){}}
 var mem={getItem:function(k){return Object.prototype.hasOwnProperty.call(data,k)?String(data[k]):null},setItem:function(k,v){data[k]=String(v);post({type:"store",data:data})},removeItem:function(k){delete data[k];post({type:"store",data:data})},clear:function(){data={};post({type:"store",data:data})},key:function(i){return Object.keys(data)[i]||null},get length(){return Object.keys(data).length}};
 try{Object.defineProperty(window,"localStorage",{value:mem,configurable:true})}catch(e){}
-var last=-1;window.Shalter={player:I.player,score:function(n){n=Math.floor(+n)||0;if(n!==last){last=n;post({type:"score",score:n})}},gameOver:function(n){post({type:"over",score:Math.floor(+n)||0})},close:function(){post({type:"close"})}};
+var last=-1,seq=0,wait={};
+window.addEventListener("message",function(e){var d=e.data;if(!d||!d.__shalterGameReply||!wait[d.id])return;var w=wait[d.id];delete wait[d.id];d.error?w[1](new Error(d.error)):w[0](d.result)});
+function rpc(method,args){return new Promise(function(ok,fail){var id=++seq;wait[id]=[ok,fail];post({type:"rpc",id:id,method:method,args:args||{}})})}
+window.Shalter={version:1,player:I.player,theme:I.theme,chat:I.chat,
+score:function(n){n=Math.floor(+n)||0;if(n!==last){last=n;post({type:"score",score:n})}},
+gameOver:function(n){post({type:"over",score:Math.floor(+n)||0})},
+getBest:function(){return rpc("best")},
+getLeaderboard:function(o){return rpc("leaderboard",o)},
+share:function(text){return rpc("share",{text:text==null?null:String(text).slice(0,300),score:last})},
+vibrate:function(ms){return rpc("vibrate",{ms:Math.min(1000,Math.max(1,+ms||30))})},
+ready:function(){post({type:"ready"})},
+close:function(){post({type:"close"})}};
 window.addEventListener("error",function(e){post({type:"error",message:String(e.message||e)})});})();<\/script>`;
 }
 
-function buildDoc(code, gameId, player) {
-  const inject = sdk(gameId, player);
+function buildDoc(code, gameId, player, extra) {
+  const inject = sdk(gameId, player, extra);
   if (/<head[^>]*>/i.test(code)) return code.replace(/<head[^>]*>/i, (m) => m + inject);
   if (/<html[^>]*>/i.test(code)) return code.replace(/<html[^>]*>/i, (m) => m + inject);
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${inject}</head><body>${code}</body></html>`;
@@ -93,7 +104,9 @@ export async function openGame(gameOrId, { chatId = null, code = null, onScore }
     allow: "fullscreen; gamepad; autoplay",
     title: game?.title ?? "Игра",
   });
-  frame.srcdoc = buildDoc(code ?? game.code, gameId, { name: me?.name ?? "Игрок" });
+  const dark = matchMedia?.("(prefers-color-scheme: dark)")?.matches || document.documentElement.dataset.theme === "dark";
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--color-accent").trim() || "#3390ec";
+  frame.srcdoc = buildDoc(code ?? game.code, gameId, { id: me?.id ?? null, name: me?.name ?? "Игрок" }, { theme: { dark, accent }, chat: chatId ? { id: chatId } : null });
   clear(frameSlot);
   frameSlot.append(frame);
   frame.focus();
@@ -104,6 +117,7 @@ export async function openGame(gameOrId, { chatId = null, code = null, onScore }
   function onMessage(e) {
     if (e.source !== frame.contentWindow || !e.data?.__shalterGame) return;
     const m = e.data;
+    if (m.type === "rpc") return void handleRpc(m);
     if (m.type === "store" && !code) writeStore(gameId, m.data ?? {});
     else if (m.type === "close") close();
     else if (m.type === "error" && code) showToast(`Ошибка в игре: ${String(m.message).slice(0, 160)}`);
@@ -124,6 +138,37 @@ export async function openGame(gameOrId, { chatId = null, code = null, onScore }
       else sendTimer = setTimeout(send, 2000);
     }
   }
+  // Методы SDK, которым нужно приложение: рекорды, «поделиться», вибрация.
+  async function handleRpc(m) {
+    const reply = (result, error) => frame.contentWindow?.postMessage({ __shalterGameReply: 1, id: m.id, result, error }, "*");
+    try {
+      if (code || !game?.id) {
+        if (m.method === "vibrate") navigator.vibrate?.(m.args.ms);
+        return reply(m.method === "leaderboard" ? [] : m.method === "best" ? 0 : null);
+      }
+      if (m.method === "best") return reply((await api.getGameBest(game.id, chatId)).best ?? 0);
+      if (m.method === "leaderboard") {
+        const { scores } = await api.getGameScores(game.id, m.args?.chat === false ? null : chatId);
+        return reply(scores.slice(0, Math.min(100, Number(m.args?.limit) || 20)).map((s2, i) => ({ position: i + 1, name: s2.name, score: s2.score, isMe: s2.userId === me?.id })));
+      }
+      if (m.method === "vibrate") {
+        navigator.vibrate?.(m.args.ms);
+        return reply(true);
+      }
+      if (m.method === "share") {
+        if (!chatId) return reply(null, "Игра открыта не из чата — делиться некуда");
+        const score = Math.max(0, Math.floor(Number(m.args?.score) || 0));
+        const text = m.args?.text || `🎮 ${game.title}: мой результат — ${score}! Сможешь больше?`;
+        await api.sendMessage(chatId, text, { attachments: [gameAttachmentFor(game)], clientId: `g_${Date.now().toString(36)}` });
+        showToast("Результат отправлен в чат");
+        return reply(true);
+      }
+      reply(null, `Неизвестный метод ${m.method}`);
+    } catch (err) {
+      reply(null, err.message || "Ошибка");
+    }
+  }
+
   window.addEventListener("message", onMessage);
   return close;
 }
@@ -246,7 +291,10 @@ const STARTER = `<!doctype html>
 <div id="target"></div>
 <script>
   // Shalter.score(n) — текущий счёт, Shalter.gameOver(n) — конец игры (рекорд сохранится).
-  // Shalter.player.name — имя игрока. localStorage работает как обычно.
+  // Shalter.player.name — имя игрока, Shalter.theme.dark — тёмная тема приложения.
+  // await Shalter.getBest() — лучший результат, await Shalter.getLeaderboard() — рекорды,
+  // Shalter.share() — отправить результат в чат, Shalter.vibrate(50) — вибрация.
+  // localStorage работает как обычно. Документация: shalter.ru/bots#games
   let score = 0, time = 20;
   const target = document.getElementById("target");
   function moveTarget() {
@@ -332,6 +380,7 @@ export async function openGameEditor(game, { onSaved } = {}) {
               },
             }, "Удалить")
           : null,
+        full?.id ? el("button", { class: "modal-cancel", onclick: () => showGameToken(full) }, "🔑 API-токен") : null,
         el("span", { style: "flex:1" }),
         el("button", { class: "modal-cancel", onclick: () => openGame({ title: title.value || "Предпросмотр", emoji: emoji.value }, { code: getCode() }) }, "▶ Запустить"),
         el("button", { class: "btn-accent", onclick: save }, "Сохранить"),
@@ -345,6 +394,31 @@ export async function openGameEditor(game, { onSaved } = {}) {
   } catch {
     editorSlot.append(fallback);
   }
+}
+
+// Токен Game API: показывается один раз, новый отзывает прежний.
+async function showGameToken(game) {
+  if (!(await askConfirm(`Создать API-токен для «${game.title}»? Прежний токен (если был) перестанет работать.`, { okLabel: "Создать" }))) return;
+  let token;
+  try {
+    ({ token } = await api.createGameToken(game.id));
+  } catch (err) {
+    return showToast(err.message || "Не удалось создать токен");
+  }
+  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && overlay.remove() });
+  overlay.append(
+    el("div", { class: "modal-dialog" }, [
+      el("h2", { class: "modal-title" }, "🔑 Токен Game API"),
+      el("p", { class: "settings-toggle-hint" }, "Сохраните его — повторно он не показывается. С ним можно обновлять игру, читать статистику и ставить рекорды со своего сервера."),
+      el("code", { class: "game-token mono" }, token),
+      el("div", { class: "game-editor-actions" }, [
+        el("a", { class: "modal-cancel", href: "/bots#games", target: "_blank" }, "Документация"),
+        el("span", { style: "flex:1" }),
+        el("button", { class: "btn-accent", onclick: () => navigator.clipboard?.writeText(token).then(() => showToast("Токен скопирован")) }, "Скопировать"),
+      ]),
+    ])
+  );
+  document.body.appendChild(overlay);
 }
 
 // Карточка игры в сообщении.

@@ -94,4 +94,49 @@ function topScores(gameId, scope, limit = 20) {
   return db.prepare("SELECT userId, score, updatedAt FROM game_scores WHERE gameId = ? AND scope = ? ORDER BY score DESC, updatedAt ASC LIMIT ?").all(gameId, scope, limit);
 }
 
-module.exports = { BUILTIN, searchGames, getGame, listCatalog, listMine, saveGame, deleteGame, countPlay, submitScore, topScores };
+// ---------- Game API ----------
+const crypto = require("crypto");
+const hashToken = (t) => crypto.createHash("sha256").update(String(t)).digest("hex");
+
+// Новый токен игры (старый перестаёт работать). Возвращается один раз.
+function issueGameToken(gameId) {
+  const token = `game_${crypto.randomBytes(24).toString("hex")}`;
+  db.prepare(
+    `INSERT INTO game_tokens (gameId, tokenHash, createdAt) VALUES (?, ?, ?)
+     ON CONFLICT(gameId) DO UPDATE SET tokenHash = excluded.tokenHash, createdAt = excluded.createdAt`
+  ).run(gameId, hashToken(token), new Date().toISOString());
+  return token;
+}
+
+function gameByToken(token) {
+  if (!/^game_[a-f0-9]{48}$/.test(String(token ?? ""))) return null;
+  const row = db.prepare("SELECT gameId FROM game_tokens WHERE tokenHash = ?").get(hashToken(token));
+  return row ? getGame(row.gameId, { withCode: true }) : null;
+}
+
+function hasGameToken(gameId) {
+  return !!db.prepare("SELECT 1 FROM game_tokens WHERE gameId = ?").get(gameId);
+}
+
+function setScoreExact(gameId, scope, userId, score) {
+  db.prepare(
+    `INSERT INTO game_scores (gameId, scope, userId, score, updatedAt) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(gameId, scope, userId) DO UPDATE SET score = excluded.score, updatedAt = excluded.updatedAt`
+  ).run(gameId, scope, userId, score, new Date().toISOString());
+}
+
+function deleteScore(gameId, userId) {
+  db.prepare("DELETE FROM game_scores WHERE gameId = ? AND userId = ?").run(gameId, userId);
+}
+
+function bestScore(gameId, scope, userId) {
+  return db.prepare("SELECT score FROM game_scores WHERE gameId = ? AND scope = ? AND userId = ?").get(gameId, scope, userId)?.score ?? 0;
+}
+
+function gameStats(gameId) {
+  const row = db.prepare("SELECT count(DISTINCT userId) AS players, max(score) AS top FROM game_scores WHERE gameId = ? AND scope = ''").get(gameId);
+  const plays = db.prepare("SELECT plays FROM games WHERE id = ?").get(gameId)?.plays ?? 0;
+  return { plays, players: row?.players ?? 0, topScore: row?.top ?? 0 };
+}
+
+module.exports = { issueGameToken, gameByToken, hasGameToken, setScoreExact, deleteScore, bestScore, gameStats, BUILTIN, searchGames, getGame, listCatalog, listMine, saveGame, deleteGame, countPlay, submitScore, topScores };

@@ -665,6 +665,12 @@ CREATE TABLE IF NOT EXISTS games (
   updatedAt TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_games_owner ON games(ownerId);
+-- Токены Game API (хэш sha256 — сам токен показывается владельцу один раз).
+CREATE TABLE IF NOT EXISTS game_tokens (
+  gameId TEXT PRIMARY KEY,
+  tokenHash TEXT NOT NULL UNIQUE,
+  createdAt TEXT NOT NULL
+);
 -- Рекорды: лучший результат человека в игре (scope '' — общий, иначе id чата).
 CREATE TABLE IF NOT EXISTS game_scores (
   gameId TEXT NOT NULL,

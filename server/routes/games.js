@@ -67,12 +67,33 @@ router.patch(
   })
 );
 
+// Токен Game API для своей игры (новый токен отзывает прежний).
+router.post(
+  "/:id/token",
+  asyncRoute(async (req, res) => {
+    const game = games.getGame(req.params.id);
+    if (!game || game.ownerId !== req.uid) return res.status(404).json({ error: "Игра не найдена" });
+    res.json({ token: games.issueGameToken(game.id) });
+  })
+);
+
+// Лучший результат игрока (для SDK внутри игры: Shalter.getBest()).
+router.get(
+  "/:id/best",
+  asyncRoute(async (req, res) => {
+    const scope = await scopeFor(req, req.query.chatId);
+    if (scope === null) return res.status(404).json({ error: "Чат не найден" });
+    res.json({ best: games.bestScore(req.params.id, scope, req.uid) });
+  })
+);
+
 router.delete(
   "/:id",
   asyncRoute(async (req, res) => {
     const game = games.getGame(req.params.id);
     if (!game || game.ownerId !== req.uid) return res.status(404).json({ error: "Игра не найдена" });
     games.deleteGame(game.id);
+    require("../db").prepare("DELETE FROM game_tokens WHERE gameId = ?").run(game.id);
     res.json({ ok: true });
   })
 );

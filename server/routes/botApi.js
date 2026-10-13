@@ -343,6 +343,25 @@ async function requireBotAdmin(req, res, chatId) {
   return chat;
 }
 
+// Карточка игры в чат: «▶ Играть» и рекорды этого чата.
+router.post(
+  "/sendGame",
+  asyncRoute(async (req, res) => {
+    const { chatId, gameId } = req.body ?? {};
+    const game = require("../data/games").getGame(String(gameId ?? ""));
+    if (!game) return res.status(404).json({ error: "Game not found" });
+    if (!game.builtin && !game.isPublic && game.ownerId !== req.bot.ownerId) return res.status(403).json({ error: "Game is private" });
+    try {
+      const message = await sendBotMessage(req.bot.userId, String(chatId ?? ""), `🎮 ${game.title}`, {
+        attachments: [{ kind: "game", meta: { gameId: game.id, title: game.title, emoji: game.emoji || "🎮", description: game.description || "" } }],
+      });
+      res.json({ message });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  })
+);
+
 // Заявки на вступление (chat.approveJoins) — бот-админ рассматривает их сам.
 router.post(
   "/getChatJoinRequests",

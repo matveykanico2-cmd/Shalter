@@ -66,6 +66,9 @@
       <a href="#handle">handleMessage</a>
       <a href="#limits">Ограничения</a>
       <a href="#vscode">Писать в VS Code</a>
+      <h4>Игры</h4>
+      <a href="#games">SDK внутри игры</a>
+      <a href="#game-api">Game API</a>
       <h4>Справка</h4>
       <a href="#errors">Ошибки</a>
       <a href="#objects">Объекты</a>
@@ -133,6 +136,7 @@
         <tr><td><span class="doc-verb">POST</span> <code>/restrictChatMember</code></td><td></td></tr>
         <tr><td><span class="doc-verb">POST</span> <code>/banChatMember</code></td><td></td></tr>
         <tr><td><span class="doc-verb">POST</span> <code>/deleteAnyMessage</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/sendGame</code></td><td></td></tr>
         <tr><td><span class="doc-verb">POST</span> <code>/getChatJoinRequests</code></td><td></td></tr>
         <tr><td><span class="doc-verb">POST</span> <code>/approveChatJoinRequest</code></td><td></td></tr>
         <tr><td><span class="doc-verb">POST</span> <code>/declineChatJoinRequest</code></td><td></td></tr>
@@ -918,6 +922,64 @@ help - Что я умею</code></pre>
           <tr><td>data</td><td>строка</td><td>Что придёт боту сообщением при нажатии.</td></tr>
         </tbody>
       </table>
+
+      <h2 id="games">Игры: SDK внутри игры</h2>
+      <p>
+        Игра в Shalter — одна HTML-страница (меню «Игры» → «Мои игры» → «Создать игру»). Она запускается в
+        изолированном окне без доступа к аккаунту и сайту, а с приложением общается через объект
+        <code>window.Shalter</code> — его вставлять не нужно, он уже есть.
+      </p>
+      <pre><code>// очки — по ходу игры и в конце (рекорд сохранится сам)
+Shalter.score(points);
+Shalter.gameOver(points);
+
+// кто играет и какая тема у приложения
+console.log(Shalter.player.name, Shalter.theme.dark, Shalter.theme.accent);
+
+// рекорды: лучший результат игрока и таблица (в чате, откуда открыли игру)
+const best = await Shalter.getBest();
+const top = await Shalter.getLeaderboard({ limit: 10 }); // [{ position, name, score, isMe }]
+
+Shalter.share();            // отправить «мой результат — N» с карточкой игры в чат
+Shalter.vibrate(40);        // вибрация на телефоне
+Shalter.close();            // закрыть игру</code></pre>
+      <table class="doc-table">
+        <thead><tr><th>Что</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td>Shalter.score(n) / gameOver(n)</td><td>Текущий и итоговый счёт. Сохраняется лучший результат — общий и в чате, где отправили карточку игры.</td></tr>
+          <tr><td>Shalter.player</td><td><code>{ id, name }</code> игрока.</td></tr>
+          <tr><td>Shalter.theme / Shalter.chat</td><td><code>{ dark, accent }</code> — тема приложения; <code>{ id }</code> — чат, откуда открыли (или <code>null</code>).</td></tr>
+          <tr><td>await Shalter.getBest()</td><td>Лучший результат игрока.</td></tr>
+          <tr><td>await Shalter.getLeaderboard({ limit, chat })</td><td>Таблица рекордов; <code>chat: false</code> — общая, а не этого чата.</td></tr>
+          <tr><td>Shalter.share(text?)</td><td>Отправить результат в чат вместе с карточкой игры.</td></tr>
+          <tr><td>Shalter.vibrate(ms), Shalter.close()</td><td>Вибрация и закрытие игры.</td></tr>
+          <tr><td>localStorage</td><td>Работает как обычно — данные хранятся отдельно для каждой игры.</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="game-api">Game API</h2>
+      <p>
+        HTTP-методы для разработчика игры: обновлять код из своего репозитория или CI, смотреть статистику и
+        ставить рекорды со своего сервера — так счёт нельзя накрутить в браузере. Токен — в редакторе игры,
+        кнопка «🔑 API-токен» (показывается один раз; новый отзывает прежний).
+      </p>
+      <pre><code>curl -H "Authorization: Bearer game_ВАШ_ТОКЕН" https://shalter.ru/api/game-api/getStats
+
+curl -X POST -H "Authorization: Bearer game_ВАШ_ТОКЕН" -H "Content-Type: application/json" \
+  -d '{"userId":"u_…","score":1500}' https://shalter.ru/api/game-api/setScore</code></pre>
+      <table class="doc-table">
+        <thead><tr><th>Метод</th><th>Параметры</th><th>Что делает</th></tr></thead>
+        <tbody>
+          <tr><td><code>GET /getGame</code></td><td>—</td><td>Игра и статистика.</td></tr>
+          <tr><td><code>POST /updateGame</code></td><td><code>code</code>, <code>title</code>, <code>description</code>, <code>emoji</code>, <code>isPublic</code></td><td>Обновить игру (переданные поля). Код — до 512 КБ.</td></tr>
+          <tr><td><code>GET /getStats</code></td><td>—</td><td><code>{ plays, players, topScore }</code>.</td></tr>
+          <tr><td><code>GET /getScores</code></td><td><code>chatId?</code>, <code>limit?</code></td><td>Таблица рекордов (общая или чата).</td></tr>
+          <tr><td><code>POST /setScore</code></td><td><code>userId</code>, <code>score</code>, <code>chatId?</code>, <code>force?</code></td><td>Записать результат. Без <code>force</code> — только если лучше прежнего; с <code>force</code> — как есть (сброс накрутки).</td></tr>
+          <tr><td><code>POST /deleteScore</code></td><td><code>userId</code></td><td>Удалить результаты игрока.</td></tr>
+        </tbody>
+      </table>
+      <p>Бот может отправить карточку игры в чат: <code>POST /api/bot-api/sendGame</code> с <code>chatId</code> и <code>gameId</code>
+        (встроенные игры: <code>builtin-2048</code>, <code>builtin-snake</code>, <code>builtin-flappy</code>).</p>
 
       <p class="doc-foot">
         Адрес API на этом развёртывании — <code>/api/bot-api</code> от корня сайта.

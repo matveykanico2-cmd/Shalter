@@ -24652,3 +24652,99 @@ img.img-broken {
     display: none;
   }
 }
+.game-token {
+  display: block;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--tw-filled, rgba(127, 127, 127, 0.1));
+  font-size: 13px;
+  word-break: break-all;
+  user-select: all;
+}
+
+/* профиль: блок «Каналы» — карточка по ширине профиля (раньше колонка профиля
+   выровнена по центру, и длинное название растягивало строку за края) */
+.profile-channels {
+  align-self: stretch;
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 8px 0;
+  padding: 6px 6px 8px;
+  border-radius: 18px;
+  background: var(--color-surface);
+  box-shadow: var(--tw-section-shadow, 0 1px 2px rgba(0, 0, 0, 0.06));
+  text-align: left;
+}
+.profile-channels-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px 4px;
+}
+.profile-channel-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  text-align: left;
+  color: inherit;
+}
+.profile-channel-row > .avatar {
+  flex-shrink: 0;
+}
+.profile-channel-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.profile-channel-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.profile-channel-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-channel-sub {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-channel-member {
+  flex-shrink: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.profile-channel-chevron {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--color-muted);
+}
+
+/* премиум-кружок вокруг аватарки: значки орбиты не обрезаются краем панели */
+.profile-avatar-row:not(.with-banner) {
+  padding-top: 40px;
+  padding-bottom: 14px;
+}
+.profile-panel-body,
+.profile-avatar-row,
+.profile-avatar-row .avatar-open-btn {
+  overflow: visible;
+}
+.profile-panel-body > .profile-channels {
+  margin-left: 0;
+  margin-right: 0;
+  width: 100%;
+}

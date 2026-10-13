@@ -896,21 +896,19 @@ export async function openProfileDialog(userId) {
             ]),
             ...(pinnedChannels.length
               ? pinnedChannels.map((c) =>
-                  el("div", { class: "profile-channel-row" }, [
-                    Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage, size: 38 }),
+                  // Вся строка открывает канал (там — большая кнопка «Подписаться»),
+                  // без отдельной кнопки в строке: на узком экране она наезжала на аватар.
+                  el("button", { class: "profile-channel-row", type: "button", onclick: () => openChannel(c) }, [
+                    Avatar({ name: c.title, color: c.avatarColor, image: c.avatarImage, size: 42 }),
                     el("div", { class: "profile-channel-body" }, [
-                      el("p", { class: "profile-channel-title" }, [c.title, c.isVerified ? VerifiedBadge(13) : null]),
-                      el("p", { class: "profile-channel-sub" }, c.username ? `@${c.username}` : `${c.members} ${plural(c.members, "подписчик", "подписчика", "подписчиков")}`),
+                      el("p", { class: "profile-channel-title" }, [el("span", { class: "profile-channel-title-text" }, c.title), c.isVerified ? VerifiedBadge(13) : null]),
+                      el("p", { class: "profile-channel-sub" }, [
+                        c.username ? `@${c.username}` : "",
+                        c.members ? `${c.username ? " · " : ""}${c.members} ${plural(c.members, "подписчик", "подписчика", "подписчиков")}` : "",
+                      ].join("")),
                     ]),
-                    el(
-                      "button",
-                      {
-                        class: c.isMember ? "profile-channel-open" : "btn-accent-pill",
-                        disabled: joiningChannelId === c.id,
-                        onclick: () => (c.isMember ? openChannel(c) : joinChannel(c)),
-                      },
-                      c.isMember ? "Открыть" : joiningChannelId === c.id ? "Подписываем…" : "Подписаться"
-                    ),
+                    c.isMember ? el("span", { class: "profile-channel-member" }, "подписаны") : null,
+                    el("span", { class: "profile-channel-chevron", html: iconSvg("ChevronRight", 18) }),
                   ])
                 )
               : [el("p", { class: "settings-toggle-hint" }, "Закрепите свои публичные каналы — их увидит каждый, кто откроет ваш профиль.")]),

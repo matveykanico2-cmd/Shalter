@@ -488,6 +488,8 @@ export const api = {
   playGame: (id) => req(`/api/games/${encodeURIComponent(id)}/play`, { method: "POST", body: "{}", noQueue: true }),
   submitGameScore: (id, score, chatId) =>
     req(`/api/games/${encodeURIComponent(id)}/score`, { method: "POST", body: JSON.stringify({ score, chatId: chatId || undefined }), noQueue: true }),
+  getGameBest: (id, chatId) => req(`/api/games/${encodeURIComponent(id)}/best${chatId ? `?chatId=${encodeURIComponent(chatId)}` : ""}`),
+  createGameToken: (id) => req(`/api/games/${encodeURIComponent(id)}/token`, { method: "POST", body: "{}", noQueue: true }),
   getGameScores: (id, chatId) => req(`/api/games/${encodeURIComponent(id)}/scores${chatId ? `?chatId=${encodeURIComponent(chatId)}` : ""}`),
   getPaidMedia: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/paid`),
   unlockPaidMedia: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/unlock`, { method: "POST", body: "{}", noQueue: true }),
