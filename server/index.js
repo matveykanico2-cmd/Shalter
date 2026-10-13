@@ -154,6 +154,8 @@ if (useBuilt) {
 }
 app.use("/.well-known", express.static(path.join(PUBLIC_DIR, ".well-known"), { maxAge: "1h" }));
 
+// Эмодзи, узоры подарков, анимации — из архивов server/assets/packs (по прежним адресам)
+app.use(require("./lib/assetPacks").assetPacks());
 app.use(express.static(PUBLIC_DIR, { index: false, maxAge: useBuilt ? "1h" : 0 }));
 
 const { serveUpload } = require("./lib/serveUpload");

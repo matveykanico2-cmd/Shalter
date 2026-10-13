@@ -82,3 +82,12 @@ yarn-error.log*
 
 # Старые сборки Electron (до перехода на Tauri) — не для git.
 /dist-electron
+
+# Тысячи мелких картинок хранятся в архивах server/assets/packs (scripts/pack-assets.js):
+# так в репозитории и при выкладке 4 файла вместо ~4700. Исходные папки — только локально.
+/public/img/emoji/
+/public/gift-symbols/
+/public/gift-emoji/
+/public/tgs/
+# архивы сборок, скачанные из CI
+/shalter-*.zip

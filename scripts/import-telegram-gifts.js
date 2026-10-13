@@ -1,4 +1,5 @@
 // Импорт данных коллекционных подарков из репозитория telegram-gifts (рядом с проектом):
+// После импорта: node scripts/pack-assets.js — картинки отдаются из архива server/assets/packs.
 //   node scripts/import-telegram-gifts.js [путь к telegram-gifts]
 // Пишет:
 //   public/gift-symbols/<id>.webp     — узоры (символы) для фона коллекционных подарков
