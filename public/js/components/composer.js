@@ -303,6 +303,26 @@ export function Composer({
         resetInput();
         return null;
       }
+      if (cmd.action === "game") {
+        // «/game змейка» — сразу карточка найденной игры; без названия или не нашлось — каталог.
+        resetInput();
+        const q = cmd.arg.trim();
+        import("./games.js").then(async ({ openGamesCatalog, gameAttachmentFor }) => {
+          const pick = (g) => onSend("", [gameAttachmentFor(g)]);
+          if (q) {
+            try {
+              const { games } = await api.listGames(q);
+              const exact = games.find((g) => g.title.toLowerCase() === q.toLowerCase());
+              const found = exact ?? games[0];
+              if (found) return pick(found);
+              const { showToast } = await import("./toast.js");
+              showToast(`Игра «${q}» не найдена — выберите в каталоге`);
+            } catch {}
+          }
+          openGamesCatalog({ chatId, onPick: pick });
+        });
+        return null;
+      }
       if (cmd.action) {
         resetInput();
         const action = attachActions().find((a) => a.label === (cmd.action === "poll" ? "Опрос" : "Чек-лист"));

@@ -48,6 +48,7 @@ export const SLASH_COMMANDS = [
   { name: "football", aliases: ["футбол"], description: "Ударить по воротам ⚽", dice: "⚽" },
   { name: "bowling", aliases: ["боулинг"], description: "Сбить кегли 🎳", dice: "🎳" },
   { name: "slot", aliases: ["казино"], description: "Крутить слот-машину 🎰", dice: "🎰" },
+  { name: "game", aliases: ["игра", "игры", "games"], arg: "optional", hint: "название", description: "Отправить игру: /game змейка (без названия — каталог)", action: "game" },
   { name: "poll", aliases: ["опрос"], description: "Создать опрос", action: "poll" },
   { name: "todo", aliases: ["чеклист"], description: "Создать чек-лист", action: "checklist" },
 ];
