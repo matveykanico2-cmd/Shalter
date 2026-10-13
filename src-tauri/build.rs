@@ -10,6 +10,7 @@ fn main() {
         "retry",
         "open_external",
         "open_browser",
+        "install_update",
         "set_app_icon",
     ])))
     .expect("failed to run tauri-build");

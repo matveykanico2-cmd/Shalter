@@ -553,6 +553,14 @@ function SidebarHeader(listSlot) {
         },
       })),
     ]),
+    // Загрузки — отдельной кнопкой на главном экране (значок «стрелка вниз»)
+    el("button", {
+      class: "sidebar-menu-btn sidebar-downloads-btn",
+      title: "Загрузки",
+      "aria-label": "Загрузки",
+      html: iconSvg("Download", 20),
+      onclick: () => import("../components/downloadsDialog.js").then((m) => m.openDownloadsDialog()),
+    }),
   ]);
 }
 

@@ -25011,3 +25011,37 @@ img.img-broken {
   position: static;
   margin: 0;
 }
+
+/* на компьютере — нижняя панель (Аккаунт, Чаты, Контакты, Звонки, Архив, Настройки),
+   как на телефоне: под списком чатов (колонка — сверху вниз, панель последней) */
+@media (min-width: 768px) {
+  .shell .shell-list-col {
+    flex-direction: column-reverse;
+    width: 420px;
+    min-height: 0;
+  }
+  .shell-list-col > .shell-sidebar {
+    flex: 1;
+    min-height: 0;
+  }
+  .nav-rail {
+    display: flex;
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 52px;
+  }
+}
+.sidebar-downloads-btn {
+  flex-shrink: 0;
+}
+.settings-game-emoji {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #6a5af9, #d66efd);
+  font-size: 18px;
+}

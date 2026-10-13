@@ -397,7 +397,7 @@ export async function openGameEditor(game, { onSaved } = {}) {
 }
 
 // Токен Game API: показывается один раз, новый отзывает прежний.
-async function showGameToken(game) {
+export async function showGameToken(game) {
   if (!(await askConfirm(`Создать API-токен для «${game.title}»? Прежний токен (если был) перестанет работать.`, { okLabel: "Создать" }))) return;
   let token;
   try {

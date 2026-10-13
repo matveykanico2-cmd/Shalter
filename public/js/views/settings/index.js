@@ -93,6 +93,7 @@ const SECTIONS = [
   { id: "usernames", label: "Аукцион юзернеймов", icon: "Globe", color: "blue", group: "extra" },
   { id: "ads", label: "Реклама", icon: "BarChart", color: "pink", group: "extra" },
   { id: "bots", label: "Боты", icon: "Code", color: "green", group: "extra" },
+  { id: "games", label: "Игры", icon: "Smile", color: "pink", group: "extra" },
   { id: "about", label: "О приложении", icon: "Info", color: "grey", group: "extra" },
   { id: "moderation", label: "Модерация", icon: "Shield", color: "red", group: "admin", adminOnly: true },
   { id: "server", label: "Состояние сервера", icon: "BarChart", color: "purple", group: "admin", adminOnly: true },
@@ -204,6 +205,7 @@ export async function SettingsView(root, page) {
     oauth: renderOAuthApps,
     ads: renderAds,
     bots: renderBots,
+    games: renderGames,
     about: renderAbout,
     appearance: renderAppearance,
     notifications: renderNotifications,
@@ -2063,6 +2065,66 @@ async function renderAds(root) {
   }
   render();
   AdCabinet(cabinetSlot);
+}
+
+// Свои игры — как «Боты»: создать, редактировать, API-токен, документация.
+async function renderGames(root) {
+  const games = await import("../../components/games.js");
+  let list = [];
+  try {
+    ({ games: list } = await api.myGames());
+  } catch {}
+  const reload = async () => {
+    try {
+      ({ games: list } = await api.myGames());
+    } catch {}
+    render();
+  };
+  function render() {
+    mount(
+      root,
+      pageWrap("Игры", "Свои HTML5-игры: в чатах, с рекордами и API", [
+        el("div", { class: "settings-notice-box bot-ways" }, [
+          el("p", { class: "settings-toggle-title" }, "Как это работает"),
+          el("div", { class: "bot-way" }, [
+            el("span", { class: "bot-way-icon", html: iconSvg("Code", 14) }),
+            el("p", {}, [el("strong", {}, "Код здесь. "), "Игра — одна HTML-страница: пишется во встроенном редакторе, хостинг не нужен."]),
+          ]),
+          el("div", { class: "bot-way" }, [
+            el("span", { class: "bot-way-icon", html: iconSvg("BarChart", 14) }),
+            el("p", {}, [el("strong", {}, "Рекорды и SDK. "), "Shalter.score(), таблица рекордов, «поделиться в чат» — уже встроены."]),
+          ]),
+          el("div", { class: "bot-way" }, [
+            el("span", { class: "bot-way-icon", html: iconSvg("Key", 14) }),
+            el("p", {}, [el("strong", {}, "Game API. "), "Токен игры — обновлять код из своего репозитория и ставить рекорды со своего сервера."]),
+          ]),
+          el("a", { href: "/bots#games", target: "_blank", rel: "noreferrer", class: "text-link" }, "Документация SDK и Game API →"),
+        ]),
+        el("button", { class: "btn-accent bot-create-btn", onclick: () => games.openGameEditor(null, { onSaved: reload }) }, [el("span", { html: iconSvg("Plus", 15) }), " Создать игру"]),
+        el("p", { class: "settings-section-title" }, `Ваши игры — ${list.length}`),
+        list.length === 0
+          ? el("p", { class: "empty-hint" }, "У вас пока нет своих игр")
+          : el(
+              "div",
+              { class: "settings-devices-list" },
+              list.map((g) =>
+                el("div", { class: "settings-device-row" }, [
+                  el("span", { class: "settings-game-emoji" }, g.emoji || "🎮"),
+                  el("div", { class: "settings-device-body" }, [
+                    el("p", {}, g.title),
+                    el("p", { class: "settings-toggle-hint" }, [g.isPublic ? "в каталоге" : "только по ссылке", g.plays ? ` · ${g.plays} запусков` : ""].join("")),
+                  ]),
+                  el("button", { class: "icon-btn", title: "Играть", html: iconSvg("PlayFill", 15), onclick: () => games.openGame(g) }),
+                  el("button", { class: "icon-btn", title: "Редактировать", html: iconSvg("Edit", 15), onclick: () => games.openGameEditor(g, { onSaved: reload }) }),
+                  el("button", { class: "icon-btn", title: "API-токен", html: iconSvg("Key", 15), onclick: () => games.showGameToken(g) }),
+                ])
+              )
+            ),
+        el("button", { class: "modal-cancel", onclick: () => games.openGamesCatalog() }, "Открыть каталог игр"),
+      ])
+    );
+  }
+  render();
 }
 
 async function renderBots(root) {

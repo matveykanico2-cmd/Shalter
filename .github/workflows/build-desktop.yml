@@ -57,6 +57,15 @@ jobs:
       # Tauri CLI и esbuild приходят готовыми бинарниками и без скриптов.
       - run: npm ci --ignore-scripts
 
+      # Номер версии сборки — 1.0.<номер запуска CI>: по нему приложение узнаёт, что
+      # вышло обновление, и предлагает «Обновить» (как в Telegram). В репозиторий не пишется.
+      - name: Version from run number
+        shell: bash
+        run: |
+          BASE=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
+          npm pkg set version="$BASE.${{ github.run_number }}"
+          node -p "require('./package.json').version"
+
       - name: Build
         shell: bash
         run: |
@@ -66,6 +75,7 @@ jobs:
             npx tauri build
           fi
           node scripts/collect-desktop.js
+          node -p "require('./package.json').version" > public/downloads/Shalter-desktop-version.txt
         env:
           TAURI_TARGET: ${{ matrix.target }}
 
@@ -80,6 +90,7 @@ jobs:
             public/downloads/Shalter.deb
             public/downloads/Shalter-Windows-Setup.exe
             public/downloads/Shalter-macOS-*.zip
+            public/downloads/Shalter-desktop-version.txt
           if-no-files-found: ignore
 
       # A GitHub Release's assets are permanent, public, no-login URLs — what a

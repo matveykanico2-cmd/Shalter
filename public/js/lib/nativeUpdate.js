@@ -13,7 +13,8 @@ const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 function installed() {
   const desktop = window.shalterDesktop;
   if (desktop) {
-    const platform = { win32: "windows", linux: "linux", darwin: "macos-arm64" }[desktop.platform];
+    // Linux: установленным из .deb предлагаем .deb, AppImage — AppImage.
+    const platform = desktop.platform === "linux" && desktop.packaging === "deb" ? "linux-deb" : { win32: "windows", linux: "linux", darwin: "macos-arm64" }[desktop.platform];
     // Сборки до этой версии моста версию не сообщали — значит, они старые.
     return platform ? { platform, version: desktop.version || "0" } : null;
   }
@@ -62,7 +63,7 @@ async function check() {
   if (!latest?.version || !newer(latest.version, app.version) || snoozed(latest.version)) return;
   // Не перебиваем звонок и открытые окна — спросим при следующей проверке.
   if (document.querySelector(".call-screen, .incoming-call-screen, .modal-overlay")) return;
-  const url = latest.url || (app.platform === "ios" ? null : new URL(latest.page || "/download", location.origin).href);
+  const url = latest.url ? new URL(latest.url, location.origin).href : app.platform === "ios" ? null : new URL(latest.page || "/download", location.origin).href;
   if (!url) return;
   asking = true;
   try {
@@ -70,8 +71,20 @@ async function check() {
       `Доступна новая версия Shalter ${latest.version}\n\nВ ней исправления и новые возможности. Установите обновление — чаты и настройки сохранятся.`,
       { okLabel: "Обновить", cancelLabel: "Позже", danger: false }
     );
-    if (ok) window.open(url, "_blank", "noopener");
-    else snooze(latest.version);
+    if (!ok) snooze(latest.version);
+    else if (window.shalterDesktop?.installUpdate && latest.url) {
+      // Приложение для компьютера обновляется само: скачивает сборку и ставит её поверх.
+      const { showToast } = await import("../components/toast.js");
+      const sizeMb = latest.size ? ` (${Math.round(latest.size / 1048576)} МБ)` : "";
+      showToast(`Скачиваем обновление${sizeMb}… Shalter перезапустится сам`, { duration: 8000 });
+      try {
+        const result = await window.shalterDesktop.installUpdate(url);
+        if (result === "external") showToast("Откройте скачанный пакет, чтобы установить обновление");
+      } catch (err) {
+        showToast(`Не удалось обновить автоматически: ${err?.message || err}. Открываем страницу загрузки`);
+        window.open(new URL("/download", location.origin).href, "_blank", "noopener");
+      }
+    } else window.open(url, "_blank", "noopener");
   } finally {
     asking = false;
   }

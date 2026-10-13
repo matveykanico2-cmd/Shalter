@@ -91,7 +91,11 @@ fn bridge_script(origin: &str, version: &str) -> String {
     notify: function (title, body, url) {{ return inv("notify", {{ title: String(title == null ? "Shalter" : title), body: String(body == null ? "" : body), url: url || null }}); }},
     retry: function (target) {{ return inv("retry", {{ target: target || null }}); }},
     setIcon: function (id) {{ return inv("set_app_icon", {{ id: String(id) }}); }},
-    openBrowser: function (url) {{ return inv("open_browser", {{ url: String(url) }}); }}
+    openBrowser: function (url) {{ return inv("open_browser", {{ url: String(url) }}); }},
+    // без .catch: ошибку установки обновления показываем человеку
+    installUpdate: function (url) {{ var ipc = window.__TAURI_INTERNALS__; return ipc ? ipc.invoke("install_update", {{ url: String(url) }}) : Promise.reject(new Error("нет моста")); }},
+    canSelfUpdate: true,
+    packaging: {packaging:?}
   }};
   // Свои ссылки открываем в этом же окне, всё остальное — в браузере по умолчанию.
   var nativeOpen = window.open;
@@ -108,7 +112,8 @@ fn bridge_script(origin: &str, version: &str) -> String {
 }})();"#,
         origin = origin,
         platform = platform(),
-        version = version
+        version = version,
+        packaging = if std::env::var_os("APPIMAGE").is_some() { "appimage" } else if cfg!(target_os = "linux") { "deb" } else { "installer" }
     )
 }
 
@@ -292,6 +297,89 @@ async fn open_browser(app: AppHandle, url: String) {
     if built.is_err() {
         let _ = app.opener().open_url(u.as_str(), None::<&str>);
     }
+}
+
+// ---------- встроенное обновление (как в Telegram) ----------
+// Скачивает новую сборку с нашего сервера и ставит её:
+//   Windows — запускает установщик поверх (тихо, с прогрессом) и закрывает приложение;
+//   Linux AppImage — подменяет файл и перезапускается;
+//   macOS — подменяет Shalter.app и перезапускается;
+//   Linux .deb — без sudo не поставить: открываем пакет в «Центре приложений».
+// Возвращает "restarting" (приложение сейчас закроется) или "external".
+fn download_to(url: &str, dest: &std::path::Path) -> Result<(), String> {
+    let resp = ureq::get(url).timeout(std::time::Duration::from_secs(1800)).call().map_err(|e| format!("не удалось скачать: {e}"))?;
+    let mut reader = resp.into_reader();
+    let mut file = std::fs::File::create(dest).map_err(|e| format!("не удалось сохранить: {e}"))?;
+    std::io::copy(&mut reader, &mut file).map_err(|e| format!("загрузка прервалась: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn install_update(app: AppHandle, url: String) -> Result<String, String> {
+    let shell = app.state::<Shell>();
+    let u = Url::parse(&url).map_err(|_| "некорректная ссылка".to_string())?;
+    // только с нашего сервера
+    if u.scheme() != "https" && !shell.origin.starts_with("http://localhost") {
+        return Err("обновление только по https".into());
+    }
+    if !shell.origin.is_empty() && !url.starts_with(&shell.origin) && !u.host_str().map(|h| h.ends_with("github.com") || h.ends_with("githubusercontent.com")).unwrap_or(false) {
+        return Err("обновление только с сервера Shalter".into());
+    }
+    let tmp = std::env::temp_dir();
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        #[cfg(target_os = "windows")]
+        {
+            let dest = tmp.join("Shalter-Update-Setup.exe");
+            download_to(&url, &dest)?;
+            std::process::Command::new(&dest).arg("/P").spawn().map_err(|e| format!("не удалось запустить установщик: {e}"))?;
+            handle.exit(0);
+            return Ok("restarting".into());
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let _ = &tmp;
+            if let Some(appimage) = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from) {
+                let fresh = appimage.with_extension("AppImage.new");
+                download_to(&url, &fresh)?;
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&fresh, std::fs::Permissions::from_mode(0o755));
+                std::fs::rename(&fresh, &appimage).map_err(|e| format!("не удалось заменить файл: {e}"))?;
+                std::process::Command::new(&appimage).spawn().map_err(|e| format!("не удалось перезапустить: {e}"))?;
+                handle.exit(0);
+                return Ok("restarting".into());
+            }
+            let _ = handle.opener().open_url(url.as_str(), None::<&str>);
+            return Ok("external".into());
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+            // …/Shalter.app/Contents/MacOS/Shalter → …/Shalter.app
+            let bundle = exe.ancestors().nth(3).map(|p| p.to_path_buf()).ok_or("не найдено приложение")?;
+            let zip = tmp.join("Shalter-Update.zip");
+            let unpack = tmp.join("Shalter-Update");
+            download_to(&url, &zip)?;
+            let _ = std::fs::remove_dir_all(&unpack);
+            let ok = std::process::Command::new("ditto").args(["-x", "-k"]).arg(&zip).arg(&unpack).status().map(|s| s.success()).unwrap_or(false);
+            if !ok {
+                return Err("не удалось распаковать обновление".into());
+            }
+            let fresh = unpack.join("Shalter.app");
+            let script = format!(
+                "sleep 1; rm -rf '{0}'; mv '{1}' '{0}'; xattr -dr com.apple.quarantine '{0}' 2>/dev/null; open '{0}'",
+                bundle.display(),
+                fresh.display()
+            );
+            std::process::Command::new("/bin/sh").args(["-c", &script]).spawn().map_err(|e| e.to_string())?;
+            handle.exit(0);
+            return Ok("restarting".into());
+        }
+        #[allow(unreachable_code)]
+        Err("обновление на этой системе не поддерживается".into())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -526,7 +614,7 @@ fn main() {
             tray_open_item: Mutex::new(None),
             quitting: AtomicBool::new(false),
         })
-        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external, open_browser, set_app_icon])
+        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external, open_browser, install_update, set_app_icon])
         .setup(move |app| {
             let handle = app.handle().clone();
 
@@ -541,6 +629,7 @@ fn main() {
                     .permission("allow-retry")
                     .permission("allow-open-external")
                     .permission("allow-open-browser")
+                    .permission("allow-install-update")
                     .permission("allow-set-app-icon")
                     .permission("notification:default"),
             )?;

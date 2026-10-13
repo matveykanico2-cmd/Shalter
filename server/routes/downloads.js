@@ -130,12 +130,30 @@ const UPDATE_FILES = {
   android: "Shalter.apk",
   windows: "Shalter-Windows-Setup.exe",
   linux: "Shalter.AppImage",
+  "linux-deb": "Shalter.deb",
   "macos-arm64": "Shalter-macOS-arm64.zip",
 };
+
+// Версии сборок, лежащих в public/downloads: { "windows": "1.0.143", "linux": …, "macos-arm64": … }
+// (пишется при замене сборок из CI; номер — из Shalter-desktop-version.txt в архиве).
+function localVersions() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(DOWNLOAD_DIR, "versions.json"), "utf8")) ?? {};
+  } catch {
+    return {};
+  }
+}
 
 router.get("/latest", async (req, res) => {
   const platform = String(req.query.platform ?? "");
   res.setHeader("Cache-Control", "no-store");
+  // Своя сборка с известной версией — обновляемся с нашего сервера (быстрее GitHub).
+  const versions = localVersions();
+  const own = versions[platform] ?? (platform === "linux-deb" ? versions.linux : undefined);
+  const ownFile = UPDATE_FILES[platform] && localArtifact(UPDATE_FILES[platform]);
+  if (own && ownFile && !(platform === "android" && apkIsDebugSigned(UPDATE_FILES[platform]))) {
+    return res.json({ version: own, url: ownFile.url, size: ownFile.size, page: "/download" });
+  }
   await latestReleaseAssets();
   const version = process.env.NATIVE_LATEST_VERSION || releaseCache.version;
   if (!version) return res.json({ version: null });
