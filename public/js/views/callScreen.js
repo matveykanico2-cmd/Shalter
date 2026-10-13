@@ -159,22 +159,67 @@ export async function CallScreenView(root, callId) {
   let screenPreviewEl = null;
   let linkStatus = null;
 
+  // Пригласить по ссылке: окно со ссылкой — скопировать, поделиться или сразу
+  // отправить в один из последних чатов.
   async function inviteByLink() {
-    if (!me.isPremium) return navigate("/settings/premium");
     linkStatus = "copying";
     render(getCallState());
+    let url;
     try {
-      const url = await createInviteLink();
-      await navigator.clipboard.writeText(url).catch(() => {});
-      linkStatus = "copied";
+      url = await createInviteLink();
+      linkStatus = null;
     } catch (err) {
       linkStatus = err.message || "Не удалось создать ссылку";
+      render(getCallState());
+      setTimeout(() => {
+        linkStatus = null;
+        render(getCallState());
+      }, 2500);
+      return;
     }
     render(getCallState());
-    setTimeout(() => {
-      linkStatus = null;
-      render(getCallState());
-    }, 2000);
+    const { showToast } = await import("../components/toast.js");
+    const overlay = el("div", { class: "modal-overlay call-invite-overlay", onclick: (e) => e.target === overlay && overlay.remove() });
+    const text = `📞 Присоединяйтесь к звонку в Shalter: ${url}`;
+    const recent = (getState().chats ?? []).filter((c) => !c.archived && c.id !== getCallState()?.call?.chatId).slice(0, 8);
+    const sendTo = async (chat, btn) => {
+      btn.disabled = true;
+      try {
+        await api.sendMessage(chat.id, text, { clientId: `ci_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` });
+        btn.textContent = "Отправлено ✓";
+      } catch (err) {
+        btn.disabled = false;
+        showToast(err.message || "Не удалось отправить");
+      }
+    };
+    overlay.append(
+      el("div", { class: "modal-dialog call-invite-dialog" }, [
+        el("h2", { class: "modal-title" }, "Пригласить в звонок"),
+        el("p", { class: "settings-toggle-hint" }, "Любой, у кого есть ссылка и аккаунт Shalter, сможет присоединиться, пока звонок идёт."),
+        el("div", { class: "call-invite-link mono" }, url.replace(/^https?:\/\//, "")),
+        el("div", { class: "call-invite-actions" }, [
+          el("button", { class: "btn-accent", onclick: () => navigator.clipboard?.writeText(url).then(() => showToast("Ссылка скопирована")) }, "Копировать"),
+          navigator.share ? el("button", { class: "modal-cancel", onclick: () => navigator.share({ title: "Звонок в Shalter", text, url }).catch(() => {}) }, "Поделиться") : null,
+        ]),
+        recent.length ? el("p", { class: "settings-section-title" }, "Отправить в чат") : null,
+        el(
+          "div",
+          { class: "call-invite-chats" },
+          recent.map((c) => {
+            const name = c.otherUser?.name ?? c.title ?? "Чат";
+            const btn = el("button", { class: "call-invite-send", type: "button" }, "Отправить");
+            btn.addEventListener("click", () => sendTo(c, btn));
+            return el("div", { class: "call-invite-chat" }, [
+              Avatar({ name, color: c.otherUser?.avatarColor ?? c.avatarColor, image: c.otherUser?.avatarImage ?? c.avatarImage, size: 36 }),
+              el("span", { class: "call-invite-chat-name" }, name),
+              btn,
+            ]);
+          })
+        ),
+        el("button", { class: "modal-cancel", onclick: () => overlay.remove() }, "Готово"),
+      ])
+    );
+    document.body.appendChild(overlay);
   }
 
   function render(s) {
@@ -396,12 +441,10 @@ export async function CallScreenView(root, callId) {
             el("p", { class: "call-header-title" }, s.chatTitle),
             el("p", { class: "call-header-timer mono" }, label),
           ]),
-          el("button", {
-            class: "call-header-btn",
-            html: iconSvg("Copy", 18),
-            title: me.isPremium ? "Пригласить по ссылке" : "Ссылка на звонок — только с Shalter Premium",
-            onclick: inviteByLink,
-          }),
+          el("button", { class: "call-header-btn call-invite-btn", title: "Пригласить по ссылке", onclick: inviteByLink }, [
+            el("span", { html: iconSvg("Link", 17) }),
+            el("span", { class: "call-invite-btn-label" }, "Пригласить"),
+          ]),
         ]),
         s.mediaError ? el("p", { class: "call-media-error" }, s.mediaError) : null,
         s.connectionError ? el("p", { class: "call-media-error" }, s.connectionError) : null,
@@ -409,7 +452,7 @@ export async function CallScreenView(root, callId) {
           ? el(
               "p",
               { class: "call-media-error link" },
-              linkStatus === "copying" ? "Создаём ссылку…" : linkStatus === "copied" ? "Ссылка скопирована ✓" : linkStatus
+              linkStatus === "copying" ? "Создаём ссылку…" : linkStatus
             )
           : null,
         callArea,

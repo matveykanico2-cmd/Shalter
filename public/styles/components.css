@@ -25064,3 +25064,73 @@ img.img-broken {
   background: linear-gradient(135deg, #6a5af9, #d66efd);
   font-size: 18px;
 }
+
+/* звонок: «Пригласить по ссылке» */
+.call-invite-btn {
+  display: inline-flex;
+  width: auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 999px;
+}
+.call-invite-btn-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.call-invite-dialog {
+  width: min(400px, calc(100vw - 24px));
+  max-width: none;
+}
+.call-invite-link {
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--tw-filled, rgba(127, 127, 127, 0.1));
+  font-size: 13px;
+  word-break: break-all;
+  user-select: all;
+}
+.call-invite-actions {
+  display: flex;
+  gap: 8px;
+}
+.call-invite-actions > button {
+  flex: 1;
+}
+.call-invite-chats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.call-invite-chat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 2px;
+}
+.call-invite-chat-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.call-invite-send {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+.call-invite-send:disabled {
+  opacity: 0.7;
+}
+@media (max-width: 420px) {
+  .call-invite-btn-label {
+    display: none;
+  }
+}

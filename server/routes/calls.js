@@ -388,9 +388,7 @@ router.post(
 router.post(
   "/:id/invite-link",
   asyncRoute(async (req, res) => {
-    const me = await getUser(req.uid);
-    if (!me.isPremium) return res.status(403).json({ error: "Ссылки на звонок доступны только с Shalter Premium" });
-
+    // Ссылка-приглашение в звонок — для всех (раньше только с Premium, и её почти не находили).
     const call = await getCall(req.params.id);
     if (!call || !call.participantIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
     if (call.status !== "ongoing") return res.status(400).json({ error: "Звонок уже завершён" });
