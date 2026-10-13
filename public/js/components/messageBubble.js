@@ -765,19 +765,67 @@ function VideoNotePlayer(a, ctx = {}) {
     `<circle cx="50" cy="50" r="${RADIUS}" class="video-note-ring-fill" stroke-dasharray="${CIRCUMFERENCE}" stroke-dashoffset="${CIRCUMFERENCE}"/>`;
   const ringFill = ring.querySelector(".video-note-ring-fill");
 
-  const barFill = el("div", { class: "voice-bar-fill" });
-  const bar = el("div", { class: "voice-bar seekable" }, [barFill, el("span", { class: "voice-bar-knob" })]);
-  const timeLabelEl = el("p", { class: "voice-time mono" }, `0:00 / ${clockTime(a.durationSec ?? 0)}`);
+  // Ползунок на самом кольце (как в Telegram): точка на конце заполненной дуги.
+  const knob = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  knob.setAttribute("r", "4.5");
+  knob.setAttribute("class", "video-note-ring-knob");
+  ring.appendChild(knob);
+  const timeLabelEl = el("span", { class: "video-note-time mono" }, clockTime(a.durationSec ?? 0));
   const durationOf = () => {
     if (a.durationSec && a.durationSec > 0) return a.durationSec;
     const known = video.duration;
     return Number.isFinite(known) && known > 0 ? known : 0;
   };
-  attachSeek(bar, video, durationOf);
 
-  const circle = el("button", { class: "video-note-player" }, [video, ring, overlay]);
+  const circle = el("button", { class: "video-note-player" }, [video, ring, overlay, timeLabelEl]);
   let playing = false;
-  circle.addEventListener("click", () => {
+  // Перемотка по кольцу: нажатие на кольцо — прыжок в эту точку, перетаскивание —
+  // плавная перемотка. Нажатие в центр — пауза/воспроизведение.
+  let seeking = false;
+  let suppressClick = false;
+  const angleProgress = (e) => {
+    const r = circle.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2);
+    const dy = e.clientY - (r.top + r.height / 2);
+    let ang = Math.atan2(dy, dx) + Math.PI / 2; // 0 — сверху, по часовой
+    if (ang < 0) ang += 2 * Math.PI;
+    return { p: ang / (2 * Math.PI), dist: Math.hypot(dx, dy) / (r.width / 2) };
+  };
+  const seekTo = (p) => {
+    const dur = durationOf();
+    if (!dur) return;
+    video.currentTime = Math.max(0, Math.min(dur - 0.05, p * dur));
+    paint();
+  };
+  circle.addEventListener("pointerdown", (e) => {
+    const { p, dist } = angleProgress(e);
+    // кольцо — внешняя полоса круга (внутри — пауза/воспроизведение)
+    if (dist < 0.68 || !durationOf()) return;
+    seeking = true;
+    suppressClick = true;
+    circle.classList.add("seeking");
+    try {
+      circle.setPointerCapture(e.pointerId);
+    } catch {}
+    e.preventDefault();
+    seekTo(p);
+  });
+  circle.addEventListener("pointermove", (e) => {
+    if (seeking) seekTo(angleProgress(e).p);
+  });
+  const endSeek = () => {
+    if (!seeking) return;
+    seeking = false;
+    circle.classList.remove("seeking");
+  };
+  circle.addEventListener("pointerup", endSeek);
+  circle.addEventListener("pointercancel", endSeek);
+  circle.addEventListener("click", (e) => {
+    if (suppressClick) {
+      suppressClick = false;
+      e.preventDefault();
+      return;
+    }
     if (playing) video.pause();
     else video.play();
   });
@@ -809,18 +857,19 @@ function VideoNotePlayer(a, ctx = {}) {
     const ct = Math.max(0, Math.min(video.currentTime || 0, dur));
     const done = Math.min(1, ct / dur);
     ringFill.setAttribute("stroke-dashoffset", String(CIRCUMFERENCE * (1 - done)));
-    barFill.style.width = `${done * 100}%`;
-    bar.style.setProperty("--voice-knob-left", `${done * 100}%`);
-    timeLabelEl.textContent = `${clockTime(ct)} / ${clockTime(dur)}`;
+    // кольцо повёрнуто на −90°: угол точки считаем от «3 часов»
+    const ang = done * 2 * Math.PI;
+    knob.setAttribute("cx", String(50 + RADIUS * Math.cos(ang)));
+    knob.setAttribute("cy", String(50 + RADIUS * Math.sin(ang)));
+    const started = ct > 0 || playing;
+    timeLabelEl.textContent = started ? `${clockTime(ct)} / ${clockTime(durationOf())}` : clockTime(durationOf());
   };
   video.addEventListener("timeupdate", paint);
   video.addEventListener("seeking", paint);
   video.addEventListener("loadedmetadata", paint);
 
-  return el("div", { class: "video-note-wrap" }, [
-    circle,
-    el("div", { class: "video-note-seek" }, [bar, timeLabelEl]),
-  ]);
+  paint();
+  return el("div", { class: "video-note-wrap" }, [circle]);
 }
 
 const typedOut = new Set();

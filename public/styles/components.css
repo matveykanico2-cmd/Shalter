@@ -24748,3 +24748,66 @@ img.img-broken {
   margin-right: 0;
   width: 100%;
 }
+
+/* кружок: перемотка по самому кольцу вокруг видео (вместо полоски снизу) */
+.video-note-player {
+  overflow: visible;
+  touch-action: none;
+}
+.video-note-player .video-note-el {
+  border-radius: 999px;
+}
+.video-note-ring {
+  inset: -3px;
+  height: calc(100% + 6px);
+  width: calc(100% + 6px);
+  overflow: visible;
+}
+.video-note-ring-track,
+.video-note-ring-fill {
+  stroke-width: 3.5;
+}
+.video-note-ring-track {
+  stroke: color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+.video-note-ring-knob {
+  fill: var(--color-accent);
+  stroke: #fff;
+  stroke-width: 1.5;
+  opacity: 0;
+  transition: opacity 0.15s ease, r 0.15s ease;
+}
+.video-note-player:hover .video-note-ring-knob,
+.video-note-player.seeking .video-note-ring-knob,
+.video-note-player:focus-visible .video-note-ring-knob {
+  opacity: 1;
+}
+.video-note-player.seeking .video-note-ring-knob {
+  r: 6;
+}
+.video-note-player.seeking .video-note-ring-fill {
+  transition: none;
+}
+@media (hover: none) {
+  .video-note-ring-knob {
+    opacity: 1;
+  }
+}
+.video-note-time {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  z-index: 2;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 11.5px;
+  line-height: 17px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.video-note-overlay {
+  border-radius: 999px;
+}
