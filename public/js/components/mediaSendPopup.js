@@ -23,7 +23,7 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
   const titleEl = el("h2", { class: "tw-nm-title" });
   const preview = el("div", { class: "tw-nm-preview" });
   const captionInput = el("textarea", {
-    class: "tw-input tw-nm-caption",
+    class: "tw-nm-caption",
     placeholder: "Добавить подпись…",
     rows: 1,
     maxlength: 4096,

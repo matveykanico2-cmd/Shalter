@@ -24433,3 +24433,63 @@ video.media-viewer-media {
   font-size: 13px;
   color: var(--color-muted);
 }
+
+/* окно отправки фото/видео: крупное превью, компактная подпись */
+.modal-dialog.tw-popup.tw-nm-popup {
+  width: min(520px, calc(100vw - 16px));
+}
+.tw-nm-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  padding: 4px 12px 8px;
+}
+.tw-nm-album {
+  border-radius: 14px;
+  background: #000;
+}
+.tw-nm-album.count-1 .tw-nm-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  background: #000;
+}
+.tw-nm-album.count-1 .tw-nm-media img,
+.tw-nm-album.count-1 .tw-nm-media video {
+  width: 100%;
+  height: auto;
+  max-height: min(62dvh, 560px);
+  object-fit: contain;
+}
+.tw-nm-album:not(.count-1) .tw-nm-media {
+  min-height: 0;
+  aspect-ratio: 1;
+}
+.tw-nm-album.count-3 .tw-nm-media:first-child {
+  aspect-ratio: auto;
+}
+.tw-nm-album:not(.count-1) .tw-nm-media img,
+.tw-nm-album:not(.count-1) .tw-nm-media video {
+  max-height: none;
+}
+.tw-nm-caption-field .tw-nm-caption {
+  min-height: 44px !important;
+  height: 44px;
+}
+@media (max-width: 600px) {
+  .modal-dialog.tw-popup.tw-nm-popup {
+    width: 100%;
+    height: calc(100dvh - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+  .tw-nm-album.count-1 .tw-nm-media img,
+  .tw-nm-album.count-1 .tw-nm-media video {
+    max-height: calc(100dvh - 230px);
+  }
+  .tw-nm-preview {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
