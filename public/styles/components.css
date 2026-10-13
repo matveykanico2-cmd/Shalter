@@ -24843,3 +24843,156 @@ img.img-broken {
   aspect-ratio: 1;
   height: auto;
 }
+
+/* превью ссылки как во ВКонтакте: сниппет по ширине сообщения, без «толстой
+   кнопки» с рамкой — раньше он был шире пузыря и вылезал за его край */
+.link-preview-wrap {
+  width: 100%;
+  min-width: 0;
+}
+.link-preview-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 6px 0 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+  box-shadow: none;
+  overflow: hidden;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.link-preview-card:hover {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+.link-preview-image {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+}
+.link-preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px 12px 10px;
+}
+.link-preview-title {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.link-preview-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.link-preview-site {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--color-accent);
+  font-size: 12.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.link-preview-site-icon {
+  display: flex;
+  flex-shrink: 0;
+}
+.link-preview-iv {
+  align-self: flex-start;
+  margin: 2px 0 0;
+  padding: 2px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-accent);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.link-preview-iv:hover {
+  text-decoration: underline;
+}
+/* пузырь с превью — не уже карточки, чтобы короткий текст не сжимал её */
+.bubble:has(.link-preview-card) {
+  min-width: min(260px, calc(100vw - 110px));
+}
+
+/* превью медиа вместо надписей: миниатюра кружка/фото/видео, значок голосового */
+.mp-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+.chat-list-item-preview {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+.chat-list-item-preview > .mp-text,
+.mp-line > .mp-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mp-who {
+  flex-shrink: 0;
+}
+.mp-thumb-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.mp-thumb {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: color-mix(in srgb, var(--color-muted) 25%, transparent);
+}
+.mp-thumb.round {
+  border-radius: 50%;
+}
+.reply-preview .mp-thumb,
+.composer-banner .mp-thumb {
+  width: 28px;
+  height: 28px;
+}
+.mp-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.6));
+}
+.mp-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+.mp-dur {
+  font-variant-numeric: tabular-nums;
+}

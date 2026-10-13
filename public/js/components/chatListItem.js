@@ -10,6 +10,7 @@ import { api } from "../api.js";
 import { prefetchChat } from "../lib/chatPrefetch.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
 import { messagePreview } from "../lib/messagePreview.js";
+import { mediaPreviewNodes } from "./mediaPreview.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 import { ProfileStatusBadge } from "./profileStatusBadge.js";
 import { getState, setState } from "../state.js";
@@ -36,6 +37,14 @@ function preview(chat, meId) {
   if (m.type === "system") return ceStrip(m.text);
   const who = m.senderId === meId && !chat.isSaved ? "Вы: " : "";
   return `${who}${messagePreview(m)}`;
+}
+
+// Последнее сообщение с медиа — миниатюрой (кружок, фото, видео, голосовое).
+function previewNodes(chat, meId) {
+  const m = chat.lastMessage;
+  if (chat.draft || !m || m.type === "system" || !m.attachments?.length) return [preview(chat, meId)];
+  const who = m.senderId === meId && !chat.isSaved ? "Вы: " : "";
+  return [who ? el("span", { class: "mp-who" }, who) : null, ...mediaPreviewNodes(m)].filter(Boolean);
 }
 
 // extraMenu — дополнительные пункты меню (например, «Убрать из сообщества» в панели сообщества).
@@ -162,7 +171,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
         el("div", { class: "chat-list-item-row" }, [
           el("span", { class: "chat-list-item-preview" }, [
             chat.draft ? el("span", { class: "chat-preview-draft" }, "Черновик: ") : null,
-            preview(chat, meId),
+            ...previewNodes(chat, meId),
           ]),
           el("span", { class: "chat-list-item-badges" }, [
             chat.pinned ? el("span", { html: iconSvg("Pin", 12) }) : null,

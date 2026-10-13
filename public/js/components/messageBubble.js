@@ -2,6 +2,7 @@ import { nameColorValue } from "../lib/nameColors.js";
 import { publicUrl } from "../lib/publicLink.js";
 import { PaidMediaAttachment } from "./paidMedia.js";
 import { GameAttachment } from "./games.js";
+import { mediaPreviewNodes } from "./mediaPreview.js";
 import { askText } from "./confirmDialog.js";
 import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
@@ -983,7 +984,9 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         ? el("div", { class: "reply-preview reply-preview-deleted" }, "Удалённое сообщение")
         : el("button", { class: "reply-preview", onclick: () => onJumpTo(replyToMessage.id) }, [
             replyToSender?.name ? el("span", { class: "reply-preview-name" }, replyToSender.name) : null,
-            el("span", { class: "reply-preview-text" }, previewText(messagePreview(replyToMessage)) || "Сообщение"),
+            replyToMessage.attachments?.length
+              ? el("span", { class: "reply-preview-text mp-line" }, mediaPreviewNodes(replyToMessage, { clean: previewText }))
+              : el("span", { class: "reply-preview-text" }, previewText(messagePreview(replyToMessage)) || "Сообщение"),
           ])
     );
   }

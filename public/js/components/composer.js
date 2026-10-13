@@ -1,4 +1,5 @@
 import { openMediaSendPopup } from "./mediaSendPopup.js";
+import { mediaPreviewNodes } from "./mediaPreview.js";
 import { askText } from "./confirmDialog.js";
 import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
@@ -111,7 +112,9 @@ export function Composer({
           el("span", { html: iconSvg(editingMessage ? "Edit" : "Reply", 15) }),
           el("div", { class: "composer-banner-body" }, [
             el("span", { class: "composer-banner-label" }, editingMessage ? "Изменение" : replyToName ? `Ответ ${replyToName}` : "Ответ"),
-            el("span", { class: "composer-banner-text" }, previewText(messagePreview(editingMessage ?? replyingTo)) || "Сообщение"),
+            (editingMessage ?? replyingTo)?.attachments?.length
+              ? el("span", { class: "composer-banner-text mp-line" }, mediaPreviewNodes(editingMessage ?? replyingTo, { clean: previewText }))
+              : el("span", { class: "composer-banner-text" }, previewText(messagePreview(editingMessage ?? replyingTo)) || "Сообщение"),
           ]),
           el("button", {
             class: "composer-banner-close",

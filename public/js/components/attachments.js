@@ -260,6 +260,14 @@ function AudioFile(a, ctx) {
   ]);
 }
 
+function hostOf(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
 export function LinkPreviewCard(p) {
   if (!p.title && !p.description && !p.image && !p.video && !p.warning) return null;
   // Заставка ролика: maxresdefault есть не у всех видео, поэтому перебираем
@@ -290,9 +298,10 @@ export function LinkPreviewCard(p) {
       media,
       el("div", { class: "link-preview-body" }, [
         p.warning ? el("p", { class: `link-preview-warning ${p.unsafe ? "danger" : ""}` }, [el("span", { html: iconSvg("Info", 12) }), " ", p.warning]) : null,
-        p.siteName ? el("p", { class: "link-preview-site" }, p.siteName) : null,
         p.title ? el("p", { class: "link-preview-title" }, p.title) : null,
         p.description ? el("p", { class: "link-preview-desc" }, p.description) : null,
+        // как во ВКонтакте: внизу — адрес сайта со значком ссылки
+        el("p", { class: "link-preview-site" }, [el("span", { class: "link-preview-site-icon", html: iconSvg("Link", 12) }), p.siteName || hostOf(p.url)]),
       ]),
     ]
   );
@@ -303,7 +312,7 @@ export function LinkPreviewCard(p) {
     el(
       "button",
       { class: "link-preview-iv", onclick: (e) => (e.stopPropagation(), openInstantView(p.url, { unsafe: p.unsafe, warning: p.warning })) },
-      "⚡ Instant View"
+      "⚡ Быстрый просмотр"
     ),
   ]);
 }
