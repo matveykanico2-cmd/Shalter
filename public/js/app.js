@@ -53,10 +53,15 @@ function removeSplash() {
     sessionStorage.setItem("shalter.splashShown", "1");
   } catch {}
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  const wait = firstThisSession && !reduced ? Math.max(0, 1650 - (Date.now() - (window.__splashStart || Date.now()))) : 0;
-  setTimeout(() => {
+  // Сначала буквы досходятся (~1,6 с от старта), потом разлетаются обратно и заставка гаснет.
+  const wait = firstThisSession && !reduced ? Math.max(0, 1600 - (Date.now() - (window.__splashStart || Date.now()))) : 0;
+  const hide = () => {
     splash.classList.add("boot-splash-hidden");
     setTimeout(() => splash.remove(), 300);
+  };
+  setTimeout(() => {
+    if (firstThisSession && typeof window.__splashExit === "function") window.__splashExit(hide);
+    else hide();
   }, wait);
 }
 
