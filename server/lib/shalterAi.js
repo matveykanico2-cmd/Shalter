@@ -694,6 +694,11 @@ async function loadTurns(chat, userId) {
         else notes.add("large");
       }
     }
+    if (role === "assistant") {
+      for (const a of m.attachments ?? []) {
+        if (a.kind === "image" && a.aiPrompt) parts.push(`[ты нарисовал и отправил картинку: ${a.aiPrompt}]`);
+      }
+    }
     if (m.sticker) parts.push(`[стикер ${m.sticker.emoji ?? ""}]`.replace(" ]", "]"));
     if (m.gift) parts.push(`[подарок «${m.gift.name ?? "подарок"}»]`);
     let text = (m.text ?? "").trim();
@@ -766,22 +771,84 @@ const DRAW_ANYWHERE_RE = new RegExp(
 // «нарисуй это / его / то, о чём говорили» — без контекста не понять, что рисовать.
 const DRAW_VAGUE_RE = /^(?:это|его|её|ее|их|то|такое|так|ещё|еще|снова|опять|похож[а-яё]*|вариант[а-яё]*|то\s+же|то,?\s+о\s+ч[её]м.*|что[- ]нибудь.*)?[\s.!?]*$/i;
 
-function drawRequest(text) {
-  if (DRAW_RE.test(text)) return text.replace(DRAW_RE, "").trim();
-  if (!DRAW_ANYWHERE_RE.test(text)) return null;
-  // «как нарисовать кота?» / «что ты умеешь рисовать» — вопрос, а не просьба
-  if (/^\s*(?:как|почему|зачем|где|когда|что\s+ты\s+умеешь)(?=$|[^а-яё])/i.test(text) && !/(?:нарисуй|сделай|сгенерируй)(?=$|[^а-яё])/i.test(text)) return null;
-  const m = DRAW_ANYWHERE_RE.exec(text);
-  return text
-    .slice(m.index + m[0].length)
-    .replace(/^[\s:,\-—]*(?:(?:мне|me|пожалуйста|плиз|please|с|со|про|of|an?)(?=$|[^а-яёa-z])[\s,]*)*/i, "")
+// «нарисуй» с опечатками: наприсуй, нарисвуй, нарсуй, нарисую, нарисуйка…
+const DRAW_WORDS = ["нарисуй", "нарисуйте", "нарисовать", "нарисуешь", "нарисуй-ка", "нарисуйка", "нарисую", "рисуй", "изобрази", "намалюй", "сгенерируй", "сгенерь", "сгенери", "сгенерировать"];
+function editDistance(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[a.length][b.length];
+}
+function fuzzyDrawWord(text) {
+  const re = /[а-яё-]+/gi;
+  let m;
+  while ((m = re.exec(text))) {
+    const w = m[0].toLowerCase();
+    if (w.length < 4) continue;
+    for (const target of DRAW_WORDS) {
+      const limit = target.length >= 7 ? 2 : 1;
+      if (Math.abs(w.length - target.length) <= limit && editDistance(w, target) <= limit) return { index: m.index, length: m[0].length };
+    }
+  }
+  return null;
+}
+// «сделай фото кота», «сгенерь картинку», «покажи, как выглядит тигр»
+const MAKE_PICTURE_RE = /(?:^|[^а-яё])(?:сделай|создай|сгенерь|сгенери|сгенерируй|покажи|нарисуй|хочу|дай|скинь|кинь)(?:те)?\s+(?:мне\s+)?(?:пожалуйста\s+)?(?:фото|фотку|картинк[а-яё]*|изображени[а-яё]*|рисун[а-яё]*|арт|пикч[а-яё]*|как\s+выгляд[а-яё]*)(?=$|[^а-яё])/i;
+
+function cleanDrawPrompt(rest) {
+  return rest
+    .replace(/^-?ка(?=$|[^а-яё])/i, "")
+    .replace(/^[\s:,\-—!.]*(?:(?:мне|me|пожалуйста|плиз|please|с|со|про|of|an?)(?=$|[^а-яёa-z])[\s,]*)*/i, "")
     .replace(/[?!.]+$/, "")
     .trim();
 }
 
+function drawRequest(text) {
+  if (DRAW_RE.test(text)) return cleanDrawPrompt(text.replace(DRAW_RE, ""));
+  const make = MAKE_PICTURE_RE.exec(text);
+  if (make) return cleanDrawPrompt(text.slice(make.index + make[0].length));
+  if (!DRAW_ANYWHERE_RE.test(text)) {
+    // опечатка в «нарисуй» — всё равно рисуем (кроме вопросов «как нарисовать…»)
+    if (/^\s*(?:как|почему|зачем|где|когда)(?=$|[^а-яё])/i.test(text)) return null;
+    const fuzzy = fuzzyDrawWord(text);
+    return fuzzy ? cleanDrawPrompt(text.slice(fuzzy.index + fuzzy.length)) : null;
+  }
+  // «как нарисовать кота?» / «что ты умеешь рисовать» — вопрос, а не просьба
+  if (/^\s*(?:как|почему|зачем|где|когда|что\s+ты\s+умеешь)(?=$|[^а-яё])/i.test(text) && !/(?:нарисуй|сделай|сгенерируй)(?=$|[^а-яё])/i.test(text)) return null;
+  const m = DRAW_ANYWHERE_RE.exec(text);
+  return cleanDrawPrompt(text.slice(m.index + m[0].length));
+}
+
 // Описание для рисования: нейросеть превращает просьбу (с учётом разговора —
 // «нарисуй это», «а теперь в стиле аниме») в подробный английский промпт.
-async function craftImagePrompt(chat, userId, request) {
+async function craftImagePrompt(chat, userId, request, { basePrompt = null } = {}) {
+  // Правка прошлой картинки: «сделай его синим», «добавь шляпу», «ещё вариант».
+  if (basePrompt) {
+    const ask = [
+      {
+        role: "user",
+        content:
+          `Прошлая картинка была нарисована по описанию: «${basePrompt}».\n` +
+          `Пользователь просит изменить её: «${request || "ещё вариант"}».\n` +
+          "Напиши новое полное описание на английском для генератора изображений: сохрани всё из прошлого описания, " +
+          "кроме того, что пользователь просит поменять, и примени его изменения точно. Если просят «ещё вариант» — то же описание. " +
+          "Ответь ТОЛЬКО описанием на английском, без кавычек и пояснений, до 450 символов.",
+      },
+    ];
+    for (const [, call] of providerList(ask)) {
+      try {
+        const { text } = await call(ask);
+        const prompt = cleanText(text).replace(/^["«]|["»]$/g, "").split("\n")[0].trim();
+        if (prompt.length > 3 && !/[а-яё]{4,}/i.test(prompt)) return prompt.slice(0, 900);
+      } catch {}
+    }
+    return `${basePrompt}, ${request}`;
+  }
   // Разговор нужен, только если просьба расплывчатая («нарисуй это», «ещё вариант»).
   // Иначе он уводил картинку в сторону прошлой темы — рисовалось «не то».
   const vague = !request || DRAW_VAGUE_RE.test(request) || /(это|его|её|ее|их|такое же|то же самое|по разговору|из ответа)/i.test(request);
@@ -953,7 +1020,7 @@ async function renderImage(prompt) {
   throw lastErr ?? new Error("не удалось нарисовать");
 }
 
-async function drawImage(chat, userId, request) {
+async function drawImage(chat, userId, request, { basePrompt = null } = {}) {
   let prompt = request;
   if (!prompt && /^\s*\/(?:image|draw)/i.test(request ?? "")) {
     await sendMessageAndBroadcast(chat, SHALTER_AI_ID, "Опишите, что нарисовать: например, «/image кот-космонавт в стиле акварели» или просто «нарисуй закат над морем».");
@@ -965,7 +1032,7 @@ async function drawImage(chat, userId, request) {
     return;
   }
   const stop = startAction(chat, userId, "upload_photo");
-  if (DIAGRAM_RE.test(request)) {
+  if (!basePrompt && DIAGRAM_RE.test(request)) {
     try {
       const png = await drawDiagram(chat, userId, request);
       if (png) {
@@ -975,7 +1042,7 @@ async function drawImage(chat, userId, request) {
           const stored = await storeGeneratedFile(tmpPng);
           stop();
           await sendMessageAndBroadcast(chat, SHALTER_AI_ID, `📐 ${request.slice(0, 300)}`, {
-            attachments: [{ kind: "image", url: stored, name: "shalter-ai.png", mimeType: "image/png", size: png.length }],
+            attachments: [{ kind: "image", url: stored, name: "shalter-ai.png", mimeType: "image/png", size: png.length, aiPrompt: `diagram: ${request.slice(0, 400)}` }],
           });
           return;
         } finally {
@@ -988,7 +1055,7 @@ async function drawImage(chat, userId, request) {
     // не вышло — рисуем обычным генератором ниже
   }
   // Короткую/расплывчатую просьбу («нарисуй это», «кота») уточняем по разговору.
-  prompt = await craftImagePrompt(chat, userId, request);
+  prompt = await craftImagePrompt(chat, userId, request, { basePrompt });
   const tmp = path.join(os.tmpdir(), `shalter_ai_${crypto.randomBytes(8).toString("hex")}.jpg`);
   try {
     const image = await renderImage(prompt);
@@ -996,7 +1063,8 @@ async function drawImage(chat, userId, request) {
     const stored = await storeGeneratedFile(tmp);
     stop();
     await sendMessageAndBroadcast(chat, SHALTER_AI_ID, request ? `🎨 ${request.slice(0, 300)}` : "", {
-      attachments: [{ kind: "image", url: stored, name: "shalter-ai.jpg", mimeType: "image/jpeg", size: image.length }],
+      // aiPrompt — по какому описанию нарисовано: чтобы потом «сделай его синим» правило эту же картинку.
+      attachments: [{ kind: "image", url: stored, name: "shalter-ai.jpg", mimeType: "image/jpeg", size: image.length, aiPrompt: prompt.slice(0, 900) }],
     });
   } catch (err) {
     stop();
@@ -1018,6 +1086,7 @@ async function replyOnce(chat, userId) {
   // Ответ печатается по мере генерации: первое сообщение появляется через пару
   // секунд и дописывается (раз в ~0,7 с), вместо ожидания всего ответа целиком.
   let live = null;
+  let lastUserText = "";
   let liveText = "";
   let flushTimer = null;
   let flushing = Promise.resolve();
@@ -1049,11 +1118,23 @@ async function replyOnce(chat, userId) {
     // Последнее сообщение — только то, что бот прочитать не смог (фото без GigaChat):
     // отвечаем пояснением, а не повторным ответом на прошлый вопрос.
     const hasContent = loaded.turns.at(-1)?.role === "user";
+    lastUserText = hasContent ? String(loaded.turns.at(-1).content ?? "").split("\n")[0].slice(0, 500) : "";
     text = hasContent ? await generate(loaded.turns, { onDelta }) : null;
   } finally {
     stop();
     clearTimeout(flushTimer);
     await flushing;
+  }
+  // Подстраховка: модель ответила «не умею рисовать» — значит, просили картинку,
+  // а распознать просьбу не вышло. Рисуем вместо отказа.
+  const REFUSE_DRAW = /(не\s+(?:могу|умею|способен|способна|имею возможности)|нет\s+возможности|я\s+(?:—\s*)?текстов)[^.!?\n]{0,60}(рисова|нарисова|изображени|картинк|генерир|созда[а-яё]*\s+(?:изображ|картин|фото))/i;
+  if (text && REFUSE_DRAW.test(text) && lastUserText) {
+    if (live) {
+      const { deleteMessage } = require("../data/messages");
+      await deleteMessage(live.id).catch(() => {});
+      broadcastToUsers(chat.memberIds, { type: "message:deleted", chatId: chat.id, id: live.id, messageId: live.id });
+    }
+    return drawImage(chat, userId, cleanDrawPrompt(lastUserText.replace(/^\s*(?:привет|здравствуй|хай|ну|а|слушай)[\s,!.]*/i, "")));
   }
   const extra = [...(notes ?? [])].map((n) => NOTES[n]).filter(Boolean);
   if (!text && !extra.length) text = "Нейросеть сейчас перегружена и не ответила — напишите «ещё раз» через минуту, и я повторю.";
@@ -1077,6 +1158,25 @@ const WELCOME =
   "• Длинный ответ оборвался? Напишите «продолжи»\n\n" +
   "/new — начать разговор заново.";
 
+// Просьба что-то рассказать/объяснить рядом с «нарисуй» — отвечаем и текстом.
+const TALK_RE = /(?:^|[^а-яё])(расскажи|объясни|опиши|напиши|что\s+такое|кто\s+так|почему|зачем|сколько|как\s+(?:работает|устроен|сделать)|придумай|сочини|переведи)(?=$|[^а-яё])/i;
+// Правка картинки: «сделай его синим», «добавь шляпу», «убери фон», «ещё вариант», «в стиле аниме».
+const EDIT_RE = /(?:^|[^а-яё])(сделай|добавь|убери|удали|поменяй|измени|замени|перекрась|раскрась|увеличь|уменьши|поверни|ещё|еще|другой|другую|другое|вариант|по-другому|иначе|теперь|переделай|перерисуй|в\s+стиле|пусть|чтобы|чтоб|без\s+|побольше|поменьше|ярче|темнее|светлее|реалистичн|мультяшн|аниме)(?=$|[^а-яё])/i;
+
+// Описание последней нарисованной ботом картинки (onlyIfLast — только если это
+// последнее сообщение бота, иначе разговор уже ушёл дальше).
+async function lastBotImagePrompt(chat, userId, { onlyIfLast = false } = {}) {
+  const { messages } = listMessagesPage(chat.id, userId, null, { limit: 12 });
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.senderId !== SHALTER_AI_ID || m.deleted) continue;
+    const a = (m.attachments ?? []).find((x) => x.kind === "image" && x.aiPrompt && !x.aiPrompt.startsWith("diagram:"));
+    if (a) return a.aiPrompt;
+    if (onlyIfLast) return null;
+  }
+  return null;
+}
+
 async function dispatchShalterAi(chatId, message) {
   try {
     if (!SHALTER_AI_ENABLED || message.senderId === SHALTER_AI_ID) return;
@@ -1093,7 +1193,19 @@ async function dispatchShalterAi(chatId, message) {
     if (/^\s*\/(?:image|draw)(?:@\w+)?\s*$/i.test(text)) return void (await drawImage(chat, userId, null));
     if (/^\s*\/(?:image|draw)(?:@\w+)?\s+/i.test(text)) return void (await drawImage(chat, userId, text.replace(DRAW_RE, "").trim()));
     const drawWhat = text ? drawRequest(text) : null;
-    if (drawWhat != null) return void (await drawImage(chat, userId, drawWhat));
+    // «расскажи про Марс и нарисуй его» — и ответ текстом, и картинка.
+    const alsoTalk = drawWhat != null && TALK_RE.test(text.replace(drawWhat, ""));
+    if (drawWhat != null && !alsoTalk) {
+      const base = EDIT_RE.test(text) ? await lastBotImagePrompt(chat, userId) : null;
+      return void (await drawImage(chat, userId, drawWhat, { basePrompt: base }));
+    }
+    // Правка только что нарисованной картинки без слова «нарисуй»:
+    // «сделай его синим», «добавь шляпу», «ещё вариант», «а теперь в стиле аниме».
+    const looksLikeTalk = TALK_RE.test(text) || /\?\s*$/.test(text) || /(?:^|[^а-яё])(что|как|кто|где|когда|почему|зачем|вопрос|спасибо|круто|класс|норм|вывод[а-яё]*|итог[а-яё]*|план|список|текст|стих[а-яё]*|код)(?=$|[^а-яё])/i.test(text);
+    if (drawWhat == null && text && !message.attachments?.length && text.length < 160 && EDIT_RE.test(text) && !looksLikeTalk) {
+      const base = await lastBotImagePrompt(chat, userId, { onlyIfLast: true });
+      if (base) return void (await drawImage(chat, userId, text, { basePrompt: base }));
+    }
 
     if (!takeSlot(`txt:${userId}`, RATE_MAX)) {
       await sendMessageAndBroadcast(chat, SHALTER_AI_ID, "Слишком много сообщений подряд — подождите минуту 🙏");
@@ -1116,9 +1228,10 @@ async function dispatchShalterAi(chatId, message) {
     } finally {
       busyChats.delete(chatId);
     }
+    if (alsoTalk) await drawImage(chat, userId, drawWhat);
   } catch (err) {
     console.error("shalter ai reply failed:", err);
   }
 }
 
-module.exports = { dispatchShalterAi, WELCOME, DRAW_RE, drawRequest, splitReply, generate, localDescription, sanitizeSvg, DIAGRAM_RE, drawDiagram, readAttachment, renderImage };
+module.exports = { dispatchShalterAi, WELCOME, DRAW_RE, drawRequest, splitReply, generate, localDescription, sanitizeSvg, DIAGRAM_RE, drawDiagram, readAttachment, renderImage, EDIT_RE, TALK_RE };
