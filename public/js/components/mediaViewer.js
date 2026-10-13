@@ -1,6 +1,7 @@
 import { textWithEmoji } from "../lib/emojiImages.js";
 import { el, clear, appendAll } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
+import { pushOverlay } from "../router.js";
 
 export function openMediaViewer({ kind, url, name, originalUrl = null, gallery = null, index = 0 }) {
   const items = gallery?.length ? gallery : [{ kind, url, name, originalUrl }];
@@ -17,7 +18,7 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
     onclick: (e) => {
       if (e.target === overlay) close();
       // тап по пустому месту сцены закрывает, как в Telegram
-      else if (e.target === stage && scale === 1 && Date.now() - gestureAt > 350) close();
+      else if ((e.target === stage || e.target === failBox) && scale === 1 && Date.now() - gestureAt > 350) close();
     },
   });
   const head = el("div", { class: "media-viewer-head" });
@@ -28,6 +29,8 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
   const captionEl = el("div", { class: "media-viewer-caption", hidden: true });
   appendAll(overlay, el("div", { class: "media-viewer" }, [head, stage, captionEl]), items.length > 1 ? prevBtn : null, items.length > 1 ? nextBtn : null);
   document.body.appendChild(overlay);
+  // «Назад» на телефоне закрывает просмотр (и без сети тоже).
+  const dropHistory = pushOverlay(() => close(true));
   show();
 
   function applyTransform() {
@@ -280,10 +283,14 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
     swipeStartX = null;
   });
 
-  function close() {
+  let closed = false;
+  function close(fromBack = false) {
+    if (closed) return;
+    closed = true;
     document.removeEventListener("keydown", onKey, true);
     if (media?.tagName === "VIDEO") media.pause();
     overlay.remove();
+    if (!fromBack) dropHistory();
   }
   function onKey(e) {
     if (e.key === "Escape") {

@@ -479,7 +479,7 @@ export const api = {
     req(`/api/chats/${chatId}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ text }) }),
   updateLiveLocation: (chatId, messageId, lat, lng) =>
     req(`/api/chats/${chatId}/messages/${messageId}/location`, { method: "POST", body: JSON.stringify({ lat, lng }) }),
-  listGames: () => req("/api/games"),
+  listGames: (q = "") => req(`/api/games${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   myGames: () => req("/api/games/mine"),
   getGame: (id) => req(`/api/games/${encodeURIComponent(id)}`),
   createGame: (game) => req("/api/games", { method: "POST", body: JSON.stringify(game), noQueue: true }),

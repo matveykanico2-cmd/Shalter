@@ -367,7 +367,8 @@ const BLUR_RE = /^data:image\/(jpeg|webp|png);base64,[A-Za-z0-9+/=]+$/;
 function preparePaidMedia(chat, senderId, body) {
   const stars = Math.floor(Number(body.paidMedia?.stars));
   if (!body.paidMedia) return null;
-  if (chat.type !== "channel" || !isStaff(chat, senderId)) return { error: "Платный контент — только для админов канала" };
+  if (chat.secret) return { error: "В секретном чате платный контент недоступен" };
+  if (chat.type === "channel" && !isStaff(chat, senderId)) return { error: "Платный контент в канале публикуют админы" };
   if (!Number.isSafeInteger(stars) || stars < 1 || stars > MAX_PAID_STARS) return { error: `Цена — от 1 до ${MAX_PAID_STARS} ⭐` };
   const real = (sanitizeAttachments(body.attachments) ?? []).filter((a) => (a.kind === "image" || a.kind === "video") && a.url);
   if (!real.length) return { error: "Платным можно сделать только фото или видео" };
@@ -693,7 +694,8 @@ async function paidAccess(req, res) {
     return null;
   }
   const message = await getMessage(req.params.messageId);
-  const free = message?.senderId === req.uid || isStaff(chat, req.uid) || paidMedia.hasBought(paid.messageId, req.uid);
+  const free =
+    message?.senderId === req.uid || (chat.type === "channel" && isStaff(chat, req.uid)) || paidMedia.hasBought(paid.messageId, req.uid);
   return { chat, paid, message, free };
 }
 
@@ -704,7 +706,8 @@ router.get(
     if (!access) return;
     const { paid, free, chat } = access;
     if (!free) return res.status(402).json({ error: "Пост открывается за звёзды", stars: paid.stars });
-    res.json({ attachments: paid.attachments, ...(isStaff(chat, req.uid) ? { buyers: paidMedia.buyersCount(paid.messageId) } : {}) });
+    const canSeeBuyers = access.message?.senderId === req.uid || (chat.type === "channel" && isStaff(chat, req.uid));
+    res.json({ attachments: paid.attachments, ...(canSeeBuyers ? { buyers: paidMedia.buyersCount(paid.messageId) } : {}) });
   })
 );
 
@@ -713,10 +716,11 @@ router.post(
   asyncRoute(async (req, res) => {
     const access = await paidAccess(req, res);
     if (!access) return;
-    const { chat, paid, free } = access;
+    const { chat, paid, free, message } = access;
     if (!free) {
-      // Звёзды уходят владельцу канала, как плата за комментарии.
-      if (!chat.ownerId || !transferStars(req.uid, chat.ownerId, paid.stars)) {
+      // Звёзды получает владелец канала (как плата за комментарии), в личке и группе — отправитель.
+      const payee = chat.type === "channel" ? chat.ownerId : message?.senderId;
+      if (!payee || !transferStars(req.uid, payee, paid.stars)) {
         return res.status(402).json({ error: `Не хватает звёзд: нужно ${paid.stars} ⭐`, needStars: paid.stars, balance: balanceOf(req.uid) });
       }
       paidMedia.recordPurchase(paid.messageId, req.uid);

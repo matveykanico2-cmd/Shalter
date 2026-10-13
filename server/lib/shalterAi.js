@@ -32,6 +32,7 @@ const { broadcastToUsers } = require("../ws");
 const { sendMessageAndBroadcast } = require("./systemChat");
 const { readUploadBuffer, storeGeneratedFile, fetchUploadToTemp } = require("./uploadTransfer");
 const { extractVideoFrames } = require("./mediaPreview");
+const { describeImage, LOCAL_VISION_ENABLED } = require("./localVision");
 
 const HISTORY_LIMIT = 14;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -301,8 +302,19 @@ function inPollinationsQueue(fn) {
   return run;
 }
 
-function canSeeMedia() {
+// Нейросети, которые сами видят картинки (нужен ключ).
+function remoteVision() {
   return !!GIGACHAT_AUTH_KEY || !!POLLINATIONS_TOKEN || !!OPENROUTER_API_KEY || !!HF_TOKEN;
+}
+function canSeeMedia() {
+  return remoteVision() || LOCAL_VISION_ENABLED;
+}
+
+// Без ключей фото «видит» локальная нейросеть: её описание (по-английски) и
+// латинский текст с картинки передаём текстовой модели.
+async function localDescription(buf, label = "Фото") {
+  const { caption, ocr } = await describeImage(buf, { ocr: true });
+  return `[${label}. Описание от распознавания изображения (на английском, переведи и опирайся на него): ${caption}${ocr ? `. Текст на картинке: ${ocr}` : ""}]`;
 }
 
 // Чистим ответ модели (рассуждения <think>, реклама бесплатного сервиса, заголовки),
@@ -440,6 +452,13 @@ async function readAttachment(a, { withMedia }) {
     if (typeof src !== "string" || !src.startsWith("/uploads/")) return { text: "[видео]" };
     const { frames, durationSec } = await videoFrames(src, a.durationSec);
     if (!frames.length) return { text: "[видео — не удалось прочитать кадры]" };
+    if (!remoteVision()) {
+      // Локально — 3 кадра (начало, середина, конец): каждый распознаётся пару секунд.
+      const pick = frames.length <= 3 ? frames : [frames[0], frames[Math.floor(frames.length / 2)], frames[frames.length - 1]];
+      const parts = [];
+      for (const f of pick) parts.push(await localDescription(f.buf, `Кадр на ${Math.round(f.at)} с`));
+      return { text: `[видео ${Math.round(durationSec) || "?"} с]\n${parts.join("\n")}` };
+    }
     return {
       text: `[видео ${Math.round(durationSec) || "?"} с — ниже ${frames.length} кадр(ов) по порядку: ${frames.map((f) => `${Math.round(f.at)} с`).join(", ")}]`,
       media: frames.map((f, i) => ({ buf: f.buf, mime: "image/jpeg", name: `frame${i + 1}.jpg` })),
@@ -451,6 +470,10 @@ async function readAttachment(a, { withMedia }) {
     if (typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: "[фото]" };
     const buf = await readUploadBuffer(a.url, MAX_IMAGE_BYTES);
     const mime = IMAGE_MIME.test(a.mimeType ?? "") ? a.mimeType : "image/jpeg";
+    if (!remoteVision()) {
+      if (!fileTextCache.has(`vision:${a.url}`)) fileTextCache.set(`vision:${a.url}`, await localDescription(buf));
+      return { text: fileTextCache.get(`vision:${a.url}`) };
+    }
     return { media: { buf, mime, name } };
   }
   if (a.kind !== "file" || typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: `[${a.kind}]` };
@@ -741,4 +764,4 @@ async function dispatchShalterAi(chatId, message) {
   }
 }
 
-module.exports = { dispatchShalterAi, WELCOME, DRAW_RE, drawRequest, splitReply, generate };
+module.exports = { dispatchShalterAi, WELCOME, DRAW_RE, drawRequest, splitReply, generate, localDescription };

@@ -539,6 +539,7 @@ function SidebarHeader(listSlot) {
               channels: r.channels ?? [],
               users: r.users ?? [],
               bots: r.bots ?? [],
+              games: r.games ?? [],
               messages: r.messages ?? [],
             };
             searchFilter = "all";
@@ -582,7 +583,7 @@ function renderResults(container) {
     const dms = results.chats.filter((c) => c.type === "dm" || c.type === "bot");
     const groups = results.chats.filter((c) => c.type === "group");
     const joinedChannels = results.chats.filter((c) => c.type === "channel");
-    const total = results.chats.length + results.channels.length + results.users.length + results.bots.length + results.messages.length;
+    const total = results.chats.length + results.channels.length + results.users.length + results.bots.length + (results.games?.length ?? 0) + results.messages.length;
 
     const buckets = [
       { id: "all", name: "Все", count: total },
@@ -591,6 +592,7 @@ function renderResults(container) {
       { id: "channels", name: "Каналы", count: joinedChannels.length + results.channels.length },
       { id: "users", name: "Люди", count: results.users.length },
       { id: "bots", name: "Боты", count: results.bots.length },
+      { id: "games", name: "Игры", count: results.games?.length ?? 0 },
       { id: "messages", name: "Сообщения", count: results.messages.length },
     ].filter((b) => b.id === "all" || b.count > 0);
     if (!buckets.some((b) => b.id === searchFilter)) searchFilter = "all";
@@ -688,6 +690,20 @@ function renderResults(container) {
     if (results.bots.length && show("bots")) {
       box.appendChild(el("p", { class: "list-section-label" }, "Боты"));
       for (const u of results.bots) box.appendChild(accountRow(u));
+    }
+    if (results.games?.length && show("games")) {
+      box.appendChild(el("p", { class: "list-section-label" }, "Игры"));
+      for (const g of results.games) {
+        box.appendChild(
+          el("button", { class: "chat-list-item search-game-row", onclick: () => import("../components/games.js").then((m) => m.openGame(g)) }, [
+            el("span", { class: "search-game-emoji" }, g.emoji || "🎮"),
+            el("div", { class: "chat-list-item-body" }, [
+              el("p", { class: "search-game-title" }, g.title),
+              el("p", { class: "search-game-desc" }, g.description || (g.builtin ? "Встроенная игра" : "Игра")),
+            ]),
+          ])
+        );
+      }
     }
     if (results.messages.length && show("messages")) {
       box.appendChild(el("p", { class: "list-section-label" }, "Сообщения"));

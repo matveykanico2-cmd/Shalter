@@ -343,7 +343,9 @@ export function Composer({
         if (!trimmed) return;
         onSaveEdit(trimmed);
       } else if (staged.length) {
-        const atts = staged.map((s) => s.attachment);
+        const atts = staged.map((s) =>
+          opts.spoiler && (s.attachment.kind === "image" || s.attachment.kind === "video") ? { ...s.attachment, spoiler: true } : s.attachment
+        );
         staged = [];
         renderStagedTray();
         const extra = {
@@ -717,12 +719,12 @@ export function Composer({
         picks,
         caption: textarea.value,
         allowPaid: canPostPaid,
-        onSend: async ({ picks: chosen, caption, paidStars }) => {
+        onSend: async ({ picks: chosen, caption, paidStars, spoiler }) => {
           textarea.value = caption;
           textarea.dispatchEvent(new Event("input", { bubbles: true }));
           const paidInfo = paidStars ? await blurThumbFor(chosen.find((p) => p.kind === "image" || p.kind === "video")).catch(() => ({})) : null;
           await attachFiles(chosen);
-          if (staged.length) submit(paidStars ? { paidMedia: { stars: paidStars, ...paidInfo } } : {});
+          if (staged.length) submit(paidStars ? { paidMedia: { stars: paidStars, ...paidInfo } } : spoiler ? { spoiler: true } : {});
         },
       });
     }

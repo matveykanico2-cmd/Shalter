@@ -5,6 +5,7 @@ import { getState } from "../state.js";
 import { Avatar } from "./avatar.js";
 import { showToast } from "./toast.js";
 import { askConfirm } from "./confirmDialog.js";
+import { pushOverlay } from "../router.js";
 
 // Игры как в Telegram: HTML5-игра — один HTML-файл. Запускается в iframe с
 // sandbox="allow-scripts" (без доступа к сайту, cookie и аккаунту) и общается с
@@ -51,15 +52,20 @@ export async function openGame(gameOrId, { chatId = null, code = null, onScore }
   const titleEl = el("span", { class: "game-title" }, game?.title ?? "Игра");
   const scoreEl = el("span", { class: "game-score mono" }, "");
   const frameSlot = el("div", { class: "game-frame-slot" }, [el("span", { class: "media-viewer-spinner" })]);
-  const close = () => {
+  let closed = false;
+  let dropHistory = () => {};
+  const close = (fromBack = false) => {
+    if (closed) return;
+    closed = true;
     window.removeEventListener("message", onMessage);
     document.removeEventListener("keydown", onKey, true);
     overlay.remove();
+    if (fromBack !== true) dropHistory();
   };
   const onKey = (e) => e.key === "Escape" && (e.stopPropagation(), close());
   overlay.append(
     el("div", { class: "game-head" }, [
-      el("button", { class: "icon-btn", title: "Закрыть", html: iconSvg("X", 22), onclick: close }),
+      el("button", { class: "icon-btn", title: "Закрыть", html: iconSvg("X", 22), onclick: () => close() }),
       el("span", { class: "game-emoji" }, game?.emoji ?? "🎮"),
       titleEl,
       scoreEl,
@@ -69,6 +75,7 @@ export async function openGame(gameOrId, { chatId = null, code = null, onScore }
   );
   document.body.appendChild(overlay);
   document.addEventListener("keydown", onKey, true);
+  dropHistory = pushOverlay(() => close(true));
 
   try {
     if (!game?.code && code == null) game = (await api.getGame(game?.id ?? gameOrId)).game;
@@ -156,6 +163,16 @@ export async function openScores(game, chatId = null) {
 // Каталог: встроенные игры, игры сообщества и свои. onPick — отправить карточку в чат.
 export function openGamesCatalog({ onPick = null, chatId = null } = {}) {
   let tab = "all";
+  let query = "";
+  let searchTimer = null;
+  const search = el("input", {
+    class: "settings-input dl-search",
+    placeholder: "Поиск игр",
+    oninput: (e) => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => ((query = e.target.value.trim()), render()), 250);
+    },
+  });
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const body = el("div", { class: "games-grid" });
   const tabs = el("div", { class: "dl-tabs" });
@@ -168,7 +185,8 @@ export function openGamesCatalog({ onPick = null, chatId = null } = {}) {
     body.append(el("span", { class: "qr-login-spinner" }));
     let games = [];
     try {
-      games = (tab === "mine" ? await api.myGames() : await api.listGames()).games;
+      games = (tab === "mine" ? await api.myGames() : await api.listGames(query)).games;
+      if (tab === "mine" && query) games = games.filter((g) => `${g.title} ${g.description ?? ""}`.toLowerCase().includes(query.toLowerCase()));
     } catch (err) {
       clear(body);
       body.append(el("p", { class: "login-error" }, err.message || "Не удалось загрузить игры"));
@@ -183,7 +201,7 @@ export function openGamesCatalog({ onPick = null, chatId = null } = {}) {
           el("span", { class: "game-tile-desc" }, "Напишите свою игру на HTML и JavaScript"),
         ])
       );
-    if (!games.length && tab === "mine") body.append(el("p", { class: "dl-empty" }, "У вас пока нет своих игр"));
+    if (!games.length) body.append(el("p", { class: "dl-empty" }, query ? "Ничего не найдено" : tab === "mine" ? "У вас пока нет своих игр" : "Игр пока нет"));
     for (const g of games) {
       body.append(
         el("div", { class: "game-tile" }, [
@@ -203,6 +221,7 @@ export function openGamesCatalog({ onPick = null, chatId = null } = {}) {
   overlay.append(
     el("div", { class: "modal-dialog games-dialog" }, [
       el("div", { class: "dl-head" }, [el("h2", { class: "modal-title" }, "🎮 Игры"), el("button", { class: "icon-btn", title: "Закрыть", html: iconSvg("X", 20), onclick: close })]),
+      search,
       tabs,
       body,
     ])

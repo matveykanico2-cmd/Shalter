@@ -41,6 +41,20 @@ function listCatalog() {
   return [...BUILTIN.map(({ file, ...g }) => ({ ...g, builtin: true, isPublic: true })), ...own];
 }
 
+// Поиск игр по названию и описанию: встроенные, опубликованные и свои.
+function searchGames(q, userId, limit = 20) {
+  const needle = String(q ?? "").trim().toLowerCase();
+  if (!needle) return [];
+  const hit = (g) => `${g.title} ${g.description ?? ""}`.toLowerCase().includes(needle);
+  const builtins = BUILTIN.filter(hit).map(({ file, ...g }) => ({ ...g, builtin: true, isPublic: true }));
+  const like = `%${needle.replace(/[%_]/g, "")}%`;
+  const own = db
+    .prepare("SELECT * FROM games WHERE (isPublic = 1 OR ownerId = ?) AND (lower(title) LIKE ? OR lower(description) LIKE ?) ORDER BY plays DESC LIMIT ?")
+    .all(userId, like, like, limit)
+    .map((r) => rowToGame(r));
+  return [...builtins, ...own].slice(0, limit);
+}
+
 function listMine(userId) {
   return db.prepare("SELECT * FROM games WHERE ownerId = ? ORDER BY updatedAt DESC").all(userId).map((r) => rowToGame(r));
 }
@@ -80,4 +94,4 @@ function topScores(gameId, scope, limit = 20) {
   return db.prepare("SELECT userId, score, updatedAt FROM game_scores WHERE gameId = ? AND scope = ? ORDER BY score DESC, updatedAt ASC LIMIT ?").all(gameId, scope, limit);
 }
 
-module.exports = { BUILTIN, getGame, listCatalog, listMine, saveGame, deleteGame, countPlay, submitScore, topScores };
+module.exports = { BUILTIN, searchGames, getGame, listCatalog, listMine, saveGame, deleteGame, countPlay, submitScore, topScores };

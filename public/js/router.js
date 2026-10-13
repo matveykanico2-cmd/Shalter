@@ -83,12 +83,55 @@ export function navigate(path, { replace = false } = {}) {
   render();
 }
 
+// Полноэкранные окна поверх экрана (просмотр фото, игра): системная «Назад»
+// закрывает окно, а не уходит с экрана. Без этого на телефоне без сети «Назад»
+// уводил на экран, который не загружался, а просмотрщик оставался висеть.
+const overlays = [];
+let overlaySeq = 0;
+let skipPops = 0;
+export function pushOverlay(onBack) {
+  const id = ++overlaySeq;
+  try {
+    window.history.pushState({ ...(window.history.state ?? {}), overlayId: id }, "", window.location.href);
+  } catch {
+    return () => {};
+  }
+  overlays.push({ id, onBack });
+  // Закрыли кнопкой/крестиком — убираем свою запись из истории.
+  return () => {
+    const i = overlays.findIndex((o) => o.id === id);
+    if (i < 0) return;
+    overlays.splice(i, 1);
+    if (window.history.state?.overlayId === id) {
+      skipPops++;
+      window.history.back();
+    }
+  };
+}
+
+function onPopState() {
+  if (skipPops > 0) {
+    skipPops--;
+    return;
+  }
+  const top = overlays[overlays.length - 1];
+  if (top && window.history.state?.overlayId !== top.id) {
+    overlays.pop();
+    try {
+      top.onBack();
+    } catch {}
+    return;
+  }
+  if (window.history.state?.overlayId && window.location.pathname === currentPath) return;
+  render();
+}
+
 export function currentRoutePath() {
   return currentPath;
 }
 
 export function startRouter() {
-  window.addEventListener("popstate", render);
+  window.addEventListener("popstate", onPopState);
   document.addEventListener("click", (e) => {
     const a = e.target.closest("a[data-route]");
     if (!a) return;

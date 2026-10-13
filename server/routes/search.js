@@ -19,7 +19,7 @@ router.get(
     const raw = (req.query.q ?? "").toString().trim();
     const q = raw.toLowerCase();
     const handle = q.replace(/^@/, "");
-    if (!q) return res.json({ chats: [], channels: [], users: [], bots: [], messages: [] });
+    if (!q) return res.json({ chats: [], channels: [], users: [], bots: [], games: [], messages: [] });
 
     const [chats, users, publicChannels] = await Promise.all([
       // Секретные чаты в общий поиск не попадают — как в Telegram.
@@ -94,6 +94,7 @@ router.get(
       channels: matchedChannels,
       users: await publicUsersFor(matchedAccounts.filter((u) => !u.isBot).slice(0, LIMIT), req.uid),
       bots: publicUsers(matchedAccounts.filter((u) => u.isBot)).slice(0, LIMIT),
+      games: require("../data/games").searchGames(q, req.uid, LIMIT),
       messages: matchedMessages,
     });
   })

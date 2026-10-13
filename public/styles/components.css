@@ -24332,3 +24332,104 @@ video.media-viewer-media {
 .link-card-action-icon {
   display: flex;
 }
+
+/* пост канала с полосой комментариев: время/просмотры поверх медиа — над полосой,
+   а не на стрелке «›» (раньше плашка прижималась к самому низу пузыря) */
+.bubble .post-comments-link.channel-comments {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+.bubble.has-comments-footer.bubble-media-only > .message-meta.message-meta-media,
+.bubble.has-comments-footer:has(> .image-attachment-btn:first-child) > .message-meta {
+  bottom: 44px;
+}
+.bubble.has-comments-footer.bubble-media-only > .post-comments-link.channel-comments {
+  width: 100%;
+  margin: 0;
+}
+.bubble.has-comments-footer > .message-meta:not(.message-meta-media) {
+  margin-bottom: 2px;
+}
+.bubble .post-comments-link.channel-comments::after {
+  flex-shrink: 0;
+  padding-left: 8px;
+}
+
+/* спойлер на фото/видео: размыто с «шумом», пока не нажмут */
+.image-attachment-btn.has-spoiler,
+.image-attachment-btn.spoiler-revealed {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.has-spoiler > img,
+.has-spoiler > video,
+.has-spoiler > .video-attachment-poster {
+  filter: blur(26px) saturate(1.2);
+  transform: scale(1.12);
+}
+.spoiler-revealed > img,
+.spoiler-revealed > video,
+.spoiler-revealed > .video-attachment-poster {
+  transition: filter 0.35s ease, transform 0.35s ease;
+}
+.has-spoiler .video-attachment-play,
+.has-spoiler .video-attachment-duration {
+  display: none;
+}
+.media-spoiler {
+  display: none;
+}
+.has-spoiler > .media-spoiler {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.55) 0.7px, transparent 1.1px), radial-gradient(rgba(255, 255, 255, 0.35) 0.6px, transparent 1px);
+  background-size: 7px 7px, 11px 11px;
+  background-position: 0 0, 3px 5px;
+  animation: media-spoiler-dust 2.4s linear infinite;
+}
+@keyframes media-spoiler-dust {
+  to { background-position: 7px 7px, -8px 16px; }
+}
+.media-spoiler-label {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+}
+.tw-nm-blurred .tw-nm-media img,
+.tw-nm-blurred .tw-nm-media video {
+  filter: blur(14px);
+}
+
+.search-game-row {
+  text-align: left;
+}
+.search-game-emoji {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6a5af9, #d66efd);
+  font-size: 26px;
+}
+.search-game-title {
+  margin: 0;
+  font-weight: 600;
+}
+.search-game-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}

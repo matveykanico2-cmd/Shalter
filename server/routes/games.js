@@ -14,7 +14,10 @@ const MAX_SCORE = 1_000_000_000;
 
 router.get(
   "/",
-  asyncRoute(async (_req, res) => res.json({ games: games.listCatalog() }))
+  asyncRoute(async (req, res) => {
+    const q = String(req.query.q ?? "").trim();
+    res.json({ games: q ? games.searchGames(q, req.uid, 50) : games.listCatalog() });
+  })
 );
 
 router.get(

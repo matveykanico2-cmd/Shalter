@@ -29,6 +29,8 @@ function sanitizeAttachments(attachments) {
         out.thumbUrl = a.thumbUrl;
       }
       if (a.name !== undefined) out.name = String(a.name).slice(0, 300);
+      // Спойлер: фото/видео размыто, пока получатель не нажмёт (бесплатно).
+      if ((a.kind === "image" || a.kind === "video") && a.spoiler === true) out.spoiler = true;
       if (a.mimeType !== undefined) out.mimeType = String(a.mimeType).slice(0, 120);
       if (a.size !== undefined) out.size = Number.isFinite(a.size) ? a.size : undefined;
       if (a.kind === "voice" || a.kind === "video-note") {

@@ -5,11 +5,12 @@ import { openInAppBrowser } from "./inAppBrowser.js";
 import { openMediaViewer, galleryAround } from "./mediaViewer.js";
 import { setNowPlaying, playingMediaFor } from "../lib/audioPlayer.js";
 
-function MediaButton(className, item, children) {
-  return el(
+function MediaButton(className, item, children, { spoiler = false } = {}) {
+  // Спойлер: первое нажатие снимает размытие, следующее — открывает просмотр.
+  const btn = el(
     "button",
     {
-      class: className,
+      class: spoiler ? `${className} has-spoiler` : className,
       type: "button",
       "data-media-kind": item.kind,
       "data-media-url": item.url,
@@ -17,10 +18,19 @@ function MediaButton(className, item, children) {
       "data-media-original": item.originalUrl || "",
       "data-media-thumb": item.thumbUrl || "",
       "data-media-fallback": item.fallbackUrl || "",
-      onclick: (e) => openMediaViewer({ ...item, ...galleryAround(e.currentTarget) }),
+      onclick: (e) => {
+        if (btn.classList.contains("has-spoiler")) {
+          e.stopPropagation();
+          btn.classList.remove("has-spoiler");
+          btn.classList.add("spoiler-revealed");
+          return;
+        }
+        openMediaViewer({ ...item, ...galleryAround(e.currentTarget) });
+      },
     },
-    children
+    spoiler ? [...children, el("span", { class: "media-spoiler", "aria-hidden": "true" }, el("span", { class: "media-spoiler-label" }, "Нажмите, чтобы открыть"))] : children
   );
+  return btn;
 }
 
 // Картинка с запасными адресами: пока грузится — переливающаяся заглушка, при
@@ -69,7 +79,7 @@ export function ImageAttachment(a) {
     img.width = a.width;
     img.height = a.height;
   }
-  const btn = MediaButton("image-attachment-btn", { kind: "image", url: a.url, name: a.name, thumbUrl: a.thumbUrl || a.url }, [img]);
+  const btn = MediaButton("image-attachment-btn", { kind: "image", url: a.url, name: a.name, thumbUrl: a.thumbUrl || a.url }, [img], { spoiler: !!a.spoiler });
   resilientImage(img, btn, [a.thumbUrl, a.url]);
   return btn;
 }
@@ -90,7 +100,8 @@ export function VideoAttachment(a) {
     a.previewPending
       ? { kind: "video", url: frameSrc, name: a.name, thumbUrl: poster }
       : { kind: "video", url: a.previewUrl || a.url, name: a.name, originalUrl: a.previewUrl ? a.url : null, thumbUrl: poster, fallbackUrl: a.previewUrl ? a.url : null },
-    [cover, a.previewPending ? el("span", { class: "attachment-pending-spinner" }) : el("span", { class: "video-attachment-play", html: iconSvg("Play", 28) })]
+    [cover, a.previewPending ? el("span", { class: "attachment-pending-spinner" }) : el("span", { class: "video-attachment-play", html: iconSvg("Play", 28) })],
+    { spoiler: !!a.spoiler }
   );
   // Size the bubble to the video's real shape instead of a fixed 16:10 strip.
   // Portrait clips get a narrower box so they keep their shape under the height cap.

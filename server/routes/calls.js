@@ -166,6 +166,8 @@ router.post(
       }
       if (otherId) {
         const target = await getUser(otherId);
+        // Бот не может взять трубку — звонок висел бы «вызовом» вечно.
+        if (target?.isBot) return res.status(400).json({ error: "Боту позвонить нельзя" });
         const charge = await chargeForColdCall(req.uid, target);
         if (!charge.ok) {
           return res.status(402).json({

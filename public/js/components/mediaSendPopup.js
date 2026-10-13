@@ -10,6 +10,8 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
   let asFiles = false;
   // Платный пост канала: цена в звёздах (0 — бесплатно).
   let paidStars = 0;
+  // Спойлер: фото/видео размыто, пока получатель не нажмёт (бесплатно).
+  let spoiler = false;
   const paidBar = el("div", { class: "tw-nm-paid", hidden: true });
   const urls = new Map();
   const urlFor = (file) => {
@@ -77,16 +79,18 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
     if (raw == null) return;
     const n = Math.floor(Number(String(raw).trim()));
     paidStars = Number.isFinite(n) && n > 0 ? Math.min(n, 10000) : 0;
+    if (paidStars) spoiler = false;
     render();
   }
 
   function render() {
     titleEl.textContent = title();
-    paidBar.hidden = !paidStars;
+    paidBar.hidden = !paidStars && !spoiler;
     paidBar.replaceChildren(
-      el("span", {}, `⭐ Платный пост: подписчики откроют медиа за ${paidStars} звёзд`),
-      el("button", { type: "button", onclick: () => ((paidStars = 0), render()) }, "Убрать")
+      el("span", {}, paidStars ? `⭐ Фото и видео откроют за ${paidStars} звёзд` : "🫥 Фото и видео будут размыты — откроются по нажатию"),
+      el("button", { type: "button", onclick: () => ((paidStars = 0), (spoiler = false), render()) }, "Убрать")
     );
+    preview.classList.toggle("tw-nm-blurred", !!(paidStars || spoiler));
     const media = items.filter(isMedia);
     const docs = items.filter((i) => !isMedia(i));
     const nodes = [];
@@ -148,8 +152,11 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
             asFiles
               ? { icon: "Image", label: "Отправить сжатым", onClick: () => ((asFiles = false), render()) }
               : { icon: "File", label: "Отправить без сжатия", onClick: () => ((asFiles = true), (paidStars = 0), render()) },
+            !asFiles
+              ? { icon: spoiler ? "Eye" : "EyeOff", label: spoiler ? "Убрать размытие" : "Скрыть под спойлер", onClick: () => ((spoiler = !spoiler), (paidStars = 0), render()) }
+              : null,
             allowPaid && !asFiles
-              ? { icon: "Star", label: paidStars ? "Изменить цену" : "Платный контент ⭐", onClick: () => askPaidPrice() }
+              ? { icon: "Star", label: paidStars ? "Изменить цену" : "Размыть за звёзды ⭐", onClick: () => askPaidPrice() }
               : null,
           ].filter(Boolean));
         },
@@ -171,7 +178,7 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
     const text = captionInput.value;
     const paid = paidStars && !asFiles && out.some((p) => p.kind === "image" || p.kind === "video") ? paidStars : 0;
     close();
-    onSend({ picks: out, caption: text, paidStars: paid });
+    onSend({ picks: out, caption: text, paidStars: paid, spoiler: spoiler && !paid && !asFiles });
   }
   function onKey(e) {
     if (e.key === "Escape") {

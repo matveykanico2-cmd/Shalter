@@ -1551,7 +1551,7 @@ export async function ChatView(root, chatId) {
               el("span", { class: "chat-header-live-label" }, `Голосовой чат · ${voiceRoom.participantIds.length}`),
             ])
           : null,
-        (isDm && !isSaved) || chat.type === "group"
+        (isDm && !isSaved && !other?.isBot) || chat.type === "group"
           ? el("button", {
               class: "icon-btn",
               title: isDm ? "Позвонить" : "Позвонить всем в группе",
@@ -1559,7 +1559,7 @@ export async function ChatView(root, chatId) {
               onclick: () => placeCall("audio"),
             })
           : null,
-        (isDm && !isSaved) || chat.type === "group"
+        (isDm && !isSaved && !other?.isBot) || chat.type === "group"
           ? el("button", {
               class: "icon-btn",
               title: isDm ? "Видеозвонок" : "Видеозвонок всем в группе",
@@ -2283,7 +2283,7 @@ export async function ChatView(root, chatId) {
         topicId: currentTopicId(),
         allowEffects: isDm && !isSaved,
         allowWhenOnline: isDm && !isSaved && !!other && !other.isBot,
-        canPostPaid: isChannelAdmin,
+        canPostPaid: !isSaved && !chat.secret && (!isChannel || isChannelAdmin),
         onEditLast: () => {
           const last = [...messages]
             .reverse()

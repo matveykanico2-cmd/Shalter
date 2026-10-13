@@ -78,6 +78,7 @@ yarn-error.log*
 /data/outbox/
 # рабочий каталог RTMP-сервера (эфиры из OBS, server/rtmp.js)
 /data/rtmp/
+/data/models/
 
 # Старые сборки Electron (до перехода на Tauri) — не для git.
 /dist-electron
