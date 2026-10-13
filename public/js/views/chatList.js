@@ -341,7 +341,8 @@ export function ChatListPane() {
     const known = (getState().chats ?? []).some((c) => c.id === msg.chatId);
     scheduleRefetch(known ? EVENT_REFETCH_MS : 0);
   });
-  const unsubUpdated = onWsMessage("message:updated", () => scheduleRefetch(EVENT_REFETCH_MS));
+  // промежуточные куски печатающегося ответа бота список не трогают
+  const unsubUpdated = onWsMessage("message:updated", (msg) => !msg?.streaming && scheduleRefetch(EVENT_REFETCH_MS));
   const unsubDeleted = onWsMessage("message:deleted", (msg) => {
     const myId = getState().user?.id;
     if (myId && msg.chatId && msg.id) dropCachedMessage(msg.chatId, msg.id, myId);

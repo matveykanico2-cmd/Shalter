@@ -40,8 +40,13 @@ function resilientImage(img, holder, sources) {
   const list = [...new Set(sources.filter(Boolean))];
   let i = 0;
   let failBox = null;
-  img.classList.add("media-loading");
-  img.addEventListener("load", () => img.classList.remove("media-loading"));
+  // Заглушку показываем, только если картинка грузится дольше мгновения: уже
+  // загруженная (из кэша) иначе мигала при каждой перерисовке ленты — чат «дёргался».
+  let shimmerTimer = setTimeout(() => !img.complete && img.classList.add("media-loading"), 150);
+  img.addEventListener("load", () => {
+    clearTimeout(shimmerTimer);
+    img.classList.remove("media-loading");
+  });
   const retry = (e) => {
     e?.stopPropagation();
     e?.preventDefault();
@@ -111,7 +116,11 @@ export function VideoAttachment(a) {
     if (h > w) btn.style.setProperty("--video-w", `${Math.round((VIDEO_MAX_H * w) / h)}px`);
   };
   const watch = (node) => {
-    btn.classList.add("media-loading");
+    const t = setTimeout(() => btn.classList.add("media-loading"), 150);
+    const done = () => clearTimeout(t);
+    node.addEventListener("load", done, { once: true });
+    node.addEventListener("loadeddata", done, { once: true });
+    node.addEventListener("error", done, { once: true });
     if (node.tagName === "VIDEO") {
       node.addEventListener("loadeddata", () => btn.classList.remove("media-loading"), { once: true });
       node.addEventListener("loadedmetadata", () => {

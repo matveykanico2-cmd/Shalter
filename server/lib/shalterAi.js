@@ -32,7 +32,7 @@ const { broadcastToUsers } = require("../ws");
 const { sendMessageAndBroadcast } = require("./systemChat");
 const { readUploadBuffer, storeGeneratedFile, fetchUploadToTemp } = require("./uploadTransfer");
 const { extractVideoFrames } = require("./mediaPreview");
-const { describeImage, LOCAL_VISION_ENABLED } = require("./localVision");
+const { describeImage, transcribeFile, LOCAL_VISION_ENABLED } = require("./localVision");
 const { fixLayout } = require("./keyboardLayout");
 
 const HISTORY_LIMIT = 14;
@@ -530,30 +530,51 @@ async function docxText(buf) {
 const fileTextCache = new Map();
 async function readAttachment(a, { withMedia }) {
   const name = a.name || (a.kind === "image" ? "photo.jpg" : "file");
-  if (a.kind === "voice" && a.transcript) return { text: `[голосовое сообщение] ${a.transcript}` };
-  if (a.kind === "voice") return { text: "[голосовое — без расшифровки]" };
+  // Не файлы: геолокация, контакт, опрос, чек-лист, кубик, игра, платный пост.
+  const meta = a.meta ?? {};
+  if (a.kind === "location") return { text: await locationText(meta) };
+  if (a.kind === "contact") return { text: `[контакт: ${meta.name || "без имени"}${meta.phone ? `, телефон ${meta.phone}` : ""}]` };
+  if (a.kind === "poll") return { text: `[опрос; варианты: ${(meta.options ?? []).map((o, i) => `${i + 1}) ${o} — ${meta.votes?.[i] ?? 0} голос.`).join("; ")}]` };
+  if (a.kind === "checklist") return { text: `[чек-лист: ${(meta.items ?? []).map((it) => `${it.done ? "✓" : "☐"} ${it.text}`).join("; ")}]` };
+  if (a.kind === "dice") return { text: `[бросок ${meta.emoji ?? "🎲"}: выпало ${meta.value ?? "?"}]` };
+  if (a.kind === "game") return { text: `[игра «${meta.title ?? "Игра"}»]` };
+  if (a.kind === "paid") return { text: `[платный пост: ${meta.count ?? 1} медиа за ${meta.stars ?? "?"} звёзд]` };
+
+  // Голосовое: расшифровка при записи или локальное распознавание речи.
+  if (a.kind === "voice" || (a.kind === "file" && /^audio\//.test(a.mimeType ?? ""))) {
+    const label = a.kind === "voice" ? `голосовое сообщение${a.durationSec ? ` ${Math.round(a.durationSec)} с` : ""}` : `аудиофайл «${name}»`;
+    if (a.transcript) return { text: `[${label}] ${a.transcript}` };
+    if ((!withMedia && !speechCache.has(a.url)) || !LOCAL_VISION_ENABLED || typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: `[${label} — без расшифровки]` };
+    const speech = await speechOf(a.url);
+    return { text: speech ? `[${label}, расшифровка речи]: ${speech}` : `[${label} — речь не распознана (тишина или музыка)]` };
+  }
+
   const isVideoFile = a.kind === "file" && /^video\//.test(a.mimeType ?? "");
   if (a.kind === "video" || a.kind === "video-note" || isVideoFile) {
-    if (!withMedia) return { text: "[видео]" };
+    const label = a.kind === "video-note" ? "видеосообщение (кружок)" : "видео";
+    if (!withMedia) return { text: `[${label}]` };
     if (!canSeeMedia()) return { note: "video" };
     const src = a.previewUrl || a.url;
-    if (typeof src !== "string" || !src.startsWith("/uploads/")) return { text: "[видео]" };
+    if (typeof src !== "string" || !src.startsWith("/uploads/")) return { text: `[${label}]` };
+    // Что говорят в ролике — тоже важно (кружки почти всегда «говорящие»).
+    const speech = LOCAL_VISION_ENABLED ? await speechOf(a.url).catch(() => "") : "";
+    const speechPart = speech ? `\nРечь в ролике: ${speech}` : "";
     const { frames, durationSec } = await videoFrames(src, a.durationSec);
-    if (!frames.length) return { text: "[видео — не удалось прочитать кадры]" };
+    if (!frames.length) return { text: `[${label} — не удалось прочитать кадры]${speechPart}` };
     if (!remoteVision()) {
       // Локально — 3 кадра (начало, середина, конец): каждый распознаётся пару секунд.
       const pick = frames.length <= 3 ? frames : [frames[0], frames[Math.floor(frames.length / 2)], frames[frames.length - 1]];
       const parts = [];
       for (const f of pick) parts.push(await localDescription(f.buf, `Кадр на ${Math.round(f.at)} с`));
-      return { text: `[видео ${Math.round(durationSec) || "?"} с]\n${parts.join("\n")}` };
+      return { text: `[${label} ${Math.round(durationSec) || "?"} с]\n${parts.join("\n")}${speechPart}` };
     }
     return {
-      text: `[видео ${Math.round(durationSec) || "?"} с — ниже ${frames.length} кадр(ов) по порядку: ${frames.map((f) => `${Math.round(f.at)} с`).join(", ")}]`,
+      text: `[${label} ${Math.round(durationSec) || "?"} с — ниже ${frames.length} кадр(ов) по порядку: ${frames.map((f) => `${Math.round(f.at)} с`).join(", ")}]${speechPart}`,
       media: frames.map((f, i) => ({ buf: f.buf, mime: "image/jpeg", name: `frame${i + 1}.jpg` })),
     };
   }
   if (a.kind === "image") {
-    if (!withMedia) return { text: "[фото]" };
+    if (!withMedia) return { text: fileTextCache.get(`vision:${a.url}`) ?? "[фото]" };
     if (!canSeeMedia()) return { note: "photo" };
     if (typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: "[фото]" };
     const buf = await readUploadBuffer(a.url, MAX_IMAGE_BYTES);
@@ -584,6 +605,45 @@ async function readAttachment(a, { withMedia }) {
   return { text: `[файл «${name}» — такой формат я не читаю]` };
 }
 
+// Расшифровка речи из файла загрузки (кэшируется: история перечитывается на каждый ответ).
+const speechCache = new Map();
+async function speechOf(url) {
+  if (speechCache.has(url)) return speechCache.get(url);
+  const local = await fetchUploadToTemp(url.slice("/uploads/".length));
+  try {
+    const text = await transcribeFile(local).catch((err) => {
+      console.warn("shalter ai: speech failed:", err.message);
+      return "";
+    });
+    speechCache.set(url, text);
+    if (speechCache.size > 50) speechCache.delete(speechCache.keys().next().value);
+    return text;
+  } finally {
+    fs.promises.unlink(local).catch(() => {});
+  }
+}
+
+// Геолокация → адрес (OpenStreetMap Nominatim, бесплатно и без ключа).
+const placeCache = new Map();
+async function locationText({ lat, lng, live }) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "[геолокация]";
+  const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  if (!placeCache.has(key)) {
+    let place = "";
+    try {
+      const res = await httpsRequest(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=ru&zoom=18`, {
+        timeoutMs: 8000,
+        headers: { "User-Agent": "Shalter/1.0 (https://shalter.ru)" },
+      });
+      if (res.status === 200) place = JSON.parse(res.body.toString("utf8"))?.display_name ?? "";
+    } catch {}
+    placeCache.set(key, place);
+    if (placeCache.size > 200) placeCache.delete(placeCache.keys().next().value);
+  }
+  const place = placeCache.get(key);
+  return `[${live ? "живая геолокация" : "геолокация"}: ${place || "адрес не определён"} (координаты ${lat.toFixed(5)}, ${lng.toFixed(5)})]`;
+}
+
 // Кадры видео кэшируем: в истории одно и то же видео иначе резалось бы заново.
 const frameCache = new Map();
 async function videoFrames(url, durationSec) {
@@ -612,7 +672,10 @@ async function loadTurns(chat, userId) {
   // «/new» — начать разговор заново: всё, что было до него, не учитываем.
   const resetAt = visible.map((m) => m.senderId !== SHALTER_AI_ID && /^\s*\/new\b/i.test(m.text ?? "")).lastIndexOf(true);
   if (resetAt >= 0) visible = visible.slice(resetAt + 1);
-  const lastUserIdx = visible.map((m) => m.senderId !== SHALTER_AI_ID).lastIndexOf(true);
+  // Вложения разбираем во всех сообщениях после последнего ответа бота: обычно
+  // присылают фото, а вопрос «что на фото?» — следующим сообщением. Раньше
+  // смотрелось только последнее сообщение, и фото бот «не видел».
+  const lastBotIdx = visible.map((m) => m.senderId === SHALTER_AI_ID).lastIndexOf(true);
   const notes = new Set();
   const turns = [];
   for (const [i, m] of visible.entries()) {
@@ -621,7 +684,7 @@ async function loadTurns(chat, userId) {
     const media = [];
     for (const a of role === "user" ? (m.attachments ?? []) : []) {
       try {
-        const r = await readAttachment(a, { withMedia: i === lastUserIdx });
+        const r = await readAttachment(a, { withMedia: i > lastBotIdx });
         if (r.text) parts.push(r.text);
         if (r.media) media.push(...[].concat(r.media));
         if (r.note) notes.add(r.note);
@@ -631,6 +694,8 @@ async function loadTurns(chat, userId) {
         else notes.add("large");
       }
     }
+    if (m.sticker) parts.push(`[стикер ${m.sticker.emoji ?? ""}]`.replace(" ]", "]"));
+    if (m.gift) parts.push(`[подарок «${m.gift.name ?? "подарок"}»]`);
     let text = (m.text ?? "").trim();
     const fixedLayout = role === "user" ? fixLayout(text) : null;
     if (fixedLayout) text = `${fixedLayout}\n(набрано в английской раскладке: «${text}»)`;
@@ -839,6 +904,55 @@ async function drawFreeSvg(chat, userId, request) {
   return null;
 }
 
+// Рисование: FLUX.1-schnell (публичное пространство Hugging Face, бесплатно и без
+// ключа; с HF_TOKEN — больше квота) — точно следует описанию и без водяных знаков.
+// Запасной — Pollinations (без ключа там осталась слабая модель с водяным знаком).
+const FLUX_SPACE = process.env.FLUX_SPACE_URL || "https://black-forest-labs-flux-1-schnell.hf.space/gradio_api";
+
+async function viaFluxSpace(prompt) {
+  const auth = HF_TOKEN ? { Authorization: `Bearer ${HF_TOKEN}` } : {};
+  const body = Buffer.from(JSON.stringify({ data: [prompt.slice(0, 1500), 0, true, 1024, 1024, 4] }));
+  const start = await httpsRequest(`${FLUX_SPACE}/call/infer`, {
+    method: "POST",
+    timeoutMs: 20000,
+    headers: { "Content-Type": "application/json", "Content-Length": body.length, ...auth },
+    body,
+  });
+  const eventId = parseJson(start, "flux start")?.event_id;
+  if (!eventId) throw new Error("flux: нет event_id");
+  const result = await httpsRequest(`${FLUX_SPACE}/call/infer/${eventId}`, { timeoutMs: 120000, headers: auth });
+  const text = result.body.toString("utf8");
+  if (/event:\s*error/.test(text)) throw new Error(`flux: ${text.slice(0, 200)}`);
+  const url = text.match(/"url":\s*"([^"]+)"/)?.[1];
+  if (!url) throw new Error("flux: нет картинки в ответе");
+  const img = await httpsRequest(url, { timeoutMs: 30000, headers: auth });
+  if (img.status !== 200 || img.body.length < 1000) throw new Error(`flux image HTTP ${img.status}`);
+  return img.body;
+}
+
+async function viaPollinationsImage(prompt) {
+  const seed = crypto.randomInt(1, 2 ** 31);
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 1000))}?width=1024&height=1024&model=flux&nologo=true&private=true&enhance=true&seed=${seed}`;
+  const res = await httpsRequest(url, { timeoutMs: 90000, headers: POLLINATIONS_TOKEN ? { Authorization: `Bearer ${POLLINATIONS_TOKEN}` } : {} });
+  if (res.status !== 200 || !String(res.headers["content-type"] ?? "").startsWith("image/") || res.body.length < 1000) throw new Error(`image HTTP ${res.status}`);
+  return res.body;
+}
+
+// Картинка → JPEG (FLUX отдаёт webp; в чат и превью удобнее JPEG).
+async function renderImage(prompt) {
+  let lastErr = null;
+  for (const [name, fn] of [["flux", viaFluxSpace], ["flux", viaFluxSpace], ["pollinations", viaPollinationsImage]]) {
+    try {
+      const raw = await fn(prompt);
+      return await require("sharp")(raw).jpeg({ quality: 90 }).toBuffer();
+    } catch (err) {
+      lastErr = err;
+      console.warn(`shalter ai: image via ${name} failed:`, err.message);
+    }
+  }
+  throw lastErr ?? new Error("не удалось нарисовать");
+}
+
 async function drawImage(chat, userId, request) {
   let prompt = request;
   if (!prompt && /^\s*\/(?:image|draw)/i.test(request ?? "")) {
@@ -877,17 +991,12 @@ async function drawImage(chat, userId, request) {
   prompt = await craftImagePrompt(chat, userId, request);
   const tmp = path.join(os.tmpdir(), `shalter_ai_${crypto.randomBytes(8).toString("hex")}.jpg`);
   try {
-    const seed = crypto.randomInt(1, 2 ** 31);
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 1000))}?width=1024&height=1024&model=flux&nologo=true&private=true&enhance=true&seed=${seed}`;
-    const res = await httpsRequest(url, { timeoutMs: 90000, headers: POLLINATIONS_TOKEN ? { Authorization: `Bearer ${POLLINATIONS_TOKEN}` } : {} });
-    if (res.status !== 200 || !String(res.headers["content-type"] ?? "").startsWith("image/") || res.body.length < 1000) {
-      throw new Error(`image HTTP ${res.status}`);
-    }
-    await fs.promises.writeFile(tmp, res.body);
+    const image = await renderImage(prompt);
+    await fs.promises.writeFile(tmp, image);
     const stored = await storeGeneratedFile(tmp);
     stop();
     await sendMessageAndBroadcast(chat, SHALTER_AI_ID, request ? `🎨 ${request.slice(0, 300)}` : "", {
-      attachments: [{ kind: "image", url: stored, name: "shalter-ai.jpg", mimeType: "image/jpeg", size: res.body.length }],
+      attachments: [{ kind: "image", url: stored, name: "shalter-ai.jpg", mimeType: "image/jpeg", size: image.length }],
     });
   } catch (err) {
     stop();
@@ -922,7 +1031,9 @@ async function replyOnce(chat, userId) {
           stop();
         } else {
           const updated = setStreamingText(live.id, `${shown} ▍`);
-          if (updated) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+          // streaming: промежуточный кусок — клиент обновляет только пузырь, без
+          // перерисовки списка чатов и сверки с сервером (иначе всё дёргалось).
+          if (updated) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated, streaming: true });
         }
       } catch {}
     });
@@ -930,7 +1041,7 @@ async function replyOnce(chat, userId) {
   const onDelta = (t) => {
     liveText = t;
     if (!live && t.length < 24) return; // не начинаем с пары букв
-    flushTimer ??= setTimeout(flush, live ? 700 : 150);
+    flushTimer ??= setTimeout(flush, live ? 900 : 150);
   };
   try {
     const loaded = await loadTurns(chat, userId);
@@ -975,7 +1086,7 @@ async function dispatchShalterAi(chatId, message) {
     const rawText = (message.text ?? "").trim();
     // «yfhbceq rjnf» (английская раскладка) → «нарисуй кота»
     const text = fixLayout(rawText) ?? rawText;
-    if (!text && !message.attachments?.length) return;
+    if (!text && !message.attachments?.length && !message.sticker) return;
 
     if (/^\/start\b/i.test(text)) return void (await sendMessageAndBroadcast(chat, SHALTER_AI_ID, WELCOME));
     if (/^\/new\b/i.test(text)) return void (await sendMessageAndBroadcast(chat, SHALTER_AI_ID, "Начинаем заново — о чём поговорим?"));
@@ -1010,4 +1121,4 @@ async function dispatchShalterAi(chatId, message) {
   }
 }
 
-module.exports = { dispatchShalterAi, WELCOME, DRAW_RE, drawRequest, splitReply, generate, localDescription, sanitizeSvg, DIAGRAM_RE, drawDiagram, readAttachment };
+module.exports = { dispatchShalterAi, WELCOME, DRAW_RE, drawRequest, splitReply, generate, localDescription, sanitizeSvg, DIAGRAM_RE, drawDiagram, readAttachment, renderImage };

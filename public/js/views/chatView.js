@@ -2523,7 +2523,8 @@ export async function ChatView(root, chatId) {
     const wasAtBottom = atBottom();
     const prevTop = list.scrollTop;
     renderList();
-    const follow = insert && i < 0 && (wasAtBottom || stuckToBottom);
+    // Новое сообщение или растущее (ответ бота печатается) — держим низ, если были внизу.
+    const follow = (insert ? i < 0 : true) && (wasAtBottom || stuckToBottom);
     list.scrollTop = follow ? list.scrollHeight : prevTop;
     if (insert && i < 0 && !follow) missedWhileUp += 1;
     updateScrollDown();
@@ -2537,6 +2538,11 @@ export async function ChatView(root, chatId) {
   });
   const unsubMessageUpdated = onWsMessage("message:updated", (msg) => {
     if (msg.chatId !== chat.id) return;
+    if (msg.streaming) {
+      // Ответ бота дописывается: обновляем только пузырь.
+      if (canApplyLive(msg.message)) applyLive(msg.message, { insert: false });
+      return;
+    }
     updateMessageInChatList(chat.id, msg.message);
     if (canApplyLive(msg.message) && applyLive(msg.message, { insert: false })) reconcileSoon();
     else scheduleRefresh();
