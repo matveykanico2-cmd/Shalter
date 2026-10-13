@@ -16,15 +16,62 @@ function MediaButton(className, item, children) {
       "data-media-name": item.name || "",
       "data-media-original": item.originalUrl || "",
       "data-media-thumb": item.thumbUrl || "",
+      "data-media-fallback": item.fallbackUrl || "",
       onclick: (e) => openMediaViewer({ ...item, ...galleryAround(e.currentTarget) }),
     },
     children
   );
 }
 
+// Картинка с запасными адресами: пока грузится — переливающаяся заглушка, при
+// ошибке пробуем следующий адрес, а если не отдался ни один (плохая сеть) —
+// вместо битой иконки плашка «Повторить»; при возвращении сети — сама.
+function resilientImage(img, holder, sources) {
+  const list = [...new Set(sources.filter(Boolean))];
+  let i = 0;
+  let failBox = null;
+  img.classList.add("media-loading");
+  img.addEventListener("load", () => img.classList.remove("media-loading"));
+  const retry = (e) => {
+    e?.stopPropagation();
+    e?.preventDefault();
+    window.removeEventListener("online", retry);
+    i = 0;
+    failBox?.remove();
+    failBox = null;
+    img.hidden = false;
+    img.classList.add("media-loading");
+    const u = list[0];
+    img.src = u + (u.includes("?") ? "&" : "?") + "r=" + Date.now().toString(36);
+  };
+  img.addEventListener("error", () => {
+    if (++i < list.length) {
+      img.src = list[i];
+      return;
+    }
+    if (failBox) return;
+    img.hidden = true;
+    failBox = el("span", { class: "media-failed-box", role: "button", onclick: retry }, [
+      el("span", { class: "media-failed-icon", html: iconSvg("RotateCw", 22) }),
+      el("span", {}, navigator.onLine === false ? "Нет сети" : "Не загрузилось"),
+      el("span", { class: "media-failed-hint" }, "Нажмите, чтобы повторить"),
+    ]);
+    holder.appendChild(failBox);
+    window.addEventListener("online", retry, { once: true });
+  });
+  img.src = list[0] ?? "";
+}
+
 export function ImageAttachment(a) {
-  const img = el("img", { loading: "lazy", decoding: "async", src: a.thumbUrl || a.url, alt: a.name || "photo", class: "image-attachment" });
-  return MediaButton("image-attachment-btn", { kind: "image", url: a.url, name: a.name, thumbUrl: a.thumbUrl || a.url }, [img]);
+  const img = el("img", { loading: "lazy", decoding: "async", alt: a.name || "photo", class: "image-attachment" });
+  // Размеры заранее — лента не прыгает, пока фото грузится.
+  if (a.width > 0 && a.height > 0) {
+    img.width = a.width;
+    img.height = a.height;
+  }
+  const btn = MediaButton("image-attachment-btn", { kind: "image", url: a.url, name: a.name, thumbUrl: a.thumbUrl || a.url }, [img]);
+  resilientImage(img, btn, [a.thumbUrl, a.url]);
+  return btn;
 }
 
 const VIDEO_MAX_H = 420;
@@ -35,12 +82,14 @@ export function VideoAttachment(a) {
   const localVideo = a.thumbUrl?.startsWith("blob:") ? a.thumbUrl : null;
   const poster = a.posterUrl || (localVideo ? null : a.thumbUrl);
   const frameSrc = localVideo || a.url;
-  const cover = poster
-    ? el("img", { loading: "lazy", decoding: "async", src: poster, alt: "", class: "video-attachment-poster" })
-    : el("video", { class: "video-attachment-poster", src: frameSrc.includes("#") ? frameSrc : `${frameSrc}#t=0.1`, preload: "metadata", muted: true, playsinline: true });
+  const frameVideo = () =>
+    el("video", { class: "video-attachment-poster", src: frameSrc.includes("#") ? frameSrc : `${frameSrc}#t=0.1`, preload: "metadata", muted: true, playsinline: true });
+  let cover = poster ? el("img", { loading: "lazy", decoding: "async", src: poster, alt: "", class: "video-attachment-poster" }) : frameVideo();
   const btn = MediaButton(
     "video-attachment-btn",
-    a.previewPending ? { kind: "video", url: frameSrc, name: a.name } : { kind: "video", url: a.previewUrl || a.url, name: a.name, originalUrl: a.previewUrl ? a.url : null },
+    a.previewPending
+      ? { kind: "video", url: frameSrc, name: a.name, thumbUrl: poster }
+      : { kind: "video", url: a.previewUrl || a.url, name: a.name, originalUrl: a.previewUrl ? a.url : null, thumbUrl: poster, fallbackUrl: a.previewUrl ? a.url : null },
     [cover, a.previewPending ? el("span", { class: "attachment-pending-spinner" }) : el("span", { class: "video-attachment-play", html: iconSvg("Play", 28) })]
   );
   // Size the bubble to the video's real shape instead of a fixed 16:10 strip.
@@ -50,9 +99,33 @@ export function VideoAttachment(a) {
     btn.style.aspectRatio = `${w} / ${h}`;
     if (h > w) btn.style.setProperty("--video-w", `${Math.round((VIDEO_MAX_H * w) / h)}px`);
   };
+  const watch = (node) => {
+    btn.classList.add("media-loading");
+    if (node.tagName === "VIDEO") {
+      node.addEventListener("loadeddata", () => btn.classList.remove("media-loading"), { once: true });
+      node.addEventListener("loadedmetadata", () => {
+        btn.classList.remove("media-loading");
+        if (!(a.width && a.height)) setRatio(node.videoWidth, node.videoHeight);
+      }, { once: true });
+      // Кадр не достался (сеть, кодек) — тёмная плашка с кнопкой Play, без битой иконки.
+      node.addEventListener("error", () => btn.classList.remove("media-loading"), { once: true });
+    } else {
+      node.addEventListener("load", () => {
+        btn.classList.remove("media-loading");
+        if (!(a.width && a.height)) setRatio(node.naturalWidth, node.naturalHeight);
+      }, { once: true });
+      // Обложка не загрузилась — берём первый кадр самого ролика.
+      node.addEventListener("error", () => {
+        const v = frameVideo();
+        node.replaceWith(v);
+        cover = v;
+        watch(v);
+      }, { once: true });
+    }
+  };
   if (a.width && a.height) setRatio(a.width, a.height);
-  else if (cover.tagName === "VIDEO") cover.addEventListener("loadedmetadata", () => setRatio(cover.videoWidth, cover.videoHeight), { once: true });
-  else cover.addEventListener("load", () => setRatio(cover.naturalWidth, cover.naturalHeight), { once: true });
+  watch(cover);
+  if (a.durationSec > 0) btn.appendChild(el("span", { class: "video-attachment-duration mono" }, clockTime(a.durationSec)));
   return btn;
 }
 
@@ -108,7 +181,7 @@ function FileLink(a) {
     ]),
     el("div", { class: "file-attachment-info" }, [
       el("p", { class: "file-attachment-name" }, a.name || "Файл"),
-      el("p", { class: "mono file-attachment-size" }, a.size ? formatSize(a.size) : ""),
+      el("p", { class: "mono file-attachment-size", "data-bytes": a.size || "" }, a.size ? formatSize(a.size) : ""),
     ]),
   ]);
 }

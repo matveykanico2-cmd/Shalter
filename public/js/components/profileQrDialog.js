@@ -1,4 +1,5 @@
 import { el } from "../lib/dom.js";
+import { usernameUrl } from "../lib/publicLink.js";
 import { prettyQrSvg } from "../lib/prettyQr.js";
 import { qrCardPng } from "../lib/qrCard.js";
 import { iconSvg } from "../icons.js";
@@ -25,7 +26,7 @@ function qrSvg(text, ink) {
 
 export function openProfileQrDialog(user) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
-  const url = `${window.location.origin}/u/${user.username}`;
+  const url = usernameUrl(user.username);
   const copiedNote = el("p", { class: "settings-toggle-hint" });
 
   let themeId = "blue";

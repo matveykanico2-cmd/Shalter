@@ -29,7 +29,7 @@ const HUGO_AI_ENABLED = !/^(0|off|false|no)$/i.test(process.env.HUGO_AI || "");
 const HUGO_AI_URL = process.env.HUGO_AI_URL ?? "https://text.pollinations.ai/openai";
 const HUGO_AI_MODEL = process.env.HUGO_AI_MODEL || "openai-fast"; // без ключа Pollinations отдаёт только эту модель
 const HUGO_AI_GET_URL = process.env.HUGO_AI_GET_URL ?? "https://text.pollinations.ai/";
-const HUGO_AI_TIMEOUT_MS = Number(process.env.HUGO_AI_TIMEOUT_MS) || 25000;
+const HUGO_AI_TIMEOUT_MS = Number(process.env.HUGO_AI_TIMEOUT_MS) || 50000;
 const OLLAMA_URL = (process.env.OLLAMA_URL || "").replace(/\/+$/, "");
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2";
 
@@ -41,6 +41,15 @@ const GIGACHAT_SCOPE = process.env.GIGACHAT_SCOPE || "GIGACHAT_API_PERS";
 const GIGACHAT_MODEL = process.env.GIGACHAT_MODEL || "GigaChat-2";
 const GIGACHAT_VISION_MODEL = process.env.GIGACHAT_VISION_MODEL || "GigaChat-2-Max";
 const POLLINATIONS_TOKEN = process.env.POLLINATIONS_TOKEN || "";
+// Бесплатные нейросети, которые видят фото и видео (кадрами) и доступны из России:
+// OpenRouter — бесплатные модели «:free» (Gemma и др.), ключ на openrouter.ai/keys;
+// Hugging Face — бесплатный месячный пакет, токен на huggingface.co/settings/tokens.
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "";
+const HF_TOKEN = process.env.HF_TOKEN || "";
+const HF_MODEL = process.env.HF_MODEL || "google/gemma-3-12b-it";
+const SHALTER_AI_RATE_PER_MIN = Number(process.env.SHALTER_AI_RATE_PER_MIN) || 30;
+const SHALTER_AI_IMAGES_PER_MIN = Number(process.env.SHALTER_AI_IMAGES_PER_MIN) || 10;
 
 module.exports = {
   LANGUAGETOOL_URL,
@@ -57,6 +66,12 @@ module.exports = {
   GIGACHAT_MODEL,
   GIGACHAT_VISION_MODEL,
   POLLINATIONS_TOKEN,
+  OPENROUTER_API_KEY,
+  OPENROUTER_MODEL,
+  HF_TOKEN,
+  HF_MODEL,
+  SHALTER_AI_RATE_PER_MIN,
+  SHALTER_AI_IMAGES_PER_MIN,
   ADMIN_PHONE,
   ADMIN_PHONES,
   isAdminPhone,

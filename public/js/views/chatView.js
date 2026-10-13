@@ -103,8 +103,9 @@ export async function ChatView(root, chatId) {
   };
   const cached = readCache(`chat.${chatId}`, me.id);
   let openedFromCache = false;
+  let chatMetaFresh = true;
   let awaitingUnreadMark = false;
-  if (cached?.chat && cached.messages?.length) {
+  if (cached?.chat && Array.isArray(cached.messages)) {
     chat = cached.chat;
     members = cached.members ?? [];
     messages = cached.messages;
@@ -158,9 +159,20 @@ export async function ChatView(root, chatId) {
     writeCache(`chat.${chatId}`, me.id, { chat, members, messages: messages.slice(-PAGE_SIZE) });
   } catch (err) {
     if (superseded()) return;
+    const missing = err?.status === 404 || err?.status === 403;
+    // Сеть плохая, но чат есть в списке — открываем его сразу с полем ввода:
+    // писать можно, отправленное уйдёт само, лента и данные чата догрузятся,
+    // когда связь вернётся (как при открытии из сохранённой копии).
+    const listedChat = !openedFromCache && !missing ? getState().chats?.find((c) => c.id === chatId) : null;
+    if (listedChat) {
+      chat = { ...listedChat, memberIds: listedChat.memberIds ?? [me.id, listedChat.otherUser?.id].filter(Boolean) };
+      members = [me, listedChat.otherUser].filter(Boolean);
+      messages = [];
+      hasMoreHistory = true;
+      openedFromCache = true;
+    }
     if (!openedFromCache) {
       const offline = err?.offline ?? !navigator.onLine;
-      const missing = err?.status === 404 || err?.status === 403;
       // Иначе повторное нажатие на этот же чат в списке ничего не делало (маршрутизатор
       // считал его уже открытым), и чат оставался «сломанным» до перезапуска.
       delete root.dataset.path;
@@ -500,7 +512,7 @@ export async function ChatView(root, chatId) {
       // localId — метка отправки: повтор после обрыва сети сервер узнаёт и не создаёт дубль.
       const { message } = await sendRetryingOffline(() =>
         isChannel
-          ? api.publishPost(chat.id, text, attachments, localId)
+          ? api.publishPost(chat.id, text, attachments, localId, extra.paidMedia)
           : api.sendMessage(chat.id, text, { replyToId, attachments, ...extra, clientId: localId })
       );
       sentMessage = message;
@@ -1401,7 +1413,51 @@ export async function ChatView(root, chatId) {
   let subtitleEl = null;
   let prevSubtitleText = null;
 
+  // Бот готовит ответ — пузырь «Думает…» с точками и секундомером внизу ленты,
+  // чтобы долгая генерация не выглядела зависанием.
+  let thinkingEl = null;
+  let thinkingSince = 0;
+  let thinkingIv = null;
+  function syncThinking() {
+    const typist = typingUserId ? members.find((m) => m.id === typingUserId) ?? (other?.id === typingUserId ? other : null) : null;
+    const isBotTypist = !!typist?.isBot || typingUserId === "bot_shalter_ai" || typingUserId === "bot_support";
+    if (!isBotTypist) {
+      clearInterval(thinkingIv);
+      thinkingIv = null;
+      thinkingEl?.remove();
+      thinkingEl = null;
+      thinkingSince = 0;
+      return;
+    }
+    if (!thinkingSince) thinkingSince = Date.now();
+    const drawing = typingAction === "upload_photo";
+    const label = drawing ? "Рисует картинку" : "Думает";
+    if (!thinkingEl) {
+      thinkingEl = el("div", { class: "bot-thinking-row" }, [
+        el("div", { class: "bot-thinking-bubble" }, [
+          el("span", { class: "bot-thinking-dots" }, [el("i"), el("i"), el("i")]),
+          el("span", { class: "bot-thinking-label" }),
+          el("span", { class: "bot-thinking-time mono" }),
+        ]),
+      ]);
+    }
+    const paint = () => {
+      if (!thinkingEl) return;
+      const sec = Math.floor((Date.now() - thinkingSince) / 1000);
+      thinkingEl.querySelector(".bot-thinking-label").textContent = label + "…";
+      thinkingEl.querySelector(".bot-thinking-time").textContent = sec >= 3 ? `${sec} с` : "";
+      if (thinkingEl.parentNode !== list || list.lastElementChild !== thinkingEl) {
+        const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 120;
+        list.appendChild(thinkingEl);
+        if (nearBottom) list.scrollTop = list.scrollHeight;
+      }
+    };
+    paint();
+    thinkingIv ??= setInterval(paint, 1000);
+  }
+
   function renderHeader() {
+    syncThinking();
     const subtitle = (() => {
       if (typingUserId) {
         const label = CHAT_ACTION_LABELS[typingAction] ?? CHAT_ACTION_LABELS.typing;
@@ -2035,6 +2091,7 @@ export async function ChatView(root, chatId) {
       }
     });
     if (chatAd && messages.length) out.push(memo("ad", JSON.stringify(chatAd), () => SponsoredMessage(chatAd)));
+    if (thinkingEl) out.push(thinkingEl);
     // Сводим DOM к нужному порядку: узлы на своих местах не трогаем.
     const keep = new Set(out);
     let cursor = list.firstChild;
@@ -2226,6 +2283,7 @@ export async function ChatView(root, chatId) {
         topicId: currentTopicId(),
         allowEffects: isDm && !isSaved,
         allowWhenOnline: isDm && !isSaved && !!other && !other.isBot,
+        canPostPaid: isChannelAdmin,
         onEditLast: () => {
           const last = [...messages]
             .reverse()
@@ -2335,6 +2393,21 @@ export async function ChatView(root, chatId) {
   // повторно (например, сразу после отправки подарка), остаётся со старой лентой
   // до следующего опроса — до минуты, если сокет открыт.
   const cacheRefresh = openedFromCache ? refreshMessages() : null;
+  // «Ответить» из уведомления: /chat/:id?reply=<messageId> — сразу ответ на него.
+  const replyFromPush = new URLSearchParams(window.location.search).get("reply");
+  if (replyFromPush) {
+    window.history.replaceState(null, "", window.location.pathname);
+    (async () => {
+      if (cacheRefresh) await cacheRefresh;
+      const target = messages.find((m) => m.id === replyFromPush);
+      if (target) {
+        replyingTo = target;
+        editingMessage = null;
+        renderComposer();
+      }
+      composerSlot.querySelector("textarea, [contenteditable='true']")?.focus();
+    })();
+  }
   const focusMessageId = new URLSearchParams(window.location.search).get("msg");
   if (focusMessageId) {
     window.history.replaceState(null, "", window.location.pathname);
@@ -2360,8 +2433,10 @@ export async function ChatView(root, chatId) {
     if (document.hidden) return;
     lastMessagesPoll = Date.now();
     scheduleRefresh(0);
+    if (!chatMetaFresh) loadChatMeta();
   };
   document.addEventListener("visibilitychange", catchUp);
+  window.addEventListener("online", catchUp);
   const unsubReconnected = onWsMessage("ws:reconnected", catchUp);
   const lastSeenIv = setInterval(() => {
     if (isDm && other && !other.online && header.isConnected) renderHeader();
@@ -2531,10 +2606,14 @@ export async function ChatView(root, chatId) {
       .catch(() => {});
   });
 
-  if (openedFromCache) {
-    api
+  // Данные чата из сохранённой копии/списка — догружаем свежие; если сеть
+  // подвела, повторяем при переподключении (catchUp ниже).
+  chatMetaFresh = !openedFromCache;
+  function loadChatMeta() {
+    return api
       .getChat(chatId)
       .then((res) => {
+        chatMetaFresh = true;
         // Свежие данные чаще всего совпадают с сохранёнными (меняется разве что «был(а) в
         // сети»). Новые объекты chat/members сбрасывали кэш пузырей (renderList), и вся
         // лента строилась второй раз — присутствие в пузырях не показывается, его
@@ -2563,6 +2642,9 @@ export async function ChatView(root, chatId) {
         renderComposer();
       })
       .catch(() => {});
+  }
+  if (openedFromCache) {
+    loadChatMeta();
     scheduleRefresh(0);
   }
 
@@ -2592,6 +2674,8 @@ export async function ChatView(root, chatId) {
     document.removeEventListener("keydown", onChatKeydown, true);
     clearInterval(messagesIv);
     document.removeEventListener("visibilitychange", catchUp);
+    window.removeEventListener("online", catchUp);
+    clearInterval(thinkingIv);
     unsubReconnected();
     clearInterval(lastSeenIv);
     clearInterval(typingIv);

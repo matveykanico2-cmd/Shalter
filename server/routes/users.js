@@ -86,7 +86,10 @@ router.get(
   })
 );
 
-const EDITABLE_FIELDS = ["name", "lastName", "username", "phone", "bio", "avatarColor", "avatarImage", "birthday", "businessAddress", "businessLat", "businessLng", "nameColor"];
+const EDITABLE_FIELDS = ["name", "lastName", "username", "phone", "bio", "avatarColor", "avatarImage", "birthday", "businessAddress", "businessLat", "businessLng", "nameColor", "profileBanner"];
+// Встроенные баннеры профиля (public/js/lib/profileBanners.js) и своё фото из загрузок.
+const BANNER_ID_RE = /^[a-z0-9-]{1,32}$/;
+const BANNER_UPLOAD_RE = /^\/uploads\/[a-z0-9]+_[a-f0-9]{16}\.(jpe?g|png|webp|gif)$/;
 // Цвета имени — палитра peer colors из Telegram.
 const NAME_COLORS = ["red", "orange", "violet", "green", "cyan", "blue", "pink"];
 
@@ -263,6 +266,18 @@ router.patch(
       if (patch.nameColor != null && !NAME_COLORS.includes(patch.nameColor)) return res.status(400).json({ error: "Некорректный цвет имени" });
       if (patch.nameColor != null && !(await getUser(req.uid))?.isPremium) {
         return res.status(403).json({ error: "Цвет имени доступен с Shalter Premium" });
+      }
+    }
+    if ("profileBanner" in patch) {
+      const b = patch.profileBanner;
+      if (b == null) patch.profileBanner = null;
+      else if (typeof b !== "object" || typeof b.id !== "string" || !BANNER_ID_RE.test(b.id)) {
+        return res.status(400).json({ error: "Некорректный баннер" });
+      } else if (b.id === "custom") {
+        if (typeof b.url !== "string" || !BANNER_UPLOAD_RE.test(b.url)) return res.status(400).json({ error: "Некорректное изображение баннера" });
+        patch.profileBanner = { id: "custom", url: b.url };
+      } else {
+        patch.profileBanner = { id: b.id };
       }
     }
     for (const key of ["businessLat", "businessLng"]) {

@@ -1,4 +1,5 @@
 import { askConfirm } from "./confirmDialog.js";
+import { publicUrl } from "../lib/publicLink.js";
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -71,7 +72,7 @@ export function openEditChatDialog(chat, onSaved) {
   let banned = [];
   let permissions = null;
   let permFields = [];
-  let inviteLink = chat.inviteCode ? `${window.location.origin}/join/${chat.inviteCode}` : null;
+  let inviteLink = chat.inviteCode ? publicUrl(`/join/${chat.inviteCode}`) : null;
 
   const toastError = (err, fallback) => showToast(err?.message || fallback);
   const changed = (patch) => {
@@ -256,7 +257,7 @@ export function openEditChatDialog(chat, onSaved) {
                 try {
                   const { code } = await api.chatInviteLink(chat.id, !!inviteLink);
                   const had = !!inviteLink;
-                  inviteLink = `${window.location.origin}/join/${code}`;
+                  inviteLink = publicUrl(`/join/${code}`);
                   chat = { ...chat, inviteCode: code };
                   showToast(had ? "Старая ссылка отозвана, создана новая" : "Ссылка создана");
                   draw();

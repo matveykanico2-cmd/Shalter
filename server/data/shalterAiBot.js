@@ -1,4 +1,5 @@
 const db = require("../db");
+const { applyBotMascot } = require("../lib/botMascot");
 
 const SHALTER_AI_ID = "bot_shalter_ai";
 
@@ -30,6 +31,7 @@ function ensureShalterAiAccount() {
     `INSERT INTO bots (id, userId, description, commands) VALUES (?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET description = excluded.description, commands = excluded.commands`
   ).run(SHALTER_AI_ID, SHALTER_AI_ID, "ИИ-ассистент: вопросы, фото, документы, картинки", JSON.stringify(COMMANDS));
+  applyBotMascot(SHALTER_AI_ID);
 }
 
 module.exports = { SHALTER_AI_ID, ensureShalterAiAccount };

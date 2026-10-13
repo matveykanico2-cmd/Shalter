@@ -69,6 +69,10 @@ async function run({ code, msg }) {
     bot: {
       send: (text, opts) => callParent({ chatId: msg.chatId, text, opts }),
       sendTo: (chatId, text, opts) => callParent({ chatId, text, opts }),
+      // Заявки на вступление (бот должен быть админом канала/группы).
+      approveJoin: (userId, chatId = msg.chatId) => callParent({ op: "joinDecision", chatId, userId, approve: true }),
+      declineJoin: (userId, chatId = msg.chatId) => callParent({ op: "joinDecision", chatId, userId, approve: false }),
+      joinRequests: (chatId = msg.chatId) => callParent({ op: "joinList", chatId }),
     },
   });
   const script = new vm.Script(

@@ -245,7 +245,7 @@ self.addEventListener("push", (event) => {
   } catch {
     return;
   }
-  const { title, body, url, tag, requireInteraction, kind, callId, avatar, silent } = payload;
+  const { title, body, url, tag, requireInteraction, kind, callId, avatar, silent, chatId, messageId } = payload;
 
   if (kind === "call-cancelled") {
     event.waitUntil(
@@ -322,12 +322,39 @@ self.addEventListener("push", (event) => {
               { action: "answer", title: "Ответить" },
               { action: "decline", title: "Отклонить" },
             ]
-          : undefined,
-        data: { url: url || "/", kind, callId, count },
+          : kind === "message" && chatId
+            ? messageActions()
+            : undefined,
+        data: { url: url || "/", kind, callId, count, chatId, messageId },
       });
     })()
   );
 });
+
+// Кнопки уведомления о сообщении. Браузеры показывают от 2 до 3 кнопок
+// (Notification.maxActions) — по важности: ответить, прочитано, удалить.
+function messageActions() {
+  const max = typeof Notification !== "undefined" && Notification.maxActions ? Notification.maxActions : 2;
+  return [
+    { action: "reply", title: "Ответить", type: "text", placeholder: "Сообщение…" },
+    { action: "read", title: "Прочитано" },
+    { action: "delete", title: "Удалить" },
+  ].slice(0, Math.max(2, max));
+}
+
+async function apiCall(method, path, body) {
+  try {
+    const res = await fetch(path, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 async function declineCall(callId) {
   if (!callId) return;
@@ -350,8 +377,37 @@ self.addEventListener("notificationclick", (event) => {
     event.waitUntil(declineCall(data.callId));
     return;
   }
+  if (event.action === "read" && data.chatId) {
+    event.waitUntil(apiCall("POST", `/api/chats/${encodeURIComponent(data.chatId)}/read`));
+    return;
+  }
+  if (event.action === "delete" && data.chatId && data.messageId) {
+    event.waitUntil(
+      apiCall("DELETE", `/api/chats/${encodeURIComponent(data.chatId)}/messages/${encodeURIComponent(data.messageId)}`, { forEveryone: false })
+    );
+    return;
+  }
+  // Ответ прямо из уведомления (где браузер поддерживает поле ввода) — отправляем
+  // сразу ответом на это сообщение и отмечаем чат прочитанным.
+  if (event.action === "reply" && data.chatId && typeof event.reply === "string" && event.reply.trim()) {
+    event.waitUntil(
+      (async () => {
+        const ok = await apiCall("POST", `/api/chats/${encodeURIComponent(data.chatId)}/messages`, {
+          text: event.reply.trim(),
+          replyToId: data.messageId || undefined,
+          clientId: `sw_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+        });
+        if (ok) await apiCall("POST", `/api/chats/${encodeURIComponent(data.chatId)}/read`);
+        else await self.clients.openWindow(`/chat/${data.chatId}${data.messageId ? `?reply=${encodeURIComponent(data.messageId)}` : ""}`);
+      })()
+    );
+    return;
+  }
 
-  const base = data.url || "/";
+  const base =
+    event.action === "reply" && data.chatId
+      ? `/chat/${data.chatId}${data.messageId ? `?reply=${encodeURIComponent(data.messageId)}` : ""}`
+      : data.url || "/";
   const url = event.action === "answer" && data.callId ? `/call/${data.callId}?answer=1` : base;
 
   event.waitUntil(

@@ -6,6 +6,8 @@ const {
   HUGO_AI_TIMEOUT_MS,
   OLLAMA_URL,
   OLLAMA_MODEL,
+  OPENROUTER_API_KEY,
+  OPENROUTER_MODEL,
 } = require("../config");
 
 const MAX_REPLY = 3500;
@@ -145,9 +147,23 @@ async function viaGet(messages, signal) {
   return res.text();
 }
 
+// Запасной провайдер с бесплатными моделями OpenRouter (если задан ключ) —
+// отвечает, когда Pollinations перегружен.
+async function viaOpenRouter(messages, signal) {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENROUTER_API_KEY}`, "HTTP-Referer": "https://shalter.ru", "X-Title": "Shalter" },
+    body: JSON.stringify({ model: OPENROUTER_MODEL || "google/gemma-4-31b-it:free", messages, temperature: 0.6, max_tokens: 1500 }),
+    signal,
+  });
+  if (!res.ok) throw new Error(`openrouter → HTTP ${res.status}`);
+  return (await res.json())?.choices?.[0]?.message?.content;
+}
+
 function providers() {
   const list = [];
   if (OLLAMA_URL) list.push(["ollama", viaOllama, false]);
+  if (OPENROUTER_API_KEY) list.push(["openrouter", viaOpenRouter, false]);
   if (HUGO_AI_URL) list.push(["openai-compatible", viaOpenAiCompatible, true]);
   if (HUGO_AI_GET_URL) list.push(["get", viaGet, true]);
   return list;

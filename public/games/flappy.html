@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#4ec0ca;touch-action:none;user-select:none;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%}</style></head><body>
+<canvas id="c"></canvas>
+<script>
+const c=document.getElementById("c"),x=c.getContext("2d");let W,H,bird,pipes,score,best=+localStorage.getItem("bflappy")||0,state="ready",last=0;
+function size(){W=c.width=innerWidth*devicePixelRatio;H=c.height=innerHeight*devicePixelRatio}size();addEventListener("resize",size);
+const k=()=>H/600;
+function reset(){bird={y:H/2,v:0};pipes=[];score=0;state="ready"}
+function flap(){if(state==="over"){if(performance.now()-last>500)reset();return}state="play";bird.v=-7.5*k()}
+addEventListener("pointerdown",flap);addEventListener("keydown",e=>{if(e.key===" "||e.key==="ArrowUp"){e.preventDefault();flap()}});
+function loop(t){const s=k(),gap=170*s,pw=70*s,bx=W*.3,r=16*s;
+if(state==="play"){bird.v+=.4*s;bird.y+=bird.v;if(!pipes.length||pipes[pipes.length-1].x<W-260*s)pipes.push({x:W,top:60*s+Math.random()*(H-gap-160*s),passed:false});
+for(const p of pipes){p.x-=3.2*s;if(!p.passed&&p.x+pw<bx){p.passed=true;score++;Shalter.score(score)}
+if(bx+r>p.x&&bx-r<p.x+pw&&(bird.y-r<p.top||bird.y+r>p.top+gap))die()}pipes=pipes.filter(p=>p.x>-pw);if(bird.y+r>H-40*s||bird.y<0)die()}
+else if(state==="ready")bird.y=H/2+Math.sin(t/300)*10*s;
+x.fillStyle="#4ec0ca";x.fillRect(0,0,W,H);x.fillStyle="#73bf2e";for(const p of pipes){x.fillRect(p.x,0,pw,p.top);x.fillRect(p.x,p.top+gap,pw,H)}
+x.fillStyle="#ded895";x.fillRect(0,H-40*s,W,40*s);
+x.save();x.translate(bx,bird.y);x.rotate(Math.max(-.5,Math.min(1.2,bird.v/12)));x.fillStyle="#ffd93b";x.beginPath();x.arc(0,0,r,0,7);x.fill();x.fillStyle="#fff";x.beginPath();x.arc(6*s,-5*s,5*s,0,7);x.fill();x.fillStyle="#000";x.beginPath();x.arc(8*s,-5*s,2.2*s,0,7);x.fill();x.fillStyle="#f57c00";x.fillRect(r-4*s,0,10*s,5*s);x.restore();
+x.fillStyle="#fff";x.strokeStyle="#000";x.lineWidth=4*s;x.textAlign="center";x.font=`bold ${48*s}px system-ui`;x.strokeText(score,W/2,90*s);x.fillText(score,W/2,90*s);
+x.font=`bold ${24*s}px system-ui`;if(state==="ready"){x.strokeText("Нажмите, чтобы лететь",W/2,H/2-80*s);x.fillText("Нажмите, чтобы лететь",W/2,H/2-80*s)}
+if(state==="over"){x.strokeText(`Игра окончена · рекорд ${best}`,W/2,H/2-60*s);x.fillText(`Игра окончена · рекорд ${best}`,W/2,H/2-60*s)}
+requestAnimationFrame(loop)}
+function die(){state="over";last=performance.now();if(score>best){best=score;localStorage.setItem("bflappy",best)}Shalter.gameOver(score)}
+reset();requestAnimationFrame(loop);
+</script></body></html>

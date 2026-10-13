@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS = {
   },
   chatWallpaper: "default",
   chatWallpaperImage: null,
+  homeWallpaper: false,
   translateLanguage: "ru",
   uiLanguage: "ru",
   autoDownload: true,

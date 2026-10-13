@@ -42,6 +42,13 @@ function rowToUser(row) {
     businessLat: row.businessLat ?? undefined,
     businessLng: row.businessLng ?? undefined,
     nameColor: row.nameColor ?? undefined,
+    profileBanner: (() => {
+      try {
+        return row.profileBanner ? JSON.parse(row.profileBanner) : undefined;
+      } catch {
+        return undefined;
+      }
+    })(),
     adAttachments: row.adAttachments ? JSON.parse(row.adAttachments) : [],
     birthday: row.birthday ?? undefined,
     giftsReceived: JSON.parse(row.giftsReceived ?? "[]"),
@@ -275,6 +282,9 @@ async function updateUser(id, patch) {
   }
   if ("adAttachments" in patch) {
     db.prepare("UPDATE users SET adAttachments = ? WHERE id = ?").run(JSON.stringify(patch.adAttachments ?? []), id);
+  }
+  if ("profileBanner" in patch) {
+    db.prepare("UPDATE users SET profileBanner = ? WHERE id = ?").run(patch.profileBanner ? JSON.stringify(patch.profileBanner) : null, id);
   }
   return getUser(id);
 }

@@ -1,4 +1,5 @@
 import { askText } from "../../components/confirmDialog.js";
+import { publicUrl } from "../../lib/publicLink.js";
 import { askConfirm } from "../../components/confirmDialog.js";
 import { showToast } from "../../components/toast.js";
 import { openPremiumFeatures } from "../../components/premiumFeatures.js";
@@ -12,7 +13,8 @@ import { api } from "../../api.js";
 import { switchAccount } from "../../lib/accountSwitch.js";
 import { getState, setState, updateSelf, subscribe } from "../../state.js";
 import { navigate } from "../../router.js";
-import { fileToImageDataUrl, fileToDataUrl } from "../../lib/image.js";
+import { fileToImageDataUrl, fileToDataUrl, fileToImageUpload } from "../../lib/image.js";
+import { PROFILE_BANNERS, bannerBackground } from "../../lib/profileBanners.js";
 import { ImageAttachment, VideoAttachment, FileAttachment } from "../../components/attachments.js";
 import { requestPushPermission, pushDiagnostics, resubscribePush, iosNeedsHomeScreen } from "../../lib/push.js";
 import { openCreateBotDialog } from "../../components/createBotDialog.js";
@@ -351,6 +353,75 @@ async function renderProfile(root) {
     } catch {
     }
   }
+  // Баннер профиля: встроенный фон или своё фото.
+  let profileBanner = me.profileBanner ?? null;
+  let bannerUploading = false;
+  async function saveBanner(next) {
+    const prev = profileBanner;
+    profileBanner = next;
+    render();
+    try {
+      await api.updateProfile(me.id, { profileBanner: next });
+      updateSelf({ profileBanner: next ?? undefined });
+    } catch (err) {
+      profileBanner = prev;
+      render();
+      showToast(err.message || "Не удалось сохранить баннер");
+    }
+  }
+  const bannerFileInput = el("input", {
+    type: "file",
+    accept: "image/*",
+    class: "hidden-input",
+    onchange: async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      bannerUploading = true;
+      render();
+      try {
+        const prepared = await fileToImageUpload(file, 1600);
+        const { url } = await uploadFile(prepared, "image");
+        bannerUploading = false;
+        await saveBanner({ id: "custom", url });
+      } catch (err) {
+        bannerUploading = false;
+        render();
+        showToast(err.message || "Не удалось загрузить фото");
+      }
+    },
+  });
+  function bannerPicker() {
+    const current = bannerBackground(profileBanner);
+    return [
+      el("div", { class: "profile-banner-preview", style: current ? `--tile-bg: ${current}` : "" }),
+      el("div", { class: "profile-banner-grid" }, [
+        el("button", { class: "profile-banner-tile add", type: "button", onclick: () => bannerFileInput.click() }, [
+          el("span", { html: iconSvg("Image", 16) }),
+          bannerUploading ? "Загрузка…" : "Своё фото",
+        ]),
+        el("button", { class: `profile-banner-tile add${!profileBanner ? " selected" : ""}`, type: "button", onclick: () => saveBanner(null) }, [
+          el("span", { html: iconSvg("X", 14) }),
+          "Без баннера",
+        ]),
+        ...PROFILE_BANNERS.map((b) =>
+          el(
+            "button",
+            {
+              class: `profile-banner-tile${profileBanner?.id === b.id ? " selected" : ""}`,
+              type: "button",
+              title: b.label,
+              style: `--tile-bg: ${b.css}`,
+              onclick: () => saveBanner({ id: b.id }),
+            },
+            el("span", { class: "profile-banner-tile-label" }, b.label)
+          )
+        ),
+      ]),
+      bannerFileInput,
+    ];
+  }
+
   let nameColor = me.nameColor ?? null;
   async function saveNameColor(key) {
     if (!me.isPremium) {
@@ -511,6 +582,7 @@ async function renderProfile(root) {
               ),
             ])
           : null,
+        twSection("Баннер профиля", bannerPicker(), "Фон в шапке вашего профиля — его видят все, кто открывает профиль."),
         twSection(
           "Цвет имени",
           [
@@ -2370,6 +2442,13 @@ async function renderAppearance(root) {
               )
             ),
           ]),
+          el("label", { class: "settings-toggle-row" }, [
+            el("span", {}, [
+              el("span", { class: "settings-toggle-label" }, "Обои на главном экране"),
+              el("span", { class: "settings-toggle-hint" }, "Этот фон будет и под списком чатов"),
+            ]),
+            Toggle(!!settings.homeWallpaper, (v) => patch({ homeWallpaper: v })),
+          ]),
           wallpaperFileInput,
           wallpaperError ? el("p", { class: "login-error" }, wallpaperError) : null,
         ]),
@@ -3536,12 +3615,12 @@ async function renderFolders(root) {
       ),
       folder.inviteCode
         ? el("div", { class: "referral-code-row" }, [
-            el("span", { class: "mono" }, `${window.location.origin}/folder/${folder.inviteCode}`),
+            el("span", { class: "mono" }, publicUrl(`/folder/${folder.inviteCode}`)),
             el("button", {
               class: "icon-btn",
               title: "Скопировать",
               html: iconSvg("Copy", 16),
-              onclick: () => navigator.clipboard.writeText(`${window.location.origin}/folder/${folder.inviteCode}`).catch(() => {}),
+              onclick: () => navigator.clipboard.writeText(publicUrl(`/folder/${folder.inviteCode}`)).catch(() => {}),
             }),
             el("button", { class: "icon-btn danger", title: "Отозвать", html: iconSvg("Trash", 16), onclick: () => revokeFolderLink(folder) }),
           ])

@@ -343,6 +343,40 @@ async function requireBotAdmin(req, res, chatId) {
   return chat;
 }
 
+// Заявки на вступление (chat.approveJoins) — бот-админ рассматривает их сам.
+router.post(
+  "/getChatJoinRequests",
+  asyncRoute(async (req, res) => {
+    const chat = await requireBotAdmin(req, res, req.body?.chatId);
+    if (!chat) return;
+    const { getUser } = require("../data/users");
+    const rows = require("../data/joinRequests").listRequests(chat.id);
+    const requests = await Promise.all(
+      rows.map(async (r) => {
+        const u = await getUser(r.userId);
+        return { userId: r.userId, createdAt: r.createdAt, name: u?.name ?? "", username: u?.username ?? "", bio: u?.bio ?? "" };
+      })
+    );
+    res.json({ requests });
+  })
+);
+for (const [method, approve] of [["approveChatJoinRequest", true], ["declineChatJoinRequest", false]]) {
+  router.post(
+    `/${method}`,
+    asyncRoute(async (req, res) => {
+      const chat = await requireBotAdmin(req, res, req.body?.chatId);
+      if (!chat) return;
+      try {
+        const { decideJoinRequest } = require("../lib/joinApproval");
+        const result = await decideJoinRequest(chat.id, String(req.body?.userId ?? ""), approve, req.bot.userId);
+        res.json({ ok: true, approved: result.approved });
+      } catch (err) {
+        res.status(err.status ?? 500).json({ error: err.message });
+      }
+    })
+  );
+}
+
 router.post(
   "/deleteAnyMessage",
   asyncRoute(async (req, res) => {

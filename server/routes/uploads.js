@@ -9,6 +9,8 @@ const storage = require("../lib/storage");
 const { MAGIC: COMPRESS_MAGIC, compressStream } = require("../lib/fileCompression");
 
 const router = express.Router();
+
+const ALREADY_COMPRESSED_RE = /^\.(mp4|m4v|mov|webm|mkv|avi|3gp|jpe?g|png|gif|webp|avif|heic|heif|mp3|m4a|aac|ogg|oga|opus|flac|weba|zip|rar|7z|gz|bz2|xz|apk|ipa|dmg|pdf|docx|xlsx|pptx)$/;
 router.use(requireUserId);
 
 function safeExtension(name) {
@@ -42,7 +44,9 @@ router.post(
     const cipher = createEncryptStream(path.join(process.cwd(), "data"), out);
     const digest = crypto.createHash("sha256");
 
-    const compressing = kind === "file";
+    // Уже сжатые форматы (видео, картинки, музыка, архивы) brotli не уменьшает, а
+    // сжатый файл отдаётся без Range — видео в Safari/iOS без него не играет.
+    const compressing = kind === "file" && !ALREADY_COMPRESSED_RE.test(safeExtension(name));
     const compressor = compressing ? compressStream(declared) : null;
 
     const discard = () => storage.deleteObject(filename).catch(() => {});

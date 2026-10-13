@@ -7,7 +7,10 @@ const { addMessage, getMessage, listThreadReplies, setAnchorForPost, setDiscussi
 const { recordView } = require("../data/postViews");
 const { getUser } = require("../data/users");
 const { publicUsers } = require("../data/sanitize");
-const { deliverMessage, sendGate } = require("./messages");
+const { deliverMessage, sendGate, pushNewMessage, preparePaidMedia } = require("./messages");
+const { registerAttachments } = require("../lib/uploadAccess");
+const { broadcastToUsers } = require("../ws");
+const paidMedia = require("../data/paidMedia");
 const { isStaff } = require("../lib/chatPermissions");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
 const { sendOnce } = require("../lib/sendOnce");
@@ -32,12 +35,14 @@ router.post(
       return res.status(400).json({ error: "Пост длиннее 4096 символов" });
     }
 
-    const post = await sendOnce(req.uid, chat.id, body.clientId, () => publishPost(chat, req.uid, body));
+    const paid = preparePaidMedia(chat, req.uid, body);
+    if (paid?.error) return res.status(400).json({ error: paid.error });
+    const post = await sendOnce(req.uid, chat.id, body.clientId, () => publishPost(chat, req.uid, body, paid));
     res.json({ message: post });
   })
 );
 
-async function publishPost(chat, uid, body) {
+async function publishPost(chat, uid, body, paid = null) {
   let post = await addMessage({
     id: genId("m"),
     chatId: chat.id,
@@ -47,7 +52,7 @@ async function publishPost(chat, uid, body) {
     createdAt: new Date().toISOString(),
     pinned: false,
     reactions: [],
-    attachments: sanitizeAttachments(body.attachments),
+    attachments: paid ? [paid.placeholder] : sanitizeAttachments(body.attachments),
     readByIds: [uid],
     views: 0,
     commentCount: 0,
@@ -76,6 +81,17 @@ async function publishPost(chat, uid, body) {
       post = await setDiscussionAnchor(post.id, anchor.id);
     }
   }
+  // Раньше пост не рассылался: подписчики видели его только после опроса (до минуты),
+  // а файлы поста не были привязаны к каналу.
+  registerAttachments(chat.id, post.attachments);
+  if (paid) {
+    paidMedia.savePaidMedia(post.id, chat.id, paid.stars, paid.real);
+    registerAttachments(chat.id, paid.real);
+  }
+  broadcastToUsers(chat.memberIds.filter((id) => id !== uid), { type: "message:new", chatId: chat.id, message: post });
+  getUser(uid)
+    .then((author) => pushNewMessage(chat, author, post))
+    .catch((err) => console.error("channel post push failed:", err));
   return post;
 }
 

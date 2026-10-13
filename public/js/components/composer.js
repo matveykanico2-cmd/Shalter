@@ -72,6 +72,7 @@ export function Composer({
   topicId = null,
   allowEffects = false,
   allowWhenOnline = false,
+  canPostPaid = false,
 }) {
   let lastTypingPing = 0;
   let staged = [];
@@ -349,6 +350,7 @@ export function Composer({
           ...silent,
           ...(postAsChat ? { anonymous: true } : {}),
           ...(draftEmoji.length ? { customEmoji: draftEmoji.slice() } : {}),
+          ...(opts.paidMedia ? { paidMedia: opts.paidMedia } : {}),
         };
         for (let i = 0; i < atts.length; i += MAX_ATTACHMENTS_PER_MESSAGE) {
           onSend(i === 0 ? trimmed : "", atts.slice(i, i + MAX_ATTACHMENTS_PER_MESSAGE), i === 0 ? extra : opts.silent === true ? { silent: true } : {});
@@ -714,13 +716,52 @@ export function Composer({
       openMediaSendPopup({
         picks,
         caption: textarea.value,
-        onSend: async ({ picks: chosen, caption }) => {
+        allowPaid: canPostPaid,
+        onSend: async ({ picks: chosen, caption, paidStars }) => {
           textarea.value = caption;
           textarea.dispatchEvent(new Event("input", { bubbles: true }));
+          const paidInfo = paidStars ? await blurThumbFor(chosen.find((p) => p.kind === "image" || p.kind === "video")).catch(() => ({})) : null;
           await attachFiles(chosen);
-          if (staged.length) submit();
+          if (staged.length) submit(paidStars ? { paidMedia: { stars: paidStars, ...paidInfo } } : {});
         },
       });
+    }
+
+    // Крошечная размытая миниатюра для платного поста — её видят до оплаты.
+    async function blurThumbFor(pick) {
+      if (!pick?.file) return {};
+      const url = URL.createObjectURL(pick.file);
+      try {
+        const src = await new Promise((resolve, reject) => {
+          if (pick.kind === "video") {
+            const v = document.createElement("video");
+            v.muted = true;
+            v.playsInline = true;
+            v.preload = "auto";
+            v.onloadeddata = () => {
+              v.currentTime = Math.min(1, (v.duration || 2) / 2);
+            };
+            v.onseeked = () => resolve(v);
+            v.onerror = reject;
+            v.src = url;
+          } else {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = url;
+          }
+        });
+        const w = src.videoWidth || src.naturalWidth;
+        const h = src.videoHeight || src.naturalHeight;
+        const k = 24 / Math.max(w, h);
+        const c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(w * k));
+        c.height = Math.max(1, Math.round(h * k));
+        c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+        return { blur: c.toDataURL("image/jpeg", 0.6), width: w, height: h };
+      } finally {
+        URL.revokeObjectURL(url);
+      }
     }
 
     function sendImageNow(file) {
@@ -793,8 +834,37 @@ export function Composer({
       },
     });
 
+    // Всплывающее меню закрывается кликом/тапом мимо него и по Escape — раньше
+    // скрепка и «/» оставались висеть, пока не нажмёшь кнопку ещё раз.
+    function dismissOnOutside(menu, slot, close) {
+      const onDown = (e) => {
+        if (!menu.isConnected) return off();
+        if (slot.contains(e.target)) return;
+        close();
+      };
+      const onKey = (e) => {
+        if (e.key !== "Escape" || !menu.isConnected) return;
+        e.stopPropagation();
+        close();
+      };
+      function off() {
+        document.removeEventListener("pointerdown", onDown, true);
+        document.removeEventListener("keydown", onKey, true);
+      }
+      // на следующем тике — чтобы не поймать тот же клик, что открыл меню
+      setTimeout(() => {
+        if (!menu.isConnected) return;
+        document.addEventListener("pointerdown", onDown, true);
+        document.addEventListener("keydown", onKey, true);
+      }, 0);
+      return off;
+    }
+
     let attachMenuEl = null;
+    let attachMenuOff = null;
     function closeAttachMenu() {
+      attachMenuOff?.();
+      attachMenuOff = null;
       attachMenuEl?.remove();
       attachMenuEl = null;
     }
@@ -854,10 +924,17 @@ export function Composer({
           run: () => {
             const r = attachBtn.getBoundingClientRect();
             const games = [["🎲", "Кубик"], ["🎯", "Дартс"], ["🏀", "Баскетбол"], ["⚽", "Футбол"], ["🎳", "Боулинг"], ["🎰", "Слот-машина"]];
-            setTimeout(() => openDropdownMenu({ x: r.left, y: r.top - 8 }, games.map(([emoji, label]) => ({
-              label: `${emoji}  ${label}`,
-              onClick: () => onSend("", [{ kind: "dice", meta: { emoji } }]),
-            }))), 0);
+            const openCatalog = () =>
+              import("./games.js").then(({ openGamesCatalog, gameAttachmentFor }) =>
+                openGamesCatalog({ chatId, onPick: (g) => onSend("", [gameAttachmentFor(g)]) })
+              );
+            setTimeout(() => openDropdownMenu({ x: r.left, y: r.top - 8 }, [
+              { label: "🎮  Игры — 2048, Змейка, свои…", onClick: openCatalog },
+              ...games.map(([emoji, label]) => ({
+                label: `${emoji}  ${label}`,
+                onClick: () => onSend("", [{ kind: "dice", meta: { emoji } }]),
+              })),
+            ]), 0);
           },
         },
         {
@@ -933,22 +1010,26 @@ export function Composer({
           )
         );
         attachSlot.appendChild(attachMenuEl);
+        attachMenuOff = dismissOnOutside(attachMenuEl, attachSlot, closeAttachMenu);
       },
     });
     const attachSlot = el("div", { class: "composer-attach-slot" }, [attachBtn, mediaFileInput, anyFileInput, audioFileInput, cameraPhotoInput, cameraVideoInput]);
 
     let commandMenuEl = null;
+    let commandMenuOff = null;
+    function closeCommandMenu() {
+      commandMenuOff?.();
+      commandMenuOff = null;
+      commandMenuEl?.remove();
+      commandMenuEl = null;
+    }
     const commandSlot = botCommands?.length ? el("div", { class: "composer-attach-slot" }) : null;
     if (commandSlot) {
       const commandBtn = el("button", {
         class: "composer-icon-btn composer-command-btn",
         title: "Команды бота",
         onclick: () => {
-          if (commandMenuEl) {
-            commandMenuEl.remove();
-            commandMenuEl = null;
-            return;
-          }
+          if (commandMenuEl) return closeCommandMenu();
           commandMenuEl = el(
             "div",
             { class: "composer-attach-menu composer-command-menu" },
@@ -958,8 +1039,7 @@ export function Composer({
                 {
                   class: "composer-attach-item",
                   onclick: () => {
-                    commandMenuEl?.remove();
-                    commandMenuEl = null;
+                    closeCommandMenu();
                     onSend(`/${String(c.command ?? c.name ?? "").replace(/^\//, "")}`, []);
                   },
                 },
@@ -971,6 +1051,7 @@ export function Composer({
             )
           );
           commandSlot.appendChild(commandMenuEl);
+          commandMenuOff = dismissOnOutside(commandMenuEl, commandSlot, closeCommandMenu);
         },
       }, "/");
       commandSlot.appendChild(commandBtn);

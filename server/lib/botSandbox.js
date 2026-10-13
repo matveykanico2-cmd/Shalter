@@ -55,7 +55,25 @@ function spawnRunner(bot, code, msg, record) {
 
     child.on("message", async (m) => {
       if (m?.type === "log") record(m.level === "error" || m.level === "warn" ? m.level : "log", String(m.text ?? "").slice(0, 4000));
-      else if (m?.type === "send") {
+      else if (m?.type === "send" && m.op) {
+        try {
+          let result;
+          if (m.op === "joinDecision") {
+            const { decideJoinRequest } = require("./joinApproval");
+            const r = await decideJoinRequest(String(m.chatId ?? ""), String(m.userId ?? ""), !!m.approve, bot.userId);
+            result = { approved: r.approved };
+          } else if (m.op === "joinList") {
+            const { getChat } = require("../data/chats");
+            const { isOwnerOrAdminOf } = require("./joinApproval");
+            const chat = await getChat(String(m.chatId ?? ""));
+            if (!chat || !isOwnerOrAdminOf(chat, bot.userId)) throw new Error("Бот должен быть админом этого чата");
+            result = require("../data/joinRequests").listRequests(chat.id).map((r) => ({ userId: r.userId, createdAt: r.createdAt }));
+          } else throw new Error("Неизвестное действие");
+          if (child.connected) child.send({ type: "sendResult", id: m.id, message: result });
+        } catch (err) {
+          if (child.connected) child.send({ type: "sendResult", id: m.id, error: err.message });
+        }
+      } else if (m?.type === "send") {
         try {
           const message = await sendBotMessage(bot.userId, m.chatId, m.text, m.opts ?? {});
           if (child.connected) child.send({ type: "sendResult", id: m.id, message });

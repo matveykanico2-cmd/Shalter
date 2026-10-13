@@ -28,6 +28,7 @@ import { noteMessageInChatList } from "../lib/chatListSync.js";
 import { readCache, writeCache, dropCachedMessage } from "../lib/localCache.js";
 import { openSidebarMenu, openSavedMessages } from "../components/sidebarMenu.js";
 import { sortChats, isChatMuted } from "../lib/chatSort.js";
+import { paintWallpaper, WALLPAPER_CLASSES } from "../lib/wallpapers.js";
 import {
   CommunityRow,
   CommunityChildBadge,
@@ -202,10 +203,28 @@ export function ChatListPane() {
   // Перерисовываем список только когда поменялось то, что он показывает, и не чаще
   // раза за кадр: раньше любой setState (печатает, настройки, пачка WS-событий)
   // пересобирал весь список с аватарками — на iPhone это и тормозило.
+  // Обои на главном экране (список чатов), если включено в «Оформлении».
+  const paintHome = (st) => {
+    const s = st.settings;
+    const on = !!s?.homeWallpaper;
+    container.classList.toggle("home-wallpaper", on);
+    if (on) paintWallpaper(container, { id: s.chatWallpaper ?? "default", image: s.chatWallpaperImage });
+    else {
+      container.classList.remove(...WALLPAPER_CLASSES, "wallpaper-custom");
+      container.style.backgroundImage = "";
+    }
+  };
+  paintHome(getState());
+
   const LIST_KEYS = ["chats", "chatsLoaded", "folders", "user", "settings", "contactIds", "communities", "sidebarArchive", "sidebarCommunity"];
   let seenState = LIST_KEYS.map((k) => getState()[k]);
   let listFrame = 0;
+  let seenSettings = getState().settings;
   const unsubState = subscribe((st) => {
+    if (st.settings !== seenSettings) {
+      seenSettings = st.settings;
+      paintHome(st);
+    }
     const next = LIST_KEYS.map((k) => st[k]);
     if (next.every((v, i) => v === seenState[i])) return;
     seenState = next;
@@ -329,6 +348,9 @@ export function ChatListPane() {
     scheduleRefetch(EVENT_REFETCH_MS);
   });
   const unsubAdded = onWsMessage("chat:added", () => scheduleRefetch());
+  const unsubJoinDeclined = onWsMessage("chat:join-declined", (msg) =>
+    import("../components/toast.js").then(({ showToast }) => showToast(`Заявку в «${msg.title ?? "чат"}» отклонили`)).catch(() => {})
+  );
   const unsubChatUpdated = onWsMessage("chat:updated", () => scheduleRefetch());
   const unsubCommunity = onWsMessage("community:updated", ({ communityId }) => {
     forgetCommunityDetails(communityId);
@@ -369,6 +391,7 @@ export function ChatListPane() {
     unsubUpdated();
     unsubDeleted();
     unsubAdded();
+    unsubJoinDeclined();
     unsubGone();
   };
 

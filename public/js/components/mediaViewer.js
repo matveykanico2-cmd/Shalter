@@ -8,10 +8,18 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
   let media = null;
 
   let scale = 1;
+  let gestureAt = 0;
   let tx = 0;
   let ty = 0;
 
-  const overlay = el("div", { class: "media-viewer-overlay", onclick: (e) => e.target === overlay && close() });
+  const overlay = el("div", {
+    class: "media-viewer-overlay",
+    onclick: (e) => {
+      if (e.target === overlay) close();
+      // тап по пустому месту сцены закрывает, как в Telegram
+      else if (e.target === stage && scale === 1 && Date.now() - gestureAt > 350) close();
+    },
+  });
   const head = el("div", { class: "media-viewer-head" });
   const stage = el("div", { class: "media-viewer-stage" });
   const prevBtn = el("button", { class: "media-viewer-nav prev", title: "Предыдущее", html: iconSvg("ChevronLeft", 26), onclick: () => go(-1) });
@@ -51,27 +59,111 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
     applyTransform();
   }
 
-  function show() {
-    if (media?.tagName === "VIDEO") media.pause();
-    const item = items[at];
-    media =
-      item.kind === "video"
-        ? el("video", { class: "media-viewer-media", src: item.url, controls: true, autoplay: true, playsInline: true })
-        : el("img", { class: "media-viewer-media", src: item.url, alt: item.name || "" });
-    if (item.kind !== "video" && item.thumbUrl && item.thumbUrl !== item.url) {
-      media.addEventListener(
-        "error",
-        () => {
-          if (media.src !== item.thumbUrl) media.src = item.thumbUrl;
-        },
-        { once: true }
+  // Состояние загрузки текущего медиа: спиннер, пока грузится, и плашка
+  // «Повторить», если не загрузилось (вместо чёрного экрана / битой иконки).
+  const spinner = el("span", { class: "media-viewer-spinner", hidden: true });
+  const failBox = el("div", { class: "media-viewer-fail", hidden: true });
+  function setState(state, retry) {
+    spinner.hidden = state !== "loading";
+    failBox.hidden = state !== "failed";
+    if (state === "failed") {
+      clear(failBox);
+      appendAll(
+        failBox,
+        el("span", { class: "media-viewer-fail-icon", html: iconSvg("RotateCw", 28) }),
+        el("span", {}, navigator.onLine === false ? "Нет подключения к сети" : "Не удалось загрузить"),
+        el("button", { class: "media-viewer-fail-btn", type: "button", onclick: retry }, "Повторить")
       );
     }
+  }
+  const bust = (u) => u + (u.includes("?") ? "&" : "?") + "r=" + Date.now().toString(36);
+
+  function buildMedia(item) {
+    if (item.kind === "video") {
+      const sources = [item.url, item.fallbackUrl].filter(Boolean);
+      let i = 0;
+      const v = el("video", {
+        class: "media-viewer-media",
+        src: sources[0],
+        controls: true,
+        autoplay: true,
+        playsInline: true,
+        preload: "auto",
+        ...(item.thumbUrl ? { poster: item.thumbUrl } : {}),
+      });
+      setState("loading");
+      const ready = () => setState("ready");
+      v.addEventListener("loadeddata", ready);
+      v.addEventListener("canplay", ready);
+      v.addEventListener("playing", ready);
+      v.addEventListener("waiting", () => setState("loading"));
+      v.addEventListener("error", () => {
+        if (++i < sources.length) {
+          v.src = sources[i];
+          v.play().catch(() => {});
+          return;
+        }
+        setState("failed", () => {
+          i = 0;
+          setState("loading");
+          v.src = bust(sources[0]);
+          v.play().catch(() => {});
+        });
+      });
+      return v;
+    }
+    // Фото: сразу показываем уже загруженную миниатюру из ленты, а оригинал
+    // подменяем, когда догрузится — экран не пустой даже на медленной сети.
+    const img = el("img", { class: "media-viewer-media", alt: item.name || "", decoding: "async" });
+    const full = item.url;
+    const thumb = item.thumbUrl && item.thumbUrl !== full ? item.thumbUrl : null;
+    let shownFull = false;
+    const loadFull = (url) => {
+      setState("loading");
+      const probe = new Image();
+      probe.decoding = "async";
+      probe.onload = () => {
+        if (media !== img) return;
+        shownFull = true;
+        img.src = probe.src;
+        img.classList.remove("media-viewer-blur");
+        setState("ready");
+      };
+      probe.onerror = () => {
+        if (media !== img) return;
+        if (thumb && img.getAttribute("src")) {
+          // оригинал не отдался, но миниатюра уже на экране — показываем её
+          img.classList.remove("media-viewer-blur");
+          setState("ready");
+          return;
+        }
+        setState("failed", () => loadFull(bust(full)));
+      };
+      probe.src = url;
+    };
+    if (thumb) {
+      img.src = thumb;
+      img.classList.add("media-viewer-blur");
+      img.addEventListener("error", () => !shownFull && img.removeAttribute("src"), { once: true });
+    }
+    loadFull(full);
+    return img;
+  }
+
+  function show() {
+    if (media?.tagName === "VIDEO") {
+      media.pause();
+      media.removeAttribute("src");
+      media.load?.();
+    }
+    const item = items[at];
+    media = null;
+    media = buildMedia(item);
     scale = 1;
     tx = 0;
     ty = 0;
     clear(stage);
-    stage.appendChild(media);
+    appendAll(stage, media, spinner, failBox);
     applyTransform();
     clear(head);
     appendAll(
@@ -168,6 +260,7 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
 
   function endPointer(e) {
     pointers.delete(e.pointerId);
+    if (panStart || pinchStart || (swipeStartX !== null && Math.abs(e.clientX - swipeStartX) > 8)) gestureAt = Date.now();
     if (pointers.size < 2) pinchStart = null;
     if (panStart) {
       panStart = null;
@@ -252,6 +345,7 @@ export function galleryAround(button) {
       name: b.dataset.mediaName || "",
       originalUrl: b.dataset.mediaOriginal || null,
       thumbUrl: b.dataset.mediaThumb || null,
+      fallbackUrl: b.dataset.mediaFallback || null,
       ...messageInfo(b),
     })),
     index,

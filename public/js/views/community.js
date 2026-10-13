@@ -1,4 +1,5 @@
 import { el, mount } from "../lib/dom.js";
+import { publicUrl } from "../lib/publicLink.js";
 import { api } from "../api.js";
 import { Avatar } from "../components/avatar.js";
 import { navigate } from "../router.js";
@@ -93,7 +94,7 @@ export async function CommunityView(root, id) {
       );
       return;
     }
-    const link = `${location.origin}/community/${community.id}`;
+    const link = publicUrl(`/community/${community.id}`);
     const rights = community.rights ?? {};
     const reload = () => load();
     mount(

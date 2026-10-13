@@ -1,4 +1,5 @@
 import { el, clear } from "../lib/dom.js";
+import { publicUrl } from "../lib/publicLink.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { api } from "../api.js";
@@ -14,7 +15,7 @@ export function openImportContactsDialog(onAdded) {
   let addedCount = 0;
   let addedIds = new Set();
   let invitedPhones = new Set();
-  const inviteLink = `${window.location.origin}/login`;
+  const inviteLink = publicUrl("/login");
   let busyId = null;
 
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });

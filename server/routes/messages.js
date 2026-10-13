@@ -33,6 +33,7 @@ const { can, DENIED, isStaff } = require("../lib/chatPermissions");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser, pushAvatar, userPushAvatar, MESSAGE_PUSH } = require("../push");
 const { registerAttachments } = require("../lib/uploadAccess");
+const paidMedia = require("../data/paidMedia");
 const { fetchLinkPreview } = require("../lib/linkPreview");
 const { FILENAME_RE } = require("../lib/serveUpload");
 const { generateVideoPreview, generateImagePreview } = require("../lib/mediaPreview");
@@ -72,6 +73,8 @@ const ATTACHMENT_LABEL = {
   poll: "📊 Опрос",
   checklist: "☑️ Чек-лист",
   dice: "🎲 Кубик",
+  paid: "⭐ Платный пост",
+  game: "🎮 Игра",
   location: "📍 Геолокация",
   contact: "👤 Контакт",
 };
@@ -121,7 +124,18 @@ async function pushNewMessage(chat, sender, message, { silent = false } = {}) {
       const avatar = chatAvatar ?? (await userPushAvatar(sender, uid));
       await sendPushToUser(
         uid,
-        { title: chat.secret ? "Shalter" : title, body, ...(chat.secret ? {} : avatar), url: `/chat/${chat.id}`, kind: "message", tag: `chat-${chat.id}`, ...(silent ? { silent: true } : {}) },
+        {
+          title: chat.secret ? "Shalter" : title,
+          body,
+          ...(chat.secret ? {} : avatar),
+          url: `/chat/${chat.id}`,
+          kind: "message",
+          tag: `chat-${chat.id}`,
+          // для кнопок в уведомлении: «Ответить», «Прочитано», «Удалить»
+          chatId: chat.id,
+          messageId: message.id,
+          ...(silent ? { silent: true } : {}),
+        },
         MESSAGE_PUSH
       );
     })
@@ -347,7 +361,34 @@ function sanitizeStoryReply(raw) {
   return { url, kind, authorName };
 }
 
-async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
+// Платный пост канала: звёзды 1…10000, только фото/видео, только админы канала.
+const MAX_PAID_STARS = 10000;
+const BLUR_RE = /^data:image\/(jpeg|webp|png);base64,[A-Za-z0-9+/=]+$/;
+function preparePaidMedia(chat, senderId, body) {
+  const stars = Math.floor(Number(body.paidMedia?.stars));
+  if (!body.paidMedia) return null;
+  if (chat.type !== "channel" || !isStaff(chat, senderId)) return { error: "Платный контент — только для админов канала" };
+  if (!Number.isSafeInteger(stars) || stars < 1 || stars > MAX_PAID_STARS) return { error: `Цена — от 1 до ${MAX_PAID_STARS} ⭐` };
+  const real = (sanitizeAttachments(body.attachments) ?? []).filter((a) => (a.kind === "image" || a.kind === "video") && a.url);
+  if (!real.length) return { error: "Платным можно сделать только фото или видео" };
+  const blur = typeof body.paidMedia.blur === "string" && body.paidMedia.blur.length <= 8000 && BLUR_RE.test(body.paidMedia.blur) ? body.paidMedia.blur : null;
+  const w = Number(body.paidMedia.width);
+  const h = Number(body.paidMedia.height);
+  const placeholder = {
+    kind: "paid",
+    meta: {
+      stars,
+      count: real.length,
+      photos: real.filter((a) => a.kind === "image").length,
+      videos: real.filter((a) => a.kind === "video").length,
+      blur,
+      ...(w > 0 && h > 0 && w < 20000 && h < 20000 ? { width: Math.round(w), height: Math.round(h) } : {}),
+    },
+  };
+  return { stars, real, placeholder };
+}
+
+async function deliverMessage(chat, senderId, body, { paidStars = 0, paid = null } = {}) {
   let forwardedFrom = body.forwardedFrom;
   if (forwardedFrom?.senderId) {
     if (forwardedFrom.senderId === senderId) {
@@ -380,7 +421,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
     threadRootId,
     topicId: threadRootId ? null : body.topicId ?? null,
     storyReply: sanitizeStoryReply(body.storyReply),
-    attachments: markPendingPreviews(sanitizeAttachments(body.attachments)),
+    attachments: paid ? [paid.placeholder] : markPendingPreviews(sanitizeAttachments(body.attachments)),
     forwardedFrom,
     sticker: sanitizeSticker(body.sticker),
     customEmoji: sanitizeMessageEmoji(body.customEmoji),
@@ -392,6 +433,10 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0 } = {}) {
   });
 
   registerAttachments(chat.id, message.attachments);
+  if (paid) {
+    paidMedia.savePaidMedia(message.id, chat.id, paid.stars, paid.real);
+    registerAttachments(chat.id, paid.real);
+  }
   if (message.sticker?.kind === "image") registerAttachments(chat.id, [{ url: message.sticker.url }]);
 
   if (message.threadRootId) {
@@ -516,8 +561,8 @@ async function sendGate(chat, uid, body, { charge = true, skipSlowMode = false }
   const needs = [
     "sendMessages",
     ...(kinds.has("poll") || kinds.has("checklist") ? ["sendPolls"] : []),
-    ...([...kinds].some((k) => k !== "poll" && k !== "checklist" && k !== "dice") ? ["sendMedia"] : []),
-    ...(body.sticker || kinds.has("dice") ? ["sendStickers"] : []),
+    ...([...kinds].some((k) => k !== "poll" && k !== "checklist" && k !== "dice" && k !== "game") ? ["sendMedia"] : []),
+    ...(body.sticker || kinds.has("dice") || kinds.has("game") ? ["sendStickers"] : []),
   ];
   for (const need of needs) {
     if (!can(chat, uid, need)) return fail(403, { error: DENIED[need] });
@@ -623,13 +668,60 @@ router.post(
       const gate = await sendGate(chat, req.uid, fields);
       if (gate.status) return { status: gate.status, payload: gate.payload };
       const charged = gate.charged;
-      const message = await deliverMessage(chat, req.uid, fields, { paidStars: charged });
+      const paid = preparePaidMedia(chat, req.uid, fields);
+      if (paid?.error) return { status: 400, payload: { error: paid.error } };
+      const message = await deliverMessage(chat, req.uid, fields, { paidStars: charged, paid });
       // Отправили — черновик этого чата больше не нужен (иначе «Черновик: …» мог
       // вернуться в списке чатов, если очистка с клиента разошлась с сохранением).
       if ((await getSettings(req.uid)).drafts?.[chat.id]) await setDraft(req.uid, chat.id, "");
       return { payload: { message, ...(charged ? { chargedStars: charged, balance: balanceOf(req.uid) } : {}) } };
     });
     res.status(result.status ?? 200).json(result.payload);
+  })
+);
+
+// Платный пост: настоящие вложения — автору, админам канала и тем, кто купил.
+async function paidAccess(req, res) {
+  const chat = await getChat(req.params.id);
+  if (!chat || !chat.memberIds.includes(req.uid)) {
+    res.status(404).json({ error: "not found" });
+    return null;
+  }
+  const paid = paidMedia.getPaidMedia(req.params.messageId);
+  if (!paid || paid.chatId !== chat.id) {
+    res.status(404).json({ error: "not found" });
+    return null;
+  }
+  const message = await getMessage(req.params.messageId);
+  const free = message?.senderId === req.uid || isStaff(chat, req.uid) || paidMedia.hasBought(paid.messageId, req.uid);
+  return { chat, paid, message, free };
+}
+
+router.get(
+  "/:messageId/paid",
+  asyncRoute(async (req, res) => {
+    const access = await paidAccess(req, res);
+    if (!access) return;
+    const { paid, free, chat } = access;
+    if (!free) return res.status(402).json({ error: "Пост открывается за звёзды", stars: paid.stars });
+    res.json({ attachments: paid.attachments, ...(isStaff(chat, req.uid) ? { buyers: paidMedia.buyersCount(paid.messageId) } : {}) });
+  })
+);
+
+router.post(
+  "/:messageId/unlock",
+  asyncRoute(async (req, res) => {
+    const access = await paidAccess(req, res);
+    if (!access) return;
+    const { chat, paid, free } = access;
+    if (!free) {
+      // Звёзды уходят владельцу канала, как плата за комментарии.
+      if (!chat.ownerId || !transferStars(req.uid, chat.ownerId, paid.stars)) {
+        return res.status(402).json({ error: `Не хватает звёзд: нужно ${paid.stars} ⭐`, needStars: paid.stars, balance: balanceOf(req.uid) });
+      }
+      paidMedia.recordPurchase(paid.messageId, req.uid);
+    }
+    res.json({ attachments: paid.attachments, balance: balanceOf(req.uid) });
   })
 );
 
@@ -966,3 +1058,5 @@ module.exports = router;
 module.exports.deliverMessage = deliverMessage;
 module.exports.sendGate = sendGate;
 module.exports.forwardOrigin = forwardOrigin;
+module.exports.pushNewMessage = pushNewMessage;
+module.exports.preparePaidMedia = preparePaidMedia;

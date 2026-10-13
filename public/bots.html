@@ -133,6 +133,9 @@
         <tr><td><span class="doc-verb">POST</span> <code>/restrictChatMember</code></td><td></td></tr>
         <tr><td><span class="doc-verb">POST</span> <code>/banChatMember</code></td><td></td></tr>
         <tr><td><span class="doc-verb">POST</span> <code>/deleteAnyMessage</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/getChatJoinRequests</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/approveChatJoinRequest</code></td><td></td></tr>
+        <tr><td><span class="doc-verb">POST</span> <code>/declineChatJoinRequest</code></td><td></td></tr>
         <tr><th colspan="2" class="doc-index-group">Люди</th></tr>
         <tr><td><span class="doc-verb">GET</span> <code>/resolveUsername</code></td><td></td></tr>
         <tr><td><span class="doc-verb">GET</span> <code>/getUser</code></td><td></td></tr>
@@ -462,6 +465,13 @@ await fetch(`${API}/editMessageText`, {
         человек остаётся в чате и видит переписку.</p>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/banChatMember</div>
       <p>Убрать участника из чата.</p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/getChatJoinRequests</div>
+      <p><code>chatId</code>. Заявки на вступление в канал или группу с включёнными «Заявками на вступление»:
+        <code>userId</code>, <code>name</code>, <code>username</code>, <code>bio</code>, <code>createdAt</code>.</p>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/approveChatJoinRequest</div>
+      <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/declineChatJoinRequest</div>
+      <p><code>chatId</code>, <code>userId</code>. Принять или отклонить заявку — человек сразу увидит канал в списке
+        или уведомление об отказе.</p>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setChatTitle</div>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setChatDescription</div>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/leaveChat</div>
@@ -834,6 +844,9 @@ help - Что я умею</code></pre>
           <tr><td>msg</td><td>Входящее сообщение: <code>id</code>, <code>chatId</code>, <code>senderId</code>, <code>text</code>, <code>createdAt</code>.</td></tr>
           <tr><td>bot.send(text, opts)</td><td>Ответить в тот же чат. <code>opts</code> — те же <code>keyboard</code> и <code>replyToId</code>.</td></tr>
           <tr><td>bot.sendTo(chatId, text, opts)</td><td>Написать в другой чат, где бот состоит.</td></tr>
+          <tr><td>msg.type === "join_request"</td><td>Новая заявка на вступление в канал/группу, где бот — админ: <code>chatId</code>, <code>userId</code>, <code>userName</code>, <code>username</code>, <code>bio</code>.</td></tr>
+          <tr><td>bot.approveJoin(userId, chatId?) / bot.declineJoin(userId, chatId?)</td><td>Принять или отклонить заявку (по умолчанию — в чате из <code>msg</code>).</td></tr>
+          <tr><td>bot.joinRequests(chatId?)</td><td>Список ожидающих заявок.</td></tr>
           <tr><td>fetch</td><td>Обычный fetch — запросы к внешним сервисам.</td></tr>
           <tr><td>console.log / warn / error</td><td>Пишет в консоль редактора и в журнал бота.</td></tr>
           <tr><td>setTimeout / clearTimeout</td><td>Задержки внутри обработчика.</td></tr>

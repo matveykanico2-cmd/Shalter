@@ -5,9 +5,12 @@ import { formatSize } from "../lib/uploadLimits.js";
 
 // Окно отправки вложений как в tweb (popups/newMedia): превью фото/видео альбомом
 // или список файлов, подпись, «Отправить без сжатия», кнопка «Отправить».
-export function openMediaSendPopup({ picks, caption = "", onSend, onCancel }) {
+export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allowPaid = false }) {
   let items = picks.slice();
   let asFiles = false;
+  // Платный пост канала: цена в звёздах (0 — бесплатно).
+  let paidStars = 0;
+  const paidBar = el("div", { class: "tw-nm-paid", hidden: true });
   const urls = new Map();
   const urlFor = (file) => {
     if (!urls.has(file)) urls.set(file, URL.createObjectURL(file));
@@ -19,8 +22,8 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel }) {
   const preview = el("div", { class: "tw-nm-preview" });
   const captionInput = el("textarea", {
     class: "tw-input tw-nm-caption",
-    placeholder: " ",
-    rows: 3,
+    placeholder: "Добавить подпись…",
+    rows: 1,
     maxlength: 4096,
     oninput: () => fitCaption(),
     onkeydown: (e) => {
@@ -31,12 +34,12 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel }) {
     },
   });
   captionInput.value = caption;
-  // Поле подписи — от трёх строк и растёт с текстом (раньше была одна строка).
+  // Поле подписи — одна строка, растёт с текстом до ~6 строк (как в Telegram).
   function fitCaption() {
     captionInput.style.height = "auto";
-    captionInput.style.height = `${Math.min(captionInput.scrollHeight, 240)}px`;
+    captionInput.style.height = `${Math.min(captionInput.scrollHeight, 150)}px`;
   }
-  const sendBtn = el("button", { class: "tw-nm-send", onclick: () => send() }, "Отправить");
+  const sendBtn = el("button", { class: "tw-nm-send", title: "Отправить", "aria-label": "Отправить", html: iconSvg("Send", 22), onclick: () => send() });
 
   const isMedia = (it) => (it.kind === "image" || it.kind === "video") && !asFiles;
 
@@ -68,8 +71,22 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel }) {
     });
   }
 
+  async function askPaidPrice() {
+    const { askText } = await import("./confirmDialog.js");
+    const raw = await askText("Сколько звёзд стоит открыть фото и видео?", paidStars ? String(paidStars) : "25", { okLabel: "Готово" });
+    if (raw == null) return;
+    const n = Math.floor(Number(String(raw).trim()));
+    paidStars = Number.isFinite(n) && n > 0 ? Math.min(n, 10000) : 0;
+    render();
+  }
+
   function render() {
     titleEl.textContent = title();
+    paidBar.hidden = !paidStars;
+    paidBar.replaceChildren(
+      el("span", {}, `⭐ Платный пост: подписчики откроют медиа за ${paidStars} звёзд`),
+      el("button", { type: "button", onclick: () => ((paidStars = 0), render()) }, "Убрать")
+    );
     const media = items.filter(isMedia);
     const docs = items.filter((i) => !isMedia(i));
     const nodes = [];
@@ -130,8 +147,11 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel }) {
           openDropdownMenu({ x: r.right - 220, y: r.bottom + 4 }, [
             asFiles
               ? { icon: "Image", label: "Отправить сжатым", onClick: () => ((asFiles = false), render()) }
-              : { icon: "File", label: "Отправить без сжатия", onClick: () => ((asFiles = true), render()) },
-          ]);
+              : { icon: "File", label: "Отправить без сжатия", onClick: () => ((asFiles = true), (paidStars = 0), render()) },
+            allowPaid && !asFiles
+              ? { icon: "Star", label: paidStars ? "Изменить цену" : "Платный контент ⭐", onClick: () => askPaidPrice() }
+              : null,
+          ].filter(Boolean));
         },
       })
     : null;
@@ -149,8 +169,9 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel }) {
     if (!items.length) return;
     const out = items.map((it) => ({ file: it.file, kind: asFiles ? "file" : it.kind }));
     const text = captionInput.value;
+    const paid = paidStars && !asFiles && out.some((p) => p.kind === "image" || p.kind === "video") ? paidStars : 0;
     close();
-    onSend({ picks: out, caption: text });
+    onSend({ picks: out, caption: text, paidStars: paid });
   }
   function onKey(e) {
     if (e.key === "Escape") {
@@ -167,8 +188,9 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel }) {
         moreBtn,
       ]),
       preview,
+      paidBar,
       el("div", { class: "tw-nm-footer" }, [
-        el("label", { class: "tw-input-field tw-nm-caption-field" }, [captionInput, el("span", { class: "tw-input-label" }, "Подпись")]),
+        el("label", { class: "tw-nm-caption-field" }, [captionInput]),
         sendBtn,
       ]),
     ])

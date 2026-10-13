@@ -1,4 +1,4 @@
-const ALLOWED_KINDS = new Set(["image", "video", "voice", "video-note", "file", "location", "contact", "poll", "checklist", "dice"]);
+const ALLOWED_KINDS = new Set(["image", "video", "voice", "video-note", "file", "location", "contact", "poll", "checklist", "dice", "game"]);
 // Анимированные эмодзи-игры, как в Telegram: число выпадает на сервере,
 // клиент присылает только какой эмодзи бросить. Значение — максимум очков.
 const DICE = { "🎲": 6, "🎯": 6, "🏀": 5, "⚽": 5, "🎳": 6, "🎰": 64 };
@@ -72,6 +72,16 @@ function sanitizeAttachments(attachments) {
             : null;
         const multiple = correctIndex === null && a.meta?.multiple === true;
         out.meta = { options, voterIds, votes: voterIds.map((v) => v.length), correctIndex, multiple, closed: false };
+      } else if (a.kind === "game") {
+        // Карточка игры: только ссылка на игру, код и рекорды — на сервере.
+        const gameId = typeof a.meta?.gameId === "string" && /^(builtin-[a-z0-9-]{1,32}|g_[A-Za-z0-9_-]{4,40})$/.test(a.meta.gameId) ? a.meta.gameId : null;
+        if (!gameId) return null;
+        out.meta = {
+          gameId,
+          title: String(a.meta?.title ?? "Игра").slice(0, 64),
+          emoji: [...String(a.meta?.emoji ?? "🎮")].slice(0, 2).join(""),
+          description: String(a.meta?.description ?? "").slice(0, 200),
+        };
       } else if (a.kind === "dice") {
         const emoji = typeof a.meta?.emoji === "string" && DICE[a.meta.emoji] ? a.meta.emoji : "🎲";
         out.meta = { emoji, value: crypto.randomInt(1, DICE[emoji] + 1) };

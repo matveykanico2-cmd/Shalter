@@ -1,4 +1,6 @@
 import { askText } from "./confirmDialog.js";
+import { usernameUrl } from "../lib/publicLink.js";
+import { bannerBackground } from "../lib/profileBanners.js";
 import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
 import { PremiumStar } from "./premiumStar.js";
@@ -430,7 +432,7 @@ export async function openProfileDialog(userId) {
     }
   }
 
-  const profileLink = () => `${location.origin}/u/${user.username}`;
+  const profileLink = () => usernameUrl(user.username);
 
   function shareContact() {
     // Нет смысла слать человеку его же контакт в его же личный чат.
@@ -609,7 +611,7 @@ export async function openProfileDialog(userId) {
             ].join("")),
             v.attachment.kind === "video-note"
               ? el("video", { class: "profile-voice-note", src: v.attachment.url, controls: true, preload: "metadata", playsInline: true })
-              : el("audio", { class: "profile-voice-player", src: v.attachment.url, controls: true, preload: "none" }),
+              : CompactVoice(v.attachment),
           ])
         )
       );
@@ -700,8 +702,9 @@ export async function openProfileDialog(userId) {
     const tabs = visibleTabs();
     if (!tabs.some((t) => t.id === activeTab)) activeTab = (tabs.find((t) => t.id !== "stories") ?? tabs[0])?.id ?? "stories";
     const safety = safetyLabelInfo(user.safetyLabel);
+    const bannerBg = bannerBackground(user.profileBanner);
     const children = [
-      el("div", { class: "profile-avatar-row" }, [
+      el("div", { class: `profile-avatar-row${bannerBg ? " with-banner" : ""}`, style: bannerBg ? `--profile-banner: ${bannerBg}` : "" }, [
         el(
           "button",
           {
@@ -1010,4 +1013,37 @@ export async function openProfileDialog(userId) {
     if (r) sharedMedia = r;
     scheduleRender();
   });
+}
+
+
+// Голосовое в профиле — компактная строка (кнопка, полоска, время) вместо
+// растянутого на всю ширину системного плеера.
+function CompactVoice(a) {
+  const audio = el("audio", { src: a.url, preload: "none" });
+  const btn = el("button", { class: "profile-voice-play", type: "button", "aria-label": "Слушать", html: iconSvg("PlayFill", 18) });
+  const fill = el("span", { class: "profile-voice-fill" });
+  const time = el("span", { class: "profile-voice-time mono" });
+  const fmt = (sec) => {
+    const t = Math.max(0, Math.floor(sec || 0));
+    return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+  };
+  const total = () => (Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : a.durationSec || 0);
+  const paint = () => {
+    btn.innerHTML = iconSvg(audio.paused ? "PlayFill" : "PauseFill", 18);
+    fill.style.transform = `scaleX(${total() ? Math.min(1, audio.currentTime / total()) : 0})`;
+    time.textContent = audio.currentTime > 0 ? `${fmt(audio.currentTime)} / ${fmt(total())}` : fmt(total());
+  };
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (audio.paused) audio.play().catch(() => {});
+    else audio.pause();
+  });
+  for (const ev of ["play", "pause", "ended", "timeupdate", "loadedmetadata"]) audio.addEventListener(ev, paint);
+  const track = el("span", { class: "profile-voice-track" }, fill);
+  track.addEventListener("pointerdown", (e) => {
+    const r = track.getBoundingClientRect();
+    if (total() && r.width) audio.currentTime = ((e.clientX - r.left) / r.width) * total();
+  });
+  paint();
+  return el("div", { class: "profile-voice-compact" }, [audio, btn, track, time]);
 }

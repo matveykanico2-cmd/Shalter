@@ -479,6 +479,18 @@ export const api = {
     req(`/api/chats/${chatId}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ text }) }),
   updateLiveLocation: (chatId, messageId, lat, lng) =>
     req(`/api/chats/${chatId}/messages/${messageId}/location`, { method: "POST", body: JSON.stringify({ lat, lng }) }),
+  listGames: () => req("/api/games"),
+  myGames: () => req("/api/games/mine"),
+  getGame: (id) => req(`/api/games/${encodeURIComponent(id)}`),
+  createGame: (game) => req("/api/games", { method: "POST", body: JSON.stringify(game), noQueue: true }),
+  updateGame: (id, game) => req(`/api/games/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(game), noQueue: true }),
+  deleteGame: (id) => req(`/api/games/${encodeURIComponent(id)}`, { method: "DELETE", noQueue: true }),
+  playGame: (id) => req(`/api/games/${encodeURIComponent(id)}/play`, { method: "POST", body: "{}", noQueue: true }),
+  submitGameScore: (id, score, chatId) =>
+    req(`/api/games/${encodeURIComponent(id)}/score`, { method: "POST", body: JSON.stringify({ score, chatId: chatId || undefined }), noQueue: true }),
+  getGameScores: (id, chatId) => req(`/api/games/${encodeURIComponent(id)}/scores${chatId ? `?chatId=${encodeURIComponent(chatId)}` : ""}`),
+  getPaidMedia: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/paid`),
+  unlockPaidMedia: (chatId, messageId) => req(`/api/chats/${chatId}/messages/${messageId}/unlock`, { method: "POST", body: "{}", noQueue: true }),
   deleteMessage: (chatId, messageId, forEveryone) =>
     req(`/api/chats/${chatId}/messages/${messageId}`, {
       method: "DELETE",
@@ -626,8 +638,8 @@ export const api = {
   getBotLogs: (id) => req(`/api/bots/${id}/logs`),
   search: (q) => req(`/api/search?q=${encodeURIComponent(q)}`),
 
-  publishPost: (channelId, text, attachments, clientId) =>
-    req(`/api/posts/${channelId}/publish`, { method: "POST", body: JSON.stringify({ text, attachments, clientId }), noQueue: true }),
+  publishPost: (channelId, text, attachments, clientId, paidMedia) =>
+    req(`/api/posts/${channelId}/publish`, { method: "POST", body: JSON.stringify({ text, attachments, clientId, ...(paidMedia ? { paidMedia } : {}) }), noQueue: true }),
 
   getVapidPublicKey: () => req("/api/push/vapid-public-key"),
   subscribePush: (subscription) => req("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription }) }),

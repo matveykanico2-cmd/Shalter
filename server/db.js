@@ -529,6 +529,8 @@ if (!existingUserColumns.has("businessUntil")) db.exec("ALTER TABLE users ADD CO
 if (!existingUserColumns.has("businessAddress")) db.exec("ALTER TABLE users ADD COLUMN businessAddress TEXT");
 if (!existingUserColumns.has("businessLat")) db.exec("ALTER TABLE users ADD COLUMN businessLat REAL");
 if (!existingUserColumns.has("nameColor")) db.exec("ALTER TABLE users ADD COLUMN nameColor TEXT");
+// Баннер в шапке профиля: {"id":"<встроенный фон>"} или {"id":"custom","url":"/uploads/…"}.
+if (!existingUserColumns.has("profileBanner")) db.exec("ALTER TABLE users ADD COLUMN profileBanner TEXT");
 if (!existingUserColumns.has("businessLng")) db.exec("ALTER TABLE users ADD COLUMN businessLng REAL");
 if (!existingUserColumns.has("adAttachments")) db.exec("ALTER TABLE users ADD COLUMN adAttachments TEXT");
 if (!existingUserColumns.has("birthday")) db.exec("ALTER TABLE users ADD COLUMN birthday TEXT");
@@ -639,6 +641,45 @@ CREATE TABLE IF NOT EXISTS join_requests (
   PRIMARY KEY (chatId, userId)
 );
 CREATE INDEX IF NOT EXISTS idx_join_requests_chat ON join_requests(chatId);
+-- Платное медиа в каналах: настоящие вложения поста хранятся здесь, а в самом
+-- сообщении — только размытая заглушка, пока подписчик не откроет пост за звёзды.
+CREATE TABLE IF NOT EXISTS paid_media (
+  messageId TEXT PRIMARY KEY,
+  chatId TEXT NOT NULL,
+  stars INTEGER NOT NULL,
+  attachments TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+-- Игры (как в Telegram): HTML5-игра — один HTML-файл, запускается в
+-- изолированном iframe. Встроенные лежат в public/games, свои — здесь.
+CREATE TABLE IF NOT EXISTS games (
+  id TEXT PRIMARY KEY,
+  ownerId TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  emoji TEXT NOT NULL DEFAULT '🎮',
+  code TEXT NOT NULL,
+  isPublic INTEGER NOT NULL DEFAULT 0,
+  plays INTEGER NOT NULL DEFAULT 0,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_games_owner ON games(ownerId);
+-- Рекорды: лучший результат человека в игре (scope '' — общий, иначе id чата).
+CREATE TABLE IF NOT EXISTS game_scores (
+  gameId TEXT NOT NULL,
+  scope TEXT NOT NULL DEFAULT '',
+  userId TEXT NOT NULL,
+  score INTEGER NOT NULL,
+  updatedAt TEXT NOT NULL,
+  PRIMARY KEY (gameId, scope, userId)
+);
+CREATE TABLE IF NOT EXISTS paid_media_buyers (
+  messageId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  PRIMARY KEY (messageId, userId)
+);
 `);
 
 const existingMsgSignCols = new Set(db.prepare("PRAGMA table_info(messages)").all().map((c) => c.name));

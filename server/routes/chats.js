@@ -20,6 +20,7 @@ const { publicUser } = require("../data/sanitize");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
 const { getBotByUserId } = require("../data/bots");
 const joinRequests = require("../data/joinRequests");
+const { sendWelcome, submitJoinRequest, decideJoinRequest } = require("../lib/joinApproval");
 const { markTyping, clearTyping, getTyping, normalizeAction } = require("../data/typing");
 const { broadcastToUsers } = require("../ws");
 const messagesRouter = require("./messages");
@@ -277,20 +278,6 @@ async function serviceNote(chat, actorId, build) {
   return sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, text, { type: "system" });
 }
 
-// Приветствие новому участнику группы, если админы его задали. {name} —
-// имя вступившего.
-async function sendWelcome(chat, userId) {
-  if (chat.type !== "group" || !chat.welcomeText) return;
-  try {
-    const user = await getUser(userId);
-    if (!user || user.isBot) return;
-    const text = chat.welcomeText.replaceAll("{name}", user.name ?? "");
-    await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, `👋 ${text}`, { type: "system" });
-  } catch (err) {
-    console.error("welcome message failed:", err);
-  }
-}
-
 function isOwner(chat, userId) {
   return chat?.ownerId === userId || (chat?.ownerIds ?? []).includes(userId);
 }
@@ -536,12 +523,7 @@ router.post(
     if ((chat.bannedIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Вас заблокировали в этом чате" });
 
     if (chat.approveJoins) {
-      joinRequests.addRequest(chat.id, req.uid);
-      const who = await getUser(req.uid);
-      broadcastToUsers(
-        chat.memberIds.filter((id) => isOwnerOrAdminOf(chat, id)),
-        { type: "chat:join-request", chatId: chat.id, user: publicUser(who) }
-      );
+      await submitJoinRequest(chat, req.uid);
       return res.json({ pending: true });
     }
 
@@ -614,21 +596,12 @@ router.post(
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
     if (!isOwnerOrAdminOf(chat, req.uid)) return res.status(403).json({ error: "Недостаточно прав" });
-    if (!joinRequests.hasRequest(chat.id, req.params.userId)) return res.status(404).json({ error: "Заявка не найдена" });
-
-    const approve = req.body?.approve !== false;
-    joinRequests.removeRequest(chat.id, req.params.userId);
-    if (!approve) {
-      return res.json({ ok: true, approved: false });
+    try {
+      const result = await decideJoinRequest(chat.id, req.params.userId, req.body?.approve !== false, req.uid);
+      res.json({ ok: true, approved: result.approved, ...(result.approved ? { chat: result.chat } : {}) });
+    } catch (err) {
+      res.status(err.status ?? 500).json({ error: err.message });
     }
-
-    if ((chat.bannedIds ?? []).includes(req.params.userId)) return res.status(409).json({ error: "Пользователь заблокирован в этом чате" });
-    const updated = await updateChat(chat.id, { memberIds: [...new Set([...chat.memberIds, req.params.userId])] });
-    logAdminAction(chat.id, req.uid, "join_approve", { targetId: req.params.userId });
-    broadcastToUsers([req.params.userId], { type: "chat:added", chat: updated });
-    broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
-    await sendWelcome(updated, req.params.userId);
-    res.json({ ok: true, approved: true, chat: updated });
   })
 );
 
@@ -859,12 +832,7 @@ router.post(
     if ((chat.bannedIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Вас заблокировали в этом чате" });
 
     if (chat.approveJoins) {
-      joinRequests.addRequest(chat.id, req.uid);
-      const who = await getUser(req.uid);
-      broadcastToUsers(
-        chat.memberIds.filter((id) => isOwnerOrAdminOf(chat, id)),
-        { type: "chat:join-request", chatId: chat.id, user: publicUser(who) }
-      );
+      await submitJoinRequest(chat, req.uid);
       return res.json({ pending: true, chat: { id: chat.id, title: chat.title, type: chat.type } });
     }
 

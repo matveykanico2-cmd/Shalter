@@ -78,9 +78,39 @@ export async function startNativeNotifications() {
       .catch((err) => console.warn("foreground service:", err?.message ?? err));
   }
 
-  // Нажали на уведомление — открываем тот чат.
-  local.addListener("localNotificationActionPerformed", ({ notification }) => {
-    const url = notification?.extra?.url;
+  // Кнопки уведомления о сообщении: ответить (с полем ввода), прочитано, удалить.
+  await local
+    .registerActionTypes?.({
+      types: [
+        {
+          id: "message",
+          actions: [
+            { id: "reply", title: "Ответить", input: true, inputButtonTitle: "Отправить", inputPlaceholder: "Сообщение…" },
+            { id: "read", title: "Прочитано" },
+            { id: "delete", title: "Удалить", destructive: true },
+          ],
+        },
+      ],
+    })
+    .catch(() => {});
+
+  // Нажали на уведомление — открываем тот чат; кнопки — делаем действие на месте.
+  local.addListener("localNotificationActionPerformed", async ({ actionId, inputValue, notification }) => {
+    const { url, chatId, messageId } = notification?.extra ?? {};
+    const { api } = await import("../api.js");
+    if (actionId === "read" && chatId) return void api.markChatRead(chatId).catch(() => {});
+    if (actionId === "delete" && chatId && messageId) return void api.deleteMessage(chatId, messageId, false).catch(() => {});
+    if (actionId === "reply" && chatId) {
+      const text = String(inputValue ?? "").trim();
+      if (text) {
+        try {
+          await api.sendMessage(chatId, text, { replyToId: messageId || undefined, clientId: `n_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}` });
+          api.markChatRead(chatId).catch(() => {});
+          return;
+        } catch {}
+      }
+      return navigate(`/chat/${chatId}${messageId ? `?reply=${encodeURIComponent(messageId)}` : ""}`);
+    }
     if (url) navigate(url);
   });
 
@@ -101,7 +131,8 @@ export async function startNativeNotifications() {
             channelId: "messages",
             smallIcon: SMALL_ICON,
             group: msg.chatId,
-            extra: { url: `/chat/${msg.chatId}` },
+            actionTypeId: "message",
+            extra: { url: `/chat/${msg.chatId}`, chatId: msg.chatId, messageId: m.id },
           },
         ],
       })

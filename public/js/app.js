@@ -157,6 +157,7 @@ async function boot() {
   loadSafetyLabels(api).catch(() => {});
   startWsClient();
   initNetStatus();
+  import("./lib/downloads.js").then((m) => m.startDownloadTracking()).catch(() => {});
   // Десктоп (мост из src-tauri/src/main.rs): число непрочитанных без заглушённых чатов → бейдж и трей.
   if (window.shalterDesktop) {
     let lastUnread = -1;

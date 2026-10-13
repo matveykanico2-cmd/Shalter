@@ -1,4 +1,5 @@
 const db = require("../db");
+const { applyBotMascot } = require("../lib/botMascot");
 
 const HUGO_ID = "bot_support";
 
@@ -29,6 +30,7 @@ function ensureHugoAccount() {
     `INSERT INTO bots (id, userId, description, commands) VALUES (?, ?, ?, '[]')
      ON CONFLICT(id) DO UPDATE SET description = excluded.description`
   ).run(HUGO_ID, HUGO_ID, "Поддержка Shalter и проверка текста");
+  applyBotMascot(HUGO_ID);
 }
 
 module.exports = { HUGO_ID, ensureHugoAccount };

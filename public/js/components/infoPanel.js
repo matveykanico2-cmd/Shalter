@@ -1,4 +1,5 @@
 import { openCommunityPanel } from "./communityList.js";
+import { usernameUrl } from "../lib/publicLink.js";
 import { openCreateCommunityDialog, addChatToCommunity, removeChatFromCommunity } from "./communityEditor.js";
 import { askText } from "./confirmDialog.js";
 import { askConfirm } from "./confirmDialog.js";
@@ -401,10 +402,10 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             chat.isPublic && chat.username
               ? infoRow({
                   icon: "Globe",
-                  value: `${location.host}/u/${chat.username}`,
+                  value: usernameUrl(chat.username).replace(/^https?:\/\//, ""),
                   label: "Ссылка",
                   accent: true,
-                  copy: `${location.origin}/u/${chat.username}`,
+                  copy: usernameUrl(chat.username),
                 })
               : null,
           ].filter(Boolean))

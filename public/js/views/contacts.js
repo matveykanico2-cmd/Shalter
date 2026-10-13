@@ -1,4 +1,5 @@
 import { askText } from "../components/confirmDialog.js";
+import { publicUrl } from "../lib/publicLink.js";
 import { el, mount, clear } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "../components/avatar.js";
@@ -29,7 +30,7 @@ export async function ContactsView(root) {
   let blockedIds = new Set(getState().user.blockedUserIds ?? []);
   let addMode = "phone";
   let notRegistered = null;
-  const inviteLink = `${window.location.origin}/login`;
+  const inviteLink = publicUrl("/login");
   let inviteCopied = false;
 
   let filter = "";

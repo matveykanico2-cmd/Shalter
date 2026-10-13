@@ -1,4 +1,5 @@
 import { el } from "../lib/dom.js";
+import { publicUrl } from "../lib/publicLink.js";
 import { api } from "../api.js";
 
 export function openInviteLinkDialog(chat) {
@@ -42,7 +43,7 @@ export function openInviteLinkDialog(chat) {
   api
     .chatInviteLink(chat.id)
     .then(({ code }) => {
-      linkInput.value = `${window.location.origin}/join/${code}`;
+      linkInput.value = publicUrl(`/join/${code}`);
     })
     .catch((err) => {
       linkInput.value = "";

@@ -1,4 +1,5 @@
 import { el } from "../lib/dom.js";
+import { publicUrl } from "../lib/publicLink.js";
 import { iconSvg } from "../icons.js";
 import { Avatar } from "./avatar.js";
 import { api } from "../api.js";
@@ -105,7 +106,7 @@ export function communityMenuItems(community, { inPanel = false } = {}) {
   const muted = isCommunityMuted(community, chats);
   const unread = memberChatsOf(community, chats).some(hasUnread);
   const rights = community.rights ?? {};
-  const link = `${location.origin}/community/${community.id}`;
+  const link = publicUrl(`/community/${community.id}`);
   return [
     !inPanel && { icon: "Layers", label: "Открыть сообщество", onClick: () => openCommunityPanel(community.id) },
     {

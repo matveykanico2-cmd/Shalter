@@ -141,4 +141,38 @@ async function generateImagePreview(inputPath) {
   });
 }
 
-module.exports = { generateVideoPreview, generateImagePreview, PREVIEW_HEIGHT };
+// Несколько кадров ролика (равномерно по длительности) — чтобы нейросеть,
+// понимающая только картинки, могла «посмотреть» видео. Возвращает JPEG-буферы.
+async function extractVideoFrames(inputPath, { count = 6, durationSec = 0, width = 640 } = {}) {
+  return videoQueue(async () => {
+    let duration = durationSec;
+    if (!(duration > 0)) {
+      const probe = tempPath(".jpg");
+      try {
+        const codec = await runFfmpeg((cmd) => cmd.input(inputPath).outputOptions(["-frames:v 1"]).output(probe));
+        duration = parseDuration(codec?.duration);
+      } catch {
+      } finally {
+        await fs.promises.unlink(probe).catch(() => {});
+      }
+    }
+    const n = duration > 1 ? Math.max(1, Math.min(count, Math.ceil(duration / 2))) : 1;
+    const frames = [];
+    for (let i = 0; i < n; i++) {
+      const at = n === 1 ? Math.min(1, duration / 2 || 0) : (duration * (i + 0.5)) / n;
+      const out = tempPath(".jpg");
+      try {
+        await runFfmpeg((cmd) =>
+          cmd.input(inputPath).seekInput(at).outputOptions(["-frames:v 1", `-vf scale='min(${width},iw)':-2`, "-q:v 4"]).output(out)
+        );
+        frames.push({ at, buf: await fs.promises.readFile(out) });
+      } catch {
+      } finally {
+        await fs.promises.unlink(out).catch(() => {});
+      }
+    }
+    return { frames, durationSec: duration };
+  });
+}
+
+module.exports = { generateVideoPreview, generateImagePreview, extractVideoFrames, PREVIEW_HEIGHT };

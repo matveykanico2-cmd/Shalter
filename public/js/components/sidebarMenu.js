@@ -53,6 +53,8 @@ export function openSidebarMenu(pos) {
   items.push({ icon: "Archive", label: "Архив", onClick: () => navigate("/archive") });
   items.push({ icon: "Users", label: "Контакты", onClick: () => navigate("/contacts") });
   items.push({ icon: "Phone", label: "Звонки", onClick: () => navigate("/calls") });
+  items.push({ icon: "Smile", label: "Игры", onClick: () => import("./games.js").then((m) => m.openGamesCatalog()) });
+  items.push({ icon: "Download", label: "Загрузки", onClick: () => import("./downloadsDialog.js").then((m) => m.openDownloadsDialog()) });
 
   items.push({ separator: true });
   items.push({ icon: "Settings", label: "Настройки", onClick: () => navigate("/settings") });

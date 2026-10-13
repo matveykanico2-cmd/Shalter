@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#faf8ef;font-family:system-ui,sans-serif;color:#776e65;touch-action:none;user-select:none}
+.wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;padding:12px}
+.top{display:flex;gap:8px;width:min(92vw,420px);align-items:center}
+.top h1{margin:0;flex:1;font-size:34px;color:#776e65}
+.box{background:#bbada0;color:#fff;border-radius:6px;padding:4px 12px;text-align:center;font-size:12px;min-width:64px}.box b{display:block;font-size:18px}
+button{border:0;border-radius:6px;background:#8f7a66;color:#fff;font-weight:700;padding:8px 14px;font-size:14px}
+.grid{position:relative;width:min(92vw,420px);aspect-ratio:1;background:#bbada0;border-radius:8px;padding:2.4%;display:grid;grid-template-columns:repeat(4,1fr);gap:2.4%}
+.c{background:rgba(238,228,218,.35);border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(18px,7vw,40px);transition:background .1s}
+.over{position:absolute;inset:0;background:rgba(238,228,218,.75);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;border-radius:8px;font-size:30px;font-weight:800}
+</style></head><body><div class="wrap">
+<div class="top"><h1>2048</h1><div class="box">СЧЁТ<b id="s">0</b></div><div class="box">ЛУЧШИЙ<b id="b">0</b></div></div>
+<div class="grid" id="g"><div class="over" id="o"><span id="ot">Игра окончена</span><button onclick="start()">Ещё раз</button></div></div>
+<div style="font-size:13px">Свайп или стрелки — двигайте плитки</div></div>
+<script>
+const COLORS={2:"#eee4da",4:"#ede0c8",8:"#f2b179",16:"#f59563",32:"#f67c5f",64:"#f65e3b",128:"#edcf72",256:"#edcc61",512:"#edc850",1024:"#edc53f",2048:"#edc22e"};
+let b,score,best=+localStorage.getItem("b2048")||0,cells=[];const g=document.getElementById("g");
+for(let i=0;i<16;i++){const c=document.createElement("div");c.className="c";g.insertBefore(c,document.getElementById("o"));cells.push(c)}
+function add(){const e=[];b.forEach((v,i)=>!v&&e.push(i));if(e.length)b[e[Math.random()*e.length|0]]=Math.random()<.9?2:4}
+function draw(){b.forEach((v,i)=>{const c=cells[i];c.textContent=v||"";c.style.background=v?(COLORS[v]||"#3c3a32"):"";c.style.color=v>4?"#f9f6f2":"#776e65";c.style.fontSize=v>=1024?"clamp(14px,5vw,30px)":""});
+document.getElementById("s").textContent=score;if(score>best){best=score;localStorage.setItem("b2048",best)}document.getElementById("b").textContent=best;Shalter.score(score)}
+function start(){b=Array(16).fill(0);score=0;add();add();document.getElementById("o").style.display="none";draw()}
+function line(a){a=a.filter(Boolean);for(let i=0;i<a.length-1;i++)if(a[i]===a[i+1]){a[i]*=2;score+=a[i];a.splice(i+1,1)}while(a.length<4)a.push(0);return a}
+function move(d){const old=b.join();for(let k=0;k<4;k++){let idx=[0,1,2,3].map(j=>d==="l"?k*4+j:d==="r"?k*4+3-j:d==="u"?j*4+k:(3-j)*4+k);const r=line(idx.map(i=>b[i]));idx.forEach((i,j)=>b[i]=r[j])}
+if(b.join()!==old){add();draw();if(!canMove()){document.getElementById("ot").textContent=b.includes(2048)?"Победа!":"Игра окончена";document.getElementById("o").style.display="flex";Shalter.gameOver(score)}}}
+function canMove(){if(b.includes(0))return true;for(let i=0;i<16;i++){if(i%4<3&&b[i]===b[i+1])return true;if(i<12&&b[i]===b[i+4])return true}return false}
+addEventListener("keydown",e=>{const m={ArrowLeft:"l",ArrowRight:"r",ArrowUp:"u",ArrowDown:"d"}[e.key];if(m){e.preventDefault();move(m)}});
+let sx,sy;addEventListener("pointerdown",e=>{sx=e.clientX;sy=e.clientY});addEventListener("pointerup",e=>{const dx=e.clientX-sx,dy=e.clientY-sy;if(Math.max(Math.abs(dx),Math.abs(dy))<25)return;move(Math.abs(dx)>Math.abs(dy)?(dx>0?"r":"l"):(dy>0?"d":"u"))});
+start();
+</script></body></html>

@@ -1,4 +1,7 @@
 import { nameColorValue } from "../lib/nameColors.js";
+import { publicUrl } from "../lib/publicLink.js";
+import { PaidMediaAttachment } from "./paidMedia.js";
+import { GameAttachment } from "./games.js";
 import { askText } from "./confirmDialog.js";
 import { askConfirm } from "./confirmDialog.js";
 import { el, clear } from "../lib/dom.js";
@@ -955,6 +958,10 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       bubbleInner.push(ChecklistAttachment(message, a, me, members, handlers.onRefresh));
     } else if (a.kind === "dice") {
       bubbleInner.push(DiceAttachment(message, a));
+    } else if (a.kind === "game") {
+      bubbleInner.push(GameAttachment(message, a));
+    } else if (a.kind === "paid") {
+      bubbleInner.push(PaidMediaAttachment(message, a, { mine }));
     } else if (album && (a.kind === "image" || a.kind === "video")) {
       if (albumPlaced) continue;
       albumPlaced = true;
@@ -1284,8 +1291,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
             onClick: () => {
               // Публичный чат — ссылка через @username: её откроет и тот, кто ещё не вступил.
               const username = getState().chats.find((c) => c.id === message.chatId)?.username;
-              const path = username ? `/@${username}` : `/chat/${message.chatId}`;
-              copyText(`${location.origin}${path}?msg=${message.id}`, "Ссылка скопирована");
+              const path = username ? `/u/${username}` : `/chat/${message.chatId}`;
+              copyText(`${publicUrl(path)}?msg=${message.id}`, "Ссылка скопирована");
             },
           }]
         : []),

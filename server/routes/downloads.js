@@ -57,6 +57,46 @@ function localArtifact(file) {
   }
 }
 
+// APK, подписанный отладочным ключом (CN=Android Debug), не ставится поверх
+// release-версии (RuStore, GitHub Release) — Android пишет «конфликт пакетов».
+// Читаем сертификат из APK Signing Block (v2/v3); результат кэшируем по mtime.
+const debugSignedCache = new Map();
+function apkIsDebugSigned(file) {
+  const full = path.join(DOWNLOAD_DIR, file);
+  try {
+    const { mtimeMs, size } = fs.statSync(full);
+    const key = `${file}:${mtimeMs}:${size}`;
+    if (debugSignedCache.has(key)) return debugSignedCache.get(key);
+    const b = fs.readFileSync(full);
+    let e = b.length - 22;
+    while (e > 0 && b.readUInt32LE(e) !== 0x06054b50) e--;
+    const cd = b.readUInt32LE(e + 16);
+    let debug = false;
+    if (b.toString("latin1", cd - 16, cd) === "APK Sig Block 42") {
+      const size64 = Number(b.readBigUInt64LE(cd - 24));
+      let p = cd - size64 - 8 + 8;
+      while (p < cd - 24) {
+        const len = Number(b.readBigUInt64LE(p));
+        const id = b.readUInt32LE(p + 8);
+        if (id === 0x7109871a || id === 0xf05368c0) {
+          let q = p + 12 + 12;
+          q += 4 + b.readUInt32LE(q); // digests
+          q += 4; // certificates seq length
+          const certLen = b.readUInt32LE(q);
+          const cert = new (require("crypto").X509Certificate)(b.subarray(q + 4, q + 4 + certLen));
+          debug = /CN=Android Debug/.test(cert.subject);
+          break;
+        }
+        p += 8 + len;
+      }
+    }
+    debugSignedCache.set(key, debug);
+    return debug;
+  } catch {
+    return false;
+  }
+}
+
 const router = express.Router();
 
 router.get("/", async (_req, res) => {
@@ -67,7 +107,10 @@ router.get("/", async (_req, res) => {
   }
 
   const local = ARTIFACTS.map(({ id, file }) => ({ id, file, found: localArtifact(file) }));
-  const release = local.some((a) => !a.found) ? await latestReleaseAssets() : new Map();
+  const debugApk = local.some((a) => a.id === "android" && a.found) && apkIsDebugSigned("Shalter.apk");
+  const release = local.some((a) => !a.found) || debugApk ? await latestReleaseAssets() : new Map();
+  // Отладочный APK отдаём, только если подписанной release-сборки нет совсем.
+  if (debugApk && release.has("Shalter.apk")) local.find((a) => a.id === "android").found = null;
 
   const artifacts = local.map(({ id, file, found }) => {
     const hit = found ?? release.get(file);
@@ -101,7 +144,11 @@ router.get("/latest", async (req, res) => {
     url = process.env.IOS_APP_URL || null;
   } else if (UPDATE_FILES[platform]) {
     const file = UPDATE_FILES[platform];
-    url = releaseCache.assets.get(file)?.url ?? localArtifact(file)?.url ?? null;
+    const localUrl = platform === "android" && apkIsDebugSigned(file) ? null : localArtifact(file)?.url;
+    url = releaseCache.assets.get(file)?.url ?? localUrl ?? null;
+    // Нет подписанной сборки для обновления — не предлагаем: отладочный APK
+    // поверх release-версии не встанет («конфликт пакетов»).
+    if (!url) return res.json({ version: null });
   }
   res.json({ version, url, page: "/download" });
 });
