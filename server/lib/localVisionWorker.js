@@ -3,6 +3,10 @@
 // а здесь, и выгружается, когда простаивает (см. localVision.js).
 const path = require("path");
 
+// Сколько ядер можно занять (на 2-ядерном сервере — одно, чтобы мессенджер не тормозил).
+const THREADS = Math.max(1, Number(process.env.LOCAL_AI_THREADS) || 1);
+const SESSION = { intraOpNumThreads: THREADS, interOpNumThreads: 1 };
+
 let ready = null;
 function load() {
   ready ??= (async () => {
@@ -12,7 +16,7 @@ function load() {
     // берём её, если на сервере от 6 ГБ; иначе лёгкую (~1,5 ГБ).
     const big = require("os").totalmem() >= 6 * 1024 ** 3;
     const id = process.env.LOCAL_VISION_MODEL || (big ? "onnx-community/Florence-2-large-ft" : "onnx-community/Florence-2-base-ft");
-    const model = await T.Florence2ForConditionalGeneration.from_pretrained(id, { dtype: "q8" });
+    const model = await T.Florence2ForConditionalGeneration.from_pretrained(id, { dtype: "q8", session_options: SESSION });
     const processor = await T.AutoProcessor.from_pretrained(id);
     return { T, model, processor };
   })();
@@ -32,7 +36,9 @@ function loadAsr() {
   asr ??= (async () => {
     const T = require("@huggingface/transformers");
     T.env.cacheDir = process.env.LOCAL_VISION_CACHE || path.join(process.cwd(), "data", "models");
-    return T.pipeline("automatic-speech-recognition", process.env.LOCAL_ASR_MODEL || "Xenova/whisper-small", { dtype: "q8" });
+    // На маленьком сервере — лёгкая модель (~300 МБ), на большом — точнее.
+    const model = process.env.LOCAL_ASR_MODEL || (require("os").totalmem() >= 6 * 1024 ** 3 ? "Xenova/whisper-small" : "Xenova/whisper-base");
+    return T.pipeline("automatic-speech-recognition", model, { dtype: "q8", session_options: SESSION });
   })();
   return asr;
 }

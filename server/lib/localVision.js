@@ -6,7 +6,13 @@
 const path = require("path");
 const { fork } = require("child_process");
 
-const ENABLED = !/^(0|off|false|no)$/i.test(process.env.LOCAL_VISION || "");
+// На маленьком сервере (2 ГБ) тяжёлая модель для фото загоняла систему в своп и
+// тормозил весь мессенджер. Фото там распознаёт Hugging Face (lib/hfSpaces.js), а
+// локально — только речь лёгкой моделью. Локальные фото — при RAM ≥ 6 ГБ или LOCAL_VISION=on.
+const BIG_BOX = require("os").totalmem() >= 6 * 1024 ** 3;
+const OFF = /^(0|off|false|no)$/i.test(process.env.LOCAL_VISION || "");
+const ENABLED = !OFF && (BIG_BOX || /^(1|on|true|yes)$/i.test(process.env.LOCAL_VISION || ""));
+const ASR_ENABLED = !OFF;
 const IDLE_MS = 3 * 60_000;
 const TIMEOUT_MS = 4 * 60_000; // первая загрузка модели — до пары минут
 
@@ -27,7 +33,12 @@ function worker() {
   child = fork(path.join(__dirname, "localVisionWorker.js"), [], {
     execArgv: ["--max-old-space-size=512"],
     stdio: ["ignore", "ignore", "inherit", "ipc"],
+    env: { ...process.env, LOCAL_AI_THREADS: String(BIG_BOX ? Math.max(1, Math.floor(require("os").cpus().length / 2)) : 1) },
   });
+  // Самый низкий приоритет: распознавание не должно отнимать процессор у мессенджера.
+  try {
+    require("os").setPriority(child.pid, 19);
+  } catch {}
   child.on("message", (m) => {
     if (m?.type !== "result") return;
     const p = pending.get(m.id);
@@ -102,7 +113,7 @@ function decodeAudio(filePath, maxSec = 180) {
 
 // Текст речи из аудио/видео файла. Пустая строка — речи нет.
 async function transcribeFile(filePath) {
-  if (!ENABLED) throw new Error("локальное распознавание выключено");
+  if (!ASR_ENABLED) throw new Error("локальное распознавание выключено");
   const pcm = await decodeAudio(filePath);
   if (pcm.length < 16000 * 4 * 0.3) return ""; // короче 0,3 с — нечего распознавать
   const run = queue.then(
@@ -129,4 +140,4 @@ async function transcribeFile(filePath) {
 
 process.on("exit", stop);
 
-module.exports = { describeImage, transcribeFile, LOCAL_VISION_ENABLED: ENABLED };
+module.exports = { describeImage, transcribeFile, LOCAL_VISION_ENABLED: ENABLED, LOCAL_ASR_ENABLED: ASR_ENABLED, BIG_BOX };

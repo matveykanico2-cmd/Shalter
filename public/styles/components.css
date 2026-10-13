@@ -24557,3 +24557,28 @@ video.media-viewer-media {
   font-weight: 600;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
+
+/* музыка в профиле: карточка ровно по ширине профиля, длинное название — «…»
+   (раньше колонка профиля выровнена по центру, и карточка растягивалась под текст) */
+.ptrack-card {
+  align-self: stretch;
+  box-sizing: border-box;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+}
+.ptrack-name {
+  min-width: 0;
+  gap: 4px;
+}
+.ptrack-name-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ptrack-row .ptrack-body,
+.ptrack-row {
+  min-width: 0;
+}

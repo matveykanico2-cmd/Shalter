@@ -88,7 +88,7 @@ export function ProfileTrackCard(tracks) {
     [
       btn,
       el("div", { class: "ptrack-body" }, [
-        el("p", { class: "ptrack-name" }, [el("span", { html: iconSvg("Volume", 13) }), " ", trackTitle(main)]),
+        el("p", { class: "ptrack-name" }, [el("span", { html: iconSvg("Volume", 13) }), el("span", { class: "ptrack-name-text" }, trackTitle(main))]),
         el("div", { class: "ptrack-meta" }, [
           el("span", { class: "ptrack-progress" }, [fill]),
           time,
@@ -135,7 +135,7 @@ export function openTracksSheet(tracks) {
     const row = el("div", { class: `ptrack-row${i === 0 ? " main" : ""}`, onclick: () => toggle(track) }, [
       btn,
       el("div", { class: "ptrack-body" }, [
-        el("p", { class: "ptrack-name" }, trackTitle(track)),
+        el("p", { class: "ptrack-name" }, el("span", { class: "ptrack-name-text" }, trackTitle(track))),
         el("span", { class: "ptrack-time-wrap" }, [i === 0 ? el("span", { class: "ptrack-badge" }, "основной") : null, time]),
       ]),
     ]);

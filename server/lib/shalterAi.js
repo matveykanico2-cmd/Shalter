@@ -32,7 +32,8 @@ const { broadcastToUsers } = require("../ws");
 const { sendMessageAndBroadcast } = require("./systemChat");
 const { readUploadBuffer, storeGeneratedFile, fetchUploadToTemp } = require("./uploadTransfer");
 const { extractVideoFrames } = require("./mediaPreview");
-const { describeImage, transcribeFile, LOCAL_VISION_ENABLED } = require("./localVision");
+const { describeImage, transcribeFile, LOCAL_VISION_ENABLED, LOCAL_ASR_ENABLED } = require("./localVision");
+const { describeImageRemote } = require("./hfSpaces");
 const { fixLayout } = require("./keyboardLayout");
 
 const HISTORY_LIMIT = 14;
@@ -376,18 +377,29 @@ function remoteVision() {
   return !!GIGACHAT_AUTH_KEY || !!POLLINATIONS_TOKEN || !!OPENROUTER_API_KEY || !!HF_TOKEN;
 }
 function canSeeMedia() {
-  return remoteVision() || LOCAL_VISION_ENABLED;
+  return true; // без ключей — бесплатные нейросети Hugging Face (lib/hfSpaces.js)
 }
 
 // Без ключей фото «видит» локальная нейросеть: её описание (по-английски) и
 // латинский текст с картинки передаём текстовой модели.
-async function localDescription(buf, label = "Фото") {
+async function localDescription(buf, label = "Фото", prompt = null) {
   // Любой формат (webp, png, gif, большое фото) → компактный JPEG: так распознавание
   // не спотыкается о форматы и быстрее работает.
   let jpeg = buf;
   try {
     jpeg = await require("sharp")(buf, { limitInputPixels: 100_000_000 }).rotate().resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
   } catch {}
+  // Сначала — бесплатная нейросеть на Hugging Face (по-русски, вычисления не у нас):
+  // на маленьком сервере локальная модель тормозила весь мессенджер.
+  try {
+    const remote = await describeImageRemote(jpeg, prompt);
+    return `[${label}. Что на изображении (распознано автоматически): ${remote}]`;
+  } catch (err) {
+    console.warn("shalter ai: hf vision failed:", err.message);
+  }
+  if (!LOCAL_VISION_ENABLED) {
+    return `[${label}: распознать изображение сейчас не получилось. Скажи пользователю, что фото пока не видно, и попроси описать его словами.]`;
+  }
   let caption;
   let ocr;
   try {
@@ -544,7 +556,7 @@ async function readAttachment(a, { withMedia }) {
   if (a.kind === "voice" || (a.kind === "file" && /^audio\//.test(a.mimeType ?? ""))) {
     const label = a.kind === "voice" ? `голосовое сообщение${a.durationSec ? ` ${Math.round(a.durationSec)} с` : ""}` : `аудиофайл «${name}»`;
     if (a.transcript) return { text: `[${label}] ${a.transcript}` };
-    if ((!withMedia && !speechCache.has(a.url)) || !LOCAL_VISION_ENABLED || typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: `[${label} — без расшифровки]` };
+    if ((!withMedia && !speechCache.has(a.url)) || !LOCAL_ASR_ENABLED || typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: `[${label} — без расшифровки]` };
     const speech = await speechOf(a.url);
     return { text: speech ? `[${label}, расшифровка речи]: ${speech}` : `[${label} — речь не распознана (тишина или музыка)]` };
   }
@@ -557,16 +569,20 @@ async function readAttachment(a, { withMedia }) {
     const src = a.previewUrl || a.url;
     if (typeof src !== "string" || !src.startsWith("/uploads/")) return { text: `[${label}]` };
     // Что говорят в ролике — тоже важно (кружки почти всегда «говорящие»).
-    const speech = LOCAL_VISION_ENABLED ? await speechOf(a.url).catch(() => "") : "";
+    const speech = LOCAL_ASR_ENABLED ? await speechOf(a.url).catch(() => "") : "";
     const speechPart = speech ? `\nРечь в ролике: ${speech}` : "";
     const { frames, durationSec } = await videoFrames(src, a.durationSec);
     if (!frames.length) return { text: `[${label} — не удалось прочитать кадры]${speechPart}` };
     if (!remoteVision()) {
-      // Локально — 3 кадра (начало, середина, конец): каждый распознаётся пару секунд.
-      const pick = frames.length <= 3 ? frames : [frames[0], frames[Math.floor(frames.length / 2)], frames[frames.length - 1]];
-      const parts = [];
-      for (const f of pick) parts.push(await localDescription(f.buf, `Кадр на ${Math.round(f.at)} с`));
-      return { text: `[${label} ${Math.round(durationSec) || "?"} с]\n${parts.join("\n")}${speechPart}` };
+      // Кадры — одним коллажем 2×2 и одним запросом: быстрее, чем по кадру.
+      const pick = frames.length <= 4 ? frames : [0, 1, 2, 3].map((k) => frames[Math.round((k * (frames.length - 1)) / 3)]);
+      const collage = await framesCollage(pick.map((f) => f.buf));
+      const desc = await localDescription(
+        collage,
+        `${label} ${Math.round(durationSec) || "?"} с`,
+        `Это ${pick.length} кадр(а) из одного видео по порядку (слева направо, сверху вниз). Опиши по-русски, что происходит в ролике: кто или что в кадре, действия, место. Не выдумывай.`
+      );
+      return { text: `${desc}${speechPart}` };
     }
     return {
       text: `[${label} ${Math.round(durationSec) || "?"} с — ниже ${frames.length} кадр(ов) по порядку: ${frames.map((f) => `${Math.round(f.at)} с`).join(", ")}]${speechPart}`,
@@ -603,6 +619,19 @@ async function readAttachment(a, { withMedia }) {
     return { media: { buf, mime: a.mimeType || "application/octet-stream", name } };
   }
   return { text: `[файл «${name}» — такой формат я не читаю]` };
+}
+
+// Коллаж из кадров видео (до 4, сеткой 2×2) — для одного запроса к нейросети.
+async function framesCollage(bufs) {
+  const sharp = require("sharp");
+  const cell = 448;
+  const cols = bufs.length === 1 ? 1 : 2;
+  const rows = Math.ceil(bufs.length / cols);
+  const tiles = await Promise.all(bufs.map((b) => sharp(b).resize(cell, cell, { fit: "contain", background: "#000" }).jpeg().toBuffer()));
+  return sharp({ create: { width: cols * cell, height: rows * cell, channels: 3, background: "#000" } })
+    .composite(tiles.map((input, i) => ({ input, left: (i % cols) * cell, top: Math.floor(i / cols) * cell })))
+    .jpeg({ quality: 85 })
+    .toBuffer();
 }
 
 // Расшифровка речи из файла загрузки (кэшируется: история перечитывается на каждый ответ).
