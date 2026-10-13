@@ -24596,3 +24596,51 @@ img.img-broken {
   min-width: 24px;
   min-height: 24px;
 }
+
+/* окно отправки фото/видео: компактная панель, а не весь экран (как в Telegram).
+   Высота — по содержимому; превью умеренное и сжимается, когда открыта клавиатура. */
+.tw-nm-album.count-1 .tw-nm-media {
+  min-height: 160px;
+}
+.tw-nm-album.count-1 .tw-nm-media img,
+.tw-nm-album.count-1 .tw-nm-media video {
+  max-height: min(46dvh, 440px);
+}
+.tw-nm-preview {
+  flex: 0 1 auto;
+  overflow-y: auto;
+}
+@media (max-width: 600px) {
+  .modal-dialog.tw-popup.tw-nm-popup {
+    height: auto;
+    max-height: calc(100dvh - 16px);
+  }
+  .tw-nm-preview {
+    display: block;
+  }
+  .tw-nm-album.count-1 .tw-nm-media img,
+  .tw-nm-album.count-1 .tw-nm-media video {
+    max-height: 42dvh;
+  }
+  .tw-nm-album:not(.count-1) {
+    max-height: 42dvh;
+    overflow-y: auto;
+  }
+}
+/* открыта клавиатура (экран по высоте маленький) — превью ещё меньше,
+   чтобы поле подписи и кнопка «Отправить» оставались видны */
+@media (max-height: 560px) {
+  .tw-nm-album.count-1 .tw-nm-media {
+    min-height: 0;
+  }
+  .tw-nm-album.count-1 .tw-nm-media img,
+  .tw-nm-album.count-1 .tw-nm-media video {
+    max-height: 26dvh;
+  }
+  .tw-nm-album:not(.count-1) {
+    max-height: 26dvh;
+  }
+  .tw-nm-header {
+    padding-top: 2px;
+  }
+}

@@ -1026,18 +1026,97 @@ async function viaFluxSpace(prompt) {
   return img.body;
 }
 
-async function viaPollinationsImage(prompt) {
-  const seed = crypto.randomInt(1, 2 ** 31);
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 1000))}?width=1024&height=1024&model=flux&nologo=true&private=true&enhance=true&seed=${seed}`;
-  const res = await httpsRequest(url, { timeoutMs: 90000, headers: POLLINATIONS_TOKEN ? { Authorization: `Bearer ${POLLINATIONS_TOKEN}` } : {} });
-  if (res.status !== 200 || !String(res.headers["content-type"] ?? "").startsWith("image/") || res.body.length < 1000) throw new Error(`image HTTP ${res.status}`);
-  return res.body;
+// Pollinations без ключа: не чаще раза в ~15 с с одного адреса, иначе отвечает 402.
+// Поэтому — очередь с паузой и повтор после ожидания (раньше один 402 = «сервис не отвечает»).
+const POLL_IMAGE_GAP_MS = POLLINATIONS_TOKEN ? 1000 : 16000;
+let pollImageTail = Promise.resolve();
+let pollImageLast = 0;
+function viaPollinationsImage(prompt) {
+  const run = pollImageTail.then(async () => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const wait = pollImageLast + POLL_IMAGE_GAP_MS - Date.now();
+      if (wait > 0) await sleep(wait);
+      pollImageLast = Date.now();
+      const seed = crypto.randomInt(1, 2 ** 31);
+      // enhance/model/private без ключа теперь дают 402 — только базовые параметры
+      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 900))}?width=1024&height=1024&nologo=true&seed=${seed}`;
+      const res = await httpsRequest(url, { timeoutMs: 90000, headers: POLLINATIONS_TOKEN ? { Authorization: `Bearer ${POLLINATIONS_TOKEN}` } : {} });
+      if (res.status === 200 && String(res.headers["content-type"] ?? "").startsWith("image/") && res.body.length > 1000) {
+        if (POLLINATIONS_TOKEN) return res.body;
+        // без ключа внизу справа всегда водяной знак «pollinations.ai» — срезаем нижнюю полосу
+        const sharp = require("sharp");
+        const meta = await sharp(res.body).metadata();
+        const cut = Math.round((meta.height || 0) * 0.06);
+        return meta.width && meta.height > 100 ? sharp(res.body).extract({ left: 0, top: 0, width: meta.width, height: meta.height - cut }).toBuffer() : res.body;
+      }
+      if (res.status !== 402 && res.status !== 429 && res.status < 500) throw new Error(`pollinations image HTTP ${res.status}`);
+    }
+    throw new Error("pollinations image: лимит запросов");
+  });
+  pollImageTail = run.catch(() => {});
+  return run;
+}
+
+// AI Horde — бесплатная волонтёрская сеть (анонимно, очередь: от 20 с до пары минут).
+async function viaAiHorde(prompt) {
+  const headers = { "Content-Type": "application/json", apikey: process.env.AI_HORDE_KEY || "0000000000", "Client-Agent": "shalter:1.0:shalter.ru" };
+  const body = Buffer.from(JSON.stringify({ prompt: prompt.slice(0, 900), params: { width: 512, height: 512, steps: 20, n: 1, sampler_name: "k_euler_a" }, nsfw: false, censor_nsfw: true, r2: true }));
+  const start = await httpsRequest("https://aihorde.net/api/v2/generate/async", { method: "POST", timeoutMs: 20000, headers: { ...headers, "Content-Length": body.length }, body });
+  const id = parseJson(start, "horde submit").id;
+  if (!id) throw new Error("horde: нет id");
+  const until = Date.now() + 150_000;
+  while (Date.now() < until) {
+    await sleep(5000);
+    const check = JSON.parse((await httpsRequest(`https://aihorde.net/api/v2/generate/check/${id}`, { timeoutMs: 15000 })).body.toString("utf8"));
+    if (check.faulted) throw new Error("horde: ошибка генерации");
+    if (!check.done) continue;
+    const status = JSON.parse((await httpsRequest(`https://aihorde.net/api/v2/generate/status/${id}`, { timeoutMs: 15000 })).body.toString("utf8"));
+    const imgUrl = status.generations?.[0]?.img;
+    if (!imgUrl) throw new Error("horde: пустой результат");
+    const img = await httpsRequest(imgUrl, { timeoutMs: 30000 });
+    if (img.status !== 200 || img.body.length < 1000) throw new Error(`horde image HTTP ${img.status}`);
+    return img.body;
+  }
+  httpsRequest(`https://aihorde.net/api/v2/generate/status/${id}`, { method: "DELETE", timeoutMs: 10000 }).catch(() => {});
+  throw new Error("horde: слишком длинная очередь");
+}
+
+// Последний вариант — работает всегда: текстовая нейросеть рисует векторную
+// иллюстрацию (проще, чем фото, но лучше, чем «сервис не отвечает»).
+async function viaSvgIllustration(prompt) {
+  const ask = [
+    {
+      role: "user",
+      content:
+        "Нарисуй красивую векторную иллюстрацию в формате SVG по описанию. Ответь ТОЛЬКО кодом <svg>…</svg> без пояснений. " +
+        'xmlns="http://www.w3.org/2000/svg", width="1024" height="1024" viewBox="0 0 1024 1024"; первым элементом — фон на весь холст; ' +
+        "плоский современный стиль, мягкие градиенты, много деталей, главный объект крупно по центру; без текста, без <image> и <script>.\n\nОписание: " +
+        prompt,
+    },
+  ];
+  for (const [, call] of providerList(ask)) {
+    try {
+      const { text } = await call(ask);
+      const svg = sanitizeSvg(text);
+      if (!svg) continue;
+      const png = await require("sharp")(Buffer.from(svg), { density: 96 }).flatten({ background: "#ffffff" }).png().toBuffer();
+      if (png.length > 3000) return png;
+    } catch {}
+  }
+  throw new Error("svg: не получилось");
 }
 
 // Картинка → JPEG (FLUX отдаёт webp; в чат и превью удобнее JPEG).
 async function renderImage(prompt) {
   let lastErr = null;
-  for (const [name, fn] of [["flux", viaFluxSpace], ["flux", viaFluxSpace], ["pollinations", viaPollinationsImage]]) {
+  const chain = [
+    ["flux", viaFluxSpace],
+    ["flux", viaFluxSpace],
+    ["pollinations", viaPollinationsImage],
+    ["ai-horde", viaAiHorde],
+    ["svg", viaSvgIllustration],
+  ];
+  for (const [name, fn] of chain) {
     try {
       const raw = await fn(prompt);
       return await require("sharp")(raw).jpeg({ quality: 90 }).toBuffer();
