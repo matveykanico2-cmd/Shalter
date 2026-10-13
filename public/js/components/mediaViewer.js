@@ -34,7 +34,6 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
   document.body.appendChild(overlay);
   // «Назад» на телефоне закрывает просмотр (и без сети тоже).
   const dropHistory = pushOverlay(() => close(true));
-  show();
 
   function applyTransform() {
     if (!media) return;
@@ -315,6 +314,9 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
     }
   }
   document.addEventListener("keydown", onKey, true);
+  // Показ — в самом конце, когда объявлено всё, что он использует (спиннер,
+  // плашка ошибки, жесты). Раньше вызов стоял выше и падал — фото не открывались.
+  show();
 
   return close;
 }

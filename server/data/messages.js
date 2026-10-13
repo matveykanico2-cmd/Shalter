@@ -319,6 +319,11 @@ function editMessage(id, text) {
   return mutate(id, (m) => ({ ...m, text, editedAt: new Date().toISOString() }));
 }
 
+// Ответ бота, который печатается по мере генерации: без отметки «изменено».
+function setStreamingText(id, text) {
+  return mutate(id, (m) => ({ ...m, text }));
+}
+
 async function deleteMessage(id) {
   db.prepare("DELETE FROM messages WHERE id = ?").run(id);
 }
@@ -609,6 +614,7 @@ module.exports = {
   deleteMessagesForChat,
   deleteExpiredMessages,
   editMessage,
+  setStreamingText,
   deleteMessage,
   deleteMessageForMe,
   togglePin,

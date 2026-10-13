@@ -1,3 +1,9 @@
+const { fixLayout } = require("./keyboardLayout");
+// Набрано в английской раскладке — подсказываем модели, что имелось в виду.
+const withLayoutFix = (text, fromBot) => {
+  const fixed = fromBot ? null : fixLayout(text);
+  return fixed ? `${fixed}\n(набрано в английской раскладке: «${text}»)` : text;
+};
 const { HUGO_ID } = require("../data/hugoBot");
 const { getChat } = require("../data/chats");
 const { sendMessageAndBroadcast } = require("./systemChat");
@@ -169,7 +175,7 @@ async function loadHistory(chat, userId) {
     .filter((m) => !m.deleted)
     .map((m) => ({
       role: m.senderId === HUGO_ID ? "assistant" : "user",
-      content: m.type === "text" && m.text?.trim() ? m.text.trim() : "[вложение без текста]",
+      content: m.type === "text" && m.text?.trim() ? withLayoutFix(m.text.trim(), m.senderId === HUGO_ID) : "[вложение без текста]",
     }));
   while (turns.length && turns[0].role === "assistant") turns.shift();
   return turns;

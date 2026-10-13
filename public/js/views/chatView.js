@@ -1468,7 +1468,8 @@ export async function ChatView(root, chatId) {
       if (isSaved) return "";
       if (chat.type === "bot") return "бот";
       if (isDm && other?.isBot) {
-        return botAudience == null ? "бот" : `${botAudience} ${pluralUsers(botAudience)}`;
+        // Как в Telegram: «бот · N пользователей» (раньше одно «1 пользователь» читалось странно).
+        return botAudience == null ? "бот" : `бот · ${botAudience} ${pluralUsers(botAudience)}`;
       }
       if (isDm && other) return lastSeenLabel(other);
       if (chat.type === "group") {

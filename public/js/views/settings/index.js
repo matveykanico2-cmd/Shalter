@@ -394,7 +394,7 @@ async function renderProfile(root) {
   function bannerPicker() {
     const current = bannerBackground(profileBanner);
     return [
-      el("div", { class: "profile-banner-preview", style: current ? `--tile-bg: ${current}` : "" }),
+      el("div", { class: `profile-banner-preview${current ? "" : " empty"}`, style: current ? `--tile-bg: ${current}` : "" }, current ? null : "Выберите фон или загрузите своё фото"),
       el("div", { class: "profile-banner-grid" }, [
         el("button", { class: "profile-banner-tile add", type: "button", onclick: () => bannerFileInput.click() }, [
           el("span", { html: iconSvg("Image", 16) }),
