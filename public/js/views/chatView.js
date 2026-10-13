@@ -1184,7 +1184,21 @@ export async function ChatView(root, chatId) {
     html: iconSvg("ChevronLeft", 20),
     onclick: () => {
       missedWhileUp = 0;
+      // Далеко от низа — сначала прыжок почти к концу, последний экран плавно:
+      // долгая плавная прокрутка через весь чат останавливалась выше низа, потому
+      // что по пути догружались картинки и лента становилась длиннее.
+      const far = list.scrollHeight - list.scrollTop - list.clientHeight > list.clientHeight * 2;
+      if (far) list.scrollTop = list.scrollHeight - list.clientHeight * 1.5;
       list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+      // Когда доедет — держим низ, пока догружаются картинки (как при открытии чата).
+      const settle = () => {
+        stuckToBottom = true;
+        list.scrollTop = list.scrollHeight;
+        pinToBottomWhileOpening();
+        updateScrollDown();
+      };
+      if ("onscrollend" in list) list.addEventListener("scrollend", settle, { once: true });
+      setTimeout(settle, 500);
       updateScrollDown();
     },
   });
