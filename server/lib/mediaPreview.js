@@ -175,4 +175,28 @@ async function extractVideoFrames(inputPath, { count = 6, durationSec = 0, width
   });
 }
 
-module.exports = { generateVideoPreview, generateImagePreview, extractVideoFrames, PREVIEW_HEIGHT };
+// Точная длительность аудио/видео. У записей из браузера (WebM) в заголовке её
+// нет — плеер показывал «0:00 / 0:00»; поэтому файл прогоняется целиком (голосовые
+// и кружки маленькие — это доли секунды) и берётся последнее «time=».
+function probeDuration(inputPath) {
+  const { spawn } = require("child_process");
+  return new Promise((resolve) => {
+    const ff = spawn(ffmpegPath || "ffmpeg", ["-hide_banner", "-nostdin", "-i", inputPath, "-vn", "-f", "null", "-"]);
+    let err = "";
+    ff.stderr.on("data", (c) => {
+      err += c;
+      if (err.length > 200_000) err = err.slice(-20_000);
+    });
+    const timer = setTimeout(() => ff.kill("SIGKILL"), 60_000);
+    ff.on("error", () => resolve(0));
+    ff.on("close", () => {
+      clearTimeout(timer);
+      const times = [...err.matchAll(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/g)];
+      const last = times.at(-1);
+      if (last) return resolve(Number(last[1]) * 3600 + Number(last[2]) * 60 + Number(last[3]));
+      resolve(parseDuration(/Duration:\s*(\d+:\d+:\d+(?:\.\d+)?)/.exec(err)?.[1]));
+    });
+  });
+}
+
+module.exports = { generateVideoPreview, generateImagePreview, extractVideoFrames, probeDuration, PREVIEW_HEIGHT };

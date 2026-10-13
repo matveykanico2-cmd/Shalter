@@ -13,6 +13,7 @@ function clockTime(sec) {
 export function AudioPlayerBar({ chatId } = {}) {
   const slot = el("div", { class: "audio-bar-slot" });
   let media = null;
+  let knownDuration = 0;
   let progressFill = null;
   let timeEl = null;
   let raf = 0;
@@ -20,7 +21,8 @@ export function AudioPlayerBar({ chatId } = {}) {
   const tick = () => {
     raf = 0;
     if (!media || !progressFill) return;
-    const dur = Number.isFinite(media.duration) && media.duration > 0 ? media.duration : 0;
+    // У записей из браузера (WebM) длительность файла неизвестна — берём из сообщения.
+    const dur = Number.isFinite(media.duration) && media.duration > 0 ? media.duration : knownDuration;
     progressFill.style.transform = `scaleX(${dur ? Math.min(1, media.currentTime / dur) : 0})`;
     if (timeEl) timeEl.textContent = dur ? `${clockTime(media.currentTime)} / ${clockTime(dur)}` : clockTime(media.currentTime);
     if (!media.paused) raf = requestAnimationFrame(tick);
@@ -35,6 +37,7 @@ export function AudioPlayerBar({ chatId } = {}) {
     raf = 0;
     clear(slot);
     media = np?.media ?? null;
+    knownDuration = Number(np?.durationSec) || 0;
     if (!np) {
       slot.classList.remove("open");
       return;

@@ -16,6 +16,7 @@ import { openContactPickerDialog } from "../components/contactPickerDialog.js";
 import { openCreateBotDialog } from "../components/createBotDialog.js";
 import { openBotTokenDialog } from "../components/botTokenDialog.js";
 import { StoriesBar } from "../components/storiesBar.js";
+import { AudioPlayerBar } from "../components/audioPlayerBar.js";
 import { Avatar } from "../components/avatar.js";
 import { VerifiedBadge } from "../components/verifiedBadge.js";
 import { ProfileStatusBadge } from "../components/profileStatusBadge.js";
@@ -189,7 +190,9 @@ export function ChatListPane() {
     el("span", { class: "chat-list-title-spinner" }),
     el("span", { class: "chat-list-title-text" }, "Shalter"),
   ]);
-  container.append(titleBar, SidebarHeader(listSlot), storiesBar, listSlot);
+  // Что-то играет (музыка, голосовое, кружок) — полоска с названием и таймером и
+  // над списком чатов: на телефоне из чата уходят, а звук продолжает играть.
+  container.append(titleBar, SidebarHeader(listSlot), AudioPlayerBar(), storiesBar, listSlot);
   renderInto(listSlot);
   container.appendChild(
     el("button", {

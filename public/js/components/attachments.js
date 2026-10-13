@@ -222,7 +222,7 @@ function AudioFile(a, ctx) {
     const playing = !audio.paused;
     playBtn.innerHTML = iconSvg(playing ? "PauseFill" : "PlayFill", 22);
     playBtn.classList.toggle("playing", playing);
-    const dur = Number.isFinite(audio.duration) ? audio.duration : 0;
+    const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : a.durationSec || 0;
     const started = audio.currentTime > 0 || playing;
     track.classList.toggle("visible", started);
     fill.style.transform = `scaleX(${dur ? Math.min(1, audio.currentTime / dur) : 0})`;
@@ -241,6 +241,7 @@ function AudioFile(a, ctx) {
       subtitle: ctx.sender?.name ?? "Музыка",
       chatId: ctx.message?.chatId,
       messageId: ctx.message?.id,
+      durationSec: a.durationSec,
     });
     paint();
   });

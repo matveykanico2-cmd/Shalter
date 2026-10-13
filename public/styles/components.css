@@ -24644,3 +24644,11 @@ img.img-broken {
     padding-top: 2px;
   }
 }
+
+/* полоска «сейчас играет» над списком чатов — когда чат не открыт рядом
+   (на компьютере с открытым чатом она уже есть в самом чате — без дублей) */
+@media (min-width: 768px) {
+  .shell.chat-open .chat-list-pane > .audio-bar-slot {
+    display: none;
+  }
+}

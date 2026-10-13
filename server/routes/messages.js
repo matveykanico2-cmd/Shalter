@@ -336,6 +336,31 @@ async function buildPreview(attachment, filename) {
   }
 }
 
+// Голосовые и кружки: точная длительность с сервера (у WebM из браузера её нет в файле,
+// и до загрузки плеер показывал «0:00 / 0:00»). Записи из приложения присылают
+// длительность сами — тогда только уточняем, если она пустая.
+async function attachDurations(chat, message) {
+  const { probeDuration } = require("../lib/mediaPreview");
+  for (const [index, a] of (message.attachments ?? []).entries()) {
+    const timed = a?.kind === "voice" || a?.kind === "video-note" || (a?.kind === "file" && /^audio\//.test(a.mimeType ?? ""));
+    if (!timed || a.durationSec > 0) continue;
+    const filename = uploadFilename(a.url);
+    if (!filename) continue;
+    let local = null;
+    try {
+      local = await fetchUploadToTemp(filename);
+      const sec = await probeDuration(local);
+      if (!(sec > 0)) continue;
+      const updated = await setAttachmentPreview(message.id, index, { durationSec: Math.round(sec * 10) / 10 });
+      if (updated) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+    } catch (err) {
+      console.warn(`duration probe failed for ${message.id}#${index}:`, err.message);
+    } finally {
+      if (local) fs.promises.unlink(local).catch(() => {});
+    }
+  }
+}
+
 async function attachPreviews(chat, message) {
   for (const [index, attachment] of (message.attachments ?? []).entries()) {
     const filename = needsPreview(attachment) ? uploadFilename(attachment.url) : null;
@@ -482,6 +507,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0, paid = null
   pushNewMessage(chat, sender, message, { silent: body.silent === true }).catch((err) => console.error("push notify failed:", err));
 
   attachPreviews(chat, message).catch((err) => console.error("attachment preview failed:", err));
+  attachDurations(chat, message).catch((err) => console.error("attachment duration failed:", err));
 
   // В секретном чате превью ссылок не запрашиваем: сервер не ходит по ссылкам из переписки.
   if (message.type === "text" && message.text && !chat.secret) {

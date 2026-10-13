@@ -703,6 +703,7 @@ function VoicePlayer(a, ctx = {}) {
       subtitle: "Голосовое сообщение",
       chatId: ctx.message?.chatId,
       messageId: ctx.message?.id,
+      durationSec: a.durationSec,
     });
     paintIcon();
   });
@@ -748,7 +749,7 @@ function VoicePlayer(a, ctx = {}) {
   return el("div", { class: "voice-block" }, [block, transcriptEl]);
 }
 
-function VideoNotePlayer(a) {
+function VideoNotePlayer(a, ctx = {}) {
   // #t=0.001 — браузер (и Android WebView) показывает первый кадр кружка ещё до нажатия,
   // а не пустой круг.
   const video = el("video", { src: `${a.url}#t=0.001`, class: "video-note-el", playsinline: true, preload: "metadata", ...(a.thumbUrl ? { poster: a.thumbUrl } : {}) });
@@ -784,6 +785,16 @@ function VideoNotePlayer(a) {
     playing = true;
     playExclusiveMedia(video);
     overlay.style.display = "none";
+    // Как голосовые: сверху полоска «сейчас играет» с именем, таймером и паузой.
+    setNowPlaying(video, {
+      key: ctx.message ? `${ctx.message.id}:${a.url}` : `vn:${a.url}`,
+      kind: "video-note",
+      title: ctx.sender?.name ?? "Видеосообщение",
+      subtitle: "Видеосообщение",
+      chatId: ctx.message?.chatId,
+      messageId: ctx.message?.id,
+      durationSec: a.durationSec,
+    });
   });
   video.addEventListener("pause", () => {
     playing = false;
@@ -846,7 +857,7 @@ function typeOutOnce(node, messageId) {
 export function AttachmentView(a, me, ctx) {
   const autoDownload = getState().settings?.autoDownload !== false;
   if (a.kind === "voice") return VoicePlayer(a, ctx);
-  if (a.kind === "video-note") return VideoNotePlayer(a);
+  if (a.kind === "video-note") return VideoNotePlayer(a, ctx);
   if (a.kind === "image") return autoDownload ? ImageAttachment(a) : TapToLoad("image", () => ImageAttachment(a));
   if (a.kind === "video") return autoDownload ? VideoAttachment(a) : TapToLoad("video", () => VideoAttachment(a));
   if (a.kind === "file") return FileAttachment(a, ctx);
