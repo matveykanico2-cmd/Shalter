@@ -90,7 +90,8 @@ fn bridge_script(origin: &str, version: &str) -> String {
     focus: function () {{ return inv("focus_window"); }},
     notify: function (title, body, url) {{ return inv("notify", {{ title: String(title == null ? "Shalter" : title), body: String(body == null ? "" : body), url: url || null }}); }},
     retry: function (target) {{ return inv("retry", {{ target: target || null }}); }},
-    setIcon: function (id) {{ return inv("set_app_icon", {{ id: String(id) }}); }}
+    setIcon: function (id) {{ return inv("set_app_icon", {{ id: String(id) }}); }},
+    openBrowser: function (url) {{ return inv("open_browser", {{ url: String(url) }}); }}
   }};
   // Свои ссылки открываем в этом же окне, всё остальное — в браузере по умолчанию.
   var nativeOpen = window.open;
@@ -267,6 +268,30 @@ fn set_app_icon(app: AppHandle, id: String) -> Result<(), String> {
         let _ = std::fs::write(file, &id);
     }
     Ok(())
+}
+
+// Встроенный браузер: сайт в отдельном окне приложения. В отличие от фрейма в
+// странице, так открывается любой сайт (Google, ВК, YouTube, банки запрещают
+// показ во фрейме). У окна нет моста приложения — сайт не получает доступа к Shalter.
+#[tauri::command]
+async fn open_browser(app: AppHandle, url: String) {
+    let Ok(u) = Url::parse(&url) else { return };
+    if !matches!(u.scheme(), "http" | "https") {
+        return;
+    }
+    let host = u.host_str().unwrap_or("Браузер").to_string();
+    let label = format!(
+        "browser-{}",
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0)
+    );
+    let built = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(u.clone()))
+        .title(format!("{host} — Shalter"))
+        .inner_size(1100.0, 800.0)
+        .min_inner_size(360.0, 400.0)
+        .build();
+    if built.is_err() {
+        let _ = app.opener().open_url(u.as_str(), None::<&str>);
+    }
 }
 
 #[tauri::command]
@@ -501,7 +526,7 @@ fn main() {
             tray_open_item: Mutex::new(None),
             quitting: AtomicBool::new(false),
         })
-        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external, set_app_icon])
+        .invoke_handler(tauri::generate_handler![startup_target, server_reachable, set_unread, focus_window, notify, retry, open_external, open_browser, set_app_icon])
         .setup(move |app| {
             let handle = app.handle().clone();
 
@@ -515,6 +540,7 @@ fn main() {
                     .permission("allow-notify")
                     .permission("allow-retry")
                     .permission("allow-open-external")
+                    .permission("allow-open-browser")
                     .permission("allow-set-app-icon")
                     .permission("notification:default"),
             )?;

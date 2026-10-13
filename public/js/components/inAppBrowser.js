@@ -70,7 +70,23 @@ function isNeverFrameable(url) {
   }
 }
 
+// Настоящий встроенный браузер оболочки: на Android — Chrome Custom Tabs
+// (@capacitor/browser), в приложении для компьютера — отдельное окно (Tauri).
+// В нём открывается любой сайт; во фрейме страницы большинство сайтов запрещены.
+function nativeBrowser() {
+  const cap = window.Capacitor;
+  const plugin = cap?.isNativePlatform?.() ? cap.Plugins?.Browser : null;
+  if (plugin?.open) {
+    return (url) =>
+      plugin.open({ url, toolbarColor: getComputedStyle(document.body).getPropertyValue("--color-surface").trim() || "#ffffff", presentationStyle: "popover" }).catch(() => window.open(url, "_blank"));
+  }
+  if (window.shalterDesktop?.openBrowser) return (url) => window.shalterDesktop.openBrowser(url);
+  return null;
+}
+
 function openExternally(url) {
+  const open = nativeBrowser();
+  if (open) return void open(url);
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
@@ -81,6 +97,17 @@ export function openInAppBrowser(url, { warning, unsafe } = {}) {
   } catch {
   }
   const target = embedUrlFor(url);
+  // В приложении (Android, компьютер) — сразу настоящий встроенный браузер: открывается
+  // любой сайт. Подозрительная ссылка — сначала предупреждение.
+  const nb = nativeBrowser();
+  if (nb && /^https?:/i.test(url)) {
+    if (warning || unsafe) {
+      import("./confirmDialog.js").then(async ({ askConfirm }) => {
+        if (await askConfirm(`${warning || "Ссылка может быть небезопасной."}\n\n${host}`, { okLabel: "Всё равно открыть", danger: !!unsafe })) nb(url);
+      });
+    } else nb(url);
+    return { close() {} };
+  }
   if (!unsafe && !warning && !isEmbedPlayer(target) && isNeverFrameable(target)) {
     openExternally(url);
     return { close() {} };
