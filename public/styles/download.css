@@ -298,3 +298,31 @@ a.dl-card:hover {
     text-align: center;
   }
 }
+
+.dl-cmd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 12px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 12px;
+  background: rgba(127, 127, 127, 0.12);
+  overflow-x: auto;
+}
+.dl-cmd code {
+  flex: 1;
+  white-space: nowrap;
+  font-size: 13px;
+  background: none;
+}
+.dl-cmd-copy {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #3390ec;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}

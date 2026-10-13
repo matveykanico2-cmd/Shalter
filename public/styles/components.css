@@ -24493,3 +24493,40 @@ video.media-viewer-media {
     justify-content: center;
   }
 }
+
+/* просмотрщик: выйти можно всегда */
+.media-viewer-head {
+  position: relative;
+  z-index: 5;
+}
+.media-viewer-close-fab {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  right: 12px;
+  z-index: 20;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  backdrop-filter: blur(6px);
+}
+@media (max-width: 700px), (pointer: coarse) {
+  .media-viewer-close-fab {
+    display: flex;
+  }
+  /* на телефоне крестик в шапке дублирует плавающий — прячем его */
+  .media-viewer-head > .icon-btn:last-child {
+    visibility: hidden;
+  }
+}
+.media-viewer-fail-actions {
+  display: flex;
+  gap: 8px;
+}
+.media-viewer-fail-btn.secondary {
+  background: rgba(255, 255, 255, 0.16);
+}

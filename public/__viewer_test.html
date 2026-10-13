@@ -1,0 +1,12 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/styles/base.css"><link rel="stylesheet" href="/styles/components.css"></head>
+<body><div id="log" style="position:fixed;bottom:0;left:0;z-index:99999;background:#fff;font:12px monospace"></div>
+<script type="module">
+const log=(m)=>document.getElementById("log").textContent+=m+" | ";
+window.onerror=(e)=>log("ERR "+e);
+try{
+const { openMediaViewer } = await import("/js/components/mediaViewer.js");
+const mode=new URLSearchParams(location.search).get("m");
+openMediaViewer(mode==="bad"?{kind:"image",url:"/img/nope.jpg",name:"x"}:{kind:"image",url:"/img/bots/shalter-crab.webp",name:"crab"});
+setTimeout(()=>log("overlay="+!!document.querySelector(".media-viewer-overlay")+" img="+(document.querySelector(".media-viewer-media")?.naturalWidth)+" fail="+!document.querySelector(".media-viewer-fail")?.hidden),2500);
+}catch(e){log("IMPORT ERR "+e.message)}
+</script></body></html>

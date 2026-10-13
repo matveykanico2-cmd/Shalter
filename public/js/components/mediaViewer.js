@@ -18,7 +18,7 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
     onclick: (e) => {
       if (e.target === overlay) close();
       // тап по пустому месту сцены закрывает, как в Telegram
-      else if ((e.target === stage || e.target === failBox) && scale === 1 && Date.now() - gestureAt > 350) close();
+      else if ((e.target === stage || e.target === failBox || (!failBox.hidden && e.target === media)) && scale === 1 && Date.now() - gestureAt > 350) close();
     },
   });
   const head = el("div", { class: "media-viewer-head" });
@@ -27,7 +27,10 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
   const nextBtn = el("button", { class: "media-viewer-nav next", title: "Следующее", html: iconSvg("ChevronRight", 26), onclick: () => go(1) });
 
   const captionEl = el("div", { class: "media-viewer-caption", hidden: true });
-  appendAll(overlay, el("div", { class: "media-viewer" }, [head, stage, captionEl]), items.length > 1 ? prevBtn : null, items.length > 1 ? nextBtn : null);
+  // Крестик поверх всего: шапка на телефоне может уйти под статус-бар, а из
+  // незагрузившейся картинки выйти нужно всегда.
+  const closeFab = el("button", { class: "media-viewer-close-fab", title: "Закрыть", "aria-label": "Закрыть", html: iconSvg("X", 22), onclick: (e) => (e.stopPropagation(), close()) });
+  appendAll(overlay, el("div", { class: "media-viewer" }, [head, stage, captionEl]), items.length > 1 ? prevBtn : null, items.length > 1 ? nextBtn : null, closeFab);
   document.body.appendChild(overlay);
   // «Назад» на телефоне закрывает просмотр (и без сети тоже).
   const dropHistory = pushOverlay(() => close(true));
@@ -75,7 +78,10 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
         failBox,
         el("span", { class: "media-viewer-fail-icon", html: iconSvg("RotateCw", 28) }),
         el("span", {}, navigator.onLine === false ? "Нет подключения к сети" : "Не удалось загрузить"),
-        el("button", { class: "media-viewer-fail-btn", type: "button", onclick: retry }, "Повторить")
+        el("div", { class: "media-viewer-fail-actions" }, [
+          el("button", { class: "media-viewer-fail-btn", type: "button", onclick: (e) => (e.stopPropagation(), retry?.()) }, "Повторить"),
+          el("button", { class: "media-viewer-fail-btn secondary", type: "button", onclick: (e) => (e.stopPropagation(), close()) }, "Закрыть"),
+        ])
       );
     }
   }
@@ -224,6 +230,7 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
 
   const pointers = new Map();
   let swipeStartX = null;
+  let swipeStartY = null;
   let panStart = null;
   let pinchStart = null;
 
@@ -244,6 +251,7 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
       try { media.setPointerCapture?.(e.pointerId); } catch {}
     } else if (e.pointerType !== "mouse") {
       swipeStartX = e.clientX;
+      swipeStartY = e.clientY;
     }
   });
 
@@ -271,7 +279,11 @@ export function openMediaViewer({ kind, url, name, originalUrl = null, gallery =
     }
     if (swipeStartX !== null) {
       const dx = e.clientX - swipeStartX;
+      const dy = swipeStartY == null ? 0 : e.clientY - swipeStartY;
       swipeStartX = null;
+      swipeStartY = null;
+      // Свайп вниз — закрыть (как в Telegram), вбок — листать.
+      if (scale === 1 && dy > 90 && Math.abs(dy) > Math.abs(dx)) return close();
       if (scale === 1 && Math.abs(dx) > 60) go(dx < 0 ? 1 : -1);
     }
   }

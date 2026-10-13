@@ -421,7 +421,59 @@ fn only_nvidia_gpus() -> bool {
     !vendors.is_empty() && vendors.iter().all(|v| v == "0x10de")
 }
 
+// AppImage — просто файл: без этого его запускали из терминала, а в меню приложений
+// Shalter не появлялся. При запуске из AppImage копируем его в ~/.local/share/shalter,
+// кладём иконку и ярлык ~/.local/share/applications/shalter.desktop — дальше
+// Shalter открывается из меню, как установленный. Без sudo, только в домашней папке.
+#[cfg(target_os = "linux")]
+fn integrate_appimage() {
+    use std::fs;
+    use std::path::PathBuf;
+    let Some(appimage) = std::env::var_os("APPIMAGE").map(PathBuf::from) else { return };
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else { return };
+    let data = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).unwrap_or_else(|| home.join(".local/share"));
+    let install_dir = data.join("shalter");
+    let target = install_dir.join("Shalter.AppImage");
+    let _ = fs::create_dir_all(&install_dir);
+    // Уже запущены из установленной копии — копировать нечего; иначе обновляем копию
+    // (новая версия, скачанная в «Загрузки», заменяет старую).
+    let same = fs::canonicalize(&appimage).ok() == fs::canonicalize(&target).ok();
+    let exec = if same {
+        target.clone()
+    } else {
+        let tmp = install_dir.join("Shalter.AppImage.new");
+        match fs::copy(&appimage, &tmp).and_then(|_| fs::rename(&tmp, &target)) {
+            Ok(_) => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = fs::set_permissions(&target, fs::Permissions::from_mode(0o755));
+                }
+                target.clone()
+            }
+            Err(_) => appimage.clone(),
+        }
+    };
+    let icon_dir = data.join("icons/hicolor/256x256/apps");
+    let _ = fs::create_dir_all(&icon_dir);
+    let _ = fs::write(icon_dir.join("shalter.png"), include_bytes!("../icons/128x128@2x.png"));
+    let apps = data.join("applications");
+    let _ = fs::create_dir_all(&apps);
+    let desktop = format!(
+        "[Desktop Entry]\nType=Application\nName=Shalter\nComment=Мессенджер Shalter\nExec=\"{}\" %u\nIcon=shalter\nTerminal=false\nCategories=Network;InstantMessaging;Chat;\nMimeType=x-scheme-handler/shalter;\nStartupWMClass=shalter\nStartupNotify=true\n",
+        exec.display()
+    );
+    let path = apps.join("shalter.desktop");
+    if fs::read_to_string(&path).ok().as_deref() != Some(desktop.as_str()) {
+        let _ = fs::write(&path, desktop);
+        let _ = std::process::Command::new("update-desktop-database").arg(&apps).status();
+    }
+}
+
 fn main() {
+    #[cfg(target_os = "linux")]
+    integrate_appimage();
+
     // WebKitGTK с аппаратным dmabuf-рендером на проприетарном драйвере NVIDIA показывает
     // белое окно. Выключаем его только там, где все видеокарты — NVIDIA: на остальных
     // (в том числе ноутбуках Intel + NVIDIA, где экран рисует Intel) отключение лишь

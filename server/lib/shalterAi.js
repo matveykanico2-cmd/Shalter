@@ -235,7 +235,9 @@ function viaPollinations(turns) {
     queue: inPollinationsQueue,
     headers: POLLINATIONS_TOKEN ? { Authorization: `Bearer ${POLLINATIONS_TOKEN}` } : {},
     // без ключа Pollinations отдаёт только openai-fast
-    body: { model: vision ? "openai" : "openai-fast", messages: openAiMessages(turns, vision), private: true, referrer: "shalter" },
+    // reasoning_effort: low — бесплатная модель рассуждающая: без этого она «долго
+    // думала» и на длинных задачах тратила весь лимит на рассуждения, отвечая пустотой.
+    body: { model: vision ? "openai" : "openai-fast", messages: openAiMessages(turns, vision), private: true, referrer: "shalter", reasoning_effort: "low" },
   });
 }
 
@@ -637,7 +639,9 @@ async function craftImagePrompt(chat, userId, request) {
         content:
           `Пользователь просит нарисовать: «${request || "(уточни по разговору выше)"}».\n` +
           "Составь по этой просьбе и разговору выше одно подробное описание картинки на английском для генератора изображений " +
-          "(объект, детали, стиль, освещение, композиция). Ответь ТОЛЬКО описанием, без кавычек и пояснений, до 400 символов.",
+          "(главный объект и его точные детали, количество предметов, цвета, стиль, освещение, ракурс, композиция, фон). " +
+          "Сохрани все конкретные требования пользователя — ничего не выдумывай вместо них. Текст на картинке не проси. " +
+          "Ответь ТОЛЬКО описанием, без кавычек и пояснений, до 500 символов.",
       },
     ];
     for (const [, call] of providerList(ask)) {
@@ -649,6 +653,94 @@ async function craftImagePrompt(chat, userId, request) {
     }
   } catch {}
   return request;
+}
+
+// Схемы, диаграммы, инфографика, картинки с подписями: генератор картинок
+// пишет текст кашей, поэтому такие просьбы рисует текстовая нейросеть — векторной
+// SVG-картинкой с точным русским текстом, а сервер переводит её в PNG.
+const DIAGRAM_RE =
+  /(схем|диаграм|график|инфограф|поясн|подпис|надпис|с\s+текстом|таблиц|формул|блок-?схем|майнд|mind\s*map|интеллект-?карт|чертёж|чертеж|шпаргалк|плакат|постер|карточк|алгоритм|этап|по\s+шагам|пошагов|структур|классификац|сравнени|timeline|таймлайн|хронолог|объясн|как\s+работает|из\s+чего\s+состоит)/i;
+
+const SVG_PROMPT =
+  "Ты рисуешь точные поясняющие картинки в формате SVG: схемы, диаграммы, инфографику, карточки с подписями. " +
+  "Ответь ТОЛЬКО кодом одного элемента <svg>…</svg>, без пояснений и без ```. Требования: " +
+  'xmlns="http://www.w3.org/2000/svg", width="1200" height="900" viewBox="0 0 1200 900"; первым элементом — фон <rect> на весь холст; ' +
+  "чистый современный стиль: скруглённые блоки (rx 16–24), мягкие цвета, контрастный текст, стрелки через <marker>; " +
+  'весь текст — по-русски (если пользователь не просил иначе), font-family="DejaVu Sans, Arial, sans-serif", заголовок 40–48px, подписи 22–30px; ' +
+  "текст не должен вылезать за блоки и налезать друг на друга — длинные подписи переноси вручную несколькими <tspan>; " +
+  "сверху по центру — заголовок; блоки расставь по сетке с ровными отступами, ничего не налезает; " +
+  "ВСЕ подписи по-русски, включая названия (Глюкоза, Энергия света), формулы можно латиницей; " +
+  "стрелки направлены по смыслу: что входит — к центральному блоку, что получается — от него; у каждой стрелки короткая подпись; " +
+  "факты должны быть верными и полными; без <image>, <script>, <foreignObject> и внешних ссылок.";
+
+function sanitizeSvg(raw) {
+  const m = String(raw ?? "").match(/<svg[\s\S]*<\/svg>/i);
+  if (!m) return null;
+  let svg = m[0]
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, "")
+    .replace(/<image\b[^>]*>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*')/gi, "")
+    .replace(/(href)\s*=\s*("|')\s*(?!#)[^"']*\2/gi, "");
+  if (!/xmlns=/.test(svg)) svg = svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+  return svg.length > 200_000 ? null : svg;
+}
+
+// Сначала — по шаблону (нейросеть даёт только содержание JSON-ом, сервер рисует
+// ровно и аккуратно), запасной путь — свободный SVG от нейросети.
+async function drawDiagram(chat, userId, request) {
+  const { renderDiagramSvg, parseSpec, SPEC_PROMPT } = require("./diagramRenderer");
+  const sharp = require("sharp");
+  const toPng = (svg) => sharp(Buffer.from(svg), { density: 110, limitInputPixels: 40_000_000 }).flatten({ background: "#ffffff" }).png().toBuffer();
+  const { turns: hist } = await loadTurns(chat, userId).catch(() => ({ turns: [] }));
+  const ctx = hist
+    .slice(-6)
+    .map((t) => `${t.role === "assistant" ? "Ассистент" : "Пользователь"}: ${t.content.slice(0, 1200)}`)
+    .join("\n");
+  const specAsk = [{ role: "user", content: `${SPEC_PROMPT}\n\n${ctx ? `Разговор до этого:\n${ctx}\n\n` : ""}Нарисовать: ${request || "поясняющую схему по разговору выше"}` }];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (const [name, call] of providerList(specAsk)) {
+      try {
+        const { text } = await call(specAsk);
+        const svg = renderDiagramSvg(parseSpec(text));
+        if (!svg) continue;
+        const png = await toPng(svg);
+        if (png.length > 2000) return png;
+      } catch (err) {
+        console.warn(`shalter ai: diagram spec via ${name} failed:`, err.message);
+      }
+    }
+  }
+  return drawFreeSvg(chat, userId, request);
+}
+
+async function drawFreeSvg(chat, userId, request) {
+  const { turns } = await loadTurns(chat, userId).catch(() => ({ turns: [] }));
+  const context = turns
+    .slice(-6)
+    .map((t) => `${t.role === "assistant" ? "Ассистент" : "Пользователь"}: ${t.content.slice(0, 1200)}`)
+    .join("\n");
+  const ask = [
+    {
+      role: "user",
+      content: `${SVG_PROMPT}\n\n${context ? `Разговор до этого (для контекста):\n${context}\n\n` : ""}Нарисуй: ${request || "поясняющую схему по разговору выше"}`,
+    },
+  ];
+  const sharp = require("sharp");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (const [name, call] of providerList(ask)) {
+      try {
+        const { text } = await call(ask);
+        const svg = sanitizeSvg(text);
+        if (!svg) continue;
+        const png = await sharp(Buffer.from(svg), { density: 110, limitInputPixels: 40_000_000 }).flatten({ background: "#ffffff" }).png().toBuffer();
+        if (png.length > 2000) return png;
+      } catch (err) {
+        console.warn(`shalter ai: diagram via ${name} failed:`, err.message);
+      }
+    }
+  }
+  return null;
 }
 
 async function drawImage(chat, userId, request) {
@@ -663,12 +755,34 @@ async function drawImage(chat, userId, request) {
     return;
   }
   const stop = startAction(chat, userId, "upload_photo");
+  if (DIAGRAM_RE.test(request)) {
+    try {
+      const png = await drawDiagram(chat, userId, request);
+      if (png) {
+        const tmpPng = path.join(os.tmpdir(), `shalter_ai_${crypto.randomBytes(8).toString("hex")}.png`);
+        try {
+          await fs.promises.writeFile(tmpPng, png);
+          const stored = await storeGeneratedFile(tmpPng);
+          stop();
+          await sendMessageAndBroadcast(chat, SHALTER_AI_ID, `📐 ${request.slice(0, 300)}`, {
+            attachments: [{ kind: "image", url: stored, name: "shalter-ai.png", mimeType: "image/png", size: png.length }],
+          });
+          return;
+        } finally {
+          fs.promises.unlink(tmpPng).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn("shalter ai: diagram failed:", err.message);
+    }
+    // не вышло — рисуем обычным генератором ниже
+  }
   // Короткую/расплывчатую просьбу («нарисуй это», «кота») уточняем по разговору.
   if (DRAW_VAGUE_RE.test(request) || request.length < 60 || /[а-яё]/i.test(request)) prompt = await craftImagePrompt(chat, userId, request);
   const tmp = path.join(os.tmpdir(), `shalter_ai_${crypto.randomBytes(8).toString("hex")}.jpg`);
   try {
     const seed = crypto.randomInt(1, 2 ** 31);
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 1000))}?width=1024&height=1024&nologo=true&private=true&enhance=true&seed=${seed}`;
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 1000))}?width=1024&height=1024&model=flux&nologo=true&private=true&enhance=true&seed=${seed}`;
     const res = await httpsRequest(url, { timeoutMs: 90000, headers: POLLINATIONS_TOKEN ? { Authorization: `Bearer ${POLLINATIONS_TOKEN}` } : {} });
     if (res.status !== 200 || !String(res.headers["content-type"] ?? "").startsWith("image/") || res.body.length < 1000) {
       throw new Error(`image HTTP ${res.status}`);
@@ -764,4 +878,4 @@ async function dispatchShalterAi(chatId, message) {
   }
 }
 
-module.exports = { dispatchShalterAi, WELCOME, DRAW_RE, drawRequest, splitReply, generate, localDescription };
+module.exports = { dispatchShalterAi, WELCOME, DRAW_RE, drawRequest, splitReply, generate, localDescription, sanitizeSvg, DIAGRAM_RE, drawDiagram };

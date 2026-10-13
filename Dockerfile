@@ -58,7 +58,7 @@ ENV NODE_ENV=production
 # ffmpeg для превью видео и медиа подарков. Пакет
 # ffmpeg-static свой бинарник скачивает в postinstall, а его --ignore-scripts
 # ниже пропускает — поэтому берём системный (server/lib/ffmpegBinary.js).
-RUN apk add --no-cache ffmpeg
+RUN apk add --no-cache ffmpeg font-dejavu
 COPY package*.json ./
 # Копирование из первого этапа стоит до установки намеренно: BuildKit
 # выполняет независимые этапы параллельно, и два тяжёлых npm ci разом
