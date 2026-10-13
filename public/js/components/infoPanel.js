@@ -1,5 +1,5 @@
 import { openCommunityPanel } from "./communityList.js";
-import { usernameUrl } from "../lib/publicLink.js";
+import { LinkCard } from "./linkCard.js";
 import { openCreateCommunityDialog, addChatToCommunity, removeChatFromCommunity } from "./communityEditor.js";
 import { askText } from "./confirmDialog.js";
 import { askConfirm } from "./confirmDialog.js";
@@ -396,19 +396,14 @@ export function InfoPanel({ chat, members, isBlocked, meId, isMePremium, isShalt
             ]),
           ])
         : null,
-      !isDm && (chat.description || (chat.isPublic && chat.username))
-        ? el("div", { class: "profile-info-card" }, [
-            chat.description ? infoRow({ icon: "Info", value: chat.description, label: "Описание", multiline: true }) : null,
-            chat.isPublic && chat.username
-              ? infoRow({
-                  icon: "Globe",
-                  value: usernameUrl(chat.username).replace(/^https?:\/\//, ""),
-                  label: "Ссылка",
-                  accent: true,
-                  copy: usernameUrl(chat.username),
-                })
-              : null,
-          ].filter(Boolean))
+      !isDm && chat.description
+        ? el("div", { class: "profile-info-card" }, [infoRow({ icon: "Info", value: chat.description, label: "Описание", multiline: true })])
+        : null,
+      !isDm && chat.isPublic && chat.username
+        ? LinkCard(
+            { name: chat.title, username: chat.username, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage },
+            { label: chat.type === "channel" ? "Ссылка на канал" : "Ссылка на группу" }
+          )
         : null,
       !isDm && isOwnerOrAdmin
         ? el("button", { class: "info-panel-row", onclick: () => openEditChatDialog(chat, onChatUpdated) }, [
