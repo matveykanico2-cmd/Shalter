@@ -11,8 +11,19 @@ const { fork } = require("child_process");
 // локально — только речь лёгкой моделью. Локальные фото — при RAM ≥ 6 ГБ или LOCAL_VISION=on.
 const BIG_BOX = require("os").totalmem() >= 6 * 1024 ** 3;
 const OFF = /^(0|off|false|no)$/i.test(process.env.LOCAL_VISION || "");
-const ENABLED = !OFF && (BIG_BOX || /^(1|on|true|yes)$/i.test(process.env.LOCAL_VISION || ""));
-const ASR_ENABLED = !OFF;
+// Пакет локальных нейросетей (~700 МБ с движком onnxruntime) больше не ставится по
+// умолчанию — из-за него `npm install` на маленьком сервере шёл очень долго.
+// Для локальных моделей: npm install --no-save @huggingface/transformers@3
+const INSTALLED = (() => {
+  try {
+    require.resolve("@huggingface/transformers");
+    return true;
+  } catch {
+    return false;
+  }
+})();
+const ENABLED = INSTALLED && !OFF && (BIG_BOX || /^(1|on|true|yes)$/i.test(process.env.LOCAL_VISION || ""));
+const ASR_ENABLED = INSTALLED && !OFF;
 const IDLE_MS = 3 * 60_000;
 const TIMEOUT_MS = 4 * 60_000; // первая загрузка модели — до пары минут
 
@@ -140,4 +151,4 @@ async function transcribeFile(filePath) {
 
 process.on("exit", stop);
 
-module.exports = { describeImage, transcribeFile, LOCAL_VISION_ENABLED: ENABLED, LOCAL_ASR_ENABLED: ASR_ENABLED, BIG_BOX };
+module.exports = { describeImage, transcribeFile, decodeAudio, LOCAL_VISION_ENABLED: ENABLED, LOCAL_ASR_ENABLED: ASR_ENABLED, LOCAL_AI_INSTALLED: INSTALLED, BIG_BOX };

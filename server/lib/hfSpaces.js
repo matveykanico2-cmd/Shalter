@@ -55,4 +55,36 @@ async function describeImageRemote(jpeg, prompt) {
   throw new Error("распознавание изображения недоступно");
 }
 
-module.exports = { uploadFile, callSpace, describeImageRemote };
+// Распознавание речи через Hugging Face (Whisper large-v3-turbo). Нужен бесплатный
+// HF_TOKEN: анонимно публичные пространства Whisper сейчас отказывают.
+// pcm16k — float32 моно 16 кГц (из localVision.decodeAudio) → WAV.
+async function transcribeRemote(pcm16k) {
+  if (!HF_TOKEN) throw new Error("для распознавания речи без локальных моделей нужен HF_TOKEN");
+  const samples = new Float32Array(pcm16k.buffer, pcm16k.byteOffset, Math.floor(pcm16k.byteLength / 4));
+  const wav = Buffer.alloc(44 + samples.length * 2);
+  wav.write("RIFF", 0);
+  wav.writeUInt32LE(36 + samples.length * 2, 4);
+  wav.write("WAVEfmt ", 8);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(16000, 24);
+  wav.writeUInt32LE(32000, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write("data", 36);
+  wav.writeUInt32LE(samples.length * 2, 40);
+  for (let i = 0; i < samples.length; i++) wav.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(samples[i] * 32767))), 44 + i * 2);
+  const model = process.env.HF_ASR_MODEL || "openai/whisper-large-v3-turbo";
+  const res = await fetch(`https://router.huggingface.co/hf-inference/models/${model}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${HF_TOKEN}`, "Content-Type": "audio/wav" },
+    body: wav,
+    signal: AbortSignal.timeout(120000),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`hf asr HTTP ${res.status}: ${String(data.error ?? "").slice(0, 120)}`);
+  return String(data.text ?? "").trim();
+}
+
+module.exports = { uploadFile, callSpace, describeImageRemote, transcribeRemote };

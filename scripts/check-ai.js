@@ -26,14 +26,13 @@ async function step(name, fn) {
   const jpeg = await sharp(path.join(root, "public/img/bots/shalter-crab.webp")).jpeg().toBuffer();
   await step("Фото (Qwen2-VL на Hugging Face)", () => describeImageRemote(jpeg));
   await step("Рисование (FLUX на Hugging Face)", async () => `${(await ai.renderImage("a small red apple on a white table")).length} байт картинки`);
-  try {
-    require.resolve("@huggingface/transformers");
-  } catch {
-    console.log("❌ Речь — не установлен пакет @huggingface/transformers: выполните npm install");
-    process.exit(0);
-  }
   const wav = ["/usr/share/sounds/alsa/Front_Center.wav"].find((f) => fs.existsSync(f));
-  if (wav) await step("Речь (локальный Whisper; первый раз скачивает модель)", () => transcribeFile(wav));
-  else console.log("… Речь — нет тестового звука на сервере, пропускаю");
+  const { HF_TOKEN } = require(path.join(root, "server/config"));
+  const { decodeAudio } = require(path.join(root, "server/lib/localVision"));
+  const { transcribeRemote } = require(path.join(root, "server/lib/hfSpaces"));
+  if (!wav) console.log("… Речь — нет тестового звука на сервере, пропускаю");
+  else if (HF_TOKEN) await step("Речь (Whisper на Hugging Face)", async () => transcribeRemote(await decodeAudio(wav)));
+  else if (LOCAL_ASR_ENABLED) await step("Речь (локальный Whisper; первый раз скачивает модель)", () => transcribeFile(wav));
+  else console.log("❌ Речь — добавьте HF_TOKEN в config.env (бесплатно) или поставьте локальные модели: npm install --no-save @huggingface/transformers@3");
   process.exit(0);
 })();

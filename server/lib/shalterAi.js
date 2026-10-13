@@ -32,8 +32,10 @@ const { broadcastToUsers } = require("../ws");
 const { sendMessageAndBroadcast } = require("./systemChat");
 const { readUploadBuffer, storeGeneratedFile, fetchUploadToTemp } = require("./uploadTransfer");
 const { extractVideoFrames } = require("./mediaPreview");
-const { describeImage, transcribeFile, LOCAL_VISION_ENABLED, LOCAL_ASR_ENABLED } = require("./localVision");
-const { describeImageRemote } = require("./hfSpaces");
+const { describeImage, transcribeFile, decodeAudio, LOCAL_VISION_ENABLED, LOCAL_ASR_ENABLED } = require("./localVision");
+const { describeImageRemote, transcribeRemote } = require("./hfSpaces");
+// Речь: через Hugging Face (с HF_TOKEN) или локально (если доустановлен пакет моделей).
+const SPEECH_ENABLED = !!HF_TOKEN || LOCAL_ASR_ENABLED;
 const { fixLayout } = require("./keyboardLayout");
 
 const HISTORY_LIMIT = 14;
@@ -556,7 +558,7 @@ async function readAttachment(a, { withMedia }) {
   if (a.kind === "voice" || (a.kind === "file" && /^audio\//.test(a.mimeType ?? ""))) {
     const label = a.kind === "voice" ? `голосовое сообщение${a.durationSec ? ` ${Math.round(a.durationSec)} с` : ""}` : `аудиофайл «${name}»`;
     if (a.transcript) return { text: `[${label}] ${a.transcript}` };
-    if ((!withMedia && !speechCache.has(a.url)) || !LOCAL_ASR_ENABLED || typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: `[${label} — без расшифровки]` };
+    if ((!withMedia && !speechCache.has(a.url)) || !SPEECH_ENABLED || typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: `[${label} — без расшифровки]` };
     const speech = await speechOf(a.url);
     return { text: speech ? `[${label}, расшифровка речи]: ${speech}` : `[${label} — речь не распознана (тишина или музыка)]` };
   }
@@ -569,7 +571,7 @@ async function readAttachment(a, { withMedia }) {
     const src = a.previewUrl || a.url;
     if (typeof src !== "string" || !src.startsWith("/uploads/")) return { text: `[${label}]` };
     // Что говорят в ролике — тоже важно (кружки почти всегда «говорящие»).
-    const speech = LOCAL_ASR_ENABLED ? await speechOf(a.url).catch(() => "") : "";
+    const speech = SPEECH_ENABLED ? await speechOf(a.url).catch(() => "") : "";
     const speechPart = speech ? `\nРечь в ролике: ${speech}` : "";
     const { frames, durationSec } = await videoFrames(src, a.durationSec);
     if (!frames.length) return { text: `[${label} — не удалось прочитать кадры]${speechPart}` };
@@ -640,10 +642,22 @@ async function speechOf(url) {
   if (speechCache.has(url)) return speechCache.get(url);
   const local = await fetchUploadToTemp(url.slice("/uploads/".length));
   try {
-    const text = await transcribeFile(local).catch((err) => {
-      console.warn("shalter ai: speech failed:", err.message);
-      return "";
-    });
+    let text = "";
+    if (HF_TOKEN) {
+      text = await decodeAudio(local)
+        .then((pcm) => (pcm.length < 16000 * 4 * 0.3 ? "" : transcribeRemote(pcm)))
+        .catch((err) => {
+          console.warn("shalter ai: hf speech failed:", err.message);
+          return null;
+        });
+    }
+    if ((text == null || (!text && !HF_TOKEN)) && LOCAL_ASR_ENABLED) {
+      text = await transcribeFile(local).catch((err) => {
+        console.warn("shalter ai: speech failed:", err.message);
+        return "";
+      });
+    }
+    text = text ?? "";
     speechCache.set(url, text);
     if (speechCache.size > 50) speechCache.delete(speechCache.keys().next().value);
     return text;
