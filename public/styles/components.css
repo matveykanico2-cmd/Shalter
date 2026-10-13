@@ -24738,7 +24738,8 @@ img.img-broken {
   padding-top: 40px;
   padding-bottom: 14px;
 }
-.profile-panel-body,
+/* (тело профиля — прокручиваемое: ему overflow не меняем, иначе профиль не листается;
+   места для орбиты хватает за счёт отступа сверху) */
 .profile-avatar-row,
 .profile-avatar-row .avatar-open-btn {
   overflow: visible;
@@ -24810,4 +24811,35 @@ img.img-broken {
 }
 .video-note-overlay {
   border-radius: 999px;
+}
+
+/* кружок: без квадратной рамки браузера (фокус/подсветка нажатия) — после того как
+   кольцу разрешили выходить за край, она стала видна вокруг круга */
+.video-note-player {
+  border: 0;
+  padding: 0;
+  outline: none;
+  background: transparent;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: none;
+}
+.video-note-player:focus,
+.video-note-player:focus-visible,
+.video-note-player:active {
+  outline: none;
+  box-shadow: none;
+}
+.video-note-player:focus-visible .video-note-ring-track {
+  stroke: color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+
+/* кружок крупнее (как в Telegram) — 160 px было мало, детали не разглядеть */
+.video-note-player,
+.video-note-wrap {
+  width: min(240px, 62vw);
+  height: auto;
+}
+.video-note-player {
+  aspect-ratio: 1;
+  height: auto;
 }

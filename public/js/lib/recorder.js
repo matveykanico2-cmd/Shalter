@@ -1,10 +1,11 @@
 import { getFlippedTrack } from "./cameraSwitch.js";
 export const MAX_RECORD_SEC = 180;
 
-// Высокое качество: кружок 480×480 при 2,5 Мбит/с, голос — Opus 128 кбит/с.
-const VIDEO_NOTE_BITRATES = { videoBitsPerSecond: 2_500_000, audioBitsPerSecond: 128_000 };
+// Высокое качество: кружок 640×640 при 3,5 Мбит/с, голос — Opus 128 кбит/с 48 кГц
+// (у Telegram кружок ~400 px и голос ~32 кбит/с).
+const VIDEO_NOTE_BITRATES = { videoBitsPerSecond: 3_500_000, audioBitsPerSecond: 128_000 };
 const VOICE_BITRATES = { audioBitsPerSecond: 128_000 };
-const SQUARE_SIZE = 480;
+const SQUARE_SIZE = 640;
 // Просим у камеры HD-кадр: из него вырезается квадрат, поэтому запас по размеру нужен.
 const CAMERA_VIDEO = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 }, facingMode: "user" };
 
@@ -17,11 +18,16 @@ const MIC_CONSTRAINTS = {
   autoGainControl: true,
 };
 
+// На телефоне — H.264: его кодирует видеочип. VP9 там кодируется процессором, не
+// успевает в реальном времени и снижает качество/пропускает кадры (кружки «мылились»).
+const MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 function pickMime(kind) {
   const list =
     kind === "audio"
       ? ["audio/webm;codecs=opus", "audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm"]
-      : ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm"];
+      : MOBILE
+        ? ["video/mp4;codecs=avc1.4d002a,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/webm;codecs=h264,opus", "video/webm;codecs=vp8,opus", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm"]
+        : ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm"];
   return list.find((t) => MediaRecorder.isTypeSupported?.(t)) ?? "";
 }
 const AVATAR_VIDEO_BITRATES = { videoBitsPerSecond: 2_500_000, audioBitsPerSecond: 96_000 };
