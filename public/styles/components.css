@@ -25012,23 +25012,42 @@ img.img-broken {
   margin: 0;
 }
 
-/* на компьютере — нижняя панель (Аккаунт, Чаты, Контакты, Звонки, Архив, Настройки),
-   как на телефоне: под списком чатов (колонка — сверху вниз, панель последней) */
+/* на компьютере — нижняя панель (Аккаунт, Чаты, Контакты, Звонки, Архив, Настройки)
+   на всю ширину окна: под списком чатов и под открытым чатом. Оболочка — сетка:
+   сверху «список | чат», снизу панель. Колонка списка «растворяется» (display: contents),
+   чтобы её список и панель встали в свои места сетки. */
 @media (min-width: 768px) {
-  .shell .shell-list-col {
-    flex-direction: column-reverse;
-    width: 420px;
-    min-height: 0;
+  .shell {
+    display: grid;
+    grid-template-columns: 420px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: "list main" "nav nav";
+  }
+  .shell .shell-list-col,
+  .shell.chat-open .shell-list-col,
+  .shell.full-open .shell-list-col {
+    display: contents;
   }
   .shell-list-col > .shell-sidebar {
-    flex: 1;
+    grid-area: list;
     min-height: 0;
+    width: 420px;
+  }
+  .shell > .shell-main-col {
+    grid-area: main;
+    min-height: 0;
+  }
+  .shell.full-open {
+    grid-template-areas: "main main" "nav nav";
   }
   .nav-rail {
     display: flex;
-    flex: 0 0 auto;
+    grid-area: nav;
+    justify-content: center;
+    gap: clamp(16px, 4vw, 56px);
     width: 100%;
-    min-height: 52px;
+    min-height: 54px;
+    box-sizing: border-box;
   }
 }
 .sidebar-downloads-btn {
