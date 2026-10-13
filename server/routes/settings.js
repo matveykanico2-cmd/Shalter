@@ -135,6 +135,8 @@ router.patch(
   asyncRoute(async (req, res) => {
     const patch = { ...(req.body ?? {}) };
     if (patch.privacy) patch.privacy = normalizePrivacy(patch.privacy);
+    // Иконка приложения (хранится в аккаунте, чтобы пережить обновление/переустановку)
+    if ("appIcon" in patch && !(typeof patch.appIcon === "string" && /^[a-z0-9-]{1,32}$/.test(patch.appIcon))) delete patch.appIcon;
     if (patch.holidays) patch.holidays = sanitizeHolidays(patch.holidays);
     if (patch.business) patch.business = await sanitizeBusiness(patch.business, req.uid);
     if (isUnsupportedLanguage(patch.uiLanguage) || isUnsupportedLanguage(patch.translateLanguage)) {

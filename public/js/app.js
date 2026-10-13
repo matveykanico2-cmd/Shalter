@@ -29,7 +29,7 @@ import { ChatTips } from "./components/chatTips.js";
 import { paintWallpaper } from "./lib/wallpapers.js";
 import { installToastAlert, installModalEscape, showToast } from "./components/toast.js";
 import { installEmojiImages } from "./lib/emojiImages.js";
-import { syncAppIcon } from "./lib/appIcons.js";
+import { syncAppIcon, syncAppIconFromSettings } from "./lib/appIcons.js";
 import { installTouchHover } from "./lib/touchHover.js";
 import { installIosLongPress } from "./lib/iosLongPress.js";
 
@@ -158,6 +158,8 @@ async function boot() {
   syncAppIcon(user, { fresh: !cachedSession?.user?.name });
   sessionReq.then((fresh) => fresh?.user && syncAppIcon(fresh.user), () => {});
   subscribe((st) => {
+    // настройки аккаунта пришли — восстанавливаем иконку, если она сбросилась
+    if (st.settings && st.user) syncAppIconFromSettings(st.settings, st.user);
     if (!st.user || !!st.user.isPremium === iconPremium) return;
     iconPremium = !!st.user.isPremium;
     syncAppIcon(st.user);

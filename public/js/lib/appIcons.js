@@ -91,8 +91,13 @@ function nativeAppIcon() {
 
 // Меняет иконку везде, где это умеет платформа. Ошибку нативной части (старый APK без
 // плагина, iOS без альтернативных иконок) пробрасываем — настройки покажут её.
-export async function setAppIcon(id) {
+// remember — сохранить выбор в аккаунте: после обновления или переустановки
+// приложения память телефона очищается, и без этого иконка становилась стандартной.
+export async function setAppIcon(id, { remember = true } = {}) {
   const icon = findAppIcon(id);
+  if (remember) {
+    import("../api.js").then(({ api }) => api.patchSettings({ appIcon: icon.id })).catch(() => {});
+  }
   try {
     localStorage.setItem(STORE_KEY, icon.id);
     if (icon.id === DEFAULT_APP_ICON) localStorage.removeItem(SPLASH_KEY);
@@ -120,4 +125,20 @@ export function syncAppIcon(user, { fresh = true } = {}) {
     return;
   }
   if (id !== DEFAULT_APP_ICON) applyFavicon(id);
+}
+
+// Иконка из аккаунта: после обновления/переустановки (память телефона пуста) —
+// возвращаем выбранную, в том числе на рабочем столе. Выбор, сделанный до того,
+// как иконка стала храниться в аккаунте, сохраняем туда при первом запуске.
+let restored = false;
+export function syncAppIconFromSettings(settings, user) {
+  if (!settings || restored) return;
+  restored = true;
+  const local = getAppIconId();
+  const saved = settings.appIcon && APP_ICONS.some((i) => i.id === settings.appIcon) ? settings.appIcon : null;
+  if (saved && saved !== local) {
+    if (canUseAppIcon(saved, user)) setAppIcon(saved, { remember: false }).catch(() => {});
+  } else if (!saved && local !== DEFAULT_APP_ICON) {
+    import("../api.js").then(({ api }) => api.patchSettings({ appIcon: local })).catch(() => {});
+  }
 }
