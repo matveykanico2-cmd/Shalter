@@ -1,4 +1,4 @@
-import { prettyQrSvg } from "./prettyQr.js";
+import { prettyQrSvg, LOGO } from "./prettyQr.js";
 
 // Картинка QR-кода для системного «Поделиться»: тот же вид, что на экране, но
 // нарисованный на canvas — системное меню умеет отдавать файл, а собрать PNG из
@@ -90,30 +90,33 @@ export async function qrCardPng({ url, name, username, theme, avatarImage, avata
   ctx.fill();
   drawAvatar(ctx, await loadImage(avatarImage), { x: avatarX, y: avatarY, size: avatarSize, color: avatarColor, name });
 
-  const qrSide = 440;
+  const qrSide = 420;
   const qrX = (SIZE - qrSide) / 2;
-  const qrY = 300;
-  const qrSvg = prettyQrSvg(url, { color: ink });
-  const qrImg = await loadImage(`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(qrSvg)))}`);
+  const qrY = 286;
+  // Код без встроенного логотипа (вложенный svg в картинке рисуется не везде),
+  // а в оставленное место — сам логотип Shalter отдельной картинкой. Раньше там
+  // была просто буква «S».
+  const svgData = (svg) => `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+  const qrSvg = prettyQrSvg(url, { color: ink }).replace(/<svg x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" viewBox="0 0 512 512">[\s\S]*?<\/svg>(?=<\/svg>$)/, "");
+  const qrImg = await loadImage(svgData(qrSvg));
   if (qrImg) ctx.drawImage(qrImg, qrX, qrY, qrSide, qrSide);
 
-  // В центре кода prettyQrSvg оставляет место под логотип (см. prettyQr.js).
+  const logoSide = qrSide * 0.2;
   ctx.fillStyle = "#fff";
   ctx.beginPath();
-  ctx.arc(SIZE / 2, qrY + qrSide / 2, qrSide * 0.11, 0, Math.PI * 2);
+  ctx.arc(SIZE / 2, qrY + qrSide / 2, logoSide / 2 + 8, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = ink;
-  ctx.font = `700 ${Math.round(qrSide * 0.15)}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  const logoImg = await loadImage(svgData(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">${LOGO}</svg>`));
+  if (logoImg) ctx.drawImage(logoImg, SIZE / 2 - logoSide / 2, qrY + qrSide / 2 - logoSide / 2, logoSide, logoSide);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("S", SIZE / 2, qrY + qrSide / 2 + 2);
 
   ctx.fillStyle = "#111";
   ctx.font = '600 42px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(String(name ?? username ?? "").slice(0, 28), SIZE / 2, card.y + card.h - 96);
+  ctx.fillText(String(name ?? username ?? "").slice(0, 28), SIZE / 2, card.y + card.h - 82);
   ctx.fillStyle = ink;
   ctx.font = '500 30px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(`@${username ?? ""}`, SIZE / 2, card.y + card.h - 44);
+  ctx.fillText(`@${username ?? ""}`, SIZE / 2, card.y + card.h - 36);
   if (hint) {
     ctx.fillStyle = "rgba(17, 17, 17, 0.55)";
     ctx.font = '400 24px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';

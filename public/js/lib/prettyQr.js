@@ -4,7 +4,7 @@ import qrcode from "./qrcode.js";
 // со скруглёнными углами там, где нет соседей, угловые «глазки» — скруглённые
 // кольца, в центре — знак Shalter. SVG, поэтому чёткий на любом экране.
 
-const LOGO = `<circle cx="256" cy="256" r="256" fill="#3d6df0"/><path fill="#fff" d="M65 186L397 131L357 333L77 336Z"/><path fill="#a9c4fb" d="M397 131L250 235L357 333Z"/><path fill="#d3e0fd" d="M134 336L214 340L138 437Z"/>`;
+export const LOGO = `<circle cx="256" cy="256" r="256" fill="#3d6df0"/><path fill="#fff" d="M65 186L397 131L357 333L77 336Z"/><path fill="#a9c4fb" d="M397 131L250 235L357 333Z"/><path fill="#d3e0fd" d="M134 336L214 340L138 437Z"/>`;
 
 /**
  * @param {string} text
