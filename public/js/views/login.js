@@ -773,6 +773,10 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     mount(
       root,
       el("div", { class: "login-page" }, [
+        // Как в Telegram: «назад» в углу вместо длинной ссылки внизу карточки.
+        addMode
+          ? el("button", { class: "login-back-btn", type: "button", title: "Отмена", "aria-label": "Отмена — вернуться в приложение", html: iconSvg("ChevronLeft", 22), onclick: () => goToApp() })
+          : null,
         el("div", { class: "login-bg" }, [
           el("span", { class: "login-orb login-orb-1" }),
           el("span", { class: "login-orb login-orb-2" }),
@@ -784,14 +788,9 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             el("h1", { class: "login-brand" }, addMode ? "Добавить аккаунт" : "Shalter"),
             el("p", { class: "login-subtitle" }, subtitle),
           ]),
-          el("div", { class: "login-card" }, [
-            content,
-            addMode
-              ? el("button", { class: "login-link center login-card-cancel", onclick: () => goToApp() }, "Отмена — вернуться в приложение")
-              : null,
-          ].filter(Boolean)),
+          el("div", { class: "login-card" }, [content]),
         ].filter(Boolean)),
-      ])
+      ].filter(Boolean))
     );
     fitLoginPageToViewport();
     loginViewportFit?.();

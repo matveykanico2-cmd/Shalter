@@ -1525,7 +1525,13 @@ export function Composer({
 
     const trailingSlot = el("div", { class: "composer-trailing" });
     refreshTrailing = () => updateTrailingButtons();
+    // Кнопку справа пересобираем, только когда меняется её вид: раньше она
+    // пересоздавалась на каждую букву и мигала анимацией появления.
+    let trailingKind = null;
     function updateTrailingButtons() {
+      const kind = aiChat && generating ? "stop" : textarea.value.trim() || staged.length || aiChat ? "send" : isRecordingSupported() ? "record" : "none";
+      if (kind === trailingKind && trailingSlot.childElementCount) return;
+      trailingKind = kind;
       clear(trailingSlot);
       if (aiChat && generating) {
         trailingSlot.appendChild(

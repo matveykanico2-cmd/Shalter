@@ -25412,3 +25412,26 @@ img.img-broken {
   cursor: pointer;
 }
 @media (max-width: 420px) { .ai-plans { grid-template-columns: 1fr; } }
+
+/* «Добавить аккаунт»: кнопка «назад» в углу, как в Telegram */
+.login-back-btn {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  color: var(--color-text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+.login-back-btn:hover { background: color-mix(in srgb, var(--color-text) 12%, transparent); }
+.login-back-btn:active { transform: scale(0.94); }
