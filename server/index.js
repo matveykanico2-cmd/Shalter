@@ -141,6 +141,13 @@ app.use("/api/usernames", require("./routes/usernames"));
 app.use("/api/communities", require("./routes/communities"));
 app.use("/api/bootstrap", require("./routes/bootstrap"));
 app.use("/s", require("./routes/shortLinks"));
+app.get("/api/short-links", (_req, res) => {
+  try {
+    res.json(require("./data/shortLinks").countLinks());
+  } catch (e) {
+    res.status(500).json({ error: "db error" });
+  }
+});
 // Системное «Поделиться»: принимаем содержимое из меню «Поделиться» и отдаём
 // его приложению по одноразовому токену.
 app.use("/share-target", require("./routes/shareTarget"));
@@ -172,6 +179,7 @@ app.head("/uploads/:filename", requireUserForUploads, serveUpload());
 
 app.get("/download", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "download.html")));
 app.get("/promo", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "promo.html")));
+app.get("/short", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "short.html")));
 app.get("/premium", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "premium.html")));
 app.get("/bots", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "bots.html")));
 app.get("/games", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "games.html")));

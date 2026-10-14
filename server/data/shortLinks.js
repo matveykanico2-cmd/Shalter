@@ -32,4 +32,13 @@ function registerClick(code) {
   db.prepare("UPDATE short_links SET clicks = clicks + 1 WHERE code = ?").run(code);
 }
 
-module.exports = { createShortLink, getShortLink, registerClick };
+function countLinks() {
+  const row = db
+    .prepare(
+      "SELECT COUNT(*) AS total, SUM(CASE WHEN createdAt >= ? THEN 1 ELSE 0 END) AS thisMonth FROM short_links"
+    )
+    .get(new Date(Date.now() - 30 * 864e5).toISOString());
+  return { total: Number(row.total) || 0, thisMonth: Number(row.thisMonth) || 0 };
+}
+
+module.exports = { createShortLink, getShortLink, registerClick, countLinks };
