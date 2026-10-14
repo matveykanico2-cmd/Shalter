@@ -40,13 +40,26 @@ function resilientImage(img, holder, sources) {
   const list = [...new Set(sources.filter(Boolean))];
   let i = 0;
   let failBox = null;
+  let shimmerTimer = null;
+  let settled = false;
+  const onLoaded = () => {
+    if (shimmerTimer) { clearTimeout(shimmerTimer); shimmerTimer = null; }
+    clearTimeout(safetyTimer);
+    img.classList.remove("media-loading");
+    settled = true;
+  };
   // Заглушку показываем, только если картинка грузится дольше мгновения: уже
   // загруженная (из кэша) иначе мигала при каждой перерисовке ленты — чат «дёргался».
-  let shimmerTimer = setTimeout(() => !img.complete && img.classList.add("media-loading"), 150);
+  shimmerTimer = setTimeout(() => !img.complete && !settled && img.classList.add("media-loading"), 150);
+  img.addEventListener("load", onLoaded);
   img.addEventListener("load", () => {
-    clearTimeout(shimmerTimer);
-    img.classList.remove("media-loading");
+    if (!(img.width && img.height) && img.naturalWidth && img.naturalHeight) {
+      img.width = img.naturalWidth;
+      img.height = img.naturalHeight;
+    }
   });
+  // Если load не сработал (кешированное изображение с loading="lazy"), убираем спиннер по таймауту.
+  const safetyTimer = setTimeout(() => { if (!settled) { settled = true; onLoaded(); } }, 5000);
   const retry = (e) => {
     e?.stopPropagation();
     e?.preventDefault();
@@ -117,7 +130,8 @@ export function VideoAttachment(a) {
   };
   const watch = (node) => {
     const t = setTimeout(() => btn.classList.add("media-loading"), 150);
-    const done = () => clearTimeout(t);
+    const done = () => { clearTimeout(t); clearTimeout(safetyT); btn.classList.remove("media-loading"); };
+    const safetyT = setTimeout(done, 5000);
     node.addEventListener("load", done, { once: true });
     node.addEventListener("loadeddata", done, { once: true });
     node.addEventListener("error", done, { once: true });
