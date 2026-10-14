@@ -12,7 +12,7 @@ function clock(sec) {
 }
 
 function thumbOf(a) {
-  if (a.kind === "image") return a.thumbUrl || a.url || null;
+  if (a.kind === "image" || (a.kind === "file" && /^image\//.test(a.mimeType ?? ""))) return a.thumbUrl || a.url || null;
   return a.posterUrl || (a.thumbUrl && !String(a.thumbUrl).startsWith("blob:") ? a.thumbUrl : null);
 }
 
@@ -21,7 +21,7 @@ function mini(a, round) {
   const cls = `mp-thumb${round ? " round" : ""}`;
   if (src) return el("img", { class: cls, src, alt: "", loading: "lazy", decoding: "async" });
   // у кружка/видео без обложки — первый кадр самого ролика
-  if ((a.kind === "video" || a.kind === "video-note") && a.url) {
+  if ((a.kind === "video" || a.kind === "video-note" || (a.kind === "file" && /^video\//.test(a.mimeType ?? ""))) && a.url) {
     return el("video", { class: cls, src: `${a.url}#t=0.1`, muted: true, playsInline: true, preload: "metadata" });
   }
   return null;
@@ -37,7 +37,10 @@ export function mediaPreviewNodes(m, { prefix = "", clean = (t) => t } = {}) {
     return [el("span", { class: "mp-gift" }, [renderGiftArt(m.gift, { size: 20, replay: false })]), label(m.gift.name || "Подарок")];
   }
   if (!a || m.type === "sticker" || m.type === "gift") return [label(clean(messagePreview(m)))];
-  const count = m.attachments.filter((x) => x.kind === a.kind).length;
+  const sameType = (x) =>
+    x.kind === a.kind ||
+    (a.kind === "file" && x.kind === "file" && /^image\/|^video\//.test(a.mimeType ?? "") && /^image\/|^video\//.test(x.mimeType ?? ""));
+  const count = m.attachments.filter(sameType).length;
   if (a.kind === "video-note") {
     return [prefix ? label("") : null, mini(a, true), el("span", { class: "mp-text" }, [el("span", { class: "mp-dur" }, a.durationSec ? clock(a.durationSec) : "Кружок"), text ? ` ${text}` : ""])].filter(Boolean);
   }
@@ -48,9 +51,11 @@ export function mediaPreviewNodes(m, { prefix = "", clean = (t) => t } = {}) {
       el("span", { class: "mp-text" }, [el("span", { class: "mp-dur" }, a.durationSec ? clock(a.durationSec) : "Голосовое"), text ? ` ${text}` : ""]),
     ].filter(Boolean);
   }
-  if (a.kind === "image" || a.kind === "video") {
+  const isImageFile = a.kind === "image" || (a.kind === "file" && /^image\//.test(a.mimeType ?? ""));
+  const isVideoFile = a.kind === "video" || a.kind === "video-note" || (a.kind === "file" && /^video\//.test(a.mimeType ?? ""));
+  if (isImageFile || isVideoFile) {
     const thumb = mini(a, false);
-    const wrap = thumb ? el("span", { class: "mp-thumb-wrap" }, [thumb, a.kind === "video" ? el("span", { class: "mp-play", html: iconSvg("PlayFill", 8) }) : null]) : null;
+    const wrap = thumb ? el("span", { class: "mp-thumb-wrap" }, [thumb, a.kind === "video" || (a.kind === "file" && /^video\//.test(a.mimeType ?? "")) ? el("span", { class: "mp-play", html: iconSvg("PlayFill", 8) }) : null]) : null;
     const fallback = a.kind === "image" ? (count > 1 ? `${count} фото` : "Фото") : a.durationSec ? clock(a.durationSec) : count > 1 ? `${count} видео` : "Видео";
     return [prefix ? label("") : null, wrap, label(text || fallback)].filter(Boolean);
   }

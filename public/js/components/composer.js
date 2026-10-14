@@ -1585,9 +1585,9 @@ export function Composer({
           item.style.backgroundImage = `url("${s.previewUrl}")`;
           item.classList.add("has-image");
         } else {
-          item.appendChild(el("span", { class: "composer-staged-icon", html: iconSvg(s.kind === "video" ? "Video" : s.kind === "image" ? "Image" : "File", 18) }));
+          item.appendChild(el("span", { class: "composer-staged-icon", html: iconSvg(s.kind === "video" || s.attachment?.mimeType?.startsWith("video/") ? "Video" : s.kind === "image" || s.attachment?.mimeType?.startsWith("image/") ? "Image" : "File", 18) }));
         }
-        if (s.kind === "video") item.appendChild(el("span", { class: "composer-staged-play", html: iconSvg("Play", 14) }));
+        if (s.kind === "video" || s.attachment?.mimeType?.startsWith("video/")) item.appendChild(el("span", { class: "composer-staged-play", html: iconSvg("Play", 14) }));
         item.appendChild(
           el("button", {
             class: "composer-staged-remove",

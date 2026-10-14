@@ -568,7 +568,7 @@ async function docxText(buf) {
 // разговора одни и те же файлы читались бы на каждый ответ.
 const fileTextCache = new Map();
 async function readAttachment(a, { withMedia }) {
-  const name = a.name || (a.kind === "image" ? "photo.jpg" : "file");
+   const name = a.name || (a.kind === "image" || (a.kind === "file" && /^image\//.test(a.mimeType ?? "")) ? "photo.jpg" : "file");
   // Не файлы: геолокация, контакт, опрос, чек-лист, кубик, игра, платный пост.
   const meta = a.meta ?? {};
   if (a.kind === "location") return { text: await locationText(meta) };
@@ -616,7 +616,8 @@ async function readAttachment(a, { withMedia }) {
       media: frames.map((f, i) => ({ buf: f.buf, mime: "image/jpeg", name: `frame${i + 1}.jpg` })),
     };
   }
-  if (a.kind === "image") {
+   const isImageFile = a.kind === "file" && IMAGE_MIME.test(a.mimeType ?? "");
+   if (a.kind === "image" || isImageFile) {
     if (!withMedia) return { text: fileTextCache.get(`vision:${a.url}`) ?? "[фото]" };
     if (!canSeeMedia()) return { note: "photo" };
     if (typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: "[фото]" };
