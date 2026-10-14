@@ -25338,32 +25338,9 @@ img.img-broken {
   :root:not([data-theme="light"]) .message-column.mine .link-preview-warning.danger { color: #ffd0d0; }
 }
 
-/* ---------- Shalter AI: «Остановить» и окно настроек/тарифов ---------- */
-.ai-stop-btn {
-  position: absolute;
-  left: 50%;
-  bottom: calc(var(--composer-h, 64px) + 12px);
-  z-index: 7;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
-  transform: translateX(-50%);
-  cursor: pointer;
-  animation: ai-stop-in 0.18s ease;
-}
-.ai-stop-btn[hidden] { display: none; }
-.ai-stop-btn:disabled { opacity: 0.6; }
-.ai-stop-square { width: 10px; height: 10px; border-radius: 2px; background: currentColor; }
-@keyframes ai-stop-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+/* ---------- Shalter AI: значок «стоп» вместо «Отправить» и окно настроек/тарифов ---------- */
+.composer-stop-btn { animation: ai-stop-in 0.18s ease; }
+@keyframes ai-stop-in { from { transform: scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
 
 .ai-set-dialog { max-width: 460px; max-height: 88vh; display: flex; flex-direction: column; }
 .ai-set-body { overflow-y: auto; margin: 0 -4px; padding: 0 4px; }

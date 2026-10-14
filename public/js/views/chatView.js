@@ -224,6 +224,7 @@ export async function ChatView(root, chatId) {
   let infoOpen = false;
   let pinIndex = 0;
   let typingUserId = null;
+  let aiGenerating = false;
   let typingAction = null;
   let iBlockedThem = !!chat.otherUser && !!me.blockedUserIds?.includes(chat.otherUser.id);
   let messagesCount = messages.length;
@@ -426,6 +427,19 @@ export async function ChatView(root, chatId) {
     }
     if (rest) parts.push(rest);
     return parts;
+  }
+
+  // Shalter AI: пока бот пишет, кнопка «Отправить» в поле ввода становится «стоп».
+  function isShalterAiChat() {
+    return isDm && other?.id === "bot_shalter_ai";
+  }
+  function setAiGenerating(on) {
+    aiGenerating = !!on && isShalterAiChat();
+    composerSlot.querySelector(".composer")?.setGenerating?.(aiGenerating);
+  }
+  function stopAiReply() {
+    setAiGenerating(false);
+    api.stopAi(chat.id).catch(() => {});
   }
 
   async function handleSend(text, attachments, extraIn) {
@@ -1279,26 +1293,7 @@ export async function ChatView(root, chatId) {
   }
   renderContactBar();
   const audioBar = AudioPlayerBar({ chatId });
-  // Shalter AI: «Стоп» над полем ввода, пока бот пишет ответ.
-  const isShalterAiChat = () => isDm && other?.id === "bot_shalter_ai";
-  const aiStopBtn = el(
-    "button",
-    {
-      class: "ai-stop-btn",
-      hidden: true,
-      onclick: () => {
-        aiStopBtn.disabled = true;
-        api.stopAi(chat.id).catch(() => {}).finally(() => setAiGenerating(false));
-      },
-    },
-    [el("span", { class: "ai-stop-square" }), "Остановить"]
-  );
-  function setAiGenerating(on) {
-    if (!isShalterAiChat()) on = false;
-    aiStopBtn.hidden = !on;
-    aiStopBtn.disabled = false;
-  }
-  const mainCol = el("div", { class: "chat-main-col" }, [header, audioBar, topicsSlot, selectionBar, searchBar, liveBar, pinnedBar, contactBarSlot, chatAdSlot, floatingDate, list, scrollDownBtn, aiStopBtn, bodyBottomSlot, composerSlot]);
+  const mainCol = el("div", { class: "chat-main-col" }, [header, audioBar, topicsSlot, selectionBar, searchBar, liveBar, pinnedBar, contactBarSlot, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
   // Рекламное сообщение как в tweb (sponsored message): только в каналах, в конце ленты.
   var chatAd = null; // var: renderList может вызваться раньше этой строки
   if (chat.type === "channel") {
@@ -2325,6 +2320,9 @@ export async function ChatView(root, chatId) {
         allowEffects: isDm && !isSaved,
         allowWhenOnline: isDm && !isSaved && !!other && !other.isBot,
         canPostPaid: !isSaved && !chat.secret && (!isChannel || isChannelAdmin),
+        aiChat: isShalterAiChat(),
+        generating: aiGenerating,
+        onStop: stopAiReply,
         onEditLast: () => {
           const last = [...messages]
             .reverse()

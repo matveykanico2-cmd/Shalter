@@ -130,7 +130,14 @@ export function Composer({
   allowEffects = false,
   allowWhenOnline = false,
   canPostPaid = false,
+  // Чат с Shalter AI: без записи голосовых/кружков, справа всегда «Отправить»,
+  // а пока бот пишет — значок «стоп» на её месте.
+  aiChat = false,
+  generating: initialGenerating = false,
+  onStop = null,
 }) {
+  let generating = !!(aiChat && initialGenerating);
+  let refreshTrailing = () => {};
   let lastTypingPing = 0;
   let staged = [];
   let renderStagedTray = () => {};
@@ -1067,7 +1074,7 @@ export function Composer({
               { extra: members ?? [], exclude: [dmPeerId] }
             ),
         },
-        ...(isRecordingSupported()
+        ...(isRecordingSupported() && !aiChat
           ? [
               { icon: "Mic", color: "pink", label: "Голосовое сообщение", run: () => beginRecording("voice") },
               { icon: "Video", color: "sky", label: "Видео-сообщение", run: () => beginRecording("video-note") },
@@ -1517,9 +1524,22 @@ export function Composer({
     const hugoSlotBtn = el("div", { class: "composer-attach-slot composer-secondary" }, [hugoBtn]);
 
     const trailingSlot = el("div", { class: "composer-trailing" });
+    refreshTrailing = () => updateTrailingButtons();
     function updateTrailingButtons() {
       clear(trailingSlot);
-      if (textarea.value.trim() || staged.length) {
+      if (aiChat && generating) {
+        trailingSlot.appendChild(
+          el("button", {
+            class: "composer-send-btn composer-stop-btn",
+            title: "Остановить ответ",
+            "aria-label": "Остановить ответ",
+            html: '<svg viewBox="0 0 24 24" width="14" height="14"><rect x="5" y="5" width="14" height="14" rx="3" fill="currentColor"/></svg>',
+            onclick: () => onStop?.(),
+          })
+        );
+        return;
+      }
+      if (textarea.value.trim() || staged.length || aiChat) {
         trailingSlot.appendChild(
           el("button", {
             class: "composer-send-btn",
@@ -1544,7 +1564,7 @@ export function Composer({
         );
         return;
       }
-      if (!isRecordingSupported()) return;
+      if (!isRecordingSupported() || aiChat) return;
       trailingSlot.append(
         makeRecordButton("video-note", "Video", "Видео-сообщение"),
         makeRecordButton("voice", "Mic", "Голосовое сообщение")
@@ -1916,5 +1936,11 @@ export function Composer({
     }
   }
 
+  wrap.setGenerating = (on) => {
+    on = !!(aiChat && on);
+    if (on === generating) return;
+    generating = on;
+    refreshTrailing();
+  };
   return wrap;
 }
