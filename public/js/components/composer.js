@@ -55,6 +55,26 @@ function getPosition() {
   });
 }
 
+// GPS → координаты; не вышло — окно выбора места (примерное по IP или поиск адреса),
+// чтобы геолокация отправлялась всегда, а не падала с ошибкой.
+async function locateOrPick({ live = false } = {}) {
+  showToast("Определяем местоположение…", { duration: 25000 });
+  try {
+    const pos = await getPosition();
+    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  } catch (err) {
+    const { openLocationPicker } = await import("./locationPicker.js");
+    document.querySelector(".tw-toast")?.classList.remove("show");
+    const picked = await openLocationPicker({
+      reason: `${err.message}.${live ? " Живая геолокация будет обновляться, только когда телефон отдаст координаты." : ""} Можно выбрать место вручную:`,
+      retry: true,
+    });
+    return picked === "retry" ? locateOrPick({ live }) : picked;
+  } finally {
+    document.querySelector(".tw-toast")?.classList.remove("show");
+  }
+}
+
 function keyboardHeight() {
   let h = 0;
   try {
@@ -1021,13 +1041,8 @@ export function Composer({
           icon: "MapPin",
           label: "Геолокация",
           run: async () => {
-            showToast("Определяем местоположение…", { duration: 2500 });
-            try {
-              const pos = await getPosition();
-              onSend("", [{ kind: "location", meta: { lat: pos.coords.latitude, lng: pos.coords.longitude } }]);
-            } catch (err) {
-              alert(err.message);
-            }
+            const pos = await locateOrPick();
+            if (pos) onSend("", [{ kind: "location", meta: pos }]);
           },
         },
         {
@@ -1035,17 +1050,10 @@ export function Composer({
           color: "teal",
           label: "Живая геолокация (15 мин)",
           run: async () => {
-            showToast("Определяем местоположение…", { duration: 2500 });
-            let pos;
-            try {
-              pos = await getPosition();
-            } catch (err) {
-              return alert(err.message);
-            }
+            const pos = await locateOrPick({ live: true });
+            if (!pos) return;
             const liveMinutes = 15;
-            const message = await onSend("", [
-              { kind: "location", meta: { lat: pos.coords.latitude, lng: pos.coords.longitude, liveMinutes } },
-            ]);
+            const message = await onSend("", [{ kind: "location", meta: { ...pos, liveMinutes } }]);
             if (message) startLiveLocationSharing(chatId, message.id, liveMinutes * 60_000);
           },
         },

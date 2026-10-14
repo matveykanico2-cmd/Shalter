@@ -125,7 +125,8 @@ export async function ContactsView(root) {
     try {
       const { user } = await api.findUserByUsername(trimmed);
       if (query.trim().replace(/^@/, "") !== trimmed) return;
-      if (contacts.some((c) => c.userId === user.id)) searchError = "Уже в контактах";
+      if (user.isSelf) searchError = "Это вы";
+      else if (contacts.some((c) => c.userId === user.id)) searchError = "Уже в контактах";
       else searchResult = user;
     } catch {
       if (query.trim().replace(/^@/, "") !== trimmed) return;

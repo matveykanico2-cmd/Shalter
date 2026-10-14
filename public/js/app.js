@@ -550,6 +550,11 @@ async function boot() {
     try {
       ({ user: found } = await api.findUserByUsername(username));
     } catch {}
+    if (found?.isSelf || (found && found.id === getState().user?.id)) {
+      const { openSavedMessages } = await import("./components/sidebarMenu.js");
+      await openSavedMessages();
+      return;
+    }
     if (found && !found.isBot) {
       const dm = (getState().chats ?? []).find((c) => c.type === "dm" && c.otherUser?.id === found.id);
       if (dm) navigate(`/chat/${dm.id}`, { replace: true });

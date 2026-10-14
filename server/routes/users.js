@@ -81,7 +81,10 @@ router.get(
   "/by-username/:username",
   asyncRoute(async (req, res) => {
     const user = await findUserByUsername(req.params.username);
-    if (!user || user.id === req.uid) return res.status(404).json({ error: "not found" });
+    if (!user) return res.status(404).json({ error: "not found" });
+    // Свой ник тоже находим: раньше на него приходило «не найден», и своя ссылка
+    // /u/<ник> показывала «такого аккаунта нет», если клиент не узнал её сам.
+    if (user.id === req.uid) return res.json({ user: { ...(await publicUserFor(user, req.uid)), isSelf: true } });
     res.json({ user: await publicUserFor(user, req.uid) });
   })
 );

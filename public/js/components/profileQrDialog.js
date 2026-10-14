@@ -52,12 +52,19 @@ export function openProfileQrDialog(user) {
 
   // Отправить код в чат Shalter — с выбором, кому.
   function sendToChat() {
-    openForwardDialog(async (chatId) => {
-      copiedNote.textContent = "Отправляем…";
-      const attachment = await uploadFile(await preparedCard(), "image");
-      await api.sendMessage(chatId, url, { attachments: [attachment] });
-      copiedNote.textContent = "QR-код отправлен ✓";
-    });
+    // Картинку загружаем один раз — даже если отправляем сразу многим.
+    let uploaded = null;
+    let sent = 0;
+    openForwardDialog(
+      async (chatId) => {
+        copiedNote.textContent = "Отправляем…";
+        uploaded ??= preparedCard().then((file) => uploadFile(file, "image")).catch((err) => ((uploaded = null), Promise.reject(err)));
+        await api.sendMessage(chatId, url, { attachments: [await uploaded] });
+        sent++;
+        copiedNote.textContent = sent > 1 ? `QR-код отправлен в ${sent} чатов ✓` : "QR-код отправлен ✓";
+      },
+      { title: "Отправить QR-код" }
+    );
   }
 
   // Картинку готовим заранее: Safari открывает системное «Поделиться» только сразу

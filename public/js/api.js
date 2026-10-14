@@ -602,6 +602,8 @@ export const api = {
   shareNearbyLocation: (lat, lng) => req("/api/nearby", { method: "POST", body: JSON.stringify({ lat, lng }) }),
   getNearbyUsers: (lat, lng) => req(`/api/nearby?lat=${lat}&lng=${lng}`),
   stopNearbySharing: () => req("/api/nearby", { method: "DELETE" }),
+  geoByIp: () => req("/api/geo/ip"),
+  geoSearch: (q) => req(`/api/geo/search?q=${encodeURIComponent(q)}`),
 
   listContacts: () => req("/api/contacts"),
   addContact: (userId, localName, { sharePhone = false } = {}) =>
