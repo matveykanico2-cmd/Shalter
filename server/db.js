@@ -1152,6 +1152,15 @@ CREATE TABLE IF NOT EXISTS daily_claims (
   userId TEXT PRIMARY KEY,
   lastClaimAt TEXT NOT NULL
 );
+
+-- Shalter AI: сколько ответов и картинок пользователь получил за день (лимиты тарифа).
+CREATE TABLE IF NOT EXISTS ai_usage (
+  userId TEXT NOT NULL,
+  day TEXT NOT NULL,
+  texts INTEGER NOT NULL DEFAULT 0,
+  images INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (userId, day)
+);
 `);
 
 // Функции «как в Telegram»: темы в группах, приветствие новым участникам,

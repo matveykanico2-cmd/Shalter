@@ -27,6 +27,14 @@ const { SHALTER_AI_ID } = require("../data/shalterAiBot");
 const { getChat } = require("../data/chats");
 const { listMessagesPage, setStreamingText } = require("../data/messages");
 const { getSettings } = require("../data/settings");
+const { getUser } = require("../data/users");
+const { getAiUsage, addAiUsage } = require("../data/aiUsage");
+const { planFor, normalizeAiSettings, generationOptions } = require("./aiPlans");
+const { AsyncLocalStorage } = require("async_hooks");
+// Параметры текущего ответа (крутилки пользователя, сигнал «Стоп») — чтобы не
+// протаскивать их через всех провайдеров аргументами.
+const genCtx = new AsyncLocalStorage();
+const gen = () => genCtx.getStore() ?? {};
 const { markTyping, clearTyping } = require("../data/typing");
 const { broadcastToUsers } = require("../ws");
 const { sendMessageAndBroadcast } = require("./systemChat");
@@ -164,7 +172,7 @@ async function viaGigaChat(turns) {
   const token = await gigaAccessToken();
   const uploaded = [];
   try {
-    const messages = [{ role: "system", content: SYSTEM_PROMPT }];
+    const messages = [{ role: "system", content: systemPrompt() }];
     for (const t of turns) {
       const attachments = [];
       for (const media of t.media ?? []) {
@@ -175,7 +183,7 @@ async function viaGigaChat(turns) {
       messages.push({ role: t.role, content: t.content || "Опиши вложение.", ...(attachments.length ? { attachments } : {}) });
     }
     const body = Buffer.from(
-      JSON.stringify({ model: uploaded.length ? GIGACHAT_VISION_MODEL : GIGACHAT_MODEL, messages, temperature: 0.7 })
+      JSON.stringify({ model: uploaded.length ? GIGACHAT_VISION_MODEL : GIGACHAT_MODEL, messages, temperature: gen().temperature ?? 0.7 })
     );
     const res = await httpsRequest("https://gigachat.devices.sberbank.ru/api/v1/chat/completions", {
       method: "POST",
@@ -194,9 +202,14 @@ async function viaGigaChat(turns) {
 // ---------- OpenAI-совместимые провайдеры ----------
 
 // Сообщения в формате OpenAI: картинки — data:URL (если провайдер их видит).
+function systemPrompt() {
+  const extra = gen().systemExtra;
+  return extra ? `${SYSTEM_PROMPT}\n\n${extra}` : SYSTEM_PROMPT;
+}
+
 function openAiMessages(turns, vision) {
   return [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt() },
     ...turns.map((t) => {
       const images = vision ? (t.media ?? []).filter((m) => IMAGE_MIME.test(m.mime)) : [];
       if (!images.length) return { role: t.role, content: t.content || "(вложение)" };
@@ -218,7 +231,7 @@ async function streamCompletion(opts) {
     try {
       return await streamOnce(opts);
     } catch (err) {
-      if (!(err.status === 429 || err.status === 402 || err.status >= 500) || attempt >= 2) throw err;
+      if (!(err.status === 429 || err.status === 402 || err.status >= 500) || attempt >= 2 || gen().signal?.aborted) throw err;
       await sleep(4000 * (attempt + 1));
     }
   }
@@ -233,6 +246,8 @@ function streamOnce({ url, headers = {}, body, label, queue = (fn) => fn(), onDe
         let text = "";
         let finish = "stop";
         let buf = "";
+        const signal = gen().signal;
+        if (signal?.aborted) return resolve({ text: "", finish: "stop", aborted: true });
         const req = https.request(
           url,
           { method: "POST", timeout: 90000, headers: { "Content-Type": "application/json", Accept: "text/event-stream", "Content-Length": raw.length, ...headers } },
@@ -268,8 +283,15 @@ function streamOnce({ url, headers = {}, body, label, queue = (fn) => fn(), onDe
             res.on("error", reject);
           }
         );
+        // «Стоп»: обрываем соединение и отдаём то, что модель успела написать.
+        const onAbort = () => {
+          req.destroy();
+          resolve({ text, finish: "stop", aborted: true });
+        };
+        signal?.addEventListener("abort", onAbort, { once: true });
+        req.on("close", () => signal?.removeEventListener("abort", onAbort));
         req.on("timeout", () => req.destroy(new Error("timeout")));
-        req.on("error", reject);
+        req.on("error", (err) => (signal?.aborted ? resolve({ text, finish: "stop", aborted: true }) : reject(err)));
         req.write(raw);
         req.end();
       })
@@ -340,7 +362,7 @@ async function viaOpenRouter(turns, { onDelta } = {}) {
         url: "https://openrouter.ai/api/v1/chat/completions",
         label: `openrouter ${model}`,
         headers: { Authorization: `Bearer ${OPENROUTER_API_KEY}`, "HTTP-Referer": "https://shalter.ru", "X-Title": "Shalter" },
-        body: { model, messages: openAiMessages(turns, true), temperature: 0.7, max_tokens: 4000 },
+        body: { model, messages: openAiMessages(turns, true), temperature: gen().temperature ?? 0.7, max_tokens: gen().maxTokens ?? 4000 },
       });
     } catch (err) {
       lastErr = err;
@@ -354,7 +376,7 @@ function viaHuggingFace(turns) {
     url: "https://router.huggingface.co/v1/chat/completions",
     label: "huggingface",
     headers: { Authorization: `Bearer ${HF_TOKEN}` },
-    body: { model: HF_MODEL, messages: openAiMessages(turns, true), temperature: 0.7, max_tokens: 4000 },
+    body: { model: HF_MODEL, messages: openAiMessages(turns, true), temperature: gen().temperature ?? 0.7, max_tokens: gen().maxTokens ?? 4000 },
   });
 }
 
@@ -447,7 +469,8 @@ function providerList(turns) {
 async function generateWith(call, turns, onDelta) {
   let { text, finish } = await call(turns, { onDelta: onDelta ? (t) => onDelta(cleanText(t)) : undefined });
   text = cleanText(text);
-  for (let i = 0; i < MAX_CONTINUATIONS && text && finish === "length"; i++) {
+  const maxMore = gen().continuations ?? MAX_CONTINUATIONS;
+  for (let i = 0; i < maxMore && text && finish === "length" && !gen().signal?.aborted; i++) {
     const more = await call([
       ...turns.map((t) => ({ ...t, media: [] })),
       { role: "assistant", content: text },
@@ -466,14 +489,16 @@ async function generate(turns, { onDelta } = {}) {
   // Два круга по всем провайдерам: короткий сбой сети не превращается в «не ответила».
   for (let round = 0; round < 2; round++) {
     for (const [name, call] of providerList(turns)) {
+      if (gen().signal?.aborted) return null;
       try {
         const text = await generateWith(call, turns, onDelta);
-        if (text) return text;
+        if (text || gen().signal?.aborted) return text || null;
       } catch (err) {
         console.warn(`shalter ai: ${name} failed:`, err.message);
       }
     }
-    if (round === 0) await sleep(2500);
+    if (gen().signal?.aborted) return null;
+    if (round === 0) await sleep(1500);
   }
   return null;
 }
@@ -710,7 +735,7 @@ async function videoFrames(url, durationSec) {
 async function loadTurns(chat, userId) {
   const settings = await getSettings(userId).catch(() => null);
   const clearedBefore = settings?.chatClears?.[chat.id] ?? null;
-  const { messages } = listMessagesPage(chat.id, userId, clearedBefore, { limit: HISTORY_LIMIT });
+  const { messages } = listMessagesPage(chat.id, userId, clearedBefore, { limit: gen().history ?? HISTORY_LIMIT });
   let visible = messages.filter((m) => !m.deleted && m.type !== "system");
   // «/new» — начать разговор заново: всё, что было до него, не учитываем.
   const resetAt = visible.map((m) => m.senderId !== SHALTER_AI_ID && /^\s*\/new\b/i.test(m.text ?? "")).lastIndexOf(true);
@@ -1149,6 +1174,12 @@ async function drawImage(chat, userId, request, { basePrompt = null } = {}) {
     return;
   }
   request = request ?? "";
+  const quota = await quotaFor(userId);
+  if (quota.usage.images >= quota.plan.imagesPerDay) {
+    await sendMessageAndBroadcast(chat, SHALTER_AI_ID, limitText(quota.plan, "image"));
+    return;
+  }
+  addAiUsage(userId, "image");
   if (!takeSlot(`img:${userId}`, IMAGE_RATE_MAX)) {
     await sendMessageAndBroadcast(chat, SHALTER_AI_ID, "Картинок слишком много подряд — подождите минуту 🙏");
     return;
@@ -1200,6 +1231,34 @@ async function drawImage(chat, userId, request, { basePrompt = null } = {}) {
 // ---------- вход ----------
 
 const busyChats = new Map();
+// Идущие сейчас ответы: chatId → AbortController (кнопка «Стоп» в чате).
+const activeReplies = new Map();
+
+async function quotaFor(userId) {
+  const user = await getUser(userId).catch(() => null);
+  const plan = planFor(user);
+  const settings = normalizeAiSettings((await getSettings(userId).catch(() => null))?.ai, plan);
+  return { plan, settings, usage: getAiUsage(userId) };
+}
+
+function limitText(plan, kind) {
+  const what = kind === "image" ? `${plan.imagesPerDay} картинок` : `${plan.textsPerDay} ответов`;
+  return plan.id === "premium"
+    ? `На сегодня лимит исчерпан (${what} в день). Он обновится в полночь по Москве.`
+    : `На сегодня лимит бесплатного тарифа исчерпан (${what} в день). Он обновится в полночь по Москве — или подключите **Premium**: в 10 раз больше ответов и картинок и умный режим. Настройки и тарифы: /settings`;
+}
+
+function setGenerating(chat, userId, active) {
+  broadcastToUsers([userId], { type: "ai:state", chatId: chat.id, active });
+}
+
+// «Стоп» из чата: обрываем текущий ответ, уже написанное остаётся.
+function stopShalterAi(chatId, userId) {
+  const run = activeReplies.get(chatId);
+  if (!run || run.userId !== userId) return false;
+  run.controller.abort();
+  return true;
+}
 
 async function replyOnce(chat, userId) {
   const stop = startAction(chat, userId, "typing");
@@ -1232,7 +1291,7 @@ async function replyOnce(chat, userId) {
   const onDelta = (t) => {
     liveText = t;
     if (!live && t.length < 24) return; // не начинаем с пары букв
-    flushTimer ??= setTimeout(flush, live ? 900 : 150);
+    flushTimer ??= setTimeout(flush, live ? 450 : 120);
   };
   try {
     const loaded = await loadTurns(chat, userId);
@@ -1246,6 +1305,20 @@ async function replyOnce(chat, userId) {
     stop();
     clearTimeout(flushTimer);
     await flushing;
+  }
+  const aborted = !!gen().signal?.aborted;
+  if (aborted) {
+    // Остановили: оставляем то, что успело написаться, без курсора.
+    const kept = cleanText(text || liveText);
+    if (live) {
+      const parts = splitReply(kept || "⏹ Остановлено");
+      const updated = setStreamingText(live.id, parts[0]);
+      if (updated) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+      for (const part of parts.slice(1)) await sendMessageAndBroadcast(chat, SHALTER_AI_ID, part);
+    } else if (kept) {
+      for (const part of splitReply(kept)) await sendMessageAndBroadcast(chat, SHALTER_AI_ID, part);
+    }
+    return;
   }
   // Подстраховка: модель ответила «не умею рисовать» — значит, просили картинку,
   // а распознать просьбу не вышло. Рисуем вместо отказа.
@@ -1278,7 +1351,8 @@ const WELCOME =
   "• Рисую картинки: просто напишите «нарисуй …»\n" +
   "• Смотрю видео — пришлите ролик и спросите, что в нём\n" +
   "• Длинный ответ оборвался? Напишите «продолжи»\n\n" +
-  "/new — начать разговор заново.";
+  "/new — начать разговор заново.\n" +
+  "/settings — режим, длина ответов, тон и тариф.";
 
 // Просьба что-то рассказать/объяснить рядом с «нарисуй» — отвечаем и текстом.
 const TALK_RE = /(?:^|[^а-яё])(расскажи|объясни|опиши|напиши|что\s+такое|кто\s+так|почему|зачем|сколько|как\s+(?:работает|устроен|сделать)|придумай|сочини|переведи)(?=$|[^а-яё])/i;
@@ -1311,6 +1385,14 @@ async function dispatchShalterAi(chatId, message) {
     if (!text && !message.attachments?.length && !message.sticker) return;
 
     if (/^\/start\b/i.test(text)) return void (await sendMessageAndBroadcast(chat, SHALTER_AI_ID, WELCOME));
+    if (/^\/settings\b/i.test(text)) {
+      const q = await quotaFor(userId);
+      return void (await sendMessageAndBroadcast(
+        chat,
+        SHALTER_AI_ID,
+        `⚙️ **Настройки Shalter AI** — меню ⋮ в шапке этого чата → «Настройки ИИ».\n\nТариф: **${q.plan.name}** · сегодня ${q.usage.texts}/${q.plan.textsPerDay} ответов, ${q.usage.images}/${q.plan.imagesPerDay} картинок.`
+      ));
+    }
     if (/^\/new\b/i.test(text)) return void (await sendMessageAndBroadcast(chat, SHALTER_AI_ID, "Начинаем заново — о чём поговорим?"));
     if (/^\s*\/(?:image|draw)(?:@\w+)?\s*$/i.test(text)) return void (await drawImage(chat, userId, null));
     if (/^\s*\/(?:image|draw)(?:@\w+)?\s+/i.test(text)) return void (await drawImage(chat, userId, text.replace(DRAW_RE, "").trim()));
@@ -1333,6 +1415,11 @@ async function dispatchShalterAi(chatId, message) {
       await sendMessageAndBroadcast(chat, SHALTER_AI_ID, "Слишком много сообщений подряд — подождите минуту 🙏");
       return;
     }
+    const quota = await quotaFor(userId);
+    if (quota.usage.texts >= quota.plan.textsPerDay && !busyChats.get(chatId)) {
+      await sendMessageAndBroadcast(chat, SHALTER_AI_ID, limitText(quota.plan, "text"));
+      return;
+    }
     // Пока готовится ответ, пришли ещё сообщения (фото, затем подпись) — отвечаем
     // один раз, с учётом всех.
     const busy = busyChats.get(chatId);
@@ -1340,15 +1427,25 @@ async function dispatchShalterAi(chatId, message) {
       busy.rerun = true;
       return;
     }
+    // Один ответ за раз: пока он пишется, новые сообщения не запускают параллельный
+    // запрос — после ответа бот один раз учтёт всё, что пришло.
     const state = { rerun: false };
     busyChats.set(chatId, state);
+    setGenerating(chat, userId, true);
     try {
       do {
         state.rerun = false;
-        await replyOnce(chat, userId);
+        const controller = new AbortController();
+        activeReplies.set(chatId, { controller, userId });
+        addAiUsage(userId, "text");
+        const opts = { ...generationOptions(quota.settings, quota.plan), signal: controller.signal };
+        await genCtx.run(opts, () => replyOnce(chat, userId));
+        if (controller.signal.aborted) break;
       } while (state.rerun);
     } finally {
+      activeReplies.delete(chatId);
       busyChats.delete(chatId);
+      setGenerating(chat, userId, false);
     }
     if (alsoTalk) await drawImage(chat, userId, drawWhat);
   } catch (err) {
@@ -1356,4 +1453,4 @@ async function dispatchShalterAi(chatId, message) {
   }
 }
 
-module.exports = { dispatchShalterAi, WELCOME, DRAW_RE, drawRequest, splitReply, generate, localDescription, sanitizeSvg, DIAGRAM_RE, drawDiagram, readAttachment, renderImage, EDIT_RE, TALK_RE };
+module.exports = { stopShalterAi, quotaFor, dispatchShalterAi, WELCOME, DRAW_RE, drawRequest, splitReply, generate, localDescription, sanitizeSvg, DIAGRAM_RE, drawDiagram, readAttachment, renderImage, EDIT_RE, TALK_RE };

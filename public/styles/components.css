@@ -25337,3 +25337,101 @@ img.img-broken {
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .message-column.mine .link-preview-warning.danger { color: #ffd0d0; }
 }
+
+/* ---------- Shalter AI: «Остановить» и окно настроек/тарифов ---------- */
+.ai-stop-btn {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--composer-h, 64px) + 12px);
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  transform: translateX(-50%);
+  cursor: pointer;
+  animation: ai-stop-in 0.18s ease;
+}
+.ai-stop-btn[hidden] { display: none; }
+.ai-stop-btn:disabled { opacity: 0.6; }
+.ai-stop-square { width: 10px; height: 10px; border-radius: 2px; background: currentColor; }
+@keyframes ai-stop-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+.ai-set-dialog { max-width: 460px; max-height: 88vh; display: flex; flex-direction: column; }
+.ai-set-body { overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.ai-set-section { margin: 0 0 16px; }
+.ai-set-section h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--color-muted); text-transform: none; }
+.ai-set-hint { margin: 6px 0 0; font-size: 13px; color: var(--color-muted); }
+.ai-seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 6px; }
+.ai-seg.wide { grid-template-columns: 1fr 1fr; }
+.ai-seg-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 12px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.ai-seg-btn small { font-size: 11.5px; color: var(--color-muted); line-height: 1.25; }
+.ai-seg-btn.active { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+.ai-seg-btn.locked { opacity: 0.55; }
+.ai-range-head { display: flex; justify-content: space-between; align-items: baseline; }
+.ai-range-value { font-weight: 500; color: var(--color-accent); }
+.ai-range { width: 100%; accent-color: var(--color-accent); }
+.ai-range-scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--color-muted); }
+.ai-custom {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+.ai-usage { margin-bottom: 10px; }
+.ai-usage-top { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
+.ai-usage-num { color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.ai-usage-track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--color-text) 10%, transparent); overflow: hidden; }
+.ai-usage-track span { display: block; height: 100%; border-radius: 3px; background: var(--color-accent); transition: width 0.3s; }
+.ai-usage-track.full span { background: #e5533d; }
+.ai-plans { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.ai-plan { display: flex; flex-direction: column; padding: 12px; border: 1.5px solid var(--color-border); border-radius: 14px; }
+.ai-plan.current { border-color: var(--color-accent); }
+.ai-plan.premium { background: linear-gradient(160deg, color-mix(in srgb, #a970ff 14%, transparent), color-mix(in srgb, #ffb547 10%, transparent)); }
+.ai-plan-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px; font-size: 15px; }
+.ai-plan-badge { padding: 2px 8px; border-radius: 999px; background: var(--color-accent); color: #fff; font-size: 11px; font-weight: 600; }
+.ai-plan-perks { flex: 1; margin: 8px 0 0; padding-left: 16px; font-size: 12.5px; line-height: 1.45; color: var(--color-muted); }
+.ai-plan-btn {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #a970ff, #6f5cf6);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+@media (max-width: 420px) { .ai-plans { grid-template-columns: 1fr; } }

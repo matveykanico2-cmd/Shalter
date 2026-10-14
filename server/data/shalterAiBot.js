@@ -13,6 +13,7 @@ const PROFILE = {
 const COMMANDS = [
   { command: "new", description: "Начать разговор заново" },
   { command: "image", description: "Нарисовать картинку по описанию" },
+  { command: "settings", description: "Режим, длина ответов, тон и тариф" },
 ];
 
 function ensureShalterAiAccount() {

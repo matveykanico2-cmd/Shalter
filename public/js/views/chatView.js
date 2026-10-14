@@ -429,6 +429,10 @@ export async function ChatView(root, chatId) {
   }
 
   async function handleSend(text, attachments, extraIn) {
+    // /settings в чате с Shalter AI — сразу окно настроек (сообщение тоже уходит: бот ответит лимитами).
+    if (isDm && other?.id === "bot_shalter_ai" && /^\/settings\b/i.test(String(text ?? "").trim())) {
+      import("../components/aiSettingsDialog.js").then((m) => m.openAiSettingsDialog());
+    }
     if (typeof text !== "string" || text.length <= MAX_TEXT || extraIn?.sticker) return sendOne(text, attachments, extraIn);
     const [first, ...others] = splitLongText(text);
     const sent = await sendOne(first, attachments, extraIn);
@@ -1275,7 +1279,26 @@ export async function ChatView(root, chatId) {
   }
   renderContactBar();
   const audioBar = AudioPlayerBar({ chatId });
-  const mainCol = el("div", { class: "chat-main-col" }, [header, audioBar, topicsSlot, selectionBar, searchBar, liveBar, pinnedBar, contactBarSlot, chatAdSlot, floatingDate, list, scrollDownBtn, bodyBottomSlot, composerSlot]);
+  // Shalter AI: «Стоп» над полем ввода, пока бот пишет ответ.
+  const isShalterAiChat = () => isDm && other?.id === "bot_shalter_ai";
+  const aiStopBtn = el(
+    "button",
+    {
+      class: "ai-stop-btn",
+      hidden: true,
+      onclick: () => {
+        aiStopBtn.disabled = true;
+        api.stopAi(chat.id).catch(() => {}).finally(() => setAiGenerating(false));
+      },
+    },
+    [el("span", { class: "ai-stop-square" }), "Остановить"]
+  );
+  function setAiGenerating(on) {
+    if (!isShalterAiChat()) on = false;
+    aiStopBtn.hidden = !on;
+    aiStopBtn.disabled = false;
+  }
+  const mainCol = el("div", { class: "chat-main-col" }, [header, audioBar, topicsSlot, selectionBar, searchBar, liveBar, pinnedBar, contactBarSlot, chatAdSlot, floatingDate, list, scrollDownBtn, aiStopBtn, bodyBottomSlot, composerSlot]);
   // Рекламное сообщение как в tweb (sponsored message): только в каналах, в конце ленты.
   var chatAd = null; // var: renderList может вызваться раньше этой строки
   if (chat.type === "channel") {
@@ -1666,6 +1689,9 @@ export async function ChatView(root, chatId) {
                   ]
                 : []),
               !isDm && liveInfo?.canHost && !liveInfo?.stream ? { icon: "Video", label: "Начать эфир", onClick: askLiveSource } : null,
+              isShalterAiChat()
+                ? { icon: "Settings", label: "Настройки ИИ и тариф", onClick: () => import("../components/aiSettingsDialog.js").then((m) => m.openAiSettingsDialog()) }
+                : null,
               { icon: "Info", label: "Информация о чате", onClick: () => setInfoOpen(true) },
               { icon: "Image", label: "Фон чата", onClick: handleChooseWallpaper },
               { icon: "Clock", label: "Запланированные сообщения", onClick: () => openScheduledMessagesDialog(chat.id) },
@@ -2555,6 +2581,7 @@ export async function ChatView(root, chatId) {
     if (msg.streaming) {
       // Ответ бота дописывается: обновляем только пузырь.
       if (canApplyLive(msg.message)) applyLive(msg.message, { insert: false });
+      if (msg.message?.senderId === "bot_shalter_ai") setAiGenerating(true);
       return;
     }
     updateMessageInChatList(chat.id, msg.message);
@@ -2588,6 +2615,10 @@ export async function ChatView(root, chatId) {
     renderHeader();
     clearTimeout(typingClearTimer);
     typingClearTimer = setTimeout(clearTypingStatus, 4000);
+  });
+
+  const unsubAiState = onWsMessage("ai:state", (msg) => {
+    if (msg.chatId === chat.id) setAiGenerating(!!msg.active);
   });
 
   const unsubTopics = onWsMessage("topics:updated", (msg) => {
@@ -2712,6 +2743,7 @@ export async function ChatView(root, chatId) {
     unsubMessageDeleted();
     unsubMessageRead();
     unsubTyping();
+    unsubAiState();
     unsubChatUpdated();
     unsubTopics();
     viewObserver?.disconnect();
