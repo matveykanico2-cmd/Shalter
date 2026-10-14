@@ -35,6 +35,26 @@ export const CE_MAX_LAYERS = 12;
 export const CE_MAX_KEYS = 30;
 const HEX_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
+// Подарки с анимированными сценами: слои анимируются через Web Animations API
+// с iterations: Infinity. В длинном чате таких подарков может быть несколько — их
+// анимации работают даже скрытыми, тормрозя ленту («всё лагает от сообщений»).
+// Один наблюдатель на все сцены: сворачиваем анимацию, когда подарок не виден, и
+// возобновляем — когда виден. lottie.js поступает так же (observeView), а её
+// анимации освобождаются при удалении из DOM (track/sweep).
+const sceneObserver =
+  typeof IntersectionObserver === "function"
+    ? new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          const anims = e.target._ceAnims;
+          if (!anims) continue;
+          for (const a of anims) {
+            if (e.isIntersecting) a.play?.();
+            else a.pause?.();
+          }
+        }
+      }, { threshold: 0.6 })
+    : null;
+
 const num = (v, min, max, dflt) => {
   const n = Number(v);
   if (!Number.isFinite(n)) return dflt;
@@ -303,7 +323,11 @@ export function renderCustomScene(rawScene, { size = 84, replay = false, atTime 
       } else {
         const frames = buildFrames(layer, scene.loop);
         if (frames && typeof shape.animate === "function") {
-          shape.animate(frames, { duration: scene.loop * 1000, iterations: Infinity, easing: "ease-in-out" });
+          const anim = shape.animate(frames, { duration: scene.loop * 1000, iterations: Infinity, easing: "ease-in-out" });
+          // Привязываем анимацию к корневому <svg> сцены, чтобы поставить на паузу
+          // при прокрутке подарка за пределы видимой зоны.
+          (svg._ceAnims = svg._ceAnims || []).push(anim);
+          sceneObserver?.observe(svg);
         } else {
           applyPose(shape, sampleLayerAt(layer, 0));
         }
