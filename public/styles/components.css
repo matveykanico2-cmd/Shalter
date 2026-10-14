@@ -25134,3 +25134,101 @@ img.img-broken {
     display: none;
   }
 }
+.mp-gift {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.mp-gift > * {
+  max-width: 20px;
+  max-height: 20px;
+}
+.reply-preview .mp-gift,
+.reply-preview .mp-gift > * {
+  width: 28px;
+  height: 28px;
+  max-width: 28px;
+  max-height: 28px;
+}
+
+/* ---------- Панель вложений на месте клавиатуры (как в Telegram) ---------- */
+.composer-attach-sheet {
+  height: var(--sheet-h, 280px);
+  margin: 6px -8px calc(-1 * env(safe-area-inset-bottom, 0px));
+  padding: 14px 10px calc(14px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border, rgba(0, 0, 0, 0.08));
+  animation: attach-sheet-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes attach-sheet-in {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.composer-attach-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px 6px;
+}
+.composer-attach-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.composer-attach-tile-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  color: #fff;
+  background: #3e88f7;
+  transition: transform 0.15s;
+}
+.composer-attach-tile:active .composer-attach-tile-icon { transform: scale(0.9); }
+.composer-attach-tile-icon svg { width: 24px; height: 24px; }
+.composer-attach-tile-label {
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 15px;
+  text-align: center;
+  color: var(--color-muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.composer-attach-tile-icon.c-blue { background: linear-gradient(135deg, #5aa7ff, #2f7cf6); }
+.composer-attach-tile-icon.c-red { background: linear-gradient(135deg, #ff7a7a, #ea4a4a); }
+.composer-attach-tile-icon.c-sky { background: linear-gradient(135deg, #5fd3f5, #22a7e0); }
+.composer-attach-tile-icon.c-orange { background: linear-gradient(135deg, #ffb463, #f48a26); }
+.composer-attach-tile-icon.c-pink { background: linear-gradient(135deg, #ff8fc4, #e9559b); }
+.composer-attach-tile-icon.c-yellow { background: linear-gradient(135deg, #ffd65a, #f2b018); }
+.composer-attach-tile-icon.c-violet { background: linear-gradient(135deg, #b08cff, #7d55eb); }
+.composer-attach-tile-icon.c-teal { background: linear-gradient(135deg, #4fdcc0, #1bb394); }
+.composer-attach-tile-icon.c-amber { background: linear-gradient(135deg, #ffc46b, #ee9b1d); }
+.composer-attach-tile-icon.c-green { background: linear-gradient(135deg, #6ad97a, #2fb64a); }
+@media (min-width: 900px) {
+  .composer-attach-sheet {
+    height: auto;
+    max-height: 340px;
+    margin: 8px 0 0;
+    padding: 14px 10px;
+    border: 0;
+    border-radius: 16px;
+  }
+  .composer-attach-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); }
+}

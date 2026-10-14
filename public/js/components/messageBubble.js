@@ -984,7 +984,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         ? el("div", { class: "reply-preview reply-preview-deleted" }, "Удалённое сообщение")
         : el("button", { class: "reply-preview", onclick: () => onJumpTo(replyToMessage.id) }, [
             replyToSender?.name ? el("span", { class: "reply-preview-name" }, replyToSender.name) : null,
-            replyToMessage.attachments?.length
+            replyToMessage.attachments?.length || (replyToMessage.type === "gift" && replyToMessage.gift)
               ? el("span", { class: "reply-preview-text mp-line" }, mediaPreviewNodes(replyToMessage, { clean: previewText }))
               : el("span", { class: "reply-preview-text" }, previewText(messagePreview(replyToMessage)) || "Сообщение"),
           ])

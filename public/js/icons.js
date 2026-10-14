@@ -22,6 +22,7 @@ const PATHS = {
   Users:
     '<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.2 3.2 0 0 1 0 6.3"/><path d="M15.5 14.2a6.5 6.5 0 0 1 6 5.8"/>',
   Phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2.2 2A17 17 0 0 1 3 6.2 2 2 0 0 1 5 4Z"/>',
+  Camera: '<path d="M4 8a2 2 0 0 1 2-2h2l1.5-2h5L16 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><circle cx="12" cy="13" r="3.5"/>',
   Video: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M21 8.5l-5 3 5 3v-6Z"/>',
   Send: '<path d="M4 20l17-8L4 4l0 6.5L15 12 4 13.5 4 20Z"/>',
   Share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>',

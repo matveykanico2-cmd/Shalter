@@ -1,6 +1,7 @@
 import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { messagePreview } from "../lib/messagePreview.js";
+import { renderGiftArt } from "../lib/giftTraits.js";
 
 // Превью сообщения с медиа — как в Telegram: вместо надписей «📹 Видеосообщение»,
 // «📷 Фото», «🎤 Голосовое» — сама миниатюра (круглая у кружка) и длительность.
@@ -31,6 +32,10 @@ export function mediaPreviewNodes(m, { prefix = "", clean = (t) => t } = {}) {
   const a = m?.attachments?.[0];
   const text = clean(String(m?.text ?? "").replace(/\[ce:\d+\]/g, "🎨").trim());
   const label = (t) => el("span", { class: "mp-text" }, `${prefix}${t}`);
+  // Подарок — сам подарок (его картинка/анимация), а не значок «🎁»
+  if (m?.type === "gift" && m.gift) {
+    return [el("span", { class: "mp-gift" }, [renderGiftArt(m.gift, { size: 20, replay: false })]), label(m.gift.name || "Подарок")];
+  }
   if (!a || m.type === "sticker" || m.type === "gift") return [label(clean(messagePreview(m)))];
   const count = m.attachments.filter((x) => x.kind === a.kind).length;
   if (a.kind === "video-note") {

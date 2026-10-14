@@ -294,7 +294,7 @@ const STARTER = `<!doctype html>
   // Shalter.player.name — имя игрока, Shalter.theme.dark — тёмная тема приложения.
   // await Shalter.getBest() — лучший результат, await Shalter.getLeaderboard() — рекорды,
   // Shalter.share() — отправить результат в чат, Shalter.vibrate(50) — вибрация.
-  // localStorage работает как обычно. Документация: shalter.ru/bots#games
+  // localStorage работает как обычно. Документация: shalter.ru/games
   let score = 0, time = 20;
   const target = document.getElementById("target");
   function moveTarget() {
@@ -412,7 +412,7 @@ export async function showGameToken(game) {
       el("p", { class: "settings-toggle-hint" }, "Сохраните его — повторно он не показывается. С ним можно обновлять игру, читать статистику и ставить рекорды со своего сервера."),
       el("code", { class: "game-token mono" }, token),
       el("div", { class: "game-editor-actions" }, [
-        el("a", { class: "modal-cancel", href: "/bots#games", target: "_blank" }, "Документация"),
+        el("a", { class: "modal-cancel", href: "/games", target: "_blank" }, "Документация"),
         el("span", { style: "flex:1" }),
         el("button", { class: "btn-accent", onclick: () => navigator.clipboard?.writeText(token).then(() => showToast("Токен скопирован")) }, "Скопировать"),
       ]),

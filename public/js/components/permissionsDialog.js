@@ -39,6 +39,13 @@ async function mediaGranted(kind) {
 async function alreadyGranted(key) {
   if (key === "notifications") return (await pushDiagnostics().catch(() => null))?.разрешение === "granted";
   if (key === "mic" || key === "camera") return mediaGranted(key);
+  if (key === "location") {
+    try {
+      return (await navigator.permissions.query({ name: "geolocation" })).state === "granted";
+    } catch {
+      return false;
+    }
+  }
   return false;
 }
 
@@ -86,6 +93,16 @@ export function openPermissionsDialog({ onDone } = {}) {
       hint: "Видеозвонки, кружки и съёмка фото",
       available: !!navigator.mediaDevices?.getUserMedia,
       run: () => askMedia("camera"),
+    },
+    {
+      key: "location",
+      title: "Геолокация",
+      hint: "Отправка своего местоположения и живой геолокации",
+      available: !!navigator.geolocation,
+      run: () =>
+        new Promise((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 })
+        ),
     },
     {
       key: "contacts",

@@ -173,6 +173,7 @@ app.get("/download", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "download
 app.get("/promo", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "promo.html")));
 app.get("/premium", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "premium.html")));
 app.get("/bots", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "bots.html")));
+app.get("/games", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "games.html")));
 app.get("/oauth-docs", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "oauth-docs.html")));
 
 app.get(/^\/(?!api|ws).*/, (req, res) => {

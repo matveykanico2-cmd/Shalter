@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shalter Games — документация</title>
+<meta name="description" content="Как сделать свою игру для Shalter: HTML5-игра в чате, рекорды, SDK внутри игры и Game API с токеном." />
+<meta name="theme-color" content="#2e56d9" />
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Shalter Games" />
+<meta property="og:description" content="HTML5-игры прямо в чатах Shalter: рекорды, SDK и Game API." />
+<meta property="og:image" content="/icons/apple-touch-icon.png" />
+<link rel="stylesheet" href="/styles/base.css" />
+<link rel="stylesheet" href="/styles/bots.css" />
+</head>
+<body>
+<div class="doc-page">
+
+  <header class="doc-top">
+    <span class="doc-top-logo">🎮</span>
+    <span>
+      <div class="doc-top-title">Shalter Games</div>
+      <div class="doc-top-sub">Документация для разработчиков игр</div>
+    </span>
+    <span class="doc-top-spacer"></span>
+    <a class="doc-top-link" href="/bots">Bot API</a>
+    <a class="doc-top-link" href="/">Открыть Shalter</a>
+  </header>
+
+  <div class="doc-shell">
+    <nav class="doc-nav">
+      <h4>Начало</h4>
+      <a href="#what">Что такое игра</a>
+      <a href="#quickstart">Быстрый старт</a>
+      <a href="#example">Пример игры</a>
+      <a href="#share">Как игру отправить в чат</a>
+      <h4>SDK внутри игры</h4>
+      <a href="#score">Счёт и рекорды</a>
+      <a href="#player">Игрок, тема, чат</a>
+      <a href="#leaderboard">Таблица рекордов</a>
+      <a href="#more">Поделиться, вибрация, закрыть</a>
+      <a href="#storage">Сохранения</a>
+      <h4>Game API</h4>
+      <a href="#token">Токен</a>
+      <a href="#methods">Все методы</a>
+      <a href="#anticheat">Рекорды без накрутки</a>
+      <a href="#ci">Выкладка из репозитория</a>
+      <a href="#bots">Игры и боты</a>
+      <h4>Справка</h4>
+      <a href="#limits">Ограничения</a>
+      <a href="#builtin">Встроенные игры</a>
+    </nav>
+
+    <main class="doc-body">
+      <section class="doc-hero">
+        <h1>Игры в Shalter</h1>
+        <p>
+          Игра — одна HTML-страница с JavaScript. Её можно написать прямо в приложении, отправить в любой чат
+          карточкой «▶ Играть», а рекорды игроков Shalter сохранит сам — общие и отдельно для каждого чата.
+          Хостинг не нужен.
+        </p>
+      </section>
+
+      <h2 id="what">Что такое игра</h2>
+      <p>
+        Обычная веб-страница: HTML, CSS и JavaScript, можно canvas, WebGL, звук. Она запускается в изолированном
+        окне — без доступа к аккаунту, cookie и сайту Shalter, — а с приложением общается через объект
+        <code>window.Shalter</code>. Его вставлять не нужно: он уже есть, когда страница загрузилась.
+      </p>
+
+      <h2 id="quickstart">Быстрый старт</h2>
+      <ol>
+        <li>Shalter → <strong>Настройки → Игры</strong> → «Создать игру» (или меню «Игры» → «Мои игры»).</li>
+        <li>Напишите название, выберите эмодзи и вставьте код — в редакторе уже есть рабочий пример.</li>
+        <li>«▶ Запустить» — проверить, «Сохранить» — готово. Галочка «Показывать в каталоге» — игра будет видна всем.</li>
+      </ol>
+
+      <h2 id="example">Пример игры</h2>
+      <p>Мини-игра «попади в мишень»: 20 секунд, за каждое попадание — очко.</p>
+      <pre><code>&lt;!doctype html&gt;
+&lt;html&gt;
+&lt;head&gt;
+  &lt;meta charset="utf-8"&gt;
+  &lt;meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"&gt;
+  &lt;style&gt;
+    body { margin:0; height:100vh; background:#1e1e2e; color:#fff; font-family:system-ui; user-select:none }
+    #t { position:absolute; width:90px; height:90px; border-radius:50%; background:#ff6b6b }
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;h2&gt;Очки: &lt;span id="s"&gt;0&lt;/span&gt; · ⏱ &lt;span id="time"&gt;20&lt;/span&gt;&lt;/h2&gt;
+  &lt;div id="t"&gt;&lt;/div&gt;
+  &lt;script&gt;
+    let score = 0, left = 20;
+    const t = document.getElementById("t");
+    const move = () =&gt; {
+      t.style.left = Math.random() * (innerWidth - 90) + "px";
+      t.style.top = 80 + Math.random() * (innerHeight - 170) + "px";
+    };
+    t.onpointerdown = () =&gt; {
+      score++;
+      document.getElementById("s").textContent = score;
+      Shalter.score(score); // текущий счёт
+      move();
+    };
+    const timer = setInterval(() =&gt; {
+      left--;
+      document.getElementById("time").textContent = left;
+      if (left === 0) {
+        clearInterval(timer);
+        t.remove();
+        Shalter.gameOver(score); // конец игры — рекорд сохранится
+      }
+    }, 1000);
+    move();
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+
+      <h2 id="share">Как игру отправить в чат</h2>
+      <ul>
+        <li>Скрепка → «Кубик и игры» → «🎮 Игры» → у игры кнопка «В чат».</li>
+        <li>Командой: <code>/game змейка</code> (или <code>/игра 2048</code>). Просто <code>/game</code> — открыть каталог.</li>
+        <li>Ботом: метод Bot API <code>sendGame</code> — см. <a href="#bots">Игры и боты</a>.</li>
+      </ul>
+      <p>В чате появится карточка с кнопками «▶ Играть» и «🏆 Рекорды». Рекорды этой карточки — общие для участников чата.</p>
+
+      <h2 id="score">Счёт и рекорды</h2>
+      <pre><code>Shalter.score(points);    // текущий счёт — по ходу игры (можно часто)
+Shalter.gameOver(points); // конец игры: рекорд сохранится, если он лучше прежнего</code></pre>
+      <p>Сохраняется лучший результат игрока — в общей таблице и в таблице чата, откуда открыли игру.</p>
+
+      <h2 id="player">Игрок, тема, чат</h2>
+      <table class="doc-table">
+        <thead><tr><th>Поле</th><th>Что внутри</th></tr></thead>
+        <tbody>
+          <tr><td><code>Shalter.player</code></td><td><code>{ id, name }</code> — кто играет.</td></tr>
+          <tr><td><code>Shalter.theme</code></td><td><code>{ dark, accent }</code> — тёмная ли тема приложения и цвет акцента (например, <code>#3390ec</code>).</td></tr>
+          <tr><td><code>Shalter.chat</code></td><td><code>{ id }</code> — чат, откуда открыли игру, или <code>null</code>.</td></tr>
+          <tr><td><code>Shalter.version</code></td><td>Версия SDK (сейчас <code>1</code>).</td></tr>
+        </tbody>
+      </table>
+      <pre><code>if (Shalter.theme.dark) document.body.classList.add("dark");
+document.querySelector("h1").textContent = `Привет, ${Shalter.player.name}!`;</code></pre>
+
+      <h2 id="leaderboard">Таблица рекордов</h2>
+      <pre><code>const best = await Shalter.getBest();                    // лучший результат игрока
+const top = await Shalter.getLeaderboard({ limit: 10 }); // [{ position, name, score, isMe }]
+const all = await Shalter.getLeaderboard({ chat: false }); // общая таблица, а не этого чата</code></pre>
+
+      <h2 id="more">Поделиться, вибрация, закрыть</h2>
+      <pre><code>Shalter.share();                 // «🎮 Игра: мой результат — N! Сможешь больше?» + карточка игры в чат
+Shalter.share("Я прошёл уровень 5!"); // свой текст
+Shalter.vibrate(40);             // вибрация на телефоне, мс
+Shalter.close();                 // закрыть игру</code></pre>
+
+      <h2 id="storage">Сохранения</h2>
+      <p>
+        <code>localStorage</code> работает как обычно: прогресс, настройки, уровни. Данные хранятся отдельно для
+        каждой игры и каждого устройства.
+      </p>
+
+      <h2 id="token">Токен Game API</h2>
+      <p>
+        Настройки → «Игры» → у игры кнопка «🔑» (или в редакторе игры «🔑 API-токен»). Токен показывается один
+        раз — сохраните его. Новый токен отзывает прежний. Все запросы — с заголовком:
+      </p>
+      <pre><code>Authorization: Bearer game_ВАШ_ТОКЕН</code></pre>
+      <div class="doc-note danger">
+        <strong>Токен — как пароль от игры.</strong> Держите его на своём сервере, не вставляйте в код самой игры:
+        его увидит любой игрок.
+      </div>
+
+      <h2 id="methods">Все методы</h2>
+      <p>Адрес: <code>https://shalter.ru/api/game-api/&lt;метод&gt;</code>. Ответ — JSON с полем <code>ok</code>.</p>
+      <table class="doc-table">
+        <thead><tr><th>Метод</th><th>Параметры</th><th>Что делает</th></tr></thead>
+        <tbody>
+          <tr><td><code>GET /getGame</code></td><td>—</td><td>Игра и статистика.</td></tr>
+          <tr><td><code>POST /updateGame</code></td><td><code>code</code>, <code>title</code>, <code>description</code>, <code>emoji</code>, <code>isPublic</code></td><td>Обновить переданные поля. Код — до 512 КБ.</td></tr>
+          <tr><td><code>GET /getStats</code></td><td>—</td><td><code>{ plays, players, topScore }</code>.</td></tr>
+          <tr><td><code>GET /getScores</code></td><td><code>chatId?</code>, <code>limit?</code> (до 100)</td><td>Таблица рекордов: общая или чата.</td></tr>
+          <tr><td><code>POST /setScore</code></td><td><code>userId</code>, <code>score</code>, <code>chatId?</code>, <code>force?</code></td><td>Записать результат. Без <code>force</code> — только если лучше прежнего.</td></tr>
+          <tr><td><code>POST /deleteScore</code></td><td><code>userId</code></td><td>Удалить результаты игрока.</td></tr>
+        </tbody>
+      </table>
+      <pre><code>curl -H "Authorization: Bearer game_ВАШ_ТОКЕН" https://shalter.ru/api/game-api/getStats</code></pre>
+
+      <h2 id="anticheat">Рекорды без накрутки</h2>
+      <p>
+        Счёт из браузера игрок может подделать. Для честных рекордов игра отправляет ход партии на ваш сервер,
+        сервер сам считает очки и записывает их через <code>setScore</code>. А <code>Shalter.gameOver()</code> в
+        игре тогда не вызывайте. Накрученный результат исправляется так же: <code>setScore</code> с <code>force: true</code>.
+      </p>
+      <pre><code>// Node.js, ваш сервер
+await fetch("https://shalter.ru/api/game-api/setScore", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.GAME_TOKEN}`, "Content-Type": "application/json" },
+  body: JSON.stringify({ userId, score, chatId }),
+});</code></pre>
+
+      <h2 id="ci">Выкладка из репозитория</h2>
+      <p>Держите игру в git и выкладывайте одной командой (например, в GitHub Actions после каждого коммита):</p>
+      <pre><code>node -e '
+fetch("https://shalter.ru/api/game-api/updateGame", {
+  method: "POST",
+  headers: { Authorization: "Bearer " + process.env.GAME_TOKEN, "Content-Type": "application/json" },
+  body: JSON.stringify({ code: require("fs").readFileSync("game.html", "utf8") }),
+}).then(r =&gt; r.json()).then(console.log)'</code></pre>
+
+      <h2 id="bots">Игры и боты</h2>
+      <p>Бот может отправить карточку игры в чат методом Bot API (токен бота, <a href="/bots">документация Bot API</a>):</p>
+      <pre><code>curl -X POST -H "Authorization: Bearer ТОКЕН_БОТА" -H "Content-Type: application/json" \
+  -d '{"chatId":"c_…","gameId":"builtin-snake"}' https://shalter.ru/api/bot-api/sendGame</code></pre>
+      <p>Можно отправлять встроенные, публичные и свои игры (своей считается игра владельца бота).</p>
+
+      <h2 id="limits">Ограничения</h2>
+      <ul>
+        <li>Код игры — до 512 КБ (картинки — data: URL или со своего сайта по https).</li>
+        <li>Игра работает в песочнице: без доступа к cookie, аккаунту и страницам Shalter.</li>
+        <li>Сеть — только к внешним сайтам по https (свой сервер, CDN).</li>
+        <li>До 50 своих игр на аккаунт.</li>
+      </ul>
+
+      <h2 id="builtin">Встроенные игры</h2>
+      <table class="doc-table">
+        <thead><tr><th>gameId</th><th>Игра</th></tr></thead>
+        <tbody>
+          <tr><td><code>builtin-2048</code></td><td>🔢 2048</td></tr>
+          <tr><td><code>builtin-snake</code></td><td>🐍 Змейка</td></tr>
+          <tr><td><code>builtin-flappy</code></td><td>🐦 Shalter Bird</td></tr>
+        </tbody>
+      </table>
+
+      <p class="doc-foot">
+        Вопросы по играм и API — в поддержку: напишите <a href="/u/hugo">@hugo</a> в Shalter.
+      </p>
+    </main>
+  </div>
+</div>
+</body>
+</html>

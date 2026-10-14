@@ -2098,7 +2098,7 @@ async function renderGames(root) {
             el("span", { class: "bot-way-icon", html: iconSvg("Key", 14) }),
             el("p", {}, [el("strong", {}, "Game API. "), "Токен игры — обновлять код из своего репозитория и ставить рекорды со своего сервера."]),
           ]),
-          el("a", { href: "/bots#games", target: "_blank", rel: "noreferrer", class: "text-link" }, "Документация SDK и Game API →"),
+          el("a", { href: "/games", target: "_blank", rel: "noreferrer", class: "text-link" }, "Документация SDK и Game API →"),
         ]),
         el("button", { class: "btn-accent bot-create-btn", onclick: () => games.openGameEditor(null, { onSaved: reload }) }, [el("span", { html: iconSvg("Plus", 15) }), " Создать игру"]),
         el("p", { class: "settings-section-title" }, `Ваши игры — ${list.length}`),

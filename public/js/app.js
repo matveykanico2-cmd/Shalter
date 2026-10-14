@@ -287,6 +287,27 @@ async function boot() {
   const prefetchChat = () => import("./views/chatView.js").catch(() => {});
   if ("requestIdleCallback" in window) requestIdleCallback(prefetchChat, { timeout: 3000 });
   else setTimeout(prefetchChat, 1200);
+  // Код частых разделов — заранее, в простое: иначе первое открытие настроек, профиля,
+  // контактов и т. п. ждало скачивания кода и только потом — данных (по 200+ мс каждое).
+  const warmModules = [
+    () => import("./views/settings/index.js"),
+    () => import("./components/profileDialog.js"),
+    () => import("./views/contacts.js"),
+    () => import("./components/storyViewer.js"),
+    () => import("./components/mediaViewer.js"),
+    () => import("./components/games.js"),
+    () => import("./components/downloadsDialog.js"),
+    () => import("./components/infoPanel.js"),
+    () => import("./components/forwardDialog.js"),
+  ];
+  const warmNext = () => {
+    const next = warmModules.shift();
+    if (!next) return;
+    next()
+      .catch(() => {})
+      .finally(() => ("requestIdleCallback" in window ? requestIdleCallback(warmNext, { timeout: 4000 }) : setTimeout(warmNext, 300)));
+  };
+  setTimeout(() => (navigator.connection?.saveData ? null : warmNext()), 4000);
 
   const shell = el("div", { class: "shell" });
   const HOLIDAYS = [{ date: "09-25", title: "🎉 С Днём основания Shalter!" }];

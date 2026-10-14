@@ -42,7 +42,7 @@ function preview(chat, meId) {
 // Последнее сообщение с медиа — миниатюрой (кружок, фото, видео, голосовое).
 function previewNodes(chat, meId) {
   const m = chat.lastMessage;
-  if (chat.draft || !m || m.type === "system" || !m.attachments?.length) return [preview(chat, meId)];
+  if (chat.draft || !m || m.type === "system" || (!m.attachments?.length && !(m.type === "gift" && m.gift))) return [preview(chat, meId)];
   const who = m.senderId === meId && !chat.isSaved ? "Вы: " : "";
   return [who ? el("span", { class: "mp-who" }, who) : null, ...mediaPreviewNodes(m)].filter(Boolean);
 }

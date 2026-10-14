@@ -93,6 +93,7 @@ function apiCacheRead(url) {
 // Подставляем новый аккаунт сразу; чаты нового аккаунта приходят из его собственного
 // кэша (lib/localCache.js хранит их по id пользователя).
 export function rememberSwitchedAccount(user) {
+  memo.clear();
   try {
     const obj = JSON.parse(localStorage.getItem(OFFLINE_Q + ".data") || "{}");
     const session = obj["/api/auth/session"]?.data;
@@ -184,7 +185,49 @@ function fetchJson(url, init, isGet) {
   );
 }
 
+// Ускорение без ожидания сервера (каждый запрос до сервера — 200+ мс):
+// • одинаковые GET в одно время — один запрос на всех;
+// • редко меняющиеся данные (настройки, профили, подарки, боты, игры, стикеры) —
+//   из памяти 30 с; любое изменение (POST/PATCH/DELETE…) этот запас сбрасывает.
+// Сообщения, чаты, «печатает», звонки сюда не попадают — они всегда свежие.
+const inflight = new Map();
+const memo = new Map();
+const clone = (d) => (typeof structuredClone === "function" ? structuredClone(d) : d == null ? d : JSON.parse(JSON.stringify(d)));
+const MEMO_MS = 30_000;
+const MEMO_RE = /^\/api\/(settings$|premium|gifts|users\/[^/?]+$|users\/[^/]+\/(gifts|stories)|bots(\/|$)|games(\/|$|\?)|stickers|custom-emoji|labels$|folders$|communities\/joined$|downloads|stars\/(balance|info))/;
+function memoGet(url) {
+  const hit = memo.get(url);
+  if (hit && Date.now() - hit.at < MEMO_MS) return hit.data;
+  if (hit) memo.delete(url);
+  return undefined;
+}
+
 async function req(url, init) {
+  const isGet = !init?.method || init.method === "GET";
+  if (!isGet) {
+    memo.clear();
+    return reqRaw(url, init);
+  }
+  if (init?.signal) return reqRaw(url, init);
+  const cached = MEMO_RE.test(url) ? memoGet(url) : undefined;
+  if (cached !== undefined) return clone(cached);
+  if (inflight.has(url)) return inflight.get(url).then((d) => clone(d));
+  const p = reqRaw(url, init)
+    .then((data) => {
+      if (MEMO_RE.test(url)) memo.set(url, { at: Date.now(), data });
+      return data;
+    })
+    .finally(() => inflight.delete(url));
+  inflight.set(url, p);
+  return p.then((d) => clone(d));
+}
+
+// Сброс запаса (например, после смены аккаунта).
+export function clearRequestMemo() {
+  memo.clear();
+}
+
+async function reqRaw(url, init) {
   const isGet = !init?.method || init.method === "GET";
   let res;
   try {

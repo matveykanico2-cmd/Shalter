@@ -26,6 +26,42 @@ import { previewText } from "../lib/formatText.js";
 import { packWaveform } from "../lib/waveform.js";
 import { startTranscription } from "../lib/speech.js";
 import { parseSlashCommand, suggestSlashCommands } from "../lib/slashCommands.js";
+import { showToast } from "./toast.js";
+
+// Сначала точно (GPS), а если не успел — по сети: в помещении GPS ловит долго, и
+// раньше запрос просто падал без объяснений.
+function getPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error("Геолокация не поддерживается на этом устройстве"));
+    if (!window.isSecureContext) return reject(new Error("Геолокация работает только по HTTPS"));
+    const fail = (err) =>
+      reject(
+        new Error(
+          err?.code === 1
+            ? "Нет доступа к геолокации — разрешите её Shalter в настройках телефона или браузера"
+            : err?.code === 3
+              ? "Не удалось определить местоположение вовремя — включите GPS и попробуйте ещё раз"
+              : "Не удалось получить местоположение — проверьте, включена ли геолокация на устройстве"
+        )
+      );
+    navigator.geolocation.getCurrentPosition(
+      resolve,
+      (err) => {
+        if (err?.code === 1) return fail(err);
+        navigator.geolocation.getCurrentPosition(resolve, fail, { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  });
+}
+
+function keyboardHeight() {
+  let h = 0;
+  try {
+    h = Number(localStorage.getItem("shalter.kbh")) || 0;
+  } catch {}
+  return Math.min(Math.max(h || 280, 220), Math.round(window.innerHeight * 0.5));
+}
 
 const TYPING_PING_MS = 2500;
 const DRAFT_SAVE_MS = 600;
@@ -135,6 +171,22 @@ export function Composer({
       rows: 1,
       placeholder: paidMessages?.youPay ? `${paidMessages.kind === "comment" ? "Комментарий" : "Сообщение"} · ${paidMessages.stars} ⭐` : "Сообщение",
       value: editingMessage?.text ?? initialDraft ?? "",
+    });
+    textarea.addEventListener("focus", () => {
+      closeAttachMenu();
+      // Первый показ клавиатуры после запуска WebView иногда не присылает resize
+      // у visualViewport — высота страницы оставалась прежней, и клавиатура
+      // закрывала поле ввода. Пересчитываем размеры, когда она уже выехала.
+      for (const ms of [120, 320, 650]) {
+        setTimeout(() => {
+          if (document.activeElement !== textarea) return;
+          window.dispatchEvent(new Event("resize"));
+          if (window.scrollY || document.scrollingElement?.scrollTop) window.scrollTo(0, 0);
+          const vv = window.visualViewport;
+          const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+          if (textarea.getBoundingClientRect().bottom > visibleBottom + 2) textarea.scrollIntoView({ block: "nearest" });
+        }, ms);
+      }
     });
 
     const mentionMenu = el("div", { class: "composer-mention-menu hidden" });
@@ -892,7 +944,9 @@ export function Composer({
       attachMenuOff = null;
       attachMenuEl?.remove();
       attachMenuEl = null;
+      wrap.classList.remove("attach-open");
     }
+    const ATTACH_COLORS = { Camera: "red", Image: "blue", Video: "red", File: "sky", Mic: "orange", Sticker: "pink", Smile: "yellow", Zap: "violet", Edit: "teal", BarChart: "amber", CheckCheck: "green", MapPin: "green", Users: "orange", Check: "violet", Clock: "sky" };
     function attachActions() {
       // В личном чате нельзя отправить собеседнику его же собственный контакт
       // (tweb: контакт, который уже открыт в диалоге, не предлагается).
@@ -900,12 +954,12 @@ export function Composer({
       const dmPeerId = chat?.type === "dm" ? chat.otherUser?.id ?? null : null;
       return [
         { icon: "Image", label: "Фото или видео", run: () => mediaFileInput.click() },
-        { icon: "Video", label: "Снять фото", run: () => cameraPhotoInput.click() },
+        { icon: "Camera", label: "Снять фото", run: () => cameraPhotoInput.click() },
         { icon: "Video", label: "Снять видео", run: () => cameraVideoInput.click() },
         { icon: "File", label: "Файл", run: () => anyFileInput.click() },
         { icon: "Mic", label: "Аудио", run: () => audioFileInput.click() },
         { icon: "Sticker", label: "Стикер", run: () => toggleStickers(attachSlot) },
-        { icon: "Smile", label: "Эмодзи", run: () => toggleEmoji(attachSlot) },
+        { icon: "Smile", label: "Эмодзи", color: "yellow", run: () => toggleEmoji(attachSlot) },
         {
           icon: "Zap",
           label: "Мем",
@@ -945,6 +999,7 @@ export function Composer({
         },
         {
           icon: "Smile",
+          color: "violet",
           label: "Кубик и игры",
           run: () => {
             const r = attachBtn.getBoundingClientRect();
@@ -965,29 +1020,33 @@ export function Composer({
         {
           icon: "MapPin",
           label: "Геолокация",
-          run: () => {
-            if (!navigator.geolocation) return alert("Геолокация не поддерживается в этом браузере");
-            navigator.geolocation.getCurrentPosition(
-              (pos) => onSend("", [{ kind: "location", meta: { lat: pos.coords.latitude, lng: pos.coords.longitude } }]),
-              () => alert("Не удалось получить местоположение")
-            );
+          run: async () => {
+            showToast("Определяем местоположение…", { duration: 2500 });
+            try {
+              const pos = await getPosition();
+              onSend("", [{ kind: "location", meta: { lat: pos.coords.latitude, lng: pos.coords.longitude } }]);
+            } catch (err) {
+              alert(err.message);
+            }
           },
         },
         {
           icon: "MapPin",
+          color: "teal",
           label: "Живая геолокация (15 мин)",
-          run: () => {
-            if (!navigator.geolocation) return alert("Геолокация не поддерживается в этом браузере");
-            navigator.geolocation.getCurrentPosition(
-              async (pos) => {
-                const liveMinutes = 15;
-                const message = await onSend("", [
-                  { kind: "location", meta: { lat: pos.coords.latitude, lng: pos.coords.longitude, liveMinutes } },
-                ]);
-                if (message) startLiveLocationSharing(chatId, message.id, liveMinutes * 60_000);
-              },
-              () => alert("Не удалось получить местоположение")
-            );
+          run: async () => {
+            showToast("Определяем местоположение…", { duration: 2500 });
+            let pos;
+            try {
+              pos = await getPosition();
+            } catch (err) {
+              return alert(err.message);
+            }
+            const liveMinutes = 15;
+            const message = await onSend("", [
+              { kind: "location", meta: { lat: pos.coords.latitude, lng: pos.coords.longitude, liveMinutes } },
+            ]);
+            if (message) startLiveLocationSharing(chatId, message.id, liveMinutes * 60_000);
           },
         },
         {
@@ -1002,8 +1061,8 @@ export function Composer({
         },
         ...(isRecordingSupported()
           ? [
-              { icon: "Mic", label: "Голосовое сообщение", run: () => beginRecording("voice") },
-              { icon: "Video", label: "Видео-сообщение", run: () => beginRecording("video-note") },
+              { icon: "Mic", color: "pink", label: "Голосовое сообщение", run: () => beginRecording("voice") },
+              { icon: "Video", color: "sky", label: "Видео-сообщение", run: () => beginRecording("video-note") },
             ]
           : []),
         { icon: "Check", label: "Проверить текст (Hugo)", run: () => runHugo() },
@@ -1016,26 +1075,45 @@ export function Composer({
       title: "Вложение",
       html: iconSvg("Paperclip", 19),
       onclick: () => {
-        if (attachMenuEl) return closeAttachMenu();
+        if (attachMenuEl) {
+          closeAttachMenu();
+          textarea.focus();
+          return;
+        }
+        closeEmojiMenu();
+        closeStickerMenu();
+        // Как в Telegram: панель встаёт на место клавиатуры, той же высоты, —
+        // поле ввода не прыгает, а клавиатура просто сменяется сеткой вложений.
         attachMenuEl = el(
           "div",
-          { class: "composer-attach-menu" },
-          attachActions().map((a) =>
+          { class: "composer-attach-sheet", style: `--sheet-h:${keyboardHeight()}px` },
+          [
             el(
-              "button",
-              {
-                class: "composer-attach-item",
-                onclick: () => {
-                  closeAttachMenu();
-                  a.run();
-                },
-              },
-              [el("span", { class: "composer-attach-icon", html: iconSvg(a.icon, 16) }), a.label]
-            )
-          )
+              "div",
+              { class: "composer-attach-grid" },
+              attachActions().map((a) =>
+                el(
+                  "button",
+                  {
+                    class: "composer-attach-tile",
+                    onclick: () => {
+                      closeAttachMenu();
+                      a.run();
+                    },
+                  },
+                  [
+                    el("span", { class: `composer-attach-tile-icon c-${a.color || ATTACH_COLORS[a.icon] || "blue"}`, html: iconSvg(a.icon, 24) }),
+                    el("span", { class: "composer-attach-tile-label" }, a.label),
+                  ]
+                )
+              )
+            ),
+          ]
         );
-        attachSlot.appendChild(attachMenuEl);
-        attachMenuOff = dismissOnOutside(attachMenuEl, attachSlot, closeAttachMenu);
+        textarea.blur();
+        bodySlot.appendChild(attachMenuEl);
+        wrap.classList.add("attach-open");
+        attachMenuOff = dismissOnOutside(attachMenuEl, { contains: (t) => attachSlot.contains(t) || attachMenuEl?.contains(t) || textarea === t }, closeAttachMenu);
       },
     });
     const attachSlot = el("div", { class: "composer-attach-slot" }, [attachBtn, mediaFileInput, anyFileInput, audioFileInput, cameraPhotoInput, cameraVideoInput]);
