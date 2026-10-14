@@ -1215,7 +1215,8 @@ async function drawImage(chat, userId, request, { basePrompt = null } = {}) {
     await fs.promises.writeFile(tmp, image);
     const stored = await storeGeneratedFile(tmp);
     stop();
-    await sendMessageAndBroadcast(chat, SHALTER_AI_ID, request ? `🎨 ${request.slice(0, 300)}` : "", {
+    const caption = [request ? `🎨 ${request.slice(0, 300)}` : "🎨", "*Напишите, что поменять — например «ночью» или «там снаружи», — перерисую.*"].join("\n");
+    await sendMessageAndBroadcast(chat, SHALTER_AI_ID, caption, {
       // aiPrompt — по какому описанию нарисовано: чтобы потом «сделай его синим» правило эту же картинку.
       attachments: [{ kind: "image", url: stored, name: "shalter-ai.jpg", mimeType: "image/jpeg", size: image.length, aiPrompt: prompt.slice(0, 900) }],
     });
@@ -1359,6 +1360,9 @@ const TALK_RE = /(?:^|[^а-яё])(расскажи|объясни|опиши|н�
 // Правка картинки: «сделай его синим», «добавь шляпу», «убери фон», «ещё вариант», «в стиле аниме».
 const EDIT_RE = /(?:^|[^а-яё])(сделай|добавь|убери|удали|поменяй|измени|замени|перекрась|раскрась|увеличь|уменьши|поверни|ещё|еще|другой|другую|другое|вариант|по-другому|иначе|теперь|переделай|перерисуй|в\s+стиле|пусть|чтобы|чтоб|без\s+|побольше|поменьше|ярче|темнее|светлее|реалистичн|мультяшн|аниме)(?=$|[^а-яё])/i;
 
+// «спасибо», «круто», «ок», «👍» после картинки — реакция, а не просьба перерисовать.
+const REACTION_RE = /^[\s!.,)]*(?:спасибо|спс|сяб|благодарю|круто|класс|классно|клёво|клево|супер|отлично|отпад|огонь|топ|норм|нормально|хорошо|пойд[её]т|ок|окей|ok|okay|ага|угу|да|нет|не|лол|кек|ха+|ах+|вау|wow|nice|cool|thanks?|thx|красиво|прикольно|мило|офигенно|шикарно|идеально|понятно|ясно|ладно)(?:[\s,!.)]+(?:спасибо|большое|очень|просто|вообще|бро|ну)?)*[\s!.,)]*$|^[\s\p{Extended_Pictographic}\uFE0F\u200D!.,)]+$/iu;
+
 // Описание последней нарисованной ботом картинки (onlyIfLast — только если это
 // последнее сообщение бота, иначе разговор уже ушёл дальше).
 async function lastBotImagePrompt(chat, userId, { onlyIfLast = false } = {}) {
@@ -1406,7 +1410,10 @@ async function dispatchShalterAi(chatId, message) {
     // Правка только что нарисованной картинки без слова «нарисуй»:
     // «сделай его синим», «добавь шляпу», «ещё вариант», «а теперь в стиле аниме».
     const looksLikeTalk = TALK_RE.test(text) || /\?\s*$/.test(text) || /(?:^|[^а-яё])(что|как|кто|где|когда|почему|зачем|вопрос|спасибо|круто|класс|норм|вывод[а-яё]*|итог[а-яё]*|план|список|текст|стих[а-яё]*|код)(?=$|[^а-яё])/i.test(text);
-    if (drawWhat == null && text && !message.attachments?.length && text.length < 160 && EDIT_RE.test(text) && !looksLikeTalk) {
+    // Сразу после картинки любое короткое уточнение — тоже правка: «там снаружи»,
+    // «ночью», «зимой», «на фоне гор», «кот рыжий». Кроме вопросов и реакций.
+    const isReaction = REACTION_RE.test(text);
+    if (drawWhat == null && text && !message.attachments?.length && text.length < 200 && !looksLikeTalk && !isReaction) {
       const base = await lastBotImagePrompt(chat, userId, { onlyIfLast: true });
       if (base) return void (await drawImage(chat, userId, text, { basePrompt: base }));
     }
