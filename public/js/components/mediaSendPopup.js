@@ -43,13 +43,13 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
   }
   const sendBtn = el("button", { class: "tw-nm-send", title: "Отправить", "aria-label": "Отправить", html: iconSvg("Send", 22), onclick: () => send() });
 
-  const isMedia = (it) => (it.kind === "image" || it.kind === "video") && !asFiles;
+  const isMedia = (it) => (it.file.type.startsWith("image/") || it.file.type.startsWith("video/")) && !asFiles;
 
   function title() {
     const n = items.length;
     if (!n) return "Нечего отправлять";
     if (items.every(isMedia)) {
-      const photos = items.filter((i) => i.kind === "image").length;
+      const photos = items.filter((i) => i.file.type.startsWith("image/")).length;
       const videos = n - photos;
       if (!videos) return n === 1 ? "Отправить фото" : `Отправить ${n} фото`;
       if (!photos) return n === 1 ? "Отправить видео" : `Отправить ${n} видео`;
@@ -103,10 +103,10 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
             const i = items.indexOf(it);
             const url = urlFor(it.file);
             return el("div", { class: "tw-nm-media" }, [
-              it.kind === "video"
+            it.file.type.startsWith("video/")
                 ? el("video", { src: url, muted: true, playsInline: true, preload: "metadata" })
                 : el("img", { src: url, alt: "" }),
-              it.kind === "video" ? el("span", { class: "tw-nm-video-badge", html: iconSvg("PlayFill", 14) }) : null,
+            it.file.type.startsWith("video/") ? el("span", { class: "tw-nm-video-badge", html: iconSvg("PlayFill", 14) }) : null,
               removeBtn(i),
             ]);
           })
@@ -121,7 +121,7 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
           docs.map((it) => {
             const i = items.indexOf(it);
             const isAudio = it.file.type.startsWith("audio/");
-            const isImg = it.kind === "image" || it.file.type.startsWith("image/");
+            const isImg = it.file.type.startsWith("image/");
             const ext = (it.file.name.split(".").pop() || "").slice(0, 4).toUpperCase();
             return el("div", { class: "tw-nm-doc" }, [
               isImg
@@ -140,7 +140,7 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
     preview.replaceChildren(...nodes);
   }
 
-  const hasCompressible = picks.some((p) => p.kind === "image" || p.kind === "video");
+  const hasCompressible = picks.some((p) => p.file.type.startsWith("image/") || p.file.type.startsWith("video/"));
   const moreBtn = hasCompressible
     ? el("button", {
         class: "tw-popup-close tw-nm-more",
@@ -174,11 +174,11 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
   }
   function send() {
     if (!items.length) return;
-    const out = items.map((it) => ({ file: it.file, kind: asFiles ? "file" : it.kind }));
+    const out = items.map((it) => ({ file: it.file, kind: "file" }));
     const text = captionInput.value;
-    const paid = paidStars && !asFiles && out.some((p) => p.kind === "image" || p.kind === "video") ? paidStars : 0;
+    const paid = 0;
     close();
-    onSend({ picks: out, caption: text, paidStars: paid, spoiler: spoiler && !paid && !asFiles });
+    onSend({ picks: out, caption: text, paidStars: paid, spoiler: false });
   }
   function onKey(e) {
     if (e.key === "Escape") {

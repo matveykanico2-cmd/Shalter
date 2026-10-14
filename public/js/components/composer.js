@@ -91,8 +91,6 @@ const HOLD_LOCK_PX = 80;
 const HOLD_MIN_MS = 400;
 
 function fileKind(file) {
-  if (file.type.startsWith("image/")) return "image";
-  if (file.type.startsWith("video/")) return "video";
   return "file";
 }
 
@@ -720,7 +718,7 @@ export function Composer({
         const ringHost = el("span", { class: "composer-upload-tile-ring", html: ringMarkup() });
         const fillCircle = ringHost.querySelector(".composer-upload-ring-fill");
         const preview = el("span", { class: "composer-upload-tile-preview" }, [
-          el("span", { class: "composer-upload-tile-icon", html: iconSvg(kind === "video" ? "Video" : kind === "image" ? "Image" : "File", 20) }),
+          el("span", { class: "composer-upload-tile-icon", html: iconSvg(file.type.startsWith("video/") ? "Video" : file.type.startsWith("image/") ? "Image" : "File", 20) }),
         ]);
         let xhr = null;
         const removeBtn = el("button", {
@@ -758,8 +756,8 @@ export function Composer({
       });
 
       for (const t of tiles) {
-        if (t.kind === "image") t.setPreviewUrl(URL.createObjectURL(t.file));
-        else if (t.kind === "video") captureVideoFrame(t.file).then((url) => t.setPreviewUrl(url));
+        if (t.file.type.startsWith("image/")) t.setPreviewUrl(URL.createObjectURL(t.file));
+        else if (t.file.type.startsWith("video/")) captureVideoFrame(t.file).then((url) => t.setPreviewUrl(url));
       }
 
       const prepare = (t) => Promise.resolve(t.file);
@@ -799,8 +797,8 @@ export function Composer({
         if (r.status !== "fulfilled") return;
         const a = r.value;
         const t = tiles[i];
-        const previewUrl =
-          a.thumbUrl || a.previewUrl || (t?.kind === "image" && t.file ? URL.createObjectURL(t.file) : "");
+          const previewUrl =
+            a.thumbUrl || a.previewUrl || (t?.file?.type?.startsWith("image/") && t.file ? URL.createObjectURL(t.file) : "");
         staged.push({ attachment: a, kind: t?.kind ?? "file", previewUrl });
       });
       renderStagedTray();
@@ -837,7 +835,7 @@ export function Composer({
       const url = URL.createObjectURL(pick.file);
       try {
         const src = await new Promise((resolve, reject) => {
-          if (pick.kind === "video") {
+           if (pick.file?.type?.startsWith("video/")) {
             const v = document.createElement("video");
             v.muted = true;
             v.playsInline = true;
@@ -887,7 +885,7 @@ export function Composer({
         pickToSend(
           files.map((file) => ({
             file,
-            kind: file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : "file",
+            kind: "file",
           }))
         );
       },
@@ -923,7 +921,7 @@ export function Composer({
       onchange: (e) => {
         const f = e.target.files?.[0];
         e.target.value = "";
-        if (f) pickToSend([{ file: f, kind: "image" }]);
+        if (f) pickToSend([{ file: f, kind: "file" }]);
       },
     });
     const cameraVideoInput = el("input", {
@@ -934,7 +932,7 @@ export function Composer({
       onchange: (e) => {
         const f = e.target.files?.[0];
         e.target.value = "";
-        if (f) pickToSend([{ file: f, kind: "video" }]);
+        if (f) pickToSend([{ file: f, kind: "file" }]);
       },
     });
 
