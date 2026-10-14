@@ -511,7 +511,9 @@ export async function ChatView(root, chatId) {
     // «Ответ …» — лишняя пересборка на телефоне дёргала клавиатуру на каждую отправку.
     if (hadReply) renderComposer();
     stuckToBottom = true;
+    noStickUntil = 0;
     list.scrollTop = list.scrollHeight;
+    pinToBottomWhileOpening(2000);
 
     const dropOptimistic = () => {
       messages = messages.filter((m) => m.id !== localId);
@@ -1877,7 +1879,10 @@ export async function ChatView(root, chatId) {
   // Как в tweb: при открытии диалог стоит на последнем сообщении, даже если
   // экран ещё доезжает анимацией, а картинки/эмодзи догружаются и меняют высоту.
   // Держим низ, пока пользователь сам не начнёт листать.
-  function pinToBottomWhileOpening() {
+  // То же после отправки: пузырь доигрывает анимацию, временное сообщение меняется
+  // на настоящее, приходит обновление ленты — высота растёт уже после прокрутки,
+  // и лента оказывалась чуть выше низа («перелистывает наверх после сообщения»).
+  function pinToBottomWhileOpening(ms = 2500) {
     let userScrolled = false;
     const stop = () => {
       userScrolled = true;
@@ -1886,7 +1891,7 @@ export async function ChatView(root, chatId) {
     list.addEventListener("wheel", stop, opts);
     list.addEventListener("touchstart", stop, opts);
     list.addEventListener("keydown", stop, opts);
-    const until = Date.now() + 2500;
+    const until = Date.now() + ms;
     const pin = () => {
       if (userScrolled || !list.isConnected || Date.now() > until || !stuckToBottom) return;
       if (list.scrollHeight - list.scrollTop - list.clientHeight > 1) list.scrollTop = list.scrollHeight;
@@ -1898,7 +1903,7 @@ export async function ChatView(root, chatId) {
         if (stuckToBottom && !userScrolled) list.scrollTop = list.scrollHeight;
       });
       ro.observe(list);
-      setTimeout(() => ro.disconnect(), 2500);
+      setTimeout(() => ro.disconnect(), ms);
     }
   }
 
@@ -1918,7 +1923,7 @@ export async function ChatView(root, chatId) {
       .catch(() => {});
   }
   function rerenderListKeepingScroll() {
-    const wasAtBottom = atBottom();
+    const wasAtBottom = stuckToBottom || atBottom();
     const prevTop = list.scrollTop;
     renderList();
     list.scrollTop = wasAtBottom ? list.scrollHeight : prevTop;
