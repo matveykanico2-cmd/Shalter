@@ -28,14 +28,7 @@ export function openEditBotDialog(bot, onSaved) {
   const descInput = el("textarea", { class: "settings-input", rows: 3, value: bot.description ?? "" });
   const appUrlInput = el("input", { class: "login-input mono", placeholder: "https://example.com/app", value: bot.appUrl ?? "" });
   const appNameInput = el("input", { class: "login-input", placeholder: "Открыть приложение", value: bot.appName ?? "" });
-  const appCodeInput = el("textarea", {
-    class: "settings-input mono bot-app-code",
-    rows: 8,
-    spellcheck: false,
-    placeholder: '<h1>Мой магазин</h1>\n<script>\n  const app = Shalter.WebApp;\n  app.ready();\n<\/script>',
-    value: bot.appCode ?? "",
-  });
-  let appMode = bot.appCode ? "code" : bot.appUrl ? "url" : "none";
+  let appMode = bot.appUrl ? "url" : "none";
   const usernameInput = el("input", {
     class: "login-input mono",
     value: bot.user.username ?? "",
@@ -94,7 +87,6 @@ export function openEditBotDialog(bot, onSaved) {
         avatarImage,
         appName: appNameInput.value.trim(),
         appUrl: appMode === "url" ? appUrlInput.value.trim() : "",
-        appCode: appMode === "code" ? appCodeInput.value : "",
       });
       bot = { ...bot, ...res.bot };
       notice = "Сохранено";
@@ -138,7 +130,6 @@ export function openEditBotDialog(bot, onSaved) {
             { class: "bot-app-modes" },
             [
               { id: "none", label: "Нет" },
-              { id: "code", label: "Написать здесь" },
               { id: "url", label: "Свой сервер" },
             ].map((m) =>
               el(
@@ -154,16 +145,6 @@ export function openEditBotDialog(bot, onSaved) {
               )
             )
           ),
-          appMode === "code" ? appCodeInput : null,
-          appMode === "code"
-            ? el("p", { class: "settings-toggle-hint" }, [
-                "HTML и JavaScript страницы. Хостинг не нужен: Shalter сам раздаст её по адресу ",
-                el("span", { class: "mono" }, `/app/${bot.user.username ?? "…"}`),
-                " и подставит скрипт ",
-                el("span", { class: "mono" }, "Shalter.WebApp"),
-                ". То же самое умеет Bot API — метод setWebAppCode.",
-              ])
-            : null,
           appMode === "url" ? appUrlInput : null,
           appMode === "url"
             ? el("p", { class: "settings-toggle-hint" }, "Адрес вашей страницы. Только https (http — для localhost).")

@@ -20,7 +20,6 @@ import { requestPushPermission, pushDiagnostics, resubscribePush, iosNeedsHomeSc
 import { openCreateBotDialog } from "../../components/createBotDialog.js";
 import { openBotTokenDialog } from "../../components/botTokenDialog.js";
 import { openOAuthSecretDialog } from "../../components/oauthSecretDialog.js";
-import { openBotCodeDialog } from "../../components/botCodeDialog.js";
 import { openEditBotDialog } from "../../components/editBotDialog.js";
 import { PhoneField } from "../../components/phoneField.js";
 import { DateField } from "../../components/dateField.js";
@@ -2087,8 +2086,8 @@ async function renderGames(root) {
         el("div", { class: "settings-notice-box bot-ways" }, [
           el("p", { class: "settings-toggle-title" }, "Как это работает"),
           el("div", { class: "bot-way" }, [
-            el("span", { class: "bot-way-icon", html: iconSvg("Code", 14) }),
-            el("p", {}, [el("strong", {}, "Код здесь. "), "Игра — одна HTML-страница: пишется во встроенном редакторе, хостинг не нужен."]),
+            el("span", { class: "bot-way-icon", html: iconSvg("Globe", 14) }),
+            el("p", {}, [el("strong", {}, "Свой сервер. "), "Игра — HTML-страница: пишете на своём хостинге, а код и рекорды подаёте через Game API по токену."]),
           ]),
           el("div", { class: "bot-way" }, [
             el("span", { class: "bot-way-icon", html: iconSvg("BarChart", 14) }),
@@ -2100,7 +2099,7 @@ async function renderGames(root) {
           ]),
           el("a", { href: "/games", target: "_blank", rel: "noreferrer", class: "text-link" }, "Документация SDK и Game API →"),
         ]),
-        el("button", { class: "btn-accent bot-create-btn", onclick: () => games.openGameEditor(null, { onSaved: reload }) }, [el("span", { html: iconSvg("Plus", 15) }), " Создать игру"]),
+        el("p", { class: "settings-toggle-hint" }, "Чтобы добавить свою игру — создайте её на своём сервере и отправьте карточку через Bot API (Game API)."),
         el("p", { class: "settings-section-title" }, `Ваши игры — ${list.length}`),
         list.length === 0
           ? el("p", { class: "empty-hint" }, "У вас пока нет своих игр")
@@ -2114,9 +2113,8 @@ async function renderGames(root) {
                     el("p", {}, g.title),
                     el("p", { class: "settings-toggle-hint" }, [g.isPublic ? "в каталоге" : "только по ссылке", g.plays ? ` · ${g.plays} запусков` : ""].join("")),
                   ]),
-                  el("button", { class: "icon-btn", title: "Играть", html: iconSvg("PlayFill", 15), onclick: () => games.openGame(g) }),
-                  el("button", { class: "icon-btn", title: "Редактировать", html: iconSvg("Edit", 15), onclick: () => games.openGameEditor(g, { onSaved: reload }) }),
-                  el("button", { class: "icon-btn", title: "API-токен", html: iconSvg("Key", 15), onclick: () => games.showGameToken(g) }),
+                   el("button", { class: "icon-btn", title: "Играть", html: iconSvg("PlayFill", 15), onclick: () => games.openGame(g) }),
+                   el("button", { class: "icon-btn", title: "API-токен", html: iconSvg("Key", 15), onclick: () => games.showGameToken(g) }),
                 ])
               )
             ),
@@ -2157,20 +2155,16 @@ async function renderBots(root) {
       root,
       pageWrap("Боты", "Настоящие боты, которых можно программировать как угодно", [
         el("div", { class: "settings-notice-box bot-ways" }, [
-          el("p", { class: "settings-toggle-title" }, "Три вещи, которые можно сделать"),
-          el("div", { class: "bot-way" }, [
-            el("span", { class: "bot-way-icon", html: iconSvg("Code", 14) }),
-            el("p", {}, [el("strong", {}, "Код прямо здесь. "), "Значок «</>» у бота — встроенный редактор, программа выполняется на сервере Shalter."]),
-          ]),
+          el("p", { class: "settings-toggle-title" }, "Как программировать бота"),
           el("div", { class: "bot-way" }, [
             el("span", { class: "bot-way-icon", html: iconSvg("Globe", 14) }),
             el("p", {}, [el("strong", {}, "Свой скрипт. "), "Любой язык, любой сервер — через Bot API и токен бота."]),
           ]),
           el("div", { class: "bot-way" }, [
             el("span", { class: "bot-way-icon", html: iconSvg("Image", 14) }),
-            el("p", {}, [el("strong", {}, "Мини-приложение. "), "Страница с интерфейсом внутри Shalter — хостинг не нужен, код хранится здесь."]),
+            el("p", {}, [el("strong", {}, "Мини-приложение. "), "Страница с интерфейсом внутри Shalter — ваш сервер хостит HTML, а бот открывает его по URL."]),
           ]),
-          el("a", { href: "/bots", target: "_blank", rel: "noreferrer", class: "text-link" }, "Документация Bot API →"),
+          el("a", { href: "/bots#apps", target: "_blank", rel: "noreferrer", class: "text-link" }, "Документация Bot API →"),
         ]),
         el("button", { class: "btn-accent bot-create-btn", onclick: createBot }, [el("span", { html: iconSvg("Plus", 15) }), " Создать бота"]),
         el("p", { class: "settings-section-title" }, `Ваши боты — ${bots.length}`),
@@ -2185,8 +2179,7 @@ async function renderBots(root) {
                   el("div", { class: "settings-device-body" }, [
                     el("p", {}, [b.user.name, VerifiedBadge(b.user, 13)].filter(Boolean)),
                     el("p", { class: "mono settings-toggle-hint" }, `@${b.user.username}`),
-                    el("div", { class: "bot-badges" }, [
-                      b.code?.trim() ? el("span", { class: "bot-badge" }, "код") : null,
+                  el("div", { class: "bot-badges" }, [
                       b.appCode || b.appUrl ? el("span", { class: "bot-badge accent" }, "приложение") : null,
                       b.commands?.length ? el("span", { class: "bot-badge" }, `${b.commands.length} команд`) : null,
                     ]),
@@ -2227,16 +2220,12 @@ async function renderBots(root) {
                       }
                     },
                   }),
-                  el("button", {
-                    class: "icon-btn",
-                    title: "Код бота",
-                    html: iconSvg("Code", 15),
-                    onclick: () =>
-                      openBotCodeDialog(b, (code) => {
-                        b.code = code;
-                        render();
-                      }),
-                  }),
+                   el("button", {
+                     class: "icon-btn",
+                     title: "Обновить токен",
+                     html: iconSvg("Lock", 15),
+                     onclick: () => regenerate(b)
+                   }),
                   el("button", {
                     class: "icon-btn",
                     title: "Команды бота",

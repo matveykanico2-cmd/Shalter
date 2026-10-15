@@ -658,7 +658,6 @@ export const api = {
   createBot: (name, avatarImage, description) =>
     req("/api/bots", { method: "POST", body: JSON.stringify({ name, avatarImage, description }) }),
   getBotToken: (id) => req(`/api/bots/${id}/token`),
-  getBot: (id) => req(`/api/bots/${id}`),
   startLive: (chatId, { title, withVideo, source } = {}) =>
     req("/api/live", { method: "POST", body: JSON.stringify({ chatId, title, withVideo, source }) }),
   getLiveForChat: (chatId) => req(`/api/live/chat/${chatId}`),
@@ -683,9 +682,6 @@ export const api = {
   sendBotAppData: (botId, data) => req(`/api/bots/${botId}/app/data`, { method: "POST", body: JSON.stringify({ data }) }),
   regenerateBotToken: (id) => req(`/api/bots/${id}/regenerate-token`, { method: "POST" }),
   deleteBot: (id) => req(`/api/bots/${id}`, { method: "DELETE" }),
-  saveBotCode: (id, code) => req(`/api/bots/${id}/code`, { method: "PUT", body: JSON.stringify({ code }) }),
-  testBotCode: (id, code, text) => req(`/api/bots/${id}/test`, { method: "POST", body: JSON.stringify({ code, text }) }),
-  getBotLogs: (id) => req(`/api/bots/${id}/logs`),
   search: (q) => req(`/api/search?q=${encodeURIComponent(q)}`),
 
   publishPost: (channelId, text, attachments, clientId, paidMedia) =>

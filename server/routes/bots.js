@@ -2,12 +2,11 @@ const express = require("express");
 const { genId } = require("../lib/genId");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { countBotAudience, listBotDmChatIds, getBotByUserId, getBotToken, listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotApp, updateBotAppCode, updateBotCode, updateBotCommands, updateBotDescription } = require("../data/bots");
+const { countBotAudience, listBotDmChatIds, getBotByUserId, getBotToken, listBotsByOwner, getBot, createBot, regenerateToken, deleteBot, updateBotApp, updateBotAppCode, updateBotCommands, updateBotDescription } = require("../data/bots");
 const { createUser, getUser, updateUser, deleteUser } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { checkUsername, normalizeUsername, generateBotUsername } = require("../lib/username");
 const { runBotCode } = require("../lib/botSandbox");
-const botLogs = require("../data/botLogs");
 const { listChats, createChat, getChat, findDmBetween } = require("../data/chats");
 const { buildInitData, buildAppUrl, validateAppUrl, sameApp } = require("../lib/miniApp");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -280,57 +279,6 @@ router.get(
     const bot = await requireOwnedBot(req, res);
     if (!bot) return;
     res.json({ bot: { ...bot, user: publicUser(await getUser(bot.userId)) } });
-  })
-);
-
-router.put(
-  "/:id/code",
-  asyncRoute(async (req, res) => {
-    const bot = await requireOwnedBot(req, res);
-    if (!bot) return;
-    const updated = await updateBotCode(bot.id, (req.body?.code ?? "").slice(0, 50_000));
-    res.json({ bot: updated });
-  })
-);
-
-router.post(
-  "/:id/test",
-  asyncRoute(async (req, res) => {
-    const bot = await requireOwnedBot(req, res);
-    if (!bot) return;
-
-    let chat = await findDmBetween(req.uid, bot.userId);
-    if (!chat) {
-      chat = await createChat({
-        id: genId("c"),
-        type: "dm",
-        memberIds: [req.uid, bot.userId],
-        pinned: false,
-        muted: false,
-        archived: false,
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    const code = req.body?.code ?? bot.code ?? "";
-    const testMessage = {
-      id: genId("test"),
-      chatId: chat.id,
-      senderId: req.uid,
-      text: req.body?.text ?? "/start",
-      createdAt: new Date().toISOString(),
-    };
-    const outcome = await runBotCode(bot, code, testMessage);
-    res.json(outcome);
-  })
-);
-
-router.get(
-  "/:id/logs",
-  asyncRoute(async (req, res) => {
-    const bot = await requireOwnedBot(req, res);
-    if (!bot) return;
-    res.json({ logs: botLogs.getLogs(bot.id) });
   })
 );
 

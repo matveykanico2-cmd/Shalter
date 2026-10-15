@@ -238,15 +238,14 @@ export function openGamesCatalog({ onPick = null, chatId = null } = {}) {
       return;
     }
     clear(body);
-    if (tab === "mine")
+    if (!games.length)
       body.append(
-        el("button", { class: "game-tile game-tile-new", onclick: () => (close(), openGameEditor(null, { onSaved: () => openGamesCatalog({ onPick, chatId }) })) }, [
-          el("span", { class: "game-tile-emoji", html: iconSvg("Plus", 28) }),
-          el("span", { class: "game-tile-title" }, "Создать игру"),
-          el("span", { class: "game-tile-desc" }, "Напишите свою игру на HTML и JavaScript"),
-        ])
+        el(
+          "p",
+          { class: "dl-empty" },
+          query ? "Ничего не найдено" : tab === "mine" ? "У вас пока нет своих игр — создавайте их на своём сервере и отправляйте карточки через Game API (см. /games)" : "Игр пока нет"
+        )
       );
-    if (!games.length) body.append(el("p", { class: "dl-empty" }, query ? "Ничего не найдено" : tab === "mine" ? "У вас пока нет своих игр" : "Игр пока нет"));
     for (const g of games) {
       body.append(
         el("div", { class: "game-tile" }, [
@@ -256,7 +255,6 @@ export function openGamesCatalog({ onPick = null, chatId = null } = {}) {
           el("div", { class: "game-tile-actions" }, [
             el("button", { class: "btn-accent", onclick: () => openGame(g, { chatId }) }, "Играть"),
             onPick ? el("button", { class: "modal-cancel", onclick: () => (close(), onPick(g)) }, "В чат") : null,
-            tab === "mine" ? el("button", { class: "icon-btn", title: "Редактировать", html: iconSvg("Edit", 18), onclick: () => (close(), openGameEditor(g, { onSaved: () => openGamesCatalog({ onPick, chatId }) })) }) : null,
           ]),
         ])
       );
@@ -273,127 +271,6 @@ export function openGamesCatalog({ onPick = null, chatId = null } = {}) {
   );
   document.body.appendChild(overlay);
   render();
-}
-
-const STARTER = `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<style>
-  html, body { margin: 0; height: 100%; display: flex; align-items: center; justify-content: center;
-    flex-direction: column; font-family: system-ui; background: #1e1e2e; color: #fff; user-select: none; }
-  #target { width: 90px; height: 90px; border-radius: 50%; background: #ff6b6b; position: absolute; cursor: pointer; }
-</style>
-</head>
-<body>
-<h2>Очки: <span id="score">0</span> · ⏱ <span id="time">20</span></h2>
-<div id="target"></div>
-<script>
-  // Shalter.score(n) — текущий счёт, Shalter.gameOver(n) — конец игры (рекорд сохранится).
-  // Shalter.player.name — имя игрока, Shalter.theme.dark — тёмная тема приложения.
-  // await Shalter.getBest() — лучший результат, await Shalter.getLeaderboard() — рекорды,
-  // Shalter.share() — отправить результат в чат, Shalter.vibrate(50) — вибрация.
-  // localStorage работает как обычно. Документация: shalter.ru/games
-  let score = 0, time = 20;
-  const target = document.getElementById("target");
-  function moveTarget() {
-    target.style.left = Math.random() * (innerWidth - 90) + "px";
-    target.style.top = 80 + Math.random() * (innerHeight - 170) + "px";
-  }
-  target.onpointerdown = () => {
-    score++;
-    document.getElementById("score").textContent = score;
-    Shalter.score(score);
-    moveTarget();
-  };
-  const timer = setInterval(() => {
-    time--;
-    document.getElementById("time").textContent = time;
-    if (time <= 0) {
-      clearInterval(timer);
-      target.remove();
-      Shalter.gameOver(score);
-    }
-  }, 1000);
-  moveTarget();
-</script>
-</body>
-</html>
-`;
-
-// Редактор своей игры: код, название, эмодзи, «в каталоге для всех», предпросмотр.
-export async function openGameEditor(game, { onSaved } = {}) {
-  let full = game;
-  if (game?.id && game.code == null) {
-    try {
-      full = (await api.getGame(game.id)).game;
-    } catch (err) {
-      return showToast(err.message || "Не удалось открыть игру");
-    }
-  }
-  const overlay = el("div", { class: "modal-overlay" });
-  const title = el("input", { class: "settings-input", placeholder: "Название", maxLength: 64, value: full?.title ?? "" });
-  const emoji = el("input", { class: "settings-input game-editor-emoji", placeholder: "🎮", maxLength: 4, value: full?.emoji ?? "🎮" });
-  const desc = el("input", { class: "settings-input", placeholder: "Короткое описание", maxLength: 200, value: full?.description ?? "" });
-  const pub = el("input", { type: "checkbox", checked: !!full?.isPublic });
-  const editorSlot = el("div", { class: "game-editor-code" });
-  const fallback = el("textarea", { class: "settings-input game-editor-textarea mono", spellcheck: false }, full?.code ?? STARTER);
-  let editor = null;
-  const getCode = () => (editor ? editor.getValue() : fallback.value);
-  const close = () => {
-    editor?.destroy?.();
-    overlay.remove();
-  };
-  const save = async () => {
-    const payload = { title: title.value, emoji: emoji.value, description: desc.value, isPublic: pub.checked, code: getCode() };
-    try {
-      const res = full?.id ? await api.updateGame(full.id, payload) : await api.createGame(payload);
-      full = res.game;
-      showToast("Игра сохранена");
-      close();
-      onSaved?.(full);
-    } catch (err) {
-      showToast(err.message || "Не удалось сохранить");
-    }
-  };
-  overlay.append(
-    el("div", { class: "modal-dialog game-editor" }, [
-      el("div", { class: "dl-head" }, [
-        el("h2", { class: "modal-title" }, full?.id ? "Редактор игры" : "Новая игра"),
-        el("button", { class: "icon-btn", title: "Закрыть", html: iconSvg("X", 20), onclick: close }),
-      ]),
-      el("div", { class: "game-editor-meta" }, [emoji, title]),
-      desc,
-      el("label", { class: "game-editor-public" }, [pub, el("span", {}, "Показывать в каталоге игр для всех")]),
-      el("p", { class: "settings-toggle-hint" }, "Игра — HTML-страница. Вызывайте Shalter.score(очки) и Shalter.gameOver(очки), чтобы работали рекорды."),
-      editorSlot,
-      el("div", { class: "game-editor-actions" }, [
-        full?.id
-          ? el("button", {
-              class: "modal-cancel danger",
-              onclick: async () => {
-                if (!(await askConfirm(`Удалить игру «${full.title}»?`, { okLabel: "Удалить", danger: true }))) return;
-                await api.deleteGame(full.id).catch(() => {});
-                close();
-                onSaved?.(null);
-              },
-            }, "Удалить")
-          : null,
-        full?.id ? el("button", { class: "modal-cancel", onclick: () => showGameToken(full) }, "🔑 API-токен") : null,
-        el("span", { style: "flex:1" }),
-        el("button", { class: "modal-cancel", onclick: () => openGame({ title: title.value || "Предпросмотр", emoji: emoji.value }, { code: getCode() }) }, "▶ Запустить"),
-        el("button", { class: "btn-accent", onclick: save }, "Сохранить"),
-      ]),
-    ])
-  );
-  document.body.appendChild(overlay);
-  try {
-    const { createCodeEditor } = await import("../lib/codeEditor.js");
-    editor = await createCodeEditor(editorSlot, { value: full?.code ?? STARTER });
-  } catch {
-    editorSlot.append(fallback);
-  }
 }
 
 // Токен Game API: показывается один раз, новый отзывает прежний.
