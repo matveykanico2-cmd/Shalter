@@ -525,8 +525,8 @@ export const api = {
   listGames: (q = "") => req(`/api/games${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   myGames: () => req("/api/games/mine"),
   getGame: (id) => req(`/api/games/${encodeURIComponent(id)}`),
-  createGame: (game) => req("/api/games", { method: "POST", body: JSON.stringify(game), noQueue: true }),
-  updateGame: (id, game) => req(`/api/games/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(game), noQueue: true }),
+   createGame: (game) => req("/api/games", { method: "POST", body: JSON.stringify(game), noQueue: true }),
+   updateGameMeta: (id, patch) => req(`/api/games/${encodeURIComponent(id)}/meta`, { method: "PATCH", body: JSON.stringify(patch), noQueue: true }),
   deleteGame: (id) => req(`/api/games/${encodeURIComponent(id)}`, { method: "DELETE", noQueue: true }),
   playGame: (id) => req(`/api/games/${encodeURIComponent(id)}/play`, { method: "POST", body: "{}", noQueue: true }),
   submitGameScore: (id, score, chatId) =>

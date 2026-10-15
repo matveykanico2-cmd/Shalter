@@ -96,6 +96,11 @@ export async function openGame(gameOrId, { chatId = null, code = null, onScore }
     return close;
   }
   titleEl.textContent = game?.title ?? "Предпросмотр";
+  if (!(code ?? game?.code)) {
+    clear(frameSlot);
+    frameSlot.append(el("p", { class: "game-error" }, "Игра ещё не загружена — отправьте код на своём сервере через Game API"));
+    return close;
+  }
   const gameId = game?.id ?? "preview";
   const me = getState().user;
   const frame = el("iframe", {
@@ -296,6 +301,68 @@ export async function showGameToken(game) {
     ])
   );
   document.body.appendChild(overlay);
+}
+
+// Мини-приложение-игра: код хранится и отдаётся вашим сервером через Game API,
+// а внутри Shalter игра открывается в iframe и общается через postMessage.
+// Этот диалог — только метаданные (без редактора кода), как карточка бота.
+export function openGameMetaDialog(game, { onSaved } = {}) {
+  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
+  const body = el("div", { class: "edit-chat-body" });
+  const dialog = el("div", { class: "modal-dialog edit-chat-dialog" }, [
+    el("h2", { class: "modal-title" }, game ? "Игра" : "Новая игра"),
+    body,
+    el("button", { class: "modal-cancel", onclick: () => close() }, "Закрыть"),
+  ]);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+
+  const title = el("input", { class: "login-input", placeholder: "Название", maxLength: 64, value: game?.title ?? "" });
+  const emoji = el("input", { class: "settings-input game-editor-emoji", placeholder: "🎮", maxLength: 4, value: game?.emoji ?? "🎮" });
+  const desc = el("input", { class: "login-input", placeholder: "Короткое описание (необязательно)", maxLength: 200, value: game?.description ?? "" });
+  const pub = el("input", { type: "checkbox", checked: !!game?.isPublic });
+
+  let busy = false;
+  let error = null;
+
+  function close() {
+    overlay.remove();
+  }
+
+  async function save() {
+    if (busy) return;
+    busy = true;
+    error = null;
+    render();
+    try {
+      const payload = { title: title.value.trim(), emoji: emoji.value.trim(), description: desc.value.trim(), isPublic: pub.checked };
+      const res = game ? await api.updateGameMeta(game.id, payload) : await api.createGame({ ...payload, code: "" });
+      onSaved?.(res.game);
+      close();
+    } catch (err) {
+      error = err.message || "Не удалось сохранить";
+      render();
+    } finally {
+      busy = false;
+    }
+  }
+
+  function render() {
+    clear(body);
+    body.append(
+      el("p", { class: "settings-toggle-hint" }, "Код игры загружайте на своём сервере через Game API — он не редактируется в этом диалоге."),
+      el("p", { class: "settings-field-label" }, "Название"),
+      title,
+      el("p", { class: "settings-field-label" }, "Эмодзи"),
+      emoji,
+      el("p", { class: "settings-field-label" }, "Описание"),
+      desc,
+      el("label", { class: "game-editor-public" }, [pub, el("span", {}, "Показывать в каталоге игр для всех")]),
+      error ? el("p", { class: "login-error" }, error) : null,
+      el("button", { class: "btn-accent", disabled: busy, onclick: save }, busy ? "Сохраняем…" : "Сохранить")
+    );
+  }
+  render();
 }
 
 // Карточка игры в сообщении.

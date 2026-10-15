@@ -70,6 +70,16 @@ function saveGame(game) {
   return getGame(game.id, { withCode: true });
 }
 
+function updateGameMeta(id, { title, description, emoji, isPublic }) {
+  const title_ = String(title ?? "").trim().slice(0, 64) || "🎮";
+  const emoji_ = [...String(emoji ?? "🎮").trim()].slice(0, 2).join("") || "🎮";
+  const description_ = String(description ?? "").trim().slice(0, 200);
+  db.prepare(
+    "UPDATE games SET title = ?, description = ?, emoji = ?, isPublic = ?, updatedAt = ? WHERE id = ?"
+  ).run(title_, description_, emoji_, isPublic ? 1 : 0, new Date().toISOString(), id);
+  return getGame(id);
+}
+
 function deleteGame(id) {
   db.prepare("DELETE FROM games WHERE id = ?").run(id);
   db.prepare("DELETE FROM game_scores WHERE gameId = ?").run(id);
@@ -139,4 +149,4 @@ function gameStats(gameId) {
   return { plays, players: row?.players ?? 0, topScore: row?.top ?? 0 };
 }
 
-module.exports = { issueGameToken, gameByToken, hasGameToken, setScoreExact, deleteScore, bestScore, gameStats, BUILTIN, searchGames, getGame, listCatalog, listMine, saveGame, deleteGame, countPlay, submitScore, topScores };
+module.exports = { issueGameToken, gameByToken, hasGameToken, setScoreExact, deleteScore, bestScore, gameStats, BUILTIN, searchGames, getGame, listCatalog, listMine, saveGame, updateGameMeta, deleteGame, countPlay, submitScore, topScores };

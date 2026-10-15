@@ -40,8 +40,7 @@ function validGame(body) {
   const title = String(body?.title ?? "").trim().slice(0, 64);
   const code = String(body?.code ?? "");
   if (!title) return { error: "Введите название игры" };
-  if (!code.trim()) return { error: "Код игры пустой" };
-  if (code.length > MAX_CODE) return { error: "Игра слишком большая (до 512 КБ)" };
+  if (code.trim() && code.length > MAX_CODE) return { error: "Игра слишком большая (до 512 КБ)" };
   const emoji = [...String(body?.emoji ?? "🎮").trim()].slice(0, 2).join("") || "🎮";
   return { title, code, emoji, description: String(body?.description ?? "").trim().slice(0, 200), isPublic: !!body?.isPublic };
 }
@@ -57,13 +56,16 @@ router.post(
 );
 
 router.patch(
-  "/:id",
+  "/:id/meta",
   asyncRoute(async (req, res) => {
     const game = games.getGame(req.params.id);
     if (!game || game.ownerId !== req.uid) return res.status(404).json({ error: "Игра не найдена" });
-    const v = validGame(req.body);
-    if (v.error) return res.status(400).json({ error: v.error });
-    res.json({ game: games.saveGame({ id: game.id, ownerId: req.uid, ...v }) });
+    const title = String(req.body?.title ?? "").trim().slice(0, 64);
+    const emoji = [...String(req.body?.emoji ?? "🎮").trim()].slice(0, 2).join("") || "🎮";
+    const description = String(req.body?.description ?? "").trim().slice(0, 200);
+    const isPublic = !!req.body?.isPublic;
+    if (!title) return res.status(400).json({ error: "Введите название игры" });
+    res.json({ game: games.updateGameMeta(game.id, { title, description, emoji, isPublic }) });
   })
 );
 

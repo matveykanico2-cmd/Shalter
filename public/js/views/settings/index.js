@@ -2079,6 +2079,25 @@ async function renderGames(root) {
     } catch {}
     render();
   };
+  async function togglePublish(g) {
+    try {
+      await api.updateGameMeta(g.id, { title: g.title, emoji: g.emoji, description: g.description ?? "", isPublic: !g.isPublic });
+      g.isPublic = !g.isPublic;
+      render();
+    } catch (err) {
+      showToast(err.message || "Не удалось изменить публичность");
+    }
+  }
+  async function removeGame(g) {
+    if (!(await askConfirm(`Удалить игру «${g.title}» безвозвратно?`))) return;
+    try {
+      await api.deleteGame(g.id);
+      list = list.filter((it) => it.id !== g.id);
+      render();
+    } catch (err) {
+      showToast(err.message || "Не удалось удалить игру");
+    }
+  }
   function render() {
     mount(
       root,
@@ -2099,7 +2118,7 @@ async function renderGames(root) {
           ]),
           el("a", { href: "/games", target: "_blank", rel: "noreferrer", class: "text-link" }, "Документация SDK и Game API →"),
         ]),
-        el("p", { class: "settings-toggle-hint" }, "Чтобы добавить свою игру — создайте её на своём сервере и отправьте карточку через Bot API (Game API)."),
+        el("button", { class: "btn-accent bot-create-btn", onclick: () => games.openGameMetaDialog(null, reload) }, [el("span", { html: iconSvg("Plus", 15) }), " Создать игру"]),
         el("p", { class: "settings-section-title" }, `Ваши игры — ${list.length}`),
         list.length === 0
           ? el("p", { class: "empty-hint" }, "У вас пока нет своих игр")
@@ -2115,6 +2134,9 @@ async function renderGames(root) {
                   ]),
                    el("button", { class: "icon-btn", title: "Играть", html: iconSvg("PlayFill", 15), onclick: () => games.openGame(g) }),
                    el("button", { class: "icon-btn", title: "API-токен", html: iconSvg("Key", 15), onclick: () => games.showGameToken(g) }),
+                   el("button", { class: "icon-btn", title: "Редактировать", html: iconSvg("Edit", 15), onclick: () => games.openGameMetaDialog(g, reload) }),
+                   el("button", { class: "icon-btn", title: g.isPublic ? "Скрыть из каталога" : "Показать в каталоге", html: g.isPublic ? "🚫" : "👁", onclick: () => togglePublish(g) }),
+                   el("button", { class: "icon-btn", title: "Удалить", html: iconSvg("Trash", 15), onclick: () => removeGame(g) }),
                 ])
               )
             ),
