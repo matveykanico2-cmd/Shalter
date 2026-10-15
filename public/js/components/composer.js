@@ -91,6 +91,9 @@ const HOLD_LOCK_PX = 80;
 const HOLD_MIN_MS = 400;
 
 function fileKind(file) {
+  const type = file.type || "";
+  if (type.startsWith("image/")) return "image";
+  if (type.startsWith("video/")) return "video";
   return "file";
 }
 
@@ -885,7 +888,7 @@ export function Composer({
         pickToSend(
           files.map((file) => ({
             file,
-            kind: "file",
+            kind: fileKind(file),
           }))
         );
       },
@@ -921,7 +924,7 @@ export function Composer({
       onchange: (e) => {
         const f = e.target.files?.[0];
         e.target.value = "";
-        if (f) pickToSend([{ file: f, kind: "file" }]);
+        if (f) pickToSend([{ file: f, kind: fileKind(f) }]);
       },
     });
     const cameraVideoInput = el("input", {
@@ -932,7 +935,7 @@ export function Composer({
       onchange: (e) => {
         const f = e.target.files?.[0];
         e.target.value = "";
-        if (f) pickToSend([{ file: f, kind: "file" }]);
+        if (f) pickToSend([{ file: f, kind: fileKind(f) }]);
       },
     });
 
