@@ -19,8 +19,8 @@ async function attachSummaries(chats, userId) {
 
   const lastOfChat = db.prepare(
     `SELECT * FROM messages
-      WHERE chatId = ? AND threadRootId IS NULL AND deletedForIds NOT LIKE ?
-      ORDER BY createdAt DESC, rowid DESC LIMIT 5`
+       WHERE chatId = ? AND threadRootId IS NULL AND deletedForIds NOT LIKE ?
+       ORDER BY createdAt DESC, rowid DESC LIMIT 1`
   );
   const lastByChat = new Map(ids.map((id) => [id, lastOfChat.all(id, jsonHas(userId))]));
 

@@ -900,11 +900,11 @@ export function Composer({
       onchange: (e) => {
         const files = [...(e.target.files ?? [])];
         e.target.value = "";
-        pickToSend(files.map((file) => ({ file, kind: "file" })));
-      },
-    });
-    // accept="audio/*" makes the phone open its music / audio files picker
-    // rather than the gallery; the track goes out as a file with a player.
+      pickToSend(files.map((file) => ({ file, kind: fileKind(file) })));
+    },
+  });
+  // accept="audio/*" makes the phone open its music / audio files picker
+  // rather than the gallery; the track goes out as a file with a player.
     const audioFileInput = el("input", {
       type: "file",
       accept: "audio/*",

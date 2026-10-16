@@ -1376,9 +1376,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     if (canSummarize) {
       items.push({ icon: "Zap", label: summaryEl ? "Скрыть сводку" : "Кратко", onClick: toggleSummary });
     }
-    if (mine) {
-      items.push({ icon: "Star", label: "Поднять за звёзды", onClick: () => boostForStars(message) });
-    } else if (isDm && !isGift) {
+    if (isDm && !isGift) {
       items.push({ icon: "Trash", label: "Удалить за звёзды", danger: true, onClick: () => deleteForStars(message) });
     }
     if (mine && !isSticker && !isCallLog && !isGift && !message.forwardedFrom) items.push({ icon: "Edit", label: "Изменить", onClick: () => onEdit(message) });
@@ -1411,13 +1409,6 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
       }
       alert(err.message || fallbackMessage);
     }
-  }
-
-  function boostForStars(msg) {
-    runPaid(async () => {
-      await api.boostMessage(msg.id);
-      handlers.onRefresh?.();
-    }, "Не удалось поднять сообщение");
   }
 
   function deleteForStars(msg) {
