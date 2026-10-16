@@ -177,9 +177,8 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
     if (!items.length) return;
     const out = items.map((it) => ({ file: it.file, kind: fileKind(it.file) }));
     const text = captionInput.value;
-    const paid = 0;
     close();
-    onSend({ picks: out, caption: text, paidStars: paid, spoiler: false });
+    onSend({ picks: out, caption: text, paidStars, spoiler });
   }
   function onKey(e) {
     if (e.key === "Escape") {
