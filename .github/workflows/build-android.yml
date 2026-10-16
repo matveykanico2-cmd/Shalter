@@ -6,26 +6,34 @@ name: Build Android APK
 # which this environment doesn't have"). That's the only reason this workflow
 # can build an APK at all without any extra setup steps.
 #
-# Always produces a *debug* APK — installable directly on a device for
-# testing (side-load), never store-ready. If these four repo secrets are set
-# (Settings → Secrets and variables → Actions), it *also* produces a signed
-# *release* APK — the one RuStore/Google Play actually accept:
-#   ANDROID_KEYSTORE_BASE64    the .jks/.keystore file, base64-encoded
-#                              (`base64 -w0 your.keystore` to produce it)
-#   ANDROID_KEYSTORE_PASSWORD  the keystore's own password
-#   ANDROID_KEY_ALIAS          the key alias inside it
-#   ANDROID_KEY_PASSWORD       that key's password (often same as the
-#                              keystore password, but not always)
+# По умолчанию (workflow_dispatch без галочки `release`, либо любой запуск
+# без секретов подписи) собирается *debug*-APK — его можно просто side-loadить
+# на телефон для тестов, но он не подходит в магазин.
 #
-# No keystore is generated or committed here — losing it means you can never
-# update an already-published RuStore/Play listing under the same app again,
-# so generate it yourself once (`keytool -genkeypair -v -keystore
-# release.keystore -alias shalter -keyalg RSA -keysize 2048 -validity 10000`
-# works fine from any machine with a JDK, including Termux) and keep the
-# file + passwords somewhere durable *outside* this repo before wiring up
-# the secrets above.
+# *Release* (подписанный APK/AAB для RuStore/Google Play) собирается, когда
+# заданы четыре секрета ниже и выполнено одно из условий:
+#   • нажата пометка `release` при ручном workflow_dispatch, либо
+#   • пуш тега `v*` (автоматически — APK прикрепляется к GitHub Release).
+#
+# Секреты:
+#   ANDROID_KEYSTORE_BASE64    файл .jks/.keystore в base64
+#   ANDROID_KEYSTORE_PASSWORD  пароль keystore
+#   ANDROID_KEY_ALIAS          алиас ключа внутри (у Shalter: shalter)
+#   ANDROID_KEY_PASSWORD       пароль ключа (часто совпадает с keystore password)
+#
+# Ключ подписи не генерируется и не коммитится здесь — потеря ключа = потеря
+# возможности обновлять уже опубликованное приложение, так что создайте его один
+# раз (`keytool -genkeypair -v -keystore release.keystore -alias shalter
+# -keyalg RSA -keysize 2048 -validity 10000` с JDK, или `openssl pkcs12` —
+# оба формата читает AGP) и задайте секреты прежде, чать запускать релиз.
+
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Подписать release APK/AAB (требует секреты подписи)"
+        type: boolean
+        default: false
   push:
     tags:
       - "v*"
@@ -72,15 +80,6 @@ jobs:
       - name: Fixed debug signing key
         run: mkdir -p ~/.android && cp resources/android/debug.keystore ~/.android/debug.keystore
 
-      - name: Assemble debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: shalter-android-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-
       - name: Check for release-signing secrets
         id: has_signing
         run: |
@@ -90,12 +89,23 @@ jobs:
             echo "configured=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Release = есть секреты подписи И (тег v* ИЛИ ручной запуск с галочкой release).
+      - name: Resolve build mode
+        id: mode
+        run: |
+          RELEASE="false"
+          if [ "${{ steps.has_signing.outputs.configured }}" = "true" ] && { [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.release }}" = "true" ]; }; then
+            RELEASE="true"
+          fi
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+
+      # ---------------- подписанный release ----------------
       - name: Decode keystore
-        if: steps.has_signing.outputs.configured == 'true'
+        if: steps.mode.outputs.release == 'true'
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
 
       - name: Write keystore.properties
-        if: steps.has_signing.outputs.configured == 'true'
+        if: steps.mode.outputs.release == 'true'
         run: |
           cat > android/keystore.properties <<EOF
           storeFile=app/release.keystore
@@ -109,46 +119,56 @@ jobs:
       # own header comment for why this has to happen here (in CI, post-cap-
       # add) rather than as a one-time edit to a committed file.
       - name: Wire up release signing
-        if: steps.has_signing.outputs.configured == 'true'
+        if: steps.mode.outputs.release == 'true'
         run: node scripts/ci-sign-android.js
 
       - name: Assemble signed release APK
-        if: steps.has_signing.outputs.configured == 'true'
+        if: steps.mode.outputs.release == 'true'
         working-directory: android
         run: ./gradlew assembleRelease
 
       - uses: actions/upload-artifact@v4
-        if: steps.has_signing.outputs.configured == 'true'
+        if: steps.mode.outputs.release == 'true'
         with:
           name: shalter-android-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
 
       # Google Play принимает новые приложения только в формате AAB (RuStore — и APK, и AAB).
       - name: Assemble signed release AAB
-        if: steps.has_signing.outputs.configured == 'true'
+        if: steps.mode.outputs.release == 'true'
         working-directory: android
         run: ./gradlew bundleRelease
 
       - uses: actions/upload-artifact@v4
-        if: steps.has_signing.outputs.configured == 'true'
+        if: steps.mode.outputs.release == 'true'
         with:
           name: shalter-android-release-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
 
-      # Actions artifacts (above) need a GitHub login and expire after 90
-      # days — no good for public/download.html, which links straight to a
-      # permanent, public, no-login file. Only the *signed* release APK is
-      # worth publishing this way (the debug one isn't store-quality and
-      # isn't what download.html should be handing out); renamed to a
-      # stable Shalter.apk so that link never needs updating between
-      # versions. Only runs on an actual `v*` tag push with signing secrets
-      # configured — never for a bare workflow_dispatch test run.
+      # Actions artifacts (above) need a GitHub login and expire через 90
+      # дней — для public/download.html ссылка должна быть постоянной и без логина.
+      # Только подписанный release APK стоит так выкладывать (debug‑сборка не
+      # для магазина и не для download.html); переименованный в Shalter.apk.
+      # Только при пуше тега v* с заданными секретами — никогда для простого
+      # workflow_dispatch‑теста.
       - name: Rename for release
-        if: steps.has_signing.outputs.configured == 'true' && startsWith(github.ref, 'refs/tags/v')
+        if: steps.mode.outputs.release == 'true' && startsWith(github.ref, 'refs/tags/v')
         run: cp android/app/build/outputs/apk/release/app-release.apk Shalter.apk
 
       - name: Publish to GitHub Release
-        if: steps.has_signing.outputs.configured == 'true' && startsWith(github.ref, 'refs/tags/v')
+        if: steps.mode.outputs.release == 'true' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: Shalter.apk
+
+      # ---------------- debug (тестирование / side-load) ----------------
+      - name: Assemble debug APK
+        if: steps.mode.outputs.release == 'false'
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        if: steps.mode.outputs.release == 'false'
+        with:
+          name: shalter-android-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

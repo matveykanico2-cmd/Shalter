@@ -46,20 +46,21 @@ export function Avatar({ name, color, image, video = null, size = 44, online, cl
   const fallback = () =>
     el("div", { class: "avatar-fallback", style: { background: color, fontSize: `${size * 0.4}px` } }, initials(name) || "?");
   if (video) {
-    const videoEl = el("video", {
-      class: "avatar-img",
-      src: video,
-      poster: image,
-      autoplay: true,
-      loop: true,
-      muted: true,
-      playsInline: true,
-      style: { width: `${size}px`, height: `${size}px` },
-    });
-    videoEl.addEventListener("error", () => {
-      videoEl.replaceWith(image ? imageNode() : fallback());
-    });
-    wrap.appendChild(videoEl);
+    if (image) {
+      // Видео‑аватар анимируется только в полноэкранном просмотрщике (avatarViewer);
+      // в списках/шапках показываем постер, чтобы аватарка не «крутилась» везде.
+      wrap.appendChild(imageNode());
+    } else {
+      const videoEl = el("video", {
+        class: "avatar-img",
+        src: video,
+        muted: true,
+        playsInline: true,
+        style: { width: `${size}px`, height: `${size}px` },
+      });
+      videoEl.addEventListener("error", () => videoEl.replaceWith(fallback()));
+      wrap.appendChild(videoEl);
+    }
   } else if (image) {
     wrap.appendChild(imageNode());
   } else {

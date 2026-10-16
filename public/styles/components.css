@@ -23677,7 +23677,7 @@ video.media-viewer-media {
 .profile-avatar-row.with-banner::before {
   content: "";
   position: absolute;
-  inset: 0 0 44px;
+  inset: 0;
   z-index: -1;
   background: var(--profile-banner);
   border-radius: 0 0 18px 18px;
