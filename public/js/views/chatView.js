@@ -299,20 +299,29 @@ export async function ChatView(root, chatId) {
     if (seq !== msgSeq || filterAtStart !== topicFilter) return;
     rememberReplyTargets(res);
     const fresh = res.messages;
-    if (!fresh.length && !justSent.size && !messages.some((m) => m.pending)) {
+    if (!fresh.length && !justSent.size && !livePendingIds.size && !messages.some((m) => m.pending)) {
       messages = [];
       messagesCount = 0;
       saveChatCache();
       renderList();
       return;
     }
-    const cutoff = fresh[0].createdAt;
+    const cutoff = fresh.length ? fresh[0].createdAt : null;
     const freshIds = new Set(fresh.map((m) => m.id));
     for (const id of justSent) if (freshIds.has(id)) justSent.delete(id);
-    const older = messages.filter((m) => m.createdAt < cutoff && !m.pending);
+    for (const id of livePendingIds) if (freshIds.has(id)) livePendingIds.delete(id);
+    const older = messages.filter(
+      (m) => (cutoff ? m.createdAt < cutoff : !freshIds.has(m.id)) && !m.pending
+    );
     // Ответ мог уйти с сервера раньше, чем там сохранилось только что
-    // отправленное сообщение — не выкидываем его, пока сервер его не вернёт.
-    const notYetListed = messages.filter((m) => justSent.has(m.id) && !freshIds.has(m.id) && m.createdAt >= cutoff);
+    // отправленное или только что пришедшее обновлением сообщение — не выкидываем
+    // его, пока сервер не вернёт.
+    const notYetListed = messages.filter(
+      (m) =>
+        (justSent.has(m.id) || livePendingIds.has(m.id)) &&
+        !freshIds.has(m.id) &&
+        (cutoff ? m.createdAt >= cutoff : true)
+    );
     const stillPending = messages.filter((m) => m.pending);
     // Реакции, которые сейчас меняет сам пользователь, берём локальные (см. handleReact).
     for (let i = 0; i < fresh.length; i++) {
@@ -400,6 +409,11 @@ export async function ChatView(root, chatId) {
 
   let pendingSeq = 0;
   const justSent = new Set();
+  // ID сообщений, добавленных «на лету» из событий WS, пока сервер ещё не
+  // вернул их в список. Храним их через refreshMessages, иначе ответ бота
+  // (который ещё не успел закоммититься), пришедший ровно во время очередного
+  // списка сообщений, просто исчезает вместе с «думаю»‑таймером.
+  const livePendingIds = new Set();
   const localThumbs = new Map();
   const withLocalThumbs = (m) =>
     m.attachments?.some((a) => a.previewPending && !a.thumbUrl && localThumbs.has(a.url))
@@ -2560,6 +2574,10 @@ export async function ChatView(root, chatId) {
       if (last && m.createdAt < last.createdAt) return false;
       messages = [...messages, m];
       messagesCount = messages.length;
+      // Живое сообщение считается «неподтверждённым» до тех пор, пока оно
+      // не появится в очередном снимке сервера — иначе следующий refreshMessages
+      // может сбросить его, а последующее streaming‑update уже не вставит (insert:false).
+      if (m.id) livePendingIds.add(m.id);
     } else {
       return false;
     }
@@ -2581,9 +2599,11 @@ export async function ChatView(root, chatId) {
   });
   const unsubMessageUpdated = onWsMessage("message:updated", (msg) => {
     if (msg.chatId !== chat.id) return;
-    if (msg.streaming) {
-      // Ответ бота дописывается: обновляем только пузырь.
-      if (canApplyLive(msg.message)) applyLive(msg.message, { insert: false });
+      if (msg.streaming) {
+      // Ответ бота дописывается: обновляем только пузырь. insert:true — если
+      // сообщение пропало (например, refreshMessages сбросил его прежде, чем сервер
+      // закоммитил), вставляем его обратно вместо того чтобы молча пропустить.
+      if (canApplyLive(msg.message)) applyLive(msg.message, { insert: true });
       if (msg.message?.senderId === "bot_shalter_ai") setAiGenerating(true);
       return;
     }
