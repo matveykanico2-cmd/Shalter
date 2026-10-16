@@ -9,6 +9,7 @@ import { startRecording, isRecordingSupported, createLevelMeter, MAX_RECORD_SEC 
 import { uploadFile } from "../lib/upload.js";
 import { startChatAction, withChatAction, uploadActionFor } from "../lib/chatAction.js";
 import { checkSize } from "../lib/uploadLimits.js";
+import { fileKind } from "../lib/mediaKind.js";
 import { openPollDialog } from "./pollDialog.js";
 import { openChecklistDialog } from "./checklistDialog.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
@@ -89,13 +90,6 @@ const HOLD_MS = 250;
 const HOLD_CANCEL_PX = 110;
 const HOLD_LOCK_PX = 80;
 const HOLD_MIN_MS = 400;
-
-function fileKind(file) {
-  const type = file.type || "";
-  if (type.startsWith("image/")) return "image";
-  if (type.startsWith("video/")) return "video";
-  return "file";
-}
 
 function plural(n, one, few, many) {
   const mod10 = n % 10;

@@ -2,6 +2,7 @@ import { el } from "../lib/dom.js";
 import { iconSvg } from "../icons.js";
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { formatSize } from "../lib/uploadLimits.js";
+import { fileKind } from "../lib/mediaKind.js";
 
 // Окно отправки вложений как в tweb (popups/newMedia): превью фото/видео альбомом
 // или список файлов, подпись, «Отправить без сжатия», кнопка «Отправить».
@@ -174,7 +175,7 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
   }
   function send() {
     if (!items.length) return;
-    const out = items.map((it) => ({ file: it.file, kind: "file" }));
+    const out = items.map((it) => ({ file: it.file, kind: fileKind(it.file) }));
     const text = captionInput.value;
     const paid = 0;
     close();
