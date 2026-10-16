@@ -87,6 +87,7 @@ function createPeer(otherUserId, { answering = false } = {}) {
   sendMedia(otherUserId);
 
   let restarted = false;
+  let iceRestartPending = false;
   function handleStuck() {
     if (!state || pc.connectionState === "connected" || pc.connectionState === "closed") return;
     if (!pc.currentRemoteDescription) {
@@ -97,6 +98,7 @@ function createPeer(otherUserId, { answering = false } = {}) {
       restarted = true;
       try {
         pc.restartIce();
+        iceRestartPending = true; // требуется renegotiation — иначе restart не дойдёт до пира
       } catch {
       }
       setTimeout(handleStuck, RESTART_GRACE_MS);
@@ -110,6 +112,14 @@ function createPeer(otherUserId, { answering = false } = {}) {
 
   pc.onicecandidate = (e) => {
     if (e.candidate) sendSignal(otherUserId, "ice", e.candidate.toJSON());
+  };
+  // pc.restartIce() ставит renegotiation в очередь, но без onnegotiationneededSDP‑offer
+  // с новыми ICE‑креденшалами не уходит — и пир не применяет рестарт. Слушаем его:
+  pc.onnegotiationneeded = () => {
+    if (!iceRestartPending || pc.signalingState !== "stable") return;
+    if (state?.peers?.get(otherUserId) !== pc) return;
+    iceRestartPending = false;
+    renegotiate(otherUserId);
   };
   pc.ontrack = (e) => {
     const track = e.track;
@@ -149,6 +159,16 @@ function shouldOffer(userId) {
   if (state.me.id === callerId) return true;
   if (userId === callerId) return false;
   return state.me.id > userId;
+}
+
+async function renegotiate(userId) {
+  const pc = state?.peers?.get(userId);
+  if (!pc || pc.signalingState !== "stable") return;
+  try {
+    const offer = tuneOpusSdp(await pc.createOffer());
+    await pc.setLocalDescription(offer);
+    sendSignal(userId, "offer", offer);
+  } catch {}
 }
 
 async function offerTo(userId) {
