@@ -400,8 +400,12 @@ function inPollinationsQueue(fn) {
 function remoteVision() {
   return !!GIGACHAT_AUTH_KEY || !!POLLINATIONS_TOKEN || !!OPENROUTER_API_KEY || !!HF_TOKEN;
 }
+// Вижен или удалённый vision‑провайдер (токен есть), или локальная модель.
+// Без ключа и без локального vision — не «прогоняем» картинку в текстового провайдера
+// (она «не видна», а модель пишет «извини, не вижу»); вместо этого readAttachment
+// отдаёт { note: "photo" }, и администратору показывается NOTES.photo с подсказкой.
 function canSeeMedia() {
-  return true; // без ключей — бесплатные нейросети Hugging Face (lib/hfSpaces.js)
+  return remoteVision() || LOCAL_VISION_ENABLED;
 }
 
 // Без ключей фото «видит» локальная нейросеть: её описание (по-английски) и
