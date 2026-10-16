@@ -196,6 +196,11 @@ export function Composer({
     });
     textarea.addEventListener("focus", () => {
       closeAttachMenu();
+      // При возврате в чат курсор прыгивает в начало поля: если текст уже есть и
+      // каретка оказалась в позиции 0, ставим в конец (как в Telegram). Не трогаем
+      // позицию, если пользователь тапнул куда‑нибудь в середину — там caret != 0.
+      const len = textarea.value.length;
+      if (len && textarea.selectionStart === 0 && textarea.selectionEnd === 0) textarea.setSelectionRange(len, len);
       // Первый показ клавиатуры после запуска WebView иногда не присылает resize
       // у visualViewport — высота страницы оставалась прежней, и клавиатура
       // закрывала поле ввода. Пересчитываем размеры, когда она уже выехала.

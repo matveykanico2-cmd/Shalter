@@ -772,7 +772,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
 
     mount(
       root,
-      el("div", { class: "login-page" }, [
+      el("div", { class: addMode ? "login-page login-page-has-back" : "login-page" }, [
         // Как в Telegram: «назад» в углу вместо длинной ссылки внизу карточки.
         addMode
           ? el("button", { class: "login-back-btn", type: "button", title: "Отмена", "aria-label": "Отмена — вернуться в приложение", html: iconSvg("ChevronLeft", 22), onclick: () => goToApp() })

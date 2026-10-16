@@ -25435,3 +25435,11 @@ img.img-broken {
 }
 .login-back-btn:hover { background: color-mix(in srgb, var(--color-text) 12%, transparent); }
 .login-back-btn:active { transform: scale(0.94); }
+/* На телефоне фиксированная кнопка «назад» (54 px в левом‑верхнем углу) перекрывает
+   верх левого угла центрированной карточки; отодвигаем карточку вниз, пока она не
+   окажется ниже кнопки. */
+@media (max-width: 560px) {
+  .login-page.login-page-has-back {
+    padding-top: max(24px, calc(env(safe-area-inset-top, 0px) + 56px));
+  }
+}
