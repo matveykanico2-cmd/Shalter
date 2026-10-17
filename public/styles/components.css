@@ -12110,7 +12110,11 @@ button.profile-ad-banner {
   justify-content: flex-end;
 }
 
-.perm-dialog { width: min(400px, 92vw); }
+.perm-dialog {
+  width: min(400px, 92vw);
+  /* Чтобы кнопка «Готово» и нижние строки не прятались под home‑бар / cutout. */
+  padding-bottom: env(safe-area-inset-bottom);
+}
 .perm-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .perm-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .perm-row-body { flex: 1 1 auto; min-width: 0; }
