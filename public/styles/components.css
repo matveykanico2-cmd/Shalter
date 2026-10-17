@@ -12116,7 +12116,17 @@ button.profile-ad-banner {
 .perm-row-body { flex: 1 1 auto; min-width: 0; }
 .perm-row-title { font-size: 14.5px; font-weight: 500; }
 .perm-ok { font-size: 18px; color: var(--color-accent); }
-.perm-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
+.perm-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+  /* Кнопка «Готово» всегда видна внизу даже если список разрешений не влезает —
+     иначе на маленьких экранах она съезжает за пределы диалога и не прокручивается. */
+  position: sticky;
+  bottom: 0;
+  background: var(--color-surface);
+  padding: 6px 0 4px;
+}
 
 .listing-scopes {
   display: flex;
