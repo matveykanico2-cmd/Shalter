@@ -8,6 +8,56 @@ function jsonHas(id) {
   return `%"${id}"%`;
 }
 
+const PLACEHOLDER = " (?) ";
+function inClause(n) {
+  return n === 1 ? "(?)" : "(" + Array.from({ length: n }, () => "?").join(",") + ")";
+}
+
+let lastOfStmtCache = new Map();
+function lastOfStmt(n) {
+  let s = lastOfStmtCache.get(n);
+  if (!s) {
+    lastOfStmtCache.set(
+      n,
+      (s = db.prepare(
+        `SELECT * FROM (
+           SELECT *, ROW_NUMBER() OVER (PARTITION BY chatId ORDER BY createdAt DESC, rowid DESC) AS rn
+           FROM messages
+           WHERE chatId IN ${inClause(n)}
+             AND threadRootId IS NULL
+             AND deletedForIds NOT LIKE ?
+         ) WHERE rn = 1`
+      ))
+    );
+  }
+  return s;
+}
+
+let unreadStmtCache = new Map();
+function unreadStmt(n) {
+  let s = unreadStmtCache.get(n);
+  if (!s) {
+    const pairs = Array.from({ length: n }, () => "(?,?)").join(",");
+    unreadStmtCache.set(
+      n,
+      (s = db.prepare(
+        `SELECT m.chatId AS chatId,
+                COUNT(*) AS unread,
+                SUM(CASE WHEN m.mentionedUserIds LIKE ? THEN 1 ELSE 0 END) AS mentions
+         FROM messages m
+         JOIN (VALUES ${pairs}) AS thr(chatId, since) ON m.chatId = thr.chatId
+         WHERE m.threadRootId IS NULL
+           AND m.senderId <> ?
+           AND m.createdAt > thr.since
+           AND m.readByIds NOT LIKE ?
+           AND m.deletedForIds NOT LIKE ?
+         GROUP BY m.chatId`
+      ))
+    );
+  }
+  return s;
+}
+
 async function attachSummaries(chats, userId) {
   if (!chats.length) return [];
   const settings = await getSettings(userId);
@@ -16,22 +66,27 @@ async function attachSummaries(chats, userId) {
   const drafts = settings.drafts ?? {};
   const chatFlags = settings.chatFlags ?? {};
   const ids = chats.map((c) => c.id);
+  const notDeleted = jsonHas(userId);
 
-  const lastOfChat = db.prepare(
-    `SELECT * FROM messages
-       WHERE chatId = ? AND threadRootId IS NULL AND deletedForIds NOT LIKE ?
-       ORDER BY createdAt DESC, rowid DESC LIMIT 1`
-  );
-  const lastByChat = new Map(ids.map((id) => [id, lastOfChat.all(id, jsonHas(userId))]));
+  const lastRows = lastOfStmt(ids.length).all(...ids, notDeleted);
+  const lastByChat = new Map(ids.map((id) => [id, []]));
+  for (const r of lastRows) lastByChat.set(r.chatId, [r]);
 
   const watermarks = readWatermarksFor(userId);
-  const unreadOfChat = db.prepare(
-    `SELECT COUNT(*) AS unread, SUM(CASE WHEN mentionedUserIds LIKE ? THEN 1 ELSE 0 END) AS mentions
-       FROM messages
-      WHERE chatId = ? AND threadRootId IS NULL AND senderId <> ?
-        AND createdAt > ?
-        AND readByIds NOT LIKE ? AND deletedForIds NOT LIKE ?`
+
+  const thrParams = [];
+  for (const chat of chats) {
+    const since = [watermarks.get(chat.id) ?? "", chatClears[chat.id] ?? ""].sort().pop();
+    thrParams.push(chat.id, since);
+  }
+  const unreadRows = unreadStmt(chats.length).all(
+    ...thrParams,
+    userId,
+    notDeleted,
+    notDeleted,
+    notDeleted
   );
+  const unreadByChat = new Map(unreadRows.map((r) => [r.chatId, r]));
 
   const peerIds = new Set();
   for (const chat of chats) {
@@ -53,13 +108,14 @@ async function attachSummaries(chats, userId) {
 
   const result = chats.map((chat) => {
     const clearedBefore = chatClears[chat.id];
-    const candidates = (lastByChat.get(chat.id) ?? []).filter((r) => !clearedBefore || r.createdAt > clearedBefore);
+    const candidates = (lastByChat.get(chat.id) ?? []).filter(
+      (r) => !clearedBefore || r.createdAt > clearedBefore
+    );
     const lastMessage = candidates.length ? rowToMessage(candidates[0]) : null;
 
-    const since = [watermarks.get(chat.id) ?? "", clearedBefore ?? ""].sort().pop();
-    const row = unreadOfChat.get(jsonHas(userId), chat.id, userId, since, jsonHas(userId), jsonHas(userId));
-    const unreadCount = row?.unread ?? 0;
-    const hasUnreadMention = (row?.mentions ?? 0) > 0;
+    const u = unreadByChat.get(chat.id);
+    const unreadCount = u?.unread ?? 0;
+    const hasUnreadMention = (u?.mentions ?? 0) > 0;
 
     const otherUserId = (chat.type === "dm" || chat.type === "bot") && chat.memberIds.find((id) => id !== userId);
     const otherUser = otherUserId ? peers.get(otherUserId) ?? null : null;

@@ -819,10 +819,8 @@ export function Composer({
       if (!picks.length) return;
       openMediaSendPopup({
         picks,
-        caption: textarea.value,
         allowPaid: canPostPaid,
-        onSend: async ({ picks: chosen, caption, paidStars, spoiler }) => {
-          textarea.value = caption;
+        onSend: async ({ picks: chosen, paidStars, spoiler }) => {
           textarea.dispatchEvent(new Event("input", { bubbles: true }));
           const paidInfo = paidStars ? await blurThumbFor(chosen.find((p) => p.kind === "image" || p.kind === "video")).catch(() => ({})) : null;
           await attachFiles(chosen);
@@ -1712,7 +1710,7 @@ export function Composer({
     let videoPreview = null;
     let roundOverlay = null;
     if (mode === "video-note") {
-      videoPreview = el("video", { autoplay: true, muted: true, playsinline: true, class: "composer-round-preview" });
+      videoPreview = el("video", { autoplay: true, muted: true, playsinline: true, class: "composer-round-preview preparing" });
       const flipOnPreview = el("button", {
         class: "composer-round-flip",
         title: "Другая камера",
@@ -1859,7 +1857,10 @@ export function Composer({
       if (videoPreview) {
         videoPreview.srcObject = recordingHandle.previewStream ?? recordingHandle.stream;
         // autoplay у потока с камеры Android WebView соблюдает не всегда — запускаем сами.
-        videoPreview.play?.().catch(() => {});
+        // Прячем <video> до первого кадра: иначе во время разогрева камеры (~2 сек)
+        // виден чёрный экран (background:#000 у пустого видео). Индикатор записи
+        // (точка + таймер) уже показывается, так что чёрного плейсхолдера нет.
+        videoPreview.play?.().then(() => videoPreview.classList.remove("preparing")).catch(() => videoPreview.classList.remove("preparing"));
       }
       if (mode === "voice" && getState().settings?.voiceTranscription) {
         transcription = startTranscription();

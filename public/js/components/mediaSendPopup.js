@@ -6,7 +6,7 @@ import { fileKind } from "../lib/mediaKind.js";
 
 // Окно отправки вложений как в tweb (popups/newMedia): превью фото/видео альбомом
 // или список файлов, подпись, «Отправить без сжатия», кнопка «Отправить».
-export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allowPaid = false }) {
+export function openMediaSendPopup({ picks, onSend, onCancel, allowPaid = false }) {
   let items = picks.slice();
   let asFiles = false;
   // Платный пост канала: цена в звёздах (0 — бесплатно).
@@ -23,25 +23,7 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && cancel() });
   const titleEl = el("h2", { class: "tw-nm-title" });
   const preview = el("div", { class: "tw-nm-preview" });
-  const captionInput = el("textarea", {
-    class: "tw-nm-caption",
-    placeholder: "Добавить подпись…",
-    rows: 1,
-    maxlength: 4096,
-    oninput: () => fitCaption(),
-    onkeydown: (e) => {
-      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
-        e.preventDefault();
-        send();
-      }
-    },
-  });
-  captionInput.value = caption;
-  // Поле подписи — одна строка, растёт с текстом до ~6 строк (как в Telegram).
-  function fitCaption() {
-    captionInput.style.height = "auto";
-    captionInput.style.height = `${Math.min(captionInput.scrollHeight, 150)}px`;
-  }
+
   const sendBtn = el("button", { class: "tw-nm-send", title: "Отправить", "aria-label": "Отправить", html: iconSvg("Send", 22), onclick: () => send() });
 
   const isMedia = (it) => (it.file.type.startsWith("image/") || it.file.type.startsWith("video/")) && !asFiles;
@@ -170,15 +152,14 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
     setTimeout(() => urls.forEach((u) => URL.revokeObjectURL(u)), 60_000);
   }
   function cancel() {
-    close();
-    onCancel?.(captionInput.value);
-  }
+     close();
+     onCancel?.();
+   }
   function send() {
     if (!items.length) return;
     const out = items.map((it) => ({ file: it.file, kind: fileKind(it.file) }));
-    const text = captionInput.value;
     close();
-    onSend({ picks: out, caption: text, paidStars, spoiler });
+    onSend({ picks: out, paidStars, spoiler });
   }
   function onKey(e) {
     if (e.key === "Escape") {
@@ -196,18 +177,13 @@ export function openMediaSendPopup({ picks, caption = "", onSend, onCancel, allo
       ]),
       preview,
       paidBar,
-      el("div", { class: "tw-nm-footer" }, [
-        el("label", { class: "tw-nm-caption-field" }, [captionInput]),
-        sendBtn,
-      ]),
+      el("div", { class: "tw-nm-footer" }, [sendBtn]),
     ])
   );
   render();
   document.addEventListener("keydown", onKey, true);
   document.body.appendChild(overlay);
-  fitCaption();
-  captionInput.focus();
-  captionInput.setSelectionRange(captionInput.value.length, captionInput.value.length);
+  sendBtn.focus();
 }
 
 function plural(n, one, few, many) {

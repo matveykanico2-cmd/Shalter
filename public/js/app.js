@@ -239,6 +239,18 @@ async function boot() {
   mountIncomingCallWatcher();
   initKeyboardShortcuts();
   initRipple();
+  if (window.visualViewport) {
+    const syncKb = () => {
+      const vv = window.visualViewport;
+      document.documentElement.style.setProperty(
+        "--kb",
+        `${Math.round(Math.max(0, window.innerHeight - vv.height))}px`
+      );
+    };
+    window.visualViewport.addEventListener("resize", syncKb);
+    window.visualViewport.addEventListener("scroll", syncKb);
+    syncKb();
+  }
   bootData
     .then((data) => (data ? { settings: data.settings } : api.getSettings()))
     .then(({ settings }) => {
