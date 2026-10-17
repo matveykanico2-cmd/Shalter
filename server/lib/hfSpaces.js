@@ -16,21 +16,37 @@ async function uploadFile(base, buf, name, mime) {
 }
 
 // Вызов функции пространства: POST /call/<api> → event_id → поток с результатом.
+// Бесплатные публичные Gradio‑пространства время от времени падают в event: error
+// (холодный старт GPU, очередь, мгновенная перегрузка). 2 повтора через 15–30 с почти
+// всегда «оживляют» запрос — иначе сразу пишем «Фото пока не видно».
 async function callSpace(base, api, data, { timeoutMs = 120000 } = {}) {
-  const start = await fetch(`${base}/call/${api}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...auth() },
-    body: JSON.stringify({ data }),
-    signal: AbortSignal.timeout(20000),
-  });
-  const { event_id: eventId } = await start.json().catch(() => ({}));
-  if (!eventId) throw new Error(`${api}: HTTP ${start.status}`);
-  const res = await fetch(`${base}/call/${api}/${eventId}`, { headers: auth(), signal: AbortSignal.timeout(timeoutMs) });
-  const text = await res.text();
-  if (/event:\s*error/.test(text)) throw new Error(`${api}: пространство вернуло ошибку`);
-  const line = text.split("\n").reverse().find((l) => l.startsWith("data:"));
-  if (!line) throw new Error(`${api}: пустой ответ`);
-  return JSON.parse(line.slice(5).trim());
+  const attempt = async () => {
+    const start = await fetch(`${base}/call/${api}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...auth() },
+      body: JSON.stringify({ data }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const { event_id: eventId } = await start.json().catch(() => ({}));
+    if (!eventId) throw new Error(`${api}: HTTP ${start.status}`);
+    const res = await fetch(`${base}/call/${api}/${eventId}`, { headers: auth(), signal: AbortSignal.timeout(timeoutMs) });
+    const text = await res.text();
+    if (/event:\s*error/.test(text)) throw new Error(`${api}: пространство вернуло ошибку (холодный старт или перегрузка)`);
+    const line = text.split("\n").reverse().find((l) => l.startsWith("data:"));
+    if (!line) throw new Error(`${api}: пустой ответ`);
+    return JSON.parse(line.slice(5).trim());
+  };
+  const delays = [0, 15000, 30000];
+  let lastErr;
+  for (const delay of delays) {
+    try {
+      return await attempt();
+    } catch (err) {
+      lastErr = err;
+      if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
 }
 
 const QWEN_VL = process.env.HF_VISION_SPACE || "https://ganymedenil-qwen2-vl-7b.hf.space";
