@@ -35,18 +35,59 @@ struct Shell {
     quitting: AtomicBool,
 }
 
-// 1) SHALTER_APP_URL — dev-режим (npm run desktop:dev → http://localhost:3000)
-// 2) server.url из capacitor.config.json — продакшен (https://shalter.ru).
+// 1) SHALTER_APP_URL — env (dev/CI)
+// 2) --server-url=URL / --url=URL — аргументы командной строки
+// 3) ~/.config/shalter/server.json {"url": "..."} или XDG_CONFIG_HOME/shalter/server.json — runtime‑настройка для self‑hosted
+// 4) server.url из capacitor.config.json — сборка
+// 5) https://shalter.ru — fallback
 fn app_url() -> String {
-    if let Ok(url) = std::env::var("SHALTER_APP_URL") {
-        if !url.is_empty() {
-            return url;
-        }
+    if let Some(url) = std::env::var("SHALTER_APP_URL").ok().filter(|s| !s.is_empty()) {
+        return url;
+    }
+    if let Some(url) = cli_server_url() {
+        return url;
+    }
+    if let Some(url) = config_server_url() {
+        return url;
     }
     serde_json::from_str::<serde_json::Value>(include_str!("../../capacitor.config.json"))
         .ok()
         .and_then(|cfg| cfg["server"]["url"].as_str().map(str::to_owned))
         .unwrap_or_else(|| "https://shalter.ru".into())
+}
+
+fn cli_server_url() -> Option<String> {
+    let mut args = std::env::args().skip(1);
+    while let Some(a) = args.next() {
+        if let Some(rest) = a.strip_prefix("--server-url=").or_else(|| a.strip_prefix("--url=")) {
+            if !rest.is_empty() {
+                return Some(rest.to_string());
+            }
+        }
+        if a == "--server-url" || a == "--url" {
+            if let Some(val) = args.next() {
+                if !val.is_empty() {
+                    return Some(val);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn config_server_url() -> Option<String> {
+    use std::path::PathBuf;
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+    let path = base.join("shalter").join("server.json");
+    let txt = std::fs::read_to_string(&path).ok()?;
+    serde_json::from_str::<serde_json::Value>(&txt)
+        .ok()?
+        .get("url")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
 }
 
 fn origin_of(url: &str) -> String {
