@@ -21316,7 +21316,10 @@ button img.emoji {
   padding: 6px 8px 13px;
   overflow: hidden;
   border-radius: 20px;
-  background: rgba(0, 0, 0, 0.22);
+  /* Фон убран: раньше тёмный rgba(0,0,0,0.22) обводил подарок тяжёлой рамкой, особенно
+     у emoji‑подарков без собственного backdrop. Цветной backdrop (tw-gift-backdrop) рисуется
+     отдельно, когда есть. */
+  background: transparent;
   color: #fff;
   text-align: center;
   animation: tw-gift-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
