@@ -197,11 +197,13 @@ async function boot() {
   onWsMessage("message:new", (msg) => {
     const { user: me, settings, chats } = getState();
     if (!msg.message || msg.silent || msg.message.senderId === me?.id || settings?.notifications?.sound === false) return;
-    if (document.visibilityState !== "visible") return;
     const chat = (chats ?? []).find((c) => c.id === msg.chatId);
     if (chat && isChatMuted(chat)) return;
+    // Пульс иконки — всегда (она видна в панели вкладок даже если вкладка в фоне).
+    // Звук — только когда пользователь смотрит приложение: в фоне уведомления
+    // показывают система (nativeNotify.js / desktop bridge / service worker).
     pulseFavicon();
-    playIncomingMessageSound();
+    if (document.visibilityState === "visible") playIncomingMessageSound();
   });
   // «В сети» в списке чатов: без этого зелёная точка оставалась после выхода.
   onWsMessage("presence:update", (msg) => {

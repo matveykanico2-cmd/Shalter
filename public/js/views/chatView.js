@@ -2785,8 +2785,9 @@ export async function ChatView(root, chatId) {
     unsubAiState();
     unsubChatUpdated();
     unsubTopics();
-    viewObserver?.disconnect();
-    composerObserver?.disconnect();
-    listObserver?.disconnect();
+     viewObserver?.disconnect();
+     composerObserver?.disconnect();
+     listObserver?.disconnect();
+     composerSlot.querySelector(".composer")?._cleanup?.();
   };
 }

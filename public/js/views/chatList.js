@@ -159,7 +159,6 @@ let query = "";
 let results = null;
 let searchFilter = "all";
 let settingsCache = null;
-const lastMessageIds = new Map();
 const UNREAD_ONLY_KEY = "shalter.chatList.unreadOnly";
 let unreadOnly = (() => {
   try {
@@ -284,7 +283,6 @@ export function ChatListPane() {
       if (sig === lastListSig && getState().chats === lastSetChats) return;
       lastListSig = sig;
       lastSetChats = chatsRes.chats;
-      notifyNewMessages(chatsRes.chats);
       setState({ chats: chatsRes.chats, folders: foldersRes.folders, ...(commRes ? { communities: commRes.communities } : {}) });
       writeCache("chats", getState().user?.id, { chats: chatsRes.chats, folders: foldersRes.folders });
     } catch {
@@ -326,32 +324,20 @@ export function ChatListPane() {
     ]);
   }
 
-  function notifyNewMessages(nextChats) {
-    const me = getState().user;
-    for (const chat of nextChats) {
-      const last = chat.lastMessage;
-      const seen = lastMessageIds.get(chat.id);
-      if (last) lastMessageIds.set(chat.id, last.id);
-      if (!last || last.id === seen || last.senderId === me.id) continue;
-    }
-  }
-
-  if (getState().chats?.length) scheduleRefetch(1500);
+   if (getState().chats?.length) scheduleRefetch(1500);
   else refetch();
+  const unsubAdded = onWsMessage("chat:added", () => scheduleRefetch());
   const unsubNew = onWsMessage("message:new", (msg) => {
     noteMessageInChatList(msg.chatId, msg.message);
-    // Сообщение из чата, которого в списке ещё нет (новая личка, группа) — тянем сразу.
     const known = (getState().chats ?? []).some((c) => c.id === msg.chatId);
     scheduleRefetch(known ? EVENT_REFETCH_MS : 0);
   });
-  // промежуточные куски печатающегося ответа бота список не трогают
   const unsubUpdated = onWsMessage("message:updated", (msg) => !msg?.streaming && scheduleRefetch(EVENT_REFETCH_MS));
   const unsubDeleted = onWsMessage("message:deleted", (msg) => {
     const myId = getState().user?.id;
     if (myId && msg.chatId && msg.id) dropCachedMessage(msg.chatId, msg.id, myId);
     scheduleRefetch(EVENT_REFETCH_MS);
   });
-  const unsubAdded = onWsMessage("chat:added", () => scheduleRefetch());
   const unsubJoinDeclined = onWsMessage("chat:join-declined", (msg) =>
     import("../components/toast.js").then(({ showToast }) => showToast(`Заявку в «${msg.title ?? "чат"}» отклонили`)).catch(() => {})
   );
@@ -363,7 +349,7 @@ export function ChatListPane() {
   const unsubGone = onWsMessage("chat:deleted", ({ chatId }) => {
     setState({ chats: getState().chats.filter((c) => c.id !== chatId) });
     if (window.location.pathname === `/chat/${chatId}`) navigate("/");
-  });
+  }  );
   // Свежие события приходят по WebSocket; опрос — только подстраховка: раз в 15 с, если
   // сокет отвалился, иначе раз в минуту, и никогда — пока вкладка/приложение в фоне.
   let lastPoll = Date.now();
