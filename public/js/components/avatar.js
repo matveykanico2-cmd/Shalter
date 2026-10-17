@@ -93,10 +93,13 @@ export function Avatar({ name, color, image, video = null, size = 44, online, cl
     const items = orbitItemsFor(isPremium, isDeveloper);
     const radius = size / 2 + Math.max(8, size * 0.16);
     const itemSize = Math.max(14, Math.round(size * 0.24));
+    // Обёртка должна вмещать иконки за пределами аватара — иначе орбита обрезалась
+    // overflow:hidden в списке/инфо‑панели, и «кольцо» выглядело сбито.
+    const orbitSize = Math.ceil(2 * radius + itemSize);
     // Фаза вращения от общих часов: аватар пересоздаётся при каждой перерисовке
     // шапки/списка, и без этого кольцо каждый раз отпрыгивало в начальное положение.
     const phase = -(performance.now() % ORBIT_PERIOD_MS) / 1000;
-    const orbitWrap = el("div", { class: "avatar-orbit-wrap", style: `width:${size}px;height:${size}px;--orbit-phase:${phase}s` }, [
+    const orbitWrap = el("div", { class: "avatar-orbit-wrap", style: `width:${orbitSize}px;height:${orbitSize}px;--orbit-phase:${phase}s` }, [
       wrap,
       el(
         "div",

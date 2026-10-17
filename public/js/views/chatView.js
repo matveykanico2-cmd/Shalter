@@ -2594,6 +2594,12 @@ export async function ChatView(root, chatId) {
   const unsubMessageNew = onWsMessage("message:new", (msg) => {
     if (msg.chatId !== chat.id) return;
     if (typingUserId && msg.message?.senderId === typingUserId) clearTypingStatus();
+    // Финальный ответ ИИ — убираем спиннер «Ответ в процессе» и строку «Думает…»,
+    // иначе они висели бы после ответа из‑за задержки ответа ИИ/сети.
+    if (msg.message?.senderId === "bot_shalter_ai") {
+      setAiGenerating(false);
+      clearTypingStatus();
+    }
     if (canApplyLive(msg.message) && applyLive(msg.message, { insert: true })) reconcileSoon();
     else scheduleRefresh();
   });
@@ -2608,6 +2614,10 @@ export async function ChatView(root, chatId) {
       return;
     }
     updateMessageInChatList(chat.id, msg.message);
+    if (msg.message?.senderId === "bot_shalter_ai") {
+      setAiGenerating(false);
+      clearTypingStatus();
+    }
     if (canApplyLive(msg.message) && applyLive(msg.message, { insert: false })) reconcileSoon();
     else scheduleRefresh();
   });
