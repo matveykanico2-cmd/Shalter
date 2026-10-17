@@ -412,6 +412,11 @@ async function setVerified(userId, verified) {
   return getUser(userId);
 }
 
+async function setDeveloper(userId, developer) {
+  db.prepare("UPDATE users SET developer = ? WHERE id = ?").run(developer ? 1 : 0, userId);
+  return getUser(userId);
+}
+
 async function setAdminSections(userId, sections) {
   const valid = Array.isArray(sections) ? [...new Set(sections.filter((s) => typeof s === "string"))] : [];
   db.prepare("UPDATE users SET adminSections = ? WHERE id = ?").run(JSON.stringify(valid), userId);
@@ -498,6 +503,7 @@ module.exports = {
   getStatusState,
   setStatusState,
   setVerified,
+  setDeveloper,
   setAdminSections,
   setGiftPinned,
   setProfileTrack,

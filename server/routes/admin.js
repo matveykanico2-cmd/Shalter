@@ -11,6 +11,7 @@ const {
   setBanned,
   setSafetyLabel,
   setVerified,
+  setDeveloper,
   listBannedUsers,
   listLabeledUsers,
   updateUser,
@@ -203,7 +204,7 @@ function userLabel(u, fallbackId) {
     adsUntil: u.adsUntil || null,
     adsForever: !!u.adsForever,
     adminSections: u.adminSections ?? [],
-    isDeveloper: isAdminPhone(u.phone) || undefined,
+    isDeveloper: (!!u.developer || isAdminPhone(u.phone)) || undefined,
   };
 }
 
@@ -334,6 +335,21 @@ router.post(
     }
 
     res.json({ user: { ...userLabel(updated), isVerified: !!updated.isVerified } });
+  })
+);
+
+// Статус «Разработчик» — назначает админ вручную (не только владельцу номера в
+// isAdminPhone). Высокая привилегия: требует секцию "server".
+router.post(
+  "/users/:id/developer",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdminSection(req, res, "server"))) return;
+    const target = await getUser(req.params.id);
+    if (!target) return res.status(404).json({ error: "Пользователь не найден" });
+
+    const developer = !!req.body?.developer;
+    const updated = await setDeveloper(target.id, developer);
+    res.json({ user: { ...userLabel(updated), isDeveloper: !!updated.developer || undefined } });
   })
 );
 

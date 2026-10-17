@@ -548,6 +548,8 @@ if (!existingUserColumns.has("activeStatusId")) db.exec("ALTER TABLE users ADD C
 if (!existingUserColumns.has("totpSecret")) db.exec("ALTER TABLE users ADD COLUMN totpSecret TEXT");
 if (!existingUserColumns.has("totpEnabledAt")) db.exec("ALTER TABLE users ADD COLUMN totpEnabledAt TEXT");
 if (!existingUserColumns.has("totpRecoveryCodes")) db.exec("ALTER TABLE users ADD COLUMN totpRecoveryCodes TEXT");
+// Статус «Разработчик» — назначается админом вручную (в отличие от isAdminPhone).
+if (!existingUserColumns.has("developer")) db.exec("ALTER TABLE users ADD COLUMN developer INTEGER NOT NULL DEFAULT 0");
 
 const kugoRow = db.prepare("SELECT id FROM users WHERE id = 'ai_kugo'").get();
 if (kugoRow) {

@@ -24,7 +24,7 @@ function publicUser(user) {
   delete rest.referredBy;
   // Цвет имени — возможность Premium: после окончания подписки не показывается.
   if (!user.isPremium) delete rest.nameColor;
-  rest.isDeveloper = isAdminPhone(user.phone) || undefined;
+  rest.isDeveloper = (!!user.developer || isAdminPhone(user.phone)) || undefined;
   rest.isVerified = user.isVerified ?? (isAdminPhone(user.phone) || undefined);
   rest.isServiceBot = user.id === SYSTEM_BOT_ID || undefined;
   // Боты в базе «в сети» всегда — зелёная точка на их аватарках ничего не значила.
