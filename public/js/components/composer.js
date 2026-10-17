@@ -193,6 +193,11 @@ export function Composer({
       rows: 1,
       placeholder: paidMessages?.youPay ? `${paidMessages.kind === "comment" ? "Комментарий" : "Сообщение"} · ${paidMessages.stars} ⭐` : "Сообщение",
       value: editingMessage?.text ?? initialDraft ?? "",
+      inputMode: "text",
+      autoComplete: "on",
+      autoCapitalize: "sentences",
+      autoCorrect: "on",
+      spellCheck: "true",
     });
     textarea.addEventListener("focus", () => {
       closeAttachMenu();
