@@ -2610,7 +2610,13 @@ export async function ChatView(root, chatId) {
       // сообщение пропало (например, refreshMessages сбросил его прежде, чем сервер
       // закоммитил), вставляем его обратно вместо того чтобы молча пропустить.
       if (canApplyLive(msg.message)) applyLive(msg.message, { insert: true });
-      if (msg.message?.senderId === "bot_shalter_ai") setAiGenerating(true);
+      if (msg.message?.senderId === "bot_shalter_ai") {
+        setAiGenerating(true);
+        // Бот печатает растущий пузырь: держим низ, если пользователь не отлистал вверх.
+        // Без этого applyLive не скроллит растущий ответ (insert:true, i>=0 → follow=false) —
+        // ответ «прятался» под нижней кромкой и при длинных репликах приходилось листать вручную.
+        if (stuckToBottom || atBottom()) list.scrollTop = list.scrollHeight;
+      }
       return;
     }
     updateMessageInChatList(chat.id, msg.message);
