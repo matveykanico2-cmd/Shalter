@@ -1341,6 +1341,12 @@ export function Composer({
       stopStickerAction?.();
       stopStickerAction = null;
     }
+
+    // Click outside to close emoji/sticker menus
+    document.addEventListener("mousedown", (e) => {
+      if (emojiMenuEl && !emojiMenuEl.contains(e.target)) closeEmojiMenu();
+      if (stickerMenuEl && !stickerMenuEl.contains(e.target)) closeStickerMenu();
+    });
     function toggleStickers(host = stickerSlot) {
       if (stickerMenuEl) {
         closeStickerMenu();

@@ -251,6 +251,34 @@ async function boot() {
     window.visualViewport.addEventListener("scroll", syncKb);
     syncKb();
   }
+
+  // Orientation change: recalc layouts, scroll positions, and visualViewport
+  window.addEventListener("orientationchange", () => {
+    setTimeout(() => {
+      window.dispatchEvent(new Event("resize"));
+      const vv = window.visualViewport;
+      if (vv) {
+        document.documentElement.style.setProperty(
+          "--kb",
+          `${Math.round(Math.max(0, window.innerHeight - vv.height))}px`
+        );
+      }
+      document.querySelectorAll(".avatar, .avatar-wrap").forEach((el) => {
+        el.style.setProperty("--size", `${el.offsetWidth}px`);
+      });
+    }, 100);
+  });
+
+  // Keep avatar badges attached during resize/orientation
+  if (typeof ResizeObserver === "function") {
+    const avatarObserver = new ResizeObserver((entries) => {
+      entries.forEach((entry) => {
+        const badge = entry.target.querySelector(".avatar-count-badge");
+        if (badge) badge.style.transform = "translateZ(0)";
+      });
+    });
+    document.querySelectorAll(".avatar").forEach((avatar) => avatarObserver.observe(avatar));
+  }
   bootData
     .then((data) => (data ? { settings: data.settings } : api.getSettings()))
     .then(({ settings }) => {

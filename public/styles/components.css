@@ -9232,6 +9232,9 @@ button.profile-ad-banner {
   font-size: 10.5px;
   font-weight: 600;
   color: var(--color-accent-contrast);
+  transform: translateZ(0);
+  will-change: transform;
+  transition: transform 0.1s ease-out, opacity 0.1s ease-out;
 }
 
 .create-chat-public {
