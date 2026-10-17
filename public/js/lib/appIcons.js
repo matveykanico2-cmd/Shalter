@@ -78,10 +78,55 @@ function applyFavicon(id) {
   icon.rel = "icon";
   icon.type = "image/png";
   icon.sizes = "32x32";
+  icon.id = "shalter-favicon";
   icon.href = `/icons/app/${id}-32.png`;
   head.appendChild(icon);
   const touch = head.querySelector('link[rel="apple-touch-icon"]');
   if (touch) touch.href = `/icons/app/${id}-180.png`;
+}
+
+// Пульсирующая анимация фавикона при новом сообщении.
+let faviconPulseTimer = null;
+export function pulseFavicon(durationMs = 3000) {
+  const favicon = document.getElementById("shalter-favicon");
+  if (!favicon) return;
+  const originalHref = favicon.href;
+  const pulseIcon = document.createElement("link");
+  pulseIcon.rel = "icon";
+  pulseIcon.type = "image/png";
+  pulseIcon.sizes = "32x32";
+  pulseIcon.id = "shalter-favicon-pulse";
+  // Используем ту же иконку, но с пульсацией через CSS
+  pulseIcon.href = originalHref;
+  document.head.appendChild(pulseIcon);
+  favicon.remove();
+
+  const style = document.createElement("style");
+  style.textContent = `
+    @keyframes favicon-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.1); }
+    }
+    #shalter-favicon-pulse {
+      animation: favicon-pulse 800ms ease-in-out infinite;
+    }
+  `;
+  document.head.appendChild(style);
+
+  clearTimeout(faviconPulseTimer);
+  faviconPulseTimer = setTimeout(() => {
+    const pulse = document.getElementById("shalter-favicon-pulse");
+    const styleEl = document.querySelector('style:has(#shalter-favicon-pulse)') || document.querySelector("style:last-of-type");
+    if (pulse) pulse.remove();
+    if (styleEl) styleEl.remove();
+    const original = document.createElement("link");
+    original.rel = "icon";
+    original.type = "image/png";
+    original.sizes = "32x32";
+    original.id = "shalter-favicon";
+    original.href = `/icons/app/${getAppIconId()}-32.png`;
+    document.head.appendChild(original);
+  }, durationMs);
 }
 
 function nativeAppIcon() {

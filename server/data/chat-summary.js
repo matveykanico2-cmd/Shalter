@@ -81,8 +81,8 @@ async function attachSummaries(chats, userId) {
   }
   const unreadRows = unreadStmt(chats.length).all(
     ...thrParams,
-    userId,
     notDeleted,
+    userId,
     notDeleted,
     notDeleted
   );

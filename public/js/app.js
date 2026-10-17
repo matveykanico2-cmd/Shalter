@@ -29,7 +29,7 @@ import { ChatTips } from "./components/chatTips.js";
 import { paintWallpaper } from "./lib/wallpapers.js";
 import { installToastAlert, installModalEscape, showToast } from "./components/toast.js";
 import { installEmojiImages } from "./lib/emojiImages.js";
-import { syncAppIcon, syncAppIconFromSettings } from "./lib/appIcons.js";
+import { syncAppIcon, syncAppIconFromSettings, pulseFavicon } from "./lib/appIcons.js";
 import { installTouchHover } from "./lib/touchHover.js";
 import { installIosLongPress } from "./lib/iosLongPress.js";
 
@@ -200,6 +200,7 @@ async function boot() {
     if (document.visibilityState !== "visible") return;
     const chat = (chats ?? []).find((c) => c.id === msg.chatId);
     if (chat && isChatMuted(chat)) return;
+    pulseFavicon();
     playIncomingMessageSound();
   });
   // «В сети» в списке чатов: без этого зелёная точка оставалась после выхода.
