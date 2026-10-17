@@ -1,0 +1,75 @@
+# Shalter Knowledge Base — for AI assistants and LLMs
+
+Shalter is a messaging platform with chats, channels, calls (WebRTC), bots (HTTP Bot API),
+gifts with serial numbers, stars (in-app currency), and Premium subscription.
+
+## Quick facts
+
+- Website: https://shalter.ru
+- Bot API: https://shalter.ru/api/bot-api/ (token auth, long-polling /updates)
+- Documentation: https://shalter.ru/bots
+- Platform: Node.js + Express + SQLite (WAL) + WebSocket
+- Client: plain ES module JavaScript, no framework
+
+## Knowledge pages
+
+Full documentation for developers and AI models:
+
+- Main index: https://shalter.ru/knowledge/
+- About the messenger: https://shalter.ru/knowledge/shalter.html
+- Bot API reference: https://shalter.ru/knowledge/bot-api.html
+- Architecture: https://shalter.ru/knowledge/architecture.html
+
+## Key features
+
+- Chats: personal (dm), groups (up to 200 members, with admin/moderator roles), public channels
+- Bots: regular accounts controlled by a program, token-based HTTP API, long-polling updates
+- Calls: voice and video on WebRTC with WebSocket signaling, group calls up to 50, PiP mode
+- Gifts: limited-edition collectibles with serial numbers, purchased with stars
+- Stars: in-app currency for paid messages from strangers, message boosting, gifts
+- Premium: badge, exclusive reactions, extended profile statuses, DM access, free calls/gifts
+- Stories: temporary posts with replies and reactions
+- Games: HTML5 mini-games in isolated iframes with leaderboards
+- Security: 2FA (TOTP), session management, safety labels, complaint moderation
+- Privacy: per-field visibility, phone-number search opt-out, no contact upload persistence
+
+## Bot API
+
+Base URL: https://shalter.ru/api/bot-api/
+Auth: header `Authorization: Bearer <token>`
+Updates: GET /updates?after=<ISO>&timeout=<sec>&limit=<n>
+
+Key endpoints:
+- GET /me — bot account info
+- GET /updates — long-poll new messages
+- POST /sendMessage — send text with optional keyboard
+- POST /sendMessageToUser — write first to user by @username or userId
+- POST /sendPhoto / sendDocument / sendVideo / sendVoice / sendVideoNote — media by URL
+- POST /sendSticker / sendPoll / sendLocation / sendContact
+- POST /sendMediaGroup — album of up to 10 files
+- POST /forwardMessage / copyMessage
+- POST /editMessageText / editMessageKeyboard / deleteMessage
+- POST /sendReaction — place or toggle reaction
+- GET /getChats / getChat / resolveUsername / getUser / getUserStatus / getCommonChats
+- POST /createGroup / createChannel / setChatDiscussion / exportChatInviteLink / leaveChat
+- POST /addChatMember / promoteChatMember / restrictChatMember / banChatMember / unbanChatMember
+- POST /setChatPermissions / setChatTitle / setChatDescription
+- POST /pinChatMessage / unpinChatMessage / getPinnedMessages / searchMessages / getMessage
+- POST /scheduleMessage / getScheduled / cancelScheduled
+- POST /setMyProfile / setMyAvatar / setMyCommands / getMyCommands / getMyStats
+- POST /setWebApp / setWebAppCode / checkWebAppData
+- POST /publishPost / getChannelStats
+- POST /sendGame / getChatJoinRequests / approveChatJoinRequest / declineChatJoinRequest
+
+Rate limits: 20 new conversations per hour via sendMessageToUser (HTTP 429).
+
+## Architecture
+
+- Server: Express, single process, SQLite (better-sqlite3) in WAL mode
+- Real-time: WebSocket (ws), WS fallback for reconnection
+- Calls: WebRTC PeerConnection, signaling via WS
+- Text encryption at rest: AES-GCM (server/lib/textCrypto.js)
+- Message search: FTS5 on search tokens (encrypted text not exposed)
+- Attachments: served from disk via serveUpload middleware
+- Desktop: Tauri (Linux, Windows); mobile: native Android (Kotlin)
+- Server URL override (Tauri): env SHALTER_APP_URL or --server-url= flag

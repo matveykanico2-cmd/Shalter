@@ -186,6 +186,12 @@ app.get("/bots", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "bots.html"))
 app.get("/games", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "games.html")));
 app.get("/oauth-docs", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "oauth-docs.html")));
 
+// Knowledge base pages — for search engine and AI crawler indexing
+app.get("/knowledge", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "index.html")));
+app.get("/knowledge/shalter", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "shalter.html")));
+app.get("/knowledge/bot-api", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "bot-api.html")));
+app.get("/knowledge/architecture", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "architecture.html")));
+
 app.get(/^\/(?!api|ws).*/, (req, res) => {
   res.sendFile(indexHtml);
 });

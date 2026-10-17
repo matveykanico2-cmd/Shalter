@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Архитектура Shalter — техническая документация</title>
+  <meta name="description" content="Архитектура мессенджера Shalter: Express, SQLite WAL, WebSocket, WebRTC, Bot API. Схема данных, маршруты, клиентская часть." />
+  <meta name="theme-color" content="#3390ec" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="canonical" href="https://shalter.ru/knowledge/architecture.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Архитектура Shalter — техдокументация" />
+  <meta property="og:description" content="Express + SQLite, WebSocket, WebRTC, Bot API, клиент на ES module." />
+  <meta property="og:image" content="/icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/styles/base.css" />
+  <link rel="stylesheet" href="/styles/bots.css" />
+</head>
+<body>
+<div class="doc-page">
+
+  <header class="doc-top">
+    <span class="doc-top-logo">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.05 8.72L18.6 6.14L16.7 15.6L3.6 15.75Z"/><path fill="currentColor" opacity="0.5" d="M18.6 6.14L11.7 11L16.7 15.6Z"/><path fill="currentColor" opacity="0.75" d="M6.3 15.75L10 15.9L6.5 20.5Z"/></svg>
+    </span>
+    <span>
+      <div class="doc-top-title">Архитектура</div>
+      <div class="doc-top-sub">Техническая документация</div>
+    </span>
+    <span class="doc-top-spacer"></span>
+    <a class="doc-top-link" href="/">Открыть Shalter</a>
+  </header>
+
+  <div class="doc-shell">
+    <nav class="doc-nav">
+      <h4>Разделы</h4>
+      <a href="#stack">Технологический стек</a>
+      <a href="#server">Сервер</a>
+      <a href="#database">База данных</a>
+      <a href="#websocket">WebSocket</a>
+      <a href="#webrtc">WebRTC (звонки)</a>
+      <a href="#client">Клиент</a>
+      <a href="#api">HTTP API</a>
+      <a href="#bot-api">Bot API</a>
+      <a href="#auth">Авторизация</a>
+      <a href="/knowledge/">← База знаний</a>
+    </nav>
+
+    <main class="doc-body">
+      <section class="doc-hero">
+        <h1>Архитектура Shalter</h1>
+        <p>
+          Shalter — это однопроцессный мессенджер на Node.js с Express, SQLite (WAL) и WebSocket-сервером.
+          Клиент построен на чистом ES module JavaScript без фреймворков.
+        </p>
+      </section>
+
+      <h2 id="stack">Технологический стек</h2>
+      <table class="doc-table">
+        <thead><tr><th>Слой</th><th>Технология</th></tr></thead>
+        <tbody>
+          <tr><td>Сервер</td><td>Node.js, Express 5</td></tr>
+          <tr><td>База данных</td><td>SQLite 3 (better-sqlite3, WAL-режим)</td></tr>
+          <tr><td>Веб-сокеты</td><td>ws (Node.js Web Server API)</td></tr>
+          <tr><td>Видеосвязь</td><td>WebRTC PeerConnection</td></tr>
+          <tr><td>Клиент (web)</td><td>Чистый HTML, CSS, ES module JavaScript</td></tr>
+          <tr><td>Десктоп</td><td>Tauri (Linux, Windows)</td></tr>
+          <tr><td>Мобильный</td><td>Android (Kotlin)</td></tr>
+          <tr><td>Сборка клиента</td><td>esbuild (минификация, бандл)</td></tr>
+          <tr><td>Шифрование текста</td><td>server/lib/textCrypto.js (AES-GCM)</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="server">Сервер</h2>
+      <div class="doc-method">server/index.js</div>
+      <p>
+        Точка входа — <code>server/index.js</code>. Express-приложение монтирует маршруты по группам:
+      </p>
+      <table class="doc-table">
+        <thead><tr><th>Префикс</th><th>Модуль</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td>/api/bot-api</td><td>server/routes/botApi.js</td><td>Bot API</td></tr>
+          <tr><td>/api/oauth</td><td>server/routes/oauth.js</td><td>OAuth 2.0 (SSO в сторонние сервисы)</td></tr>
+          <tr><td>/api/chats</td><td>server/routes/chats.js</td><td>Чаты, группы, каналы</td></tr>
+          <tr><td>/api/messages</td><td>server/routes/messages.js</td><td>Сообщения</td></tr>
+          <tr><td>/api/calls</td><td>server/routes/calls.js</td><td>Звонки</td></tr>
+          <tr><td>/api/users</td><td>server/routes/users.js</td><td>Пользователи</td></tr>
+          <tr><td>/api/stories</td><td>server/routes/stories.js</td><td>Stories</td></tr>
+          <tr><td>/api/bots</td><td>server/routes/bots.js</td><td>Управление ботами</td></tr>
+          <tr><td>/api/gifts</td><td>server/routes/gifts.js</td><td>Подарки</td></tr>
+          <tr><td>/api/premium</td><td>server/routes/premium.js</td><td>Premium и звёзды</td></tr>
+          <tr><td>/api/export</td><td>server/routes/export.js</td><td>Экспорт данных</td></tr>
+          <tr><td>/api/shalter-ai</td><td>server/routes/shalterAi.js</td><td>ИИ-ассистент</td></tr>
+          <tr><td>/api/games</td><td>server/routes/games.js</td><td>Мини-игры</td></tr>
+          <tr><td>/api/ads</td><td>server/routes/ads.js</td><td>Рекламные кампании</td></tr>
+          <tr><td>/api/live</td><td>server/routes/live.js</td><td>Прямые трансляции</td></tr>
+          <tr><td>/api/partners</td><td>server/routes/partners.js</td><td>Партнёрская программа</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Статические файлы из <code>public/</code> обслуживаются через <code>express.static()</code>.
+        SPA-режим: любой не-API путь, не начинающийся с <code>/api/</code>, отображает
+        <code>index.html</code> (клиентский роутинг).
+      </p>
+
+      <h2 id="database">База данных</h2>
+      <p>
+        SQLite 3 через <code>better-sqlite3</code>. Журнал WAL (Write-Ahead Logging) для
+        одновременного чтения и записи. Схема в <code>server/db.js</code>.
+      </p>
+
+      <h3>Основные таблицы</h3>
+      <table class="doc-table">
+        <thead><tr><th>Таблица</th><th>Описание</th></tr></thead>
+        <tbody>
+          <tr><td>users</td><td>Аккаунты: id, name, username, phone, email, isBot, isPremium, stars, тотп</td></tr>
+          <tr><td>chats</td><td>Чаты: id, type (dm|group|channel), title, username, ownerId, pinned, muted, archived</td></tr>
+          <tr><td>chat_members</td><td>Связь чат ↔ пользователь (many-to-many), isAdmin, isOwner, isModerator</td></tr>
+          <tr><td>messages</td><td>Сообщения: id, chatId, senderId, type, text (зашифр.), attachments, reactions, readByIds</td></tr>
+          <tr><td>chat_reads</td><td>Граница прочитанного по чату (оптимизация)</td></tr>
+          <tr><td>bots</td><td>Боты: userId, ownerId, token, description, commands, appUrl, appCode</td></tr>
+          <tr><td>chat_members → restrictions</td><td>Ограничения (молчание) — JSON на чате</td></tr>
+          <tr><td>sessions</td><td>Активные сессии с токенами доступа</td></tr>
+          <tr><td>stories</td><td>Stories: userId, kind, url, expiresAt, viewedByIds</td></tr>
+          <tr><td>sticker_packs</td><td>Паки стикеров (JSON колонка)</td></tr>
+          <tr><td>custom_emoji</td><td>Кастомные эмодзи</td></tr>
+          <tr><td>games</td><td>Мини-игры (HTML5, iframe)</td></tr>
+          <tr><td>gift_issues</td><td>Выпущенные эксклюзивные подарки с серийными номерами</td></tr>
+          <tr><td>scheduled_messages</td><td>Отложенные сообщения</td></tr>
+          <tr><td>data_exports</td><td>Аудит экспорта данных для правовых запросов</td></tr>
+        </tbody>
+      </table>
+
+      <div class="doc-note">
+        <strong>Хранилище данных.</strong>
+        Переписка шифруется на сервере (<code>textCrypto.js</code>). Поиск по сообщениям
+        работает через FTS5-индекс по токенам (строятся из зашифрованного текста — токены поисковые,
+        текст не раскрывается). Файлы вложений хранятся на диске и отдаются через <code>serveUpload</code>.
+      </div>
+
+      <h2 id="websocket">WebSocket</h2>
+      <p>
+        <code>server/ws.js</code> + <code>public/js/lib/wsClient.js</code>. WebSocket используется для:
+      </p>
+      <ul>
+        <li>Мгновенной доставки сообщений (<code>message:new</code>, <code>message:updated</code>, <code>message:deleted</code>)</li>
+        <li>Статуса печати (<code>typing:update</code>)</li>
+        <li>Сигнализации звонков (WebRTC offer/answer/candidate)</li>
+        <li>Обновлений статуса онлайна</li>
+        <li>Подачи постов и обновлений каналов в реальном времени</li>
+      </ul>
+      <p>
+        HTTP polling сохраняется как fallback для переподключения и догрузки истории.
+      </p>
+
+      <h2 id="webrtc">WebRTC (звонки)</h2>
+      <p>
+        Голос и видео на WebRTC PeerConnection. Сигналинг через WebSocket (<code>server/routes/calls.js</code>,
+        <code>server/ws.js</code>). Групповые звонки до 50 участников, PiP-режим, приглашение по ссылке
+        с токеном доступа (<code>calls.joinToken</code>).
+      </p>
+
+      <h2 id="client">Клиент</h2>
+      <p>
+        Клиент — чистый ES module JavaScript без фреймворков (<code>public/js/</code>).
+        Сервис-воркер (<code>public/sw.js</code>) кэширует оболочку для офлайн-работы.
+        Роутинг — клиентский (<code>public/js/router.js</code>), view-компоненты в <code>public/js/views/</code>.
+      </p>
+      <div class="doc-note">
+        В продакшене клиент собирается через <code>npm run build</code> (esbuild) в <code>public/dist/</code>.
+        В режиме разработки (<code>npm run dev</code>) обслуживаются сырые исходники из <code>public/</code>.
+      </div>
+
+      <h2 id="api">HTTP API</h2>
+      <p>
+        REST API на <code>/api/</code>. Авторизация через HTTP-only cookie с device token
+        (см. <code>server/middleware/auth.js</code>). API возвращает JSON. Основные группы:
+      </p>
+      <ul>
+        <li><code>/api/bootstrap</code> — загрузка данных пользователя и списка чатов при старте</li>
+        <li><code>/api/chats</code> — CRUD чатов, участники, права</li>
+        <li><code>/api/messages</code> — список, поиск, редактирование, удаление, реакции</li>
+        <li><code>/api/calls</code> — история звонков, создание звонков</li>
+        <li><code>/api/users</code> — профиль, статус, поиск</li>
+        <li><code>/api/stories</code> — истории и отзывы</li>
+        <li><code>/api/gifts</code> — каталог подарков, покупка за звёзды</li>
+        <li><code>/api/ads</code> — рекламные кампании</li>
+        <li><code>/api/live</code> — прямые трансляции</li>
+        <li><code>/api/games</code> — мини-игры</li>
+        <li><code>/api/shalter-ai</code> — ИИ-ассистент</li>
+        <li><code>/api/export</code> — экспорт данных пользователя</li>
+      </ul>
+
+      <h2 id="bot-api">Bot API</h2>
+      <p>
+        Bot API доступен на <code>/api/bot-api/</code>. Все методы требуют заголовка
+        <code>Authorization: Bearer &lt;token&gt;</code>. Обновления приходят через long-polling
+        (<code>/updates?after=ISO&amp;timeout=50</code>). Подробная документация:
+        <a href="/knowledge/bot-api.html">справочник методов</a> и <a href="/bots">полная документация</a>.
+      </p>
+
+      <h2 id="auth">Авторизация</h2>
+      <ul>
+        <li>По номеру телефона — SMS или звонок с кодом</li>
+        <li>Двухфакторная аутентификация (TOTP)</li>
+        <li>OAuth 2.0 — «Войти через Shalter» для сторонних сервисов</li>
+        <li>Recovery-коды при потере доступа к TOTP</li>
+      </ul>
+
+      <div class="doc-note danger">
+        <strong>Ограничения.</strong>
+        Реализация рассчитана на один серверный процесс. Typing presence и WebSocket-соединения
+        хранятся в памяти. Не рекомендуется масштабирование горизонтально без вынесения presence
+        и сессий в отдельный сервис.
+      </div>
+
+      <nav class="doc-ways">
+        <a class="doc-way" href="/knowledge/" style="text-decoration:none">
+          <h3>База знаний</h3>
+          <p>Вернуться на главную страницу знаний.</p>
+        </a>
+        <a class="doc-way" href="/knowledge/bot-api.html" style="text-decoration:none">
+          <h3>Bot API</h3>
+          <p>Справочник методов для ботов.</p>
+        </a>
+        <a class="doc-way" href="/bots" style="text-decoration:none">
+          <h3>Полная документация</h3>
+          <p>Bot API с примерами и объяснениями.</p>
+        </a>
+      </nav>
+
+      <div class="doc-foot">
+        <span>© Shalter. Архитектурная документация открыта для индексации поисковиками и ИИ-моделей.</span>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

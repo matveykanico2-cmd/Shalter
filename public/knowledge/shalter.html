@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>О Shalter — мессенджер</title>
+  <meta name="description" content="Shalter — мессенджер с чатами, каналами, звонками, ботами, подарками и Premium. Работает в браузере и на Windows, Linux, Android." />
+  <meta name="theme-color" content="#3390ec" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="О Shalter — мессенджер" />
+  <meta property="og:description" content="Чаты, каналы, звонки, боты с открытым API, подарки, звёзды и Premium." />
+  <meta property="og:image" content="/icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/styles/base.css" />
+  <link rel="stylesheet" href="/styles/bots.css" />
+</head>
+<body>
+<div class="doc-page">
+
+  <header class="doc-top">
+    <span class="doc-top-logo">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.05 8.72L18.6 6.14L16.7 15.6L3.6 15.75Z"/><path fill="currentColor" opacity="0.5" d="M18.6 6.14L11.7 11L16.7 15.6Z"/><path fill="currentColor" opacity="0.75" d="M6.3 15.75L10 15.9L6.5 20.5Z"/></svg>
+    </span>
+    <span>
+      <div class="doc-top-title">Shalter</div>
+      <div class="doc-top-sub">О мессенджере</div>
+    </span>
+    <span class="doc-top-spacer"></span>
+    <a class="doc-top-link" href="/">Открыть мессенджер</a>
+  </header>
+
+  <div class="doc-shell">
+    <nav class="doc-nav">
+      <h4>Страницы</h4>
+      <a href="/knowledge/">Все разделы</a>
+      <a href="#features">Функции</a>
+      <a href="#chats">Чаты и каналы</a>
+      <a href="#calls">Звонки</a>
+      <a href="#bots">Боты</a>
+      <a href="#gifts">Подарки и звёзды</a>
+      <a href="#premium">Premium</a>
+      <a href="#security">Безопасность и приватность</a>
+    </nav>
+
+    <main class="doc-body">
+      <section class="doc-hero">
+        <h1>О Shalter</h1>
+        <p>
+          Shalter — это мессенджер для общения, созданный с акцентом на простоту, безопасность и
+          открытость. Поддерживает личные чаты, группы, публичные каналы, аудио- и видеозвонки,
+          ботов с собственным API, подарки с серийными номерами и подписку Premium.
+        </p>
+      </section>
+
+      <h2 id="features">Функции на платформах</h2>
+      <p>
+        Shalter работает в браузере, а также имеет нативные и мобильные клиенты:
+      </p>
+      <table class="doc-table">
+        <thead><tr><th>Платформа</th><th>Статус</th><th>Технология</th></tr></thead>
+        <tbody>
+          <tr><td>Web (браузер)</td><td class="doc-yes">Готово</td><td>ES module, сервис-воркер</td></tr>
+          <tr><td>Windows</td><td class="doc-yes">Готово</td><td>Tauri</td></tr>
+          <tr><td>Linux</td><td class="doc-yes">Готово</td><td>Tauri</td></tr>
+          <tr><td>Android</td><td class="doc-yes">Готово</td><td>Нативное Kotlin</td></tr>
+          <tr><td>macOS</td><td class="doc-warn">В планах</td><td>Tauri TBD</td></tr>
+          <tr><td>iOS</td><td class="doc-warn">В планах</td><td>Нативное</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="chats">Чаты и каналы</h2>
+      <p>
+        Личные переписки, группы до 200 участников с системой прав (владелец, администраторы, обычные
+        участники), публичные каналы с подпиской и группами обсуждений. Поддерживаются темы, папки,
+        закреплённые сообщения, отложенная отправка и поиск по истории.
+      </p>
+      <ul>
+        <li>Типы чатов: <code>dm</code> (личный), <code>group</code> (группа), <code>channel</code> (канал)</li>
+        <li>Автодополнение юзернеймов: <code>@username</code></li>
+        <li>Защищённые чаты (ограничение пересылки и копирования)</li>
+        <li>Тихие и архивные чаты</li>
+      </ul>
+
+      <h2 id="calls">Звонки</h2>
+      <p>
+        Голос и видео на WebRTC с сигналингом через WebSocket. Поддерживаются групповые звонки,
+        режим картинки-в-картинке (PiP), приглашение по ссылке и запись звонков на стороне клиента.
+      </p>
+
+      <h2 id="bots">Боты с открытым API</h2>
+      <p>
+        Бот в Shalter — это обычный аккаунт, управляемый программой. Боты получают обновления через
+        long-polling, могут отправлять сообщения, управлять клавиатурами, создавать группы и каналы,
+        отвечать за модерацию. Все методы доступны по адресу <code>/api/bot-api/</code> с токеном в
+        заголовке <code>Authorization: Bearer &lt;token&gt;</code>.
+      </p>
+      <p>
+        Подробная документация: <a href="/bots">Bot API</a> и <a href="/knowledge/bot-api.html">Справочник</a>.
+      </p>
+
+      <h2 id="gifts">Подарки и звёзды</h2>
+      <p>
+        Каталог подарков с ограниченными тиражами и серийными номерами. Внутренняя валюта — звёзды:
+        их можно использовать для платных сообщений от незнакомцев, поднятия своих сообщений и
+        покупки подарков.
+      </p>
+
+      <h2 id="premium">Shalter Premium</h2>
+      <p>
+        Поддержка проекта. Premium даёт: золотой значок, эксклюзивные реакции, до 5 статусов
+        профиля, доступ в закрытую личку, платные звонки без звёзд, поднятие собственных сообщений.
+      </p>
+      <p>Подробнее: <a href="/premium">Shalter Premium</a>.</p>
+
+      <h2 id="security">Безопасность и приватность</h2>
+      <div class="doc-ways">
+        <div class="doc-way">
+          <h3>Безопасность</h3>
+          <p>
+            Двухфакторная аутентификация (TOTP), управление активными сессиями, метки безопасности
+            для новых устройств, модерация жалоб, защита от спама.
+          </p>
+        </div>
+        <div class="doc-way">
+          <h3>Приватность</h3>
+          <p>
+            Настройки видимости по каждому полю профиля, возможность отключить поиск по номеру
+            телефона, импорт контактов не сохраняет данные на сервере.
+          </p>
+        </div>
+      </div>
+
+      <div class="doc-note">
+        <strong>Серверный адрес (Tauri/Linux):</strong>
+        адрес Shalter-сервера можно задать переменной окружения <code>SHALTER_APP_URL</code>
+        или флагом <code>--server-url=https://example.com</code> при запуске клиента.
+      </div>
+
+      <nav class="doc-ways">
+        <a class="doc-way" href="/knowledge/" style="text-decoration:none">
+          <h3>Все разделы</h3>
+          <p>Вернуться в базу знаний.</p>
+        </a>
+        <a class="doc-way" href="/knowledge/bot-api.html" style="text-decoration:none">
+          <h3>Bot API</h3>
+          <p>Документация HTTP-интерфейса для ботов.</p>
+        </a>
+        <a class="doc-way" href="/knowledge/architecture.html" style="text-decoration:none">
+          <h3>Архитектура</h3>
+          <p>Техническое устройство сервера и клиента.</p>
+        </a>
+      </nav>
+
+      <div class="doc-foot">
+        <span>© Shalter. Эта страница открыта для индексации поисковиками и ИИ-моделей.</span>
+      </div>
+    </main>
+  </div>
+
+  <style>
+    .doc-yes { color: var(--color-success); font-weight: 600; }
+    .doc-warn { color: var(--color-warning); font-weight: 600; }
+  </style>
+</body>
+</html>

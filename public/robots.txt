@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /ws
+
+Host: shalter.ru
+
+Sitemap: https://shalter.ru/sitemap.xml
