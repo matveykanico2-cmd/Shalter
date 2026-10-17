@@ -111,6 +111,7 @@ app.use("/api/search", require("./routes/search"));
 app.use("/api/push", require("./routes/push"));
 app.use("/api/reports", require("./routes/reports"));
 app.use("/api/admin", require("./routes/admin"));
+app.use("/api/export", require("./routes/export"));
 app.get("/api/labels", (req, res) => res.json({ labels: require("./data/safetyLabels").listLabels() }));
 app.use("/api/stories", require("./routes/stories"));
 app.use("/api/premium", require("./routes/premium"));

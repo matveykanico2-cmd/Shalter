@@ -787,6 +787,8 @@ export const api = {
     req("/api/admin/export", { method: "POST", body: JSON.stringify({ userId, reason }) }),
   adminListExports: () => req("/api/admin/exports"),
 
+  exportData: () => req("/api/export"),
+
   adminModeration: () => req("/api/admin/moderation"),
   adminUserReports: (userId) => req(`/api/admin/users/${userId}/reports`),
   adminSetBanned: (userId, banned, reason) =>

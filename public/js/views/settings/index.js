@@ -3124,6 +3124,53 @@ async function renderPrivacy(root) {
     });
   }
 
+  async function exportData() {
+    let data;
+    try {
+      const res = await api.exportData();
+      data = res?.data ?? res;
+    } catch (err) {
+      showToast(err.message || "Не удалось выгрузить данные");
+      return;
+    }
+    const stamp = new Date().toISOString().slice(0, 10).replace(/:/g, "");
+    const manifest = JSON.stringify(data, null, 2);
+    const mBlob = new Blob([manifest], { type: "application/json;charset=utf-8" });
+    const ma = el("a", { href: URL.createObjectURL(mBlob), download: `shalter_export_${stamp}.json` });
+    document.body.appendChild(ma);
+    ma.click();
+    ma.remove();
+    URL.revokeObjectURL(ma.href);
+
+    const media = (data?.media ?? []).filter(
+      (m) => typeof m.url === "string" && m.url.startsWith("/uploads/")
+    );
+    if (!media.length) {
+      showToast("Готово: история экспортирована");
+      return;
+    }
+    showToast(`Экспорт: история + ${media.length} вложений…`);
+    let ok = 0;
+    let fail = 0;
+    for (const m of media) {
+      try {
+        const r = await fetch(m.url, { cache: "no-store" });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const blob = await r.blob();
+        const name = m.name || m.url.slice("/uploads/".length);
+        const link = el("a", { href: URL.createObjectURL(blob), download: name });
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
+    showToast(`Экспорт готов: ${ok}${fail ? ` (+ ${fail} не удалось)` : ""}`);
+  }
+
   function changePasscode() {
     openSetPasscodeDialog(() => {
       passcodeOn = true;
@@ -3296,6 +3343,17 @@ async function renderPrivacy(root) {
               },
             }),
           ]
+        ),
+        twSection(
+          "Экспорт данных",
+          [
+            twButton({
+              icon: "Download",
+              text: "Выгрузить переписку и медиа на устройство",
+              onClick: exportData,
+            }),
+          ],
+          "Скачивает JSON‑историю чатов и все вложения (фото, видео, голосовые). Доступно только владельцу аккаунта."
         ),
         twSection(
           null,
