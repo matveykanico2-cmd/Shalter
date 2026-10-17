@@ -28,6 +28,7 @@ const { buildUserExport, logExport, listExports } = require("../data/dataExport"
 const { deleteAccount } = require("../lib/deleteAccount");
 const { listOpenReports, listReportsAboutUser } = require("../data/reports");
 const { getMessage } = require("../data/messages");
+const { serveUpload, FILENAME_RE } = require("../lib/serveUpload");
 const { getChat, updateChat, findChatByUsername, findChatByInviteCode, listChats } = require("../data/chats");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
@@ -127,6 +128,20 @@ router.post(
     const log = logExport({ adminId: admin.id, targetUserId: target.id, reason: String(reason).trim(), messageCount: data.stats.messageCount });
 
     res.json({ exportId: log.id, data });
+  })
+);
+
+// Скачивание сырых вложений администратором юридического отдела — обходит проверку
+// членства в чате (canAccessUpload), т.к. выгрузка данных по закону требует доступа ко
+// всем медиа экспортируемого пользователя). Файл идёт через serveUpload: расшифровка и
+// диапазоны поддерживаются как в обычном /uploads/:filename.
+router.get(
+  "/export/media/:filename",
+  asyncRoute(async (req, res) => {
+    if (!(await requireAdminSection(req, res, "legal"))) return;
+    const filename = req.params.filename ?? "";
+    if (!FILENAME_RE.test(filename)) return res.status(404).end();
+    await serveUpload()(req, res);
   })
 );
 

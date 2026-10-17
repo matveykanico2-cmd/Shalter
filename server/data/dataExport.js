@@ -25,25 +25,63 @@ async function buildUserExport(targetUserId) {
   const memberChats = allChats.filter((c) => c.memberIds.includes(targetUserId) && !c.secret);
 
   let messageCount = 0;
+  let sentMessageCount = 0;
+  const media = [];
   const chats = memberChats.map((chat) => {
     const msgs = allMessages
       .filter((m) => m.chatId === chat.id)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      .map((m) => {
-        messageCount++;
-        const encrypted = isEncrypted(m.text);
-        return {
-          id: m.id,
-          at: m.createdAt,
-          from: userLabel(m.senderId),
-          type: m.type,
-          text: encrypted ? "[Устаревшее E2E-сообщение — сервер не имеет ключей, содержимое недоступно]" : m.text,
-          ...(encrypted ? { encrypted: true, ciphertext: m.text } : {}),
-          ...(m.editedAt ? { editedAt: m.editedAt } : {}),
-          ...(m.replyToId ? { replyToId: m.replyToId } : {}),
-          ...(m.attachments?.length ? { attachments: m.attachments.map((a) => ({ kind: a.kind, name: a.name, size: a.size })) } : {}),
-        };
-      });
+        .map((m) => {
+          messageCount++;
+          if (m.senderId === targetUserId) sentMessageCount++;
+          const encrypted = isEncrypted(m.text);
+          const attachments = (m.attachments?.length ? m.attachments : []).map((a) => {
+            const entry = {
+              kind: a.kind,
+              name: a.name,
+              size: a.size || undefined,
+              mimeType: a.mimeType || undefined,
+              durationSec: a.durationSec || undefined,
+              width: a.width || undefined,
+              height: a.height || undefined,
+              url: a.url || undefined,
+            };
+            if (typeof a.url === "string" && a.url.startsWith("/uploads/")) {
+              const filename = a.url.slice("/uploads/".length);
+              media.push({
+                chatId: chat.id,
+                chatType: chat.type,
+                chatTitle: chat.title || chat.name || undefined,
+                messageId: m.id,
+                at: m.createdAt,
+                from: userLabel(m.senderId),
+                sentByTarget: m.senderId === targetUserId,
+                kind: a.kind,
+                name: a.name,
+                size: a.size || undefined,
+                mimeType: a.mimeType || undefined,
+                durationSec: a.durationSec || undefined,
+                width: a.width || undefined,
+                height: a.height || undefined,
+                url: a.url,
+                downloadUrl: `/api/admin/export/media/${filename}`,
+              });
+            }
+            return entry;
+          });
+          return {
+            id: m.id,
+            at: m.createdAt,
+            from: userLabel(m.senderId),
+            ...(m.senderId === targetUserId ? { sentByTarget: true } : {}),
+            type: m.type,
+            text: encrypted ? "[Устаревшее E2E-сообщение — сервер не имеет ключей, содержимое недоступно]" : m.text,
+            ...(encrypted ? { encrypted: true, ciphertext: m.text } : {}),
+            ...(m.editedAt ? { editedAt: m.editedAt } : {}),
+            ...(m.replyToId ? { replyToId: m.replyToId } : {}),
+            ...(attachments.length ? { attachments } : {}),
+          };
+        });
     return {
       chatId: chat.id,
       type: chat.type,
@@ -71,8 +109,18 @@ async function buildUserExport(targetUserId) {
       email: target.email || undefined,
       createdAtFirstSeen: target.lastSeen || undefined,
     },
-    stats: { chatCount: chats.length, messageCount },
+    stats: {
+      chatCount: chats.length,
+      messageCount,
+      sentMessageCount,
+      mediaCount: media.length,
+      byKind: media.reduce((acc, m) => {
+        acc[m.kind] = (acc[m.kind] || 0) + 1;
+        return acc;
+      }, {}),
+    },
     chats,
+    media,
   };
 }
 
