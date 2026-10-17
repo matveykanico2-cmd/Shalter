@@ -218,7 +218,7 @@ function openAiMessages(turns, vision) {
         role: t.role,
         content: [
           { type: "text", text: t.content || "Что на изображении?" },
-          ...images.map((m) => ({ type: "image_url", image_url: { url: `data:${m.mime};base64,${m.buf.toString("base64")}` } })),
+          ...images.flatMap((m) => [{ type: "image_url", image_url: { url: `data:${m.mime};base64,${m.buf.toString("base64")}` } }]),
         ],
       };
     }),
@@ -635,7 +635,7 @@ async function readAttachment(a, { withMedia }) {
       if (!fileTextCache.has(`vision:${a.url}`)) fileTextCache.set(`vision:${a.url}`, await localDescription(buf));
       return { text: fileTextCache.get(`vision:${a.url}`) };
     }
-    return { media: { buf, mime, name } };
+    return { media: [{ buf, mime, name }] };
   }
   if (a.kind !== "file" || typeof a.url !== "string" || !a.url.startsWith("/uploads/")) return { text: `[${a.kind}]` };
   const ext = extOf(name);

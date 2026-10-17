@@ -100,6 +100,10 @@ export function rememberSwitchedAccount(user) {
     for (const url of Object.keys(obj)) if (isOfflineCached(url)) delete obj[url];
     if (user?.name && session?.accounts) obj["/api/auth/session"] = { data: { ...session, user }, ts: Date.now() };
     localStorage.setItem(OFFLINE_Q + ".data", JSON.stringify(obj));
+    // Очередь офлайн‑отправки привязана к профилю: запросы в ней адресованы чатам
+    // того, кто их создал. Если не очистить при смене аккаунта, A‑сообщения
+    // отправятся сессией B — и «отправленное»/история получателей перемешаются.
+    localStorage.removeItem(OFFLINE_Q);
   } catch {
   }
 }
