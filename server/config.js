@@ -48,6 +48,10 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "";
 const HF_TOKEN = process.env.HF_TOKEN || "";
 const HF_MODEL = process.env.HF_MODEL || "google/gemma-3-12b-it";
+// Бесплатная распознавание фото/видео без ключа — публичное Gradio‑пространство Qwen2-VL на
+// Hugging Face (см. lib/hfSpaces.js describeImageRemote). Доступно без токена, токен лишь
+// повышает квоту. HF_VISION_KEYLESS=off — выключить (например, если пространство недоступно).
+const HF_VISION_KEYLESS = !/^(0|off|false|no)$/i.test(process.env.HF_VISION_KEYLESS || "");
 const SHALTER_AI_RATE_PER_MIN = Number(process.env.SHALTER_AI_RATE_PER_MIN) || 30;
 const SHALTER_AI_IMAGES_PER_MIN = Number(process.env.SHALTER_AI_IMAGES_PER_MIN) || 10;
 
@@ -70,6 +74,7 @@ module.exports = {
   OPENROUTER_MODEL,
   HF_TOKEN,
   HF_MODEL,
+  HF_VISION_KEYLESS,
   SHALTER_AI_RATE_PER_MIN,
   SHALTER_AI_IMAGES_PER_MIN,
   ADMIN_PHONE,

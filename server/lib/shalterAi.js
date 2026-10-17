@@ -17,9 +17,10 @@ const {
   GIGACHAT_VISION_MODEL,
   POLLINATIONS_TOKEN,
   OPENROUTER_API_KEY,
-  OPENROUTER_MODEL,
-  HF_TOKEN,
-  HF_MODEL,
+   OPENROUTER_MODEL,
+   HF_TOKEN,
+   HF_MODEL,
+   HF_VISION_KEYLESS,
   SHALTER_AI_RATE_PER_MIN,
   SHALTER_AI_IMAGES_PER_MIN,
 } = require("../config");
@@ -404,8 +405,11 @@ function remoteVision() {
 // Без ключа и без локального vision — не «прогоняем» картинку в текстового провайдера
 // (она «не видна», а модель пишет «извини, не вижу»); вместо этого readAttachment
 // отдаёт { note: "photo" }, и администратору показывается NOTES.photo с подсказкой.
+// Помимо токенных remoteVision и локальной модели — бесплатная ключевая сеть на
+// Hugging Face (lib/hfSpaces.js describeImageRemote): публичное Gradio‑пространство
+// Qwen2-VL, работает без токена. Отключается HF_VISION_KEYLESS=off.
 function canSeeMedia() {
-  return remoteVision() || LOCAL_VISION_ENABLED;
+  return remoteVision() || LOCAL_VISION_ENABLED || HF_VISION_KEYLESS;
 }
 
 // Без ключей фото «видит» локальная нейросеть: её описание (по-английски) и
