@@ -1,4 +1,14 @@
 require("./lib/loadConfig");
+
+// Если сервер остался от уже закрытого терминала, его stdout/stderr указывают на
+// удалённый pts и каждая запись падает с EIO. node-media-server вешает глобальный
+// uncaughtException-обработчик, который пишет ошибку в лог, — запись снова падает,
+// и процесс уходит в бесконечный цикл, съедая CPU и переставая отвечать на запросы
+// (список чатов в клиенте в это время просто пустой). Гасим ошибки записи в логи.
+for (const stream of [process.stdout, process.stderr]) {
+  stream.on("error", () => {});
+}
+
 const dns = require("dns");
 const fs = require("fs");
 const path = require("path");
