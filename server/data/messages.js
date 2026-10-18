@@ -27,9 +27,13 @@ function sealAttachments(chatId, id, attachments) {
 }
 function openAttachments(chatId, id, stored) {
   if (!stored) return undefined;
-  return JSON.parse(stored).map((a) =>
-    a?.transcript ? { ...a, transcript: openText(chatId, `${id}:transcript`, a.transcript) } : a
-  );
+  try {
+    return JSON.parse(stored).map((a) =>
+      a?.transcript ? { ...a, transcript: openText(chatId, `${id}:transcript`, a.transcript) } : a
+    );
+  } catch {
+    return undefined;
+  }
 }
 
 function rowToMessage(row) {

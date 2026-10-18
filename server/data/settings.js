@@ -55,7 +55,12 @@ const DEFAULT_SETTINGS = {
 
 async function getSettings(userId) {
   const row = db.prepare("SELECT data FROM settings WHERE userId = ?").get(userId);
-  return row ? JSON.parse(row.data) : DEFAULT_SETTINGS;
+  if (!row) return DEFAULT_SETTINGS;
+  try {
+    return JSON.parse(row.data);
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
 }
 
 async function updateSettings(userId, patch) {

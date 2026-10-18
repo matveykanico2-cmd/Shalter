@@ -77,7 +77,7 @@ async function getStoryById(id) {
 async function markViewed(id, viewerId) {
   const row = db.prepare("SELECT viewedByIds FROM stories WHERE id = ?").get(id);
   if (!row) return undefined;
-  const viewedByIds = JSON.parse(row.viewedByIds);
+  const viewedByIds = (() => { try { return JSON.parse(row.viewedByIds); } catch { return []; } })();
   if (!viewedByIds.includes(viewerId)) {
     viewedByIds.push(viewerId);
     db.prepare("UPDATE stories SET viewedByIds = ? WHERE id = ?").run(JSON.stringify(viewedByIds), id);
@@ -93,7 +93,7 @@ async function deleteStory(id, userId) {
 async function toggleLike(id, userId) {
   const row = db.prepare("SELECT likedByIds FROM stories WHERE id = ?").get(id);
   if (!row) return undefined;
-  const likedByIds = JSON.parse(row.likedByIds ?? "[]");
+  const likedByIds = (() => { try { return JSON.parse(row.likedByIds ?? "[]"); } catch { return []; } })();
   const index = likedByIds.indexOf(userId);
   if (index === -1) likedByIds.push(userId);
   else likedByIds.splice(index, 1);
@@ -103,7 +103,7 @@ async function toggleLike(id, userId) {
 
 function rowToComment(row) {
   if (!row) return undefined;
-  const likedByIds = JSON.parse(row.likedByIds ?? "[]");
+  const likedByIds = (() => { try { return JSON.parse(row.likedByIds ?? "[]"); } catch { return []; } })();
   return {
     id: row.id,
     storyId: row.storyId,
@@ -152,7 +152,7 @@ async function addComment(comment) {
 async function toggleCommentLike(id, userId) {
   const row = db.prepare("SELECT likedByIds FROM story_comments WHERE id = ?").get(id);
   if (!row) return undefined;
-  const likedByIds = JSON.parse(row.likedByIds ?? "[]");
+  const likedByIds = (() => { try { return JSON.parse(row.likedByIds ?? "[]"); } catch { return []; } })();
   const i = likedByIds.indexOf(userId);
   if (i === -1) likedByIds.push(userId);
   else likedByIds.splice(i, 1);
