@@ -37,7 +37,7 @@ let unreadStmtCache = new Map();
 function unreadStmt(n) {
   let s = unreadStmtCache.get(n);
   if (!s) {
-    const pairs = Array.from({ length: n }, () => "(?,?)").join(",");
+    const unionParts = Array.from({ length: n }, () => "SELECT ? AS chatId, ? AS since").join(" UNION ALL ");
     unreadStmtCache.set(
       n,
       (s = db.prepare(
@@ -45,7 +45,7 @@ function unreadStmt(n) {
                 COUNT(*) AS unread,
                 SUM(CASE WHEN m.mentionedUserIds LIKE ? THEN 1 ELSE 0 END) AS mentions
          FROM messages m
-         JOIN (VALUES ${pairs}) AS thr(chatId, since) ON m.chatId = thr.chatId
+         JOIN (${unionParts}) AS thr ON m.chatId = thr.chatId
          WHERE m.threadRootId IS NULL
            AND m.senderId <> ?
            AND m.createdAt > thr.since
