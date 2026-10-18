@@ -160,11 +160,12 @@ export async function ChatView(root, chatId) {
   } catch (err) {
     if (superseded()) return;
     const missing = err?.status === 404 || err?.status === 403;
-    // Сеть плохая, но чат есть в списке — открываем его сразу с полем ввода:
+    const offline = err?.offline ?? !navigator.onLine;
+    // Чат есть в списке — открываем его сразу с полем ввода:
     // писать можно, отправленное уйдёт само, лента и данные чата догрузятся,
     // когда связь вернётся (как при открытии из сохранённой копии).
-    const listedChat = !openedFromCache && !missing ? getState().chats?.find((c) => c.id === chatId) : null;
-    if (listedChat) {
+    const listedChat = getState().chats?.find((c) => c.id === chatId);
+    if (listedChat && !missing) {
       chat = { ...listedChat, memberIds: listedChat.memberIds ?? [me.id, listedChat.otherUser?.id].filter(Boolean) };
       members = [me, listedChat.otherUser].filter(Boolean);
       messages = [];
@@ -172,7 +173,6 @@ export async function ChatView(root, chatId) {
       openedFromCache = true;
     }
     if (!openedFromCache) {
-      const offline = err?.offline ?? !navigator.onLine;
       // Иначе повторное нажатие на этот же чат в списке ничего не делало (маршрутизатор
       // считал его уже открытым), и чат оставался «сломанным» до перезапуска.
       delete root.dataset.path;

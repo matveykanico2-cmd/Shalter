@@ -36,6 +36,9 @@ async function build() {
     logLevel: "info",
   });
 
+  // Copy service worker to dist
+  fs.copyFileSync(path.join(PUBLIC_DIR, "sw.js"), path.join(DIST_DIR, "sw.js"));
+
   const stamp = (file) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex").slice(0, 10);
   const jsV = stamp(path.join(DIST_DIR, "app.js"));
   const baseV = stamp(path.join(DIST_DIR, "styles", "base.css"));
@@ -52,6 +55,10 @@ async function build() {
     .replace('src="/js/app.js"', `src="/dist/app.js?v=${jsV}"`)
     .replace("</head>", `${preloads}\n</head>`);
   fs.writeFileSync(path.join(DIST_DIR, "index.html"), html);
+  
+  // Copy service worker to dist root for registration at /sw.js
+  fs.copyFileSync(path.join(DIST_DIR, "sw.js"), path.join(ROOT, "sw.js"));
+
   fs.writeFileSync(
     path.join(DIST_DIR, "build.json"),
     JSON.stringify({
@@ -63,6 +70,7 @@ async function build() {
         `/dist/app.js?v=${jsV}`,
         `/dist/styles/base.css?v=${baseV}`,
         `/dist/styles/components.css?v=${compV}`,
+        `/sw.js`,
         ...fs.readdirSync(DIST_DIR).filter((f) => /^chunk-[A-Z0-9]+\.js$/.test(f)).map((f) => `/dist/${f}`),
       ],
     })

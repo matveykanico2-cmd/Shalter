@@ -45,16 +45,16 @@ function removeSplash() {
   const splash = document.getElementById("boot-splash");
   if (!splash || splash.dataset.hiding) return;
   splash.dataset.hiding = "1";
-  // Первый запуск за сессию — даём буквам «Shalter» долететь и вспыхнуть (~1,6 с);
-  // при повторных открытиях заставка приложение не задерживает.
+  // First load in session — let letters land (~0.6s);
+  // subsequent opens don't wait.
   let firstThisSession = false;
   try {
     firstThisSession = !sessionStorage.getItem("shalter.splashShown");
     sessionStorage.setItem("shalter.splashShown", "1");
   } catch {}
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  // Сначала буквы досходятся (~1,6 с от старта), потом разлетаются обратно и заставка гаснет.
-  const wait = firstThisSession && !reduced ? Math.max(0, 1600 - (Date.now() - (window.__splashStart || Date.now()))) : 0;
+  // Letters land (~0.6s from start), then fly back out and splash fades.
+  const wait = firstThisSession && !reduced ? Math.max(0, 600 - (Date.now() - (window.__splashStart || Date.now()))) : 0;
   const hide = () => {
     splash.classList.add("boot-splash-hidden");
     setTimeout(() => splash.remove(), 300);
