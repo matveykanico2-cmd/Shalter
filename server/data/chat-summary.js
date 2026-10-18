@@ -13,6 +13,12 @@ function inClause(n) {
   return n === 1 ? "(?)" : "(" + Array.from({ length: n }, () => "?").join(",") + ")";
 }
 
+// Список чатов режем на пачки: SQLite не принимает больше 500 слагаемых в
+// compound SELECT (UNION ALL), а IN(...) с тысячами параметров готовится слишком
+// долго. Раньше на больших аккаунтах запрос непрочитанных падал или выполнялся
+// минутами — список чатов в клиенте не успевал прийти и оставался пустым.
+const CHAT_CHUNK = 200;
+
 let lastOfStmtCache = new Map();
 function lastOfStmt(n) {
   let s = lastOfStmtCache.get(n);
@@ -26,37 +32,22 @@ function lastOfStmt(n) {
            WHERE chatId IN ${inClause(n)}
              AND threadRootId IS NULL
              AND deletedForIds NOT LIKE ?
-         ) WHERE rn = 1`
+         ) WHERE rn <= 5`
       ))
     );
   }
   return s;
 }
 
-let unreadStmtCache = new Map();
-function unreadStmt(n) {
-  let s = unreadStmtCache.get(n);
-  if (!s) {
-    const unionParts = Array.from({ length: n }, () => "SELECT ? AS chatId, ? AS since").join(" UNION ALL ");
-    unreadStmtCache.set(
-      n,
-      (s = db.prepare(
-        `SELECT m.chatId AS chatId,
-                COUNT(*) AS unread,
-                SUM(CASE WHEN m.mentionedUserIds LIKE ? THEN 1 ELSE 0 END) AS mentions
-         FROM messages m
-         JOIN (${unionParts}) AS thr ON m.chatId = thr.chatId
-         WHERE m.threadRootId IS NULL
-           AND m.senderId <> ?
-           AND m.createdAt > thr.since
-           AND m.readByIds NOT LIKE ?
-           AND m.deletedForIds NOT LIKE ?
-         GROUP BY m.chatId`
-      ))
-    );
-  }
-  return s;
-}
+// Непрочитанные считаем точечно, по индексу (chatId, createdAt): соединение
+// messages со списком чатов заставляло SQLite читать всю таблицу сообщений.
+const unreadOfChatStmt = db.prepare(
+  `SELECT COUNT(*) AS unread, SUM(CASE WHEN mentionedUserIds LIKE ? THEN 1 ELSE 0 END) AS mentions
+     FROM messages
+    WHERE chatId = ? AND threadRootId IS NULL AND senderId <> ?
+      AND createdAt > ?
+      AND readByIds NOT LIKE ? AND deletedForIds NOT LIKE ?`
+);
 
 async function attachSummaries(chats, userId) {
   if (!chats.length) return [];
@@ -75,29 +66,30 @@ async function attachSummaries(chats, userId) {
   const notDeleted = jsonHas(userId);
 
   const lastByChat = new Map(ids.map((id) => [id, []]));
-  try {
-    const lastRows = lastOfStmt(ids.length).all(...ids, notDeleted);
-    for (const r of lastRows) lastByChat.set(r.chatId, [r]);
-  } catch { /* no messages */ }
+  for (let i = 0; i < ids.length; i += CHAT_CHUNK) {
+    const chunk = ids.slice(i, i + CHAT_CHUNK);
+    try {
+      const lastRows = lastOfStmt(chunk.length).all(...chunk, notDeleted);
+      for (const r of lastRows) {
+        const list = lastByChat.get(r.chatId);
+        if (list) list.push(r);
+      }
+    } catch { /* в этой пачке сообщений нет */ }
+  }
+  for (const list of lastByChat.values()) if (list.length > 1) list.sort((a, b) => a.rn - b.rn);
 
   const watermarks = readWatermarksFor(userId);
 
-  const thrParams = [];
+  const unreadByChat = new Map();
   for (const chat of chats) {
     const since = [watermarks.get(chat.id) ?? "", chatClears[chat.id] ?? ""].sort().pop();
-    thrParams.push(chat.id, since);
+    try {
+      unreadByChat.set(
+        chat.id,
+        unreadOfChatStmt.get(notDeleted, chat.id, userId, since, notDeleted, notDeleted) ?? { unread: 0, mentions: 0 }
+      );
+    } catch { /* непрочитанные = 0 */ }
   }
-  const unreadByChat = new Map();
-  try {
-    const unreadRows = unreadStmt(chats.length).all(
-      ...thrParams,
-      notDeleted,
-      userId,
-      notDeleted,
-      notDeleted
-    );
-    for (const r of unreadRows) unreadByChat.set(r.chatId, r);
-  } catch { /* unread = 0 for all */ }
 
   const peerIds = new Set();
   for (const chat of chats) {
