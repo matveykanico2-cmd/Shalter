@@ -147,19 +147,22 @@
   </style>
   <meta name="yandex-verification" content="5d613c81ddf70c98" />
 <script>
-  if (!/^\/(login|qr-login)/.test(location.pathname)) {
+if (!/^\/(login|qr-login)/.test(location.pathname)) {
     // Ранние запросы — параллельно с загрузкой скриптов. Ошибка, не-OK ответ или
-    // зависание дольше 10 с дают null, и api.js повторяет запрос сам (с кэшем).
+    // зависание дольше 3 с дают null, и api.js повторяет запрос сам (с кэшем).
     var bootGet = function (url) {
       var opts = { credentials: "include" };
-      if (window.AbortSignal && AbortSignal.timeout) opts.signal = AbortSignal.timeout(10000);
+      if (window.AbortSignal && AbortSignal.timeout) opts.signal = AbortSignal.timeout(3000);
       return fetch(url, opts).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
     };
-    window.__boot = {
-      session: bootGet("/api/auth/session"),
-      data: bootGet("/api/bootstrap"),
-      settings: bootGet("/api/settings"),
-    };
+    // Defer bootstrap requests until after splash animation starts
+    requestAnimationFrame(function() {
+      window.__boot = {
+        session: bootGet("/api/auth/session"),
+        data: bootGet("/api/bootstrap"),
+        settings: bootGet("/api/settings"),
+      };
+    });
   }
 </script>
 <script type="text/javascript">
