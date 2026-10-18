@@ -251,7 +251,8 @@ function deviceHash(deviceId) {
 
 function secretDevicesOf(chatId) {
   const row = db.prepare("SELECT secret, secretDevices FROM chats WHERE id = ?").get(chatId);
-  return row?.secret ? JSON.parse(row.secretDevices || "{}") : null;
+  if (!row?.secret) return null;
+  try { return JSON.parse(row.secretDevices || "{}"); } catch { return {}; }
 }
 
 // Хеш устройства, к которому привязан чат у этого участника (null — не привязан).
@@ -268,7 +269,8 @@ const claimSecretDevice = db.transaction((chatId, userId, deviceId) => {
   const row = db.prepare("SELECT secret, secretDevices FROM chats WHERE id = ?").get(chatId);
   if (!row?.secret) return true;
   if (!deviceId) return false;
-  const devices = JSON.parse(row.secretDevices || "{}");
+  let devices;
+  try { devices = JSON.parse(row.secretDevices || "{}"); } catch { devices = {}; }
   const hash = deviceHash(deviceId);
   if (devices[userId]) return devices[userId] === hash;
   devices[userId] = hash;

@@ -60,17 +60,25 @@ function unreadStmt(n) {
 
 async function attachSummaries(chats, userId) {
   if (!chats.length) return [];
-  const settings = await getSettings(userId);
-  const mutedOf = (id) => mutedStateFor(settings, id);
+  const safeParse = (val, fallback) => {
+    if (val === null || val === undefined || val === "") return fallback;
+    if (typeof val === "object") return val;
+    try { return JSON.parse(val); } catch { return fallback; }
+  };
+  let settings;
+  try { settings = await getSettings(userId); } catch { settings = {}; }
   const chatClears = settings.chatClears ?? {};
   const drafts = settings.drafts ?? {};
   const chatFlags = settings.chatFlags ?? {};
+  const pinnedOrder = settings.pinnedOrder ?? [];
   const ids = chats.map((c) => c.id);
   const notDeleted = jsonHas(userId);
 
-  const lastRows = lastOfStmt(ids.length).all(...ids, notDeleted);
   const lastByChat = new Map(ids.map((id) => [id, []]));
-  for (const r of lastRows) lastByChat.set(r.chatId, [r]);
+  try {
+    const lastRows = lastOfStmt(ids.length).all(...ids, notDeleted);
+    for (const r of lastRows) lastByChat.set(r.chatId, [r]);
+  } catch { /* no messages */ }
 
   const watermarks = readWatermarksFor(userId);
 
@@ -79,14 +87,17 @@ async function attachSummaries(chats, userId) {
     const since = [watermarks.get(chat.id) ?? "", chatClears[chat.id] ?? ""].sort().pop();
     thrParams.push(chat.id, since);
   }
-  const unreadRows = unreadStmt(chats.length).all(
-    ...thrParams,
-    notDeleted,
-    userId,
-    notDeleted,
-    notDeleted
-  );
-  const unreadByChat = new Map(unreadRows.map((r) => [r.chatId, r]));
+  const unreadByChat = new Map();
+  try {
+    const unreadRows = unreadStmt(chats.length).all(
+      ...thrParams,
+      notDeleted,
+      userId,
+      notDeleted,
+      notDeleted
+    );
+    for (const r of unreadRows) unreadByChat.set(r.chatId, r);
+  } catch { /* unread = 0 for all */ }
 
   const peerIds = new Set();
   for (const chat of chats) {
@@ -96,14 +107,15 @@ async function attachSummaries(chats, userId) {
     }
   }
   const peers = new Map();
-  const peerUsers = await listUsersByIds([...peerIds]);
-  await Promise.all(
-    peerUsers.map(async (user) => {
-      peers.set(user.id, await publicUserFor(user, userId));
-    })
-  );
+  try {
+    const peerUsers = await listUsersByIds([...peerIds]);
+    await Promise.all(
+      peerUsers.map(async (user) => {
+        peers.set(user.id, await publicUserFor(user, userId));
+      })
+    );
+  } catch { /* peers = empty */ }
 
-  const pinnedOrder = settings.pinnedOrder ?? [];
   const unarchive = [];
 
   const result = chats.map((chat) => {
@@ -111,7 +123,10 @@ async function attachSummaries(chats, userId) {
     const candidates = (lastByChat.get(chat.id) ?? []).filter(
       (r) => !clearedBefore || r.createdAt > clearedBefore
     );
-    const lastMessage = candidates.length ? rowToMessage(candidates[0]) : null;
+    let lastMessage = null;
+    try {
+      lastMessage = candidates.length ? rowToMessage(candidates[0]) : null;
+    } catch { lastMessage = null; }
 
     const u = unreadByChat.get(chat.id);
     const unreadCount = u?.unread ?? 0;
@@ -124,19 +139,21 @@ async function attachSummaries(chats, userId) {
 
     const flags = chatFlags[chat.id];
     let archived = typeof flags?.archived === "boolean" ? flags.archived : !!chat.archived;
-    if (
-      archived &&
-      flags?.archivedAt &&
-      lastMessage &&
-      lastMessage.senderId !== userId &&
-      lastMessage.type !== "system" &&
-      lastMessage.createdAt > flags.archivedAt &&
-      !isQuietNow(settings, chat.id) &&
-      !(typeof flags.muted === "boolean" ? flags.muted : chat.muted)
-    ) {
-      archived = false;
-      unarchive.push(chat.id);
-    }
+    try {
+      if (
+        archived &&
+        flags?.archivedAt &&
+        lastMessage &&
+        lastMessage.senderId !== userId &&
+        lastMessage.type !== "system" &&
+        lastMessage.createdAt > flags.archivedAt &&
+        !isQuietNow(settings, chat.id) &&
+        !(typeof flags.muted === "boolean" ? flags.muted : chat.muted)
+      ) {
+        archived = false;
+        unarchive.push(chat.id);
+      }
+    } catch {}
     const pinIdx = pinnedOrder.indexOf(chat.id);
 
     return {
@@ -159,13 +176,15 @@ async function attachSummaries(chats, userId) {
   });
 
   if (unarchive.length) {
-    const fresh = await getSettings(userId);
-    const nextFlags = { ...(fresh.chatFlags ?? {}) };
-    for (const id of unarchive) {
-      const { archivedAt, ...rest } = nextFlags[id] ?? {};
-      nextFlags[id] = { ...rest, archived: false };
-    }
-    await updateSettings(userId, { chatFlags: nextFlags });
+    try {
+      const fresh = await getSettings(userId);
+      const nextFlags = { ...(fresh.chatFlags ?? {}) };
+      for (const id of unarchive) {
+        const { archivedAt, ...rest } = nextFlags[id] ?? {};
+        nextFlags[id] = { ...rest, archived: false };
+      }
+      await updateSettings(userId, { chatFlags: nextFlags });
+    } catch {}
   }
   return result;
 }
