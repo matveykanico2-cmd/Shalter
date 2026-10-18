@@ -73,3 +73,27 @@ Rate limits: 20 new conversations per hour via sendMessageToUser (HTTP 429).
 - Attachments: served from disk via serveUpload middleware
 - Desktop: Tauri (Linux, Windows); mobile: native Android (Kotlin)
 - Server URL override (Tauri): env SHALTER_APP_URL or --server-url= flag
+
+## Shalter AI (@shalter_ai)
+
+Built-in AI assistant in a personal chat. Answers questions, analyzes photos
+and documents, draws images, transcribes voice messages.
+
+Providers (free, Russia-accessible):
+- GigaChat (Sber) — GIGACHAT_AUTH_KEY: text, vision, PDF/doc
+- OpenRouter — OPENROUTER_API_KEY: text, vision, free :free models
+- Hugging Face — HF_TOKEN: text, vision, speech-to-text
+- Hugging Face keyless — public Qwen2-VL Gradio space (HF_VISION_KEYLESS, default on)
+- Pollinations — text, voice, image generation (always available)
+- Local models — LOCAL_VISION_ENABLED, LOCAL_ASR_ENABLED (optional npm packages)
+
+Media handling:
+- Photos: remote vision (if any provider key) → keyless HF Qwen2-VL → asks user to describe
+- Videos: extracts frames, collages 2x2, describes locally or sends frames to vision model
+- Voice/audio: speech-to-text via HF or local ASR
+- Text files (.txt, .md, .csv, .json, .html, code, .docx): read directly, no key needed
+- PDF, .doc, .pptx: require GigaChat key
+- Drawings: generated via Pollinations
+
+Rate limits: configurable per-minute limits for messages and images (SHALTER_AI_RATE_PER_MIN, SHALTER_AI_IMAGES_PER_MIN).
+

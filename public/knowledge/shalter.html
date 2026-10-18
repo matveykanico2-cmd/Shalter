@@ -41,6 +41,7 @@
       <a href="#gifts">Подарки и звёзды</a>
       <a href="#premium">Premium</a>
       <a href="#security">Безопасность и приватность</a>
+      <a href="#ai">Shalter AI</a>
     </nav>
 
     <main class="doc-body">
@@ -129,6 +130,32 @@
             телефона, импорт контактов не сохраняет данные на сервере.
           </p>
         </div>
+      </div>
+
+      <h2 id="ai">Shalter AI</h2>
+      <p>
+        Встроенный ИИ-ассистент <code>@shalter_ai</code> работает в личном чате. Отвечает на вопросы,
+        анализирует фото и документы, рисует картинки, расшифровывает голосовые. Поддерживает
+        бесплатные провайдеры (GigaChat, OpenRouter, Hugging Face, Pollinations) и локальные модели.
+      </p>
+      <h3>Что ИИ может видеть и читать</h3>
+      <table class="doc-table">
+        <thead><tr><th>Тип контента</th><th>Как обрабатывается</th></tr></thead>
+        <tbody>
+          <tr><td>Фото / изображения</td><td>С удалённым vision (GigaChat/OpenRouter/HF) — прямо в модель. Без ключа — бесплатный Hugging Face Qwen2-VL (Gradio). Без любого доступа — просит описать фото.</td></tr>
+          <tr><td>Видео / кружки</td><arg_value>Извлекает кадры, делает коллаж, описывает локально или отправляет кадры в vision-модель. Расшифровывает речь при наличии ASR.</td></tr>
+          <tr><td>Голосовые / аудио</td><td>Расшифровка речи через Hugging Face (HF_TOKEN) или локальная модель.</td></tr>
+          <tr><td>Текстовые файлы</td><td>.txt, .md, .csv, .json, .xml, .html, .css, .js, .py, .sql и др. — читаются напрямую.</td></tr>
+          <tr><td>.docx</td><td>Читается без внешних ключей.</td></tr>
+          <tr><td>PDF, .doc, .pptx</td><td>Требуют GigaChat (GIGACHAT_AUTH_KEY).</td></tr>
+          <tr><td>Рисунки</td><td>ИИ рисует через Pollinations (всегда доступно).</td></tr>
+        </tbody>
+      </table>
+      <div class="doc-note danger">
+        <strong>Без ключей ИИ не видит медиа.</strong>
+        Без GIGACHAT_AUTH_KEY, POLLINATIONS_TOKEN, OPENROUTER_API_KEY или HF_TOKEN — ИИ не может анализировать
+        фото, видео и PDF. Для бесплатного распознавания фото доступен публичный Hugging Face Qwen2-VL
+        (отключается <code>HF_VISION_KEYLESS=off</code>). Для распознавания речи нужен HF_TOKEN или локальная ASR-модель.
       </div>
 
       <div class="doc-note">
