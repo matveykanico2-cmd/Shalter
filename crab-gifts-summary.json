@@ -1,0 +1,34 @@
+{
+  "generated": "2026-10-18T09:55:45.516Z",
+  "count": 1000,
+  "themes": [
+    "party",
+    "beach",
+    "winter",
+    "spring",
+    "halloween",
+    "christmas",
+    "coding",
+    "music",
+    "sports",
+    "food",
+    "space",
+    "fantasy",
+    "office",
+    "fitness",
+    "travel",
+    "art",
+    "science",
+    "pets",
+    "magic",
+    "retro",
+    "cyber",
+    "nature",
+    "underwater",
+    "sky"
+  ],
+  "priceRange": {
+    "min": 5,
+    "max": 54
+  }
+}
