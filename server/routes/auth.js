@@ -24,7 +24,7 @@ const codeLogins = require("../data/codeLogins");
 const passkeys = require("../data/passkeys");
 const webauthn = require("../lib/webauthn");
 
-const { EMAIL_RE, PHONE_RE, normalizePhone } = require("../lib/validators");
+const { EMAIL_RE, PHONE_RE, normalizePhone, isValidBirthday } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 const totp = require("../lib/totp");
 const twoFactorTickets = require("../data/twoFactorTickets");
@@ -124,7 +124,7 @@ router.post(
 router.post(
   "/register-email",
   asyncRoute(async (req, res) => {
-    const { name, email, password, phone, username, referralCode, lastName } = req.body ?? {};
+    const { name, email, password, phone, username, referralCode, lastName, birthday } = req.body ?? {};
 
     if (!name?.trim()) return res.status(400).json({ error: "Введите имя" });
     const cleanLast = String(lastName ?? "").trim().slice(0, 60);
@@ -152,6 +152,10 @@ router.post(
       return res.status(409).json({ error: "Аккаунт с таким номером телефона уже существует" });
     }
 
+    if (birthday && !isValidBirthday(birthday)) {
+      return res.status(400).json({ error: "Введите корректную дату рождения (ДД.ММ.ГГГГ)" });
+    }
+
     let referrer = null;
     if (referralCode?.trim()) {
       referrer = await findUserByReferralCode(referralCode);
@@ -176,6 +180,7 @@ router.post(
         lastSeen: new Date().toISOString(),
         referredBy: referrer?.id,
         premiumUntil: referrer ? new Date(Date.now() + PREMIUM_GRANT_DAYS * 86400000).toISOString() : undefined,
+        birthday: birthday ?? null,
       });
     } catch (err) {
       if (isUsernameConflict(err)) return res.status(409).json({ error: "Этот юзернейм уже занят" });

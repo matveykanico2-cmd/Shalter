@@ -209,6 +209,34 @@ export const SCENES = {
     ],
     loop: 2.6,
   },
+  crab_dance: {
+    parts: [
+      { anim: "wave", dur: 1.8 },
+      { e: "🦀", anim: "bounce", delay: 0.8, x: -24, y: -10, size: 0.32, dur: 2.4 },
+      { e: "🌊", anim: "drift", delay: 1.2, x: 32, y: -14, size: 0.34, dur: 2.2 },
+      { e: "✨", anim: "twinkle", delay: 0.9, x: -30, y: -6, size: 0.24, dur: 1.6 },
+      { e: "✨", anim: "twinkle", delay: 1.7, x: 28, y: -18, size: 0.2, dur: 1.4 },
+    ],
+    loop: 3.2,
+  },
+  crab_birthday: {
+    parts: [
+      { anim: "breathe", dur: 2.6 },
+      { e: "🦀", anim: "jump", delay: 0.6, x: 0, y: -12, size: 0.34, dur: 2.2 },
+      { e: "🎂", anim: "twinkle", delay: 0.9, x: 22, y: -8, size: 0.3, dur: 1.8 },
+      { e: "🎉", anim: "burst", delay: 1.3, x: -26, y: -10, size: 0.28, dur: 1.4 },
+      { e: "🎈", anim: "rise", delay: 1.0, x: 0, y: 18, size: 0.32, dur: 2.4 },
+    ],
+    loop: 3.2,
+  },
+  crab_hug: {
+    parts: [
+      { anim: "beat", dur: 1.3 },
+      { e: "🦀", anim: "pulse", delay: 0.3, x: 0, y: 0, size: 0.36, dur: 2 },
+      { e: "❤️", anim: "rise", delay: 0.6, x: 24, y: 6, size: 0.28, dur: 1.8 },
+    ],
+    loop: 2.4,
+  },
 };
 
 const SOLO = ["wave", "wiggle", "beat", "float", "tada", "swing", "flicker", "breathe", "settle"];
@@ -284,6 +312,7 @@ const BY_EMOJI = {
   "🍾": "champagne_pop",
   "🥂": "champagne_pop",
   "🍷": "champagne_pop",
+  "🦀": "crab_dance",
 };
 
 function soloFor(emoji) {

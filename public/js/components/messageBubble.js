@@ -342,14 +342,37 @@ function ReportMessage(message, mine, me, isChannel) {
 }
 
 function BirthdayAttachment(a) {
-  const { userId, name, avatarImage } = a.meta ?? {};
-  // Общий контакт может оказаться вашим собственным — подарить себе нельзя.
+  const { userId, name, avatarImage, suggestedGifts } = a.meta ?? {};
   const canGift = !!userId && userId !== getState().user?.id;
+  const quickSuggestion = (suggestedGifts ?? []).slice(0, 4);
   return el("div", { class: "contact-attachment birthday-attachment" }, [
     Avatar({ name, image: avatarImage, size: 36 }),
     el("div", { class: "contact-attachment-body" }, [
       el("p", { class: "contact-attachment-name" }, [el("span", {}, "🎂 "), name || "Друг"]),
       el("p", { class: "settings-toggle-hint" }, "День рождения сегодня"),
+      canGift && quickSuggestion.length
+        ? el("div", { class: "birthday-gift-hints" }, [
+            el("span", { class: "birthday-gift-hint-label" }, "Быстро:"),
+            ...quickSuggestion.map((g) =>
+              el(
+                "button",
+                {
+                  class: "birthday-gift-hint",
+                  "data-gift-id": g.id,
+                  title: g.name,
+                  onclick: (e) => {
+                    e.stopPropagation();
+                    openGiftShopDialog({
+                      recipient: { id: userId, name },
+                      gift: g,
+                    });
+                  },
+                },
+                g.emoji
+              )
+            ),
+          ])
+        : null,
     ]),
     canGift
       ? el(

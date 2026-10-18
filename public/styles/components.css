@@ -3438,9 +3438,40 @@ pre.mono,
   margin-bottom: 4px;
 }
 .birthday-attachment {
-  width: 240px;
+}
+.birthday-attachment {
+  width: 250px;
   background: linear-gradient(135deg, rgba(255, 159, 26, 0.14), rgba(255, 122, 0, 0.08));
   border: 1px solid rgba(255, 159, 26, 0.35);
+}
+.birthday-gift-hints {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.birthday-gift-hint-label {
+  font-size: 10.5px;
+  color: var(--color-muted);
+}
+.birthday-gift-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface-alt);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.birthday-gift-hint:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 .contact-attachment-name {
   font-size: 13px;

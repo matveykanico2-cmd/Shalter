@@ -102,12 +102,52 @@ const PENGUIN = `
   </g>
 </svg>`;
 
+const CRAB = `
+<svg viewBox="0 0 100 100" class="ch ch-crab" aria-hidden="true">
+  <g class="ch-walk-g">
+    <g class="ch-claw-g">
+      <path class="ch-claw" d="M24 58c-7 0-12-4-13-9-1-4 1-8 5-9 2 5 1 10 5 11 2 2 4 3 5 3z" fill="#e63946"/>
+      <ellipse class="ch-claw-eye" cx="16" cy="52" rx="1.8" ry="2.4" fill="#1d3557"/>
+    </g>
+    <g class="ch-leg1">
+      <rect x="20" y="76" width="5" height="14" rx="2.5" fill="#e63946" transform="rotate(-12 22.5 83)"/>
+    </g>
+    <g class="ch-leg2">
+      <rect x="38" y="78" width="5" height="14" rx="2.5" fill="#e63946" transform="rotate(8 40.5 85)"/>
+    </g>
+    <g class="ch-leg3">
+      <rect x="56" y="77" width="5" height="14" rx="2.5" fill="#e63946" transform="rotate(12 58.5 84)"/>
+    </g>
+    <g class="ch-leg4">
+      <rect x="74" y="76" width="5" height="14" rx="2.5" fill="#e63946" transform="rotate(-12 76.5 83)"/>
+    </g>
+    <g class="ch-claw-right-g">
+      <path class="ch-claw" d="M76 58c7 0 12-4 13-9 1-4-1-8-5-9-2 5-1 10-5 11-2 2-4 3-5 3z" fill="#e63946"/>
+      <ellipse class="ch-claw-eye" cx="84" cy="52" rx="1.8" ry="2.4" fill="#1d3557"/>
+    </g>
+    <g class="ch-body-g">
+      <ellipse cx="50" cy="64" rx="22" ry="18" fill="#e63946"/>
+      <ellipse cx="50" cy="68" rx="12" ry="11" fill="#fff3f0"/>
+      <g class="ch-eyestalk-g">
+        <path d="M42 58c-3 0-5-2-5-5s2-5 5-5 5 2 5 5-2 5-5 5z" fill="#e63946"/>
+        <circle class="ch-eye" cx="42" cy="53" r="2.2" fill="#1d3557"/>
+      </g>
+      <g class="ch-eyestalk-g-right">
+        <path d="M58 58c3 0 5-2 5-5s-2-5-5-5-5 2-5 5 2 5 5 5z" fill="#e63946"/>
+        <circle class="ch-eye" cx="58" cy="53" r="2.2" fill="#1d3557"/>
+      </g>
+      <path class="ch-mouth" d="M42 72q8 6 16 0" stroke="#1d3557" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>`;
+
 export const CHARACTERS = {
   fox: { markup: FOX, name: "Лис" },
   cat: { markup: CAT, name: "Кот" },
   ghost: { markup: GHOST, name: "Призрак" },
   robot: { markup: ROBOT, name: "Робот" },
   penguin: { markup: PENGUIN, name: "Пингвин" },
+  crab: { markup: CRAB, name: "Краб" },
 };
 
 export const CHARACTER_FOR_EMOJI = {
@@ -118,6 +158,7 @@ export const CHARACTER_FOR_EMOJI = {
   "👻": "ghost",
   "🤖": "robot",
   "🐧": "penguin",
+  "🦀": "crab",
 };
 
 export function characterFor(emoji, preferred) {

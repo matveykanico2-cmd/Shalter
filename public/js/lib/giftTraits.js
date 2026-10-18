@@ -69,6 +69,32 @@ const BUILTIN_GIFT_SCENES = {
       { type: "emoji", emoji: "🍹", x: 84, y: 80, size: 17, anim: "wiggle", dur: 2.2 },
     ],
   },
+  crab_birthday_gift: {
+    v: 1,
+    loop: 3,
+    bg: null,
+    layers: [
+      { type: "circle", x: 50, y: 50, r: 44, fill: "#ffd9e8", opacity: 0.6, anim: "pulse", dur: 3 },
+      { type: "ellipse", x: 50, y: 70, w: 90, h: 20, fill: "#4fb6ea", opacity: 0.7, anim: "float", dur: 3.2 },
+      { type: "emoji", emoji: "🦀", x: 30, y: 46, size: 38, anim: "bounce", dur: 2 },
+      { type: "emoji", emoji: "🎂", x: 70, y: 36, size: 30, anim: "twinkle", dur: 2.2 },
+      { type: "emoji", emoji: "🎉", x: 20, y: 28, size: 20, anim: "burst", delay: 0.8, dur: 1.5 },
+      { type: "emoji", emoji: "🎈", x: 78, y: 52, size: 24, anim: "rise", delay: 0.5, dur: 2.6 },
+    ],
+  },
+  crab_party: {
+    v: 1,
+    loop: 3.4,
+    bg: null,
+    layers: [
+      { type: "circle", x: 50, y: 50, r: 46, fill: "#fff0d6", opacity: 0.5, anim: "pulse", dur: 2.8 },
+      { type: "emoji", emoji: "🦀", x: 50, y: 44, size: 40, anim: "wave", dur: 1.8 },
+      { type: "emoji", emoji: "🍾", x: 22, y: 30, size: 24, anim: "pop", delay: 0.4, dur: 1.2 },
+      { type: "emoji", emoji: "🥂", x: 74, y: 28, size: 22, anim: "pop", delay: 0.8, dur: 1.2 },
+      { type: "emoji", emoji: "🎊", x: 30, y: 70, size: 20, anim: "burst", delay: 1.0, dur: 1 },
+      { type: "emoji", emoji: "🎊", x: 72, y: 68, size: 18, anim: "burst", delay: 1.3, dur: 1 },
+    ],
+  },
 };
 
 export function renderGiftArt(gift, { size = 84, replay = true } = {}) {

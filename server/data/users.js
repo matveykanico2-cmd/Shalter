@@ -192,8 +192,8 @@ function generateReferralCode() {
 
 async function createUser(user) {
   db.prepare(
-    `INSERT INTO users (id, name, username, phone, email, passwordHash, passwordSalt, avatarColor, avatarImage, bio, online, lastSeen, isBot, blockedUserIds, referralCode, referredBy, premiumUntil)
-     VALUES (@id, @name, @username, @phone, @email, @passwordHash, @passwordSalt, @avatarColor, @avatarImage, @bio, @online, @lastSeen, @isBot, @blockedUserIds, @referralCode, @referredBy, @premiumUntil)`
+    `INSERT INTO users (id, name, username, phone, email, passwordHash, passwordSalt, avatarColor, avatarImage, bio, online, lastSeen, isBot, blockedUserIds, referralCode, referredBy, premiumUntil, birthday)
+     VALUES (@id, @name, @username, @phone, @email, @passwordHash, @passwordSalt, @avatarColor, @avatarImage, @bio, @online, @lastSeen, @isBot, @blockedUserIds, @referralCode, @referredBy, @premiumUntil, @birthday)`
   ).run({
     id: user.id,
     name: user.name ?? "",
@@ -212,6 +212,7 @@ async function createUser(user) {
     referralCode: user.referralCode ?? generateReferralCode(),
     referredBy: user.referredBy ?? null,
     premiumUntil: user.premiumUntil ?? null,
+    birthday: user.birthday ?? null,
   });
   return getUser(user.id);
 }

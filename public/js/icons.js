@@ -28,7 +28,7 @@ const PATHS = {
   Share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>',
   Paperclip:
     '<path d="M20 12.5 11.5 21a4.5 4.5 0 0 1-6.4-6.4L13.6 6a3 3 0 0 1 4.3 4.2L9.4 18.7a1.5 1.5 0 0 1-2.1-2.1l7.8-7.9"/>',
-  Smile: '<circle cx="12" cy="12" r="9"/><path d="M8.5 10.5h.01M15.5 10.5h.01"/><path d="M8.5 14.5s1.2 2 3.5 2 3.5-2 3.5-2"/>',
+  Smile: '<circle cx="12" cy="12" r="9"/><path d="M8.5 10.5h.01M15.5 10.5h.01"/><path d="M8.5 16.5s1.2-2 3.5-2 3.5 2 3.5 2"/>',
   Mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>',
   Check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
   CheckCheck: '<path d="M2 12.5l4.5 4.5L16 7"/><path d="M8 12.5l4.5 4.5L22 7"/>',

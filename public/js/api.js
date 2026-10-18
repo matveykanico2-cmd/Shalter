@@ -304,8 +304,8 @@ function bootRequest(key, url) {
 export const api = {
   session: () => bootRequest("session", "/api/auth/session"),
   bootstrap: () => bootRequest("data", "/api/bootstrap"),
-  registerEmail: (name, email, password, phone, username, lastName) =>
-    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, username, lastName }) }),
+  registerEmail: (name, email, password, phone, username, lastName, birthday) =>
+    req("/api/auth/register-email", { method: "POST", body: JSON.stringify({ name, email, password, phone, username, lastName, birthday }) }),
   checkUsername: (u) => req(`/api/auth/username-available?u=${encodeURIComponent(u)}`),
   loginEmail: (email, password) =>
     req("/api/auth/login-email", { method: "POST", body: JSON.stringify({ email, password }) }),

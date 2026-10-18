@@ -8,6 +8,7 @@ import { navigate } from "../router.js";
 import { fileToAvatarDataUrl } from "../lib/image.js";
 import { prettyQrSvg } from "../lib/prettyQr.js";
 import { PhoneField } from "../components/phoneField.js";
+import { DateField, parseDateText } from "../components/dateField.js";
 
 const QR_POLL_MS = 1500;
 
@@ -42,6 +43,8 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   let password = "";
   let phone = "";
   let username = "";
+  let birthday = null;
+  let birthdayError = null;
   let avatarImage = null;
   let error = null;
   let pending = false;
@@ -597,6 +600,18 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       mode === "register"
         ? (registerPhoneField ??= PhoneField({ value: phone, onChange: (v) => (phone = v) })).el
         : null;
+    const birthdayField =
+      mode === "register"
+        ? DateField({
+            value: birthday,
+            className: "login-input",
+            onChange: (iso, err) => {
+              birthday = iso;
+              birthdayError = err;
+            },
+          })
+        : null;
+    const birthdayInput = birthdayField ? birthdayField.el : null;
     const usernameInput = mode === "register" ? usernameField() : null;
     const passwordInput = el("input", {
       class: "login-input",
@@ -619,7 +634,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             let user;
             let alreadyLinked = false;
             if (mode === "register") {
-              ({ user } = await api.registerEmail(name, email, password, phone, username, lastName));
+              ({ user } = await api.registerEmail(name, email, password, phone, username, lastName, birthday || null));
               if (avatarImage) await api.updateProfile(user.id, { avatarImage });
             } else {
               const res = await api.loginEmail(email, password);
@@ -647,9 +662,12 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         lastNameInput,
         emailInput,
         phoneInput,
+        birthdayInput,
+        birthdayError ? el("p", { class: "login-error", style: "margin-top: -6px" }, birthdayError) : null,
         usernameInput,
         passwordInput,
         mode === "register" ? el("p", { class: "login-hint" }, "Пароль — не короче 6 символов, хранится только в виде хеша.") : null,
+        mode === "register" ? el("p", { class: "login-hint" }, "Дата рождения — необязательно, но друзья смогут поздравлять и предлагать подарки.") : null,
         revokedNotice && mode === "login" && !error
           ? el("p", { class: "login-hint" }, "Сеанс на этом устройстве был завершён — войдите снова.")
           : null,
@@ -672,6 +690,8 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
             onclick: () => {
               mode = mode === "login" ? "register" : "login";
               error = null;
+              birthday = null;
+              birthdayError = null;
               render();
             },
           },

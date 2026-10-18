@@ -19,6 +19,15 @@ function markSent(ownerId, birthdayUserId, year) {
   ).run(ownerId, birthdayUserId, year, new Date().toISOString());
 }
 
+const BIRTHDAY_GIFT_SUGGESTIONS = [
+  { id: "shalter_crab_birthday", emoji: "🎂", name: "Краб поздравляет" },
+  { id: "shalter_crab_party", emoji: "🎉", name: "Вечеринка с крабом" },
+  { id: "cake", emoji: "🎂", name: "Торт" },
+  { id: "shalter_crab_hello", emoji: "🦀", name: "Краб приветствует" },
+  { id: "shalter_crab_hug", emoji: "🦀", name: "Обнимашки от краба" },
+  { id: "party_pop", emoji: "🥳", name: "Поздравление" },
+];
+
 async function sweepOnce() {
   const birthdayUsers = listUsersWithBirthdayToday();
   if (!birthdayUsers.length) return;
@@ -34,7 +43,17 @@ async function sweepOnce() {
           chat,
           SYSTEM_BOT_ID,
           `🎂 Сегодня день рождения у ${person.name}! Поздравьте и, если хотите — подарите подарок.`,
-          { attachments: [{ kind: "birthday", meta: { userId: person.id, name: person.name, avatarImage: person.avatarImage || null } }] }
+          {
+            attachments: [{
+              kind: "birthday",
+              meta: {
+                userId: person.id,
+                name: person.name,
+                avatarImage: person.avatarImage || null,
+                suggestedGifts: BIRTHDAY_GIFT_SUGGESTIONS,
+              },
+            }],
+          }
         );
         sendPushToUser(
           ownerId,

@@ -57,6 +57,12 @@ const GIFTS = [
   { id: "premium_year", emoji: "🏆", name: "Premium на год", priceRub: 5000, premiumDays: 365 },
   { id: "premium_forever", emoji: "♾️", name: "Premium навсегда", priceRub: 10000, premiumDays: null },
 
+  // Крабик из заставки Shalter
+  { id: "shalter_crab_hello", emoji: "🦀", name: "Краб приветствует", priceRub: 15, premiumDays: 0 },
+  { id: "shalter_crab_birthday", emoji: "🎂", name: "Краб поздравляет", priceRub: 35, premiumDays: 0 },
+  { id: "shalter_crab_party", emoji: "🎉", name: "Вечеринка с крабом", priceRub: 60, premiumDays: 0 },
+  { id: "shalter_crab_hug", emoji: "🦀", name: "Обнимашки от краба", priceRub: 25, premiumDays: 0 },
+
   { id: "sakura", emoji: "🌸", name: "Сакура", priceRub: 1, premiumDays: 0 },
   { id: "tyulpan", emoji: "🌷", name: "Тюльпан", priceRub: 2, premiumDays: 0 },
   { id: "podsolnuh", emoji: "🌻", name: "Подсолнух", priceRub: 3, premiumDays: 0 },
