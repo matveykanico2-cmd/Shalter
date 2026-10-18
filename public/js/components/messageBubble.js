@@ -1672,7 +1672,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
 
   const SWIPE_START_PX = 12;
   const SWIPE_REPLY_PX = 48;
-  const DOUBLE_TAP_MS = 300;
+  const DOUBLE_TAP_MS = 200;
   let swipeX = 0;
   let swipeY = 0;
   let swiping = null;

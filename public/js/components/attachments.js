@@ -5,7 +5,7 @@ import { openInAppBrowser } from "./inAppBrowser.js";
 import { openMediaViewer, galleryAround } from "./mediaViewer.js";
 import { setNowPlaying, playingMediaFor } from "../lib/audioPlayer.js";
 
-const DOUBLE_TAP_MS = 300;
+const DOUBLE_TAP_MS = 200;
 
 function MediaButton(className, item, children, { spoiler = false, onDoubleClick } = {}) {
   // Спойлер: первое нажатие снимает размытие, следующее — открывает просмотр.

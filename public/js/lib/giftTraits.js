@@ -69,7 +69,7 @@ const BUILTIN_GIFT_SCENES = {
       { type: "emoji", emoji: "🍹", x: 84, y: 80, size: 17, anim: "wiggle", dur: 2.2 },
     ],
   },
-  crab_birthday_gift: {
+  shalter_crab_birthday: {
     v: 1,
     loop: 3,
     bg: null,
@@ -82,7 +82,7 @@ const BUILTIN_GIFT_SCENES = {
       { type: "emoji", emoji: "🎈", x: 78, y: 52, size: 24, anim: "rise", delay: 0.5, dur: 2.6 },
     ],
   },
-  crab_party: {
+  shalter_crab_party: {
     v: 1,
     loop: 3.4,
     bg: null,
@@ -93,6 +93,18 @@ const BUILTIN_GIFT_SCENES = {
       { type: "emoji", emoji: "🥂", x: 74, y: 28, size: 22, anim: "pop", delay: 0.8, dur: 1.2 },
       { type: "emoji", emoji: "🎊", x: 30, y: 70, size: 20, anim: "burst", delay: 1.0, dur: 1 },
       { type: "emoji", emoji: "🎊", x: 72, y: 68, size: 18, anim: "burst", delay: 1.3, dur: 1 },
+    ],
+  },
+  shalter_crab_hug: {
+    v: 1,
+    loop: 2.8,
+    bg: null,
+    layers: [
+      { type: "circle", x: 50, y: 50, r: 40, fill: "#ffd6e0", opacity: 0.5, anim: "beat", dur: 2.2 },
+      { type: "emoji", emoji: "🦀", x: 50, y: 46, size: 42, anim: "pulse", dur: 2 },
+      { type: "emoji", emoji: "❤️", x: 50, y: 20, size: 28, anim: "rise", delay: 0.3, dur: 1.8 },
+      { type: "emoji", emoji: "✨", x: 24, y: 70, size: 18, anim: "twinkle", delay: 0.5, dur: 1.6 },
+      { type: "emoji", emoji: "✨", x: 78, y: 72, size: 16, anim: "twinkle", delay: 0.9, dur: 1.4 },
     ],
   },
 };
