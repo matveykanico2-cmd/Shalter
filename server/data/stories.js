@@ -22,8 +22,8 @@ function rowToStory(row) {
     items,
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
-    viewedByIds: JSON.parse(row.viewedByIds),
-    likedByIds: JSON.parse(row.likedByIds ?? "[]"),
+    viewedByIds: (() => { try { return JSON.parse(row.viewedByIds); } catch { return []; } })(),
+    likedByIds: (() => { try { return JSON.parse(row.likedByIds ?? "[]"); } catch { return []; } })(),
   };
 }
 

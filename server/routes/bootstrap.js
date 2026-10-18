@@ -20,10 +20,9 @@ router.get(
       listContactsFor(req.uid),
     ]);
     const withSummary = await attachSummaries(chats, req.uid);
-    const hidden = settings.hiddenChats ?? {};
     res.json({
       settings,
-      chats: withSummary.filter((c) => !hidden[c.id] || c.lastMessage),
+      chats: withSummary,
       folders,
       contactIds: contacts.map((c) => c.userId),
     });

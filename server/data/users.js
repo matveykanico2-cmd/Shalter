@@ -8,6 +8,11 @@ const FOREVER = "9999-01-01T00:00:00.000Z";
 
 function rowToUser(row) {
   if (!row) return undefined;
+  const safeParse = (val, fallback) => {
+    if (val === null || val === undefined || val === "") return fallback;
+    if (typeof val === "object") return val;
+    try { return JSON.parse(val); } catch { return fallback; }
+  };
   return {
     id: row.id,
     name: row.name,
@@ -24,7 +29,7 @@ function rowToUser(row) {
     online: !!row.online,
     lastSeen: row.lastSeen ?? undefined,
     isBot: !!row.isBot || undefined,
-    blockedUserIds: JSON.parse(row.blockedUserIds),
+    blockedUserIds: safeParse(row.blockedUserIds, []),
     isPremium: !!row.premiumUntil && row.premiumUntil > new Date().toISOString(),
     premiumUntil: row.premiumUntil && row.premiumUntil !== FOREVER ? row.premiumUntil : undefined,
     premiumForever: row.premiumUntil === FOREVER || undefined,
@@ -42,23 +47,17 @@ function rowToUser(row) {
     businessLat: row.businessLat ?? undefined,
     businessLng: row.businessLng ?? undefined,
     nameColor: row.nameColor ?? undefined,
-    profileBanner: (() => {
-      try {
-        return row.profileBanner ? JSON.parse(row.profileBanner) : undefined;
-      } catch {
-        return undefined;
-      }
-    })(),
-    adAttachments: row.adAttachments ? JSON.parse(row.adAttachments) : [],
+    profileBanner: safeParse(row.profileBanner, undefined),
+    adAttachments: safeParse(row.adAttachments, []),
     birthday: row.birthday ?? undefined,
-    giftsReceived: JSON.parse(row.giftsReceived ?? "[]"),
+    giftsReceived: safeParse(row.giftsReceived, []),
     isBanned: !!row.isBanned,
     stars: row.stars ?? 0,
     messagePriceStars: row.messagePriceStars ?? 0,
     statusIcon: (() => {
       if (!row.activeStatusId) return null;
       try {
-        return JSON.parse(row.statusItems ?? "[]").find((i) => i.id === row.activeStatusId)?.image ?? null;
+        return safeParse(row.statusItems, []).find((i) => i.id === row.activeStatusId)?.image ?? null;
       } catch {
         return null;
       }
@@ -66,14 +65,14 @@ function rowToUser(row) {
     statusName: (() => {
       if (!row.activeStatusId) return null;
       try {
-        return JSON.parse(row.statusItems ?? "[]").find((i) => i.id === row.activeStatusId)?.name || null;
+        return safeParse(row.statusItems, []).find((i) => i.id === row.activeStatusId)?.name || null;
       } catch {
         return null;
       }
     })(),
     banReason: row.banReason ?? undefined,
     bannedAt: row.bannedAt ?? undefined,
-    adminSections: row.adminSections ? JSON.parse(row.adminSections) : [],
+    adminSections: safeParse(row.adminSections, []),
     // Колонка хранит список треков (раньше — один объект). Первый — основной: его
     // показывает профиль, остальные — в списке по нажатию (как музыка в профиле Telegram).
     ...profileTracksOf(row.profileTrack),
@@ -84,7 +83,7 @@ function rowToUser(row) {
     safetyLabelAt: row.safetyLabelAt ?? undefined,
     totpSecret: row.totpSecret ?? undefined,
     totpEnabledAt: row.totpEnabledAt ?? undefined,
-    totpRecoveryCodes: row.totpRecoveryCodes ? JSON.parse(row.totpRecoveryCodes) : [],
+    totpRecoveryCodes: safeParse(row.totpRecoveryCodes, []),
     twoFactorMethod: row.twoFactorMethod ?? "totp",
     twoFactorEnabled:
       row.twoFactorMethod === "password"

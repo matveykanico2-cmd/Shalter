@@ -34,6 +34,11 @@ function openAttachments(chatId, id, stored) {
 
 function rowToMessage(row) {
   if (!row) return undefined;
+  const safeParse = (val, fallback) => {
+    if (val === null || val === undefined || val === "") return fallback;
+    if (typeof val === "object") return val;
+    try { return JSON.parse(val); } catch { return fallback; }
+  };
   return {
     id: row.id,
     chatId: row.chatId,
@@ -44,24 +49,24 @@ function rowToMessage(row) {
     editedAt: row.editedAt ?? undefined,
     pinned: !!row.pinned,
     replyToId: row.replyToId ?? null,
-    forwardedFrom: row.forwardedFrom ? JSON.parse(row.forwardedFrom) : undefined,
+    forwardedFrom: safeParse(row.forwardedFrom, undefined),
     attachments: openAttachments(row.chatId, row.id, row.attachments),
-    keyboard: row.keyboard ? JSON.parse(row.keyboard) : undefined,
-    gift: row.gift ? JSON.parse(row.gift) : undefined,
-    sticker: row.sticker ? JSON.parse(row.sticker) : undefined,
-    customEmoji: row.customEmoji ? JSON.parse(row.customEmoji) : undefined,
-    linkPreview: row.linkPreview ? JSON.parse(row.linkPreview) : undefined,
-    report: row.report ? JSON.parse(row.report) : undefined,
-    reactions: JSON.parse(row.reactions),
-    readByIds: JSON.parse(row.readByIds),
-    deletedForIds: JSON.parse(row.deletedForIds),
-    mentionedUserIds: row.mentionedUserIds ? JSON.parse(row.mentionedUserIds) : [],
+    keyboard: safeParse(row.keyboard, undefined),
+    gift: safeParse(row.gift, undefined),
+    sticker: safeParse(row.sticker, undefined),
+    customEmoji: safeParse(row.customEmoji, undefined),
+    linkPreview: safeParse(row.linkPreview, undefined),
+    report: safeParse(row.report, undefined),
+    reactions: safeParse(row.reactions, []),
+    readByIds: safeParse(row.readByIds, []),
+    deletedForIds: safeParse(row.deletedForIds, []),
+    mentionedUserIds: safeParse(row.mentionedUserIds, []),
     threadRootId: row.threadRootId ?? undefined,
     topicId: row.topicId ?? undefined,
     readAt: row.readAt ?? undefined,
     effect: row.effect ?? undefined,
     visibleToId: row.visibleToId ?? undefined,
-    storyReply: row.storyReply ? JSON.parse(row.storyReply) : undefined,
+    storyReply: safeParse(row.storyReply, undefined),
     anchorForPostId: row.anchorForPostId ?? undefined,
     discussionAnchorId: row.discussionAnchorId ?? undefined,
     signedBy: row.signedBy ?? undefined,

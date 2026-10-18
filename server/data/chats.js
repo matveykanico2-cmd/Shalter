@@ -7,6 +7,11 @@ function rowToChat(row, members) {
   if (!members) {
     members = db.prepare("SELECT userId, isAdmin, isModerator, isOwner FROM chat_members WHERE chatId = ?").all(row.id);
   }
+  const safeParse = (val, fallback) => {
+    if (val === null || val === undefined || val === "") return fallback;
+    if (typeof val === "object") return val;
+    try { return JSON.parse(val); } catch { return fallback; }
+  };
   return {
     id: row.id,
     type: row.type,
@@ -22,14 +27,14 @@ function rowToChat(row, members) {
     // объекта, и пропавшее из JSON поле оставило бы комментарии выключенными.
     commentsOff: !!row.commentsOff,
     anonymousAdmins: !!row.anonymousAdmins || undefined,
-    permissions: row.permissions ? JSON.parse(row.permissions) : null,
+    permissions: safeParse(row.permissions, null),
     avatarColor: row.avatarColor ?? undefined,
     avatarImage: row.avatarImage ?? undefined,
     ownerId: row.ownerId ?? undefined,
     adminIds: members.filter((m) => m.isAdmin).map((m) => m.userId),
     moderatorIds: members.filter((m) => m.isModerator).map((m) => m.userId),
     ownerIds: members.filter((m) => m.isOwner).map((m) => m.userId),
-    memberTitles: row.memberTitles ? JSON.parse(row.memberTitles) : {},
+    memberTitles: safeParse(row.memberTitles, {}),
     memberIds: members.map((m) => m.userId),
     pinned: !!row.pinned,
     muted: !!row.muted || (!!row.mutedUntil && row.mutedUntil > new Date().toISOString()),
@@ -39,17 +44,17 @@ function rowToChat(row, members) {
     archived: !!row.archived,
     createdAt: row.createdAt,
     linkedDiscussionChatId: row.linkedDiscussionChatId ?? undefined,
-    wallpaper: row.wallpaper ? JSON.parse(row.wallpaper) : null,
-    allowedReactions: row.allowedReactions ? JSON.parse(row.allowedReactions) : null,
-    restrictions: row.restrictions ? JSON.parse(row.restrictions) : {},
-    warnings: row.warnings ? JSON.parse(row.warnings) : {},
-    bannedIds: row.bannedIds ? JSON.parse(row.bannedIds) : [],
+    wallpaper: safeParse(row.wallpaper, null),
+    allowedReactions: safeParse(row.allowedReactions, null),
+    restrictions: safeParse(row.restrictions, {}),
+    warnings: safeParse(row.warnings, {}),
+    bannedIds: safeParse(row.bannedIds, []),
     rules: row.rules ?? undefined,
     topicsEnabled: !!row.topicsEnabled || undefined,
     welcomeText: row.welcomeText ?? undefined,
-    protectedBy: row.protectedBy ? JSON.parse(row.protectedBy) : [],
+    protectedBy: safeParse(row.protectedBy, []),
     points: row.points ?? 0,
-    votes: row.votes ? JSON.parse(row.votes) : {},
+    votes: safeParse(row.votes, {}),
     autoDeleteSeconds: row.autoDeleteSeconds ?? undefined,
     // Ни ключ, ни привязку к устройствам наружу не отдаём: device_id — часть
     // авторизации (middleware/auth.js), а ключ нужен только data/messages.js.
