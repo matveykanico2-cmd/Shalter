@@ -13,7 +13,7 @@ function savePaidMedia(messageId, chatId, stars, attachments) {
 function getPaidMedia(messageId) {
   const row = db.prepare("SELECT * FROM paid_media WHERE messageId = ?").get(messageId);
   if (!row) return null;
-  return { ...row, attachments: JSON.parse(row.attachments || "[]") };
+  return { ...row, attachments: (() => { try { return JSON.parse(row.attachments || "[]"); } catch { return []; } })() };
 }
 
 function hasBought(messageId, userId) {

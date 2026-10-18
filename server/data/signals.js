@@ -24,7 +24,7 @@ async function listSignalsFor(callId, forUserId, after) {
   const rows = db
     .prepare("SELECT * FROM signals WHERE callId = ? AND toUserId = ? AND seq > ? ORDER BY seq ASC")
     .all(callId, forUserId, after);
-  return rows.map((r) => ({ ...r, data: r.data ? JSON.parse(r.data) : null }));
+  return rows.map((r) => ({ ...r, data: (() => { try { return r.data ? JSON.parse(r.data) : null; } catch { return null; } })() }));
 }
 
 module.exports = { addSignal, listSignalsFor };

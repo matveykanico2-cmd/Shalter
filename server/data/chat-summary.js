@@ -111,6 +111,7 @@ async function attachSummaries(chats, userId) {
   const unarchive = [];
 
   const result = chats.map((chat) => {
+    try {
     const clearedBefore = chatClears[chat.id];
     const candidates = (lastByChat.get(chat.id) ?? []).filter(
       (r) => !clearedBefore || r.createdAt > clearedBefore
@@ -165,6 +166,12 @@ async function attachSummaries(chats, userId) {
       otherUser: isSaved ? null : otherUser,
       draft: drafts[chat.id] ?? null,
     };
+    } catch (err) {
+      // Один повреждённый чат (битый JSON, потерянный ключ секретного чата) не
+      // должен обнулять весь список: отдаём чат без последнего сообщения.
+      console.error("chat summary failed:", chat?.id, err?.message || err);
+      return { ...chat, lastMessage: null, unreadCount: 0, hasUnreadMention: false, otherUser: null, draft: null, pinOrder: null };
+    }
   });
 
   if (unarchive.length) {

@@ -6,6 +6,16 @@ const REFERRAL_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
 const FOREVER = "9999-01-01T00:00:00.000Z";
 
+// Повреждённый JSON в колонке не должен валить запрос целиком: отдаём пустой список.
+function jsonList(raw) {
+  try {
+    const parsed = JSON.parse(raw ?? "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 function rowToUser(row) {
   if (!row) return undefined;
   const safeParse = (val, fallback) => {
@@ -439,7 +449,7 @@ async function listLabeledUsers() {
 async function setBlocked(userId, targetId, blocked) {
   const row = db.prepare("SELECT blockedUserIds FROM users WHERE id = ?").get(userId);
   if (!row) return undefined;
-  const current = new Set(JSON.parse(row.blockedUserIds));
+  const current = new Set(jsonList(row.blockedUserIds));
   if (blocked) current.add(targetId);
   else current.delete(targetId);
   db.prepare("UPDATE users SET blockedUserIds = ? WHERE id = ?").run(JSON.stringify([...current]), userId);
@@ -449,7 +459,7 @@ async function setBlocked(userId, targetId, blocked) {
 async function addReceivedGift(userId, gift) {
   const row = db.prepare("SELECT giftsReceived FROM users WHERE id = ?").get(userId);
   if (!row) return undefined;
-  const current = JSON.parse(row.giftsReceived ?? "[]");
+  const current = jsonList(row.giftsReceived);
   current.push({ id: `rg_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`, ...gift });
   db.prepare("UPDATE users SET giftsReceived = ? WHERE id = ?").run(JSON.stringify(current), userId);
   return getUser(userId);
@@ -458,7 +468,7 @@ async function addReceivedGift(userId, gift) {
 const setGiftPinned = db.transaction((userId, giftEntryId, pinned) => {
   const row = db.prepare("SELECT giftsReceived FROM users WHERE id = ?").get(userId);
   if (!row) return false;
-  const current = JSON.parse(row.giftsReceived ?? "[]");
+  const current = jsonList(row.giftsReceived);
   const idx = current.findIndex((g) => (g.id ? g.id === giftEntryId : `${g.emoji}|${g.at}` === giftEntryId));
   if (idx === -1) return false;
   if (pinned) current[idx].pinned = true;
@@ -470,7 +480,7 @@ const setGiftPinned = db.transaction((userId, giftEntryId, pinned) => {
 const removeReceivedGift = db.transaction((userId, giftEntryId) => {
   const row = db.prepare("SELECT giftsReceived FROM users WHERE id = ?").get(userId);
   if (!row) return false;
-  const current = JSON.parse(row.giftsReceived ?? "[]");
+  const current = jsonList(row.giftsReceived);
   const idx = current.findIndex((g) => (g.id ? g.id === giftEntryId : `${g.emoji}|${g.at}` === giftEntryId));
   if (idx === -1) return false;
   current.splice(idx, 1);

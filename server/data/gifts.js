@@ -21414,7 +21414,7 @@ function rowToGift(row) {
     supply: row.supply ?? undefined,
     exclusive: !!row.exclusive || undefined,
     mediaUrl: row.mediaUrl ?? undefined,
-    scene: row.scene ? JSON.parse(row.scene) : undefined,
+    scene: (() => { try { return row.scene ? JSON.parse(row.scene) : undefined; } catch { return undefined; } })(),
     ownerId: row.ownerId ?? undefined,
     hidden: !!row.hidden || undefined,
     custom: true,
@@ -21473,7 +21473,7 @@ function listGifts({ includeHidden = false } = {}) {
       supply: row.supply ?? g.supply,
       edited: true,
       ...(row.hidden ? { hidden: true } : {}),
-      ...(row.scene ? { scene: JSON.parse(row.scene) } : {}),
+      ...(row.scene ? (() => { try { return { scene: JSON.parse(row.scene) }; } catch { return {}; } })() : {}),
     });
   }
   for (const row of rows.values()) {

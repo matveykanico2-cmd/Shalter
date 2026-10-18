@@ -9,7 +9,7 @@ function rowToEmoji(row) {
   return {
     id: row.id,
     name: row.name,
-    scene: JSON.parse(row.scene),
+    scene: (() => { try { return JSON.parse(row.scene); } catch { return null; } })(),
     createdAt: row.createdAt,
   };
 }

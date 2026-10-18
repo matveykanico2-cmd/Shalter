@@ -9,7 +9,7 @@ function rowToPasskey(row) {
   return {
     id: row.id,
     userId: row.userId,
-    publicKey: JSON.parse(row.publicKey),
+    publicKey: (() => { try { return JSON.parse(row.publicKey); } catch { return null; } })(),
     signCount: row.signCount,
     name: row.name ?? "Ключ доступа",
     createdAt: row.createdAt,
