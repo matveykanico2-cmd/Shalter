@@ -43,7 +43,7 @@ function rowToScheduled(row) {
     chatId: row.chatId,
     senderId: row.senderId,
     text: decryptText(aad(row.id), row.text),
-    attachments: row.attachments ? JSON.parse(row.attachments) : undefined,
+    attachments: row.attachments ? (() => { try { return JSON.parse(row.attachments); } catch { return undefined; } })() : undefined,
     replyToId: row.replyToId ?? null,
     topicId: row.topicId ?? null,
     repeat: row.repeat ?? null,

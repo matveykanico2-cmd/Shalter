@@ -2,12 +2,13 @@ const db = require("../db");
 
 function rowToFolder(row) {
   if (!row) return undefined;
+  let chatIds; try { chatIds = JSON.parse(row.chatIds); } catch { chatIds = []; }
   return {
     id: row.id,
     ownerId: row.ownerId,
     name: row.name,
     order: row.sortOrder,
-    chatIds: JSON.parse(row.chatIds),
+    chatIds,
     inviteCode: row.inviteCode ?? undefined,
   };
 }

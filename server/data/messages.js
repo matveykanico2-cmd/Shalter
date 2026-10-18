@@ -415,14 +415,13 @@ async function markChatRead(chatId, viewerId, { recordTime = false } = {}) {
   const update = db.prepare("UPDATE messages SET readByIds = ?, readAt = COALESCE(readAt, ?), readTimes = ? WHERE id = ?");
   const readNow = new Date().toISOString();
   const now = recordTime ? readNow : null;
-  const txn = db.transaction(() => {
+   const txn = db.transaction(() => {
     for (const row of rows) {
       if (row.senderId === viewerId) continue;
-      const readByIds = JSON.parse(row.readByIds);
+      let readByIds; try { readByIds = JSON.parse(row.readByIds); } catch { readByIds = []; }
       if (readByIds.includes(viewerId)) continue;
       readByIds.push(viewerId);
-      // Время пишем всегда, а показываем с учётом приватности — см. readersOf.
-      const readTimes = row.readTimes ? JSON.parse(row.readTimes) : {};
+      let readTimes; try { readTimes = row.readTimes ? JSON.parse(row.readTimes) : {}; } catch { readTimes = {}; }
       readTimes[viewerId] = readNow;
       update.run(JSON.stringify(readByIds), now, JSON.stringify(readTimes), row.id);
       changedIds.push(row.id);
@@ -438,8 +437,9 @@ async function markChatRead(chatId, viewerId, { recordTime = false } = {}) {
 function readersOf(messageId) {
   const row = db.prepare("SELECT readByIds, readTimes FROM messages WHERE id = ?").get(messageId);
   if (!row) return [];
-  const times = row.readTimes ? JSON.parse(row.readTimes) : {};
-  return JSON.parse(row.readByIds).map((userId) => ({ userId, readAt: times[userId] ?? null }));
+  let readByIds; try { readByIds = JSON.parse(row.readByIds); } catch { readByIds = []; }
+  let times; try { times = row.readTimes ? JSON.parse(row.readTimes) : {}; } catch { times = {}; }
+  return readByIds.map((userId) => ({ userId, readAt: times[userId] ?? null }));
 }
 
 function votePoll(id, optionIndex, userId) {

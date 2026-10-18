@@ -31,7 +31,7 @@ function listAdminLog(chatId, { limit = 100, beforeId = null } = {}) {
     actorId: r.actorId,
     action: r.action,
     targetId: r.targetId ?? undefined,
-    details: r.details ? JSON.parse(r.details) : undefined,
+    details: r.details ? (() => { try { return JSON.parse(r.details); } catch { return undefined; } })() : undefined,
     createdAt: r.createdAt,
   }));
 }

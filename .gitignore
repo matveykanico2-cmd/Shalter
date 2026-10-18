@@ -91,3 +91,4 @@ yarn-error.log*
 /public/tgs/
 # архивы сборок, скачанные из CI
 /shalter-*.zip
+.claude/settings.json

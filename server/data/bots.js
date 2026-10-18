@@ -3,12 +3,13 @@ const db = require("../db");
 
 function rowToBot(row) {
   if (!row) return undefined;
+  let commands; try { commands = JSON.parse(row.commands); } catch { commands = []; }
   return {
     id: row.id,
     userId: row.userId,
     ownerId: row.ownerId ?? undefined,
     description: row.description ?? "",
-    commands: JSON.parse(row.commands),
+    commands,
     createdAt: row.createdAt ?? undefined,
     code: row.code ?? undefined,
     appUrl: row.appUrl ?? null,

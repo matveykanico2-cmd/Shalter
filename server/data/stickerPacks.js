@@ -10,7 +10,7 @@ function rowToPack(row) {
     id: row.id,
     ownerId: row.ownerId,
     name: row.name,
-    stickers: JSON.parse(row.stickers ?? "[]"),
+    stickers: (() => { try { return JSON.parse(row.stickers ?? "[]"); } catch { return []; } })(),
     createdAt: row.createdAt,
   };
 }

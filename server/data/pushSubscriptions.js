@@ -3,7 +3,7 @@ const { genId } = require("../lib/genId");
 
 function rowToRow(row) {
   if (!row) return undefined;
-  return { id: row.id, userId: row.userId, subscription: JSON.parse(row.subscription) };
+  return { id: row.id, userId: row.userId, subscription: (() => { try { return JSON.parse(row.subscription); } catch { return null; } })() };
 }
 
 async function listSubscriptionsForUser(userId) {

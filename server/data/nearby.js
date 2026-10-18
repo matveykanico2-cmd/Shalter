@@ -57,7 +57,7 @@ async function listNearbyUsers(viewerId, viewerLat, viewerLng, viewerBlockedIds 
     .all(cutoff)
     .filter((r) => {
       if (r.id === viewerId || viewerBlocked.has(r.id)) return false;
-      const theirBlocked = JSON.parse(r.blockedUserIds || "[]");
+      let theirBlocked; try { theirBlocked = JSON.parse(r.blockedUserIds || "[]"); } catch { theirBlocked = []; }
       return !theirBlocked.includes(viewerId);
     });
 

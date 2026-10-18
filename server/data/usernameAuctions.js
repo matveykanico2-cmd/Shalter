@@ -3,7 +3,7 @@ const db = require("../db");
 
 function rowToAuction(row) {
   if (!row) return undefined;
-  const bids = JSON.parse(row.bids ?? "[]");
+  const bids = (() => { try { return JSON.parse(row.bids ?? "[]"); } catch { return []; } })();
   const top = bids[bids.length - 1] ?? null;
   return {
     id: row.id,

@@ -285,7 +285,8 @@ export function ChatListPane() {
       lastSetChats = chatsRes.chats;
       setState({ chats: chatsRes.chats, folders: foldersRes.folders, ...(commRes ? { communities: commRes.communities } : {}) });
       writeCache("chats", getState().user?.id, { chats: chatsRes.chats, folders: foldersRes.folders });
-    } catch {
+    } catch (err) {
+      console.error("chat list refetch failed:", err?.message || err);
     } finally {
       inFlight = false;
       if (pending) {
