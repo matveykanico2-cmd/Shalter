@@ -163,6 +163,12 @@ if (useBuilt) {
 }
 app.use("/.well-known", express.static(path.join(PUBLIC_DIR, ".well-known"), { maxAge: "1h" }));
 
+// Knowledge base pages — before express.static to prevent 301 redirect for /knowledge
+app.get("/knowledge", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "index.html")));
+app.get("/knowledge/shalter", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "shalter.html")));
+app.get("/knowledge/bot-api", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "bot-api.html")));
+app.get("/knowledge/architecture", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "architecture.html")));
+
 // Эмодзи, узоры подарков, анимации — из архивов server/assets/packs (по прежним адресам)
 app.use(require("./lib/assetPacks").assetPacks());
 app.use(express.static(PUBLIC_DIR, { index: false, maxAge: useBuilt ? "1h" : 0 }));
@@ -185,12 +191,6 @@ app.get("/premium", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "premium.h
 app.get("/bots", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "bots.html")));
 app.get("/games", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "games.html")));
 app.get("/oauth-docs", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "oauth-docs.html")));
-
-// Knowledge base pages — for search engine and AI crawler indexing
-app.get("/knowledge", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "index.html")));
-app.get("/knowledge/shalter", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "shalter.html")));
-app.get("/knowledge/bot-api", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "bot-api.html")));
-app.get("/knowledge/architecture", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "architecture.html")));
 
 app.get(/^\/(?!api|ws).*/, (req, res) => {
   res.sendFile(indexHtml);

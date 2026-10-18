@@ -5,8 +5,13 @@ import { openInAppBrowser } from "./inAppBrowser.js";
 import { openMediaViewer, galleryAround } from "./mediaViewer.js";
 import { setNowPlaying, playingMediaFor } from "../lib/audioPlayer.js";
 
-function MediaButton(className, item, children, { spoiler = false } = {}) {
+const DOUBLE_TAP_MS = 300;
+
+function MediaButton(className, item, children, { spoiler = false, onDoubleClick } = {}) {
   // Спойлер: первое нажатие снимает размытие, следующее — открывает просмотр.
+  // Двойной клик на медиа — реакция вместо просмотра (как в tweb).
+  let lastClickTime = 0;
+  let pendingOpen = null;
   const btn = el(
     "button",
     {
@@ -25,7 +30,22 @@ function MediaButton(className, item, children, { spoiler = false } = {}) {
           btn.classList.add("spoiler-revealed");
           return;
         }
-        openMediaViewer({ ...item, ...galleryAround(e.currentTarget) });
+        const now = Date.now();
+        if (onDoubleClick && now - lastClickTime < DOUBLE_TAP_MS) {
+          if (pendingOpen) { clearTimeout(pendingOpen); pendingOpen = null; }
+          lastClickTime = 0;
+          onDoubleClick(e);
+          return;
+        }
+        lastClickTime = now;
+        if (onDoubleClick) {
+          pendingOpen = setTimeout(() => {
+            pendingOpen = null;
+            openMediaViewer({ ...item, ...galleryAround(e.currentTarget) });
+          }, DOUBLE_TAP_MS);
+        } else {
+          openMediaViewer({ ...item, ...galleryAround(e.currentTarget) });
+        }
       },
     },
     spoiler ? [...children, el("span", { class: "media-spoiler", "aria-hidden": "true" }, el("span", { class: "media-spoiler-label" }, "Нажмите, чтобы открыть"))] : children
@@ -90,21 +110,21 @@ function resilientImage(img, holder, sources) {
   img.src = list[0] ?? "";
 }
 
-export function ImageAttachment(a) {
+export function ImageAttachment(a, opts = {}) {
   const img = el("img", { loading: "lazy", decoding: "async", alt: a.name || "photo", class: "image-attachment" });
   // Размеры заранее — лента не прыгает, пока фото грузится.
   if (a.width > 0 && a.height > 0) {
     img.width = a.width;
     img.height = a.height;
   }
-  const btn = MediaButton("image-attachment-btn", { kind: "image", url: a.url, name: a.name, thumbUrl: a.thumbUrl || a.url }, [img], { spoiler: !!a.spoiler });
+  const btn = MediaButton("image-attachment-btn", { kind: "image", url: a.url, name: a.name, thumbUrl: a.thumbUrl || a.url }, [img], { spoiler: !!a.spoiler, onDoubleClick: opts.onDoubleClick });
   resilientImage(img, btn, [a.thumbUrl, a.url]);
   return btn;
 }
 
 const VIDEO_MAX_H = 420;
 
-export function VideoAttachment(a) {
+export function VideoAttachment(a, opts = {}) {
   // posterUrl is a real image; a blob: thumbUrl is the sender's local copy of the video
   // itself (set while the server preview is pending), so it can't go in an <img>.
   const localVideo = a.thumbUrl?.startsWith("blob:") ? a.thumbUrl : null;
@@ -119,7 +139,7 @@ export function VideoAttachment(a) {
       ? { kind: "video", url: frameSrc, name: a.name, thumbUrl: poster }
       : { kind: "video", url: a.previewUrl || a.url, name: a.name, originalUrl: a.previewUrl ? a.url : null, thumbUrl: poster, fallbackUrl: a.previewUrl ? a.url : null },
     [cover, a.previewPending ? el("span", { class: "attachment-pending-spinner" }) : el("span", { class: "video-attachment-play", html: iconSvg("Play", 28) })],
-    { spoiler: !!a.spoiler }
+    { spoiler: !!a.spoiler, onDoubleClick: opts.onDoubleClick }
   );
   // Size the bubble to the video's real shape instead of a fixed 16:10 strip.
   // Portrait clips get a narrower box so they keep their shape under the height cap.

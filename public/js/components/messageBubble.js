@@ -908,8 +908,8 @@ export function AttachmentView(a, me, ctx) {
   const autoDownload = getState().settings?.autoDownload !== false;
   if (a.kind === "voice") return VoicePlayer(a, ctx);
   if (a.kind === "video-note") return VideoNotePlayer(a, ctx);
-  if (a.kind === "image") return autoDownload ? ImageAttachment(a) : TapToLoad("image", () => ImageAttachment(a));
-  if (a.kind === "video") return autoDownload ? VideoAttachment(a) : TapToLoad("video", () => VideoAttachment(a));
+  if (a.kind === "image") return autoDownload ? ImageAttachment(a, { onDoubleClick: ctx?.onDoubleClick }) : TapToLoad("image", () => ImageAttachment(a, { onDoubleClick: ctx?.onDoubleClick }));
+  if (a.kind === "video") return autoDownload ? VideoAttachment(a, { onDoubleClick: ctx?.onDoubleClick }) : TapToLoad("video", () => VideoAttachment(a, { onDoubleClick: ctx?.onDoubleClick }));
   if (a.kind === "file") return FileAttachment(a, ctx);
   if (a.kind === "location") return LocationAttachment(a);
   if (a.kind === "contact") return ContactAttachment(a, me.id);
@@ -1033,11 +1033,11 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
         el(
           "div",
           { class: `message-album album-${n}${mediaAtts.length > 4 ? " album-many" : ""}` },
-          mediaAtts.map((m) => el("div", { class: "message-album-cell" }, [AttachmentView(m, me)]))
+          mediaAtts.map((m) => el("div", { class: "message-album-cell" }, [AttachmentView(m, me, { message, sender, onDoubleClick: (e) => openReactions({ x: e.clientX, y: e.clientY }) })]))
         )
       );
     } else {
-      bubbleInner.push(AttachmentView(a, me, { message, sender }));
+      bubbleInner.push(AttachmentView(a, me, { message, sender, onDoubleClick: (e) => openReactions({ x: e.clientX, y: e.clientY }) }));
     }
   }
   const mediaOnly =
