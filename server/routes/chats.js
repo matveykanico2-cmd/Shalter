@@ -37,11 +37,13 @@ router.get(
     const withSummary = await attachSummaries(chats, req.uid);
     const settings = await getSettings(req.uid);
     const hidden = settings.hiddenChats ?? {};
-    const visible = withSummary.filter((c) => {
-      if (hidden[c.id] && !c.lastMessage) return false;
-      if (c.type === "dm" && !c.lastMessage && !c.draft) return false;
-      return true;
-    });
+const visible = withSummary.filter((c) => {
+    if (hidden[c.id] && !c.lastMessage) return false;
+    // Don't hide DMs just because they have no messages yet — they should appear
+    // if the user created them (e.g., has a draft, or just opened the chat).
+    // The old logic hid empty DMs with no draft, making new DMs invisible.
+    return true;
+  });
     res.json({ chats: visible });
   })
 );
