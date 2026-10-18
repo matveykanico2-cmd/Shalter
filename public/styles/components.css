@@ -13180,6 +13180,79 @@ p.business-status {
 }
 .holiday-banner-close:hover { opacity: 1; }
 
+.dismissible-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--color-bg-elevated, #1e2126);
+  color: var(--color-text, #fff);
+  font-size: 13px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--color-border, #333);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transform: translateY(-100%);
+  opacity: 0;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+  flex-shrink: 0;
+}
+.dismissible-banner.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+.dismissible-banner.warning {
+  background: linear-gradient(90deg, #d97706, #b45309);
+  color: #fff;
+  border-bottom-color: #d97706;
+}
+.dismissible-banner.error {
+  background: linear-gradient(90deg, #dc2626, #b91c1c);
+  color: #fff;
+  border-bottom-color: #dc2626;
+}
+.dismissible-banner-info {
+  background: linear-gradient(90deg, #2563eb, #1d4ed8);
+  color: #fff;
+  border-bottom-color: #2563eb;
+}
+.dismissible-banner-text {
+  flex: 1;
+  text-align: center;
+}
+.dismissible-banner-action {
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.15);
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.dismissible-banner-action:hover { background: rgba(255,255,255,0.25); }
+.dismissible-banner-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.dismissible-banner-close:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+
 .label-row-actions {
   display: flex;
   gap: 12px;

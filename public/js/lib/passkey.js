@@ -1,4 +1,5 @@
 import { api } from "../api.js";
+import { showDismissibleBanner } from "../components/dismissibleBanner.js";
 
 // Ключи доступа (WebAuthn): перевод опций сервера в ArrayBuffer и ответа
 // браузера обратно в base64url.
@@ -49,5 +50,20 @@ export async function loginWithPasskey() {
 export function passkeyErrorText(err) {
   if (err?.name === "NotAllowedError" || err?.name === "AbortError") return "Отменено";
   if (err?.name === "InvalidStateError") return "Этот ключ уже добавлен";
+  if (err?.name === "NotSupportedError") return "Ключи доступа не поддерживаются на этом устройстве";
   return err?.message || "Не получилось";
+}
+
+export function handlePasskeyLoginError(err) {
+  if (err?.name === "NotAllowedError") {
+    showDismissibleBanner(
+      "На этом устройстве нет сохранённого ключа доступа. Добавьте его в настройках или войдите паролем.",
+      { id: "noPasskey", className: "warning", autoHideMs: 10000 }
+    );
+    return "Отменено";
+  }
+  if (err?.name === "AbortError") return "Отменено";
+  if (err?.name === "InvalidStateError") return "Этот ключ уже добавлен";
+  if (err?.name === "NotSupportedError") return "Ключи доступа не поддерживаются";
+  return err?.message || "Не получилось войти по ключу";
 }

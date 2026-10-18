@@ -77,8 +77,8 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 44, fill: "#ffd9e8", opacity: 0.6, anim: "pulse", dur: 3 },
       { type: "ellipse", x: 50, y: 70, w: 90, h: 20, fill: "#4fb6ea", opacity: 0.7, anim: "float", dur: 3.2 },
       { type: "emoji", emoji: "🦀", x: 30, y: 46, size: 38, anim: "bounce", dur: 2 },
-      { type: "emoji", emoji: "🎂", x: 70, y: 36, size: 30, anim: "twinkle", dur: 2.2 },
-      { type: "emoji", emoji: "🎉", x: 20, y: 28, size: 20, anim: "burst", delay: 0.8, dur: 1.5 },
+      { type: "emoji", emoji: "🎂", x: 70, y: 36, size: 30, anim: "blink", dur: 2.2 },
+      { type: "emoji", emoji: "🎉", x: 20, y: 28, size: 20, anim: "pop", delay: 0.8, dur: 1.5 },
       { type: "emoji", emoji: "🎈", x: 78, y: 52, size: 24, anim: "rise", delay: 0.5, dur: 2.6 },
     ],
   },
@@ -91,8 +91,8 @@ const BUILTIN_GIFT_SCENES = {
       { type: "emoji", emoji: "🦀", x: 50, y: 44, size: 40, anim: "wave", dur: 1.8 },
       { type: "emoji", emoji: "🍾", x: 22, y: 30, size: 24, anim: "pop", delay: 0.4, dur: 1.2 },
       { type: "emoji", emoji: "🥂", x: 74, y: 28, size: 22, anim: "pop", delay: 0.8, dur: 1.2 },
-      { type: "emoji", emoji: "🎊", x: 30, y: 70, size: 20, anim: "burst", delay: 1.0, dur: 1 },
-      { type: "emoji", emoji: "🎊", x: 72, y: 68, size: 18, anim: "burst", delay: 1.3, dur: 1 },
+      { type: "emoji", emoji: "🎊", x: 30, y: 70, size: 20, anim: "pop", delay: 1.0, dur: 1 },
+      { type: "emoji", emoji: "🎊", x: 72, y: 68, size: 18, anim: "pop", delay: 1.3, dur: 1 },
     ],
   },
   shalter_crab_hug: {
@@ -100,11 +100,11 @@ const BUILTIN_GIFT_SCENES = {
     loop: 2.8,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 40, fill: "#ffd6e0", opacity: 0.5, anim: "beat", dur: 2.2 },
+      { type: "circle", x: 50, y: 50, r: 40, fill: "#ffd6e0", opacity: 0.5, anim: "heartbeat", dur: 2.2 },
       { type: "emoji", emoji: "🦀", x: 50, y: 46, size: 42, anim: "pulse", dur: 2 },
       { type: "emoji", emoji: "❤️", x: 50, y: 20, size: 28, anim: "rise", delay: 0.3, dur: 1.8 },
-      { type: "emoji", emoji: "✨", x: 24, y: 70, size: 18, anim: "twinkle", delay: 0.5, dur: 1.6 },
-      { type: "emoji", emoji: "✨", x: 78, y: 72, size: 16, anim: "twinkle", delay: 0.9, dur: 1.4 },
+      { type: "emoji", emoji: "✨", x: 24, y: 70, size: 18, anim: "blink", delay: 0.5, dur: 1.6 },
+      { type: "emoji", emoji: "✨", x: 78, y: 72, size: 16, anim: "blink", delay: 0.9, dur: 1.4 },
     ],
   },
   // — Новые подарки с крабом для дней рождения —
@@ -116,7 +116,7 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 42, fill: "#e6f7ff", opacity: 0.5, anim: "float", dur: 3 },
       { type: "emoji", emoji: "🦀", x: 50, y: 44, size: 44, anim: "wave", dur: 1.6 },
       { type: "emoji", emoji: "👋", x: 26, y: 30, size: 22, anim: "pop", delay: 0.5, dur: 1.2 },
-      { type: "emoji", emoji: "✨", x: 74, y: 48, size: 16, anim: "twinkle", delay: 0.8, dur: 1.4 },
+      { type: "emoji", emoji: "✨", x: 74, y: 48, size: 16, anim: "blink", delay: 0.8, dur: 1.4 },
     ],
   },
   crab_cake_slice: {
@@ -124,10 +124,10 @@ const BUILTIN_GIFT_SCENES = {
     loop: 3,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 40, fill: "#fff5e6", opacity: 0.5, anim: "breathe", dur: 2.8 },
+      { type: "circle", x: 50, y: 50, r: 40, fill: "#fff5e6", opacity: 0.5, anim: "pulse", dur: 2.8 },
       { type: "emoji", emoji: "🦀", x: 30, y: 42, size: 36, anim: "bounce", dur: 2 },
-      { type: "emoji", emoji: "🍰", x: 68, y: 40, size: 28, anim: "twinkle", delay: 0.6, dur: 1.8 },
-      { type: "emoji", emoji: "🕯️", x: 72, y: 24, size: 12, anim: "flicker", delay: 0.3, dur: 1 },
+      { type: "emoji", emoji: "🍰", x: 68, y: 40, size: 28, anim: "blink", delay: 0.6, dur: 1.8 },
+      { type: "emoji", emoji: "🕯️", x: 72, y: 24, size: 12, anim: "blink", delay: 0.3, dur: 1 },
     ],
   },
   crab_cake_whole: {
@@ -137,10 +137,10 @@ const BUILTIN_GIFT_SCENES = {
     layers: [
       { type: "circle", x: 50, y: 50, r: 44, fill: "#ffd6e8", opacity: 0.6, anim: "pulse", dur: 3 },
       { type: "emoji", emoji: "🦀", x: 50, y: 48, size: 40, anim: "wave", dur: 1.8 },
-      { type: "emoji", emoji: "🎂", x: 50, y: 28, size: 32, anim: "twinkle", delay: 0.4, dur: 2 },
-      { type: "emoji", emoji: "🕯️", x: 48, y: 14, size: 14, anim: "flicker", delay: 0.2, dur: 0.9 },
-      { type: "emoji", emoji: "🎉", x: 24, y: 28, size: 18, anim: "burst", delay: 0.8, dur: 1.4 },
-      { type: "emoji", emoji: "🎉", x: 76, y: 28, size: 18, anim: "burst", delay: 1.1, dur: 1.4 },
+      { type: "emoji", emoji: "🎂", x: 50, y: 28, size: 32, anim: "blink", delay: 0.4, dur: 2 },
+      { type: "emoji", emoji: "🕯️", x: 48, y: 14, size: 14, anim: "blink", delay: 0.2, dur: 0.9 },
+      { type: "emoji", emoji: "🎉", x: 24, y: 28, size: 18, anim: "pop", delay: 0.8, dur: 1.4 },
+      { type: "emoji", emoji: "🎉", x: 76, y: 28, size: 18, anim: "pop", delay: 1.1, dur: 1.4 },
     ],
   },
   crab_ice_cream: {
@@ -151,7 +151,7 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 40, fill: "#fff0f6", opacity: 0.5, anim: "float", dur: 2.5 },
       { type: "emoji", emoji: "🦀", x: 32, y: 44, size: 32, anim: "wiggle", dur: 2 },
       { type: "emoji", emoji: "🍦", x: 70, y: 40, size: 28, anim: "rise", delay: 0.7, dur: 1.6 },
-      { type: "emoji", emoji: "✨", x: 28, y: 22, size: 14, anim: "twinkle", delay: 0.4, dur: 1.2 },
+      { type: "emoji", emoji: "✨", x: 28, y: 22, size: 14, anim: "blink", delay: 0.4, dur: 1.2 },
     ],
   },
   crab_cupcake: {
@@ -159,9 +159,9 @@ const BUILTIN_GIFT_SCENES = {
     loop: 3,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 40, fill: "#ffe6e6", opacity: 0.5, anim: "beat", dur: 2.5 },
+      { type: "circle", x: 50, y: 50, r: 40, fill: "#ffe6e6", opacity: 0.5, anim: "heartbeat", dur: 2.5 },
       { type: "emoji", emoji: "🦀", x: 28, y: 46, size: 32, anim: "bounce", dur: 2.2 },
-      { type: "emoji", emoji: "🧁", x: 70, y: 44, size: 28, anim: "twinkle", delay: 0.6, dur: 1.8 },
+      { type: "emoji", emoji: "🧁", x: 70, y: 44, size: 28, anim: "blink", delay: 0.6, dur: 1.8 },
       { type: "emoji", emoji: "❤️", x: 50, y: 20, size: 16, anim: "rise", delay: 0.4, dur: 1.4 },
     ],
   },
@@ -181,10 +181,10 @@ const BUILTIN_GIFT_SCENES = {
     loop: 2.6,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 38, fill: "#fff0f6", opacity: 0.5, anim: "breathe", dur: 2.3 },
+      { type: "circle", x: 50, y: 50, r: 38, fill: "#fff0f6", opacity: 0.5, anim: "pulse", dur: 2.3 },
       { type: "emoji", emoji: "🦀", x: 42, y: 48, size: 30, anim: "wiggle", dur: 2 },
       { type: "emoji", emoji: "🍭", x: 18, y: 40, size: 22, anim: "pulse", delay: 0.4, dur: 1.5 },
-      { type: "emoji", emoji: "✨", x: 76, y: 32, size: 16, anim: "twinkle", delay: 0.8, dur: 1.2 },
+      { type: "emoji", emoji: "✨", x: 76, y: 32, size: 16, anim: "blink", delay: 0.8, dur: 1.2 },
     ],
   },
   crab_chocolate: {
@@ -192,9 +192,9 @@ const BUILTIN_GIFT_SCENES = {
     loop: 3,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 40, fill: "#f3e5f5", opacity: 0.5, anim: "beat", dur: 2.6 },
+      { type: "circle", x: 50, y: 50, r: 40, fill: "#f3e5f5", opacity: 0.5, anim: "heartbeat", dur: 2.6 },
       { type: "emoji", emoji: "🦀", x: 34, y: 44, size: 32, anim: "wiggle", dur: 2 },
-      { type: "emoji", emoji: "🍫", x: 68, y: 42, size: 26, anim: "twinkle", delay: 0.6, dur: 1.8 },
+      { type: "emoji", emoji: "🍫", x: 68, y: 42, size: 26, anim: "blink", delay: 0.6, dur: 1.8 },
       { type: "emoji", emoji: "❤️", x: 50, y: 20, size: 14, anim: "rise", delay: 0.3, dur: 1.5 },
     ],
   },
@@ -206,7 +206,7 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 40, fill: "#fff3e0", opacity: 0.5, anim: "float", dur: 2.5 },
       { type: "emoji", emoji: "🦀", x: 30, y: 46, size: 34, anim: "bounce", dur: 2 },
       { type: "emoji", emoji: "🍩", x: 70, y: 44, size: 26, anim: "spin", delay: 0.5, dur: 1.8 },
-      { type: "emoji", emoji: "🍓", x: 70, y: 36, size: 10, anim: "twinkle", delay: 0.2, dur: 1 },
+      { type: "emoji", emoji: "🍓", x: 70, y: 36, size: 10, anim: "blink", delay: 0.2, dur: 1 },
     ],
   },
   crab_pizza: {
@@ -214,10 +214,10 @@ const BUILTIN_GIFT_SCENES = {
     loop: 2.6,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 40, fill: "#fff5e6", opacity: 0.5, anim: "breathe", dur: 2.3 },
+      { type: "circle", x: 50, y: 50, r: 40, fill: "#fff5e6", opacity: 0.5, anim: "pulse", dur: 2.3 },
       { type: "emoji", emoji: "🦀", x: 28, y: 44, size: 32, anim: "wiggle", dur: 2 },
       { type: "emoji", emoji: "🍕", x: 70, y: 44, size: 28, anim: "pop", delay: 0.7, dur: 1.4 },
-      { type: "emoji", emoji: "🌶️", x: 72, y: 32, size: 12, anim: "burst", delay: 0.5, dur: 1 },
+      { type: "emoji", emoji: "🌶️", x: 72, y: 32, size: 12, anim: "pop", delay: 0.5, dur: 1 },
     ],
   },
   crab_popcorn: {
@@ -227,8 +227,8 @@ const BUILTIN_GIFT_SCENES = {
     layers: [
       { type: "circle", x: 50, y: 50, r: 40, fill: "#fff8e1", opacity: 0.6, anim: "float", dur: 2.8 },
       { type: "emoji", emoji: "🦀", x: 36, y: 44, size: 32, anim: "bounce", dur: 2.2 },
-      { type: "emoji", emoji: "🍿", x: 70, y: 40, size: 26, anim: "burst", delay: 0.6, dur: 1.4 },
-      { type: "emoji", emoji: "✨", x: 24, y: 28, size: 14, anim: "twinkle", delay: 0.4, dur: 1.2 },
+      { type: "emoji", emoji: "🍿", x: 70, y: 40, size: 26, anim: "pop", delay: 0.6, dur: 1.4 },
+      { type: "emoji", emoji: "✨", x: 24, y: 28, size: 14, anim: "blink", delay: 0.4, dur: 1.2 },
     ],
   },
   crab_cocktail: {
@@ -239,7 +239,7 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 40, fill: "#e1f5fe", opacity: 0.5, anim: "swing", dur: 3 },
       { type: "emoji", emoji: "🦀", x: 30, y: 46, size: 34, anim: "wave", dur: 2 },
       { type: "emoji", emoji: "🍹", x: 70, y: 42, size: 28, anim: "rise", delay: 0.8, dur: 1.8 },
-      { type: "emoji", emoji: "🍸", x: 66, y: 30, size: 14, anim: "twinkle", delay: 0.5, dur: 1.2 },
+      { type: "emoji", emoji: "🍸", x: 66, y: 30, size: 14, anim: "blink", delay: 0.5, dur: 1.2 },
     ],
   },
   crab_champagne: {
@@ -250,8 +250,8 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 44, fill: "#fff9c4", opacity: 0.5, anim: "pulse", dur: 3 },
       { type: "emoji", emoji: "🦀", x: 32, y: 46, size: 36, anim: "wave", dur: 2 },
       { type: "emoji", emoji: "🍾", x: 68, y: 44, size: 28, anim: "pop", delay: 0.6, dur: 1.5 },
-      { type: "emoji", emoji: "🥂", x: 64, y: 30, size: 18, anim: "twinkle", delay: 0.4, dur: 1.2 },
-      { type: "emoji", emoji: "✨", x: 22, y: 28, size: 12, anim: "burst", delay: 0.9, dur: 1 },
+      { type: "emoji", emoji: "🥂", x: 64, y: 30, size: 18, anim: "blink", delay: 0.4, dur: 1.2 },
+      { type: "emoji", emoji: "✨", x: 22, y: 28, size: 12, anim: "pop", delay: 0.9, dur: 1 },
     ],
   },
   crab_toast: {
@@ -259,9 +259,9 @@ const BUILTIN_GIFT_SCENES = {
     loop: 3,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 40, fill: "#fff0f6", opacity: 0.5, anim: "beat", dur: 2.6 },
+      { type: "circle", x: 50, y: 50, r: 40, fill: "#fff0f6", opacity: 0.5, anim: "heartbeat", dur: 2.6 },
       { type: "emoji", emoji: "🦀", x: 34, y: 44, size: 34, anim: "wave", dur: 2 },
-      { type: "emoji", emoji: "🥂", x: 70, y: 42, size: 28, anim: "twinkle", delay: 0.6, dur: 1.8 },
+      { type: "emoji", emoji: "🥂", x: 70, y: 42, size: 28, anim: "blink", delay: 0.6, dur: 1.8 },
       { type: "emoji", emoji: "🍾", x: 20, y: 30, size: 18, anim: "pop", delay: 0.9, dur: 1.3 },
     ],
   },
@@ -270,10 +270,10 @@ const BUILTIN_GIFT_SCENES = {
     loop: 2.8,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 38, fill: "#fff0f6", opacity: 0.4, anim: "flicker", dur: 2.5 },
+      { type: "circle", x: 50, y: 50, r: 38, fill: "#fff0f6", opacity: 0.4, anim: "blink", dur: 2.5 },
       { type: "emoji", emoji: "🦀", x: 36, y: 48, size: 32, anim: "wiggle", dur: 2 },
-      { type: "emoji", emoji: "🕯️", x: 70, y: 30, size: 26, anim: "flicker", delay: 0.3, dur: 0.8 },
-      { type: "emoji", emoji: "🔥", x: 70, y: 14, size: 20, anim: "flicker", delay: 0.2, dur: 0.7 },
+      { type: "emoji", emoji: "🕯️", x: 70, y: 30, size: 26, anim: "blink", delay: 0.3, dur: 0.8 },
+      { type: "emoji", emoji: "🔥", x: 70, y: 14, size: 20, anim: "blink", delay: 0.2, dur: 0.7 },
     ],
   },
   crab_party_hat: {
@@ -284,8 +284,8 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 40, fill: "#e8f5e9", opacity: 0.5, anim: "pulse", dur: 2.8 },
       { type: "emoji", emoji: "🎩", x: 50, y: 18, size: 36, anim: "bounce", delay: 0.3, dur: 1.5 },
       { type: "emoji", emoji: "🦀", x: 50, y: 52, size: 36, anim: "wave", dur: 1.8 },
-      { type: "emoji", emoji: "🎉", x: 22, y: 50, size: 18, anim: "burst", delay: 0.8, dur: 1.4 },
-      { type: "emoji", emoji: "🎉", x: 78, y: 50, size: 18, anim: "burst", delay: 1.2, dur: 1.4 },
+      { type: "emoji", emoji: "🎉", x: 22, y: 50, size: 18, anim: "pop", delay: 0.8, dur: 1.4 },
+      { type: "emoji", emoji: "🎉", x: 78, y: 50, size: 18, anim: "pop", delay: 1.2, dur: 1.4 },
     ],
   },
   crab_present: {
@@ -293,10 +293,10 @@ const BUILTIN_GIFT_SCENES = {
     loop: 3.2,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 40, fill: "#f3e5f5", opacity: 0.5, anim: "breathe", dur: 2.8 },
+      { type: "circle", x: 50, y: 50, r: 40, fill: "#f3e5f5", opacity: 0.5, anim: "pulse", dur: 2.8 },
       { type: "emoji", emoji: "🦀", x: 34, y: 46, size: 32, anim: "wiggle", dur: 2 },
       { type: "emoji", emoji: "🎁", x: 68, y: 42, size: 28, anim: "pop", delay: 0.7, dur: 1.6 },
-      { type: "emoji", emoji: "🎀", x: 66, y: 30, size: 12, anim: "twinkle", delay: 0.3, dur: 1.2 },
+      { type: "emoji", emoji: "🎀", x: 66, y: 30, size: 12, anim: "blink", delay: 0.3, dur: 1.2 },
     ],
   },
   crab_balloon: {
@@ -317,9 +317,9 @@ const BUILTIN_GIFT_SCENES = {
     layers: [
       { type: "circle", x: 50, y: 50, r: 40, fill: "#ffd6e8", opacity: 0.5, anim: "pulse", dur: 2.6 },
       { type: "emoji", emoji: "🦀", x: 36, y: 48, size: 34, anim: "wiggle", dur: 2.2 },
-      { type: "emoji", emoji: "🎊", x: 20, y: 28, size: 18, anim: "burst", delay: 0.4, dur: 1.4 },
-      { type: "emoji", emoji: "🎊", x: 72, y: 26, size: 16, anim: "burst", delay: 0.8, dur: 1.4 },
-      { type: "emoji", emoji: "✨", x: 50, y: 18, size: 14, anim: "burst", delay: 0.6, dur: 1.2 },
+      { type: "emoji", emoji: "🎊", x: 20, y: 28, size: 18, anim: "pop", delay: 0.4, dur: 1.4 },
+      { type: "emoji", emoji: "🎊", x: 72, y: 26, size: 16, anim: "pop", delay: 0.8, dur: 1.4 },
+      { type: "emoji", emoji: "✨", x: 50, y: 18, size: 14, anim: "pop", delay: 0.6, dur: 1.2 },
     ],
   },
   crab_fireworks: {
@@ -327,11 +327,11 @@ const BUILTIN_GIFT_SCENES = {
     loop: 3.8,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 46, fill: "#000", opacity: 0.2, anim: "flash", dur: 3 },
+      { type: "circle", x: 50, y: 50, r: 46, fill: "#000", opacity: 0.2, anim: "pop", dur: 3 },
       { type: "emoji", emoji: "🦀", x: 50, y: 60, size: 36, anim: "bounce", dur: 2.5 },
-      { type: "emoji", emoji: "🎆", x: 50, y: 20, size: 30, anim: "burst", delay: 0.5, dur: 2 },
-      { type: "emoji", emoji: "✨", x: 30, y: 15, size: 16, anim: "twinkle", delay: 0.6, dur: 1.4 },
-      { type: "emoji", emoji: "✨", x: 72, y: 22, size: 14, anim: "twinkle", delay: 0.9, dur: 1.2 },
+      { type: "emoji", emoji: "🎆", x: 50, y: 20, size: 30, anim: "pop", delay: 0.5, dur: 2 },
+      { type: "emoji", emoji: "✨", x: 30, y: 15, size: 16, anim: "blink", delay: 0.6, dur: 1.4 },
+      { type: "emoji", emoji: "✨", x: 72, y: 22, size: 14, anim: "blink", delay: 0.9, dur: 1.2 },
     ],
   },
   crab_star: {
@@ -339,11 +339,11 @@ const BUILTIN_GIFT_SCENES = {
     loop: 3,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 42, fill: "#fff9c4", opacity: 0.6, anim: "twinkle", dur: 2.8 },
+      { type: "circle", x: 50, y: 50, r: 42, fill: "#fff9c4", opacity: 0.6, anim: "blink", dur: 2.8 },
       { type: "emoji", emoji: "🦀", x: 50, y: 48, size: 36, anim: "wave", dur: 2 },
-      { type: "emoji", emoji: "⭐", x: 50, y: 18, size: 28, anim: "twinkle", delay: 0.3, dur: 1.8 },
-      { type: "emoji", emoji: "✨", x: 24, y: 60, size: 14, anim: "twinkle", delay: 0.7, dur: 1.4 },
-      { type: "emoji", emoji: "✨", x: 76, y: 62, size: 14, anim: "twinkle", delay: 1.0, dur: 1.4 },
+      { type: "emoji", emoji: "⭐", x: 50, y: 18, size: 28, anim: "blink", delay: 0.3, dur: 1.8 },
+      { type: "emoji", emoji: "✨", x: 24, y: 60, size: 14, anim: "blink", delay: 0.7, dur: 1.4 },
+      { type: "emoji", emoji: "✨", x: 76, y: 62, size: 14, anim: "blink", delay: 1.0, dur: 1.4 },
     ],
   },
   crab_heart: {
@@ -351,11 +351,11 @@ const BUILTIN_GIFT_SCENES = {
     loop: 2.8,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 40, fill: "#ffd6e8", opacity: 0.5, anim: "beat", dur: 2.4 },
+      { type: "circle", x: 50, y: 50, r: 40, fill: "#ffd6e8", opacity: 0.5, anim: "heartbeat", dur: 2.4 },
       { type: "emoji", emoji: "🦀", x: 50, y: 50, size: 34, anim: "wiggle", dur: 2 },
       { type: "emoji", emoji: "💖", x: 50, y: 20, size: 28, anim: "rise", delay: 0.3, dur: 1.6 },
-      { type: "emoji", emoji: "❤️", x: 30, y: 60, size: 16, anim: "twinkle", delay: 0.5, dur: 1.4 },
-      { type: "emoji", emoji: "❤️", x: 70, y: 58, size: 16, anim: "twinkle", delay: 0.8, dur: 1.4 },
+      { type: "emoji", emoji: "❤️", x: 30, y: 60, size: 16, anim: "blink", delay: 0.5, dur: 1.4 },
+      { type: "emoji", emoji: "❤️", x: 70, y: 58, size: 16, anim: "blink", delay: 0.8, dur: 1.4 },
     ],
   },
   crab_kiss: {
@@ -363,9 +363,9 @@ const BUILTIN_GIFT_SCENES = {
     loop: 2.6,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 38, fill: "#fff0f6", opacity: 0.5, anim: "breathe", dur: 2.2 },
+      { type: "circle", x: 50, y: 50, r: 38, fill: "#fff0f6", opacity: 0.5, anim: "pulse", dur: 2.2 },
       { type: "emoji", emoji: "🦀", x: 34, y: 48, size: 32, anim: "wiggle", dur: 2 },
-      { type: "emoji", emoji: "💋", x: 68, y: 44, size: 26, anim: "twinkle", delay: 0.5, dur: 1.6 },
+      { type: "emoji", emoji: "💋", x: 68, y: 44, size: 26, anim: "blink", delay: 0.5, dur: 1.6 },
       { type: "emoji", emoji: "💖", x: 50, y: 22, size: 14, anim: "rise", delay: 0.4, dur: 1.4 },
     ],
   },
@@ -374,10 +374,10 @@ const BUILTIN_GIFT_SCENES = {
     loop: 4,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 42, fill: "#e8f5e9", opacity: 0.4, anim: "breathe", dur: 3.5 },
+      { type: "circle", x: 50, y: 50, r: 42, fill: "#e8f5e9", opacity: 0.4, anim: "pulse", dur: 3.5 },
       { type: "emoji", emoji: "🦀", x: 50, y: 48, size: 38, anim: "wave", dur: 3.6 },
-      { type: "emoji", emoji: "🦗", x: 22, y: 30, size: 18, anim: "burst", delay: 1.0, dur: 1.2 },
-      { type: "emoji", emoji: "✨", x: 72, y: 60, size: 14, anim: "twinkle", delay: 0.7, dur: 1.4 },
+      { type: "emoji", emoji: "🦗", x: 22, y: 30, size: 18, anim: "pop", delay: 1.0, dur: 1.2 },
+      { type: "emoji", emoji: "✨", x: 72, y: 60, size: 14, anim: "blink", delay: 0.7, dur: 1.4 },
     ],
   },
   crab_dance_fast: {
@@ -387,8 +387,8 @@ const BUILTIN_GIFT_SCENES = {
     layers: [
       { type: "circle", x: 50, y: 50, r: 40, fill: "#fff0f6", opacity: 0.5, anim: "pulse", dur: 2 },
       { type: "emoji", emoji: "🦀", x: 50, y: 48, size: 38, anim: "wiggle", dur: 1.5 },
-      { type: "emoji", emoji: "🦘", x: 24, y: 32, size: 20, anim: "jump", delay: 0.5, dur: 1.2 },
-      { type: "emoji", emoji: "🎉", x: 72, y: 55, size: 18, anim: "burst", delay: 0.3, dur: 1 },
+      { type: "emoji", emoji: "🦘", x: 24, y: 32, size: 20, anim: "bounce", delay: 0.5, dur: 1.2 },
+      { type: "emoji", emoji: "🎉", x: 72, y: 55, size: 18, anim: "pop", delay: 0.3, dur: 1 },
     ],
   },
   crab_dj: {
@@ -398,10 +398,10 @@ const BUILTIN_GIFT_SCENES = {
     layers: [
       { type: "circle", x: 50, y: 50, r: 44, fill: "#e1f5fe", opacity: 0.5, anim: "pulse", dur: 2.8 },
       { type: "emoji", emoji: "🦀", x: 34, y: 46, size: 32, anim: "wave", dur: 2 },
-      { type: "emoji", emoji: "🎧", x: 68, y: 30, size: 26, anim: "twinkle", delay: 0.4, dur: 1.6 },
+      { type: "emoji", emoji: "🎧", x: 68, y: 30, size: 26, anim: "blink", delay: 0.4, dur: 1.6 },
       { type: "emoji", emoji: "🎵", x: 50, y: 20, size: 20, anim: "rise", delay: 0.8, dur: 1.4 },
       { type: "emoji", emoji: "🎶", x: 30, y: 18, size: 18, anim: "rise", delay: 1.0, dur: 1.4 },
-      { type: "emoji", emoji: "✨", x: 28, y: 64, size: 12, anim: "twinkle", delay: 0.6, dur: 1.2 },
+      { type: "emoji", emoji: "✨", x: 28, y: 64, size: 12, anim: "blink", delay: 0.6, dur: 1.2 },
     ],
   },
   crab_guitar: {
@@ -409,9 +409,9 @@ const BUILTIN_GIFT_SCENES = {
     loop: 3.2,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 40, fill: "#f3e5f5", opacity: 0.5, anim: "breathe", dur: 2.8 },
+      { type: "circle", x: 50, y: 50, r: 40, fill: "#f3e5f5", opacity: 0.5, anim: "pulse", dur: 2.8 },
       { type: "emoji", emoji: "🦀", x: 30, y: 50, size: 34, anim: "wave", dur: 2 },
-      { type: "emoji", emoji: "🎸", x: 68, y: 40, size: 28, anim: "twinkle", delay: 0.5, dur: 1.6 },
+      { type: "emoji", emoji: "🎸", x: 68, y: 40, size: 28, anim: "blink", delay: 0.5, dur: 1.6 },
       { type: "emoji", emoji: "🎵", x: 40, y: 20, size: 16, anim: "rise", delay: 0.3, dur: 1.2 },
     ],
   },
@@ -420,9 +420,9 @@ const BUILTIN_GIFT_SCENES = {
     loop: 2.6,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 40, fill: "#fff8e1", opacity: 0.5, anim: "beat", dur: 2.2 },
+      { type: "circle", x: 50, y: 50, r: 40, fill: "#fff8e1", opacity: 0.5, anim: "heartbeat", dur: 2.2 },
       { type: "emoji", emoji: "🦀", x: 50, y: 42, size: 32, anim: "wiggle", dur: 1.8 },
-      { type: "emoji", emoji: "🥁", x: 60, y: 70, size: 28, anim: "burst", delay: 0.4, dur: 1 },
+      { type: "emoji", emoji: "🥁", x: 60, y: 70, size: 28, anim: "pop", delay: 0.4, dur: 1 },
       { type: "emoji", emoji: "🎶", x: 28, y: 28, size: 14, anim: "rise", delay: 0.5, dur: 1.2 },
     ],
   },
@@ -433,7 +433,7 @@ const BUILTIN_GIFT_SCENES = {
     layers: [
       { type: "circle", x: 50, y: 50, r: 40, fill: "#fff0f6", opacity: 0.5, anim: "pulse", dur: 2.4 },
       { type: "emoji", emoji: "🦀", x: 32, y: 50, size: 32, anim: "wave", dur: 2 },
-      { type: "emoji", emoji: "🎺", x: 68, y: 36, size: 28, anim: "twinkle", delay: 0.5, dur: 1.6 },
+      { type: "emoji", emoji: "🎺", x: 68, y: 36, size: 28, anim: "blink", delay: 0.5, dur: 1.6 },
       { type: "emoji", emoji: "🎵", x: 64, y: 20, size: 14, anim: "rise", delay: 0.6, dur: 1.2 },
     ],
   },
@@ -444,7 +444,7 @@ const BUILTIN_GIFT_SCENES = {
     layers: [
       { type: "circle", x: 50, y: 50, r: 40, fill: "#e1f5fe", opacity: 0.5, anim: "swing", dur: 2.8 },
       { type: "emoji", emoji: "🦀", x: 34, y: 48, size: 32, anim: "wave", dur: 2 },
-      { type: "emoji", emoji: "🎤", x: 68, y: 32, size: 28, anim: "twinkle", delay: 0.4, dur: 1.6 },
+      { type: "emoji", emoji: "🎤", x: 68, y: 32, size: 28, anim: "blink", delay: 0.4, dur: 1.6 },
       { type: "emoji", emoji: "🎵", x: 55, y: 16, size: 14, anim: "rise", delay: 0.5, dur: 1.4 },
     ],
   },
@@ -456,7 +456,7 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 40, fill: "#fff9c4", opacity: 0.6, anim: "float", dur: 2.6 },
       { type: "emoji", emoji: "👒", x: 50, y: 18, size: 32, anim: "bounce", dur: 2 },
       { type: "emoji", emoji: "🦀", x: 50, y: 52, size: 34, anim: "wiggle", dur: 2.2 },
-      { type: "emoji", emoji: "🌞", x: 22, y: 20, size: 18, anim: "twinkle", delay: 0.5, dur: 1.6 },
+      { type: "emoji", emoji: "🌞", x: 22, y: 20, size: 18, anim: "blink", delay: 0.5, dur: 1.6 },
     ],
   },
   crab_sunglasses: {
@@ -465,9 +465,9 @@ const BUILTIN_GIFT_SCENES = {
     bg: null,
     layers: [
       { type: "circle", x: 50, y: 50, r: 40, fill: "#e8f5e9", opacity: 0.4, anim: "pulse", dur: 2.6 },
-      { type: "emoji", emoji: "🕶️", x: 50, y: 28, size: 30, anim: "twinkle", delay: 0.3, dur: 1.8 },
+      { type: "emoji", emoji: "🕶️", x: 50, y: 28, size: 30, anim: "blink", delay: 0.3, dur: 1.8 },
       { type: "emoji", emoji: "🦀", x: 50, y: 52, size: 36, anim: "wave", dur: 2.2 },
-      { type: "emoji", emoji: "🎉", x: 20, y: 55, size: 16, anim: "burst", delay: 0.7, dur: 1.2 },
+      { type: "emoji", emoji: "🎉", x: 20, y: 55, size: 16, anim: "pop", delay: 0.7, dur: 1.2 },
     ],
   },
   crab_crown: {
@@ -475,11 +475,11 @@ const BUILTIN_GIFT_SCENES = {
     loop: 3.2,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 44, fill: "#fff9c4", opacity: 0.6, anim: "twinkle", dur: 2.8 },
-      { type: "emoji", emoji: "👑", x: 50, y: 16, size: 32, anim: "twinkle", delay: 0.2, dur: 2 },
+      { type: "circle", x: 50, y: 50, r: 44, fill: "#fff9c4", opacity: 0.6, anim: "blink", dur: 2.8 },
+      { type: "emoji", emoji: "👑", x: 50, y: 16, size: 32, anim: "blink", delay: 0.2, dur: 2 },
       { type: "emoji", emoji: "🦀", x: 50, y: 52, size: 34, anim: "wave", dur: 2 },
-      { type: "emoji", emoji: "✨", x: 30, y: 28, size: 12, anim: "twinkle", delay: 0.5, dur: 1.4 },
-      { type: "emoji", emoji: "✨", x: 72, y: 26, size: 12, anim: "twinkle", delay: 0.9, dur: 1.4 },
+      { type: "emoji", emoji: "✨", x: 30, y: 28, size: 12, anim: "blink", delay: 0.5, dur: 1.4 },
+      { type: "emoji", emoji: "✨", x: 72, y: 26, size: 12, anim: "blink", delay: 0.9, dur: 1.4 },
     ],
   },
   crab_scepter: {
@@ -489,8 +489,8 @@ const BUILTIN_GIFT_SCENES = {
     layers: [
       { type: "circle", x: 50, y: 50, r: 40, fill: "#e1f5fe", opacity: 0.5, anim: "pulse", dur: 2.4 },
       { type: "emoji", emoji: "🦀", x: 50, y: 50, size: 32, anim: "wave", dur: 2 },
-      { type: "emoji", emoji: "🪄", x: 68, y: 34, size: 26, anim: "twinkle", delay: 0.4, dur: 1.6 },
-      { type: "emoji", emoji: "✨", x: 30, y: 20, size: 14, anim: "twinkle", delay: 0.6, dur: 1.2 },
+      { type: "emoji", emoji: "🪄", x: 68, y: 34, size: 26, anim: "blink", delay: 0.4, dur: 1.6 },
+      { type: "emoji", emoji: "✨", x: 30, y: 20, size: 14, anim: "blink", delay: 0.6, dur: 1.2 },
     ],
   },
   crab_helmet: {
@@ -498,10 +498,10 @@ const BUILTIN_GIFT_SCENES = {
     loop: 3,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 40, fill: "#fff8e1", opacity: 0.5, anim: "breathe", dur: 2.6 },
+      { type: "circle", x: 50, y: 50, r: 40, fill: "#fff8e1", opacity: 0.5, anim: "pulse", dur: 2.6 },
       { type: "emoji", emoji: "🪖", x: 50, y: 22, size: 30, anim: "bounce", dur: 2 },
       { type: "emoji", emoji: "🦀", x: 50, y: 52, size: 34, anim: "wiggle", dur: 2.2 },
-      { type: "emoji", emoji: "✨", x: 24, y: 40, size: 14, anim: "twinkle", delay: 0.5, dur: 1.2 },
+      { type: "emoji", emoji: "✨", x: 24, y: 40, size: 14, anim: "blink", delay: 0.5, dur: 1.2 },
     ],
   },
   crab_anchor: {
@@ -512,7 +512,7 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 42, fill: "#e1f5fe", opacity: 0.4, anim: "float", dur: 2.8 },
       { type: "emoji", emoji: "🦀", x: 34, y: 48, size: 34, anim: "wave", dur: 2 },
       { type: "emoji", emoji: "⚓", x: 68, y: 44, size: 28, anim: "swing", delay: 0.6, dur: 2 },
-      { type: "emoji", emoji: "🌊", x: 20, y: 60, size: 20, anim: "drift", delay: 0.8, dur: 2.4 },
+      { type: "emoji", emoji: "🌊", x: 20, y: 60, size: 20, anim: "float", delay: 0.8, dur: 2.4 },
     ],
   },
   crab_boat: {
@@ -523,8 +523,8 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 44, fill: "#e1f5fe", opacity: 0.3, anim: "float", dur: 3 },
       { type: "emoji", emoji: "🦀", x: 50, y: 52, size: 32, anim: "wave", dur: 2 },
       { type: "emoji", emoji: "⛵", x: 50, y: 22, size: 32, anim: "rise", delay: 0.4, dur: 2 },
-      { type: "emoji", emoji: "🌊", x: 18, y: 65, size: 16, anim: "drift", delay: 0.6, dur: 2.2 },
-      { type: "emoji", emoji: "🌊", x: 82, y: 68, size: 16, anim: "drift", delay: 1.0, dur: 2.4 },
+      { type: "emoji", emoji: "🌊", x: 18, y: 65, size: 16, anim: "float", delay: 0.6, dur: 2.2 },
+      { type: "emoji", emoji: "🌊", x: 82, y: 68, size: 16, anim: "float", delay: 1.0, dur: 2.4 },
     ],
   },
   crab_seashell: {
@@ -534,8 +534,8 @@ const BUILTIN_GIFT_SCENES = {
     layers: [
       { type: "circle", x: 50, y: 50, r: 38, fill: "#fff9c4", opacity: 0.6, anim: "pulse", dur: 2.4 },
       { type: "emoji", emoji: "🦀", x: 40, y: 48, size: 30, anim: "wiggle", dur: 2 },
-      { type: "emoji", emoji: "🐚", x: 20, y: 38, size: 22, anim: "twinkle", delay: 0.5, dur: 1.6 },
-      { type: "emoji", emoji: "🌊", x: 60, y: 68, size: 12, anim: "drift", delay: 0.8, dur: 2 },
+      { type: "emoji", emoji: "🐚", x: 20, y: 38, size: 22, anim: "blink", delay: 0.5, dur: 1.6 },
+      { type: "emoji", emoji: "🌊", x: 60, y: 68, size: 12, anim: "float", delay: 0.8, dur: 2 },
     ],
   },
   crab_seaweed: {
@@ -555,10 +555,10 @@ const BUILTIN_GIFT_SCENES = {
     loop: 3.4,
     bg: null,
     layers: [
-      { type: "circle", x: 50, y: 50, r: 42, fill: "#fff9c4", opacity: 0.6, anim: "twinkle", dur: 2.8 },
+      { type: "circle", x: 50, y: 50, r: 42, fill: "#fff9c4", opacity: 0.6, anim: "blink", dur: 2.8 },
       { type: "emoji", emoji: "🦀", x: 36, y: 48, size: 34, anim: "wave", dur: 2 },
       { type: "emoji", emoji: "🦪", x: 66, y: 42, size: 26, anim: "pop", delay: 0.7, dur: 1.6 },
-      { type: "emoji", emoji: "✨", x: 50, y: 20, size: 16, anim: "twinkle", delay: 0.4, dur: 1.4 },
+      { type: "emoji", emoji: "✨", x: 50, y: 20, size: 16, anim: "blink", delay: 0.4, dur: 1.4 },
     ],
   },
   crab_lifebuoy: {
@@ -568,8 +568,8 @@ const BUILTIN_GIFT_SCENES = {
     layers: [
       { type: "circle", x: 50, y: 50, r: 40, fill: "#e1f5fe", opacity: 0.5, anim: "swing", dur: 2.6 },
       { type: "emoji", emoji: "🦀", x: 50, y: 48, size: 32, anim: "wave", dur: 2 },
-      { type: "emoji", emoji: "🛟", x: 50, y: 30, size: 28, anim: "twinkle", delay: 0.3, dur: 1.8 },
-      { type: "emoji", emoji: "🌊", x: 20, y: 70, size: 14, anim: "drift", delay: 0.8, dur: 2 },
+      { type: "emoji", emoji: "🛟", x: 50, y: 30, size: 28, anim: "blink", delay: 0.3, dur: 1.8 },
+      { type: "emoji", emoji: "🌊", x: 20, y: 70, size: 14, anim: "float", delay: 0.8, dur: 2 },
     ],
   },
   crab_sandcastle: {
@@ -580,7 +580,7 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 44, fill: "#fff9c4", opacity: 0.6, anim: "float", dur: 3 },
       { type: "emoji", emoji: "🏖️", x: 50, y: 70, size: 32, anim: "rise", delay: 0.2, dur: 2 },
       { type: "emoji", emoji: "🦀", x: 50, y: 46, size: 32, anim: "wiggle", dur: 2.2 },
-      { type: "emoji", emoji: "🏰", x: 50, y: 40, size: 24, anim: "twinkle", delay: 0.5, dur: 1.6 },
+      { type: "emoji", emoji: "🏰", x: 50, y: 40, size: 24, anim: "blink", delay: 0.5, dur: 1.6 },
       { type: "emoji", emoji: "⛵", x: 28, y: 55, size: 16, anim: "rise", delay: 1.0, dur: 1.4 },
     ],
   },
@@ -592,7 +592,7 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 40, fill: "#fff0f6", opacity: 0.5, anim: "swing", dur: 2.4 },
       { type: "emoji", emoji: "🧻", x: 50, y: 32, size: 30, anim: "rise", dur: 2 },
       { type: "emoji", emoji: "🦀", x: 36, y: 60, size: 30, anim: "wave", dur: 2 },
-      { type: "emoji", emoji: "🌞", x: 20, y: 22, size: 18, anim: "twinkle", delay: 0.6, dur: 1.6 },
+      { type: "emoji", emoji: "🌞", x: 20, y: 22, size: 18, anim: "blink", delay: 0.6, dur: 1.6 },
     ],
   },
   crab_sunscreen: {
@@ -601,9 +601,9 @@ const BUILTIN_GIFT_SCENES = {
     bg: null,
     layers: [
       { type: "circle", x: 50, y: 50, r: 38, fill: "#fff9c4", opacity: 0.6, anim: "pulse", dur: 2.2 },
-      { type: "emoji", emoji: "🧴", x: 30, y: 42, size: 26, anim: "twinkle", delay: 0.4, dur: 1.6 },
+      { type: "emoji", emoji: "🧴", x: 30, y: 42, size: 26, anim: "blink", delay: 0.4, dur: 1.6 },
       { type: "emoji", emoji: "🦀", x: 60, y: 52, size: 32, anim: "wiggle", dur: 2 },
-      { type: "emoji", emoji: "☀️", x: 50, y: 20, size: 20, anim: "flicker", delay: 0.2, dur: 1 },
+      { type: "emoji", emoji: "☀️", x: 50, y: 20, size: 20, anim: "blink", delay: 0.2, dur: 1 },
     ],
   },
   crab_umbrella: {
@@ -614,8 +614,8 @@ const BUILTIN_GIFT_SCENES = {
       { type: "circle", x: 50, y: 50, r: 42, fill: "#e1f5fe", opacity: 0.3, anim: "swing", dur: 3 },
       { type: "emoji", emoji: "☂️", x: 50, y: 18, size: 32, anim: "swing", dur: 2.2 },
       { type: "emoji", emoji: "🦀", x: 50, y: 54, size: 34, anim: "wave", dur: 2 },
-      { type: "emoji", emoji: "🌧️", x: 24, y: 30, size: 16, anim: "drift", delay: 0.8, dur: 1.8 },
-      { type: "emoji", emoji: "🌧️", x: 76, y: 28, size: 16, anim: "drift", delay: 1.2, dur: 2 },
+      { type: "emoji", emoji: "🌧️", x: 24, y: 30, size: 16, anim: "float", delay: 0.8, dur: 1.8 },
+      { type: "emoji", emoji: "🌧️", x: 76, y: 28, size: 16, anim: "float", delay: 1.2, dur: 2 },
     ],
   },
 };

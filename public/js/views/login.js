@@ -3,7 +3,7 @@ import { el, mount } from "../lib/dom.js";
 import { isInstalledApp } from "../lib/platform.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
-import { passkeysSupported, loginWithPasskey, passkeyErrorText } from "../lib/passkey.js";
+import { passkeysSupported, loginWithPasskey, passkeyErrorText, handlePasskeyLoginError } from "../lib/passkey.js";
 import { navigate } from "../router.js";
 import { fileToAvatarDataUrl } from "../lib/image.js";
 import { prettyQrSvg } from "../lib/prettyQr.js";
@@ -731,7 +731,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
                           }
                           finishAuth(res.user, res.alreadyLinked);
                         } catch (err) {
-                          error = passkeyErrorText(err);
+                          error = handlePasskeyLoginError(err);
                         } finally {
                           pending = false;
                           render();
