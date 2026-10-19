@@ -149,7 +149,6 @@
   width: 100%;
   flex-direction: column;
   border-right: 1px solid var(--color-border);
-  background: #808080;
 }
 @media (min-width: 768px) {
   .chat-list-pane {

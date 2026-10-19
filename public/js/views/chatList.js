@@ -819,7 +819,7 @@ function renderResults(container) {
   const archived = chats.filter((c) => c.archived);
   const showArchiveRow = tab === "all" && archived.length && !unreadOnly;
   if (showArchiveRow) scroll.appendChild(ArchiveRow(archived));
-  if (!list.length && !showArchiveRow && (unreadOnly || getState().chatsLoaded)) {
+  if (!list.length && !showArchiveRow) {
     scroll.appendChild(
       unreadOnly
         ? el("div", { class: "chat-empty" }, [
