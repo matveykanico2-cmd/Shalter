@@ -58,14 +58,33 @@ async function loadBuiltinScenes() {
   return builtinScenesPromise;
 }
 
-export async function renderGiftArt(gift, { size = 84, replay = true } = {}) {
+// Синхронная: вызывающие вставляют результат прямо в разметку (el(...)), Promise туда
+// нельзя. Встроенные сцены грузятся лениво, поэтому для них отдаём контейнер и
+// подменяем содержимое, когда сцены подгрузились.
+export function renderGiftArt(gift, { size = 84, replay = true } = {}) {
   if (gift?.scene) {
     return renderCustomScene(gift.scene, { size, replay });
   }
-  const BUILTIN_GIFT_SCENES = await loadBuiltinScenes();
-  const builtin = BUILTIN_GIFT_SCENES[gift?.giftId] ?? BUILTIN_GIFT_SCENES[gift?.id];
-  if (builtin && !gift?.mediaUrl) return renderCustomScene(builtin, { size, replay });
-  
+  if (gift?.mediaUrl) return renderPlainGiftArt(gift, { size, replay });
+
+  const host = document.createElement("span");
+  host.className = "gift-art-host";
+  host.style.display = "inline-flex";
+  host.style.width = `${size}px`;
+  host.style.height = `${size}px`;
+  host.style.alignItems = "center";
+  host.style.justifyContent = "center";
+  host.appendChild(renderPlainGiftArt(gift, { size, replay }));
+  loadBuiltinScenes()
+    .then((scenes) => {
+      const builtin = scenes[gift?.giftId] ?? scenes[gift?.id];
+      if (builtin && !gift?.mediaUrl) host.replaceChildren(renderCustomScene(builtin, { size, replay }));
+    })
+    .catch(() => {});
+  return host;
+}
+
+function renderPlainGiftArt(gift, { size, replay }) {
   const asEmoji = () => renderScene(gift?.emoji, { size, replay });
   const lottie = lottieNameFor(gift);
   
