@@ -84,11 +84,14 @@ async function build() {
   report();
 }
 
+// Brotli q11 / gzip 9 — минуты на сборку; по умолчанию берём быстрые уровни,
+// максимальное сжатие для выкладки: BUILD_FULL=1 npm run build
+const FULL = process.env.BUILD_FULL === "1";
 function precompress(file) {
   const content = fs.readFileSync(file);
-  fs.writeFileSync(`${file}.gz`, zlib.gzipSync(content, { level: 9 }));
+  fs.writeFileSync(`${file}.gz`, zlib.gzipSync(content, { level: FULL ? 9 : 6 }));
   fs.writeFileSync(`${file}.br`, zlib.brotliCompressSync(content, {
-    params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 },
+    params: { [zlib.constants.BROTLI_PARAM_QUALITY]: FULL ? 11 : 5 },
   }));
 }
 

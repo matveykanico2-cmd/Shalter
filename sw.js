@@ -1,5 +1,5 @@
 // Service Worker for Shalter - offline caching
-const CACHE_NAME = 'shalter-v1';
+const CACHE_NAME = 'shalter-v2';
 const STATIC_ASSETS = [
   '/',
   '/js/app.js',
@@ -51,7 +51,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Static assets - cache first
+  // Code and styles - network first, so fixes are not hidden by a stale cache
+  if (/\.(css|js)$/.test(url.pathname) || url.pathname === '/') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Other static assets - cache first
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
