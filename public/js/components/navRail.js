@@ -29,9 +29,12 @@ export function NavRail() {
 
   const accountBtn = el("button", { class: "nav-rail-account", title: "Аккаунты" });
 
+  // Аватар пересоздаётся только при смене самой записи пользователя, а не на любой setState.
+  let paintedUser = null;
   function paintAccount() {
     const { user } = getState();
-    if (!user) return;
+    if (!user || user === paintedUser) return;
+    paintedUser = user;
     accountBtn.textContent = "";
     accountBtn.appendChild(
       Avatar({ name: user.name || user.phone, color: user.avatarColor, image: user.avatarImage, size: 40, online: true, isPremium: user.isPremium, isDeveloper: user.isDeveloper })
