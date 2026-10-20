@@ -1100,6 +1100,15 @@ CREATE TABLE IF NOT EXISTS upload_access (
   PRIMARY KEY (filename, chatId)
 );
 CREATE INDEX IF NOT EXISTS idx_upload_access_file ON upload_access(filename);
+
+-- Кто загрузил файл через POST /api/uploads (lib/uploadAccess.js). Одинаковые
+-- файлы хранятся один раз (sha_…), поэтому загрузивших может быть несколько.
+CREATE TABLE IF NOT EXISTS upload_uploaders (
+  filename TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  PRIMARY KEY (filename, userId)
+);
 `);
 
 if (!db.prepare("SELECT count(*) c FROM upload_access").get().c) {

@@ -22,13 +22,14 @@ const {
 const { getSettings } = require("../data/settings");
 const { privacyAllows } = require("../lib/privacyRules");
 const { listContactsFor, listOwnersOf } = require("../data/contacts");
-const { getUser } = require("../data/users");
+const { getUser, listUsersByIds } = require("../data/users");
 const { hasAdminSection } = require("../lib/adminAccess");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { getChat, listChatsForUser, dmPartnerIds } = require("../data/chats");
 const { publicUser } = require("../data/sanitize");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
+const { usesForeignUpload } = require("../lib/uploadAccess");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser, userPushAvatar, MESSAGE_PUSH } = require("../push");
 
@@ -69,10 +70,16 @@ function sanitizeStoryItems(body) {
     .map((it) => ({ kind: it.kind, url: it.url }));
 }
 
-// Кому видна история: те, у кого автор в контактах, и те, с кем у автора есть
-// личная переписка (раньше только контакты — и историю не видели собеседники).
-function audienceOf(authorId) {
-  return [...new Set([authorId, ...listOwnersOf(authorId), ...dmPartnerIds(authorId)])];
+// Кому видна история: те, кого автор сам добавил в контакты, и те, с кем у
+// автора есть личная переписка (раньше только контакты — и историю не видели
+// собеседники). Контакт считается со стороны автора: тот, кто просто добавил
+// автора к себе, без его согласия истории не видит. Заблокированным автором —
+// не видна. Должно совпадать с visibleAuthorIds.
+async function audienceOf(authorId) {
+  const author = await getUser(authorId);
+  const blocked = new Set(author?.blockedUserIds ?? []);
+  const contacts = (await listContactsFor(authorId)).map((c) => c.userId);
+  return [...new Set([authorId, ...contacts, ...dmPartnerIds(authorId)])].filter((id) => !blocked.has(id));
 }
 
 // Видео истории — как в сообщениях: перекодируем в H.264/AAC (1080p, звук 160 кбит/с,
@@ -92,7 +99,7 @@ async function processStoryVideos(story) {
         const previewUrl = await storeGeneratedFile(out.previewPath);
         const posterUrl = await storeGeneratedFile(out.posterPath);
         updateStoryItem(story.id, index, { previewUrl, posterUrl, width: out.width, height: out.height, durationSec: out.durationSec });
-        broadcastToUsers(audienceOf(story.userId), { type: "story:updated", storyId: story.id, userId: story.userId });
+        broadcastToUsers(await audienceOf(story.userId), { type: "story:updated", storyId: story.id, userId: story.userId });
       } finally {
         fs.promises.unlink(out.previewPath).catch(() => {});
         fs.promises.unlink(out.posterPath).catch(() => {});
@@ -130,11 +137,15 @@ async function blockedBy(authorId, uid) {
   return !!(await getUser(authorId))?.blockedUserIds?.includes(uid);
 }
 
+// Чьи истории видит uid — зеркально audienceOf: авторы, у которых он в
+// контактах, и собеседники по личке, кроме заблокировавших его, плюс каналы.
+// По этому списку проверяются и просмотр, лайки и комментарии по известному id.
 async function visibleAuthorIds(uid) {
-  const contacts = await listContactsFor(uid);
   const chats = await listChatsForUser(uid);
   const channelIds = chats.filter((c) => c.type === "channel").map((c) => c.id);
-  return [...new Set([uid, ...contacts.map((c) => c.userId), ...dmPartnerIds(uid), ...channelIds])];
+  const people = [...new Set([...listOwnersOf(uid), ...dmPartnerIds(uid)])].filter((id) => id !== uid);
+  const authors = (await listUsersByIds(people)).filter((u) => !(u.blockedUserIds ?? []).includes(uid)).map((u) => u.id);
+  return [...new Set([uid, ...authors, ...channelIds])];
 }
 
 router.get(
@@ -229,6 +240,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const items = sanitizeStoryItems(req.body);
     if (!items.length) return res.status(400).json({ error: "invalid story" });
+    if (usesForeignUpload(req.uid, items)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
 
     const now = Date.now();
     const story = await addStory({
@@ -239,7 +251,7 @@ router.post(
       expiresAt: new Date(now + TTL_MS).toISOString(),
       viewedByIds: [],
     });
-    broadcastToUsers(audienceOf(req.uid), { type: "story:new", storyId: story.id, userId: req.uid });
+    broadcastToUsers(await audienceOf(req.uid), { type: "story:new", storyId: story.id, userId: req.uid });
     res.json({ story });
     processStoryVideos(story).catch((err) => console.error("story videos failed:", err));
 
@@ -247,7 +259,7 @@ router.post(
       try {
         const author = await getUser(req.uid);
         const name = author?.name || "Кто-то";
-        const targets = audienceOf(req.uid).filter((id) => id !== req.uid);
+        const targets = (await audienceOf(req.uid)).filter((id) => id !== req.uid);
         await Promise.all(
           targets.map(async (id) =>
             sendPushToUser(id, { title: name, body: "Опубликовал(а) новую историю", ...(await userPushAvatar(author, id)), url: "/", tag: `story-new:${req.uid}` }, MESSAGE_PUSH)
@@ -269,6 +281,7 @@ router.post(
 
     const items = sanitizeStoryItems(req.body);
     if (!items.length) return res.status(400).json({ error: "invalid story" });
+    if (usesForeignUpload(req.uid, items)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
 
     const now = Date.now();
     const story = await addStory({
@@ -480,9 +493,9 @@ router.delete(
     } else if (story.userId !== req.uid) {
       if (!(await moderator())) return res.status(403).json({ error: "Недостаточно прав" });
       byModerator = true;
-      audience = [...new Set([story.userId, req.uid, ...audienceOf(story.userId)])];
+      audience = [...new Set([story.userId, req.uid, ...(await audienceOf(story.userId))])];
     } else {
-      audience = audienceOf(req.uid);
+      audience = await audienceOf(req.uid);
     }
 
     const ok = await deleteStory(req.params.id, story.userId);

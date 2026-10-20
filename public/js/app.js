@@ -286,7 +286,12 @@ async function boot() {
     .then((data) => (data ? { settings: data.settings } : api.getSettings()))
     .then(({ settings }) => {
       setState({ settings });
-      if (settings?.requirePasswordOnLaunch) showPasswordLockScreen(root);
+      if (settings?.requirePasswordOnLaunch) {
+        // Экран пароля заменяет собой уже смонтированную оболочку (под накладкой её
+        // можно было бы прочитать); после верного пароля возвращаем те же узлы.
+        const app = [...root.childNodes];
+        showPasswordLockScreen(root).then(() => root.replaceChildren(...app));
+      }
       initUiTranslation(settings.uiLanguage);
       if (settings.theme && settings.theme !== "system") document.documentElement.setAttribute("data-theme", settings.theme);
       else document.documentElement.removeAttribute("data-theme");

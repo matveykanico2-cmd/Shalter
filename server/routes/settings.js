@@ -9,6 +9,7 @@ const { attachmentBytesByKind } = require("../data/messages");
 const { BUILTIN_HOLIDAYS } = require("../lib/holidays");
 const { getUser } = require("../data/users");
 const { sanitizeAttachments } = require("../lib/sanitizeAttachments");
+const { usesForeignUpload } = require("../lib/uploadAccess");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -141,6 +142,10 @@ router.patch(
     if (patch.business) patch.business = await sanitizeBusiness(patch.business, req.uid);
     if (isUnsupportedLanguage(patch.uiLanguage) || isUnsupportedLanguage(patch.translateLanguage)) {
       return res.status(400).json({ error: UNSUPPORTED_MESSAGE });
+    }
+    // Обои, вложения автоответов и т. п.: только свои или и так доступные файлы.
+    if (usesForeignUpload(req.uid, patch, await getSettings(req.uid))) {
+      return res.status(400).json({ error: "Некорректная ссылка на файл" });
     }
     const settings = await updateSettings(req.uid, patch);
     res.json({ settings });

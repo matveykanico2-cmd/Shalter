@@ -34,8 +34,9 @@ router.post(
   "/",
   asyncRoute(async (req, res) => {
     const { text, target } = req.body ?? {};
+    if (text != null && typeof text !== "string") return res.status(400).json({ error: "Некорректный текст" });
     if (!text?.trim()) return res.status(400).json({ error: "Нечего переводить" });
-    if (!target?.trim()) return res.status(400).json({ error: "Не указан язык перевода" });
+    if (typeof target !== "string" || !target.trim()) return res.status(400).json({ error: "Не указан язык перевода" });
     if (isUnsupportedLanguage(target)) return res.status(400).json({ error: UNSUPPORTED_MESSAGE });
 
     try {
@@ -101,7 +102,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const { texts, target } = req.body ?? {};
     if (!Array.isArray(texts) || texts.length === 0) return res.status(400).json({ error: "texts must be a non-empty array" });
-    if (!target?.trim()) return res.status(400).json({ error: "Не указан язык перевода" });
+    if (typeof target !== "string" || !target.trim()) return res.status(400).json({ error: "Не указан язык перевода" });
     if (isUnsupportedLanguage(target)) return res.status(400).json({ error: UNSUPPORTED_MESSAGE });
     if (texts.length > 300) return res.status(400).json({ error: "Слишком много строк за один запрос (максимум 300)" });
 

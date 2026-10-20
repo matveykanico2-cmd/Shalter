@@ -5,6 +5,7 @@ const { getUser, setAvatars } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
 const { MAX_AVATARS, validateEntry } = require("../lib/avatars");
 const { notifyProfileChanged } = require("../lib/notifyProfileChanged");
+const { isOwnUploadUrl } = require("../lib/uploadAccess");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -31,6 +32,8 @@ router.post(
 
     const { entry, error } = validateEntry(req.body);
     if (error) return res.status(400).json({ error });
+    // Только свой загруженный файл: не чужая загрузка и не выдуманный адрес.
+    if (!(await isOwnUploadUrl(req.uid, entry.url))) return res.status(400).json({ error: "Некорректная ссылка на файл" });
 
     const list = [entry, ...avatarList(me)];
     if (list.length > MAX_AVATARS) {

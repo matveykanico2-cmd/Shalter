@@ -79,6 +79,8 @@ const MAX_WS_PAYLOAD_BYTES = 64 * 1024;
 // событие close не приходит, и человек висел «в сети» часами. Пингуем:
 // кто не ответил за интервал, того отключаем (а с ним снимается и «в сети»).
 const HEARTBEAT_MS = 30_000;
+// Как часто открытые сокеты сверяются с живыми сессиями (контрактные тесты ставят меньше).
+const SESSION_CHECK_MS = Number(process.env.WS_SESSION_CHECK_MS) || 60_000;
 
 function attachWebSocketServer(httpServer) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_WS_PAYLOAD_BYTES });
@@ -111,7 +113,20 @@ function attachWebSocketServer(httpServer) {
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => {
+    wss.handleUpgrade(req, socket, head, async (ws) => {
+      // Забаненный не получает ни одного события: сокет сразу закрывается тем же
+      // кодом, что и при бане на лету, — клиент реагирует на него одинаково.
+      let banned = false;
+      try {
+        banned = !!(await getUser(uid))?.isBanned;
+      } catch (err) {
+        console.error("ws ban check failed:", err);
+      }
+      if (banned) {
+        ws.on("error", () => {});
+        ws.close(4001, "session_revoked");
+        return;
+      }
       ws.uid = uid;
       ws.deviceId = deviceIdFromCookieHeader(req.headers.cookie);
       ws.isAlive = true;
@@ -122,6 +137,9 @@ function attachWebSocketServer(httpServer) {
       addSocket(uid, ws);
       if (wasOffline) markOnline(uid).catch((err) => console.error("presence online failed:", err));
       ws.on("message", (raw) => handleMessage(ws, raw));
+      // Без обработчика ошибка сокета (например, кадр больше maxPayload) становится
+      // необработанной и роняет весь процесс. ws сам закрывает сокет (1009 и т. п.).
+      ws.on("error", (err) => console.warn("ws error:", err.message));
       ws.on("close", () => {
         removeSocket(uid, ws);
         if (!socketsByUser.has(uid)) markOffline(uid).catch((err) => console.error("presence offline failed:", err));
@@ -131,16 +149,30 @@ function attachWebSocketServer(httpServer) {
 
   // Сессию могли завершить с другого устройства, сменить пароль или забанить
   // аккаунт — открытый сокет при этом продолжал бы получать все сообщения.
+  // Маршруты, которые сами отзывают сессию или банят, зовут closeRevokedSockets
+  // сразу; периодическая проверка — страховка для остальных путей.
   setInterval(async () => {
-    for (const [uid, set] of socketsByUser) {
-      const banned = !!(await getUser(uid))?.isBanned;
-      for (const ws of set) {
-        if (banned || !isSessionActive(uid, ws.deviceId)) ws.close(4001, "session_revoked");
-      }
-    }
-  }, 60_000).unref();
+    for (const uid of [...socketsByUser.keys()]) await closeRevokedSockets(uid);
+  }, SESSION_CHECK_MS).unref();
 
   return wss;
+}
+
+// Закрывает (4001 session_revoked) сокеты пользователя, чья сессия на этом
+// устройстве больше не активна, или все его сокеты, если аккаунт забанен.
+async function closeRevokedSockets(uid) {
+  const set = socketsByUser.get(uid);
+  if (!set) return;
+  let banned = false;
+  try {
+    banned = !!(await getUser(uid))?.isBanned;
+  } catch (err) {
+    console.error("ws session check failed:", err);
+    return;
+  }
+  for (const ws of [...set]) {
+    if (banned || !isSessionActive(uid, ws.deviceId)) ws.close(4001, "session_revoked");
+  }
 }
 
 async function handleMessage(ws, raw) {
@@ -172,6 +204,7 @@ async function handleMessage(ws, raw) {
     const { callId, toUserId, kind, data } = msg;
     const call = await getCall(callId);
     if (!call || !call.participantIds.includes(ws.uid) || !call.participantIds.includes(toUserId)) return;
+    if (typeof kind !== "string" || !kind || kind.length > 32) return;
     const signal = await addSignal({ callId, fromUserId: ws.uid, toUserId, kind, data });
     broadcastToUsers([toUserId], { type: "call:signal", signal });
   }
@@ -183,4 +216,4 @@ function wsStats() {
   return { onlineUsers: socketsByUser.size, sockets };
 }
 
-module.exports = { attachWebSocketServer, broadcastToUsers, wsStats };
+module.exports = { attachWebSocketServer, broadcastToUsers, closeRevokedSockets, wsStats };

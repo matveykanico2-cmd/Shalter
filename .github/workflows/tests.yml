@@ -1,0 +1,57 @@
+name: Tests
+
+# Тесты фиксируют текущее поведение перед миграцией на NestJS + React
+# (см. tests/README.md). Контрактные тесты и тесты совместимости данных — на
+# каждый PR; браузерные сценарии (Playwright) — на PR в main и пуш в main.
+# Во время миграции сюда добавится матрица TARGET: [legacy, nest].
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Контрактные, совместимость, unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:types
+      - run: npm run test:contract
+        env:
+          TARGET: legacy
+
+  e2e:
+    name: Сценарии в браузере
+    if: github.event_name == 'push' || github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          TARGET: legacy
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            tests/e2e/.report/
+            tests/e2e/.results/
+          retention-days: 7

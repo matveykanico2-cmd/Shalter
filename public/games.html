@@ -180,8 +180,8 @@ Shalter.close();                 // закрыть игру</code></pre>
           <tr><td><code>GET /getGame</code></td><td>—</td><td>Игра и статистика.</td></tr>
           <tr><td><code>POST /updateGame</code></td><td><code>code</code>, <code>title</code>, <code>description</code>, <code>emoji</code>, <code>isPublic</code></td><td>Обновить переданные поля. Код — до 512 КБ.</td></tr>
           <tr><td><code>GET /getStats</code></td><td>—</td><td><code>{ plays, players, topScore }</code>.</td></tr>
-          <tr><td><code>GET /getScores</code></td><td><code>chatId?</code>, <code>limit?</code> (до 100)</td><td>Таблица рекордов: общая или чата.</td></tr>
-          <tr><td><code>POST /setScore</code></td><td><code>userId</code>, <code>score</code>, <code>chatId?</code>, <code>force?</code></td><td>Записать результат. Без <code>force</code> — только если лучше прежнего.</td></tr>
+          <tr><td><code>GET /getScores</code></td><td><code>chatId?</code> (вместе с <code>userId</code> участника чата), <code>limit?</code> (до 100)</td><td>Таблица рекордов: общая или чата.</td></tr>
+          <tr><td><code>POST /setScore</code></td><td><code>userId</code>, <code>score</code>, <code>chatId?</code>, <code>force?</code></td><td>Записать результат. Без <code>force</code> — только если лучше прежнего. С <code>chatId</code> — только если игрок состоит в этом чате (иначе 404).</td></tr>
           <tr><td><code>POST /deleteScore</code></td><td><code>userId</code></td><td>Удалить результаты игрока.</td></tr>
         </tbody>
       </table>

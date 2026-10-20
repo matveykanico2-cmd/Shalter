@@ -13,6 +13,7 @@ const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat")
 const { sendBotMessage } = require("../lib/botMessaging");
 const { sendPushToUser, pushAvatar, MESSAGE_PUSH } = require("../push");
 const { getSettings, isQuietNow } = require("../data/settings");
+const { usesForeignUpload } = require("../lib/uploadAccess");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -33,6 +34,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const { name, avatarImage, description } = req.body ?? {};
     if (!name?.trim()) return res.status(400).json({ error: "Введите имя бота" });
+    if (usesForeignUpload(req.uid, avatarImage)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
 
     const botUsername = await generateBotUsername(name);
     if (!botUsername) return res.status(409).json({ error: "Не удалось подобрать свободный юзернейм для бота — измените имя" });
@@ -150,6 +152,13 @@ router.patch(
   asyncRoute(async (req, res) => {
     const bot = await requireOwnedBot(req, res);
     if (!bot) return;
+
+    const before = await getUser(bot.userId);
+    if (
+      usesForeignUpload(req.uid, [req.body?.avatarImage, req.body?.appCode, req.body?.appUrl], [before?.avatarImage, bot.appCode, bot.appUrl])
+    ) {
+      return res.status(400).json({ error: "Некорректная ссылка на файл" });
+    }
 
     const patch = {};
     if (typeof req.body?.name === "string" && req.body.name.trim()) patch.name = req.body.name.trim().slice(0, 60);

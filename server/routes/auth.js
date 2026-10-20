@@ -13,7 +13,8 @@ const {
 const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, updateUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode, scheduleAccountDeletion, cancelAccountDeletion } = require("../data/users");
 const { publicUser, selfUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
-const { listSessions, getSession, upsertSession, revokeAllSessions, revokeOtherSessions } = require("../data/sessions");
+const { listSessions, getSession, upsertSession, revokeSession, revokeAllSessions, revokeOtherSessions } = require("../data/sessions");
+const { closeRevokedSockets } = require("../ws");
 const { parseUserAgent } = require("../lib/userAgent");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { deleteAccount } = require("../lib/deleteAccount");
@@ -28,7 +29,9 @@ const { EMAIL_RE, PHONE_RE, normalizePhone, isValidBirthday } = require("../lib/
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 const totp = require("../lib/totp");
 const twoFactorTickets = require("../data/twoFactorTickets");
+const totpSteps = require("../data/totpSteps");
 const emailChanges = require("../data/emailChanges");
+const pairRecoveries = require("../data/pairRecoveries");
 const { sendMail } = require("../lib/mailer");
 
 const router = express.Router();
@@ -254,6 +257,13 @@ router.post(
     const body = req.body ?? {};
     const uid = body.uid ?? getCurrentUserId(req);
     if (!uid) return res.json({ ok: true, remaining: [] });
+    // Сессию отзываем и на сервере: иначе сохранённые до выхода cookie продолжали бы работать.
+    // Отзывается только пара (аккаунт, это устройство) — чужие устройства не трогаем.
+    const deviceId = req.cookies?.device_id;
+    if (deviceId && getSessionUserIds(req).includes(uid)) {
+      await revokeSession(uid, deviceId);
+      await closeRevokedSockets(uid);
+    }
     const remaining = removeAccountSession(req, res, uid);
     res.json({ ok: true, remaining });
   })
@@ -336,6 +346,31 @@ router.post(
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Введите корректный адрес почты" });
     if (email === (user.email ?? "").toLowerCase()) return res.status(400).json({ error: "Это уже ваш адрес" });
 
+    const taken = await findUserByEmail(email);
+    if (taken && taken.id !== req.uid) return res.status(409).json({ error: "Этот адрес уже привязан к другому аккаунту" });
+
+    // Адрес меняется только после кода из письма на него: на почту приходит
+    // восстановление доступа, опечатка или чужой адрес отдали бы аккаунт.
+    const code = emailChanges.start(req.uid, email);
+    const mail = await sendMail({
+      to: email,
+      subject: "Подтвердите адрес почты в Shalter",
+      text:
+        `Код для привязки этого адреса к аккаунту Shalter: ${code}\n\nНикому не сообщайте его — даже сотрудникам Shalter. Действует 15 минут.\n\n` +
+        `Если вы не меняли адрес почты — просто проигнорируйте письмо.`,
+    }).catch((err) => ({ delivered: false, reason: err.message }));
+    if (!mail.delivered) return res.status(502).json({ error: "Не удалось отправить письмо на этот адрес — проверьте его и попробуйте ещё раз" });
+    res.json({ ok: true, sent: true, email });
+  })
+);
+
+router.post(
+  "/email/verify",
+  requireUserId,
+  asyncRoute(async (req, res) => {
+    const email = emailChanges.confirm(req.uid, req.body?.code);
+    if (!email) return res.status(400).json({ error: "Неверный или устаревший код" });
+    // За время ожидания кода адрес мог занять кто-то другой.
     const taken = await findUserByEmail(email);
     if (taken && taken.id !== req.uid) return res.status(409).json({ error: "Этот адрес уже привязан к другому аккаунту" });
 
@@ -524,6 +559,16 @@ router.post(
   asyncRoute(async (req, res) => {
     const found = await findByPair(req.body);
     if (!found.user) return res.status(found.status).json({ error: found.error });
+    // Почта и номер — не секреты: сбросить пароль можно только с кодом из письма на адрес аккаунта.
+    const code = pairRecoveries.start(found.user.id);
+    const mail = await sendMail({
+      to: found.user.email,
+      subject: "Код для восстановления доступа к Shalter",
+      text:
+        `Код для смены пароля в Shalter: ${code}\n\nНикому не сообщайте его — даже сотрудникам Shalter. Действует 15 минут.\n\n` +
+        `Если вы не запрашивали восстановление доступа — просто проигнорируйте письмо, пароль останется прежним.`,
+    }).catch((err) => ({ delivered: false, reason: err.message }));
+    if (!mail.delivered) return res.status(502).json({ error: "Не удалось отправить письмо с кодом — попробуйте позже" });
     res.json({ ok: true, name: found.user.name });
   })
 );
@@ -537,6 +582,9 @@ router.post(
     const found = await findByPair(req.body);
     if (!found.user) return res.status(found.status).json({ error: found.error });
     const user = found.user;
+    if (!pairRecoveries.confirm(user.id, req.body?.code)) {
+      return res.status(400).json({ error: "Неверный или устаревший код из письма" });
+    }
 
     const { hash, salt } = hashPassword(password);
     await updateUser(user.id, { passwordHash: hash, passwordSalt: salt });
@@ -670,7 +718,9 @@ async function verifySecondFactor(user, rawCode) {
   }
   const cleaned = String(rawCode ?? "").trim();
   if (user.twoFactorMethod === "chat") return codeLogins.verify(user.id, cleaned);
-  return totp.verifyCode(user.totpSecret, cleaned);
+  // Код из приложения одноразовый: принятый шаг повторно не засчитывается.
+  const step = totp.matchStep(user.totpSecret, cleaned);
+  return step !== null && totpSteps.claim(user.id, step);
 }
 
 function currentUserOr401(req, res) {
@@ -717,6 +767,7 @@ router.post(
 
     const secret = totp.generateSecret();
     await startTotpSetup(uid, secret);
+    totpSteps.forget(uid);
     res.json({ method: "totp", secret, otpauthUri: totp.otpauthUri(secret, me.username || me.phone || me.name) });
   })
 );

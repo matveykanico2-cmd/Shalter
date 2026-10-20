@@ -28,6 +28,7 @@ const {
 } = require("../data/gifts");
 const { sanitizeScene, sceneSummaryEmoji } = require("../lib/sanitizeScene");
 const { sanitizeGiftBackground } = require("../lib/giftBackground");
+const { canAccessUpload } = require("../lib/uploadAccess");
 const { withGiftSendersOn } = require("../lib/giftSenders");
 const { remaining, issuedCount } = require("../data/giftIssues");
 const { publicUser } = require("../data/sanitize");
@@ -291,9 +292,10 @@ function giftUploadFilename(url) {
   return FILENAME_RE.test(filename) ? filename : null;
 }
 
-async function processGiftGif(gifUrl) {
+async function processGiftGif(gifUrl, userId) {
   const filename = giftUploadFilename(gifUrl);
-  if (!filename) return { error: "Некорректная ссылка на гифку — загрузите файл заново" };
+  // Чужую неприкреплённую загрузку в подарок (и тем самым всем) не превращаем.
+  if (!filename || !canAccessUpload(userId, filename)) return { error: "Некорректная ссылка на гифку — загрузите файл заново" };
 
   const sourcePath = await fetchUploadToTemp(filename);
   try {
@@ -333,7 +335,7 @@ router.post(
 
     let mediaUrl;
     if (gifUrl) {
-      const result = await processGiftGif(gifUrl);
+      const result = await processGiftGif(gifUrl, req.uid);
       if (result.error) return res.status(400).json({ error: result.error });
       mediaUrl = result.mediaUrl;
     }

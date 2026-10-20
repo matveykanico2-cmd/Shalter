@@ -32,6 +32,17 @@ function normalizeKeyboard(keyboard) {
   return rows.length ? rows : undefined;
 }
 
+// Может ли бот писать в чат, где он состоит: в канал — только админом, в
+// личку — если собеседник его не заблокировал. Текст отказа или null.
+async function botPostDenied(chat, botUserId) {
+  if (chat.type === "channel" && !isStaff(chat, botUserId)) return "Bot must be an admin to post in a channel";
+  if (chat.type === "dm") {
+    const other = await getUser(chat.memberIds.find((id) => id !== botUserId));
+    if (other?.blockedUserIds?.includes(botUserId)) return "User has blocked the bot";
+  }
+  return null;
+}
+
 // visibleTo — id участника группы: сообщение увидит только он (как скрытые
 // ответы ботов в группах Telegram). Остальным оно сразу «удалено у себя».
 async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId, attachments, visibleTo } = {}) {
@@ -41,11 +52,8 @@ async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId, at
   if (!chat || !chat.memberIds.includes(botUserId)) {
     throw new Error("Bot is not a member of this chat");
   }
-  if (chat.type === "channel" && !isStaff(chat, botUserId)) throw new Error("Bot must be an admin to post in a channel");
-  if (chat.type === "dm") {
-    const other = await getUser(chat.memberIds.find((id) => id !== botUserId));
-    if (other?.blockedUserIds?.includes(botUserId)) throw new Error("User has blocked the bot");
-  }
+  const denied = await botPostDenied(chat, botUserId);
+  if (denied) throw new Error(denied);
   const reply = typeof replyToId === "string" && replyToId ? await getMessage(replyToId) : null;
   let visibleToId = null;
   if (visibleTo != null) {
@@ -70,7 +78,7 @@ async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId, at
     visibleToId,
     deletedForIds: visibleToId ? chat.memberIds.filter((id) => id !== visibleToId && id !== botUserId) : [],
   });
-  registerAttachments(chat.id, message.attachments);
+  registerAttachments(chat.id, message.attachments, { by: botUserId });
   broadcastToUsers(visibleToId ? [visibleToId, botUserId] : chat.memberIds, { type: "message:new", chatId, message });
   if (!visibleToId) dispatchToOtherBots(chat, message);
   return message;
@@ -102,4 +110,4 @@ function dispatchToOtherBots(chat, message) {
   }
 }
 
-module.exports = { sendBotMessage, normalizeKeyboard };
+module.exports = { sendBotMessage, normalizeKeyboard, botPostDenied };

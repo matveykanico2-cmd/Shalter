@@ -22,6 +22,12 @@ function base64ToFile(payload) {
   return new File([bytes], payload.name || "shared", { type: payload.type || "application/octet-stream" });
 }
 
+// У лички своего названия нет — подписываем именем собеседника.
+function chatTitleOf(chat) {
+  if (chat.isSaved) return "Избранное";
+  return (chat.otherUser?.name || chat.title || chat.name || "").trim();
+}
+
 // Окно «Поделиться в Shalter»: содержимое из системного меню «Поделиться»
 // (ссылка, текст или файл) и список чатов — отправляем в выбранный.
 export function openShareInboxDialog(share) {
@@ -32,7 +38,10 @@ export function openShareInboxDialog(share) {
     type: "text",
     placeholder: "Поиск чата",
     "aria-label": "Поиск чата",
-    oninput: () => paintList(),
+    oninput: () => {
+      query = search.value;
+      paintList();
+    },
   });
   const list = el("div", { class: "share-inbox-list" });
   let query = "";
@@ -64,7 +73,7 @@ export function openShareInboxDialog(share) {
       await api.sendMessage(chat.id, text, attachments.length ? { attachments } : {});
       close();
       navigate(`/chat/${chat.id}`);
-      showToast(`Отправлено в «${chat.title ?? chat.name ?? "чат"}»`);
+      showToast(`Отправлено в «${chatTitleOf(chat) || "чат"}»`);
     } catch (err) {
       sending = false;
       paintList();
@@ -77,7 +86,7 @@ export function openShareInboxDialog(share) {
     const q = query.trim().toLowerCase();
     const rows = (chats ?? [])
       .filter((c) => !c.archived && c.type !== "channel")
-      .filter((c) => !q || `${c.title ?? c.name ?? ""} ${c.username ?? ""}`.toLowerCase().includes(q))
+      .filter((c) => !q || `${chatTitleOf(c)} ${c.username ?? c.otherUser?.username ?? ""}`.toLowerCase().includes(q))
       .slice(0, 40);
     if (!rows.length) {
       list.append(el("p", { class: "empty-hint" }, q ? "Ничего не найдено" : "Нет доступных чатов"));
@@ -89,9 +98,9 @@ export function openShareInboxDialog(share) {
           "button",
           { class: "share-inbox-row", disabled: sending, onclick: () => sendTo(chat) },
           [
-            el("span", { class: "share-inbox-avatar" }, (chat.title ?? chat.name ?? "?").trim().charAt(0).toUpperCase()),
+            el("span", { class: "share-inbox-avatar" }, (chatTitleOf(chat) || "?").charAt(0).toUpperCase()),
             el("div", {}, [
-              el("p", { class: "share-inbox-row-title" }, chat.title ?? chat.name ?? "Без названия"),
+              el("p", { class: "share-inbox-row-title" }, chatTitleOf(chat) || "Без названия"),
               el("p", { class: "settings-toggle-hint" }, chat.type === "group" ? "Группа" : "Личный чат"),
             ]),
           ]

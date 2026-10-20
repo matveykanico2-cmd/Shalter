@@ -25,7 +25,9 @@ router.get(
           const user = byId.get(c.userId);
           if (!user) return null;
           const visible = await publicUserFor(user, req.uid);
-          if (await allowsUser(user.id, "phone", req.uid)) visible.phone = user.phone;
+          // Заблокировавший вас номер не показывает — как и в профиле.
+          const blockedMe = (user.blockedUserIds ?? []).includes(req.uid);
+          if (!blockedMe && (await allowsUser(user.id, "phone", req.uid))) visible.phone = user.phone;
           return { ...c, localName: c.localName ?? null, note: contactNote(c), user: visible };
         })
       )
@@ -67,7 +69,8 @@ router.post(
       };
       await updateSettings(req.uid, { privacy: normalizePrivacy({ ...privacy, exceptions }) });
     }
-    res.json({ contact });
+    // Уже существующий контакт приходит строкой из базы — заметку расшифровываем, как в /rename.
+    res.json({ contact: "note" in contact ? { ...contact, note: contactNote(contact) } : contact });
   })
 );
 

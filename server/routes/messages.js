@@ -32,7 +32,7 @@ const { dispatchBusinessAutoReply } = require("../lib/businessAutoReply");
 const { can, DENIED, isStaff } = require("../lib/chatPermissions");
 const { broadcastToUsers } = require("../ws");
 const { sendPushToUser, pushAvatar, userPushAvatar, MESSAGE_PUSH } = require("../push");
-const { registerAttachments } = require("../lib/uploadAccess");
+const { registerAttachments, canAccessUpload } = require("../lib/uploadAccess");
 const paidMedia = require("../data/paidMedia");
 const { fetchLinkPreview } = require("../lib/linkPreview");
 const { FILENAME_RE } = require("../lib/serveUpload");
@@ -397,6 +397,10 @@ function preparePaidMedia(chat, senderId, body) {
   if (!Number.isSafeInteger(stars) || stars < 1 || stars > MAX_PAID_STARS) return { error: `Цена — от 1 до ${MAX_PAID_STARS} ⭐` };
   const real = (sanitizeAttachments(body.attachments) ?? []).filter((a) => (a.kind === "image" || a.kind === "video") && a.url);
   if (!real.length) return { error: "Платным можно сделать только фото или видео" };
+  // Иначе, зная адрес чужого файла, можно было бы «продать» его себе и скачать как автор.
+  if (real.some((a) => [a.url, a.thumbUrl].some((u) => u && /^\/uploads\//.test(u) && !canAccessUpload(senderId, u.slice("/uploads/".length))))) {
+    return { error: "Файл не найден — загрузите его заново" };
+  }
   const blur = typeof body.paidMedia.blur === "string" && body.paidMedia.blur.length <= 8000 && BLUR_RE.test(body.paidMedia.blur) ? body.paidMedia.blur : null;
   const w = Number(body.paidMedia.width);
   const h = Number(body.paidMedia.height);
@@ -458,12 +462,11 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0, paid = null
     effect: chat.type === "dm" && MESSAGE_EFFECTS.includes(body.effect) ? body.effect : null,
   });
 
-  registerAttachments(chat.id, message.attachments);
-  if (paid) {
-    paidMedia.savePaidMedia(message.id, chat.id, paid.stars, paid.real);
-    registerAttachments(chat.id, paid.real);
-  }
-  if (message.sticker?.kind === "image") registerAttachments(chat.id, [{ url: message.sticker.url }]);
+  registerAttachments(chat.id, message.attachments, { by: senderId });
+  // Настоящие файлы платного поста к чату не привязываются: их отдают только автору,
+  // админам канала и купившим (lib/uploadAccess.js).
+  if (paid) paidMedia.savePaidMedia(message.id, chat.id, paid.stars, paid.real);
+  if (message.sticker?.kind === "image") registerAttachments(chat.id, [{ url: message.sticker.url }], { by: senderId });
 
   if (message.threadRootId) {
     const updatedRoot = await incrementCommentCount(message.threadRootId);
@@ -687,6 +690,7 @@ router.post(
     }
 
     const body = req.body ?? {};
+    if (body.text != null && typeof body.text !== "string") return res.status(400).json({ error: "Некорректный текст" });
     if (!body.text?.trim() && !body.attachments?.length && !body.sticker) {
       return res.status(400).json({ error: "empty message" });
     }
@@ -702,7 +706,7 @@ router.post(
       // вернуться в списке чатов, если очистка с клиента разошлась с сохранением).
       if ((await getSettings(req.uid)).drafts?.[chat.id]) await setDraft(req.uid, chat.id, "");
       return { payload: { message, ...(charged ? { chargedStars: charged, balance: balanceOf(req.uid) } : {}) } };
-    });
+    }, { isFailure: (r) => r.status >= 400 });
     res.status(result.status ?? 200).json(result.payload);
   })
 );
@@ -791,6 +795,7 @@ router.post(
     if (!chat || !chat.memberIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
 
     const body = req.body ?? {};
+    if (body.text != null && typeof body.text !== "string") return res.status(400).json({ error: "Некорректный текст" });
     if (!body.text?.trim() && !body.attachments?.length) {
       return res.status(400).json({ error: "empty message" });
     }
@@ -925,7 +930,8 @@ router.delete(
       }
       // Сам файл не трогаем: одинаковые файлы хранятся один раз (sha_…) и его
       // может держать пересланная копия, стикер-пак и т. п. Без ссылок его
-      // уберёт orphanSweep.
+      // уберёт orphanSweep. Доступ участников к файлам снимает deleteMessage
+      // (lib/uploadAccess.js revokeAttachments).
       broadcastToOtherMembers(found.chat, req.uid, {
         type: "message:deleted",
         chatId: req.params.id,

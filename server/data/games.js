@@ -49,7 +49,9 @@ function searchGames(q, userId, limit = 20) {
   const builtins = BUILTIN.filter(hit).map(({ file, ...g }) => ({ ...g, builtin: true, isPublic: true }));
   const like = `%${needle.replace(/[%_]/g, "")}%`;
   const own = db
-    .prepare("SELECT * FROM games WHERE (isPublic = 1 OR ownerId = ?) AND (lower(title) LIKE ? OR lower(description) LIKE ?) ORDER BY plays DESC LIMIT ?")
+    // lower_ru (db.js) — JS toLowerCase: встроенный lower() SQLite сворачивает только ASCII,
+    // и «Космолётище» не находилось по «космолётище».
+    .prepare("SELECT * FROM games WHERE (isPublic = 1 OR ownerId = ?) AND (lower_ru(title) LIKE ? OR lower_ru(description) LIKE ?) ORDER BY plays DESC LIMIT ?")
     .all(userId, like, like, limit)
     .map((r) => rowToGame(r));
   return [...builtins, ...own].slice(0, limit);

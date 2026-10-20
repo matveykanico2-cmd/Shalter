@@ -7,6 +7,7 @@ const { asyncRoute } = require("../middleware/errors");
 const games = require("../data/games");
 const { getChat } = require("../data/chats");
 const { getUser, listUsersByIds } = require("../data/users");
+const { usesForeignUpload } = require("../lib/uploadAccess");
 
 const router = express.Router();
 router.use(express.json({ limit: "600kb" }));
@@ -25,10 +26,14 @@ const MAX_SCORE = 1_000_000_000;
 const MAX_CODE = 512 * 1024;
 const publicGame = ({ code, ...g }) => g;
 
-async function scopeOf(chatId) {
+// Таблица рекордов чата — только для участника этого чата (userId — игрок, от
+// имени которого действует сервер игры). Иначе токен любой игры, зная id чата,
+// мог бы засорять чужие таблицы и узнавать, кто в чате состоит. Чужой чат
+// неотличим от несуществующего — тот же 404.
+async function scopeOf(chatId, userId) {
   if (!chatId) return "";
   const chat = await getChat(String(chatId));
-  return chat ? chat.id : null;
+  return chat && userId && chat.memberIds.includes(String(userId)) ? chat.id : null;
 }
 
 router.all(
@@ -51,6 +56,7 @@ router.post(
     };
     if (!next.title) return res.status(400).json({ error: "title is required" });
     if (!next.code.trim() || next.code.length > MAX_CODE) return res.status(400).json({ error: "code: от 1 байта до 512 КБ" });
+    if (usesForeignUpload(req.game.ownerId, next.code, req.game.code)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     res.json({ ok: true, game: publicGame(games.saveGame(next)) });
   })
 );
@@ -64,7 +70,7 @@ router.all(
   "/getScores",
   asyncRoute(async (req, res) => {
     const q = { ...req.query, ...(req.body ?? {}) };
-    const scope = await scopeOf(q.chatId);
+    const scope = await scopeOf(q.chatId, q.userId);
     if (scope === null) return res.status(404).json({ error: "chat not found" });
     const limit = Math.min(Math.max(Number(q.limit) || 20, 1), 100);
     const rows = games.topScores(req.game.id, scope, limit);
@@ -82,7 +88,7 @@ router.post(
     const score = Math.floor(Number(req.body?.score));
     if (!userId || !(await getUser(String(userId)))) return res.status(404).json({ error: "user not found" });
     if (!Number.isSafeInteger(score) || score < 0 || score > MAX_SCORE) return res.status(400).json({ error: "score: целое от 0" });
-    const scope = await scopeOf(chatId);
+    const scope = await scopeOf(chatId, userId);
     if (scope === null) return res.status(404).json({ error: "chat not found" });
     const write = (sc) => (force ? (games.setScoreExact(req.game.id, sc, String(userId), score), { best: score, improved: true }) : games.submitScore(req.game.id, sc, String(userId), score));
     const global = write("");

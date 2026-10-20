@@ -52,7 +52,14 @@ async function regenerateOAuthAppSecret(id, ownerId) {
   const row = db.prepare("SELECT id FROM oauth_apps WHERE id = ? AND ownerId = ?").get(id, ownerId);
   if (!row) return undefined;
   const clientSecret = randomId(24);
-  db.prepare("UPDATE oauth_apps SET clientSecret = ? WHERE id = ?").run(clientSecret, id);
+  // Секрет перевыпускают обычно после утечки — тогда и выданные со старым
+  // секретом токены надо считать скомпрометированными: отзываем все токены
+  // приложения, пользователям придётся войти заново.
+  const app = db.prepare("SELECT clientId FROM oauth_apps WHERE id = ?").get(id);
+  db.transaction(() => {
+    db.prepare("UPDATE oauth_apps SET clientSecret = ? WHERE id = ?").run(clientSecret, id);
+    db.prepare("DELETE FROM oauth_tokens WHERE clientId = ?").run(app.clientId);
+  })();
   return { ...(await getOAuthApp(id)), clientSecret };
 }
 
@@ -69,8 +76,15 @@ function createAuthCode({ clientId, userId, redirectUri }) {
 const redeemAuthCode = db.transaction((code, clientId, redirectUri) => {
   const row = db.prepare("SELECT * FROM oauth_codes WHERE code = ?").get(code);
   if (!row) return null;
-  if (row.usedAt) return null;
   if (row.clientId !== clientId) return null;
+  if (row.usedAt) {
+    // Повтор кода (RFC 6749 §4.1.2): код утёк, и обменять его мог не тот, кто
+    // должен. Связи «токен ← код» в базе нет, поэтому отзываются все токены
+    // этого пользователя в этом приложении, выданные начиная с первого обмена
+    // кода, — среди них гарантированно и токен, выданный по нему.
+    db.prepare("DELETE FROM oauth_tokens WHERE clientId = ? AND userId = ? AND createdAt >= ?").run(row.clientId, row.userId, row.usedAt);
+    return null;
+  }
   if (row.redirectUri !== redirectUri) return null;
   if (new Date(row.expiresAt).getTime() < Date.now()) return null;
   db.prepare("UPDATE oauth_codes SET usedAt = ? WHERE code = ?").run(new Date().toISOString(), code);

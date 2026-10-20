@@ -62,14 +62,20 @@ function sameCode(a, b) {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
-function verifyCode(secret, code, now = Date.now()) {
+// Номер шага, которому соответствует код (в окне ±WINDOW_STEPS), или null.
+// Нужен, чтобы не принять один и тот же код дважды (RFC 6238 §5.2).
+function matchStep(secret, code, now = Date.now()) {
   const cleaned = String(code ?? "").replace(/\D/g, "");
-  if (cleaned.length !== DIGITS || !secret) return false;
+  if (cleaned.length !== DIGITS || !secret) return null;
   const counter = Math.floor(now / 1000 / STEP_SECONDS);
   for (let drift = -WINDOW_STEPS; drift <= WINDOW_STEPS; drift++) {
-    if (sameCode(codeForCounter(secret, counter + drift), cleaned)) return true;
+    if (sameCode(codeForCounter(secret, counter + drift), cleaned)) return counter + drift;
   }
-  return false;
+  return null;
+}
+
+function verifyCode(secret, code, now = Date.now()) {
+  return matchStep(secret, code, now) !== null;
 }
 
 function otpauthUri(secret, accountLabel) {
@@ -99,9 +105,11 @@ function hashRecoveryCode(code) {
 module.exports = {
   generateSecret,
   verifyCode,
+  matchStep,
   otpauthUri,
   generateRecoveryCodes,
   hashRecoveryCode,
   codeForCounter,
   STEP_SECONDS,
+  WINDOW_STEPS,
 };

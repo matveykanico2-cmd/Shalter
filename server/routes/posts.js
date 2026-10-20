@@ -28,6 +28,7 @@ router.post(
     if (!isOwnerOrAdmin) return res.status(403).json({ error: "Публиковать могут только администраторы канала" });
 
     const body = req.body ?? {};
+    if (body.text != null && typeof body.text !== "string") return res.status(400).json({ error: "Некорректный текст" });
     if (!body.text?.trim() && !body.attachments?.length) {
       return res.status(400).json({ error: "empty post" });
     }
@@ -83,11 +84,9 @@ async function publishPost(chat, uid, body, paid = null) {
   }
   // Раньше пост не рассылался: подписчики видели его только после опроса (до минуты),
   // а файлы поста не были привязаны к каналу.
-  registerAttachments(chat.id, post.attachments);
-  if (paid) {
-    paidMedia.savePaidMedia(post.id, chat.id, paid.stars, paid.real);
-    registerAttachments(chat.id, paid.real);
-  }
+  registerAttachments(chat.id, post.attachments, { by: uid });
+  // Настоящие файлы платного поста к каналу не привязываются (lib/uploadAccess.js).
+  if (paid) paidMedia.savePaidMedia(post.id, chat.id, paid.stars, paid.real);
   broadcastToUsers(chat.memberIds.filter((id) => id !== uid), { type: "message:new", chatId: chat.id, message: post });
   getUser(uid)
     .then((author) => pushNewMessage(chat, author, post))
@@ -167,6 +166,7 @@ router.post(
     if ((discussion.bannedIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Вас заблокировали в обсуждении" });
 
     const body = req.body ?? {};
+    if (body.text != null && typeof body.text !== "string") return res.status(400).json({ error: "Некорректный текст" });
     if (!body.text?.trim() && !body.attachments?.length) return res.status(400).json({ error: "Напишите комментарий" });
 
     if (!discussion.memberIds.includes(req.uid)) {

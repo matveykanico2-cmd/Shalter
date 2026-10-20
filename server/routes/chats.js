@@ -18,6 +18,7 @@ const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { findOrCreateDm, sendMessageAndBroadcast, serviceLine } = require("../lib/systemChat");
 const { publicUser } = require("../data/sanitize");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
+const { usesForeignUpload } = require("../lib/uploadAccess");
 const { getBotByUserId } = require("../data/bots");
 const joinRequests = require("../data/joinRequests");
 const { sendWelcome, submitJoinRequest, decideJoinRequest } = require("../lib/joinApproval");
@@ -144,6 +145,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const { title, avatarImage, memberIds, adminIds } = req.body ?? {};
     if (!title?.trim()) return res.status(400).json({ error: "Введите название канала" });
+    if (usesForeignUpload(req.uid, avatarImage)) return res.status(400).json({ error: "Некорректное изображение" });
     const identity = await resolveNewChatIdentity(req.body ?? {});
     if (identity.error) return res.status(identity.error.status).json({ error: identity.error.error });
     const now = new Date().toISOString();
@@ -193,6 +195,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const { title, memberIds, avatarImage, adminIds } = req.body ?? {};
     if (!title?.trim()) return res.status(400).json({ error: "Введите название группы" });
+    if (usesForeignUpload(req.uid, avatarImage)) return res.status(400).json({ error: "Некорректное изображение" });
     const identity = await resolveNewChatIdentity(req.body ?? {});
     if (identity.error) return res.status(identity.error.status).json({ error: identity.error.error });
     const members = new Set([req.uid, ...(await invitableIds(memberIds, req.uid))]);
@@ -340,7 +343,10 @@ router.patch(
     if ("title" in patch && !patch.title) return res.status(400).json({ error: "Название не может быть пустым" });
     if (typeof body.description === "string") patch.description = body.description.trim().slice(0, 500) || null;
     if ("avatarImage" in body) {
-      if (body.avatarImage && !(typeof body.avatarImage === "string" && isSafeUrl(body.avatarImage))) {
+      if (
+        body.avatarImage &&
+        (!(typeof body.avatarImage === "string" && isSafeUrl(body.avatarImage)) || usesForeignUpload(req.uid, body.avatarImage, chat.avatarImage))
+      ) {
         return res.status(400).json({ error: "Некорректное изображение" });
       }
       patch.avatarImage = body.avatarImage || null;
@@ -892,6 +898,10 @@ router.post(
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
     const { wallpaper, forEveryone, label } = req.body ?? {};
+    const ownWallpaper = (await getSettings(req.uid))?.chatWallpapers?.[chat.id];
+    if (usesForeignUpload(req.uid, wallpaper, [chat.wallpaper, ownWallpaper])) {
+      return res.status(400).json({ error: "Некорректная ссылка на файл" });
+    }
     if (forEveryone && chat.type !== "dm" && !isOwnerOrAdminOf(chat, req.uid)) {
       return res.status(403).json({ error: "Менять фон для всех могут только владельцы и админы" });
     }
@@ -1240,12 +1250,25 @@ router.post(
   })
 );
 
+// «Печатает…» не проходит через блокировку ни в одну сторону: заблокировавший
+// не видит набор заблокированного, а заблокированный — его.
+function blockedBetween(a, b) {
+  return !!a && !!b && ((a.blockedUserIds ?? []).includes(b.id) || (b.blockedUserIds ?? []).includes(a.id));
+}
+
+async function typingAudience(chat, typerId) {
+  const typer = await getUser(typerId);
+  const others = await listUsersByIds(chat.memberIds.filter((id) => id !== typerId));
+  return others.filter((u) => !blockedBetween(typer, u)).map((u) => u.id);
+}
+
 router.get(
   "/:id/typing",
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
-    const typing = getTyping(req.params.id, req.uid);
+    let typing = getTyping(req.params.id, req.uid);
+    if (typing && blockedBetween(await getUser(typing.userId), await getUser(req.uid))) typing = null;
     res.json({ typingUserId: typing?.userId ?? null, typingAction: typing?.action ?? null });
   })
 );
@@ -1259,7 +1282,7 @@ router.post(
     const action = cancel ? "cancel" : normalizeAction(req.body?.action);
     if (cancel) clearTyping(req.params.id, req.uid);
     else markTyping(req.params.id, req.uid, action);
-    broadcastToUsers(chat.memberIds.filter((id) => id !== req.uid), {
+    broadcastToUsers(await typingAudience(chat, req.uid), {
       type: "typing:update",
       chatId: req.params.id,
       userId: req.uid,

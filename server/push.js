@@ -1,4 +1,5 @@
 const { sendFcm } = require("./lib/fcm");
+const { assertPublicUrl } = require("./lib/linkPreview");
 const webpush = require("web-push");
 const db = require("./db");
 const { listSubscriptionsForUser, removeSubscriptionByEndpoint } = require("./data/pushSubscriptions");
@@ -42,6 +43,10 @@ async function sendPushToUser(userId, payload, options = {}) {
         return;
       }
       try {
+        // Повторная проверка перед отправкой: подписки, сохранённые до проверки при
+        // подписке, и хосты, чей DNS с тех пор стал указывать во внутреннюю сеть.
+        const target = await assertPublicUrl(row.subscription.endpoint).catch(() => null);
+        if (!target || target.protocol !== "https:") return;
         await webpush.sendNotification(row.subscription, body, options);
       } catch (err) {
         if (err.statusCode === 404 || err.statusCode === 410) {

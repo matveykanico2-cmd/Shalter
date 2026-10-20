@@ -14,7 +14,8 @@ router.use(requireUserId);
 router.get(
   "/",
   asyncRoute(async (req, res) => {
-    const data = await buildUserExport(req.uid);
+    // Чужие телефоны — с учётом их приватности, как в профиле.
+    const data = await buildUserExport(req.uid, { respectPrivacy: true });
     if (!data) return res.status(404).json({ error: "Пользователь не найден" });
     res.json({ data });
   })

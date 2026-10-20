@@ -1,7 +1,8 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { listPacksFor, getPack, createPack, updatePack, deletePack, MAX_STICKERS } = require("../data/stickerPacks");
+const { listPacksFor, getPack, createPack, updatePack, deletePack, sanitizeStickers, MAX_STICKERS } = require("../data/stickerPacks");
+const { usesForeignUpload } = require("../lib/uploadAccess");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -21,6 +22,7 @@ router.post(
     if (!Array.isArray(stickers) || stickers.length === 0) {
       return res.status(400).json({ error: "Добавьте хотя бы один стикер" });
     }
+    if (usesForeignUpload(req.uid, sanitizeStickers(stickers))) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     res.json({ pack: createPack({ ownerId: req.uid, name, stickers }) });
   })
 );
@@ -28,6 +30,14 @@ router.post(
 router.patch(
   "/packs/:id",
   asyncRoute(async (req, res) => {
+    const { stickers } = req.body ?? {};
+    if (stickers !== undefined) {
+      const current = getPack(req.params.id);
+      if (!current || current.ownerId !== req.uid) return res.status(404).json({ error: "Пак не найден" });
+      if (usesForeignUpload(req.uid, sanitizeStickers(stickers), current.stickers)) {
+        return res.status(400).json({ error: "Некорректная ссылка на файл" });
+      }
+    }
     const pack = updatePack(req.params.id, req.uid, req.body ?? {});
     if (!pack) return res.status(404).json({ error: "Пак не найден" });
     res.json({ pack });

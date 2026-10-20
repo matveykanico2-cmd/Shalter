@@ -1,5 +1,6 @@
 const db = require("../db");
 const { encryptText, decryptText, searchQuery, hasLink, sealSecret, openSecret } = require("../lib/textCrypto");
+const { revokeAttachments } = require("../lib/uploadAccess");
 
 // Секретные чаты: текст дополнительно шифруется ключом чата (lib/textCrypto.js),
 // снаружи — как обычно, общим ключом сообщений.
@@ -231,11 +232,18 @@ async function deleteMessagesForChat(chatId) {
 }
 
 function deleteExpiredMessages(chatId, cutoffIso) {
-  const ids = db.prepare("SELECT id FROM messages WHERE chatId = ? AND createdAt < ?").all(chatId, cutoffIso).map((r) => r.id);
+  const rows = db.prepare("SELECT id, attachments, sticker FROM messages WHERE chatId = ? AND createdAt < ?").all(chatId, cutoffIso);
+  const ids = rows.map((r) => r.id);
   if (ids.length === 0) return [];
   const placeholders = ids.map(() => "?").join(",");
   db.prepare(`DELETE FROM messages WHERE id IN (${placeholders})`).run(...ids);
+  revokeAttachments(chatId, rows.flatMap(fileRefsOf));
   return ids;
+}
+
+// Ссылки на файлы удаляемого сообщения — для lib/uploadAccess.js revokeAttachments.
+function fileRefsOf(row) {
+  return [{ url: row?.attachments ?? "" }, { url: row?.sticker ?? "" }];
 }
 
 async function mutate(id, fn) {
@@ -333,8 +341,12 @@ function setStreamingText(id, text) {
   return mutate(id, (m) => ({ ...m, text }));
 }
 
+// Удаление у всех: файлы, на которые больше не ссылается ни одно сообщение чата,
+// перестают быть доступны его участникам.
 async function deleteMessage(id) {
+  const row = db.prepare("SELECT chatId, attachments, sticker FROM messages WHERE id = ?").get(id);
   db.prepare("DELETE FROM messages WHERE id = ?").run(id);
+  if (row) revokeAttachments(row.chatId, fileRefsOf(row));
 }
 
 function deleteMessageForMe(id, userId) {

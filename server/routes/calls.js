@@ -6,9 +6,8 @@ const { requireUserId } = require("../middleware/auth");
 const { listCalls, createCall, getCall, updateCall, addParticipant, setJoinToken, findCallByJoinToken, removeParticipant, findActiveRoom } = require("../data/calls");
 const { getChat } = require("../data/chats");
 const { listUsersByIds, getUser } = require("../data/users");
-const { publicUser } = require("../data/sanitize");
 const { addSignal, listSignalsFor } = require("../data/signals");
-const { allowsUser } = require("../lib/privacyRules");
+const { allowsUser, publicUserFor } = require("../lib/privacyRules");
 const { sendMessageAndBroadcast } = require("../lib/systemChat");
 const { listContactsFor } = require("../data/contacts");
 const { transferStars, balanceOf } = require("../data/stars");
@@ -83,6 +82,9 @@ async function pushCallCancelled(call, recipientIds, { missed = false, callerNam
 const MAX_RING_ALL = 12;
 const ALLOWED_CALL_STATUSES = new Set(["ongoing", "ended", "missed", "completed", "declined"]);
 const FINISHED_CALL_STATUSES = new Set(["ended", "missed", "completed", "declined"]);
+// Через POST /api/calls — только обычные звонки; голосовой чат группы («voice-room»)
+// создаётся своим маршрутом /room/:chatId/join. Клиент (chatView.js) шлёт «audio».
+const CALL_KINDS = new Set(["audio", "voice", "video"]);
 
 async function pushIncomingCall(call, callerId, recipientIds) {
   const caller = await getUser(callerId);
@@ -107,9 +109,17 @@ async function pushIncomingCall(call, callerId, recipientIds) {
   );
 }
 
-async function withCaller(call) {
+// Профиль звонящего — глазами получателя (приватность lastSeen, фото и т.д.).
+async function withCaller(call, viewerId) {
   const caller = await getUser(call.callerId);
-  return { ...call, otherUser: caller ? publicUser(caller) : undefined };
+  return { ...call, otherUser: caller ? await publicUserFor(caller, viewerId) : undefined };
+}
+
+// call:incoming каждому получателю — со своей проекцией звонящего.
+async function broadcastIncoming(call, recipientIds) {
+  for (const uid of recipientIds) {
+    broadcastToUsers([uid], { type: "call:incoming", call: await withCaller(call, uid) });
+  }
 }
 
 router.get(
@@ -118,19 +128,20 @@ router.get(
     const calls = await listCalls(req.uid);
     const otherIds = [...new Set(calls.flatMap((c) => c.participantIds).filter((id) => id !== req.uid))];
     const users = await listUsersByIds(otherIds);
-    const byId = new Map(users.map((u) => [u.id, u]));
     const groupTitles = new Map();
     for (const chatId of new Set(calls.map((c) => c.chatId))) {
       const chat = await getChat(chatId).catch(() => null);
       if (chat && chat.type !== "dm") groupTitles.set(chatId, { title: chat.title, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage });
     }
+    const visibleById = new Map();
+    for (const u of users) visibleById.set(u.id, await publicUserFor(u, req.uid));
     const resolved = calls.map((call) => {
       const otherId = call.participantIds.find((id) => id !== req.uid);
-      const other = otherId ? byId.get(otherId) : null;
+      const other = otherId ? visibleById.get(otherId) : null;
       return {
         ...call,
         direction: call.callerId === req.uid ? "outgoing" : "incoming",
-        otherUser: other ? publicUser(other) : null,
+        otherUser: other ?? null,
         group: groupTitles.get(call.chatId) ?? null,
       };
     });
@@ -142,6 +153,7 @@ router.post(
   "/",
   asyncRoute(async (req, res) => {
     const { chatId, kind, ringAll } = req.body ?? {};
+    if (!CALL_KINDS.has(kind)) return res.status(400).json({ error: "Некорректный вид звонка" });
     const chat = await getChat(chatId);
     if (!chat || !chat.memberIds.includes(req.uid)) {
       return res.status(404).json({ error: "not found" });
@@ -190,10 +202,7 @@ router.post(
       startedAt: new Date().toISOString(),
       durationSec: 0,
     });
-    broadcastToUsers(call.participantIds.filter((id) => id !== req.uid), {
-      type: "call:incoming",
-      call: await withCaller(call),
-    });
+    await broadcastIncoming(call, call.participantIds.filter((id) => id !== req.uid));
     res.json({ call });
 
     pushIncomingCall(call, req.uid, call.participantIds).catch((err) => console.error("push notify failed:", err));
@@ -217,6 +226,10 @@ router.patch(
       return res.json({ call: updated });
     }
 
+    // Завершённый звонок обратно не «оживить» — иначе он снова висел бы активным.
+    if (req.body?.status === "ongoing" && existing.status !== "ongoing") {
+      return res.status(400).json({ error: "Звонок уже завершён" });
+    }
     const patch = {};
     if (ALLOWED_CALL_STATUSES.has(req.body?.status)) patch.status = req.body.status;
     if (Number.isFinite(req.body?.durationSec)) patch.durationSec = Math.max(0, Math.floor(req.body.durationSec));
@@ -255,7 +268,7 @@ router.post(
   "/:id/answer",
   asyncRoute(async (req, res) => {
     const call = await getCall(req.params.id);
-    if (!call || !call.participantIds.includes(req.uid)) return res.json({ ok: true });
+    if (!call || !call.participantIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
     broadcastToUsers([req.uid], { type: "call:answered", callId: call.id });
     res.json({ ok: true });
   })
@@ -277,7 +290,7 @@ router.post(
       updated.participantIds.filter((id) => id !== userId),
       { type: "call:participants-updated", call: updated }
     );
-    broadcastToUsers([userId], { type: "call:incoming", call: await withCaller(updated) });
+    await broadcastIncoming(updated, [userId]);
     res.json({ call: updated });
 
     pushIncomingCall(updated, updated.callerId, [userId]).catch((err) => console.error("push notify failed:", err));
@@ -441,6 +454,7 @@ router.post(
     if (!call.participantIds.includes(toUserId)) {
       return res.status(400).json({ error: "invalid recipient" });
     }
+    if (typeof kind !== "string" || !kind || kind.length > 32) return res.status(400).json({ error: "invalid kind" });
     const signal = await addSignal({ callId: req.params.id, fromUserId: req.uid, toUserId, kind, data });
     broadcastToUsers([toUserId], { type: "call:signal", signal });
     res.json({ signal });

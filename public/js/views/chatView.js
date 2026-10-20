@@ -378,7 +378,7 @@ export async function ChatView(root, chatId) {
     return true;
   }
   function contentKey(m) {
-    return JSON.stringify([m.reactions ?? null, m.attachments ?? null, m.linkPreview ?? null]);
+    return JSON.stringify([m.reactions ?? null, m.attachments ?? null, m.linkPreview ?? null, m.keyboard ?? null]);
   }
 
   async function loadOlder() {
@@ -595,7 +595,7 @@ export async function ChatView(root, chatId) {
   async function handleForward(message, targetChatId, { hideAuthor = false } = {}) {
     const sender = senderOf(message.senderId);
     const title = isDm ? (other?.name ?? chat.title) : chat.title;
-    await api.sendMessage(targetChatId, message.text, {
+    const res = await api.sendMessage(targetChatId, message.text, {
       attachments: (message.attachments ?? []).map((a) =>
         a.kind === "poll" ? { ...a, meta: { ...a.meta, voterIds: [], votes: [] } } : a
       ),
@@ -603,6 +603,9 @@ export async function ChatView(root, chatId) {
       ...(message.customEmoji ? { customEmoji: message.customEmoji } : {}),
       forwardedFrom: { messageId: message.id, hideAuthor, chatId: chat.id, chatTitle: title, senderId: message.senderId, senderName: sender?.name ?? "Аноним" },
     });
+    // message:new сервер шлёт только остальным участникам — превью целевого чата
+    // в своём списке обновляем сами.
+    if (res?.message) noteMessageInChatList(targetChatId, res.message);
   }
 
   // Все действия ниже — оптимистичные, как в Telegram: интерфейс меняется
@@ -1460,6 +1463,7 @@ export async function ChatView(root, chatId) {
 
   let subtitleEl = null;
   let prevSubtitleText = null;
+  let prevHeaderIdentity = null;
 
   // Бот готовит ответ — пузырь «Думает…» с точками и секундомером внизу ленты,
   // чтобы долгая генерация не выглядела зависанием.
@@ -1532,10 +1536,28 @@ export async function ChatView(root, chatId) {
     // При печати не трогаем шапку полностью — только подпись, чтобы анимация
     // орбиты премиума не пересоздавалась и не мерцала.
     const subtitleClass = `chat-header-subtitle${typingUserId ? " is-typing" : isDm && other?.online ? " is-online" : ""}`;
-    if (subtitleEl && prevSubtitleText !== undefined && subtitle === prevSubtitleText && subtitleEl.className === subtitleClass) {
+    // Название, аватар и галочка тоже в ключе: иначе переименование группы или
+    // смена аватара не доходили до шапки, пока не менялась подпись.
+    const identityKey = JSON.stringify([
+      chatTitle(),
+      chat.avatarColor ?? null,
+      chat.avatarImage ?? null,
+      !!chat.isVerified,
+      other?.avatarColor ?? null,
+      other?.avatarImage ?? null,
+      !!other?.isVerified,
+    ]);
+    if (
+      subtitleEl &&
+      prevSubtitleText !== undefined &&
+      subtitle === prevSubtitleText &&
+      subtitleEl.className === subtitleClass &&
+      identityKey === prevHeaderIdentity
+    ) {
       return;
     }
     prevSubtitleText = subtitle;
+    prevHeaderIdentity = identityKey;
     clear(header);
     subtitleEl = null;
 
@@ -2568,7 +2590,11 @@ export async function ChatView(root, chatId) {
     const i = messages.findIndex((x) => x.id === m.id);
     if (i >= 0) {
       if (reactionsLocked(m.id)) m = { ...m, reactions: messages[i].reactions };
-      messages = messages.map((x, j) => (j === i ? { ...x, ...m } : x));
+      // Событие несёт сообщение целиком: нет поля keyboard — бот убрал клавиатуру,
+      // старую при слиянии не оставляем.
+      const merged = { ...messages[i], ...m };
+      if (!("keyboard" in m)) delete merged.keyboard;
+      messages = messages.map((x, j) => (j === i ? merged : x));
     } else if (insert) {
       const last = messages[messages.length - 1];
       if (last && m.createdAt < last.createdAt) return false;
@@ -2630,6 +2656,16 @@ export async function ChatView(root, chatId) {
   const unsubMessageDeleted = onWsMessage("message:deleted", (msg) => {
     if (msg.chatId !== chat.id) return;
     dropMessageFromChatList(chat.id, msg.id, messages);
+    // Убираем сразу: сверка со списком сервера сохраняет всё, что старше первого
+    // сообщения свежей страницы («старая история»), и удалённое самое раннее
+    // сообщение осталось бы на экране до перезагрузки.
+    if (msg.id && messages.some((m) => m.id === msg.id)) {
+      messages = messages.filter((m) => m.id !== msg.id);
+      messagesCount = messages.length;
+      livePendingIds.delete(msg.id);
+      saveChatCache();
+      rerenderListKeepingScroll();
+    }
     scheduleRefresh();
   });
   const unsubMessageRead = onWsMessage("message:read", (msg) => {

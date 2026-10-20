@@ -2,17 +2,23 @@ const express = require("express");
 const { genId } = require("../lib/genId");
 const { asyncRoute } = require("../middleware/errors");
 const { requireBotToken } = require("../middleware/botAuth");
-const { getUser, findUserByUsername, updateUser } = require("../data/users");
+const { getUser, findUserByUsername, updateUser, listUsersByIds } = require("../data/users");
 const { listChatsForUser, getChat, updateChat, findChatByUsername, createChat, findDmBetween } = require("../data/chats");
 const { listAllMessages, listNewForBot, listMessages, getMessage, editMessage, deleteMessage, togglePin, addMessage, listMessagesPage, toggleReaction, setKeyboard } = require("../data/messages");
 const { addScheduled, listScheduledFor, getScheduled, deleteScheduled } = require("../data/scheduledMessages");
-const { sanitizePermissions, isStaff } = require("../lib/chatPermissions");
+const { sanitizePermissions } = require("../lib/chatPermissions");
 const crypto = require("crypto");
 const { publicUser, publicUsers } = require("../data/sanitize");
 const { broadcastToUsers } = require("../ws");
 const { markTyping, normalizeAction } = require("../data/typing");
 const { updateBotApp, updateBotAppCode, updateBotCommands, updateBotDescription, getBotToken } = require("../data/bots");
-const { sendBotMessage, normalizeKeyboard } = require("../lib/botMessaging");
+const { sendBotMessage, normalizeKeyboard, botPostDenied } = require("../lib/botMessaging");
+const { registerAttachments, usesForeignUpload } = require("../lib/uploadAccess");
+
+// Аватарка и страница приложения бота видны всем: файлы — только доступные боту
+// или его владельцу (сам бот загружать не умеет).
+const botUsesForeignUpload = (bot, value, previous) =>
+  usesForeignUpload(bot.userId, value, previous) && usesForeignUpload(bot.ownerId, value, previous);
 const { findOrCreateDm } = require("../lib/systemChat");
 const { allowsUser, publicUserFor } = require("../lib/privacyRules");
 const { forwardOrigin } = require("./messages");
@@ -74,6 +80,12 @@ router.post(
   })
 );
 
+// Кому рассылать событие о сообщении: скрытый ответ (visibleToId) — только
+// адресату и самому боту, иначе всем участникам чата.
+function audienceOf(chat, message) {
+  return message?.visibleToId ? [...new Set([message.visibleToId, message.senderId])] : chat.memberIds;
+}
+
 async function botOwns(botUserId, messageId) {
   const message = await getMessage(messageId);
   if (!message) return { status: 404, error: "Message not found" };
@@ -93,7 +105,7 @@ router.post(
     if (found.message.forwardedFrom) return res.status(400).json({ error: "Forwarded messages can't be edited" });
 
     const message = await editMessage(messageId, String(text).slice(0, 4096));
-    broadcastToUsers(found.chat.memberIds, { type: "message:updated", chatId: found.chat.id, message });
+    broadcastToUsers(audienceOf(found.chat, found.message), { type: "message:updated", chatId: found.chat.id, message });
     res.json({ message });
   })
 );
@@ -105,7 +117,7 @@ router.post(
     if (found.error) return res.status(found.status).json({ error: found.error });
 
     await deleteMessage(found.message.id);
-    broadcastToUsers(found.chat.memberIds, { type: "message:deleted", chatId: found.chat.id, id: found.message.id, messageId: found.message.id });
+    broadcastToUsers(audienceOf(found.chat, found.message), { type: "message:deleted", chatId: found.chat.id, id: found.message.id, messageId: found.message.id });
     res.json({ ok: true });
   })
 );
@@ -123,7 +135,7 @@ router.post(
     }
 
     const updated = await togglePin(messageId, !!pinned);
-    broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+    broadcastToUsers(audienceOf(chat, message), { type: "message:updated", chatId: chat.id, message: updated });
     res.json({ message: updated });
   })
 );
@@ -135,7 +147,10 @@ router.post(
     if (!chat || !chat.memberIds.includes(req.bot.userId)) return res.status(404).json({ error: "Bot is not a member of this chat" });
     const action = normalizeAction(req.body?.action);
     markTyping(chat.id, req.bot.userId, action);
-    broadcastToUsers(chat.memberIds, { type: "typing:update", chatId: chat.id, userId: req.bot.userId, action });
+    // Заблокировавшим бота его «печатает…» не показываем.
+    const members = await listUsersByIds(chat.memberIds.filter((id) => id !== req.bot.userId));
+    const audience = members.filter((u) => !(u.blockedUserIds ?? []).includes(req.bot.userId)).map((u) => u.id);
+    broadcastToUsers([req.bot.userId, ...audience], { type: "typing:update", chatId: chat.id, userId: req.bot.userId, action });
     res.json({ ok: true });
   })
 );
@@ -250,7 +265,7 @@ router.get(
     const handle = String(req.query.username ?? "").trim().replace(/^@/, "");
     if (!handle) return res.status(400).json({ error: "username is required" });
     const user = await findUserByUsername(handle);
-    if (user) return res.json({ kind: "user", user: publicUser(user) });
+    if (user) return res.json({ kind: "user", user: await publicUserFor(user, req.bot.userId) });
     const chat = await findChatByUsername(handle);
     if (chat) {
       return res.json({
@@ -280,6 +295,9 @@ router.post(
     if (!emoji) return res.status(400).json({ error: "emoji is required" });
     const chat = await getChat(chatId);
     if (!chat || !chat.memberIds.includes(req.bot.userId)) return res.status(404).json({ error: "Bot is not a member of this chat" });
+    // Те же проверки, что у sendMessage: блокировка в личке и права в канале.
+    const denied = await botPostDenied(chat, req.bot.userId);
+    if (denied) return res.status(403).json({ error: denied });
     const message = await addMessage({
       id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       chatId: chat.id,
@@ -325,7 +343,7 @@ router.post(
     const chat = await getChat(target.chatId);
     if (!chat || !chat.memberIds.includes(req.bot.userId)) return res.status(404).json({ error: "Bot is not a member of this chat" });
     const message = await toggleReaction(messageId, String(emoji).slice(0, 8), req.bot.userId);
-    broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message });
+    broadcastToUsers(audienceOf(chat, target), { type: "message:updated", chatId: chat.id, message });
     res.json({ message });
   })
 );
@@ -404,7 +422,7 @@ router.post(
     const chat = await requireBotAdmin(req, res, target.chatId);
     if (!chat) return;
     await deleteMessage(target.id);
-    broadcastToUsers(chat.memberIds, { type: "message:deleted", chatId: chat.id, id: target.id, messageId: target.id });
+    broadcastToUsers(audienceOf(chat, target), { type: "message:deleted", chatId: chat.id, id: target.id, messageId: target.id });
     res.json({ ok: true });
   })
 );
@@ -517,6 +535,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const checked = validateAppUrl(req.body?.url ?? "");
     if (checked.error) return res.status(400).json({ error: checked.error });
+    if (botUsesForeignUpload(req.bot, checked.url, req.bot.appUrl)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     const name = String(req.body?.name ?? "").trim().slice(0, 40);
     const bot = await updateBotApp(req.bot.id, { appUrl: checked.url, appName: name });
     res.json({ app: botApp(req, bot, await getUser(req.bot.userId)) });
@@ -532,6 +551,7 @@ router.post(
     if (code.trim() && !botUser?.username) {
       return res.status(409).json({ error: "У бота нет юзернейма — по нему строится адрес приложения" });
     }
+    if (botUsesForeignUpload(req.bot, code, req.bot.appCode)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     const name = String(req.body?.name ?? req.bot.appName ?? "").trim().slice(0, 40);
     const bot = await updateBotAppCode(req.bot.id, { appCode: code.trim() ? code : null, appName: name });
     res.json({ app: botApp(req, bot, botUser) });
@@ -631,7 +651,8 @@ router.post(
     if (from.protectedBy?.length) return res.status(403).json({ error: "Forwarding is disabled in this chat" });
     const to = await botChat(req, res, toChatId);
     if (!to) return;
-    if (to.type === "channel" && !isStaff(to, req.bot.userId)) return res.status(403).json({ error: "Bot must be an admin to post in a channel" });
+    const denied = await botPostDenied(to, req.bot.userId);
+    if (denied) return res.status(403).json({ error: denied });
     const message = await addMessage({
       id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       chatId: to.id,
@@ -644,6 +665,7 @@ router.post(
       forwardedFrom: source.forwardedFrom ?? (await forwardOrigin(from, source, req.bot.userId)),
       readByIds: [],
     });
+    registerAttachments(to.id, message.attachments, { by: req.bot.userId });
     broadcastToUsers(to.memberIds, { type: "message:new", chatId: to.id, message });
     res.json({ message });
   })
@@ -693,7 +715,7 @@ router.post(
       return res.status(403).json({ error: "Bot must be an admin to unpin messages" });
     }
     const updated = await togglePin(message.id, false);
-    broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+    broadcastToUsers(audienceOf(chat, message), { type: "message:updated", chatId: chat.id, message: updated });
     res.json({ message: updated });
   })
 );
@@ -705,7 +727,7 @@ router.post(
     const found = await botOwns(req.bot.userId, messageId);
     if (found.error) return res.status(found.status).json({ error: found.error });
     const message = await setKeyboard(messageId, normalizeKeyboard(keyboard) ?? []);
-    broadcastToUsers(found.chat.memberIds, { type: "message:updated", chatId: found.chat.id, message });
+    broadcastToUsers(audienceOf(found.chat, found.message), { type: "message:updated", chatId: found.chat.id, message });
     res.json({ message });
   })
 );
@@ -883,7 +905,9 @@ router.get(
   asyncRoute(async (req, res) => {
     const user = await getUser(req.query.userId);
     if (!user) return res.status(404).json({ error: "User not found" });
-    res.json({ online: !!user.online, lastSeen: user.lastSeen ?? null });
+    // Статус — с учётом приватности lastSeen, как в getUser.
+    const visible = await publicUserFor(user, req.bot.userId);
+    res.json({ online: !!visible.online, lastSeen: visible.lastSeen ?? null });
   })
 );
 
@@ -919,6 +943,7 @@ router.post(
       views: 0,
       commentCount: 0,
     });
+    registerAttachments(chat.id, post.attachments, { by: req.bot.userId });
     broadcastToUsers(chat.memberIds, { type: "message:new", chatId: chat.id, message: post });
     res.json({ message: post });
   })
@@ -1030,6 +1055,9 @@ router.post(
   asyncRoute(async (req, res) => {
     const image = req.body?.image;
     if (typeof image !== "string") return res.status(400).json({ error: "image is required (URL или data:-строка)" });
+    if (botUsesForeignUpload(req.bot, image, (await getUser(req.bot.userId))?.avatarImage)) {
+      return res.status(400).json({ error: "Некорректная ссылка на файл" });
+    }
     await updateUser(req.bot.userId, { avatarImage: image || null });
     res.json({ bot: publicUser(await getUser(req.bot.userId)) });
   })

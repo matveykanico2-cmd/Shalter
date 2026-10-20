@@ -1,6 +1,7 @@
 const { grantPremiumDays, addReceivedGift, getUser } = require("../data/users");
 const { claimSerial } = require("../data/giftIssues");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("./systemChat");
+const { addMessage } = require("../data/messages");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { publicUser } = require("../data/sanitize");
 const { broadcastToUsers } = require("../ws");
@@ -66,7 +67,8 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId, backgrou
       ...(background ? { background } : {}),
       ...(anonymous ? { anon: true } : {}),
       ...(note ? { note } : {}),
-      fromId: fromId ?? null,
+      // Получателю анонимного подарка отправитель не раскрывается.
+      fromId: anonymous ? null : fromId ?? null,
       fromName,
       ...fromAvatar,
       recipientId,
@@ -85,15 +87,25 @@ async function deliverGift({ gift, recipientId, fromId, announceFromId, backgrou
 
   // Анонимный подарок получателю объявляет бот, но запись нужна и в чате с
   // отправителем: после отправки открывается именно этот чат, и без записи он
-  // выглядит пустым — кажется, что подарок никуда не ушёл.
+  // выглядит пустым — кажется, что подарок никуда не ушёл. Запись видна только
+  // отправителю (visibleToId, у получателя она сразу «удалена у себя»), иначе
+  // она раскрыла бы его. Личка без видимых сообщений у получателя в списке не
+  // появляется.
   if (anonymous && fromId) {
     const senderChat = await findOrCreateDm(fromId, recipientId);
-    await sendMessageAndBroadcast(
-      senderChat,
-      fromId,
-      `🎁 Вы отправили анонимный подарок: ${gift.emoji} «${gift.name}»${serialLabel}!`,
-      giftAttachment
-    );
+    const message = await addMessage({
+      id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      chatId: senderChat.id,
+      senderId: fromId,
+      text: `🎁 Вы отправили анонимный подарок: ${gift.emoji} «${gift.name}»${serialLabel}!`,
+      createdAt: new Date().toISOString(),
+      readByIds: [fromId],
+      visibleToId: fromId,
+      deletedForIds: senderChat.memberIds.filter((id) => id !== fromId),
+      type: giftAttachment.type,
+      gift: { ...giftAttachment.gift, fromId },
+    });
+    broadcastToUsers([fromId], { type: "message:new", chatId: senderChat.id, message });
   }
 
   return { ok: true, serial, chat, duration };

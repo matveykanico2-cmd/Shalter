@@ -5810,6 +5810,13 @@ button.profile-ad-banner {
   min-width: 0;
   flex: 1;
 }
+/* «Отписаться» в каталоге каналов: у .profile-action-btn ширина 100% —
+   в строке она съедала место у названия канала. */
+.contact-row > .discover-channel-leave {
+  width: auto;
+  flex-shrink: 0;
+  padding: 8px 12px;
+}
 .contact-row-name {
   display: flex;
   align-items: center;
@@ -24337,6 +24344,10 @@ video.media-viewer-media {
 }
 .game-scores-dialog {
   width: min(420px, calc(100vw - 24px));
+}
+/* Таблица рекордов открывается и из окна игры — должна быть выше .game-overlay (120). */
+.game-scores-overlay {
+  z-index: 130;
 }
 .game-scores {
   display: flex;

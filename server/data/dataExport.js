@@ -10,19 +10,39 @@ function isEncrypted(text) {
   return typeof text === "string" && text.startsWith(LEGACY_CIPHER_PREFIX);
 }
 
-async function buildUserExport(targetUserId) {
+// respectPrivacy — выгрузка для самого пользователя (/api/export): телефоны
+// собеседников и участников групп — только те, что он и так видит по их
+// настройкам приватности (и не заблокировавших его). Юридическому отделу
+// (/api/admin/export) — все номера.
+async function buildUserExport(targetUserId, { respectPrivacy = false } = {}) {
   const target = await getUser(targetUserId);
   if (!target) return null;
 
   const [allChats, allMessages, allUsers] = await Promise.all([listChats(), listAllMessages(), listUsers()]);
 
-  const userLabel = (id) => {
-    const u = allUsers.find((x) => x.id === id);
-    return u ? { id, name: u.name, username: u.username || undefined, phone: u.phone || undefined } : { id };
-  };
-
   // Секретные чаты в экспорт не попадают — как в Telegram.
   const memberChats = allChats.filter((c) => c.memberIds.includes(targetUserId) && !c.secret);
+
+  let phoneVisible = () => true;
+  if (respectPrivacy) {
+    const { allowsUser } = require("../lib/privacyRules");
+    const memberChatIds = new Set(memberChats.map((c) => c.id));
+    const people = new Set(memberChats.flatMap((c) => c.memberIds));
+    for (const m of allMessages) if (memberChatIds.has(m.chatId) && m.senderId) people.add(m.senderId);
+    const visible = new Set([targetUserId]);
+    for (const id of people) {
+      if (id === targetUserId) continue;
+      const u = allUsers.find((x) => x.id === id);
+      if (!u || (u.blockedUserIds ?? []).includes(targetUserId)) continue;
+      if (await allowsUser(id, "phone", targetUserId)) visible.add(id);
+    }
+    phoneVisible = (id) => visible.has(id);
+  }
+
+  const userLabel = (id) => {
+    const u = allUsers.find((x) => x.id === id);
+    return u ? { id, name: u.name, username: u.username || undefined, phone: (phoneVisible(id) && u.phone) || undefined } : { id };
+  };
 
   let messageCount = 0;
   let sentMessageCount = 0;

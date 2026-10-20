@@ -166,6 +166,11 @@ function setPrefs(communityId, userId, { pinned, collapsed }) {
   if (collapsed !== undefined) db.prepare("UPDATE community_members SET collapsed = ? WHERE communityId = ? AND userId = ?").run(collapsed ? 1 : 0, communityId, userId);
 }
 
+// Есть ли у пользователя строка участника (в т.ч. вышедшего) — вернуться он может всегда.
+function hasMemberRow(communityId, userId) {
+  return !!memberRow(communityId, userId);
+}
+
 function joinCommunity(communityId, userId) {
   ensureMemberRow(communityId, userId);
   db.prepare("UPDATE community_members SET left = 0 WHERE communityId = ? AND userId = ?").run(communityId, userId);
@@ -297,6 +302,7 @@ module.exports = {
   prefsOf,
   setPrefs,
   joinCommunity,
+  hasMemberRow,
   leaveCommunity,
   listCommunitiesForUser,
   listMemberIds,

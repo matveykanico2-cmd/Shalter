@@ -179,7 +179,8 @@ export async function openGame(gameOrId, { chatId = null, code = null, onScore }
 }
 
 export async function openScores(game, chatId = null) {
-  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && overlay.remove() });
+  // game-scores-overlay — поверх окна запущенной игры (.game-overlay), откуда тоже открывается.
+  const overlay = el("div", { class: "modal-overlay game-scores-overlay", onclick: (e) => e.target === overlay && overlay.remove() });
   const list = el("div", { class: "game-scores" }, [el("span", { class: "qr-login-spinner" })]);
   overlay.append(
     el("div", { class: "modal-dialog game-scores-dialog" }, [

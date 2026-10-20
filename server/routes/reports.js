@@ -149,6 +149,11 @@ router.post(
         nextStatus = "resolved_deleted";
       } else if (report.targetType === "message") {
         await deleteMessage(report.targetId);
+        // Как при «Удалить у всех»: у участников с открытым чатом сообщение исчезает сразу.
+        const chatOfMessage = await getChat(target.chatId);
+        if (chatOfMessage) {
+          broadcastToUsers(chatOfMessage.memberIds, { type: "message:deleted", chatId: chatOfMessage.id, id: target.id });
+        }
         nextStatus = "resolved_deleted";
       } else {
         return res.status(400).json({ error: "Пользователя нельзя удалить — только заблокировать" });

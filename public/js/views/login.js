@@ -68,6 +68,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   let recoverPhoneField = null;
   let recoverEmail = "";
   let recoverPassword = "";
+  let recoverCode = "";
   let recoverError = null;
   let recoverPending = false;
   let twoFactorCode = "";
@@ -341,6 +342,17 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
       autofocus: recoverStep === "email",
       oninput: (e) => (recoverEmail = e.target.value),
     });
+    const codeInput = el("input", {
+      class: "login-input",
+      type: "text",
+      inputmode: "numeric",
+      autocomplete: "one-time-code",
+      maxlength: "6",
+      placeholder: "Код из письма",
+      value: recoverCode,
+      autofocus: recoverStep === "code",
+      oninput: (e) => (recoverCode = e.target.value),
+    });
     const passInput = el("input", {
       class: "login-input",
       type: "password",
@@ -361,12 +373,13 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           try {
             if (recoverStep === "email") {
               await api.checkRecoveryPair(recoverEmail.trim(), recoverPhone);
+              recoverCode = "";
               recoverStep = "code";
               recoverPending = false;
               render();
               return;
             }
-            const { user } = await api.finishPairRecovery(recoverEmail.trim(), recoverPhone, recoverPassword);
+            const { user } = await api.finishPairRecovery(recoverEmail.trim(), recoverPhone, recoverCode.trim(), recoverPassword);
             (onSuccess ?? goToApp)(user);
           } catch (err) {
             recoverError = err.message;
@@ -379,9 +392,10 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         ? [
             emailInput,
             recoverPhoneField.el,
-            el("p", { class: "login-hint" }, "Адрес почты и номер телефона — оба как указаны в аккаунте. Кода не будет: сразу зададите новый пароль."),
+            el("p", { class: "login-hint" }, "Адрес почты и номер телефона — оба как указаны в аккаунте. На почту придёт код подтверждения."),
           ]
         : [
+            codeInput,
             passInput,
             el("p", { class: "login-hint" }, "Все остальные сеансы будут завершены, а владельцу уйдёт уведомление в чат и на почту."),
           ]
@@ -404,7 +418,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         { class: "qr-login-instructions" },
         recoverStep === "email"
           ? "Введите адрес почты и номер телефона этого аккаунта."
-          : "Почта и телефон совпали. Придумайте новый пароль."
+          : "Мы отправили код на вашу почту. Введите его и придумайте новый пароль."
       ),
       form,
       recoverStep === "code"

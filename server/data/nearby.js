@@ -2,6 +2,9 @@ const db = require("../db");
 
 const GRID = 0.01;
 const PRESENCE_TTL_MS = 30 * 60 * 1000;
+// «Люди рядом» — не список всех, кто поделился местом: дальше этого радиуса не показываем.
+// Клиент радиус не передаёт, корзина «более 30 км» — это 30–50 км.
+const MAX_RADIUS_KM = 50;
 
 function roundCoord(v) {
   return Math.round(v / GRID) * GRID;
@@ -61,11 +64,13 @@ async function listNearbyUsers(viewerId, viewerLat, viewerLng, viewerBlockedIds 
       return !theirBlocked.includes(viewerId);
     });
 
-  const withDistance = rows.map((r) => {
+  const withDistance = [];
+  for (const r of rows) {
     const km = distanceKm(vLat, vLng, r.nearbyLat, r.nearbyLng);
+    if (!(km <= MAX_RADIUS_KM)) continue;
     const bucket = bucketFor(km);
-    return { id: r.id, name: r.name, username: r.username, avatarColor: r.avatarColor, avatarImage: r.avatarImage, ...bucket };
-  });
+    withDistance.push({ id: r.id, name: r.name, username: r.username, avatarColor: r.avatarColor, avatarImage: r.avatarImage, ...bucket });
+  }
 
   for (let i = withDistance.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

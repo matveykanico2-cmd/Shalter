@@ -57,7 +57,7 @@ export async function DiscoverChannelsView(root) {
         ? el(
             "button",
             {
-              class: "profile-action-btn danger",
+              class: "profile-action-btn danger discover-channel-leave",
               onclick: async () => {
                 if (!(await askConfirm(`Отписаться от «${c.title}»?`))) return;
                 try {

@@ -188,6 +188,8 @@ const { canAccessUpload } = require("./lib/uploadAccess");
 const requireUserForUploads = (req, res, next) => {
   const uid = getCurrentUserId(req);
   if (!uid) return res.status(401).json({ error: "unauthorized" });
+  // Неверное имя файла — 404 без тела (serveUpload).
+  if (!/^[a-z0-9]+_[a-f0-9]{16}(\.[a-z0-9]{1,12})?$/.test(req.params.filename ?? "")) return next();
   if (!canAccessUpload(uid, req.params.filename)) return res.status(404).json({ error: "not found" });
   next();
 };
@@ -224,31 +226,47 @@ const SERVER_STARTED_AT = new Date().toISOString();
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 attachWebSocketServer(server);
-startAutoDeleteSweep();
-startDonationAlertsSweep();
-startDonatePaySweep();
-startBirthdaySweep();
-startHolidaySweep();
-startScheduledMessagesSweep();
-startReminderSweep();
-startAccountDeletionSweep();
-require("./lib/orphanSweep").startOrphanSweep();
-require("./lib/uploadsMigration").startAutoMigration();
 
-try {
-  const rtmp = require("./rtmp");
-  const { broadcastToUsers } = require("./ws");
-  const { getChat } = require("./data/chats");
-  rtmp.start({
-    onStreamChange: async (stream) => {
-      const chat = await getChat(stream.chatId).catch(() => null);
-      if (!chat) return;
-      broadcastToUsers(chat.memberIds, { type: "live:state", streamId: stream.id });
-    },
-  });
-  console.log(`[rtmp] поднимаем приём эфиров из OBS на rtmp://0.0.0.0:${rtmp.RTMP_PORT}/live`);
-} catch (err) {
-  console.error("[rtmp] не поднялся, вещание из OBS недоступно:", err.message);
+// Режим контрактных тестов (tests/): фоновые обходы и приём RTMP не запускаются —
+// тесты должны быть воспроизводимыми, а параллельные серверы не делить порт RTMP.
+// На боевом сервере (NODE_ENV=production) флаг игнорируется.
+const TEST_MODE = process.env.SHALTER_TEST_MODE === "1" && process.env.NODE_ENV !== "production";
+if (TEST_MODE) {
+  console.log("[test] SHALTER_TEST_MODE: фоновые обходы и RTMP выключены");
+} else {
+  startBackgroundJobs();
+}
+
+function startBackgroundJobs() {
+  startAutoDeleteSweep();
+  startDonationAlertsSweep();
+  startDonatePaySweep();
+  startBirthdaySweep();
+  startHolidaySweep();
+  startScheduledMessagesSweep();
+  startReminderSweep();
+  startAccountDeletionSweep();
+  require("./lib/orphanSweep").startOrphanSweep();
+  require("./lib/uploadsMigration").startAutoMigration();
+  startRtmp();
+}
+
+function startRtmp() {
+  try {
+    const rtmp = require("./rtmp");
+    const { broadcastToUsers } = require("./ws");
+    const { getChat } = require("./data/chats");
+    rtmp.start({
+      onStreamChange: async (stream) => {
+        const chat = await getChat(stream.chatId).catch(() => null);
+        if (!chat) return;
+        broadcastToUsers(chat.memberIds, { type: "live:state", streamId: stream.id });
+      },
+    });
+    console.log(`[rtmp] поднимаем приём эфиров из OBS на rtmp://0.0.0.0:${rtmp.RTMP_PORT}/live`);
+  } catch (err) {
+    console.error("[rtmp] не поднялся, вещание из OBS недоступно:", err.message);
+  }
 }
 
 initPush()
@@ -266,7 +284,18 @@ initPush()
 
 function shutdown() {
   console.log("shutting down…");
-  server.close(() => process.exit(0));
+  server.close(() => {
+    // Сливаем WAL в app.db и закрываем базу: иначе после каждой остановки
+    // последние записи остаются только в app.db-wal.
+    try {
+      const db = require("./db");
+      db.pragma("wal_checkpoint(TRUNCATE)");
+      db.close();
+    } catch (err) {
+      console.error("db close failed:", err.message);
+    }
+    process.exit(0);
+  });
   setTimeout(() => process.exit(0), 3000).unref();
 }
 process.on("SIGTERM", shutdown);

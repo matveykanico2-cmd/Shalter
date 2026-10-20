@@ -13,6 +13,7 @@ const { publicUser } = require("../data/sanitize");
 const { markChatRead } = require("../data/messages");
 const { getSettings, updateSettings } = require("../data/settings");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
+const { usesForeignUpload } = require("../lib/uploadAccess");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { sendMessageAndBroadcast } = require("../lib/systemChat");
 const { broadcastToUsers } = require("../ws");
@@ -249,7 +250,7 @@ router.post(
       first = check.chat;
     }
     const avatarImage = cleanAvatarImage(req.body?.avatarImage);
-    if (avatarImage === undefined) return res.status(400).json({ error: "Некорректное изображение" });
+    if (avatarImage === undefined || usesForeignUpload(req.uid, avatarImage)) return res.status(400).json({ error: "Некорректное изображение" });
     const community = communities.createCommunity({
       id: genId("cm"),
       ownerId: req.uid,
@@ -292,13 +293,20 @@ router.patch(
     if (req.body?.description !== undefined) patch.description = cleanDescription(req.body.description);
     if (req.body?.avatarImage !== undefined) {
       const avatarImage = cleanAvatarImage(req.body.avatarImage);
-      if (avatarImage === undefined) return res.status(400).json({ error: "Некорректное изображение" });
+      if (avatarImage === undefined || usesForeignUpload(req.uid, avatarImage, community.avatarImage)) {
+        return res.status(400).json({ error: "Некорректное изображение" });
+      }
       patch.avatarImage = avatarImage;
     }
     if (req.body?.addMode !== undefined) {
       if (!rights.editChats) return res.status(403).json({ error: "Нет права менять список чатов" });
       patch.addMode = cleanAddMode(req.body.addMode);
       if (!patch.addMode) return res.status(400).json({ error: "Некорректный режим добавления чатов" });
+    }
+    // Пустая правка ничего не меняет и никого не оповещает; постороннему — отказ.
+    if (!Object.keys(patch).length) {
+      if (!rights.editInfo && !rights.editChats) return res.status(403).json({ error: "Недостаточно прав" });
+      return res.json({ community: await view(community, req.uid) });
     }
     const updated = communities.updateCommunity(community.id, patch);
     notify(community.id);
@@ -326,7 +334,16 @@ router.post(
     const community = load(req, res);
     if (!community) return;
     if (communities.isBanned(community.id, req.uid)) return res.status(403).json({ error: "Вас удалили из этого сообщества" });
+    // Сообщество открытое, если в нём есть видимый публичный чат. Иначе вступить можно только
+    // по приглашению в один из его чатов (участник чата — уже участник сообщества) или
+    // вернуться, если вы в нём уже были.
+    if (!communities.roleOf(community, req.uid) && !communities.hasMemberRow(community.id, req.uid)) {
+      const open = (await visibleChats(community, req.uid, communities.rightsOf(community, req.uid))).some((c) => c.isPublic);
+      if (!open) return res.status(403).json({ error: "Сообщество закрытое — вступить можно только по приглашению в один из его чатов" });
+    }
     communities.joinCommunity(community.id, req.uid);
+    // Открытые страницы сообщества у остальных обновляют число участников сразу.
+    notify(community.id);
     res.json({ community: await view(community, req.uid) });
   })
 );
@@ -338,6 +355,7 @@ router.post(
     if (!community) return;
     if (community.ownerId === req.uid) return res.status(400).json({ error: "Владелец не может покинуть сообщество — его можно только удалить" });
     communities.leaveCommunity(community.id, req.uid);
+    notify(community.id);
     res.json({ ok: true });
   })
 );

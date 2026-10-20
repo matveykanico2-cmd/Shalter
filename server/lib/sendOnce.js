@@ -15,7 +15,10 @@ function sweep(now) {
 }
 
 // run() вызывается только при первой отправке; её ошибку не запоминаем — повтор пройдёт заново.
-function sendOnce(userId, chatId, clientId, run) {
+// Отказ, который run() возвращает как результат (а не исключением), тоже не запоминаем:
+// isFailure(result) → true — запись снимается, и исправленный повтор с тем же clientId
+// проверяется заново. Одновременные повторы всё равно получают тот же ответ.
+function sendOnce(userId, chatId, clientId, run, { isFailure } = {}) {
   if (typeof clientId !== "string" || !clientId || clientId.length > 100) return run();
   const now = Date.now();
   sweep(now);
@@ -24,7 +27,12 @@ function sendOnce(userId, chatId, clientId, run) {
   if (hit && hit.expires > now) return hit.result;
   const result = Promise.resolve().then(run);
   recent.set(key, { result, expires: now + TTL_MS });
-  result.catch(() => recent.delete(key));
+  const forget = () => {
+    if (recent.get(key)?.result === result) recent.delete(key);
+  };
+  result.then((value) => {
+    if (isFailure?.(value)) forget();
+  }, forget);
   return result;
 }
 

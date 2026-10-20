@@ -1,6 +1,7 @@
 const { USERNAME_RE } = require("./validators");
 const { findUserByUsername } = require("../data/users");
 const { findChatByUsername } = require("../data/chats");
+const auctions = require("../data/usernameAuctions");
 
 const RESERVED = new Set([
   "chat",
@@ -26,7 +27,15 @@ const RESERVED = new Set([
   "system",
 ]);
 
-async function checkUsername(raw, { forUserId, forChatId } = {}) {
+// Юзернейм с открытого аукциона занять нельзя (иначе его брали бы бесплатно через профиль,
+// а аукцион срывался). Истёкший аукцион без ставок не держит имя — он закроется как unsold.
+// ignoreAuctions — для самого аукциона (выдача победителю, выставление) и выдачи администрацией.
+function isOnAuction(username) {
+  const auction = auctions.findOpenByUsername(username);
+  return !!auction && (!auction.expired || auction.bids.length > 0);
+}
+
+async function checkUsername(raw, { forUserId, forChatId, ignoreAuctions = false } = {}) {
   const username = String(raw ?? "").trim().replace(/^@/, "");
 
   if (!USERNAME_RE.test(username)) {
@@ -42,6 +51,11 @@ async function checkUsername(raw, { forUserId, forChatId } = {}) {
   }
   if (existingChat && existingChat.id !== forChatId) {
     return { status: 409, error: "Этот юзернейм уже занят каналом" };
+  }
+  // Свой текущий юзернейм (или юзернейм своего канала) оставить можно.
+  const ownsIt = (existingUser && existingUser.id === forUserId) || (existingChat && existingChat.id === forChatId);
+  if (!ignoreAuctions && !ownsIt && isOnAuction(username)) {
+    return { status: 409, error: "Этот юзернейм сейчас на аукционе" };
   }
   return null;
 }

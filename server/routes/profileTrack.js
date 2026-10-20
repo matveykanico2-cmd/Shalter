@@ -3,6 +3,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { getUser, setProfileTracks } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
+const { isOwnUploadUrl } = require("../lib/uploadAccess");
 
 // Музыка в профиле: несколько треков, первый — основной (как в профиле Telegram).
 const MAX_TRACKS = 20;
@@ -19,7 +20,9 @@ router.post(
   "/",
   asyncRoute(async (req, res) => {
     const { url, name, size, mimeType, duration } = req.body ?? {};
-    if (!url || typeof url !== "string" || !url.startsWith("/uploads/")) {
+    const current = await currentTracks(req.uid);
+    // Только свой загруженный файл (уже добавленный трек можно поднять наверх повторно).
+    if (typeof url !== "string" || (!current.some((t) => t.url === url) && !(await isOwnUploadUrl(req.uid, url)))) {
       return res.status(400).json({ error: "Загрузите файл через /api/uploads и передайте полученную ссылку" });
     }
     const track = {
@@ -30,7 +33,7 @@ router.post(
       duration: Number.isFinite(duration) && duration > 0 ? Math.round(duration) : undefined,
       at: new Date().toISOString(),
     };
-    const tracks = [track, ...(await currentTracks(req.uid)).filter((t) => t.url !== url)];
+    const tracks = [track, ...current.filter((t) => t.url !== url)];
     if (tracks.length > MAX_TRACKS) return res.status(400).json({ error: `Не больше ${MAX_TRACKS} треков в профиле` });
     const updated = await setProfileTracks(req.uid, tracks);
     res.json({ user: publicUser(updated) });

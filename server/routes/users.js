@@ -14,8 +14,10 @@ const { listMediaMessages, listMessages } = require("../data/messages");
 const { PHONE_RE, normalizePhone, isValidBirthday } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 const { notifyProfileChanged } = require("../lib/notifyProfileChanged");
+const { isOwnUploadUrl, usesForeignUpload } = require("../lib/uploadAccess");
 const { businessStatus } = require("../lib/businessHours");
 const { isAdminPhone } = require("../config");
+const { verifyPassword } = require("../security");
 const { withGiftSenders } = require("../lib/giftSenders");
 
 const LINK_RE = /https?:\/\/\S+/;
@@ -112,17 +114,25 @@ router.get(
       const { privacy } = await getSettings(req.params.id);
       const canSee = (key) => privacyAllows(privacy, key, req.uid, isContact);
       if (canSee("phone")) visible.phone = user.phone;
-      if (!canSee("lastSeen")) delete visible.lastSeen;
+      if (!canSee("lastSeen")) {
+        delete visible.lastSeen;
+        visible.online = false;
+      }
       if (!canSee("bio")) delete visible.bio;
       if (!canSee("birthday")) delete visible.birthday;
       if (!canSee("photo")) {
         delete visible.avatarImage;
         delete visible.avatarImages;
       }
+      // Заблокированному — как будто всё скрыто настройками: ни фото и статуса,
+      // ни телефона, «о себе» и дня рождения.
       if ((user.blockedUserIds ?? []).includes(req.uid)) {
         delete visible.avatarImage;
         delete visible.avatarImages;
         delete visible.lastSeen;
+        delete visible.phone;
+        delete visible.bio;
+        delete visible.birthday;
         visible.online = false;
       }
     }
@@ -278,6 +288,11 @@ router.patch(
         return res.status(400).json({ error: "Некорректный баннер" });
       } else if (b.id === "custom") {
         if (typeof b.url !== "string" || !BANNER_UPLOAD_RE.test(b.url)) return res.status(400).json({ error: "Некорректное изображение баннера" });
+        // Только свой загруженный файл (текущий баннер можно сохранить повторно).
+        const currentUrl = (await getUser(req.uid))?.profileBanner?.url;
+        if (b.url !== currentUrl && !(await isOwnUploadUrl(req.uid, b.url))) {
+          return res.status(400).json({ error: "Некорректное изображение баннера" });
+        }
         patch.profileBanner = { id: "custom", url: b.url };
       } else {
         patch.profileBanner = { id: b.id };
@@ -321,8 +336,22 @@ router.patch(
       if (normalized !== me?.phone && (isAdminPhone(normalized) || isAdminPhone(me?.phone))) {
         return res.status(403).json({ error: "Этот номер нельзя установить" });
       }
+      // К номеру привязаны вход по коду, восстановление доступа и поиск —
+      // сменить его можно только с паролем от аккаунта (как и почту).
+      if (normalized !== me?.phone) {
+        const password = body.currentPassword;
+        if (typeof password !== "string" || !password) {
+          return res.status(400).json({ error: "Чтобы сменить номер, введите пароль от аккаунта" });
+        }
+        if (!me?.passwordHash || !me?.passwordSalt || !verifyPassword(password, me.passwordHash, me.passwordSalt)) {
+          return res.status(401).json({ error: "Неверный пароль" });
+        }
+      }
       patch.phone = normalized;
     }
+
+    // Адрес, фамилия и т. п. тоже видны всем — чужой файл через них не открыть.
+    if (usesForeignUpload(req.uid, patch, await getUser(req.uid))) return res.status(400).json({ error: "Некорректная ссылка на файл" });
 
     let user;
     try {

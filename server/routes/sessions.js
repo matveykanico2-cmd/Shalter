@@ -2,6 +2,7 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId, getOrCreateDeviceId } = require("../middleware/auth");
 const { listSessions, getSessionById, revokeSessionById, revokeOtherSessions } = require("../data/sessions");
+const { closeRevokedSockets } = require("../ws");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -27,6 +28,7 @@ router.delete(
       return res.status(400).json({ error: "Нельзя завершить текущий сеанс — используйте выход из аккаунта" });
     }
     await revokeSessionById(req.uid, target.id);
+    await closeRevokedSockets(req.uid);
     res.json({ ok: true });
   })
 );
@@ -36,6 +38,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const deviceId = getOrCreateDeviceId(req, res);
     await revokeOtherSessions(req.uid, deviceId);
+    await closeRevokedSockets(req.uid);
     res.json({ ok: true });
   })
 );

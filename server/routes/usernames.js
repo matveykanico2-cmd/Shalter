@@ -63,7 +63,7 @@ async function settleOnce(stale) {
   for (const bid of ranked) {
     const bidder = await getUser(bid.userId);
     if (!bidder) continue;
-    const problem = await checkUsername(auction.username, { forUserId: bidder.id });
+    const problem = await checkUsername(auction.username, { forUserId: bidder.id, ignoreAuctions: true });
     if (problem) {
       await tell(bid.userId, `Аукцион @${auction.username} отменён: юзернейм больше недоступен. Звёзды не списаны.`);
       return auctions.settleAuction(auction.id, { status: "cancelled" });
@@ -114,7 +114,7 @@ router.post(
     if (!(await requireAdmin(req, res))) return;
 
     const username = normalizeUsername(req.body?.username);
-    const problem = await checkUsername(username);
+    const problem = await checkUsername(username, { ignoreAuctions: true });
     if (problem) return res.status(problem.status).json({ error: problem.error });
     if (auctions.findOpenByUsername(username)) return res.status(409).json({ error: "Этот юзернейм уже на аукционе" });
 
@@ -190,7 +190,7 @@ router.post(
     if (!target) return res.status(404).json({ error: "Пользователь с таким номером не найден" });
 
     const username = normalizeUsername(req.body?.username);
-    const problem = await checkUsername(username, { forUserId: target.id });
+    const problem = await checkUsername(username, { forUserId: target.id, ignoreAuctions: true });
     if (problem) return res.status(problem.status).json({ error: problem.error });
 
     const updated = await updateUser(target.id, { username });

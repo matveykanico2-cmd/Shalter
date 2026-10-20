@@ -252,6 +252,8 @@ let ticker = null;
 
 async function join({ call, chatTitle, chatType, participants, me, isRoom = false }) {
   const others = participants.filter((p) => p.id !== me.id);
+  // У лички своего названия нет (chat.title пустой) — подписываем звонок именем собеседника.
+  if (!chatTitle && chatType === "dm") chatTitle = others[0]?.name ?? "";
   state = {
     call,
     chatTitle,

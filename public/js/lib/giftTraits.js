@@ -49,23 +49,35 @@ export function giftTraits(gift) {
   };
 }
 
+let builtinScenes = null;
 let builtinScenesPromise = null;
 
-async function loadBuiltinScenes() {
+function loadBuiltinScenes() {
   if (!builtinScenesPromise) {
-    builtinScenesPromise = import("./giftTraits.scenes.js").then((m) => m.BUILTIN_GIFT_SCENES);
+    builtinScenesPromise = import("./giftTraits.scenes.js").then((m) => (builtinScenes = m.BUILTIN_GIFT_SCENES));
   }
   return builtinScenesPromise;
 }
 
-export async function renderGiftArt(gift, { size = 84, replay = true } = {}) {
-  if (gift?.scene) {
-    return renderCustomScene(gift.scene, { size, replay });
-  }
-  const BUILTIN_GIFT_SCENES = await loadBuiltinScenes();
+// Возвращает узел сразу: вызывающие кладут его прямо в el(). Пока тяжёлый модуль
+// встроенных сцен не загружен, отдаётся обёртка (display: contents), в которую
+// картинка дорисовывается после загрузки.
+export function renderGiftArt(gift, opts = {}) {
+  if (gift?.scene) return renderCustomScene(gift.scene, { size: opts.size ?? 84, replay: opts.replay ?? true });
+  if (builtinScenes) return renderWithScenes(builtinScenes, gift, opts);
+  const slot = document.createElement("span");
+  slot.className = "gift-art-slot";
+  slot.style.display = "contents";
+  loadBuiltinScenes()
+    .catch(() => ({}))
+    .then((scenes) => slot.replaceChildren(renderWithScenes(scenes, gift, opts)));
+  return slot;
+}
+
+function renderWithScenes(BUILTIN_GIFT_SCENES, gift, { size = 84, replay = true } = {}) {
   const builtin = BUILTIN_GIFT_SCENES[gift?.giftId] ?? BUILTIN_GIFT_SCENES[gift?.id];
   if (builtin && !gift?.mediaUrl) return renderCustomScene(builtin, { size, replay });
-  
+
   const asEmoji = () => renderScene(gift?.emoji, { size, replay });
   const lottie = lottieNameFor(gift);
   

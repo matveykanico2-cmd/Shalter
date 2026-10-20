@@ -25,6 +25,21 @@ function sameSecret(expected, given) {
   return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// redirect_uri — только http(s): клиент делает window.location.href = redirectUrl,
+// и javascript:/data:-адрес выполнился бы в origin Shalter. http — лишь для
+// localhost (разработка). Проверяется и при регистрации, и при каждом
+// согласии/обмене — на случай приложений, созданных до этой проверки.
+function isAllowedRedirectUri(value) {
+  let parsed;
+  try {
+    parsed = new URL(String(value ?? ""));
+  } catch {
+    return false;
+  }
+  if (parsed.protocol === "https:") return true;
+  return parsed.protocol === "http:" && parsed.hostname === "localhost";
+}
+
 function publicProfile(user) {
   return { id: user.id, name: user.name, username: user.username || null, avatarImage: user.avatarImage || null };
 }
@@ -37,7 +52,10 @@ router.post(
     if (!app || !sameSecret(app.clientSecret, clientSecret)) {
       return res.status(401).json({ error: "invalid_client" });
     }
+    if (!isAllowedRedirectUri(app.redirectUri)) return res.status(400).json({ error: "invalid_grant" });
     const redeemed = redeemAuthCode(String(code ?? ""), app.clientId, String(redirectUri ?? ""));
+    // Повтор уже обменянного кода (RFC 6749 §4.1.2): код, похоже, утёк —
+    // выданные по нему токены отзываются (см. redeemAuthCode).
     if (!redeemed) return res.status(400).json({ error: "invalid_grant" });
 
     const user = await getUser(redeemed.userId);
@@ -61,25 +79,28 @@ router.get(
   })
 );
 
-router.use(requireUserId);
-
+// Экран согласия открывают и гости: им показывается название приложения и
+// форма входа прямо на экране (views/oauthAuthorize.js). Отдаётся только имя
+// приложения при точном совпадении client_id и redirect_uri — ничего лишнего.
 router.get(
   "/app-info",
   asyncRoute(async (req, res) => {
     const app = getOAuthAppByClientId(String(req.query.client_id ?? ""));
-    if (!app || app.redirectUri !== req.query.redirect_uri) {
+    if (!app || app.redirectUri !== req.query.redirect_uri || !isAllowedRedirectUri(app.redirectUri)) {
       return res.status(404).json({ error: "Приложение не найдено или redirect_uri не совпадает" });
     }
     res.json({ name: app.name });
   })
 );
 
+router.use(requireUserId);
+
 router.post(
   "/authorize",
   asyncRoute(async (req, res) => {
     const { client_id: clientId, redirect_uri: redirectUri, state } = req.body ?? {};
     const app = clientId ? getOAuthAppByClientId(String(clientId)) : null;
-    if (!app || app.redirectUri !== redirectUri) {
+    if (!app || app.redirectUri !== redirectUri || !isAllowedRedirectUri(app.redirectUri)) {
       return res.status(404).json({ error: "Приложение не найдено или redirect_uri не совпадает" });
     }
     const code = createAuthCode({ clientId: app.clientId, userId: req.uid, redirectUri: String(redirectUri) });
@@ -103,13 +124,12 @@ router.post(
     const name = String(req.body?.name ?? "").trim();
     const redirectUri = String(req.body?.redirectUri ?? "").trim();
     if (!name) return res.status(400).json({ error: "Укажите название приложения" });
-    let parsed;
     try {
-      parsed = new URL(redirectUri);
+      new URL(redirectUri);
     } catch {
       return res.status(400).json({ error: "redirect_uri должен быть полным адресом (https://...)" });
     }
-    if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") {
+    if (!isAllowedRedirectUri(redirectUri)) {
       return res.status(400).json({ error: "redirect_uri должен быть https:// (кроме localhost для разработки)" });
     }
     const app = await createOAuthApp({ ownerId: req.uid, name, redirectUri });

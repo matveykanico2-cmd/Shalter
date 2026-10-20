@@ -191,7 +191,8 @@ app.get("/callback", async (req, res) =&gt; {
         Кнопка с ключом рядом с приложением. Выдаёт новый <code>client_secret</code> (показывается один раз,
         как при создании) и сразу делает старый недействительным — обновите его на своём сервере, иначе
         обмен кода на токен начнёт отвечать <code>invalid_client</code>. <code>client_id</code> и
-        <code>redirect_uri</code> не меняются, ссылка входа остаётся рабочей.
+        <code>redirect_uri</code> не меняются, ссылка входа остаётся рабочей. Все токены, выданные
+        до перевыпуска, отзываются — пользователям нужно войти заново.
       </p>
 
       <h2 id="security">Безопасность</h2>
@@ -207,7 +208,7 @@ app.get("/callback", async (req, res) =&gt; {
         <thead><tr><th>Ответ</th><th>Причина</th></tr></thead>
         <tbody>
           <tr><td><code>401 invalid_client</code></td><td><code>client_id</code>/<code>client_secret</code> не совпадают — секрет мог быть перевыпущен</td></tr>
-          <tr><td><code>400 invalid_grant</code></td><td>код уже использован, истёк (5 минут) или выдан для другого <code>redirect_uri</code></td></tr>
+          <tr><td><code>400 invalid_grant</code></td><td>код уже использован (повтор кода отзывает выданный по нему токен), истёк (5 минут) или выдан для другого <code>redirect_uri</code></td></tr>
           <tr><td><code>401 invalid_token</code></td><td><code>access_token</code> неверен или приложение, выдавшее его, удалено</td></tr>
           <tr><td><code>404</code> на <code>/oauth/authorize</code></td><td><code>client_id</code> не найден или <code>redirect_uri</code> не совпадает с зарегистрированным</td></tr>
         </tbody>

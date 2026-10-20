@@ -27,6 +27,11 @@ function publicUser(user) {
   rest.isDeveloper = (!!user.developer || isAdminPhone(user.phone)) || undefined;
   rest.isVerified = user.isVerified ?? (isAdminPhone(user.phone) || undefined);
   rest.isServiceBot = user.id === SYSTEM_BOT_ID || undefined;
+  // Анонимный подарок на полке не выдаёт отправителя — ни получателю, ни
+  // тем, кто смотрит профиль (fromId остаётся только в базе).
+  if (Array.isArray(user.giftsReceived)) {
+    rest.giftsReceived = user.giftsReceived.map((g) => (g?.anon && g.fromId ? { ...g, fromId: null } : g));
+  }
   // Боты в базе «в сети» всегда — зелёная точка на их аватарках ничего не значила.
   // Вместо «в сети» у бота и так пишется «бот».
   if (user.isBot) {

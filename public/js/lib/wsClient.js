@@ -3,6 +3,11 @@ let socket = null;
 let reconnectTimer = null;
 let reconnectDelay = 1000;
 let everOpened = false;
+// Выход из аккаунта на этом устройстве: сервер закроет сокет кодом 4001, но это
+// ожидаемо — не переподключаемся и не показываем «сеанс завершён».
+let stopped = false;
+// Идёт выяснение причины 4001 — сами не переподключаемся.
+let revoking = false;
 
 // Проверка живости. После сна телефона или смены сети сокет часто остаётся «зомби»:
 // readyState OPEN, а данные не идут, и close не приходит минутами. Всё это время
@@ -20,6 +25,7 @@ function emit(msg) {
 
 function connect() {
   clearTimeout(reconnectTimer);
+  if (stopped) return;
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(`${proto}//${window.location.host}/ws`);
   socket = ws;
@@ -41,16 +47,56 @@ function connect() {
     if (msg.type === "pong") return;
     emit(msg);
   });
-  ws.addEventListener("close", () => {
+  ws.addEventListener("close", (ev) => {
     if (socket !== ws) return;
     clearTimeout(pingTimer);
     clearTimeout(pongTimer);
+    // 4001 — сервер завершил сессию этого устройства (выход в другой вкладке,
+    // «Завершить сеанс» с другого устройства, смена пароля, бан). Переподключаться
+    // бессмысленно: сразу выясняем причину по HTTP, как при ответе session_revoked.
+    if (ev.code === 4001) {
+      handleRevoked();
+      return;
+    }
     scheduleReconnect();
   });
   ws.addEventListener("error", () => ws.close());
 }
 
+// Тот же выход, что в api.js при ошибке session_revoked / banned: спрашиваем
+// защищённый маршрут — он скажет, отозван сеанс или аккаунт заблокирован.
+async function handleRevoked() {
+  revoking = true;
+  let res;
+  try {
+    res = await fetch("/api/sessions", { credentials: "same-origin", cache: "no-store" });
+  } catch {
+    // Нет сети — пробуем позже обычным порядком.
+    revoking = false;
+    scheduleReconnect();
+    return;
+  }
+  if (stopped) return;
+  if (res.ok) {
+    // Сеанс жив (например, закрыли сокет другого аккаунта этого устройства) — переподключаемся.
+    revoking = false;
+    scheduleReconnect();
+    return;
+  }
+  const body = await res.json().catch(() => ({}));
+  if (stopped) return;
+  if (body.error === "banned") {
+    const why = body.banReason ? `&why=${encodeURIComponent(body.banReason)}` : "";
+    window.location.href = `/login?reason=banned${why}`;
+  } else if (body.error === "session_revoked") {
+    window.location.href = "/login?reason=revoked";
+  } else {
+    window.location.href = "/login";
+  }
+}
+
 function scheduleReconnect() {
+  if (stopped) return;
   clearTimeout(reconnectTimer);
   reconnectTimer = setTimeout(connect, reconnectDelay);
   reconnectDelay = Math.min(reconnectDelay * 1.5, 15000);
@@ -91,7 +137,7 @@ function schedulePing() {
 // Вернулись в приложение или появилась сеть — проверяем сокет сразу, а не ждём
 // следующего ping; закрытый — открываем без ожидания нарастающей паузы.
 function checkNow() {
-  if (!socket) return;
+  if (!socket || revoking) return;
   if (socket.readyState === WebSocket.OPEN) ping();
   else if (socket.readyState !== WebSocket.CONNECTING) reconnectNow();
 }
@@ -104,6 +150,20 @@ export function startWsClient() {
   });
   window.addEventListener("online", checkNow);
   window.addEventListener("pageshow", checkNow);
+}
+
+// Перед выходом из активного аккаунта: сокет закрываем сами, 4001 от сервера
+// больше не приведёт на экран «сеанс завершён».
+export function stopWsClient() {
+  stopped = true;
+  clearTimeout(reconnectTimer);
+  clearTimeout(pingTimer);
+  clearTimeout(pongTimer);
+  const ws = socket;
+  socket = null;
+  try {
+    ws?.close();
+  } catch {}
 }
 
 export function isWsStarted() {

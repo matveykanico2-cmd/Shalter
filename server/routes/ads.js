@@ -8,6 +8,7 @@ const { publicUser } = require("../data/sanitize");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
+const { usesForeignUpload } = require("../lib/uploadAccess");
 const { getActiveDonationLink } = require("../lib/autoPayment");
 const { createPendingOrder } = require("../data/pendingOrders");
 const { notifyAdminOfReview } = require("../lib/adReview");
@@ -93,13 +94,17 @@ router.put(
     if (!me.isAdsActive) return res.status(403).json({ error: "Кабинет рекламы не активен" });
 
     const { text, url, attachments } = req.body ?? {};
-    if (!text?.trim()) return res.status(400).json({ error: "Введите текст объявления" });
-    if (url && !/^https?:\/\//.test(url)) return res.status(400).json({ error: "Ссылка должна начинаться с http:// или https://" });
+    if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Введите текст объявления" });
+    if (url && (typeof url !== "string" || !/^https?:\/\//.test(url))) return res.status(400).json({ error: "Ссылка должна начинаться с http:// или https://" });
 
+    const adAttachments = sanitizeAdAttachments(attachments);
+    if (usesForeignUpload(req.uid, [url, adAttachments], [me.adUrl, me.adAttachments])) {
+      return res.status(400).json({ error: "Некорректная ссылка на файл" });
+    }
     const updated = await updateUser(req.uid, {
       adText: text.trim().slice(0, AD_TEXT_MAX),
       adUrl: url?.trim() || null,
-      adAttachments: sanitizeAdAttachments(attachments),
+      adAttachments,
     });
     res.json({ user: publicUser(updated) });
   })
@@ -177,6 +182,7 @@ router.post(
     const text = String(req.body?.text ?? "").trim().slice(0, MAX_TEXT);
     if (!text) return res.status(400).json({ error: "Напишите текст объявления" });
     const placement = pickPlacements(req.body) ?? ["discover"];
+    if (usesForeignUpload(req.uid, [req.body?.url, req.body?.imageUrl])) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     const created = campaigns.create({
       ownerId: req.uid,
       title: String(req.body?.title ?? "").trim().slice(0, 60),
@@ -201,6 +207,9 @@ router.patch(
     if (typeof req.body?.text === "string") patch.text = req.body.text.trim().slice(0, MAX_TEXT);
     if (typeof req.body?.url === "string") patch.url = req.body.url.trim().slice(0, 300) || null;
     if (typeof req.body?.imageUrl === "string") patch.imageUrl = req.body.imageUrl.trim() || null;
+    if (usesForeignUpload(req.uid, [patch.url, patch.imageUrl], [c.url, c.imageUrl])) {
+      return res.status(400).json({ error: "Некорректная ссылка на файл" });
+    }
     const placements = pickPlacements(req.body);
     if (placements) patch.placement = placements;
     if (Number.isFinite(Number(req.body?.cpmStars))) patch.cpmStars = Math.max(campaigns.CPM_MIN, Number(req.body.cpmStars));
@@ -251,7 +260,14 @@ router.post(
       await notifyAdminOfReview(updated, req.uid);
       return res.json({ campaign: updated });
     }
-    if (want === "paused") return res.json({ campaign: campaigns.update(c.id, { status: "paused" }) });
+    // Пауза — только для уже допущенного объявления: иначе непроверенное или отклонённое
+    // через paused → active обходило бы модерацию.
+    if (want === "paused") {
+      if (c.status !== "active" && c.status !== "paused" && c.status !== "finished") {
+        return res.status(400).json({ error: "Сначала отправьте объявление на проверку" });
+      }
+      return res.json({ campaign: campaigns.update(c.id, { status: "paused" }) });
+    }
     if (want === "active") {
       if (c.status !== "paused" && c.status !== "finished") {
         return res.status(400).json({ error: "Сначала отправьте объявление на проверку" });

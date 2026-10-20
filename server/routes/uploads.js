@@ -7,6 +7,7 @@ const { requireUserId } = require("../middleware/auth");
 const { UPLOADABLE_KINDS, limitFor, tooLargeError, UPLOAD_LIMITS, DEFAULT_LIMIT } = require("../lib/uploadLimits");
 const storage = require("../lib/storage");
 const { MAGIC: COMPRESS_MAGIC, compressStream } = require("../lib/fileCompression");
+const { recordUploader } = require("../lib/uploadAccess");
 
 const router = express.Router();
 
@@ -94,6 +95,8 @@ router.post(
     const hash = digest.digest("hex").slice(0, 16);
     const dedupName = `sha_${hash}${safeExtension(name)}`;
     const filenameFinal = await storage.finalizeDedup(filename, dedupName);
+    // Пока файл ни к чему не прикреплён, скачать его может только загрузивший.
+    recordUploader(filenameFinal, req.uid);
 
     res.json({
       url: `/uploads/${filenameFinal}`,

@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\"",
+    "test": "npm run test:contract",
     "dev": "USE_BUILD=0 nodemon --exec \"node --env-file-if-exists=config.env --env-file-if-exists=.env\" server/index.js",
     "build": "node scripts/build.js",
     "mail-dns": "node scripts/mail-dns.js",
@@ -21,7 +21,12 @@
     "cap:open:android": "npx cap open android",
     "cap:open:ios": "npx cap open ios",
     "desktop:dev": "SHALTER_APP_URL=http://localhost:3000 tauri dev",
-    "desktop:build": "tauri build && node scripts/collect-desktop.js"
+    "desktop:build": "tauri build && node scripts/collect-desktop.js",
+    "test:unit": "vitest run --config tests/vitest.config.ts unit",
+    "test:contract": "vitest run --config tests/vitest.config.ts",
+    "test:contract:watch": "vitest --config tests/vitest.config.ts",
+    "test:e2e": "playwright test --config tests/playwright.config.ts",
+    "test:types": "tsc -p tests/tsconfig.json"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1127.0",
@@ -54,8 +59,14 @@
     "@capacitor/cli": "^7.6.9",
     "@capacitor/core": "^7.6.9",
     "@capacitor/ios": "^7.6.8",
+    "@playwright/test": "^1.64.1",
     "@tauri-apps/cli": "^2.12.1",
+    "@types/node": "^26.6.5",
+    "@types/ws": "^8.18.2",
     "esbuild": "^0.28.1",
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.9",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5",
+    "zod": "^4.6.7"
   }
 }

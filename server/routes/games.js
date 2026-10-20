@@ -5,6 +5,7 @@ const { genId } = require("../lib/genId");
 const { getChat } = require("../data/chats");
 const { listUsersByIds } = require("../data/users");
 const games = require("../data/games");
+const { usesForeignUpload } = require("../lib/uploadAccess");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -50,6 +51,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const v = validGame(req.body);
     if (v.error) return res.status(400).json({ error: v.error });
+    if (usesForeignUpload(req.uid, v.code)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     if (games.listMine(req.uid).length >= 50) return res.status(400).json({ error: "Не больше 50 своих игр" });
     res.json({ game: games.saveGame({ id: genId("g"), ownerId: req.uid, ...v }) });
   })

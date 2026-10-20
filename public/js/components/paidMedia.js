@@ -38,6 +38,7 @@ function renderMedia(attachments) {
 export function PaidMediaAttachment(message, a, { mine = false } = {}) {
   const meta = a.meta ?? {};
   const box = el("div", { class: "paid-media" });
+  box.dataset.paidId = String(message.id);
   if (meta.width && meta.height) box.style.aspectRatio = `${meta.width} / ${meta.height}`;
 
   const showUnlocked = (atts) => {
@@ -48,13 +49,21 @@ export function PaidMediaAttachment(message, a, { mine = false } = {}) {
     box.append(renderMedia(atts), el("span", { class: "paid-media-badge", html: `${starIconSvg()} ${meta.stars}` }));
   };
 
+  box.showPaidUnlocked = showUnlocked;
+
   const unlock = async (e) => {
     e?.stopPropagation();
     const ok = await askConfirm(`Открыть ${contentLabel(meta).toLowerCase()} за ${meta.stars} ⭐? Звёзды получит автор канала.`, { okLabel: `Открыть за ${meta.stars} ⭐` });
     if (!ok) return;
     try {
       const res = await api.unlockPaidMedia(message.chatId, message.id);
-      showUnlocked(res.attachments ?? []);
+      const atts = res.attachments ?? [];
+      showUnlocked(atts);
+      // Пока висело подтверждение, лента могла перерисоваться: этот элемент уже снят
+      // со страницы, а на его месте новый, закрытый (из кэша «locked») — открываем и его.
+      for (const other of document.querySelectorAll(".paid-media[data-paid-id]")) {
+        if (other !== box && other.dataset.paidId === String(message.id)) other.showPaidUnlocked?.(atts);
+      }
       showToast("Пост открыт");
     } catch (err) {
       if (err.status === 402) {

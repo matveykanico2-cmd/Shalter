@@ -1,14 +1,18 @@
 import { el } from "../lib/dom.js";
 import { api } from "../api.js";
 
-function overlayWith(title, hint, fields, submitLabel, onSubmit) {
+function overlayWith(title, hint, fields, submitLabel, onSubmit, onCancel) {
   let busy = false;
-  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
+  const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && cancel() });
   const errorSlot = el("p", { class: "login-error" });
   const submit = el("button", { class: "btn-accent poll-create-btn" }, submitLabel);
 
   function close() {
     overlay.remove();
+  }
+  function cancel() {
+    close();
+    onCancel?.();
   }
   function fail(message) {
     errorSlot.textContent = message;
@@ -36,7 +40,7 @@ function overlayWith(title, hint, fields, submitLabel, onSubmit) {
     ...fields,
     errorSlot,
     submit,
-    el("button", { class: "modal-cancel", onclick: () => close() }, "Отмена"),
+    el("button", { class: "modal-cancel", onclick: () => cancel() }, "Отмена"),
   ]);
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
@@ -74,14 +78,62 @@ export function openChangeEmailDialog(currentEmail, onDone) {
       ? `Сейчас: ${currentEmail}. Проверьте новый адрес: на него будет приходить восстановление доступа.`
       : "Проверьте адрес: на него будет приходить восстановление доступа.",
     [password, email],
-    "Сменить почту",
+    "Получить код",
     async ({ close, fail }) => {
       const address = email.value.trim();
       if (!address.includes("@")) return fail("Введите адрес почты");
-      const { user } = await api.startEmailChange(password.value, address);
+      const { email: sentTo } = await api.startEmailChange(password.value, address);
+      close();
+      openConfirmEmailDialog(sentTo ?? address, onDone);
+    }
+  );
+}
+
+// Второй шаг: адрес меняется только после кода из письма на новый адрес.
+function openConfirmEmailDialog(address, onDone) {
+  const code = el("input", {
+    class: "login-input",
+    type: "text",
+    inputmode: "numeric",
+    autocomplete: "one-time-code",
+    maxlength: "6",
+    placeholder: "Код из письма",
+    autofocus: true,
+  });
+
+  overlayWith(
+    "Подтвердите почту",
+    `Мы отправили код на ${address}. Письмо может идти пару минут — проверьте и папку «Спам».`,
+    [code],
+    "Сменить почту",
+    async ({ close, fail }) => {
+      const value = code.value.trim();
+      if (!/^\d{6}$/.test(value)) return fail("Введите шестизначный код из письма");
+      const { user } = await api.confirmEmailChange(value);
       close();
       onDone?.(user);
     }
   );
 }
 
+// Смена номера телефона требует пароль от аккаунта (к номеру привязаны вход по коду
+// и восстановление). save(password) повторяет сохранение; ошибка остаётся в диалоге.
+// Промис — результат save или null, если закрыли.
+export function askPasswordForPhoneChange(save) {
+  return new Promise((resolve) => {
+    const password = el("input", { class: "login-input", type: "password", placeholder: "Пароль", autocomplete: "current-password", autofocus: true });
+    overlayWith(
+      "Смена номера",
+      "Чтобы сменить номер телефона, введите пароль от аккаунта.",
+      [password],
+      "Сменить номер",
+      async ({ close, fail }) => {
+        if (!password.value) return fail("Введите пароль");
+        const result = await save(password.value);
+        close();
+        resolve(result);
+      },
+      () => resolve(null)
+    );
+  });
+}

@@ -194,6 +194,8 @@ function userLabel(u, fallbackId) {
     email: u.email || null,
     safetyLabel: u.safetyLabel || null,
     isBanned: !!u.isBanned,
+    // Карточка в «Модерации» по нему выбирает «Верифицировать» / «Снять галочку».
+    isVerified: !!u.isVerified,
     isPremium: !!u.isPremium,
     premiumUntil: u.premiumUntil || null,
     premiumForever: !!u.premiumForever,
@@ -278,6 +280,8 @@ router.post(
     if (banned && !reason) return res.status(400).json({ error: "Укажите причину блокировки — её увидит пользователь" });
 
     const updated = await setBanned(target.id, banned, reason);
+    // Открытые сокеты забаненного закрываются сразу, а не на ближайшей проверке сессий.
+    if (banned) await require("../ws").closeRevokedSockets(target.id);
 
     try {
       const chat = await findOrCreateDm(SYSTEM_BOT_ID, target.id);
@@ -299,9 +303,12 @@ router.post(
 router.post(
   "/users/:id/label",
   asyncRoute(async (req, res) => {
-    if (!(await requireAdminSection(req, res, "moderation"))) return;
+    const admin = await requireAdminSection(req, res, "moderation");
+    if (!admin) return;
     const target = await getUser(req.params.id);
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
+    // Метка («СКАМ», «Фейк»…) — такое же действие модерации, как бан: на равных и старших нельзя.
+    if (target.id !== admin.id && !outranks(admin, target)) return rankError(res);
 
     const raw = req.body?.label;
     const label = raw ? String(raw) : "";

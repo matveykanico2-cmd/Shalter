@@ -23,4 +23,8 @@ async function removeSubscriptionByEndpoint(endpoint) {
   db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").run(endpoint);
 }
 
-module.exports = { listSubscriptionsForUser, addSubscription, removeSubscriptionByEndpoint };
+async function removeUserSubscriptionByEndpoint(userId, endpoint) {
+  db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND userId = ?").run(endpoint, userId);
+}
+
+module.exports = { listSubscriptionsForUser, addSubscription, removeSubscriptionByEndpoint, removeUserSubscriptionByEndpoint };

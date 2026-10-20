@@ -343,8 +343,8 @@ export const api = {
   changePassword: (currentPassword, newPassword) =>
     req("/api/auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),
   checkRecoveryPair: (email, phone) => req("/api/auth/recover/pair/check", { method: "POST", body: JSON.stringify({ email, phone }) }),
-  finishPairRecovery: (email, phone, password) =>
-    req("/api/auth/recover/pair/reset", { method: "POST", body: JSON.stringify({ email, phone, password }) }),
+  finishPairRecovery: (email, phone, code, password) =>
+    req("/api/auth/recover/pair/reset", { method: "POST", body: JSON.stringify({ email, phone, code, password }) }),
   startEmailChange: (password, email) => req("/api/auth/email/start", { method: "POST", body: JSON.stringify({ password, email }) }),
   confirmEmailChange: (code) => req("/api/auth/email/verify", { method: "POST", body: JSON.stringify({ code }) }),
 

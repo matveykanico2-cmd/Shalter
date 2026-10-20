@@ -119,8 +119,8 @@ async function publicUserFor(user, viewerId) {
     delete visible.avatarImage;
     delete visible.avatarImages;
   }
-  if (!canSee("bio")) delete visible.bio;
-  if (!canSee("birthday")) delete visible.birthday;
+  if (blocked || !canSee("bio")) delete visible.bio;
+  if (blocked || !canSee("birthday")) delete visible.birthday;
   return visible;
 }
 

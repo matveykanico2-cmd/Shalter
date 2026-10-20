@@ -2,6 +2,7 @@ const { findDmBetween, createChat } = require("../data/chats");
 const { genId } = require("./genId");
 const { addMessage } = require("../data/messages");
 const { broadcastToUsers } = require("../ws");
+const { registerAttachments } = require("./uploadAccess");
 
 async function findOrCreateDm(userIdA, userIdB) {
   const existing = await findDmBetween(userIdA, userIdB);
@@ -31,6 +32,8 @@ async function sendMessageAndBroadcast(chat, senderId, text, extra = {}) {
     readByIds: [senderId],
     ...extra,
   });
+  // Файлы служебных сообщений (картинки Shalter AI, автоответы) — участникам чата.
+  registerAttachments(chat.id, message.attachments);
   broadcastToUsers(chat.memberIds, { type: "message:new", chatId: chat.id, message });
   return message;
 }

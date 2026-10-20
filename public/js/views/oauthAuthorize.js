@@ -84,6 +84,8 @@ export async function OAuthAuthorizeView(root) {
               render();
               try {
                 const { redirectUrl } = await api.approveOAuth(clientId, redirectUri, state);
+                // Только http(s): javascript:-адрес выполнился бы в origin Shalter.
+                if (!/^https?:$/.test(new URL(redirectUrl).protocol)) throw new Error("Недопустимый redirect_uri");
                 window.location.href = redirectUrl;
               } catch (err) {
                 error = err.message || "Не удалось подтвердить вход";

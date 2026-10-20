@@ -10,6 +10,7 @@ import { clearCache } from "../../lib/localCache.js";
 import { iconSvg } from "../../icons.js";
 import { Avatar, videoAvatarUrl } from "../../components/avatar.js";
 import { api } from "../../api.js";
+import { stopWsClient } from "../../lib/wsClient.js";
 import { switchAccount } from "../../lib/accountSwitch.js";
 import { getState, setState, updateSelf, subscribe } from "../../state.js";
 import { navigate } from "../../router.js";
@@ -28,7 +29,7 @@ import { hasBiometric, enableBiometric, removeBiometric, isBiometricAvailable } 
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
 import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../components/twoFactorDialog.js";
 import { passkeysSupported, registerPasskey, passkeyErrorText } from "../../lib/passkey.js";
-import { openChangePasswordDialog, openChangeEmailDialog } from "../../components/credentialsDialog.js";
+import { openChangePasswordDialog, openChangeEmailDialog, askPasswordForPhoneChange } from "../../components/credentialsDialog.js";
 import { VerifiedBadge } from "../../components/verifiedBadge.js";
 import { ProfileStatusBadge } from "../../components/profileStatusBadge.js";
 import { StarsPanel } from "../../components/starsDialog.js";
@@ -242,6 +243,9 @@ async function openSupport() {
 }
 
 let sessionsCount = null;
+// Баланс звёзд для пункта «Звёзды»: в профиле из сессии его нет — берём из /api/stars
+// при каждом открытии меню (между открытиями показываем прошлое значение).
+let starsBalance = null;
 
 function renderMenu(root) {
   const me = getState().user;
@@ -257,10 +261,19 @@ function renderMenu(root) {
     }, () => {});
   }
 
+  if (!root._starsRequested) {
+    root._starsRequested = true;
+    api.getStars().then((r) => {
+      if (typeof r?.balance !== "number" || r.balance === starsBalance) return;
+      starsBalance = r.balance;
+      if (root.isConnected) renderMenu(root);
+    }, () => {});
+  }
+
   const rightFor = (s) => {
     if (s.id === "accounts" && accounts.length > 1) return String(accounts.length);
     if (s.id === "devices" && sessionsCount) return sessionsCount;
-    if (s.id === "stars" && me.starsBalance) return String(me.starsBalance);
+    if (s.id === "stars" && starsBalance) return String(starsBalance);
     return null;
   };
 
@@ -731,7 +744,16 @@ async function renderProfile(root) {
               birthday = date.iso;
               try {
                 name = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
-                const { user } = await api.updateProfile(me.id, { name, lastName: lastName.trim(), username, phone, bio: bio ?? "", birthday });
+                const fields = { name, lastName: lastName.trim(), username, phone, bio: bio ?? "", birthday };
+                let user;
+                try {
+                  ({ user } = await api.updateProfile(me.id, fields));
+                } catch (err) {
+                  // Номер изменился — сервер просит пароль от аккаунта.
+                  if (err.status !== 400 || err.message !== "Чтобы сменить номер, введите пароль от аккаунта") throw err;
+                  user = (await askPasswordForPhoneChange((currentPassword) => api.updateProfile(me.id, { ...fields, currentPassword })))?.user;
+                  if (!user) return;
+                }
                 name = user.name;
                 username = user.username;
                 bio = user.bio ?? "";
@@ -2118,7 +2140,7 @@ async function renderGames(root) {
           ]),
           el("a", { href: "/games", target: "_blank", rel: "noreferrer", class: "text-link" }, "Документация SDK и Game API →"),
         ]),
-        el("button", { class: "btn-accent bot-create-btn", onclick: () => games.openGameMetaDialog(null, reload) }, [el("span", { html: iconSvg("Plus", 15) }), " Создать игру"]),
+        el("button", { class: "btn-accent bot-create-btn", onclick: () => games.openGameMetaDialog(null, { onSaved: reload }) }, [el("span", { html: iconSvg("Plus", 15) }), " Создать игру"]),
         el("p", { class: "settings-section-title" }, `Ваши игры — ${list.length}`),
         list.length === 0
           ? el("p", { class: "empty-hint" }, "У вас пока нет своих игр")
@@ -2134,7 +2156,7 @@ async function renderGames(root) {
                   ]),
                    el("button", { class: "icon-btn", title: "Играть", html: iconSvg("PlayFill", 15), onclick: () => games.openGame(g) }),
                    el("button", { class: "icon-btn", title: "API-токен", html: iconSvg("Key", 15), onclick: () => games.showGameToken(g) }),
-                   el("button", { class: "icon-btn", title: "Редактировать", html: iconSvg("Edit", 15), onclick: () => games.openGameMetaDialog(g, reload) }),
+                   el("button", { class: "icon-btn", title: "Редактировать", html: iconSvg("Edit", 15), onclick: () => games.openGameMetaDialog(g, { onSaved: reload }) }),
                    el("button", { class: "icon-btn", title: g.isPublic ? "Скрыть из каталога" : "Показать в каталоге", html: g.isPublic ? "🚫" : "👁", onclick: () => togglePublish(g) }),
                    el("button", { class: "icon-btn", title: "Удалить", html: iconSvg("Trash", 15), onclick: () => removeGame(g) }),
                 ])
@@ -2242,12 +2264,6 @@ async function renderBots(root) {
                       }
                     },
                   }),
-                   el("button", {
-                     class: "icon-btn",
-                     title: "Обновить токен",
-                     html: iconSvg("Lock", 15),
-                     onclick: () => regenerate(b)
-                   }),
                   el("button", {
                     class: "icon-btn",
                     title: "Команды бота",
@@ -3549,6 +3565,8 @@ async function renderAccounts(root) {
   async function logout(uid) {
     const label = uid === me.id ? "Выйти из этого аккаунта?" : "Выйти из этого аккаунта на этом устройстве?";
     if (!(await askConfirm(label))) return;
+    // Сервер отзывает сеанс и закрывает сокет кодом 4001 — это наш выход, а не «сеанс завершён».
+    if (uid === me.id) stopWsClient();
     const { remaining } = await api.logout(uid);
     clearCache();
     if (remaining.length === 0) window.location.href = "/login";
@@ -3556,6 +3574,7 @@ async function renderAccounts(root) {
   }
   async function logoutAll() {
     if (!(await askConfirm("Выйти из всех аккаунтов на этом устройстве?"))) return;
+    stopWsClient();
     await api.logout();
     clearCache();
     window.location.href = "/login";
