@@ -289,8 +289,14 @@ describe("scheduleMessage / getScheduled / cancelScheduled", () => {
     expect(expectOk(await b.client.get("getScheduled", { chatId: dm.id }), scheduledListBody).scheduled).toEqual([]);
     expectError(await b.client.post("cancelScheduled", { scheduledId: s.id }), 404, "Not found");
 
-    // ПОВЕДЕНИЕ-ВОПРОС: планирование не проверяет права отправки — бот, не админ канала, ставит пост в очередь.
+    // Права те же, что у sendMessage: не админ канала пост в очередь не ставит.
     const channel = await channelWithBot(owner, [sub], b, { admin: false });
-    expectOk(await b.client.post("scheduleMessage", { chatId: channel.id, text: "пост", sendAt: future }), scheduledBody);
+    expectError(await b.client.post("scheduleMessage", { chatId: channel.id, text: "пост", sendAt: future }), 403, "Bot must be an admin to post in a channel");
+    expect(expectOk(await b.client.get("getScheduled", { chatId: channel.id }), scheduledListBody).scheduled).toEqual([]);
+    const adminChannel = await channelWithBot(owner, [sub], b);
+    expectOk(await b.client.post("scheduleMessage", { chatId: adminChannel.id, text: "пост", sendAt: future }), scheduledBody);
+    // Заблокировавшему бота — тоже нельзя.
+    await user.api.post(`/api/users/${b.id}/block`, { blocked: true });
+    expectError(await b.client.post("scheduleMessage", { chatId: dm.id, text: "x", sendAt: future }), 403, "User has blocked the bot");
   });
 });

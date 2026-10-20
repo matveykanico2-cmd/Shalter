@@ -61,15 +61,16 @@ describe("GET/POST /api/auth/2fa — без сессии", () => {
     expectError(await api.post("/api/auth/2fa/cloud-password/disable", {}), 401, "unauthorized");
   });
 
-  test("завершённый сеанс получает unauthorized, а не session_revoked", async () => {
+  test("завершённый сеанс получает session_revoked, как и в остальных маршрутах", async () => {
     const { baseUrl } = server();
     const user = await registerUser(baseUrl);
     const other = await login(baseUrl, user);
     expectOk(await user.api.post("/api/sessions/terminate-others"), okBody);
     expectError(await other.get("/api/chats"), 401, "session_revoked");
-    // ПОВЕДЕНИЕ-ВОПРОС: маршруты /2fa проверяют сессию сами (currentUserOr401) и
-    // не различают «не вошёл» и «сеанс завершён», в отличие от requireUserId.
-    expectError(await other.get("/api/auth/2fa"), 401, "unauthorized");
+    // Маршруты /2fa отвечают так же, как и остальные под requireUserId.
+    expectError(await other.get("/api/auth/2fa"), 401, "session_revoked");
+    expectError(await other.post("/api/auth/2fa/setup", {}), 401, "session_revoked");
+    expectError(await other.post("/api/auth/2fa/send-code", {}), 401, "session_revoked");
   });
 });
 
@@ -271,9 +272,8 @@ describe("удаление аккаунта по билету: /api/auth/schedul
     expectError(await first.api.post("/api/auth/2fa/login", { ticket: first.ticket, code: totp(secret) }), 400, "Время на ввод кода истекло — войдите заново");
 
     const second = await startLogin(user);
-    // ПОВЕДЕНИЕ-ВОПРОС: scheduledDeletionAt в билете всегда null — rowToUser не
-    // читает колонку scheduledDeletionAt, клиент не узнаёт о запланированном удалении.
-    expect(second.body.scheduledDeletionAt).toBeNull();
+    // Билет сообщает о запланированном удалении — клиент предлагает его отменить.
+    expect(second.body.scheduledDeletionAt).toBe(scheduled.deleteAt);
     expectOk(await second.api.post("/api/auth/cancel-deletion", { ticket: second.ticket }), okBody);
     const cancelled = await waitSystemMessage(user.api, (t) => t.startsWith("✅"));
     expect(cancelled.text).toBe("✅ Удаление аккаунта отменено.");

@@ -3,6 +3,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { getUser, setProfileTracks } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
+const { notifyProfileChanged } = require("../lib/notifyProfileChanged");
 const { isOwnUploadUrl } = require("../lib/uploadAccess");
 
 // Музыка в профиле: несколько треков, первый — основной (как в профиле Telegram).
@@ -36,6 +37,7 @@ router.post(
     const tracks = [track, ...current.filter((t) => t.url !== url)];
     if (tracks.length > MAX_TRACKS) return res.status(400).json({ error: `Не больше ${MAX_TRACKS} треков в профиле` });
     const updated = await setProfileTracks(req.uid, tracks);
+    if (updated) notifyProfileChanged(req.uid, updated);
     res.json({ user: publicUser(updated) });
   })
 );
@@ -49,6 +51,7 @@ router.post(
     if (!Number.isInteger(i) || !tracks[i]) return res.status(404).json({ error: "Трек не найден" });
     const [track] = tracks.splice(i, 1);
     const updated = await setProfileTracks(req.uid, [track, ...tracks]);
+    if (updated) notifyProfileChanged(req.uid, updated);
     res.json({ user: publicUser(updated) });
   })
 );
@@ -62,6 +65,7 @@ router.delete(
     if (!Number.isInteger(i) || !tracks[i]) return res.status(404).json({ error: "Трек не найден" });
     tracks.splice(i, 1);
     const updated = await setProfileTracks(req.uid, tracks);
+    if (updated) notifyProfileChanged(req.uid, updated);
     res.json({ user: publicUser(updated) });
   })
 );
@@ -71,6 +75,7 @@ router.delete(
   "/",
   asyncRoute(async (req, res) => {
     const updated = await setProfileTracks(req.uid, []);
+    if (updated) notifyProfileChanged(req.uid, updated);
     res.json({ user: publicUser(updated) });
   })
 );

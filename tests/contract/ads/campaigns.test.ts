@@ -124,13 +124,14 @@ describe("PATCH/DELETE /api/ads/campaigns/:id", () => {
     expect(cleared).toMatchObject({ url: null, imageUrl: null, title: "Новое" });
   });
 
-  test("ПОВЕДЕНИЕ-ВОПРОС: PATCH принимает пустой текст объявления", async () => {
+  test("PATCH не принимает пустой текст объявления — как и создание", async () => {
     const u = await newUser();
     const c = await createCampaign(u);
-    const res = expectOk(await u.api.patch(`/api/ads/campaigns/${c.id}`, { text: "   " }), campaignBody).campaign;
-    expect(res).toMatchObject({ text: "", status: "review" });
-    // …зато отправить пустое на проверку повторно нельзя.
-    expectError(await u.api.post(`/api/ads/campaigns/${c.id}/status`, { status: "review" }), 400, "Пустое объявление не проверяют");
+    expectError(await u.api.patch(`/api/ads/campaigns/${c.id}`, { text: "   " }), 400, "Напишите текст объявления");
+    expectError(await u.api.patch(`/api/ads/campaigns/${c.id}`, { text: "", title: "Новое" }), 400, "Напишите текст объявления");
+    // Ничего не поменялось.
+    const list = expectOk(await u.api.get("/api/ads/campaigns"), campaignsBody).campaigns;
+    expect(list.find((x) => x.id === c.id)).toMatchObject({ text: c.text, title: c.title });
   });
 
   test("чужая и несуществующая кампания — 404 на всех маршрутах владельца; удаление", async () => {

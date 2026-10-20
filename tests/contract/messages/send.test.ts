@@ -42,12 +42,9 @@ describe("POST /api/chats/:id/messages — проверки", () => {
     for (const body of [{}, { text: "" }, { text: "   \n " }, { text: "", attachments: [] }]) {
       expectError(await a.api.post(msgs(dm.id), body), 400, "empty message");
     }
-    // Вложения, которые не прошли очистку, тоже не дают пустому тексту пройти —
-    // но проверка «пусто» смотрит на сырой массив, поэтому сообщение уходит без вложений.
-    // ПОВЕДЕНИЕ-ВОПРОС: { text: "", attachments: [{ kind: "bogus" }] } создаёт пустое текстовое сообщение.
-    const bogus = expectOk(await a.api.post(msgs(dm.id), { text: "", attachments: [{ kind: "bogus" }] }), sendResult);
-    expect(bogus.message).toMatchObject({ type: "text", text: "" });
-    expect(bogus.message).not.toHaveProperty("attachments");
+    // Вложения, которые не прошли очистку, не считаются: пустое сообщение не уходит.
+    expectError(await a.api.post(msgs(dm.id), { text: "", attachments: [{ kind: "bogus" }] }), 400, "empty message");
+    expect(expectOk(await a.api.get(msgs(dm.id)), historyPage).messages).toEqual([]);
   });
 
   test("длина текста: 4096 можно, 4097 — 400", async () => {
@@ -268,9 +265,10 @@ describe("пересылка", () => {
       "Исходное сообщение не найдено",
     );
     expectError(await a.api.post(msgs(dm.id), { text: "x", forwardedFrom: {} }), 404, "Исходное сообщение не найдено");
-    // ПОВЕДЕНИЕ-ВОПРОС: текст пересылки берётся из источника, но проверка «пусто» идёт
-    // раньше — без непустого text в теле переслать нельзя.
-    expectError(await a.api.post(msgs(dm.id), { forwardedFrom: { messageId: secretSource.id } }), 400, "empty message");
+    // Текст пересылки берётся из источника — свой text в теле не нужен.
+    const fwd = expectOk(await a.api.post(msgs(dm.id), { forwardedFrom: { messageId: secretSource.id } }), sendResult).message;
+    expect(fwd).toMatchObject({ text: "только нам", forwardedFrom: { senderId: a.id } });
+    expectError(await a.api.post(msgs(dm.id), { forwardedFrom: { messageId: "m_doesnotexist0" } }), 404, "Исходное сообщение не найдено");
   });
 });
 

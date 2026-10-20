@@ -42,16 +42,17 @@ describe("без сессии", () => {
 });
 
 describe("администрация ещё не зарегистрирована", () => {
-  test("partners/chat — 503; support/report ведёт в чат с Hugo без приветствия", async () => {
+  test("partners/chat — 503; support/report ведёт в чат с Hugo с приветствием", async () => {
     const { baseUrl } = server();
     const user = await registerUser(baseUrl);
     expectError(await user.api.post("/api/partners/chat"), 503, "Администрация Shalter ещё не зарегистрирована в приложении");
     const { chatId } = expectOk(await user.api.post("/api/support/report"), chatIdBody);
     const chat = (await user.api.get(`/api/chats/${chatId}`)).body.chat;
     expect(chat).toMatchObject({ type: "dm", otherUser: { id: HUGO_ID } });
-    // ПОВЕДЕНИЕ-ВОПРОС: в запасной ветке (без админа) чат с Hugo создаётся пустым — приветствие шлёт только /support/chat.
-    expect(await history(user, chatId)).toEqual([]);
+    // Запасная ветка ведёт в тот же чат с Hugo, что и /support/chat, — с приветствием, и только одним.
+    expect((await history(user, chatId)).map((m) => [m.senderId, m.text])).toEqual([[HUGO_ID, HUGO_GREETING]]);
     expect(expectOk(await user.api.post("/api/support/chat"), chatIdBody).chatId).toBe(chatId);
+    expect(await history(user, chatId)).toHaveLength(1);
   });
 });
 

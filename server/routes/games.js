@@ -41,7 +41,7 @@ function validGame(body) {
   const title = String(body?.title ?? "").trim().slice(0, 64);
   const code = String(body?.code ?? "");
   if (!title) return { error: "Введите название игры" };
-  if (code.trim() && code.length > MAX_CODE) return { error: "Игра слишком большая (до 512 КБ)" };
+  if (code.length > MAX_CODE) return { error: "Игра слишком большая (до 512 КБ)" };
   const emoji = [...String(body?.emoji ?? "🎮").trim()].slice(0, 2).join("") || "🎮";
   return { title, code, emoji, description: String(body?.description ?? "").trim().slice(0, 200), isPublic: !!body?.isPublic };
 }
@@ -62,10 +62,12 @@ router.patch(
   asyncRoute(async (req, res) => {
     const game = games.getGame(req.params.id);
     if (!game || game.ownerId !== req.uid) return res.status(404).json({ error: "Игра не найдена" });
-    const title = String(req.body?.title ?? "").trim().slice(0, 64);
-    const emoji = [...String(req.body?.emoji ?? "🎮").trim()].slice(0, 2).join("") || "🎮";
-    const description = String(req.body?.description ?? "").trim().slice(0, 200);
-    const isPublic = !!req.body?.isPublic;
+    // Частичное обновление: поле, которого нет в теле, остаётся прежним.
+    const b = req.body ?? {};
+    const title = b.title !== undefined ? String(b.title ?? "").trim().slice(0, 64) : game.title;
+    const emoji = b.emoji !== undefined ? [...String(b.emoji ?? "").trim()].slice(0, 2).join("") || "🎮" : game.emoji;
+    const description = b.description !== undefined ? String(b.description ?? "").trim().slice(0, 200) : game.description ?? "";
+    const isPublic = b.isPublic !== undefined ? !!b.isPublic : !!game.isPublic;
     if (!title) return res.status(400).json({ error: "Введите название игры" });
     res.json({ game: games.updateGameMeta(game.id, { title, description, emoji, isPublic }) });
   })
@@ -85,6 +87,7 @@ router.post(
 router.get(
   "/:id/best",
   asyncRoute(async (req, res) => {
+    if (!games.getGame(req.params.id)) return res.status(404).json({ error: "Игра не найдена" });
     const scope = await scopeFor(req, req.query.chatId);
     if (scope === null) return res.status(404).json({ error: "Чат не найден" });
     res.json({ best: games.bestScore(req.params.id, scope, req.uid) });
@@ -101,6 +104,12 @@ router.delete(
     res.json({ ok: true });
   })
 );
+
+// Счёт — число или строка-число; null, "" и true не превращаются в 0/1.
+function parseScore(raw) {
+  if (typeof raw === "number" || (typeof raw === "string" && raw.trim())) return Math.floor(Number(raw));
+  return NaN;
+}
 
 // Рекорд: общий (без chatId) и в чате, где отправили карточку игры.
 async function scopeFor(req, chatId) {
@@ -122,7 +131,7 @@ router.post(
   "/:id/score",
   asyncRoute(async (req, res) => {
     if (!games.getGame(req.params.id)) return res.status(404).json({ error: "Игра не найдена" });
-    const score = Math.floor(Number(req.body?.score));
+    const score = parseScore(req.body?.score);
     if (!Number.isSafeInteger(score) || score < 0 || score > MAX_SCORE) return res.status(400).json({ error: "Некорректный счёт" });
     const scope = await scopeFor(req, req.body?.chatId);
     if (scope === null) return res.status(404).json({ error: "Чат не найден" });
@@ -135,6 +144,7 @@ router.post(
 router.get(
   "/:id/scores",
   asyncRoute(async (req, res) => {
+    if (!games.getGame(req.params.id)) return res.status(404).json({ error: "Игра не найдена" });
     const scope = await scopeFor(req, req.query.chatId);
     if (scope === null) return res.status(404).json({ error: "Чат не найден" });
     const rows = games.topScores(req.params.id, scope);

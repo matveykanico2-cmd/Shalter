@@ -19,10 +19,12 @@ router.post(
   asyncRoute(async (req, res) => {
     const { name, stickers } = req.body ?? {};
     if (!String(name ?? "").trim()) return res.status(400).json({ error: "Назовите пак" });
-    if (!Array.isArray(stickers) || stickers.length === 0) {
+    // «Хотя бы один» — после очистки: пак из одних некорректных стикеров не создаётся пустым.
+    const clean = sanitizeStickers(stickers);
+    if (!Array.isArray(stickers) || clean.length === 0) {
       return res.status(400).json({ error: "Добавьте хотя бы один стикер" });
     }
-    if (usesForeignUpload(req.uid, sanitizeStickers(stickers))) return res.status(400).json({ error: "Некорректная ссылка на файл" });
+    if (usesForeignUpload(req.uid, clean)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     res.json({ pack: createPack({ ownerId: req.uid, name, stickers }) });
   })
 );

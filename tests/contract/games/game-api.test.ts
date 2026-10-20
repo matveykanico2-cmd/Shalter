@@ -114,11 +114,10 @@ describe("updateGame", () => {
     expect(expectOk(await other.api.get("/api/games"), gamesBody).games.some((g) => g.id === game.id)).toBe(false);
   });
 
-  test("эмодзи не обрезается от пробелов (в отличие от PATCH /meta)", async () => {
+  test("эмодзи обрезается от пробелов, как в POST /api/games и PATCH /meta", async () => {
     const { api } = await setup();
-    // ПОВЕДЕНИЕ-ВОПРОС: Game API берёт первые 2 символа emoji без trim — « 🎲x» превращается
-    // в « 🎲» с пробелом; POST /api/games и PATCH /meta сначала обрезают пробелы.
-    expect(expectOk(await api.post("updateGame", { emoji: " 🎲x" }), apiUpdateGameBody).game.emoji).toBe(" 🎲");
+    expect(expectOk(await api.post("updateGame", { emoji: " 🎲x" }), apiUpdateGameBody).game.emoji).toBe("🎲x");
+    expect(expectOk(await api.post("updateGame", { emoji: "   " }), apiUpdateGameBody).game.emoji).toBe("🎮");
   });
 
   test("ошибки: пустое название, пустой или слишком большой код", async () => {
@@ -129,21 +128,20 @@ describe("updateGame", () => {
     expect(expectOk(await owner.api.get(`/api/games/${game.id}`), gameAnyBody).game).toEqual(game);
   });
 
-  test("игру без кода через API не обновить, пока не передан code", async () => {
+  test("игру без кода (создана в приложении) можно обновить без code; переданный code проверяется", async () => {
     const { baseUrl } = server();
     const owner = await registerUser(baseUrl);
     const game = await createGame(owner, { code: "" });
     const api = gameApi(baseUrl, await issueToken(owner, game.id));
-    // ПОВЕДЕНИЕ-ВОПРОС: POST /api/games разрешает пустой code, а updateGame проверяет итоговый
-    // code — смена одного названия у такой игры падает с ошибкой про код.
-    expectError(await api.post("updateGame", { title: "Новое" }), 400, "code: от 1 байта до 512 КБ");
-    expect(expectOk(await api.post("updateGame", { title: "Новое", code: "<x/>" }), apiUpdateGameBody).game.title).toBe("Новое");
+    expect(expectOk(await api.post("updateGame", { title: "Новое" }), apiUpdateGameBody).game.title).toBe("Новое");
+    expect(expectOk(await owner.api.get(`/api/games/${game.id}`), gameAnyBody).game).toMatchObject({ title: "Новое", code: "" });
+    expectError(await api.post("updateGame", { code: "" }), 400, "code: от 1 байта до 512 КБ");
+    expect(expectOk(await api.post("updateGame", { title: "Ещё новее", code: "<x/>" }), apiUpdateGameBody).game.title).toBe("Ещё новее");
+    expect(expectOk(await owner.api.get(`/api/games/${game.id}`), gameAnyBody).game.code).toBe("<x/>");
   });
 
-  test("лимит тела 600kb у Game API не действует — тело уже разобрано общим парсером (25mb)", async () => {
+  test("тело Game API разбирает общий парсер (25mb): тело ~700 КБ принимается", async () => {
     const { api } = await setup();
-    // ПОВЕДЕНИЕ-ВОПРОС: router.use(express.json({ limit: "600kb" })) в gameApi.js — мёртвый код:
-    // глобальный express.json({ limit: "25mb" }) разбирает тело раньше. Тело ~700 КБ принимается.
     const res = expectOk(await api.post("updateGame", { title: "т".repeat(700 * 1024 / 2) }), apiUpdateGameBody);
     expect(res.game.title).toBe("т".repeat(64));
   });
@@ -203,7 +201,7 @@ describe("setScore", () => {
     const player = await registerUser(baseUrl);
     expectError(await api.post("setScore", { score: 10 }), 404, "user not found");
     expectError(await api.post("setScore", { userId: "u_nope12345678", score: "bad" }), 404, "user not found");
-    for (const score of [undefined, "abc", -1, 1_000_000_001]) {
+    for (const score of [undefined, null, "", true, "abc", -1, 1_000_000_001]) {
       expectError(await api.post("setScore", { userId: player.id, score }), 400, "score: целое от 0");
     }
     expectError(await api.post("setScore", { userId: player.id, score: 5, chatId: "c_nope12345678" }), 404, "chat not found");

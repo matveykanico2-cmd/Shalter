@@ -85,14 +85,15 @@ describe("POST / — создание", () => {
     expect(me).toEqual({ bot: res.bot.user, app: null });
   });
 
-  test("имя и аватар при создании не проверяются", async () => {
+  test("имя и аватар при создании проверяются так же, как в PATCH", async () => {
     const owner = await registerUser(server().baseUrl);
     const long = "Б".repeat(200);
-    // ПОВЕДЕНИЕ-ВОПРОС: при создании имя не обрезается (PATCH режет до 60), а avatarImage
-    // принимается любой строкой — даже javascript:-ссылкой (у людей аватар — только загрузка).
-    const res = expectOk(await owner.api.post("/api/bots", { name: long, avatarImage: "javascript:alert(1)" }), botCreatedBody);
-    expect(res.bot.user.name).toBe(long);
-    expect(res.bot.user.avatarImage).toBe("javascript:alert(1)");
+    // Имя обрезается до 60, как в PATCH; аватар — только http(s), data: или загрузка.
+    expectError(await owner.api.post("/api/bots", { name: long, avatarImage: "javascript:alert(1)" }), 400, "Некорректная ссылка на файл");
+    const res = expectOk(await owner.api.post("/api/bots", { name: long, avatarImage: "data:image/png;base64,AAAA" }), botCreatedBody);
+    expect(res.bot.user.name).toBe("Б".repeat(60));
+    expect(res.bot.user.avatarImage).toBe("data:image/png;base64,AAAA");
+    expectError(await owner.api.patch(`/api/bots/${res.bot.id}`, { avatarImage: "javascript:alert(1)" }), 400, "Некорректная ссылка на файл");
   });
 });
 

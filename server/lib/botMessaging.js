@@ -43,22 +43,30 @@ async function botPostDenied(chat, botUserId) {
   return null;
 }
 
+// Ошибка отправки с HTTP-статусом для Bot API: 400 — неверный запрос,
+// 403 — отправка запрещена (заблокировал, не админ канала), 404 — чата нет.
+function botError(status, message) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
+}
+
 // visibleTo — id участника группы: сообщение увидит только он (как скрытые
 // ответы ботов в группах Telegram). Остальным оно сразу «удалено у себя».
 async function sendBotMessage(botUserId, chatId, text, { keyboard, replyToId, attachments, visibleTo } = {}) {
-  if (!text?.trim()) throw new Error("text is required");
+  if (!text?.trim()) throw botError(400, "text is required");
 
   const chat = await getChat(chatId);
   if (!chat || !chat.memberIds.includes(botUserId)) {
-    throw new Error("Bot is not a member of this chat");
+    throw botError(404, "Bot is not a member of this chat");
   }
   const denied = await botPostDenied(chat, botUserId);
-  if (denied) throw new Error(denied);
+  if (denied) throw botError(403, denied);
   const reply = typeof replyToId === "string" && replyToId ? await getMessage(replyToId) : null;
   let visibleToId = null;
   if (visibleTo != null) {
     if (chat.type !== "group" || typeof visibleTo !== "string" || !chat.memberIds.includes(visibleTo)) {
-      throw new Error("visibleTo must be a member of this group");
+      throw botError(400, "visibleTo must be a member of this group");
     }
     visibleToId = visibleTo;
   }

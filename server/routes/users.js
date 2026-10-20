@@ -375,6 +375,8 @@ router.post(
   asyncRoute(async (req, res) => {
     const { blocked } = req.body ?? {};
     if (req.params.id === req.uid) return res.status(400).json({ error: "Нельзя заблокировать самого себя" });
+    // Разблокировать можно и удалённого — чтобы его id не застрял в списке.
+    if (blocked && !(await getUser(req.params.id))) return res.status(404).json({ error: "Пользователь не найден" });
     const user = await setBlocked(req.uid, req.params.id, blocked);
     res.json({ user: user ? await publicUserFor(user, req.uid) : null });
   })

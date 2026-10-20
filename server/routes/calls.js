@@ -282,6 +282,11 @@ router.post(
     if (!call) return res.status(404).json({ error: "not found" });
     if (!call.participantIds.includes(req.uid)) return res.status(404).json({ error: "not found" });
     if (call.participantIds.includes(userId)) return res.json({ call });
+    // Не путаем «нет такого человека» с запретом звонков. Заблокировавший
+    // по-прежнему выглядит как «ограничил звонки» — блокировку не раскрываем.
+    const target = typeof userId === "string" && userId ? await getUser(userId) : null;
+    if (!target) return res.status(404).json({ error: "Пользователь не найден" });
+    if (target.isBot) return res.status(400).json({ error: "Боту позвонить нельзя" });
     if (!(await canCall(req.uid, userId))) {
       return res.status(403).json({ error: "Пользователь ограничил звонки" });
     }

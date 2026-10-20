@@ -11,7 +11,8 @@ router.use(requireUserId);
 router.get(
   "/",
   asyncRoute(async (req, res) => {
-    const channels = await searchPublicChannels(req.query.q);
+    // Каталог — только каналы: подписка (/subscribe) работает только для них.
+    const channels = await searchPublicChannels(req.query.q, { channelsOnly: true });
     res.json({
       channels: channels.map((c) => ({
         id: c.id,
@@ -71,7 +72,10 @@ router.get(
   "/:id/stats",
   asyncRoute(async (req, res) => {
     const chat = await getChat(req.params.id);
-    if (!chat || chat.type !== "channel") return res.status(404).json({ error: "Канал не найден" });
+    // Постороннему закрытый канал не раскрываем — как в /similar.
+    if (!chat || chat.type !== "channel" || (!chat.isPublic && !chat.memberIds.includes(req.uid))) {
+      return res.status(404).json({ error: "Канал не найден" });
+    }
     const canSee = chat.ownerId === req.uid || (chat.ownerIds ?? []).includes(req.uid) || (chat.adminIds ?? []).includes(req.uid);
     if (!canSee) return res.status(403).json({ error: "Статистика доступна администраторам канала" });
 

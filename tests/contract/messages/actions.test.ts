@@ -79,8 +79,8 @@ describe("DELETE /:messageId", () => {
     expect(expectOk(await a.api.get(msgs(dm.id)), historyPage).messages).toEqual([]);
     const forB = expectOk(await b.api.get(msgs(dm.id)), historyPage).messages;
     expect(forB.map((m) => m.id)).toEqual([sent.id]);
-    // ПОВЕДЕНИЕ-ВОПРОС: собеседник видит в deletedForIds, кто скрыл сообщение у себя.
-    expect(forB[0].deletedForIds).toEqual([a.id]);
+    // Собеседник не узнаёт, кто скрыл сообщение у себя: deletedForIds наружу всегда пуст.
+    expect(forB[0].deletedForIds).toEqual([]);
     await bWs.expectNone("message:deleted");
   });
 

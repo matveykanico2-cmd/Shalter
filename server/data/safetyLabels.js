@@ -32,7 +32,7 @@ function createLabel({ id, short, label, hint, color }) {
 
 function updateLabel(id, { short, label, hint, color }) {
   const existing = getLabel(id);
-  if (!existing) return { error: "Метка не найдена" };
+  if (!existing) return { error: "Метка не найдена", notFound: true };
   const row = {
     id,
     short: short === undefined ? existing.short : String(short).trim().slice(0, 16).toUpperCase(),

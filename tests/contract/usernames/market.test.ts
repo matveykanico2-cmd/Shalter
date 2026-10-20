@@ -66,14 +66,15 @@ describe("POST /api/usernames/market — выставить свой юзерн�
     expectError(await user.api.post("/api/usernames/market", { priceStars: 50 }), 400, "Сначала займите юзернейм — продавать нечего");
   });
 
-  test("юзернейм, который сейчас на аукционе, — 409", async () => {
-    // Через профиль юзернейм открытого аукциона не занять — только выдачей администрацией.
+  test("юзернейм, выданный администрацией с открытого аукциона, продать можно — аукцион отменён", async () => {
+    // Через профиль юзернейм открытого аукциона не занять, а выдача администрацией аукцион отменяет —
+    // поэтому продавец юзернейма с открытого аукциона не встречается.
     const user = await registerUser(server().baseUrl);
     const name = freeName();
     const adm = await admin();
     expectOk(await adm.api.post("/api/usernames", { username: name }), auctionBody);
     expect((await adm.api.post("/api/usernames/grant", { userId: user.id, username: name })).status).toBe(200);
-    expectError(await user.api.post("/api/usernames/market", { priceStars: 50 }), 409, "Этот юзернейм сейчас на аукционе");
+    expect(expectOk(await user.api.post("/api/usernames/market", { priceStars: 50 }), listingBody).listing).toMatchObject({ username: name, status: "open" });
   });
 });
 
@@ -118,12 +119,10 @@ describe("DELETE /api/usernames/market/:id", () => {
   });
 
   test("продавец снимает: статус withdrawn, пропадает с витрины, можно выставить заново", async () => {
-    // ПОВЕДЕНИЕ-ВОПРОС: closeListing ставит soldAt и при снятии с продажи (withdrawn),
-    // хотя ничего не продано.
     const [seller, viewer] = await registerUsers(server().baseUrl, 2);
     const listing = await sell(seller, 20);
     const body = expectOk(await seller.api.delete(`/api/usernames/market/${listing.id}`), listingBody);
-    expect(body.listing).toEqual({ ...listing, status: "withdrawn", buyerId: null, soldAt: expect.any(String) });
+    expect(body.listing).toEqual({ ...listing, status: "withdrawn", buyerId: null, soldAt: null });
     expect((await market(viewer)).listings.some((l) => l.id === listing.id)).toBe(false);
     expectError(await seller.api.delete(`/api/usernames/market/${listing.id}`), 404, "Объявление не найдено");
     expectError(await viewer.api.post(`/api/usernames/market/${listing.id}/buy`), 404, "Объявление не найдено");

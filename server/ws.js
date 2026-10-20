@@ -6,6 +6,7 @@ const liveStreams = require("./data/liveStreams");
 const { addSignal } = require("./data/signals");
 const { getUser, updateUser, resetStalePresence } = require("./data/users");
 const { isSecretChat, secretDeviceOf, deviceHash } = require("./data/chats");
+const { publicJsonReplacer } = require("./lib/publicJson");
 
 const socketsByUser = new Map();
 
@@ -22,7 +23,7 @@ function removeSocket(uid, ws) {
 }
 
 function broadcastToUsers(userIds, message) {
-  const payload = JSON.stringify(message);
+  const payload = JSON.stringify(message, publicJsonReplacer);
   // Событие секретного чата — только на устройство, к которому он привязан.
   const chatId = message?.chatId ?? message?.chat?.id;
   const secret = typeof chatId === "string" && isSecretChat(chatId);
@@ -38,7 +39,7 @@ function broadcastToUsers(userIds, message) {
 }
 
 function broadcastToAll(message) {
-  const payload = JSON.stringify(message);
+  const payload = JSON.stringify(message, publicJsonReplacer);
   for (const set of socketsByUser.values()) {
     for (const ws of set) {
       if (ws.readyState === ws.OPEN) ws.send(payload);
@@ -106,7 +107,12 @@ function attachWebSocketServer(httpServer) {
   }, HEARTBEAT_MS).unref();
 
   httpServer.on("upgrade", (req, socket, head) => {
-    if (req.url !== "/ws") return;
+    // Другого upgrade-обработчика на сервере нет: чужой путь — сразу 404, а не висящее соединение.
+    if (req.url !== "/ws") {
+      socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
+      socket.destroy();
+      return;
+    }
     const uid = getCurrentUserIdFromCookieHeader(req.headers.cookie);
     if (!uid) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");

@@ -9,6 +9,7 @@ import { expectError, expectOk, expectShape } from "../../support/expect";
 import { registerUser, type TestUser } from "../../support/seed";
 import { useServer } from "../../support/use-server";
 import { connectWs, type WsClient } from "../../support/ws";
+import { countSystem } from "./helpers";
 import { totp } from "./totp";
 
 const ADMIN_PHONE = "+70000000777";
@@ -66,7 +67,7 @@ describe("заблокированный пользователь", () => {
     expect((await user.api.get("/api/chats")).status).toBe(200);
   });
 
-  test("вход паролем, восстановление по паре — 403 с текстом; восстановление по коду молча ничего не шлёт", async () => {
+  test("вход паролем, восстановление по паре — 403 с текстом; восстановление и вход по коду молча ничего не шлют", async () => {
     const { baseUrl } = server();
     const user = await registerUser(baseUrl);
     await ban(user);
@@ -77,8 +78,10 @@ describe("заблокированный пользователь", () => {
     expectError(await api.post("/api/auth/recover/pair/check", { email: user.email, phone: user.phone }), 403, BAN_TEXT);
     expectError(await api.post("/api/auth/recover/pair/reset", { email: user.email, phone: user.phone, password: "new-pass-1" }), 403, BAN_TEXT);
     expect(expectOk(await api.post("/api/auth/recover/phone/start", { phone: user.phone }), recoverSentBody)).toEqual({ ok: true, sent: true });
-    // ПОВЕДЕНИЕ-ВОПРОС: code/start бан не проверяет — код уходит в чат, отказ только на code/verify.
+    // Вход кодом: ответ тот же, что и всем (бан не раскрывается), но код в чат не уходит.
     expectOk(await api.post("/api/auth/code/start", { phone: user.phone }), okBody);
+    await unban(user);
+    expect(await countSystem(user.api, (t) => t.startsWith("🔢"))).toBe(0);
   });
 
   test("QR, подтверждённый до бана, отдаёт status=banned", async () => {

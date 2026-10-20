@@ -72,8 +72,14 @@ function setRtmpLive(id, live) {
   return getStream(id);
 }
 
-function endStream(id) {
+// Завершённый эфир никто не смотрит — список участников очищается вместе со сменой статуса.
+const endStreamTx = db.transaction((id) => {
   db.prepare("UPDATE live_streams SET status = 'ended', endedAt = ? WHERE id = ?").run(new Date().toISOString(), id);
+  db.prepare("DELETE FROM live_participants WHERE streamId = ?").run(id);
+});
+
+function endStream(id) {
+  endStreamTx(id);
   return getStream(id);
 }
 

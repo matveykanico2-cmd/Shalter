@@ -78,9 +78,9 @@ describe("POST /api/posts/:channelId/publish", () => {
     expectOk(await publish(owner, channel.id, { text: "x".repeat(4096) }), messageEnvelope);
     // Админ (не владелец) публикует.
     expectOk(await publish(admin, channel.id, { text: "от админа" }), messageEnvelope);
-    // ПОВЕДЕНИЕ-ВОПРОС: проверяются только права админа, а не членство в канале — посторонний получает 403, а не 404.
+    // Постороннему закрытый канал не раскрывается — 404, как несуществующий.
     const outsider = await registerUser(baseUrl);
-    expectError(await publish(outsider, channel.id, { text: "x" }), 403, "Публиковать могут только администраторы канала");
+    expectError(await publish(outsider, channel.id, { text: "x" }), 404, "not found");
   });
 
   test("подпись, clientId, выключенные комментарии, платный пост", async () => {
@@ -154,8 +154,8 @@ describe("комментарии: GET/POST /api/posts/:postId/comments", () => {
     expect(before.chat).toEqual({ id: discussionId, title: "Вестник · Обсуждение" });
     expect(before.members.map((u) => u.id)).toEqual([owner.id]);
     expect(before.replies).toEqual([]);
-    // ПОВЕДЕНИЕ-ВОПРОС: canComment=false для подписчика закрытого канала, хотя POST комментария у него проходит.
-    expect(before).toMatchObject({ canComment: false, commentPriceStars: 0, commentPriceFree: true });
+    // Подписчик закрытого канала может комментировать — canComment совпадает с тем, что пропустит POST.
+    expect(before).toMatchObject({ canComment: true, commentPriceStars: 0, commentPriceFree: true });
     expect(expectOk(await owner.api.get(`/api/posts/${post.id}/comments`), commentsBody).canComment).toBe(true);
 
     const [ownerWs, otherWs, outWs] = await Promise.all([ws(owner), ws(other), ws(outsider)]);
@@ -177,8 +177,8 @@ describe("комментарии: GET/POST /api/posts/:postId/comments", () => {
     const after = expectOk(await other.api.get(`/api/posts/${post.id}/comments`), commentsBody);
     expect(after.replies.map((m) => m.id)).toEqual([res.message.id]);
     expect(after.post.commentCount).toBe(1);
-    // ПОВЕДЕНИЕ-ВОПРОС: members = участники обсуждения + авторы ответов без дедупликации — один человек приходит дважды.
-    expect(after.members.map((u) => u.id)).toEqual([owner.id, reader.id, reader.id]);
+    // members — участники обсуждения и авторы ответов, без повторов.
+    expect(after.members.map((u) => u.id)).toEqual([owner.id, reader.id]);
     // Комментатор стал участником группы обсуждения.
     expect(expectOk(await reader.api.get(`/api/chats/${discussionId}`), chatCard).chat.memberIds).toContain(reader.id);
   });
@@ -206,6 +206,7 @@ describe("комментарии: GET/POST /api/posts/:postId/comments", () => {
     const discussionId = channel.linkedDiscussionChatId!;
     expectOk(await owner.api.post(`/api/chats/${discussionId}/members`, { userId: reader.id, role: "ban" }), chatBody);
     expectError(await reader.api.post(`/api/posts/${post.id}/comments`, { text: "после" }), 403, "Вас заблокировали в обсуждении");
+    expect(expectOk(await reader.api.get(`/api/posts/${post.id}/comments`), commentsBody).canComment).toBe(false);
 
     expectOk(await owner.api.post(`/api/chats/${channel.id}/settings`, { commentsOff: true }), chatBody);
     expectError(await owner.api.get(`/api/posts/${post.id}/comments`), 403, "В этом канале комментарии отключены");
@@ -250,8 +251,8 @@ describe("комментарии: GET/POST /api/posts/:postId/comments", () => {
       balance: 0,
       premiumHelps: true,
     });
-    // ПОВЕДЕНИЕ-ВОПРОС: в группу обсуждения добавляют до проверки оплаты — после 402 человек уже её участник.
-    expectOk(await reader.api.get(`/api/chats/${channel.linkedDiscussionChatId}`), chatCard);
+    // После 402 человек в группу обсуждения не добавлен — добавляют только после успешной проверки.
+    expectError(await reader.api.get(`/api/chats/${channel.linkedDiscussionChatId}`), 404, "not found");
 
     const free = expectOk(await premium.api.post(`/api/posts/${post.id}/comments`, { text: "с Premium" }), commentResultBody);
     expect(free).not.toHaveProperty("chargedStars");

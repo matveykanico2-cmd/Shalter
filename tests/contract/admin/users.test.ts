@@ -215,16 +215,16 @@ describe("POST /api/admin/users/:id/developer", () => {
 
     const res = expectOk(await srv.api.post(`/api/admin/users/${target.id}/developer`, { developer: true }), developerBody);
     expect(res.user.id).toBe(target.id);
-    // ПОВЕДЕНИЕ-ВОПРОС: флаг пишется в колонку users.developer, но rowToUser (server/data/users.js) её не читает —
-    // isDeveloper не появляется ни в ответе, ни в selfUser/publicUser: назначение «Разработчика» ни на что не влияет.
-    expect(res.user).not.toHaveProperty("isDeveloper");
-    expect(expectOk(await target.api.get("/api/auth/session"), sessionBody).user).not.toHaveProperty("isDeveloper");
+    // Флаг виден в карточке, в своём профиле и в публичном профиле.
+    expect(res.user.isDeveloper).toBe(true);
+    expect(expectOk(await target.api.get("/api/auth/session"), sessionBody).user?.isDeveloper).toBe(true);
+    expect((await p.api.get(`/api/users/${target.id}`)).body.user?.isDeveloper).toBe(true);
     expect(expectOk(await srv.api.post(`/api/admin/users/${target.id}/developer`, { developer: false }), developerBody).user).not.toHaveProperty(
       "isDeveloper"
     );
-    // ПОВЕДЕНИЕ-ВОПРОС: ответ перезаписывает isDeveloper из userLabel значением !!updated.developer — даже у админа
-    // по номеру (в selfUser он разработчик) в ответе поля нет.
-    expect(expectOk(await srv.api.post(`/api/admin/users/${p.id}/developer`, { developer: true }), developerBody).user).not.toHaveProperty("isDeveloper");
+    expect(expectOk(await target.api.get("/api/auth/session"), sessionBody).user).not.toHaveProperty("isDeveloper");
+    // Админ по номеру — разработчик всегда, и в ответе тоже, даже после снятия флага.
+    expect(expectOk(await srv.api.post(`/api/admin/users/${p.id}/developer`, { developer: false }), developerBody).user.isDeveloper).toBe(true);
     expect(expectOk(await p.api.get("/api/auth/session"), sessionBody).user?.isDeveloper).toBe(true);
   });
 });

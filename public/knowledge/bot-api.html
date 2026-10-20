@@ -173,7 +173,7 @@
 
       <h2 id="sendPhoto">sendPhoto</h2>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendPhoto</div>
-      <p>Файл передаётся ссылкой (<code>url</code>) или <code>data:</code>-строкой. Поля: <code>chatId</code>, <code>url</code>, <code>caption</code>, <code>replyToId</code>.</p>
+      <p>Файл передаётся ссылкой (<code>url</code>, <code>http(s)://</code>) или <code>data:</code>-строкой; другой адрес — 400. Поля: <code>chatId</code>, <code>url</code>, <code>caption</code>, <code>replyToId</code>.</p>
 
       <h2 id="sendDocument">sendDocument</h2>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendDocument</div>
@@ -181,7 +181,7 @@
 
       <h2 id="sendVideo">sendVideo</h2>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendVideo</div>
-      <p>Аналогично sendPhoto для видео. Поля: <code>chatId</code>, <code>url</code>, <code>caption</code>, <code>replyToId</code>.</p>
+      <p>Аналогично sendPhoto для видео. Поля: <code>chatId</code>, <code>url</code>, <code>caption</code>, <code>replyToId</code>, <code>name</code>.</p>
 
       <h2 id="sendVoice">sendVoice</h2>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendVoice</div>
@@ -349,7 +349,7 @@
 
       <h2 id="setMyAvatar">setMyAvatar</h2>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setMyAvatar</div>
-      <p>Установить аватар бота. Поле <code>image</code> — URL или <code>data:</code>-строка.</p>
+      <p>Установить аватар бота. Поле <code>image</code> — URL (<code>http(s)://</code>) или <code>data:</code>-строка; пустая строка убирает аватар. Другой адрес — 400.</p>
 
       <h2 id="setMyCommands">setMyCommands</h2>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/setMyCommands</div>
@@ -405,7 +405,7 @@
 
       <h2 id="scheduleMessage">scheduleMessage</h2>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/scheduleMessage</div>
-      <p>Отложенная отправка. Поля: <code>chatId</code>, <code>text</code>, <code>sendAt</code> (ISO 8601, будущее время).</p>
+      <p>Отложенная отправка. Поля: <code>chatId</code>, <code>text</code>, <code>sendAt</code> (ISO 8601, будущее время). Права как у sendMessage: в канал — только бот-админ, заблокировавшему — нельзя (403).</p>
 
       <h2 id="getScheduled">getScheduled</h2>
       <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getScheduled?chatId=…</div>
@@ -450,7 +450,7 @@ setInterval(() =&gt; tick().catch(console.error), 2000);</code></pre>
       <div class="doc-note">
         <strong>Бот может только свои сообщения.</strong>
         editMessageText, deleteMessage, editMessageKeyboard — только над сообщениями, отправленными этим ботом.
-        Чужие вернут 403. Действия администратора (pin, ban, restrict) требуют назначения бота админом
+        Чужие вернут 403. Отправка заблокировавшему бота или в канал, где бот не админ, — тоже 403. Действия администратора (pin, ban, restrict) требуют назначения бота админом
         владельцем чата.
       </div>
 

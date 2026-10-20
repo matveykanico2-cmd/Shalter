@@ -131,7 +131,7 @@ async function buildInstantView(url) {
     siteName: cleanText(metaTag(html, "og:site_name") || "") || new URL(url).hostname.replace(/^www\./, ""),
     author: cleanText(metaTag(html, "author") || metaTag(html, "article:author") || ""),
     publishedAt: metaTag(html, "article:published_time") || null,
-    image: absoluteUrl(metaTag(html, "og:image") || "", url),
+    image: metaTag(html, "og:image") ? absoluteUrl(metaTag(html, "og:image"), url) : null,
     blocks,
     unsafe: checkSafety(url).unsafe || undefined,
   };

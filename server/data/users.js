@@ -88,6 +88,8 @@ function rowToUser(row) {
     ...profileTracksOf(row.profileTrack),
     safetyLabel: row.safetyLabel ?? undefined,
     isVerified: !!row.isVerified || undefined,
+    developer: !!row.developer || undefined,
+    scheduledDeletionAt: row.scheduledDeletionAt ?? undefined,
     usernameAuctionId: row.usernameAuctionId ?? undefined,
     isCollectibleUsername: !!row.usernameAuctionId || undefined,
     safetyLabelAt: row.safetyLabelAt ?? undefined,

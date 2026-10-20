@@ -37,13 +37,12 @@ describe("POST /api/gifts/received/:entryId/convert", () => {
     expectError(await b.api.post(`/api/gifts/received/${entry.id}/convert`), 404, "Подарок не найден на вашей полке");
   });
 
-  test("ПОВЕДЕНИЕ-ВОПРОС: подарок с Premium обменивается на всю цену, а Premium остаётся", async () => {
+  test("подарок с Premium не обменивается: Premium уже выдан, запись остаётся на полке", async () => {
     const [a, b] = await registerUsers(server().baseUrl, 2);
     const entry = await gift(a, b, "premium_week", 1000);
-    // ПОВЕДЕНИЕ-ВОПРОС: обмен возвращает 100% цены и не снимает выданный Premium —
-    // двое могут бесконечно «дарить» друг другу Premium за одни и те же звёзды.
-    const body = expectOk(await b.api.post(`/api/gifts/received/${entry.id}/convert`), convertBody);
-    expect(body.gained).toBe(1000);
+    expectError(await b.api.post(`/api/gifts/received/${entry.id}/convert`), 400, "Этот подарок нельзя обменять на звёзды");
+    expect(await starsBalance(b)).toBe(0);
+    expect((await selfOf(b)).giftsReceived.map((g: any) => g.id)).toEqual([entry.id]);
     expect((await b.api.get("/api/premium/me")).body.isPremium).toBe(true);
   });
 

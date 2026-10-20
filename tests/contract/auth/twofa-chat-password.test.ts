@@ -146,19 +146,17 @@ describe("2FA облачным паролем", () => {
       recoveryCodesLeft: 0,
       enabledAt: null,
     });
-    // ПОВЕДЕНИЕ-ВОПРОС: о включении облачного пароля в чат «Shalter» не сообщается
-    // (у TOTP и кода из чата — сообщается).
-    expect(await countSystem(user.api, (t) => t.includes("двухфакторная"))).toBe(0);
+    // О включении сообщается в чат «Shalter», как у TOTP и кода из чата.
+    expect(await countSystem(user.api, (t) => t.startsWith("🔐") && t.includes("двухфакторная"))).toBe(1);
 
     const { api, ticket, body } = await startLogin(user);
     expect(body).toMatchObject({ method: "password", hint: "любимый кот" });
     expect(expectOk(await api.post("/api/auth/2fa/hint", { ticket }), hintBody)).toEqual({ hint: "любимый кот" });
     expectError(await api.post("/api/auth/2fa/hint", {}), 400, "Срок ожидания истёк — войдите заново");
-    // ПОВЕДЕНИЕ-ВОПРОС: для облачного пароля текст ошибки говорит про «приложение-аутентификатор».
-    expectError(await api.post("/api/auth/2fa/send-code", { ticket }), 400, "Этот аккаунт подтверждает вход кодом из приложения-аутентификатора");
+    expectError(await api.post("/api/auth/2fa/send-code", { ticket }), 400, "Этот аккаунт подтверждает вход облачным паролем");
     const bad = await api.post("/api/auth/2fa/login", { ticket, code: "not-it" });
     expect(bad.status).toBe(400);
-    expect(bad.body).toEqual({ error: "Неверный код. Осталось попыток: 4", attemptsLeft: 4 });
+    expect(bad.body).toEqual({ error: "Неверный облачный пароль. Осталось попыток: 4", attemptsLeft: 4 });
     expectOk(await api.post("/api/auth/2fa/login", { ticket, code: "cloud-123" }), loginBody);
 
     // Смена облачного пароля требует текущий.
@@ -172,6 +170,8 @@ describe("2FA облачным паролем", () => {
       cloudPasswordSetBody
     );
     expect(changed.hint).toBeNull();
+    // Смена пароля — не повторное включение: второго оповещения нет.
+    expect(await countSystem(user.api, (t) => t.startsWith("🔐") && t.includes("двухфакторная"))).toBe(1);
 
     // Отключение.
     expectError(await user.api.post("/api/auth/2fa/cloud-password/disable", { password: "cloud-123" }), 403, "Неверный облачный пароль");
@@ -179,8 +179,16 @@ describe("2FA облачным паролем", () => {
       ok: true,
       enabled: false,
     });
-    // ПОВЕДЕНИЕ-ВОПРОС: способ остаётся «password» и после отключения облачного пароля.
-    expect(expectOk(await user.api.get("/api/auth/2fa"), twoFactorStatusBody)).toMatchObject({ enabled: false, method: "password", cloudPasswordHint: "" });
+    // Способ сбрасывается, как при отключении через /2fa/disable; в чат — оповещение «🔓».
+    expect(expectOk(await user.api.get("/api/auth/2fa"), twoFactorStatusBody)).toEqual({
+      enabled: false,
+      method: "totp",
+      pending: false,
+      cloudPasswordHint: "",
+      recoveryCodesLeft: 0,
+      enabledAt: null,
+    });
+    expect(await countSystem(user.api, (t) => t.startsWith("🔓"))).toBe(1);
     expectOk(await new Api(baseUrl).post("/api/auth/login-email", { email: user.email, password: user.password }), loginBody);
   });
 
@@ -198,7 +206,6 @@ describe("2FA облачным паролем", () => {
       recoveryCodesLeft: 0,
       enabledAt: null,
     });
-    // ПОВЕДЕНИЕ-ВОПРОС: при отключении облачного пароля оповещения «🔓» нет (у TOTP/чата — есть).
-    expect(await countSystem(user.api, (t) => t.startsWith("🔓"))).toBe(0);
+    expect(await countSystem(user.api, (t) => t.startsWith("🔓"))).toBe(1);
   });
 });

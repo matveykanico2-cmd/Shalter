@@ -48,13 +48,13 @@ describe("POST /api/calls/:id/participants", () => {
     await aWs.expectNone("call:participants-updated", () => true, 50);
   });
 
-  test("ошибки: звонки запрещены, нет userId, несуществующий — 403; посторонний и нет звонка — 404", async () => {
+  test("ошибки: звонки запрещены — 403; нет userId, несуществующий, посторонний и нет звонка — 404", async () => {
     const { a, c, call } = await dmCallOf3();
     await setPrivacy(c, { calls: "nobody" });
     expectError(await a.api.post(`/api/calls/${call.id}/participants`, { userId: c.id }), 403, "Пользователь ограничил звонки");
-    // ПОВЕДЕНИЕ-ВОПРОС: некорректный/несуществующий userId даёт тот же 403 «Пользователь ограничил звонки», а не 400/404.
-    expectError(await a.api.post(`/api/calls/${call.id}/participants`, {}), 403, "Пользователь ограничил звонки");
-    expectError(await a.api.post(`/api/calls/${call.id}/participants`, { userId: "u_nonexistent00" }), 403, "Пользователь ограничил звонки");
+    expectError(await a.api.post(`/api/calls/${call.id}/participants`, {}), 404, "Пользователь не найден");
+    expectError(await a.api.post(`/api/calls/${call.id}/participants`, { userId: 5 }), 404, "Пользователь не найден");
+    expectError(await a.api.post(`/api/calls/${call.id}/participants`, { userId: "u_nonexistent00" }), 404, "Пользователь не найден");
 
     const outsider = await registerUser(server().baseUrl);
     expectError(await outsider.api.post(`/api/calls/${call.id}/participants`, { userId: outsider.id }), 404, "not found");

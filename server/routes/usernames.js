@@ -68,7 +68,8 @@ async function settleOnce(stale) {
       await tell(bid.userId, `Аукцион @${auction.username} отменён: юзернейм больше недоступен. Звёзды не списаны.`);
       return auctions.settleAuction(auction.id, { status: "cancelled" });
     }
-    if (balanceOf(bidder.id) < bid.stars || !spendStars(bidder.id, bid.stars)) {
+    // Ставка 0 ⭐ (аукцион с нулевым стартом) списывать нечего — spendStars(0) вернул бы false.
+    if (bid.stars > 0 && (balanceOf(bidder.id) < bid.stars || !spendStars(bidder.id, bid.stars))) {
       await tell(bid.userId, `Вы выиграли @${auction.username} за ${bid.stars} ⭐, но на балансе не хватило звёзд — юзернейм ушёл следующему участнику.`);
       continue;
     }
@@ -77,7 +78,8 @@ async function settleOnce(stale) {
     return auctions.settleAuction(auction.id, { status: "sold", winnerId: bidder.id, soldForStars: bid.stars });
   }
 
-  return auctions.settleAuction(auction.id, { status: ranked.length ? "cancelled" : "unsold" });
+  // Ставки были, но никто не смог оплатить — так же «не продан», как и без ставок.
+  return auctions.settleAuction(auction.id, { status: "unsold" });
 }
 
 async function sweep() {
@@ -195,6 +197,15 @@ router.post(
 
     const updated = await updateUser(target.id, { username });
     await tell(target.id, `Администрация Shalter выдала вам юзернейм @${username}.`);
+    // Выдача важнее аукциона: открытый аукцион на этот юзернейм отменяется сразу,
+    // а не висит до конца, принимая ставки на уже занятое имя.
+    const open = auctions.findOpenByUsername(username);
+    if (open) {
+      for (const userId of new Set(open.bids.map((b) => b.userId))) {
+        await tell(userId, `Аукцион @${open.username} отменён: юзернейм больше недоступен. Звёзды не списаны.`);
+      }
+      auctions.settleAuction(open.id, { status: "cancelled" });
+    }
     res.json({ user: publicUser(updated) });
   })
 );

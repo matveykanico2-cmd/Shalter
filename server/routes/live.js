@@ -220,6 +220,8 @@ router.post(
     if (!found || !requireHost(found.stream, req, res)) return;
     const target = live.getParticipant(found.stream.id, req.params.userId);
     if (!target) return res.status(404).json({ error: "Этого человека нет в эфире" });
+    // Свой микрофон ведущий выключает сам, у себя: «заглушить» — только для других.
+    if (target.role === "host") return res.status(400).json({ error: "Ведущего нельзя лишить слова" });
     live.setParticipant(found.stream.id, req.params.userId, { mutedByHost: req.body?.muted !== false });
     broadcastState(found.stream);
     res.json({ ok: true });

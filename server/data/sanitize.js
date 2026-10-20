@@ -22,6 +22,8 @@ function publicUser(user) {
   delete rest.phone;
   delete rest.adminSections;
   delete rest.referredBy;
+  delete rest.developer;
+  delete rest.scheduledDeletionAt;
   // Цвет имени — возможность Premium: после окончания подписки не показывается.
   if (!user.isPremium) delete rest.nameColor;
   rest.isDeveloper = (!!user.developer || isAdminPhone(user.phone)) || undefined;

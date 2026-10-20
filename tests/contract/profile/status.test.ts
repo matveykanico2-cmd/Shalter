@@ -4,11 +4,12 @@
 // statusIcon/statusName в publicUser. Сервер с админским номером — для каталога.
 import { describe, expect, test } from "vitest";
 import { Api } from "../../support/client";
-import { expectError, expectOk } from "../../support/expect";
+import { expectError, expectOk, expectShape } from "../../support/expect";
 import { createDm, registerUser, registerUsers, type TestUser } from "../../support/seed";
 import { useServer } from "../../support/use-server";
 import { catalogCreateBody, statusActiveBody, statusCatalogBody, statusChangeBody, statusMeBody } from "../../schemas/profile";
 import { otherProfileBody } from "../../schemas/users";
+import { contactUpdated } from "../../schemas/ws";
 import { registerPremiumUser } from "../chats/helpers";
 import { socketPool } from "../ws/helpers";
 
@@ -121,15 +122,22 @@ describe("свои статусы", () => {
     expectOk(await me.api.post("/api/status/me", { image: GIF }), statusChangeBody);
   });
 
-  test("смена статуса по WS не рассылается — собеседник видит её только при перезапросе профиля", async () => {
+  test("смена статуса рассылается contact:updated — себе и собеседникам", async () => {
     const [me, peer] = await registerUsers(server().baseUrl, 2);
     await createDm(peer, me);
-    const peerWs = await open(peer.api);
-    await me.api.post("/api/status/me", { image: IMG, name: "новый" });
-    // ПОВЕДЕНИЕ-ВОПРОС: routes/profileStatus.js не вызывает notifyProfileChanged (в отличие от аватарок и
-    // PATCH профиля) — у собеседников статус обновится только после перезагрузки.
-    await peerWs.expectNone("contact:updated", (e) => e.user?.id === me.id, 500);
-    expect((await peer.api.get(`/api/users/${me.id}`)).body.user.statusName).toBe("новый");
+    const [meWs, peerWs] = await Promise.all([open(me.api), open(peer.api)]);
+    const item = expectOk(await me.api.post("/api/status/me", { image: IMG, name: "новый" }), statusChangeBody).items[0];
+    expect((await meWs.waitFor("contact:updated", (e) => e.user?.id === me.id, 10_000)).user).toMatchObject({ statusIcon: IMG, statusName: "новый" });
+    const forPeer = expectShape(contactUpdated, await peerWs.waitFor("contact:updated", (e) => e.user?.id === me.id, 10_000)).user;
+    expect(forPeer).toMatchObject({ statusIcon: IMG, statusName: "новый" });
+
+    expectOk(await me.api.post("/api/status/me/active", { id: null }), statusActiveBody);
+    await peerWs.waitFor("contact:updated", (e) => e.user?.id === me.id && e.user.statusName === null, 10_000);
+    peerWs.clear();
+    expectOk(await me.api.post("/api/status/me/active", { id: item.id }), statusActiveBody);
+    await peerWs.waitFor("contact:updated", (e) => e.user?.id === me.id && e.user.statusName === "новый", 10_000);
+    expectOk(await me.api.delete(`/api/status/me/${item.id}`), statusChangeBody);
+    await peerWs.waitFor("contact:updated", (e) => e.user?.id === me.id && e.user.statusIcon === null, 10_000);
   });
 });
 

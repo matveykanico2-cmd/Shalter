@@ -157,8 +157,9 @@ describe("PUT /api/ads/content", () => {
     expectError(await put({ text: "   " }), 400, "Введите текст объявления");
     expectError(await put({ text: "Реклама", url: "ftp://x.test.invalid" }), 400, "Ссылка должна начинаться с http:// или https://");
     expectError(await put({ text: "Реклама", url: "javascript:alert(1)" }), 400, "Ссылка должна начинаться с http:// или https://");
-    // ПОВЕДЕНИЕ-ВОПРОС: ссылка проверяется до trim — пробел в начале даёт 400, хотя потом её обрезают.
-    expectError(await put({ text: "Реклама", url: " https://shop.test.invalid" }), 400, "Ссылка должна начинаться с http:// или https://");
+    // Ссылка обрезается до проверки: пробел в начале не мешает.
+    expect(expectOk(await put({ text: "Реклама", url: " https://shop.test.invalid" }), userBody).user.adUrl).toBe("https://shop.test.invalid");
+    expect(expectOk(await put({ text: "Реклама", url: "   " }), userBody).user).not.toHaveProperty("adUrl");
 
     const attachments = [
       { kind: "image", url: "https://img.test.invalid/1.jpg", name: "фото", size: 10, extra: 1 },

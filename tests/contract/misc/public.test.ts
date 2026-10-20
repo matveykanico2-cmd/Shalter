@@ -30,6 +30,7 @@ const PAGES: Array<[string, string]> = [
   ["/short", "Shalter — короткие ссылки"],
   ["/premium", "Shalter Premium — больше возможностей"],
   ["/bots", "Shalter Bot API — документации"],
+  ["/games", "Shalter Games — документация"],
   ["/games/", "Shalter Games — документация"],
   ["/oauth-docs", "Войти через Shalter — документация"],
   ["/knowledge", "Shalter Knowledge Base"],
@@ -82,14 +83,6 @@ describe("статические страницы", () => {
     expect(titleOf(res.text)).toBe(title);
   });
 
-  test("/games — сначала 301 на /games/ (в public есть папка games)", async () => {
-    // ПОВЕДЕНИЕ-ВОПРОС: express.static стоит раньше app.get("/games") и перенаправляет на папку;
-    // страница открывается только со слешем на конце (нестрогая маршрутизация Express).
-    const res = await anon().get("/games");
-    expect(res.status).toBe(301);
-    expect(res.headers.get("location")).toBe("/games/");
-  });
-
   test("/.well-known/assetlinks.json — JSON для Android App Links, кэш на час", async () => {
     const res = await anon().get("/.well-known/assetlinks.json");
     expect(res.status).toBe(200);
@@ -116,15 +109,20 @@ describe("SPA-фолбэк", () => {
       expect(res.status, path).toBe(200);
       expect(res.text, path).toBe(root.text);
     }
-    // ПОВЕДЕНИЕ-ВОПРОС: несуществующий файл в /.well-known тоже получает index.html со статусом 200.
+    // Несуществующий файл в /.well-known — 404, а не index.html.
     const wk = await anon().get("/.well-known/apple-app-site-association");
-    expect(wk.status).toBe(200);
-    expect(wk.text).toBe(root.text);
+    expect(wk.status).toBe(404);
+    expect(wk.text).not.toBe(root.text);
   });
 
-  test("пути, начинающиеся на «api»/«ws» без слеша, и не-GET — 404 Express", async () => {
-    // ПОВЕДЕНИЕ-ВОПРОС: фолбэк исключает префикс целиком (^/(?!api|ws)), поэтому /apiary или /wsx — 404.
-    for (const path of ["/apiary", "/wsx", "/ws"]) {
+  test("/apiary и /wsx — страницы SPA; /ws (GET без upgrade) и не-GET — 404", async () => {
+    const root = await anon().get("/");
+    for (const path of ["/apiary", "/wsx"]) {
+      const res = await anon().get(path);
+      expect(res.status, path).toBe(200);
+      expect(res.text, path).toBe(root.text);
+    }
+    for (const path of ["/ws", "/ws/x"]) {
       expect((await anon().get(path)).status, path).toBe(404);
     }
     expect((await anon().post("/chat/c_abc", {})).status).toBe(404);
@@ -132,22 +130,17 @@ describe("SPA-фолбэк", () => {
 });
 
 describe("неизвестные /api-пути и ошибки", () => {
-  test("неизвестный /api-путь — 404 стандартной HTML-страницей Express, не JSON", async () => {
-    for (const [method, path] of [["GET", "/api/nope"], ["POST", "/api/nope/deeper"], ["DELETE", "/api/version"]] as const) {
+  test("неизвестный /api-путь или метод — 404 JSON { error: \"not found\" }", async () => {
+    for (const [method, path] of [["GET", "/api/nope"], ["POST", "/api/nope/deeper"], ["DELETE", "/api/version"], ["GET", "/api"]] as const) {
       const res = await anon().request(method, path);
-      // ПОВЕДЕНИЕ-ВОПРОС: у API нет JSON-ответа 404 — клиент получает text/html «Cannot GET …».
-      expect(res.status, path).toBe(404);
-      expect(res.headers.get("content-type"), path).toMatch(/^text\/html/);
-      expect(res.text, path).toContain(`Cannot ${method} ${path}`);
+      expect(expectOk(res, errorBody, 404), path).toEqual({ error: "not found" });
     }
   });
 
-  test("неизвестный путь внутри модуля с requireUserId: без сессии — 401 JSON, с сессией — 404 HTML", async () => {
+  test("неизвестный путь внутри модуля с requireUserId: без сессии — 401, с сессией — 404 JSON", async () => {
     expect((await anon().get("/api/search/unknown")).body).toEqual({ error: "unauthorized" });
     const me = await registerUser(server().baseUrl);
-    const res = await me.api.get("/api/search/unknown");
-    expect(res.status).toBe(404);
-    expect(res.text).toContain("Cannot GET /api/search/unknown");
+    expect(expectOk(await me.api.get("/api/search/unknown"), errorBody, 404)).toEqual({ error: "not found" });
   });
 
   test("битый JSON в теле — общий обработчик ошибок: 400 { error: \"invalid json\" }", async () => {

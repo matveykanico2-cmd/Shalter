@@ -225,15 +225,13 @@ describe("GET /api/link-check/instant-view", () => {
     expect(egress.site().hits.find((h) => h.path === path)!.headers["user-agent"]).toBe("Mozilla/5.0 (compatible; ShalterInstantView/1.0)");
   });
 
-  test("без og-тегов: заголовок из <title>, сайт — имя хоста, author пустой", async () => {
+  test("без og-тегов: заголовок из <title>, сайт — имя хоста, author пустой, image null", async () => {
     const { baseUrl } = server();
     const u = await registerUser(baseUrl);
     const path = p("bare");
     egress.site().routes.set(path, html(`<html><head><title>Просто страница</title></head><body><p>${ARTICLE_TEXT}</p></body></html>`));
     const { view } = expectOk(await u.api.get("/api/link-check/instant-view", { query: { url: ext(path) } }), instantViewBody);
-    // ПОВЕДЕНИЕ-ВОПРОС: без og:image поле image не null, а адрес самой страницы —
-    // absoluteUrl("", url) разрешает пустую строку относительно страницы.
-    expect(view).toMatchObject({ title: "Просто страница", siteName: PUBLIC_HOST, author: "", publishedAt: null, image: ext(path), unsafe: true });
+    expect(view).toMatchObject({ title: "Просто страница", siteName: PUBLIC_HOST, author: "", publishedAt: null, image: null, unsafe: true });
   });
 
   test("ошибки: не HTML — 422, мало текста — 422, ошибка сайта — 502, недоступен — 502", async () => {

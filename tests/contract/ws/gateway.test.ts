@@ -82,8 +82,7 @@ describe("протокол", () => {
   test("сокет на другом пути (/ws/x) не апгрейдится этим шлюзом", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
-    // Сервер для чужого пути ничего не отвечает (upgrade-обработчик выходит) —
-    // соединение не открывается; ждём коротко и закрываем сами.
+    // Чужой путь — сразу 404.
     const socket = new WebSocket(wsUrl(a.api) + "/x", { headers: { cookie: a.api.cookieHeader() } });
     const outcome = await new Promise<string>((resolve) => {
       socket.once("open", () => resolve("open"));
@@ -92,8 +91,7 @@ describe("протокол", () => {
       setTimeout(() => resolve("timeout"), 500);
     });
     socket.terminate();
-    // ПОВЕДЕНИЕ-ВОПРОС: на чужой путь upgrade висит без ответа (нет 404/400) — server/ws.js `if (req.url !== "/ws") return;`.
-    expect(outcome).not.toBe("open");
+    expect(outcome).toBe("http 404");
   });
 });
 

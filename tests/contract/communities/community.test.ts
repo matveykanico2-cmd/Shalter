@@ -222,6 +222,7 @@ describe("POST /api/communities", () => {
     const outView = expectOk(await outsider.api.get(`/api/communities/${c.id}`), communityBody).community;
     expect(outView).toMatchObject({ role: null, isMember: false, isBanned: false, addPolicy: null, chats: [], rights: NO_RIGHTS_SET });
     // ПОВЕДЕНИЕ-ВОПРОС: карточку сообщества (название, число участников) по id видит любой, даже не участник.
+    // На этом держится страница сообщества по ссылке (вступление); закрывать ли закрытые — решение продукта.
     expect(outView.membersCount).toBe(2);
   });
 });

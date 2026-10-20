@@ -189,14 +189,15 @@ describe("POST /api/usernames/:id/bid", () => {
     expect((await bid(poor, auction.id, 110)).auction.topBidderId).toBe(poor.id);
   });
 
-  test("ставки на нулевой старт возможны и с нулевым балансом", async () => {
-    // ПОВЕДЕНИЕ-ВОПРОС: при startPriceStars=0 первая ставка 0 ⭐ проходит без звёзд,
-    // а spendStars(0) при подведении итогов вернёт false — такой «победитель» не получит юзернейм.
+  test("ставка 0 ⭐ на нулевой старт с нулевым балансом — выигрывает юзернейм бесплатно", async () => {
     const user = await registerUser(server().baseUrl);
-    const auction = await createAuction(freeName());
+    const name = freeName();
+    const auction = await createAuction(name);
     const res = await bid(user, auction.id, 0);
     expect(res).toMatchObject({ balance: 0, auction: { topBid: 0, topBidderId: user.id } });
-    expect(await close(auction.id)).toMatchObject({ status: "cancelled" });
+    expect(await close(auction.id)).toMatchObject({ status: "sold", winnerId: user.id, soldForStars: 0 });
+    expect(await starsBalance(user)).toBe(0);
+    expect((await sessionUser(user)).username).toBe(name);
   });
 
   test("перебитый лидер получает сообщение от системного бота, другие — нет", async () => {
@@ -309,9 +310,7 @@ describe("POST /api/usernames/:id/close — подведение итогов", 
     expect((await sessionUser(runnerUp)).username).toBe(name);
   });
 
-  test("никто не смог оплатить — cancelled, звёзды не тронуты", async () => {
-    // ПОВЕДЕНИЕ-ВОПРОС: при ставках, которые никто не оплатил, статус «cancelled»
-    // (как при отмене), а не «unsold».
+  test("никто не смог оплатить — unsold, звёзды не тронуты", async () => {
     const { baseUrl } = server();
     const adm = await admin();
     const [a, b] = await registerUsers(baseUrl, 2);
@@ -323,7 +322,7 @@ describe("POST /api/usernames/:id/close — подведение итогов", 
     await grantStars(adm, a, -30);
     await grantStars(adm, b, -1);
     const closed = await close(auction.id);
-    expect(closed).toMatchObject({ status: "cancelled" });
+    expect(closed).toMatchObject({ status: "unsold" });
     expect(closed).not.toHaveProperty("winnerId");
     expect(await starsBalance(a)).toBe(0);
     expect(await starsBalance(b)).toBe(39);
@@ -341,19 +340,22 @@ describe("POST /api/usernames/:id/close — подведение итогов", 
     expect((await listFor(squatter)).auctions.find((a) => a.id === auction.id)?.status).toBe("open");
   });
 
-  test("юзернейм выдали администрацией во время аукциона — cancelled, лидеру сообщение", async () => {
+  test("юзернейм выдали администрацией во время аукциона — аукцион сразу cancelled, участникам сообщение", async () => {
     const { baseUrl } = server();
     const adm = await admin();
-    const [bidder, target] = await registerUsers(baseUrl, 2);
+    const [bidder, late, target] = await registerUsers(baseUrl, 3);
     await grantStars(adm, bidder, 100);
+    await grantStars(adm, late, 100);
     const name = freeName();
     const auction = await createAuction(name, { startPriceStars: 10 });
     await bid(bidder, auction.id, 10);
-    expectOk(await adm.api.post("/api/usernames/grant", { userId: target.id, username: name }), usernameGrantBody);
     const bidderWs = await ws(bidder);
-
-    expect(await close(auction.id)).toMatchObject({ status: "cancelled" });
+    expectOk(await adm.api.post("/api/usernames/grant", { userId: target.id, username: name }), usernameGrantBody);
     await bidderWs.waitFor("message:new", newMessageFrom(SYSTEM_BOT_ID, `Аукцион @${name} отменён: юзернейм больше недоступен. Звёзды не списаны.`), WAIT);
+
+    expect((await listFor(bidder)).auctions.find((a) => a.id === auction.id)?.status).toBe("cancelled");
+    expectError(await late.api.post(`/api/usernames/${auction.id}/bid`, { stars: 20 }), 409, "Аукцион уже завершён");
+    expect(await close(auction.id)).toMatchObject({ status: "cancelled" });
     expect(await starsBalance(bidder)).toBe(100);
     expect((await sessionUser(target)).username).toBe(name);
   });
@@ -447,15 +449,14 @@ describe("POST /api/usernames/grant", () => {
     expect(await starsBalance(target)).toBe(0);
   });
 
-  test("юзернейм с открытого аукциона выдать можно — аукцион при этом продолжается", async () => {
-    // ПОВЕДЕНИЕ-ВОПРОС: grant не смотрит на открытые аукционы; аукцион остаётся открытым
-    // (без ставок закроется как unsold, со ставками — cancelled).
+  test("юзернейм с открытого аукциона выдать можно — аукцион при этом отменяется", async () => {
     const adm = await admin();
     const target = await registerUser(server().baseUrl);
     const name = freeName();
     const auction = await createAuction(name);
     expectOk(await adm.api.post("/api/usernames/grant", { userId: target.id, username: name }), usernameGrantBody);
-    expect((await listFor(target)).auctions.find((a) => a.id === auction.id)?.status).toBe("open");
-    expect(await close(auction.id)).toMatchObject({ status: "unsold" });
+    expect((await listFor(target)).auctions.find((a) => a.id === auction.id)).toMatchObject({ status: "cancelled", settledAt: expect.any(String) });
+    expect(await close(auction.id)).toMatchObject({ status: "cancelled" });
+    expect((await sessionUser(target)).username).toBe(name);
   });
 });

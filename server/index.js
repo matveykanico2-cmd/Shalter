@@ -45,6 +45,7 @@ ensureHelperBotAccount();
 
 const app = express();
 app.set("trust proxy", 1);
+app.set("json replacer", require("./lib/publicJson").publicJsonReplacer);
 
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -172,12 +173,16 @@ if (useBuilt) {
   app.use("/dist", expressStaticGzip(DIST_DIR, { enableBrotli: true, orderPreference: ["br", "gz"], serveStatic: { maxAge: "1y", immutable: true } }));
 }
 app.use("/.well-known", express.static(path.join(PUBLIC_DIR, ".well-known"), { maxAge: "1h" }));
+// Несуществующий файл в /.well-known — честный 404, а не index.html приложения.
+app.use("/.well-known", (_req, res) => res.sendStatus(404));
 
 // Knowledge base pages — before express.static to prevent 301 redirect for /knowledge
 app.get("/knowledge", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "index.html")));
 app.get("/knowledge/shalter", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "shalter.html")));
 app.get("/knowledge/bot-api", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "bot-api.html")));
 app.get("/knowledge/architecture", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "knowledge", "architecture.html")));
+// /games — тоже до express.static: иначе он видит папку public/games (встроенные игры) и отвечает 301 на /games/.
+app.get("/games", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "games.html")));
 
 // Эмодзи, узоры подарков, анимации — из архивов server/assets/packs (по прежним адресам)
 app.use(require("./lib/assetPacks").assetPacks());
@@ -201,10 +206,10 @@ app.get("/promo", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "promo.html"
 app.get("/short", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "short.html")));
 app.get("/premium", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "premium.html")));
 app.get("/bots", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "bots.html")));
-app.get("/games", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "games.html")));
 app.get("/oauth-docs", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "oauth-docs.html")));
 
-app.get(/^\/(?!api|ws).*/, (req, res) => {
+// Исключаются только /api, /api/…, /ws и /ws/… — «/apiary» или «/wsx» тоже страницы SPA.
+app.get(/^\/(?!(?:api|ws)(?:\/|$)).*/, (req, res) => {
   res.sendFile(indexHtml);
 });
 
@@ -219,6 +224,9 @@ app.get("/api/version", (req, res) => {
   res.set("Cache-Control", "no-store");
   res.json({ version, startedAt: SERVER_STARTED_AT });
 });
+
+// Неизвестный /api-путь (или метод) — JSON, как и остальные ошибки API, а не HTML-страница Express.
+app.use("/api", (_req, res) => res.status(404).json({ error: "not found" }));
 
 app.use(errorHandler);
 

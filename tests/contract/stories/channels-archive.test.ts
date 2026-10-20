@@ -13,6 +13,7 @@ import {
   archivedViewerStory,
   channelAuthor,
   feedBody,
+  likeBody,
   ownStory,
   storyRow,
   userGroupBody,
@@ -91,11 +92,13 @@ describe("истории каналов", () => {
     const channel = await createChannel(owner, [admin, member], { adminIds: [admin.id] });
     const story = await postChannelStory(owner, channel.id);
 
-    // ПОВЕДЕНИЕ-ВОПРОС: ответ /view для истории канала всегда «зрительский» (без
-    // списков), даже админу канала — storyFor вызывается без автора.
+    // Ответ /view админу канала — со списками, как в ленте; участнику — без.
     const viewed = expectOk(await admin.api.post(`/api/stories/${story.id}/view`), viewBody).story;
-    expectShape(viewerStory, viewed);
-    await member.api.post(`/api/stories/${story.id}/view`);
+    expect(expectShape(ownStory, viewed).viewedByIds).toEqual([admin.id]);
+    expectShape(viewerStory, expectOk(await member.api.post(`/api/stories/${story.id}/view`), viewBody).story);
+    // То же в ответе /like.
+    expectShape(ownStory, expectOk(await admin.api.post(`/api/stories/${story.id}/like`), likeBody).story);
+    expectShape(viewerStory, expectOk(await member.api.post(`/api/stories/${story.id}/like`), likeBody).story);
 
     const byOwner = expectOk(await owner.api.get(`/api/stories/${story.id}/viewers`), viewersBody).viewers;
     expect(byOwner.map((u: any) => u.id)).toEqual([admin.id, member.id]);

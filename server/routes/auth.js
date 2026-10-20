@@ -9,6 +9,7 @@ const {
   removeAccountSession,
   getOrCreateDeviceId,
   requireUserId,
+  noSessionError,
 } = require("../middleware/auth");
 const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, updateUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode, scheduleAccountDeletion, cancelAccountDeletion } = require("../data/users");
 const { publicUser, selfUser } = require("../data/sanitize");
@@ -527,6 +528,9 @@ router.post(
   asyncRoute(async (req, res) => {
     const user = await findUserByPhone(normalizePhone(req.body?.phone));
     if (!user) return res.status(404).json({ error: "Аккаунт с таким номером не найден" });
+    // Заблокированному код не шлём (войти он всё равно не сможет), но и бан не раскрываем —
+    // как в recover/phone/start.
+    if (user.isBanned) return res.json({ ok: true });
 
     const code = codeLogins.createCode(user.id);
     const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
@@ -723,10 +727,26 @@ async function verifySecondFactor(user, rawCode) {
   return step !== null && totpSteps.claim(user.id, step);
 }
 
+// Оповещение в чат «Shalter» о включении/отключении второго шага — для всех способов.
+async function notifyTwoFactorChange(uid, enabled) {
+  try {
+    const chat = await findOrCreateDm(SYSTEM_BOT_ID, uid);
+    await sendMessageAndBroadcast(
+      chat,
+      SYSTEM_BOT_ID,
+      enabled
+        ? "🔐 На вашем аккаунте включена двухфакторная аутентификация. Если это были не вы — немедленно смените пароль."
+        : "🔓 Двухфакторная аутентификация отключена. Если это были не вы — срочно смените пароль."
+    );
+  } catch (err) {
+    console.error(`2fa ${enabled ? "enable" : "disable"} notification failed:`, err);
+  }
+}
+
 function currentUserOr401(req, res) {
   const uid = getCurrentUserId(req);
   if (!uid) {
-    res.status(401).json({ error: "unauthorized" });
+    res.status(401).json({ error: noSessionError(req) });
     return null;
   }
   return uid;
@@ -777,11 +797,16 @@ router.post(
   asyncRoute(async (req, res) => {
     const ticketEntry = req.body?.ticket ? twoFactorTickets.peek(req.body.ticket) : null;
     const uid = ticketEntry?.userId ?? getCurrentUserId(req);
-    if (!uid) return res.status(401).json({ error: "unauthorized" });
+    if (!uid) return res.status(401).json({ error: noSessionError(req) });
     const me = await getUser(uid);
     if (!me) return res.status(401).json({ error: "unauthorized" });
     if ((me.twoFactorMethod ?? "totp") !== "chat") {
-      return res.status(400).json({ error: "Этот аккаунт подтверждает вход кодом из приложения-аутентификатора" });
+      return res.status(400).json({
+        error:
+          me.twoFactorMethod === "password"
+            ? "Этот аккаунт подтверждает вход облачным паролем"
+            : "Этот аккаунт подтверждает вход кодом из приложения-аутентификатора",
+      });
     }
     await sendTwoFactorCode(uid);
     res.json({ ok: true });
@@ -838,6 +863,8 @@ router.post(
     if (!saved?.twoFactorEnabled || saved.twoFactorMethod !== "password") {
       return res.status(500).json({ error: "Не удалось включить облачный пароль — попробуйте ещё раз" });
     }
+    // Как у TOTP и кода из чата: о включении (не о смене пароля) сообщаем в чат «Shalter».
+    if (!me.twoFactorEnabled) await notifyTwoFactorChange(uid, true);
     res.json({ ok: true, enabled: true, method: saved.twoFactorMethod, hint: saved.cloudPasswordHint || null });
   })
 );
@@ -856,6 +883,9 @@ router.post(
       return res.status(403).json({ error: "Неверный облачный пароль" });
     }
     await updateUser(uid, { cloudPasswordHash: null, cloudPasswordSalt: null, cloudPasswordHint: null });
+    // Способ сбрасывается, как и при отключении через /2fa/disable.
+    await disableTotp(uid);
+    await notifyTwoFactorChange(uid, false);
     res.json({ ok: true, enabled: false });
   })
 );
@@ -894,16 +924,7 @@ router.post(
     const recoveryCodes = totp.generateRecoveryCodes();
     await enableTotp(uid, recoveryCodes.map(totp.hashRecoveryCode));
 
-    try {
-      const chat = await findOrCreateDm(SYSTEM_BOT_ID, uid);
-      await sendMessageAndBroadcast(
-        chat,
-        SYSTEM_BOT_ID,
-        "🔐 На вашем аккаунте включена двухфакторная аутентификация. Если это были не вы — немедленно смените пароль."
-      );
-    } catch (err) {
-      console.error("2fa enable notification failed:", err);
-    }
+    await notifyTwoFactorChange(uid, true);
 
     res.json({ enabled: true, recoveryCodes });
   })
@@ -928,6 +949,7 @@ router.post(
       }
       await updateUser(uid, { cloudPasswordHash: null, cloudPasswordSalt: null, cloudPasswordHint: null });
       await disableTotp(uid);
+      await notifyTwoFactorChange(uid, false);
       return res.json({ enabled: false });
     }
 
@@ -942,12 +964,7 @@ router.post(
     }
 
     await disableTotp(uid);
-    try {
-      const chat = await findOrCreateDm(SYSTEM_BOT_ID, uid);
-      await sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, "🔓 Двухфакторная аутентификация отключена. Если это были не вы — срочно смените пароль.");
-    } catch (err) {
-      console.error("2fa disable notification failed:", err);
-    }
+    await notifyTwoFactorChange(uid, false);
     res.json({ enabled: false });
   })
 );
@@ -972,7 +989,10 @@ router.post(
     if (!ok) {
       const attemptsLeft = twoFactorTickets.countFailure(ticket);
       return res.status(400).json({
-        error: attemptsLeft > 0 ? `Неверный код. Осталось попыток: ${attemptsLeft}` : "Слишком много неверных кодов — войдите заново",
+        error:
+          attemptsLeft > 0
+            ? `${user.twoFactorMethod === "password" ? "Неверный облачный пароль" : "Неверный код"}. Осталось попыток: ${attemptsLeft}`
+            : "Слишком много неверных кодов — войдите заново",
         attemptsLeft,
       });
     }

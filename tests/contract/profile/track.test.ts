@@ -8,6 +8,7 @@ import { createDm, registerUser, registerUsers } from "../../support/seed";
 import { useServer } from "../../support/use-server";
 import { profileTrack, profileTrackBody } from "../../schemas/profile";
 import { otherProfileBody } from "../../schemas/users";
+import { contactUpdated } from "../../schemas/ws";
 import { socketPool } from "../ws/helpers";
 import { fakeUploadUrl, uploadedUrl } from "../users/helpers";
 
@@ -119,13 +120,19 @@ describe("основной, удаление", () => {
   });
 });
 
-test("изменения музыки по WS не рассылаются", async () => {
-  const [me, peer] = await registerUsers(server().baseUrl, 2);
+test("изменения музыки рассылаются contact:updated — себе и собеседникам, не посторонним", async () => {
+  const [me, peer, outsider] = await registerUsers(server().baseUrl, 3);
   await createDm(peer, me);
-  const [meWs, peerWs] = await Promise.all([open(me.api), open(peer.api)]);
-  expect((await me.api.post("/api/profile-track", { url: await uploadedUrl(me, "mp3", "profile-track") })).status).toBe(200);
-  // ПОВЕДЕНИЕ-ВОПРОС: routes/profileTrack.js не вызывает notifyProfileChanged — ни себе на другие
-  // устройства, ни собеседникам событие не приходит.
-  await peerWs.expectNone("contact:updated", () => true, 500);
-  await meWs.expectNone("contact:updated", () => true, 0);
+  const [meWs, peerWs, outsiderWs] = await Promise.all([open(me.api), open(peer.api), open(outsider.api)]);
+  const url = await uploadedUrl(me, "mp3", "profile-track");
+  expect((await me.api.post("/api/profile-track", { url })).status).toBe(200);
+  const self = expectShape(contactUpdated, await meWs.waitFor("contact:updated", (e) => e.user?.id === me.id, 10_000), "себе").user;
+  expect(self).toMatchObject({ profileTrack: { url } });
+  const forPeer = expectShape(contactUpdated, await peerWs.waitFor("contact:updated", (e) => e.user?.id === me.id, 10_000), "собеседнику").user;
+  expect(forPeer).toMatchObject({ profileTrack: { url } });
+  await outsiderWs.expectNone("contact:updated", (e) => e.user?.id === me.id, 500);
+
+  peerWs.clear();
+  expectOk(await me.api.delete("/api/profile-track"), profileTrackBody);
+  expect((await peerWs.waitFor("contact:updated", (e) => e.user?.id === me.id && e.user.profileTrack == null, 10_000)).user.profileTracks).toEqual([]);
 });

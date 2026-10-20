@@ -575,7 +575,11 @@ router.delete(
     const community = load(req, res);
     if (!community) return;
     // Снять себя может любой админ; других — только с правом addAdmins.
-    if (req.params.userId !== req.uid && !communities.rightsOf(community, req.uid).addAdmins) return res.status(403).json({ error: "Недостаточно прав" });
+    const self = req.params.userId === req.uid;
+    if (self ? communities.roleOf(community, req.uid) !== "admin" && community.ownerId !== req.uid : !communities.rightsOf(community, req.uid).addAdmins) {
+      return res.status(403).json({ error: "Недостаточно прав" });
+    }
+    if (req.params.userId === community.ownerId) return res.status(400).json({ error: "Права владельца не меняются" });
     communities.removeAdmin(community.id, req.params.userId);
     broadcastToUsers([req.params.userId], { type: "community:updated", communityId: community.id });
     res.json({ ok: true });

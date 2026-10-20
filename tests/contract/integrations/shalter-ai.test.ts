@@ -154,14 +154,11 @@ describe("GET/PATCH /api/ai/settings", () => {
     expect(expectOk(await u.api.patch("/api/ai/settings", { custom: 42 }), aiStateBody).settings.custom).toBe("42");
   });
 
-  test("лишние ключи в PATCH сохраняются в настройках и возвращаются", async () => {
+  test("лишние ключи в PATCH отбрасываются", async () => {
     const u = await registerUser(server().baseUrl);
-    // ПОВЕДЕНИЕ-ВОПРОС: normalizeAiSettings не отбрасывает неизвестные поля —
-    // в settings.ai пользователя можно записать что угодно, и оно отдаётся обратно.
-    const res = await u.api.patch("/api/ai/settings", { tone: "simple", foo: { bar: 1 } });
-    expect(res.status).toBe(200);
-    expect(res.body.settings).toEqual({ ...DEFAULTS, tone: "simple", foo: { bar: 1 } });
-    expect((await u.api.get("/api/ai/settings")).body.settings.foo).toEqual({ bar: 1 });
+    const res = expectOk(await u.api.patch("/api/ai/settings", { tone: "simple", foo: { bar: 1 } }), aiStateBody);
+    expect(res.settings).toEqual({ ...DEFAULTS, tone: "simple" });
+    expect(expectOk(await u.api.get("/api/ai/settings"), aiStateBody).settings).toEqual({ ...DEFAULTS, tone: "simple" });
   });
 
   test("умный режим без Premium — 403; с Premium — можно, тариф premium", async () => {

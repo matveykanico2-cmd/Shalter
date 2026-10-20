@@ -56,12 +56,11 @@ describe("POST /:id/score и GET /:id/best — общий рекорд", () => {
     expect(expectOk(await b.api.post(`/api/games/${g.id}/score`, { score: 3 }), scoreBody)).toEqual({ best: 3, improved: true });
   });
 
-  test("счёт: дробный округляется вниз, строка-число принимается, null — это 0, границы 0…1e9", async () => {
+  test("счёт: дробный округляется вниз, строка-число принимается, границы 0…1e9", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
     const g = await createGame(a);
-    // ПОВЕДЕНИЕ-ВОПРОС: score: null проходит как 0 (Number(null) === 0), а не как «некорректный счёт».
-    expect(expectOk(await a.api.post(`/api/games/${g.id}/score`, { score: null }), scoreBody)).toEqual({ best: 0, improved: true });
+    expect(expectOk(await a.api.post(`/api/games/${g.id}/score`, { score: 0 }), scoreBody)).toEqual({ best: 0, improved: true });
     expect(expectOk(await a.api.post(`/api/games/${g.id}/score`, { score: 12.9 }), scoreBody)).toEqual({ best: 12, improved: true });
     expect(expectOk(await a.api.post(`/api/games/${g.id}/score`, { score: "42" }), scoreBody)).toEqual({ best: 42, improved: true });
     expect(expectOk(await a.api.post(`/api/games/${g.id}/score`, { score: 1_000_000_000 }), scoreBody)).toEqual({ best: 1_000_000_000, improved: true });
@@ -72,20 +71,19 @@ describe("POST /:id/score и GET /:id/best — общий рекорд", () => {
     const a = await registerUser(baseUrl);
     const g = await createGame(a);
     expectOk(await a.api.post(`/api/games/${g.id}/score`, { score: 5 }), scoreBody);
-    for (const score of [undefined, "abc", -1, 1_000_000_001, 1e300, [1, 2], {}]) {
+    for (const score of [undefined, null, "", "  ", true, false, [5], "abc", -1, 1_000_000_001, 1e300, [1, 2], {}]) {
       expectError(await a.api.post(`/api/games/${g.id}/score`, { score }), 400, "Некорректный счёт");
     }
     expect(expectOk(await a.api.get(`/api/games/${g.id}/best`), bestBody)).toEqual({ best: 5 });
   });
 
-  test("несуществующая игра: score → 404 (раньше проверки счёта); best и scores — пустые 200", async () => {
+  test("несуществующая игра: score, best и scores → 404 (раньше проверки счёта и чата)", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
     expectError(await a.api.post("/api/games/g_nope12345678/score", { score: "abc" }), 404, NOT_FOUND);
-    // ПОВЕДЕНИЕ-ВОПРОС: GET /:id/best и /:id/scores не проверяют, что игра существует,
-    // и для любого id отвечают 200 с нулём/пустым списком (POST /score и /play — 404).
-    expect(expectOk(await a.api.get("/api/games/g_nope12345678/best"), bestBody)).toEqual({ best: 0 });
-    expect(expectOk(await a.api.get("/api/games/g_nope12345678/scores"), scoresBody)).toEqual({ scores: [] });
+    expectError(await a.api.get("/api/games/g_nope12345678/best"), 404, NOT_FOUND);
+    expectError(await a.api.get("/api/games/g_nope12345678/scores"), 404, NOT_FOUND);
+    expectError(await a.api.get("/api/games/g_nope12345678/best", { query: { chatId: "c_nope12345678" } }), 404, NOT_FOUND);
   });
 
   test("встроенные игры тоже хранят рекорды", async () => {

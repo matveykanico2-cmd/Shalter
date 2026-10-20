@@ -47,22 +47,22 @@ describe("проверка координат", () => {
     expectOk(await user.api.post("/api/nearby", { lat: "-90", lng: "180" }), nearbyBody);
   });
 
-  test("POST: пустая строка и null превращаются в 0 — место «0, 0» принимается", async () => {
-    // ПОВЕДЕНИЕ-ВОПРОС: Number("") и Number(null) дают 0, поэтому { lat: "", lng: null }
-    // публикует человека в точке 0,0 вместо ошибки 400.
+  test("POST: пустая строка и null — 400, а не место «0, 0»", async () => {
     const [user, viewer] = await registerUsers(server().baseUrl, 2);
-    expectOk(await user.api.post("/api/nearby", { lat: "", lng: null }), nearbyBody);
-    expect(labelsOf(await look(viewer, 0, 0), [user])).toEqual({ [user.id]: "менее 1 км" });
-    expectOk(await user.api.delete("/api/nearby"), okBody);
+    for (const body of [{ lat: "", lng: null }, { lat: "  ", lng: 0 }, { lat: 0, lng: null }, { lat: true, lng: 0 }]) {
+      expectError(await user.api.post("/api/nearby", body), 400, "invalid coordinates");
+    }
+    expect(labelsOf(await look(viewer, 0, 0), [user])).toEqual({});
   });
 
-  test("GET: lat/lng обязательны и должны быть числами; диапазон не проверяется", async () => {
+  test("GET: lat/lng обязательны, должны быть числами и в том же диапазоне, что и в POST", async () => {
     const user = await registerUser(server().baseUrl);
     expectError(await user.api.get("/api/nearby"), 400, "invalid coordinates");
     expectError(await user.api.get("/api/nearby", { query: { lat: 10 } }), 400, "invalid coordinates");
     expectError(await user.api.get("/api/nearby", { query: { lat: "abc", lng: 1 } }), 400, "invalid coordinates");
-    // ПОВЕДЕНИЕ-ВОПРОС: GET не проверяет диапазон (POST проверяет) — lat=1000 даёт 200.
-    expectOk(await user.api.get("/api/nearby", { query: { lat: 1000, lng: 5000 } }), nearbyBody);
+    expectError(await user.api.get("/api/nearby", { query: { lat: "", lng: "" } }), 400, "invalid coordinates");
+    expectError(await user.api.get("/api/nearby", { query: { lat: 1000, lng: 5000 } }), 400, "invalid coordinates");
+    expectOk(await user.api.get("/api/nearby", { query: { lat: -90, lng: 180 } }), nearbyBody);
   });
 });
 

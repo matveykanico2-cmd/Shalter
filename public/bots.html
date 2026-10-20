@@ -357,7 +357,7 @@ while (true) {
         <thead><tr><th>Поле</th><th>Тип</th><th>Описание</th></tr></thead>
         <tbody>
           <tr><td>chatId</td><td>строка</td><td>Обязательное.</td></tr>
-          <tr><td>url</td><td>строка</td><td>Обязательное. Адрес картинки или файла.</td></tr>
+          <tr><td>url</td><td>строка</td><td>Обязательное. Адрес картинки или файла: <code>http(s)://</code> или <code>data:</code>. Другой адрес — <code>400</code>.</td></tr>
           <tr><td>caption</td><td>строка</td><td>Подпись — она же становится текстом сообщения.</td></tr>
           <tr><td>name</td><td>строка</td><td>Только для sendDocument: имя файла, которое увидит человек.</td></tr>
           <tr><td>replyToId</td><td>строка</td><td>Ответить на сообщение.</td></tr>
@@ -491,7 +491,7 @@ await fetch(`${API}/editMessageText`, {
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendVoice</div>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendVideoNote</div>
       <p>Те же поля, что у <code>sendPhoto</code>: <code>chatId</code>, <code>url</code>, <code>caption</code>,
-        <code>replyToId</code>. Файл передаётся ссылкой — см. раздел «Картинки и файлы».</p>
+        <code>replyToId</code>; у голосового и кружка ещё <code>durationSec</code>. Файл передаётся ссылкой — см. раздел «Картинки и файлы».</p>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendLocation</div>
       <p><code>lat</code> и <code>lng</code> — точка на карте.</p>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/sendContact</div>
@@ -514,7 +514,8 @@ await fetch(`${API}/editMessageText`, {
       <div class="doc-method"><span class="doc-verb">GET</span> /api/bot-api/getScheduled?chatId=…</div>
       <div class="doc-method"><span class="doc-verb">POST</span> /api/bot-api/cancelScheduled</div>
       <p>
-        <code>sendAt</code> — время в ISO 8601, обязательно будущее. Нужно затем же, зачем людям: разослать
+        <code>sendAt</code> — время в ISO 8601, обязательно будущее. Права те же, что у <code>sendMessage</code>:
+        в канал ставит в очередь только бот-админ, иначе <code>403</code>. Нужно затем же, зачем людям: разослать
         объявление в назначенный час, а не будить программу ночью.
       </p>
 
@@ -891,8 +892,9 @@ help - Что я умею</code></pre>
       <table class="doc-table">
         <thead><tr><th>Код</th><th>Когда</th></tr></thead>
         <tbody>
-          <tr><td>400</td><td>Пустой <code>text</code> в sendMessage.</td></tr>
+          <tr><td>400</td><td>Пустой <code>text</code> в sendMessage; ссылка на файл не <code>http(s)://</code>, не <code>data:</code> и не загрузка Shalter.</td></tr>
           <tr><td>401</td><td>Нет заголовка Authorization или токен недействителен.</td></tr>
+          <tr><td>403</td><td>Писать нельзя: собеседник заблокировал бота или бот не админ канала.</td></tr>
           <tr><td>404</td><td>Бот не состоит в этом чате либо чат не существует.</td></tr>
           <tr><td>429</td><td>Слишком часто. Опрос раз в 1–2 секунды в лимиты укладывается с запасом.</td></tr>
         </tbody>

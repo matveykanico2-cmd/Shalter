@@ -3,7 +3,8 @@ const { listContactsFor } = require("../data/contacts");
 
 const LEVELS = new Set(["everyone", "contacts", "nobody"]);
 
-const DEFAULT_LEVELS = { storiesArchive: "nobody" };
+// Как в DEFAULT_SETTINGS.privacy (data/settings.js): отсутствующий ключ не должен открывать больше, чем умолчание.
+const DEFAULT_LEVELS = { phone: "contacts", storiesArchive: "nobody" };
 const defaultLevelFor = (key) => DEFAULT_LEVELS[key] ?? "everyone";
 
 const PRIVACY_KEYS = [

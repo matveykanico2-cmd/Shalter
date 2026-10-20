@@ -14,6 +14,11 @@ const { sendBotMessage } = require("../lib/botMessaging");
 const { sendPushToUser, pushAvatar, MESSAGE_PUSH } = require("../push");
 const { getSettings, isQuietNow } = require("../data/settings");
 const { usesForeignUpload } = require("../lib/uploadAccess");
+const { isSafeUrl } = require("../lib/sanitizeAttachments");
+
+// Аватар бота — ссылка http(s), data: или загрузка; пустое значение — без аватара.
+const badAvatar = (value) => value != null && value !== "" && !isSafeUrl(value);
+const BOT_NAME_MAX = 60;
 
 const router = express.Router();
 router.use(requireUserId);
@@ -34,7 +39,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const { name, avatarImage, description } = req.body ?? {};
     if (!name?.trim()) return res.status(400).json({ error: "Введите имя бота" });
-    if (usesForeignUpload(req.uid, avatarImage)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
+    if (badAvatar(avatarImage) || usesForeignUpload(req.uid, avatarImage)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
 
     const botUsername = await generateBotUsername(name);
     if (!botUsername) return res.status(409).json({ error: "Не удалось подобрать свободный юзернейм для бота — измените имя" });
@@ -42,7 +47,7 @@ router.post(
     const userId = genId("bot");
     await createUser({
       id: userId,
-      name: name.trim(),
+      name: name.trim().slice(0, BOT_NAME_MAX),
       username: botUsername,
       avatarColor: "#6E56C6",
       avatarImage: avatarImage || undefined,
@@ -155,13 +160,14 @@ router.patch(
 
     const before = await getUser(bot.userId);
     if (
+      (typeof req.body?.avatarImage === "string" && req.body.avatarImage !== before?.avatarImage && badAvatar(req.body.avatarImage)) ||
       usesForeignUpload(req.uid, [req.body?.avatarImage, req.body?.appCode, req.body?.appUrl], [before?.avatarImage, bot.appCode, bot.appUrl])
     ) {
       return res.status(400).json({ error: "Некорректная ссылка на файл" });
     }
 
     const patch = {};
-    if (typeof req.body?.name === "string" && req.body.name.trim()) patch.name = req.body.name.trim().slice(0, 60);
+    if (typeof req.body?.name === "string" && req.body.name.trim()) patch.name = req.body.name.trim().slice(0, BOT_NAME_MAX);
     if (typeof req.body?.avatarImage === "string") patch.avatarImage = req.body.avatarImage || null;
 
     if (typeof req.body?.username === "string" && req.body.username.trim()) {
@@ -250,7 +256,7 @@ router.post(
     if (data.length > APP_DATA_LIMIT) return res.status(400).json({ error: `Не длиннее ${APP_DATA_LIMIT} символов` });
 
     const chat = await findOrCreateDm(req.uid, bot.userId);
-    const message = await sendMessageAndBroadcast(chat, req.uid, data, { readByIds: [] });
+    const message = await sendMessageAndBroadcast(chat, req.uid, data);
 
     if (bot.code?.trim()) {
       runBotCode(bot, bot.code, { id: message.id, chatId: chat.id, senderId: req.uid, text: message.text, createdAt: message.createdAt }).catch((err) =>

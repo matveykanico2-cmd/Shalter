@@ -3,6 +3,7 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { getUser, getStatusState, setStatusState } = require("../data/users");
 const { publicUser } = require("../data/sanitize");
+const { notifyProfileChanged } = require("../lib/notifyProfileChanged");
 const { getCatalogItem } = require("../data/profileStatuses");
 const { slotsFor, validateImage } = require("../lib/profileStatus");
 
@@ -58,6 +59,7 @@ router.post(
     const items = [...state.items, entry];
     const activeStatusId = state.activeStatusId ?? entry.id;
     const updated = await setStatusState(req.uid, items, activeStatusId);
+    if (updated) notifyProfileChanged(req.uid, updated);
     res.json({ user: publicUser(updated), items, activeId: activeStatusId });
   })
 );
@@ -71,6 +73,7 @@ router.post(
       return res.status(404).json({ error: "Статус не найден" });
     }
     const updated = await setStatusState(req.uid, state.items, id);
+    if (updated) notifyProfileChanged(req.uid, updated);
     res.json({ user: publicUser(updated), activeId: id });
   })
 );
@@ -82,6 +85,7 @@ router.delete(
     const items = state.items.filter((i) => i.id !== req.params.id);
     const activeStatusId = state.activeStatusId === req.params.id ? null : state.activeStatusId;
     const updated = await setStatusState(req.uid, items, activeStatusId);
+    if (updated) notifyProfileChanged(req.uid, updated);
     res.json({ user: publicUser(updated), items, activeId: activeStatusId });
   })
 );

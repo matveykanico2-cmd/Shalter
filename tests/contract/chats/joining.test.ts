@@ -163,7 +163,7 @@ describe("POST /:id/join", () => {
     expect(expectOk(await joiner.api.post(`/api/chats/${gr.id}/join`), chatBody).chat.memberIds.filter((id) => id === joiner.id)).toHaveLength(1);
   });
 
-  test("в канал: chat:added вступившему, подписчикам ничего", async () => {
+  test("в канал: chat:added вступившему, chat:updated подписчикам, без служебной строки", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
     const b = await registerUser(baseUrl);
@@ -172,7 +172,9 @@ describe("POST /:id/join", () => {
     const [aWs, jWs] = await Promise.all([ws(a.api), ws(joiner.api)]);
     expectOk(await joiner.api.post(`/api/chats/${ch.id}/join`), chatBody);
     await jWs.waitFor("chat:added", (e) => e.chat?.id === ch.id);
-    await aWs.expectNone("chat:updated");
+    // Как при вступлении по ссылке и одобрении заявки.
+    const upd = await aWs.waitFor("chat:updated", (e) => e.chat?.id === ch.id);
+    expect(upd.chat.memberIds).toContain(joiner.id);
     await aWs.expectNone("message:new");
   });
 
@@ -306,8 +308,7 @@ describe("ссылки-приглашения", () => {
     const bWs = await ws(b.api);
 
     expectOk(await joiner.api.post(`/api/chats/invite/${code}/join`), chatBody);
-    // ПОВЕДЕНИЕ-ВОПРОС: при вступлении в канал по ссылке всем подписчикам уходит chat:updated
-    // (с полным memberIds), а при вступлении через POST /:id/join — нет.
+    // Как при вступлении через POST /:id/join и одобрении заявки.
     await bWs.waitFor("chat:updated", (e) => e.chat?.id === channel.id);
 
     expectOk(await a.api.post(`/api/chats/${channel.id}/members`, { userId: joiner.id, role: "ban" }), chatBody);

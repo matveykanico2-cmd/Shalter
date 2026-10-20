@@ -34,11 +34,8 @@ describe("опросы", () => {
       multiple: false,
       closed: false,
     });
-    // Один вариант — вложение отбрасывается, а пустой текст проходит: сообщение без вложений.
-    // ПОВЕДЕНИЕ-ВОПРОС: создаётся пустое текстовое сообщение вместо 400.
-    const broken = await poll(a, group.id, { options: ["один"] });
-    expect(broken).not.toHaveProperty("attachments");
-    expect(broken.text).toBe("");
+    // Один вариант — вложение отбрасывается, а без текста отправлять нечего: 400.
+    expectError(await a.api.post(msgs(group.id), { text: "", attachments: [{ kind: "poll", meta: { options: ["один"] } }] }), 400, "empty message");
   });
 
   test("голос: один вариант, переголосование, повтор снимает; WS остальным", async () => {

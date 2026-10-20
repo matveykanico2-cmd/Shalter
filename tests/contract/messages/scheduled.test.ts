@@ -97,8 +97,10 @@ describe("отложенные сообщения", () => {
     expectError(await a.api.patch(sched(dm.id, "/sch_doesnotexist0"), { text: "y" }), 404, "not found");
     expectError(await a.api.patch(sched(dm.id, `/${s.id}`), { sendAt: "2001-01-01T00:00:00.000Z" }), 400, "Время отправки должно быть в будущем");
     expectError(await a.api.patch(sched(dm.id, `/${s.id}`), { text: 5 }), 400, "Некорректный текст");
-    // ПОВЕДЕНИЕ-ВОПРОС: при правке пустой текст и длина не проверяются (в отличие от создания).
-    expect(expectOk(await a.api.patch(sched(dm.id, `/${s.id}`), { text: "" }), scheduledEnvelope).scheduled.text).toBe("");
+    // Правка проверяет пустоту и длину, как правка отправленного сообщения.
+    expectError(await a.api.patch(sched(dm.id, `/${s.id}`), { text: "  " }), 400, "Сообщение не может быть пустым");
+    expectError(await a.api.patch(sched(dm.id, `/${s.id}`), { text: "я".repeat(4097) }), 400, "Сообщение длиннее 4096 символов");
+    expect(expectOk(await a.api.patch(sched(dm.id, `/${s.id}`), { text: "я".repeat(4096) }), scheduledEnvelope).scheduled.text).toHaveLength(4096);
     expectError(await new Api(baseUrl).patch(sched(dm.id, `/${s.id}`), { text: "y" }), 401, "unauthorized");
   });
 

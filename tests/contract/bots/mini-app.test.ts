@@ -130,8 +130,8 @@ describe("POST /:id/app/data", () => {
     // Личку создаёт сам вызов — раньше человек бота не запускал.
     const res = expectOk(await send('  {"order":42}  '), appDataBody);
     expect(res.message).toMatchObject({ chatId: res.chatId, senderId: user.id, type: "text", text: '{"order":42}' });
-    // ПОВЕДЕНИЕ-ВОПРОС: readByIds: [] — у обычных сообщений отправитель сразу в readByIds.
-    expect(res.message.readByIds).toEqual([]);
+    // Как у обычных сообщений: отправитель сразу в readByIds.
+    expect(res.message.readByIds).toEqual([user.id]);
     const ev = expectShape(wsMessageNew, await userWs.waitFor("message:new", (e) => e.message?.id === res.message.id));
     expect(ev.chatId).toBe(res.chatId);
     await outWs.expectNone("message:new");

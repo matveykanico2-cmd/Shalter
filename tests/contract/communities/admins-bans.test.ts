@@ -109,10 +109,12 @@ describe("администраторы", () => {
     await a2Ws.waitFor("community:updated", aboutCommunity(c.id));
     expect(expectOk(await owner.api.get(`/api/communities/${c.id}/admins`), adminsBody).admins.map((x) => x.id)).toEqual([owner.id]);
 
-    // ПОВЕДЕНИЕ-ВОПРОС: «снять себя» отвечает ok любому, даже не участнику и не админу; снять владельца — тоже ok, без эффекта.
+    // «Снять себя» — только админу; не админу и постороннему — 403. Владельца не снять — 400, как в PUT.
     const outsider = await registerUser(server().baseUrl);
-    expectOk(await outsider.api.delete(`/api/communities/${c.id}/admins/${outsider.id}`), okBody);
-    expectOk(await owner.api.delete(`/api/communities/${c.id}/admins/${owner.id}`), okBody);
+    expectError(await outsider.api.delete(`/api/communities/${c.id}/admins/${outsider.id}`), 403, NO_RIGHTS);
+    expectError(await plain.api.delete(`/api/communities/${c.id}/admins/${plain.id}`), 403, NO_RIGHTS);
+    expectError(await owner.api.delete(`/api/communities/${c.id}/admins/${owner.id}`), 400, "Права владельца не меняются");
+    expectError(await a1.api.delete(`/api/communities/${c.id}/admins/${owner.id}`), 403, NO_RIGHTS);
     expect(expectOk(await owner.api.get(`/api/communities/${c.id}`), communityBody).community.role).toBe("owner");
   });
 

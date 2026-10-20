@@ -14,6 +14,7 @@ const { markTyping, normalizeAction } = require("../data/typing");
 const { updateBotApp, updateBotAppCode, updateBotCommands, updateBotDescription, getBotToken } = require("../data/bots");
 const { sendBotMessage, normalizeKeyboard, botPostDenied } = require("../lib/botMessaging");
 const { registerAttachments, usesForeignUpload } = require("../lib/uploadAccess");
+const { isSafeUrl } = require("../lib/sanitizeAttachments");
 
 // Аватарка и страница приложения бота видны всем: файлы — только доступные боту
 // или его владельцу (сам бот загружать не умеет).
@@ -75,7 +76,7 @@ router.post(
       const message = await sendBotMessage(req.bot.userId, chatId, text, { keyboard, replyToId, visibleTo });
       res.json({ message });
     } catch (err) {
-      res.status(err.message === "text is required" || err.message.startsWith("visibleTo") ? 400 : 404).json({ error: err.message });
+      res.status(err.status ?? 404).json({ error: err.message });
     }
   })
 );
@@ -160,6 +161,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const { chatId, url, caption = "", replyToId } = req.body ?? {};
     if (!url) return res.status(400).json({ error: "url is required" });
+    if (!isSafeUrl(url)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     try {
       const message = await sendBotMessage(req.bot.userId, chatId, caption || "🖼", {
         replyToId,
@@ -167,7 +169,7 @@ router.post(
       });
       res.json({ message });
     } catch (err) {
-      res.status(404).json({ error: err.message });
+      res.status(err.status ?? 404).json({ error: err.message });
     }
   })
 );
@@ -177,6 +179,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const { chatId, url, name = "file", caption = "", replyToId } = req.body ?? {};
     if (!url) return res.status(400).json({ error: "url is required" });
+    if (!isSafeUrl(url)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     try {
       const message = await sendBotMessage(req.bot.userId, chatId, caption || `📎 ${name}`, {
         replyToId,
@@ -184,7 +187,7 @@ router.post(
       });
       res.json({ message });
     } catch (err) {
-      res.status(404).json({ error: err.message });
+      res.status(err.status ?? 404).json({ error: err.message });
     }
   })
 );
@@ -328,7 +331,7 @@ router.post(
       });
       res.json({ message });
     } catch (err) {
-      res.status(404).json({ error: err.message });
+      res.status(err.status ?? 404).json({ error: err.message });
     }
   })
 );
@@ -375,7 +378,7 @@ router.post(
       });
       res.json({ message });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(err.status ?? 400).json({ error: err.message });
     }
   })
 );
@@ -586,16 +589,18 @@ async function botChat(req, res, chatId) {
 
 function mediaSender(kind, defaultText) {
   return asyncRoute(async (req, res) => {
-    const { chatId, url, caption = "", name, replyToId } = req.body ?? {};
+    const { chatId, url, caption = "", name, replyToId, durationSec } = req.body ?? {};
     if (!url) return res.status(400).json({ error: "url is required" });
+    if (!isSafeUrl(url)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     try {
+      // durationSec сохраняется у голосовых и кружков (sanitizeAttachments), у видео — нет.
       const message = await sendBotMessage(req.bot.userId, chatId, caption || defaultText, {
         replyToId,
-        attachments: [{ kind, url, name: name ? String(name).slice(0, 200) : undefined }],
+        attachments: [{ kind, url, name: name ? String(name).slice(0, 200) : undefined, durationSec }],
       });
       res.json({ message });
     } catch (err) {
-      res.status(404).json({ error: err.message });
+      res.status(err.status ?? 404).json({ error: err.message });
     }
   });
 }
@@ -618,7 +623,7 @@ router.post(
       });
       res.json({ message });
     } catch (err) {
-      res.status(404).json({ error: err.message });
+      res.status(err.status ?? 404).json({ error: err.message });
     }
   })
 );
@@ -635,7 +640,7 @@ router.post(
       });
       res.json({ message });
     } catch (err) {
-      res.status(404).json({ error: err.message });
+      res.status(err.status ?? 404).json({ error: err.message });
     }
   })
 );
@@ -739,6 +744,9 @@ router.post(
     const chat = await botChat(req, res, chatId);
     if (!chat) return;
     if (!text?.trim()) return res.status(400).json({ error: "text is required" });
+    // Те же права, что у немедленной отправки: в канал — только админом, заблокировавшему — нельзя.
+    const denied = await botPostDenied(chat, req.bot.userId);
+    if (denied) return res.status(403).json({ error: denied });
     const when = new Date(sendAt);
     if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
       return res.status(400).json({ error: "sendAt must be a future ISO date" });
@@ -981,31 +989,6 @@ router.get(
   })
 );
 
-const ATTACHMENT_KINDS = {
-  sendVideo: { kind: "video", fallback: "🎬 Видео", name: "video" },
-  sendVoice: { kind: "voice", fallback: "🎤 Голосовое сообщение", name: "voice" },
-  sendVideoNote: { kind: "video-note", fallback: "🎥 Видеосообщение", name: "video-note" },
-};
-
-for (const [method, spec] of Object.entries(ATTACHMENT_KINDS)) {
-  router.post(
-    `/${method}`,
-    asyncRoute(async (req, res) => {
-      const { chatId, url, caption = "", replyToId, durationSec } = req.body ?? {};
-      if (!url) return res.status(400).json({ error: "url is required" });
-      try {
-        const message = await sendBotMessage(req.bot.userId, chatId, caption || spec.fallback, {
-          replyToId,
-          attachments: [{ kind: spec.kind, url, name: spec.name, meta: Number.isFinite(durationSec) ? { durationSec } : undefined }],
-        });
-        res.json({ message });
-      } catch (err) {
-        res.status(404).json({ error: err.message });
-      }
-    })
-  );
-}
-
 router.post(
   "/sendMediaGroup",
   asyncRoute(async (req, res) => {
@@ -1019,11 +1002,12 @@ router.post(
         name: String(i.name ?? i.kind ?? "file").slice(0, 120),
       }));
     if (!list.length) return res.status(400).json({ error: "items is required" });
+    if (list.some((i) => !isSafeUrl(i.url))) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     try {
       const message = await sendBotMessage(req.bot.userId, chatId, caption || "🖼", { replyToId, attachments: list });
       res.json({ message });
     } catch (err) {
-      res.status(404).json({ error: err.message });
+      res.status(err.status ?? 404).json({ error: err.message });
     }
   })
 );
@@ -1045,7 +1029,7 @@ router.post(
       });
       res.json({ message });
     } catch (err) {
-      res.status(404).json({ error: err.message });
+      res.status(err.status ?? 404).json({ error: err.message });
     }
   })
 );
@@ -1055,6 +1039,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const image = req.body?.image;
     if (typeof image !== "string") return res.status(400).json({ error: "image is required (URL или data:-строка)" });
+    if (image && !isSafeUrl(image)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     if (botUsesForeignUpload(req.bot, image, (await getUser(req.bot.userId))?.avatarImage)) {
       return res.status(400).json({ error: "Некорректная ссылка на файл" });
     }

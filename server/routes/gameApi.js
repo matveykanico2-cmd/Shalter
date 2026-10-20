@@ -9,8 +9,8 @@ const { getChat } = require("../data/chats");
 const { getUser, listUsersByIds } = require("../data/users");
 const { usesForeignUpload } = require("../lib/uploadAccess");
 
+// Тело разбирает общий express.json (server/index.js) — свой парсер здесь не сработал бы.
 const router = express.Router();
-router.use(express.json({ limit: "600kb" }));
 
 router.use((req, res, next) => {
   const header = req.headers.authorization || "";
@@ -50,12 +50,14 @@ router.post(
       ownerId: req.game.ownerId,
       title: b.title != null ? String(b.title).trim().slice(0, 64) : req.game.title,
       description: b.description != null ? String(b.description).trim().slice(0, 200) : req.game.description,
-      emoji: b.emoji != null ? [...String(b.emoji)].slice(0, 2).join("") || "🎮" : req.game.emoji,
+      emoji: b.emoji != null ? [...String(b.emoji).trim()].slice(0, 2).join("") || "🎮" : req.game.emoji,
       code: b.code != null ? String(b.code) : req.game.code,
       isPublic: b.isPublic != null ? !!b.isPublic : req.game.isPublic,
     };
     if (!next.title) return res.status(400).json({ error: "title is required" });
-    if (!next.code.trim() || next.code.length > MAX_CODE) return res.status(400).json({ error: "code: от 1 байта до 512 КБ" });
+    // Код проверяется, только если его передали: игру, созданную в приложении без кода,
+    // можно сначала переименовать, а код залить позже.
+    if (b.code != null && (!next.code.trim() || next.code.length > MAX_CODE)) return res.status(400).json({ error: "code: от 1 байта до 512 КБ" });
     if (usesForeignUpload(req.game.ownerId, next.code, req.game.code)) return res.status(400).json({ error: "Некорректная ссылка на файл" });
     res.json({ ok: true, game: publicGame(games.saveGame(next)) });
   })
@@ -85,7 +87,8 @@ router.post(
   "/setScore",
   asyncRoute(async (req, res) => {
     const { userId, chatId, force } = req.body ?? {};
-    const score = Math.floor(Number(req.body?.score));
+    const raw = req.body?.score;
+    const score = typeof raw === "number" || (typeof raw === "string" && raw.trim()) ? Math.floor(Number(raw)) : NaN;
     if (!userId || !(await getUser(String(userId)))) return res.status(404).json({ error: "user not found" });
     if (!Number.isSafeInteger(score) || score < 0 || score > MAX_SCORE) return res.status(400).json({ error: "score: целое от 0" });
     const scope = await scopeOf(chatId, userId);

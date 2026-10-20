@@ -210,15 +210,16 @@ describe("блокировка", () => {
     expect(u.online).toBe(false);
   });
 
-  test("себя — 400; несуществующего — 200, id попадает в blockedUserIds, но не в /blocked", async () => {
+  test("себя — 400; несуществующего — 404, а разблокировать его можно", async () => {
     const { baseUrl } = server();
     const me = await registerUser(baseUrl);
     expectError(await me.api.post(`/api/users/${me.id}/block`, { blocked: true }), 400, "Нельзя заблокировать самого себя");
-    // ПОВЕДЕНИЕ-ВОПРОС: id цели не проверяется — можно «заблокировать» несуществующего пользователя.
-    expectOk(await me.api.post("/api/users/u_ghost000000/block", { blocked: true }), blockBody);
-    expect((await profile(me, me)).body.user.blockedUserIds).toEqual(["u_ghost000000"]);
+    expectError(await me.api.post("/api/users/u_ghost000000/block", { blocked: true }), 404, "Пользователь не найден");
+    expect((await profile(me, me)).body.user.blockedUserIds).toEqual([]);
+    expectOk(await me.api.post("/api/users/u_ghost000000/block", { blocked: false }), blockBody);
     expect((await me.api.get("/api/users/blocked")).body).toEqual({ users: [] });
   });
+
 
   test("блокировка сама по себе событий по WS не шлёт", async () => {
     const { baseUrl } = server();

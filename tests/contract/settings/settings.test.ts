@@ -94,7 +94,7 @@ describe("GET /api/settings", () => {
 });
 
 describe("PATCH /api/settings", () => {
-  test("слияние по верхнему уровню: прочие ключи сохраняются, вложенный объект заменяется целиком", async () => {
+  test("слияние по верхнему уровню: прочие ключи сохраняются; notifications сливается с текущими", async () => {
     const { baseUrl } = server();
     const me = await registerUser(baseUrl);
     const res = expectOk(await me.api.patch("/api/settings", { theme: "dark", fontSize: 17, accent: "#ff0000" }), settingsPatchBody);
@@ -102,23 +102,30 @@ describe("PATCH /api/settings", () => {
     expect((await me.api.get("/api/settings")).body.settings).toMatchObject({ theme: "dark", fontSize: 17 });
 
     const next = expectOk(await me.api.patch("/api/settings", { notifications: { sound: false } }), settingsPatchBody).settings;
-    // ПОВЕДЕНИЕ-ВОПРОС: вложенные объекты не сливаются — PATCH notifications без mutedChats/previewText
-    // стирает их (клиент обязан присылать объект целиком).
-    expect(next.notifications).toEqual({ sound: false });
+    // PATCH notifications без mutedChats/previewText их не стирает.
+    expect(next.notifications).toEqual({ previewText: true, sound: false, mutedChats: {} });
     expect(next.theme).toBe("dark");
+    expect(expectOk(await me.api.patch("/api/settings", { notifications: { previewText: false } }), settingsPatchBody).settings.notifications).toEqual({
+      previewText: false,
+      sound: false,
+      mutedChats: {},
+    });
+    // notifications не объектом молча отбрасывается.
+    expect(expectOk(await me.api.patch("/api/settings", { notifications: "x" }), settingsPatchBody).settings.notifications.sound).toBe(false);
 
     // Пустое тело — 200, без изменений.
     expect(expectOk(await me.api.patch("/api/settings"), settingsPatchBody).settings.theme).toBe("dark");
   });
 
-  test("ключи и типы верхнего уровня не проверяются", async () => {
+  test("ключи и типы верхнего уровня не проверяются; тело не объектом — 400", async () => {
     const me = await registerUser(server().baseUrl);
     const res = await me.api.patch("/api/settings", { theme: 5, somethingElse: { deep: true } });
     expect(res.status).toBe(200);
-    // ПОВЕДЕНИЕ-ВОПРОС: PATCH /api/settings сохраняет любые ключи и значения любого типа без белого списка —
-    // тело-массив тоже записывается (ключи «0», «1»).
+    // ПОВЕДЕНИЕ-ВОПРОС: PATCH /api/settings сохраняет любые ключи и значения любого типа без белого списка
+    // (клиент и сервер пишут в один объект и служебные ключи — chatFlags, pinnedOrder, ai, appIcon…).
     expect(res.body.settings).toMatchObject({ theme: 5, somethingElse: { deep: true } });
-    expect((await me.api.patch("/api/settings", ["a", "b"])).body.settings).toMatchObject({ 0: "a", 1: "b", theme: 5 });
+    expectError(await me.api.patch("/api/settings", ["a", "b"]), 400, "Некорректные настройки");
+    expect((await me.api.get("/api/settings")).body.settings).not.toHaveProperty("0");
   });
 
   test("privacy: исключения нормализуются — дубли, не-строки, неизвестные ключи и пустые списки убираются, deny важнее allow", async () => {
@@ -146,7 +153,7 @@ describe("PATCH /api/settings", () => {
     expect(cleared).not.toHaveProperty("exceptions");
   });
 
-  test("privacy заменяется целиком: отсутствующий уровень считается «everyone», а не значением по умолчанию", async () => {
+  test("privacy заменяется целиком: отсутствующий уровень считается значением по умолчанию", async () => {
     const [me, stranger] = await registerUsers(server().baseUrl, 2);
     // По умолчанию телефон виден только контактам.
     expect((await stranger.api.get(`/api/users/${me.id}`)).body.user).not.toHaveProperty("phone");
@@ -154,14 +161,13 @@ describe("PATCH /api/settings", () => {
     const res = await me.api.patch("/api/settings", { privacy: { lastSeen: "nobody" } });
     expect(res.status).toBe(200);
     expect(res.body.settings.privacy).toEqual({ lastSeen: "nobody" });
-    // ПОВЕДЕНИЕ-ВОПРОС: lib/privacyRules.js для отсутствующего ключа берёт «everyone», а DEFAULT_SETTINGS
-    // держит phone = contacts — неполный объект privacy открывает телефон всем.
-    expect((await stranger.api.get(`/api/users/${me.id}`)).body.user.phone).toBe(me.phone);
+    // Отсутствующий ключ — как в DEFAULT_SETTINGS (phone = contacts): неполный privacy телефон не открывает.
+    expect((await stranger.api.get(`/api/users/${me.id}`)).body.user).not.toHaveProperty("phone");
 
-    // privacy не объектом сохраняется как есть.
+    // privacy не объектом молча отбрасывается — прежний остаётся.
     const raw = await me.api.patch("/api/settings", { privacy: "x" });
     expect(raw.status).toBe(200);
-    expect(raw.body.settings.privacy).toBe("x");
+    expect(raw.body.settings.privacy).toEqual({ lastSeen: "nobody" });
   });
 
   test("appIcon: только [a-z0-9-]{1,32}; некорректный молча отбрасывается, прежний сохраняется", async () => {
@@ -199,9 +205,14 @@ describe("PATCH /api/settings", () => {
       { id: expect.stringMatching(/^hol_[a-z0-9]+_[a-z0-9]+$/), title: "Весна", date: "03-08" },
       { id: "mine", title: "Н".repeat(80), date: "12-31" },
     ]);
-    // ПОВЕДЕНИЕ-ВОПРОС: день проверяется только на 1..31 без учёта месяца — «02-30» принимается.
-    const odd = expectOk(await me.api.patch("/api/settings", { holidays: { custom: [{ date: "02-30", title: "x" }] } }), settingsPatchBody);
-    expect(odd.settings.holidays).toEqual({ disabled: [], custom: [{ id: expect.any(String), title: "x", date: "02-30" }] });
+    // Число проверяется с учётом месяца; 29 февраля допустимо.
+    const odd = expectOk(
+      await me.api.patch("/api/settings", {
+        holidays: { custom: [{ date: "02-30", title: "x" }, { date: "04-31", title: "y" }, { date: "02-29", title: "z" }] },
+      }),
+      settingsPatchBody
+    );
+    expect(odd.settings.holidays).toEqual({ disabled: [], custom: [{ id: expect.any(String), title: "z", date: "02-29" }] });
   });
 
   test("business: без бизнес-подписки enabled = false; часы, пояс, ответы — нормализуются", async () => {
@@ -227,9 +238,10 @@ describe("PATCH /api/settings", () => {
     expect(b.showHours).toBe(false);
     expect(b.hours.mon).toEqual({ closed: true, open: "09:00", close: "24:00" });
     expect(b.hours.tue).toEqual({ closed: false, open: "08:30", close: "17:45" });
-    // ПОВЕДЕНИЕ-ВОПРОС: дни, которых нет в PATCH, становятся рабочими 09–18 — включая сб и вс,
-    // хотя по умолчанию (DEFAULT_SETTINGS) выходные закрыты.
-    expect(b.hours.sat).toEqual(DEFAULT_HOURS);
+    // Дни, которых нет в PATCH, — как по умолчанию: будни 09–18, сб и вс закрыты.
+    expect(b.hours.wed).toEqual(DEFAULT_HOURS);
+    expect(b.hours.sat).toEqual({ ...DEFAULT_HOURS, closed: true });
+    expect(b.hours.sun).toEqual({ ...DEFAULT_HOURS, closed: true });
     expect(b.greeting).toEqual({ enabled: true, text: "привет", attachments: [att] });
     expect(b.away).toEqual({ enabled: false, text: "я".repeat(500), attachments: [] });
     expect(b.quickReplies).toEqual([

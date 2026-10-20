@@ -245,6 +245,11 @@ export const userExport = z.strictObject({
   ),
   media: z.array(exportMedia),
 });
+/** GET /api/export — тот же построитель, но про себя: своя пометка, файлы — по обычным ссылкам /uploads. */
+export const selfUserExport = userExport.extend({
+  export: z.strictObject({ kind: z.literal("user-self-export"), generatedAt: isoDate, note: z.string() }),
+  media: z.array(exportMedia.extend({ downloadUrl: z.string().regex(/^\/uploads\//) })),
+});
 export const exportBody = z.strictObject({ exportId: genId("exp"), data: userExport });
 
 export const exportLogEntry = z.strictObject({

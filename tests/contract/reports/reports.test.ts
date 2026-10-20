@@ -7,7 +7,7 @@ import { moderationBody } from "../../schemas/admin";
 import { message } from "../../schemas/message";
 import { reportBody, reportCard, resolveBody } from "../../schemas/reports";
 import { expectError, expectOk, expectShape } from "../../support/expect";
-import { createChannel, createDm, createGroup, registerUser, sendText, type TestUser } from "../../support/seed";
+import { createChannel, createDm, createGroup, registerUser, sendText, type TestUser, uniq } from "../../support/seed";
 import { useServer } from "../../support/use-server";
 import type { WsClient } from "../../support/ws";
 import { ADMIN_ENV, admins, anonymous, NO_RIGHTS, RANK_ERROR, sectionAdmin, SYSTEM_BOT_ID, systemMessages, wsPool } from "../admin/helpers";
@@ -126,9 +126,12 @@ describe("POST /api/reports", () => {
     expectError(await report(a, { targetType: "message", targetId: foreign.id, reason: "spam" }), 404, "not found");
     expectError(await report(a, { targetType: "user", targetId: a.id, reason: "spam" }), 400, "Нельзя пожаловаться на себя");
     expectError(await report(b, { targetType: "message", targetId: own.id, reason: "spam" }), 400, "Нельзя пожаловаться на своё сообщение");
-    // ПОВЕДЕНИЕ-ВОПРОС: на чат жаловаться можно и не будучи участником — достаточно знать id (существование
-    // чужой лички/группы подтверждается ответом 200 вместо 404).
-    expect(expectOk(await report(a, { targetType: "chat", targetId: dm.id, reason: "spam" }), reportBody).report.subjectUserId).toBeNull();
+    // На чужой закрытый чат — 404, как на несуществующий; на публичный можно и не вступая.
+    expectError(await report(a, { targetType: "chat", targetId: dm.id, reason: "spam" }), 404, "not found");
+    const privateGroup = await createGroup(b, [c]);
+    expectError(await report(a, { targetType: "chat", targetId: privateGroup.id, reason: "spam" }), 404, "not found");
+    const publicChannel = await createChannel(b, [], { title: "Открытый канал", isPublic: true, username: uniq("rep") });
+    expect(expectOk(await report(a, { targetType: "chat", targetId: publicChannel.id, reason: "spam" }), reportBody).report.subjectUserId).toBe(b.id);
   });
 });
 
@@ -216,8 +219,10 @@ describe("POST /api/reports/:id/resolve", () => {
     expect(expectOk(await resolve(m, first.id, "delete"), resolveBody)).toEqual({ status: "resolved_deleted" });
     expect((await owner.api.get(`/api/chats/${group.id}`)).status).toBe(404);
     expect((await reporter.api.get("/api/chats")).body.chats.some((c: any) => c.id === group.id)).toBe(false);
-    // ПОВЕДЕНИЕ-ВОПРОС: в отличие от удаления из каталога модерации, здесь нет chat:deleted участникам и уведомления владельцу.
-    await ownerWs.expectNone("chat:deleted");
+    // Как удаление из каталога модерации: chat:deleted участникам и уведомление владельцу.
+    await ownerWs.waitFor("chat:deleted", (e) => e.chatId === group.id);
+    const notice = await ownerWs.waitFor("message:new", (e) => e.message?.senderId === SYSTEM_BOT_ID && /Под снос/.test(e.message?.text ?? ""));
+    expect(notice.message.text).toBe("🛡 Группа «Под снос» удалена модерацией Shalter за нарушение правил.\nПричина: Терроризм");
 
     expect(expectOk(await resolve(m, second.id, "delete"), resolveBody)).toEqual({ status: "resolved_deleted" });
     // Чата уже нет, но бан по такой жалобе работает — по сохранённому subjectUserId (владелец).

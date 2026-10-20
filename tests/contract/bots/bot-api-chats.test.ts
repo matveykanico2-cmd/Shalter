@@ -160,8 +160,9 @@ describe("команды и профиль бота", () => {
     for (const image of [undefined, 5, null]) {
       expectError(await b.client.post("setMyAvatar", { image }), 400, "image is required (URL или data:-строка)");
     }
-    // ПОВЕДЕНИЕ-ВОПРОС: адрес аватара не проверяется — принимается любая строка.
-    expect(expectOk(await b.client.post("setMyAvatar", { image: "javascript:alert(1)" }), botUserBody).bot.avatarImage).toBe("javascript:alert(1)");
+    // Адрес аватара — только http(s), data: или загрузка.
+    expectError(await b.client.post("setMyAvatar", { image: "javascript:alert(1)" }), 400, "Некорректная ссылка на файл");
+    expect(expectOk(await b.client.post("setMyAvatar", { image: "https://img.example/bot.png" }), botUserBody).bot.avatarImage).toBe("https://img.example/bot.png");
     expect(expectOk(await b.client.post("setMyAvatar", { image: "" }), botUserBody).bot).not.toHaveProperty("avatarImage");
   });
 });

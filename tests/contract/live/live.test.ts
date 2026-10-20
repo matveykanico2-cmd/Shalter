@@ -261,9 +261,9 @@ describe("участники: join / leave / hand / role / mute", () => {
     // Любая роль, кроме speaker, — viewer; смена роли снимает выключение микрофона.
     expectOk(await role(a, b.id, { role: "host" }), okBody);
     expect(await participant(b.id)).toMatchObject({ role: "viewer", mutedByHost: false });
-    // ПОВЕДЕНИЕ-ВОПРОС: ведущий может «выключить микрофон» самому себе (mute не проверяет роль host).
-    expectOk(await mute(a, a.id, {}), okBody);
-    expect((await participant(a.id)).mutedByHost).toBe(true);
+    // «Заглушить» ведущего нельзя, даже ему самому — свой микрофон он выключает у себя.
+    expectError(await mute(a, a.id, {}), 400, "Ведущего нельзя лишить слова");
+    expect((await participant(a.id)).mutedByHost).toBe(false);
   });
 });
 
@@ -308,8 +308,8 @@ describe("завершение эфира", () => {
     expect(expectOk(await a.api.post(live(`/${stream.id}/leave`)), liveLeaveBody)).toEqual({ ok: true, ended: true });
     await bWs.waitFor("live:ended", (e) => e.streamId === stream.id);
     expect(expectOk(await b.api.get(live(`/${stream.id}`)), liveStateBody).stream.status).toBe("ended");
-    // ПОВЕДЕНИЕ-ВОПРОС: зрители остаются в participants завершённого эфира.
-    expect(expectOk(await b.api.get(live(`/${stream.id}`)), liveStateBody).participants.map((p) => p.userId)).toEqual([b.id]);
+    // У завершённого эфира участников нет.
+    expect(expectOk(await b.api.get(live(`/${stream.id}`)), liveStateBody).participants).toEqual([]);
     // Повторный выход ведущего из завершённого эфира — просто ok.
     expect(expectOk(await a.api.post(live(`/${stream.id}/leave`)), liveLeaveBody)).toEqual({ ok: true });
   });

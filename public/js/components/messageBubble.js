@@ -248,7 +248,8 @@ function GiftMessage(message, mine, isChannel) {
       gift.note ? el("p", { class: "tw-gift-message" }, gift.note) : noteEl,
       el("div", { class: "tw-gift-actions" }, [
         el("button", { type: "button", class: "tw-gift-button", onclick: view }, "Посмотреть"),
-        !mine && !gift.custom
+        // Подарок с Premium на звёзды не обменивается (Premium уже выдан).
+        !mine && !gift.custom && !(gift.premiumDays === null || gift.premiumDays > 0)
           ? el("button", { type: "button", class: "tw-gift-button", onclick: () => convertGift(gift) }, `Обменять на ${formatRub(stars)} ⭐`)
           : null,
       ]),

@@ -356,7 +356,7 @@ router.post(
 
     const developer = !!req.body?.developer;
     const updated = await setDeveloper(target.id, developer);
-    res.json({ user: { ...userLabel(updated), isDeveloper: !!updated.developer || undefined } });
+    res.json({ user: userLabel(updated) });
   })
 );
 
@@ -555,7 +555,7 @@ router.patch(
   asyncRoute(async (req, res) => {
     if (!(await requireAdminSection(req, res, "moderation"))) return;
     const result = labelsData.updateLabel(req.params.id, req.body ?? {});
-    if (result.error) return res.status(400).json({ error: result.error });
+    if (result.error) return res.status(result.notFound ? 404 : 400).json({ error: result.error });
     res.json({ label: result.label });
   })
 );

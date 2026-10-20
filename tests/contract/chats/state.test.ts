@@ -93,8 +93,8 @@ describe("POST /:id/read", () => {
     const c = await registerUser(baseUrl);
     const group = await createGroup(a, [b, c]);
     await sendText(a, group.id, "привет");
-    // ПОВЕДЕНИЕ-ВОПРОС: строка «создал(а) группу» от системного бота считается непрочитанной — даже у создателя.
-    expect((await rowOf(a, group.id)).unreadCount).toBe(1);
+    // Строка «создал(а) группу» у создателя прочитана (своё действие), у остальных — нет.
+    expect((await rowOf(a, group.id)).unreadCount).toBe(0);
     expect((await rowOf(b, group.id)).unreadCount).toBe(2);
     const [aWs, cWs] = await Promise.all([ws(a.api), ws(c.api)]);
 

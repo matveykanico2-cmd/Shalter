@@ -9,7 +9,8 @@ const { SYSTEM_BOT_ID } = require("../data/systemBot");
 const { addReport, getReport, setReportStatus } = require("../data/reports");
 const { getUser, findUserByPhone, listUsersWithAdminSection, setBanned, setSafetyLabel } = require("../data/users");
 const { getChat, deleteChat } = require("../data/chats");
-const { getMessage, deleteMessage, setReportStatusEverywhere } = require("../data/messages");
+const { getMessage, deleteMessage, deleteMessagesForChat, setReportStatusEverywhere } = require("../data/messages");
+const { moderateDeleteChat } = require("../lib/moderationDelete");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 
 const router = express.Router();
@@ -62,8 +63,12 @@ router.post(
 
     let target;
     if (targetType === "user") target = await getUser(targetId);
-    else if (targetType === "chat") target = await getChat(targetId);
-    else {
+    else if (targetType === "chat") {
+      // На чужой закрытый чат по одному id жаловаться нельзя: ответ подтверждал бы,
+      // что такой чат существует. Публичный можно — его видно и без вступления.
+      target = await getChat(targetId);
+      if (target && !target.memberIds.includes(req.uid) && !target.isPublic) target = null;
+    } else {
       target = await getMessage(targetId);
       if (target) {
         const chat = await getChat(target.chatId);
@@ -145,7 +150,15 @@ router.post(
       if (!target) {
         nextStatus = "resolved_deleted";
       } else if (report.targetType === "chat") {
-        await deleteChat(report.targetId);
+        // Как удаление из каталога модерации: chat:deleted участникам, запись в
+        // журнал и уведомление владельцу (у канала уходит и группа обсуждения).
+        if (target.type === "group" || target.type === "channel") {
+          await moderateDeleteChat(target, { adminId: me.id, reason: REASON_LABELS[report.reason] ?? report.reason });
+        } else {
+          broadcastToUsers(target.memberIds, { type: "chat:deleted", chatId: target.id });
+          await deleteMessagesForChat(target.id);
+          await deleteChat(target.id);
+        }
         nextStatus = "resolved_deleted";
       } else if (report.targetType === "message") {
         await deleteMessage(report.targetId);

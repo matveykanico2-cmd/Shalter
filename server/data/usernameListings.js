@@ -55,7 +55,8 @@ function closeListing(id, { status, buyerId = null }) {
   db.prepare("UPDATE username_listings SET status = ?, buyerId = ?, soldAt = ? WHERE id = ?").run(
     status,
     buyerId,
-    new Date().toISOString(),
+    // soldAt — только у проданных; снятое с продажи (withdrawn) не продавалось.
+    status === "sold" ? new Date().toISOString() : null,
     id
   );
   return getListing(id);

@@ -21,9 +21,9 @@ describe("GET /api/export", () => {
     const { data } = expectOk(await me.api.get("/api/export"), selfExportBody);
     expect(data.target).toEqual({ id: me.id, name: "Новичок", username: me.username, phone: me.phone, email: me.email, createdAtFirstSeen: expect.any(String) });
     expect(data).toMatchObject({ chats: [], media: [], stats: { chatCount: 0, messageCount: 0, sentMessageCount: 0, mediaCount: 0, byKind: {} } });
-    // ПОВЕДЕНИЕ-ВОПРОС: собственный экспорт помечен как выгрузка по запросу органов
-    // (kind "lawful-request-user-export" и соответствующая note) — общий построитель с /api/admin/export.
-    expect(data.export.kind).toBe("lawful-request-user-export");
+    // Своя пометка, а не «выгрузка по запросу органов» (как у /api/admin/export).
+    expect(data.export.kind).toBe("user-self-export");
+    expect(data.export.note).toMatch(/^Выгрузка данных вашего аккаунта по вашему запросу\./);
   });
 
   test("только свои чаты: сообщения с пометками, вложения в манифесте; секретный чат и чужие чаты не попадают", async () => {
@@ -61,12 +61,11 @@ describe("GET /api/export", () => {
 
     const filename = file.url.slice("/uploads/".length);
     expect(data.media).toEqual([
-      expect.objectContaining({ chatId: group.id, chatType: "group", chatTitle: "Компания", messageId: withPhoto.id, sentByTarget: true, kind: "image", url: file.url, downloadUrl: `/api/admin/export/media/${filename}` }),
+      expect.objectContaining({ chatId: group.id, chatType: "group", chatTitle: "Компания", messageId: withPhoto.id, sentByTarget: true, kind: "image", url: file.url, downloadUrl: file.url }),
     ]);
-    // ПОВЕДЕНИЕ-ВОПРОС: downloadUrl в собственной выгрузке ведёт на админский маршрут,
-    // обычному пользователю он закрыт; скачивать приходится по url (/uploads/…).
-    expectError(await me.api.get(data.media[0].downloadUrl), 403, "Недостаточно прав");
-    expect((await download(me.api, file.url)).status).toBe(200);
+    // downloadUrl — обычная ссылка на файл, админский маршрут пользователю закрыт.
+    expect((await download(me.api, data.media[0].downloadUrl)).status).toBe(200);
+    expectError(await me.api.get(`/api/admin/export/media/${filename}`), 403, "Недостаточно прав");
   });
   test("телефоны собеседников — с учётом их приватности и блокировки", async () => {
     const { baseUrl } = server();

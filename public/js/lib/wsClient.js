@@ -2,7 +2,6 @@ const handlers = new Map();
 let socket = null;
 let reconnectTimer = null;
 let reconnectDelay = 1000;
-let everOpened = false;
 // Выход из аккаунта на этом устройстве: сервер закроет сокет кодом 4001, но это
 // ожидаемо — не переподключаемся и не показываем «сеанс завершён».
 let stopped = false;
@@ -32,8 +31,9 @@ function connect() {
   ws.addEventListener("open", () => {
     reconnectDelay = 1000;
     // Пока сокета не было, события могли потеряться — экраны догоняют пропущенное.
-    if (everOpened) emit({ type: "ws:reconnected" });
-    everOpened = true;
+    // В том числе при первом открытии: экран успевает загрузить данные по HTTP раньше,
+    // чем открывается сокет, и событие между этими моментами иначе пропало бы.
+    emit({ type: "ws:reconnected" });
     schedulePing();
   });
   ws.addEventListener("message", (ev) => {

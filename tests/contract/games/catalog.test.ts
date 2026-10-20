@@ -34,20 +34,14 @@ describe("без сессии", () => {
 });
 
 describe("страница /games", () => {
-  test("GET /games → 301 на /games/; GET /games/ → 200 html документации без сессии", async () => {
+  test("GET /games и /games/ → 200 html документации без сессии (без редиректа)", async () => {
     const api = new Api(server().baseUrl);
-    // ПОВЕДЕНИЕ-ВОПРОС: express.static стоит раньше app.get("/games") и видит каталог
-    // public/games (встроенные игры) — поэтому /games отвечает 301 на /games/, а страница
-    // документации отдаётся уже по /games/ (нестрогий роутинг Express). Для /knowledge
-    // так же было и чинилось маршрутом до static.
-    const redirect = await api.get("/games");
-    expectStatus(redirect, 301);
-    expect(redirect.headers.get("location")).toBe("/games/");
-
-    const res = await api.get("/games/");
-    expectStatus(res, 200);
-    expect(res.headers.get("content-type")).toMatch(/^text\/html/);
-    expect(res.text).toContain("<title>Shalter Games — документация</title>");
+    for (const path of ["/games", "/games/"]) {
+      const res = await api.get(path);
+      expectStatus(res, 200);
+      expect(res.headers.get("content-type")).toMatch(/^text\/html/);
+      expect(res.text).toContain("<title>Shalter Games — документация</title>");
+    }
   });
 });
 
@@ -126,16 +120,17 @@ describe("поиск ?q=", () => {
     }
   });
 
-  test("% и _ вырезаются из запроса: q=% находит все доступные свои игры", async () => {
+  test("% и _ в запросе — обычные символы, а не шаблон LIKE", async () => {
     const { baseUrl } = server();
     const [a, b] = await registerUsers(baseUrl, 2);
     const priv = await createGame(a, { title: uniq("Скрытая") });
-    // ПОВЕДЕНИЕ-ВОПРОС: из шаблона LIKE вырезаются % и _, и q="%" превращается в «%%» —
-    // совпадение со всеми опубликованными и своими играми (встроенные при этом не находятся).
-    const own = expectOk(await a.api.get("/api/games", { query: { q: "%" } }), gamesBody).games;
-    expect(own.some((g) => g.id === priv.id)).toBe(true);
-    expect(own.some((g) => BUILTIN_IDS.includes(g.id))).toBe(false);
-    expect(expectOk(await b.api.get("/api/games", { query: { q: "%" } }), gamesBody).games.some((g) => g.id === priv.id)).toBe(false);
+    const percent = await createGame(a, { title: uniq("Скидка 100%") });
+    const under = await createGame(a, { title: uniq("snake_case") });
+    expect(expectOk(await a.api.get("/api/games", { query: { q: "%" } }), gamesBody).games.map((g) => g.id)).toEqual([percent.id]);
+    expect(expectOk(await a.api.get("/api/games", { query: { q: "_" } }), gamesBody).games.map((g) => g.id)).toEqual([under.id]);
+    expect(expectOk(await a.api.get("/api/games", { query: { q: "e_c" } }), gamesBody).games.map((g) => g.id)).toEqual([under.id]);
+    expect(expectOk(await a.api.get("/api/games", { query: { q: "%" } }), gamesBody).games.some((g) => g.id === priv.id)).toBe(false);
+    expect(expectOk(await b.api.get("/api/games", { query: { q: "%" } }), gamesBody).games).toEqual([]);
   });
 });
 
@@ -179,8 +174,9 @@ describe("создание", () => {
   test("без кода игра создаётся с пустым code", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
-    // ПОВЕДЕНИЕ-ВОПРОС: POST /api/games не требует кода (Game API updateGame требует от 1 байта);
-    // игра с пустым code сохраняется и попадает в каталог.
+    // ПОВЕДЕНИЕ-ВОПРОС: POST /api/games не требует кода — так задумано: приложение создаёт игру
+    // с code: "" (только метаданные), а код заливается через Game API updateGame. Но такая
+    // игра, опубликованная (isPublic), попадает в каталог пустой.
     const res = expectOk(await a.api.post("/api/games", { title: "Пустая" }), gameBody).game;
     expect(res.code).toBe("");
   });
@@ -193,11 +189,10 @@ describe("создание", () => {
     expectError(await a.api.post("/api/games", { title: "Большая", code: "x".repeat(512 * 1024 + 1) }), 400, "Игра слишком большая (до 512 КБ)");
     // Ровно 512 КБ — можно.
     expect((await createGame(a, { code: "x".repeat(512 * 1024) })).code).toHaveLength(512 * 1024);
-    // ПОВЕДЕНИЕ-ВОПРОС: лимит размера проверяется только для кода, где есть не-пробельные
-    // символы, — код из одних пробелов больше 512 КБ сохраняется целиком.
-    expect((await createGame(a, { code: " ".repeat(512 * 1024 + 10) })).code).toHaveLength(512 * 1024 + 10);
+    // Лимит действует и для кода из одних пробелов.
+    expectError(await a.api.post("/api/games", { title: "Пробелы", code: " ".repeat(512 * 1024 + 10) }), 400, "Игра слишком большая (до 512 КБ)");
     // Ни одна неудачная попытка не создала игру.
-    expect(expectOk(await a.api.get("/api/games/mine"), gamesBody).games).toHaveLength(2);
+    expect(expectOk(await a.api.get("/api/games/mine"), gamesBody).games).toHaveLength(1);
   });
 
   test("не больше 50 своих игр", async () => {
@@ -264,15 +259,18 @@ describe("PATCH /:id/meta", () => {
     expect(expectOk(await b.api.get("/api/games"), gamesBody).games.some((x) => x.id === g.id)).toBe(true);
   });
 
-  test("поля, которых нет в теле, сбрасываются: описание пустеет, игра снимается с публикации", async () => {
+  test("поля, которых нет в теле, не меняются (частичное обновление)", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
-    const g = await createGame(a, { description: "описание", emoji: "🎲", isPublic: true });
-    // ПОВЕДЕНИЕ-ВОПРОС: PATCH работает как полная замена — без description/emoji/isPublic
-    // описание стирается, эмодзи становится 🎮, а игра снимается с публикации.
+    const g = await createGame(a, { title: "Старое", description: "описание", emoji: "🎲", isPublic: true });
     const res = expectOk(await a.api.patch(`/api/games/${g.id}/meta`, { title: "Только название" }), gameMetaBody).game;
-    expect(res).toMatchObject({ title: "Только название", description: "", emoji: "🎮", isPublic: false });
-    expect(expectOk(await a.api.get("/api/games"), gamesBody).games.some((x) => x.id === g.id)).toBe(false);
+    expect(res).toMatchObject({ title: "Только название", description: "описание", emoji: "🎲", isPublic: true });
+    expect(expectOk(await a.api.get("/api/games"), gamesBody).games.some((x) => x.id === g.id)).toBe(true);
+    const unpub = expectOk(await a.api.patch(`/api/games/${g.id}/meta`, { isPublic: false }), gameMetaBody).game;
+    expect(unpub).toMatchObject({ title: "Только название", description: "описание", emoji: "🎲", isPublic: false });
+    // Явно переданные пустые значения — сбрасывают.
+    const cleared = expectOk(await a.api.patch(`/api/games/${g.id}/meta`, { description: "", emoji: "" }), gameMetaBody).game;
+    expect(cleared).toMatchObject({ description: "", emoji: "🎮" });
   });
 
   test("ошибки: пустое название → 400; чужая, встроенная, несуществующая → 404 (раньше проверки названия)", async () => {
@@ -323,9 +321,9 @@ describe("DELETE /:id", () => {
     expect(expectOk(await a.api.get("/api/games/mine"), gamesBody)).toEqual({ games: [] });
     expect(expectOk(await b.api.get("/api/games"), gamesBody).games.some((x) => x.id === g.id)).toBe(false);
     expectError(await gameApi(baseUrl, token).get("getGame"), 401, "Invalid game token");
-    // Рекорды удалены (сам /scores существование игры не проверяет).
-    expect((await b.api.get(`/api/games/${g.id}/scores`)).body).toEqual({ scores: [] });
-    expect((await b.api.get(`/api/games/${g.id}/best`)).body).toEqual({ best: 0 });
+    // Рекорды удалённой игры больше не отдаются.
+    expectError(await b.api.get(`/api/games/${g.id}/scores`), 404, NOT_FOUND);
+    expectError(await b.api.get(`/api/games/${g.id}/best`), 404, NOT_FOUND);
 
     expectError(await a.api.delete(`/api/games/${g.id}`), 404, NOT_FOUND);
   });

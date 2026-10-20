@@ -135,15 +135,22 @@ describe("POST /api/gifts/custom/send", () => {
     expect(await starsBalance(owner)).toBe(0);
   });
 
-  test("ПОВЕДЕНИЕ-ВОПРОС: блокировка не мешает; anonymous без Premium игнорируется", async () => {
-    const [owner, blocker] = await registerUsers(server().baseUrl, 2);
+  test("заблокировавшему отправителя — 403, как в /buy; anonymous без Premium игнорируется", async () => {
+    const [owner, blocker, friend] = await registerUsers(server().baseUrl, 3);
     const gift = await createCustom(owner);
     await blocker.api.post(`/api/users/${owner.id}/block`, { blocked: true });
-    // ПОВЕДЕНИЕ-ВОПРОС: в отличие от /buy, свой подарок доходит и до того, кто заблокировал отправителя.
-    expectOk(await owner.api.post("/api/gifts/custom/send", { giftId: gift.id, recipientId: blocker.id, anonymous: true }), customSendBody);
-    const entry = (await selfOf(blocker)).giftsReceived[0];
+    expectError(
+      await owner.api.post("/api/gifts/custom/send", { giftId: gift.id, recipientId: blocker.id, anonymous: true }),
+      403,
+      "Пользователь ограничил вам доступ",
+    );
+    expect((await selfOf(blocker)).giftsReceived).toEqual([]);
+    expect(await dmWith(blocker, owner.id)).toBeUndefined();
+
+    expectOk(await owner.api.post("/api/gifts/custom/send", { giftId: gift.id, recipientId: friend.id, anonymous: true }), customSendBody);
+    const entry = (await selfOf(friend)).giftsReceived[0];
     expect(entry).toMatchObject({ fromId: owner.id, fromName: owner.name });
     expect(entry).not.toHaveProperty("anon");
-    expect((await dmWith(blocker, SYSTEM_BOT_ID))).toBeUndefined();
+    expect((await dmWith(friend, SYSTEM_BOT_ID))).toBeUndefined();
   });
 });

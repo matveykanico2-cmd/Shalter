@@ -629,10 +629,11 @@ describe("POST /:id/public", () => {
 
     const priv = expectOk(await a.api.post(`/api/chats/${group.id}/public`, { isPublic: false }), chatBody).chat;
     expect(priv).not.toHaveProperty("isPublic");
-    // ПОВЕДЕНИЕ-ВОПРОС: юзернейм остаётся у ставшего приватным чата и продолжает быть занятым.
-    expect(priv.username).toBe(handle);
+    // Как у созданного частным: юзернейм снимается и освобождается.
+    expect(priv).not.toHaveProperty("username");
     expectError(await b.api.get(`/api/chats/by-username/${handle}`), 404, NOT_FOUND);
     const other = await createGroup(b, []);
-    expectError(await b.api.post(`/api/chats/${other.id}/public`, { isPublic: true, username: handle }), 409, "Этот юзернейм уже занят каналом");
+    expect(expectOk(await b.api.post(`/api/chats/${other.id}/public`, { isPublic: true, username: handle }), chatBody).chat.username).toBe(handle);
+    expectError(await a.api.post(`/api/chats/${group.id}/public`, { isPublic: true, username: handle }), 409, "Этот юзернейм уже занят каналом");
   });
 });

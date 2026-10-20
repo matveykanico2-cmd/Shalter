@@ -35,9 +35,9 @@ describe("GET /api/channels — каталог", () => {
     const priv = await createChannel(owner, [], { title: `Тайный ${tag}` });
 
     const found = expectOk(await viewer.api.get("/api/channels", { query: { q: tag } }), channelSearchBody).channels;
-    // Сортировка по названию: «Болталка» раньше «Новостей».
-    expect(found.map((c) => c.id)).toEqual([pubGroup.id, pub.id]);
-    expect(found[1]).toEqual({
+    // Каталог — только каналы: публичная группа сюда не попадает (подписаться на неё нельзя).
+    expect(found.map((c) => c.id)).toEqual([pub.id]);
+    expect(found[0]).toEqual({
       id: pub.id,
       title: `Новости ${tag}`,
       username: `${tag}news`,
@@ -46,14 +46,13 @@ describe("GET /api/channels — каталог", () => {
       subscriberCount: 1,
       isMember: false,
     });
-    // ПОВЕДЕНИЕ-ВОПРОС: каталог «каналов» отдаёт и публичные группы (type IN channel, group).
-    expect(found[0]).toMatchObject({ subscriberCount: 2, isMember: true });
     expect(found.map((c) => c.id)).not.toContain(priv.id);
 
     const byHandle = expectOk(await viewer.api.get("/api/channels", { query: { q: `@${tag.toUpperCase()}NEWS` } }), channelSearchBody).channels;
     expect(byHandle.map((c) => c.id)).toEqual([pub.id]);
     const all = expectOk(await viewer.api.get("/api/channels"), channelSearchBody).channels;
-    expect(all.map((c) => c.id)).toEqual(expect.arrayContaining([pub.id, pubGroup.id]));
+    expect(all.map((c) => c.id)).toContain(pub.id);
+    expect(all.map((c) => c.id)).not.toContain(pubGroup.id);
     expect(expectOk(await viewer.api.get("/api/channels", { query: { q: "нет-такого-канала-точно" } }), channelSearchBody).channels).toEqual([]);
   });
 });
@@ -178,8 +177,8 @@ describe("GET /api/channels/:id/stats", () => {
     ]);
 
     expectError(await reader.api.get(`/api/channels/${channel.id}/stats`), 403, "Статистика доступна администраторам канала");
-    // ПОВЕДЕНИЕ-ВОПРОС: постороннему (не подписчику) — тоже 403, а не 404: существование канала раскрывается.
-    expectError(await outsider.api.get(`/api/channels/${channel.id}/stats`), 403, "Статистика доступна администраторам канала");
+    // Постороннему закрытый канал не раскрывается — 404.
+    expectError(await outsider.api.get(`/api/channels/${channel.id}/stats`), 404, "Канал не найден");
     const group = await createGroup(owner, []);
     expectError(await owner.api.get(`/api/channels/${group.id}/stats`), 404, "Канал не найден");
     expectError(await owner.api.get("/api/channels/c_nonexistent00/stats"), 404, "Канал не найден");

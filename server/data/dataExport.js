@@ -14,7 +14,9 @@ function isEncrypted(text) {
 // собеседников и участников групп — только те, что он и так видит по их
 // настройкам приватности (и не заблокировавших его). Юридическому отделу
 // (/api/admin/export) — все номера.
-async function buildUserExport(targetUserId, { respectPrivacy = false } = {}) {
+// forSelf — выгрузка по просьбе самого пользователя: своя пометка вместо
+// «запроса органов», файлы — по обычным ссылкам /uploads (админский маршрут ему закрыт).
+async function buildUserExport(targetUserId, { respectPrivacy = false, forSelf = false } = {}) {
   const target = await getUser(targetUserId);
   if (!target) return null;
 
@@ -84,7 +86,7 @@ async function buildUserExport(targetUserId, { respectPrivacy = false } = {}) {
                 width: a.width || undefined,
                 height: a.height || undefined,
                 url: a.url,
-                downloadUrl: `/api/admin/export/media/${filename}`,
+                downloadUrl: forSelf ? a.url : `/api/admin/export/media/${filename}`,
               });
             }
             return entry;
@@ -114,10 +116,10 @@ async function buildUserExport(targetUserId, { respectPrivacy = false } = {}) {
 
   return {
     export: {
-      kind: "lawful-request-user-export",
+      kind: forSelf ? "user-self-export" : "lawful-request-user-export",
       generatedAt: new Date().toISOString(),
       note:
-        "Выгрузка хранимых данных одного аккаунта по адресному запросу. " +
+        (forSelf ? "Выгрузка данных вашего аккаунта по вашему запросу. " : "Выгрузка хранимых данных одного аккаунта по адресному запросу. ") +
         "Сообщения с пометкой encrypted остались от удалённой функции секретных чатов: ключи были только на устройствах собеседников, " +
         "сервер не может расшифровать их содержимое — они приведены как есть (шифротекст).",
     },

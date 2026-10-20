@@ -691,7 +691,10 @@ router.post(
 
     const body = req.body ?? {};
     if (body.text != null && typeof body.text !== "string") return res.status(400).json({ error: "Некорректный текст" });
-    if (!body.text?.trim() && !body.attachments?.length && !body.sticker) {
+    // Вложения считаем после очистки: иначе { attachments: [{ kind: "bogus" }] }
+    // проходило проверку и уходило пустым сообщением. У пересылки текст и
+    // вложения берутся из исходного сообщения (sendGate), свои не нужны.
+    if (!body.text?.trim() && !sanitizeAttachments(body.attachments)?.length && !body.sticker && !body.forwardedFrom) {
       return res.status(400).json({ error: "empty message" });
     }
     const { clientId, ...fields } = body;
@@ -796,7 +799,7 @@ router.post(
 
     const body = req.body ?? {};
     if (body.text != null && typeof body.text !== "string") return res.status(400).json({ error: "Некорректный текст" });
-    if (!body.text?.trim() && !body.attachments?.length) {
+    if (!body.text?.trim() && !sanitizeAttachments(body.attachments)?.length) {
       return res.status(400).json({ error: "empty message" });
     }
     if (body.whenOnline === true) {
@@ -844,6 +847,11 @@ router.patch(
       return res.status(400).json({ error: "Время отправки должно быть в будущем" });
     }
     if (body.text !== undefined && typeof body.text !== "string") return res.status(400).json({ error: "Некорректный текст" });
+    // Те же правила, что при создании и при правке отправленного сообщения.
+    if (typeof body.text === "string") {
+      if (body.text.length > MAX_MESSAGE_TEXT) return res.status(400).json({ error: `Сообщение длиннее ${MAX_MESSAGE_TEXT} символов` });
+      if (!body.text.trim() && !existing.attachments?.length) return res.status(400).json({ error: "Сообщение не может быть пустым" });
+    }
     const scheduled = await editScheduled(req.params.scheduledId, { text: body.text, sendAt: body.sendAt, repeat: body.repeat });
     res.json({ scheduled });
   })

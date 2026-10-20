@@ -106,11 +106,10 @@ describe("создание", () => {
     expectOk(await me.api.post("/api/stickers/packs", { name: "Себе", stickers: [{ kind: "image", url: mine }] }), packBody);
   });
 
-  test("все стикеры некорректны — пак всё равно создаётся пустым", async () => {
+  test("все стикеры некорректны — 400, пак не создаётся", async () => {
     const me = await registerUser(server().baseUrl);
-    // ПОВЕДЕНИЕ-ВОПРОС: проверка «хотя бы один стикер» идёт до очистки — пак из одного мусора создаётся пустым.
-    const res = expectOk(await me.api.post("/api/stickers/packs", { name: "Пустой", stickers: [null, { name: "x" }] }), packBody);
-    expect(res.pack.stickers).toEqual([]);
+    expectError(await me.api.post("/api/stickers/packs", { name: "Пустой", stickers: [null, { name: "x" }] }), 400, "Добавьте хотя бы один стикер");
+    expect((await me.api.get("/api/stickers/packs")).body.packs).toEqual([]);
   });
 
   test("не больше 60 стикеров — лишние молча отрезаются; паки — по времени создания", async () => {

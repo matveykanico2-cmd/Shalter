@@ -132,6 +132,12 @@ function storyFor(st, uid, author) {
   return out;
 }
 
+// Для ответов про одну историю: у истории канала списки видят и его админы.
+async function storyForOne(st, uid) {
+  const author = isChannelId(st.userId) ? { canManage: isChannelStaff(await getChat(st.userId), uid) } : null;
+  return storyFor(st, uid, author);
+}
+
 async function blockedBy(authorId, uid) {
   if (isChannelId(authorId)) return false;
   return !!(await getUser(authorId))?.blockedUserIds?.includes(uid);
@@ -306,7 +312,7 @@ router.post(
     if (!visible) return res.status(404).json({ error: "not found" });
 
     const story = await markViewed(req.params.id, req.uid);
-    res.json({ story: story ? storyFor(story, req.uid, null) : story });
+    res.json({ story: story ? await storyForOne(story, req.uid) : story });
   })
 );
 
@@ -332,7 +338,7 @@ router.post(
       userId: story.userId,
       likeCount: story.likedByIds.length,
     });
-    res.json({ story: storyFor(story, req.uid, null), liked: story.likedByIds.includes(req.uid), likeCount: story.likedByIds.length });
+    res.json({ story: await storyForOne(story, req.uid), liked: story.likedByIds.includes(req.uid), likeCount: story.likedByIds.length });
   })
 );
 
@@ -421,6 +427,12 @@ router.patch(
     const found = await loadStoryComment(req, res);
     if (!found) return;
     if (found.comment.userId !== req.uid) return res.status(403).json({ error: "Править можно только свой комментарий" });
+    // Как и остальные действия с историей — только пока она видна. Удалить свой
+    // комментарий (DELETE) можно и после: это уборка своих данных.
+    const allowed = await visibleAuthorIds(req.uid);
+    if (!(await listStoriesForUsers(allowed)).some((st) => st.id === found.story.id)) {
+      return res.status(404).json({ error: "not found" });
+    }
     const text = String(req.body?.text ?? "").trim().slice(0, 500);
     if (!text) return res.status(400).json({ error: "empty comment" });
 

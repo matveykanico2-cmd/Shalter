@@ -117,11 +117,13 @@ describe("sendMessage", () => {
     const b = await createBot(owner, "Ограничения");
     const dm = await startBot(user, b);
     await user.api.post(`/api/users/${b.id}/block`, { blocked: true });
-    // ПОВЕДЕНИЕ-ВОПРОС: отказы «заблокировал» и «не админ канала» отдаются 404, а не 403.
-    expectError(await b.client.post("sendMessage", { chatId: dm.id, text: "x" }), 404, "User has blocked the bot");
+    // Отказ в отправке — 403, как у sendSticker и forwardMessage; 404 — только «нет такого чата».
+    expectError(await b.client.post("sendMessage", { chatId: dm.id, text: "x" }), 403, "User has blocked the bot");
+    expectError(await b.client.post("sendPhoto", { chatId: dm.id, url: "https://img.example/p.jpg" }), 403, "User has blocked the bot");
 
     const channel = await channelWithBot(owner, [sub], b, { admin: false });
-    expectError(await b.client.post("sendMessage", { chatId: channel.id, text: "x" }), 404, "Bot must be an admin to post in a channel");
+    expectError(await b.client.post("sendMessage", { chatId: channel.id, text: "x" }), 403, "Bot must be an admin to post in a channel");
+    expectError(await b.client.post("sendPoll", { chatId: channel.id, question: "?", options: ["a", "b"] }), 403, "Bot must be an admin to post in a channel");
     const adminChannel = await channelWithBot(owner, [sub], b);
     expect(expectOk(await b.client.post("sendMessage", { chatId: adminChannel.id, text: "пост" }), messageEnvelope).message.chatId).toBe(adminChannel.id);
   });
@@ -140,7 +142,8 @@ describe("sendMessage", () => {
 
     const m = expectOk(await b.client.post("sendMessage", { chatId: group.id, text: "только тебе", visibleTo: target.id }), messageEnvelope).message;
     expect(m.visibleToId).toBe(target.id);
-    expect(m.deletedForIds.sort()).toEqual([owner.id, other.id].sort());
+    // Кому скрыто, сервер держит у себя: наружу deletedForIds всегда пуст.
+    expect(m.deletedForIds).toEqual([]);
     await targetWs.waitFor("message:new", (e) => e.message?.id === m.id);
     await Promise.all([ownerWs.expectNone("message:new", (e) => e.message?.id === m.id), otherWs.expectNone("message:new", (e) => e.message?.id === m.id)]);
 
@@ -181,10 +184,12 @@ describe("медиа", () => {
     const docDefault = expectOk(await b.client.post("sendDocument", { chatId: dm.id, url: "https://f.example/r.pdf" }), messageEnvelope).message;
     expect(docDefault).toMatchObject({ text: "📎 file", attachments: [{ kind: "file", name: "file" }] });
 
-    // ПОВЕДЕНИЕ-ВОПРОС: небезопасный адрес молча выкидывает вложение — уходит пустое «🖼» вместо 400.
-    const unsafe = expectOk(await b.client.post("sendPhoto", { chatId: dm.id, url: "javascript:alert(1)" }), messageEnvelope).message;
-    expect(unsafe.text).toBe("🖼");
-    expect(unsafe).not.toHaveProperty("attachments");
+    // Небезопасный адрес — 400, сообщение не уходит.
+    for (const method of ["sendPhoto", "sendDocument", "sendVideo", "sendVoice", "sendVideoNote"]) {
+      expectError(await b.client.post(method, { chatId: dm.id, url: "javascript:alert(1)" }), 400, "Некорректная ссылка на файл");
+    }
+    expectError(await b.client.post("sendMediaGroup", { chatId: dm.id, items: [{ url: "https://a.example/1" }, { url: "javascript:alert(1)" }] }), 400, "Некорректная ссылка на файл");
+    expect((await user.api.get(`/api/chats/${dm.id}/messages`)).body.messages.map((x: any) => x.id)).toEqual([photo.id, captioned.id, doc.id, docDefault.id]);
   });
 
   test("sendVideo / sendVoice / sendVideoNote", async () => {
@@ -194,15 +199,14 @@ describe("медиа", () => {
     const dm = await startBot(user, b);
     const send = (method: string, body: object) => b.client.post(method, { chatId: dm.id, url: "https://v.example/x", ...body });
 
-    // ПОВЕДЕНИЕ-ВОПРОС: эти три метода объявлены в botApi.js дважды; работает первый вариант
-    // (mediaSender) — подписи «🎬 Видео / 🎤 Голосовое / ⭕ Кружок», имени по умолчанию нет,
-    // durationSec игнорируется. Второй вариант (ATTACHMENT_KINDS) — мёртвый код.
+    // Подписи по умолчанию «🎬 Видео / 🎤 Голосовое / ⭕ Кружок», имени по умолчанию нет;
+    // durationSec (как в документации) сохраняется у голосового и кружка, у видео — нет.
     const video = expectOk(await send("sendVideo", { durationSec: 12 }), messageEnvelope).message;
     expect(video).toMatchObject({ text: "🎬 Видео" });
     expect(video.attachments).toEqual([{ kind: "video", url: "https://v.example/x" }]);
     const voice = expectOk(await send("sendVoice", { durationSec: 3 }), messageEnvelope).message;
     expect(voice).toMatchObject({ text: "🎤 Голосовое" });
-    expect(voice.attachments).toEqual([{ kind: "voice", url: "https://v.example/x" }]);
+    expect(voice.attachments).toEqual([{ kind: "voice", url: "https://v.example/x", durationSec: 3 }]);
     const note = expectOk(await send("sendVideoNote", { caption: "Смотри", name: "n".repeat(250) }), messageEnvelope).message;
     expect(note).toMatchObject({ text: "Смотри" });
     expect(note.attachments).toEqual([{ kind: "video-note", url: "https://v.example/x", name: "n".repeat(200) }]);
@@ -417,7 +421,7 @@ describe("copyMessage / forwardMessage", () => {
 
     // Пересылка, как и sendMessage, не доходит заблокировавшему бота.
     await user.api.post(`/api/users/${b.id}/block`, { blocked: true });
-    expectError(await b.client.post("sendMessage", { chatId: dm.id, text: "x" }), 404, "User has blocked the bot");
+    expectError(await b.client.post("sendMessage", { chatId: dm.id, text: "x" }), 403, "User has blocked the bot");
     expectError(await b.client.post("forwardMessage", { messageId: src.id, toChatId: dm.id }), 403, "User has blocked the bot");
   });
 

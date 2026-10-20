@@ -232,14 +232,16 @@ describe("комментарии", () => {
     expectError(await v1.api.delete(`/api/stories/st_1_00000000/comments/${c1.id}`), 404, NOT_FOUND);
   });
 
-  test("ПОВЕДЕНИЕ-ВОПРОС: PATCH/DELETE комментария видимость истории не проверяют", async () => {
-    // Свой комментарий правится и удаляется даже после того, как автор истории стал
-    // невидим (автор удалил зрителя из контактов) — проверяется только принадлежность комментария.
+  test("PATCH комментария — только пока история видна; удалить свой можно и после", async () => {
+    // Автор удалил зрителя из контактов — история ему больше не видна.
     const { author, v1, story } = await cast();
     const c = await comment(v1, story.id, "до");
     expect((await author.api.delete("/api/contacts", { userId: v1.id })).status).toBe(200);
     expectError(await v1.api.get(`/api/stories/${story.id}/comments`), 404, NOT_FOUND);
-    expect(expectOk(await v1.api.patch(`/api/stories/${story.id}/comments/${c.id}`, { text: "после" }), commentBody).comment.text).toBe("после");
+    expectError(await v1.api.patch(`/api/stories/${story.id}/comments/${c.id}`, { text: "после" }), 404, NOT_FOUND);
+    expect(expectOk(await author.api.get(`/api/stories/${story.id}/comments`), commentsBody).comments.map((x: any) => x.text)).toEqual(["до"]);
+    // Удаление своего комментария — уборка своих данных, видимость не нужна.
     expectOk(await v1.api.delete(`/api/stories/${story.id}/comments/${c.id}`), okBody);
   });
+
 });

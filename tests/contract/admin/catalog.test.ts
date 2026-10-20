@@ -73,15 +73,14 @@ describe("метки безопасности", () => {
     expectError(await m.api.post("/api/admin/labels", { id: "SCAM", short: "X", label: "Дубль" }), 400, "Метка с таким идентификатором уже есть");
   });
 
-  test("PATCH /labels/:id: частичное изменение; несуществующая и пустые поля — 400", async () => {
+  test("PATCH /labels/:id: частичное изменение; несуществующая — 404, пустые поля — 400", async () => {
     const m = await mod();
     const label = expectOk(await m.api.post("/api/admin/labels", { id: "patchme", short: "P", label: "Правка", hint: "h", color: "#000" }), labelBody).label;
     const patched = expectOk(await m.api.patch("/api/admin/labels/patchme", { short: "new", color: "#fff" }), labelBody).label;
     expect(patched).toEqual({ ...label, short: "NEW", color: "#fff" });
     expect(expectOk(await m.api.patch("/api/admin/labels/patchme", {}), labelBody).label).toEqual(patched);
 
-    // ПОВЕДЕНИЕ-ВОПРОС: несуществующая метка — 400, а не 404.
-    expectError(await m.api.patch("/api/admin/labels/nolabel", { short: "X" }), 400, "Метка не найдена");
+    expectError(await m.api.patch("/api/admin/labels/nolabel", { short: "X" }), 404, "Метка не найдена");
     expectError(await m.api.patch("/api/admin/labels/patchme", { short: "  " }), 400, "Нужны короткая надпись и название");
     expectError(await m.api.patch("/api/admin/labels/patchme", { label: "" }), 400, "Нужны короткая надпись и название");
   });

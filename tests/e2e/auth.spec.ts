@@ -17,8 +17,7 @@ test("регистрация через форму, выход и вход по 
   await page.getByPlaceholder("you@example.com").fill(email);
   await page.getByPlaceholder("999 123 45 67").fill(uniqPhone().slice(2));
   await page.getByPlaceholder("юзернейм").fill(username);
-  // ПОВЕДЕНИЕ-ВОПРОС: статус «Свободен ✓» не появляется, пока форма не перерисуется
-  // (элемент статуса не вставлен в DOM при первом вводе) — поэтому его не проверяем.
+  await expect(page.getByText("Свободен ✓")).toBeVisible();
   await page.getByPlaceholder("Пароль").fill(password);
   await page.getByRole("button", { name: "Создать аккаунт" }).click();
 

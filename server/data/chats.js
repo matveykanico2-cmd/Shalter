@@ -148,11 +148,12 @@ async function findChannelByDiscussionChatId(discussionChatId) {
   return rowToChat(db.prepare("SELECT * FROM chats WHERE linkedDiscussionChatId = ? AND type = 'channel'").get(discussionChatId));
 }
 
-async function searchPublicChannels(query) {
+// Публичные каналы и группы (общий поиск); { channelsOnly: true } — только каналы (каталог каналов).
+async function searchPublicChannels(query, { channelsOnly = false } = {}) {
   const q = (query ?? "").trim().toLowerCase();
   const handle = q.replace(/^@/, "");
   const rows = db
-    .prepare("SELECT * FROM chats WHERE type IN ('channel', 'group') AND isPublic = 1 ORDER BY title ASC")
+    .prepare(`SELECT * FROM chats WHERE type IN (${channelsOnly ? "'channel'" : "'channel', 'group'"}) AND isPublic = 1 ORDER BY title ASC`)
     .all();
   const filtered = rows
     .filter((r) => !q || (r.title ?? "").toLowerCase().includes(q) || (r.username ?? "").toLowerCase().includes(handle))

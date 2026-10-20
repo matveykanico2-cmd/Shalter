@@ -34,7 +34,9 @@ function planFor(user) {
 }
 
 function normalizeAiSettings(raw, plan = PLANS.free) {
-  const s = { ...AI_DEFAULTS, ...(raw && typeof raw === "object" ? raw : {}) };
+  const src = raw && typeof raw === "object" ? raw : {};
+  // Только известные поля: посторонние ключи в settings.ai не сохраняются.
+  const s = Object.fromEntries(Object.keys(AI_DEFAULTS).map((k) => [k, k in src ? src[k] : AI_DEFAULTS[k]]));
   for (const [k, list] of Object.entries(CHOICES)) if (!list.includes(s[k])) s[k] = AI_DEFAULTS[k];
   if (!plan.modes.includes(s.mode)) s.mode = "fast";
   s.creativity = Math.min(1, Math.max(0, Number(s.creativity)));

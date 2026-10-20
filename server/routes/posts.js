@@ -22,7 +22,10 @@ router.post(
   "/:channelId/publish",
   asyncRoute(async (req, res) => {
     const chat = await getChat(req.params.channelId);
-    if (!chat || chat.type !== "channel") return res.status(404).json({ error: "not found" });
+    // Постороннему закрытый канал не раскрываем: 404, как будто его нет.
+    if (!chat || chat.type !== "channel" || (!chat.isPublic && !chat.memberIds.includes(req.uid))) {
+      return res.status(404).json({ error: "not found" });
+    }
     const isOwnerOrAdmin =
       chat.ownerId === req.uid || (chat.ownerIds ?? []).includes(req.uid) || chat.adminIds?.includes(req.uid);
     if (!isOwnerOrAdmin) return res.status(403).json({ error: "Публиковать могут только администраторы канала" });
@@ -136,7 +139,8 @@ router.get(
     if (found.error) return res.status(found.status).json({ error: found.error });
 
     const replies = await listThreadReplies(found.anchor.id);
-    const members = await Promise.all(found.discussion.memberIds.map((id) => getUser(id)));
+    const memberIds = [...new Set([...found.discussion.memberIds, ...replies.map((r) => r.senderId)])];
+    const byId = new Map((await Promise.all(memberIds.map((id) => getUser(id)))).filter(Boolean).map((u) => [u.id, u]));
     // Сколько стоит комментарий и берёт ли его этот пользователь: платёж живёт
     // в sendGate, условия логики повторяем здесь, чтобы панель показала цену
     // заранее, а не после неудачной отправки.
@@ -147,9 +151,11 @@ router.get(
       post: found.post,
       anchor: found.anchor,
       chat: { id: found.discussion.id, title: found.discussion.title },
-      members: publicUsers([...members, ...(await Promise.all(replies.map((r) => getUser(r.senderId))))].filter(Boolean)),
+      // Участники обсуждения и авторы ответов — каждый по одному разу.
+      members: publicUsers(memberIds.map((id) => byId.get(id)).filter(Boolean)),
       replies,
-      canComment: found.discussion.memberIds.includes(req.uid) || !!found.discussion.username || !!found.channel.username,
+      // Те же условия, что у POST: доступ к ветке (resolveComments) и нет бана в обсуждении.
+      canComment: !(found.discussion.bannedIds ?? []).includes(req.uid),
       commentPriceStars: price,
       commentPriceFree: priceFree,
     });
@@ -169,12 +175,13 @@ router.post(
     if (body.text != null && typeof body.text !== "string") return res.status(400).json({ error: "Некорректный текст" });
     if (!body.text?.trim() && !body.attachments?.length) return res.status(400).json({ error: "Напишите комментарий" });
 
-    if (!discussion.memberIds.includes(req.uid)) {
-      discussion = await updateChat(discussion.id, { memberIds: [...discussion.memberIds, req.uid] });
-    }
     // Те же проверки, что у обычной отправки: ограничения, права, платные комментарии.
-    const gate = await sendGate(discussion, req.uid, body);
+    // Проверяем как будто уже участник, а в обсуждение добавляем только после успеха —
+    // иначе после 402 человек оставался бы в группе, так и не прокомментировав.
+    const joining = !discussion.memberIds.includes(req.uid);
+    const gate = await sendGate(joining ? { ...discussion, memberIds: [...discussion.memberIds, req.uid] } : discussion, req.uid, body);
     if (gate.status) return res.status(gate.status).json(gate.payload);
+    if (joining) discussion = await updateChat(discussion.id, { memberIds: [...discussion.memberIds, req.uid] });
 
     const message = await deliverMessage(discussion, req.uid, { ...body, threadRootId: found.anchor.id }, { paidStars: gate.charged });
     res.json({ message, ...(gate.charged ? { chargedStars: gate.charged } : {}) });

@@ -564,9 +564,14 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     },
   });
 
+  const usernameHint = el("p", { class: "login-hint" }, "По нему вас смогут найти и добавить — латиница, цифры и _");
+
   function setUsernameStatus(text, kind) {
     usernameStatus.textContent = text;
     usernameStatus.className = `login-hint username-status ${kind}`;
+    // Поле уже на экране: подсказка и статус меняются местами без перерисовки формы.
+    if (text && usernameHint.isConnected) usernameHint.replaceWith(usernameStatus);
+    else if (!text && usernameStatus.isConnected) usernameStatus.replaceWith(usernameHint);
   }
 
   async function checkUsername() {
@@ -586,7 +591,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     usernameEl.value = username;
     return el("div", { class: "login-username-field" }, [
       usernameEl,
-      usernameStatus.textContent ? usernameStatus : el("p", { class: "login-hint" }, "По нему вас смогут найти и добавить — латиница, цифры и _"),
+      usernameStatus.textContent ? usernameStatus : usernameHint,
     ]);
   }
 

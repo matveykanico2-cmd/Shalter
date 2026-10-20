@@ -19,10 +19,8 @@ import { createDm, createGroup, registerUsers, sendText } from "../../support/se
 import { useServer } from "../../support/use-server";
 import { aboutMessage, msgs, useSockets } from "./helpers";
 
-// HUGO_AI=off: по умолчанию сводка уходит во внешний бесплатный ИИ (text.pollinations.ai),
-// в тестах сеть не нужна — фиксируем ответ «ИИ недоступен».
-// ПОВЕДЕНИЕ-ВОПРОС: support/server.ts не выключает ИИ — без этой строки тест ходит в интернет.
-const server = useServer({ env: { HUGO_AI: "off" } });
+// ИИ-сводка: support/server.ts выключает внешний ИИ (HUGO_AI=off) — фиксируем ответ «ИИ недоступен».
+const server = useServer();
 const ws = useSockets();
 const expectAny = z.unknown();
 

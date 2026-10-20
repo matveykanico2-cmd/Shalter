@@ -93,7 +93,9 @@ router.put(
     const me = await getUser(req.uid);
     if (!me.isAdsActive) return res.status(403).json({ error: "Кабинет рекламы не активен" });
 
-    const { text, url, attachments } = req.body ?? {};
+    const { text, attachments } = req.body ?? {};
+    // Ссылку обрезаем до проверки: « https://…» — та же ссылка, что и без пробела.
+    const url = typeof req.body?.url === "string" ? req.body.url.trim() : req.body?.url;
     if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Введите текст объявления" });
     if (url && (typeof url !== "string" || !/^https?:\/\//.test(url))) return res.status(400).json({ error: "Ссылка должна начинаться с http:// или https://" });
 
@@ -103,7 +105,7 @@ router.put(
     }
     const updated = await updateUser(req.uid, {
       adText: text.trim().slice(0, AD_TEXT_MAX),
-      adUrl: url?.trim() || null,
+      adUrl: url || null,
       adAttachments,
     });
     res.json({ user: publicUser(updated) });
@@ -204,7 +206,10 @@ router.patch(
     if (!c) return;
     const patch = {};
     if (typeof req.body?.title === "string") patch.title = req.body.title.trim().slice(0, 60);
-    if (typeof req.body?.text === "string") patch.text = req.body.text.trim().slice(0, MAX_TEXT);
+    if (typeof req.body?.text === "string") {
+      patch.text = req.body.text.trim().slice(0, MAX_TEXT);
+      if (!patch.text) return res.status(400).json({ error: "Напишите текст объявления" });
+    }
     if (typeof req.body?.url === "string") patch.url = req.body.url.trim().slice(0, 300) || null;
     if (typeof req.body?.imageUrl === "string") patch.imageUrl = req.body.imageUrl.trim() || null;
     if (usesForeignUpload(req.uid, [patch.url, patch.imageUrl], [c.url, c.imageUrl])) {

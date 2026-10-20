@@ -235,7 +235,8 @@ describe("POST /api/gifts/buy", () => {
 
     const senderEv = await aWs.waitFor("message:new", (e) => isGiftMsg(e) && e.message.senderId === a.id && e.chatId === anon.chatId, WAIT);
     expect(senderEv.message.text).toBe("🎁 Вы отправили анонимный подарок: 🎂 «Торт»!");
-    expect(senderEv.message).toMatchObject({ visibleToId: a.id, deletedForIds: [b.id] });
+    // deletedForIds — служебный список сервера, наружу всегда пуст.
+    expect(senderEv.message).toMatchObject({ visibleToId: a.id, deletedForIds: [] });
     await aWs.expectNone("message:new", (e) => e.chatId === botEv.chatId);
     // Запись отправителя в общей личке получателю не приходит и в истории у него не видна.
     await bWs.expectNone("message:new", (e) => e.message?.id === senderEv.message.id);
@@ -340,9 +341,9 @@ describe("POST /api/gifts/deliver", () => {
     await bWs.waitFor("self:updated", () => true, WAIT);
     await outsiderWs.expectNone("message:new");
 
-    // ПОВЕДЕНИЕ-ВОПРОС: самому себе через /deliver можно (в /buy и /request — запрещено).
-    const self = expectOk(await moder.api.post("/api/gifts/deliver", { giftId: "cake", recipientId: moder.id }), deliverBody);
-    expect(self.user.giftsReceived).toHaveLength(1);
+    // Самому себе нельзя, как в /buy и /request.
+    expectError(await moder.api.post("/api/gifts/deliver", { giftId: "cake", recipientId: moder.id }), 400, "Нельзя подарить подарок самому себе");
+    expect((await selfOf(moder)).giftsReceived).toEqual([]);
     // Тиражный — с номером.
     const left = (await adm.api.get("/api/gifts")).body.gifts.find((g: any) => g.id === "tg_plush_pepe").remaining;
     const pepe = expectOk(await adm.api.post("/api/gifts/deliver", { giftId: "tg_plush_pepe", recipientId: b.id }), deliverBody);

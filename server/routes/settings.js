@@ -1,7 +1,7 @@
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
-const { getSettings, updateSettings } = require("../data/settings");
+const { getSettings, updateSettings, DEFAULT_SETTINGS } = require("../data/settings");
 const { normalizePrivacy } = require("../lib/privacyRules");
 const { isUnsupportedLanguage, UNSUPPORTED_MESSAGE } = require("../lib/unsupportedLanguages");
 const { listChatsForUser } = require("../data/chats");
@@ -61,7 +61,8 @@ function sanitizeHolidays(raw) {
       const title = String(h?.title ?? "").trim().slice(0, 80);
       if (!HOLIDAY_DATE_RE.test(date) || !title) return null;
       const [mm, dd] = date.split("-").map(Number);
-      if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+      // Число месяца — с учётом месяца; 29 февраля допустимо (високосный 2000 год).
+      if (mm < 1 || mm > 12 || dd < 1 || dd > new Date(Date.UTC(2000, mm, 0)).getUTCDate()) return null;
       return {
         id: typeof h.id === "string" && h.id ? h.id : `hol_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
         title,
@@ -79,7 +80,8 @@ const CLOSE_RE = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 function sanitizeHours(raw) {
   const out = {};
   for (const day of DAY_KEYS) {
-    const d = raw?.[day] ?? {};
+    // День, которого нет в запросе, — как по умолчанию (сб и вс — выходные), а не рабочий 09–18.
+    const d = raw?.[day] ?? DEFAULT_SETTINGS.business.hours[day];
     out[day] = {
       closed: !!d.closed,
       open: TIME_RE.test(d.open) ? d.open : "09:00",
@@ -134,8 +136,22 @@ async function sanitizeBusiness(raw, userId) {
 router.patch(
   "/",
   asyncRoute(async (req, res) => {
-    const patch = { ...(req.body ?? {}) };
-    if (patch.privacy) patch.privacy = normalizePrivacy(patch.privacy);
+    const body = req.body ?? {};
+    if (typeof body !== "object" || Array.isArray(body)) return res.status(400).json({ error: "Некорректные настройки" });
+    const patch = { ...body };
+    const isPlainObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+    // privacy не объектом молча отбрасывается — прежние настройки остаются.
+    if ("privacy" in patch) {
+      if (isPlainObject(patch.privacy)) patch.privacy = normalizePrivacy(patch.privacy);
+      else delete patch.privacy;
+    }
+    // notifications сливается с текущими: PATCH { sound } не стирает mutedChats и previewText.
+    if ("notifications" in patch) {
+      if (isPlainObject(patch.notifications)) {
+        const current = (await getSettings(req.uid)).notifications;
+        patch.notifications = { ...(isPlainObject(current) ? current : DEFAULT_SETTINGS.notifications), ...patch.notifications };
+      } else delete patch.notifications;
+    }
     // Иконка приложения (хранится в аккаунте, чтобы пережить обновление/переустановку)
     if ("appIcon" in patch && !(typeof patch.appIcon === "string" && /^[a-z0-9-]{1,32}$/.test(patch.appIcon))) delete patch.appIcon;
     if (patch.holidays) patch.holidays = sanitizeHolidays(patch.holidays);

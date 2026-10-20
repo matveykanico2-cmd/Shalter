@@ -271,7 +271,9 @@ async function serviceNote(chat, actorId, build) {
   const name = actor?.name ?? "Кто-то";
   const text = build(name, actor);
   if (!text) return null;
-  return sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, text, { type: "system" });
+  // Строка о собственном действии у автора не должна висеть непрочитанной.
+  const readByIds = [...new Set([SYSTEM_BOT_ID, actorId].filter(Boolean))];
+  return sendMessageAndBroadcast(chat, SYSTEM_BOT_ID, text, { type: "system", readByIds });
 }
 
 function isOwner(chat, userId) {
@@ -528,8 +530,9 @@ router.post(
 
     const updated = await updateChat(chat.id, { memberIds: [...chat.memberIds, req.uid] });
     broadcastToUsers([req.uid], { type: "chat:added", chat: updated });
+    // Как при вступлении по ссылке и одобрении заявки — и для групп, и для каналов.
+    broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
     if (chat.type === "group") {
-      broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
       const joiner = await getUser(req.uid);
       await sendMessageAndBroadcast(updated, SYSTEM_BOT_ID, `${joiner?.name ?? "Кто-то"} вступил(а) в группу`, { type: "system" });
       await sendWelcome(updated, req.uid);
@@ -564,7 +567,9 @@ router.post(
 
     const { isPublic } = req.body ?? {};
     if (!isPublic) {
-      const updated = await updateChat(req.params.id, { isPublic: false });
+      // Как при создании частного чата: юзернейм освобождается, иначе он навсегда
+      // оставался занят чатом, который по нему уже не найти.
+      const updated = await updateChat(req.params.id, { isPublic: false, username: null });
       return res.json({ chat: updated });
     }
 
@@ -963,6 +968,11 @@ router.post(
   asyncRoute(async (req, res) => {
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
+    // Из лички не выходят, её удаляют (у себя или у обоих): иначе у собеседника
+    // она превращалась во второе «Избранное».
+    if (chat.type !== "group" && chat.type !== "channel") {
+      return res.status(400).json({ error: "Покинуть можно только группу или канал" });
+    }
     const memberIds = chat.memberIds.filter((m) => m !== req.uid);
     const adminIds = chat.adminIds?.filter((m) => m !== req.uid);
     const moderatorIds = chat.moderatorIds?.filter((m) => m !== req.uid);
@@ -1211,6 +1221,8 @@ router.post(
 
     const updated = await updateChat(req.params.id, { restrictions });
     logAdminAction(chat.id, req.uid, until ? "member_restrict" : "member_unrestrict", { targetId: userId, details: until ? { until } : null });
+    // Как остальные правки участников: клиенты обновляют чат (в том числе поле ввода у ограниченного).
+    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     if (chat.type === "group") {
       const target = await getUser(userId);
       const who = target?.name ?? "участнику";

@@ -112,13 +112,15 @@ function clearAllSessions(req, res) {
   writeSessions(res, [], null);
 }
 
+// Текст 401: аккаунт в cookie есть, но сессию завершили с другого устройства, —
+// «session_revoked», иначе — «unauthorized».
+function noSessionError(req) {
+  return cookieUserIds(req).length > 0 ? "session_revoked" : "unauthorized";
+}
+
 const requireUserId = asyncRoute(async (req, res, next) => {
   const uid = getCurrentUserId(req);
-  if (!uid) {
-    // Аккаунт в cookie есть, но сессию завершили с другого устройства.
-    const listed = cookieUserIds(req).length > 0;
-    return res.status(401).json({ error: listed ? "session_revoked" : "unauthorized" });
-  }
+  if (!uid) return res.status(401).json({ error: noSessionError(req) });
   const deviceId = req.cookies?.[DEVICE_COOKIE];
   const session = await getSession(uid, deviceId);
   const ip = req.ip || "";
@@ -144,6 +146,7 @@ module.exports = {
   removeAccountSession,
   clearAllSessions,
   requireUserId,
+  noSessionError,
   getCurrentUserIdFromCookieHeader,
   deviceIdFromCookieHeader: (header) => parseCookieHeader(header)[DEVICE_COOKIE] ?? null,
   getOrCreateDeviceId,

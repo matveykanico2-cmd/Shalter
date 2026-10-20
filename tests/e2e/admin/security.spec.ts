@@ -63,9 +63,7 @@ test("облачный пароль: включение в настройках,
   // Неверный облачный пароль — ошибка, остаёмся на шаге.
   await page.getByPlaceholder("Облачный пароль").fill("не-тот");
   await page.getByRole("button", { name: "Подтвердить вход" }).click();
-  // ПОВЕДЕНИЕ-ВОПРОС: на неверный облачный пароль сервер отвечает «Неверный код» (как
-  // для TOTP-кода) со счётчиком попыток, а не «Неверный облачный пароль».
-  await expect(page.getByText(/^Неверный код\. Осталось попыток: \d+$/)).toBeVisible();
+  await expect(page.getByText(/^Неверный облачный пароль\. Осталось попыток: \d+$/)).toBeVisible();
   await expect(navLink(page, "Чаты")).toHaveCount(0);
 
   await page.getByPlaceholder("Облачный пароль").fill("Гора-2026");

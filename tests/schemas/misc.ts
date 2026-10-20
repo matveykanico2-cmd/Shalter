@@ -3,7 +3,7 @@
 // собственный экспорт (routes/export.js), сборки (routes/downloads.js), /api/version.
 import { z } from "zod";
 import { isoDate } from "./common";
-import { userExport } from "./admin";
+import { selfUserExport } from "./admin";
 
 /** Содержимое из системного меню «Поделиться», выдаётся один раз по токену. */
 export const sharePayload = z.strictObject({
@@ -15,8 +15,8 @@ export const shareBody = z.strictObject({ share: sharePayload });
 
 export const shortLinksCount = z.strictObject({ total: z.number().int(), thisMonth: z.number().int() });
 
-/** GET /api/export — та же выгрузка, что у юристов (data/dataExport.js), но про себя. */
-export const selfExportBody = z.strictObject({ data: userExport });
+/** GET /api/export — тот же построитель, что у юристов (data/dataExport.js), но про себя. */
+export const selfExportBody = z.strictObject({ data: selfUserExport });
 
 export const DOWNLOAD_IDS = ["windows", "android", "linux", "linux-deb", "macos-arm64"] as const;
 export const downloadArtifact = z.union([

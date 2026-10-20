@@ -295,8 +295,9 @@ describe("POST /:id/restrict", () => {
     expect(r.restrictions).toEqual({ [b.id]: "forever" });
     expect(await lastMessageOf(a, group.id)).toMatchObject({ type: "system", text: "Алиса запретил(а) писать Боб" });
     expectError(await b.api.post(`/api/chats/${group.id}/messages`, { text: "можно?" }), 403, "Вам запрещено писать в этом чате");
-    // ПОВЕДЕНИЕ-ВОПРОС: ограничение не рассылает chat:updated — участники видят только служебное сообщение.
-    await bWs.expectNone("chat:updated");
+    // Участникам (и самому ограниченному) — chat:updated с новыми ограничениями.
+    const upd = await bWs.waitFor("chat:updated", (e) => e.chat?.id === group.id);
+    expect(upd.chat.restrictions).toEqual({ [b.id]: "forever" });
 
     const until = new Date(Date.now() + 3600_000).toISOString();
     expect(expectOk(await a.api.post(`/api/chats/${group.id}/restrict`, { userId: b.id, until }), chatBody).chat.restrictions).toEqual({ [b.id]: until });
@@ -349,17 +350,16 @@ describe("POST /:id/leave", () => {
     expectError(await admin.api.get(`/api/chats/${group.id}`), 404, NOT_FOUND);
   });
 
-  test("выход из лички", async () => {
+  test("из лички выйти нельзя — её удаляют", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
     const b = await registerUser(baseUrl);
     const dm = await createDm(a, b);
     await sendText(a, dm.id, "пока");
-    expectOk(await a.api.post(`/api/chats/${dm.id}/leave`), leaveBody);
-    const left = expectOk(await b.api.get("/api/chats"), chatList).chats.find((c) => c.id === dm.id)!;
-    // ПОВЕДЕНИЕ-ВОПРОС: личка, из которой вышел собеседник, становится у оставшегося
-    // «Избранным» (один участник), а он сам — её владельцем.
-    expect(left).toMatchObject({ memberIds: [b.id], ownerIds: [b.id], isSaved: true, title: "Избранное", otherUser: null });
+    expectError(await a.api.post(`/api/chats/${dm.id}/leave`), 400, "Покинуть можно только группу или канал");
+    const row = expectOk(await b.api.get("/api/chats"), chatList).chats.find((c) => c.id === dm.id)!;
+    expect(row.memberIds.sort()).toEqual([a.id, b.id].sort());
+    expect(row).not.toHaveProperty("isSaved");
   });
 });
 

@@ -130,6 +130,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const me = await getUser(req.uid);
     if (!hasAdminSection(me, "moderation")) return res.status(403).json({ error: "Недостаточно прав" });
+    if (req.body?.recipientId === req.uid) return res.status(400).json({ error: "Нельзя подарить подарок самому себе" });
 
     const gift = getGift(req.body?.giftId);
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
@@ -189,6 +190,11 @@ router.post(
     }
 
     const catalogGift = getGift(entry.giftId ?? "");
+    // Premium уже выдан при вручении — иначе обмен на полную цену позволял бы бесконечно
+    // «передаривать» Premium за одни и те же звёзды.
+    if (catalogGift && catalogGift.premiumDays !== 0) {
+      return res.status(400).json({ error: "Этот подарок нельзя обменять на звёзды" });
+    }
     const value = conversionValue(catalogGift ?? { priceRub: entry.priceRub ?? 1, priceStars: entry.priceStars });
     if (!removeReceivedGift(req.uid, req.params.entryId)) {
       return res.status(404).json({ error: "Подарок не найден на вашей полке" });
@@ -461,6 +467,7 @@ router.post(
     if (!gift) return res.status(404).json({ error: "Подарок не найден" });
     const recipient = await getUser(req.body?.recipientId);
     if (!recipient) return res.status(404).json({ error: "Получатель не найден" });
+    if ((recipient.blockedUserIds ?? []).includes(req.uid)) return res.status(403).json({ error: "Пользователь ограничил вам доступ" });
     const background = sanitizeGiftBackground(req.body?.background);
     const anonymous = await resolveAnonymous(req);
     const result = await deliverGift({ gift, recipientId: recipient.id, fromId: req.uid, announceFromId: req.uid, background, anonymous, note: giftNote(req) });
