@@ -19,7 +19,7 @@ const MEMBER_COLUMNS = {
 const SCALAR_FIELDS = [
   "title", "description", "username", "isPublic", "avatarColor", "avatarImage", "ownerId",
   "linkedDiscussionChatId", "points", "autoDeleteSeconds", "inviteCode", "slowModeSeconds",
-  "commentPriceStars", "approveJoins", "signMessages", "commentsOff", "anonymousAdmins", "welcomeText",
+  "commentPriceStars", "approveJoins", "signMessages", "commentsOff", "anonymousAdmins", "topicsEnabled", "welcomeText",
 ] as const satisfies readonly (keyof ChatPatch & keyof NewChatRow)[];
 
 const MEMBERS_CHUNK = 500;

@@ -34,7 +34,7 @@ import {
 } from "./model/schemas/chat.schema.js";
 
 // Чаты пользователя: список, создание, правка, удаление, выход, личные флаги, «печатает…».
-// Сообщения и темы чата (/:id/messages, /:id/topics) пока в server/.
+// Сообщения и темы чата — модули messages и topics.
 @Controller("api/chats")
 @UseGuards(AuthGuard, SecretChatGuard)
 export class ChatsController {

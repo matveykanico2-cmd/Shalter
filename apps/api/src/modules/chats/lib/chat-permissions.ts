@@ -1,6 +1,6 @@
 // Права участников группы (server/lib/chatPermissions.js): по умолчанию всё разрешено,
-// владельцы, админы и модераторы не ограничены. Копия в server/ остаётся для сообщений,
-// постов и Bot API, пока они там: правка идёт в обе.
+// владельцы, админы и модераторы не ограничены. Копия в server/ остаётся для постов, Bot API
+// и отложенных сообщений, пока они там: правка идёт в обе.
 
 export const PERMISSIONS = [
   { id: "sendMessages", label: "Отправлять сообщения" },
@@ -39,12 +39,13 @@ export function sanitizePermissions(raw: unknown): Record<Permission, boolean> |
   return out;
 }
 
-function isStaff(chat: WithPermissions, userId: string): boolean {
+/** Владелец, админ или модератор. */
+export function isStaff(chat: Omit<WithPermissions, "type"> | undefined, userId: string): boolean {
   return (
-    chat.ownerId === userId ||
-    (chat.ownerIds ?? []).includes(userId) ||
-    (chat.adminIds ?? []).includes(userId) ||
-    (chat.moderatorIds ?? []).includes(userId)
+    chat?.ownerId === userId ||
+    (chat?.ownerIds ?? []).includes(userId) ||
+    (chat?.adminIds ?? []).includes(userId) ||
+    (chat?.moderatorIds ?? []).includes(userId)
   );
 }
 
@@ -53,3 +54,15 @@ export function can(chat: WithPermissions | undefined, userId: string, what: Per
   if (isStaff(chat, userId)) return true;
   return permissionsOf(chat)[what] !== false;
 }
+
+/** Ответ 403, когда права нет. */
+export const DENIED: Record<Permission, string> = {
+  sendMessages: "В этой группе писать могут только администраторы",
+  sendMedia: "В этой группе нельзя отправлять фото и файлы",
+  sendStickers: "В этой группе нельзя отправлять стикеры",
+  sendPolls: "В этой группе нельзя создавать опросы",
+  addMembers: "В этой группе добавлять участников могут только администраторы",
+  pinMessages: "В этой группе закреплять сообщения могут только администраторы",
+  createTopics: "В этой группе создавать темы могут только администраторы",
+  setOwnTag: "В этой группе теги ставят только администраторы",
+};

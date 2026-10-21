@@ -15,7 +15,8 @@ import { ChatsRepository } from "./chats.repository.js";
 import { ChatsService } from "./chats.service.js";
 import { JoinRequestsRepository } from "./join-requests.repository.js";
 
-// Чаты (/api/chats). Сообщения и темы (/api/chats/:id/messages, /:id/topics) пока в server/.
+// Чаты (/api/chats). Сообщения и темы чата — модули messages и topics: им нужны чаты,
+// проверка доступа (guard'ы) и журнал действий.
 // ChatLinksController первым: его by-username/… и invite/… не должны совпасть с /:id/….
 @Module({
   imports: [UsersModule],
@@ -32,5 +33,6 @@ import { JoinRequestsRepository } from "./join-requests.repository.js";
     JoinRequestsRepository,
     AdminLogRepository,
   ],
+  exports: [ChatsRepository, ChatAccessService, AdminLogService],
 })
 export class ChatsModule {}

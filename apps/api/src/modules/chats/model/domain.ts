@@ -51,6 +51,7 @@ export interface ChatPatch {
   signMessages?: boolean;
   commentsOff?: boolean;
   anonymousAdmins?: boolean;
+  topicsEnabled?: boolean;
   welcomeText?: string | null;
   memberIds?: string[];
   adminIds?: string[];

@@ -5,11 +5,13 @@ import { ViewerShapeInterceptor } from "./common/interceptors/viewer-shape.inter
 import { DbModule } from "./modules/db/db.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { ChatsModule } from "./modules/chats/chats.module.js";
+import { MessagesModule } from "./modules/messages/messages.module.js";
 import { SessionsModule } from "./modules/sessions/sessions.module.js";
+import { TopicsModule } from "./modules/topics/topics.module.js";
 
 // Перенесённые из server/ модули подключаются сюда.
 @Module({
-  imports: [DbModule, AuthModule, SessionsModule, ChatsModule],
+  imports: [DbModule, AuthModule, SessionsModule, ChatsModule, TopicsModule, MessagesModule],
   providers: [
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ViewerShapeInterceptor },

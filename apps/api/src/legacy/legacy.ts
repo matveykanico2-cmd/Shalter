@@ -162,7 +162,10 @@ export interface UserSettings {
   pinnedOrder?: string[];
   hiddenChats?: Record<string, string>;
   chatWallpapers?: Record<string, unknown>;
-  notifications?: { mutedChats?: Record<string, true | string>; [key: string]: unknown };
+  chatClears?: Record<string, string>;
+  drafts?: Record<string, unknown>;
+  privacy?: { messages?: string; exceptions?: Record<string, { allow?: string[]; deny?: string[] }>; [key: string]: unknown };
+  notifications?: { mutedChats?: Record<string, true | string>; previewText?: boolean; [key: string]: unknown };
   [key: string]: unknown;
 }
 interface Settings {
@@ -174,6 +177,8 @@ interface Settings {
   setDraft: (userId: string, chatId: string, text: string) => Promise<UserSettings>;
   clearUnreadMark: (userId: string, chatId: string) => Promise<void>;
   mutedStateFor: (settings: Partial<UserSettings>, chatId: string) => { muted: boolean; mutedUntil: string | null };
+  /** Чат заглушён сейчас (навсегда или до mutedUntil). */
+  isQuietNow: (settings: Partial<UserSettings>, chatId: string) => boolean;
 }
 /** Настройки пользователя: чтение, правка и точечные правки про чаты (server/data/settings.js). */
 export const settings = (): Settings => legacyModule<Settings>("data/settings.js");
@@ -190,6 +195,7 @@ interface PrivacyRules {
   allowsUser: (ownerId: string, key: string, viewerId: string) => Promise<boolean>;
   recordsReadTime: (chat: LegacyChat & { type: string }, readerId: string) => Promise<boolean>;
   publicUsersFor: (users: object[], viewerId: string) => Promise<({ id: string; isBot?: boolean } & Record<string, unknown>)[]>;
+  publicUserFor: (user: object, viewerId: string) => Promise<Record<string, unknown>>;
 }
 export const privacyRules = (): PrivacyRules => legacyModule<PrivacyRules>("lib/privacyRules.js");
 
@@ -239,9 +245,13 @@ export const usesForeignUpload = (userId: string, value: unknown, previous?: unk
 export const isSafeUrl = (url: unknown): boolean =>
   legacyModule<{ isSafeUrl: (url: unknown) => boolean }>("lib/sanitizeAttachments.js").isSafeUrl(url);
 
-/** Бот по его пользователю (server/data/bots.js): здесь нужны только его команды. */
-export const getBotByUserId = (userId: string): Promise<{ commands?: unknown[] } | undefined> =>
-  legacyModule<{ getBotByUserId: (userId: string) => Promise<{ commands?: unknown[] } | undefined> }>("data/bots.js").getBotByUserId(userId);
+/** Бот по его пользователю (server/data/bots.js): команды и код для песочницы. */
+export interface LegacyBot {
+  commands?: unknown[];
+  code?: string;
+}
+export const getBotByUserId = (userId: string): Promise<LegacyBot | undefined> =>
+  legacyModule<{ getBotByUserId: (userId: string) => Promise<LegacyBot | undefined> }>("data/bots.js").getBotByUserId(userId);
 
 // «Печатает…» (server/data/typing.js): в памяти процесса, его же ставят боты и Shalter AI.
 interface Typing {
@@ -251,3 +261,162 @@ interface Typing {
   normalizeAction: (action: unknown) => string;
 }
 export const typing = (): Typing => legacyModule<Typing>("data/typing.js");
+
+// --- Для сообщений (modules/messages) ---
+
+// Шифрование переписки (server/lib/textCrypto.js). Те же функции, ключи и ротация
+// ключей (server/lib/keyring.js), что у server/: шифротекст байт в байт тот же.
+interface TextCrypto {
+  encryptText: (id: string, text: string | null | undefined) => string;
+  decryptText: (id: string, stored: string | null | undefined) => string;
+  isEncrypted: (stored: unknown) => boolean;
+  /** FTS-запрос по словам из строки поиска; null — искать нечего. */
+  searchQuery: (query: string) => string | null;
+  hasLink: (text: string | null | undefined) => 0 | 1;
+  sealSecret: (chatId: string, wrapped: string, messageId: string, text: string | null | undefined) => string;
+  openSecret: (chatId: string, wrapped: string | null, messageId: string, text: string) => string;
+}
+export const textCrypto = (): TextCrypto => legacyModule<TextCrypto>("lib/textCrypto.js");
+
+// Доступ участников чата к загруженным файлам (server/lib/uploadAccess.js).
+interface UploadAccess {
+  registerAttachments: (chatId: string, attachments: unknown, opts?: { by?: string }) => void;
+  revokeAttachments: (chatId: string, refs: { url: string }[]) => void;
+  canAccessUpload: (userId: string, filename: string) => boolean;
+}
+export const uploadAccess = (): UploadAccess => legacyModule<UploadAccess>("lib/uploadAccess.js");
+
+/** Вложение сообщения после очистки (server/lib/sanitizeAttachments.js). */
+export interface Attachment {
+  kind: string;
+  url?: string;
+  thumbUrl?: string;
+  name?: string;
+  transcript?: string;
+  meta?: Record<string, any>;
+  [key: string]: unknown;
+}
+
+// Очистка того, что клиент кладёт в сообщение: вложения, стикер, сцена эмодзи.
+interface Sanitizers {
+  sanitizeAttachments: (raw: unknown) => Attachment[] | undefined;
+  MAX_CHECKLIST_ITEMS: number;
+  sanitizeSticker: (raw: unknown) => ({ kind?: string; url?: string; emoji?: string } & Record<string, unknown>) | undefined;
+  sanitizeScene: (raw: unknown, opts?: { requireLayers?: boolean }) => unknown;
+}
+export const sanitizers = (): Sanitizers => ({
+  ...legacyModule<Pick<Sanitizers, "sanitizeAttachments" | "MAX_CHECKLIST_ITEMS">>("lib/sanitizeAttachments.js"),
+  sanitizeSticker: legacyModule<Pick<Sanitizers, "sanitizeSticker">>("lib/sanitizeSticker.js").sanitizeSticker,
+  sanitizeScene: legacyModule<Pick<Sanitizers, "sanitizeScene">>("lib/sanitizeScene.js").sanitizeScene,
+});
+
+// Звёзды (server/data/stars.js).
+interface Stars {
+  /** false — не хватает звёзд, ничего не списано. */
+  transferStars: (fromId: string, toId: string, amount: number) => boolean;
+  balanceOf: (userId: string) => number;
+}
+export const stars = (): Stars => legacyModule<Stars>("data/stars.js");
+
+// Платные посты (server/data/paidMedia.js): настоящие вложения и покупки.
+export interface PaidMediaRecord {
+  messageId: string;
+  chatId: string;
+  stars: number;
+  attachments: Attachment[];
+}
+interface PaidMedia {
+  savePaidMedia: (messageId: string, chatId: string, stars: number, attachments: Attachment[]) => void;
+  getPaidMedia: (messageId: string) => PaidMediaRecord | undefined;
+  hasBought: (messageId: string, userId: string) => boolean;
+  recordPurchase: (messageId: string, userId: string) => void;
+  buyersCount: (messageId: string) => number;
+}
+export const paidMedia = (): PaidMedia => legacyModule<PaidMedia>("data/paidMedia.js");
+
+// Отложенные сообщения (server/data/scheduledMessages.js); их отправляет server/lib/scheduledMessagesSweep.js.
+export interface ScheduledMessage {
+  id: string;
+  chatId: string;
+  senderId: string;
+  text: string;
+  attachments?: Attachment[];
+  sendAt: string;
+  [key: string]: unknown;
+}
+interface Scheduled {
+  WHEN_ONLINE: string;
+  listScheduledFor: (chatId: string, senderId: string) => Promise<ScheduledMessage[]>;
+  getScheduled: (id: string) => Promise<ScheduledMessage | undefined>;
+  addScheduled: (msg: Record<string, unknown>) => Promise<ScheduledMessage>;
+  editScheduled: (id: string, patch: { text?: unknown; sendAt?: unknown; repeat?: unknown }) => Promise<ScheduledMessage | undefined>;
+  deleteScheduled: (id: string) => Promise<void>;
+}
+interface ScheduledSweep {
+  sweepOnce: () => Promise<void>;
+  sendWhenOnline: () => Promise<void>;
+}
+export const scheduled = (): Scheduled & ScheduledSweep => ({
+  ...legacyModule<Scheduled>("data/scheduledMessages.js"),
+  ...legacyModule<ScheduledSweep>("lib/scheduledMessagesSweep.js"),
+});
+
+// Кто отвечает на новое сообщение: код бота в песочнице, Хьюго, Shalter AI, бот помощи,
+// автоответ бизнес-аккаунта. Ошибки они пишут в лог сами (кроме runBotCode).
+interface Responders {
+  runBotCode: (bot: LegacyBot, code: string, msg: object) => Promise<unknown>;
+  dispatchHugo: (chatId: string, message: object) => void;
+  dispatchGuestHugo: (chat: object, message: object) => void;
+  dispatchShalterAi: (chatId: string, message: object) => void;
+  dispatchHelperBot: (chat: object, message: object) => void;
+  dispatchBusinessAutoReply: (chat: object, message: object) => void;
+}
+export const responders = (): Responders => ({
+  runBotCode: legacyModule<Pick<Responders, "runBotCode">>("lib/botSandbox.js").runBotCode,
+  ...legacyModule<Pick<Responders, "dispatchHugo" | "dispatchGuestHugo">>("lib/hugoBot.js"),
+  dispatchShalterAi: legacyModule<Pick<Responders, "dispatchShalterAi">>("lib/shalterAi.js").dispatchShalterAi,
+  dispatchHelperBot: legacyModule<Pick<Responders, "dispatchHelperBot">>("lib/helperBot.js").dispatchHelperBot,
+  dispatchBusinessAutoReply: legacyModule<Pick<Responders, "dispatchBusinessAutoReply">>("lib/businessAutoReply.js").dispatchBusinessAutoReply,
+});
+
+// Пуш-уведомления (server/push.js).
+interface PushFull {
+  sendPushToUser: (userId: string, payload: object, options?: object) => Promise<unknown>;
+  pushAvatar: (entity: object | null | undefined) => Record<string, unknown>;
+  userPushAvatar: (user: object | null | undefined, viewerId: string) => Promise<Record<string, unknown>>;
+  MESSAGE_PUSH: object;
+}
+export const push = (): PushFull => legacyModule<PushFull>("push.js");
+
+/** Превью ссылки из текста (server/lib/linkPreview.js); null — ссылки нет или она не открылась. */
+export const fetchLinkPreview = (text: string): Promise<unknown> =>
+  legacyModule<{ fetchLinkPreview: (text: string) => Promise<unknown> }>("lib/linkPreview.js").fetchLinkPreview(text);
+
+// Превью и длительность вложений считает фоновый процесс (server/lib/mediaJobs.js, background_jobs).
+interface MediaJobs {
+  markPendingPreviews: (attachments: Attachment[] | undefined) => Attachment[] | undefined;
+  messageNeedsMedia: (message: object) => boolean;
+}
+export const mediaJobs = (): MediaJobs => legacyModule<MediaJobs>("lib/mediaJobs.js");
+export const queueJob = (kind: string, payload: object): void =>
+  legacyModule<{ queueJob: (kind: string, payload: object) => void }>("lib/backgroundJobs.js").queueJob(kind, payload);
+
+/**
+ * Повтор отправки с тем же clientId получает ответ первой (server/lib/sendOnce.js). Память
+ * общая со старыми маршрутами (Bot API, посты, отложенные). Ошибка run() не запоминается.
+ */
+export const sendOnce = <T>(userId: string, chatId: string, clientId: unknown, run: () => Promise<T>): Promise<T> =>
+  legacyModule<{ sendOnce: (userId: string, chatId: string, clientId: unknown, run: () => Promise<T>) => Promise<T> }>("lib/sendOnce.js").sendOnce(
+    userId,
+    chatId,
+    clientId,
+    run
+  );
+
+// ИИ-сводка текста (server/lib/hugoAi.js).
+interface HugoAi {
+  isAiAvailable: () => boolean;
+  /** null — модель не ответила. */
+  summarize: (text: string) => Promise<string | null>;
+}
+export const hugoAi = (): HugoAi => legacyModule<HugoAi>("lib/hugoAi.js");

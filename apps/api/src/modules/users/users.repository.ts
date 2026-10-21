@@ -26,6 +26,17 @@ export class UsersRepository {
     return this.db.select().from(users).where(inArray(users.id, unique)).all().map(toUser);
   }
 
+  /** id и ник тех, чей ник (без учёта регистра) есть в списке — для упоминаний @ник. */
+  public findIdsByUsernames(usernames: string[]): { id: string; username: string | null }[] {
+    const list = [...new Set(usernames.map((u) => String(u ?? "").trim().toLowerCase()).filter(Boolean))];
+    if (!list.length) return [];
+    return this.db
+      .select({ id: users.id, username: users.username })
+      .from(users)
+      .where(and(inArray(sql`lower(${users.username})`, list), ne(users.username, "")))
+      .all();
+  }
+
   public findByEmail(email: string): User | undefined {
     const row = this.db
       .select()

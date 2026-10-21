@@ -30,6 +30,7 @@ const PATCH = {
   isPublic: true,
   approveJoins: false,
   signMessages: true,
+  topicsEnabled: true,
   points: 5,
   autoDeleteSeconds: undefined,
   slowModeSeconds: null,
