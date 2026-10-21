@@ -9,3 +9,5 @@ npm-debug.log*
 .env*
 data/.*.lockfile
 data/.*.json.tmp
+apps/api/dist
+test-results

@@ -29,6 +29,11 @@ async function bootstrap() {
     async (port) => {
       await app.listen(port, "0.0.0.0");
       console.log(`shalter server (nest) listening on http://localhost:${port}`);
+      console.log(
+        legacy.useBuilt
+          ? "[static] отдаём собранную версию из public/dist (один файл, сжатый заранее)"
+          : "[static] отдаём исходники из public/ — для боевого сервера выполните npm run build"
+      );
     },
     app.get(RealtimeService)
   );

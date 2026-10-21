@@ -22,7 +22,7 @@ Use the `Dockerfile` at the repo root (multi-stage: builds the client bundle
 in a Debian-slim stage, ships from a small Alpine stage — see the file's
 comments for why two stages). In Dokploy: set **Build Type → Dockerfile**
 instead of Nixpacks, point it at this repo, and set the exposed port to
-`3000` (or whatever `$PORT` Dokploy injects — `server/index.js` already reads
+`3000` (or whatever `$PORT` Dokploy injects — the server already reads
 `process.env.PORT`).
 
 Three things that matter and are easy to miss:
@@ -130,9 +130,11 @@ sudo apt-get install -y nodejs
 git clone <your-repo-url> /opt/shalter
 cd /opt/shalter
 
-# 3. Install, build, then drop devDependencies (esbuild/nodemon aren't needed at runtime)
+# 3. Install, build the client and the NestJS backend, then drop devDependencies
+#    (esbuild/TypeScript/nodemon aren't needed at runtime)
 npm install
 npm run build
+npm run build:api
 npm prune --omit=dev
 
 # 4. Process supervisor
@@ -296,7 +298,7 @@ TURN_SECRET=ТОТ_ЖЕ_СЕКРЕТ_ЧТО_В_static-auth-secret
 
 At this point: `https://YOUR-ACTUAL-DOMAIN` should load the app. Do the OS
 tuning below (swappiness, log rotation) once, then treat "code changed" as
-`git pull && npm install && npm run build && pm2 restart shalter`.
+`git pull && npm install && npm run build && npm run build:api && npm prune --omit=dev && pm2 restart shalter`.
 
 ### Why HTTPS isn't optional here
 
@@ -350,6 +352,7 @@ Docker/Dokploy — пункт в конце раздела.
    git pull
    npm install
    npm run build          # в конце строка «Картинки из архивов: … файлов в dist/packs»
+   npm run build:api      # бэкенд на NestJS, см. «Переключение на apps/api»
    npm prune --omit=dev
    ```
    Без строки про `dist/packs` nginx не найдёт картинки и отдаст их через Node —
@@ -416,6 +419,94 @@ Docker/Dokploy — пункт в конце раздела.
 **Docker / Dokploy.** Там статику по-прежнему отдаёт Node (nginx-конфиг не
 нужен), сжатие остаётся в Node. Достаточно пересобрать образ и перезапустить
 контейнер; S3 — по разделу ниже, переменные задаются в настройках Dokploy.
+
+## Переключение на apps/api (бэкенд на NestJS)
+
+С этой версии приложение запускается из `apps/api/dist/main.js` (NestJS)
+вместо `server/index.js`. Это тот же сервер для клиентов: тот же порт, те же
+`data/`, `.env`, `config.env` и конфиг nginx. Вход, чаты, сообщения, файлы,
+WebSocket и звонки обслуживает новый код, всё остальное Nest по-прежнему
+передаёт старому `server/`. Фоновый процесс и RTMP запускаются так же.
+Таблиц и форматов данных переключение не меняет, поэтому откат в обе стороны
+безопасен и данные не теряются.
+
+Что поменялось для выкладки:
+- после `npm run build` нужен ещё `npm run build:api` — он собирает
+  `apps/api/dist`. Без него PM2 не найдёт `apps/api/dist/main.js` и процесс
+  не поднимется;
+- `ecosystem.config.js` запускает `apps/api/dist/main.js`. `pm2 restart` новый
+  путь не подхватывает, поэтому процесс один раз пересоздаётся (шаг 3);
+- в логе при старте `shalter server (nest) listening on …` вместо
+  `shalter server listening on …`.
+
+### Шаги (PM2)
+
+1. **Резервная копия** `data/`:
+   ```bash
+   cd /opt/shalter
+   tar czf ~/shalter-data-$(date +%F).tgz data
+   ```
+2. **Код, зависимости, обе сборки:**
+   ```bash
+   git pull
+   npm install
+   npm run build
+   npm run build:api
+   test -f apps/api/dist/main.js && echo ok   # должно напечатать ok
+   npm prune --omit=dev
+   ```
+3. **Пересоздать процесс** с новым путём запуска:
+   ```bash
+   pm2 delete shalter
+   pm2 start ecosystem.config.js
+   pm2 save
+   pm2 logs shalter --lines 30
+   ```
+   В логе: `[worker] фоновый процесс запущен (pid …)`,
+   `shalter server (nest) listening on …` и
+   `[static] отдаём собранную версию из public/dist …`, без ошибок.
+4. **Проверка снаружи** (с любой машины):
+   ```bash
+   D=https://ВАШ-ДОМЕН
+   curl -s -o /dev/null -w '%{http_code}\n' $D/api/version
+   curl -s -o /dev/null -w '%{http_code}\n' $D/api/chats
+   curl -s -o /dev/null -w '%{http_code}\n' --http1.1 \
+     -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+     -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' $D/ws
+   ```
+   Ожидается `200`, `401`, `401`: `/api/chats` и `/ws` без входа отвечают
+   «не авторизован». Затем в браузере: войти, открыть чат, отправить сообщение
+   и фото (через несколько секунд появляется превью), позвонить — у второго
+   участника звонок должен прийти сразу, без задержки. `pm2 logs shalter` на
+   эти действия ошибок не пишет.
+5. **Память.** Основному процессу Nest нужно примерно на 40 МБ больше, чем
+   старому серверу (на чистой базе 156 МБ против 115 МБ), фоновому — столько
+   же, сколько раньше. Через несколько минут работы посмотрите `pm2 ls`. Лимит
+   `max_memory_restart: 900M` прежний.
+
+**Откат** на старый сервер, без отката кода:
+```bash
+cd /opt/shalter
+pm2 delete shalter
+SHALTER_BACKEND=legacy pm2 start ecosystem.config.js
+pm2 save
+pm2 logs shalter --lines 30   # «shalter server listening …» без «(nest)»
+```
+Обратно на Nest — шаг 3 (без `SHALTER_BACKEND`).
+
+### Docker / Dokploy
+
+Достаточно пересобрать образ и перезапустить контейнер: `Dockerfile` сам
+собирает `apps/api` и запускает `apps/api/dist/main.js`. В логе контейнера —
+`shalter server (nest) listening …`. Проверка — шаг 4 выше.
+
+**Откат:** в настройках приложения в Dokploy задать свою команду запуска
+контейнера (переопределение `CMD`):
+```
+node --env-file-if-exists=config.env --env-file-if-exists=.env server/index.js
+```
+и перезапустить контейнер — старый сервер лежит в том же образе. Чтобы
+вернуться на Nest, очистить поле.
 
 ## Переезд вложений в S3 с шифрованием на стороне хранилища
 
@@ -551,7 +642,8 @@ workers, not just point them at the same database.
 ```bash
 npm install               # full install — esbuild (build step) is a devDependency
 npm run build              # bundles+minifies+precompresses public/ into public/dist/
-npm prune --omit=dev       # esbuild's job is done; drop it (and nodemon) before running
+npm run build:api          # compiles the NestJS backend into apps/api/dist/ (what PM2 starts)
+npm prune --omit=dev       # esbuild/TypeScript are done; drop them (and nodemon) before running
 npm install -g pm2         # process supervisor — restarts on crash, log capture
 pm2 start ecosystem.config.js
 pm2 save                   # persist across reboots

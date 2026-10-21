@@ -26,13 +26,20 @@ WORKDIR /app
 # dependency npm already resolved, a fast, cheap step compared to what it
 # replaces. No python3/make/g++ needed in this stage at all any more, since
 # nothing here compiles anything from source.
+#
+# Репозиторий — npm workspaces (apps/api, packages/contract-tests), и npm ci
+# сверяет package-lock.json с их package.json, поэтому они копируются вместе
+# с корневым.
 COPY package*.json ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/contract-tests/package.json ./packages/contract-tests/
 RUN npm ci --ignore-scripts --no-audit --no-fund --maxsockets 3 \
   && node node_modules/esbuild/install.js
 COPY . .
 # Распакованные картинки из архивов нужны только nginx (DEPLOY.md) — здесь их
-# отдаёт сам Node из архивов, и в образ они не едут.
-RUN UNPACK_ASSETS=0 npm run build
+# отдаёт сам Node из архивов, и в образ они не едут. build:api компилирует
+# бэкенд на NestJS в apps/api/dist; TypeScript тоже остаётся в этом этапе.
+RUN UNPACK_ASSETS=0 npm run build && npm run build:api
 
 # Второй этап — то, что уезжает на сервер: только рабочие зависимости плюс
 # уже собранный клиент из первого этапа. Основа снова Alpine, она вдвое легче
@@ -62,12 +69,17 @@ ENV NODE_ENV=production
 # ниже пропускает — поэтому берём системный (server/lib/ffmpegBinary.js).
 RUN apk add --no-cache ffmpeg font-dejavu
 COPY package*.json ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/contract-tests/package.json ./packages/contract-tests/
 # Копирование из первого этапа стоит до установки намеренно: BuildKit
 # выполняет независимые этапы параллельно, и два тяжёлых npm ci разом
 # способны выесть память сборочной машины, хотя каждый по отдельности
 # помещается. Эта строка заставляет дождаться окончания первого этапа.
 COPY --from=build /app/server ./server
 COPY --from=build /app/public ./public
+# Бэкенд на NestJS. Старый server/ остаётся рядом: Nest отдаёт ему всё, что ещё
+# не перенесено, и им же можно откатиться (DEPLOY.md, «Переключение на apps/api»).
+COPY --from=build /app/apps/api/dist ./apps/api/dist
 # Повторные попытки — на случай обычного сетевого сбоя при скачивании пакетов.
 ENV npm_config_fetch_retries=5
 ENV npm_config_fetch_retry_maxtimeout=30000
@@ -89,7 +101,7 @@ RUN mkdir -p ./data
 # .env*, который читается позже и перекрывает этот файл.
 COPY package.json config.env* ./
 
-# Respect $PORT if the platform injects one (Dokploy/most PaaS do); server/index.js
+# Respect $PORT if the platform injects one (Dokploy/most PaaS do); the server
 # already reads process.env.PORT and falls back to 3000 — this just documents it.
 EXPOSE 3000
 
@@ -120,5 +132,8 @@ ENV NODE_OPTIONS="--max-old-space-size=384"
 # Порядок тот же, что и в npm start: config.env из репозитория, затем .env
 # (в образ не попадает, но может быть примонтирован), затем настоящие
 # переменные окружения — каждый следующий перекрывает предыдущий.
-CMD ["node", "--env-file-if-exists=config.env", "--env-file-if-exists=.env", "server/index.js"]
+#
+# Запускается бэкенд на NestJS. Откат на старый сервер — та же команда с
+# server/index.js вместо apps/api/dist/main.js (в Dokploy — своя команда запуска).
+CMD ["node", "--env-file-if-exists=config.env", "--env-file-if-exists=.env", "apps/api/dist/main.js"]
 
