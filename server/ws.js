@@ -9,6 +9,7 @@ const { isSecretChat, secretDeviceOf, deviceHash } = require("./data/chats");
 const { publicJsonReplacer } = require("./lib/publicJson");
 const { onAccessRevoked } = require("./lib/sessionEvents");
 const bridge = require("./lib/workerBridge");
+const { chatForViewer, hidesMembers } = require("./lib/chatForViewer");
 
 bridge.on("ws", ({ userIds, payload, chatId }) => sendPayload(userIds, payload, chatId));
 
@@ -27,8 +28,23 @@ function removeSocket(uid, ws) {
 }
 
 function broadcastToUsers(userIds, message) {
-  const payload = JSON.stringify(message, publicJsonReplacer);
   const chatId = message?.chatId ?? message?.chat?.id;
+  // Событие с каналом: админы получают его целиком, подписчики — без списка
+  // подписчиков (lib/chatForViewer.js), и у каждого в memberIds только он сам.
+  if (message?.chat && message.chat.type === "channel" && Array.isArray(message.chat.memberIds)) {
+    const full = JSON.stringify(message, publicJsonReplacer);
+    for (const uid of userIds) {
+      // Офлайн-подписчиков пропускаем сразу: у канала их десятки тысяч.
+      if (!bridge.isWorker && !socketsByUser.has(uid)) continue;
+      const payload = hidesMembers(message.chat, uid)
+        ? JSON.stringify({ ...message, chat: chatForViewer(message.chat, uid) }, publicJsonReplacer)
+        : full;
+      if (bridge.isWorker) bridge.toMain("ws", { userIds: [uid], payload, chatId });
+      else sendPayload([uid], payload, chatId);
+    }
+    return;
+  }
+  const payload = JSON.stringify(message, publicJsonReplacer);
   // В фоновом процессе сокетов нет — событие разошлёт основной (lib/workerBridge.js).
   if (bridge.isWorker) return bridge.toMain("ws", { userIds: [...userIds], payload, chatId });
   sendPayload(userIds, payload, chatId);

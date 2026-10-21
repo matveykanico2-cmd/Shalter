@@ -27,6 +27,7 @@ const { broadcastToUsers } = require("../ws");
 const messagesRouter = require("./messages");
 const { logAdminAction, listAdminLog } = require("../data/adminLog");
 const { moderateDeleteChat } = require("../lib/moderationDelete");
+const { hidesMembers } = require("../lib/chatForViewer");
 
 const router = express.Router();
 router.use(requireUserId);
@@ -299,9 +300,13 @@ router.get(
     const chat = await requireMemberChat(req, res);
     if (!chat) return;
     const [summary] = await attachSummaries([chat], req.uid);
-    const users = await listUsersByIds(chat.memberIds);
+    // Подписчику канала — только владельцы, админы и он сам (lib/chatForViewer.js).
+    const visibleIds = hidesMembers(chat, req.uid)
+      ? chat.memberIds.filter((id) => id === req.uid || isOwnerOrAdminOf(chat, id))
+      : chat.memberIds;
+    const users = await listUsersByIds(visibleIds);
     const byId = new Map(users.map((u) => [u.id, u]));
-    const memberUsers = chat.memberIds
+    const memberUsers = visibleIds
       .map((mid) => byId.get(mid))
       .filter((u) => u !== undefined);
     const members = await publicUsersFor(memberUsers, req.uid);

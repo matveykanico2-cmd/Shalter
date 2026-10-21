@@ -1,7 +1,7 @@
 // /api/channels: каталог публичных каналов, похожие каналы, подписка, статистика.
 import { describe, expect, test } from "vitest";
 import { chat } from "../../schemas/chat";
-import { chatBody, chatCard } from "../../schemas/chats";
+import { chatBody, chatCard, chatList } from "../../schemas/chats";
 import { channelSearchBody, channelStatsBody, commentResultBody, postViewBody, similarChannelsBody } from "../../schemas/channels";
 import { messageEnvelope } from "../../schemas/messages";
 import { expectError, expectOk, expectShape } from "../../support/expect";
@@ -72,7 +72,8 @@ describe("POST /api/channels/:id/subscribe", () => {
     expectError(await reader.api.post("/api/channels/c_nonexistent00/subscribe"), 404, "not found");
 
     const sub = expectOk(await reader.api.post(`/api/channels/${pub.id}/subscribe`), chatBody).chat;
-    expect(sub.memberIds).toEqual([owner.id, reader.id]);
+    // Список подписчиков видят только админы: подписчику — он сам и число.
+    expect(sub).toMatchObject({ memberIds: [reader.id], membersCount: 2 });
     const ev = await readerWs.waitFor("chat:added", (e) => e.chat?.id === pub.id);
     expectShape(chat, ev.chat);
     // Владельцу о подписчике не сообщается.
@@ -81,7 +82,7 @@ describe("POST /api/channels/:id/subscribe", () => {
     expectOk(await reader.api.get(`/api/chats/${pub.id}`), chatCard);
 
     readerWs.clear();
-    expect(expectOk(await reader.api.post(`/api/channels/${pub.id}/subscribe`), chatBody).chat.memberIds).toEqual([owner.id, reader.id]);
+    expect(expectOk(await reader.api.post(`/api/channels/${pub.id}/subscribe`), chatBody).chat).toMatchObject({ memberIds: [reader.id], membersCount: 2 });
     await readerWs.expectNone("chat:added");
   });
 
@@ -92,6 +93,43 @@ describe("POST /api/channels/:id/subscribe", () => {
     const pub = await createChannel(owner, [reader], { isPublic: true, username: handle() });
     expectOk(await owner.api.post(`/api/chats/${pub.id}/members`, { userId: reader.id, role: "ban" }), chatBody);
     expectError(await reader.api.post(`/api/channels/${pub.id}/subscribe`), 403, "Вас заблокировали в этом канале");
+  });
+});
+
+describe("подписчики канала", () => {
+  test("список подписчиков — только админам; подписчику — он сам, число и админы", async () => {
+    const { baseUrl } = server();
+    const owner = await registerUser(baseUrl);
+    const admin = await registerUser(baseUrl);
+    const reader = await registerUser(baseUrl);
+    const other = await registerUser(baseUrl);
+    const ch = await createChannel(owner, [admin, reader, other], { adminIds: [admin.id] });
+    const all = [owner.id, admin.id, reader.id, other.id].sort();
+
+    const listed = expectOk(await reader.api.get("/api/chats"), chatList).chats.find((c) => c.id === ch.id)!;
+    expect(listed).toMatchObject({ memberIds: [reader.id], membersCount: 4, ownerIds: [owner.id] });
+    expect([...listed.adminIds].sort()).toEqual([owner.id, admin.id].sort());
+    const boot = (await reader.api.get("/api/bootstrap")).body.chats.find((c: { id: string }) => c.id === ch.id);
+    expect(boot).toMatchObject({ memberIds: [reader.id], membersCount: 4 });
+    const card = expectOk(await reader.api.get(`/api/chats/${ch.id}`), chatCard);
+    expect(card.chat).toMatchObject({ memberIds: [reader.id], membersCount: 4 });
+    expect(card.members.map((u) => u.id).sort()).toEqual([owner.id, admin.id, reader.id].sort());
+
+    for (const staff of [owner, admin]) {
+      const full = expectOk(await staff.api.get(`/api/chats/${ch.id}`), chatCard);
+      expect([...full.chat.memberIds].sort()).toEqual(all);
+      expect(full.chat.membersCount).toBe(4);
+      expect(full.members.map((u) => u.id).sort()).toEqual(all);
+    }
+
+    // WS: подписчику — урезанный чат, админу — полный.
+    const [ownerWs, readerWs] = await Promise.all([ws(owner), ws(reader)]);
+    expectOk(await owner.api.patch(`/api/chats/${ch.id}`, { title: "Новое имя" }), chatBody);
+    const toReader = await readerWs.waitFor("chat:updated", (e) => e.chat?.id === ch.id);
+    expectShape(chat, toReader.chat);
+    expect(toReader.chat).toMatchObject({ title: "Новое имя", memberIds: [reader.id], membersCount: 4 });
+    const toOwner = await ownerWs.waitFor("chat:updated", (e) => e.chat?.id === ch.id);
+    expect([...toOwner.chat.memberIds].sort()).toEqual(all);
   });
 });
 

@@ -228,7 +228,7 @@ export function openAddChatFlow(community, onDone) {
   const suggest = community.addPolicy === "suggest";
   openOwnChatPicker(
     (chatId, chat) => {
-      openCommunityChatSettings(community, { ...chat, id: chatId, members: (chat.memberIds ?? []).length || chat.members }, onDone, { mode: "add" });
+      openCommunityChatSettings(community, { ...chat, id: chatId, members: chat.membersCount ?? ((chat.memberIds ?? []).length || chat.members) }, onDone, { mode: "add" });
     },
     {
       exclude: (community.chats ?? []).map((c) => c.id),

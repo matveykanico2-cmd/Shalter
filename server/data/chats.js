@@ -36,6 +36,7 @@ function rowToChat(row, members) {
     ownerIds: members.filter((m) => m.isOwner).map((m) => m.userId),
     memberTitles: safeParse(row.memberTitles, {}),
     memberIds: members.map((m) => m.userId),
+    membersCount: members.length,
     pinned: !!row.pinned,
     muted: !!row.muted || (!!row.mutedUntil && row.mutedUntil > new Date().toISOString()),
     mutedUntil: row.mutedUntil ?? undefined,

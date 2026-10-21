@@ -27,6 +27,7 @@ const chatShape = {
   ownerIds: z.array(z.string()),
   memberTitles: z.record(z.string(), anyJson),
   memberIds: z.array(z.string()),
+  membersCount: z.number(),
   pinned: z.boolean(),
   muted: z.boolean(),
   mutedUntil: isoDate.optional(),

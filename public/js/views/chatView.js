@@ -1529,7 +1529,10 @@ export async function ChatView(root, chatId) {
         const onlineCount = members.filter((m) => m.id !== me.id && m.online).length;
         return onlineCount > 0 ? `${base}, ${onlineCount} в сети` : base;
       }
-      if (chat.type === "channel") return `${members.length} ${plural(members.length, "подписчик", "подписчика", "подписчиков")}`;
+      if (chat.type === "channel") {
+        const n = chat.membersCount ?? members.length;
+        return `${n} ${plural(n, "подписчик", "подписчика", "подписчиков")}`;
+      }
       return "";
     })();
 

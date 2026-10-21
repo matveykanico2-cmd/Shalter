@@ -32,6 +32,7 @@ const { ensureHelperBotAccount } = require("./data/helperBot");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
 const { startSweeps, TEST_MODE } = require("./lib/sweeps");
 const workerBridge = require("./lib/workerBridge");
+const { shapeBodyForViewer } = require("./lib/chatForViewer");
 
 ensureSystemBot();
 ensureHugoAccount();
@@ -86,6 +87,12 @@ app.use("/api", apiLimiter);
 // которым кэш нужен (файлы, аватарки), ставят свой Cache-Control поверх этого.
 app.use("/api", (req, res, next) => {
   if (req.method === "GET") res.set("Cache-Control", "no-cache");
+  next();
+});
+// Подписчиков канала в ответах видят только его админы (lib/chatForViewer.js).
+app.use("/api", (req, res, next) => {
+  const json = res.json.bind(res);
+  res.json = (body) => json(shapeBodyForViewer(body, req.uid));
   next();
 });
 app.use("/api/auth/login-email", authLimiter);

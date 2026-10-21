@@ -157,7 +157,7 @@ function DmProfileRows(otherUser) {
 }
 
 function membersLine(chat, members) {
-  const count = members.length || (chat.memberIds ?? []).length;
+  const count = chat.membersCount ?? (members.length || (chat.memberIds ?? []).length);
   const noun = chat.type === "channel" ? plural(count, "подписчик", "подписчика", "подписчиков") : plural(count, "участник", "участника", "участников");
   const online = members.filter((m) => m.online).length;
   return online > 1 && chat.type !== "channel" ? `${count} ${noun}, ${online} в сети` : `${count} ${noun}`;
@@ -576,7 +576,7 @@ function groupIntoCards(body) {
 function openCreateCommunityTab(chat) {
   openCreateCommunityDialog({
     firstChatId: chat.id,
-    firstChat: { id: chat.id, type: chat.type, title: chat.title, username: chat.username, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage, members: (chat.memberIds ?? []).length },
+    firstChat: { id: chat.id, type: chat.type, title: chat.title, username: chat.username, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage, members: chat.membersCount ?? (chat.memberIds ?? []).length },
     onCreated: (community) => openCommunityPanel(community.id),
   });
 }
