@@ -1,6 +1,6 @@
 import { Global, Inject, Module } from "@nestjs/common";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import { legacyConnection } from "../legacy.js";
+import { legacyConnection } from "../../legacy/legacy.js";
 import * as schema from "./schema.js";
 
 export const DB = Symbol("DB");

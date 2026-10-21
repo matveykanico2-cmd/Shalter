@@ -5,18 +5,44 @@ The project is moving module by module from plain Express (`server/`) and framew
 ## Layout (npm workspaces, not pnpm)
 
 - `server/` is the legacy Express backend (CommonJS) and still serves everything that hasn't moved. `server/app.js` builds the Express app. `server/runtime.js` runs what lives next to the HTTP server: WS, the background worker, RTMP, push, and shutdown. `server/index.js` is the standalone entry point, and production still runs it.
-- `apps/api` is NestJS 12 on the Express adapter (TypeScript, ESM, `npm run build:api` → `apps/api/dist/main.js`). It mounts the whole legacy app as a fallback: Nest routes run first, and any path Nest has no route for goes to `server/app.js` (`legacy-fallback.adapter.ts`). Migrating a module means adding its Nest module and removing the matching router from `server/app.js` in the same change.
+- `apps/api` is NestJS 12 on the Express adapter (TypeScript, ESM, `npm run build:api` → `apps/api/dist/main.js`). It mounts the whole legacy app as a fallback: Nest routes run first, and any path Nest has no route for goes to `server/app.js` (`src/legacy/legacy-fallback.adapter.ts`). The per-request pipeline (security headers, compression, cookies, JSON body, rate limits, `Cache-Control`, errors from those steps) is `server/front.js`, shared by both backends and run exactly once per request (`src/legacy/front.middleware.ts`). Migrating a module means adding its Nest module; Nest's route shadows the legacy one. The legacy router stays mounted in `server/app.js` until production runs `apps/api` (the fallback and rollback path), then migrated routers are deleted.
 - `packages/contract-tests` holds the test suite (Vitest + Playwright). It pins behaviour, and both targets must pass: `TARGET=legacy` (default) and `TARGET=nest` (build `apps/api` first). See its README.
 - `public/` stays framework-free native ES modules until stage 4 (React + Vite in `apps/web`). No JSX, TS, or bundler-only syntax there. `npm run build` (esbuild) is only packaging, and `npm run dev` serves the raw source.
+
+## Backend architecture (`apps/api`): classic NestJS MVC
+
+Same layout as alex-dispatch-backend.
+
+```
+src/
+  main.ts  app.module.ts
+  common/   cross-module: errors/ (ApiError), filters/, interceptors/, pipes/, lib/, types/
+  legacy/   the bridge to server/: fallback adapter, shared front pipeline, typed requires of legacy modules
+  modules/<name>/
+    <name>.module.ts  <name>.controller.ts  <name>.service.ts  <name>.repository.ts
+    guards/  pipes/  decorators/  lib/  (only what the module needs)
+    model/domain.ts            types: row types (`$inferSelect`) and API entities
+    model/schemas/*.schema.ts  Zod request schemas + `z.infer` DTO types
+```
+
+- **Controller** = HTTP only: route, guards, params, `@Body(new ZodValidationPipe(schema)) dto` (bind the pipe on the parameter, never method-level `@UsePipes`), cookies. It calls the service and returns its result. `@HttpCode(200)` on POST (Nest defaults to 201, the API answers 200).
+- **Service** = business logic. It throws `ApiError(status, text)` for API errors, so the body stays `{ error: "…" }` as in `server/`.
+- **Repository** = Drizzle queries only, no logic. Only repositories touch `Db`.
+- Explicit `public` on methods, `private readonly` constructor injection. A module exports only what other modules need. Cross-cutting guards live in the owning module (`modules/auth/guards/auth.guard.ts`) and that module is `@Global()`.
+- Unit tests are `*.spec.ts` next to the source (`npm run test:api`). Behaviour is pinned by `packages/contract-tests`.
+
+## Frontend architecture (`apps/web`, stage 4): FSD 2.0
+
+Same as alex-dispatch carrier-crm and et-app guide-app: layers `app → views → widgets → features → entities → shared` (`views` instead of `pages`). A slice imports only lower layers, other slices only through their public `index.ts`, and inside a slice only relative imports. This is enforced with `no-restricted-imports` per layer, as in carrier-crm's `eslint.config.js`. Segments: `api/` (transport + TanStack Query `queryOptions`, owns `baseKey`), `model/` (types, hooks, state), `ui/`, `lib/`, `config/`. Server state lives in TanStack Query, and API/WS types come from `packages/shared`.
 
 ## Rules that hold across the migration
 
 - **Feature freeze until the core (auth, chats, messages, uploads, WS, calls) is migrated** (decided 2026-10-21): no new features in either backend, only bug fixes.
 - **New backend code is TypeScript in `apps/api`.** Don't add new modules to `server/`. Fix bugs where the code currently lives.
-- **Never mount the legacy app as an Express sub-app inside Nest.** Express 5 (Nest) would swap its req/res prototypes. Keep the wrapper in `legacy-fallback.adapter.ts`.
+- **Never mount the legacy app as an Express sub-app inside Nest.** Express 5 (Nest) would swap its req/res prototypes. Keep the wrappers in `src/legacy/`.
 - **Behaviour doesn't change during a move.** A migrated module is done when its contract tests are green on `TARGET=nest` without edits to the tests. Any intentional behaviour change in either backend must keep `npm run test:contract` green on both targets.
 - **Contract tests are black-box** (HTTP/WS only, never import `server/` or `apps/`). Write tests for a module before migrating it if it has none.
-- **Data:** SQLite at `data/app.db` (`better-sqlite3`, schema in `server/db.js`), accessed only through the `server/data/*.js` modules or, in `apps/api`, through repositories built on Drizzle (`apps/api/src/db`: `DbModule` wraps the very connection `server/db.js` opens, and queries stay synchronous). `server/db.js` owns the schema: `apps/api/src/db/schema.ts` only describes it (columns and primary keys), `schema.spec.ts` (`npm run test:api`) fails on drift, and drizzle-kit `generate`/`migrate`/`push` are not used until `server/` is gone. A schema change goes into `server/db.js` first, then re-run `npx drizzle-kit pull` in `apps/api` (or edit `schema.ts` by hand). Never query the connection from a route handler or controller. Relational data (chat membership, call participants) lives in join tables. Nested, never cross-queried fields stay as JSON TEXT columns on the parent row. Encrypted data (messages, files, key rotation) must stay byte-compatible: `packages/contract-tests/compat` is the fixture that proves it.
+- **Data:** SQLite at `data/app.db` (`better-sqlite3`, schema in `server/db.js`), accessed only through the `server/data/*.js` modules or, in `apps/api`, through repositories built on Drizzle (`apps/api/src/modules/db`: `DbModule` wraps the very connection `server/db.js` opens, and queries stay synchronous). `server/db.js` owns the schema: `apps/api/src/modules/db/schema.ts` only describes it (columns and primary keys), `schema.spec.ts` (`npm run test:api`) fails on drift, and drizzle-kit `generate`/`migrate`/`push` are not used until `server/` is gone. A schema change goes into `server/db.js` first, then re-run `npx drizzle-kit pull` in `apps/api` (or edit `schema.ts` by hand). Never query the connection from a route handler, controller or service. Relational data (chat membership, call participants) lives in join tables. Nested, never cross-queried fields stay as JSON TEXT columns on the parent row. Encrypted data (messages, files, key rotation) must stay byte-compatible: `packages/contract-tests/compat` is the fixture that proves it.
 - **One API process per `data/` directory.** Typing presence and WS connections are in-memory. The background worker `server/worker.js` is forked by the runtime itself for timer sweeps and the `background_jobs` queue, and reaches clients only by relaying WS events (`server/lib/workerBridge.js`). Never start it separately.
 - Call signaling is WebSocket-first (`server/ws.js`, `public/js/lib/wsClient.js`). HTTP polling is only a reconnect fallback.
 - The client-side router (`public/js/router.js`) keeps the shell (nav rail, chat list, an in-progress call's PiP bubble) mounted across navigation. Route views live in `public/js/views/`.

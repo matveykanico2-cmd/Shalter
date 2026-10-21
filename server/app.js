@@ -18,11 +18,8 @@ const path = require("path");
 
 dns.setDefaultResultOrder(process.env.DNS_RESULT_ORDER === "verbatim" ? "verbatim" : "ipv4first");
 const express = require("express");
-const cookieParser = require("cookie-parser");
-const compression = require("compression");
 const expressStaticGzip = require("express-static-gzip");
 const { errorHandler } = require("./middleware/errors");
-const { apiLimiter, authLimiter } = require("./middleware/rateLimit");
 const { getCurrentUserId, requireUserId } = require("./middleware/auth");
 const { takeSharePayload } = require("./routes/shareTarget");
 const { ensureSystemBot } = require("./data/systemBot");
@@ -42,12 +39,8 @@ const app = express();
 app.set("trust proxy", 1);
 app.set("json replacer", require("./lib/publicJson").publicJsonReplacer);
 
-app.use((req, res, next) => {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  next();
-});
+// Заголовки, сжатие, cookie, JSON-тело, лимиты — общие с NestJS (front.js).
+app.use(require("./front").front);
 
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const DIST_DIR = path.join(PUBLIC_DIR, "dist");
@@ -68,41 +61,12 @@ if (process.env.USE_BUILD !== "0") {
 const useBuilt = process.env.USE_BUILD !== "0" && fs.existsSync(path.join(DIST_DIR, "index.html"));
 const indexHtml = path.join(useBuilt ? DIST_DIR : PUBLIC_DIR, "index.html");
 
-if (!process.env.DISABLE_APP_GZIP) {
-  app.use(
-    compression({
-      level: 6,
-      filter: (req, res) => !req.path.startsWith("/dist/") && compression.filter(req, res),
-    })
-  );
-}
-
-app.use(cookieParser());
-app.use(express.json({ limit: "25mb" }));
-
-app.use("/api", apiLimiter);
-// Ответы API всегда сверяются с сервером: иначе WebView/Safari мог отдать список
-// чатов из своего кэша, и новое появлялось только после перезагрузки. Маршруты,
-// которым кэш нужен (файлы, аватарки), ставят свой Cache-Control поверх этого.
-app.use("/api", (req, res, next) => {
-  if (req.method === "GET") res.set("Cache-Control", "no-cache");
-  next();
-});
 // Подписчиков канала в ответах видят только его админы (lib/chatForViewer.js).
 app.use("/api", (req, res, next) => {
   const json = res.json.bind(res);
   res.json = (body) => json(shapeBodyForViewer(body, req.uid));
   next();
 });
-app.use("/api/auth/login-email", authLimiter);
-app.use("/api/auth/register-email", authLimiter);
-app.use("/api/auth/code/start", authLimiter);
-app.use("/api/auth/code/verify", authLimiter);
-app.use("/api/auth/2fa/login", authLimiter);
-app.use("/api/auth/recover", authLimiter);
-app.use("/api/auth/change-password", authLimiter);
-app.use("/api/auth/email", authLimiter);
-app.use("/api/auth/passkey/login", authLimiter);
 
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));

@@ -13,7 +13,7 @@ import { getTableConfig, SQLiteTable } from "drizzle-orm/sqlite-core";
 import { afterAll, describe, expect, it } from "vitest";
 import * as schema from "./schema.js";
 
-const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..", "..", "..");
+const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..", "..", "..", "..");
 const FIXTURE_DATA = path.join(REPO_ROOT, "packages", "contract-tests", "compat", "fixture");
 // Ключи фикстуры совместимости (packages/contract-tests/support/env.ts).
 const TEST_KEYS = {
