@@ -56,6 +56,16 @@ function getCurrentUserId(req) {
   return pickActive(req.cookies, getSessionUserIds(req));
 }
 
+// Битое %-кодирование оставляет значение как есть (так же делает cookie-parser у HTTP):
+// исключение здесь, в обработчике upgrade у /ws, роняло весь процесс.
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function parseCookieHeader(header) {
   const out = {};
   if (!header) return out;
@@ -64,7 +74,7 @@ function parseCookieHeader(header) {
     if (idx === -1) continue;
     const key = part.slice(0, idx).trim();
     const value = part.slice(idx + 1).trim();
-    if (key) out[key] = decodeURIComponent(value);
+    if (key) out[key] = safeDecode(value);
   }
   return out;
 }

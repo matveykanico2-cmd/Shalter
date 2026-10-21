@@ -33,6 +33,20 @@ describe("подключение к /ws", () => {
     expect(await rejectedWsStatus(forged)).toBe(401);
   });
 
+  test("битое %-кодирование в cookie — 401, сервер продолжает работать", async () => {
+    const { baseUrl } = server();
+    // Заголовок как есть: клиент тестов сам кодирует значения cookie.
+    const socket = new WebSocket(baseUrl.replace(/^http/, "ws") + "/ws", { headers: { cookie: "device_id=%E0%A4%A; session_uids=%E0%A4%A" } });
+    const outcome = await new Promise<string>((resolve) => {
+      socket.once("open", () => resolve("open"));
+      socket.once("unexpected-response", (_req, res) => resolve(`http ${res.statusCode}`));
+      socket.once("error", (err) => resolve(`error ${err.message}`));
+    });
+    socket.terminate();
+    expect(outcome).toBe("http 401");
+    expect((await new Api(baseUrl).get("/api/version")).status).toBe(200);
+  });
+
   test("с живой сессией сокет открывается", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
