@@ -1,11 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { broadcastToUsers, serviceLine } from "../../legacy/legacy.js";
+import { serviceLine } from "../../legacy/legacy.js";
 import { AdminLogService } from "../chats/admin-log.service.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { can, DENIED, isStaff } from "../chats/lib/chat-permissions.js";
 import { isOwnerOrAdminOf } from "../chats/lib/chat-roles.js";
 import type { Chat } from "../chats/model/domain.js";
+import { RealtimeService } from "../realtime/realtime.service.js";
 import type { TopicPatch } from "./model/domain.js";
 import type { CreateTopicDto, PatchTopicDto, TopicsEnabledDto } from "./model/schemas/topic.schema.js";
 import { MAX_TOPICS, TopicsRepository } from "./topics.repository.js";
@@ -25,7 +26,8 @@ export class TopicsService {
   public constructor(
     private readonly topics: TopicsRepository,
     private readonly chats: ChatsRepository,
-    private readonly adminLog: AdminLogService
+    private readonly adminLog: AdminLogService,
+    private readonly realtime: RealtimeService
   ) {}
 
   public list(chat: Chat) {
@@ -42,7 +44,7 @@ export class TopicsService {
     if (enabled !== !!chat.topicsEnabled) {
       await serviceLine(updated, uid, (name) => `${name} ${enabled ? "включил(а)" : "выключил(а)"} темы в группе`);
     }
-    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     this.notify(updated);
     return { chat: updated, enabled, topics: enabled ? this.topics.list(chat.id) : [] };
   }
@@ -101,7 +103,7 @@ export class TopicsService {
     const removedIds = this.topics.delete(topic.id);
     this.adminLog.record(chat.id, uid, "topic_delete", { details: { title: topic.title } });
     await serviceLine(chat, uid, (name) => `${name} удалил(а) тему «${topic.title}»`);
-    for (const id of removedIds) broadcastToUsers(chat.memberIds, { type: "message:deleted", chatId: chat.id, id });
+    for (const id of removedIds) this.realtime.broadcastToUsers(chat.memberIds, { type: "message:deleted", chatId: chat.id, id });
     this.notify(chat);
     return { ok: true };
   }
@@ -112,6 +114,6 @@ export class TopicsService {
   }
 
   private notify(chat: Chat): void {
-    broadcastToUsers(chat.memberIds, { type: "topics:updated", chatId: chat.id });
+    this.realtime.broadcastToUsers(chat.memberIds, { type: "topics:updated", chatId: chat.id });
   }
 }

@@ -26,7 +26,7 @@ const MEMBERS_CHUNK = 500;
 
 // Привязка секретного чата к устройству хранится хешем device_id: утечка таблицы не даёт
 // подделать вход.
-function deviceHash(deviceId: string): string {
+export function deviceHash(deviceId: string): string {
   return createHash("sha256").update(`secret-chat-device:${deviceId}`).digest("hex").slice(0, 32);
 }
 
@@ -140,6 +140,12 @@ export class ChatsRepository {
 
   public isSecret(chatId: string): boolean {
     return !!this.db.select({ secret: chats.secret }).from(chats).where(eq(chats.id, chatId)).get()?.secret;
+  }
+
+  /** Привязки секретного чата: участник → хеш устройства; null — чат не секретный. */
+  public secretDevices(chatId: string): Record<string, string> | null {
+    const row = this.db.select({ secret: chats.secret, secretDevices: chats.secretDevices }).from(chats).where(eq(chats.id, chatId)).get();
+    return row?.secret ? parseDevices(row.secretDevices) : null;
   }
 
   /**

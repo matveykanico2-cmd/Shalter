@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { broadcastToUsers, joinApproval, messages, privacyRules } from "../../legacy/legacy.js";
+import { joinApproval, messages, privacyRules } from "../../legacy/legacy.js";
+import { RealtimeService } from "../realtime/realtime.service.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { ChatNotesService } from "./chat-notes.service.js";
@@ -18,7 +19,8 @@ export class ChatLinksService {
     private readonly chats: ChatsRepository,
     private readonly users: UsersRepository,
     private readonly joinRequests: JoinRequestsRepository,
-    private readonly notes: ChatNotesService
+    private readonly notes: ChatNotesService,
+    private readonly realtime: RealtimeService
   ) {}
 
   /**
@@ -149,8 +151,8 @@ export class ChatLinksService {
   // группе — строка в ленте и приветствие.
   private async addMember(uid: string, chat: Chat, joinedText: string): Promise<Chat> {
     const updated = this.chats.update(chat.id, { memberIds: [...chat.memberIds, uid] })!;
-    broadcastToUsers([uid], { type: "chat:added", chat: updated });
-    broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers([uid], { type: "chat:added", chat: updated });
+    this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
     if (chat.type === "group") {
       await this.notes.system(updated, `${this.users.findById(uid)?.name ?? "Кто-то"} ${joinedText}`);
       await joinApproval().sendWelcome(updated, uid);

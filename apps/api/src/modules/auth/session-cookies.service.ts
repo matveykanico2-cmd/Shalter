@@ -23,6 +23,27 @@ function parseIds(raw: string | undefined): string[] {
   }
 }
 
+// Заголовок Cookie без cookie-parser (upgrade у /ws): как parseCookieHeader в
+// server/middleware/auth.js — повтор имени перекрывает прежнее, битое %-кодирование
+// оставляет значение как есть.
+function parseCookieHeader(header: string | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!header) return out;
+  for (const part of header.split(";")) {
+    const idx = part.indexOf("=");
+    if (idx === -1) continue;
+    const key = part.slice(0, idx).trim();
+    const value = part.slice(idx + 1).trim();
+    if (!key) continue;
+    try {
+      out[key] = decodeURIComponent(value);
+    } catch {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
 @Injectable()
 export class SessionCookiesService {
   public constructor(private readonly sessionsRepository: SessionsRepository) {}
@@ -44,15 +65,28 @@ export class SessionCookiesService {
   // Поэтому аккаунт засчитывается, только если в базе есть живая сессия для пары
   // (пользователь, device_id): device_id — случайный httpOnly-cookie, его не угадать.
   public sessionUserIds(req: Request): string[] {
-    const cookies = req.cookies as Cookies;
+    return this.activeIds(req.cookies as Cookies);
+  }
+
+  public currentUserId(req: Request): string | null {
+    return this.pickActive(req.cookies as Cookies);
+  }
+
+  /** Текущий аккаунт и устройство по сырому заголовку Cookie (upgrade у /ws). */
+  public fromCookieHeader(header: string | undefined): { userId: string | null; deviceId: string | null } {
+    const cookies = parseCookieHeader(header);
+    return { userId: this.pickActive(cookies), deviceId: cookies[DEVICE_COOKIE] ?? null };
+  }
+
+  private activeIds(cookies: Cookies): string[] {
     const deviceId = cookies?.[DEVICE_COOKIE];
     if (!deviceId) return [];
     return parseIds(cookies?.[SESSIONS_COOKIE]).filter((id) => this.sessionsRepository.isActive(id, deviceId));
   }
 
-  public currentUserId(req: Request): string | null {
-    const ids = this.sessionUserIds(req);
-    const active = (req.cookies as Cookies)?.[ACTIVE_COOKIE] ?? null;
+  private pickActive(cookies: Cookies): string | null {
+    const ids = this.activeIds(cookies);
+    const active = cookies?.[ACTIVE_COOKIE] ?? null;
     if (active && ids.includes(active)) return active;
     return ids[0] ?? null;
   }

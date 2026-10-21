@@ -21,8 +21,15 @@ export const loadLegacyApp = (): LegacyApp => require(path.join(LEGACY_DIR, "app
 export const loadLegacyFront = (): RequestHandler & { handle: LegacyHandle } => require(path.join(LEGACY_DIR, "front.js")).front;
 type LegacyHandle = (req: IncomingMessage, res: ServerResponse, done: (err?: unknown) => void) => void;
 
-export const startLegacyRuntime = (server: Server, listen: (port: number | string) => unknown): Promise<unknown> =>
-  require(path.join(LEGACY_DIR, "runtime.js")).startRuntime(server, listen);
+/** Шлюз WebSocket Nest для старого кода: события server/ и фонового процесса идут в него. */
+export interface LegacyRealtimeHub {
+  broadcastToUsers: (userIds: Iterable<string>, message: { type: string }) => void;
+  sendPayload: (userIds: Iterable<string>, payload: string, chatId: unknown) => void;
+  stats: () => { onlineUsers: number; sockets: number };
+}
+
+export const startLegacyRuntime = (server: Server, listen: (port: number | string) => unknown, realtime: LegacyRealtimeHub): Promise<unknown> =>
+  require(path.join(LEGACY_DIR, "runtime.js")).startRuntime(server, listen, { realtime });
 
 // Подключение к SQLite, которое открывает server/db.js (он же создаёт и обновляет
 // схему). Drizzle работает поверх него: общие транзакции и одна очередь записи со старым кодом.
@@ -140,10 +147,6 @@ interface WebAuthn {
  * этого модуля, проверка регистрации и подписи — без внешних библиотек.
  */
 export const webauthn = (): WebAuthn => legacyModule<WebAuthn>("lib/webauthn.js");
-
-/** Событие по WS открытым вкладкам пользователей (server/ws.js); канал каждому — со своим списком участников. */
-export const broadcastToUsers = (userIds: string[], event: { type: string; [key: string]: unknown }): void =>
-  legacyModule<{ broadcastToUsers: (userIds: string[], event: object) => void }>("ws.js").broadcastToUsers(userIds, event);
 
 /** Ключ шифрования нового секретного чата, обёрнутый мастер-ключом (server/lib/textCrypto.js). */
 export const newSecretChatKey = (chatId: string): string =>
@@ -468,3 +471,51 @@ interface ServeUpload {
   contentTypeFor: (filename: string) => string | undefined;
 }
 export const serveUpload = (): ServeUpload => legacyModule<ServeUpload>("lib/serveUpload.js");
+
+// --- WebSocket: шлюз в Nest (modules/realtime), а это — то, что ему нужно из server/ ---
+
+/** Подписка на отзыв доступа (сеанс, пароль, бан, удаление; в том числе из фонового процесса). */
+export const onAccessRevoked = (fn: (userId: string) => void): void =>
+  legacyModule<{ onAccessRevoked: (fn: (userId: string) => void) => void }>("lib/sessionEvents.js").onAccessRevoked(fn);
+
+/** Id тех, кто у пользователя в контактах (server/data/contacts.js). */
+export const contactIdsOf = async (ownerId: string): Promise<Set<string>> => {
+  const rows = await legacyModule<{ listContactsFor: (ownerId: string) => Promise<{ userId: string }[]> }>("data/contacts.js").listContactsFor(ownerId);
+  return new Set(rows.map((c) => c.userId));
+};
+
+/** Пускает ли правило приватности key (lastSeen, …) этого зрителя (server/lib/privacyRules.js). */
+export const privacyAllows = (privacy: UserSettings["privacy"], key: string, viewerId: string, isContact: boolean): boolean =>
+  legacyModule<{ privacyAllows: (privacy: unknown, key: string, viewerId: string, isContact: boolean) => boolean }>("lib/privacyRules.js").privacyAllows(
+    privacy,
+    key,
+    viewerId,
+    isContact
+  );
+
+// Канал в событии: подписчику — без списка подписчиков (server/lib/chatForViewer.js).
+interface ChatForViewer {
+  hidesMembers: (chat: unknown, uid: string) => boolean;
+  chatForViewer: <T>(chat: T, uid: string) => T;
+}
+export const chatForViewer = (): ChatForViewer => legacyModule<ChatForViewer>("lib/chatForViewer.js");
+
+// Прямые эфиры (server/data/liveStreams.js).
+interface LiveStreams {
+  getStream: (id: unknown) => { id: string; status: string } | undefined;
+  getParticipant: (streamId: unknown, userId: unknown) => object | undefined;
+}
+export const liveStreams = (): LiveStreams => legacyModule<LiveStreams>("data/liveStreams.js");
+
+// Звонки и их сигналы WebRTC (server/data/calls.js, server/data/signals.js).
+export interface CallSignalInput {
+  callId: unknown;
+  fromUserId: string;
+  toUserId: unknown;
+  kind: string;
+  data: unknown;
+}
+export const getCall = (id: unknown): Promise<{ id: string; participantIds: string[] } | undefined> =>
+  legacyModule<{ getCall: (id: unknown) => Promise<{ id: string; participantIds: string[] } | undefined> }>("data/calls.js").getCall(id);
+export const addSignal = (input: CallSignalInput): Promise<object> =>
+  legacyModule<{ addSignal: (input: CallSignalInput) => Promise<object> }>("data/signals.js").addSignal(input);

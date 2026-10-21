@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { broadcastToUsers, joinApproval, privacyRules } from "../../legacy/legacy.js";
+import { joinApproval, privacyRules } from "../../legacy/legacy.js";
+import { RealtimeService } from "../realtime/realtime.service.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { AdminLogService } from "./admin-log.service.js";
 import { ChatNotesService } from "./chat-notes.service.js";
@@ -22,7 +23,8 @@ export class ChatMembersService {
     private readonly users: UsersRepository,
     private readonly joinRequests: JoinRequestsRepository,
     private readonly notes: ChatNotesService,
-    private readonly adminLog: AdminLogService
+    private readonly adminLog: AdminLogService,
+    private readonly realtime: RealtimeService
   ) {}
 
   public async changeRole(uid: string, chat: Chat, { userId: rawUserId, role }: MemberRoleDto) {
@@ -91,7 +93,7 @@ export class ChatMembersService {
 
     const updated = this.chats.update(chat.id, { memberTitles: titles })!;
     if (!self) this.adminLog.record(chat.id, uid, "member_tag", { targetId: userId, details: { value: clean || null } });
-    broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
     return { chat: updated };
   }
 
@@ -109,7 +111,7 @@ export class ChatMembersService {
     const updated = this.chats.update(chat.id, { restrictions })!;
     this.adminLog.record(chat.id, uid, until ? "member_restrict" : "member_unrestrict", { targetId: userId, details: until ? { until } : null });
     // Как остальные правки участников: клиенты обновляют чат (и поле ввода у ограниченного).
-    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     if (chat.type === "group") {
       const who = this.users.findById(userId)?.name ?? "участнику";
       await this.notes.note(updated, uid, (name) =>
@@ -142,7 +144,7 @@ export class ChatMembersService {
       memberIds: [...chat.memberIds, userId],
       ...(wasBanned ? { bannedIds: chat.bannedIds.filter((m) => m !== userId) } : {}),
     })!;
-    broadcastToUsers([userId], { type: "chat:added", chat: updated });
+    this.realtime.broadcastToUsers([userId], { type: "chat:added", chat: updated });
     if (chat.type === "group" || user.isBot) {
       const actor = this.users.findById(uid)?.name ?? "Кто-то";
       await this.notes.system(updated, user.isBot ? `${actor} добавил(а) бота ${user.name}` : `${actor} добавил(а) в группу ${user.name}`);
@@ -197,8 +199,8 @@ export class ChatMembersService {
       ...(ban ? { bannedIds: [...new Set([...chat.bannedIds, userId])] } : {}),
     })!;
     this.joinRequests.remove(chat.id, userId);
-    broadcastToUsers([userId], { type: "chat:deleted", chatId: chat.id });
-    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers([userId], { type: "chat:deleted", chatId: chat.id });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     if (chat.type === "group" && kicked) {
       const actor = this.users.findById(uid)?.name ?? "Кто-то";
       await this.notes.system(updated, `${actor} ${ban ? "заблокировал(а)" : "удалил(а) из группы"} ${kicked.name}`);
@@ -213,7 +215,7 @@ export class ChatMembersService {
   // Правка ролей, которую видят все участники (список до правки — как в server/).
   private updateAndBroadcast(chat: Chat, patch: Parameters<ChatsRepository["update"]>[1]): Chat {
     const updated = this.chats.update(chat.id, patch)!;
-    broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:updated", chat: updated });
     return updated;
   }
 }

@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
 import { genId } from "../../common/lib/gen-id.js";
-import { broadcastToUsers, checkUsername } from "../../legacy/legacy.js";
+import { checkUsername } from "../../legacy/legacy.js";
+import { RealtimeService } from "../realtime/realtime.service.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { AdminLogService } from "./admin-log.service.js";
@@ -20,7 +21,8 @@ export class ChatAdminService {
     private readonly chats: ChatsRepository,
     private readonly users: UsersRepository,
     private readonly notes: ChatNotesService,
-    private readonly adminLog: AdminLogService
+    private readonly adminLog: AdminLogService,
+    private readonly realtime: RealtimeService
   ) {}
 
   public updateSettings(uid: string, chat: Chat, body: ChatSettingsDto) {
@@ -34,7 +36,7 @@ export class ChatAdminService {
     if (!Object.keys(patch).length) throw new ApiError(400, "Нечего менять");
     const updated = this.chats.update(chat.id, patch)!;
     this.adminLog.record(chat.id, uid, "settings", { details: patch });
-    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     return { chat: updated };
   }
 
@@ -48,7 +50,7 @@ export class ChatAdminService {
     const updated = this.chats.update(chat.id, { permissions: sanitizePermissions(permissions) })!;
     this.adminLog.record(chat.id, uid, "permissions");
     await this.notes.note(updated, uid, (name) => `${name} изменил(а) права участников`);
-    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     return { chat: updated, permissions: permissionsOf(updated) };
   }
 
@@ -58,7 +60,7 @@ export class ChatAdminService {
     this.requireStaff(chat, uid);
     const allowedReactions = Array.isArray(list) ? [...new Set(list.map((e) => String(e).trim()).filter(Boolean))].slice(0, 20) : null;
     const updated = this.chats.update(chat.id, { allowedReactions })!;
-    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     return { chat: updated };
   }
 
@@ -110,7 +112,7 @@ export class ChatAdminService {
         seconds ? `${name} включил(а) медленный режим: ${durationLabel(seconds)}` : `${name} выключил(а) медленный режим`
       );
     }
-    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     return { chat: updated, slowModeSeconds: updated.slowModeSeconds ?? 0 };
   }
 
@@ -120,9 +122,9 @@ export class ChatAdminService {
     this.requireStaff(chat, uid);
     const stars = Math.max(0, Math.min(90000, Math.trunc(Number(rawStars) || 0)));
     const updated = this.chats.update(chat.id, { commentPriceStars: stars })!;
-    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     if (updated.linkedDiscussionChatId) {
-      broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: { id: updated.linkedDiscussionChatId } });
+      this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: { id: updated.linkedDiscussionChatId } });
     }
     return { chat: updated, commentPriceStars: updated.commentPriceStars ?? 0 };
   }
@@ -139,7 +141,7 @@ export class ChatAdminService {
         text ? `${name} изменил(а) приветствие для новых участников` : `${name} выключил(а) приветствие`
       );
     }
-    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     return { chat: updated, welcomeText: updated.welcomeText ?? "" };
   }
 
@@ -178,7 +180,7 @@ export class ChatAdminService {
 
   private linkDiscussion(chat: Chat, discussionId: string | null): Chat {
     const updated = this.chats.update(chat.id, { linkedDiscussionChatId: discussionId })!;
-    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     return updated;
   }
 }

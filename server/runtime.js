@@ -1,15 +1,17 @@
 // Всё, что живёт рядом с HTTP-сервером: WebSocket, фоновый процесс, RTMP, push,
 // проверка бакета, остановка по сигналу. Сервер может быть свой (server/index.js)
 // или от NestJS (apps/api) — поэтому он приходит параметром, а слушать порт
-// начинает переданная функция listen, когда всё готово.
-const { attachWebSocketServer } = require("./ws");
+// начинает переданная функция listen, когда всё готово. opts.realtime — шлюз WebSocket
+// от Nest: тогда свой не поднимается, а события старого кода уходят в него.
+const { attachWebSocketServer, useRealtime } = require("./ws");
 const { initPush } = require("./push");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
 const { startSweeps, TEST_MODE } = require("./lib/sweeps");
 const workerBridge = require("./lib/workerBridge");
 
-function startRuntime(server, listen) {
-  attachWebSocketServer(server);
+function startRuntime(server, listen, opts = {}) {
+  if (opts.realtime) useRealtime(opts.realtime);
+  else attachWebSocketServer(server);
 
   // Обходы по таймеру и обработка вложений — в фоновом процессе (server/worker.js), он
   // же в режиме тестов (SHALTER_TEST_MODE) обходы не запускает. BACKGROUND_WORKER=0 —

@@ -2,8 +2,8 @@ import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
 import { hugoAi, privacyRules, settings, textCrypto } from "../../legacy/legacy.js";
 import type { Chat } from "../chats/model/domain.js";
+import { RealtimeService } from "../realtime/realtime.service.js";
 import { UsersRepository } from "../users/users.repository.js";
-import { broadcastToOtherMembers } from "./lib/broadcast.js";
 import { MessagesRepository } from "./messages.repository.js";
 import type { Message } from "./model/domain.js";
 import type { AtQueryDto, DaysQueryDto, HistoryQueryDto, SearchQueryDto } from "./model/schemas/message.schema.js";
@@ -34,7 +34,8 @@ export class MessagesService {
   public constructor(
     private readonly messages: MessagesRepository,
     private readonly users: UsersRepository,
-    private readonly summaries: SummaryStore
+    private readonly summaries: SummaryStore,
+    private readonly realtime: RealtimeService
   ) {}
 
   /** Страница истории; открытие чата отмечает чужие сообщения прочитанными (message:read авторам). */
@@ -55,7 +56,7 @@ export class MessagesService {
     const changedIds = this.messages.markChatRead(chat.id, uid, recordTime);
     if (!before && !beforeId) await settings().clearUnreadMark(uid, chat.id);
     if (changedIds.length > 0) {
-      broadcastToOtherMembers(chat, uid, {
+      this.realtime.broadcastToOthers(chat, uid, {
         type: "message:read",
         chatId: chat.id,
         readerId: uid,

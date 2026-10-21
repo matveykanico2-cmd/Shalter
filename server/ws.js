@@ -11,7 +11,16 @@ const { onAccessRevoked } = require("./lib/sessionEvents");
 const bridge = require("./lib/workerBridge");
 const { chatForViewer, hidesMembers } = require("./lib/chatForViewer");
 
-bridge.on("ws", ({ userIds, payload, chatId }) => sendPayload(userIds, payload, chatId));
+// Под Nest (apps/api) сокеты держит его шлюз (modules/realtime): события старого кода
+// и фонового процесса уходят туда, а attachWebSocketServer не вызывается (runtime.js).
+let realtime = null;
+function useRealtime(hub) {
+  realtime = hub;
+}
+
+bridge.on("ws", ({ userIds, payload, chatId }) =>
+  realtime ? realtime.sendPayload(userIds, payload, chatId) : sendPayload(userIds, payload, chatId)
+);
 
 const socketsByUser = new Map();
 
@@ -28,6 +37,7 @@ function removeSocket(uid, ws) {
 }
 
 function broadcastToUsers(userIds, message) {
+  if (realtime) return realtime.broadcastToUsers(userIds, message);
   const chatId = message?.chatId ?? message?.chat?.id;
   // Событие с каналом: админы получают его целиком, подписчики — без списка
   // подписчиков (lib/chatForViewer.js), и у каждого в memberIds только он сам.
@@ -244,9 +254,10 @@ async function handleMessage(ws, raw) {
 }
 
 function wsStats() {
+  if (realtime) return realtime.stats();
   let sockets = 0;
   for (const set of socketsByUser.values()) sockets += set.size;
   return { onlineUsers: socketsByUser.size, sockets };
 }
 
-module.exports = { attachWebSocketServer, broadcastToUsers, wsStats };
+module.exports = { attachWebSocketServer, broadcastToUsers, wsStats, useRealtime };

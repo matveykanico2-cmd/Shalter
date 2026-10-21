@@ -3,7 +3,6 @@ import { ApiError } from "../../common/errors/api-error.js";
 import { genId } from "../../common/lib/gen-id.js";
 import { hasAdminSection } from "../../common/lib/admin-access.js";
 import {
-  broadcastToUsers,
   chatSummary,
   checkUsername,
   getBotByUserId,
@@ -19,6 +18,7 @@ import {
   type ChatFlags,
   type UserSettings,
 } from "../../legacy/legacy.js";
+import { RealtimeService } from "../realtime/realtime.service.js";
 import type { User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { AdminLogService } from "./admin-log.service.js";
@@ -47,7 +47,8 @@ export class ChatsService {
     private readonly chats: ChatsRepository,
     private readonly users: UsersRepository,
     private readonly notes: ChatNotesService,
-    private readonly adminLog: AdminLogService
+    private readonly adminLog: AdminLogService,
+    private readonly realtime: RealtimeService
   ) {}
 
   public async list(uid: string, deviceId: string | null) {
@@ -163,7 +164,7 @@ export class ChatsService {
     await this.notes.note(channel, null, () => `Канал «${channel.title}» создан`);
     await this.notes.note(discussion, null, () => `Группа обсуждения канала «${channel.title}» создана`);
     // Приглашённые видят новый канал сразу, без перезагрузки списка чатов.
-    broadcastToUsers(channel.memberIds.filter((id) => id !== uid), { type: "chat:added", chat: channel });
+    this.realtime.broadcastToUsers(channel.memberIds.filter((id) => id !== uid), { type: "chat:added", chat: channel });
     return { chat: channel };
   }
 
@@ -189,7 +190,7 @@ export class ChatsService {
       createdAt: new Date().toISOString(),
     });
     await this.notes.note(chat, uid, (name) => `${name} создал(а) группу «${chat.title}»`);
-    broadcastToUsers(chat.memberIds.filter((id) => id !== uid), { type: "chat:added", chat });
+    this.realtime.broadcastToUsers(chat.memberIds.filter((id) => id !== uid), { type: "chat:added", chat });
     return { chat };
   }
 
@@ -266,7 +267,7 @@ export class ChatsService {
     }
 
     const updated = this.chats.update(chat.id, patch)!;
-    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
     if (chat.type !== "dm") {
       for (const k of ["title", "description", "avatarImage", "autoDeleteSeconds"] as const) {
         if (k in patch && patch[k] !== chat[k]) {
@@ -295,7 +296,7 @@ export class ChatsService {
       await moderateDeleteChat(chat, { adminId: uid, reason: String(reason ?? "").trim().slice(0, 500) });
       return { ok: true };
     }
-    broadcastToUsers(chat.memberIds, { type: "chat:deleted", chatId: chat.id });
+    this.realtime.broadcastToUsers(chat.memberIds, { type: "chat:deleted", chatId: chat.id });
     await messages().deleteMessagesForChat(chat.id);
     this.chats.delete(chat.id);
     return { ok: true };
@@ -319,7 +320,7 @@ export class ChatsService {
     }
     if (forEveryone) {
       const updated = this.chats.update(chat.id, { wallpaper: wallpaper ?? null })!;
-      broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
+      this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: updated });
       const what = typeof label === "string" && label.trim() ? label.trim().slice(0, 40) : null;
       await this.notes.note(updated, uid, (name) =>
         !wallpaper ? `${name} сбросил(а) фон чата` : what ? `${name} поменял(а) фон чата на «${what}»` : `${name} поменял(а) фон чата`
@@ -339,7 +340,7 @@ export class ChatsService {
     const changedIds = await messages().markChatRead(chat.id, uid, { recordTime });
     await settings().clearUnreadMark(uid, chat.id);
     if (changedIds.length > 0) {
-      broadcastToUsers(
+      this.realtime.broadcastToUsers(
         chat.memberIds.filter((m) => m !== uid),
         { type: "message:read", chatId: chat.id, readerId: uid, messageIds: changedIds, readAt: recordTime ? new Date().toISOString() : undefined }
       );
@@ -381,7 +382,7 @@ export class ChatsService {
       ownerIds,
       ownerId: chat.ownerId === uid ? ownerIds[0] : chat.ownerId,
     })!;
-    broadcastToUsers(memberIds, { type: "chat:updated", chat: afterLeave });
+    this.realtime.broadcastToUsers(memberIds, { type: "chat:updated", chat: afterLeave });
     if (chat.type === "group") await this.notes.note(afterLeave, uid, (name) => `${name} покинул(а) группу`);
     return { ok: true, deleted: false };
   }
@@ -411,7 +412,7 @@ export class ChatsService {
     const action = cancel ? "cancel" : typing().normalizeAction(rawAction);
     if (cancel) typing().clearTyping(chat.id, uid);
     else typing().markTyping(chat.id, uid, action);
-    broadcastToUsers(this.typingAudience(chat, uid), { type: "typing:update", chatId: chat.id, userId: uid, action });
+    this.realtime.broadcastToUsers(this.typingAudience(chat, uid), { type: "typing:update", chatId: chat.id, userId: uid, action });
     return { ok: true };
   }
 
@@ -445,7 +446,7 @@ export class ChatsService {
       list.delete(uid);
     }
     const updated = this.chats.update(chat.id, { protectedBy: [...list] })!;
-    broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: { id: updated.id, protectedBy: updated.protectedBy } });
+    this.realtime.broadcastToUsers(updated.memberIds, { type: "chat:updated", chat: { id: updated.id, protectedBy: updated.protectedBy } });
     if (on !== chat.protectedBy.includes(uid)) {
       const who = me?.name ?? "Собеседник";
       await this.notes

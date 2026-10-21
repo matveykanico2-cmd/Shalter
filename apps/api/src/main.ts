@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module.js";
+import { RealtimeService } from "./modules/realtime/realtime.service.js";
 import { frontMiddleware } from "./legacy/front.middleware.js";
 import { LegacyFallbackAdapter } from "./legacy/legacy-fallback.adapter.js";
 import { loadLegacyApp, publicJsonReplacer, startLegacyRuntime } from "./legacy/legacy.js";
@@ -21,11 +22,16 @@ async function bootstrap() {
   app.use(frontMiddleware());
   await app.init();
 
-  // WebSocket, фоновый процесс, RTMP и остановка по сигналу — как у server/index.js.
-  await startLegacyRuntime(app.getHttpServer(), async (port) => {
-    await app.listen(port, "0.0.0.0");
-    console.log(`shalter server (nest) listening on http://localhost:${port}`);
-  });
+  // Фоновый процесс, RTMP и остановка по сигналу — как у server/index.js. WebSocket — шлюз
+  // Nest (modules/realtime), старый код шлёт события в него.
+  await startLegacyRuntime(
+    app.getHttpServer(),
+    async (port) => {
+      await app.listen(port, "0.0.0.0");
+      console.log(`shalter server (nest) listening on http://localhost:${port}`);
+    },
+    app.get(RealtimeService)
+  );
 }
 
 bootstrap().catch((err) => {

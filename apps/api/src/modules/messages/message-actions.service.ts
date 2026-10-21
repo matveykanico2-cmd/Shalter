@@ -1,11 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { broadcastToUsers, sanitizers, serviceLine, uploadAccess } from "../../legacy/legacy.js";
+import { sanitizers, serviceLine, uploadAccess } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { can, isStaff } from "../chats/lib/chat-permissions.js";
 import type { Chat } from "../chats/model/domain.js";
+import { RealtimeService } from "../realtime/realtime.service.js";
 import { UsersRepository } from "../users/users.repository.js";
-import { broadcastToOtherMembers } from "./lib/broadcast.js";
 import * as edits from "./lib/message-edits.js";
 import { MAX_MESSAGE_TEXT } from "./lib/message-content.js";
 import { MessageAccessService } from "./message-access.service.js";
@@ -33,7 +33,8 @@ export class MessageActionsService {
     private readonly messages: MessagesRepository,
     private readonly chats: ChatsRepository,
     private readonly users: UsersRepository,
-    private readonly access: MessageAccessService
+    private readonly access: MessageAccessService,
+    private readonly realtime: RealtimeService
   ) {}
 
   public edit(uid: string, chatId: string, messageId: string, dto: EditMessageDto) {
@@ -51,7 +52,7 @@ export class MessageActionsService {
     const message = this.messages.mutate(messageId, (m) => edits.editText(m, text));
     // Всем участникам, включая автора: его другие устройства и список чатов тоже должны обновиться.
     const chat = this.chats.findById(chatId);
-    if (chat) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId, message });
+    if (chat) this.realtime.broadcastToUsers(chat.memberIds, { type: "message:updated", chatId, message });
     return { message };
   }
 
@@ -87,12 +88,12 @@ export class MessageActionsService {
       if (anchor) {
         this.deleteMessage(anchor.id);
         const discussionChat = this.chats.findById(anchor.chatId);
-        if (discussionChat) broadcastToUsers(discussionChat.memberIds, { type: "message:deleted", chatId: discussionChat.id, id: anchor.id });
+        if (discussionChat) this.realtime.broadcastToUsers(discussionChat.memberIds, { type: "message:deleted", chatId: discussionChat.id, id: anchor.id });
       }
     }
     // Сам файл не трогаем: одинаковые файлы хранятся один раз (sha_…), и его может держать
     // пересланная копия или стикер-пак. Без ссылок его уберёт orphanSweep.
-    broadcastToOtherMembers(chat, uid, { type: "message:deleted", chatId, id: messageId });
+    this.realtime.broadcastToOthers(chat, uid, { type: "message:deleted", chatId, id: messageId });
     return { ok: true, id: messageId, forEveryone: true };
   }
 
@@ -108,7 +109,7 @@ export class MessageActionsService {
     if (!canPin(chat, uid)) throw new ApiError(403, "Закреплять сообщения могут владельцы, админы и модераторы");
     const wasPinned = !!found.message.pinned;
     const message = this.messages.mutate(messageId, (m) => edits.setPinned(m, dto.pinned));
-    broadcastToOtherMembers(chat, uid, { type: "message:updated", chatId, message });
+    this.realtime.broadcastToOthers(chat, uid, { type: "message:updated", chatId, message });
     // «Иван закрепил(а) „…“» — как в Telegram; только в группах и только при закреплении.
     if (chat.type === "group" && message?.pinned && !wasPinned) {
       const snippet = (message.text ?? "").replace(/\s+/g, " ").trim();
@@ -131,7 +132,7 @@ export class MessageActionsService {
     const maxPerUser = this.users.findById(uid)?.isPremium ? 3 : 1;
     const clean = edits.cleanReaction(emoji);
     const message = clean ? this.messages.mutate(messageId, (m) => edits.toggleReaction(m, clean, uid, maxPerUser)) : this.messages.findById(messageId);
-    broadcastToOtherMembers(found.chat, uid, { type: "message:updated", chatId, message });
+    this.realtime.broadcastToOthers(found.chat, uid, { type: "message:updated", chatId, message });
     return { message };
   }
 
@@ -151,7 +152,7 @@ export class MessageActionsService {
     }
     if (!found.message.attachments?.some((a) => a.kind === "poll")) throw new ApiError(400, "Это не опрос");
     const message = this.messages.mutate(messageId, edits.closePoll);
-    broadcastToOtherMembers(found.chat, uid, { type: "message:updated", chatId, message });
+    this.realtime.broadcastToOthers(found.chat, uid, { type: "message:updated", chatId, message });
     return { message };
   }
 
@@ -180,7 +181,7 @@ export class MessageActionsService {
       if (!list.meta?.items?.some((it: { id: number }) => it.id === itemId)) throw new ApiError(404, "Пункт не найден");
       message = this.messages.mutate(found.message.id, (m) => edits.toggleChecklistItem(m, itemId, uid));
     }
-    broadcastToOtherMembers(found.chat, uid, { type: "message:updated", chatId, message });
+    this.realtime.broadcastToOthers(found.chat, uid, { type: "message:updated", chatId, message });
     return { message };
   }
 
@@ -193,14 +194,14 @@ export class MessageActionsService {
     if (!target || target.chatId !== chat.id) throw new ApiError(404, "not found");
     const message = this.messages.mutate(messageId, (m) => edits.updateLiveLocation(m, uid, lat, lng));
     if (!message) throw new ApiError(404, "not found");
-    broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message });
+    this.realtime.broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message });
     return { message };
   }
 
   private update(uid: string, chatId: string, messageId: string, fn: (m: Message) => Message) {
     const found = this.access.messageInChat(chatId, messageId, uid);
     const message = this.messages.mutate(messageId, fn);
-    broadcastToOtherMembers(found.chat, uid, { type: "message:updated", chatId, message });
+    this.realtime.broadcastToOthers(found.chat, uid, { type: "message:updated", chatId, message });
     return { message };
   }
 }

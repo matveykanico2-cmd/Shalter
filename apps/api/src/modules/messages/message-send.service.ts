@@ -3,7 +3,6 @@ import { SYSTEM_BOT_ID } from "../../common/config/accounts.js";
 import { ApiError } from "../../common/errors/api-error.js";
 import { genId } from "../../common/lib/gen-id.js";
 import {
-  broadcastToUsers,
   fetchLinkPreview,
   getBotByUserId,
   mediaJobs,
@@ -23,10 +22,10 @@ import {
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { can, DENIED, isStaff, type Permission } from "../chats/lib/chat-permissions.js";
 import type { Chat } from "../chats/model/domain.js";
+import { RealtimeService } from "../realtime/realtime.service.js";
 import { TopicsRepository } from "../topics/topics.repository.js";
 import type { User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
-import { broadcastToOtherMembers } from "./lib/broadcast.js";
 import { incrementCommentCount, setLinkPreview } from "./lib/message-edits.js";
 import {
   MAX_MESSAGE_TEXT,
@@ -65,7 +64,8 @@ export class MessageSendService {
     private readonly messages: MessagesRepository,
     private readonly chats: ChatsRepository,
     private readonly topics: TopicsRepository,
-    private readonly users: UsersRepository
+    private readonly users: UsersRepository,
+    private readonly realtime: RealtimeService
   ) {}
 
   /** Повтор с тем же clientId (в том числе одновременный) получает ответ первой отправки. */
@@ -313,15 +313,15 @@ export class MessageSendService {
 
     if (message.threadRootId) {
       const updatedRoot = this.messages.mutate(message.threadRootId, incrementCommentCount);
-      broadcastToUsers(chat.memberIds, { type: "thread:message", chatId: chat.id, rootId: message.threadRootId, message });
-      if (updatedRoot) broadcastToOtherMembers(chat, senderId, { type: "message:updated", chatId: chat.id, message: updatedRoot });
+      this.realtime.broadcastToUsers(chat.memberIds, { type: "thread:message", chatId: chat.id, rootId: message.threadRootId, message });
+      if (updatedRoot) this.realtime.broadcastToOthers(chat, senderId, { type: "message:updated", chatId: chat.id, message: updatedRoot });
       if (updatedRoot?.anchorForPostId) {
         const updatedPost = this.messages.mutate(updatedRoot.anchorForPostId, incrementCommentCount);
         const channel = updatedPost ? this.chats.findById(updatedPost.chatId) : undefined;
-        if (channel) broadcastToUsers(channel.memberIds, { type: "message:updated", chatId: channel.id, message: updatedPost });
+        if (channel) this.realtime.broadcastToUsers(channel.memberIds, { type: "message:updated", chatId: channel.id, message: updatedPost });
       }
     } else {
-      broadcastToOtherMembers(chat, senderId, { type: "message:new", chatId: chat.id, message, ...(body.silent === true ? { silent: true } : {}) });
+      this.realtime.broadcastToOthers(chat, senderId, { type: "message:new", chatId: chat.id, message, ...(body.silent === true ? { silent: true } : {}) });
     }
 
     const respond = responders();
@@ -358,7 +358,7 @@ export class MessageSendService {
         .then((linkPreview) => {
           if (!linkPreview) return;
           const updated = this.messages.mutate(message.id, (m) => setLinkPreview(m, linkPreview));
-          broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
+          this.realtime.broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
         })
         .catch((err) => console.error("link preview fetch failed:", err));
     }

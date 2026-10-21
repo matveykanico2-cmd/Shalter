@@ -86,6 +86,25 @@ export class UsersRepository {
     return this.findById(id);
   }
 
+  /** «В сети» (сокет открыт) или «не в сети» с временем выхода — как updateUser({ online, lastSeen }) в server/. */
+  public setPresence(id: string, online: boolean, lastSeen?: string): User | undefined {
+    this.db
+      .update(users)
+      .set({ online: online ? 1 : 0, ...(lastSeen === undefined ? {} : { lastSeen }) })
+      .where(eq(users.id, id))
+      .run();
+    return this.findById(id);
+  }
+
+  /** После перезапуска сокетов нет ни у кого: все, кто остался «в сети», выходят (кроме ботов). */
+  public resetStalePresence(): number {
+    return this.db
+      .update(users)
+      .set({ online: 0, lastSeen: new Date().toISOString() })
+      .where(and(eq(users.online, 1), eq(users.isBot, 0)))
+      .run().changes;
+  }
+
   // Premium на days дней сверх действующего (или с сегодняшнего дня); бессрочный не трогается.
   public grantPremiumDays(userId: string, days: number): User | undefined {
     const user = this.findById(userId);
