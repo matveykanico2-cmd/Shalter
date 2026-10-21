@@ -62,9 +62,9 @@ export interface LegacyChat {
   memberIds: string[];
 }
 
-/** Служебное сообщение: type "system" — строка по центру ленты; readByIds — кто уже «прочитал». */
+/** Служебное сообщение: type "system" — строка по центру ленты, "call" — итог звонка; readByIds — кто уже «прочитал». */
 export interface MessageExtra {
-  type?: "system";
+  type?: "system" | "call";
   readByIds?: string[];
 }
 
@@ -388,6 +388,8 @@ interface PushFull {
   pushAvatar: (entity: object | null | undefined) => Record<string, unknown>;
   userPushAvatar: (user: object | null | undefined, viewerId: string) => Promise<Record<string, unknown>>;
   MESSAGE_PUSH: object;
+  CALL_PUSH: object;
+  CALL_CANCEL_PUSH: object;
 }
 export const push = (): PushFull => legacyModule<PushFull>("push.js");
 
@@ -507,15 +509,7 @@ interface LiveStreams {
 }
 export const liveStreams = (): LiveStreams => legacyModule<LiveStreams>("data/liveStreams.js");
 
-// Звонки и их сигналы WebRTC (server/data/calls.js, server/data/signals.js).
-export interface CallSignalInput {
-  callId: unknown;
-  fromUserId: string;
-  toUserId: unknown;
-  kind: string;
-  data: unknown;
-}
-export const getCall = (id: unknown): Promise<{ id: string; participantIds: string[] } | undefined> =>
-  legacyModule<{ getCall: (id: unknown) => Promise<{ id: string; participantIds: string[] } | undefined> }>("data/calls.js").getCall(id);
-export const addSignal = (input: CallSignalInput): Promise<object> =>
-  legacyModule<{ addSignal: (input: CallSignalInput) => Promise<object> }>("data/signals.js").addSignal(input);
+// --- Звонки (modules/calls) ---
+
+/** STUN и, если настроен, TURN с временными учётными данными (server/lib/turnCredentials.js). */
+export const iceServers = (): object[] => legacyModule<{ getIceServers: () => object[] }>("lib/turnCredentials.js").getIceServers();

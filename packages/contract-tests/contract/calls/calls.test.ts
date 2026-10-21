@@ -320,6 +320,8 @@ describe("PATCH /api/calls/:id", () => {
     expect(await patchCall(a, call.id, { status: "bogus" })).toEqual(call);
     expect(await patchCall(a, call.id, {})).toEqual(call);
     await aWs.expectNone("call:updated", () => true, 300);
+    // Длительность только числом: строка не приводится.
+    expect(await patchCall(a, call.id, { durationSec: "30" })).toEqual(call);
     expect(await patchCall(a, call.id, { durationSec: -5 })).toMatchObject({ status: "ongoing", durationSec: 0 });
     // Только длительность — call:updated есть, сообщения в ленте нет.
     await aWs.waitFor("call:updated", (e) => e.call?.id === call.id);

@@ -4,6 +4,7 @@ import { ApiExceptionFilter } from "./common/filters/api-exception.filter.js";
 import { ViewerShapeInterceptor } from "./common/interceptors/viewer-shape.interceptor.js";
 import { DbModule } from "./modules/db/db.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
+import { CallsModule } from "./modules/calls/calls.module.js";
 import { ChatsModule } from "./modules/chats/chats.module.js";
 import { MessagesModule } from "./modules/messages/messages.module.js";
 import { RealtimeModule } from "./modules/realtime/realtime.module.js";
@@ -13,7 +14,7 @@ import { UploadsModule } from "./modules/uploads/uploads.module.js";
 
 // Перенесённые из server/ модули подключаются сюда.
 @Module({
-  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule],
+  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule],
   providers: [
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ViewerShapeInterceptor },

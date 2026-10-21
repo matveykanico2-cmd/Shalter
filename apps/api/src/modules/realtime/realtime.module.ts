@@ -1,4 +1,5 @@
 import { Global, Module } from "@nestjs/common";
+import { CallsModule } from "../calls/calls.module.js";
 import { ChatsModule } from "../chats/chats.module.js";
 import { SessionsModule } from "../sessions/sessions.module.js";
 import { UsersModule } from "../users/users.module.js";
@@ -11,7 +12,7 @@ import { WsSignalsService } from "./ws-signals.service.js";
 // модулям (события чатов и сообщений), поэтому модуль глобальный.
 @Global()
 @Module({
-  imports: [ChatsModule, UsersModule, SessionsModule],
+  imports: [CallsModule, ChatsModule, UsersModule, SessionsModule],
   providers: [RealtimeService, SocketRegistry, WsGateway, WsSignalsService],
   exports: [RealtimeService],
 })
