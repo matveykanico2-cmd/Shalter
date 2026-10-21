@@ -11,6 +11,7 @@ The project is moving module by module from plain Express (`server/`) and framew
 
 ## Rules that hold across the migration
 
+- **Feature freeze until the core (auth, chats, messages, uploads, WS, calls) is migrated** (decided 2026-10-21): no new features in either backend, only bug fixes.
 - **New backend code is TypeScript in `apps/api`.** Don't add new modules to `server/`. Fix bugs where the code currently lives.
 - **Never mount the legacy app as an Express sub-app inside Nest.** Express 5 (Nest) would swap its req/res prototypes. Keep the wrapper in `legacy-fallback.adapter.ts`.
 - **Behaviour doesn't change during a move.** A migrated module is done when its contract tests are green on `TARGET=nest` without edits to the tests. Any intentional behaviour change in either backend must keep `npm run test:contract` green on both targets.
