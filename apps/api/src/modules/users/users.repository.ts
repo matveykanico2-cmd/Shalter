@@ -4,7 +4,7 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { users } from "../db/schema.js";
 import { banActive, FOREVER, toUser } from "./lib/user.mapper.js";
-import type { BanState, NewUserRow, User, UserPatch } from "./model/domain.js";
+import type { AvatarEntry, BanState, NewUserRow, ProfilePatch, User, UserPatch } from "./model/domain.js";
 
 const REFERRAL_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
@@ -35,6 +35,18 @@ export class UsersRepository {
       .from(users)
       .where(and(inArray(sql`lower(${users.username})`, list), ne(users.username, "")))
       .all();
+  }
+
+  /** По нику без учёта регистра; пустой ник — никого. */
+  public findByUsername(username: string): User | undefined {
+    const normalized = username.trim().toLowerCase();
+    if (!normalized) return undefined;
+    const row = this.db
+      .select()
+      .from(users)
+      .where(and(sql`lower(${users.username}) = ${normalized}`, ne(users.username, "")))
+      .get();
+    return row && toUser(row);
   }
 
   public findByEmail(email: string): User | undefined {
@@ -83,6 +95,44 @@ export class UsersRepository {
 
   public update(id: string, patch: UserPatch): User | undefined {
     if (Object.keys(patch).length > 0) this.db.update(users).set(patch).where(eq(users.id, id)).run();
+    return this.findById(id);
+  }
+
+  /**
+   * Правка профиля — как updateUser в server/data/users.js: смена ника снимает привязку к
+   * аукциону, null пишется как NULL, баннер — JSON.
+   */
+  public updateProfile(id: string, patch: ProfilePatch): User | undefined {
+    if (!this.db.select({ id: users.id }).from(users).where(eq(users.id, id)).get()) return undefined;
+    const { profileBanner, businessLat, businessLng, ...columns } = patch;
+    const set: Partial<NewUserRow> = { ...columns };
+    if ("username" in patch) set.usernameAuctionId = null;
+    if ("businessLat" in patch) set.businessLat = (businessLat ?? null) as number | null;
+    if ("businessLng" in patch) set.businessLng = (businessLng ?? null) as number | null;
+    if ("profileBanner" in patch) set.profileBanner = profileBanner ? JSON.stringify(profileBanner) : null;
+    if (Object.keys(set).length > 0) this.db.update(users).set(set).where(eq(users.id, id)).run();
+    return this.findById(id);
+  }
+
+  /** Весь список аватарок; главная (avatarImage) — превью первой. */
+  public setAvatars(id: string, list: AvatarEntry[]): User | undefined {
+    if (!this.db.select({ id: users.id }).from(users).where(eq(users.id, id)).get()) return undefined;
+    this.db
+      .update(users)
+      .set({ avatarImages: JSON.stringify(list), avatarImage: list[0]?.poster ?? null })
+      .where(eq(users.id, id))
+      .run();
+    return this.findById(id);
+  }
+
+  /** Добавляет targetId в список блокировок пользователя или убирает из него. */
+  public setBlocked(id: string, targetId: string, blocked: boolean): User | undefined {
+    const user = this.findById(id);
+    if (!user) return undefined;
+    const current = new Set(Array.isArray(user.blockedUserIds) ? user.blockedUserIds : []);
+    if (blocked) current.add(targetId);
+    else current.delete(targetId);
+    this.db.update(users).set({ blockedUserIds: JSON.stringify([...current]) }).where(eq(users.id, id)).run();
     return this.findById(id);
   }
 

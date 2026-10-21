@@ -269,6 +269,28 @@ export class MessagesRepository {
     return parseJson<string[]>(row.readByIds, []).map((userId) => ({ userId, readAt: times[userId] ?? null }));
   }
 
+  /**
+   * Сообщения ленты с вложениями или ссылками, старые первыми: последние limit, кроме удалённых
+   * у зрителя (listMediaMessages в server/data/messages.js).
+   */
+  public listMedia(chatId: string, viewerId: string, limit = 300): Message[] {
+    const rows = this.db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.chatId, chatId),
+          sql`NOT ${listsId(messages.deletedForIds, viewerId)}`,
+          isNull(messages.threadRootId),
+          or(sql`${messages.attachments} IS NOT NULL`, sql`${messages.linkPreview} IS NOT NULL`, eq(messages.hasLink, 1))
+        )
+      )
+      .orderBy(desc(messages.createdAt))
+      .limit(limit)
+      .all();
+    return this.toMessages(rows).reverse();
+  }
+
   /** Дни месяца (ГГГГ-ММ) со сообщениями ленты; tz — сдвиг в минутах. */
   public listDays(chatId: string, month: string, tz: number): string[] {
     return this.db

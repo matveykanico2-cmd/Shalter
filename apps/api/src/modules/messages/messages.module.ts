@@ -31,5 +31,6 @@ import { SummaryStore } from "./stores/summary.store.js";
     MessagesRepository,
     SummaryStore,
   ],
+  exports: [MessagesRepository],
 })
 export class MessagesModule {}

@@ -8,6 +8,7 @@ import { EMAIL_RE, PHONE_RE, normalizeBirthday, normalizePhone } from "../../com
 import { checkUsername, deleteAccount, findOrCreateDm, sendMail, sendMessageAndBroadcast } from "../../legacy/legacy.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
 import { selfUser } from "../users/lib/user.presenter.js";
+import { isUsernameConflict } from "../users/lib/username.js";
 import type { User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
 import type { ChangePasswordDto, EmailStartDto } from "./model/schemas/account.schema.js";
@@ -19,13 +20,6 @@ import { TwoFactorTicketsStore } from "./stores/two-factor-tickets.store.js";
 import { SystemNoticesService } from "./system-notices.service.js";
 
 const DELETION_DELAY_DAYS = 7;
-
-// Уникальный индекс юзернейма сработал при вставке (заняли между проверкой и записью).
-// Drizzle заворачивает ошибку SQLite в свою — текст SQLite в cause.
-function isUsernameConflict(err: unknown): boolean {
-  const messages = [(err as Error)?.message, ((err as { cause?: Error })?.cause)?.message].filter(Boolean).join("\n");
-  return /UNIQUE constraint failed/i.test(messages) && /username/i.test(messages);
-}
 
 // Аккаунт: регистрация, пароль, почта, удаление.
 @Injectable()

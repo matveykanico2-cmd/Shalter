@@ -118,8 +118,8 @@ export const deleteAccount = (userId: string): Promise<void> =>
   legacyModule<{ deleteAccount: (userId: string) => Promise<void> }>("lib/deleteAccount.js").deleteAccount(userId);
 
 /** Проверка юзернейма: формат, резерв, занятость пользователем, каналом или аукционом (server/lib/username.js). null — свободен. */
-export const checkUsername = (raw: string, opts?: { forChatId?: string }): Promise<{ status: number; error: string } | null> =>
-  legacyModule<{ checkUsername: (raw: string, opts?: { forChatId?: string }) => Promise<{ status: number; error: string } | null> }>(
+export const checkUsername = (raw: string, opts?: { forChatId?: string; forUserId?: string }): Promise<{ status: number; error: string } | null> =>
+  legacyModule<{ checkUsername: (raw: string, opts?: { forChatId?: string; forUserId?: string }) => Promise<{ status: number; error: string } | null> }>(
     "lib/username.js"
   ).checkUsername(raw, opts);
 
@@ -199,6 +199,8 @@ interface PrivacyRules {
   recordsReadTime: (chat: LegacyChat & { type: string }, readerId: string) => Promise<boolean>;
   publicUsersFor: (users: object[], viewerId: string) => Promise<({ id: string; isBot?: boolean } & Record<string, unknown>)[]>;
   publicUserFor: (user: object, viewerId: string) => Promise<Record<string, unknown>>;
+  /** Имя из контактов смотрящего вместо имени профиля, пометки inContacts и mutualContact. */
+  applyContactName: <T extends object>(visible: T, myContact: ContactRow | null | undefined, theyHaveMe: boolean) => T;
 }
 export const privacyRules = (): PrivacyRules => legacyModule<PrivacyRules>("lib/privacyRules.js");
 
@@ -513,3 +515,39 @@ export const liveStreams = (): LiveStreams => legacyModule<LiveStreams>("data/li
 
 /** STUN и, если настроен, TURN с временными учётными данными (server/lib/turnCredentials.js). */
 export const iceServers = (): object[] => legacyModule<{ getIceServers: () => object[] }>("lib/turnCredentials.js").getIceServers();
+
+// --- Профиль (modules/profiles) ---
+
+/** Строка контакта как в таблице contacts (server/data/contacts.js); заметка зашифрована. */
+export interface ContactRow {
+  id: string;
+  ownerId: string;
+  userId: string;
+  localName: string | null;
+  note: string | null;
+  [key: string]: unknown;
+}
+interface Contacts {
+  listContactsFor: (ownerId: string) => Promise<ContactRow[]>;
+  /** Кто держит пользователя у себя в контактах. */
+  listOwnersOf: (userId: string) => string[];
+  /** Расшифрованная заметка к контакту или null. */
+  contactNote: (row: ContactRow | null | undefined) => string | null;
+}
+export const contacts = (): Contacts => legacyModule<Contacts>("data/contacts.js");
+
+/** Открыто ли сейчас по расписанию бизнеса и до скольки / когда откроется (server/lib/businessHours.js). */
+export const businessStatus = (hours: unknown, timeZone: unknown): object =>
+  legacyModule<{ businessStatus: (hours: unknown, timeZone: unknown) => object }>("lib/businessHours.js").businessStatus(hours, timeZone);
+
+/** Сколько разных людей в чатах с ботом (server/data/bots.js). */
+export const countBotAudience = (botUserId: string): number =>
+  legacyModule<{ countBotAudience: (botUserId: string) => number }>("data/bots.js").countBotAudience(botUserId);
+
+/** Подарки на полке с текущими именем и аватаром отправителя глазами смотрящего (server/lib/giftSenders.js). */
+export const withGiftSenders = <T>(gifts: T[], viewerId: string): Promise<T[]> =>
+  legacyModule<{ withGiftSenders: <G>(gifts: G[], viewerId: string) => Promise<G[]> }>("lib/giftSenders.js").withGiftSenders(gifts, viewerId);
+
+/** Ссылка /uploads/… на существующий файл, который загрузил сам пользователь (server/lib/uploadAccess.js). */
+export const isOwnUploadUrl = (userId: string, url: string): Promise<boolean> =>
+  legacyModule<{ isOwnUploadUrl: (userId: string, url: string) => Promise<boolean> }>("lib/uploadAccess.js").isOwnUploadUrl(userId, url);
