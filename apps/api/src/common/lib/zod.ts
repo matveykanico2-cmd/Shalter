@@ -16,3 +16,6 @@ export const optionalText = () => z.unknown().optional().transform((v) => (v == 
 
 /** Строка запроса (?a=…) — те же правила, что у тела. */
 export const requestQuery = requestBody;
+
+/** Поле как пришло, любого типа; нет поля — нет и ключа (для `"x" in body` и `typeof body.x`). */
+export const raw = () => z.unknown().optional();

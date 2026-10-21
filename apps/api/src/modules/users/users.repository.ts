@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { Injectable } from "@nestjs/common";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { users } from "../db/schema.js";
 import { banActive, FOREVER, toUser } from "./lib/user.mapper.js";
@@ -17,6 +17,13 @@ export class UsersRepository {
   public findById(id: string): User | undefined {
     const row = this.db.select().from(users).where(eq(users.id, id)).get();
     return row && toUser(row);
+  }
+
+  /** Несколько пользователей; порядок — как у таблицы, не как у ids. */
+  public findByIds(ids: (string | null | undefined)[]): User[] {
+    const unique = [...new Set(ids)].filter((id): id is string => !!id);
+    if (!unique.length) return [];
+    return this.db.select().from(users).where(inArray(users.id, unique)).all().map(toUser);
   }
 
   public findByEmail(email: string): User | undefined {
