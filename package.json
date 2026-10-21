@@ -30,6 +30,7 @@
     "desktop:dev": "SHALTER_APP_URL=http://localhost:3000 tauri dev",
     "desktop:build": "tauri build && node scripts/collect-desktop.js",
     "test:unit": "npm run test:unit -w @shalter/contract-tests --",
+    "test:api": "npm run test -w @shalter/api",
     "test:contract": "npm run test:contract -w @shalter/contract-tests --",
     "test:contract:watch": "npm run test:contract:watch -w @shalter/contract-tests --",
     "test:e2e": "npm run test:e2e -w @shalter/contract-tests --",
