@@ -420,3 +420,51 @@ interface HugoAi {
   summarize: (text: string) => Promise<string | null>;
 }
 export const hugoAi = (): HugoAi => legacyModule<HugoAi>("lib/hugoAi.js");
+
+// --- Файлы: хранение, шифрование и сжатие остаются в server/ (как текст сообщений) ---
+
+// Лимиты загрузки по видам файлов (server/lib/uploadLimits.js), общие с подарками и админкой.
+interface UploadLimits {
+  UPLOAD_LIMITS: Record<string, number>;
+  DEFAULT_LIMIT: number;
+  UPLOADABLE_KINDS: Set<string>;
+  limitFor: (kind: string) => number;
+  tooLargeError: (kind: string) => string;
+}
+export const uploadLimits = (): UploadLimits => legacyModule<UploadLimits>("lib/uploadLimits.js");
+
+/** Куда пишется загрузка: диск или S3 (server/lib/storage.js). plain — без шифрования приложением (его делает бакет). */
+export interface WriteTarget {
+  stream: NodeJS.WritableStream;
+  done: () => Promise<unknown>;
+  abort: () => void;
+  plain: boolean;
+}
+interface Storage {
+  createWriteTarget: (filename: string, opts: { contentType?: string }) => WriteTarget;
+  /** Переименовывает загрузку в sha_… или, если такой файл уже есть, удаляет её; возвращает итоговое имя. */
+  finalizeDedup: (tempName: string, dedupName: string) => Promise<string>;
+  deleteObject: (filename: string) => Promise<unknown>;
+}
+export const storage = (): Storage => legacyModule<Storage>("lib/storage.js");
+
+/** Поток, шифрующий файл ключом из каталога data (server/lib/fileCrypto.js). */
+export const createEncryptStream = (dataDir: string, out: NodeJS.WritableStream): NodeJS.ReadWriteStream =>
+  legacyModule<{ createEncryptStream: (dataDir: string, out: NodeJS.WritableStream) => NodeJS.ReadWriteStream }>("lib/fileCrypto.js").createEncryptStream(
+    dataDir,
+    out
+  );
+
+// Сжатие brotli с меткой в начале файла (server/lib/fileCompression.js).
+interface FileCompression {
+  MAGIC: Buffer;
+  compressStream: (declaredSize: number) => NodeJS.ReadWriteStream;
+}
+export const fileCompression = (): FileCompression => legacyModule<FileCompression>("lib/fileCompression.js");
+
+// Отдача файла (server/lib/serveUpload.js): расшифровка, распаковка, Range, редирект в бакет.
+interface ServeUpload {
+  serveUpload: () => RequestHandler;
+  contentTypeFor: (filename: string) => string | undefined;
+}
+export const serveUpload = (): ServeUpload => legacyModule<ServeUpload>("lib/serveUpload.js");
