@@ -1,5 +1,5 @@
 const db = require("../db");
-const { encryptText, decryptText, searchQuery, hasLink, sealSecret, openSecret } = require("../lib/textCrypto");
+const { encryptText, decryptText, isEncrypted, searchQuery, hasLink, sealSecret, openSecret } = require("../lib/textCrypto");
 const { revokeAttachments } = require("../lib/uploadAccess");
 
 // Секретные чаты: текст дополнительно шифруется ключом чата (lib/textCrypto.js),
@@ -13,9 +13,27 @@ function sealText(chatId, id, text) {
   const wrapped = secretKeyOf(chatId);
   return encryptText(id, wrapped ? sealSecret(chatId, wrapped, id, text) : text);
 }
+// Кэш расшифрованных текстов: список чатов, bootstrap и повторно открытые чаты
+// расшифровывают одни и те же сообщения снова и снова (AES-GCM + разбор ключа, ~60 мкс
+// на сообщение). Ключ — сам шифротекст вместе с id: правка, ротация ключа или
+// перешифровка дают новый шифротекст, и старая запись просто перестаёт находиться.
+// Map хранит порядок вставки — самая старая запись вытесняется первой.
+const OPEN_CACHE_MAX = 20_000;
+const OPEN_CACHE_MAX_LEN = 4096;
+const openCache = new Map();
+
 function openText(chatId, id, stored) {
+  if (!stored || !isEncrypted(stored)) return decryptText(id, stored);
+  const cacheKey = `${chatId}\u0000${id}\u0000${stored}`;
+  const hit = openCache.get(cacheKey);
+  if (hit !== undefined) return hit;
   const inner = decryptText(id, stored);
-  return inner.startsWith("sec1:") ? openSecret(chatId, secretKeyOf(chatId), id, inner) : inner;
+  const plain = inner.startsWith("sec1:") ? openSecret(chatId, secretKeyOf(chatId), id, inner) : inner;
+  if (stored.length <= OPEN_CACHE_MAX_LEN && !plain.startsWith("⚠️")) {
+    if (openCache.size >= OPEN_CACHE_MAX) openCache.delete(openCache.keys().next().value);
+    openCache.set(cacheKey, plain);
+  }
+  return plain;
 }
 
 // Расшифровка голосового — такой же текст переписки, поэтому в базе она
@@ -96,25 +114,34 @@ function listNewForBot(botUserId, { after, limit = 200 }) {
     .map(rowToMessage);
 }
 
+const searchStmt = db.prepare(
+  `SELECT m.* FROM messages_search f
+     JOIN messages m ON m.rowid = f.rowid
+    WHERE messages_search MATCH ?
+    ORDER BY f.rowid DESC`
+);
+
 function searchInChats(chatIds, query, { limit = 40 } = {}) {
   if (!chatIds.length || !query) return [];
   const match = searchQuery(query);
   if (!match) return [];
-  const ph = chatIds.map(() => "?").join(",");
+  // Совпадения идут от новых к старым (rowid растёт со вставкой), и обход останавливается,
+  // как только набрано limit сообщений из чатов пользователя. Раньше частое слово
+  // вытаскивало и сортировало все совпадения по всем чатам сервера.
+  const allowed = new Set(chatIds);
+  const rows = [];
   try {
-    return db
-      .prepare(
-        `SELECT m.* FROM messages_search f
-           JOIN messages m ON m.rowid = f.rowid
-          WHERE messages_search MATCH ? AND m.chatId IN (${ph})
-          ORDER BY m.createdAt DESC LIMIT ?`
-      )
-      .all(match, ...chatIds, limit)
-      .map(rowToMessage)
-      .reverse();
+    for (const row of searchStmt.iterate(match)) {
+      if (!allowed.has(row.chatId)) continue;
+      rows.push(row);
+      if (rows.length >= limit) break;
+    }
   } catch {
     return [];
   }
+  return rows
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))
+    .map(rowToMessage);
 }
 
 function listMediaMessages(chatId, viewerId, { limit = 300 } = {}) {

@@ -8,36 +8,16 @@ function jsonHas(id) {
   return `%"${id}"%`;
 }
 
-const PLACEHOLDER = " (?) ";
-function inClause(n) {
-  return n === 1 ? "(?)" : "(" + Array.from({ length: n }, () => "?").join(",") + ")";
-}
-
-// Список чатов режем на пачки: SQLite не принимает больше 500 слагаемых в
-// compound SELECT (UNION ALL), а IN(...) с тысячами параметров готовится слишком
-// долго. Раньше на больших аккаунтах запрос непрочитанных падал или выполнялся
-// минутами — список чатов в клиенте не успевал прийти и оставался пустым.
-const CHAT_CHUNK = 200;
-
-let lastOfStmtCache = new Map();
-function lastOfStmt(n) {
-  let s = lastOfStmtCache.get(n);
-  if (!s) {
-    lastOfStmtCache.set(
-      n,
-      (s = db.prepare(
-        `SELECT * FROM (
-           SELECT *, ROW_NUMBER() OVER (PARTITION BY chatId ORDER BY createdAt DESC, rowid DESC) AS rn
-           FROM messages
-           WHERE chatId IN ${inClause(n)}
-             AND threadRootId IS NULL
-             AND deletedForIds NOT LIKE ?
-         ) WHERE rn <= 5`
-      ))
-    );
-  }
-  return s;
-}
+// Последнее видимое сообщение — точечно по индексу (chatId, createdAt), начиная с
+// самого нового: оконная функция по всем сообщениям всех чатов (ROW_NUMBER … PARTITION
+// BY chatId) на больших аккаунтах занимала больше секунды и держала весь процесс.
+// clearedBefore — отметка очистки истории у этого пользователя ("" — не очищал).
+const lastOfChatStmt = db.prepare(
+  `SELECT * FROM messages
+    WHERE chatId = ? AND threadRootId IS NULL AND deletedForIds NOT LIKE ? AND createdAt > ?
+    ORDER BY createdAt DESC, rowid DESC
+    LIMIT 1`
+);
 
 // Непрочитанные считаем точечно, по индексу (chatId, createdAt): соединение
 // messages со списком чатов заставляло SQLite читать всю таблицу сообщений.
@@ -65,18 +45,13 @@ async function attachSummaries(chats, userId) {
   const ids = chats.map((c) => c.id);
   const notDeleted = jsonHas(userId);
 
-  const lastByChat = new Map(ids.map((id) => [id, []]));
-  for (let i = 0; i < ids.length; i += CHAT_CHUNK) {
-    const chunk = ids.slice(i, i + CHAT_CHUNK);
+  const lastByChat = new Map();
+  for (const id of ids) {
     try {
-      const lastRows = lastOfStmt(chunk.length).all(...chunk, notDeleted);
-      for (const r of lastRows) {
-        const list = lastByChat.get(r.chatId);
-        if (list) list.push(r);
-      }
-    } catch { /* в этой пачке сообщений нет */ }
+      const row = lastOfChatStmt.get(id, notDeleted, chatClears[id] ?? "");
+      if (row) lastByChat.set(id, row);
+    } catch { /* последнего сообщения нет */ }
   }
-  for (const list of lastByChat.values()) if (list.length > 1) list.sort((a, b) => a.rn - b.rn);
 
   const watermarks = readWatermarksFor(userId);
 
@@ -112,13 +87,10 @@ async function attachSummaries(chats, userId) {
 
   const result = chats.map((chat) => {
     try {
-    const clearedBefore = chatClears[chat.id];
-    const candidates = (lastByChat.get(chat.id) ?? []).filter(
-      (r) => !clearedBefore || r.createdAt > clearedBefore
-    );
     let lastMessage = null;
     try {
-      lastMessage = candidates.length ? rowToMessage(candidates[0]) : null;
+      const row = lastByChat.get(chat.id);
+      lastMessage = row ? rowToMessage(row) : null;
     } catch { lastMessage = null; }
 
     const u = unreadByChat.get(chat.id);
