@@ -78,7 +78,10 @@ describe("протокол", () => {
     ws.socket.send("это не json");
     ws.send({ type: "nonexistent:event", x: 1 });
     ws.send({ noType: true });
+    // JSON, но не объект: сервер не должен на нём падать.
+    for (const frame of ["null", "42", '"строка"', "[]"]) ws.socket.send(frame);
     await expectAlive(ws);
+    expect((await new Api(baseUrl).get("/api/version")).status).toBe(200);
     // Кроме pong (и своего presence) ничего не пришло — ни ошибок, ни эха.
     expect(ws.events.filter((e) => e.type !== "pong" && e.type !== "presence:update")).toEqual([]);
   });
