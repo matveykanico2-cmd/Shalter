@@ -148,3 +148,28 @@ test("не хватает звёзд на подарок — предупреж�
   await expect(a.getByText("Купить звёзды")).toBeVisible();
   expect((await boris.api.get("/api/auth/session")).body.user.giftsReceived).toEqual([]);
 });
+
+test("встроенная сцена подарка грузится отдельным файлом только для показанных подарков", async ({ newUser, openAs }) => {
+  const alice = await newUser("Алиса");
+  const boris = await newUser("Борис");
+  const chat = await createDm(alice, boris);
+  await sendText(alice, chat.id, "Привет");
+
+  const { page } = await openAs(alice.api, `/chat/${chat.id}`);
+  const sceneRequests: string[] = [];
+  page.on("request", (req) => {
+    const { pathname } = new URL(req.url());
+    if (pathname.startsWith("/gift-scenes/") || pathname.includes("giftTraits.scenes")) sceneRequests.push(pathname);
+  });
+  await openShopFromChat(page, "Борис");
+
+  // «Утёнок на отдыхе» своей анимации не имеет — рисуется встроенной сценой (SVG).
+  const duck = shop(page).getByRole("button", { name: "Утёнок на отдыхе", exact: true });
+  await expect(duck.locator("svg.ce-scene")).toBeVisible();
+
+  expect(sceneRequests).toContain("/gift-scenes/index.json");
+  expect(sceneRequests).toContain("/gift-scenes/tw_duck_vacation.json");
+  // Подарки с анимацией (Торт) сцену не запрашивают; старого модуля всех сцен больше нет.
+  expect(sceneRequests).not.toContain("/gift-scenes/cake.json");
+  expect(sceneRequests.some((p) => p.includes("giftTraits.scenes"))).toBe(false);
+});

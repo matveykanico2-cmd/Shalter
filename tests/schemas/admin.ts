@@ -59,7 +59,8 @@ export const userLabel = z.strictObject(userLabelShape);
 /** userLabel для удалённого аккаунта. */
 export const deletedUserLabel = z.strictObject({ id: z.string(), name: z.literal("(удалённый аккаунт)") });
 
-export const bannedUserLabel = z.strictObject({ ...userLabelShape, bannedAt: isoDate.nullable(), banReason: z.string().nullable() });
+/** bannedUntil — срок блокировки, null — навсегда (или не заблокирован). */
+export const bannedUserLabel = z.strictObject({ ...userLabelShape, bannedAt: isoDate.nullable(), banReason: z.string().nullable(), bannedUntil: isoDate.nullable() });
 export const labeledUserLabel = z.strictObject({ ...userLabelShape, safetyLabelAt: isoDate.nullable() });
 
 /** Жалоба в модерации — decorateReport. */

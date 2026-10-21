@@ -258,10 +258,8 @@ async function reqRaw(url, init) {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     if (body.error === "session_revoked") window.location.href = "/login?reason=revoked";
-    if (body.error === "banned") {
-      const why = body.banReason ? `&why=${encodeURIComponent(body.banReason)}` : "";
-      window.location.href = `/login?reason=banned${why}`;
-    }
+    // Заблокированный остаётся в аккаунте, но видит только экран блокировки.
+    if (body.error === "banned") import("./components/banScreen.js").then((m) => m.showBanScreen(body));
     const err = new Error(body.error ?? `Request failed: ${res.status}`);
     err.status = res.status;
     if (body.limit) err.limit = body.limit;
@@ -795,8 +793,8 @@ export const api = {
 
   adminModeration: () => req("/api/admin/moderation"),
   adminUserReports: (userId) => req(`/api/admin/users/${userId}/reports`),
-  adminSetBanned: (userId, banned, reason) =>
-    req(`/api/admin/users/${userId}/ban`, { method: "POST", body: JSON.stringify({ banned, reason }) }),
+  adminSetBanned: (userId, banned, reason, durationSec = null) =>
+    req(`/api/admin/users/${userId}/ban`, { method: "POST", body: JSON.stringify({ banned, reason, durationSec }) }),
   adminSetVerified: (userId, verified) =>
     req(`/api/admin/users/${userId}/verify`, { method: "POST", body: JSON.stringify({ verified }) }),
   adminSetChatVerified: (chatId, verified) =>

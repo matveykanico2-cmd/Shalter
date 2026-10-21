@@ -29,6 +29,14 @@ const BUSINESS_DURATIONS = [
   { label: "365 дней", opts: { days: 365 } },
   { label: "Навсегда", opts: { forever: true } },
 ];
+// Срок блокировки аккаунта (секунды); durationSec: null — навсегда.
+const BAN_DURATIONS = [
+  { label: "1 час", opts: { durationSec: 3600 } },
+  { label: "1 день", opts: { durationSec: 86400 } },
+  { label: "7 дней", opts: { durationSec: 7 * 86400 } },
+  { label: "30 дней", opts: { durationSec: 30 * 86400 } },
+  { label: "Навсегда", opts: { durationSec: null } },
+];
 const ADS_DURATIONS = [
   { label: "30 дней", opts: { days: 30 } },
   { label: "90 дней", opts: { days: 90 } },
@@ -193,19 +201,19 @@ export function openAdminUserPanel(user, onChange) {
     });
   }
 
-  async function toggleBan() {
-    if (state.isBanned) {
-      run(async () => {
-        const { user: updated } = await api.adminSetBanned(state.id, false);
-        return { patch: { banReason: null, bannedAt: null, ...updated } };
-      }, "Блокировка снята — пользователь уведомлён в чате с Shalter.");
-      return;
-    }
-    const reason = (await askText(`Причина блокировки ${state.name}. Её увидит сам пользователь на экране входа.`));
+  function unban() {
+    run(async () => {
+      const { user: updated } = await api.adminSetBanned(state.id, false);
+      return { patch: { banReason: null, bannedAt: null, bannedUntil: null, ...updated } };
+    }, "Блокировка снята — пользователь уведомлён в чате с Shalter.");
+  }
+
+  async function ban({ durationSec }, label) {
+    const reason = await askText(`Блокировка ${state.name}: ${label.toLowerCase()}.\nПричина — её пользователь увидит на экране блокировки.`);
     if (reason == null || !reason.trim()) return;
     run(async () => {
-      const { user: updated } = await api.adminSetBanned(state.id, true, reason.trim());
-      return { patch: updated };
+      const { user: updated } = await api.adminSetBanned(state.id, true, reason.trim(), durationSec);
+      return { patch: { isBanned: true, ...updated } };
     }, "Аккаунт заблокирован — пользователь уведомлён в чате с Shalter.");
   }
 
@@ -417,13 +425,17 @@ export function openAdminUserPanel(user, onChange) {
 
       el("p", { class: "admin-panel-section-title" }, "Блокировка"),
       state.isBanned
-        ? el("p", { class: "settings-toggle-hint" }, `Заблокирован ${state.bannedAt ? new Date(state.bannedAt).toLocaleString("ru-RU") : ""}. Причина: ${state.banReason || "не указана"}`)
-        : el("p", { class: "settings-toggle-hint" }, "Заблокированный аккаунт не сможет войти и увидит причину на экране входа."),
-      el(
-        "button",
-        { class: `btn-accent ${state.isBanned ? "" : "danger"}`, disabled: busy, onclick: toggleBan },
-        state.isBanned ? "Разблокировать" : "Заблокировать"
-      ),
+        ? el(
+            "p",
+            { class: "settings-toggle-hint" },
+            `Заблокирован ${state.bannedAt ? new Date(state.bannedAt).toLocaleString("ru-RU") : ""}${
+              state.bannedUntil ? ` до ${new Date(state.bannedUntil).toLocaleString("ru-RU")}` : " навсегда"
+            }. Причина: ${state.banReason || "не указана"}`
+          )
+        : el("p", { class: "settings-toggle-hint" }, "Заблокированный сможет войти, но вместо чатов увидит экран блокировки с причиной и сроком."),
+      state.isBanned
+        ? el("button", { class: "btn-accent", disabled: busy, onclick: unban }, "Разблокировать")
+        : durationRow(BAN_DURATIONS, ban),
 
       el("p", { class: "admin-panel-section-title" }, "Жалобы на этот аккаунт"),
       reports === null

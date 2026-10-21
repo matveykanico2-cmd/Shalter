@@ -188,4 +188,11 @@ async function attachSummaries(chats, userId) {
   return result;
 }
 
-module.exports = { attachSummaries };
+// «Удалённый у себя» чат не попадает в список, пока в нём не появится сообщение новее
+// отметки удаления (история до неё скрыта той же отметкой в chatClears).
+function withoutHidden(summaries, hiddenChats) {
+  if (!hiddenChats || !Object.keys(hiddenChats).length) return summaries;
+  return summaries.filter((c) => !hiddenChats[c.id] || c.lastMessage);
+}
+
+module.exports = { attachSummaries, withoutHidden };

@@ -43,7 +43,7 @@ describe("закреплённые каналы", () => {
     expect((await viewer.api.get(`/api/users/${me.id}`)).body.pinnedChannels).toEqual([]);
   });
 
-  test("не больше 6; записанные в обход через /api/settings — фильтруются при показе", async () => {
+  test("не больше 6; через /api/settings не записываются", async () => {
     const { baseUrl } = server();
     const [me, viewer] = await registerUsers(baseUrl, 2);
     const channels = [];
@@ -52,9 +52,9 @@ describe("закреплённые каналы", () => {
     const pinned = expectOk(await pin(me, { chatIds: ids }), pinnedChannelsBody).pinnedChannels;
     expect(pinned.map((c) => c.id)).toEqual(ids.slice(0, 6));
 
-    // pinnedChannelIds в настройках можно записать и в обход проверки — профиль всё равно фильтрует.
+    // pinnedChannelIds — служебный ключ: PATCH /api/settings его не меняет.
     await me.api.patch("/api/settings", { pinnedChannelIds: ["c_fake0000000", ids[6]] });
-    expect((await viewer.api.get(`/api/users/${me.id}`)).body.pinnedChannels.map((c: any) => c.id)).toEqual([ids[6]]);
+    expect((await viewer.api.get(`/api/users/${me.id}`)).body.pinnedChannels.map((c: any) => c.id)).toEqual(ids.slice(0, 6));
   });
 });
 

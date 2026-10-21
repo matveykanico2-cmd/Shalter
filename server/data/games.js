@@ -23,7 +23,8 @@ function builtin(id) {
 function rowToGame(row, withCode = false) {
   if (!row) return null;
   const { code, ...rest } = row;
-  return { ...rest, isPublic: !!row.isPublic, ...(withCode ? { code } : {}) };
+  // hasCode: false — черновик без кода (см. listCatalog).
+  return { ...rest, isPublic: !!row.isPublic, hasCode: !!String(code ?? "").trim(), ...(withCode ? { code } : {}) };
 }
 
 function getGame(id, { withCode = false } = {}) {
@@ -36,8 +37,12 @@ function getGame(id, { withCode = false } = {}) {
   return rowToGame(db.prepare("SELECT * FROM games WHERE id = ?").get(id), withCode);
 }
 
+const HAS_CODE = "trim(code) != ''";
+
 function listCatalog() {
-  const own = db.prepare("SELECT * FROM games WHERE isPublic = 1 ORDER BY plays DESC, updatedAt DESC LIMIT 100").all().map((r) => rowToGame(r));
+  // Как у Telegram: сначала игра создаётся одними метаданными, код заливается через Game API.
+  // Пока кода нет, это черновик — в каталог и чужой поиск он не попадает, даже опубликованный.
+  const own = db.prepare(`SELECT * FROM games WHERE isPublic = 1 AND ${HAS_CODE} ORDER BY plays DESC, updatedAt DESC LIMIT 100`).all().map((r) => rowToGame(r));
   return [...BUILTIN.map(({ file, ...g }) => ({ ...g, builtin: true, isPublic: true })), ...own];
 }
 
@@ -52,7 +57,7 @@ function searchGames(q, userId, limit = 20) {
   const own = db
     // lower_ru (db.js) — JS toLowerCase: встроенный lower() SQLite сворачивает только ASCII,
     // и «Космолётище» не находилось по «космолётище».
-    .prepare("SELECT * FROM games WHERE (isPublic = 1 OR ownerId = ?) AND (lower_ru(title) LIKE ? ESCAPE '\\' OR lower_ru(description) LIKE ? ESCAPE '\\') ORDER BY plays DESC LIMIT ?")
+    .prepare(`SELECT * FROM games WHERE ((isPublic = 1 AND ${HAS_CODE}) OR ownerId = ?) AND (lower_ru(title) LIKE ? ESCAPE '\\' OR lower_ru(description) LIKE ? ESCAPE '\\') ORDER BY plays DESC LIMIT ?`)
     .all(userId, like, like, limit)
     .map((r) => rowToGame(r));
   return [...builtins, ...own].slice(0, limit);

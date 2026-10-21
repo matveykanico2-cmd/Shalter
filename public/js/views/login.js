@@ -34,8 +34,6 @@ function fitLoginPageToViewport() {
 
 export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   const revokedNotice = new URLSearchParams(window.location.search).get("reason") === "revoked";
-  const bannedNotice = new URLSearchParams(window.location.search).get("reason") === "banned";
-  const bannedWhy = new URLSearchParams(window.location.search).get("why");
   let mode = "login";
   let name = "";
   let lastName = "";
@@ -96,11 +94,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
           if (poll.status === "confirmed") {
             stopQrPolling();
             (onSuccess ?? goToApp)(poll.user);
-          } else if (poll.status === "banned") {
-            stopQrPolling();
-            mode = "login";
-            error = poll.error || "Аккаунт заблокирован администрацией Shalter";
-            render();
           } else if (poll.status === "expired") {
             startQrLogin();
           }
@@ -689,15 +682,6 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
         mode === "register" ? el("p", { class: "login-hint" }, "Дата рождения — необязательно, но друзья смогут поздравлять и предлагать подарки.") : null,
         revokedNotice && mode === "login" && !error
           ? el("p", { class: "login-hint" }, "Сеанс на этом устройстве был завершён — войдите снова.")
-          : null,
-        bannedNotice && mode === "login" && !error
-          ? el(
-              "p",
-              { class: "login-error" },
-              bannedWhy
-                ? `Этот аккаунт заблокирован администрацией Shalter. Причина: ${bannedWhy}`
-                : "Этот аккаунт заблокирован администрацией Shalter."
-            )
           : null,
         error ? el("p", { class: "login-error" }, error) : null,
         el("button", { class: "login-submit", disabled: pending }, pending ? "Проверка…" : mode === "login" ? "Войти" : "Создать аккаунт"),

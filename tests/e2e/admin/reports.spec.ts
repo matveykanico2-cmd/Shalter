@@ -109,9 +109,11 @@ test("жалоба на собеседника из панели чата: мо�
   await m.getByRole("button", { name: "Заблокировать", exact: true }).click();
   await expect(m.getByText("Пользователь заблокирован", { exact: true })).toBeVisible();
 
-  // Нарушителя выкидывает на экран входа с причиной блокировки.
-  await expect(b.getByText("Этот аккаунт заблокирован администрацией Shalter. Причина: Жалоба: Мошенничество")).toBeVisible({ timeout: 30_000 });
-  await expect(b).toHaveURL(/\/login/);
+  // У нарушителя — экран блокировки с причиной, бессрочно.
+  const banScreen = b.getByRole("alertdialog", { name: "Аккаунт заблокирован" });
+  await expect(banScreen).toBeVisible({ timeout: 30_000 });
+  await expect(banScreen.getByText("Жалоба: Мошенничество", { exact: true })).toBeVisible();
+  await expect(banScreen.getByText("Блокировка бессрочная", { exact: true })).toBeVisible();
 
   // Жалоба «Мошенничество» ставит метку «СКАМ» — Алиса видит её в шапке чата.
   await a.goto(`/chat/${chat.id}`);

@@ -387,12 +387,12 @@ describe("POST /:id/mute", () => {
 
     const before = Date.now();
     const timed = expectOk(await a.api.post(`/api/chats/${dm.id}/mute`, { hours: 2 }), muteBody).chat;
-    // ПОВЕДЕНИЕ-ВОПРОС: при выключении звука на время muted = false, а срок — только в mutedUntil.
-    expect(timed.muted).toBe(false);
+    // На время: muted = true, пока не истёк mutedUntil.
+    expect(timed.muted).toBe(true);
     const until = Date.parse(timed.mutedUntil!);
     expect(until - before).toBeGreaterThan(2 * 3600_000 - 60_000);
     expect(until - before).toBeLessThan(2 * 3600_000 + 60_000);
-    expect(expectOk(await a.api.get("/api/chats"), chatList).chats[0]).toMatchObject({ muted: false, mutedUntil: timed.mutedUntil });
+    expect(expectOk(await a.api.get("/api/chats"), chatList).chats[0]).toMatchObject({ muted: true, mutedUntil: timed.mutedUntil });
 
     const off = expectOk(await a.api.post(`/api/chats/${dm.id}/mute`, { off: true }), muteBody).chat;
     expect(off).toMatchObject({ muted: false, mutedUntil: null });

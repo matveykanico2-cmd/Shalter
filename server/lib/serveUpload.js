@@ -39,6 +39,29 @@ const MIME = {
 
 const FILENAME_RE = /^[a-z0-9]+_[a-f0-9]{16}(\.[a-z0-9]{1,12})?$/;
 
+function contentTypeFor(filename) {
+  return MIME[path.extname(String(filename)).toLowerCase()];
+}
+
+// Как отдавать файл — одно правило для Node и для редиректа в бакет.
+// attachment — только скачивание (svg и неизвестные типы); sandbox — CSP «sandbox», чтобы
+// файл, открытый как документ, был без скриптов и доступа к сайту (PDF не трогаем:
+// встроенный просмотрщик Chrome в песочнице не открывается). direct — можно отдать из
+// бакета подписанной ссылкой: бакет не ставит nosniff и CSP, поэтому туда уходят только
+// картинки, видео и аудио — их браузер показывает как медиа, а не как документ.
+function responseFor(filename) {
+  const ext = path.extname(String(filename)).toLowerCase();
+  const known = contentTypeFor(filename);
+  const type = known ?? "application/octet-stream";
+  const attachment = !known || ext === ".svg";
+  return {
+    type,
+    attachment,
+    sandbox: ext !== ".pdf",
+    direct: !attachment && /^(image|video|audio)\//.test(type),
+  };
+}
+
 // .pipe() не передаёт ошибки дальше: сбой чтения или расшифровки без
 // обработчика — это необработанное исключение и падение всего процесса.
 const noop = () => {};
@@ -46,90 +69,116 @@ function chain(...streams) {
   return pipeline(...streams, noop);
 }
 
+// Заголовки, которые ставит serveOnce, — сбрасываются перед повтором.
+const RESPONSE_HEADERS = ["content-type", "content-disposition", "content-security-policy", "cache-control", "accept-ranges", "content-range", "content-length"];
+
 function serveUpload() {
   return async (req, res) => {
     const filename = req.params.filename ?? "";
     if (!FILENAME_RE.test(filename)) return res.status(404).end();
 
-    try {
-      const size = await storage.sizeOf(filename);
-      if (size == null) return res.status(404).end();
-
-      const dataDir = path.join(process.cwd(), "data");
-      const header = await storage.readHeader(filename);
-      const headerLen = header ? header.len : 0;
-      const contentSize = size - headerLen;
-
-      let compressed = false;
-      if (header && contentSize >= COMPRESS_MAGIC.length) {
-        const magicCipher = await storage.readRange(filename, headerLen, headerLen + COMPRESS_MAGIC.length - 1);
-        const magicPlain = await collect(chain(magicCipher, createDecryptStream(dataDir, header, 0)));
-        compressed = magicPlain.equals(COMPRESS_MAGIC);
-      }
-
-      const openAt = async (start, end) => {
-        const raw = await storage.readRange(filename, headerLen + start, headerLen + end);
-        return header ? chain(raw, createDecryptStream(dataDir, header, start)) : raw;
-      };
-      const openCompressed = async () => {
-        const from = headerLen + COMPRESS_MAGIC.length;
-        const raw = await storage.readRange(filename, from, size - 1);
-        return chain(raw, createDecryptStream(dataDir, header, COMPRESS_MAGIC.length), decompressStream());
-      };
-
-      const ext = path.extname(filename);
-      const type = MIME[ext];
-
-      res.setHeader("X-Content-Type-Options", "nosniff");
-      // Даже если браузер всё-таки отрисует файл как документ — без скриптов и доступа к сайту.
-      // (PDF не трогаем: встроенный просмотрщик Chrome в песочнице не открывается).
-      if (ext !== ".pdf") res.setHeader("Content-Security-Policy", "sandbox");
-      res.setHeader("Content-Type", type ?? "application/octet-stream");
-      if (!type || ext === ".svg") res.setHeader("Content-Disposition", "attachment");
-      res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
-
-      if (compressed) {
-        res.setHeader("Accept-Ranges", "none");
-        if (req.method === "HEAD") return res.end();
-        return chain(await openCompressed(), res);
-      }
-      res.setHeader("Accept-Ranges", "bytes");
-
-      const range = req.headers.range;
-      if (range) {
-        const match = /^bytes=(\d*)-(\d*)$/.exec(String(range).trim());
-        if (match) {
-          const hasStart = match[1] !== "";
-          const hasEnd = match[2] !== "";
-          let start;
-          let end;
-          if (hasStart) {
-            start = Number(match[1]);
-            end = hasEnd ? Number(match[2]) : contentSize - 1;
-          } else if (hasEnd) {
-            start = Math.max(0, contentSize - Number(match[2]));
-            end = contentSize - 1;
-          }
-          if (start !== undefined && start < contentSize && end >= start) {
-            end = Math.min(end, contentSize - 1);
-            res.status(206);
-            res.setHeader("Content-Range", `bytes ${start}-${end}/${contentSize}`);
-            res.setHeader("Content-Length", end - start + 1);
-            if (req.method === "HEAD") return res.end();
-            return chain(await openAt(start, end), res);
-          }
-          res.status(416).setHeader("Content-Range", `bytes */${contentSize}`);
-          return res.end();
+    // Объект, зашифрованный приложением, могут перешифровать прямо сейчас (в том числе
+    // скриптом в другом процессе): чтения привязаны к его ETag, и если он сменился до
+    // отправки ответа — начинаем заново, уже с новой версией.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await serveOnce(req, res, filename);
+      } catch (err) {
+        if (attempt === 0 && storage.isChangedError(err) && !res.headersSent) {
+          res.statusCode = 200;
+          for (const h of RESPONSE_HEADERS) res.removeHeader(h);
+          continue;
         }
+        if (!res.headersSent) res.status(500).end();
+        return;
       }
-
-      res.setHeader("Content-Length", contentSize);
-      if (req.method === "HEAD") return res.end();
-      chain(await openAt(0, contentSize - 1), res);
-    } catch (err) {
-      if (!res.headersSent) res.status(500).end();
     }
   };
+}
+
+async function serveOnce(req, res, filename) {
+  const info = await storage.objectInfo(filename);
+  if (!info) return res.status(404).end();
+  const size = info.size;
+  const how = responseFor(filename);
+
+  // Открытый объект в S3 (шифрует хранилище): доступ уже проверен — отдаёт сам бакет.
+  if (info.plain && storage.directDownloads && how.direct) {
+    const { url, maxAge } = storage.presignedGetUrl(filename, {
+      contentType: how.type,
+      cacheControl: "private, max-age=31536000, immutable",
+    });
+    res.setHeader("Cache-Control", `private, max-age=${maxAge}`);
+    return res.redirect(302, url);
+  }
+
+  const dataDir = path.join(process.cwd(), "data");
+  const ifMatch = info.etag;
+  const header = await storage.readHeader(filename, info);
+  const headerLen = header ? header.len : 0;
+  const contentSize = size - headerLen;
+
+  let compressed = false;
+  if (header && contentSize >= COMPRESS_MAGIC.length) {
+    const magicCipher = await storage.readRange(filename, headerLen, headerLen + COMPRESS_MAGIC.length - 1, { ifMatch });
+    const magicPlain = await collect(chain(magicCipher, createDecryptStream(dataDir, header, 0)));
+    compressed = magicPlain.equals(COMPRESS_MAGIC);
+  }
+
+  const openAt = async (start, end) => {
+    const raw = await storage.readRange(filename, headerLen + start, headerLen + end, { ifMatch });
+    return header ? chain(raw, createDecryptStream(dataDir, header, start)) : raw;
+  };
+  const openCompressed = async () => {
+    const from = headerLen + COMPRESS_MAGIC.length;
+    const raw = await storage.readRange(filename, from, size - 1, { ifMatch });
+    return chain(raw, createDecryptStream(dataDir, header, COMPRESS_MAGIC.length), decompressStream());
+  };
+
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  if (how.sandbox) res.setHeader("Content-Security-Policy", "sandbox");
+  res.setHeader("Content-Type", how.type);
+  if (how.attachment) res.setHeader("Content-Disposition", "attachment");
+  res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+
+  if (compressed) {
+    res.setHeader("Accept-Ranges", "none");
+    if (req.method === "HEAD") return res.end();
+    return chain(await openCompressed(), res);
+  }
+  res.setHeader("Accept-Ranges", "bytes");
+
+  const range = req.headers.range;
+  if (range) {
+    const match = /^bytes=(\d*)-(\d*)$/.exec(String(range).trim());
+    if (match) {
+      const hasStart = match[1] !== "";
+      const hasEnd = match[2] !== "";
+      let start;
+      let end;
+      if (hasStart) {
+        start = Number(match[1]);
+        end = hasEnd ? Number(match[2]) : contentSize - 1;
+      } else if (hasEnd) {
+        start = Math.max(0, contentSize - Number(match[2]));
+        end = contentSize - 1;
+      }
+      if (start !== undefined && start < contentSize && end >= start) {
+        end = Math.min(end, contentSize - 1);
+        res.status(206);
+        res.setHeader("Content-Range", `bytes ${start}-${end}/${contentSize}`);
+        res.setHeader("Content-Length", end - start + 1);
+        if (req.method === "HEAD") return res.end();
+        return chain(await openAt(start, end), res);
+      }
+      res.status(416).setHeader("Content-Range", `bytes */${contentSize}`);
+      return res.end();
+    }
+  }
+
+  res.setHeader("Content-Length", contentSize);
+  if (req.method === "HEAD") return res.end();
+  chain(await openAt(0, contentSize - 1), res);
 }
 
 async function deleteUploadedFiles(attachments) {
@@ -142,4 +191,4 @@ async function deleteUploadedFiles(attachments) {
   }
 }
 
-module.exports = { serveUpload, deleteUploadedFiles, FILENAME_RE };
+module.exports = { serveUpload, deleteUploadedFiles, contentTypeFor, responseFor, FILENAME_RE };

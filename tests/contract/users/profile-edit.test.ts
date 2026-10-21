@@ -205,11 +205,17 @@ describe("PATCH /api/users/:id — ошибки", () => {
     ["дата рождения в будущем", { birthday: "2999-01-01" }, 400, "Дата рождения указана неверно"],
     ["дата рождения до 1900", { birthday: "1899-12-31" }, 400, "Дата рождения указана неверно"],
     ["несуществующая дата", { birthday: "2001-02-29" }, 400, "Дата рождения указана неверно"],
-    ["дата не ISO", { birthday: "01.01.2000" }, 400, "Дата рождения указана неверно"],
+    ["дата в непонятном формате", { birthday: "01/01/2000" }, 400, "Дата рождения указана неверно"],
   ];
   test.each(cases)("%s → %i", async (_what, patch, status, error) => {
     const me = await registerUser(server().baseUrl);
     expectError(await me.api.patch(`/api/users/${me.id}`, patch), status, error);
+  });
+
+  test("дата рождения ДД.ММ.ГГГГ принимается и хранится как ГГГГ-ММ-ДД", async () => {
+    const me = await registerUser(server().baseUrl);
+    expect((await me.api.patch(`/api/users/${me.id}`, { birthday: "7.5.1990" })).status).toBe(200);
+    expect((await me.api.get(`/api/users/${me.id}`)).body.user.birthday).toBe("1990-05-07");
   });
 
   test("ошибка в одном поле — ничего не сохраняется", async () => {

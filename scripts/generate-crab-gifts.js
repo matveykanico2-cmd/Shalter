@@ -9,9 +9,9 @@ const fs = require('fs');
 const path = require('path');
 
 const PROJECT_ROOT = path.join(__dirname, '..');
-const GIFTS_FILE = path.join(PROJECT_ROOT, 'server/data/gifts.js');
-const TRAITS_FILE = path.join(PROJECT_ROOT, 'public/js/lib/giftTraits.js');
-const BIRTHDAY_FILE = path.join(PROJECT_ROOT, 'server/lib/birthdaySweep.js');
+const GIFTS_FILE = path.join(PROJECT_ROOT, 'server/data/catalog/gifts.json');
+const { writeGiftScenes } = require('./gift-scenes');
+const BIRTHDAY_FILE = path.join(PROJECT_ROOT, 'server/data/catalog/birthday-suggestions.json');
 
 /**
  * Animation presets for different moods/actions
@@ -370,120 +370,38 @@ function generateGifts(count = 500) {
   return { gifts, scenes, birthdaySuggestions, twebIds };
 }
 
-/**
- * Read existing file and find insertion points
- */
-function readGiftsFile() {
-  return fs.readFileSync(GIFTS_FILE, 'utf8');
+// Каталоги — JSON по записи на строку, чтобы дифф в git оставался читаемым.
+function readJsonList(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
-function readTraitsFile() {
-  return fs.readFileSync(TRAITS_FILE, 'utf8');
-}
-
-function readBirthdayFile() {
-  return fs.readFileSync(BIRTHDAY_FILE, 'utf8');
-}
-
-/**
- * Insert gifts into gifts.js
- */
-function updateGiftsFile(existingContent, newGifts) {
-  // Find the crab gifts section
-  const marker = '// — Новые подарки с крабом для дней рождения (40+) —';
-  const idx = existingContent.indexOf(marker);
-  if (idx === -1) throw new Error('Marker not found in gifts.js');
-  
-  const insertPos = idx + marker.length;
-  const giftStrings = newGifts.map(g => `  { id: "${g.id}", emoji: "${g.emoji}", name: "${g.name}", priceRub: ${g.priceRub}, premiumDays: 0 },`).join('\n');
-  
-  return existingContent.slice(0, insertPos) + '\n' + giftStrings + existingContent.slice(insertPos);
-}
-
-/**
- * Update TWEB_GIFT_IDS
- */
-function updateTwebIds(existingContent, newIds) {
-  const marker = '"crab_umbrella"';
-  const idx = existingContent.indexOf(marker);
-  if (idx === -1) throw new Error('TWEB_GIFT_IDS marker not found');
-  
-  // Find the closing bracket of the array
-  let bracketCount = 0;
-  let pos = idx;
-  while (pos < existingContent.length) {
-    if (existingContent[pos] === ']') {
-      if (bracketCount === 0) break;
-      bracketCount--;
-    } else if (existingContent[pos] === '[') {
-      bracketCount++;
-    }
-    pos++;
-  }
-  
-  const idStrings = Array.from(newIds).map(id => `  "${id}",`).join('\n');
-  return existingContent.slice(0, pos) + '\n' + idStrings + existingContent.slice(pos);
-}
-
-/**
- * Insert scenes into giftTraits.js
- */
-function updateTraitsFile(existingContent, newScenes) {
-  // Simple string replacement: find the end of BUILTIN_GIFT_SCENES object
-  // Original pattern: "  },\n};\n\nexport function renderGiftArt"
-  const marker = '  },\n};\n\nexport function renderGiftArt';
-  const idx = existingContent.indexOf(marker);
-  if (idx === -1) throw new Error('Could not find BUILTIN_GIFT_SCENES end marker');
-  
-  const sceneStrings = Object.values(newScenes).map(s => '  ' + s).join(',\n');
-  
-  // Replace the }; with new scenes + };
-  const replacement = '  },\n' + sceneStrings + ',\n};\n\nexport function renderGiftArt';
-  return existingContent.slice(0, idx) + replacement + existingContent.slice(idx + marker.length);
-}
-
-/**
- * Update birthday suggestions
- */
-function updateBirthdayFile(existingContent, newSuggestions) {
-  const marker = 'const BIRTHDAY_GIFT_SUGGESTIONS = [';
-  const idx = existingContent.indexOf(marker);
-  if (idx === -1) throw new Error('Birthday marker not found');
-  
-  // Find closing ]
-  let bracketCount = 0;
-  let pos = idx;
-  while (pos < existingContent.length) {
-    if (existingContent[pos] === '[') bracketCount++;
-    else if (existingContent[pos] === ']') { bracketCount--; if (bracketCount === 0) break; }
-    pos++;
-  }
-  
-  const suggestionStrings = newSuggestions.map(s => `  { id: "${s.id}", emoji: "${s.emoji}", name: "${s.name}" },`).join('\n');
-  return existingContent.slice(0, pos) + '\n' + suggestionStrings + existingContent.slice(pos);
+function writeJsonList(file, list) {
+  fs.writeFileSync(file, '[\n' + list.map((x) => JSON.stringify(x)).join(',\n') + '\n]\n');
 }
 
 // Main
 const count = parseInt(process.argv[2]) || 500;
 console.log(`Generating ${count} crab gifts...`);
 
-const { gifts, scenes, birthdaySuggestions, twebIds } = generateGifts(count);
-console.log(`Generated ${gifts.length} gifts, ${Object.keys(scenes).length} scenes, ${birthdaySuggestions.length} birthday suggestions`);
+const generated = generateGifts(count);
+const catalog = readJsonList(GIFTS_FILE);
+const birthday = readJsonList(BIRTHDAY_FILE);
 
-// Read existing files
-const giftsContent = readGiftsFile();
-const traitsContent = readTraitsFile();
-const birthdayContent = readBirthdayFile();
+// id зависит только от темы и номера, поэтому повторный запуск выдаёт те же id с
+// другими названиями и ценами. Такие пропускаем: сервер всё равно взял бы первый.
+const taken = new Set(catalog.map((g) => g.id));
+const gifts = generated.gifts.filter((g) => !taken.has(g.id));
+const fresh = new Set(gifts.map((g) => g.id));
+const scenes = Object.entries(generated.scenes).filter(([id]) => fresh.has(id)).map(([, scene]) => scene);
+const birthdaySuggestions = generated.birthdaySuggestions.filter((g) => fresh.has(g.id));
+if (gifts.length < generated.gifts.length) {
+  console.log(`Skipped ${generated.gifts.length - gifts.length} ids already in the catalog`);
+}
+console.log(`Generated ${gifts.length} gifts, ${scenes.length} scenes, ${birthdaySuggestions.length} birthday suggestions`);
 
-// Update files
-const newGiftsContent = updateGiftsFile(giftsContent, gifts);
-const newTraitsContent = updateTraitsFile(traitsContent, scenes);
-const newBirthdayContent = updateBirthdayFile(birthdayContent, birthdaySuggestions);
-
-// Write back
-fs.writeFileSync(GIFTS_FILE, newGiftsContent);
-fs.writeFileSync(TRAITS_FILE, newTraitsContent);
-fs.writeFileSync(BIRTHDAY_FILE, newBirthdayContent);
+writeJsonList(GIFTS_FILE, [...catalog, ...gifts]);
+writeGiftScenes(scenes);
+writeJsonList(BIRTHDAY_FILE, [...birthday, ...birthdaySuggestions]);
 
 console.log('Files updated successfully!');
 console.log(`Total gifts added: ${gifts.length}`);

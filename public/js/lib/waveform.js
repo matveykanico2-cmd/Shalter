@@ -57,7 +57,9 @@ export function decodeWaveform(url) {
   const promise = new Promise((resolve) => {
     queue.push(async () => {
       try {
-        const buf = await (await fetch(url, { credentials: "include" })).arrayBuffer();
+        // Cookie нужны только нашему /uploads/…; дальше редирект может увести в бакет S3,
+        // и с "include" бакету пришлось бы разрешать запросы с cookie.
+        const buf = await (await fetch(url, { credentials: "same-origin" })).arrayBuffer();
         const ctx = new Ctx(1, 1, 8000);
         const audio = await ctx.decodeAudioData(buf);
         const data = audio.getChannelData(0);

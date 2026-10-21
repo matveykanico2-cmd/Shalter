@@ -1,13 +1,13 @@
 // Маршруты, объявленные прямо в server/index.js: заголовки безопасности,
 // /api/version, /api/labels, /api/status-catalog, статические страницы,
-// /.well-known, SPA-фолбэк, неизвестные /api-пути и общий обработчик ошибок.
+// /.well-known, сцены подарков, SPA-фолбэк, неизвестные /api-пути и общий обработчик ошибок.
 import { describe, expect, test } from "vitest";
 import { labelsBody } from "../../schemas/admin";
 import { errorBody } from "../../schemas/common";
 import { versionBody } from "../../schemas/misc";
 import { statusCatalogBody } from "../../schemas/profile";
 import { Api } from "../../support/client";
-import { expectOk } from "../../support/expect";
+import { expectError, expectOk } from "../../support/expect";
 import { registerUser } from "../../support/seed";
 import { useServer } from "../../support/use-server";
 
@@ -64,14 +64,13 @@ describe("GET /api/version", () => {
   });
 });
 
-describe("публичные справочники", () => {
-  test("GET /api/labels и /api/status-catalog открыты без сессии и совпадают с тем, что видит пользователь", async () => {
+describe("справочники", () => {
+  test("GET /api/labels и /api/status-catalog — только с сессией", async () => {
     const me = await registerUser(server().baseUrl);
-    // ПОВЕДЕНИЕ-ВОПРОС: /api/labels смонтирован в index.js без requireUserId — список меток модерации открыт всем.
-    const labels = expectOk(await anon().get("/api/labels"), labelsBody);
-    expect(labels.labels.length).toBeGreaterThan(0);
-    expect(expectOk(await me.api.get("/api/labels"), labelsBody)).toEqual(labels);
-    expect(expectOk(await anon().get("/api/status-catalog"), statusCatalogBody)).toEqual({ items: [] });
+    expectError(await anon().get("/api/labels"), 401, "unauthorized");
+    expectError(await anon().get("/api/status-catalog"), 401, "unauthorized");
+    expect(expectOk(await me.api.get("/api/labels"), labelsBody).labels.length).toBeGreaterThan(0);
+    expect(expectOk(await me.api.get("/api/status-catalog"), statusCatalogBody)).toEqual({ items: [] });
   });
 });
 
@@ -94,6 +93,29 @@ describe("статические страницы", () => {
         target: expect.objectContaining({ namespace: "android_app", package_name: "ru.shalter.twa" }),
       }),
     ]);
+  });
+});
+
+describe("сцены подарков /gift-scenes", () => {
+  test("index.json — список имеющихся сцен; сцена — JSON по id подарка; чужой путь — 404, а не index.html", async () => {
+    const index = await anon().get("/gift-scenes/index.json");
+    expect(index.status).toBe(200);
+    expect(index.headers.get("content-type")).toMatch(/^application\/json/);
+    expect(Array.isArray(index.body)).toBe(true);
+    expect(index.body).toContain("tw_duck_vacation");
+    expect(index.body.every((id: unknown) => typeof id === "string" && /^[A-Za-z0-9_-]+$/.test(id))).toBe(true);
+
+    const scene = await anon().get("/gift-scenes/tw_duck_vacation.json");
+    expect(scene.status).toBe(200);
+    expect(scene.headers.get("content-type")).toMatch(/^application\/json/);
+    expect(scene.body).toEqual(expect.objectContaining({ v: 1, layers: expect.any(Array) }));
+    expect(scene.body.layers.length).toBeGreaterThan(0);
+
+    for (const path of ["/gift-scenes/no_such_gift.json", "/gift-scenes/", "/gift-scenes/a/b"]) {
+      const res = await anon().get(path);
+      expect(res.status, path).toBe(404);
+      expect(res.text, path).not.toContain("<title>");
+    }
   });
 });
 

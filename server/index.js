@@ -22,21 +22,16 @@ const expressStaticGzip = require("express-static-gzip");
 const { errorHandler } = require("./middleware/errors");
 const { apiLimiter, authLimiter } = require("./middleware/rateLimit");
 const { attachWebSocketServer } = require("./ws");
-const { getCurrentUserId } = require("./middleware/auth");
+const { getCurrentUserId, requireUserId } = require("./middleware/auth");
 const { takeSharePayload } = require("./routes/shareTarget");
 const { initPush } = require("./push");
 const { ensureSystemBot } = require("./data/systemBot");
 const { ensureHugoAccount } = require("./data/hugoBot");
 const { ensureShalterAiAccount } = require("./data/shalterAiBot");
 const { ensureHelperBotAccount } = require("./data/helperBot");
-const { startAutoDeleteSweep } = require("./lib/autoDelete");
-const { startDonationAlertsSweep } = require("./lib/donationAlerts");
-const { startDonatePaySweep } = require("./lib/donatePay");
-const { startBirthdaySweep } = require("./lib/birthdaySweep");
-const { startHolidaySweep } = require("./lib/holidaySweep");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
-const { startReminderSweep } = require("./lib/reminderSweep");
-const { startAccountDeletionSweep } = require("./lib/accountDeletionSweep");
+const { startSweeps, TEST_MODE } = require("./lib/sweeps");
+const workerBridge = require("./lib/workerBridge");
 
 ensureSystemBot();
 ensureHugoAccount();
@@ -123,7 +118,7 @@ app.use("/api/push", require("./routes/push"));
 app.use("/api/reports", require("./routes/reports"));
 app.use("/api/admin", require("./routes/admin"));
 app.use("/api/export", require("./routes/export"));
-app.get("/api/labels", (req, res) => res.json({ labels: require("./data/safetyLabels").listLabels() }));
+app.get("/api/labels", requireUserId, (req, res) => res.json({ labels: require("./data/safetyLabels").listLabels() }));
 app.use("/api/stories", require("./routes/stories"));
 app.use("/api/premium", require("./routes/premium"));
 app.use("/api/business", require("./routes/business"));
@@ -148,7 +143,7 @@ app.use("/api/oauth", require("./routes/oauth"));
 app.use("/api/avatars", require("./routes/avatars"));
 app.use("/api/profile-track", require("./routes/profileTrack"));
 app.use("/api/status", require("./routes/profileStatus"));
-app.get("/api/status-catalog", (req, res) => res.json({ items: require("./data/profileStatuses").listCatalog() }));
+app.get("/api/status-catalog", requireUserId, (req, res) => res.json({ items: require("./data/profileStatuses").listCatalog() }));
 app.use("/api/usernames", require("./routes/usernames"));
 app.use("/api/communities", require("./routes/communities"));
 app.use("/api/bootstrap", require("./routes/bootstrap"));
@@ -163,7 +158,7 @@ app.get("/api/short-links", (_req, res) => {
 // Системное «Поделиться»: принимаем содержимое из меню «Поделиться» и отдаём
 // его приложению по одноразовому токену.
 app.use("/share-target", require("./routes/shareTarget"));
-app.get("/api/share/:token", require("./middleware/auth").requireUserId, (req, res) => {
+app.get("/api/share/:token", requireUserId, (req, res) => {
   const payload = takeSharePayload(req.params.token);
   if (!payload) return res.status(404).json({ error: "Ссылка устарела — поделитесь ещё раз" });
   res.json({ share: payload });
@@ -187,6 +182,8 @@ app.get("/games", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "games.html"
 // Эмодзи, узоры подарков, анимации — из архивов server/assets/packs (по прежним адресам)
 app.use(require("./lib/assetPacks").assetPacks());
 app.use(express.static(PUBLIC_DIR, { index: false, maxAge: useBuilt ? "1h" : 0 }));
+// Сцены подарков (по файлу на подарок): нет такой сцены — 404, а не index.html приложения.
+app.use("/gift-scenes", (_req, res) => res.sendStatus(404));
 
 const { serveUpload } = require("./lib/serveUpload");
 const { canAccessUpload } = require("./lib/uploadAccess");
@@ -235,27 +232,20 @@ const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 attachWebSocketServer(server);
 
-// Режим контрактных тестов (tests/): фоновые обходы и приём RTMP не запускаются —
-// тесты должны быть воспроизводимыми, а параллельные серверы не делить порт RTMP.
-// На боевом сервере (NODE_ENV=production) флаг игнорируется.
-const TEST_MODE = process.env.SHALTER_TEST_MODE === "1" && process.env.NODE_ENV !== "production";
+// Обходы по таймеру и обработка вложений — в фоновом процессе (server/worker.js), он
+// же в режиме тестов (SHALTER_TEST_MODE) обходы не запускает. BACKGROUND_WORKER=0 —
+// всё здесь, как раньше. RTMP и отложенные сообщения — всегда здесь; в режиме тестов
+// их нет: тесты должны быть воспроизводимыми, а параллельные серверы не делить порт RTMP.
+if (workerBridge.enabled) {
+  workerBridge.startWorker();
+} else {
+  require("./lib/backgroundJobs").startJobRunner(require("./lib/mediaJobs").handlers);
+  startSweeps({ testMode: TEST_MODE });
+}
 if (TEST_MODE) {
   console.log("[test] SHALTER_TEST_MODE: фоновые обходы и RTMP выключены");
 } else {
-  startBackgroundJobs();
-}
-
-function startBackgroundJobs() {
-  startAutoDeleteSweep();
-  startDonationAlertsSweep();
-  startDonatePaySweep();
-  startBirthdaySweep();
-  startHolidaySweep();
   startScheduledMessagesSweep();
-  startReminderSweep();
-  startAccountDeletionSweep();
-  require("./lib/orphanSweep").startOrphanSweep();
-  require("./lib/uploadsMigration").startAutoMigration();
   startRtmp();
 }
 
@@ -277,8 +267,23 @@ function startRtmp() {
   }
 }
 
-initPush()
-  .catch((err) => console.error("push init failed, push notifications disabled:", err))
+// S3_SSE=bucket: до первого запроса узнаём у бакета, шифрует ли он сам (иначе файлы
+// шифрует приложение); не ответил за 5 с — проверка повторится позже.
+function checkBucketEncryption() {
+  const storage = require("./lib/storage");
+  if (!storage.plainConfigured || storage.storesPlain) return Promise.resolve();
+  const timer = setInterval(() => {
+    if (storage.storesPlain) return clearInterval(timer);
+    storage.verifyEncryptionAtRest().catch(() => {});
+  }, 10 * 60 * 1000);
+  timer.unref();
+  return Promise.race([storage.verifyEncryptionAtRest().catch(() => {}), new Promise((r) => setTimeout(r, 5000).unref())]);
+}
+
+Promise.all([
+  initPush().catch((err) => console.error("push init failed, push notifications disabled:", err)),
+  checkBucketEncryption(),
+])
   .finally(() => {
     server.listen(PORT, "0.0.0.0", () => {
       console.log(`shalter server listening on http://localhost:${PORT}`);
@@ -292,7 +297,8 @@ initPush()
 
 function shutdown() {
   console.log("shutting down…");
-  server.close(() => {
+  server.close(async () => {
+    await workerBridge.stopWorker();
     // Сливаем WAL в app.db и закрываем базу: иначе после каждой остановки
     // последние записи остаются только в app.db-wal.
     try {

@@ -17,7 +17,7 @@ async function openUserCard(page: Page, username: string, name: string) {
   await expect(page.getByRole("heading", { name: `Управление: ${name}` })).toBeVisible();
 }
 
-test("блокировка из карточки: пользователя выкидывает с причиной, вход по форме не пускает; после разблокировки входит", async ({ newUser, openAs, admin, page }) => {
+test("блокировка на 7 дней из карточки: у пользователя экран блокировки с причиной и сроком, «Назад» — выход; после разблокировки входит", async ({ newUser, openAs, admin, page }) => {
   const borisName = person("Борис");
   const boris = await newUser(borisName);
   const b = (await openAs(boris.api, "/")).page;
@@ -27,34 +27,46 @@ test("блокировка из карточки: пользователя вы�
   // Админу виден раздел «Администрирование» с «Модерацией».
   await expect(adm.getByText("Администрирование", { exact: true })).toBeVisible();
   await openUserCard(adm, boris.username, borisName);
-  await expect(adm.getByText("Заблокированный аккаунт не сможет войти и увидит причину на экране входа.")).toBeVisible();
-  await adm.getByRole("button", { name: "Заблокировать", exact: true }).click();
-  await answerPrompt(adm, `Причина блокировки ${borisName}. Её увидит сам пользователь на экране входа.`, "Рассылка спама");
+  await expect(adm.getByText("Заблокированный сможет войти, но вместо чатов увидит экран блокировки с причиной и сроком.")).toBeVisible();
+  await adm.getByRole("button", { name: "7 дней", exact: true }).click();
+  await answerPrompt(adm, new RegExp(`^Блокировка ${borisName}: 7 дней`), "Рассылка спама");
   await expect(adm.getByText(/Аккаунт заблокирован — пользователь уведомлён в чате с Shalter\./)).toBeVisible();
-  await expect(adm.getByText(/^Заблокирован .*\. Причина: Рассылка спама$/)).toBeVisible();
+  await expect(adm.getByText(/^Заблокирован .* до .*\. Причина: Рассылка спама$/)).toBeVisible();
   await expect(adm.getByRole("button", { name: "Разблокировать", exact: true })).toBeVisible();
 
-  // Открытое приложение Бориса уходит на экран входа с причиной.
-  await expect(b.getByText("Этот аккаунт заблокирован администрацией Shalter. Причина: Рассылка спама")).toBeVisible({ timeout: 30_000 });
+  // Открытое приложение Бориса закрывает экран блокировки: причина, срок, сколько осталось.
+  const banScreen = (p: Page) => p.getByRole("alertdialog", { name: "Аккаунт заблокирован" });
+  await expect(banScreen(b)).toBeVisible({ timeout: 30_000 });
+  await expect(banScreen(b).getByText("Рассылка спама", { exact: true })).toBeVisible();
+  await expect(banScreen(b).getByText(/^Заблокирован до /)).toBeVisible();
+  await expect(banScreen(b).getByText(/^Осталось (6 дней 23 часа|7 дней)$/)).toBeVisible();
+  // Чаты под экраном недоступны, и после перезагрузки — снова экран блокировки.
   await expect(navLink(b, "Чаты")).toHaveCount(0);
+  await b.reload();
+  await expect(banScreen(b)).toBeVisible();
 
-  // Вход через форму не пускает и показывает причину.
+  // Вход через форму пускает в аккаунт — и сразу экран блокировки.
   await page.goto("/");
   await page.getByPlaceholder("you@example.com").fill(boris.email);
   await page.getByPlaceholder("Пароль").fill(boris.password);
   await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await expect(page.getByText("Аккаунт заблокирован администрацией Shalter. Причина: Рассылка спама")).toBeVisible();
-  await expect(navLink(page, "Чаты")).toHaveCount(0);
+  await expect(banScreen(page)).toBeVisible();
+  // «Назад» — выход из аккаунта на экран входа.
+  await banScreen(page).getByRole("button", { name: "Назад" }).click();
+  await expect(page).toHaveURL(/\/login/);
+  await expect(page.getByPlaceholder("you@example.com")).toBeVisible();
 
-  // В «Модерации» Борис в списке заблокированных; разблокировка из карточки.
+  // В «Модерации» Борис в списке заблокированных со сроком; разблокировка из карточки.
   await adm.getByRole("button", { name: "Закрыть", exact: true }).click();
   await adm.reload();
-  await expect(adm.getByRole("button", { name: new RegExp(`${borisName}.*Рассылка спама`) })).toBeVisible();
+  await expect(adm.getByRole("button", { name: new RegExp(`${borisName}.*до .*Рассылка спама`) })).toBeVisible();
   await openUserCard(adm, boris.username, borisName);
   await adm.getByRole("button", { name: "Разблокировать", exact: true }).click();
   await expect(adm.getByText(/Блокировка снята — пользователь уведомлён в чате с Shalter\./)).toBeVisible();
 
-  // Теперь вход проходит, а в служебном чате — уведомление о снятии блокировки.
+  // Теперь вход открывает чаты, а в служебном чате — уведомление о снятии блокировки.
+  await page.getByPlaceholder("you@example.com").fill(boris.email);
+  await page.getByPlaceholder("Пароль").fill(boris.password);
   await page.getByRole("button", { name: "Войти", exact: true }).click();
   await expectSignedIn(page);
   await chatRow(page, "Shalter").click();

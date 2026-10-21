@@ -244,7 +244,7 @@ describe("POST /api/reports/:id/resolve", () => {
     expect(expectOk(await resolve(m, scamReport.id, "ban"), resolveBody)).toEqual({ status: "resolved_banned" });
     const banned = await scammer.api.get("/api/chats");
     expect(banned.status).toBe(403);
-    expect(banned.body).toEqual({ error: "banned", banReason: "Жалоба: Мошенничество" });
+    expect(banned.body).toEqual({ error: "banned", banReason: "Жалоба: Мошенничество", bannedAt: expect.any(String), bannedUntil: null });
     expect((await reporter.api.get(`/api/users/${scammer.id}`)).body.user).toMatchObject({ isBanned: true, safetyLabel: "scam" });
 
     expect(expectOk(await resolve(m, spamReport.id, "ban"), resolveBody)).toEqual({ status: "resolved_banned" });

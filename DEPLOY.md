@@ -306,48 +306,199 @@ this app can work around. Skip step 5 and the app will otherwise run fine,
 but calls, voice messages, and video-notes will all silently fail to record
 or connect the moment a real visitor (not you on localhost) opens it.
 
-## Переезд вложений с диска в S3 без потери данных
+## Обновление работающего сервера (сцены подарков, nginx, S3)
+
+Этот раздел для того, кто выкладывает новую версию на **уже работающий**
+сервер (PM2 + nginx, путь `/opt/shalter`; другой путь — подставьте свой везде
+ниже). Новый сервер с нуля ставится по разделу выше, сюда заглядывать не нужно.
+Docker/Dokploy — пункт в конце раздела.
+
+Что поменялось для выкладки:
+- конфиг nginx `deploy/nginx.conf.example` написан заново — **старый нужно
+  заменить**: он был целым `nginx.conf` и в `sites-enabled` не проходил
+  `nginx -t`, а статику не раздавал вовсе;
+- статику (сборка, сцены подарков, эмодзи и картинки подарков) теперь отдаёт
+  nginx с диска, а не Node; сжатие ответов тоже делает nginx;
+- сцены подарков — 25 тысяч JSON-файлов в `public/gift-scenes` (~120 МБ на
+  диске) вместо одного модуля на 60 МБ;
+- в базе появляется таблица `upload_deletions` — сервер создаёт её сам при
+  старте, руками ничего делать не нужно;
+- в `ps`/`htop` у приложения теперь два процесса Node: основной запускает
+  фоновый для обходов по таймеру и обработки вложений (раздел «Фоновый процесс»
+  ниже). Делать ничего не нужно; памяти нужно примерно на 120 МБ больше. В базе
+  появляется таблица `background_jobs` — тоже сама;
+- каталог встроенных подарков и подсказки к дням рождения — теперь данные
+  (`server/data/catalog/*.json`), а не код. Делать ничего не нужно;
+- при первом запуске сервер один раз обрезает старые поздравления с днём
+  рождения: в каждом лежало ~640 КБ подсказок подарков, остаётся 8. Отметка об
+  этом — в новой таблице `data_migrations`, повторно перенос не идёт. На большой
+  базе первый старт может занять на несколько секунд дольше — это он;
+- хранение вложений в S3 с шифрованием на стороне хранилища — **по желанию**,
+  включается отдельно (шаг 7).
+
+### Шаги
+
+1. **Резервная копия** каталога `data/` целиком (база, `*.key`, `uploads/`)
+   и текущего конфига nginx:
+   ```bash
+   cd /opt/shalter
+   tar czf ~/shalter-data-$(date +%F).tgz data
+   sudo cp /etc/nginx/sites-available/shalter ~/nginx-shalter-$(date +%F).bak
+   ```
+2. **Код и зависимости, сборка:**
+   ```bash
+   git pull
+   npm install
+   npm run build          # в конце строка «Картинки из архивов: … файлов в dist/packs»
+   npm prune --omit=dev
+   ```
+   Без строки про `dist/packs` nginx не найдёт картинки и отдаст их через Node —
+   работать будет, но медленнее; повторите `npm run build`.
+3. **Права на чтение для nginx.** nginx (пользователь `www-data`) читает файлы
+   прямо из `/opt/shalter/public`. Проверка — обе команды должны напечатать `ok`:
+   ```bash
+   sudo -u www-data test -r /opt/shalter/public/dist/index.html && echo ok
+   sudo -u www-data test -r /opt/shalter/public/gift-scenes/index.json && echo ok
+   ```
+   Если нет — дайте право на чтение и проход по каталогам:
+   `sudo chmod o+rx /opt /opt/shalter /opt/shalter/public` и
+   `sudo chmod -R o+rX /opt/shalter/public`.
+4. **Новый конфиг nginx.** Если сертификат ставил certbot, он дописал в старый
+   файл блоки `listen 443 ssl` и `ssl_certificate` — новый файл их не содержит,
+   поэтому после замены certbot запускается ещё раз:
+   ```bash
+   sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/shalter
+   sudo sed -i 's/your-domain.example/ВАШ-ДОМЕН/' /etc/nginx/sites-available/shalter
+   sudo nginx -t
+   sudo certbot --nginx -d ВАШ-ДОМЕН   # «reinstall» существующего сертификата, новый не выпускается
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+   Если `nginx -t` ругается на `limit_req_zone … already defined` или
+   `upstream … duplicate` — эти строки уже есть в другом файле
+   (`/etc/nginx/nginx.conf` или ещё один сайт): уберите старые, оставьте новые.
+5. **Перезапуск Node** — чтобы он подхватил `DISABLE_APP_GZIP=1` из
+   `ecosystem.config.js`:
+   ```bash
+   pm2 restart ecosystem.config.js --update-env
+   pm2 logs shalter --lines 30   # «shalter server listening …» и «[worker] фоновый процесс запущен (pid …)», без ошибок
+   ```
+6. **Проверка снаружи** (с любой машины):
+   ```bash
+   D=https://ВАШ-ДОМЕН
+   curl -sI $D/dist/app.js | grep -iE 'cache-control|x-powered-by'
+   curl -sI $D/gift-scenes/index.json | grep -iE 'cache-control|x-powered-by'
+   curl -sI $D/img/emoji/0023-20e3.png | grep -iE 'cache-control|x-powered-by'
+   curl -s -o /dev/null -w '%{http_code}\n' $D/gift-scenes/nope.json
+   curl -s -o /dev/null -w '%{http_code}\n' $D/api/version
+   ```
+   Ожидается: у трёх файлов есть `Cache-Control` (`immutable` у `/dist/`,
+   `max-age=3600` у сцен, `max-age=604800` у эмодзи) и **нет**
+   `X-Powered-By: Express` — значит, их отдал nginx, а не Node. Несуществующая
+   сцена — `404`, `/api/version` — `200`. Затем в браузере: открыть приложение,
+   чат с эмодзи, магазин подарков (картинки и анимации подарков на месте),
+   позвонить — WebSocket идёт через тот же nginx. Отправить фото и видео:
+   через несколько секунд у них должно появиться превью (его делает фоновый
+   процесс) — если превью не появляется, смотрите `pm2 logs shalter` на строки
+   `[worker]` и `[jobs]`.
+7. **S3 (по желанию, отдельным шагом).** Если вложения переезжают в S3 —
+   раздел «Переезд вложений в S3…» ниже. Важно: открытые файлы в бакет пишутся,
+   только когда задан `S3_SSE`; без него всё работает как раньше.
+
+**Откат:** вернуть старый конфиг nginx из резервной копии
+(`sudo cp ~/nginx-shalter-*.bak /etc/nginx/sites-available/shalter && sudo systemctl reload nginx`),
+`git checkout` предыдущей версии, `npm install && npm run build`,
+`pm2 restart ecosystem.config.js --update-env`. Таблицы `upload_deletions` и
+`background_jobs` старой версии не мешают. Если проблема только с фоновым
+процессом — откатывать код не нужно: `BACKGROUND_WORKER=0` в `.env` и
+`pm2 restart shalter --update-env` возвращают всё в один процесс. Если откат только nginx, без кода, — уберите
+`DISABLE_APP_GZIP` из `ecosystem.config.js`, иначе ответы Node останутся без сжатия.
+
+**Docker / Dokploy.** Там статику по-прежнему отдаёт Node (nginx-конфиг не
+нужен), сжатие остаётся в Node. Достаточно пересобрать образ и перезапустить
+контейнер; S3 — по разделу ниже, переменные задаются в настройках Dokploy.
+
+## Переезд вложений в S3 с шифрованием на стороне хранилища
 
 Вложения можно держать в S3-совместимом хранилище (Яндекс Object Storage,
 Cloudflare R2, AWS S3, MinIO) — переменные `S3_*` в `.env.example`,
 реализация в `server/lib/storage.js`.
 
-**Просто: задайте переменные и перезапустите.** Пропишите `S3_BUCKET`,
-`S3_ACCESS_KEY`, `S3_SECRET_KEY` (и `S3_ENDPOINT`/`S3_REGION`, если не
-Яндекс) в окружении сервера — в `.env` на сервере или в настройках Dokploy,
-**не в `config.env` в git** — и перезапустите. Сервер сам, в фоне, перенесёт
-всё из `data/uploads` в бакет (`server/lib/uploadsMigration.js`): сверяет
-каждый файл по размеру и только потом удаляет его с диска; проходы
-повторяются каждые 10 минут, пока папка не опустеет, ход виден в логах
-(`[s3] …`). Пока файл не перенесён, он отдаётся с диска. `S3_AUTO_MIGRATE=0`
-выключает автоперенос, `S3_MIGRATE_KEEP_LOCAL=1` — копирует, но диск не
-чистит.
+**Как это работает.** В бакете файлы лежат открытыми байтами, а шифрует их само
+хранилище (SSE). Запрос `/uploads/<id>` по-прежнему приходит в Node: он проверяет
+сессию и доступ к файлу (участник чата, загрузивший, покупатель платного поста) и
+отвечает **302 на подписанную ссылку** в бакет. Байты файла, Range для видео и
+кэширование отдаёт бакет — Node их не расшифровывает и не пропускает через себя.
+Подпись берётся на начало часа и действует два часа: в течение часа ссылка на файл
+одна и та же, и браузер берёт файл из своего кэша. Ссылку, выданную участнику,
+можно переслать — она действует до двух часов, после этого нужен новый запрос через
+Node с проверкой доступа.
 
-Ниже — ручной путь скриптом, если хочется проконтролировать каждый шаг.
+Ключ `UPLOADS_KEY` (или `data/uploads.key`) нужен, пока в хранилище остаются
+старые файлы, зашифрованные приложением: их расшифровывает перенос. После
+переезда новые файлы им не шифруются, но **ключ не удаляйте** — он остаётся в
+резервных копиях и может понадобиться при откате.
 
-Файлы переносятся как есть, уже
-зашифрованными, поэтому **ключи не меняются**: `UPLOADS_KEY` (или
-`data/uploads.key`) и база `app.db` (в ней таблица `crypto_keys`) остаются
-те же. Потеряете ключ — файлы в S3 превратятся в шум.
-
-Порядок, при котором ни один файл не теряется и сервер не останавливается:
+### Порядок переезда
 
 1. **Резервная копия** `data/` целиком (база, `*.key`, `uploads/`).
-2. Создайте бакет и ключ доступа, пропишите `S3_BUCKET`, `S3_ACCESS_KEY`,
-   `S3_SECRET_KEY` (и `S3_ENDPOINT`/`S3_REGION`, если не Яндекс) в `.env`.
-   Сервер **пока не перезапускайте** — он продолжает писать на диск.
-3. Посмотрите, сколько предстоит: `npm run uploads:to-s3 -- --dry-run`.
-4. Основной перенос, сервер работает как обычно:
-   `npm run uploads:to-s3 -- --concurrency=8`. Можно прерывать и запускать
-   снова — уже перенесённое пропускается.
-5. Перезапустите сервер (`pm2 restart shalter` / пересоздайте контейнер) —
-   теперь новые файлы идут в S3. То, что успело прийти на диск после шага 4,
-   сервер отдаёт с диска, 404 не будет.
-6. Докопируйте остаток: `npm run uploads:to-s3`. Через минуту — ещё раз
-   (скрипт пропускает файлы моложе минуты: они могли ещё записываться).
-7. Проверьте в приложении старые фото, видео, файлы. Всё открывается —
-   освободите диск: `npm run uploads:to-s3 -- --delete-local`. Локальная копия
-   удаляется, только если объект в бакете совпал с ней по размеру.
+2. **Бакет с шифрованием.** Создайте бакет (приватный, без публичного доступа) и
+   включите в нём шифрование по умолчанию. В Яндексе: KMS → создать
+   симметричный ключ → в настройках бакета «Шифрование» выбрать его; сервисному
+   аккаунту бакета нужна роль `kms.keys.encrypterDecrypter` на этот ключ.
+   Режим включается **только явно** переменной `S3_SSE`:
+   - `S3_SSE=bucket` — шифрование бакета по умолчанию. Сервер при старте (и раз в
+     10 минут, пока не получится) спрашивает его у бакета (`GetBucketEncryption`;
+     ключу доступа нужно это право). Пока бакет не подтвердил шифрование, новые
+     файлы шифрует приложение, а перешифровка старых не запускается —
+     в логе `[s3] … нет шифрования по умолчанию`.
+   - `S3_SSE=aws:kms` + `S3_SSE_KMS_KEY_ID` или `S3_SSE=AES256` (AWS) — сервер
+     передаёт заголовок шифрования с каждым файлом, проверка не нужна.
+
+   Без `S3_SSE` всё остаётся как раньше: файлы шифрует приложение и отдаёт Node,
+   открытыми байтами в бакет ничего не пишется.
+3. **Ключ доступа** с правами на чтение и запись в бакет. Пропишите `S3_BUCKET`,
+   `S3_ACCESS_KEY`, `S3_SECRET_KEY` (и `S3_ENDPOINT`/`S3_REGION`, если не Яндекс)
+   в окружении сервера — в `.env` на сервере или в настройках Dokploy,
+   **не в `config.env` в git**.
+4. **CORS бакета.** Часть файлов клиент читает через `fetch` (осциллограмма
+   голосовых, просмотр текстовых файлов, скачивание в приложении, QR-карточка с
+   аватаром), а после редиректа это запрос к домену бакета:
+   `npm run s3:cors -- --origin=https://ВАШ-ДОМЕН`. Без CORS картинки, видео и
+   аудио всё равно показываются; пока CORS не настроен, можно задать
+   `S3_DIRECT_DOWNLOAD=0` — тогда открытые файлы отдаёт Node, как раньше.
+   Из бакета отдаются только картинки, видео и аудио: бакет не умеет ставить
+   `X-Content-Type-Options: nosniff` и `Content-Security-Policy: sandbox`, поэтому
+   текст, PDF, svg и файлы неизвестных типов по-прежнему отдаёт Node с ними.
+5. **Перезапустите сервер.** Новые файлы сразу идут в бакет открытыми. Старые
+   сервер переносит сам, в фоне (`server/lib/uploadsMigration.js`), проход раз в
+   10 минут, ход виден в логах (`[s3] …`):
+   - файлы с диска (`data/uploads`) расшифровываются, распаковываются и
+     заливаются в бакет; с диска файл удаляется, только когда объект в бакете
+     совпал с ним по размеру;
+   - объекты, которые уже лежат в бакете зашифрованными приложением (их залили
+     до перехода), переписываются открытыми на том же ключе.
+
+   Адреса файлов в базе не меняются. Пока файл не перенесён, его отдаёт Node, как
+   раньше — 404 не будет. Когда в бакете не останется старых объектов, сервер
+   пишет `data/s3-plain.done` и больше бакет не перебирает.
+   `S3_AUTO_MIGRATE=0` выключает автоперенос, `S3_MIGRATE_KEEP_LOCAL=1` —
+   копирует, но диск не чистит.
+6. Проверьте в приложении старые фото, видео, голосовые, файлы.
+
+Перенос можно провести и вручную, скриптом, при работающем сервере:
+`npm run uploads:to-s3 -- --dry-run` покажет, сколько предстоит;
+`npm run uploads:to-s3 -- --concurrency=8` переносит и перешифровывает;
+`--delete-local` чистит диск. Прерывать и запускать снова можно — обработанное
+пропускается. Файлы моложе минуты скрипт не трогает: они могли ещё записываться. Скрипт
+и сервер видят одну базу: файл, удалённый сервером, пока скрипт его переписывал,
+скрипт обратно в бакет не вернёт (`upload_deletions`). Если зашифрованный объект
+перешифровали, пока сервер его отдавал, сервер замечает это по ETag и отвечает
+новой версией.
+
+**Откат на шифрование приложением:** `S3_APP_ENCRYPTION=1`. Новые файлы снова
+шифрует приложение и отдаёт Node; уже открытые объекты Node тоже отдаёт сам.
+Отметка `data/s3-plain.done` при этом стирается, и при возврате бакет будет
+перепроверен.
 
 Что меняется в режиме S3: суточная уборка файлов (`server/lib/orphanSweep.js`)
 работает только по локальному диску и в S3 отключена — неиспользуемые объекты
@@ -369,6 +520,32 @@ side. Don't run this app clustered; if load ever outgrows one process, that
 state needs to move to something shared (e.g. Redis pub/sub) before adding
 workers, not just point them at the same database.
 
+### Фоновый процесс (он не «второй экземпляр»)
+
+`node server/index.js` сам запускает дочерний процесс `server/worker.js` — в
+`ps`/`htop` их два, в PM2 приложение одно. Запускать его отдельно не нужно и
+нельзя: он работает только как дочерний. В нём идёт то, что не должно тормозить
+ответы на запросы:
+- обходы по таймеру: автоудаление сообщений, приём донатов, дни рождения и
+  праздники, напоминания, удаление аккаунтов по сроку, уборка файлов, перенос
+  вложений в S3;
+- очередь обработки вложений: превью фото и видео, длительность голосовых,
+  перекодирование видео в историях. Задачи лежат в таблице `background_jobs`, так
+  что перезапуск их не теряет — доделаются после него.
+
+Сокетов в фоновом процессе нет: события для клиентов он передаёт основному.
+Упал — основной поднимает его снова через секунду (в логе
+`[worker] фоновый процесс завершился …` и `… запущен (pid …)`); основной при
+этом продолжает отвечать. Остановка основного (`pm2 stop/restart`) гасит и его.
+
+Отложенные сообщения и приём эфиров из OBS остаются в основном процессе.
+
+Память: фоновый процесс — около 120 МБ при старте, его куча ограничена 256 МБ
+(`WORKER_MAX_OLD_SPACE_MB`); sharp и ffmpeg во время обработки берут сверху.
+`max_memory_restart` в PM2 смотрит только на основной процесс.
+`BACKGROUND_WORKER=0` — всё в одном процессе, как раньше (если с фоновым что-то не
+так; очередь тогда разбирает основной).
+
 ## Running it
 
 ```bash
@@ -387,6 +564,14 @@ actually exists, otherwise it quietly falls back to the raw unbundled files,
 so a stale or missing build doesn't break anything, it just gives up the
 size/CPU win below until you rebuild.
 
+Built-in gift scenes are not part of the bundle: they live as one small JSON file
+per gift in `public/gift-scenes/<id>.json` plus a list in
+`public/gift-scenes/index.json`, and the client fetches only the scenes of the
+gifts on screen. They are plain static files — nginx serves `/gift-scenes/`
+straight from disk (see "nginx in front"). To regenerate them, use the
+`scripts/generate-scenes*.js` generators; `node scripts/gift-scenes.js` rebuilds
+the index after manual edits.
+
 `ecosystem.config.js` is already sized for this box:
 - `instances: 1`, `exec_mode: "fork"` — see above.
 - `--max-old-space-size=768` — caps the V8 heap at 768MB, leaving ~1.25GB for
@@ -398,13 +583,41 @@ size/CPU win below until you rebuild.
 
 ## nginx in front
 
-Use `deploy/nginx.conf.example` (copy, fill in your domain + cert paths).
-It terminates TLS and serves static files, which costs far less memory per
-connection than Node doing the same — worth it specifically because RAM is
-the scarce resource here, not request volume. It also gzips responses; if you
-enable nginx's gzip, set `DISABLE_APP_GZIP=1` in the Node process's
-environment (in `ecosystem.config.js`'s `env` block) so responses aren't
-compressed twice for no benefit.
+Use `deploy/nginx.conf.example` (step 5 above copies it; fill in your domain).
+It is a site file — it goes into `sites-available`, inside the stock
+`nginx.conf`'s `http {}` block. It terminates TLS and serves every static file
+from disk, so Node only answers the API, `/ws`, `/uploads/…` access checks and
+the app's pages. That costs far less memory per connection than Node doing the
+same — worth it specifically because RAM is the scarce resource here.
+
+What nginx serves itself (paths assume the app lives in `/opt/shalter`):
+
+| Path | From disk | Cache |
+| --- | --- | --- |
+| `/dist/…` | `public/dist` — the bundle, with the `.gz` built next to each file | 1 year, immutable |
+| `/gift-scenes/…` | `public/gift-scenes` | 1 hour |
+| `/img/emoji/…`, `/gift-symbols/…`, `/gift-emoji/…`, `/tgs/…` | `public/dist/packs` — unpacked by `npm run build` from `server/assets/packs` | 7 days |
+| any other file in `public/` | `public/` | 1 hour; `/sw.js` — always re-checked |
+
+A file that isn't on disk falls through to Node, so a skipped build costs
+speed, not correctness. Re-run `npm run build` after every `git pull`: it also
+refreshes `public/dist/packs` when the archives change. Brotli: the build writes
+`.br` files too; install `libnginx-mod-http-brotli-static` and uncomment
+`brotli_static` to serve them.
+
+nginx also gzips what Node answers, so `ecosystem.config.js` sets
+`DISABLE_APP_GZIP=1` and Node doesn't compress anything. Without nginx in front
+(PM2 alone), remove that line.
+
+The request-rate limit (`limit_req`) only covers what reaches Node: one chat
+screen can pull dozens of emoji images at once, and nginx serves those for free.
+
+Если старый конфиг nginx уже развёрнут — замените его по разделу
+«Обновление работающего сервера» выше.
+
+A CDN in front of the whole domain (it must pass WebSockets through) needs no
+extra rules: it caches by the `Cache-Control` above, and Node marks the API
+`no-cache` and attachments `private`.
 
 The `/ws` location block matters — without it, WebSocket upgrade requests
 (call signaling, presence) get proxied as plain HTTP and silently fail to
@@ -564,7 +777,8 @@ the reason a code never arrived is visible in the logs.
 
 **3. Сжатие.** Сборка кладёт рядом `.br` и `.gz`, сервер отдаёт готовое без
 затрат процессора. Если перед приложением стоит nginx или Traefik, который сам
-жмёт ответы, поставьте `DISABLE_APP_GZIP=1`, чтобы не сжимать дважды.
+жмёт ответы, поставьте `DISABLE_APP_GZIP=1`, чтобы не сжимать дважды (под PM2
+это уже сделано в `ecosystem.config.js`).
 
 Проверить, что всё на месте, можно снаружи одной командой:
 
@@ -627,7 +841,10 @@ saves CPU at runtime, not just bytes — precompresses each output to `.gz` and
 `.br` at build time. `server/index.js` then serves those precomputed files
 directly (`express-static-gzip`) instead of running gzip on every single
 request the way the `compression` middleware does for dynamic API responses.
-Measured output for this app:
+Behind nginx the same files go out via `gzip_static`, and Node never sees
+those requests (see "nginx in front"). The build also unpacks the image
+archives into `public/dist/packs` for nginx (`UNPACK_ASSETS=0` skips that, as
+the Dockerfile does). Measured output for this app:
 
 | file | raw | gzip | brotli |
 |---|---|---|---|

@@ -15,7 +15,6 @@ const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, ge
 const { publicUser, selfUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
 const { listSessions, getSession, upsertSession, revokeSession, revokeAllSessions, revokeOtherSessions } = require("../data/sessions");
-const { closeRevokedSockets } = require("../ws");
 const { parseUserAgent } = require("../lib/userAgent");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { deleteAccount } = require("../lib/deleteAccount");
@@ -26,7 +25,7 @@ const codeLogins = require("../data/codeLogins");
 const passkeys = require("../data/passkeys");
 const webauthn = require("../lib/webauthn");
 
-const { EMAIL_RE, PHONE_RE, normalizePhone, isValidBirthday } = require("../lib/validators");
+const { EMAIL_RE, PHONE_RE, normalizePhone, normalizeBirthday } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 const totp = require("../lib/totp");
 const twoFactorTickets = require("../data/twoFactorTickets");
@@ -117,10 +116,7 @@ router.post(
     ) {
       return res.status(401).json({ error: "Неверный email или пароль" });
     }
-    if (user.isBanned) {
-      return res.status(403).json({ error: banError(user) });
-    }
-
+    
     return finishLogin(req, res, user);
   })
 );
@@ -156,7 +152,8 @@ router.post(
       return res.status(409).json({ error: "Аккаунт с таким номером телефона уже существует" });
     }
 
-    if (birthday && !isValidBirthday(birthday)) {
+    const birthdayIso = birthday ? normalizeBirthday(birthday) : null;
+    if (birthday && !birthdayIso) {
       return res.status(400).json({ error: "Введите корректную дату рождения (ДД.ММ.ГГГГ)" });
     }
 
@@ -184,7 +181,7 @@ router.post(
         lastSeen: new Date().toISOString(),
         referredBy: referrer?.id,
         premiumUntil: referrer ? new Date(Date.now() + PREMIUM_GRANT_DAYS * 86400000).toISOString() : undefined,
-        birthday: birthday ?? null,
+        birthday: birthdayIso,
       });
     } catch (err) {
       if (isUsernameConflict(err)) return res.status(409).json({ error: "Этот юзернейм уже занят" });
@@ -263,7 +260,6 @@ router.post(
     const deviceId = req.cookies?.device_id;
     if (deviceId && getSessionUserIds(req).includes(uid)) {
       await revokeSession(uid, deviceId);
-      await closeRevokedSockets(uid);
     }
     const remaining = removeAccountSession(req, res, uid);
     res.json({ ok: true, remaining });
@@ -410,7 +406,6 @@ router.get(
     if (!consumed) return res.json({ status: "pending" });
     const user = await getUser(consumed.confirmedUserId);
     if (!user) return res.json({ status: "expired" });
-    if (user.isBanned) return res.json({ status: "banned", error: banError(user) });
 
     addAccountSession(req, res, user.id);
     await recordSession(req, res, user.id);
@@ -518,7 +513,6 @@ router.post(
     passkeys.touchPasskey(passkey.id, signCount);
     const user = await getUser(passkey.userId);
     if (!user) return res.status(401).json({ error: "Аккаунт не найден" });
-    if (user.isBanned) return res.status(403).json({ error: banError(user) });
     return finishLogin(req, res, user);
   })
 );
@@ -528,10 +522,6 @@ router.post(
   asyncRoute(async (req, res) => {
     const user = await findUserByPhone(normalizePhone(req.body?.phone));
     if (!user) return res.status(404).json({ error: "Аккаунт с таким номером не найден" });
-    // Заблокированному код не шлём (войти он всё равно не сможет), но и бан не раскрываем —
-    // как в recover/phone/start.
-    if (user.isBanned) return res.json({ ok: true });
-
     const code = codeLogins.createCode(user.id);
     const chat = await findOrCreateDm(user.id, SYSTEM_BOT_ID);
     await sendMessageAndBroadcast(
@@ -550,9 +540,6 @@ router.post(
     const code = String(req.body?.code ?? "").trim();
     if (!user || !codeLogins.verify(user.id, code)) {
       return res.status(401).json({ error: "Неверный или устаревший код" });
-    }
-    if (user.isBanned) {
-      return res.status(403).json({ error: banError(user) });
     }
     return finishLogin(req, res, user);
   })
@@ -978,11 +965,6 @@ router.post(
 
     const user = await getUser(entry.userId);
     if (!user) return res.status(400).json({ error: "Время на ввод кода истекло — войдите заново" });
-    if (user.isBanned) {
-      twoFactorTickets.consume(ticket);
-      return res.status(403).json({ error: banError(user) });
-    }
-
     const cleaned = String(code ?? "").trim();
     const ok =
       (await verifySecondFactor(user, cleaned)) || (await consumeRecoveryCode(user.id, totp.hashRecoveryCode(cleaned)));

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generate BUILTIN_GIFT_SCENES for giftTraits.scenes.js
+ * Generate BUILTIN_GIFT_SCENES for public/gift-scenes/ (scripts/gift-scenes.js)
  * Run: node scripts/generate-scenes.js [count]
  */
 
@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PROJECT_ROOT = path.join(__dirname, '..');
-const SCENES_FILE = path.join(PROJECT_ROOT, 'public/js/lib/giftTraits.scenes.js');
+const { writeGiftScenes } = require('./gift-scenes');
 
 const ANIMATION_PRESETS = {
   idle: { loop: 3, baseAnim: 'float', dur: 3 },
@@ -312,17 +312,5 @@ console.log(`Generating ${count} crab gift scenes...`);
 const scenes = generateGifts(count);
 console.log(`Generated ${Object.keys(scenes).length} scenes`);
 
-// Read existing base file
-const existing = fs.readFileSync(SCENES_FILE, 'utf8');
-
-// Find the end of BASE_SCENES and insert new scenes
-const marker = '  // Additional 20,000+ scenes would be inserted here by build script';
-const idx = existing.indexOf(marker);
-if (idx === -1) throw new Error('Marker not found in scenes file');
-
-const sceneStrings = Object.values(scenes).map(s => '  ' + s).join(',\n');
-
-const newContent = existing.slice(0, idx) + '\n' + sceneStrings + ',\n' + existing.slice(idx);
-
-fs.writeFileSync(SCENES_FILE, newContent);
+console.log(`Written ${writeGiftScenes(Object.values(scenes))} scenes to public/gift-scenes`);
 console.log(`Scenes file updated with ${Object.keys(scenes).length} new scenes`);

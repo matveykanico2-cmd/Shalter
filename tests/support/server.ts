@@ -86,7 +86,7 @@ export async function startServer(opts: StartOptions = {}): Promise<TestServer> 
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "shalter-test-"));
   const dataDir = path.join(root, "data");
-  if (opts.seedDataDir) fs.cpSync(opts.seedDataDir, dataDir, { recursive: true });
+  if (opts.seedDataDir) fs.cpSync(opts.seedDataDir, dataDir, { recursive: true, preserveTimestamps: true });
   else fs.mkdirSync(dataDir);
 
   const port = await freePort();
@@ -110,7 +110,6 @@ export async function startServer(opts: StartOptions = {}): Promise<TestServer> 
     LOCAL_VISION: "off",
     API_RATE_LIMIT: "1000000",
     AUTH_RATE_LIMIT: "1000000",
-    WS_SESSION_CHECK_MS: "1000",
     // Сервисы, у которых в server/config.js и lib/* есть публичный адрес по
     // умолчанию: тесты не должны ходить в интернет. 127.0.0.1:9 отказывает сразу.
     HUGO_AI: "off",

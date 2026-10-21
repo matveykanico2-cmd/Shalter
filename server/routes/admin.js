@@ -39,6 +39,11 @@ const pricingData = require("../data/pricing");
 const { moderateDeleteChat, moderateDeleteBot, isServiceAccount } = require("../lib/moderationDelete");
 
 const router = express.Router();
+
+const MAX_BAN_SEC = 10 * 365 * 24 * 3600;
+// «21.10.2026, 14:30» по Москве — для сообщения системного бота о блокировке.
+const formatBanUntil = (iso) =>
+  new Date(iso).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 router.use(requireUserId);
 
 async function requireAdminSection(req, res, section) {
@@ -242,7 +247,7 @@ router.get(
     const openReports = await Promise.all(listOpenReports().map(decorateReport));
     res.json({
       openReports,
-      banned: banned.map((u) => ({ ...userLabel(u), bannedAt: u.bannedAt || null, banReason: u.banReason || null })),
+      banned: banned.map((u) => ({ ...userLabel(u), bannedAt: u.bannedAt || null, banReason: u.banReason || null, bannedUntil: u.bannedUntil || null })),
       labeled: labeled.map((u) => ({ ...userLabel(u), safetyLabelAt: u.safetyLabelAt || null })),
       labels: labelsData.listLabels(),
       statusCatalog: statusCatalogData.listCatalog(),
@@ -258,7 +263,7 @@ router.get(
     if (!target) return res.status(404).json({ error: "Пользователь не найден" });
     const reports = await Promise.all(listReportsAboutUser(target.id).map(decorateReport));
     res.json({
-      user: { ...userLabel(target), bannedAt: target.bannedAt || null, banReason: target.banReason || null },
+      user: { ...userLabel(target), bannedAt: target.bannedAt || null, banReason: target.banReason || null, bannedUntil: target.bannedUntil || null },
       reports,
     });
   })
@@ -278,10 +283,14 @@ router.post(
     const banned = req.body?.banned !== false;
     const reason = (req.body?.reason ?? "").trim();
     if (banned && !reason) return res.status(400).json({ error: "Укажите причину блокировки — её увидит пользователь" });
+    // Срок в секундах; без него (или null) — навсегда.
+    const durationSec = req.body?.durationSec ?? null;
+    if (durationSec !== null && !(Number.isSafeInteger(durationSec) && durationSec > 0 && durationSec <= MAX_BAN_SEC)) {
+      return res.status(400).json({ error: "Срок блокировки — целое число секунд, не больше 10 лет" });
+    }
+    const until = banned && durationSec ? new Date(Date.now() + durationSec * 1000).toISOString() : null;
 
-    const updated = await setBanned(target.id, banned, reason);
-    // Открытые сокеты забаненного закрываются сразу, а не на ближайшей проверке сессий.
-    if (banned) await require("../ws").closeRevokedSockets(target.id);
+    const updated = await setBanned(target.id, banned, reason, until);
 
     try {
       const chat = await findOrCreateDm(SYSTEM_BOT_ID, target.id);
@@ -289,14 +298,14 @@ router.post(
         chat,
         SYSTEM_BOT_ID,
         banned
-          ? `🚫 Ваш аккаунт заблокирован администрацией Shalter.\nПричина: ${reason}`
+          ? `🚫 Ваш аккаунт заблокирован администрацией Shalter${until ? ` до ${formatBanUntil(until)} (МСК)` : " навсегда"}.\nПричина: ${reason}`
           : "✅ Блокировка вашего аккаунта снята. Приносим извинения за неудобства."
       );
     } catch (err) {
       console.error("ban notification failed:", err);
     }
 
-    res.json({ user: { ...userLabel(updated), bannedAt: updated.bannedAt || null, banReason: updated.banReason || null } });
+    res.json({ user: { ...userLabel(updated), bannedAt: updated.bannedAt || null, banReason: updated.banReason || null, bannedUntil: updated.bannedUntil || null } });
   })
 );
 

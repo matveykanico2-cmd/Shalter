@@ -4,13 +4,18 @@ const path = require("path");
 const crypto = require("crypto");
 const { createEncryptStream, createDecryptStream } = require("./fileCrypto");
 const storage = require("./storage");
+const { contentTypeFor } = require("./serveUpload");
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
-async function fetchUploadToTemp(filename) {
+// info — objectInfo, если он уже есть. Чтения привязаны к ETag объекта: если его
+// перешифровали посреди работы — ошибка, а не смесь двух версий.
+async function fetchUploadToTemp(filename, info) {
   const localPath = path.join(os.tmpdir(), `shalter_src_${crypto.randomBytes(8).toString("hex")}${path.extname(filename)}`);
-  const header = await storage.readHeader(filename);
-  const raw = await storage.readRange(filename, header ? header.len : 0, undefined);
+  info ??= await storage.objectInfo(filename);
+  if (!info) throw new Error("upload not found");
+  const header = await storage.readHeader(filename, info);
+  const raw = await storage.readRange(filename, header ? header.len : 0, undefined, { ifMatch: info.etag });
   const source = header ? raw.pipe(createDecryptStream(DATA_DIR, header, 0)) : raw;
   try {
     await new Promise((resolve, reject) => {
@@ -31,18 +36,22 @@ async function fetchUploadToTemp(filename) {
 async function storeGeneratedFile(localPath) {
   const ext = path.extname(localPath);
   const tempName = `${Date.now().toString(36)}_${crypto.randomBytes(8).toString("hex")}${ext}`;
-  const { stream: out, done, abort } = storage.createWriteTarget(tempName);
-  const cipher = createEncryptStream(DATA_DIR, out);
+  const { stream: out, done, abort, plain } = storage.createWriteTarget(tempName, { contentType: contentTypeFor(tempName) });
+  const cipher = plain ? null : createEncryptStream(DATA_DIR, out);
   const digest = crypto.createHash("sha256");
   try {
     await new Promise((resolve, reject) => {
       const source = fs.createReadStream(localPath);
       source.on("data", (chunk) => digest.update(chunk));
       source.on("error", reject);
-      cipher.on("error", reject);
       done().then(resolve, reject);
-      cipher.pipe(out);
-      source.pipe(cipher);
+      if (cipher) {
+        cipher.on("error", reject);
+        cipher.pipe(out);
+        source.pipe(cipher);
+      } else {
+        source.pipe(out);
+      }
     });
   } catch (err) {
     abort();
@@ -58,15 +67,17 @@ async function storeGeneratedFile(localPath) {
 async function readUploadBuffer(url, maxBytes) {
   const filename = /^\/uploads\/([a-z0-9]+_[a-f0-9]{16}(\.[a-z0-9]{1,12})?)$/.exec(String(url ?? ""))?.[1];
   if (!filename) throw new Error("not an upload");
-  const size = await storage.sizeOf(filename);
-  if (size == null) throw new Error("upload not found");
+  const info = await storage.objectInfo(filename);
+  if (!info) throw new Error("upload not found");
+  const size = info.size;
   // Сжатый файл не больше исходного: заведомо большой не качаем вовсе.
   if (size > maxBytes + 64 * 1024) throw new Error("upload too large");
-  const localPath = await fetchUploadToTemp(filename);
+  const localPath = await fetchUploadToTemp(filename, info);
   try {
     let buf = await fs.promises.readFile(localPath);
     const { MAGIC, decompressStream } = require("./fileCompression");
-    if (buf.length >= MAGIC.length && buf.subarray(0, MAGIC.length).equals(MAGIC)) {
+    // Открытый объект в S3 никогда не сжимается — его байты и есть файл.
+    if (!info.plain && buf.length >= MAGIC.length && buf.subarray(0, MAGIC.length).equals(MAGIC)) {
       const { Readable } = require("stream");
       const chunks = [];
       let total = 0;

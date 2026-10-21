@@ -78,3 +78,19 @@ test("аудиозвонок из лички: входящий, ответ, PiP 
     .toBe("completed");
 });
 
+
+test("звонящий сбросил до ответа: у него «Отменённый звонок», у собеседника — «Пропущенный»", async ({ newUser, openAs }) => {
+  const alice = await newUser("Алиса");
+  const boris = await newUser("Борис");
+  const chat = await createDm(alice, boris);
+  const call = (await alice.api.post("/api/calls", { chatId: chat.id, kind: "voice" })).body.call;
+  expect((await alice.api.patch(`/api/calls/${call.id}`, { status: "ended" })).status).toBe(200);
+
+  const a = (await openAs(alice.api, `/chat/${chat.id}`)).page;
+  await expect(chatRow(a, "Борис", "📞 Отменённый звонок")).toBeVisible();
+  await expect(a.locator(".bubble-call-title")).toHaveText("Отменённый звонок");
+
+  const b = (await openAs(boris.api, `/chat/${chat.id}`)).page;
+  await expect(chatRow(b, "Алиса", "📞 Пропущенный звонок")).toBeVisible();
+  await expect(b.locator(".bubble-call-title")).toHaveText("Пропущенный звонок");
+});

@@ -117,13 +117,38 @@ describe("PATCH /api/settings", () => {
     expect(expectOk(await me.api.patch("/api/settings"), settingsPatchBody).settings.theme).toBe("dark");
   });
 
-  test("ключи и типы верхнего уровня не проверяются; тело не объектом — 400", async () => {
+  test("белый список ключей: неизвестные, служебные и не того типа отбрасываются; тело не объектом — 400", async () => {
     const me = await registerUser(server().baseUrl);
-    const res = await me.api.patch("/api/settings", { theme: 5, somethingElse: { deep: true } });
-    expect(res.status).toBe(200);
-    // ПОВЕДЕНИЕ-ВОПРОС: PATCH /api/settings сохраняет любые ключи и значения любого типа без белого списка
-    // (клиент и сервер пишут в один объект и служебные ключи — chatFlags, pinnedOrder, ai, appIcon…).
-    expect(res.body.settings).toMatchObject({ theme: 5, somethingElse: { deep: true } });
+    const before = (await me.api.get("/api/settings")).body.settings;
+    const res = expectOk(
+      await me.api.patch("/api/settings", {
+        theme: 5,
+        fontSize: 99,
+        reduceMotion: "да",
+        somethingElse: { deep: true },
+        hiddenChats: { c_x: "2020-01-01T00:00:00.000Z" },
+        chatClears: { c_x: "2020-01-01T00:00:00.000Z" },
+        pinnedChannelIds: ["c_fake0000000"],
+        drafts: { c_x: "черновик" },
+        notifications: { sound: false, mutedChats: { c_x: true } },
+        accent: "#00ff00",
+      }),
+      settingsPatchBody
+    ).settings;
+    expect(res).not.toHaveProperty("somethingElse");
+    expect(res).toMatchObject({
+      theme: before.theme,
+      fontSize: before.fontSize,
+      reduceMotion: before.reduceMotion,
+      hiddenChats: {},
+      chatClears: {},
+      pinnedChannelIds: [],
+      drafts: {},
+      accent: "#00ff00",
+    });
+    // mutedChats пишут только настройки чата.
+    expect(res.notifications).toEqual({ previewText: true, sound: false, mutedChats: {} });
+    expect(expectOk(await me.api.patch("/api/settings", { drafts: {} }), settingsPatchBody).settings.drafts).toEqual({});
     expectError(await me.api.patch("/api/settings", ["a", "b"]), 400, "Некорректные настройки");
     expect((await me.api.get("/api/settings")).body.settings).not.toHaveProperty("0");
   });

@@ -118,6 +118,7 @@ describe("POST /api/communities", () => {
       pinned: false,
       collapsed: true,
       chats: [],
+      isClosed: true,
       membersCount: 1,
       adminsCount: 1,
       bannedCount: 0,
@@ -221,9 +222,9 @@ describe("POST /api/communities", () => {
     expect(expectOk(await sub.api.get(`/api/communities/${c.id}`), communityBody).community.chats.map((x) => x.id)).toEqual([channel.id]);
     const outView = expectOk(await outsider.api.get(`/api/communities/${c.id}`), communityBody).community;
     expect(outView).toMatchObject({ role: null, isMember: false, isBanned: false, addPolicy: null, chats: [], rights: NO_RIGHTS_SET });
-    // ПОВЕДЕНИЕ-ВОПРОС: карточку сообщества (название, число участников) по id видит любой, даже не участник.
-    // На этом держится страница сообщества по ссылке (вступление); закрывать ли закрытые — решение продукта.
-    expect(outView.membersCount).toBe(2);
+    // Закрытое сообщество постороннему — только название и аватар, без описания и состава.
+    expect(outView).toMatchObject({ title: "Медиа", isClosed: true, description: null, membersCount: null, adminsCount: null });
+    expect(expectOk(await sub.api.get(`/api/communities/${c.id}`), communityBody).community).toMatchObject({ isClosed: true, membersCount: 2 });
   });
 });
 
@@ -301,6 +302,11 @@ describe("GET /mine, /joined, /by-chat/:chatId", () => {
       isOwner: false,
       isMember: false,
       canRemoveChat: false,
+    });
+    // С публичным чатом сообщество открытое: посторонний видит описание и число участников.
+    expect(expectOk(await outsider.api.get(`/api/communities/${c.id}`), communityBody).community).toMatchObject({
+      isClosed: false,
+      membersCount: expect.any(Number),
     });
   });
 });
@@ -408,7 +414,7 @@ describe("участие: join / leave", () => {
     expectError(await outsider.api.post(`/api/communities/${c.id}/leave`), 403, NOT_MEMBER);
     // Только приватная группа — сообщество закрытое: знать id недостаточно.
     expectError(await outsider.api.post(`/api/communities/${c.id}/join`), 403, CLOSED);
-    expect(expectOk(await outsider.api.get(`/api/communities/${c.id}`), communityBody).community).toMatchObject({ isMember: false, membersCount: 2 });
+    expect(expectOk(await outsider.api.get(`/api/communities/${c.id}`), communityBody).community).toMatchObject({ isMember: false, isClosed: true, membersCount: null });
 
     // Видимый публичный канал делает сообщество открытым.
     const pub = await createChannel(a, [], { isPublic: true, username: `door${Date.now().toString(36)}` });

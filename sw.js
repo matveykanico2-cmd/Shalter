@@ -1,5 +1,5 @@
 // Service Worker for Shalter - offline caching
-const CACHE_NAME = 'shalter-v2';
+const CACHE_NAME = 'shalter-v3';
 const STATIC_ASSETS = [
   '/',
   '/js/app.js',
@@ -34,6 +34,11 @@ self.addEventListener('fetch', (event) => {
   
   // Skip non-GET and cross-origin
   if (request.method !== 'GET' || url.origin !== location.origin) return;
+
+  // Uploads - straight to the network: access is checked per request, and with S3 the
+  // server answers with a redirect to the bucket that the browser must follow itself
+  // (video Range requests, its own HTTP cache).
+  if (url.pathname.startsWith('/uploads/')) return;
   
   // API requests - network first, cache fallback
   if (url.pathname.startsWith('/api/')) {
@@ -51,8 +56,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Code and styles - network first, so fixes are not hidden by a stale cache
-  if (/\.(css|js)$/.test(url.pathname) || url.pathname === '/') {
+  // Gift scenes - from the cache at once, refreshed in the background: a regenerated
+  // scene shows up on the next view without a service worker update.
+  if (url.pathname.startsWith('/gift-scenes/') && url.pathname !== '/gift-scenes/index.json') {
+    event.respondWith(
+      caches.open(CACHE_NAME).then((cache) =>
+        cache.match(request).then((cached) => {
+          const fresh = fetch(request).then((response) => {
+            if (response.ok) cache.put(request, response.clone());
+            return response;
+          });
+          if (cached) {
+            event.waitUntil(fresh.catch(() => {}));
+            return cached;
+          }
+          return fresh;
+        })
+      )
+    );
+    return;
+  }
+
+  // Code and styles - network first, so fixes are not hidden by a stale cache.
+  // The gift scene list too: new scenes must show up without a service worker update.
+  if (/\.(css|js)$/.test(url.pathname) || url.pathname === '/' || url.pathname === '/gift-scenes/index.json') {
     event.respondWith(
       fetch(request)
         .then((response) => {

@@ -133,7 +133,16 @@ const requireUserId = asyncRoute(async (req, res, next) => {
     }
   }
   const user = await getUser(uid);
-  if (user?.isBanned) return res.status(403).json({ error: "banned", banReason: user.banReason ?? null });
+  // Заблокированный входит в аккаунт, но всё, кроме экрана блокировки, ему закрыто:
+  // клиент по этому ответу показывает причину и сколько осталось.
+  if (user?.isBanned) {
+    return res.status(403).json({
+      error: "banned",
+      banReason: user.banReason ?? null,
+      bannedAt: user.bannedAt ?? null,
+      bannedUntil: user.bannedUntil ?? null,
+    });
+  }
   req.uid = uid;
   next();
 });

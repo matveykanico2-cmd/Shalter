@@ -1,5 +1,6 @@
 const db = require("../db");
 const { genId } = require("../lib/genId");
+const { emitAccessRevoked } = require("../lib/sessionEvents");
 
 async function listSessions(userId) {
   return db.prepare("SELECT * FROM sessions WHERE userId = ? AND revokedAt IS NULL ORDER BY lastActive DESC").all(userId);
@@ -35,10 +36,13 @@ function touchSession(userId, deviceId, location) {
 
 async function revokeSession(userId, deviceId) {
   db.prepare("UPDATE sessions SET revokedAt = ? WHERE userId = ? AND deviceId = ?").run(new Date().toISOString(), userId, deviceId);
+  emitAccessRevoked(userId);
 }
 
 async function revokeSessionById(userId, id) {
-  return db.prepare("UPDATE sessions SET revokedAt = ? WHERE userId = ? AND id = ?").run(new Date().toISOString(), userId, id).changes > 0;
+  const changed = db.prepare("UPDATE sessions SET revokedAt = ? WHERE userId = ? AND id = ?").run(new Date().toISOString(), userId, id).changes > 0;
+  if (changed) emitAccessRevoked(userId);
+  return changed;
 }
 
 async function getSessionById(userId, id) {
@@ -47,14 +51,17 @@ async function getSessionById(userId, id) {
 
 async function revokeOtherSessions(userId, exceptDeviceId) {
   db.prepare("UPDATE sessions SET revokedAt = ? WHERE userId = ? AND deviceId <> ?").run(new Date().toISOString(), userId, exceptDeviceId);
+  emitAccessRevoked(userId);
 }
 
 async function revokeAllSessions(userId) {
   db.prepare("UPDATE sessions SET revokedAt = ? WHERE userId = ?").run(new Date().toISOString(), userId);
+  emitAccessRevoked(userId);
 }
 
 async function removeAllSessionsForUser(userId) {
   db.prepare("DELETE FROM sessions WHERE userId = ?").run(userId);
+  emitAccessRevoked(userId);
 }
 
 module.exports = { listSessions, getSession, getSessionById, isSessionActive, upsertSession, touchSession, revokeSession, revokeSessionById, revokeOtherSessions, revokeAllSessions, removeAllSessionsForUser };

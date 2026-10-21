@@ -80,6 +80,7 @@ async function build() {
   precompress(path.join(DIST_DIR, "styles", "base.css"));
   precompress(path.join(DIST_DIR, "styles", "components.css"));
   precompress(path.join(DIST_DIR, "index.html"));
+  unpackAssets();
 
   report();
 }
@@ -93,6 +94,25 @@ function precompress(file) {
   fs.writeFileSync(`${file}.br`, zlib.brotliCompressSync(content, {
     params: { [zlib.constants.BROTLI_PARAM_QUALITY]: FULL ? 11 : 5 },
   }));
+}
+
+// Картинки из архивов server/assets/packs — обычными файлами в dist/packs/<папка>/…:
+// nginx отдаёт их с диска по прежним адресам (deploy/nginx.conf.example), Node их
+// больше не читает. Без nginx (Docker) не нужны — UNPACK_ASSETS=0 их не пишет.
+function unpackAssets() {
+  if (process.env.UNPACK_ASSETS === "0") return;
+  const { PACKS, packFiles } = require("../server/lib/assetPacks");
+  let count = 0;
+  for (const pack of PACKS) {
+    for (const [rel, buf] of packFiles(pack)) {
+      const target = path.join(DIST_DIR, "packs", pack.dir, rel);
+      if (!target.startsWith(path.join(DIST_DIR, "packs") + path.sep)) continue;
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, buf);
+      count++;
+    }
+  }
+  console.log(`Картинки из архивов: ${count} файлов в dist/packs`);
 }
 
 function report() {

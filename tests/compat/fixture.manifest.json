@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T12:51:15.709Z",
+  "generatedAt": "2026-10-21T06:42:16.062Z",
   "note": "Сгенерировано tests/compat/build-fixture.test.ts — не править вручную, см. tests/compat/README.md",
   "env": {
     "MESSAGES_KEY": "6d657373616765732d6b65792d666f722d636f6e74726163742d74657374732d",
@@ -14,8 +14,8 @@
       "password": "alice-pass-1",
       "phone": "+79001110001",
       "username": "compat_alice",
-      "id": "u_mvgolwtqbd3c41cbc1",
-      "deviceId": "d75ad8b1977a9a4ac9dde180"
+      "id": "u_mvhqv8bw81dda6f67f",
+      "deviceId": "c4b32cecd9309d02ca6ffe21"
     },
     {
       "key": "bob",
@@ -24,8 +24,8 @@
       "password": "bob-pass-2",
       "phone": "+79001110002",
       "username": "compat_bob",
-      "id": "u_mvgolwup0b29aab7ce",
-      "deviceId": "146fe6f0f7d100eb4430dbd4"
+      "id": "u_mvhqv8cu840dbb7bfe",
+      "deviceId": "c8e1c57f847882ce139551a6"
     },
     {
       "key": "carol",
@@ -34,13 +34,13 @@
       "password": "carol-pass-3",
       "phone": "+79001110003",
       "username": "compat_carol",
-      "id": "u_mvgolwvmab5f95512d",
-      "deviceId": "307b0c6887fb33dd2ad7949b"
+      "id": "u_mvhqv8dr1180ff2e03",
+      "deviceId": "a22ac83c3f61e9c03e565657"
     }
   ],
   "chats": {
     "dm": {
-      "id": "c_mvgolwvpee06622fdd",
+      "id": "c_mvhqv8duebc8691bda",
       "type": "dm",
       "members": [
         "alice",
@@ -48,7 +48,7 @@
       ]
     },
     "group": {
-      "id": "c_mvgolwvrb8ba23eca8",
+      "id": "c_mvhqv8dx11da7185f8",
       "type": "group",
       "members": [
         "alice",
@@ -57,7 +57,7 @@
       ]
     },
     "channel": {
-      "id": "c_mvgolwvw025047fd31",
+      "id": "c_mvhqv8e22cc53eb8cc",
       "type": "channel",
       "members": [
         "alice",
@@ -66,14 +66,14 @@
       ]
     },
     "discussion": {
-      "id": "c_mvgolwvwa6f07ec76d",
+      "id": "c_mvhqv8e2967de603d9",
       "type": "group",
       "members": [
         "alice"
       ]
     },
     "secret": {
-      "id": "c_mvgolwx630a568c1e6",
+      "id": "c_mvhqv8gt5ca4baff2b",
       "type": "dm",
       "members": [
         "alice",
@@ -83,7 +83,7 @@
   },
   "messages": {
     "dmHello": {
-      "id": "m_mvgolww048de66c044",
+      "id": "m_mvhqv8e6b9c8cec4d2",
       "chat": "dm",
       "sender": "alice",
       "text": "Привет, Боб! 👋",
@@ -97,20 +97,20 @@
       ]
     },
     "dmReply": {
-      "id": "m_mvgolww467c59350c4",
+      "id": "m_mvhqv8e94225fb4057",
       "chat": "dm",
       "sender": "bob",
       "text": "Привет! Как дела? 😊",
       "replyTo": "dmHello"
     },
     "dmLong": {
-      "id": "m_mvgolww63c757ee257",
+      "id": "m_mvhqv8ecdea8a90085",
       "chat": "dm",
       "sender": "alice",
       "text": "1. Длинное сообщение — строка номер 1, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n2. Длинное сообщение — строка номер 2, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n3. Длинное сообщение — строка номер 3, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n4. Длинное сообщение — строка номер 4, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n5. Длинное сообщение — строка номер 5, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n6. Длинное сообщение — строка номер 6, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n7. Длинное сообщение — строка номер 7, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n8. Длинное сообщение — строка номер 8, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n9. Длинное сообщение — строка номер 9, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n10. Длинное сообщение — строка номер 10, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n11. Длинное сообщение — строка номер 11, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n12. Длинное сообщение — строка номер 12, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n13. Длинное сообщение — строка номер 13, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n14. Длинное сообщение — строка номер 14, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n15. Длинное сообщение — строка номер 15, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n16. Длинное сообщение — строка номер 16, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n17. Длинное сообщение — строка номер 17, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n18. Длинное сообщение — строка номер 18, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n19. Длинное сообщение — строка номер 19, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n20. Длинное сообщение — строка номер 20, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n21. Длинное сообщение — строка номер 21, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n22. Длинное сообщение — строка номер 22, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n23. Длинное сообщение — строка номер 23, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n24. Длинное сообщение — строка номер 24, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n25. Длинное сообщение — строка номер 25, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n26. Длинное сообщение — строка номер 26, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n27. Длинное сообщение — строка номер 27, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n28. Длинное сообщение — строка номер 28, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n29. Длинное сообщение — строка номер 29, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n30. Длинное сообщение — строка номер 30, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n31. Длинное сообщение — строка номер 31, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n32. Длинное сообщение — строка номер 32, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n33. Длинное сообщение — строка номер 33, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n34. Длинное сообщение — строка номер 34, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n35. Длинное сообщение — строка номер 35, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n36. Длинное сообщение — строка номер 36, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n37. Длинное сообщение — строка номер 37, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n38. Длинное сообщение — строка номер 38, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n39. Длинное сообщение — строка номер 39, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n40. Длинное сообщение — строка номер 40, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n41. Длинное сообщение — строка номер 41, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n42. Длинное сообщение — строка номер 42, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n43. Длинное сообщение — строка номер 43, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet."
     },
     "dmUnicode": {
-      "id": "m_mvgolwwc2a680a2eab",
+      "id": "m_mvhqv8eh43027824bc",
       "chat": "dm",
       "sender": "bob",
       "text": "Семья 👨‍👩‍👧‍👦, флаг 🏳️‍🌈, кожа 👍🏽, עברית, العربية, 中文, 日本語, 한국어, комбинированные é и й, математика 𝔘𝔫𝔦𝔠𝔬𝔡𝔢 ∑∫√, кавычки «»„“, неразрывный пробел, табуляция\tи\nперенос",
@@ -124,14 +124,14 @@
       ]
     },
     "dmToEdit": {
-      "id": "m_mvgolwwe18703da58b",
+      "id": "m_mvhqv8en9d64f9506f",
       "chat": "dm",
       "sender": "alice",
       "text": "Это сообщение изменено ✏️ во второй фазе",
       "originalText": "Это сообщение будет изменено"
     },
     "dmImage": {
-      "id": "m_mvgolwwm0db450138c",
+      "id": "m_mvhqv8fl615e331e75",
       "chat": "dm",
       "sender": "alice",
       "text": "Картинка 🖼️",
@@ -140,7 +140,7 @@
       ]
     },
     "groupText": {
-      "id": "m_mvgolwws00acf9bb9c",
+      "id": "m_mvhqv8g5dbad13ab98",
       "chat": "group",
       "sender": "bob",
       "text": "Файл с заметками",
@@ -149,7 +149,7 @@
       ]
     },
     "groupPoll": {
-      "id": "m_mvgolwwtedfc5fab14",
+      "id": "m_mvhqv8g9ecf01eed8e",
       "chat": "group",
       "sender": "alice",
       "text": "Куда идём в пятницу?",
@@ -177,7 +177,7 @@
       }
     },
     "groupBobToEdit": {
-      "id": "m_mvgolwwzb83663ce14",
+      "id": "m_mvhqv8ggf1d535bb69",
       "chat": "group",
       "sender": "bob",
       "text": "Опечатка в слове — исправлено в третьей фазе",
@@ -192,7 +192,7 @@
       ]
     },
     "channelPost": {
-      "id": "m_mvgolwx4a540baaf8b",
+      "id": "m_mvhqv8gpbade790271",
       "chat": "channel",
       "sender": "alice",
       "text": "Первый пост канала 📣\nс переносом строки",
@@ -206,13 +206,13 @@
       ]
     },
     "secretHello": {
-      "id": "m_mvgolwxc3b466cf4a1",
+      "id": "m_mvhqv8gz1f94891627",
       "chat": "secret",
       "sender": "alice",
       "text": "Секретное сообщение 🤫"
     },
     "groupBinary": {
-      "id": "m_mvgom51of969d6efdf",
+      "id": "m_mvhqvglq7ea2234460",
       "chat": "group",
       "sender": "carol",
       "text": "Бинарник на 300 КБ",
@@ -221,14 +221,14 @@
       ]
     },
     "secretReply": {
-      "id": "m_mvgom51w279bf3e142",
+      "id": "m_mvhqvglw28923b4918",
       "chat": "secret",
       "sender": "bob",
       "text": "Ответ в секретном чате 🔐",
       "replyTo": "secretHello"
     },
     "dmTextAgain": {
-      "id": "m_mvgom522b9816153dd",
+      "id": "m_mvhqvgm44ca89141c7",
       "chat": "dm",
       "sender": "alice",
       "text": "Тот же файл ещё раз",
@@ -237,7 +237,7 @@
       ]
     },
     "dmVoice": {
-      "id": "m_mvgomd662d75886f13",
+      "id": "m_mvhqvoqufab30cf7fd",
       "chat": "dm",
       "sender": "bob",
       "text": "",
@@ -246,7 +246,7 @@
       ]
     },
     "dmZip": {
-      "id": "m_mvgomd690a3167e189",
+      "id": "m_mvhqvoqy7dea30348d",
       "chat": "dm",
       "sender": "bob",
       "text": "Архив",
@@ -255,13 +255,13 @@
       ]
     },
     "groupThird": {
-      "id": "m_mvgomd6e9fcc125492",
+      "id": "m_mvhqvor54f29961044",
       "chat": "group",
       "sender": "alice",
       "text": "Третья фаза 🥉"
     },
     "secretThird": {
-      "id": "m_mvgomd6g6962b19950",
+      "id": "m_mvhqvor7c32c0b4a58",
       "chat": "secret",
       "sender": "alice",
       "text": "Третье секретное"
@@ -345,220 +345,220 @@
     "chatLists": {
       "alice": [
         {
-          "id": "c_mvgolwvpee06622fdd",
+          "id": "c_mvhqv8duebc8691bda",
           "type": "dm",
           "title": "",
           "ownerId": null,
           "ownerIds": [],
           "adminIds": [],
           "memberIds": [
-            "u_mvgolwtqbd3c41cbc1",
-            "u_mvgolwup0b29aab7ce"
+            "u_mvhqv8bw81dda6f67f",
+            "u_mvhqv8cu840dbb7bfe"
           ],
-          "createdAt": "2026-10-20T12:50:54.517Z",
+          "createdAt": "2026-10-21T06:41:54.738Z",
           "linkedDiscussionChatId": null,
           "secret": false
         },
         {
-          "id": "c_mvgolwvrb8ba23eca8",
+          "id": "c_mvhqv8dx11da7185f8",
           "type": "group",
           "title": "Компания 🎉",
-          "ownerId": "u_mvgolwtqbd3c41cbc1",
+          "ownerId": "u_mvhqv8bw81dda6f67f",
           "ownerIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "adminIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "memberIds": [
-            "u_mvgolwtqbd3c41cbc1",
-            "u_mvgolwup0b29aab7ce",
-            "u_mvgolwvmab5f95512d"
+            "u_mvhqv8bw81dda6f67f",
+            "u_mvhqv8cu840dbb7bfe",
+            "u_mvhqv8dr1180ff2e03"
           ],
-          "createdAt": "2026-10-20T12:50:54.519Z",
+          "createdAt": "2026-10-21T06:41:54.741Z",
           "linkedDiscussionChatId": null,
           "secret": false
         },
         {
-          "id": "c_mvgolwvw025047fd31",
+          "id": "c_mvhqv8e22cc53eb8cc",
           "type": "channel",
           "title": "Новости «Shalter»",
-          "ownerId": "u_mvgolwtqbd3c41cbc1",
+          "ownerId": "u_mvhqv8bw81dda6f67f",
           "ownerIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "adminIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "memberIds": [
-            "u_mvgolwtqbd3c41cbc1",
-            "u_mvgolwup0b29aab7ce",
-            "u_mvgolwvmab5f95512d"
+            "u_mvhqv8bw81dda6f67f",
+            "u_mvhqv8cu840dbb7bfe",
+            "u_mvhqv8dr1180ff2e03"
           ],
-          "createdAt": "2026-10-20T12:50:54.524Z",
-          "linkedDiscussionChatId": "c_mvgolwvwa6f07ec76d",
+          "createdAt": "2026-10-21T06:41:54.745Z",
+          "linkedDiscussionChatId": "c_mvhqv8e2967de603d9",
           "secret": false
         },
         {
-          "id": "c_mvgolwvwa6f07ec76d",
+          "id": "c_mvhqv8e2967de603d9",
           "type": "group",
           "title": "Новости «Shalter» · Обсуждение",
-          "ownerId": "u_mvgolwtqbd3c41cbc1",
+          "ownerId": "u_mvhqv8bw81dda6f67f",
           "ownerIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "adminIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "memberIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
-          "createdAt": "2026-10-20T12:50:54.524Z",
+          "createdAt": "2026-10-21T06:41:54.745Z",
           "linkedDiscussionChatId": null,
           "secret": false
         },
         {
-          "id": "c_mvgolwx630a568c1e6",
+          "id": "c_mvhqv8gt5ca4baff2b",
           "type": "dm",
           "title": "",
           "ownerId": null,
           "ownerIds": [],
           "adminIds": [],
           "memberIds": [
-            "u_mvgolwtqbd3c41cbc1",
-            "u_mvgolwup0b29aab7ce"
+            "u_mvhqv8bw81dda6f67f",
+            "u_mvhqv8cu840dbb7bfe"
           ],
-          "createdAt": "2026-10-20T12:50:54.570Z",
+          "createdAt": "2026-10-21T06:41:54.845Z",
           "linkedDiscussionChatId": null,
           "secret": true
         }
       ],
       "bob": [
         {
-          "id": "c_mvgolwvpee06622fdd",
+          "id": "c_mvhqv8duebc8691bda",
           "type": "dm",
           "title": "",
           "ownerId": null,
           "ownerIds": [],
           "adminIds": [],
           "memberIds": [
-            "u_mvgolwtqbd3c41cbc1",
-            "u_mvgolwup0b29aab7ce"
+            "u_mvhqv8bw81dda6f67f",
+            "u_mvhqv8cu840dbb7bfe"
           ],
-          "createdAt": "2026-10-20T12:50:54.517Z",
+          "createdAt": "2026-10-21T06:41:54.738Z",
           "linkedDiscussionChatId": null,
           "secret": false
         },
         {
-          "id": "c_mvgolwvrb8ba23eca8",
+          "id": "c_mvhqv8dx11da7185f8",
           "type": "group",
           "title": "Компания 🎉",
-          "ownerId": "u_mvgolwtqbd3c41cbc1",
+          "ownerId": "u_mvhqv8bw81dda6f67f",
           "ownerIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "adminIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "memberIds": [
-            "u_mvgolwtqbd3c41cbc1",
-            "u_mvgolwup0b29aab7ce",
-            "u_mvgolwvmab5f95512d"
+            "u_mvhqv8bw81dda6f67f",
+            "u_mvhqv8cu840dbb7bfe",
+            "u_mvhqv8dr1180ff2e03"
           ],
-          "createdAt": "2026-10-20T12:50:54.519Z",
+          "createdAt": "2026-10-21T06:41:54.741Z",
           "linkedDiscussionChatId": null,
           "secret": false
         },
         {
-          "id": "c_mvgolwvw025047fd31",
+          "id": "c_mvhqv8e22cc53eb8cc",
           "type": "channel",
           "title": "Новости «Shalter»",
-          "ownerId": "u_mvgolwtqbd3c41cbc1",
+          "ownerId": "u_mvhqv8bw81dda6f67f",
           "ownerIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "adminIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "memberIds": [
-            "u_mvgolwtqbd3c41cbc1",
-            "u_mvgolwup0b29aab7ce",
-            "u_mvgolwvmab5f95512d"
+            "u_mvhqv8bw81dda6f67f",
+            "u_mvhqv8cu840dbb7bfe",
+            "u_mvhqv8dr1180ff2e03"
           ],
-          "createdAt": "2026-10-20T12:50:54.524Z",
-          "linkedDiscussionChatId": "c_mvgolwvwa6f07ec76d",
+          "createdAt": "2026-10-21T06:41:54.745Z",
+          "linkedDiscussionChatId": "c_mvhqv8e2967de603d9",
           "secret": false
         },
         {
-          "id": "c_mvgolwx630a568c1e6",
+          "id": "c_mvhqv8gt5ca4baff2b",
           "type": "dm",
           "title": "",
           "ownerId": null,
           "ownerIds": [],
           "adminIds": [],
           "memberIds": [
-            "u_mvgolwtqbd3c41cbc1",
-            "u_mvgolwup0b29aab7ce"
+            "u_mvhqv8bw81dda6f67f",
+            "u_mvhqv8cu840dbb7bfe"
           ],
-          "createdAt": "2026-10-20T12:50:54.570Z",
+          "createdAt": "2026-10-21T06:41:54.845Z",
           "linkedDiscussionChatId": null,
           "secret": true
         }
       ],
       "carol": [
         {
-          "id": "c_mvgolwvrb8ba23eca8",
+          "id": "c_mvhqv8dx11da7185f8",
           "type": "group",
           "title": "Компания 🎉",
-          "ownerId": "u_mvgolwtqbd3c41cbc1",
+          "ownerId": "u_mvhqv8bw81dda6f67f",
           "ownerIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "adminIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "memberIds": [
-            "u_mvgolwtqbd3c41cbc1",
-            "u_mvgolwup0b29aab7ce",
-            "u_mvgolwvmab5f95512d"
+            "u_mvhqv8bw81dda6f67f",
+            "u_mvhqv8cu840dbb7bfe",
+            "u_mvhqv8dr1180ff2e03"
           ],
-          "createdAt": "2026-10-20T12:50:54.519Z",
+          "createdAt": "2026-10-21T06:41:54.741Z",
           "linkedDiscussionChatId": null,
           "secret": false
         },
         {
-          "id": "c_mvgolwvw025047fd31",
+          "id": "c_mvhqv8e22cc53eb8cc",
           "type": "channel",
           "title": "Новости «Shalter»",
-          "ownerId": "u_mvgolwtqbd3c41cbc1",
+          "ownerId": "u_mvhqv8bw81dda6f67f",
           "ownerIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "adminIds": [
-            "u_mvgolwtqbd3c41cbc1"
+            "u_mvhqv8bw81dda6f67f"
           ],
           "memberIds": [
-            "u_mvgolwtqbd3c41cbc1",
-            "u_mvgolwup0b29aab7ce",
-            "u_mvgolwvmab5f95512d"
+            "u_mvhqv8bw81dda6f67f",
+            "u_mvhqv8cu840dbb7bfe",
+            "u_mvhqv8dr1180ff2e03"
           ],
-          "createdAt": "2026-10-20T12:50:54.524Z",
-          "linkedDiscussionChatId": "c_mvgolwvwa6f07ec76d",
+          "createdAt": "2026-10-21T06:41:54.745Z",
+          "linkedDiscussionChatId": "c_mvhqv8e2967de603d9",
           "secret": false
         }
       ]
     },
     "chatMessages": {
-      "c_mvgolwvpee06622fdd": {
+      "c_mvhqv8duebc8691bda": {
         "viewer": "alice",
         "messages": [
           {
-            "id": "m_mvgolww048de66c044",
-            "chatId": "c_mvgolwvpee06622fdd",
-            "senderId": "u_mvgolwtqbd3c41cbc1",
+            "id": "m_mvhqv8e6b9c8cec4d2",
+            "chatId": "c_mvhqv8duebc8691bda",
+            "senderId": "u_mvhqv8bw81dda6f67f",
             "type": "text",
             "text": "Привет, Боб! 👋",
-            "createdAt": "2026-10-20T12:50:54.528Z",
+            "createdAt": "2026-10-21T06:41:54.750Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -571,7 +571,7 @@
               {
                 "emoji": "🎉",
                 "userIds": [
-                  "u_mvgolwup0b29aab7ce"
+                  "u_mvhqv8cu840dbb7bfe"
                 ]
               }
             ],
@@ -579,15 +579,15 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgolww467c59350c4",
-            "chatId": "c_mvgolwvpee06622fdd",
-            "senderId": "u_mvgolwup0b29aab7ce",
+            "id": "m_mvhqv8e94225fb4057",
+            "chatId": "c_mvhqv8duebc8691bda",
+            "senderId": "u_mvhqv8cu840dbb7bfe",
             "type": "text",
             "text": "Привет! Как дела? 😊",
-            "createdAt": "2026-10-20T12:50:54.532Z",
+            "createdAt": "2026-10-21T06:41:54.753Z",
             "editedAt": null,
             "pinned": false,
-            "replyToId": "m_mvgolww048de66c044",
+            "replyToId": "m_mvhqv8e6b9c8cec4d2",
             "threadRootId": null,
             "anchorForPostId": null,
             "discussionAnchorId": null,
@@ -598,12 +598,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgolww63c757ee257",
-            "chatId": "c_mvgolwvpee06622fdd",
-            "senderId": "u_mvgolwtqbd3c41cbc1",
+            "id": "m_mvhqv8ecdea8a90085",
+            "chatId": "c_mvhqv8duebc8691bda",
+            "senderId": "u_mvhqv8bw81dda6f67f",
             "type": "text",
             "text": "1. Длинное сообщение — строка номер 1, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n2. Длинное сообщение — строка номер 2, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n3. Длинное сообщение — строка номер 3, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n4. Длинное сообщение — строка номер 4, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n5. Длинное сообщение — строка номер 5, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n6. Длинное сообщение — строка номер 6, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n7. Длинное сообщение — строка номер 7, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n8. Длинное сообщение — строка номер 8, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n9. Длинное сообщение — строка номер 9, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n10. Длинное сообщение — строка номер 10, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n11. Длинное сообщение — строка номер 11, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n12. Длинное сообщение — строка номер 12, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n13. Длинное сообщение — строка номер 13, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n14. Длинное сообщение — строка номер 14, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n15. Длинное сообщение — строка номер 15, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n16. Длинное сообщение — строка номер 16, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n17. Длинное сообщение — строка номер 17, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n18. Длинное сообщение — строка номер 18, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n19. Длинное сообщение — строка номер 19, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n20. Длинное сообщение — строка номер 20, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n21. Длинное сообщение — строка номер 21, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n22. Длинное сообщение — строка номер 22, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n23. Длинное сообщение — строка номер 23, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n24. Длинное сообщение — строка номер 24, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n25. Длинное сообщение — строка номер 25, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n26. Длинное сообщение — строка номер 26, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n27. Длинное сообщение — строка номер 27, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n28. Длинное сообщение — строка номер 28, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n29. Длинное сообщение — строка номер 29, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n30. Длинное сообщение — строка номер 30, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n31. Длинное сообщение — строка номер 31, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n32. Длинное сообщение — строка номер 32, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n33. Длинное сообщение — строка номер 33, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n34. Длинное сообщение — строка номер 34, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n35. Длинное сообщение — строка номер 35, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n36. Длинное сообщение — строка номер 36, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n37. Длинное сообщение — строка номер 37, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n38. Длинное сообщение — строка номер 38, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n39. Длинное сообщение — строка номер 39, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n40. Длинное сообщение — строка номер 40, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n41. Длинное сообщение — строка номер 41, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n42. Длинное сообщение — строка номер 42, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.\n43. Длинное сообщение — строка номер 43, с эмодзи 🚀 и латиницей Lorem ipsum dolor sit amet.",
-            "createdAt": "2026-10-20T12:50:54.535Z",
+            "createdAt": "2026-10-21T06:41:54.756Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -617,12 +617,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgolwwc2a680a2eab",
-            "chatId": "c_mvgolwvpee06622fdd",
-            "senderId": "u_mvgolwup0b29aab7ce",
+            "id": "m_mvhqv8eh43027824bc",
+            "chatId": "c_mvhqv8duebc8691bda",
+            "senderId": "u_mvhqv8cu840dbb7bfe",
             "type": "text",
             "text": "Семья 👨‍👩‍👧‍👦, флаг 🏳️‍🌈, кожа 👍🏽, עברית, العربية, 中文, 日本語, 한국어, комбинированные é и й, математика 𝔘𝔫𝔦𝔠𝔬𝔡𝔢 ∑∫√, кавычки «»„“, неразрывный пробел, табуляция\tи\nперенос",
-            "createdAt": "2026-10-20T12:50:54.540Z",
+            "createdAt": "2026-10-21T06:41:54.761Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -635,7 +635,7 @@
               {
                 "emoji": "😂",
                 "userIds": [
-                  "u_mvgolwtqbd3c41cbc1"
+                  "u_mvhqv8bw81dda6f67f"
                 ]
               }
             ],
@@ -643,13 +643,13 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgolwwe18703da58b",
-            "chatId": "c_mvgolwvpee06622fdd",
-            "senderId": "u_mvgolwtqbd3c41cbc1",
+            "id": "m_mvhqv8en9d64f9506f",
+            "chatId": "c_mvhqv8duebc8691bda",
+            "senderId": "u_mvhqv8bw81dda6f67f",
             "type": "text",
             "text": "Это сообщение изменено ✏️ во второй фазе",
-            "createdAt": "2026-10-20T12:50:54.542Z",
-            "editedAt": "2026-10-20T12:51:05.082Z",
+            "createdAt": "2026-10-21T06:41:54.767Z",
+            "editedAt": "2026-10-21T06:42:05.362Z",
             "pinned": false,
             "replyToId": null,
             "threadRootId": null,
@@ -662,12 +662,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgolwwm0db450138c",
-            "chatId": "c_mvgolwvpee06622fdd",
-            "senderId": "u_mvgolwtqbd3c41cbc1",
+            "id": "m_mvhqv8fl615e331e75",
+            "chatId": "c_mvhqv8duebc8691bda",
+            "senderId": "u_mvhqv8bw81dda6f67f",
             "type": "text",
             "text": "Картинка 🖼️",
-            "createdAt": "2026-10-20T12:50:54.550Z",
+            "createdAt": "2026-10-21T06:41:54.801Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -691,12 +691,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgom522b9816153dd",
-            "chatId": "c_mvgolwvpee06622fdd",
-            "senderId": "u_mvgolwtqbd3c41cbc1",
+            "id": "m_mvhqvgm44ca89141c7",
+            "chatId": "c_mvhqv8duebc8691bda",
+            "senderId": "u_mvhqv8bw81dda6f67f",
             "type": "text",
             "text": "Тот же файл ещё раз",
-            "createdAt": "2026-10-20T12:51:05.114Z",
+            "createdAt": "2026-10-21T06:42:05.404Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -718,12 +718,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgomd662d75886f13",
-            "chatId": "c_mvgolwvpee06622fdd",
-            "senderId": "u_mvgolwup0b29aab7ce",
+            "id": "m_mvhqvoqufab30cf7fd",
+            "chatId": "c_mvhqv8duebc8691bda",
+            "senderId": "u_mvhqv8cu840dbb7bfe",
             "type": "text",
             "text": "",
-            "createdAt": "2026-10-20T12:51:15.630Z",
+            "createdAt": "2026-10-21T06:42:15.942Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -755,12 +755,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgomd690a3167e189",
-            "chatId": "c_mvgolwvpee06622fdd",
-            "senderId": "u_mvgolwup0b29aab7ce",
+            "id": "m_mvhqvoqy7dea30348d",
+            "chatId": "c_mvhqv8duebc8691bda",
+            "senderId": "u_mvhqv8cu840dbb7bfe",
             "type": "text",
             "text": "Архив",
-            "createdAt": "2026-10-20T12:51:15.633Z",
+            "createdAt": "2026-10-21T06:42:15.946Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -783,16 +783,16 @@
           }
         ]
       },
-      "c_mvgolwvrb8ba23eca8": {
+      "c_mvhqv8dx11da7185f8": {
         "viewer": "alice",
         "messages": [
           {
-            "id": "m_1792500654520_m8m8o",
-            "chatId": "c_mvgolwvrb8ba23eca8",
+            "id": "m_1792564914741_er50q",
+            "chatId": "c_mvhqv8dx11da7185f8",
             "senderId": "bot_shalter",
             "type": "system",
             "text": "Алиса Тестова создал(а) группу «Компания 🎉»",
-            "createdAt": "2026-10-20T12:50:54.520Z",
+            "createdAt": "2026-10-21T06:41:54.741Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -806,12 +806,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgolwws00acf9bb9c",
-            "chatId": "c_mvgolwvrb8ba23eca8",
-            "senderId": "u_mvgolwup0b29aab7ce",
+            "id": "m_mvhqv8g5dbad13ab98",
+            "chatId": "c_mvhqv8dx11da7185f8",
+            "senderId": "u_mvhqv8cu840dbb7bfe",
             "type": "text",
             "text": "Файл с заметками",
-            "createdAt": "2026-10-20T12:50:54.556Z",
+            "createdAt": "2026-10-21T06:41:54.821Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -833,12 +833,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgolwwtedfc5fab14",
-            "chatId": "c_mvgolwvrb8ba23eca8",
-            "senderId": "u_mvgolwtqbd3c41cbc1",
+            "id": "m_mvhqv8g9ecf01eed8e",
+            "chatId": "c_mvhqv8dx11da7185f8",
+            "senderId": "u_mvhqv8bw81dda6f67f",
             "type": "text",
             "text": "Куда идём в пятницу?",
-            "createdAt": "2026-10-20T12:50:54.558Z",
+            "createdAt": "2026-10-21T06:41:54.825Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -857,11 +857,11 @@
                   ],
                   "voterIds": [
                     [
-                      "u_mvgolwup0b29aab7ce",
-                      "u_mvgolwtqbd3c41cbc1"
+                      "u_mvhqv8cu840dbb7bfe",
+                      "u_mvhqv8bw81dda6f67f"
                     ],
                     [
-                      "u_mvgolwvmab5f95512d"
+                      "u_mvhqv8dr1180ff2e03"
                     ],
                     []
                   ],
@@ -881,13 +881,13 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgolwwzb83663ce14",
-            "chatId": "c_mvgolwvrb8ba23eca8",
-            "senderId": "u_mvgolwup0b29aab7ce",
+            "id": "m_mvhqv8ggf1d535bb69",
+            "chatId": "c_mvhqv8dx11da7185f8",
+            "senderId": "u_mvhqv8cu840dbb7bfe",
             "type": "text",
             "text": "Опечатка в слове — исправлено в третьей фазе",
-            "createdAt": "2026-10-20T12:50:54.563Z",
-            "editedAt": "2026-10-20T12:51:15.636Z",
+            "createdAt": "2026-10-21T06:41:54.832Z",
+            "editedAt": "2026-10-21T06:42:15.949Z",
             "pinned": false,
             "replyToId": null,
             "threadRootId": null,
@@ -899,7 +899,7 @@
               {
                 "emoji": "❤️",
                 "userIds": [
-                  "u_mvgolwvmab5f95512d"
+                  "u_mvhqv8dr1180ff2e03"
                 ]
               }
             ],
@@ -907,12 +907,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgom51of969d6efdf",
-            "chatId": "c_mvgolwvrb8ba23eca8",
-            "senderId": "u_mvgolwvmab5f95512d",
+            "id": "m_mvhqvglq7ea2234460",
+            "chatId": "c_mvhqv8dx11da7185f8",
+            "senderId": "u_mvhqv8dr1180ff2e03",
             "type": "text",
             "text": "Бинарник на 300 КБ",
-            "createdAt": "2026-10-20T12:51:05.100Z",
+            "createdAt": "2026-10-21T06:42:05.390Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -934,12 +934,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgomd6e9fcc125492",
-            "chatId": "c_mvgolwvrb8ba23eca8",
-            "senderId": "u_mvgolwtqbd3c41cbc1",
+            "id": "m_mvhqvor54f29961044",
+            "chatId": "c_mvhqv8dx11da7185f8",
+            "senderId": "u_mvhqv8bw81dda6f67f",
             "type": "text",
             "text": "Третья фаза 🥉",
-            "createdAt": "2026-10-20T12:51:15.638Z",
+            "createdAt": "2026-10-21T06:42:15.953Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -954,16 +954,16 @@
           }
         ]
       },
-      "c_mvgolwvwa6f07ec76d": {
+      "c_mvhqv8e2967de603d9": {
         "viewer": "alice",
         "messages": [
           {
-            "id": "m_1792500654525_4vaol",
-            "chatId": "c_mvgolwvwa6f07ec76d",
+            "id": "m_1792564914747_yrv25",
+            "chatId": "c_mvhqv8e2967de603d9",
             "senderId": "bot_shalter",
             "type": "system",
             "text": "Группа обсуждения канала «Новости «Shalter»» создана",
-            "createdAt": "2026-10-20T12:50:54.525Z",
+            "createdAt": "2026-10-21T06:41:54.747Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -978,16 +978,16 @@
           }
         ]
       },
-      "c_mvgolwvw025047fd31": {
+      "c_mvhqv8e22cc53eb8cc": {
         "viewer": "alice",
         "messages": [
           {
-            "id": "m_1792500654525_0ihr8",
-            "chatId": "c_mvgolwvw025047fd31",
+            "id": "m_1792564914746_tcm5c",
+            "chatId": "c_mvhqv8e22cc53eb8cc",
             "senderId": "bot_shalter",
             "type": "system",
             "text": "Канал «Новости «Shalter»» создан",
-            "createdAt": "2026-10-20T12:50:54.525Z",
+            "createdAt": "2026-10-21T06:41:54.746Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -1001,12 +1001,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgolwx4a540baaf8b",
-            "chatId": "c_mvgolwvw025047fd31",
-            "senderId": "u_mvgolwtqbd3c41cbc1",
+            "id": "m_mvhqv8gpbade790271",
+            "chatId": "c_mvhqv8e22cc53eb8cc",
+            "senderId": "u_mvhqv8bw81dda6f67f",
             "type": "text",
             "text": "Первый пост канала 📣\nс переносом строки",
-            "createdAt": "2026-10-20T12:50:54.568Z",
+            "createdAt": "2026-10-21T06:41:54.841Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -1019,7 +1019,7 @@
               {
                 "emoji": "🔥",
                 "userIds": [
-                  "u_mvgolwup0b29aab7ce"
+                  "u_mvhqv8cu840dbb7bfe"
                 ]
               }
             ],
@@ -1028,16 +1028,16 @@
           }
         ]
       },
-      "c_mvgolwx630a568c1e6": {
+      "c_mvhqv8gt5ca4baff2b": {
         "viewer": "alice",
         "messages": [
           {
-            "id": "m_1792500654571_ri8of",
-            "chatId": "c_mvgolwx630a568c1e6",
+            "id": "m_1792564914845_ouqql",
+            "chatId": "c_mvhqv8gt5ca4baff2b",
             "senderId": "bot_shalter",
             "type": "system",
             "text": "Алиса Тестова начал(а) секретный чат. Сообщения шифруются ключом этого чата, их нельзя переслать, а сам чат доступен только на этом устройстве.",
-            "createdAt": "2026-10-20T12:50:54.571Z",
+            "createdAt": "2026-10-21T06:41:54.845Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -1051,12 +1051,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgolwxc3b466cf4a1",
-            "chatId": "c_mvgolwx630a568c1e6",
-            "senderId": "u_mvgolwtqbd3c41cbc1",
+            "id": "m_mvhqv8gz1f94891627",
+            "chatId": "c_mvhqv8gt5ca4baff2b",
+            "senderId": "u_mvhqv8bw81dda6f67f",
             "type": "text",
             "text": "Секретное сообщение 🤫",
-            "createdAt": "2026-10-20T12:50:54.576Z",
+            "createdAt": "2026-10-21T06:41:54.851Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -1070,15 +1070,15 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgom51w279bf3e142",
-            "chatId": "c_mvgolwx630a568c1e6",
-            "senderId": "u_mvgolwup0b29aab7ce",
+            "id": "m_mvhqvglw28923b4918",
+            "chatId": "c_mvhqv8gt5ca4baff2b",
+            "senderId": "u_mvhqv8cu840dbb7bfe",
             "type": "text",
             "text": "Ответ в секретном чате 🔐",
-            "createdAt": "2026-10-20T12:51:05.108Z",
+            "createdAt": "2026-10-21T06:42:05.396Z",
             "editedAt": null,
             "pinned": false,
-            "replyToId": "m_mvgolwxc3b466cf4a1",
+            "replyToId": "m_mvhqv8gz1f94891627",
             "threadRootId": null,
             "anchorForPostId": null,
             "discussionAnchorId": null,
@@ -1089,12 +1089,12 @@
             "deletedForIds": []
           },
           {
-            "id": "m_mvgomd6g6962b19950",
-            "chatId": "c_mvgolwx630a568c1e6",
-            "senderId": "u_mvgolwtqbd3c41cbc1",
+            "id": "m_mvhqvor7c32c0b4a58",
+            "chatId": "c_mvhqv8gt5ca4baff2b",
+            "senderId": "u_mvhqv8bw81dda6f67f",
             "type": "text",
             "text": "Третье секретное",
-            "createdAt": "2026-10-20T12:51:15.640Z",
+            "createdAt": "2026-10-21T06:42:15.955Z",
             "editedAt": null,
             "pinned": false,
             "replyToId": null,
@@ -1116,32 +1116,32 @@
       {
         "id": 1,
         "purpose": "messages",
-        "createdAt": "2026-10-20T12:50:54.520Z"
+        "createdAt": "2026-10-21T06:41:54.741Z"
       },
       {
         "id": 2,
         "purpose": "files",
-        "createdAt": "2026-10-20T12:50:54.548Z"
+        "createdAt": "2026-10-21T06:41:54.788Z"
       },
       {
         "id": 3,
         "purpose": "messages",
-        "createdAt": "2026-10-20T12:51:05.082Z"
+        "createdAt": "2026-10-21T06:42:05.362Z"
       },
       {
         "id": 4,
         "purpose": "files",
-        "createdAt": "2026-10-20T12:51:05.088Z"
+        "createdAt": "2026-10-21T06:42:05.375Z"
       },
       {
         "id": 5,
         "purpose": "files",
-        "createdAt": "2026-10-20T12:51:15.623Z"
+        "createdAt": "2026-10-21T06:42:15.925Z"
       },
       {
         "id": 6,
         "purpose": "messages",
-        "createdAt": "2026-10-20T12:51:15.631Z"
+        "createdAt": "2026-10-21T06:42:15.942Z"
       }
     ],
     "messageTextKeyIds": [
@@ -1162,7 +1162,7 @@
       "chat": "dm",
       "q": "дела",
       "expectIds": [
-        "m_mvgolww467c59350c4"
+        "m_mvhqv8e94225fb4057"
       ]
     },
     {
@@ -1170,7 +1170,7 @@
       "chat": "dm",
       "q": "измен",
       "expectIds": [
-        "m_mvgolwwe18703da58b"
+        "m_mvhqv8en9d64f9506f"
       ]
     },
     {
@@ -1178,7 +1178,7 @@
       "chat": "group",
       "q": "пятниц",
       "expectIds": [
-        "m_mvgolwwtedfc5fab14"
+        "m_mvhqv8g9ecf01eed8e"
       ]
     }
   ]

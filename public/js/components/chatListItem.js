@@ -9,7 +9,7 @@ import { navigate } from "../router.js";
 import { api } from "../api.js";
 import { prefetchChat } from "../lib/chatPrefetch.js";
 import { safetyLabelInfo } from "../lib/safetyLabels.js";
-import { messagePreview } from "../lib/messagePreview.js";
+import { messagePreview, callLogInfo } from "../lib/messagePreview.js";
 import { mediaPreviewNodes } from "./mediaPreview.js";
 import { VerifiedBadge } from "./verifiedBadge.js";
 import { ProfileStatusBadge } from "./profileStatusBadge.js";
@@ -35,6 +35,7 @@ function preview(chat, meId) {
   const m = chat.lastMessage;
   if (!m) return "Нет сообщений";
   if (m.type === "system") return ceStrip(m.text);
+  if (m.type === "call") return `📞 ${callLogInfo(m, m.senderId === meId).title}`;
   const who = m.senderId === meId && !chat.isSaved ? "Вы: " : "";
   return `${who}${messagePreview(m)}`;
 }

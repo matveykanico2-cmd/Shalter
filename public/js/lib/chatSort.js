@@ -12,7 +12,8 @@ export function sortChats(list) {
   });
 }
 
+// Выключенный на время звук (muted + mutedUntil) сам включается по истечении срока.
 export function isChatMuted(chat) {
-  if (chat.muted) return true;
-  return !!chat.mutedUntil && new Date(chat.mutedUntil).getTime() > Date.now();
+  if (chat.mutedUntil) return new Date(chat.mutedUntil).getTime() > Date.now();
+  return !!chat.muted;
 }

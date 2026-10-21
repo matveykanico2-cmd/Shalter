@@ -133,27 +133,55 @@ async function sanitizeBusiness(raw, userId) {
   };
 }
 
+const isPlainObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+const shortString = (max) => (v) => typeof v === "string" && v.length <= max;
+const isBool = (v) => typeof v === "boolean";
+
+// Ключи, которые клиент может менять через PATCH, и проверка типа значения. Остальное —
+// служебные ключи сервера (chatClears, hiddenChats, chatWallpapers, chatFlags, pinnedOrder,
+// pinnedChannelIds, ai): их пишут свои эндпоинты. Неизвестный ключ или значение не того
+// типа молча отбрасывается, как и раньше privacy не объектом.
+const CLIENT_KEYS = {
+  theme: shortString(32),
+  accent: shortString(32),
+  reduceMotion: isBool,
+  fontSize: (v) => Number.isFinite(v) && v >= 12 && v <= 20,
+  requirePasswordOnLaunch: isBool,
+  notifications: isPlainObject,
+  privacy: isPlainObject,
+  chatWallpaper: shortString(64),
+  chatWallpaperImage: (v) => v === null || typeof v === "string",
+  homeWallpaper: isBool,
+  translateLanguage: shortString(16),
+  uiLanguage: shortString(16),
+  autoDownload: isBool,
+  voiceTranscription: isBool,
+  holidays: isPlainObject,
+  business: isPlainObject,
+  appIcon: (v) => typeof v === "string" && /^[a-z0-9-]{1,32}$/.test(v),
+  // Клиент только очищает черновики целиком; сами черновики пишет /api/chats/:id/draft.
+  drafts: (v) => isPlainObject(v) && !Object.keys(v).length,
+};
+
 router.patch(
   "/",
   asyncRoute(async (req, res) => {
     const body = req.body ?? {};
     if (typeof body !== "object" || Array.isArray(body)) return res.status(400).json({ error: "Некорректные настройки" });
-    const patch = { ...body };
-    const isPlainObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
-    // privacy не объектом молча отбрасывается — прежние настройки остаются.
-    if ("privacy" in patch) {
-      if (isPlainObject(patch.privacy)) patch.privacy = normalizePrivacy(patch.privacy);
-      else delete patch.privacy;
+    const patch = {};
+    for (const [key, value] of Object.entries(body)) {
+      if (Object.hasOwn(CLIENT_KEYS, key) && CLIENT_KEYS[key](value)) patch[key] = value;
     }
-    // notifications сливается с текущими: PATCH { sound } не стирает mutedChats и previewText.
-    if ("notifications" in patch) {
-      if (isPlainObject(patch.notifications)) {
-        const current = (await getSettings(req.uid)).notifications;
-        patch.notifications = { ...(isPlainObject(current) ? current : DEFAULT_SETTINGS.notifications), ...patch.notifications };
-      } else delete patch.notifications;
+    if (patch.privacy) patch.privacy = normalizePrivacy(patch.privacy);
+    // notifications сливается с текущими: PATCH { sound } не стирает previewText. mutedChats
+    // пишут только настройки чата — присланный клиентом список игнорируется.
+    if (patch.notifications) {
+      const current = (await getSettings(req.uid)).notifications;
+      const base = isPlainObject(current) ? current : DEFAULT_SETTINGS.notifications;
+      const next = { ...base };
+      for (const k of ["previewText", "sound"]) if (isBool(patch.notifications[k])) next[k] = patch.notifications[k];
+      patch.notifications = next;
     }
-    // Иконка приложения (хранится в аккаунте, чтобы пережить обновление/переустановку)
-    if ("appIcon" in patch && !(typeof patch.appIcon === "string" && /^[a-z0-9-]{1,32}$/.test(patch.appIcon))) delete patch.appIcon;
     if (patch.holidays) patch.holidays = sanitizeHolidays(patch.holidays);
     if (patch.business) patch.business = await sanitizeBusiness(patch.business, req.uid);
     if (isUnsupportedLanguage(patch.uiLanguage) || isUnsupportedLanguage(patch.translateLanguage)) {

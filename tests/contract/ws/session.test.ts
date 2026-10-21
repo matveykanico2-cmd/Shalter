@@ -1,5 +1,6 @@
-// Открытый сокет сверяется с живыми сессиями (WS_SESSION_CHECK_MS=1000 в тестах):
-// сеанс, завершённый с другого устройства, выход и бан закрывают сокет кодом 4001.
+// Открытый сокет закрывается кодом 4001, как только доступ отозван: сеанс завершён
+// с другого устройства, выход, смена пароля, удаление аккаунта, бан. Периодического
+// перебора сокетов нет — сервер закрывает их по событию, до ответа на запрос.
 import { describe, expect, test } from "vitest";
 import { expectError } from "../../support/expect";
 import { login, registerUser, uniqPhone, type TestUser } from "../../support/seed";
@@ -17,10 +18,7 @@ async function admin(baseUrl: string): Promise<TestUser> {
   return adminUser;
 }
 
-// Проверка идёт раз в секунду; с запасом на нагрузку при параллельных файлах.
-const CLOSE_WITHIN_MS = 4000;
-// Маршруты, которые сами отзывают сессию или банят, закрывают сокет до ответа —
-// окно заметно меньше периода проверки, чтобы её «случайное» срабатывание не засчиталось.
+// Сокет закрывается до ответа на запрос; окно — запас на доставку кадра закрытия.
 const IMMEDIATE_MS = 500;
 
 describe("сокет и завершение сеанса", () => {
@@ -40,8 +38,8 @@ describe("сокет и завершение сеанса", () => {
     expect(await rejectedWsStatus(a.api)).toBe(401);
     expectError(await a.api.get("/api/contacts"), 401, "session_revoked");
 
-    // Сокет устройства, с которого завершали, жив и после следующей проверки.
-    await sleep(1200);
+    // Сокет устройства, с которого завершали, жив.
+    await sleep(300);
     await expectAlive(phoneWs);
   });
 
@@ -58,22 +56,36 @@ describe("сокет и завершение сеанса", () => {
     const [c1, c2] = await Promise.all([closedWithin(other1, IMMEDIATE_MS), closedWithin(other2, IMMEDIATE_MS)]);
     expect(c1).toEqual({ code: 4001, reason: "session_revoked" });
     expect(c2).toEqual({ code: 4001, reason: "session_revoked" });
-    await sleep(1200);
+    await sleep(300);
     await expectAlive(currentWs);
     await expectAlive(currentTab);
   });
 });
 
 describe("сокет и смена пароля", () => {
-  test("смена пароля закрывает сокеты остальных устройств на ближайшей проверке", async () => {
+  test("смена пароля сразу закрывает сокеты остальных устройств", async () => {
     const { baseUrl } = server();
     const a = await registerUser(baseUrl);
     const otherWs = await open(await login(baseUrl, a));
     const currentWs = await open(a.api);
     const res = await a.api.post("/api/auth/change-password", { currentPassword: a.password, newPassword: "brand-new-1" });
     expect(res.status, res.text).toBe(200);
-    expect(await closedWithin(otherWs, CLOSE_WITHIN_MS)).toEqual({ code: 4001, reason: "session_revoked" });
+    expect(await closedWithin(otherWs, IMMEDIATE_MS)).toEqual({ code: 4001, reason: "session_revoked" });
     await expectAlive(currentWs);
+  });
+});
+
+describe("сокет и удаление аккаунта", () => {
+  test("удаление аккаунта сразу закрывает сокеты всех его устройств", async () => {
+    const { baseUrl } = server();
+    const a = await registerUser(baseUrl);
+    const currentWs = await open(a.api);
+    const phoneWs = await open(await login(baseUrl, a));
+    const res = await a.api.post("/api/auth/delete-account", { password: a.password });
+    expect(res.status, res.text).toBe(200);
+    const [c1, c2] = await Promise.all([closedWithin(currentWs, IMMEDIATE_MS), closedWithin(phoneWs, IMMEDIATE_MS)]);
+    expect(c1).toEqual({ code: 4001, reason: "session_revoked" });
+    expect(c2).toEqual({ code: 4001, reason: "session_revoked" });
   });
 });
 
@@ -89,7 +101,7 @@ describe("сокет и выход", () => {
     const [c1, c2] = await Promise.all([closedWithin(tab, IMMEDIATE_MS), closedWithin(otherTab, IMMEDIATE_MS)]);
     expect(c1).toEqual({ code: 4001, reason: "session_revoked" });
     expect(c2).toEqual({ code: 4001, reason: "session_revoked" });
-    await sleep(1200);
+    await sleep(300);
     await expectAlive(phoneWs);
   });
 });
@@ -107,7 +119,7 @@ describe("сокет и бан", () => {
     expect(await closedWithin(targetWs, IMMEDIATE_MS)).toEqual({ code: 4001, reason: "session_revoked" });
     const res = await target.api.get("/api/contacts");
     expect(res.status).toBe(403);
-    expect(res.body).toEqual({ error: "banned", banReason: "спам" });
+    expect(res.body).toEqual({ error: "banned", banReason: "спам", bannedAt: expect.any(String), bannedUntil: null });
   });
 
   test("забаненный проходит upgrade, но сокет сразу закрывается 4001", async () => {

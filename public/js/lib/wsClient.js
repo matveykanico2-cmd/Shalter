@@ -86,8 +86,8 @@ async function handleRevoked() {
   const body = await res.json().catch(() => ({}));
   if (stopped) return;
   if (body.error === "banned") {
-    const why = body.banReason ? `&why=${encodeURIComponent(body.banReason)}` : "";
-    window.location.href = `/login?reason=banned${why}`;
+    // Сокет не переподключаем (revoking остаётся true): до снятия блокировки — только экран бана.
+    import("../components/banScreen.js").then((m) => m.showBanScreen(body));
   } else if (body.error === "session_revoked") {
     window.location.href = "/login?reason=revoked";
   } else {

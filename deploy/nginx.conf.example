@@ -1,24 +1,64 @@
-# Reverse proxy for the messenger app on a small 2-core/2GB box.
-# Copy to /etc/nginx/sites-available/messenger, symlink into sites-enabled,
-# fill in server_name + certificate paths, then `nginx -t && systemctl reload nginx`.
+# Reverse proxy + static files for the messenger app on a small 2-core/2GB box.
+# This is a *site* file: it goes inside the stock nginx.conf's http {} block.
+# Copy to /etc/nginx/sites-available/shalter, symlink into sites-enabled,
+# fill in server_name, then `nginx -t && systemctl reload nginx` (DEPLOY.md).
 #
 # Why nginx in front at all on such a small box: it terminates TLS and serves
 # static files/gzip with far less memory per connection than Node does, which
 # is exactly the resource you're short on here — keeps Node's 768MB heap
 # budget for the app, not for TLS handshakes and file I/O.
+#
+# Static files are read straight from the app directory — the paths below
+# assume /opt/shalter (DEPLOY.md, step 2); change every /opt/shalter if yours
+# differs. They exist after `npm run build`: public/dist (bundle + unpacked
+# emoji/gift images in public/dist/packs) and public/gift-scenes. A file that
+# isn't on disk falls through to Node, so a missing build costs speed, not
+# correctness.
 
-worker_processes 1;  # match the 2 cores: 1 nginx worker + 1 core free for Node
+# gzip for everything Node still answers (API JSON, index.html). Node's own
+# compression is off under PM2 (DISABLE_APP_GZIP=1 in ecosystem.config.js), so
+# responses aren't compressed twice. The bundle in /dist/ is precompressed at
+# build time and goes out via gzip_static instead.
+gzip on;
+gzip_types text/plain text/css application/javascript application/json image/svg+xml application/manifest+json;
+gzip_min_length 1024;
+gzip_proxied any;
+gzip_vary on;
 
-events {
-  worker_connections 1024;
+# First line of defense against request floods: rejecting excess requests
+# HERE means nginx never even opens a connection to Node for them, so a
+# flood doesn't burn Node's single event loop just to get rate-limited by
+# server/middleware/rateLimit.js (that's the second, app-level layer —
+# keep both; this one is what actually protects Node's own resources).
+# `rate=20r/s` is generous for normal usage (chat polling + WS is mostly
+# idle-open connections, not request bursts) — tune down if abused. It only
+# guards what reaches Node: static files are cheap for nginx, and one chat
+# screen can pull dozens of emoji/gift images at once.
+# NOTE — what this can't do: a real distributed (multi-IP/botnet)
+# volumetric DDoS will still saturate this box's bandwidth/connections
+# regardless of any config in this file, because the flood never has to
+# cross the same per-IP counter twice. That needs a service in front of
+# this server entirely (Cloudflare's free tier is the standard pick for a
+# small self-hosted app — proxy DNS through it and it absorbs/filters
+# traffic before it ever reaches this box). Treat everything below as
+# "stop one misbehaving client," not "survive a real attack."
+limit_req_zone $binary_remote_addr zone=general:10m rate=20r/s;
+limit_conn_zone $binary_remote_addr zone=perip:10m;
+
+upstream messenger_app {
+  server 127.0.0.1:3000;
+  keepalive 16;
 }
 
-http {
-  gzip on;
-  gzip_types text/plain text/css application/javascript application/json;
-  gzip_min_length 1024;
-  # If nginx is gzipping, set DISABLE_APP_GZIP=1 in the Node process's
-  # environment (see ecosystem.config.js) so responses aren't compressed twice.
+server {
+  listen 80;
+  server_name your-domain.example;
+
+  # Redirect to HTTPS once a certificate is in place (certbot --nginx adds
+  # this itself; by hand: uncomment).
+  # return 301 https://$host$request_uri;
+
+  root /opt/shalter/public;
 
   # Data-URL attachments (voice/video-note/image) ride inline in JSON bodies —
   # match server/index.js's express.json({ limit: "25mb" }). Real file uploads
@@ -26,97 +66,168 @@ http {
   # much larger limit in the location block below.
   client_max_body_size 25m;
 
-  # First line of defense against request floods: rejecting excess requests
-  # HERE means nginx never even opens a connection to Node for them, so a
-  # flood doesn't burn Node's single event loop just to get rate-limited by
-  # server/middleware/rateLimit.js (that's the second, app-level layer —
-  # keep both; this one is what actually protects Node's own resources).
-  # `rate=20r/s` is generous for normal usage (chat polling + WS is mostly
-  # idle-open connections, not request bursts) — tune down if abused.
-  # NOTE — what this can't do: a real distributed (multi-IP/botnet)
-  # volumetric DDoS will still saturate this box's bandwidth/connections
-  # regardless of any config in this file, because the flood never has to
-  # cross the same per-IP counter twice. That needs a service in front of
-  # this server entirely (Cloudflare's free tier is the standard pick for a
-  # small self-hosted app — proxy DNS through it and it absorbs/filters
-  # traffic before it ever reaches this box). Treat everything below as
-  # "stop one misbehaving client," not "survive a real attack."
-  limit_req_zone $binary_remote_addr zone=general:10m rate=20r/s;
-  limit_conn_zone $binary_remote_addr zone=perip:10m;
+  # Concurrent-connection cap per IP — catches connection-flood abuse that
+  # a request-rate limit alone wouldn't (many connections, each making few
+  # requests). 20 comfortably covers one real user's tabs/devices.
+  limit_conn perip 20;
 
-  upstream messenger_app {
-    server 127.0.0.1:3000;
-    keepalive 16;
+  # Static files. Each location repeats the security headers Node sets on
+  # everything it serves (server/index.js) — nginx drops inherited add_header
+  # lines in any location that has its own.
+
+  # The bundle: file names change with every build (chunk hashes, ?v= on the
+  # entry points), so it's cached for a year. gzip_static serves the .gz built
+  # next to each file. Brotli (.br files are built too) needs the
+  # libnginx-mod-http-brotli-static package — then uncomment brotli_static.
+  location ^~ /dist/ {
+    gzip_static on;
+    # brotli_static on;
+    try_files $uri =404;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options DENY;
+    add_header Referrer-Policy strict-origin-when-cross-origin;
   }
 
-  server {
-    listen 80;
-    server_name your-domain.example;
+  # Built-in gift scenes, one JSON per gift (DEPLOY.md, "Gift scenes"). No such
+  # scene is a plain 404, same as Node.
+  location ^~ /gift-scenes/ {
+    try_files $uri =404;
+    add_header Cache-Control "public, max-age=3600";
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options DENY;
+    add_header Referrer-Policy strict-origin-when-cross-origin;
+  }
 
-    # Redirect to HTTPS once a certificate is in place (comment out until then).
-    # return 301 https://$host$request_uri;
+  # Emoji, gift patterns, animations: in the repo they're packed archives
+  # (server/lib/assetPacks.js), `npm run build` unpacks them to public/dist/packs.
+  location ~ ^/(img/emoji|gift-symbols|gift-emoji|tgs)/ {
+    root /opt/shalter/public/dist/packs;
+    types {
+      image/png png;
+      image/webp webp;
+      image/svg+xml svg;
+      image/gif gif;
+      image/jpeg jpg;
+      application/json json;
+      application/gzip tgs;
+    }
+    try_files $uri @app;
+    add_header Cache-Control "public, max-age=604800";
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options DENY;
+    add_header Referrer-Policy strict-origin-when-cross-origin;
+  }
 
-    # burst=40 nodelay: absorbs a legitimate short burst (opening several
-    # chats/loading history at once) without queuing/delaying it, only
-    # rejecting (503) once a client is sustainedly over rate for real.
+  # Hidden files are never public; /.well-known/ is (asset links, ACME).
+  location ^~ /.well-known/ {
+    try_files $uri =404;
+    add_header Cache-Control "public, max-age=3600";
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options DENY;
+    add_header Referrer-Policy strict-origin-when-cross-origin;
+  }
+  location ~ /\. {
+    return 404;
+  }
+
+  # The service worker must be re-checked on every load, or a new version
+  # reaches users only after the browser's own cache expires.
+  location = /sw.js {
+    try_files $uri @app;
+    add_header Cache-Control "no-cache";
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options DENY;
+    add_header Referrer-Policy strict-origin-when-cross-origin;
+  }
+
+  # The stock mime.types doesn't know .webmanifest.
+  location = /manifest.webmanifest {
+    types { }
+    default_type application/manifest+json;
+    try_files $uri @app;
+    add_header Cache-Control "public, max-age=3600";
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options DENY;
+    add_header Referrer-Policy strict-origin-when-cross-origin;
+  }
+
+  # Everything else: a file in public/ (icons, styles, page scripts) if there
+  # is one, otherwise Node — the app's pages, /uploads/… (access checks), short
+  # links. "/" and other directories always go to Node: try_files $uri only
+  # matches files.
+  location / {
+    try_files $uri @app;
+    add_header Cache-Control "public, max-age=3600";
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options DENY;
+    add_header Referrer-Policy strict-origin-when-cross-origin;
+  }
+
+  # burst=40 nodelay: absorbs a legitimate short burst (opening several
+  # chats/loading history at once) without queuing/delaying it, only
+  # rejecting (503) once a client is sustainedly over rate for real.
+  location @app {
     limit_req zone=general burst=40 nodelay;
-    # Concurrent-connection cap per IP — catches connection-flood abuse that
-    # a request-rate limit alone wouldn't (many connections, each making few
-    # requests). 20 comfortably covers one real user's tabs/devices.
-    limit_conn perip 20;
-
-    location / {
-      proxy_pass http://messenger_app;
-      proxy_http_version 1.1;
-      proxy_set_header Host $host;
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # Real file uploads (server/routes/uploads.js) stream the raw file as the
-    # request body, so the 25m above — sized for JSON message bodies — would
-    # reject them with a 413 long before Node's own per-kind ceiling
-    # (server/lib/uploadLimits.js, currently 5GB) ever applied. Keep this number
-    # just above that ceiling whenever it changes.
-    #
-    # proxy_request_buffering off matters as much as the size: without it nginx
-    # spools the entire upload to disk before Node sees a byte, which on a 30GB
-    # box means one 5GB upload can fill it.
-    location /api/uploads {
-      client_max_body_size 5100m;
-      proxy_request_buffering off;
-      proxy_read_timeout 3600s;  # a multi-gigabyte upload over a slow line
-      proxy_pass http://messenger_app;
-      proxy_http_version 1.1;
-      proxy_set_header Host $host;
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # WebSocket upgrade for call signaling/presence (server/ws.js) — without
-    # this block, /ws requests just get proxied as plain HTTP and never upgrade.
-    # Excluded from limit_req: a call's socket sends frequent small signaling
-    # frames over one already-open connection, which isn't the "new request
-    # burst" this limit is meant to catch — it's still covered by limit_conn
-    # above (one connection per call) and ws.js's own maxPayload cap.
-    location /ws {
-      limit_req off;
-      proxy_pass http://messenger_app;
-      proxy_http_version 1.1;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection "upgrade";
-      proxy_set_header Host $host;
-      proxy_read_timeout 3600s;  # keep long-lived call sockets from being cut
-    }
+    proxy_pass http://messenger_app;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
   }
 
-  # server {
-  #   listen 443 ssl http2;
-  #   server_name your-domain.example;
-  #   ssl_certificate     /etc/letsencrypt/live/your-domain.example/fullchain.pem;
-  #   ssl_certificate_key /etc/letsencrypt/live/your-domain.example/privkey.pem;
-  #   # ... same location blocks as the :80 server above ...
-  # }
+  # The API never touches the disk lookup above.
+  location ^~ /api/ {
+    limit_req zone=general burst=40 nodelay;
+    proxy_pass http://messenger_app;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  # Real file uploads (server/routes/uploads.js) stream the raw file as the
+  # request body, so the 25m above — sized for JSON message bodies — would
+  # reject them with a 413 long before Node's own per-kind ceiling
+  # (server/lib/uploadLimits.js, currently 5GB) ever applied. Keep this number
+  # just above that ceiling whenever it changes.
+  #
+  # proxy_request_buffering off matters as much as the size: without it nginx
+  # spools the entire upload to disk before Node sees a byte, which on a 30GB
+  # box means one 5GB upload can fill it.
+  location ^~ /api/uploads {
+    limit_req zone=general burst=40 nodelay;
+    client_max_body_size 5100m;
+    proxy_request_buffering off;
+    proxy_read_timeout 3600s;  # a multi-gigabyte upload over a slow line
+    proxy_pass http://messenger_app;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  # WebSocket upgrade for call signaling/presence (server/ws.js) — without
+  # this block, /ws requests just get proxied as plain HTTP and never upgrade.
+  # No limit_req here: a call's socket sends frequent small signaling frames
+  # over one already-open connection, which isn't the "new request burst" the
+  # limit is meant to catch — it's still covered by limit_conn above (one
+  # connection per call) and ws.js's own maxPayload cap.
+  location /ws {
+    proxy_pass http://messenger_app;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 3600s;  # keep long-lived call sockets from being cut
+  }
 }

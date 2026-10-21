@@ -61,4 +61,16 @@ function assetPacks() {
   };
 }
 
-module.exports = { assetPacks, PACKS };
+// Все файлы архива по одному — для распаковки на диск при сборке (scripts/build.js),
+// откуда их отдаёт nginx.
+function* packFiles(pack) {
+  const entry = openPack(pack);
+  if (!entry) return;
+  for (const [rel, [offset, length]] of Object.entries(entry.index)) {
+    const buf = Buffer.alloc(length);
+    fs.readSync(entry.fd, buf, 0, length, entry.base + offset);
+    yield [rel, buf];
+  }
+}
+
+module.exports = { assetPacks, packFiles, PACKS };

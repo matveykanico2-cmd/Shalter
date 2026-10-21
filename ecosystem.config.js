@@ -9,6 +9,9 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: 3000,
+        // Сжимает nginx (deploy/nginx.conf.example) — Node не тратит на это процессор.
+        // Без nginx перед приложением уберите эту строку.
+        DISABLE_APP_GZIP: "1",
       },
       max_memory_restart: "900M",
       exp_backoff_restart_delay: 200,

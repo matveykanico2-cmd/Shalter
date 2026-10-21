@@ -224,7 +224,7 @@ describe("сообщения: что выпадает из выдачи", () => 
     expect((await search(bob, w3)).messages).toEqual([expect.objectContaining({ id: edited.id, text: `стало ${w3}`, editedAt: expect.any(String) })]);
   });
 
-  test("личка, «удалённая у себя», всё ещё находится в чатах (сообщения — нет)", async () => {
+  test("личка, «удалённая у себя», не находится в чатах — собеседник находится среди людей", async () => {
     const { baseUrl } = server();
     const tag = word();
     const w = word();
@@ -235,11 +235,15 @@ describe("сообщения: что выпадает из выдачи", () => 
 
     expect((await me.api.post(`/api/chats/${dm.id}/delete-for-me`)).status).toBe(200);
     const found = await search(me, tag);
-    // ПОВЕДЕНИЕ-ВОПРОС: скрытый («удалённый у себя») чат поиск всё равно показывает в chats,
-    // хотя в списке чатов его нет; собеседник из-за этого не попадает в users.
-    expect(found.chats.map((c) => c.id)).toEqual([dm.id]);
-    expect(found.users).toEqual([]);
+    expect(found.chats).toEqual([]);
+    expect(found.users.map((u) => u.id)).toEqual([peer.id]);
     expect((await search(me, w)).messages).toEqual([]);
+
+    // После нового сообщения личка снова ищется как чат.
+    await sendText(peer, dm.id, "новое");
+    const again = await search(me, tag);
+    expect(again.chats.map((c) => c.id)).toEqual([dm.id]);
+    expect(again.users).toEqual([]);
   });
 });
 

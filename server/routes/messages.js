@@ -1,4 +1,3 @@
-const fs = require("fs");
 const { genId } = require("../lib/genId");
 const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
@@ -13,7 +12,7 @@ function sanitizeMessageEmoji(input) {
   const cleaned = input.slice(0, MAX_MESSAGE_EMOJI).map((scene) => sanitizeScene(scene, { requireLayers: true }) ?? null);
   return cleaned.some(Boolean) ? cleaned : undefined;
 }
-const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, retractPollVote, closePoll, toggleChecklistItem, addChecklistItems, markChatRead, readersOf, setLinkPreview, updateLiveLocation, setAttachmentPreview, listMessageDays, firstMessageOfDay } = require("../data/messages");
+const { searchInChats, listMessages, listMessagesPage, listThreadReplies, addMessage, getMessage, editMessage, deleteMessage, deleteMessageForMe, togglePin, toggleReaction, incrementCommentCount, votePoll, retractPollVote, closePoll, toggleChecklistItem, addChecklistItems, markChatRead, readersOf, setLinkPreview, updateLiveLocation, listMessageDays, firstMessageOfDay } = require("../data/messages");
 const { getUser, findUserIdsByUsernames, listUsersByIds } = require("../data/users");
 const { transferStars, balanceOf } = require("../data/stars");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
@@ -35,9 +34,8 @@ const { sendPushToUser, pushAvatar, userPushAvatar, MESSAGE_PUSH } = require("..
 const { registerAttachments, canAccessUpload } = require("../lib/uploadAccess");
 const paidMedia = require("../data/paidMedia");
 const { fetchLinkPreview } = require("../lib/linkPreview");
-const { FILENAME_RE } = require("../lib/serveUpload");
-const { generateVideoPreview, generateImagePreview } = require("../lib/mediaPreview");
-const { fetchUploadToTemp, storeGeneratedFile } = require("../lib/uploadTransfer");
+const { markPendingPreviews, messageNeedsMedia } = require("../lib/mediaJobs");
+const { queueJob } = require("../lib/backgroundJobs");
 const { hasAdminSection } = require("../lib/adminAccess");
 const { getTopic } = require("../data/topics");
 const { serviceLine } = require("../lib/systemChat");
@@ -291,92 +289,6 @@ router.get(
   })
 );
 
-const PREVIEWABLE_KINDS = new Set(["image", "video"]);
-
-function uploadFilename(url) {
-  if (typeof url !== "string" || !url.startsWith("/uploads/")) return null;
-  const filename = url.slice("/uploads/".length);
-  return FILENAME_RE.test(filename) ? filename : null;
-}
-
-function needsPreview(attachment) {
-  if (!PREVIEWABLE_KINDS.has(attachment?.kind) || !uploadFilename(attachment.url)) return false;
-  return attachment.kind === "video" ? !attachment.previewUrl : !attachment.thumbUrl;
-}
-
-function markPendingPreviews(attachments) {
-  return attachments?.map((a) =>
-    needsPreview(a) ? { ...a, previewPending: true } : a
-  );
-}
-
-async function buildPreview(attachment, filename) {
-  const sourcePath = await fetchUploadToTemp(filename);
-  try {
-    if (attachment.kind === "image") {
-      const previewPath = await generateImagePreview(sourcePath);
-      try {
-        const previewUrl = await storeGeneratedFile(previewPath);
-        return { previewUrl, thumbUrl: previewUrl };
-      } finally {
-        await fs.promises.unlink(previewPath).catch(() => {});
-      }
-    }
-    const { previewPath, posterPath, width, height, durationSec } = await generateVideoPreview(sourcePath);
-    try {
-      const previewUrl = await storeGeneratedFile(previewPath);
-      const posterUrl = await storeGeneratedFile(posterPath);
-      return { previewUrl, posterUrl, width, height, durationSec };
-    } finally {
-      await fs.promises.unlink(previewPath).catch(() => {});
-      await fs.promises.unlink(posterPath).catch(() => {});
-    }
-  } finally {
-    await fs.promises.unlink(sourcePath).catch(() => {});
-  }
-}
-
-// Голосовые и кружки: точная длительность с сервера (у WebM из браузера её нет в файле,
-// и до загрузки плеер показывал «0:00 / 0:00»). Записи из приложения присылают
-// длительность сами — тогда только уточняем, если она пустая.
-async function attachDurations(chat, message) {
-  const { probeDuration } = require("../lib/mediaPreview");
-  for (const [index, a] of (message.attachments ?? []).entries()) {
-    const timed = a?.kind === "voice" || a?.kind === "video-note" || (a?.kind === "file" && /^audio\//.test(a.mimeType ?? ""));
-    if (!timed || a.durationSec > 0) continue;
-    const filename = uploadFilename(a.url);
-    if (!filename) continue;
-    let local = null;
-    try {
-      local = await fetchUploadToTemp(filename);
-      const sec = await probeDuration(local);
-      if (!(sec > 0)) continue;
-      const updated = await setAttachmentPreview(message.id, index, { durationSec: Math.round(sec * 10) / 10 });
-      if (updated) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
-    } catch (err) {
-      console.warn(`duration probe failed for ${message.id}#${index}:`, err.message);
-    } finally {
-      if (local) fs.promises.unlink(local).catch(() => {});
-    }
-  }
-}
-
-async function attachPreviews(chat, message) {
-  for (const [index, attachment] of (message.attachments ?? []).entries()) {
-    const filename = needsPreview(attachment) ? uploadFilename(attachment.url) : null;
-    if (!filename) continue;
-    let preview = null;
-    try {
-      preview = await buildPreview(attachment, filename);
-    } catch (err) {
-      console.error(`preview generation failed for ${message.id}#${index}:`, err.message);
-    }
-    if (preview) registerAttachments(chat.id, [{ url: preview.previewUrl, thumbUrl: preview.posterUrl }]);
-    const updated = await setAttachmentPreview(message.id, index, preview ?? {});
-    if (updated) broadcastToUsers(chat.memberIds, { type: "message:updated", chatId: chat.id, message: updated });
-  }
-}
-
 function sanitizeStoryReply(raw) {
   if (!raw || typeof raw !== "object") return undefined;
   const url = typeof raw.url === "string" && isSafeUrl(raw.url) ? raw.url : undefined;
@@ -509,8 +421,8 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0, paid = null
   // «Отправить без звука»: уведомление придёт, но тихое.
   pushNewMessage(chat, sender, message, { silent: body.silent === true }).catch((err) => console.error("push notify failed:", err));
 
-  attachPreviews(chat, message).catch((err) => console.error("attachment preview failed:", err));
-  attachDurations(chat, message).catch((err) => console.error("attachment duration failed:", err));
+  // Превью и длительность вложений — в фоновом процессе; готовое придёт событием message:updated.
+  if (messageNeedsMedia(message)) queueJob("message-media", { messageId: message.id });
 
   // В секретном чате превью ссылок не запрашиваем: сервер не ходит по ссылкам из переписки.
   if (message.type === "text" && message.text && !chat.secret) {

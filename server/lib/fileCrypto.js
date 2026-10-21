@@ -82,6 +82,19 @@ function readHeader(filePath) {
   }
 }
 
+// Как readHeader, но ошибка чтения — исключение, а не null («не зашифрован»).
+// Файла нет — тоже исключение.
+function readHeaderStrict(filePath) {
+  const fd = fs.openSync(filePath, "r");
+  try {
+    const buf = Buffer.alloc(HEADER_MAX);
+    const read = fs.readSync(fd, buf, 0, HEADER_MAX, 0);
+    return parseHeader(buf.subarray(0, read));
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 function headerFromBuffer(buf) {
   return parseHeader(buf);
 }
@@ -105,4 +118,4 @@ function createDecryptStream(dataDir, header, start) {
   return decipher;
 }
 
-module.exports = { createEncryptStream, createDecryptStream, readHeader, headerFromBuffer, HEADER_MAX, loadKey };
+module.exports = { createEncryptStream, createDecryptStream, readHeader, readHeaderStrict, headerFromBuffer, HEADER_MAX, loadKey };

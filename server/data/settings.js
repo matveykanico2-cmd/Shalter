@@ -114,7 +114,7 @@ function mutedStateFor(settings, chatId) {
   if (!value) return { muted: false, mutedUntil: null };
   if (value === true) return { muted: true, mutedUntil: null };
   const until = String(value);
-  if (new Date(until).getTime() > Date.now()) return { muted: false, mutedUntil: until };
+  if (new Date(until).getTime() > Date.now()) return { muted: true, mutedUntil: until };
   return { muted: false, mutedUntil: null };
 }
 

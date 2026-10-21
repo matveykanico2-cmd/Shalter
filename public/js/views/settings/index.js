@@ -2152,7 +2152,10 @@ async function renderGames(root) {
                   el("span", { class: "settings-game-emoji" }, g.emoji || "🎮"),
                   el("div", { class: "settings-device-body" }, [
                     el("p", {}, g.title),
-                    el("p", { class: "settings-toggle-hint" }, [g.isPublic ? "в каталоге" : "только по ссылке", g.plays ? ` · ${g.plays} запусков` : ""].join("")),
+                    el("p", { class: "settings-toggle-hint" }, [
+                      g.hasCode === false ? "черновик — загрузите код через Game API" : g.isPublic ? "в каталоге" : "только по ссылке",
+                      g.plays ? ` · ${g.plays} запусков` : "",
+                    ].join("")),
                   ]),
                    el("button", { class: "icon-btn", title: "Играть", html: iconSvg("PlayFill", 15), onclick: () => games.openGame(g) }),
                    el("button", { class: "icon-btn", title: "API-токен", html: iconSvg("Key", 15), onclick: () => games.showGameToken(g) }),
@@ -4549,7 +4552,9 @@ async function renderModeration(root) {
             : data.banned.map((u) =>
                 userRow(
                   u,
-                  `${u.bannedAt ? new Date(u.bannedAt).toLocaleString("ru-RU") : "дата неизвестна"} · ${u.banReason || "причина не указана"}`
+                  `${u.bannedAt ? new Date(u.bannedAt).toLocaleString("ru-RU") : "дата неизвестна"} · ${
+                    u.bannedUntil ? `до ${new Date(u.bannedUntil).toLocaleString("ru-RU")}` : "навсегда"
+                  } · ${u.banReason || "причина не указана"}`
                 )
               )
         ),

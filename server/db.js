@@ -454,7 +454,7 @@ CREATE TABLE IF NOT EXISTS custom_emoji (
 );
 CREATE INDEX IF NOT EXISTS idx_custom_emoji_owner ON custom_emoji(ownerId);
 
--- Admin-editable layer over the shipped gift catalogue (server/data/gifts.js).
+-- Admin-editable layer over the shipped gift catalogue (server/data/catalog/gifts.json).
 -- Two kinds of row live here, told apart by the custom flag:
 --   custom = 0 — an override for a built-in gift. Only its supply is read; the
 --                other columns stay NULL so an override can't rename or reprice
@@ -538,6 +538,8 @@ if (!existingUserColumns.has("giftsReceived")) db.exec("ALTER TABLE users ADD CO
 if (!existingUserColumns.has("isBanned")) db.exec("ALTER TABLE users ADD COLUMN isBanned INTEGER NOT NULL DEFAULT 0");
 if (!existingUserColumns.has("banReason")) db.exec("ALTER TABLE users ADD COLUMN banReason TEXT");
 if (!existingUserColumns.has("bannedAt")) db.exec("ALTER TABLE users ADD COLUMN bannedAt TEXT");
+// Срок блокировки (ISO); NULL — навсегда. Истёкшая блокировка снимается сама (data/users.js).
+if (!existingUserColumns.has("bannedUntil")) db.exec("ALTER TABLE users ADD COLUMN bannedUntil TEXT");
 if (!existingUserColumns.has("safetyLabel")) db.exec("ALTER TABLE users ADD COLUMN safetyLabel TEXT");
 if (!existingUserColumns.has("safetyLabelAt")) db.exec("ALTER TABLE users ADD COLUMN safetyLabelAt TEXT");
 if (!existingUserColumns.has("stars")) db.exec("ALTER TABLE users ADD COLUMN stars INTEGER NOT NULL DEFAULT 0");
@@ -1109,6 +1111,27 @@ CREATE TABLE IF NOT EXISTS upload_uploaders (
   createdAt TEXT NOT NULL,
   PRIMARY KEY (filename, userId)
 );
+
+-- Недавно удалённые объекты S3 (data/uploadDeletions.js): перенос в бакет — и сервер,
+-- и скрипт в отдельном процессе — сверяется с ними, чтобы не вернуть удалённый файл.
+CREATE TABLE IF NOT EXISTS upload_deletions (
+  filename TEXT PRIMARY KEY,
+  deletedAt INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_upload_deletions_at ON upload_deletions(deletedAt);
+
+-- Очередь фоновой работы (server/data/backgroundJobs.js): её разбирает фоновый
+-- процесс (server/worker.js). В базе, а не в памяти — задача переживает перезапуск.
+CREATE TABLE IF NOT EXISTS background_jobs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  runAt INTEGER NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  lockedAt INTEGER,
+  createdAt INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_background_jobs_run ON background_jobs(lockedAt, runAt);
 `);
 
 if (!db.prepare("SELECT count(*) c FROM upload_access").get().c) {
@@ -1317,5 +1340,46 @@ CREATE TABLE IF NOT EXISTS community_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_community_requests_community ON community_requests(communityId);
 `);
+
+// Разовые переносы данных. Отметка пишется в той же транзакции, что и сам перенос, —
+// второй запуск (и фоновый процесс, который открывает базу следом) его пропускает.
+db.exec(`
+CREATE TABLE IF NOT EXISTS data_migrations (
+  name TEXT PRIMARY KEY,
+  doneAt TEXT NOT NULL
+);
+`);
+
+function runOnce(name, migrate) {
+  if (db.prepare("SELECT 1 FROM data_migrations WHERE name = ?").get(name)) return;
+  db.transaction(() => {
+    migrate();
+    db.prepare("INSERT INTO data_migrations (name, doneAt) VALUES (?, ?)").run(name, new Date().toISOString());
+  })();
+}
+
+// Поздравления с днём рождения (lib/birthdaySweep.js) раньше несли все ~8 тыс.
+// подсказок подарков — ~640 КБ в каждом сообщении, а карточка показывает четыре.
+runOnce("birthday-suggestions-trim", () => {
+  const update = db.prepare("UPDATE messages SET attachments = ? WHERE id = ?");
+  for (const row of db.prepare(`SELECT id, attachments FROM messages WHERE attachments LIKE '%"suggestedGifts"%'`).all()) {
+    let attachments;
+    try {
+      attachments = JSON.parse(row.attachments);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(attachments)) continue;
+    let changed = false;
+    for (const a of attachments) {
+      const list = a?.kind === "birthday" ? a.meta?.suggestedGifts : null;
+      if (Array.isArray(list) && list.length > 8) {
+        a.meta.suggestedGifts = list.slice(0, 8);
+        changed = true;
+      }
+    }
+    if (changed) update.run(JSON.stringify(attachments), row.id);
+  }
+});
 
 module.exports = db;

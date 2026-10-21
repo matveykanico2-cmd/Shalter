@@ -105,13 +105,17 @@ export async function CommunityView(root, id) {
         el(
           "p",
           { class: "settings-toggle-hint" },
-          `Сообщество · ${community.chats.length} ${plural(community.chats.length, "чат", "чата", "чатов")} · ${community.membersCount} ${plural(community.membersCount, "участник", "участника", "участников")}`
+          community.membersCount == null
+            ? "Закрытое сообщество — вступить можно по приглашению в один из его чатов"
+            : `Сообщество · ${community.chats.length} ${plural(community.chats.length, "чат", "чата", "чатов")} · ${community.membersCount} ${plural(community.membersCount, "участник", "участника", "участников")}`
         ),
         community.description ? el("p", { class: "join-invite-description" }, community.description) : null,
         el("div", { class: "community-owner-tools" }, [
           community.isMember
             ? el("button", { class: "btn-accent", onclick: () => openCommunityPanel(community.id) }, "Открыть в списке чатов")
-            : el("button", { class: "btn-accent", disabled: busy === "community", onclick: joinCommunity }, "Вступить в сообщество"),
+            : community.membersCount == null
+              ? null
+              : el("button", { class: "btn-accent", disabled: busy === "community", onclick: joinCommunity }, "Вступить в сообщество"),
           el("button", {
             class: "profile-action-btn",
             onclick: () => navigator.clipboard?.writeText(link).then(() => showToast("Ссылка на сообщество скопирована"), () => {}),

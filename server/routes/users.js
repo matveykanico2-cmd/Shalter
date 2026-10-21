@@ -11,7 +11,7 @@ const { listChats, listChatsForUser, getChat, findDmBetween } = require("../data
 const { isStaff } = require("../lib/chatPermissions");
 const { updateSettings } = require("../data/settings");
 const { listMediaMessages, listMessages } = require("../data/messages");
-const { PHONE_RE, normalizePhone, isValidBirthday } = require("../lib/validators");
+const { PHONE_RE, normalizePhone, normalizeBirthday } = require("../lib/validators");
 const { checkUsername, normalizeUsername, isUsernameConflict } = require("../lib/username");
 const { notifyProfileChanged } = require("../lib/notifyProfileChanged");
 const { isOwnUploadUrl, usesForeignUpload } = require("../lib/uploadAccess");
@@ -320,8 +320,7 @@ router.patch(
     if ("birthday" in patch) {
       const value = String(patch.birthday ?? "").trim();
       if (!value) patch.birthday = null;
-      else if (!isValidBirthday(value)) return res.status(400).json({ error: "Дата рождения указана неверно" });
-      else patch.birthday = value;
+      else if (!(patch.birthday = normalizeBirthday(value))) return res.status(400).json({ error: "Дата рождения указана неверно" });
     }
     if ("phone" in patch) {
       const normalized = normalizePhone(patch.phone);
@@ -377,8 +376,10 @@ router.post(
     if (req.params.id === req.uid) return res.status(400).json({ error: "Нельзя заблокировать самого себя" });
     // Разблокировать можно и удалённого — чтобы его id не застрял в списке.
     if (blocked && !(await getUser(req.params.id))) return res.status(404).json({ error: "Пользователь не найден" });
-    const user = await setBlocked(req.uid, req.params.id, blocked);
-    res.json({ user: user ? await publicUserFor(user, req.uid) : null });
+    await setBlocked(req.uid, req.params.id, blocked);
+    // В ответе — тот, кого (раз)блокировали, глазами блокирующего; удалённый — null.
+    const target = await getUser(req.params.id);
+    res.json({ user: target ? await publicUserFor(target, req.uid) : null });
   })
 );
 

@@ -20,7 +20,7 @@ const sharp = require("sharp");
 
 const ROOT = path.join(__dirname, "..");
 const OUT_DIR = path.join(ROOT, "public", "gift-emoji");
-const GIFTS_SRC = path.join(ROOT, "server", "data", "gifts.js");
+const GIFTS_SRC = path.join(ROOT, "server", "data", "catalog", "gifts.json");
 const LOTTIE_SRC = path.join(ROOT, "public", "js", "lib", "lottie.js");
 
 const argv = process.argv.slice(2);
@@ -51,13 +51,10 @@ function browser() {
 
 const codepoints = (emoji) => [...String(emoji ?? "").trim()].map((ch) => ch.codePointAt(0).toString(16)).join("");
 
-// Каталог подарков и список анимаций разбираем из исходников: gift_catalog живёт
-// в SQLite, а править нужно файлы репозитория.
+// Каталог подарков — из server/data/catalog/gifts.json, список анимаций разбираем из
+// исходников: gift_catalog живёт в SQLite, а править нужно файлы репозитория.
 function catalogEmojis() {
-  const gifts = [...fs.readFileSync(GIFTS_SRC, "utf8").matchAll(/id:\s*"([^"]+)"[^}]*?emoji:\s*"([^"]+)"/g)].map((m) => ({
-    id: m[1],
-    emoji: m[2],
-  }));
+  const gifts = JSON.parse(fs.readFileSync(GIFTS_SRC, "utf8")).map(({ id, emoji }) => ({ id, emoji }));
   const lottie = fs.readFileSync(LOTTIE_SRC, "utf8");
   const [, byId] = lottie.split("const BY_ID");
   const [ids, rest] = byId.split("const BY_EMOJI");

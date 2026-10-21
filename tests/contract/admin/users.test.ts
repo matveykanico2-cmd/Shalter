@@ -90,7 +90,7 @@ describe("POST /api/admin/users/:id/ban", () => {
     // Уведомления пользователь видит после разбана — в личке с системным ботом.
     const texts = (await systemMessages(target)).map((msg) => expectShape(message, msg)).map((msg) => [msg.senderId, msg.text]);
     expect(texts).toEqual([
-      [SYSTEM_BOT_ID, "🚫 Ваш аккаунт заблокирован администрацией Shalter.\nПричина: спам в группах"],
+      [SYSTEM_BOT_ID, "🚫 Ваш аккаунт заблокирован администрацией Shalter навсегда.\nПричина: спам в группах"],
       [SYSTEM_BOT_ID, "✅ Блокировка вашего аккаунта снята. Приносим извинения за неудобства."],
     ]);
   });

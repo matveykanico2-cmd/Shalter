@@ -11,6 +11,8 @@ const gameShape = {
   description: z.string(),
   emoji: z.string(),
   isPublic: z.boolean(),
+  /** false — черновик без кода: в каталог и чужой поиск не попадает. */
+  hasCode: z.boolean(),
   plays: z.number(),
   createdAt: isoDate,
   updatedAt: isoDate,

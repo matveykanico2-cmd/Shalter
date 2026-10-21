@@ -96,7 +96,8 @@ test("своя игра: создание в настройках, токен Ga
   // Список «Ваши игры» обновляется сразу, без перезагрузки.
   await expect(page.getByText("Ваши игры — 1", { exact: true })).toBeVisible();
   await expect(page.getByText(title, { exact: true })).toBeVisible();
-  await expect(page.getByText("в каталоге", { exact: true })).toBeVisible();
+  // Без кода игра — черновик: в каталог она попадёт после загрузки кода через Game API.
+  await expect(page.getByText("черновик — загрузите код через Game API", { exact: true })).toBeVisible();
 
   // Токен Game API: подтверждение, показ токена один раз.
   await page.getByRole("button", { name: "API-токен", exact: true }).click();
@@ -110,8 +111,11 @@ test("своя игра: создание в настройках, токен Ga
   const upd = await gameApi(baseUrl, token).post("updateGame", { code });
   expect(upd.status).toBe(200);
 
-  // Играем: игра сообщает результат, приложение ставит рекорд.
+  // Код загружен — игра в каталоге.
   await page.reload();
+  await expect(page.getByText("в каталоге", { exact: true })).toBeVisible();
+
+  // Играем: игра сообщает результат, приложение ставит рекорд.
   await page.getByRole("button", { name: "Играть", exact: true }).click();
   const game = page.getByTitle(title, { exact: true }).contentFrame();
   await game.getByRole("button", { name: "Финиш" }).click();

@@ -13,7 +13,7 @@ import { hasAnimatedEmoji, renderAnimatedEmoji, showReactionBurst } from "../lib
 import { openDropdownMenu } from "./dropdownMenu.js";
 import { openReactionsBar } from "./reactionsMenu.js";
 import { formatText, previewText } from "../lib/formatText.js";
-import { messagePreview, diceResult } from "../lib/messagePreview.js";
+import { messagePreview, diceResult, callLogInfo } from "../lib/messagePreview.js";
 import { api } from "../api.js";
 import { openReportDialog } from "./reportDialog.js";
 import { openProfileDialog, copyText } from "./profileDialog.js";
@@ -1804,24 +1804,15 @@ const CALL_LOG_RE = /^📞 (Звонок|Видеозвонок|Пропущен
 const CALL_ARROW = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
 
 function CallBubble(message, mine, onCallBack) {
-  const text = message.text ?? "";
-  const video = /видео/i.test(text);
-  const durMatch = text.match(/· (\d+):(\d{2})/);
-  const answered = !!durMatch;
-  const declined = /отклон/i.test(text);
-  const what = video ? "видеозвонок" : "звонок";
-  const title = mine
-    ? answered ? `Исходящий ${what}` : `Отменённый ${what}`
-    : answered ? `Входящий ${what}` : declined ? `Отклонённый ${what}` : `Пропущенный ${what}`;
+  const { video, answered, durationSec, title } = callLogInfo(message, mine);
   let duration = "";
-  if (durMatch) {
-    const total = Number(durMatch[1]) * 60 + Number(durMatch[2]);
-    const m = Math.floor(total / 60);
-    const sec = total % 60;
+  if (answered) {
+    const m = Math.floor(durationSec / 60);
+    const sec = durationSec % 60;
     duration = m ? `${m} мин${sec ? ` ${sec} с` : ""}` : `${sec} с`;
   }
   return el("div", { class: `bubble-call${answered ? "" : " missed"}`, role: "button", title: "Перезвонить", onclick: () => onCallBack?.(video ? "video" : "audio") }, [
-    el("span", { class: "bubble-call-title" }, title[0].toUpperCase() + title.slice(1)),
+    el("span", { class: "bubble-call-title" }, title),
     el("span", { class: "bubble-call-subtitle" }, [
       el("span", { class: `bubble-call-arrow ${answered ? "green" : "red"} ${mine ? "out" : "in"}`, html: CALL_ARROW }),
       el("span", { class: "bubble-call-status" }, `${timeLabel(message.createdAt)}${duration ? `, ${duration}` : ""}`),

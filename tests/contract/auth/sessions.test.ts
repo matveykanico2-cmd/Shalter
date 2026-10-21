@@ -92,8 +92,8 @@ describe("DELETE /api/sessions/:id", () => {
     expectError(await phone.get("/api/chats"), 401, "session_revoked");
     expectError(await phone.post("/api/auth/verify-password", { password: user.password }), 401, "session_revoked");
     expect(expectOk(await phone.get("/api/auth/session"), sessionBody)).toEqual({ user: null, accounts: [] });
-    // Сокет проверяется раз в WS_SESSION_CHECK_MS (в тестах — 1 с).
-    const closed = await withTimeout(phoneWs.closed, 4000, "закрытие сокета");
+    // Сокет закрывается сразу при отзыве сессии.
+    const closed = await withTimeout(phoneWs.closed, 1000, "закрытие сокета");
     expect(closed).toEqual({ code: 4001, reason: "session_revoked" });
     expect(await rejectedWsStatus(phone)).toBe(401);
 

@@ -50,8 +50,11 @@ export const community = z.strictObject({
   pinned: z.boolean(),
   collapsed: z.boolean(),
   chats: z.array(communityChat),
-  membersCount: z.number(),
-  adminsCount: z.number(),
+  /** Нет видимого публичного чата: вступить можно только по приглашению в чат. */
+  isClosed: z.boolean(),
+  /** null — посторонний смотрит закрытое сообщество. */
+  membersCount: z.number().nullable(),
+  adminsCount: z.number().nullable(),
   bannedCount: z.number(),
   requestsCount: z.number(),
 });

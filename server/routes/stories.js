@@ -4,7 +4,6 @@ const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const {
   TTL_MS,
-  updateStoryItem,
   listStoriesForUsers,
   listArchivedStoriesFor,
   addStory,
@@ -31,6 +30,9 @@ const { publicUser } = require("../data/sanitize");
 const { isSafeUrl } = require("../lib/sanitizeAttachments");
 const { usesForeignUpload } = require("../lib/uploadAccess");
 const { broadcastToUsers } = require("../ws");
+const { audienceOf } = require("../lib/storyAudience");
+const { storyNeedsMedia } = require("../lib/mediaJobs");
+const { queueJob } = require("../lib/backgroundJobs");
 const { sendPushToUser, userPushAvatar, MESSAGE_PUSH } = require("../push");
 
 const MAX_ITEMS = 10;
@@ -68,48 +70,6 @@ function sanitizeStoryItems(body) {
     .slice(0, MAX_ITEMS)
     .filter((it) => it && ["image", "video"].includes(it.kind) && it.url && isSafeUrl(it.url))
     .map((it) => ({ kind: it.kind, url: it.url }));
-}
-
-// Кому видна история: те, кого автор сам добавил в контакты, и те, с кем у
-// автора есть личная переписка (раньше только контакты — и историю не видели
-// собеседники). Контакт считается со стороны автора: тот, кто просто добавил
-// автора к себе, без его согласия истории не видит. Заблокированным автором —
-// не видна. Должно совпадать с visibleAuthorIds.
-async function audienceOf(authorId) {
-  const author = await getUser(authorId);
-  const blocked = new Set(author?.blockedUserIds ?? []);
-  const contacts = (await listContactsFor(authorId)).map((c) => c.userId);
-  return [...new Set([authorId, ...contacts, ...dmPartnerIds(authorId)])].filter((id) => !blocked.has(id));
-}
-
-// Видео истории — как в сообщениях: перекодируем в H.264/AAC (1080p, звук 160 кбит/с,
-// быстрый старт), чтобы оно открывалось везде (видео с iPhone в HEVC/MOV не играло
-// на Android и в браузерах) и не грузилось часами в 4K. Пока идёт обработка — оригинал.
-async function processStoryVideos(story) {
-  const { generateVideoPreview } = require("../lib/mediaPreview");
-  const { fetchUploadToTemp, storeGeneratedFile } = require("../lib/uploadTransfer");
-  const fs = require("fs");
-  for (const [index, item] of story.items.entries()) {
-    if (item.kind !== "video" || !String(item.url).startsWith("/uploads/")) continue;
-    let source = null;
-    try {
-      source = await fetchUploadToTemp(item.url.slice("/uploads/".length));
-      const out = await generateVideoPreview(source, { height: 1080, crf: 21, audioBitrate: "160k", maxrate: "6000k" });
-      try {
-        const previewUrl = await storeGeneratedFile(out.previewPath);
-        const posterUrl = await storeGeneratedFile(out.posterPath);
-        updateStoryItem(story.id, index, { previewUrl, posterUrl, width: out.width, height: out.height, durationSec: out.durationSec });
-        broadcastToUsers(await audienceOf(story.userId), { type: "story:updated", storyId: story.id, userId: story.userId });
-      } finally {
-        fs.promises.unlink(out.previewPath).catch(() => {});
-        fs.promises.unlink(out.posterPath).catch(() => {});
-      }
-    } catch (err) {
-      console.error(`story video processing failed for ${story.id}#${index}:`, err.message);
-    } finally {
-      if (source) fs.promises.unlink(source).catch(() => {});
-    }
-  }
 }
 
 const router = express.Router();
@@ -259,7 +219,7 @@ router.post(
     });
     broadcastToUsers(await audienceOf(req.uid), { type: "story:new", storyId: story.id, userId: req.uid });
     res.json({ story });
-    processStoryVideos(story).catch((err) => console.error("story videos failed:", err));
+    if (storyNeedsMedia(story)) queueJob("story-videos", { storyId: story.id });
 
     (async () => {
       try {
@@ -300,7 +260,7 @@ router.post(
     });
     broadcastToUsers(chat.memberIds, { type: "story:new", storyId: story.id, userId: chat.id });
     res.json({ story });
-    processStoryVideos(story).catch((err) => console.error("story videos failed:", err));
+    if (storyNeedsMedia(story)) queueJob("story-videos", { storyId: story.id });
   })
 );
 

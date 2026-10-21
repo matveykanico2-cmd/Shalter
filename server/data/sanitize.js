@@ -8,6 +8,7 @@ function publicUser(user) {
   delete rest.passwordSalt;
   delete rest.banReason;
   delete rest.bannedAt;
+  delete rest.bannedUntil;
   delete rest.totpSecret;
   delete rest.totpRecoveryCodes;
   delete rest.cloudPasswordHash;

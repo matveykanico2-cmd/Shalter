@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const db = require("../db");
 const { parseList, mainImage } = require("../lib/avatars");
+const { emitAccessRevoked } = require("../lib/sessionEvents");
 
 const REFERRAL_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
@@ -15,6 +16,15 @@ function jsonList(raw) {
     return [];
   }
 }
+
+// Блокировка на срок снимается сама: после bannedUntil аккаунт снова обычный, без обхода по таймеру.
+function banActive(row) {
+  if (!row.isBanned) return false;
+  return !row.bannedUntil || row.bannedUntil > new Date().toISOString();
+}
+
+// То же условие в SQL (ISO-даты сравниваются как строки).
+const BAN_ACTIVE_SQL = "(COALESCE(isBanned, 0) = 1 AND (bannedUntil IS NULL OR bannedUntil > ?))";
 
 function rowToUser(row) {
   if (!row) return undefined;
@@ -61,7 +71,7 @@ function rowToUser(row) {
     adAttachments: safeParse(row.adAttachments, []),
     birthday: row.birthday ?? undefined,
     giftsReceived: safeParse(row.giftsReceived, []),
-    isBanned: !!row.isBanned,
+    isBanned: banActive(row),
     stars: row.stars ?? 0,
     messagePriceStars: row.messagePriceStars ?? 0,
     statusIcon: (() => {
@@ -80,8 +90,9 @@ function rowToUser(row) {
         return null;
       }
     })(),
-    banReason: row.banReason ?? undefined,
-    bannedAt: row.bannedAt ?? undefined,
+    banReason: banActive(row) ? row.banReason ?? undefined : undefined,
+    bannedAt: banActive(row) ? row.bannedAt ?? undefined : undefined,
+    bannedUntil: banActive(row) ? row.bannedUntil ?? undefined : undefined,
     adminSections: safeParse(row.adminSections, []),
     // Колонка хранит список треков (раньше — один объект). Первый — основной: его
     // показывает профиль, остальные — в списке по нажатию (как музыка в профиле Telegram).
@@ -138,10 +149,10 @@ async function searchUsers(query, { limit = 40 } = {}) {
     .prepare(
       `SELECT * FROM users
         WHERE (lower_ru(name) LIKE ? ESCAPE '\\' OR LOWER(username) LIKE ? ESCAPE '\\')
-          AND COALESCE(isBanned, 0) = 0
+          AND NOT ${BAN_ACTIVE_SQL}
         LIMIT ?`
     )
-    .all(like, like, limit * 3)
+    .all(like, like, new Date().toISOString(), limit * 3)
     .map(rowToUser);
 }
 
@@ -367,15 +378,18 @@ function listUsersWithBirthdayToday() {
     .map(rowToUser);
 }
 
-async function setBanned(userId, banned, reason) {
+// until — ISO-срок блокировки, null — навсегда.
+async function setBanned(userId, banned, reason, until = null) {
   if (banned) {
-    db.prepare("UPDATE users SET isBanned = 1, banReason = ?, bannedAt = ? WHERE id = ?").run(
+    db.prepare("UPDATE users SET isBanned = 1, banReason = ?, bannedAt = ?, bannedUntil = ? WHERE id = ?").run(
       (reason ?? "").trim() || null,
       new Date().toISOString(),
+      until,
       userId
     );
+    emitAccessRevoked(userId);
   } else {
-    db.prepare("UPDATE users SET isBanned = 0, banReason = NULL, bannedAt = NULL WHERE id = ?").run(userId);
+    db.prepare("UPDATE users SET isBanned = 0, banReason = NULL, bannedAt = NULL, bannedUntil = NULL WHERE id = ?").run(userId);
   }
   return getUser(userId);
 }
@@ -416,7 +430,7 @@ async function consumeRecoveryCode(userId, hash) {
 }
 
 async function listBannedUsers() {
-  return db.prepare("SELECT * FROM users WHERE isBanned = 1 ORDER BY bannedAt DESC").all().map(rowToUser);
+  return db.prepare(`SELECT * FROM users WHERE ${BAN_ACTIVE_SQL} ORDER BY bannedAt DESC`).all(new Date().toISOString()).map(rowToUser);
 }
 
 async function setVerified(userId, verified) {

@@ -287,8 +287,8 @@ describe("PATCH /api/calls/:id", () => {
     await patchCall(a, call.id, { status: "missed" });
     expect((await aWs.waitFor("message:new", (e) => e.message?.type === "call")).message.text).toBe("📞 Пропущенный звонок");
 
-    // ПОВЕДЕНИЕ-ВОПРОС: звонящий сбросил до ответа (status "ended") — в ленте «Пропущенный звонок»;
-    // completed с durationSec 0 — тоже «пропущенный».
+    // Звонящий сбросил до ответа (status "ended") или completed с durationSec 0 — запись
+    // «Пропущенный звонок»; звонящему клиент показывает её как «Отменённый» (callLogInfo).
     ({ a, aWs, call } = await dmCall());
     await patchCall(a, call.id, { status: "ended" });
     expect((await aWs.waitFor("message:new", (e) => e.message?.type === "call")).message.text).toBe("📞 Пропущенный звонок");

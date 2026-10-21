@@ -82,7 +82,8 @@ describe("просмотры", () => {
     expectError(await v1.api.get(`/api/stories/${story.id}/viewers`), 403, NO_RIGHTS);
     expectError(await outsider.api.get(`/api/stories/${story.id}/viewers`), 403, NO_RIGHTS);
     expectError(await author.api.get("/api/stories/st_1_00000000/viewers"), 404, NOT_FOUND);
-    // ПОВЕДЕНИЕ-ВОПРОС: модератору список посмотревших тоже закрыт (403), хотя удалять историю он может.
+    // Модератору список посмотревших закрыт (403), хотя удалять историю он может: для модерации
+    // он не нужен, а это чужие данные (решение продукта, 21.10.2026).
     expectError(await (await getAdmin()).api.get(`/api/stories/${story.id}/viewers`), 403, NO_RIGHTS);
   });
 });

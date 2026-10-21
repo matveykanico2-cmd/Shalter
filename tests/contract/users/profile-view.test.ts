@@ -174,15 +174,13 @@ describe("блокировка", () => {
     expect((await profile(viewer, owner)).body.user).toMatchObject({ online: true, avatarImage: expect.any(String) });
   });
 
-  test("POST /:id/block: ответ — свой publicUser; список /blocked и blockedUserIds обновляются", async () => {
+  test("POST /:id/block: ответ — publicUser того, кого блокируют; список /blocked и blockedUserIds обновляются", async () => {
     const { baseUrl } = server();
     const [me, target, other] = await registerUsers(baseUrl, 3);
     expect(expectOk(await me.api.get("/api/users/blocked"), blockedListBody)).toEqual({ users: [] });
 
     const res = expectOk(await me.api.post(`/api/users/${target.id}/block`, { blocked: true }), blockBody);
-    // ПОВЕДЕНИЕ-ВОПРОС: в ответе на блокировку — профиль самого блокирующего (data/users.js setBlocked
-    // возвращает свою строку), а не того, кого блокируют.
-    expect(res.user).toMatchObject({ id: me.id });
+    expect(res.user).toMatchObject({ id: target.id });
     expect(res.user).not.toHaveProperty("blockedUserIds");
 
     await block(me, other);

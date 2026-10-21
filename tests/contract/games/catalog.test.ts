@@ -148,6 +148,7 @@ describe("создание", () => {
       emoji: "🎮",
       code: "<p>hi</p>",
       isPublic: false,
+      hasCode: true,
       plays: 0,
       createdAt: expect.any(String),
       updatedAt: res.createdAt,
@@ -171,14 +172,24 @@ describe("создание", () => {
     expect(blank).toMatchObject({ emoji: "🎮", isPublic: false });
   });
 
-  test("без кода игра создаётся с пустым code", async () => {
+  test("без кода — черновик: в каталог и чужой поиск не попадает, после загрузки кода — попадает", async () => {
     const { baseUrl } = server();
-    const a = await registerUser(baseUrl);
-    // ПОВЕДЕНИЕ-ВОПРОС: POST /api/games не требует кода — так задумано: приложение создаёт игру
-    // с code: "" (только метаданные), а код заливается через Game API updateGame. Но такая
-    // игра, опубликованная (isPublic), попадает в каталог пустой.
-    const res = expectOk(await a.api.post("/api/games", { title: "Пустая" }), gameBody).game;
-    expect(res.code).toBe("");
+    const [a, b] = await registerUsers(baseUrl, 2);
+    const tag = uniq("Черновик");
+    // Как у Telegram: игра создаётся одними метаданными, код заливается через Game API.
+    const res = expectOk(await a.api.post("/api/games", { title: tag, isPublic: true }), gameBody).game;
+    expect(res).toMatchObject({ code: "", hasCode: false, isPublic: true });
+    const ids = async (user: typeof a, path: string) => expectOk(await user.api.get(path), gamesBody).games.map((g) => g.id);
+    expect(await ids(b, "/api/games")).not.toContain(res.id);
+    expect(await ids(b, `/api/games?q=${encodeURIComponent(tag)}`)).not.toContain(res.id);
+    // Автор свой черновик находит.
+    expect(await ids(a, `/api/games?q=${encodeURIComponent(tag)}`)).toContain(res.id);
+    expect(expectOk(await a.api.get("/api/games/mine"), gamesBody).games[0]).toMatchObject({ id: res.id, hasCode: false });
+
+    const token = await issueToken(a, res.id);
+    expect((await gameApi(baseUrl, token).post("updateGame", { code: "<h1>игра</h1>" })).status).toBe(200);
+    expect(await ids(b, "/api/games")).toContain(res.id);
+    expect(await ids(b, `/api/games?q=${encodeURIComponent(tag)}`)).toContain(res.id);
   });
 
   test("ошибки: нет названия, код больше 512 КБ", async () => {

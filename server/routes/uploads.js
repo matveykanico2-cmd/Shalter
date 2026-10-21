@@ -8,6 +8,7 @@ const { UPLOADABLE_KINDS, limitFor, tooLargeError, UPLOAD_LIMITS, DEFAULT_LIMIT 
 const storage = require("../lib/storage");
 const { MAGIC: COMPRESS_MAGIC, compressStream } = require("../lib/fileCompression");
 const { recordUploader } = require("../lib/uploadAccess");
+const { contentTypeFor } = require("../lib/serveUpload");
 
 const router = express.Router();
 
@@ -41,13 +42,16 @@ router.post(
 
     let written = 0;
     let aborted = false;
-    const { stream: out, done, abort } = storage.createWriteTarget(filename);
-    const cipher = createEncryptStream(path.join(process.cwd(), "data"), out);
+    const { stream: out, done, abort, plain } = storage.createWriteTarget(filename, { contentType: contentTypeFor(filename) });
+    // В S3 с шифрованием на стороне хранилища файл пишется как есть: его отдаёт бакет.
+    const cipher = plain ? null : createEncryptStream(path.join(process.cwd(), "data"), out);
+    const sink = cipher ?? out;
     const digest = crypto.createHash("sha256");
 
     // Уже сжатые форматы (видео, картинки, музыка, архивы) brotli не уменьшает, а
     // сжатый файл отдаётся без Range — видео в Safari/iOS без него не играет.
-    const compressing = kind === "file" && !ALREADY_COMPRESSED_RE.test(safeExtension(name));
+    // Открытый файл в S3 не сжимаем: бакет отдаёт его байты как есть.
+    const compressing = !plain && kind === "file" && !ALREADY_COMPRESSED_RE.test(safeExtension(name));
     const compressor = compressing ? compressStream(declared) : null;
 
     const discard = () => storage.deleteObject(filename).catch(() => {});
@@ -71,15 +75,17 @@ router.post(
           reject(Object.assign(new Error("Загрузка прервана"), { status: 400 }));
         });
         req.on("error", reject);
-        cipher.on("error", reject);
         done().then(resolve, reject);
-        cipher.pipe(out);
+        if (cipher) {
+          cipher.on("error", reject);
+          cipher.pipe(out);
+        }
         if (compressor) {
-          cipher.write(COMPRESS_MAGIC);
+          sink.write(COMPRESS_MAGIC);
           compressor.on("error", reject);
-          req.pipe(compressor).pipe(cipher);
+          req.pipe(compressor).pipe(sink);
         } else {
-          req.pipe(cipher);
+          req.pipe(sink);
         }
       });
     } catch (err) {

@@ -11,7 +11,7 @@ const { deleteMessagesForChat, markChatRead, listMessagesPage } = require("../da
 const { getSettings, updateSettings, mutedStateFor, setChatCleared, deleteChatForUser, setChatWallpaper, setDraft, clearUnreadMark } = require("../data/settings");
 const { allowsUser, recordsReadTime, publicUsersFor } = require("../lib/privacyRules");
 const { messageCost } = require("../lib/messagePrice");
-const { attachSummaries } = require("../data/chat-summary");
+const { attachSummaries, withoutHidden } = require("../data/chat-summary");
 const { listUsers, listUsersByIds, getUser } = require("../data/users");
 const { hasAdminSection } = require("../lib/adminAccess");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
@@ -34,8 +34,8 @@ router.use(requireUserId);
 router.get(
   "/",
   asyncRoute(async (req, res) => {
-    const chats = await listChatsForUser(req.uid, { deviceId: req.cookies?.device_id ?? null });
-    const withSummary = await attachSummaries(chats, req.uid);
+    const [chats, settings] = await Promise.all([listChatsForUser(req.uid, { deviceId: req.cookies?.device_id ?? null }), getSettings(req.uid)]);
+    const withSummary = withoutHidden(await attachSummaries(chats, req.uid), settings.hiddenChats);
     res.json({ chats: withSummary });
   })
 );

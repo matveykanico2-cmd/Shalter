@@ -49,10 +49,7 @@ export const holidaySettings = z.strictObject({
   custom: z.array(z.strictObject({ id: z.string(), title: z.string(), date: z.string().regex(/^\d{2}-\d{2}$/) })),
 });
 
-/**
- * Весь объект настроек. Типы — как их пишет клиент; сервер типы верхнего уровня
- * не проверяет (см. ПОВЕДЕНИЕ-ВОПРОС в contract/settings).
- */
+/** Весь объект настроек. Клиентские ключи сервер проверяет по белому списку (routes/settings.js). */
 export const settings = z.strictObject({
   theme: z.string(),
   accent: z.string(),

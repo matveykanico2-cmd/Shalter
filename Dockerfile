@@ -30,7 +30,9 @@ COPY package*.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund --maxsockets 3 \
   && node node_modules/esbuild/install.js
 COPY . .
-RUN npm run build
+# Распакованные картинки из архивов нужны только nginx (DEPLOY.md) — здесь их
+# отдаёт сам Node из архивов, и в образ они не едут.
+RUN UNPACK_ASSETS=0 npm run build
 
 # Второй этап — то, что уезжает на сервер: только рабочие зависимости плюс
 # уже собранный клиент из первого этапа. Основа снова Alpine, она вдвое легче

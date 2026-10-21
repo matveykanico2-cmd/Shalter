@@ -44,6 +44,26 @@ export function diceResult(meta) {
   }
 }
 
+// Запись о звонке пишет сервер одним текстом на всех («📞 Пропущенный звонок»), а заголовок
+// у каждой стороны свой, как в Telegram: звонящему — «Отменённый», получателю — «Пропущенный».
+export function callLogInfo(m, mine) {
+  const text = m?.text ?? "";
+  const video = /видео/i.test(text);
+  const durMatch = text.match(/· (\d+):(\d{2})/);
+  const answered = !!durMatch;
+  const declined = /отклон/i.test(text);
+  const what = video ? "видеозвонок" : "звонок";
+  const title = mine
+    ? answered ? `Исходящий ${what}` : `Отменённый ${what}`
+    : answered ? `Входящий ${what}` : declined ? `Отклонённый ${what}` : `Пропущенный ${what}`;
+  return {
+    video,
+    answered,
+    durationSec: durMatch ? Number(durMatch[1]) * 60 + Number(durMatch[2]) : 0,
+    title: title[0].toUpperCase() + title.slice(1),
+  };
+}
+
 export function messagePreview(m) {
   if (!m) return "";
   if (m.type === "system") return ceText(m.text);

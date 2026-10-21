@@ -55,7 +55,7 @@ export function openDownloadViewer(d, all = []) {
   else if (d.kind === "text") {
     const pre = el("pre", { class: "dl-viewer-text" }, "Загрузка…");
     body.append(pre);
-    fetch(d.url, { credentials: "include" })
+    fetch(d.url, { credentials: "same-origin" })
       .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((t) => (pre.textContent = t.length > 500_000 ? t.slice(0, 500_000) + "\n…" : t))
       .catch(() => (pre.textContent = "Не удалось открыть файл"));

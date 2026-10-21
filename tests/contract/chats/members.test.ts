@@ -434,14 +434,19 @@ describe("POST /:id/clear и /:id/delete-for-me", () => {
     await sendText(a, dm.id, "раз");
     expectOk(await b.api.post(`/api/chats/${dm.id}/delete-for-me`), okBody);
 
-    // ПОВЕДЕНИЕ-ВОПРОС: чат остаётся в GET /api/chats (скрывает его клиент по settings.hiddenChats).
-    const row = expectOk(await b.api.get("/api/chats"), chatList).chats.find((c) => c.id === dm.id)!;
-    expect(row).toMatchObject({ lastMessage: null, unreadCount: 0 });
+    // Чата нет ни в списке, ни в bootstrap.
+    expect(expectOk(await b.api.get("/api/chats"), chatList).chats.map((c) => c.id)).not.toContain(dm.id);
     const boot = await b.api.get("/api/bootstrap");
+    expect(boot.body.chats.map((c: { id: string }) => c.id)).not.toContain(dm.id);
     expect(Object.keys(boot.body.settings.hiddenChats)).toEqual([dm.id]);
     expect(Object.keys(boot.body.settings.chatClears)).toEqual([dm.id]);
     // У собеседника всё на месте.
     expect(expectOk(await a.api.get("/api/chats"), chatList).chats[0].lastMessage?.text).toBe("раз");
+
+    // Новое сообщение возвращает чат в список — только с ним, старая история скрыта.
+    await sendText(a, dm.id, "два");
+    const row = expectOk(await b.api.get("/api/chats"), chatList).chats.find((c) => c.id === dm.id)!;
+    expect(row.lastMessage?.text).toBe("два");
   });
 });
 

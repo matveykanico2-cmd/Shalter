@@ -1,6 +1,7 @@
 const express = require("express");
 const { publicUsersFor } = require("../lib/privacyRules");
 const { getSettings } = require("../data/settings");
+const { attachSummaries, withoutHidden } = require("../data/chat-summary");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { listChatsForUser, searchPublicChannels } = require("../data/chats");
@@ -21,12 +22,20 @@ router.get(
     const handle = q.replace(/^@/, "");
     if (!q) return res.json({ chats: [], channels: [], users: [], bots: [], games: [], messages: [] });
 
-    const [chats, users, publicChannels] = await Promise.all([
+    const [allChats, users, publicChannels, settings] = await Promise.all([
       // Секретные чаты в общий поиск не попадают — как в Telegram.
       listChatsForUser(req.uid).then((list) => list.filter((c) => !c.secret)),
       searchUsers(raw, { limit: LIMIT }),
       searchPublicChannels(raw),
+      getSettings(req.uid),
     ]);
+    // «Удалённые у себя» чаты ищутся так же, как показываются в списке: только после
+    // нового сообщения. Собеседник такой лички находится среди людей.
+    const hiddenChats = settings.hiddenChats ?? {};
+    const hiddenCandidates = allChats.filter((c) => hiddenChats[c.id]);
+    const stillHidden = new Set(hiddenCandidates.map((c) => c.id));
+    for (const c of withoutHidden(await attachSummaries(hiddenCandidates, req.uid), hiddenChats)) stillHidden.delete(c.id);
+    const chats = allChats.filter((c) => !stillHidden.has(c.id));
 
     const peerOf = (c) => ((c.type === "dm" || c.type === "bot") ? c.memberIds.find((id) => id !== req.uid) : null);
     const peers = new Map(listUserNamesByIds(chats.map(peerOf).filter(Boolean)).map((u) => [u.id, u]));
@@ -79,7 +88,7 @@ router.get(
       )
       .sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name, "ru"));
 
-    const clears = (await getSettings(req.uid)).chatClears ?? {};
+    const clears = settings.chatClears ?? {};
     const matchedMessages = searchInChats(
       chats.map((c) => c.id),
       q,

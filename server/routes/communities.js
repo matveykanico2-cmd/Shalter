@@ -99,10 +99,14 @@ async function view(community, uid) {
   const rights = communities.rightsOf(community, uid);
   const chats = (await visibleChats(community, uid, rights)).map((c) => chatCard(community, c, uid));
   const memberIds = communities.listMemberIds(community.id);
+  // Закрытое сообщество (без видимого публичного чата) постороннему показывает только
+  // название и аватар: описание и состав — для участников и бывших участников.
+  const isClosed = !chats.some((c) => c.isPublic);
+  const hidden = isClosed && !role && !communities.hasMemberRow(community.id, uid);
   return {
     id: community.id,
     title: community.title,
-    description: community.description ?? null,
+    description: hidden ? null : community.description ?? null,
     avatarColor: community.avatarColor ?? null,
     avatarImage: community.avatarImage ?? null,
     addMode: community.addMode,
@@ -114,8 +118,9 @@ async function view(community, uid) {
     addPolicy: addPolicy(community, uid),
     ...communities.prefsOf(community.id, uid),
     chats,
-    membersCount: memberIds.length,
-    adminsCount: communities.listAdmins(community.id).length + 1,
+    isClosed,
+    membersCount: hidden ? null : memberIds.length,
+    adminsCount: hidden ? null : communities.listAdmins(community.id).length + 1,
     bannedCount: rights.ban ? communities.listBans(community.id).length : 0,
     requestsCount: rights.editChats ? communities.countRequests(community.id) : 0,
   };

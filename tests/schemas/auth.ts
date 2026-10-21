@@ -43,7 +43,6 @@ export const qrStartBody = z.strictObject({ token: z.string().regex(/^[0-9a-f]{4
 export const qrPollBody = z.union([
   z.strictObject({ status: z.enum(["pending", "expired"]) }),
   z.strictObject({ status: z.literal("confirmed"), user: selfUser }),
-  z.strictObject({ status: z.literal("banned"), error: z.string() }),
 ]);
 
 const b64url = z.string().regex(/^[A-Za-z0-9_-]+$/);
@@ -133,4 +132,10 @@ export const sessionItem = z.strictObject({
 export const sessionsBody = z.strictObject({ sessions: z.array(sessionItem) });
 
 /** requireUserId для забаненного: 403 с причиной. */
-export const bannedBody = z.strictObject({ error: z.literal("banned"), banReason: z.string().nullable() });
+/** 403 заблокированному на любом защищённом маршруте; bannedUntil null — навсегда. */
+export const bannedBody = z.strictObject({
+  error: z.literal("banned"),
+  banReason: z.string().nullable(),
+  bannedAt: isoDate.nullable(),
+  bannedUntil: isoDate.nullable(),
+});

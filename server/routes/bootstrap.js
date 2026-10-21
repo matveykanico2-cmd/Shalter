@@ -2,7 +2,7 @@ const express = require("express");
 const { asyncRoute } = require("../middleware/errors");
 const { requireUserId } = require("../middleware/auth");
 const { listChatsForUser } = require("../data/chats");
-const { attachSummaries } = require("../data/chat-summary");
+const { attachSummaries, withoutHidden } = require("../data/chat-summary");
 const { getSettings } = require("../data/settings");
 const { listFoldersFor } = require("../data/folders");
 const { listContactsFor } = require("../data/contacts");
@@ -19,7 +19,7 @@ router.get(
       listFoldersFor(req.uid),
       listContactsFor(req.uid),
     ]);
-    const withSummary = await attachSummaries(chats, req.uid);
+    const withSummary = withoutHidden(await attachSummaries(chats, req.uid), settings.hiddenChats);
     res.json({
       settings,
       chats: withSummary,

@@ -7,6 +7,10 @@ const { addSignal } = require("./data/signals");
 const { getUser, updateUser, resetStalePresence } = require("./data/users");
 const { isSecretChat, secretDeviceOf, deviceHash } = require("./data/chats");
 const { publicJsonReplacer } = require("./lib/publicJson");
+const { onAccessRevoked } = require("./lib/sessionEvents");
+const bridge = require("./lib/workerBridge");
+
+bridge.on("ws", ({ userIds, payload, chatId }) => sendPayload(userIds, payload, chatId));
 
 const socketsByUser = new Map();
 
@@ -24,8 +28,14 @@ function removeSocket(uid, ws) {
 
 function broadcastToUsers(userIds, message) {
   const payload = JSON.stringify(message, publicJsonReplacer);
-  // Событие секретного чата — только на устройство, к которому он привязан.
   const chatId = message?.chatId ?? message?.chat?.id;
+  // В фоновом процессе сокетов нет — событие разошлёт основной (lib/workerBridge.js).
+  if (bridge.isWorker) return bridge.toMain("ws", { userIds: [...userIds], payload, chatId });
+  sendPayload(userIds, payload, chatId);
+}
+
+function sendPayload(userIds, payload, chatId) {
+  // Событие секретного чата — только на устройство, к которому он привязан.
   const secret = typeof chatId === "string" && isSecretChat(chatId);
   for (const uid of userIds) {
     const set = socketsByUser.get(uid);
@@ -80,8 +90,6 @@ const MAX_WS_PAYLOAD_BYTES = 64 * 1024;
 // событие close не приходит, и человек висел «в сети» часами. Пингуем:
 // кто не ответил за интервал, того отключаем (а с ним снимается и «в сети»).
 const HEARTBEAT_MS = 30_000;
-// Как часто открытые сокеты сверяются с живыми сессиями (контрактные тесты ставят меньше).
-const SESSION_CHECK_MS = Number(process.env.WS_SESSION_CHECK_MS) || 60_000;
 
 function attachWebSocketServer(httpServer) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_WS_PAYLOAD_BYTES });
@@ -153,13 +161,13 @@ function attachWebSocketServer(httpServer) {
     });
   });
 
-  // Сессию могли завершить с другого устройства, сменить пароль или забанить
-  // аккаунт — открытый сокет при этом продолжал бы получать все сообщения.
-  // Маршруты, которые сами отзывают сессию или банят, зовут closeRevokedSockets
-  // сразу; периодическая проверка — страховка для остальных путей.
-  setInterval(async () => {
-    for (const uid of [...socketsByUser.keys()]) await closeRevokedSockets(uid);
-  }, SESSION_CHECK_MS).unref();
+  // Сессию могли завершить с другого устройства, сменить пароль, удалить или забанить
+  // аккаунт — открытый сокет при этом продолжал бы получать все сообщения. Слой
+  // данных (data/sessions.js, setBanned) сообщает о каждом таком изменении, и сокеты
+  // этого пользователя сверяются сразу, а не периодическим перебором всех подключений.
+  onAccessRevoked((uid) => {
+    closeRevokedSockets(uid).catch((err) => console.error("ws session check failed:", err));
+  });
 
   return wss;
 }
@@ -222,4 +230,4 @@ function wsStats() {
   return { onlineUsers: socketsByUser.size, sockets };
 }
 
-module.exports = { attachWebSocketServer, broadcastToUsers, closeRevokedSockets, wsStats };
+module.exports = { attachWebSocketServer, broadcastToUsers, wsStats };

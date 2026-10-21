@@ -68,7 +68,7 @@ export function installNativeDownloads() {
       if (!a?.href) return;
       e.preventDefault();
       const name = a.getAttribute("download") || decodeURIComponent(new URL(a.href, location.href).pathname.split("/").pop() || "file");
-      const pending = fetch(a.href, { credentials: "include" });
+      const pending = fetch(a.href, { credentials: "same-origin" });
       toast("Скачиваем…");
       save(p, pending, name).catch((err) => toast(`Не удалось скачать: ${err.message || err}`));
     },

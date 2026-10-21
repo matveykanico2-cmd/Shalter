@@ -37,9 +37,8 @@ describe("без сессии", () => {
     expectError(await api.request(method, path, method === "GET" ? {} : { json: {} }), 401, "unauthorized");
   });
 
-  test("каталог статусов доступен без сессии", async () => {
-    // ПОВЕДЕНИЕ-ВОПРОС: GET /api/status-catalog смонтирован в index.js без requireUserId — открыт всем.
-    expect(expectOk(await new Api(server().baseUrl).get("/api/status-catalog"), statusCatalogBody).items).toEqual(expect.any(Array));
+  test("каталог статусов без сессии → 401 unauthorized", async () => {
+    expectError(await new Api(server().baseUrl).get("/api/status-catalog"), 401, "unauthorized");
   });
 });
 
