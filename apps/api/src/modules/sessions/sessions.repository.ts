@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { sessions } from "../db/schema.js";
 import type { Session } from "./model/domain.js";
@@ -67,8 +67,9 @@ export class SessionsRepository {
     return changes > 0;
   }
 
-  public revokeOthers(userId: string, exceptDeviceId: string): void {
-    this.db.update(sessions).set({ revokedAt: new Date().toISOString() }).where(and(eq(sessions.userId, userId), ne(sessions.deviceId, exceptDeviceId))).run();
+  // Без своего device_id (null) не завершается ни один: «<> NULL» в SQL ложно, как в server/.
+  public revokeOthers(userId: string, exceptDeviceId: string | null): void {
+    this.db.update(sessions).set({ revokedAt: new Date().toISOString() }).where(and(eq(sessions.userId, userId), sql`${sessions.deviceId} <> ${exceptDeviceId}`)).run();
     emitAccessRevoked(userId);
   }
 

@@ -62,9 +62,43 @@ export class SessionCookiesService {
     return parseIds((req.cookies as Cookies)?.[SESSIONS_COOKIE]);
   }
 
+  // Аккаунт добавляется на устройство и становится текущим. true — он уже был здесь.
+  public addAccount(req: Request, res: Response, userId: string): boolean {
+    const ids = this.cookieUserIds(req);
+    const alreadyLinked = ids.includes(userId);
+    this.write(res, alreadyLinked ? ids : [...ids, userId], userId);
+    return alreadyLinked;
+  }
+
+  // Переключение на другой аккаунт этого устройства (только с живой сессией).
+  public switchAccount(req: Request, res: Response, userId: string): void {
+    const ids = this.sessionUserIds(req);
+    if (!ids.includes(userId)) return;
+    this.write(res, ids, userId);
+  }
+
+  // Аккаунт убирается с устройства; текущим становится следующий. Возвращает оставшиеся.
+  public removeAccount(req: Request, res: Response, userId: string): string[] {
+    const next = this.cookieUserIds(req).filter((id) => id !== userId);
+    const active = (req.cookies as Cookies)?.[ACTIVE_COOKIE];
+    this.write(res, next, active === userId ? (next[0] ?? null) : (active ?? null));
+    return next;
+  }
+
   // Текст 401: аккаунт в cookie есть, но сессию завершили с другого устройства, —
   // «session_revoked», иначе — «unauthorized».
   public noSessionError(req: Request): "session_revoked" | "unauthorized" {
     return this.cookieUserIds(req).length > 0 ? "session_revoked" : "unauthorized";
+  }
+
+  private write(res: Response, ids: string[], active: string | null): void {
+    if (ids.length === 0) {
+      res.clearCookie(SESSIONS_COOKIE, COOKIE_OPTS);
+      res.clearCookie(ACTIVE_COOKIE, COOKIE_OPTS);
+      return;
+    }
+    res.cookie(SESSIONS_COOKIE, JSON.stringify(ids), COOKIE_OPTS);
+    if (active) res.cookie(ACTIVE_COOKIE, active, COOKIE_OPTS);
+    else res.clearCookie(ACTIVE_COOKIE, COOKIE_OPTS);
   }
 }

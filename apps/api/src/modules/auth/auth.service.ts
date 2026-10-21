@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { Request } from "express";
 import { ApiError } from "../../common/errors/api-error.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
-import { AuthUsersRepository } from "./auth-users.repository.js";
+import { UsersRepository } from "../users/users.repository.js";
 import { SessionCookiesService } from "./session-cookies.service.js";
 
 @Injectable()
@@ -10,7 +10,7 @@ export class AuthService {
   public constructor(
     private readonly sessionCookies: SessionCookiesService,
     private readonly sessionsRepository: SessionsRepository,
-    private readonly authUsersRepository: AuthUsersRepository
+    private readonly usersRepository: UsersRepository
   ) {}
 
   // Кто вошёл — как requireUserId в server/middleware/auth.js: 401 без живой сессии,
@@ -31,7 +31,7 @@ export class AuthService {
     }
     // Заблокированный входит в аккаунт, но всё, кроме экрана блокировки, ему закрыто:
     // клиент по этому ответу показывает причину и сколько осталось.
-    const ban = this.authUsersRepository.activeBan(uid);
+    const ban = this.usersRepository.activeBan(uid);
     if (ban) throw new ApiError(403, "banned", { ...ban });
     return uid;
   }

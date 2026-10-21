@@ -20,7 +20,7 @@ src/
   legacy/   the bridge to server/: fallback adapter, shared front pipeline, typed requires of legacy modules
   modules/<name>/
     <name>.module.ts  <name>.controller.ts  <name>.service.ts  <name>.repository.ts
-    guards/  pipes/  decorators/  lib/  (only what the module needs)
+    guards/  pipes/  decorators/  stores/ (in-memory state)  lib/  (only what the module needs)
     model/domain.ts            types: row types (`$inferSelect`) and API entities
     model/schemas/*.schema.ts  Zod request schemas + `z.infer` DTO types
 ```
@@ -28,6 +28,8 @@ src/
 - **Controller** = HTTP only: route, guards, params, `@Body(new ZodValidationPipe(schema)) dto` (bind the pipe on the parameter, never method-level `@UsePipes`), cookies. It calls the service and returns its result. `@HttpCode(200)` on POST (Nest defaults to 201, the API answers 200).
 - **Service** = business logic. It throws `ApiError(status, text)` for API errors, so the body stays `{ error: "…" }` as in `server/`.
 - **Repository** = Drizzle queries only, no logic. Only repositories touch `Db`.
+- **Bridge to `server/`.** Whatever Nest still needs from unmigrated parts (system chat, mail, push, account deletion, WebAuthn) goes through typed wrappers in `src/legacy/legacy.ts`, required lazily on first call (those modules open the DB when loaded). Pure logic and in-memory state that only migrated routes use are ported to TS instead (`common/lib/`, `modules/*/stores/`). The legacy copy stays until `server/` is gone. A bug fix there goes into both.
+- **Users.** `modules/users/lib/user.mapper.ts` and `user.presenter.ts` mirror `rowToUser` (`server/data/users.js`) and `publicUser`/`selfUser` (`server/data/sanitize.js`), and `user.mapper.spec.ts` fails if they drift. A change to either side goes into both.
 - Explicit `public` on methods, `private readonly` constructor injection. A module exports only what other modules need. Cross-cutting guards live in the owning module (`modules/auth/guards/auth.guard.ts`) and that module is `@Global()`.
 - Unit tests are `*.spec.ts` next to the source (`npm run test:api`). Behaviour is pinned by `packages/contract-tests`.
 
