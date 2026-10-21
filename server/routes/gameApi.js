@@ -9,7 +9,7 @@ const { getChat } = require("../data/chats");
 const { getUser, listUsersByIds } = require("../data/users");
 const { usesForeignUpload } = require("../lib/uploadAccess");
 
-// Тело разбирает общий express.json (server/index.js) — свой парсер здесь не сработал бы.
+// Тело разбирает общий express.json (server/app.js) — свой парсер здесь не сработал бы.
 const router = express.Router();
 
 router.use((req, res, next) => {

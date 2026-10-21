@@ -838,7 +838,7 @@ space — SQLite doesn't shrink the file automatically on delete.)
 `scripts/build.js` (esbuild) bundles every `public/js/**` module into one
 minified `public/dist/app.js`, minifies the CSS, and — the part that actually
 saves CPU at runtime, not just bytes — precompresses each output to `.gz` and
-`.br` at build time. `server/index.js` then serves those precomputed files
+`.br` at build time. `server/app.js` then serves those precomputed files
 directly (`express-static-gzip`) instead of running gzip on every single
 request the way the `compression` middleware does for dynamic API responses.
 Behind nginx the same files go out via `gzip_static`, and Node never sees
@@ -862,7 +862,7 @@ time instead of on every page load for every visitor.
 - `scripts/build.js`, `npm run build`: bundle+minify+precompress the client
   (see table above) — the single biggest lever available since this app has
   no other CPU-heavy work (it's a thin JSON API + static files).
-- `server/index.js`: serves the precompressed build via `express-static-gzip`
+- `server/app.js`: serves the precompressed build via `express-static-gzip`
   when `NODE_ENV=production` and a build is present (falls back to raw files
   otherwise); `compression` middleware now only runs against dynamic API
   responses, not `/dist/*`, so static assets never cost CPU to compress at

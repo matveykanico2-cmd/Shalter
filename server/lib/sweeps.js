@@ -20,7 +20,7 @@ function startSweeps({ testMode }) {
   require("./uploadsMigration").startAutoMigration();
 }
 
-// Режим контрактных тестов (tests/). На боевом сервере (NODE_ENV=production) флаг игнорируется.
+// Режим контрактных тестов (packages/contract-tests/). На боевом сервере (NODE_ENV=production) флаг игнорируется.
 const TEST_MODE = process.env.SHALTER_TEST_MODE === "1" && process.env.NODE_ENV !== "production";
 
 module.exports = { startSweeps, TEST_MODE };

@@ -61,7 +61,7 @@ server {
   root /opt/shalter/public;
 
   # Data-URL attachments (voice/video-note/image) ride inline in JSON bodies —
-  # match server/index.js's express.json({ limit: "25mb" }). Real file uploads
+  # match server/app.js's express.json({ limit: "25mb" }). Real file uploads
   # are not this: they go to /api/uploads as a raw body and have their own,
   # much larger limit in the location block below.
   client_max_body_size 25m;
@@ -72,7 +72,7 @@ server {
   limit_conn perip 20;
 
   # Static files. Each location repeats the security headers Node sets on
-  # everything it serves (server/index.js) — nginx drops inherited add_header
+  # everything it serves (server/app.js) — nginx drops inherited add_header
   # lines in any location that has its own.
 
   # The bundle: file names change with every build (chunk hashes, ?v= on the

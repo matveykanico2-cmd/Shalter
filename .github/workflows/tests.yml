@@ -1,9 +1,10 @@
 name: Tests
 
 # Тесты фиксируют текущее поведение перед миграцией на NestJS + React
-# (см. tests/README.md). Контрактные тесты и тесты совместимости данных — на
+# (см. packages/contract-tests/README.md). Контрактные тесты и тесты совместимости данных — на
 # каждый PR; браузерные сценарии (Playwright) — на PR в main и пуш в main.
-# Во время миграции сюда добавится матрица TARGET: [legacy, nest].
+# Матрица TARGET: legacy — server/index.js, nest — каркас NestJS (apps/api), который
+# отдаёт ещё не перенесённое старому приложению. Обе цели обязаны быть зелёными.
 
 on:
   pull_request:
@@ -16,8 +17,12 @@ concurrency:
 
 jobs:
   contract:
-    name: Контрактные, совместимость, unit
+    name: Контрактные, совместимость, unit (${{ matrix.target }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [legacy, nest]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -27,14 +32,20 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run test:types
+      - run: npm run build:api
+        if: matrix.target == 'nest'
       - run: npm run test:contract
         env:
-          TARGET: legacy
+          TARGET: ${{ matrix.target }}
 
   e2e:
-    name: Сценарии в браузере
+    name: Сценарии в браузере (${{ matrix.target }})
     if: github.event_name == 'push' || github.base_ref == 'main'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [legacy, nest]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -44,14 +55,16 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
+      - run: npm run build:api
+        if: matrix.target == 'nest'
       - run: npm run test:e2e
         env:
-          TARGET: legacy
+          TARGET: ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.target }}
           path: |
-            tests/e2e/.report/
-            tests/e2e/.results/
+            packages/contract-tests/e2e/.report/
+            packages/contract-tests/e2e/.results/
           retention-days: 7

@@ -12,7 +12,7 @@
 
 # testing
 /coverage
-/tests/node_modules
+/packages/contract-tests/node_modules
 /test-results
 /playwright-report
 
@@ -95,3 +95,6 @@ yarn-error.log*
 # архивы сборок, скачанные из CI
 /shalter-*.zip
 .claude/settings.json
+
+# NestJS build output
+/apps/*/dist
