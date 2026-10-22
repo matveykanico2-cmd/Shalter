@@ -2,11 +2,11 @@ import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
 import { genId } from "../../common/lib/gen-id.js";
 import {
+  botMessaging,
   findOrCreateDm,
   isSafeUrl,
   push,
   responders,
-  sendBotMessage,
   sendMessageAndBroadcast,
   usesForeignUpload,
   checkUsername,
@@ -116,7 +116,7 @@ export class BotsService {
         const recipientId = chat?.memberIds.find((m) => m !== bot.userId);
         const recipient = recipientId ? this.users.findById(recipientId) : null;
         if (!recipient || recipient.isBot || recipient.blockedUserIds?.includes(bot.userId)) continue;
-        await sendBotMessage(bot.userId, chatId, text);
+        await botMessaging().sendBotMessage(bot.userId, chatId, text);
         sent += 1;
         const settings = this.settings.get(recipient.id);
         if (isQuietNow(settings, chatId)) continue;

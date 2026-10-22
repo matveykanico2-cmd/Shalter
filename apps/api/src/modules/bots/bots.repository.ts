@@ -26,6 +26,11 @@ export class BotsRepository {
     return row && toBot(row);
   }
 
+  public findByToken(token: string): Bot | undefined {
+    const row = this.db.select().from(bots).where(eq(bots.token, token)).get();
+    return row && toBot(row);
+  }
+
   public token(id: string): string | null {
     return this.db.select({ token: bots.token }).from(bots).where(eq(bots.id, id)).get()?.token ?? null;
   }
@@ -88,7 +93,7 @@ export class BotsRepository {
   }
 
   /** Своя страница приложения; внешний адрес сбрасывается. */
-  public setAppCode(id: string, appCode: string, appName: string): Bot | undefined {
+  public setAppCode(id: string, appCode: string | null, appName: string): Bot | undefined {
     this.db.update(bots).set({ appCode: appCode || null, appUrl: null, appName: appName || null }).where(eq(bots.id, id)).run();
     return this.findById(id);
   }

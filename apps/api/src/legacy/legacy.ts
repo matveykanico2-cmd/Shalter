@@ -224,16 +224,23 @@ export interface LegacyBot {
 export const getBotByUserId = (userId: string): Promise<LegacyBot | undefined> =>
   legacyModule<{ getBotByUserId: (userId: string) => Promise<LegacyBot | undefined> }>("data/bots.js").getBotByUserId(userId);
 
-/**
- * Сообщение от бота (server/lib/botMessaging.js): проверки, рассылка по WS и ответы других ботов
- * в чате. Ошибка — с HTTP-статусом в status. Общий с Bot API лимит переписки бот-бот — в памяти там.
- */
-export const sendBotMessage = (botUserId: string, chatId: string, text: string): Promise<unknown> =>
-  legacyModule<{ sendBotMessage: (botUserId: string, chatId: string, text: string) => Promise<unknown> }>("lib/botMessaging.js").sendBotMessage(
-    botUserId,
-    chatId,
-    text
-  );
+/** Как отправить сообщение от бота: клавиатура, ответ, вложения, скрытый ответ участнику группы. */
+export interface BotSendOptions {
+  keyboard?: unknown;
+  replyToId?: unknown;
+  attachments?: unknown;
+  visibleTo?: unknown;
+}
+// Сообщения ботов (server/lib/botMessaging.js): проверки, рассылка по WS и ответы других ботов
+// в чате — с лимитом переписки бот-бот в памяти там же. sendBotMessage бросает Error с
+// HTTP-статусом в status (400, 403, 404).
+interface BotMessaging {
+  sendBotMessage: (botUserId: string, chatId: unknown, text: unknown, opts?: BotSendOptions) => Promise<Record<string, unknown>>;
+  normalizeKeyboard: (keyboard: unknown) => unknown[] | undefined;
+  /** Текст отказа или null: в канал — только админом, в личку — если не заблокировали. */
+  botPostDenied: (chat: object, botUserId: string) => Promise<string | null>;
+}
+export const botMessaging = (): BotMessaging => legacyModule<BotMessaging>("lib/botMessaging.js");
 
 // «Печатает…» (server/data/typing.js): в памяти процесса, его же ставят боты и Shalter AI.
 interface Typing {

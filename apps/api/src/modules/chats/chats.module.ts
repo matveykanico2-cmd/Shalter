@@ -33,6 +33,6 @@ import { JoinRequestsRepository } from "./join-requests.repository.js";
     JoinRequestsRepository,
     AdminLogRepository,
   ],
-  exports: [ChatsRepository, ChatAccessService, AdminLogService],
+  exports: [ChatsRepository, ChatAccessService, AdminLogService, JoinRequestsRepository],
 })
 export class ChatsModule {}

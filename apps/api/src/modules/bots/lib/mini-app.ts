@@ -1,8 +1,8 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
-// Ссылка на мини-приложение бота с подписанными initData — как buildInitData, buildAppUrl,
-// validateAppUrl и sameApp в server/lib/miniApp.js. Подпись проверяет Bot API в server/
-// (verifyInitData), поэтому она обязана совпадать: mini-app.spec.ts падает при расхождении.
+// Ссылка на мини-приложение бота с подписанными initData и их проверка — как server/lib/miniApp.js.
+// Подпись обязана совпадать со старой (приложения ботов проверяют её у себя тем же способом):
+// mini-app.spec.ts падает при расхождении.
 
 const SECRET_SALT = "ShalterWebAppData";
 
@@ -67,4 +67,33 @@ export function buildAppUrl(url: string, initData: string, { theme }: { theme?: 
   if (theme) fragment.set("shalterTheme", theme);
   u.hash = fragment.toString();
   return u.toString();
+}
+
+export type InitDataCheck =
+  | { ok: false; error: string }
+  | { ok: true; user: { id?: string } | null; chatId: string | null; botId: string | null; authDate: number; ageSec: number };
+
+/** Проверка initData, подписанных токеном бота (checkWebAppData); по умолчанию не старше суток. */
+export function verifyInitData(token: string | null, initData: unknown, { maxAgeSec = 24 * 60 * 60 } = {}): InitDataCheck {
+  if (!token || typeof initData !== "string" || !initData) return { ok: false, error: "initData is empty" };
+  const params = new URLSearchParams(initData);
+  const hash = params.get("hash");
+  if (!hash) return { ok: false, error: "no hash in initData" };
+
+  const a = Buffer.from(hash, "hex");
+  const b = Buffer.from(signParams(params, token), "hex");
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return { ok: false, error: "bad hash" };
+
+  const authDate = Number(params.get("auth_date") || 0);
+  if (!authDate) return { ok: false, error: "no auth_date" };
+  const ageSec = Math.floor(Date.now() / 1000) - authDate;
+  if (maxAgeSec && ageSec > maxAgeSec) return { ok: false, error: "initData expired" };
+
+  let user: { id?: string } | null = null;
+  try {
+    user = JSON.parse(params.get("user") || "null");
+  } catch {
+    return { ok: false, error: "bad user field" };
+  }
+  return { ok: true, user, chatId: params.get("chat_id") || null, botId: params.get("bot_id") || null, authDate, ageSec };
 }

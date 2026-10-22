@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { textCrypto } from "../../legacy/legacy.js";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { chatReads, chats, messages } from "../db/schema.js";
@@ -84,6 +84,22 @@ export class MessagesRepository {
     return this.toMessages(
       this.db.select().from(messages).where(and(eq(messages.chatId, chatId), isNull(messages.threadRootId))).orderBy(asc(messages.createdAt)).all()
     ).filter((m) => !m.deletedForIds?.includes(viewerId));
+  }
+
+  /** Новые для бота сообщения его чатов, кроме его собственных, от старых к новым (Bot API updates). */
+  public listNewForBot(botUserId: string, after: string, limit: number): Message[] {
+    return this.toMessages(
+      this.db.all<MessageRow>(sql`
+        SELECT m.* FROM messages m
+          JOIN chat_members cm ON cm.chatId = m.chatId AND cm.userId = ${botUserId}
+         WHERE m.createdAt > ${after} AND m.senderId <> ${botUserId}
+         ORDER BY m.createdAt ASC LIMIT ${limit}`)
+    );
+  }
+
+  /** Сколько всего сообщений отправил пользователь (в server/ — listAllMessages().filter(…)). */
+  public countBySender(senderId: string): number {
+    return this.db.select({ n: count() }).from(messages).where(eq(messages.senderId, senderId)).get()?.n ?? 0;
   }
 
   public listThreadReplies(rootId: string): Message[] {

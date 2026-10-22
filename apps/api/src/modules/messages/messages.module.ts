@@ -37,6 +37,6 @@ import { SummaryStore } from "./stores/summary.store.js";
     PaidMediaRepository,
     SummaryStore,
   ],
-  exports: [MessagesRepository, PaidMediaRepository, MessageSendService],
+  exports: [MessagesRepository, PaidMediaRepository, MessageSendService, ScheduledMessagesRepository],
 })
 export class MessagesModule {}

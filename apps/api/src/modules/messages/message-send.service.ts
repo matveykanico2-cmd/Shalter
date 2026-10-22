@@ -220,7 +220,7 @@ export class MessageSendService {
   }
 
   /** Подпись пересланного: анонимные админы и посты каналов подписываются названием чата. */
-  private forwardOrigin(source: Chat, message: Message, uid: string): ForwardedFrom {
+  public forwardOrigin(source: Chat, message: Message, uid: string): ForwardedFrom {
     if (source.type === "channel" || message.anonymous) {
       return { chatId: source.id, chatTitle: source.title, senderName: source.title };
     }
