@@ -64,8 +64,10 @@ export interface LegacyChat {
 
 /** Служебное сообщение: type "system" — строка по центру ленты, "call" — итог звонка; readByIds — кто уже «прочитал». */
 export interface MessageExtra {
-  type?: "system" | "call";
+  type?: "system" | "call" | "report";
   readByIds?: string[];
+  /** Карточка жалобы у модератора (type: "report"). */
+  report?: object;
 }
 
 interface SystemChat {

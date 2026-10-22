@@ -216,6 +216,16 @@ export class MessagesRepository {
     return this.findById(id);
   }
 
+  /** Сообщения-жалобы с этим reportId: у каждого модератора своё. */
+  public findIdsByReport(reportId: string): string[] {
+    return this.db
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(sql`${messages.report} IS NOT NULL`, sql`json_extract(${messages.report}, '$.reportId') = ${reportId}`))
+      .all()
+      .map((r) => r.id);
+  }
+
   /** Буст за звёзды: сообщение выделено до until. */
   public setBoost(id: string, until: string, byId: string): Message | undefined {
     this.db.update(messages).set({ boostedUntil: until, boostedById: byId }).where(eq(messages.id, id)).run();

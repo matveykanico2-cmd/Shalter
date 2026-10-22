@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { emitAccessRevoked } from "../../legacy/legacy.js";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { users } from "../db/schema.js";
 import { banActive, FOREVER, toUser } from "./lib/user.mapper.js";
@@ -195,6 +196,38 @@ export class UsersRepository {
   }
 
   /** Добавляет targetId в список блокировок пользователя или убирает из него. */
+  /** Блокировка аккаунта (setBanned в server/data/users.js): сессии и сокеты отзываются сразу. */
+  public ban(id: string, reason: string | null, until: string | null = null): User | undefined {
+    this.db
+      .update(users)
+      .set({ isBanned: 1, banReason: (reason ?? "").trim() || null, bannedAt: new Date().toISOString(), bannedUntil: until })
+      .where(eq(users.id, id))
+      .run();
+    emitAccessRevoked(id);
+    return this.findById(id);
+  }
+
+  /** Метка «мошенник», «фейк» и т. п. в профиле; пустая — снять. */
+  public setSafetyLabel(id: string, label: string | null): User | undefined {
+    this.db
+      .update(users)
+      .set({ safetyLabel: label || null, safetyLabelAt: label ? new Date().toISOString() : null })
+      .where(eq(users.id, id))
+      .run();
+    return this.findById(id);
+  }
+
+  /** Кому выдан раздел админки (listUsersWithAdminSection в server/data/users.js). */
+  public findWithAdminSection(section: string): User[] {
+    return this.db
+      .select()
+      .from(users)
+      .where(sql`${users.adminSections} LIKE ${`%"${section}"%`}`)
+      .all()
+      .map(toUser)
+      .filter((u) => u.adminSections.includes(section));
+  }
+
   public setBlocked(id: string, targetId: string, blocked: boolean): User | undefined {
     const user = this.findById(id);
     if (!user) return undefined;

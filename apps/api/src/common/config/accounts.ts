@@ -6,7 +6,7 @@ const EXTRA_ADMIN_PHONES = (process.env.PREMIUM_ADMIN_PHONES || "")
   .split(",")
   .map((p) => p.trim())
   .filter(Boolean);
-const ADMIN_PHONES = [...new Set([ADMIN_PHONE, ...EXTRA_ADMIN_PHONES])];
+export const ADMIN_PHONES = [...new Set([ADMIN_PHONE, ...EXTRA_ADMIN_PHONES])];
 
 export function isAdminPhone(phone: string | null | undefined): boolean {
   return !!phone && ADMIN_PHONES.includes(phone);

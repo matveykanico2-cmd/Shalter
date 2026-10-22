@@ -12,6 +12,9 @@ export const setLinkPreview = (m: Message, linkPreview: unknown): Message => ({ 
 
 export const incrementCommentCount = (m: Message): Message => ({ ...m, commentCount: (m.commentCount ?? 0) + 1 });
 
+export const setReportStatus = (status: string) => (m: Message): Message =>
+  m.report ? { ...m, report: { ...(m.report as object), status } } : m;
+
 export const incrementViews = (m: Message): Message => ({ ...m, views: (m.views ?? 0) + 1 });
 
 export const setAnchorForPost = (postId: string) => (m: Message): Message => ({ ...m, anchorForPostId: postId });
