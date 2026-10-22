@@ -459,3 +459,9 @@ export const getActiveDonationLink = (): { provider: string; donationUrl: string
 /** Заказ, который оплачивается донатом с кодом в комментарии (server/data/pendingOrders.js). */
 export const createPendingOrder = (order: { userId: string; kind: string; amountRub: number; meta?: object }): Promise<{ code: string }> =>
   legacyModule<{ createPendingOrder: (order: object) => Promise<{ code: string }> }>("data/pendingOrders.js").createPendingOrder(order);
+
+// --- Поиск (modules/search) ---
+
+/** Игры по названию и описанию: встроенные, публичные и свои (server/data/games.js). */
+export const searchGames = (q: string, userId: string, limit: number): object[] =>
+  legacyModule<{ searchGames: (q: string, userId: string, limit: number) => object[] }>("data/games.js").searchGames(q, userId, limit);

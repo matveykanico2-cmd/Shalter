@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Injectable } from "@nestjs/common";
-import { and, eq, getTableColumns, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, inArray, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { newSecretChatKey } from "../../legacy/legacy.js";
 import { InjectDb, type Db } from "../db/db.module.js";
@@ -136,6 +136,25 @@ export class ChatsRepository {
           });
     const byChat = this.membersByChat(visible.map((r) => r.id));
     return visible.map((r) => toChat(r, byChat.get(r.id) ?? []));
+  }
+
+  /**
+   * Публичные каналы и группы по названию или нику (без «@»), по алфавиту, не больше 50;
+   * channelsOnly — только каналы (каталог каналов).
+   */
+  public searchPublic(query: string, { channelsOnly = false } = {}): Chat[] {
+    const q = (query ?? "").trim().toLowerCase();
+    const handle = q.replace(/^@/, "");
+    const rows = this.db
+      .select()
+      .from(chats)
+      .where(and(inArray(chats.type, channelsOnly ? ["channel"] : ["channel", "group"]), eq(chats.isPublic, 1)))
+      .orderBy(asc(chats.title))
+      .all()
+      .filter((r) => !q || (r.title ?? "").toLowerCase().includes(q) || (r.username ?? "").toLowerCase().includes(handle))
+      .slice(0, 50);
+    const byChat = this.membersByChat(rows.map((r) => r.id));
+    return rows.map((r) => toChat(r, byChat.get(r.id) ?? []));
   }
 
   public isSecret(chatId: string): boolean {

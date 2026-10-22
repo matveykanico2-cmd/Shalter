@@ -58,6 +58,22 @@ describe("люди и боты", () => {
     expect(after.users.map((u) => u.id)).toEqual([bob.id]);
   });
 
+  test("люди — глазами ищущего: скрытое «был в сети» не видно, контакт — под именем из контактов", async () => {
+    const { baseUrl } = server();
+    const tag = word();
+    const hidden = await registerUser(baseUrl, { name: `Скрытный ${tag}` });
+    const friend = await registerUser(baseUrl, { name: `Друг ${tag}` });
+    const me = await registerUser(baseUrl);
+    expect((await hidden.api.patch("/api/settings", { privacy: { lastSeen: "nobody" } })).status).toBe(200);
+    expect((await me.api.post("/api/contacts", { userId: friend.id, localName: "Дружище" })).status).toBe(200);
+
+    const found = (await search(me, tag)).users;
+    const h = found.find((u) => u.id === hidden.id)!;
+    expect(h).toMatchObject({ online: false });
+    expect(h).not.toHaveProperty("lastSeen");
+    expect(found.find((u) => u.id === friend.id)).toMatchObject({ name: "Дружище", profileName: `Друг ${tag}`, inContacts: true });
+  });
+
   test("точное совпадение username — выше остальных", async () => {
     const { baseUrl } = server();
     const tag = word();

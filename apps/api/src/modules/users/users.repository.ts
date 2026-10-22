@@ -26,6 +26,34 @@ export class UsersRepository {
     return this.db.select().from(users).where(inArray(users.id, unique)).all().map(toUser);
   }
 
+  /** Только id, имя и ник — для подписей чатов в поиске. */
+  public findNamesByIds(ids: (string | null | undefined)[]): { id: string; name: string; username: string | null }[] {
+    const unique = [...new Set(ids)].filter((id): id is string => !!id);
+    if (!unique.length) return [];
+    return this.db.select({ id: users.id, name: users.name, username: users.username }).from(users).where(inArray(users.id, unique)).all();
+  }
+
+  /**
+   * Поиск по имени (lower_ru из server/db.js — регистр и кириллица) и нику без «@»; без
+   * заблокированных. Берёт limit * 3: вызывающий ещё отсеивает и сортирует.
+   */
+  public search(query: string, limit: number): User[] {
+    const q = String(query ?? "").trim().toLowerCase().replace(/^@/, "");
+    if (!q) return [];
+    const like = `%${q.replace(/[%_]/g, (m) => "\\" + m)}%`;
+    const now = new Date().toISOString();
+    return this.db
+      .select()
+      .from(users)
+      .where(
+        sql`(lower_ru(${users.name}) LIKE ${like} ESCAPE '\\' OR LOWER(${users.username}) LIKE ${like} ESCAPE '\\')
+          AND NOT (COALESCE(${users.isBanned}, 0) = 1 AND (${users.bannedUntil} IS NULL OR ${users.bannedUntil} > ${now}))`
+      )
+      .limit(limit * 3)
+      .all()
+      .map(toUser);
+  }
+
   /** id и ник тех, чей ник (без учёта регистра) есть в списке — для упоминаний @ник. */
   public findIdsByUsernames(usernames: string[]): { id: string; username: string | null }[] {
     const list = [...new Set(usernames.map((u) => String(u ?? "").trim().toLowerCase()).filter(Boolean))];
