@@ -1,0 +1,294 @@
+/* Пузырь сообщения — как .bubble и .message-row в public/styles/components.css (вид tweb). */
+.row {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 1px 0;
+}
+
+.rowOut {
+  flex-direction: row-reverse;
+}
+
+.avatarSlot {
+  flex: none;
+  width: 34px;
+}
+
+.bubble {
+  position: relative;
+  min-width: 56px;
+  max-width: min(480px, 78%);
+  padding: 4px 8px 5px;
+  border-radius: var(--bubble-radius);
+  box-shadow: var(--bubble-shadow);
+  color: var(--color-text);
+}
+
+.in {
+  background: var(--color-bubble-in);
+}
+
+.out {
+  --accent-line: var(--color-bubble-out-accent);
+  --link-color: var(--color-bubble-out-link, var(--color-accent));
+  background: var(--color-bubble-out);
+}
+
+/* Серия сообщений одного автора: со стороны автора углы малые, у первого верхний — полный. */
+.in.joinBottom {
+  border-bottom-left-radius: var(--bubble-radius-small);
+}
+
+.in.joinTop {
+  border-top-left-radius: var(--bubble-radius-small);
+}
+
+.out.joinBottom {
+  border-bottom-right-radius: var(--bubble-radius-small);
+}
+
+.out.joinTop {
+  border-top-right-radius: var(--bubble-radius-small);
+}
+
+/* Последний в серии — «хвостик» к автору. */
+.in:not(.joinBottom) {
+  border-bottom-left-radius: 0;
+}
+
+.out:not(.joinBottom) {
+  border-bottom-right-radius: 0;
+}
+
+.stickerBubble {
+  background: none;
+  box-shadow: none;
+}
+
+.sender {
+  display: block;
+  margin-bottom: 1px;
+  overflow: hidden;
+  color: var(--name-light, var(--color-accent));
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forwarded {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 2px;
+  color: var(--accent-line, var(--color-accent));
+  font-size: 13px;
+}
+
+.reply {
+  display: block;
+  width: 100%;
+  margin: 2px 0 4px;
+  padding: 3px 8px;
+  overflow: hidden;
+  border: none;
+  border-left: 3px solid var(--accent-line, var(--color-accent));
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent-line, var(--color-accent)) 10%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.replyDeleted {
+  color: var(--color-muted);
+  font-size: 13px;
+  cursor: default;
+}
+
+.replyName,
+.replyText {
+  display: block;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replyName {
+  color: var(--accent-line, var(--color-accent));
+  font-weight: 600;
+}
+
+.attachment {
+  margin: 0 0 2px;
+  font-size: 14px;
+}
+
+.sticker {
+  display: block;
+  font-size: 96px;
+  line-height: 1.1;
+}
+
+/* Время с галочками: в конце последней строки текста, если там есть место. */
+.meta {
+  position: relative;
+  top: 4px;
+  display: inline-flex;
+  float: right;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.out .meta {
+  color: var(--color-bubble-out-meta);
+}
+
+.metaRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.metaRow .meta {
+  top: 0;
+  float: none;
+}
+
+.tick {
+  display: inline-flex;
+}
+
+.pending {
+  display: inline-flex;
+  opacity: 0.8;
+}
+
+.replyButton {
+  align-self: center;
+  display: flex;
+  padding: 6px;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-bubble-in) 80%, transparent);
+  color: var(--color-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.row:hover .replyButton,
+.replyButton:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .replyButton {
+    display: none;
+  }
+}
+
+.system {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0;
+  padding: 0 16px;
+  text-align: center;
+}
+
+.systemText {
+  display: inline-block;
+  max-width: min(420px, 100%);
+  padding: 3px 10px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.22);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.secretCard {
+  max-width: 300px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.22);
+  color: #fff;
+  font-size: 14px;
+  text-align: left;
+}
+
+.secretCard p,
+.secretCard ul {
+  margin: 0 0 4px;
+}
+
+.secretCard ul {
+  padding-left: 18px;
+}
+
+.secretTitle {
+  font-weight: 600;
+  text-align: center;
+}
+
+.call {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 16px;
+  align-items: center;
+  min-width: 200px;
+  padding: 2px 0;
+}
+
+.callTitle {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.callStatus {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.out .callStatus {
+  color: var(--color-bubble-out-meta);
+}
+
+.callArrow {
+  display: inline-block;
+  color: var(--color-success);
+  transform: rotate(135deg);
+}
+
+.callArrow.callOut {
+  transform: rotate(-45deg);
+}
+
+.callMissed .callArrow {
+  color: var(--color-danger);
+}
+
+.callIcon {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  color: var(--accent-line, var(--color-accent));
+}
+
+@media (prefers-color-scheme: dark) {
+  .sender {
+    color: var(--name-dark, var(--color-accent));
+  }
+}

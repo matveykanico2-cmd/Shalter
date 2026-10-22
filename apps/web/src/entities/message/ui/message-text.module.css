@@ -1,0 +1,202 @@
+/* Разметка текста сообщения — как .message-text, .code-block, .spoiler в public/styles/components.css. */
+.text {
+  font-size: 15px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.block {
+  display: block;
+}
+
+.inlineCode {
+  padding: 0 3px;
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.link {
+  color: var(--link-color, var(--color-accent));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.mention {
+  color: var(--link-color, var(--color-accent));
+  font-weight: 500;
+}
+
+.quote {
+  display: block;
+  margin: 2px 0;
+  padding: 2px 8px;
+  border-left: 3px solid var(--accent-line, var(--color-accent));
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent-line, var(--color-accent)) 9%, transparent);
+}
+
+.quoteCollapsed {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.quoteToggle {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent-line, var(--color-accent));
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  font-size: 14px;
+  white-space: normal;
+}
+
+.table th,
+.table td {
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  text-align: left;
+}
+
+.codeBlock {
+  --tk-keyword: #b5268d;
+  --tk-string: #2f8a32;
+  --tk-number: #c25d00;
+  --tk-comment: #8a9199;
+  --tk-function: #1f6fd1;
+  --tk-type: #8a5a00;
+  --tk-prop: #0e7d8f;
+  --tk-literal: #c25d00;
+  --tk-operator: #6b7178;
+  position: relative;
+  display: block;
+  margin: 4px 0;
+  overflow: hidden;
+  border-left: 3px solid var(--accent-line, var(--color-accent));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent-line, var(--color-accent)) 9%, transparent);
+  white-space: normal;
+}
+
+.codeHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px 0 10px;
+  color: var(--accent-line, var(--color-accent));
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.codeBlock pre {
+  margin: 0;
+  padding: 4px 10px 8px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  line-height: 1.45;
+  white-space: pre;
+}
+
+.codeCopy {
+  padding: 2px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+.codeCopy:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.codeBlock:hover .codeCopy,
+.codeCopy:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .codeCopy {
+    opacity: 1;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .codeBlock {
+    --tk-keyword: #e48ad5;
+    --tk-string: #9ad48a;
+    --tk-number: #f6b26b;
+    --tk-comment: #7f868c;
+    --tk-function: #7cb7ff;
+    --tk-type: #f1d07a;
+    --tk-prop: #74d4e2;
+    --tk-literal: #f6b26b;
+    --tk-operator: #aab0b6;
+  }
+}
+
+.tk-keyword { color: var(--tk-keyword); }
+.tk-string { color: var(--tk-string); }
+.tk-number { color: var(--tk-number); }
+.tk-comment { color: var(--tk-comment); font-style: italic; }
+.tk-function { color: var(--tk-function); }
+.tk-type { color: var(--tk-type); }
+.tk-prop { color: var(--tk-prop); }
+.tk-literal { color: var(--tk-literal); }
+.tk-operator { color: var(--tk-operator); }
+
+/* Спойлер: текст спрятан под мерцающими точками. */
+.spoiler {
+  --spoiler-dot: var(--color-text);
+  padding: 0 2px;
+  border-radius: 4px;
+  color: transparent;
+  cursor: pointer;
+  user-select: none;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  background-color: color-mix(in srgb, var(--spoiler-dot) 6%, transparent);
+  background-image:
+    radial-gradient(circle, var(--spoiler-dot) 0.9px, transparent 1.3px),
+    radial-gradient(circle, color-mix(in srgb, var(--spoiler-dot) 75%, transparent) 0.8px, transparent 1.2px),
+    radial-gradient(circle, color-mix(in srgb, var(--spoiler-dot) 50%, transparent) 0.6px, transparent 1px);
+  background-position: 0 0, 3px 4px, 1px 2px;
+  background-size: 7px 9px, 11px 7px, 5px 6px;
+  animation: spoiler-drift 1.6s linear infinite;
+  transition: color 0.35s ease, background-color 0.35s ease;
+}
+
+.revealed {
+  background: transparent;
+  color: inherit;
+  cursor: auto;
+  user-select: text;
+  animation: none;
+}
+
+@keyframes spoiler-drift {
+  to {
+    background-position: 7px -9px, -11px 14px, 5px 6px;
+  }
+}

@@ -52,3 +52,10 @@ export function chatPreview(chat: ChatSummary, meId: string) {
   if (m.type === "call") return { draft: false, who: "", text: `📞 ${callLogInfo(m, m.senderId === meId).title}` };
   return { draft: false, who: m.senderId === meId && !chat.isSaved ? "Вы: " : "", text: messagePreview(m) };
 }
+
+type Roles = Pick<ChatSummary, "ownerId" | "ownerIds" | "adminIds" | "moderatorIds">;
+
+/** Роли в чате — как public/js/lib/chatRoles.js. */
+export const isChatOwner = (chat: Roles, userId: string) => chat.ownerId === userId || chat.ownerIds.includes(userId);
+export const isChatAdmin = (chat: Roles, userId: string) => isChatOwner(chat, userId) || chat.adminIds.includes(userId);
+export const isChatModerator = (chat: Roles, userId: string) => chat.moderatorIds.includes(userId);

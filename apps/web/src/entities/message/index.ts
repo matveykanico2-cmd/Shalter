@@ -1,2 +1,8 @@
+export { loadOlderHistory, messageQueries, PAGE_SIZE } from "./api/message-queries";
+export { canApplyLive, emptyHistory } from "./lib/history";
+export { isCallLogMessage, isReadByOthers, timeLabel } from "./lib/message-meta";
 export { callLogInfo, diceResult, messagePreview, plainText, stripCustomEmoji } from "./lib/message-preview";
-export type { Message } from "./model/types";
+export { historyCache } from "./model/history-cache";
+export type { FeedMessage, History, HistoryPage, Message, ReplyTarget } from "./model/types";
+export { MessageBubble, type MessageSender } from "./ui/message-bubble";
+export { MessageText } from "./ui/message-text";

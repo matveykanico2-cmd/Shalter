@@ -25,6 +25,22 @@ export const chatCache = {
     });
   },
 
+  /** Чат открыт — его непрочитанные прочитаны (сервер отметил их запросом истории). */
+  markRead(client: QueryClient, chatId: string) {
+    updateChats(client, (chats) =>
+      chats.some((c) => c.id === chatId && (c.unreadCount > 0 || c.unread || c.hasUnreadMention))
+        ? chats.map((c) => (c.id === chatId ? { ...c, unreadCount: 0, unread: undefined, hasUnreadMention: false } : c))
+        : chats
+    );
+  },
+
+  /** Черновик поля ввода — «Черновик: …» в строке списка. */
+  setDraft(client: QueryClient, chatId: string, draft: string) {
+    updateChats(client, (chats) =>
+      chats.some((c) => c.id === chatId && (c.draft ?? "") !== draft) ? chats.map((c) => (c.id === chatId ? { ...c, draft: draft || null } : c)) : chats
+    );
+  },
+
   /** Чат удалён или нас из него убрали. */
   removeChat(client: QueryClient, chatId: string) {
     updateChats(client, (chats) => (chats.some((c) => c.id === chatId) ? chats.filter((c) => c.id !== chatId) : chats));
