@@ -22,6 +22,8 @@
     "start": "NODE_ENV=production node --env-file-if-exists=config.env --env-file-if-exists=.env --max-old-space-size=768 server/index.js",
     "build:api": "npm run build -w @shalter/api",
     "start:nest": "NODE_ENV=production node --env-file-if-exists=config.env --env-file-if-exists=.env --max-old-space-size=768 apps/api/dist/main.js",
+    "dev:web": "npm run dev -w @shalter/web",
+    "build:web": "npm run build -w @shalter/web",
     "cap:add:android": "npm run build && npx cap add android",
     "cap:add:ios": "npm run build && npx cap add ios",
     "cap:sync": "npm run build && npx cap sync",
@@ -31,6 +33,7 @@
     "desktop:build": "tauri build && node scripts/collect-desktop.js",
     "test:unit": "npm run test:unit -w @shalter/contract-tests --",
     "test:api": "npm run test -w @shalter/api",
+    "test:web": "npm run lint -w @shalter/web && npm run test -w @shalter/web",
     "test:contract": "npm run test:contract -w @shalter/contract-tests --",
     "test:contract:watch": "npm run test:contract:watch -w @shalter/contract-tests --",
     "test:e2e": "npm run test:e2e -w @shalter/contract-tests --",
@@ -69,6 +72,7 @@
     "@capacitor/ios": "^7.6.8",
     "@tauri-apps/cli": "^2.12.1",
     "esbuild": "^0.28.1",
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.9",
+    "typescript": "~6.0.3"
   }
 }
