@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { chatForViewer, publicJsonReplacer } from "../../legacy/legacy.js";
+import { chatForViewer, publicJsonReplacer, workerBridge } from "../../legacy/legacy.js";
 import { ChatsRepository, deviceHash } from "../chats/chats.repository.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
@@ -13,9 +13,11 @@ import { SocketRegistry } from "./stores/socket-registry.js";
 // Рассылка событий по открытым сокетам, «в сети» и закрытие сокетов при отзыве доступа —
 // то, что было в server/ws.js. Старый код в этом процессе шлёт события сюда же
 // (server/ws.js → useRealtime), фоновый процесс — через основной (lib/workerBridge.js).
+// В фоновом процессе (worker.ts) сокетов нет: готовое событие уходит основному.
 @Injectable()
 export class RealtimeService {
   private readonly onlineListeners: ((uid: string) => void)[] = [];
+  private readonly relay = workerBridge().isWorker;
 
   public constructor(
     private readonly sockets: SocketRegistry,
@@ -36,15 +38,15 @@ export class RealtimeService {
       const full = JSON.stringify(message, publicJsonReplacer);
       for (const uid of userIds) {
         // Офлайн-подписчиков пропускаем сразу: у канала их десятки тысяч.
-        if (!this.sockets.has(uid)) continue;
+        if (!this.relay && !this.sockets.has(uid)) continue;
         const payload = viewer.hidesMembers(chat, uid)
           ? JSON.stringify({ ...message, chat: viewer.chatForViewer(chat, uid) }, publicJsonReplacer)
           : full;
-        this.sendPayload([uid], payload, chatId);
+        this.deliver([uid], payload, chatId);
       }
       return;
     }
-    this.sendPayload(userIds, JSON.stringify(message, publicJsonReplacer), chatId);
+    this.deliver(userIds, JSON.stringify(message, publicJsonReplacer), chatId);
   }
 
   /** Событие всем участникам чата, кроме автора действия (его вкладка уже знает ответ). */
@@ -64,6 +66,11 @@ export class RealtimeService {
         if (ws.readyState === ws.OPEN) ws.send(payload);
       }
     }
+  }
+
+  private deliver(userIds: Iterable<string>, payload: string, chatId: unknown): void {
+    if (this.relay) workerBridge().toMain("ws", { userIds: [...userIds], payload, chatId });
+    else this.sendPayload(userIds, payload, chatId);
   }
 
   public stats(): WsStats {

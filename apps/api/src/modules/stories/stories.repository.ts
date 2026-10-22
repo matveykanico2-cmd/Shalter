@@ -68,6 +68,15 @@ export class StoriesRepository {
     return this.findById(id);
   }
 
+  /** Поля поверх одного элемента истории (обработанное видео из фонового процесса). */
+  public updateItem(id: string, index: number, patch: Record<string, unknown>): Story | undefined {
+    const story = this.findById(id);
+    if (!story) return undefined;
+    const items = story.items.map((it, i) => (i === index ? { ...it, ...patch } : it));
+    this.db.update(stories).set({ items: JSON.stringify(items) }).where(eq(stories.id, id)).run();
+    return this.findById(id);
+  }
+
   public toggleLike(id: string, userId: string): Story | undefined {
     const story = this.findById(id);
     if (!story) return undefined;

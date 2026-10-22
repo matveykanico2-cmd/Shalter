@@ -6,11 +6,11 @@ import { StoriesRepository } from "./stories.repository.js";
 import { StoriesService } from "./stories.service.js";
 import { StoryAudienceService } from "./story-audience.service.js";
 
-// Истории (/api/stories). Обработку видео истории (updateStoryItem) делает фоновый процесс
-// в server/ — он пишет в ту же таблицу через server/data/stories.js.
+// Истории (/api/stories). Видео истории перекодирует фоновый процесс (modules/background).
 @Module({
   imports: [ChatsModule, UsersModule],
   controllers: [StoriesController],
   providers: [StoriesService, StoryAudienceService, StoriesRepository],
+  exports: [StoriesRepository, StoryAudienceService],
 })
 export class StoriesModule {}

@@ -5,7 +5,6 @@ import { genId } from "../../common/lib/gen-id.js";
 import {
   fetchLinkPreview,
   getBotByUserId,
-  mediaJobs,
   messageCost,
   push,
   queueJob,
@@ -15,6 +14,7 @@ import {
   uploadAccess,
   type Attachment,
 } from "../../legacy/legacy.js";
+import { markPendingPreviews, messageNeedsMedia } from "../background/lib/media-attachments.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { can, DENIED, isStaff, type Permission } from "../chats/lib/chat-permissions.js";
 import type { Chat } from "../chats/model/domain.js";
@@ -298,7 +298,7 @@ export class MessageSendService {
       threadRootId,
       topicId: threadRootId ? null : ((body.topicId as string | null | undefined) ?? null),
       storyReply: sanitizeStoryReply(body.storyReply),
-      attachments: paid ? [paid.placeholder] : mediaJobs().markPendingPreviews(clean.sanitizeAttachments(body.attachments)),
+      attachments: paid ? [paid.placeholder] : markPendingPreviews(clean.sanitizeAttachments(body.attachments)),
       forwardedFrom,
       sticker: clean.sanitizeSticker(body.sticker),
       customEmoji: sanitizeMessageEmoji(body.customEmoji),
@@ -355,7 +355,7 @@ export class MessageSendService {
     this.pushNewMessage(chat, sender, message, { silent: body.silent === true }).catch((err) => console.error("push notify failed:", err));
 
     // Превью и длительность вложений — в фоновом процессе; готовое придёт событием message:updated.
-    if (mediaJobs().messageNeedsMedia(message)) queueJob("message-media", { messageId: message.id });
+    if (messageNeedsMedia(message)) queueJob("message-media", { messageId: message.id });
 
     // В секретном чате превью ссылок не запрашиваем: сервер не ходит по ссылкам из переписки.
     if (message.type === "text" && message.text && !chat.secret) {

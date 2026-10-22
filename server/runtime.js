@@ -4,6 +4,8 @@
 // начинает переданная функция listen, когда всё готово. opts.realtime — шлюз WebSocket
 // от Nest: тогда свой не поднимается, а события старого кода уходят в него.
 // opts.ownScheduledSweep — отложенные отправляет Nest (modules/messages), свой проход не нужен.
+// opts.workerEntry — фоновый процесс Nest (apps/api/dist/worker.js) вместо server/worker.js;
+// opts.ownBackground — при BACKGROUND_WORKER=0 очередь и обходы запускает Nest, не этот код.
 const { attachWebSocketServer, useRealtime } = require("./ws");
 const { initPush } = require("./push");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
@@ -19,8 +21,8 @@ function startRuntime(server, listen, opts = {}) {
   // всё здесь, как раньше. RTMP и отложенные сообщения — всегда здесь; в режиме тестов
   // их нет: тесты должны быть воспроизводимыми, а параллельные серверы не делить порт RTMP.
   if (workerBridge.enabled) {
-    workerBridge.startWorker();
-  } else {
+    workerBridge.startWorker(opts.workerEntry);
+  } else if (!opts.ownBackground) {
     require("./lib/backgroundJobs").startJobRunner(require("./lib/mediaJobs").handlers);
     startSweeps({ testMode: TEST_MODE });
   }

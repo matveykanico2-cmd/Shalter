@@ -5,7 +5,8 @@ import { AppModule } from "./app.module.js";
 import { RealtimeService } from "./modules/realtime/realtime.service.js";
 import { frontMiddleware } from "./legacy/front.middleware.js";
 import { LegacyFallbackAdapter } from "./legacy/legacy-fallback.adapter.js";
-import { loadLegacyApp, publicJsonReplacer, startLegacyRuntime } from "./legacy/legacy.js";
+import { loadLegacyApp, publicJsonReplacer, startLegacyRuntime, workerBridge } from "./legacy/legacy.js";
+import { BackgroundService } from "./modules/background/background.service.js";
 
 async function bootstrap() {
   const legacy = loadLegacyApp();
@@ -21,6 +22,8 @@ async function bootstrap() {
   // Раньше маршрутов Nest — тех же заголовков, cookie, тела и лимитов, что у старого приложения.
   app.use(frontMiddleware());
   await app.init();
+  // Очередь задач и обходы — в фоновом процессе (worker.ts), при BACKGROUND_WORKER=0 — здесь.
+  if (!workerBridge().enabled) app.get(BackgroundService).startInline();
 
   // Фоновый процесс, RTMP и остановка по сигналу — как у server/index.js. WebSocket — шлюз
   // Nest (modules/realtime), старый код шлёт события в него.

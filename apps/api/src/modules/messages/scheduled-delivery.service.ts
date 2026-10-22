@@ -1,5 +1,6 @@
 import { Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
+import { TEST_MODE } from "../../common/lib/test-mode.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import { UsersRepository } from "../users/users.repository.js";
@@ -9,8 +10,6 @@ import type { ScheduledMessage } from "./model/domain.js";
 import { ScheduledMessagesRepository } from "./scheduled-messages.repository.js";
 
 const SWEEP_INTERVAL_MS = 20_000;
-// Как TEST_MODE в server/lib/sweeps.js: тесты должны быть воспроизводимыми, проход по таймеру выключен.
-const TEST_MODE = process.env.SHALTER_TEST_MODE === "1" && process.env.NODE_ENV !== "production";
 
 // Отправка отложенных — как server/lib/scheduledMessagesSweep.js: по сроку раз в 20 секунд,
 // «когда будет в сети» — и сразу при входе собеседника в сеть. Под Nest старый проход не

@@ -1,3 +1,4 @@
+import type { Attachment } from "../../../legacy/legacy.js";
 import type { Message } from "../model/domain.js";
 
 // Правки сообщения для MessagesRepository.mutate — та же логика, что у одноимённых функций
@@ -16,6 +17,19 @@ export const setReportStatus = (status: string) => (m: Message): Message =>
   m.report ? { ...m, report: { ...(m.report as object), status } } : m;
 
 export const incrementViews = (m: Message): Message => ({ ...m, views: (m.views ?? 0) + 1 });
+
+/** Превью вложения готово (фоновый процесс): поля превью поверх вложения, без previewPending. */
+export const setAttachmentPreview = (index: number, preview: Record<string, unknown> | null | undefined) => (m: Message): Message => ({
+  ...m,
+  attachments: m.attachments?.map((a, i) => {
+    if (i !== index) return a;
+    const next: Attachment = { ...a, previewPending: undefined };
+    for (const [key, value] of Object.entries(preview ?? {})) {
+      if (value !== undefined && value !== null) next[key] = value;
+    }
+    return next;
+  }),
+});
 
 export const setAnchorForPost = (postId: string) => (m: Message): Message => ({ ...m, anchorForPostId: postId });
 

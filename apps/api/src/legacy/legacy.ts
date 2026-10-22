@@ -28,8 +28,15 @@ export interface LegacyRealtimeHub {
   stats: () => { onlineUsers: number; sockets: number };
 }
 
+// Фоновый процесс — свой (dist/worker.js); при BACKGROUND_WORKER=0 очередь и обходы
+// запускает main.ts, поэтому старые runtime.js не запускает (ownBackground).
 export const startLegacyRuntime = (server: Server, listen: (port: number | string) => unknown, realtime: LegacyRealtimeHub): Promise<unknown> =>
-  require(path.join(LEGACY_DIR, "runtime.js")).startRuntime(server, listen, { realtime, ownScheduledSweep: true });
+  require(path.join(LEGACY_DIR, "runtime.js")).startRuntime(server, listen, {
+    realtime,
+    ownScheduledSweep: true,
+    workerEntry: path.resolve(import.meta.dirname, "..", "worker.js"),
+    ownBackground: true,
+  });
 
 // Подключение к SQLite, которое открывает server/db.js (он же создаёт и обновляет
 // схему). Drizzle работает поверх него: общие транзакции и одна очередь записи со старым кодом.
@@ -353,15 +360,67 @@ export const push = (): PushFull => legacyModule<PushFull>("push.js");
 export const fetchLinkPreview = (text: string): Promise<unknown> =>
   legacyModule<{ fetchLinkPreview: (text: string) => Promise<unknown> }>("lib/linkPreview.js").fetchLinkPreview(text);
 
-// Превью и длительность вложений считает фоновый процесс (server/lib/mediaJobs.js, background_jobs).
-interface MediaJobs {
-  markPendingPreviews: (attachments: Attachment[] | undefined) => Attachment[] | undefined;
-  messageNeedsMedia: (message: object) => boolean;
-  storyNeedsMedia: (story: object) => boolean;
-}
-export const mediaJobs = (): MediaJobs => legacyModule<MediaJobs>("lib/mediaJobs.js");
+// Задача фоновому процессу (server/lib/backgroundJobs.js): в очередь background_jobs и разбудить его.
 export const queueJob = (kind: string, payload: object): void =>
   legacyModule<{ queueJob: (kind: string, payload: object) => void }>("lib/backgroundJobs.js").queueJob(kind, payload);
+
+// --- Фоновый процесс (apps/api/src/worker.ts): связь с основным, обходы, обработка файлов ---
+
+// Связь основного процесса с фоновым по IPC (server/lib/workerBridge.js). Фоновый процесс
+// запускает и перезапускает основной (server/runtime.js), события для клиентов идут через него.
+interface WorkerBridge {
+  /** Этот процесс — фоновый, запущенный основным. */
+  isWorker: boolean;
+  /** Фоновый процесс включён (BACKGROUND_WORKER не 0). */
+  enabled: boolean;
+  /** Сообщение основному процессу (из фонового): ws — событие для сокетов, revoked — отзыв доступа. */
+  toMain: (type: string, data: object) => void;
+  /** Ответ на запрос основного (askWorker); error — текст ошибки. */
+  reply: (id: number, error?: string) => void;
+  /** Поручение фоновому процессу с ожиданием ответа (из основного). */
+  askWorker: (type: string, data: object) => Promise<void>;
+  /** Без фонового процесса: queueJob будит этот исполнитель. */
+  onJobsQueued: (fn: () => void) => void;
+}
+export const workerBridge = (): WorkerBridge => legacyModule<WorkerBridge>("lib/workerBridge.js");
+
+/** Проход обхода по таймеру, ещё не перенесённого в Nest (server/lib/sweeps.js, SWEEPS). */
+export const runLegacySweep = (name: string, now: Date): Promise<void> =>
+  legacyModule<{ runSweep: (name: string, now: Date) => Promise<void> }>("lib/sweeps.js").runSweep(name, now);
+/** Обходы по таймеру старого сервера; в режиме тестов не идут (server/lib/sweeps.js). */
+export const startLegacySweeps = (testMode: boolean): void =>
+  legacyModule<{ startSweeps: (opts: { testMode: boolean }) => void }>("lib/sweeps.js").startSweeps({ testMode });
+/** Режим контрактных тестов: SHALTER_TEST_MODE=1 не на боевом сервере (server/lib/sweeps.js). */
+export const isTestMode = (): boolean => legacyModule<{ TEST_MODE: boolean }>("lib/sweeps.js").TEST_MODE;
+
+/** Ключи VAPID для отправки пушей (server/push.js); без них пуши выключены. */
+export const initPush = (): Promise<void> => legacyModule<{ initPush: () => Promise<void> }>("push.js").initPush();
+
+// Превью фото и видео, длительность записи (server/lib/mediaPreview.js: sharp и ffmpeg).
+export interface VideoPreview {
+  previewPath: string;
+  posterPath: string;
+  width: number;
+  height: number;
+  durationSec: number;
+}
+interface MediaPreview {
+  generateImagePreview: (inputPath: string) => Promise<string>;
+  generateVideoPreview: (
+    inputPath: string,
+    opts?: { height?: number; crf?: number; audioBitrate?: string; maxrate?: string }
+  ) => Promise<VideoPreview>;
+  probeDuration: (inputPath: string) => Promise<number | null>;
+}
+export const mediaPreview = (): MediaPreview => legacyModule<MediaPreview>("lib/mediaPreview.js");
+
+// Загруженный файл во временный (расшифрованный) и готовый файл обратно в хранилище
+// (server/lib/uploadTransfer.js).
+interface UploadTransfer {
+  fetchUploadToTemp: (filename: string) => Promise<string>;
+  storeGeneratedFile: (localPath: string) => Promise<string>;
+}
+export const uploadTransfer = (): UploadTransfer => legacyModule<UploadTransfer>("lib/uploadTransfer.js");
 
 /**
  * Повтор отправки с тем же clientId получает ответ первой (server/lib/sendOnce.js). Память
@@ -441,7 +500,7 @@ interface GiftMedia {
   storeGeneratedFile: (localPath: string) => Promise<string>;
 }
 export const giftMedia = (): GiftMedia => ({
-  ...legacyModule<Pick<GiftMedia, "fetchUploadToTemp" | "storeGeneratedFile">>("lib/uploadTransfer.js"),
+  ...uploadTransfer(),
   cutGifBackground: legacyModule<Pick<GiftMedia, "cutGifBackground">>("lib/giftMedia.js").cutGifBackground,
 });
 

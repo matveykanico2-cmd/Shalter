@@ -14,6 +14,7 @@ const enabled = process.env.BACKGROUND_WORKER !== "0";
 const HEAP_MB = Number(process.env.WORKER_MAX_OLD_SPACE_MB) || 256;
 
 let child = null;
+let entry = path.join(__dirname, "..", "worker.js");
 let stopping = false;
 let restartDelay = 1000;
 const handlers = new Map();
@@ -44,11 +45,14 @@ function on(type, fn) {
   handlers.set(type, fn);
 }
 
-function startWorker() {
+// file — точка входа фонового процесса: server/worker.js или фоновый процесс Nest
+// (apps/api/dist/worker.js); при перезапуске берётся та же.
+function startWorker(file) {
+  if (file) entry = file;
   if (child || stopping) return;
   const execArgv = process.execArgv.filter((a) => !a.startsWith("--max-old-space-size") && !a.startsWith("--inspect"));
   const started = Date.now();
-  child = fork(path.join(__dirname, "..", "worker.js"), [], {
+  child = fork(entry, [], {
     env: { ...process.env, SHALTER_ROLE: "worker" },
     execArgv: [...execArgv, `--max-old-space-size=${HEAP_MB}`],
     serialization: "advanced",

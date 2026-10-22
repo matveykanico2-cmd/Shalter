@@ -3,7 +3,8 @@ import { Injectable } from "@nestjs/common";
 import { SYSTEM_BOT_ID } from "../../common/config/accounts.js";
 import { ApiError } from "../../common/errors/api-error.js";
 import { hasAdminSection } from "../../common/lib/admin-access.js";
-import { findOrCreateDm, isSafeUrl, mediaJobs, push, queueJob, sendMessageAndBroadcast, usesForeignUpload } from "../../legacy/legacy.js";
+import { findOrCreateDm, isSafeUrl, push, queueJob, sendMessageAndBroadcast, usesForeignUpload } from "../../legacy/legacy.js";
+import { storyNeedsMedia } from "../background/lib/media-attachments.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import type { Chat } from "../chats/model/domain.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
@@ -313,9 +314,9 @@ export class StoriesService {
     });
   }
 
-  /** Видео истории обрабатывает фоновый процесс (server/lib/mediaJobs.js). */
+  /** Видео истории обрабатывает фоновый процесс (modules/background). */
   private queueMedia(story: Story): void {
-    if (mediaJobs().storyNeedsMedia(story)) queueJob("story-videos", { storyId: story.id });
+    if (storyNeedsMedia(story)) queueJob("story-videos", { storyId: story.id });
   }
 
   private async pushNewStory(uid: string): Promise<void> {
