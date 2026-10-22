@@ -9,8 +9,8 @@ export class MiniAppsController {
   public constructor(private readonly apps: MiniAppsService) {}
 
   @Get(":username")
-  public async open(@Param("username") username: string, @Res() res: Response): Promise<void> {
-    const html = await this.apps.page(username || "");
+  public open(@Param("username") username: string, @Res() res: Response): void {
+    const html = this.apps.page(username || "");
     if (html == null) {
       res.status(404).type("text/plain; charset=utf-8").send("Приложение не найдено");
       return;

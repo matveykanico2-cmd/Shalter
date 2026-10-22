@@ -127,6 +127,11 @@ export class UsersRepository {
     return this.findById(user.id)!;
   }
 
+  /** Только строка пользователя (deleteUser в server/data/users.js), без чистки его данных. */
+  public delete(id: string): void {
+    this.db.delete(users).where(eq(users.id, id)).run();
+  }
+
   public update(id: string, patch: UserPatch): User | undefined {
     if (Object.keys(patch).length > 0) this.db.update(users).set(patch).where(eq(users.id, id)).run();
     return this.findById(id);

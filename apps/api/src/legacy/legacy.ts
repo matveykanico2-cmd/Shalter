@@ -224,6 +224,17 @@ export interface LegacyBot {
 export const getBotByUserId = (userId: string): Promise<LegacyBot | undefined> =>
   legacyModule<{ getBotByUserId: (userId: string) => Promise<LegacyBot | undefined> }>("data/bots.js").getBotByUserId(userId);
 
+/**
+ * Сообщение от бота (server/lib/botMessaging.js): проверки, рассылка по WS и ответы других ботов
+ * в чате. Ошибка — с HTTP-статусом в status. Общий с Bot API лимит переписки бот-бот — в памяти там.
+ */
+export const sendBotMessage = (botUserId: string, chatId: string, text: string): Promise<unknown> =>
+  legacyModule<{ sendBotMessage: (botUserId: string, chatId: string, text: string) => Promise<unknown> }>("lib/botMessaging.js").sendBotMessage(
+    botUserId,
+    chatId,
+    text
+  );
+
 // «Печатает…» (server/data/typing.js): в памяти процесса, его же ставят боты и Shalter AI.
 interface Typing {
   markTyping: (chatId: string, userId: string, action: string) => void;

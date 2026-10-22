@@ -39,6 +39,8 @@ export interface ProfilePatch {
   phone?: string;
   bio?: string;
   avatarColor?: string;
+  /** Только у ботов (PATCH /api/bots/:id); у людей аватарки — setAvatars. */
+  avatarImage?: string | null;
   birthday?: string | null;
   businessAddress?: string | null;
   /** Как пришло в запросе: колонка REAL, SQLite сам приводит числовую строку. */
