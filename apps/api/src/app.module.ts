@@ -16,6 +16,13 @@ import { StickersModule } from "./modules/stickers/stickers.module.js";
 import { UsernamesModule } from "./modules/usernames/usernames.module.js";
 import { ChannelsModule } from "./modules/channels/channels.module.js";
 import { NearbyModule } from "./modules/nearby/nearby.module.js";
+import { HugoModule } from "./modules/hugo/hugo.module.js";
+import { PartnersModule } from "./modules/partners/partners.module.js";
+import { ShortLinksModule } from "./modules/short-links/short-links.module.js";
+import { LinkCheckModule } from "./modules/link-check/link-check.module.js";
+import { ExportModule } from "./modules/export/export.module.js";
+import { SupportModule } from "./modules/support/support.module.js";
+import { ShalterAiModule } from "./modules/shalter-ai/shalter-ai.module.js";
 import { RealtimeModule } from "./modules/realtime/realtime.module.js";
 import { SearchModule } from "./modules/search/search.module.js";
 import { SessionsModule } from "./modules/sessions/sessions.module.js";
@@ -26,7 +33,7 @@ import { UploadsModule } from "./modules/uploads/uploads.module.js";
 
 // Перенесённые из server/ модули подключаются сюда.
 @Module({
-  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule, BootstrapModule, SearchModule, PushModule, StickersModule, UsernamesModule, ChannelsModule, NearbyModule],
+  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule, BootstrapModule, SearchModule, PushModule, StickersModule, UsernamesModule, ChannelsModule, NearbyModule, HugoModule, PartnersModule, ShortLinksModule, LinkCheckModule, ExportModule, SupportModule, ShalterAiModule],
   providers: [
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ViewerShapeInterceptor },

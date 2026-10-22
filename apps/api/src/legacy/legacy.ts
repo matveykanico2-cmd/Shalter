@@ -482,3 +482,53 @@ export const isFcmConfigured = (): boolean => legacyModule<{ isFcmConfigured: ()
 /** Адрес публичный (не локальный, не внутренняя сеть); иначе бросает — та же проверка, что у превью ссылок (server/lib/linkPreview.js). */
 export const assertPublicUrl = (url: string): Promise<URL> =>
   legacyModule<{ assertPublicUrl: (url: string) => Promise<URL> }>("lib/linkPreview.js").assertPublicUrl(url);
+
+// --- Для проверки текста (modules/hugo) ---
+
+/** Проверка орфографии через LanguageTool (server/lib/languageTool.js); error — ответ с этим статусом. */
+interface LanguageTool {
+  checkText: (text: string, language: unknown) => Promise<{ matches?: unknown[]; language?: unknown; error?: string; status?: number }>;
+  MAX_TEXT: number;
+}
+export const languageTool = (): LanguageTool => legacyModule<LanguageTool>("lib/languageTool.js");
+
+// --- Для встроенного браузера (modules/link-check) и экспорта данных (modules/export) ---
+
+/** Можно ли открыть страницу во встроенном браузере (server/lib/linkPreview.js). */
+export const checkFrameable = (url: string, ourOrigin: string): Promise<object> =>
+  legacyModule<{ checkFrameable: (url: string, ourOrigin: string) => Promise<object> }>("lib/linkPreview.js").checkFrameable(url, ourOrigin);
+
+/** Статья по ссылке для режима чтения (server/lib/instantView.js); ошибка со status — ответ с ним. */
+export const buildInstantView = (url: string): Promise<unknown> =>
+  legacyModule<{ buildInstantView: (url: string) => Promise<unknown> }>("lib/instantView.js").buildInstantView(url);
+
+/** Выгрузка данных пользователя (server/data/dataExport.js); undefined — нет такого. */
+export const buildUserExport = (userId: string, opts: { respectPrivacy?: boolean; forSelf?: boolean }): Promise<unknown> =>
+  legacyModule<{ buildUserExport: (userId: string, opts: object) => Promise<unknown> }>("data/dataExport.js").buildUserExport(userId, opts);
+
+// --- Для поддержки (modules/support) и Shalter AI (modules/shalter-ai) ---
+
+/** Hugo — бот поддержки (server/data/hugoBot.js): аккаунт заводится при первом обращении. */
+export const HUGO_ID = "bot_support";
+export const ensureHugoAccount = (): void => legacyModule<{ ensureHugoAccount: () => void }>("data/hugoBot.js").ensureHugoAccount();
+
+/** Shalter AI (server/data/shalterAiBot.js, lib/shalterAi.js, lib/aiPlans.js): тарифы, лимиты, остановка ответа. */
+export const SHALTER_AI_ID = "bot_shalter_ai";
+export interface AiPlan {
+  modes: string[];
+  [key: string]: unknown;
+}
+interface ShalterAi {
+  ensureShalterAiAccount: () => void;
+  WELCOME: string;
+  quotaFor: (userId: string) => Promise<{ plan: AiPlan; settings: unknown; usage: unknown }>;
+  stopShalterAi: (chatId: string, userId: string) => boolean;
+  PLANS: Record<string, AiPlan>;
+  CHOICES: unknown;
+  normalizeAiSettings: (raw: object, plan: AiPlan) => object;
+}
+export const shalterAi = (): ShalterAi => ({
+  ensureShalterAiAccount: legacyModule<Pick<ShalterAi, "ensureShalterAiAccount">>("data/shalterAiBot.js").ensureShalterAiAccount,
+  ...legacyModule<Pick<ShalterAi, "WELCOME" | "quotaFor" | "stopShalterAi">>("lib/shalterAi.js"),
+  ...legacyModule<Pick<ShalterAi, "PLANS" | "CHOICES" | "normalizeAiSettings">>("lib/aiPlans.js"),
+});
