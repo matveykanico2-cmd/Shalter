@@ -1,10 +1,15 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate } from "react-router";
 
 import { SignInView } from "@/views/sign-in";
 
 import { AppShell } from "@/widgets/app-shell";
+import { ChatList } from "@/widgets/chat-list";
 
-import { useSession } from "@/entities/session";
+import { type SelfUser, useSession } from "@/entities/session";
+
+import { bootstrapQuery } from "../model/bootstrap";
+import { useRealtime } from "../model/use-realtime";
 
 import { Splash } from "./splash";
 
@@ -21,7 +26,14 @@ export function RequireSession() {
     );
   }
   if (!data.user) return <Navigate to="/login" replace />;
-  return <AppShell user={data.user} />;
+  return <SignedIn user={data.user} />;
+}
+
+function SignedIn({ user }: { user: SelfUser }) {
+  const client = useQueryClient();
+  useRealtime(user.id);
+  const boot = useQuery(bootstrapQuery(client, user.id));
+  return <AppShell user={user} sidebar={boot.isPending ? null : <ChatList meId={user.id} />} />;
 }
 
 /** /login, когда вход уже есть, — сразу в приложение. */

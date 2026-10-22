@@ -27,7 +27,8 @@
 }
 
 .sidebar {
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   border-right: 1px solid var(--color-border);
 }
 
@@ -41,7 +42,12 @@
   }
 
   .rail,
-  .sidebar {
+  .main,
+  .chatOpen .sidebar {
     display: none;
+  }
+
+  .chatOpen .main {
+    display: block;
   }
 }

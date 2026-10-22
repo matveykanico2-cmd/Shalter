@@ -11,8 +11,14 @@ import { isTwoFactorChallenge, loginByEmail, type TwoFactorChallenge } from "../
 import styles from "./sign-in.module.css";
 import { TwoFactorStep } from "./two-factor-step";
 
+type Props = {
+  onSignedIn: () => void;
+  /** Подсказка над кнопкой, пока нет ошибки (например, «сеанс завершён»). */
+  notice?: string;
+};
+
 /** Вход по почте и паролю, при включённой 2FA — со вторым шагом. Вошли — сессия перечитывается. */
-export function SignInForm({ onSignedIn }: { onSignedIn: () => void }) {
+export function SignInForm({ onSignedIn, notice }: Props) {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,6 +51,7 @@ export function SignInForm({ onSignedIn }: { onSignedIn: () => void }) {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
+      {notice && !login.isError && <p className={styles.hint}>{notice}</p>}
       {login.isError && <p className={styles.error}>{errorText(login.error)}</p>}
       <Button type="submit" disabled={login.isPending}>
         {login.isPending ? "Входим…" : "Войти"}

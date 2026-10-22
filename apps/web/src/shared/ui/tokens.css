@@ -10,6 +10,7 @@
   --color-accent-contrast: #ffffff;
   --color-accent-soft: #e5f1fd;
   --color-danger: #e53935;
+  --color-success: #4fae4e;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --radius-control: 12px;
@@ -27,5 +28,6 @@
     --color-accent-contrast: #ffffff;
     --color-accent-soft: #2f2a47;
     --color-danger: #ff595a;
+    --color-success: #5cc85a;
   }
 }

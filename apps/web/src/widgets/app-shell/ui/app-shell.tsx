@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Outlet } from "react-router";
+import { Outlet, useMatch } from "react-router";
 
 import { SignOutButton } from "@/features/sign-out";
 
@@ -14,8 +14,10 @@ type Props = {
 };
 
 export function AppShell({ user, sidebar }: Props) {
+  // На телефоне видно что-то одно: список чатов или открытый чат.
+  const chatOpen = !!useMatch("/chat/:chatId");
   return (
-    <div className={styles.shell}>
+    <div className={chatOpen ? `${styles.shell} ${styles.chatOpen}` : styles.shell}>
       <nav className={styles.rail} aria-label="Навигация">
         <span className={styles.avatar} title={user.name}>
           {user.name.slice(0, 1).toUpperCase()}

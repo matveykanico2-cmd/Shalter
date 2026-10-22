@@ -1,0 +1,288 @@
+/* Как .chat-list-pane и соседи в public/styles/components.css. */
+.pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.titleBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 34px;
+  padding: 6px 16px 0;
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.connecting {
+  color: var(--color-muted);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tabsBar {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabs {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  padding: 0 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  position: relative;
+  flex-shrink: 0;
+  padding: 12px 12px 11px;
+  border: none;
+  border-radius: 12px 12px 0 0;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab:hover {
+  background: var(--color-surface-alt);
+}
+
+.tabActive {
+  color: var(--color-accent);
+}
+
+.tabActive::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  bottom: -1px;
+  left: 8px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--color-accent);
+}
+
+.tabCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 5px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--color-muted);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tabActive .tabCount {
+  background: var(--color-accent);
+}
+
+.iconButton {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-right: 8px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--color-surface-alt);
+}
+
+.filterOn {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.archiveHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.archiveHead .iconButton {
+  margin: 0 0 0 -6px;
+}
+
+.archiveTitle {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.archiveCount {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+}
+
+.rows {
+  position: relative;
+  width: 100%;
+}
+
+.rowSlot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 0 8px;
+}
+
+.archiveRow {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.archiveRow:hover {
+  background: var(--color-surface-alt);
+}
+
+.archiveIcon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+}
+
+.archiveBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.archiveName {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.archiveLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.archiveNames {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archiveUnread {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-muted);
+  color: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.emptyText {
+  max-width: 260px;
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+.error {
+  padding: 16px;
+  color: var(--color-danger);
+  font-size: 14px;
+  text-align: center;
+}
