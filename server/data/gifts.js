@@ -49,29 +49,10 @@ function withStars(g) {
 
 // В витрине — только подарки с анимациями (public/tgs: из tweb и анимированные эмодзи). Остальные встроенные
 // сняты с продажи: уже подаренные остаются у людей, админ видит их в каталоге (includeHidden).
-const TWEB_GIFT_IDS = new Set([
-  "cake", "premium_week", "premium_month", "premium_quarter", "premium_year", "premium_forever",
-  "hlopushka_s_konfetti", "kubik", "podarochnaya_korobka", "zolotoy_klyuch",
-  "tw_love_letter", "tw_mailbox", "tw_duck_birthday", "tw_pirate_flag",
-  "tw_duck_spy", "tw_duck_popcorn", "tw_duck_portal", "tw_duck_safe", "tw_duck_stop", "tw_duck_detective", "tw_duck_album", "tw_duck_vacation", "tw_monkey", "tw_hand", "tw_chart", "tw_folders", "tw_spider_folder",
-  "tw_monkey_close", "tw_monkey_peek", "tw_monkey_curious", "tw_blueprints", "tw_cloud_folder", "tw_halo_star",
-  "tw_star_fall", "tw_monkey_shy", "tw_gift_blue", "tw_gift_red", "tg_plush_pepe",
-  // «Утёнок на отдыхе»: своей анимации в tweb нет — рисуется встроенной сценой
-  // (public/gift-scenes/<id>.json, см. scripts/gift-scenes.js).
-  // анимированные эмодзи (public/tgs/emoji)
-  "raduga", "rose", "pitstsa", "shampanskoe", "sharik", "serpantin", "kotenok", "buket_tsvetov", "ogonek", "edinorog", "coffee", "futbolnyy_myach", "snezhinka", "heart", "iskry", "bokaly", "raketa",
-  "nt_ghost", "nt_alien", "nt_kiss", "nt_sparkling_heart", "nt_heart_arrow", "nt_blue_heart", "nt_green_heart", "nt_yellow_heart", "nt_purple_heart", "nt_orange_heart", "nt_black_heart", "nt_hundred", "nt_cool", "nt_love_eyes", "nt_robot", "nt_cowboy", "nt_clown", "nt_hands_heart", "nt_hug", "nt_devil",
-  // Подарки с крабом для дней рождения
-  "shalter_crab_hello", "shalter_crab_birthday", "shalter_crab_party", "shalter_crab_hug",
-  "crab_cake_slice", "crab_cake_whole", "crab_ice_cream", "crab_cupcake", "crab_candy", "crab_lollipop",
-  "crab_chocolate", "crab_donut", "crab_pizza", "crab_popcorn", "crab_cocktail", "crab_champagne",
-  "crab_toast", "crab_candle", "crab_party_hat", "crab_present", "crab_balloon", "crab_confetti",
-  "crab_fireworks", "crab_star", "crab_heart", "crab_kiss", "crab_dance_slow", "crab_dance_fast",
-  "crab_dj", "crab_guitar", "crab_drums", "crab_trumpet", "crab_microphone", "crab_sunhat",
-  "crab_sunglasses", "crab_crown", "crab_scepter", "crab_helmet", "crab_anchor", "crab_boat",
-  "crab_seashell", "crab_seaweed", "crab_pearl", "crab_lifebuoy", "crab_sandcastle", "crab_towel",
-  "crab_sunscreen", "crab_umbrella",
-]);
+// Список — catalog/gifts-on-sale.json (его же читает apps/api): подарки tweb, «Утёнок на отдыхе»
+// (своей анимации в tweb нет — рисуется встроенной сценой public/gift-scenes/<id>.json, см.
+// scripts/gift-scenes.js), анимированные эмодзи (public/tgs/emoji) и подарки с крабом для дней рождения.
+const TWEB_GIFT_IDS = new Set(require("./catalog/gifts-on-sale.json"));
 
 // Подарки витрины в порядке каталога — считается один раз, а не на каждый запрос.
 const ON_SALE_BUILTINS = GIFTS.filter((g) => TWEB_GIFT_IDS.has(g.id));

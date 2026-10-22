@@ -1,9 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { businessStatus, countBotAudience, withGiftSenders } from "../../legacy/legacy.js";
+import { businessStatus, countBotAudience } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { isStaff } from "../chats/lib/chat-permissions.js";
 import type { Chat } from "../chats/model/domain.js";
+import { GiftSendersService } from "../gifts/gift-senders.service.js";
 import { MessagesRepository } from "../messages/messages.repository.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
 import { applyContactName, privacyAllows } from "../users/lib/privacy-rules.js";
@@ -47,7 +48,8 @@ export class ProfilesService {
     private readonly messages: MessagesRepository,
     private readonly userSettings: UserSettingsService,
     private readonly contacts: ContactsRepository,
-    private readonly privacy: UserPrivacyService
+    private readonly privacy: UserPrivacyService,
+    private readonly giftSenders: GiftSendersService
   ) {}
 
   public async blocked(uid: string) {
@@ -118,7 +120,7 @@ export class ProfilesService {
 
     const commonGroupsCount = isSelf ? 0 : this.commonGroupsOf(uid, id).length;
 
-    if (Array.isArray(visible.giftsReceived)) visible.giftsReceived = await withGiftSenders(visible.giftsReceived, uid);
+    if (Array.isArray(visible.giftsReceived)) visible.giftsReceived = this.giftSenders.withGiftSenders(visible.giftsReceived, uid);
 
     return {
       user: visible,

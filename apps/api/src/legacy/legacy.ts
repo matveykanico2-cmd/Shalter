@@ -64,10 +64,12 @@ export interface LegacyChat {
 
 /** Служебное сообщение: type "system" — строка по центру ленты, "call" — итог звонка; readByIds — кто уже «прочитал». */
 export interface MessageExtra {
-  type?: "system" | "call" | "report";
+  type?: "system" | "call" | "report" | "gift";
   readByIds?: string[];
   /** Карточка жалобы у модератора (type: "report"). */
   report?: object;
+  /** Подарок в сообщении (type: "gift"). */
+  gift?: object;
 }
 
 interface SystemChat {
@@ -292,11 +294,14 @@ interface Sanitizers {
   MAX_CHECKLIST_ITEMS: number;
   sanitizeSticker: (raw: unknown) => ({ kind?: string; url?: string; emoji?: string } & Record<string, unknown>) | undefined;
   sanitizeScene: (raw: unknown, opts?: { requireLayers?: boolean }) => unknown;
+  /** Эмодзи нарисованного подарка: первый эмодзи-слой сцены или 🎨. */
+  sceneSummaryEmoji: (scene: unknown) => string;
 }
 export const sanitizers = (): Sanitizers => ({
   ...legacyModule<Pick<Sanitizers, "sanitizeAttachments" | "MAX_CHECKLIST_ITEMS">>("lib/sanitizeAttachments.js"),
   sanitizeSticker: legacyModule<Pick<Sanitizers, "sanitizeSticker">>("lib/sanitizeSticker.js").sanitizeSticker,
   sanitizeScene: legacyModule<Pick<Sanitizers, "sanitizeScene">>("lib/sanitizeScene.js").sanitizeScene,
+  sceneSummaryEmoji: legacyModule<Pick<Sanitizers, "sceneSummaryEmoji">>("lib/sanitizeScene.js").sceneSummaryEmoji,
 });
 
 // Кто отвечает на новое сообщение: код бота в песочнице, Хьюго, Shalter AI, бот помощи,
@@ -409,8 +414,22 @@ export const fileCompression = (): FileCompression => legacyModule<FileCompressi
 interface ServeUpload {
   serveUpload: () => RequestHandler;
   contentTypeFor: (filename: string) => string | undefined;
+  /** Имя загруженного файла в /uploads. */
+  FILENAME_RE: RegExp;
 }
 export const serveUpload = (): ServeUpload => legacyModule<ServeUpload>("lib/serveUpload.js");
+
+// Гифка подарка: загрузку — во временный файл (server/lib/uploadTransfer.js), вырезать фон
+// (server/lib/giftMedia.js, ffmpeg + sharp), результат — снова в хранилище.
+interface GiftMedia {
+  fetchUploadToTemp: (filename: string) => Promise<string>;
+  cutGifBackground: (inputPath: string) => Promise<string>;
+  storeGeneratedFile: (localPath: string) => Promise<string>;
+}
+export const giftMedia = (): GiftMedia => ({
+  ...legacyModule<Pick<GiftMedia, "fetchUploadToTemp" | "storeGeneratedFile">>("lib/uploadTransfer.js"),
+  cutGifBackground: legacyModule<Pick<GiftMedia, "cutGifBackground">>("lib/giftMedia.js").cutGifBackground,
+});
 
 // --- WebSocket: шлюз в Nest (modules/realtime), а это — то, что ему нужно из server/ ---
 
@@ -457,10 +476,6 @@ export const unsupportedLanguages = (): { isUnsupportedLanguage: (code: unknown)
 export const countBotAudience = (botUserId: string): number =>
   legacyModule<{ countBotAudience: (botUserId: string) => number }>("data/bots.js").countBotAudience(botUserId);
 
-/** Подарки на полке с текущими именем и аватаром отправителя глазами смотрящего (server/lib/giftSenders.js). */
-export const withGiftSenders = <T>(gifts: T[], viewerId: string): Promise<T[]> =>
-  legacyModule<{ withGiftSenders: <G>(gifts: G[], viewerId: string) => Promise<G[]> }>("lib/giftSenders.js").withGiftSenders(gifts, viewerId);
-
 /** Ссылка /uploads/… на существующий файл, который загрузил сам пользователь (server/lib/uploadAccess.js). */
 export const isOwnUploadUrl = (userId: string, url: string): Promise<boolean> =>
   legacyModule<{ isOwnUploadUrl: (userId: string, url: string) => Promise<boolean> }>("lib/uploadAccess.js").isOwnUploadUrl(userId, url);
@@ -504,7 +519,16 @@ export const getActiveDonationLink = (): { provider: string; donationUrl: string
   legacyModule<{ getActiveDonationLink: () => { provider: string; donationUrl: string } | null }>("lib/autoPayment.js").getActiveDonationLink();
 
 /** Заказ, который оплачивается донатом с кодом в комментарии (server/data/pendingOrders.js). */
-export const createPendingOrder = (order: { userId: string; kind: string; amountRub: number; meta?: object }): Promise<{ code: string }> =>
+export interface NewPendingOrder {
+  userId: string;
+  kind: string;
+  amountRub: number;
+  /** Заказ подарка (kind: "gift"). */
+  giftId?: string;
+  recipientId?: string;
+  meta?: object;
+}
+export const createPendingOrder = (order: NewPendingOrder): Promise<{ code: string }> =>
   legacyModule<{ createPendingOrder: (order: object) => Promise<{ code: string }> }>("data/pendingOrders.js").createPendingOrder(order);
 
 // Подключение DonationAlerts по OAuth (server/lib/donationAlerts.js) и DonatePay (server/lib/donatePay.js).

@@ -4,7 +4,7 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { emitAccessRevoked } from "../../legacy/legacy.js";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { users } from "../db/schema.js";
-import { banActive, FOREVER, toUser } from "./lib/user.mapper.js";
+import { banActive, FOREVER, toUser, type GiftEntry } from "./lib/user.mapper.js";
 import type { AvatarEntry, BanState, NewUserRow, ProfilePatch, ProfileTrack, StatusEntry, StatusState, User, UserPatch } from "./model/domain.js";
 
 const REFERRAL_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -191,6 +191,28 @@ export class UsersRepository {
     if (!this.db.select({ id: users.id }).from(users).where(eq(users.id, id)).get()) return undefined;
     this.db.update(users).set({ statusItems: JSON.stringify(items), activeStatusId }).where(eq(users.id, id)).run();
     return this.findById(id);
+  }
+
+  /**
+   * Правка полки подарков (giftsReceived) в одной транзакции, как addReceivedGift, setGiftPinned и
+   * removeReceivedGift в server/data/users.js: fn меняет список на месте и возвращает false, если
+   * менять нечего. false — нет пользователя или fn отказалась.
+   */
+  public mutateGiftsReceived(userId: string, fn: (gifts: GiftEntry[]) => boolean): boolean {
+    return this.db.transaction((tx) => {
+      const row = tx.select({ giftsReceived: users.giftsReceived }).from(users).where(eq(users.id, userId)).get();
+      if (!row) return false;
+      let gifts: GiftEntry[];
+      try {
+        const parsed = JSON.parse(row.giftsReceived ?? "[]");
+        gifts = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        gifts = [];
+      }
+      if (!fn(gifts)) return false;
+      tx.update(users).set({ giftsReceived: JSON.stringify(gifts) }).where(eq(users.id, userId)).run();
+      return true;
+    });
   }
 
   /** Весь список треков профиля; пустой — NULL (setProfileTracks в server/data/users.js). */
