@@ -47,7 +47,8 @@ function assetPacks() {
     } catch {
       return next();
     }
-    const hit = entry?.index[rel];
+    // Только свои ключи индекса: «constructor» или «__proto__» — не файлы архива.
+    const hit = entry && Object.hasOwn(entry.index, rel) ? entry.index[rel] : undefined;
     if (!hit) return next();
     const etag = `${entry.etag}-${hit[0].toString(36)}"`;
     res.setHeader("ETag", etag);

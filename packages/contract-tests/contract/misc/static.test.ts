@@ -145,9 +145,9 @@ describe("архивы картинок по прежним адресам", () 
     expect(res.body).toMatchObject({ fr: expect.any(Number), layers: expect.any(Array) });
   });
 
-  test("нет в архиве, битая кодировка — SPA", async () => {
+  test("нет в архиве, битая кодировка, имя свойства объекта — SPA", async () => {
     const root = await anon().get("/");
-    for (const path of ["/img/emoji/nope.png", "/img/emoji/%E0%A4%A", "/tgs/"]) {
+    for (const path of ["/img/emoji/nope.png", "/img/emoji/%E0%A4%A", "/tgs/", "/img/emoji/constructor", "/tgs/__proto__", "/gift-emoji/toString"]) {
       const res = await anon().get(path);
       expect(res.status, path).toBe(200);
       expect(res.text, path).toBe(root.text);
