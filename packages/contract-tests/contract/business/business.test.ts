@@ -8,6 +8,7 @@ import { registerUser, type TestUser } from "../../support/seed";
 import { useServer } from "../../support/use-server";
 import { wsMessageNew } from "../../schemas/messages";
 import { businessMe, businessRequestChat, businessUserBody, wsSelfUpdated } from "../../schemas/business";
+import { settingsPatchBody } from "../../schemas/settings";
 import { socketPool } from "../ws/helpers";
 
 const ADMIN_PHONE = "+70000000553";
@@ -182,5 +183,19 @@ describe("POST /api/business/grant", () => {
     expect(expectOk(await u.api.get("/api/business/me"), businessMe)).toMatchObject({ isBusiness: false, businessForever: false });
     // Профиль глазами другого пользователя тоже обновился.
     expect((await (await newUser()).api.get(`/api/users/${u.id}`)).body.user.isBusiness).toBe(false);
+  });
+});
+
+describe("PATCH /api/settings с бизнесом", () => {
+  test("с бизнес-подпиской business.enabled сохраняется; после отключения подписки — снова false", async () => {
+    const admin = await getAdmin();
+    const u = await newUser();
+    await admin.api.post("/api/business/grant", { userId: u.id });
+    const on = expectOk(await u.api.patch("/api/settings", { business: { enabled: true, greeting: { enabled: true, text: "Здравствуйте" } } }), settingsPatchBody);
+    expect(on.settings.business).toMatchObject({ enabled: true, greeting: { enabled: true, text: "Здравствуйте", attachments: [] } });
+    expect((await u.api.get("/api/settings")).body.settings.business.enabled).toBe(true);
+
+    await admin.api.post("/api/business/grant", { userId: u.id, business: false });
+    expect(expectOk(await u.api.patch("/api/settings", { business: { enabled: true } }), settingsPatchBody).settings.business.enabled).toBe(false);
   });
 });

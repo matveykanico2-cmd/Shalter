@@ -14,7 +14,6 @@ import {
   responders,
   sanitizers,
   sendOnce,
-  settings,
   stars,
   uploadAccess,
   type Attachment,
@@ -25,7 +24,9 @@ import type { Chat } from "../chats/model/domain.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import { TopicsRepository } from "../topics/topics.repository.js";
 import type { User } from "../users/model/domain.js";
+import { isQuietNow } from "../users/lib/settings.defaults.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserSettingsService } from "../users/user-settings.service.js";
 import { incrementCommentCount, setLinkPreview } from "./lib/message-edits.js";
 import {
   MAX_MESSAGE_TEXT,
@@ -65,7 +66,8 @@ export class MessageSendService {
     private readonly chats: ChatsRepository,
     private readonly topics: TopicsRepository,
     private readonly users: UsersRepository,
-    private readonly realtime: RealtimeService
+    private readonly realtime: RealtimeService,
+    private readonly userSettings: UserSettingsService
   ) {}
 
   /** Повтор с тем же clientId (в том числе одновременный) получает ответ первой отправки. */
@@ -84,7 +86,7 @@ export class MessageSendService {
       const message = await this.deliver(chat, uid, fields, { paidStars: charged, paid });
       // Отправили — черновик этого чата больше не нужен (иначе «Черновик: …» мог вернуться
       // в списке чатов, если очистка с клиента разошлась с сохранением).
-      if ((await settings().getSettings(uid)).drafts?.[chat.id]) await settings().setDraft(uid, chat.id, "");
+      if (this.userSettings.get(uid).drafts?.[chat.id]) this.userSettings.setDraft(uid, chat.id, "");
       return { message, ...(charged ? { chargedStars: charged, balance: stars().balanceOf(uid) } : {}) };
     });
   }
@@ -169,7 +171,7 @@ export class MessageSendService {
     if (!other) return 0;
 
     if (!(await privacyRules().allowsUser(other.id, "messages", uid))) {
-      const { privacy: theirPrivacy } = await settings().getSettings(other.id);
+      const { privacy: theirPrivacy } = this.userSettings.get(other.id);
       const level = theirPrivacy?.messages ?? "everyone";
       const deniedByName = (theirPrivacy?.exceptions?.messages?.deny ?? []).includes(uid);
       // «Только контакты» пропускает Premium и тех, кому собеседник уже писал сам.
@@ -387,8 +389,8 @@ export class MessageSendService {
     const chatAvatar = isGroupLike ? notify.pushAvatar(chat) : null;
     await Promise.all(
       recipients.map(async (uid) => {
-        const userSettings = await settings().getSettings(uid);
-        if (settings().isQuietNow(userSettings, chat.id)) return;
+        const userSettings = this.userSettings.get(uid);
+        if (isQuietNow(userSettings, chat.id)) return;
         const mentioned = message.mentionedUserIds?.includes(uid);
         const body = chat.secret
           ? "🔒 Новое сообщение в секретном чате"

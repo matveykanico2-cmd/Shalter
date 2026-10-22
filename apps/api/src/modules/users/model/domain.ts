@@ -54,3 +54,26 @@ export interface AvatarEntry {
   poster?: string;
   [key: string]: unknown;
 }
+
+/** Личные пометки чата в настройках: закреплён, в архиве, без звука, «непрочитанный». */
+export interface ChatFlags {
+  pinned?: boolean;
+  archived?: boolean;
+  archivedAt?: string;
+  muted?: boolean;
+  unread?: boolean;
+}
+
+/** Настройки пользователя (таблица settings): один JSON на пользователя, как в server/data/settings.js. */
+export interface UserSettings {
+  chatFlags?: Record<string, ChatFlags>;
+  pinnedOrder?: string[];
+  pinnedChannelIds?: string[];
+  hiddenChats?: Record<string, string>;
+  chatWallpapers?: Record<string, unknown>;
+  chatClears?: Record<string, string>;
+  drafts?: Record<string, unknown>;
+  privacy?: { messages?: string; exceptions?: Record<string, { allow?: string[]; deny?: string[] }>; [key: string]: unknown };
+  notifications?: { mutedChats?: Record<string, true | string>; previewText?: boolean; sound?: boolean; [key: string]: unknown };
+  [key: string]: unknown;
+}

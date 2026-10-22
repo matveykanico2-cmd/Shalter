@@ -5,6 +5,7 @@ import path from "node:path";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { RequestHandler } from "express";
 import type BetterSqlite3 from "better-sqlite3";
+import type { UserSettings } from "../modules/users/model/domain.js";
 
 const require = createRequire(import.meta.url);
 const LEGACY_DIR = path.resolve(import.meta.dirname, "..", "..", "..", "..", "server");
@@ -151,40 +152,6 @@ export const webauthn = (): WebAuthn => legacyModule<WebAuthn>("lib/webauthn.js"
 /** Ключ шифрования нового секретного чата, обёрнутый мастер-ключом (server/lib/textCrypto.js). */
 export const newSecretChatKey = (chatId: string): string =>
   legacyModule<{ newSecretChatKey: (chatId: string) => string }>("lib/textCrypto.js").newSecretChatKey(chatId);
-
-// Настройки пользователя (server/data/settings.js): один JSON на пользователя.
-export interface ChatFlags {
-  pinned?: boolean;
-  archived?: boolean;
-  archivedAt?: string;
-  muted?: boolean;
-  unread?: boolean;
-}
-export interface UserSettings {
-  chatFlags?: Record<string, ChatFlags>;
-  pinnedOrder?: string[];
-  hiddenChats?: Record<string, string>;
-  chatWallpapers?: Record<string, unknown>;
-  chatClears?: Record<string, string>;
-  drafts?: Record<string, unknown>;
-  privacy?: { messages?: string; exceptions?: Record<string, { allow?: string[]; deny?: string[] }>; [key: string]: unknown };
-  notifications?: { mutedChats?: Record<string, true | string>; previewText?: boolean; [key: string]: unknown };
-  [key: string]: unknown;
-}
-interface Settings {
-  getSettings: (userId: string) => Promise<UserSettings>;
-  updateSettings: (userId: string, patch: Partial<UserSettings>) => Promise<UserSettings>;
-  setChatCleared: (userId: string, chatId: string, iso: string) => Promise<UserSettings>;
-  deleteChatForUser: (userId: string, chatId: string, iso: string) => Promise<UserSettings>;
-  setChatWallpaper: (userId: string, chatId: string, wallpaper: unknown) => Promise<UserSettings>;
-  setDraft: (userId: string, chatId: string, text: string) => Promise<UserSettings>;
-  clearUnreadMark: (userId: string, chatId: string) => Promise<void>;
-  mutedStateFor: (settings: Partial<UserSettings>, chatId: string) => { muted: boolean; mutedUntil: string | null };
-  /** Чат заглушён сейчас (навсегда или до mutedUntil). */
-  isQuietNow: (settings: Partial<UserSettings>, chatId: string) => boolean;
-}
-/** Настройки пользователя: чтение, правка и точечные правки про чаты (server/data/settings.js). */
-export const settings = (): Settings => legacyModule<Settings>("data/settings.js");
 
 /** Чаты для списка: последнее сообщение, непрочитанные, личные флаги (server/data/chat-summary.js). */
 interface ChatSummary {
@@ -539,6 +506,20 @@ export const contacts = (): Contacts => legacyModule<Contacts>("data/contacts.js
 /** Открыто ли сейчас по расписанию бизнеса и до скольки / когда откроется (server/lib/businessHours.js). */
 export const businessStatus = (hours: unknown, timeZone: unknown): object =>
   legacyModule<{ businessStatus: (hours: unknown, timeZone: unknown) => object }>("lib/businessHours.js").businessStatus(hours, timeZone);
+
+// --- Для настроек (modules/settings) ---
+
+/** Дни недели расписания бизнеса и проверка часового пояса (server/lib/businessHours.js). */
+export const businessDays = (): { DAY_KEYS: readonly string[]; isValidTimeZone: (tz: unknown) => boolean } =>
+  legacyModule<{ DAY_KEYS: readonly string[]; isValidTimeZone: (tz: unknown) => boolean }>("lib/businessHours.js");
+
+/** Исключения приватности без дублей, чужих ключей и пустых списков; deny важнее allow (server/lib/privacyRules.js). */
+export const normalizePrivacy = (privacy: object): UserSettings["privacy"] =>
+  legacyModule<{ normalizePrivacy: (privacy: object) => UserSettings["privacy"] }>("lib/privacyRules.js").normalizePrivacy(privacy);
+
+/** Языки, которые мессенджер не поддерживает, и текст ошибки (server/lib/unsupportedLanguages.js); их же проверяет перевод. */
+export const unsupportedLanguages = (): { isUnsupportedLanguage: (code: unknown) => boolean; UNSUPPORTED_MESSAGE: string } =>
+  legacyModule<{ isUnsupportedLanguage: (code: unknown) => boolean; UNSUPPORTED_MESSAGE: string }>("lib/unsupportedLanguages.js");
 
 /** Сколько разных людей в чатах с ботом (server/data/bots.js). */
 export const countBotAudience = (botUserId: string): number =>

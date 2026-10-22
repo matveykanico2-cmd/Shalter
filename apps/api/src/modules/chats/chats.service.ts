@@ -12,15 +12,14 @@ import {
   moderateDeleteChat,
   privacyRules,
   serviceLine,
-  settings,
   typing,
   usesForeignUpload,
-  type ChatFlags,
-  type UserSettings,
 } from "../../legacy/legacy.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
-import type { User } from "../users/model/domain.js";
+import type { ChatFlags, User, UserSettings } from "../users/model/domain.js";
+import { mutedStateFor } from "../users/lib/settings.defaults.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserSettingsService } from "../users/user-settings.service.js";
 import { AdminLogService } from "./admin-log.service.js";
 import { ChatNotesService } from "./chat-notes.service.js";
 import { ChatsRepository } from "./chats.repository.js";
@@ -48,12 +47,13 @@ export class ChatsService {
     private readonly users: UsersRepository,
     private readonly notes: ChatNotesService,
     private readonly adminLog: AdminLogService,
-    private readonly realtime: RealtimeService
+    private readonly realtime: RealtimeService,
+    private readonly userSettings: UserSettingsService
   ) {}
 
   public async list(uid: string, deviceId: string | null) {
     const chats = this.chats.findForUser(uid, deviceId);
-    const { hiddenChats } = await settings().getSettings(uid);
+    const { hiddenChats } = this.userSettings.get(uid);
     const summary = chatSummary();
     return { chats: summary.withoutHidden(await summary.attachSummaries(chats, uid), hiddenChats) };
   }
@@ -62,12 +62,12 @@ export class ChatsService {
     if (!Array.isArray(ids) || ids.length > 500 || !ids.every((id) => typeof id === "string")) {
       throw new ApiError(400, "Нужен список чатов");
     }
-    const current = await settings().getSettings(uid);
+    const current = this.userSettings.get(uid);
     const flags = current.chatFlags ?? {};
     const mine = new Set(this.chats.findForUser(uid).map((c) => c.id));
     const wanted = [...new Set(ids as string[])].filter((id) => mine.has(id) && flags[id]?.pinned === true);
     const rest = (current.pinnedOrder ?? []).filter((id) => !wanted.includes(id));
-    await settings().updateSettings(uid, { pinnedOrder: [...wanted, ...rest] });
+    this.userSettings.update(uid, { pinnedOrder: [...wanted, ...rest] });
     return { ok: true, pinnedOrder: [...wanted, ...rest] };
   }
 
@@ -307,13 +307,13 @@ export class ChatsService {
       throw new ApiError(403, "Очистить историю у всех могут только владельцы и админы");
     }
     if (forEveryone) await messages().deleteMessagesForChat(chat.id);
-    else await settings().setChatCleared(uid, chat.id, new Date().toISOString());
+    else this.userSettings.setChatCleared(uid, chat.id, new Date().toISOString());
     return { ok: true };
   }
 
   /** Фон чата: себе — в настройках, всем — в самом чате (в группе и канале — владельцы и админы). */
   public async setWallpaper(uid: string, chat: Chat, { wallpaper, forEveryone, label }: WallpaperDto) {
-    const own = (await settings().getSettings(uid))?.chatWallpapers?.[chat.id];
+    const own = this.userSettings.get(uid)?.chatWallpapers?.[chat.id];
     if (usesForeignUpload(uid, wallpaper, [chat.wallpaper, own])) throw new ApiError(400, "Некорректная ссылка на файл");
     if (forEveryone && chat.type !== "dm" && !isOwnerOrAdminOf(chat, uid)) {
       throw new ApiError(403, "Менять фон для всех могут только владельцы и админы");
@@ -327,18 +327,18 @@ export class ChatsService {
       );
       return { chat: updated };
     }
-    return { settings: await settings().setChatWallpaper(uid, chat.id, wallpaper ?? null) };
+    return { settings: this.userSettings.setChatWallpaper(uid, chat.id, wallpaper ?? null) };
   }
 
   public async setDraft(uid: string, chatId: string, text: unknown) {
-    await settings().setDraft(uid, chatId, typeof text === "string" ? text.slice(0, 8192) : "");
+    this.userSettings.setDraft(uid, chatId, typeof text === "string" ? text.slice(0, 8192) : "");
     return { ok: true };
   }
 
   public async markRead(uid: string, chat: Chat) {
     const recordTime = await privacyRules().recordsReadTime(chat, uid);
     const changedIds = await messages().markChatRead(chat.id, uid, { recordTime });
-    await settings().clearUnreadMark(uid, chat.id);
+    this.userSettings.clearUnreadMark(uid, chat.id);
     if (changedIds.length > 0) {
       this.realtime.broadcastToUsers(
         chat.memberIds.filter((m) => m !== uid),
@@ -349,7 +349,7 @@ export class ChatsService {
   }
 
   public async deleteForMe(uid: string, chatId: string) {
-    await settings().deleteChatForUser(uid, chatId, new Date().toISOString());
+    this.userSettings.deleteChatForUser(uid, chatId, new Date().toISOString());
     return { ok: true };
   }
 
@@ -393,12 +393,12 @@ export class ChatsService {
     const value = forever === true ? true : off === true ? null : Number.isFinite(h) && h > 0 ? new Date(Date.now() + h * 3600_000).toISOString() : undefined;
     if (value === undefined) throw new ApiError(400, "Укажите срок");
 
-    const current = await settings().getSettings(uid);
+    const current = this.userSettings.get(uid);
     const mutedChats = { ...(current.notifications?.mutedChats ?? {}) };
     if (value === null) delete mutedChats[chat.id];
     else mutedChats[chat.id] = value;
-    await settings().updateSettings(uid, { notifications: { ...current.notifications, mutedChats } });
-    return { chat: { ...chat, ...settings().mutedStateFor({ notifications: { mutedChats } }, chat.id) } };
+    this.userSettings.update(uid, { notifications: { ...current.notifications, mutedChats } });
+    return { chat: { ...chat, ...mutedStateFor({ notifications: { mutedChats } }, chat.id) } };
   }
 
   public getTyping(uid: string, chatId: string) {
@@ -457,7 +457,7 @@ export class ChatsService {
   }
 
   private async setPersonalFlags(uid: string, chatId: string, personal: Partial<Record<PersonalFlag, boolean>>): Promise<void> {
-    const current = await settings().getSettings(uid);
+    const current = this.userSettings.get(uid);
     const chatFlags = { ...(current.chatFlags ?? {}) };
     const flags: ChatFlags = { ...(chatFlags[chatId] ?? {}) };
     if (personal.pinned !== undefined) flags.pinned = personal.pinned;
@@ -481,7 +481,7 @@ export class ChatsService {
       else delete mutedChats[chatId];
       next.notifications = { ...current.notifications, mutedChats };
     }
-    await settings().updateSettings(uid, next);
+    this.userSettings.update(uid, next);
   }
 
   // Строки в ленте группы или канала о смене названия, описания, автоудаления и фото.

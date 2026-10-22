@@ -1,12 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { businessStatus, contacts, countBotAudience, privacyAllows, privacyRules, settings, withGiftSenders } from "../../legacy/legacy.js";
+import { businessStatus, contacts, countBotAudience, privacyAllows, privacyRules, withGiftSenders } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { isStaff } from "../chats/lib/chat-permissions.js";
 import type { Chat } from "../chats/model/domain.js";
 import { MessagesRepository } from "../messages/messages.repository.js";
 import { publicUser, selfUser } from "../users/lib/user.presenter.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserSettingsService } from "../users/user-settings.service.js";
 import type { PinnedChannelsDto } from "./model/schemas/profile.schema.js";
 
 const LINK_RE = /https?:\/\/\S+/;
@@ -39,7 +40,8 @@ export class ProfilesService {
   public constructor(
     private readonly users: UsersRepository,
     private readonly chats: ChatsRepository,
-    private readonly messages: MessagesRepository
+    private readonly messages: MessagesRepository,
+    private readonly userSettings: UserSettingsService
   ) {}
 
   public async blocked(uid: string) {
@@ -66,7 +68,7 @@ export class ProfilesService {
     const targetsContacts = isSelf ? [] : await contacts().listContactsFor(id);
     const isContact = !isSelf && targetsContacts.some((c) => c.userId === uid);
     const myContact = isSelf ? null : (await contacts().listContactsFor(uid)).find((c) => c.userId === id);
-    const targetSettings = await settings().getSettings(id);
+    const targetSettings = this.userSettings.get(id);
 
     if (!isSelf) {
       const canSee = (key: string) => privacyAllows(targetSettings.privacy, key, uid, isContact);
@@ -131,7 +133,7 @@ export class ProfilesService {
     const requested = Array.isArray(dto.chatIds) ? dto.chatIds.filter((id): id is string => typeof id === "string") : [];
     const allowed = new Set(this.pinnableChannelsFor(uid).map((c) => c.id));
     const chatIds = [...new Set(requested)].filter((id) => allowed.has(id)).slice(0, MAX_PINNED_CHANNELS);
-    await settings().updateSettings(uid, { pinnedChannelIds: chatIds });
+    this.userSettings.update(uid, { pinnedChannelIds: chatIds });
     return { pinnedChannels: await this.pinnedChannelsOf(uid, uid) };
   }
 
@@ -142,7 +144,7 @@ export class ProfilesService {
     const chat = this.chats.findDmBetween(uid, id);
     if (!chat) return empty;
 
-    const clearedBefore = (await settings().getSettings(uid)).chatClears?.[chat.id] ?? null;
+    const clearedBefore = this.userSettings.get(uid).chatClears?.[chat.id] ?? null;
     const messages = this.messages.listMedia(chat.id, uid).filter((m) => !clearedBefore || m.createdAt > clearedBefore);
     const media = [];
     const files = [];
@@ -179,7 +181,7 @@ export class ProfilesService {
   }
 
   private async pinnedChannelsOf(userId: string, viewerId: string) {
-    const { pinnedChannelIds } = await settings().getSettings(userId);
+    const { pinnedChannelIds } = this.userSettings.get(userId);
     const ids = Array.isArray(pinnedChannelIds) ? pinnedChannelIds.slice(0, MAX_PINNED_CHANNELS) : [];
     if (!ids.length) return [];
     return ids

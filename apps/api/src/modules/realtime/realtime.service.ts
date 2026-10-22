@@ -1,9 +1,10 @@
 import { Injectable } from "@nestjs/common";
-import { chatForViewer, contactIdsOf, privacyAllows, publicJsonReplacer, scheduled, settings } from "../../legacy/legacy.js";
+import { chatForViewer, contactIdsOf, privacyAllows, publicJsonReplacer, scheduled } from "../../legacy/legacy.js";
 import { ChatsRepository, deviceHash } from "../chats/chats.repository.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
 import type { User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserSettingsService } from "../users/user-settings.service.js";
 import type { WsEvent, WsStats } from "./model/domain.js";
 import { SocketRegistry } from "./stores/socket-registry.js";
 
@@ -16,7 +17,8 @@ export class RealtimeService {
     private readonly sockets: SocketRegistry,
     private readonly chats: ChatsRepository,
     private readonly users: UsersRepository,
-    private readonly sessions: SessionsRepository
+    private readonly sessions: SessionsRepository,
+    private readonly userSettings: UserSettingsService
   ) {}
 
   public broadcastToUsers(userIds: Iterable<string>, message: WsEvent): void {
@@ -109,7 +111,7 @@ export class RealtimeService {
   // Онлайн и «был(а) в сети» видят только те, кому это разрешено настройками
   // приватности, — как в профиле. Заблокированные — никогда.
   private async broadcastPresence(user: User, message: WsEvent): Promise<void> {
-    const { privacy } = await settings().getSettings(user.id);
+    const { privacy } = this.userSettings.get(user.id);
     const contactIds = await contactIdsOf(user.id);
     const blocked = new Set<string>(user.blockedUserIds ?? []);
     const viewers = this.sockets

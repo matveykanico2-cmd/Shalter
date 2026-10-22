@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gt, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { textCrypto } from "../../legacy/legacy.js";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { chatReads, chats, messages } from "../db/schema.js";
@@ -314,5 +314,24 @@ export class MessagesRepository {
          ORDER BY createdAt ASC
          LIMIT 1`) ?? null
     );
+  }
+
+  /** Байты вложений по видам (image, video, …) во всех сообщениях этих чатов: size или длина data-URL. */
+  public attachmentBytesByKind(chatIds: string[]): Record<string, number> {
+    if (!chatIds.length) return {};
+    const rows = this.db.all<{ kind: string | null; bytes: number | null }>(sql`
+      SELECT json_extract(a.value, '$.kind') AS kind,
+             sum(
+               CASE
+                 WHEN json_extract(a.value, '$.size') IS NOT NULL THEN json_extract(a.value, '$.size')
+                 WHEN json_extract(a.value, '$.url') LIKE 'data:%' THEN
+                   (length(json_extract(a.value, '$.url')) - instr(json_extract(a.value, '$.url'), ',')) * 3 / 4
+                 ELSE 0
+               END
+             ) AS bytes
+        FROM messages m, json_each(m.attachments) a
+       WHERE ${inArray(sql`m.chatId`, chatIds)} AND m.attachments IS NOT NULL AND m.attachments <> '[]'
+       GROUP BY kind`);
+    return Object.fromEntries(rows.filter((r) => r.kind).map((r) => [r.kind, r.bytes ?? 0]));
   }
 }

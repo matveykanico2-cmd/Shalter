@@ -1,9 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { hugoAi, privacyRules, settings, textCrypto } from "../../legacy/legacy.js";
+import { hugoAi, privacyRules, textCrypto } from "../../legacy/legacy.js";
 import type { Chat } from "../chats/model/domain.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserSettingsService } from "../users/user-settings.service.js";
 import { MessagesRepository } from "./messages.repository.js";
 import type { Message } from "./model/domain.js";
 import type { AtQueryDto, DaysQueryDto, HistoryQueryDto, SearchQueryDto } from "./model/schemas/message.schema.js";
@@ -35,12 +36,13 @@ export class MessagesService {
     private readonly messages: MessagesRepository,
     private readonly users: UsersRepository,
     private readonly summaries: SummaryStore,
-    private readonly realtime: RealtimeService
+    private readonly realtime: RealtimeService,
+    private readonly userSettings: UserSettingsService
   ) {}
 
   /** Страница истории; открытие чата отмечает чужие сообщения прочитанными (message:read авторам). */
   public async history(uid: string, chat: Chat, query: HistoryQueryDto) {
-    const userSettings = await settings().getSettings(uid);
+    const userSettings = this.userSettings.get(uid);
     const limit = Math.min(Math.max(Number(query.limit) || 60, 1), 200);
     const before = queryString(query.before);
     const beforeId = queryString(query.beforeId);
@@ -54,7 +56,7 @@ export class MessagesService {
 
     const recordTime = await privacyRules().recordsReadTime(chat, uid);
     const changedIds = this.messages.markChatRead(chat.id, uid, recordTime);
-    if (!before && !beforeId) await settings().clearUnreadMark(uid, chat.id);
+    if (!before && !beforeId) this.userSettings.clearUnreadMark(uid, chat.id);
     if (changedIds.length > 0) {
       this.realtime.broadcastToOthers(chat, uid, {
         type: "message:read",
@@ -95,7 +97,7 @@ export class MessagesService {
   public async search(uid: string, chat: Chat, query: SearchQueryDto) {
     const q = String(query.q ?? "").trim().toLowerCase();
     if (!q) return { messages: [] };
-    const clearedBefore = (await settings().getSettings(uid)).chatClears?.[chat.id];
+    const clearedBefore = this.userSettings.get(uid).chatClears?.[chat.id];
     const match = textCrypto().searchQuery(q);
     const found = (match ? this.messages.search([chat.id], match, 50) : [])
       .filter((m) => !m.deletedForIds?.includes(uid) && (!clearedBefore || m.createdAt > clearedBefore))
