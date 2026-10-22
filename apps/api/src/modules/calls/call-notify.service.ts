@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { privacyRules, push } from "../../legacy/legacy.js";
+import { push } from "../../legacy/legacy.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserPrivacyService } from "../users/user-privacy.service.js";
 import type { Call } from "./model/domain.js";
 
 // Кому можно звонить и как об этом узнают: call:incoming по сокету и пуш на устройства.
@@ -9,14 +10,15 @@ import type { Call } from "./model/domain.js";
 export class CallNotifyService {
   public constructor(
     private readonly users: UsersRepository,
-    private readonly realtime: RealtimeService
+    private readonly realtime: RealtimeService,
+    private readonly privacy: UserPrivacyService
   ) {}
 
   /** Не заблокировал звонящего и пускает его правилом приватности calls. */
   public async canCall(callerId: string, targetId: unknown): Promise<boolean> {
     const target = typeof targetId === "string" ? this.users.findById(targetId) : undefined;
     if (!target || target.blockedUserIds?.includes(callerId)) return false;
-    return privacyRules().allowsUser(target.id, "calls", callerId);
+    return this.privacy.allowsUser(target.id, "calls", callerId);
   }
 
   /** call:incoming каждому получателю — со своей проекцией звонящего. */
@@ -86,6 +88,6 @@ export class CallNotifyService {
   // Профиль звонящего — глазами получателя (приватность lastSeen, фото и т. д.).
   private async withCaller(call: Call, viewerId: string) {
     const caller = this.users.findById(call.callerId);
-    return { ...call, otherUser: caller ? await privacyRules().publicUserFor(caller, viewerId) : undefined };
+    return { ...call, otherUser: caller ? this.privacy.publicUserFor(caller, viewerId) : undefined };
   }
 }

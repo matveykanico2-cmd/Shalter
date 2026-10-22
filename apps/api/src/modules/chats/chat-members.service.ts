@@ -1,8 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { joinApproval, privacyRules } from "../../legacy/legacy.js";
+import { joinApproval } from "../../legacy/legacy.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { AdminLogService } from "./admin-log.service.js";
 import { ChatNotesService } from "./chat-notes.service.js";
 import { ChatsRepository } from "./chats.repository.js";
@@ -24,7 +25,8 @@ export class ChatMembersService {
     private readonly joinRequests: JoinRequestsRepository,
     private readonly notes: ChatNotesService,
     private readonly adminLog: AdminLogService,
-    private readonly realtime: RealtimeService
+    private readonly realtime: RealtimeService,
+    private readonly privacy: UserPrivacyService
   ) {}
 
   public async changeRole(uid: string, chat: Chat, { userId: rawUserId, role }: MemberRoleDto) {
@@ -136,7 +138,7 @@ export class ChatMembersService {
     if (chat.memberIds.includes(userId)) throw new ApiError(400, "Уже в чате");
     const user = typeof userId === "string" ? this.users.findById(userId) : undefined;
     if (!user) throw new ApiError(404, "Пользователь не найден");
-    if (!(await privacyRules().allowsUser(userId, "invites", uid))) throw new ApiError(403, "Пользователь ограничил добавление в чаты");
+    if (!this.privacy.allowsUser(userId, "invites", uid)) throw new ApiError(403, "Пользователь ограничил добавление в чаты");
     const wasBanned = chat.bannedIds.includes(userId);
     if (wasBanned && !staff) throw new ApiError(403, "Пользователь заблокирован в этом чате");
 

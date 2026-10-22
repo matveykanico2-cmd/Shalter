@@ -10,7 +10,6 @@ import {
   messageCost,
   messages,
   moderateDeleteChat,
-  privacyRules,
   serviceLine,
   typing,
   usesForeignUpload,
@@ -20,6 +19,7 @@ import type { ChatFlags, User, UserSettings } from "../users/model/domain.js";
 import { mutedStateFor } from "../users/lib/settings.defaults.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
+import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { AdminLogService } from "./admin-log.service.js";
 import { ChatNotesService } from "./chat-notes.service.js";
 import { ChatsRepository } from "./chats.repository.js";
@@ -48,7 +48,8 @@ export class ChatsService {
     private readonly notes: ChatNotesService,
     private readonly adminLog: AdminLogService,
     private readonly realtime: RealtimeService,
-    private readonly userSettings: UserSettingsService
+    private readonly userSettings: UserSettingsService,
+    private readonly privacy: UserPrivacyService
   ) {}
 
   public async list(uid: string, deviceId: string | null) {
@@ -201,7 +202,7 @@ export class ChatsService {
     const users = this.users.findByIds(visibleIds);
     const byId = new Map(users.map((u) => [u.id, u]));
     const memberUsers = visibleIds.map((id) => byId.get(id)).filter((u): u is User => u !== undefined);
-    const members = await privacyRules().publicUsersFor(memberUsers, uid);
+    const members = this.privacy.publicUsersFor(memberUsers, uid);
 
     const botMember = members.find((u) => u.isBot && u.id !== uid);
     const bot = botMember ? await getBotByUserId(botMember.id) : undefined;
@@ -336,7 +337,7 @@ export class ChatsService {
   }
 
   public async markRead(uid: string, chat: Chat) {
-    const recordTime = await privacyRules().recordsReadTime(chat, uid);
+    const recordTime = this.privacy.recordsReadTime(chat, uid);
     const changedIds = await messages().markChatRead(chat.id, uid, { recordTime });
     this.userSettings.clearUnreadMark(uid, chat.id);
     if (changedIds.length > 0) {
@@ -535,7 +536,7 @@ export class ChatsService {
     const out: string[] = [];
     for (const id of new Set(ids)) {
       if (typeof id !== "string" || id === actorId || !this.users.findById(id)) continue;
-      if (await privacyRules().allowsUser(id, "invites", actorId)) out.push(id);
+      if (this.privacy.allowsUser(id, "invites", actorId)) out.push(id);
     }
     return out;
   }

@@ -1,9 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { hugoAi, privacyRules, textCrypto } from "../../legacy/legacy.js";
+import { hugoAi, textCrypto } from "../../legacy/legacy.js";
 import type { Chat } from "../chats/model/domain.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
 import { MessagesRepository } from "./messages.repository.js";
 import type { Message } from "./model/domain.js";
@@ -37,7 +38,8 @@ export class MessagesService {
     private readonly users: UsersRepository,
     private readonly summaries: SummaryStore,
     private readonly realtime: RealtimeService,
-    private readonly userSettings: UserSettingsService
+    private readonly userSettings: UserSettingsService,
+    private readonly privacy: UserPrivacyService
   ) {}
 
   /** Страница истории; открытие чата отмечает чужие сообщения прочитанными (message:read авторам). */
@@ -54,7 +56,7 @@ export class MessagesService {
     const messages = page.messages.filter((m) => !m.visibleToId || m.visibleToId === uid || m.senderId === uid);
     const firstUnreadId = messages.find((m) => m.senderId !== uid && !(m.readByIds ?? []).includes(uid))?.id ?? null;
 
-    const recordTime = await privacyRules().recordsReadTime(chat, uid);
+    const recordTime = this.privacy.recordsReadTime(chat, uid);
     const changedIds = this.messages.markChatRead(chat.id, uid, recordTime);
     if (!before && !beforeId) this.userSettings.clearUnreadMark(uid, chat.id);
     if (changedIds.length > 0) {
@@ -134,13 +136,12 @@ export class MessagesService {
     if (!message || message.chatId !== chat.id || message.senderId !== uid) throw new ApiError(404, "not found");
     const readers = this.messages.readersOf(message.id).filter((r) => r.userId !== uid && chat.memberIds.includes(r.userId));
     const users = new Map(this.users.findByIds(readers.map((r) => r.userId)).map((u) => [u.id, u]));
-    const rules = privacyRules();
     const result: { user: Record<string, unknown>; readAt: string | null }[] = [];
     for (const r of readers) {
       const user = users.get(r.userId);
       if (!user) continue;
-      const showTime = r.readAt && (await rules.allowsUser(r.userId, "lastSeen", uid));
-      result.push({ user: await rules.publicUserFor(user, uid), readAt: showTime ? r.readAt : null });
+      const showTime = r.readAt && this.privacy.allowsUser(r.userId, "lastSeen", uid);
+      result.push({ user: this.privacy.publicUserFor(user, uid), readAt: showTime ? r.readAt : null });
     }
     result.sort((a, b) => String(b.readAt ?? "").localeCompare(String(a.readAt ?? "")));
     return { readers: result };

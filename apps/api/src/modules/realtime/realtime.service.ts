@@ -1,8 +1,9 @@
 import { Injectable } from "@nestjs/common";
-import { chatForViewer, privacyAllows, publicJsonReplacer, scheduled } from "../../legacy/legacy.js";
+import { chatForViewer, publicJsonReplacer, scheduled } from "../../legacy/legacy.js";
 import { ChatsRepository, deviceHash } from "../chats/chats.repository.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
+import { privacyAllows } from "../users/lib/privacy-rules.js";
 import type { User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { UserSettingsService } from "../users/user-settings.service.js";

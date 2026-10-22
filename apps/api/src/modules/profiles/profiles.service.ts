@@ -1,14 +1,16 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { businessStatus, countBotAudience, privacyAllows, privacyRules, withGiftSenders } from "../../legacy/legacy.js";
+import { businessStatus, countBotAudience, withGiftSenders } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { isStaff } from "../chats/lib/chat-permissions.js";
 import type { Chat } from "../chats/model/domain.js";
 import { MessagesRepository } from "../messages/messages.repository.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
+import { applyContactName, privacyAllows } from "../users/lib/privacy-rules.js";
 import { contactNote } from "../users/lib/contact-note.js";
 import { publicUser, selfUser } from "../users/lib/user.presenter.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
 import type { PinnedChannelsDto } from "./model/schemas/profile.schema.js";
 
@@ -44,13 +46,14 @@ export class ProfilesService {
     private readonly chats: ChatsRepository,
     private readonly messages: MessagesRepository,
     private readonly userSettings: UserSettingsService,
-    private readonly contacts: ContactsRepository
+    private readonly contacts: ContactsRepository,
+    private readonly privacy: UserPrivacyService
   ) {}
 
   public async blocked(uid: string) {
     const ids = this.users.findById(uid)?.blockedUserIds ?? [];
     if (!ids.length) return { users: [] };
-    return { users: await privacyRules().publicUsersFor(this.users.findByIds(ids), uid) };
+    return { users: this.privacy.publicUsersFor(this.users.findByIds(ids), uid) };
   }
 
   // Свой ник тоже находим: раньше на него приходило «не найден», и своя ссылка /u/<ник>
@@ -58,7 +61,7 @@ export class ProfilesService {
   public async byUsername(uid: string, username: string) {
     const user = this.users.findByUsername(username);
     if (!user) throw new ApiError(404, "not found");
-    const visible = await privacyRules().publicUserFor(user, uid);
+    const visible = this.privacy.publicUserFor(user, uid);
     return { user: user.id === uid ? { ...visible, isSelf: true } : visible };
   }
 
@@ -97,7 +100,7 @@ export class ProfilesService {
         delete visible.birthday;
         visible.online = false;
       }
-      privacyRules().applyContactName(visible, myContact, isContact);
+      applyContactName(visible, myContact, isContact);
     }
 
     if (user.isBusiness) {

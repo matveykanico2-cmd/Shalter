@@ -1,9 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { normalizePrivacy, unsupportedLanguages, usesForeignUpload } from "../../legacy/legacy.js";
+import { unsupportedLanguages, usesForeignUpload } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { MessagesRepository } from "../messages/messages.repository.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
+import { normalizePrivacy } from "../users/lib/privacy-rules.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { BUILTIN_HOLIDAYS } from "./lib/holidays.js";
 import { mergeNotifications, pickClientKeys, sanitizeBusiness, sanitizeHolidays } from "./lib/settings-sanitize.js";

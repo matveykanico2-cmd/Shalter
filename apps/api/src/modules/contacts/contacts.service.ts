@@ -1,11 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { normalizePrivacy, privacyRules } from "../../legacy/legacy.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
+import { exceptionsFor, normalizePrivacy } from "../users/lib/privacy-rules.js";
 import { contactNote, sealContactNote } from "../users/lib/contact-note.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import type { User } from "../users/model/domain.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
+import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { indexUsersByPhone, phoneKey } from "./lib/phone-match.js";
 import type { AddContactDto, ContactNoteDto, MatchContactsDto, RemoveContactDto, RenameContactDto } from "./model/schemas/contact.schema.js";
@@ -22,7 +23,8 @@ export class ContactsService {
   public constructor(
     private readonly contacts: ContactsRepository,
     private readonly users: UsersRepository,
-    private readonly userSettings: UserSettingsService
+    private readonly userSettings: UserSettingsService,
+    private readonly privacy: UserPrivacyService
   ) {}
 
   public async list(uid: string) {
@@ -30,15 +32,14 @@ export class ContactsService {
     // контакт» себе невозможны, а импорт контактов может добавить собственный номер.
     const contacts = this.contacts.findForOwner(uid).filter((c) => c.userId !== uid);
     const byId = new Map(this.users.findByIds(contacts.map((c) => c.userId)).map((u) => [u.id, u]));
-    const privacy = privacyRules();
     const resolved = await Promise.all(
       contacts.map(async (c) => {
         const user = byId.get(c.userId);
         if (!user) return null;
-        const visible = await privacy.publicUserFor(user, uid);
+        const visible = this.privacy.publicUserFor(user, uid);
         // Заблокировавший вас номер не показывает — как и в профиле.
         const blockedMe = (user.blockedUserIds ?? []).includes(uid);
-        if (!blockedMe && (await privacy.allowsUser(user.id, "phone", uid))) visible.phone = user.phone;
+        if (!blockedMe && this.privacy.allowsUser(user.id, "phone", uid)) visible.phone = user.phone;
         return { ...c, localName: c.localName ?? null, note: contactNote(c), user: visible };
       })
     );
@@ -120,7 +121,7 @@ export class ContactsService {
         user.isBanned ||
         (user.blockedUserIds ?? []).includes(uid) ||
         blockedByMe.has(user.id) ||
-        !(await privacyRules().allowsUser(user.id, "discoverByPhone", uid));
+        !this.privacy.allowsUser(user.id, "discoverByPhone", uid);
       if (hidden) notFound.push({ phone, name });
       else found.push({ user: publicUser(user), alreadyContact: contactIds.has(user.id), localName: name });
     }
@@ -129,7 +130,7 @@ export class ContactsService {
 
   private sharePhoneWith(uid: string, userId: string): void {
     const privacy = this.userSettings.get(uid).privacy ?? {};
-    const { allow, deny } = privacyRules().exceptionsFor(privacy, "phone");
+    const { allow, deny } = exceptionsFor(privacy, "phone");
     const exceptions = {
       ...(privacy.exceptions ?? {}),
       phone: { allow: [...new Set([...allow, userId])], deny: deny.filter((id) => id !== userId) },

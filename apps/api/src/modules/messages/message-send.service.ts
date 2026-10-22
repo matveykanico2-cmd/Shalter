@@ -8,7 +8,6 @@ import {
   mediaJobs,
   messageCost,
   paidMedia,
-  privacyRules,
   push,
   queueJob,
   responders,
@@ -26,6 +25,7 @@ import type { User } from "../users/model/domain.js";
 import { isQuietNow } from "../users/lib/settings.defaults.js";
 import { StarsRepository } from "../users/stars.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
 import { incrementCommentCount, setLinkPreview } from "./lib/message-edits.js";
 import {
@@ -68,7 +68,8 @@ export class MessageSendService {
     private readonly users: UsersRepository,
     private readonly realtime: RealtimeService,
     private readonly userSettings: UserSettingsService,
-    private readonly stars: StarsRepository
+    private readonly stars: StarsRepository,
+    private readonly privacy: UserPrivacyService
   ) {}
 
   /** Повтор с тем же clientId (в том числе одновременный) получает ответ первой отправки. */
@@ -171,7 +172,7 @@ export class MessageSendService {
     if (otherId === SYSTEM_BOT_ID) throw new ApiError(403, "Shalter — служебный чат, отвечать в нём нельзя");
     if (!other) return 0;
 
-    if (!(await privacyRules().allowsUser(other.id, "messages", uid))) {
+    if (!this.privacy.allowsUser(other.id, "messages", uid)) {
       const { privacy: theirPrivacy } = this.userSettings.get(other.id);
       const level = theirPrivacy?.messages ?? "everyone";
       const deniedByName = (theirPrivacy?.exceptions?.messages?.deny ?? []).includes(uid);
@@ -270,7 +271,7 @@ export class MessageSendService {
   public async deliver(chat: Chat, senderId: string, body: MessageDraft, { paidStars = 0, paid = null as PaidPost | null } = {}): Promise<Message> {
     let forwardedFrom = body.forwardedFrom as ForwardedFrom | undefined;
     if (forwardedFrom?.senderId) {
-      const linkAllowed = forwardedFrom.senderId === senderId || (await privacyRules().allowsUser(forwardedFrom.senderId, "forwards", senderId));
+      const linkAllowed = forwardedFrom.senderId === senderId || this.privacy.allowsUser(forwardedFrom.senderId, "forwards", senderId);
       forwardedFrom = { ...forwardedFrom, linkAllowed };
     }
     const text = body.text as string | undefined;

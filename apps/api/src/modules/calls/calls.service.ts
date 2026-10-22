@@ -1,13 +1,14 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
 import { genId } from "../../common/lib/gen-id.js";
-import { iceServers, privacyRules, sendMessageAndBroadcast } from "../../legacy/legacy.js";
+import { iceServers, sendMessageAndBroadcast } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import type { User } from "../users/model/domain.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
 import { StarsRepository } from "../users/stars.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { CallNotifyService } from "./call-notify.service.js";
 import { CallsRepository } from "./calls.repository.js";
 import type { Call, CallPatch } from "./model/domain.js";
@@ -32,7 +33,8 @@ export class CallsService {
     private readonly notify: CallNotifyService,
     private readonly realtime: RealtimeService,
     private readonly contacts: ContactsRepository,
-    private readonly stars: StarsRepository
+    private readonly stars: StarsRepository,
+    private readonly privacy: UserPrivacyService
   ) {}
 
   public iceServers() {
@@ -49,7 +51,7 @@ export class CallsService {
       if (chat && chat.type !== "dm") groupTitles.set(chatId, { title: chat.title, avatarColor: chat.avatarColor, avatarImage: chat.avatarImage });
     }
     const visibleById = new Map<string, Record<string, unknown>>();
-    for (const u of users) visibleById.set(u.id, await privacyRules().publicUserFor(u, uid));
+    for (const u of users) visibleById.set(u.id, this.privacy.publicUserFor(u, uid));
     const resolved = calls.map((call) => {
       const otherId = call.participantIds.find((id) => id !== uid);
       const other = otherId ? visibleById.get(otherId) : null;

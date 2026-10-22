@@ -1,10 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { joinApproval, messages, privacyRules } from "../../legacy/legacy.js";
+import { joinApproval, messages } from "../../legacy/legacy.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserPrivacyService } from "../users/user-privacy.service.js";
 import { ChatNotesService } from "./chat-notes.service.js";
 import { ChatsRepository } from "./chats.repository.js";
 import { JoinRequestsRepository } from "./join-requests.repository.js";
@@ -20,7 +21,8 @@ export class ChatLinksService {
     private readonly users: UsersRepository,
     private readonly joinRequests: JoinRequestsRepository,
     private readonly notes: ChatNotesService,
-    private readonly realtime: RealtimeService
+    private readonly realtime: RealtimeService,
+    private readonly privacy: UserPrivacyService
   ) {}
 
   /**
@@ -34,7 +36,7 @@ export class ChatLinksService {
     const limit = Math.min(Math.max(Number(rawLimit) || 50, 1), 100);
     const page = messages().listMessagesPage(chat.id, uid, undefined, { limit });
     const feed = page.messages.filter((m) => !m.visibleToId && !m.threadRootId);
-    const senders = await privacyRules().publicUsersFor(this.users.findByIds(feed.map((m) => m.senderId)), uid);
+    const senders = this.privacy.publicUsersFor(this.users.findByIds(feed.map((m) => m.senderId)), uid);
     return {
       chat: { ...this.card(uid, chat), approveJoins: !!chat.approveJoins, requestPending: this.joinRequests.has(chat.id, uid) },
       messages: feed,

@@ -3,11 +3,12 @@ import { isAdminPhone } from "../../common/config/accounts.js";
 import { ApiError } from "../../common/errors/api-error.js";
 import { verifyPassword } from "../../common/lib/password.js";
 import { PHONE_RE, normalizeBirthday, normalizePhone } from "../../common/lib/validators.js";
-import { checkUsername, isOwnUploadUrl, privacyRules, usesForeignUpload } from "../../legacy/legacy.js";
+import { checkUsername, isOwnUploadUrl, usesForeignUpload } from "../../legacy/legacy.js";
 import { selfUser } from "../users/lib/user.presenter.js";
 import { isUsernameConflict, normalizeUsername } from "../users/lib/username.js";
 import type { AvatarEntry, ProfilePatch, User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
+import { UserPrivacyService } from "../users/user-privacy.service.js";
 import type { BlockDto, PatchProfileDto } from "./model/schemas/profile.schema.js";
 import { ProfileNotifyService } from "./profile-notify.service.js";
 
@@ -48,7 +49,8 @@ const NAME_COLORS = ["red", "orange", "violet", "green", "cyan", "blue", "pink"]
 export class ProfileEditService {
   public constructor(
     private readonly users: UsersRepository,
-    private readonly notify: ProfileNotifyService
+    private readonly notify: ProfileNotifyService,
+    private readonly privacy: UserPrivacyService
   ) {}
 
   public async update(uid: string, id: string, body: PatchProfileDto) {
@@ -138,7 +140,7 @@ export class ProfileEditService {
     this.users.setBlocked(uid, id, !!blocked);
     // В ответе — тот, кого (раз)блокировали, глазами блокирующего; удалённый — null.
     const target = this.users.findById(id);
-    return { user: target ? await privacyRules().publicUserFor(target, uid) : null };
+    return { user: target ? this.privacy.publicUserFor(target, uid) : null };
   }
 
   private async checkBanner(uid: string, b: any): Promise<ProfilePatch["profileBanner"]> {

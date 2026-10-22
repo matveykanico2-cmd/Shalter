@@ -5,7 +5,6 @@ import path from "node:path";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { RequestHandler } from "express";
 import type BetterSqlite3 from "better-sqlite3";
-import type { ContactRow, UserSettings } from "../modules/users/model/domain.js";
 
 const require = createRequire(import.meta.url);
 const LEGACY_DIR = path.resolve(import.meta.dirname, "..", "..", "..", "..", "server");
@@ -159,19 +158,6 @@ interface ChatSummary {
   withoutHidden: <T>(summaries: T[], hiddenChats: Record<string, string> | undefined) => T[];
 }
 export const chatSummary = (): ChatSummary => legacyModule<ChatSummary>("data/chat-summary.js");
-
-// Приватность (server/lib/privacyRules.js).
-interface PrivacyRules {
-  allowsUser: (ownerId: string, key: string, viewerId: string) => Promise<boolean>;
-  /** Исключения правила key: кому всегда показывать и кому никогда. */
-  exceptionsFor: (privacy: UserSettings["privacy"], key: string) => { allow: string[]; deny: string[] };
-  recordsReadTime: (chat: LegacyChat & { type: string }, readerId: string) => Promise<boolean>;
-  publicUsersFor: (users: object[], viewerId: string) => Promise<({ id: string; isBot?: boolean } & Record<string, unknown>)[]>;
-  publicUserFor: (user: object, viewerId: string) => Promise<Record<string, unknown>>;
-  /** Имя из контактов смотрящего вместо имени профиля, пометки inContacts и mutualContact. */
-  applyContactName: <T extends object>(visible: T, myContact: ContactRow | null | undefined, theyHaveMe: boolean) => T;
-}
-export const privacyRules = (): PrivacyRules => legacyModule<PrivacyRules>("lib/privacyRules.js");
 
 /** Цена сообщения незнакомцу и надо ли платить отправителю (server/lib/messagePrice.js). */
 export const messageCost = (senderId: string, other: object, chatId: string): Promise<{ price: number; mustPay: boolean }> =>
@@ -443,15 +429,6 @@ export const serveUpload = (): ServeUpload => legacyModule<ServeUpload>("lib/ser
 export const onAccessRevoked = (fn: (userId: string) => void): void =>
   legacyModule<{ onAccessRevoked: (fn: (userId: string) => void) => void }>("lib/sessionEvents.js").onAccessRevoked(fn);
 
-/** Пускает ли правило приватности key (lastSeen, …) этого зрителя (server/lib/privacyRules.js). */
-export const privacyAllows = (privacy: UserSettings["privacy"], key: string, viewerId: string, isContact: boolean): boolean =>
-  legacyModule<{ privacyAllows: (privacy: unknown, key: string, viewerId: string, isContact: boolean) => boolean }>("lib/privacyRules.js").privacyAllows(
-    privacy,
-    key,
-    viewerId,
-    isContact
-  );
-
 // Канал в событии: подписчику — без списка подписчиков (server/lib/chatForViewer.js).
 interface ChatForViewer {
   hidesMembers: (chat: unknown, uid: string) => boolean;
@@ -482,10 +459,6 @@ export const businessStatus = (hours: unknown, timeZone: unknown): object =>
 /** Дни недели расписания бизнеса и проверка часового пояса (server/lib/businessHours.js). */
 export const businessDays = (): { DAY_KEYS: readonly string[]; isValidTimeZone: (tz: unknown) => boolean } =>
   legacyModule<{ DAY_KEYS: readonly string[]; isValidTimeZone: (tz: unknown) => boolean }>("lib/businessHours.js");
-
-/** Исключения приватности без дублей, чужих ключей и пустых списков; deny важнее allow (server/lib/privacyRules.js). */
-export const normalizePrivacy = (privacy: object): UserSettings["privacy"] =>
-  legacyModule<{ normalizePrivacy: (privacy: object) => UserSettings["privacy"] }>("lib/privacyRules.js").normalizePrivacy(privacy);
 
 /** Языки, которые мессенджер не поддерживает, и текст ошибки (server/lib/unsupportedLanguages.js); их же проверяет перевод. */
 export const unsupportedLanguages = (): { isUnsupportedLanguage: (code: unknown) => boolean; UNSUPPORTED_MESSAGE: string } =>
