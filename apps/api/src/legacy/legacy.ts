@@ -315,6 +315,7 @@ export const fetchLinkPreview = (text: string): Promise<unknown> =>
 interface MediaJobs {
   markPendingPreviews: (attachments: Attachment[] | undefined) => Attachment[] | undefined;
   messageNeedsMedia: (message: object) => boolean;
+  storyNeedsMedia: (story: object) => boolean;
 }
 export const mediaJobs = (): MediaJobs => legacyModule<MediaJobs>("lib/mediaJobs.js");
 export const queueJob = (kind: string, payload: object): void =>

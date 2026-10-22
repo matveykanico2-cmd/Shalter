@@ -25,6 +25,7 @@ import { SupportModule } from "./modules/support/support.module.js";
 import { ShalterAiModule } from "./modules/shalter-ai/shalter-ai.module.js";
 import { PremiumModule } from "./modules/premium/premium.module.js";
 import { PostsModule } from "./modules/posts/posts.module.js";
+import { StoriesModule } from "./modules/stories/stories.module.js";
 import { TranslateModule } from "./modules/translate/translate.module.js";
 import { RealtimeModule } from "./modules/realtime/realtime.module.js";
 import { SearchModule } from "./modules/search/search.module.js";
@@ -36,7 +37,7 @@ import { UploadsModule } from "./modules/uploads/uploads.module.js";
 
 // Перенесённые из server/ модули подключаются сюда.
 @Module({
-  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule, BootstrapModule, SearchModule, PushModule, StickersModule, UsernamesModule, ChannelsModule, PostsModule, NearbyModule, HugoModule, PartnersModule, ShortLinksModule, LinkCheckModule, ExportModule, SupportModule, ShalterAiModule, PremiumModule, TranslateModule],
+  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule, BootstrapModule, SearchModule, PushModule, StickersModule, UsernamesModule, ChannelsModule, PostsModule, StoriesModule, NearbyModule, HugoModule, PartnersModule, ShortLinksModule, LinkCheckModule, ExportModule, SupportModule, ShalterAiModule, PremiumModule, TranslateModule],
   providers: [
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ViewerShapeInterceptor },

@@ -187,6 +187,17 @@ export class ChatsRepository {
     return ids.map((id) => this.findById(id)).filter((c): c is Chat => !!c);
   }
 
+  /** С кем у пользователя есть личная переписка (dmPartnerIds в server/data/chats.js). */
+  public dmPartnerIds(userId: string): string[] {
+    return this.db
+      .all<{ id: string }>(sql`
+        SELECT DISTINCT m2.userId AS id FROM chat_members m1
+          JOIN chats c ON c.id = m1.chatId AND c.type = 'dm'
+          JOIN chat_members m2 ON m2.chatId = c.id AND m2.userId != m1.userId
+         WHERE m1.userId = ${userId}`)
+      .map((r) => r.id);
+  }
+
   public isSecret(chatId: string): boolean {
     return !!this.db.select({ secret: chats.secret }).from(chats).where(eq(chats.id, chatId)).get()?.secret;
   }
