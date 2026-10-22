@@ -128,6 +128,25 @@ describe("отложенные сообщения", () => {
     expect(expectOk(await a.api.get(sched(dm.id)), scheduledList).scheduled.map((x) => x.id)).toEqual([s.id]);
   });
 
+  test("«Отправить сейчас», когда отправка уже запрещена (собеседник заблокировал), — сообщение не уходит; с повтором — ждёт следующего срока, без — удаляется", async () => {
+    const { baseUrl } = server();
+    const [a, b] = await registerUsers(baseUrl, 2);
+    const dm = await createDm(a, b);
+    const s = expectOk(await a.api.post(sched(dm.id), { text: "не дойдёт", sendAt: inHour(), repeat: "day" }), scheduledEnvelope).scheduled;
+    const once = expectOk(await a.api.post(sched(dm.id), { text: "тоже не дойдёт", sendAt: inHour() }), scheduledEnvelope).scheduled;
+    expect((await b.api.post(`/api/users/${a.id}/block`, { blocked: true })).status).toBe(200);
+
+    expect(expectOk(await a.api.patch(sched(dm.id, `/${s.id}`), { sendNow: true }), okBody)).toEqual({ ok: true });
+    expect(expectOk(await b.api.get(msgs(dm.id)), historyPage).messages).toEqual([]);
+    const left = expectOk(await a.api.get(sched(dm.id)), scheduledList).scheduled;
+    expect(left.map((x) => x.id).sort()).toEqual([s.id, once.id].sort());
+    expect(left.find((x) => x.id === s.id)!.sendAt > inHour()).toBe(true);
+
+    expectOk(await a.api.patch(sched(dm.id, `/${once.id}`), { sendNow: true }), okBody);
+    expect(expectOk(await b.api.get(msgs(dm.id)), historyPage).messages).toEqual([]);
+    expect(expectOk(await a.api.get(sched(dm.id)), scheduledList).scheduled.map((x) => x.id)).toEqual([s.id]);
+  });
+
   test("«Когда будет в сети» в личке: собеседник в сети — уходит сразу", async () => {
     const { baseUrl } = server();
     const [a, b] = await registerUsers(baseUrl, 2);

@@ -3,6 +3,7 @@
 // или от NestJS (apps/api) — поэтому он приходит параметром, а слушать порт
 // начинает переданная функция listen, когда всё готово. opts.realtime — шлюз WebSocket
 // от Nest: тогда свой не поднимается, а события старого кода уходят в него.
+// opts.ownScheduledSweep — отложенные отправляет Nest (modules/messages), свой проход не нужен.
 const { attachWebSocketServer, useRealtime } = require("./ws");
 const { initPush } = require("./push");
 const { startScheduledMessagesSweep } = require("./lib/scheduledMessagesSweep");
@@ -26,7 +27,7 @@ function startRuntime(server, listen, opts = {}) {
   if (TEST_MODE) {
     console.log("[test] SHALTER_TEST_MODE: фоновые обходы и RTMP выключены");
   } else {
-    startScheduledMessagesSweep();
+    if (!opts.ownScheduledSweep) startScheduledMessagesSweep();
     startRtmp();
   }
 

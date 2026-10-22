@@ -121,3 +121,17 @@ export interface PaidMediaRecord {
   attachments: Attachment[];
   createdAt: string;
 }
+
+/** Отложенное сообщение с открытым текстом — как rowToScheduled в server/data/scheduledMessages.js. */
+export interface ScheduledMessage {
+  id: string;
+  chatId: string;
+  senderId: string;
+  text: string;
+  attachments: Attachment[] | undefined;
+  replyToId: string | null;
+  topicId: string | null;
+  repeat: string | null;
+  sendAt: string;
+  createdAt: string;
+}

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { chatForViewer, publicJsonReplacer, scheduled } from "../../legacy/legacy.js";
+import { chatForViewer, publicJsonReplacer } from "../../legacy/legacy.js";
 import { ChatsRepository, deviceHash } from "../chats/chats.repository.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
@@ -15,6 +15,8 @@ import { SocketRegistry } from "./stores/socket-registry.js";
 // (server/ws.js → useRealtime), фоновый процесс — через основной (lib/workerBridge.js).
 @Injectable()
 export class RealtimeService {
+  private readonly onlineListeners: ((uid: string) => void)[] = [];
+
   public constructor(
     private readonly sockets: SocketRegistry,
     private readonly chats: ChatsRepository,
@@ -70,13 +72,16 @@ export class RealtimeService {
     return { onlineUsers: this.sockets.userCount, sockets };
   }
 
+  /** Кто-то вошёл в сеть (первый сокет) — так отложенные «когда будет в сети» уходят сразу. */
+  public onUserOnline(listener: (uid: string) => void): void {
+    this.onlineListeners.push(listener);
+  }
+
   /** Первый сокет: «в сети» тем, кому это видно, и отложенные «когда будет в сети». */
   public async markOnline(uid: string): Promise<void> {
     const user = this.users.setPresence(uid, true);
     if (user) await this.broadcastPresence(user, { type: "presence:update", userId: uid, online: true, lastSeen: user.lastSeen });
-    scheduled()
-      .sendWhenOnline()
-      .catch((err: unknown) => console.error("when-online send failed:", err));
+    for (const listener of this.onlineListeners) listener(uid);
   }
 
   /** Последний сокет закрыт: «был(а) в сети» с этого момента. */

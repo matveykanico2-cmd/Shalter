@@ -29,7 +29,7 @@ export interface LegacyRealtimeHub {
 }
 
 export const startLegacyRuntime = (server: Server, listen: (port: number | string) => unknown, realtime: LegacyRealtimeHub): Promise<unknown> =>
-  require(path.join(LEGACY_DIR, "runtime.js")).startRuntime(server, listen, { realtime });
+  require(path.join(LEGACY_DIR, "runtime.js")).startRuntime(server, listen, { realtime, ownScheduledSweep: true });
 
 // Подключение к SQLite, которое открывает server/db.js (он же создаёт и обновляет
 // схему). Drizzle работает поверх него: общие транзакции и одна очередь записи со старым кодом.
@@ -268,33 +268,6 @@ export const sanitizers = (): Sanitizers => ({
   ...legacyModule<Pick<Sanitizers, "sanitizeAttachments" | "MAX_CHECKLIST_ITEMS">>("lib/sanitizeAttachments.js"),
   sanitizeSticker: legacyModule<Pick<Sanitizers, "sanitizeSticker">>("lib/sanitizeSticker.js").sanitizeSticker,
   sanitizeScene: legacyModule<Pick<Sanitizers, "sanitizeScene">>("lib/sanitizeScene.js").sanitizeScene,
-});
-
-// Отложенные сообщения (server/data/scheduledMessages.js); их отправляет server/lib/scheduledMessagesSweep.js.
-export interface ScheduledMessage {
-  id: string;
-  chatId: string;
-  senderId: string;
-  text: string;
-  attachments?: Attachment[];
-  sendAt: string;
-  [key: string]: unknown;
-}
-interface Scheduled {
-  WHEN_ONLINE: string;
-  listScheduledFor: (chatId: string, senderId: string) => Promise<ScheduledMessage[]>;
-  getScheduled: (id: string) => Promise<ScheduledMessage | undefined>;
-  addScheduled: (msg: Record<string, unknown>) => Promise<ScheduledMessage>;
-  editScheduled: (id: string, patch: { text?: unknown; sendAt?: unknown; repeat?: unknown }) => Promise<ScheduledMessage | undefined>;
-  deleteScheduled: (id: string) => Promise<void>;
-}
-interface ScheduledSweep {
-  sweepOnce: () => Promise<void>;
-  sendWhenOnline: () => Promise<void>;
-}
-export const scheduled = (): Scheduled & ScheduledSweep => ({
-  ...legacyModule<Scheduled>("data/scheduledMessages.js"),
-  ...legacyModule<ScheduledSweep>("lib/scheduledMessagesSweep.js"),
 });
 
 // Кто отвечает на новое сообщение: код бота в песочнице, Хьюго, Shalter AI, бот помощи,

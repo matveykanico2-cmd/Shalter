@@ -12,11 +12,13 @@ import { MessagesService } from "./messages.service.js";
 import { PaidMediaController } from "./paid-media.controller.js";
 import { PaidMediaRepository } from "./paid-media.repository.js";
 import { PaidMediaService } from "./paid-media.service.js";
+import { ScheduledDeliveryService } from "./scheduled-delivery.service.js";
 import { ScheduledMessagesController } from "./scheduled-messages.controller.js";
+import { ScheduledMessagesRepository } from "./scheduled-messages.repository.js";
 import { ScheduledMessagesService } from "./scheduled-messages.service.js";
 import { SummaryStore } from "./stores/summary.store.js";
 
-// Сообщения чата (/api/chats/:id/messages). Боты, посты, отложенные и фоновый процесс в
+// Сообщения чата (/api/chats/:id/messages) и отправка отложенных. Боты, посты и фоновый процесс в
 // server/ пишут в ту же таблицу через server/data/messages.js.
 // ScheduledMessagesController первым: scheduled/… не должен совпасть с /:messageId/….
 @Module({
@@ -27,6 +29,8 @@ import { SummaryStore } from "./stores/summary.store.js";
     MessageSendService,
     MessageActionsService,
     ScheduledMessagesService,
+    ScheduledDeliveryService,
+    ScheduledMessagesRepository,
     PaidMediaService,
     MessageAccessService,
     MessagesRepository,
