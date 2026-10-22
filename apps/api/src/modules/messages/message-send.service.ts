@@ -383,7 +383,7 @@ export class MessageSendService {
   }
 
   /** Пуш остальным участникам, кроме заглушивших чат; в секретном чате — без текста и имени. */
-  private async pushNewMessage(chat: Chat, sender: User | undefined, message: Message, { silent = false } = {}): Promise<void> {
+  public async pushNewMessage(chat: Chat, sender: User | undefined, message: Message, { silent = false } = {}): Promise<void> {
     const isGroupLike = chat.type === "group" || chat.type === "channel";
     const title = isGroupLike ? chat.title : (sender?.name ?? "Новое сообщение");
     const preview = messagePreview(message);

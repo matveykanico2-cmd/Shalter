@@ -12,6 +12,12 @@ export const setLinkPreview = (m: Message, linkPreview: unknown): Message => ({ 
 
 export const incrementCommentCount = (m: Message): Message => ({ ...m, commentCount: (m.commentCount ?? 0) + 1 });
 
+export const incrementViews = (m: Message): Message => ({ ...m, views: (m.views ?? 0) + 1 });
+
+export const setAnchorForPost = (postId: string) => (m: Message): Message => ({ ...m, anchorForPostId: postId });
+
+export const setDiscussionAnchor = (anchorId: string) => (m: Message): Message => ({ ...m, discussionAnchorId: anchorId });
+
 export function deleteForUser(m: Message, userId: string): Message {
   const ids = new Set(m.deletedForIds ?? []);
   ids.add(userId);
