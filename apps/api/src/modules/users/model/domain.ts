@@ -20,6 +20,7 @@ export type UserPatch = Partial<
     | "cloudPasswordHint"
     | "twoFactorMethod"
     | "premiumUntil"
+    | "businessUntil"
   >
 >;
 

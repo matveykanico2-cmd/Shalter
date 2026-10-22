@@ -225,13 +225,32 @@ export class UsersRepository {
   }
 
   // Premium на days дней сверх действующего (или с сегодняшнего дня); бессрочный не трогается.
-  public grantPremiumDays(userId: string, days: number): User | undefined {
+  /** Продлевает Premium на days дней (от текущего срока, если он ещё идёт); null — навсегда. */
+  public grantPremiumDays(userId: string, days: number | null): User | undefined {
     const user = this.findById(userId);
     if (!user) return undefined;
-    if (user.premiumForever) return this.update(userId, { premiumUntil: FOREVER });
+    if (days == null || user.premiumForever) return this.update(userId, { premiumUntil: FOREVER });
     const base = user.isPremium && user.premiumUntil ? new Date(user.premiumUntil) : new Date();
     base.setUTCDate(base.getUTCDate() + days);
     return this.update(userId, { premiumUntil: base.toISOString() });
+  }
+
+  public revokePremium(userId: string): User | undefined {
+    return this.update(userId, { premiumUntil: null });
+  }
+
+  /** Как grantPremiumDays, для «Shalter для бизнеса». */
+  public grantBusinessDays(userId: string, days: number | null): User | undefined {
+    const user = this.findById(userId);
+    if (!user) return undefined;
+    if (days == null || user.businessForever) return this.update(userId, { businessUntil: FOREVER });
+    const base = user.isBusiness && user.businessUntil ? new Date(user.businessUntil) : new Date();
+    base.setUTCDate(base.getUTCDate() + days);
+    return this.update(userId, { businessUntil: base.toISOString() });
+  }
+
+  public revokeBusiness(userId: string): User | undefined {
+    return this.update(userId, { businessUntil: null });
   }
 
   public startTotpSetup(userId: string, secret: string): void {

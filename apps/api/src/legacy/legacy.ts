@@ -448,16 +448,31 @@ export interface StarPack {
   stars: number;
   priceRub: number;
 }
+/** Тариф Premium или «Shalter для бизнеса». */
+export interface PaidPlan {
+  id: string;
+  days: number;
+  priceRub: number;
+  label: string;
+}
 export interface Pricing {
   starPacks: StarPack[];
   starCosts: { boost: number; delete: number };
+  premiumPlans: PaidPlan[];
+  businessPlans: PaidPlan[];
   [key: string]: unknown;
 }
 interface PricingModule {
   getPricing: () => Pricing;
   getStarPack: (id: unknown) => StarPack | null;
+  /** Тариф по id; неизвестный — первый. */
+  getPremiumPlan: (id: unknown) => PaidPlan;
+  getBusinessPlan: (id: unknown) => PaidPlan;
+  starsCostFor: (plan: PaidPlan) => number;
+  /** Тарифы для клиента: { "1m": { days, priceRub, label, ...extra }, ... }. */
+  plansAsMap: (plans: PaidPlan[], extra?: (plan: PaidPlan) => object) => Record<string, object>;
 }
-/** Цены, которые админ меняет без деплоя: наборы звёзд, стоимость платных действий (server/data/pricing.js, app_config). */
+/** Цены, которые админ меняет без деплоя: наборы звёзд, тарифы, стоимость платных действий (server/data/pricing.js, app_config). */
 export const pricing = (): PricingModule => legacyModule<PricingModule>("data/pricing.js");
 
 /** Подключённый сервис донатов для автоматической оплаты или null (server/lib/autoPayment.js). */
