@@ -35,6 +35,8 @@ export interface NewChat {
 /** Правка чата (updateChat в server/data/chats.js); null — очистить поле. */
 export interface ChatPatch {
   title?: string;
+  /** Галочка верификации — ставит модерация. */
+  isVerified?: boolean;
   description?: string | null;
   username?: string | null;
   isPublic?: boolean;

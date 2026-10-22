@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { Injectable } from "@nestjs/common";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { emitAccessRevoked } from "../../legacy/legacy.js";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { users } from "../db/schema.js";
@@ -222,7 +222,6 @@ export class UsersRepository {
     return this.findById(id);
   }
 
-  /** Добавляет targetId в список блокировок пользователя или убирает из него. */
   /** Блокировка аккаунта (setBanned в server/data/users.js): сессии и сокеты отзываются сразу. */
   public ban(id: string, reason: string | null, until: string | null = null): User | undefined {
     this.db
@@ -235,6 +234,51 @@ export class UsersRepository {
   }
 
   /** Метка «мошенник», «фейк» и т. п. в профиле; пустая — снять. */
+  /** Снять блокировку (setBanned(…, false) в server/data/users.js). */
+  public unban(id: string): User | undefined {
+    this.db.update(users).set({ isBanned: 0, banReason: null, bannedAt: null, bannedUntil: null }).where(eq(users.id, id)).run();
+    return this.findById(id);
+  }
+
+  /** Заблокированные сейчас (срок не вышел), последние сверху. */
+  public listBanned(): User[] {
+    const now = new Date().toISOString();
+    return this.db
+      .select()
+      .from(users)
+      .where(sql`COALESCE(${users.isBanned}, 0) = 1 AND (${users.bannedUntil} IS NULL OR ${users.bannedUntil} > ${now})`)
+      .orderBy(desc(users.bannedAt))
+      .all()
+      .map(toUser);
+  }
+
+  /** С меткой безопасности («СКАМ», «Фейк»…), последние сверху. */
+  public listLabeled(): User[] {
+    return this.db.select().from(users).where(isNotNull(users.safetyLabel)).orderBy(desc(users.safetyLabelAt)).all().map(toUser);
+  }
+
+  /** Снять метку у всех, у кого она стоит (метку удалили из списка). */
+  public clearSafetyLabel(label: string): void {
+    this.db.update(users).set({ safetyLabel: null, safetyLabelAt: null }).where(eq(users.safetyLabel, label)).run();
+  }
+
+  public setVerified(id: string, verified: boolean): User | undefined {
+    this.db.update(users).set({ isVerified: verified ? 1 : 0 }).where(eq(users.id, id)).run();
+    return this.findById(id);
+  }
+
+  public setDeveloper(id: string, developer: boolean): User | undefined {
+    this.db.update(users).set({ developer: developer ? 1 : 0 }).where(eq(users.id, id)).run();
+    return this.findById(id);
+  }
+
+  /** Разделы админки: строки без повторов. */
+  public setAdminSections(id: string, sections: unknown): User | undefined {
+    const valid = Array.isArray(sections) ? [...new Set(sections.filter((s): s is string => typeof s === "string"))] : [];
+    this.db.update(users).set({ adminSections: JSON.stringify(valid) }).where(eq(users.id, id)).run();
+    return this.findById(id);
+  }
+
   public setSafetyLabel(id: string, label: string | null): User | undefined {
     this.db
       .update(users)
@@ -255,6 +299,7 @@ export class UsersRepository {
       .filter((u) => u.adminSections.includes(section));
   }
 
+  /** Добавляет targetId в список блокировок пользователя или убирает из него. */
   public setBlocked(id: string, targetId: string, blocked: boolean): User | undefined {
     const user = this.findById(id);
     if (!user) return undefined;

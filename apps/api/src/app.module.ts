@@ -22,6 +22,7 @@ import { GiftsModule } from "./modules/gifts/gifts.module.js";
 import { AdsModule } from "./modules/ads/ads.module.js";
 import { LiveModule } from "./modules/live/live.module.js";
 import { CommunitiesModule } from "./modules/communities/communities.module.js";
+import { AdminModule } from "./modules/admin/admin.module.js";
 import { HugoModule } from "./modules/hugo/hugo.module.js";
 import { PartnersModule } from "./modules/partners/partners.module.js";
 import { ShortLinksModule } from "./modules/short-links/short-links.module.js";
@@ -49,7 +50,7 @@ import { UploadsModule } from "./modules/uploads/uploads.module.js";
 
 // Перенесённые из server/ модули подключаются сюда.
 @Module({
-  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule, BootstrapModule, SearchModule, PushModule, StickersModule, UsernamesModule, ChannelsModule, PostsModule, StoriesModule, NearbyModule, HugoModule, PartnersModule, ShortLinksModule, LinkCheckModule, ExportModule, SupportModule, ShalterAiModule, PremiumModule, TranslateModule, DonationAlertsModule, MiniAppsModule, ReportsModule, ShareTargetModule, DownloadsModule, OAuthModule, GamesModule, BotsModule, GiftsModule, AdsModule, LiveModule, CommunitiesModule],
+  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule, BootstrapModule, SearchModule, PushModule, StickersModule, UsernamesModule, ChannelsModule, PostsModule, StoriesModule, NearbyModule, HugoModule, PartnersModule, ShortLinksModule, LinkCheckModule, ExportModule, SupportModule, ShalterAiModule, PremiumModule, TranslateModule, DonationAlertsModule, MiniAppsModule, ReportsModule, ShareTargetModule, DownloadsModule, OAuthModule, GamesModule, BotsModule, GiftsModule, AdsModule, LiveModule, CommunitiesModule, AdminModule],
   providers: [
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ViewerShapeInterceptor },

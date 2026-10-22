@@ -11,5 +11,6 @@ import { ReportsService } from "./reports.service.js";
   imports: [ChatsModule, MessagesModule, UsersModule],
   controllers: [ReportsController],
   providers: [ReportsService, ReportsRepository],
+  exports: [ReportsRepository],
 })
 export class ReportsModule {}

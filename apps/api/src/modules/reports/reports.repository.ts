@@ -1,10 +1,10 @@
 import { Injectable } from "@nestjs/common";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { reports } from "../db/schema.js";
 import type { NewReport, Report } from "./model/domain.js";
 
-// Жалобы — то же, что server/data/reports.js (списки для админки остаются там).
+// Жалобы — то же, что server/data/reports.js.
 @Injectable()
 export class ReportsRepository {
   public constructor(@InjectDb() private readonly db: Db) {}
@@ -20,5 +20,15 @@ export class ReportsRepository {
 
   public setStatus(id: string, status: string): void {
     this.db.update(reports).set({ status }).where(eq(reports.id, id)).run();
+  }
+
+  /** Открытые жалобы для «Модерации», новые сверху. */
+  public listOpen(limit = 200): Report[] {
+    return this.db.select().from(reports).where(eq(reports.status, "open")).orderBy(desc(reports.createdAt)).limit(limit).all();
+  }
+
+  /** Жалобы на пользователя, новые сверху. */
+  public listAboutUser(userId: string): Report[] {
+    return this.db.select().from(reports).where(eq(reports.subjectUserId, userId)).orderBy(desc(reports.createdAt)).limit(100).all();
   }
 }

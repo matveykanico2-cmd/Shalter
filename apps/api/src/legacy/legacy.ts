@@ -197,8 +197,22 @@ interface JoinApproval {
 export const joinApproval = (): JoinApproval => legacyModule<JoinApproval>("lib/joinApproval.js");
 
 /** Удаление чата модератором Shalter: с уведомлением владельца и записью в журнал (server/lib/moderationDelete.js). */
-export const moderateDeleteChat = (chat: LegacyChat, opts: { adminId: string; reason: string }): Promise<void> =>
-  legacyModule<{ moderateDeleteChat: (chat: LegacyChat, opts: object) => Promise<void> }>("lib/moderationDelete.js").moderateDeleteChat(chat, opts);
+export const moderateDeleteChat = (chat: LegacyChat, opts: { adminId: string; reason: string }): Promise<ModeratedDeletion> =>
+  legacyModule<{ moderateDeleteChat: (chat: LegacyChat, opts: object) => Promise<ModeratedDeletion> }>("lib/moderationDelete.js").moderateDeleteChat(chat, opts);
+
+/** Что удалила модерация: id, kind (group | channel | bot), название. */
+export interface ModeratedDeletion {
+  id: string;
+  kind: string;
+  title: string;
+}
+
+/**
+ * Удаление бота модерацией вместе с аккаунтом, с записью в журнал и уведомлением владельцу
+ * (server/lib/moderationDelete.js). Ошибки с status (404 — нет бота, 400 — служебный).
+ */
+export const moderateDeleteBot = (botUserId: string, opts: { adminId: string; reason: string }): Promise<ModeratedDeletion> =>
+  legacyModule<{ moderateDeleteBot: (id: string, opts: object) => Promise<ModeratedDeletion> }>("lib/moderationDelete.js").moderateDeleteBot(botUserId, opts);
 
 /**
  * В значении есть чужой загруженный файл, которого не было в previous (server/lib/uploadAccess.js):
@@ -507,7 +521,12 @@ export interface Pricing {
   [key: string]: unknown;
 }
 interface PricingModule {
+  DEFAULTS: Pricing;
   getPricing: () => Pricing;
+  /** Правка цен админом; ошибка проверки — { error }. */
+  updatePricing: (patch: object) => { value: Pricing; error?: undefined } | { error: string };
+  /** Вернуть цены по умолчанию. */
+  resetPricing: () => Pricing;
   getStarPack: (id: unknown) => StarPack | null;
   /** Тариф по id; неизвестный — первый. */
   getPremiumPlan: (id: unknown) => PaidPlan;
@@ -604,4 +623,16 @@ export const shalterAi = (): ShalterAi => ({
   ensureShalterAiAccount: legacyModule<Pick<ShalterAi, "ensureShalterAiAccount">>("data/shalterAiBot.js").ensureShalterAiAccount,
   ...legacyModule<Pick<ShalterAi, "WELCOME" | "quotaFor" | "stopShalterAi">>("lib/shalterAi.js"),
   ...legacyModule<Pick<ShalterAi, "PLANS" | "CHOICES" | "normalizeAiSettings">>("lib/aiPlans.js"),
+});
+
+// --- Админка (modules/admin) ---
+
+/** Нагрузка и состояние сервера для раздела «Сервер» (server/lib/serverStats.js). */
+export const collectServerStats = (): Promise<object> =>
+  legacyModule<{ collectServerStats: () => Promise<object> }>("lib/serverStats.js").collectServerStats();
+
+/** Проверка SMTP (server/lib/mailer.js) и советы по DNS-записям домена отправителя (server/lib/mailDns.js). */
+export const mailCheck = () => ({
+  verifySmtp: legacyModule<{ verifySmtp: () => Promise<{ configured?: boolean; ok?: boolean; error?: string }> }>("lib/mailer.js").verifySmtp,
+  buildDnsAdvice: legacyModule<{ buildDnsAdvice: () => Promise<object> }>("lib/mailDns.js").buildDnsAdvice,
 });

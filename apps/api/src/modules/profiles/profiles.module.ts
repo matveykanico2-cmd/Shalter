@@ -27,6 +27,6 @@ import { ProfilesService } from "./profiles.service.js";
     ProfileStatusesRepository,
     ProfileTrackService,
   ],
-  exports: [ProfileNotifyService],
+  exports: [ProfileNotifyService, ProfileStatusesRepository],
 })
 export class ProfilesModule {}

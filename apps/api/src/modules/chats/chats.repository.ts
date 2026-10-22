@@ -19,7 +19,7 @@ const MEMBER_COLUMNS = {
 const SCALAR_FIELDS = [
   "title", "description", "username", "isPublic", "avatarColor", "avatarImage", "ownerId",
   "linkedDiscussionChatId", "points", "autoDeleteSeconds", "inviteCode", "slowModeSeconds",
-  "commentPriceStars", "approveJoins", "signMessages", "commentsOff", "anonymousAdmins", "topicsEnabled", "welcomeText",
+  "commentPriceStars", "approveJoins", "signMessages", "commentsOff", "anonymousAdmins", "topicsEnabled", "welcomeText", "isVerified",
 ] as const satisfies readonly (keyof ChatPatch & keyof NewChatRow)[];
 
 const MEMBERS_CHUNK = 500;
@@ -114,6 +114,13 @@ export class ChatsRepository {
       .where(and(eq(chats.type, "dm"), eq(chats.secret, 0)))
       .get();
     return this.toChat(row);
+  }
+
+  /** Все чаты (listChats в server/data/chats.js) — для каталога модерации. */
+  public findAll(): Chat[] {
+    const rows = this.db.select().from(chats).all();
+    const byChat = this.membersByChat(rows.map((r) => r.id));
+    return rows.map((r) => toChat(r, byChat.get(r.id) ?? []));
   }
 
   /**

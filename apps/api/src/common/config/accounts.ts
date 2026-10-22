@@ -22,3 +22,9 @@ export const PREMIUM_GRANT_DAYS = 30;
 // Служебный бот «Shalter»: коды входа и оповещения о безопасности (server/data/systemBot.js
 // создаёт его при старте).
 export const SYSTEM_BOT_ID = "bot_shalter";
+
+// Служебный помощник и Хьюго (server/data/helperBot.js, hugoBot.js), Shalter AI (shalterAiBot.js).
+export const HELPER_BOT_ID = "bot_helper";
+
+/** Разделы админки, которые главный админ выдаёт другим (server/lib/adminAccess.js). */
+export const ADMIN_SECTIONS = ["moderation", "server", "giftshop", "emojicatalog", "donations", "pricing", "legal"];
