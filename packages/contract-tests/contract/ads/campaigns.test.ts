@@ -94,11 +94,13 @@ describe("GET/POST /api/ads/campaigns", () => {
 
     expect(await createCampaign(u, { placement: "chat", cpmStars: "abc" })).toMatchObject({ placements: ["chat"], cpmStars: 20 });
     expect(await createCampaign(u, { placements: ["bogus"], cpmStars: 50 })).toMatchObject({ placements: ["discover"], cpmStars: 50 });
+    // Имена из прототипа объекта — тоже неизвестные места.
+    expect(await createCampaign(u, { placements: ["constructor", "__proto__", "toString"] })).toMatchObject({ placement: "discover" });
 
     // Список — свои кампании, новые сверху; чужих не видно.
     const list = expectOk(await u.api.get("/api/ads/campaigns"), campaignsBody).campaigns;
-    expect(list).toHaveLength(3);
-    expect(list[2].id).toBe(c.id);
+    expect(list).toHaveLength(4);
+    expect(list[3].id).toBe(c.id);
     expect(expectOk(await (await newUser()).api.get("/api/ads/campaigns"), campaignsBody).campaigns).toEqual([]);
   });
 });
@@ -271,6 +273,7 @@ describe("показ и клики", () => {
     // Неизвестное место — как discover, а там активных нет.
     expect(expectOk(await viewer.api.get("/api/ads/serve", { query: { placement: "bogus" } }), serveBody)).toEqual({ ad: null });
     expect(expectOk(await viewer.api.get("/api/ads/serve"), serveBody)).toEqual({ ad: null });
+    expect(expectOk(await viewer.api.get("/api/ads/serve", { query: { placement: "constructor" } }), serveBody)).toEqual({ ad: null });
 
     // Клик: чужой засчитывается, свой — нет; ответ — адрес перехода.
     expect(expectOk(await viewer.api.post(`/api/ads/click/${c.id}`), clickBody)).toEqual({ ok: true, url: "https://shop.test.invalid" });

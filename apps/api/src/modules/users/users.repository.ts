@@ -313,6 +313,30 @@ export class UsersRepository {
     return this.update(userId, { businessUntil: null });
   }
 
+  /** Как grantPremiumDays, для кабинета рекламы. */
+  public grantAdsDays(userId: string, days: number | null): User | undefined {
+    const user = this.findById(userId);
+    if (!user) return undefined;
+    if (days == null || user.adsForever) return this.update(userId, { adsUntil: FOREVER });
+    const base = user.isAdsActive && user.adsUntil ? new Date(user.adsUntil) : new Date();
+    base.setUTCDate(base.getUTCDate() + days);
+    return this.update(userId, { adsUntil: base.toISOString() });
+  }
+
+  public revokeAds(userId: string): User | undefined {
+    return this.update(userId, { adsUntil: null });
+  }
+
+  /** Объявление из кабинета рекламы (текст, ссылка, вложения) — в профиле пользователя. */
+  public setAdContent(userId: string, ad: { adText: string; adUrl: string | null; adAttachments: object[] }): User | undefined {
+    this.db
+      .update(users)
+      .set({ adText: ad.adText, adUrl: ad.adUrl, adAttachments: JSON.stringify(ad.adAttachments) })
+      .where(eq(users.id, userId))
+      .run();
+    return this.findById(userId);
+  }
+
   public startTotpSetup(userId: string, secret: string): void {
     this.db
       .update(users)

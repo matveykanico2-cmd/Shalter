@@ -21,6 +21,7 @@ export type UserPatch = Partial<
     | "twoFactorMethod"
     | "premiumUntil"
     | "businessUntil"
+    | "adsUntil"
   >
 >;
 
