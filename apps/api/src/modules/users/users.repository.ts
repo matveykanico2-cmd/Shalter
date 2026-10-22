@@ -147,6 +147,16 @@ export class UsersRepository {
     return this.findById(id);
   }
 
+  /**
+   * Новый ник (пустая строка — без ника). auctionId — ник выигран на этом аукционе; без него
+   * привязка к аукциону снимается, как в updateUser в server/data/users.js.
+   */
+  public setUsername(id: string, username: string, auctionId: string | null = null): User | undefined {
+    if (!this.db.select({ id: users.id }).from(users).where(eq(users.id, id)).get()) return undefined;
+    this.db.update(users).set({ username, usernameAuctionId: auctionId }).where(eq(users.id, id)).run();
+    return this.findById(id);
+  }
+
   /** Весь список аватарок; главная (avatarImage) — превью первой. */
   public setAvatars(id: string, list: AvatarEntry[]): User | undefined {
     if (!this.db.select({ id: users.id }).from(users).where(eq(users.id, id)).get()) return undefined;

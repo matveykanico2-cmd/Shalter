@@ -118,8 +118,14 @@ export const deleteAccount = (userId: string): Promise<void> =>
   legacyModule<{ deleteAccount: (userId: string) => Promise<void> }>("lib/deleteAccount.js").deleteAccount(userId);
 
 /** Проверка юзернейма: формат, резерв, занятость пользователем, каналом или аукционом (server/lib/username.js). null — свободен. */
-export const checkUsername = (raw: string, opts?: { forChatId?: string; forUserId?: string }): Promise<{ status: number; error: string } | null> =>
-  legacyModule<{ checkUsername: (raw: string, opts?: { forChatId?: string; forUserId?: string }) => Promise<{ status: number; error: string } | null> }>(
+interface CheckUsernameOpts {
+  forChatId?: string;
+  forUserId?: string;
+  /** Не считать занятым из-за открытого аукциона (выдача и итоги самого аукциона). */
+  ignoreAuctions?: boolean;
+}
+export const checkUsername = (raw: string, opts?: CheckUsernameOpts): Promise<{ status: number; error: string } | null> =>
+  legacyModule<{ checkUsername: (raw: string, opts?: CheckUsernameOpts) => Promise<{ status: number; error: string } | null> }>(
     "lib/username.js"
   ).checkUsername(raw, opts);
 
