@@ -135,4 +135,15 @@ describe("POST /share-target → GET /api/share/:token", () => {
     // Другой адрес не затронут.
     expect((await shareRaw("", "application/x-www-form-urlencoded")).status).toBe(303);
   });
+
+  test("тело больше 64 МБ — 413 JSON, в ящик ничего не попадает", async () => {
+    const res = await shareRaw("x".repeat(64 * 1024 * 1024 + 1), "application/octet-stream");
+    expectError(res, 413, "Слишком большой запрос");
+  });
+
+  test("JSON-тело разбирает общий парсер — делиться нечем, 303 на главную", async () => {
+    const res = await shareRaw(JSON.stringify({ text: "привет" }), "application/json");
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/");
+  });
 });

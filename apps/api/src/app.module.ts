@@ -28,6 +28,7 @@ import { PostsModule } from "./modules/posts/posts.module.js";
 import { DonationAlertsModule } from "./modules/donation-alerts/donation-alerts.module.js";
 import { MiniAppsModule } from "./modules/mini-apps/mini-apps.module.js";
 import { ReportsModule } from "./modules/reports/reports.module.js";
+import { ShareTargetModule } from "./modules/share-target/share-target.module.js";
 import { StoriesModule } from "./modules/stories/stories.module.js";
 import { TranslateModule } from "./modules/translate/translate.module.js";
 import { RealtimeModule } from "./modules/realtime/realtime.module.js";
@@ -40,7 +41,7 @@ import { UploadsModule } from "./modules/uploads/uploads.module.js";
 
 // Перенесённые из server/ модули подключаются сюда.
 @Module({
-  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule, BootstrapModule, SearchModule, PushModule, StickersModule, UsernamesModule, ChannelsModule, PostsModule, StoriesModule, NearbyModule, HugoModule, PartnersModule, ShortLinksModule, LinkCheckModule, ExportModule, SupportModule, ShalterAiModule, PremiumModule, TranslateModule, DonationAlertsModule, MiniAppsModule, ReportsModule],
+  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule, BootstrapModule, SearchModule, PushModule, StickersModule, UsernamesModule, ChannelsModule, PostsModule, StoriesModule, NearbyModule, HugoModule, PartnersModule, ShortLinksModule, LinkCheckModule, ExportModule, SupportModule, ShalterAiModule, PremiumModule, TranslateModule, DonationAlertsModule, MiniAppsModule, ReportsModule, ShareTargetModule],
   providers: [
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ViewerShapeInterceptor },
