@@ -215,6 +215,9 @@ export const isSafeUrl = (url: unknown): boolean =>
 export interface LegacyBot {
   commands?: unknown[];
   code?: string;
+  /** Мини-приложение бота: HTML и название. */
+  appCode?: string | null;
+  appName?: string | null;
 }
 export const getBotByUserId = (userId: string): Promise<LegacyBot | undefined> =>
   legacyModule<{ getBotByUserId: (userId: string) => Promise<LegacyBot | undefined> }>("data/bots.js").getBotByUserId(userId);
@@ -483,6 +486,17 @@ export const getActiveDonationLink = (): { provider: string; donationUrl: string
 /** Заказ, который оплачивается донатом с кодом в комментарии (server/data/pendingOrders.js). */
 export const createPendingOrder = (order: { userId: string; kind: string; amountRub: number; meta?: object }): Promise<{ code: string }> =>
   legacyModule<{ createPendingOrder: (order: object) => Promise<{ code: string }> }>("data/pendingOrders.js").createPendingOrder(order);
+
+// Подключение DonationAlerts по OAuth (server/lib/donationAlerts.js) и DonatePay (server/lib/donatePay.js).
+interface DonationAlerts {
+  isConfigured: () => boolean;
+  isConnected: () => boolean;
+  loadAuth: () => { username?: string | null } | null;
+  getAuthorizeUrl: () => string;
+  exchangeCodeForTokens: (code: string) => Promise<unknown>;
+}
+export const donationAlerts = (): DonationAlerts => legacyModule<DonationAlerts>("lib/donationAlerts.js");
+export const isDonatePayConfigured = (): boolean => legacyModule<{ isConfigured: () => boolean }>("lib/donatePay.js").isConfigured();
 
 // --- Поиск (modules/search) ---
 
