@@ -4,7 +4,7 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { users } from "../db/schema.js";
 import { banActive, FOREVER, toUser } from "./lib/user.mapper.js";
-import type { AvatarEntry, BanState, NewUserRow, ProfilePatch, User, UserPatch } from "./model/domain.js";
+import type { AvatarEntry, BanState, NewUserRow, ProfilePatch, ProfileTrack, StatusEntry, StatusState, User, UserPatch } from "./model/domain.js";
 
 const REFERRAL_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
@@ -155,6 +155,32 @@ export class UsersRepository {
       .set({ avatarImages: JSON.stringify(list), avatarImage: list[0]?.poster ?? null })
       .where(eq(users.id, id))
       .run();
+    return this.findById(id);
+  }
+
+  /** Свои статусы и активный (getStatusState в server/data/users.js); нет пользователя — undefined. */
+  public statusState(id: string): StatusState | undefined {
+    const row = this.db.select({ statusItems: users.statusItems, activeStatusId: users.activeStatusId }).from(users).where(eq(users.id, id)).get();
+    if (!row) return undefined;
+    let items: StatusEntry[];
+    try {
+      items = JSON.parse(row.statusItems ?? "[]");
+    } catch {
+      items = [];
+    }
+    return { items, activeStatusId: row.activeStatusId ?? null };
+  }
+
+  public setStatusState(id: string, items: StatusEntry[], activeStatusId: string | null): User | undefined {
+    if (!this.db.select({ id: users.id }).from(users).where(eq(users.id, id)).get()) return undefined;
+    this.db.update(users).set({ statusItems: JSON.stringify(items), activeStatusId }).where(eq(users.id, id)).run();
+    return this.findById(id);
+  }
+
+  /** Весь список треков профиля; пустой — NULL (setProfileTracks в server/data/users.js). */
+  public setProfileTracks(id: string, tracks: ProfileTrack[]): User | undefined {
+    if (!this.db.select({ id: users.id }).from(users).where(eq(users.id, id)).get()) return undefined;
+    this.db.update(users).set({ profileTrack: tracks.length ? JSON.stringify(tracks) : null }).where(eq(users.id, id)).run();
     return this.findById(id);
   }
 

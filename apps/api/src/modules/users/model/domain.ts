@@ -55,6 +55,31 @@ export interface AvatarEntry {
   [key: string]: unknown;
 }
 
+/** Свой статус профиля: картинка, подпись и, если взят из каталога, его id. */
+export interface StatusEntry {
+  id: string;
+  image: string;
+  name: string;
+  catalogId?: string;
+  addedAt: string;
+}
+
+/** Статусы пользователя и активный из них (колонки statusItems, activeStatusId). */
+export interface StatusState {
+  items: StatusEntry[];
+  activeStatusId: string | null;
+}
+
+/** Трек в музыке профиля; первый в списке — основной. */
+export interface ProfileTrack {
+  url: string;
+  name: string;
+  size?: number;
+  mimeType?: string;
+  duration?: number;
+  at: string;
+}
+
 /** Личные пометки чата в настройках: закреплён, в архиве, без звука, «непрочитанный». */
 export interface ChatFlags {
   pinned?: boolean;

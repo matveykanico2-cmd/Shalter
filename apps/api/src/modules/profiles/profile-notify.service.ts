@@ -8,8 +8,7 @@ import { UserPrivacyService } from "../users/user-privacy.service.js";
 
 // Профиль изменился: contact:updated самому себе, собеседникам по личным чатам и ботам и
 // тем, у кого он в контактах, — каждому своя версия (имя из контактов, приватность).
-// Как notifyProfileChanged в server/lib/notifyProfileChanged.js; его копия там остаётся
-// для аватарок, статусов и музыки профиля, пока они в server/.
+// Как notifyProfileChanged в server/lib/notifyProfileChanged.js (копия там — для старых маршрутов).
 @Injectable()
 export class ProfileNotifyService {
   public constructor(
