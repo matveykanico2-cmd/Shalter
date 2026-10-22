@@ -13,12 +13,13 @@ import { ProfilesModule } from "./modules/profiles/profiles.module.js";
 import { RealtimeModule } from "./modules/realtime/realtime.module.js";
 import { SessionsModule } from "./modules/sessions/sessions.module.js";
 import { SettingsModule } from "./modules/settings/settings.module.js";
+import { StarsModule } from "./modules/stars/stars.module.js";
 import { TopicsModule } from "./modules/topics/topics.module.js";
 import { UploadsModule } from "./modules/uploads/uploads.module.js";
 
 // Перенесённые из server/ модули подключаются сюда.
 @Module({
-  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule],
+  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule],
   providers: [
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ViewerShapeInterceptor },

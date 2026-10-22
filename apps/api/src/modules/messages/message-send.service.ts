@@ -14,7 +14,6 @@ import {
   responders,
   sanitizers,
   sendOnce,
-  stars,
   uploadAccess,
   type Attachment,
 } from "../../legacy/legacy.js";
@@ -25,6 +24,7 @@ import { RealtimeService } from "../realtime/realtime.service.js";
 import { TopicsRepository } from "../topics/topics.repository.js";
 import type { User } from "../users/model/domain.js";
 import { isQuietNow } from "../users/lib/settings.defaults.js";
+import { StarsRepository } from "../users/stars.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
 import { incrementCommentCount, setLinkPreview } from "./lib/message-edits.js";
@@ -67,7 +67,8 @@ export class MessageSendService {
     private readonly topics: TopicsRepository,
     private readonly users: UsersRepository,
     private readonly realtime: RealtimeService,
-    private readonly userSettings: UserSettingsService
+    private readonly userSettings: UserSettingsService,
+    private readonly stars: StarsRepository
   ) {}
 
   /** Повтор с тем же clientId (в том числе одновременный) получает ответ первой отправки. */
@@ -87,7 +88,7 @@ export class MessageSendService {
       // Отправили — черновик этого чата больше не нужен (иначе «Черновик: …» мог вернуться
       // в списке чатов, если очистка с клиента разошлась с сохранением).
       if (this.userSettings.get(uid).drafts?.[chat.id]) this.userSettings.setDraft(uid, chat.id, "");
-      return { message, ...(charged ? { chargedStars: charged, balance: stars().balanceOf(uid) } : {}) };
+      return { message, ...(charged ? { chargedStars: charged, balance: this.stars.balanceOf(uid) } : {}) };
     });
   }
 
@@ -190,10 +191,10 @@ export class MessageSendService {
     if (!charge) return 0;
     const { price, mustPay } = await messageCost(uid, other, chat.id);
     if (!mustPay) return 0;
-    if (!stars().transferStars(uid, other.id, price)) {
+    if (!this.stars.transfer(uid, other.id, price)) {
       throw new ApiError(402, `Этот пользователь берёт ${price} ⭐ за сообщение от незнакомых. Не хватает звёзд. С Premium писать можно бесплатно`, {
         needStars: price,
-        balance: stars().balanceOf(uid),
+        balance: this.stars.balanceOf(uid),
         premiumHelps: true,
       });
     }
@@ -206,10 +207,10 @@ export class MessageSendService {
     const price = channel?.commentPriceStars ?? 0;
     if (!charge || price <= 0 || channel!.ownerId === uid || isStaff(channel, uid)) return 0;
     if (this.users.findById(uid)?.isPremium) return 0;
-    if (!stars().transferStars(uid, channel!.ownerId!, price)) {
+    if (!this.stars.transfer(uid, channel!.ownerId!, price)) {
       throw new ApiError(402, `Комментарии в этом канале стоят ${price} ⭐. Не хватает звёзд. С Premium — бесплатно`, {
         needStars: price,
-        balance: stars().balanceOf(uid),
+        balance: this.stars.balanceOf(uid),
         premiumHelps: true,
       });
     }

@@ -284,14 +284,6 @@ export const sanitizers = (): Sanitizers => ({
   sanitizeScene: legacyModule<Pick<Sanitizers, "sanitizeScene">>("lib/sanitizeScene.js").sanitizeScene,
 });
 
-// Звёзды (server/data/stars.js).
-interface Stars {
-  /** false — не хватает звёзд, ничего не списано. */
-  transferStars: (fromId: string, toId: string, amount: number) => boolean;
-  balanceOf: (userId: string) => number;
-}
-export const stars = (): Stars => legacyModule<Stars>("data/stars.js");
-
 // Платные посты (server/data/paidMedia.js): настоящие вложения и покупки.
 export interface PaidMediaRecord {
   messageId: string;
@@ -510,3 +502,30 @@ export const withGiftSenders = <T>(gifts: T[], viewerId: string): Promise<T[]> =
 /** Ссылка /uploads/… на существующий файл, который загрузил сам пользователь (server/lib/uploadAccess.js). */
 export const isOwnUploadUrl = (userId: string, url: string): Promise<boolean> =>
   legacyModule<{ isOwnUploadUrl: (userId: string, url: string) => Promise<boolean> }>("lib/uploadAccess.js").isOwnUploadUrl(userId, url);
+
+// --- Для звёзд (modules/stars) ---
+
+export interface StarPack {
+  id: string;
+  stars: number;
+  priceRub: number;
+}
+export interface Pricing {
+  starPacks: StarPack[];
+  starCosts: { boost: number; delete: number };
+  [key: string]: unknown;
+}
+interface PricingModule {
+  getPricing: () => Pricing;
+  getStarPack: (id: unknown) => StarPack | null;
+}
+/** Цены, которые админ меняет без деплоя: наборы звёзд, стоимость платных действий (server/data/pricing.js, app_config). */
+export const pricing = (): PricingModule => legacyModule<PricingModule>("data/pricing.js");
+
+/** Подключённый сервис донатов для автоматической оплаты или null (server/lib/autoPayment.js). */
+export const getActiveDonationLink = (): { provider: string; donationUrl: string } | null =>
+  legacyModule<{ getActiveDonationLink: () => { provider: string; donationUrl: string } | null }>("lib/autoPayment.js").getActiveDonationLink();
+
+/** Заказ, который оплачивается донатом с кодом в комментарии (server/data/pendingOrders.js). */
+export const createPendingOrder = (order: { userId: string; kind: string; amountRub: number; meta?: object }): Promise<{ code: string }> =>
+  legacyModule<{ createPendingOrder: (order: object) => Promise<{ code: string }> }>("data/pendingOrders.js").createPendingOrder(order);

@@ -1,11 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
 import { genId } from "../../common/lib/gen-id.js";
-import { iceServers, privacyRules, sendMessageAndBroadcast, stars } from "../../legacy/legacy.js";
+import { iceServers, privacyRules, sendMessageAndBroadcast } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import type { User } from "../users/model/domain.js";
 import { ContactsRepository } from "../users/contacts.repository.js";
+import { StarsRepository } from "../users/stars.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { CallNotifyService } from "./call-notify.service.js";
 import { CallsRepository } from "./calls.repository.js";
@@ -30,7 +31,8 @@ export class CallsService {
     private readonly users: UsersRepository,
     private readonly notify: CallNotifyService,
     private readonly realtime: RealtimeService,
-    private readonly contacts: ContactsRepository
+    private readonly contacts: ContactsRepository,
+    private readonly stars: StarsRepository
   ) {}
 
   public iceServers() {
@@ -198,8 +200,7 @@ export class CallsService {
     if (!target || price <= 0) return { ok: true, charged: 0 };
     if (this.contacts.contactIdsOf(target.id).has(callerId)) return { ok: true, charged: 0 };
     if (this.users.findById(callerId)?.isPremium) return { ok: true, charged: 0 };
-    const wallet = stars();
-    if (!wallet.transferStars(callerId, target.id, price)) return { ok: false, price, balance: wallet.balanceOf(callerId) };
+    if (!this.stars.transfer(callerId, target.id, price)) return { ok: false, price, balance: this.stars.balanceOf(callerId) };
     return { ok: true, charged: price };
   }
 

@@ -209,6 +209,12 @@ export class MessagesRepository {
     return this.findById(id);
   }
 
+  /** Буст за звёзды: сообщение выделено до until. */
+  public setBoost(id: string, until: string, byId: string): Message | undefined {
+    this.db.update(messages).set({ boostedUntil: until, boostedById: byId }).where(eq(messages.id, id)).run();
+    return this.findById(id);
+  }
+
   /** Удаляет сообщение; возвращает, на какие файлы оно ссылалось. */
   public delete(id: string): DeletedMessageRefs | undefined {
     const refs = this.db

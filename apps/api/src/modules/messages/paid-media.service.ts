@@ -1,8 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { paidMedia, stars, type PaidMediaRecord } from "../../legacy/legacy.js";
+import { paidMedia, type PaidMediaRecord } from "../../legacy/legacy.js";
 import { isStaff } from "../chats/lib/chat-permissions.js";
 import type { Chat } from "../chats/model/domain.js";
+import { StarsRepository } from "../users/stars.repository.js";
 import { MessagesRepository } from "./messages.repository.js";
 import type { Message } from "./model/domain.js";
 
@@ -16,7 +17,10 @@ interface PaidAccess {
 // Платный пост: в чате — заглушка, настоящие вложения — автору, админам канала и купившим.
 @Injectable()
 export class PaidMediaService {
-  public constructor(private readonly messages: MessagesRepository) {}
+  public constructor(
+    private readonly messages: MessagesRepository,
+    private readonly stars: StarsRepository
+  ) {}
 
   /** Настоящие вложения; не купившему — 402 с ценой. Сколько купили — автору и админам канала. */
   public attachments(uid: string, chat: Chat, messageId: string) {
@@ -29,15 +33,14 @@ export class PaidMediaService {
   /** Покупка: звёзды получает владелец канала (как плата за комментарии), в личке и группе — автор. */
   public unlock(uid: string, chat: Chat, messageId: string) {
     const { paid, free, message } = this.access(uid, chat, messageId);
-    const wallet = stars();
     if (!free) {
       const payee = chat.type === "channel" ? chat.ownerId : message?.senderId;
-      if (!payee || !wallet.transferStars(uid, payee, paid.stars)) {
-        throw new ApiError(402, `Не хватает звёзд: нужно ${paid.stars} ⭐`, { needStars: paid.stars, balance: wallet.balanceOf(uid) });
+      if (!payee || !this.stars.transfer(uid, payee, paid.stars)) {
+        throw new ApiError(402, `Не хватает звёзд: нужно ${paid.stars} ⭐`, { needStars: paid.stars, balance: this.stars.balanceOf(uid) });
       }
       paidMedia().recordPurchase(paid.messageId, uid);
     }
-    return { attachments: paid.attachments, balance: wallet.balanceOf(uid) };
+    return { attachments: paid.attachments, balance: this.stars.balanceOf(uid) };
   }
 
   private access(uid: string, chat: Chat, messageId: string): PaidAccess {
