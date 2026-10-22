@@ -1,6 +1,7 @@
 // HTTP-клиент «как браузер»: свой набор cookie на каждого пользователя/устройство.
 // Сессия в Shalter — это cookie session_uids + active_uid + device_id, поэтому
 // один Api = одно устройство одного человека.
+import http from "node:http";
 
 export interface ApiResponse<T = any> {
   status: number;
@@ -93,4 +94,18 @@ export class Api {
       else this.cookies.set(name, value);
     }
   }
+}
+
+/**
+ * Статус ответа на запрос через node:http, без fetch: fetch к запросу с If-None-Match
+ * сам добавляет Cache-Control: no-cache, и сервер честно отвечает 200 вместо 304.
+ */
+export function rawStatus(baseUrl: string, path: string, headers: Record<string, string>): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const req = http.get(new URL(path, baseUrl), { headers }, (res) => {
+      res.resume();
+      res.on("end", () => resolve(res.statusCode!));
+    });
+    req.on("error", reject);
+  });
 }
