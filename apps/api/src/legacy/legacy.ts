@@ -444,12 +444,17 @@ interface ChatForViewer {
 }
 export const chatForViewer = (): ChatForViewer => legacyModule<ChatForViewer>("lib/chatForViewer.js");
 
-// Прямые эфиры (server/data/liveStreams.js).
-interface LiveStreams {
-  getStream: (id: unknown) => { id: string; status: string } | undefined;
-  getParticipant: (streamId: unknown, userId: unknown) => object | undefined;
+// Приём эфиров из OBS (server/rtmp.js, node-media-server): его поднимает runtime в этом же
+// процессе, мост отдаёт тот же экземпляр.
+interface Rtmp {
+  /** Адрес для OBS: rtmp://<хост запроса>:<порт>/live. */
+  ingestUrlFor: (requestHost: string | undefined) => string;
+  /** Локальный HTTP-FLV поток по ключу; ключ не того вида — null. */
+  internalFlvUrl: (streamKey: string | null) => string | null;
+  /** Оборвать вещание из OBS по ключу. */
+  stopPublisher: (streamKey: string | null) => boolean;
 }
-export const liveStreams = (): LiveStreams => legacyModule<LiveStreams>("data/liveStreams.js");
+export const rtmp = (): Rtmp => legacyModule<Rtmp>("rtmp.js");
 
 // --- Звонки (modules/calls) ---
 

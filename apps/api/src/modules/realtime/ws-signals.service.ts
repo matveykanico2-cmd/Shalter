@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { liveStreams } from "../../legacy/legacy.js";
 import { CallSignalsService } from "../calls/call-signals.service.js";
+import { LiveRepository } from "../live/live.repository.js";
 import { RealtimeService } from "./realtime.service.js";
 
 /** Сигнал WebRTC от клиента: кому, какого вида и с чем. */
@@ -19,15 +19,16 @@ export interface SignalMessage {
 export class WsSignalsService {
   public constructor(
     private readonly realtime: RealtimeService,
-    private readonly callSignals: CallSignalsService
+    private readonly callSignals: CallSignalsService,
+    private readonly live: LiveRepository
   ) {}
 
   public relayLiveSignal(uid: string, { streamId, toUserId, kind, data }: SignalMessage): void {
-    const live = liveStreams();
-    const stream = live.getStream(streamId);
+    if (typeof streamId !== "string" || typeof toUserId !== "string") return;
+    const stream = this.live.findStream(streamId);
     if (!stream || stream.status !== "live") return;
-    if (!live.getParticipant(streamId, uid) || !live.getParticipant(streamId, toUserId)) return;
-    this.realtime.broadcastToUsers([toUserId as string], { type: "live:signal", streamId, fromUserId: uid, kind, data });
+    if (!this.live.findParticipant(streamId, uid) || !this.live.findParticipant(streamId, toUserId)) return;
+    this.realtime.broadcastToUsers([toUserId], { type: "live:signal", streamId, fromUserId: uid, kind, data });
   }
 
   public relayCallSignal(uid: string, msg: SignalMessage): void {
