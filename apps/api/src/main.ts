@@ -7,10 +7,14 @@ import { frontMiddleware } from "./legacy/front.middleware.js";
 import { LegacyFallbackAdapter } from "./legacy/legacy-fallback.adapter.js";
 import { loadLegacyApp, publicJsonReplacer, startLegacyRuntime, workerBridge } from "./legacy/legacy.js";
 import { BackgroundService } from "./modules/background/background.service.js";
+import { prepareClientBuild } from "./static/lib/client-build.js";
+import { staticFiles } from "./static/static-files.js";
 
 async function bootstrap() {
+  // Раньше старого приложения: оно тоже проверяет сборку при загрузке и увидит её свежей.
+  const useBuilt = prepareClientBuild();
   const legacy = loadLegacyApp();
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, new LegacyFallbackAdapter(legacy.app), {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, new LegacyFallbackAdapter(legacy.app, staticFiles(useBuilt)), {
     // Тело запроса разбирает общая обработка (server/front.js, лимит 25 МБ); парсер
     // Nest съел бы его раньше, с лимитом 100 КБ.
     bodyParser: false,
@@ -33,7 +37,7 @@ async function bootstrap() {
       await app.listen(port, "0.0.0.0");
       console.log(`shalter server (nest) listening on http://localhost:${port}`);
       console.log(
-        legacy.useBuilt
+        useBuilt
           ? "[static] отдаём собранную версию из public/dist (один файл, сжатый заранее)"
           : "[static] отдаём исходники из public/ — для боевого сервера выполните npm run build"
       );

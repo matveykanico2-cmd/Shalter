@@ -11,7 +11,6 @@ const LEGACY_DIR = path.resolve(import.meta.dirname, "..", "..", "..", "..", "se
 
 export interface LegacyApp {
   app: RequestHandler;
-  useBuilt: boolean;
 }
 
 export const loadLegacyApp = (): LegacyApp => require(path.join(LEGACY_DIR, "app.js"));
