@@ -17,6 +17,11 @@ export class ProfileStatusService {
     private readonly notify: ProfileNotifyService
   ) {}
 
+  /** Каталог статусов, из которого выбирают свой (GET /api/status-catalog). */
+  public listCatalog() {
+    return { items: this.catalog.list() };
+  }
+
   public mine(userId: string) {
     const state = this.users.statusState(userId)!;
     return { items: state.items, activeId: state.activeStatusId, max: slotsFor(this.users.findById(userId)) };

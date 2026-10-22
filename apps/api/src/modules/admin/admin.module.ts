@@ -13,6 +13,7 @@ import { AdminModerationService } from "./admin-moderation.service.js";
 import { AdminServerService } from "./admin-server.service.js";
 import { AdminController } from "./admin.controller.js";
 import { DataExportsRepository } from "./data-exports.repository.js";
+import { LabelsController } from "./labels.controller.js";
 import { SafetyLabelsRepository } from "./safety-labels.repository.js";
 
 // Админка (/api/admin): юридический отдел (поиск, выгрузка данных, журнал), модерация (жалобы,
@@ -21,7 +22,7 @@ import { SafetyLabelsRepository } from "./safety-labels.repository.js";
 // сервера, проверка почты и цены — в server/ через мост.
 @Module({
   imports: [UsersModule, ChatsModule, MessagesModule, BotsModule, ReportsModule, ProfilesModule, SessionsModule],
-  controllers: [AdminController],
+  controllers: [AdminController, LabelsController],
   providers: [
     AdminAccessService,
     AdminLegalService,

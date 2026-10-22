@@ -46,6 +46,17 @@ export class AvatarsController {
   }
 }
 
+@Controller("api/status-catalog")
+@UseGuards(AuthGuard)
+export class StatusCatalogController {
+  public constructor(private readonly statuses: ProfileStatusService) {}
+
+  @Get()
+  public list() {
+    return this.statuses.listCatalog();
+  }
+}
+
 @Controller("api/status")
 @UseGuards(AuthGuard)
 export class ProfileStatusController {

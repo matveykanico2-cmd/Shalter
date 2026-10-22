@@ -4,7 +4,7 @@ import { GiftsModule } from "../gifts/gifts.module.js";
 import { MessagesModule } from "../messages/messages.module.js";
 import { UsersModule } from "../users/users.module.js";
 import { AvatarsService } from "./avatars.service.js";
-import { AvatarsController, ProfileStatusController, ProfileTrackController } from "./profile-media.controller.js";
+import { AvatarsController, ProfileStatusController, ProfileTrackController, StatusCatalogController } from "./profile-media.controller.js";
 import { ProfileEditService } from "./profile-edit.service.js";
 import { ProfileNotifyService } from "./profile-notify.service.js";
 import { ProfilesController } from "./profiles.controller.js";
@@ -17,7 +17,7 @@ import { ProfilesService } from "./profiles.service.js";
 // пользуются chats и messages, — профилю нужны и они.
 @Module({
   imports: [UsersModule, ChatsModule, MessagesModule, GiftsModule],
-  controllers: [ProfilesController, AvatarsController, ProfileStatusController, ProfileTrackController],
+  controllers: [ProfilesController, AvatarsController, ProfileStatusController, StatusCatalogController, ProfileTrackController],
   providers: [
     ProfilesService,
     ProfileEditService,
