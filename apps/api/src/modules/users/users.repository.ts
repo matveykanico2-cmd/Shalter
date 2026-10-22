@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { Injectable } from "@nestjs/common";
-import { and, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { emitAccessRevoked } from "../../legacy/legacy.js";
 import { InjectDb, type Db } from "../db/db.module.js";
 import { users } from "../db/schema.js";
@@ -90,6 +90,26 @@ export class UsersRepository {
   /** Все пользователи (поиск по номерам из записной книжки). */
   public findAll(): User[] {
     return this.db.select().from(users).all().map(toUser);
+  }
+
+  /** У кого день рождения в этот день (месяц и число по UTC, как strftime в SQLite). */
+  public listWithBirthdayOn(nowIso: string): User[] {
+    return this.db
+      .select()
+      .from(users)
+      .where(sql`${users.birthday} IS NOT NULL AND strftime('%m-%d', ${users.birthday}) = strftime('%m-%d', ${nowIso})`)
+      .all()
+      .map(toUser);
+  }
+
+  /** Аккаунты, срок удаления которых наступил. */
+  public listDueForDeletion(nowIso: string): string[] {
+    return this.db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(sql`${users.scheduledDeletionAt} IS NOT NULL`, lte(users.scheduledDeletionAt, nowIso)))
+      .all()
+      .map((r) => r.id);
   }
 
   public findByPhone(phone: string | null | undefined): User | undefined {

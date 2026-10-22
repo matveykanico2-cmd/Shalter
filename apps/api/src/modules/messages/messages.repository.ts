@@ -259,6 +259,19 @@ export class MessagesRepository {
     return refs;
   }
 
+  /** Удаляет сообщения чата старше cutoff (автоудаление); возвращает их id и файлы, на которые они ссылались. */
+  public deleteExpired(chatId: string, cutoffIso: string): { ids: string[]; refs: { url: string }[] } {
+    const rows = this.db
+      .select({ id: messages.id, attachments: messages.attachments, sticker: messages.sticker })
+      .from(messages)
+      .where(and(eq(messages.chatId, chatId), lt(messages.createdAt, cutoffIso)))
+      .all();
+    const ids = rows.map((r) => r.id);
+    if (ids.length === 0) return { ids, refs: [] };
+    this.db.delete(messages).where(inArray(messages.id, ids)).run();
+    return { ids, refs: rows.flatMap((r) => [{ url: r.attachments ?? "" }, { url: r.sticker ?? "" }]) };
+  }
+
   /**
    * Отмечает прочитанными чужие сообщения чата (и ответы в ветках); возвращает их id.
    * recordTime — записать readAt (личка, если читатель не скрывает время захода).

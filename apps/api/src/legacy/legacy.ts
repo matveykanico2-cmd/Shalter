@@ -77,6 +77,8 @@ export interface MessageExtra {
   report?: object;
   /** Подарок в сообщении (type: "gift"). */
   gift?: object;
+  /** Вложения (карточка дня рождения: kind "birthday"). */
+  attachments?: object[];
 }
 
 interface SystemChat {
@@ -384,14 +386,12 @@ interface WorkerBridge {
 }
 export const workerBridge = (): WorkerBridge => legacyModule<WorkerBridge>("lib/workerBridge.js");
 
-/** Проход обхода по таймеру, ещё не перенесённого в Nest (server/lib/sweeps.js, SWEEPS). */
-export const runLegacySweep = (name: string, now: Date): Promise<void> =>
-  legacyModule<{ runSweep: (name: string, now: Date) => Promise<void> }>("lib/sweeps.js").runSweep(name, now);
-/** Обходы по таймеру старого сервера; в режиме тестов не идут (server/lib/sweeps.js). */
-export const startLegacySweeps = (testMode: boolean): void =>
-  legacyModule<{ startSweeps: (opts: { testMode: boolean }) => void }>("lib/sweeps.js").startSweeps({ testMode });
-/** Режим контрактных тестов: SHALTER_TEST_MODE=1 не на боевом сервере (server/lib/sweeps.js). */
-export const isTestMode = (): boolean => legacyModule<{ TEST_MODE: boolean }>("lib/sweeps.js").TEST_MODE;
+/**
+ * Обходы по таймеру, которые остаются в server/ (lib/sweeps.js): приём донатов (DonationAlerts,
+ * DonatePay) и перенос вложений в S3. skip — перенесённые в Nest; в режиме тестов обходы не идут.
+ */
+export const startLegacySweeps = (testMode: boolean, skip: string[]): void =>
+  legacyModule<{ startSweeps: (opts: { testMode: boolean; skip: string[] }) => void }>("lib/sweeps.js").startSweeps({ testMode, skip });
 
 /** Ключи VAPID для отправки пушей (server/push.js); без них пуши выключены. */
 export const initPush = (): Promise<void> => legacyModule<{ initPush: () => Promise<void> }>("push.js").initPush();
@@ -466,6 +466,8 @@ interface Storage {
   /** Переименовывает загрузку в sha_… или, если такой файл уже есть, удаляет её; возвращает итоговое имя. */
   finalizeDedup: (tempName: string, dedupName: string) => Promise<string>;
   deleteObject: (filename: string) => Promise<unknown>;
+  /** Файлы в бакете S3, а не на диске. */
+  isS3Enabled: boolean;
 }
 export const storage = (): Storage => legacyModule<Storage>("lib/storage.js");
 

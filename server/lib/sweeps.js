@@ -2,22 +2,26 @@
 // BACKGROUND_WORKER=0 — в основном. Отложенные сообщения (scheduledMessagesSweep)
 // остаются в основном процессе: они проходят весь путь отправки, а у ботов и
 // Shalter AI есть состояние в памяти основного процесса (например, «остановить ответ»).
-function startSweeps({ testMode }) {
+// skip — имена обходов, которые запускает фоновый процесс Nest (apps/api, modules/background).
+function startSweeps({ testMode, skip = [] }) {
   // Режим контрактных тестов: обходы не запускаются — тесты должны быть воспроизводимыми.
   // Перенос вложений в S3 тест включает явно — он проверяет сам перенос.
   if (testMode) {
     if (process.env.S3_AUTO_MIGRATE === "1") require("./uploadsMigration").startAutoMigration();
     return;
   }
-  require("./autoDelete").startAutoDeleteSweep();
-  require("./donationAlerts").startDonationAlertsSweep();
-  require("./donatePay").startDonatePaySweep();
-  require("./birthdaySweep").startBirthdaySweep();
-  require("./holidaySweep").startHolidaySweep();
-  require("./reminderSweep").startReminderSweep();
-  require("./accountDeletionSweep").startAccountDeletionSweep();
-  require("./orphanSweep").startOrphanSweep();
-  require("./uploadsMigration").startAutoMigration();
+  const starters = {
+    "auto-delete": () => require("./autoDelete").startAutoDeleteSweep(),
+    "donation-alerts": () => require("./donationAlerts").startDonationAlertsSweep(),
+    "donate-pay": () => require("./donatePay").startDonatePaySweep(),
+    birthdays: () => require("./birthdaySweep").startBirthdaySweep(),
+    holidays: () => require("./holidaySweep").startHolidaySweep(),
+    reminders: () => require("./reminderSweep").startReminderSweep(),
+    "account-deletion": () => require("./accountDeletionSweep").startAccountDeletionSweep(),
+    uploads: () => require("./orphanSweep").startOrphanSweep(),
+    "uploads-migration": () => require("./uploadsMigration").startAutoMigration(),
+  };
+  for (const [name, start] of Object.entries(starters)) if (!skip.includes(name)) start();
 }
 
 // Один проход обхода — для служебного вызова тестов (POST /api/test/sweeps/:name в
