@@ -79,6 +79,13 @@ export class MessagesRepository {
     return { messages: rows, hasMore };
   }
 
+  /** Вся лента чата по времени (без ответов в ветках и скрытого у viewerId) — listMessages в server/. */
+  public listFeed(chatId: string, viewerId: string): Message[] {
+    return this.toMessages(
+      this.db.select().from(messages).where(and(eq(messages.chatId, chatId), isNull(messages.threadRootId))).orderBy(asc(messages.createdAt)).all()
+    ).filter((m) => !m.deletedForIds?.includes(viewerId));
+  }
+
   public listThreadReplies(rootId: string): Message[] {
     return this.toMessages(this.db.select().from(messages).where(eq(messages.threadRootId, rootId)).orderBy(asc(messages.createdAt)).all());
   }

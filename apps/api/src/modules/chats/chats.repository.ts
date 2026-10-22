@@ -157,6 +157,36 @@ export class ChatsRepository {
     return rows.map((r) => toChat(r, byChat.get(r.id) ?? []));
   }
 
+  /**
+   * Похожие публичные каналы (similarChannels в server/data/chats.js): сначала с общей
+   * аудиторией, недостающие — самые многолюдные.
+   */
+  public similarChannels(chatId: string, limit = 10): Chat[] {
+    const ids = this.db
+      .all<{ id: string }>(sql`
+        SELECT m2.chatId AS id, COUNT(*) AS overlap
+        FROM (SELECT userId FROM chat_members WHERE chatId = ${chatId} LIMIT 5000) m1
+        JOIN chat_members m2 ON m2.userId = m1.userId AND m2.chatId != ${chatId}
+        JOIN chats c ON c.id = m2.chatId AND c.type = 'channel' AND c.isPublic = 1
+        GROUP BY m2.chatId
+        ORDER BY overlap DESC
+        LIMIT ${limit}`)
+      .map((r) => r.id);
+    if (ids.length < limit) {
+      const popular = this.db.all<{ id: string }>(sql`
+        SELECT c.id AS id, (SELECT COUNT(*) FROM chat_members m WHERE m.chatId = c.id) AS members
+        FROM chats c
+        WHERE c.type = 'channel' AND c.isPublic = 1 AND c.id != ${chatId}
+        ORDER BY members DESC
+        LIMIT ${limit * 2}`);
+      for (const r of popular) {
+        if (ids.length >= limit) break;
+        if (!ids.includes(r.id)) ids.push(r.id);
+      }
+    }
+    return ids.map((id) => this.findById(id)).filter((c): c is Chat => !!c);
+  }
+
   public isSecret(chatId: string): boolean {
     return !!this.db.select({ secret: chats.secret }).from(chats).where(eq(chats.id, chatId)).get()?.secret;
   }
