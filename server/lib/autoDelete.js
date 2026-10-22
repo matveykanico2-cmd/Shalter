@@ -4,11 +4,12 @@ const { broadcastToUsers } = require("../ws");
 
 const SWEEP_INTERVAL_MS = 60_000;
 
-async function sweepOnce() {
+// now — момент, от которого отсчитывается срок (служебный вызов тестов подставляет свой).
+async function sweepOnce(now = new Date()) {
   const chats = await listChats();
   for (const chat of chats) {
     if (!chat.autoDeleteSeconds) continue;
-    const cutoff = new Date(Date.now() - chat.autoDeleteSeconds * 1000).toISOString();
+    const cutoff = new Date(now.getTime() - chat.autoDeleteSeconds * 1000).toISOString();
     const deletedIds = deleteExpiredMessages(chat.id, cutoff);
     for (const id of deletedIds) {
       broadcastToUsers(chat.memberIds, { type: "message:deleted", chatId: chat.id, id });

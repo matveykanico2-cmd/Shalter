@@ -371,10 +371,10 @@ async function listReferrals(userId) {
   return db.prepare("SELECT * FROM users WHERE referredBy = ?").all(userId).map(rowToUser);
 }
 
-function listUsersWithBirthdayToday() {
+function listUsersWithBirthdayToday(nowIso = new Date().toISOString()) {
   return db
-    .prepare(`SELECT * FROM users WHERE birthday IS NOT NULL AND strftime('%m-%d', birthday) = strftime('%m-%d', 'now')`)
-    .all()
+    .prepare(`SELECT * FROM users WHERE birthday IS NOT NULL AND strftime('%m-%d', birthday) = strftime('%m-%d', ?)`)
+    .all(nowIso)
     .map(rowToUser);
 }
 

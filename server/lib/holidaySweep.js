@@ -8,8 +8,7 @@ const { sendPushToUser, MESSAGE_PUSH } = require("../push");
 
 const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
-function todayMonthDay() {
-  const now = new Date();
+function todayMonthDay(now) {
   return `${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
@@ -25,9 +24,9 @@ function markSent(userId, holidayId, year) {
   ).run(userId, holidayId, year, new Date().toISOString());
 }
 
-async function sweepOnce() {
-  const today = todayMonthDay();
-  const year = new Date().getFullYear();
+async function sweepOnce(now = new Date()) {
+  const today = todayMonthDay(now);
+  const year = now.getFullYear();
   const users = await listUsers();
 
   for (const user of users) {

@@ -3,8 +3,8 @@ const { deleteAccount } = require("./deleteAccount");
 
 const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
-async function sweepOnce() {
-  const due = listAccountsDueForDeletion(new Date().toISOString());
+async function sweepOnce(now = new Date()) {
+  const due = listAccountsDueForDeletion(now.toISOString());
   for (const userId of due) {
     try {
       await deleteAccount(userId);

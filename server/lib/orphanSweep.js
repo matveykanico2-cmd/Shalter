@@ -53,10 +53,9 @@ function collectReferenced() {
   return referenced;
 }
 
-function sweepOrphans({ dryRun = false } = {}) {
+function sweepOrphans({ dryRun = false, now = new Date() } = {}) {
   if (!fs.existsSync(UPLOAD_DIR)) return { removed: 0, freedBytes: 0 };
   const referenced = collectReferenced();
-  const now = Date.now();
   let removed = 0;
   let freedBytes = 0;
 
@@ -69,7 +68,7 @@ function sweepOrphans({ dryRun = false } = {}) {
     } catch {
       continue;
     }
-    if (!stat.isFile() || now - stat.mtimeMs < MIN_AGE_MS) continue;
+    if (!stat.isFile() || now.getTime() - stat.mtimeMs < MIN_AGE_MS) continue;
     freedBytes += stat.size;
     removed += 1;
     if (!dryRun) {
@@ -82,6 +81,17 @@ function sweepOrphans({ dryRun = false } = {}) {
   return { removed, freedBytes };
 }
 
+// Один проход уборки; now — момент, от которого считаются сроки (служебный вызов тестов
+// подставляет свой). На S3 уборки нет.
+function sweepOnce(now = new Date()) {
+  if (require("./storage").isS3Enabled) return;
+  const { removed, freedBytes } = sweepOrphans({ now });
+  if (removed) console.log(`[uploads] убрано файлов без ссылок: ${removed}, освобождено ${(freedBytes / 1024 / 1024).toFixed(1)} МБ`);
+  const delivered = sweepDelivered({ now });
+  if (delivered.removed)
+    console.log(`[uploads] отдано и забыто: ${delivered.removed} файлов, освобождено ${(delivered.freedBytes / 1024 / 1024).toFixed(1)} МБ`);
+}
+
 function startOrphanSweep() {
   if (require("./storage").isS3Enabled) {
     console.log("[uploads] хранилище — S3, автоматическая уборка файлов пока работает только для локального диска");
@@ -89,11 +99,7 @@ function startOrphanSweep() {
   }
   const run = () => {
     try {
-      const { removed, freedBytes } = sweepOrphans();
-      if (removed) console.log(`[uploads] убрано файлов без ссылок: ${removed}, освобождено ${(freedBytes / 1024 / 1024).toFixed(1)} МБ`);
-      const delivered = sweepDelivered();
-      if (delivered.removed)
-        console.log(`[uploads] отдано и забыто: ${delivered.removed} файлов, освобождено ${(delivered.freedBytes / 1024 / 1024).toFixed(1)} МБ`);
+      sweepOnce();
     } catch (err) {
       console.error("[uploads] уборка не удалась:", err.message);
     }
@@ -104,9 +110,9 @@ function startOrphanSweep() {
 
 const DELIVERED_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
-function sweepDelivered({ dryRun = false, graceMs = DELIVERED_GRACE_MS } = {}) {
+function sweepDelivered({ dryRun = false, graceMs = DELIVERED_GRACE_MS, now = new Date() } = {}) {
   if (!fs.existsSync(UPLOAD_DIR)) return { removed: 0, freedBytes: 0 };
-  const cutoff = new Date(Date.now() - graceMs).toISOString();
+  const cutoff = new Date(now.getTime() - graceMs).toISOString();
 
   let rows = [];
   try {
@@ -122,7 +128,7 @@ function sweepDelivered({ dryRun = false, graceMs = DELIVERED_GRACE_MS } = {}) {
     return { removed: 0, freedBytes: 0 };
   }
 
-  const stillNeeded = collectReferencedExcept(new Set());
+  const stillNeeded = collectReferencedExcept(now);
   const candidates = new Map();
 
   for (const row of rows) {
@@ -154,13 +160,13 @@ function sweepDelivered({ dryRun = false, graceMs = DELIVERED_GRACE_MS } = {}) {
   return { removed, freedBytes };
 }
 
-function collectReferencedExcept() {
+function collectReferencedExcept(now) {
   const keep = new Set();
   const add = (value) => {
     if (typeof value !== "string") return;
     for (const m of value.matchAll(/\/uploads\/([a-z0-9]+_[a-f0-9]{16}(?:\.[a-z0-9]{1,12})?)/g)) keep.add(m[1]);
   };
-  const cutoff = new Date(Date.now() - DELIVERED_GRACE_MS).toISOString();
+  const cutoff = new Date(now.getTime() - DELIVERED_GRACE_MS).toISOString();
   const scan = (sql, columns, params = []) => {
     try {
       for (const row of db.prepare(sql).all(...params)) for (const c of columns) add(row[c]);
@@ -204,4 +210,4 @@ function keepThumbnails(keep) {
   }
 }
 
-module.exports = { sweepOrphans, sweepDelivered, startOrphanSweep };
+module.exports = { sweepOrphans, sweepDelivered, sweepOnce, startOrphanSweep };

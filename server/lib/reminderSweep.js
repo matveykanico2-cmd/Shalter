@@ -5,8 +5,8 @@ const { HELPER_BOT_ID } = require("../data/helperBot");
 
 const SWEEP_INTERVAL_MS = 20_000;
 
-async function sweepOnce() {
-  const due = listDueReminders(new Date().toISOString());
+async function sweepOnce(now = new Date()) {
+  const due = listDueReminders(now.toISOString());
   if (!due.length) return;
 
   for (const reminder of due) {

@@ -68,6 +68,27 @@ app.use("/api", (req, res, next) => {
   next();
 });
 
+// Режим контрактных тестов: один проход обхода по таймеру сейчас (по таймеру они в этом
+// режиме не идут). Проход идёт там же, где на боевом сервере, — в фоновом процессе.
+// now — момент, от которого обход считает сроки («старше суток», «сегодня день рождения»).
+const { SWEEPS, runSweep, TEST_MODE } = require("./lib/sweeps");
+if (TEST_MODE) {
+  const workerBridge = require("./lib/workerBridge");
+  app.post("/api/test/sweeps/:name", async (req, res) => {
+    const { name } = req.params;
+    if (!Object.hasOwn(SWEEPS, name)) return res.status(404).json({ error: "Нет такого обхода" });
+    const now = req.body?.now === undefined ? new Date() : new Date(req.body.now);
+    if (Number.isNaN(now.getTime())) return res.status(400).json({ error: "Некорректное время" });
+    try {
+      if (workerBridge.enabled) await workerBridge.askWorker("sweep", { name, now: now.toISOString() });
+      else await runSweep(name, now);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+}
+
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/chats", require("./routes/chats"));

@@ -20,7 +20,24 @@ function startSweeps({ testMode }) {
   require("./uploadsMigration").startAutoMigration();
 }
 
+// Один проход обхода — для служебного вызова тестов (POST /api/test/sweeps/:name в
+// app.js): в режиме тестов обходы по таймеру не идут. now — момент, от которого
+// считаются сроки. DonationAlerts и DonatePay ходят во внешний мир, их здесь нет.
+const SWEEPS = {
+  "auto-delete": (now) => require("./autoDelete").sweepOnce(now),
+  reminders: (now) => require("./reminderSweep").sweepOnce(now),
+  "account-deletion": (now) => require("./accountDeletionSweep").sweepOnce(now),
+  birthdays: (now) => require("./birthdaySweep").sweepOnce(now),
+  holidays: (now) => require("./holidaySweep").sweepOnce(now),
+  uploads: (now) => require("./orphanSweep").sweepOnce(now),
+};
+
+async function runSweep(name, now) {
+  if (!Object.hasOwn(SWEEPS, name)) throw new Error(`нет обхода ${name}`);
+  await SWEEPS[name](now);
+}
+
 // Режим контрактных тестов (packages/contract-tests/). На боевом сервере (NODE_ENV=production) флаг игнорируется.
 const TEST_MODE = process.env.SHALTER_TEST_MODE === "1" && process.env.NODE_ENV !== "production";
 
-module.exports = { startSweeps, TEST_MODE };
+module.exports = { startSweeps, runSweep, SWEEPS, TEST_MODE };

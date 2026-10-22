@@ -14,13 +14,20 @@ if (!bridge.isWorker) {
 }
 
 const { initPush } = require("./push");
-const { startSweeps, TEST_MODE } = require("./lib/sweeps");
+const { startSweeps, runSweep, TEST_MODE } = require("./lib/sweeps");
 const { startJobRunner } = require("./lib/backgroundJobs");
 const { handlers } = require("./lib/mediaJobs");
 
 const drain = startJobRunner(handlers);
 process.on("message", (msg) => {
   if (msg?.type === "jobs") drain();
+  // Служебный вызов тестов: один проход обхода (lib/sweeps.js, SWEEPS).
+  else if (msg?.type === "sweep" && TEST_MODE) {
+    runSweep(msg.name, new Date(msg.now)).then(
+      () => bridge.reply(msg.id),
+      (err) => bridge.reply(msg.id, err.message)
+    );
+  }
 });
 
 initPush()

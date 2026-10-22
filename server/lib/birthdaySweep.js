@@ -30,10 +30,10 @@ const BIRTHDAY_GIFT_SUGGESTIONS = JSON.parse(
   fs.readFileSync(path.join(__dirname, "../data/catalog/birthday-suggestions.json"), "utf8")
 ).slice(0, SUGGESTIONS_IN_MESSAGE);
 
-async function sweepOnce() {
-  const birthdayUsers = listUsersWithBirthdayToday();
+async function sweepOnce(now = new Date()) {
+  const birthdayUsers = listUsersWithBirthdayToday(now.toISOString());
   if (!birthdayUsers.length) return;
-  const year = new Date().getFullYear();
+  const year = now.getFullYear();
 
   for (const person of birthdayUsers) {
     const ownerIds = listOwnersOf(person.id).filter((id) => id !== person.id);
