@@ -270,22 +270,6 @@ export const sanitizers = (): Sanitizers => ({
   sanitizeScene: legacyModule<Pick<Sanitizers, "sanitizeScene">>("lib/sanitizeScene.js").sanitizeScene,
 });
 
-// Платные посты (server/data/paidMedia.js): настоящие вложения и покупки.
-export interface PaidMediaRecord {
-  messageId: string;
-  chatId: string;
-  stars: number;
-  attachments: Attachment[];
-}
-interface PaidMedia {
-  savePaidMedia: (messageId: string, chatId: string, stars: number, attachments: Attachment[]) => void;
-  getPaidMedia: (messageId: string) => PaidMediaRecord | undefined;
-  hasBought: (messageId: string, userId: string) => boolean;
-  recordPurchase: (messageId: string, userId: string) => void;
-  buyersCount: (messageId: string) => number;
-}
-export const paidMedia = (): PaidMedia => legacyModule<PaidMedia>("data/paidMedia.js");
-
 // Отложенные сообщения (server/data/scheduledMessages.js); их отправляет server/lib/scheduledMessagesSweep.js.
 export interface ScheduledMessage {
   id: string;

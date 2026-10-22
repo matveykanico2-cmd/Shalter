@@ -112,3 +112,12 @@ export interface DeletedMessageRefs {
   attachments: string | null;
   sticker: string | null;
 }
+
+/** Платный пост (таблица paid_media): настоящие вложения и цена, как в server/data/paidMedia.js. */
+export interface PaidMediaRecord {
+  messageId: string;
+  chatId: string;
+  stars: number;
+  attachments: Attachment[];
+  createdAt: string;
+}

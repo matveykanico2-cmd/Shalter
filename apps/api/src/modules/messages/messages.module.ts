@@ -10,6 +10,7 @@ import { MessagesController } from "./messages.controller.js";
 import { MessagesRepository } from "./messages.repository.js";
 import { MessagesService } from "./messages.service.js";
 import { PaidMediaController } from "./paid-media.controller.js";
+import { PaidMediaRepository } from "./paid-media.repository.js";
 import { PaidMediaService } from "./paid-media.service.js";
 import { ScheduledMessagesController } from "./scheduled-messages.controller.js";
 import { ScheduledMessagesService } from "./scheduled-messages.service.js";
@@ -29,6 +30,7 @@ import { SummaryStore } from "./stores/summary.store.js";
     PaidMediaService,
     MessageAccessService,
     MessagesRepository,
+    PaidMediaRepository,
     SummaryStore,
   ],
   exports: [MessagesRepository],

@@ -7,7 +7,6 @@ import {
   getBotByUserId,
   mediaJobs,
   messageCost,
-  paidMedia,
   push,
   queueJob,
   responders,
@@ -37,6 +36,7 @@ import {
   sanitizeStoryReply,
 } from "./lib/message-content.js";
 import { MessagesRepository } from "./messages.repository.js";
+import { PaidMediaRepository } from "./paid-media.repository.js";
 import type { ForwardedFrom, Message } from "./model/domain.js";
 import type { SendMessageDto } from "./model/schemas/message.schema.js";
 
@@ -69,7 +69,8 @@ export class MessageSendService {
     private readonly realtime: RealtimeService,
     private readonly userSettings: UserSettingsService,
     private readonly stars: StarsRepository,
-    private readonly privacy: UserPrivacyService
+    private readonly privacy: UserPrivacyService,
+    private readonly paidMedia: PaidMediaRepository
   ) {}
 
   /** Повтор с тем же clientId (в том числе одновременный) получает ответ первой отправки. */
@@ -312,7 +313,7 @@ export class MessageSendService {
     registerAttachments(chat.id, message.attachments, { by: senderId });
     // Настоящие файлы платного поста к чату не привязываются: их отдают только автору,
     // админам канала и купившим (server/lib/uploadAccess.js).
-    if (paid) paidMedia().savePaidMedia(message.id, chat.id, paid.stars, paid.real);
+    if (paid) this.paidMedia.save(message.id, chat.id, paid.stars, paid.real);
     if (message.sticker?.kind === "image") registerAttachments(chat.id, [{ url: message.sticker.url }], { by: senderId });
 
     if (message.threadRootId) {
