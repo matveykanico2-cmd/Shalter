@@ -1,10 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
 import { genId } from "../../common/lib/gen-id.js";
-import { contactIdsOf, iceServers, privacyRules, sendMessageAndBroadcast, stars } from "../../legacy/legacy.js";
+import { iceServers, privacyRules, sendMessageAndBroadcast, stars } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
 import type { User } from "../users/model/domain.js";
+import { ContactsRepository } from "../users/contacts.repository.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { CallNotifyService } from "./call-notify.service.js";
 import { CallsRepository } from "./calls.repository.js";
@@ -28,7 +29,8 @@ export class CallsService {
     private readonly chats: ChatsRepository,
     private readonly users: UsersRepository,
     private readonly notify: CallNotifyService,
-    private readonly realtime: RealtimeService
+    private readonly realtime: RealtimeService,
+    private readonly contacts: ContactsRepository
   ) {}
 
   public iceServers() {
@@ -194,7 +196,7 @@ export class CallsService {
   private async chargeForColdCall(callerId: string, target: User | undefined): Promise<ColdCallCharge> {
     const price = target?.messagePriceStars ?? 0;
     if (!target || price <= 0) return { ok: true, charged: 0 };
-    if ((await contactIdsOf(target.id)).has(callerId)) return { ok: true, charged: 0 };
+    if (this.contacts.contactIdsOf(target.id).has(callerId)) return { ok: true, charged: 0 };
     if (this.users.findById(callerId)?.isPremium) return { ok: true, charged: 0 };
     const wallet = stars();
     if (!wallet.transferStars(callerId, target.id, price)) return { ok: false, price, balance: wallet.balanceOf(callerId) };

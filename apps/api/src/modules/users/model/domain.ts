@@ -1,4 +1,4 @@
-import type { users } from "../../db/schema.js";
+import type { contacts, users } from "../../db/schema.js";
 import type { toUser } from "../lib/user.mapper.js";
 
 export type UserRow = typeof users.$inferSelect;
@@ -77,3 +77,6 @@ export interface UserSettings {
   notifications?: { mutedChats?: Record<string, true | string>; previewText?: boolean; sound?: boolean; [key: string]: unknown };
   [key: string]: unknown;
 }
+
+/** Строка контакта как в таблице contacts (server/data/contacts.js); заметка зашифрована. */
+export type ContactRow = typeof contacts.$inferSelect;

@@ -5,7 +5,7 @@ import path from "node:path";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { RequestHandler } from "express";
 import type BetterSqlite3 from "better-sqlite3";
-import type { UserSettings } from "../modules/users/model/domain.js";
+import type { ContactRow, UserSettings } from "../modules/users/model/domain.js";
 
 const require = createRequire(import.meta.url);
 const LEGACY_DIR = path.resolve(import.meta.dirname, "..", "..", "..", "..", "server");
@@ -163,6 +163,8 @@ export const chatSummary = (): ChatSummary => legacyModule<ChatSummary>("data/ch
 // Приватность (server/lib/privacyRules.js).
 interface PrivacyRules {
   allowsUser: (ownerId: string, key: string, viewerId: string) => Promise<boolean>;
+  /** Исключения правила key: кому всегда показывать и кому никогда. */
+  exceptionsFor: (privacy: UserSettings["privacy"], key: string) => { allow: string[]; deny: string[] };
   recordsReadTime: (chat: LegacyChat & { type: string }, readerId: string) => Promise<boolean>;
   publicUsersFor: (users: object[], viewerId: string) => Promise<({ id: string; isBot?: boolean } & Record<string, unknown>)[]>;
   publicUserFor: (user: object, viewerId: string) => Promise<Record<string, unknown>>;
@@ -449,12 +451,6 @@ export const serveUpload = (): ServeUpload => legacyModule<ServeUpload>("lib/ser
 export const onAccessRevoked = (fn: (userId: string) => void): void =>
   legacyModule<{ onAccessRevoked: (fn: (userId: string) => void) => void }>("lib/sessionEvents.js").onAccessRevoked(fn);
 
-/** Id тех, кто у пользователя в контактах (server/data/contacts.js). */
-export const contactIdsOf = async (ownerId: string): Promise<Set<string>> => {
-  const rows = await legacyModule<{ listContactsFor: (ownerId: string) => Promise<{ userId: string }[]> }>("data/contacts.js").listContactsFor(ownerId);
-  return new Set(rows.map((c) => c.userId));
-};
-
 /** Пускает ли правило приватности key (lastSeen, …) этого зрителя (server/lib/privacyRules.js). */
 export const privacyAllows = (privacy: UserSettings["privacy"], key: string, viewerId: string, isContact: boolean): boolean =>
   legacyModule<{ privacyAllows: (privacy: unknown, key: string, viewerId: string, isContact: boolean) => boolean }>("lib/privacyRules.js").privacyAllows(
@@ -484,24 +480,6 @@ export const liveStreams = (): LiveStreams => legacyModule<LiveStreams>("data/li
 export const iceServers = (): object[] => legacyModule<{ getIceServers: () => object[] }>("lib/turnCredentials.js").getIceServers();
 
 // --- Профиль (modules/profiles) ---
-
-/** Строка контакта как в таблице contacts (server/data/contacts.js); заметка зашифрована. */
-export interface ContactRow {
-  id: string;
-  ownerId: string;
-  userId: string;
-  localName: string | null;
-  note: string | null;
-  [key: string]: unknown;
-}
-interface Contacts {
-  listContactsFor: (ownerId: string) => Promise<ContactRow[]>;
-  /** Кто держит пользователя у себя в контактах. */
-  listOwnersOf: (userId: string) => string[];
-  /** Расшифрованная заметка к контакту или null. */
-  contactNote: (row: ContactRow | null | undefined) => string | null;
-}
-export const contacts = (): Contacts => legacyModule<Contacts>("data/contacts.js");
 
 /** Открыто ли сейчас по расписанию бизнеса и до скольки / когда откроется (server/lib/businessHours.js). */
 export const businessStatus = (hours: unknown, timeZone: unknown): object =>

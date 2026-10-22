@@ -175,3 +175,15 @@ describe("блокировка на срок", () => {
     expect((await user.api.get("/api/chats")).status).toBe(200);
   });
 });
+
+describe("заблокированный и поиск по номерам", () => {
+  test("POST /api/contacts/match: заблокированного не находят — он в notFound; после снятия блокировки — снова находят", async () => {
+    const [seeker, target] = [await registerUser(server().baseUrl), await registerUser(server().baseUrl)];
+    await ban(target);
+    let res = await seeker.api.post("/api/contacts/match", { contacts: [{ phone: target.phone, name: "Т" }] });
+    expect(res.body).toEqual({ found: [], notFound: [{ phone: target.phone, name: "Т" }], checked: 1 });
+    await unban(target);
+    res = await seeker.api.post("/api/contacts/match", { contacts: [{ phone: target.phone, name: "Т" }] });
+    expect(res.body.found.map((f: { user: { id: string } }) => f.user.id)).toEqual([target.id]);
+  });
+});

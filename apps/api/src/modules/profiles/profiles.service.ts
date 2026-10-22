@@ -1,10 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../../common/errors/api-error.js";
-import { businessStatus, contacts, countBotAudience, privacyAllows, privacyRules, withGiftSenders } from "../../legacy/legacy.js";
+import { businessStatus, countBotAudience, privacyAllows, privacyRules, withGiftSenders } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { isStaff } from "../chats/lib/chat-permissions.js";
 import type { Chat } from "../chats/model/domain.js";
 import { MessagesRepository } from "../messages/messages.repository.js";
+import { ContactsRepository } from "../users/contacts.repository.js";
+import { contactNote } from "../users/lib/contact-note.js";
 import { publicUser, selfUser } from "../users/lib/user.presenter.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
@@ -41,7 +43,8 @@ export class ProfilesService {
     private readonly users: UsersRepository,
     private readonly chats: ChatsRepository,
     private readonly messages: MessagesRepository,
-    private readonly userSettings: UserSettingsService
+    private readonly userSettings: UserSettingsService,
+    private readonly contacts: ContactsRepository
   ) {}
 
   public async blocked(uid: string) {
@@ -65,9 +68,9 @@ export class ProfilesService {
 
     const isSelf = id === uid;
     const visible: Record<string, unknown> = isSelf ? selfUser(user) : publicUser(user);
-    const targetsContacts = isSelf ? [] : await contacts().listContactsFor(id);
+    const targetsContacts = isSelf ? [] : this.contacts.findForOwner(id);
     const isContact = !isSelf && targetsContacts.some((c) => c.userId === uid);
-    const myContact = isSelf ? null : (await contacts().listContactsFor(uid)).find((c) => c.userId === id);
+    const myContact = isSelf ? null : this.contacts.findForOwner(uid).find((c) => c.userId === id);
     const targetSettings = this.userSettings.get(id);
 
     if (!isSelf) {
@@ -119,7 +122,7 @@ export class ProfilesService {
       isContact,
       inContacts: !!myContact,
       contactName: myContact?.localName ?? null,
-      contactNote: contacts().contactNote(myContact),
+      contactNote: contactNote(myContact),
       commonGroupsCount,
       pinnedChannels: await this.pinnedChannelsOf(id, uid),
     };

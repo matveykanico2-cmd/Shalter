@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { contacts, privacyRules } from "../../legacy/legacy.js";
+import { privacyRules } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import { RealtimeService } from "../realtime/realtime.service.js";
+import { ContactsRepository } from "../users/contacts.repository.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import type { User } from "../users/model/domain.js";
 
@@ -13,13 +14,14 @@ import type { User } from "../users/model/domain.js";
 export class ProfileNotifyService {
   public constructor(
     private readonly chats: ChatsRepository,
-    private readonly realtime: RealtimeService
+    private readonly realtime: RealtimeService,
+    private readonly contacts: ContactsRepository
   ) {}
 
   public profileChanged(userId: string, user: User): void {
     this.realtime.broadcastToUsers([userId], { type: "contact:updated", user: publicUser(user) });
     const peers = this.dmPeersOf(userId);
-    for (const ownerId of contacts().listOwnersOf(userId)) peers.add(ownerId);
+    for (const ownerId of this.contacts.listOwnersOf(userId)) peers.add(ownerId);
     peers.delete(userId);
     for (const viewerId of peers) {
       privacyRules()

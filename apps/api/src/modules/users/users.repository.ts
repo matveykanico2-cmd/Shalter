@@ -58,6 +58,11 @@ export class UsersRepository {
     return row && toUser(row);
   }
 
+  /** Все пользователи (поиск по номерам из записной книжки). */
+  public findAll(): User[] {
+    return this.db.select().from(users).all().map(toUser);
+  }
+
   public findByPhone(phone: string | null | undefined): User | undefined {
     const row = this.db
       .select()

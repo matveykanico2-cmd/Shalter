@@ -70,6 +70,16 @@ describe("добавление и список", () => {
     expect(item.user).not.toHaveProperty("profileName");
   });
 
+  test("заблокировавший вас контакт номер не показывает, даже с phone = everyone", async () => {
+    const { baseUrl } = server();
+    const [a, b] = await registerUsers(baseUrl, 2);
+    await setPrivacy(b, { phone: "everyone" });
+    await addContact(a, b);
+    expect(expectOk(await a.api.get("/api/contacts"), listBody).contacts[0].user.phone).toBe(b.phone);
+    await block(b, a);
+    expect(expectOk(await a.api.get("/api/contacts"), listBody).contacts[0].user).not.toHaveProperty("phone");
+  });
+
   test("повторное добавление: localName обновляется, без localName — сохраняется, контакт один", async () => {
     const { baseUrl } = server();
     const [a, b] = await registerUsers(baseUrl, 2);

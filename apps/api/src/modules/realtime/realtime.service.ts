@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { chatForViewer, contactIdsOf, privacyAllows, publicJsonReplacer, scheduled } from "../../legacy/legacy.js";
+import { chatForViewer, privacyAllows, publicJsonReplacer, scheduled } from "../../legacy/legacy.js";
 import { ChatsRepository, deviceHash } from "../chats/chats.repository.js";
 import { SessionsRepository } from "../sessions/sessions.repository.js";
+import { ContactsRepository } from "../users/contacts.repository.js";
 import type { User } from "../users/model/domain.js";
 import { UsersRepository } from "../users/users.repository.js";
 import { UserSettingsService } from "../users/user-settings.service.js";
@@ -18,7 +19,8 @@ export class RealtimeService {
     private readonly chats: ChatsRepository,
     private readonly users: UsersRepository,
     private readonly sessions: SessionsRepository,
-    private readonly userSettings: UserSettingsService
+    private readonly userSettings: UserSettingsService,
+    private readonly contacts: ContactsRepository
   ) {}
 
   public broadcastToUsers(userIds: Iterable<string>, message: WsEvent): void {
@@ -112,7 +114,7 @@ export class RealtimeService {
   // приватности, — как в профиле. Заблокированные — никогда.
   private async broadcastPresence(user: User, message: WsEvent): Promise<void> {
     const { privacy } = this.userSettings.get(user.id);
-    const contactIds = await contactIdsOf(user.id);
+    const contactIds = this.contacts.contactIdsOf(user.id);
     const blocked = new Set<string>(user.blockedUserIds ?? []);
     const viewers = this.sockets
       .onlineUserIds()
