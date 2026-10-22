@@ -500,12 +500,6 @@ interface DonationAlerts {
 export const donationAlerts = (): DonationAlerts => legacyModule<DonationAlerts>("lib/donationAlerts.js");
 export const isDonatePayConfigured = (): boolean => legacyModule<{ isConfigured: () => boolean }>("lib/donatePay.js").isConfigured();
 
-// --- Поиск (modules/search) ---
-
-/** Игры по названию и описанию: встроенные, публичные и свои (server/data/games.js). */
-export const searchGames = (q: string, userId: string, limit: number): object[] =>
-  legacyModule<{ searchGames: (q: string, userId: string, limit: number) => object[] }>("data/games.js").searchGames(q, userId, limit);
-
 // --- Push-подписки (modules/push); отправка — push() выше ---
 
 /** Настроена ли отправка в Android-приложение через FCM (server/lib/fcm.js). */

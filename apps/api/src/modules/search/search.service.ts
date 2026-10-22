@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { chatSummary, searchGames, textCrypto } from "../../legacy/legacy.js";
+import { chatSummary, textCrypto } from "../../legacy/legacy.js";
 import { ChatsRepository } from "../chats/chats.repository.js";
 import type { Chat } from "../chats/model/domain.js";
+import { GamesService } from "../games/games.service.js";
 import { MessagesRepository } from "../messages/messages.repository.js";
 import { publicUser } from "../users/lib/user.presenter.js";
 import type { User } from "../users/model/domain.js";
@@ -20,7 +21,8 @@ export class SearchService {
     private readonly messages: MessagesRepository,
     private readonly users: UsersRepository,
     private readonly userSettings: UserSettingsService,
-    private readonly privacy: UserPrivacyService
+    private readonly privacy: UserPrivacyService,
+    private readonly games: GamesService
   ) {}
 
   public async search(uid: string, rawQuery: unknown) {
@@ -107,7 +109,7 @@ export class SearchService {
       channels: matchedChannels,
       users: this.privacy.publicUsersFor(matchedAccounts.filter((u) => !u.isBot).slice(0, LIMIT), uid),
       bots: matchedAccounts.filter((u) => u.isBot).map(publicUser).slice(0, LIMIT),
-      games: searchGames(q, uid, LIMIT),
+      games: this.games.search(q, uid, LIMIT),
       messages: matchedMessages,
     };
   }
