@@ -11,6 +11,7 @@ import { ContactsModule } from "./modules/contacts/contacts.module.js";
 import { FoldersModule } from "./modules/folders/folders.module.js";
 import { MessagesModule } from "./modules/messages/messages.module.js";
 import { ProfilesModule } from "./modules/profiles/profiles.module.js";
+import { PushModule } from "./modules/push/push.module.js";
 import { RealtimeModule } from "./modules/realtime/realtime.module.js";
 import { SearchModule } from "./modules/search/search.module.js";
 import { SessionsModule } from "./modules/sessions/sessions.module.js";
@@ -21,7 +22,7 @@ import { UploadsModule } from "./modules/uploads/uploads.module.js";
 
 // Перенесённые из server/ модули подключаются сюда.
 @Module({
-  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule, BootstrapModule, SearchModule],
+  imports: [DbModule, AuthModule, SessionsModule, RealtimeModule, ChatsModule, TopicsModule, MessagesModule, UploadsModule, CallsModule, ProfilesModule, SettingsModule, ContactsModule, FoldersModule, StarsModule, BootstrapModule, SearchModule, PushModule],
   providers: [
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ViewerShapeInterceptor },

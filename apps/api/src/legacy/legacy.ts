@@ -290,6 +290,8 @@ export const responders = (): Responders => ({
 
 // Пуш-уведомления (server/push.js).
 interface PushFull {
+  /** Открытый VAPID-ключ для PushManager.subscribe. */
+  getPublicKey: () => string;
   sendPushToUser: (userId: string, payload: object, options?: object) => Promise<unknown>;
   pushAvatar: (entity: object | null | undefined) => Record<string, unknown>;
   userPushAvatar: (user: object | null | undefined, viewerId: string) => Promise<Record<string, unknown>>;
@@ -465,3 +467,12 @@ export const createPendingOrder = (order: { userId: string; kind: string; amount
 /** Игры по названию и описанию: встроенные, публичные и свои (server/data/games.js). */
 export const searchGames = (q: string, userId: string, limit: number): object[] =>
   legacyModule<{ searchGames: (q: string, userId: string, limit: number) => object[] }>("data/games.js").searchGames(q, userId, limit);
+
+// --- Push-подписки (modules/push); отправка — push() выше ---
+
+/** Настроена ли отправка в Android-приложение через FCM (server/lib/fcm.js). */
+export const isFcmConfigured = (): boolean => legacyModule<{ isFcmConfigured: () => boolean }>("lib/fcm.js").isFcmConfigured();
+
+/** Адрес публичный (не локальный, не внутренняя сеть); иначе бросает — та же проверка, что у превью ссылок (server/lib/linkPreview.js). */
+export const assertPublicUrl = (url: string): Promise<URL> =>
+  legacyModule<{ assertPublicUrl: (url: string) => Promise<URL> }>("lib/linkPreview.js").assertPublicUrl(url);
