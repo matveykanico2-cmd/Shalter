@@ -1,7 +1,7 @@
 // Строки ленты — как renderList в public/js/views/chatView.js: плашка дня перед первым
 // сообщением дня, «Непрочитанные сообщения» перед первым непрочитанным, серии сообщений
 // одного автора (одного типа, в пределах 5 минут) склеиваются.
-import type { FeedMessage } from "@/entities/message";
+import { type FeedMessage, isCallLogMessage } from "@/entities/message";
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
@@ -45,4 +45,25 @@ export function feedRows(messages: readonly FeedMessage[], firstUnreadId: string
     rows.push({ kind: "message", key: m.id, message: m, groupStart: !runsWith(prev, m), groupEnd: !runsWith(m, next) });
   });
   return rows;
+}
+
+/**
+ * Последнее своё сообщение, которое правится стрелкой вверх — как onEditLast в
+ * public/js/views/chatView.js: не пересланное, не стикер, не подарок, не звонок, не опрос, с текстом.
+ */
+export function lastEditable(messages: readonly FeedMessage[], meId: string) {
+  return (
+    messages.findLast(
+      (m) =>
+        m.senderId === meId &&
+        !m.pending &&
+        !m.forwardedFrom &&
+        m.type !== "system" &&
+        m.type !== "sticker" &&
+        m.type !== "gift" &&
+        !isCallLogMessage(m) &&
+        !!m.text?.trim() &&
+        !m.attachments?.some((a) => (a as { kind?: string }).kind === "poll")
+    ) ?? null
+  );
 }

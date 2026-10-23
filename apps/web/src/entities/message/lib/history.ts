@@ -103,3 +103,24 @@ export function confirmPending(prev: History, localId: string, m: Message): Hist
 }
 
 export const dropPending = (prev: History, localId: string): History => removeMessage(prev, localId);
+
+/** Правка одного сообщения на месте (своё действие до ответа сервера). */
+export function patchMessage(prev: History, id: string, fn: (m: FeedMessage) => FeedMessage): History {
+  const i = prev.messages.findIndex((m) => m.id === id);
+  if (i < 0) return prev;
+  return { ...prev, messages: prev.messages.map((m, j) => (j === i ? fn(m) : m)) };
+}
+
+/**
+ * Вернуть сообщение, как было (сервер отказал): есть в ленте — заменяем, нет (удаляли) —
+ * ставим на своё место по времени.
+ */
+export function restoreMessage(prev: History, m: FeedMessage): History {
+  if (prev.messages.some((x) => x.id === m.id)) return patchMessage(prev, m.id, () => m);
+  const settled = prev.messages.filter((x) => !x.pending);
+  const at = settled.findIndex((x) => x.createdAt > m.createdAt || (x.createdAt === m.createdAt && x.id > m.id));
+  // Старше всей загруженной истории — не наше дело, её покажет подгрузка.
+  if (at === 0 && prev.hasMore) return prev;
+  const next = at < 0 ? [...settled, m] : [...settled.slice(0, at), m, ...settled.slice(at)];
+  return { ...prev, messages: [...next, ...prev.messages.filter((x) => x.pending)] };
+}

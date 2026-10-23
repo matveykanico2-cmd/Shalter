@@ -2,7 +2,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { messageQueries } from "../api/message-queries";
-import { addPending, applyLive, confirmPending, dropPending, markRead, removeMessage } from "../lib/history";
+import { addPending, applyLive, confirmPending, dropPending, markRead, patchMessage, removeMessage, restoreMessage } from "../lib/history";
 
 import type { FeedMessage, History, Message } from "./types";
 
@@ -27,5 +27,15 @@ export const historyCache = {
   addPending: (client: QueryClient, chatId: string, m: FeedMessage) => update(client, chatId, (h) => addPending(h, m)),
   confirmPending: (client: QueryClient, chatId: string, localId: string, m: Message) => update(client, chatId, (h) => confirmPending(h, localId, m)),
   dropPending: (client: QueryClient, chatId: string, localId: string) => update(client, chatId, (h) => dropPending(h, localId)),
+  /** Своё действие над сообщением сразу; возвращает, каким оно было, — для отката. */
+  patch(client: QueryClient, chatId: string, id: string, fn: (m: FeedMessage) => FeedMessage) {
+    const before = historyCache.find(client, chatId, id);
+    if (before) update(client, chatId, (h) => patchMessage(h, id, fn));
+    return before;
+  },
+  /** Сообщение из ответа сервера — поверх своей правки. */
+  replace: (client: QueryClient, chatId: string, m: Message) => update(client, chatId, (h) => patchMessage(h, m.id, (x) => ({ ...x, ...m }))),
+  /** Откат своей правки или удаления. */
+  restore: (client: QueryClient, chatId: string, m: FeedMessage) => update(client, chatId, (h) => restoreMessage(h, m)),
   find: (client: QueryClient, chatId: string, id: string) => client.getQueryData(messageQueries.history(chatId).queryKey)?.messages.find((m) => m.id === id),
 };

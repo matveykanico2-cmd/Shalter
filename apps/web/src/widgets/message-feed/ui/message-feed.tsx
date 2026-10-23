@@ -2,16 +2,20 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { canPin, MessageMenus, useMessageActions, useMessageMenu } from "@/features/message-actions";
+
 import { chatCache, type ChatMember, type ChatSummary } from "@/entities/chat";
 import { type FeedMessage, loadOlderHistory, type Message, MessageBubble, messageQueries, type MessageSender, type ReplyTarget } from "@/entities/message";
+import type { SelfUser } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
 import { Icon } from "@/shared/ui";
 
-import { feedRows } from "../lib/feed-rows";
+import { feedRows, lastEditable } from "../lib/feed-rows";
 import { useHistorySync } from "../model/use-history-sync";
 
 import styles from "./message-feed.module.css";
+import { PinnedBar } from "./pinned-bar";
 
 /** Примерная высота строки; точную меряет виртуализатор. */
 const ROW_ESTIMATE = 56;
@@ -24,19 +28,25 @@ const HIGHLIGHT_MS = 1600;
 export type MessageFeedHandle = {
   /** Прокрутить вниз и держать низ — после своей отправки. */
   stickToBottom: () => void;
+  /** Последнее своё сообщение, которое можно править (стрелка вверх в поле ввода). */
+  lastEditable: () => Message | null;
 };
 
 type Props = {
   chat: ChatSummary;
   members: readonly ChatMember[];
-  meId: string;
+  me: SelfUser;
   onReply?: (m: Message) => void;
+  onEdit?: (m: Message) => void;
   ref?: Ref<MessageFeedHandle>;
 };
 
 /** Лента открытого чата: история с подгрузкой вверх, живые события, виртуализация. */
-export function MessageFeed({ chat, members, meId, onReply, ref }: Props) {
+export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) {
+  const meId = me.id;
   const client = useQueryClient();
+  const menu = useMessageMenu();
+  const actions = useMessageActions(chat, me);
   useHistorySync(chat.id, meId);
   const history = useQuery(messageQueries.history(chat.id));
   const data = history.data;
@@ -81,6 +91,7 @@ export function MessageFeed({ chat, members, meId, onReply, ref }: Props) {
       setAtBottom(true);
       scrollToBottom();
     },
+    lastEditable: () => lastEditable(data?.messages ?? [], meId),
   }));
 
   // Прилипшая лента держит низ, пока сообщения добавляются и меряются; подгруженная
@@ -164,8 +175,11 @@ export function MessageFeed({ chat, members, meId, onReply, ref }: Props) {
     );
   }
 
+  const senderName = (m: Message) => senders(m)?.name ?? null;
+
   return (
     <div className={styles.feed}>
+      <PinnedBar messages={data?.messages ?? []} canUnpin={canPin(chat, meId)} onJumpTo={jumpTo} onUnpin={(m) => void actions.togglePin(m)} />
       <div ref={scrollRef} className={styles.scroll} onScroll={onScroll} role="log" aria-label="Сообщения">
         {rows.length === 0 ? (
           <p className={styles.empty}>Сообщений пока нет — напишите первым</p>
@@ -196,6 +210,9 @@ export function MessageFeed({ chat, members, meId, onReply, ref }: Props) {
                         replyTo={row.message.replyToId ? (messagesById.get(row.message.replyToId) ?? data?.replyTargets[row.message.replyToId]) : undefined}
                         onReply={isChannel ? undefined : onReply}
                         onJumpTo={jumpTo}
+                        onOpenMenu={menu.openMenu}
+                        onOpenReactions={menu.openReactions}
+                        onReact={actions.react}
                       />
                     </div>
                   )}
@@ -220,6 +237,7 @@ export function MessageFeed({ chat, members, meId, onReply, ref }: Props) {
           <Icon name="ChevronDown" size={24} />
         </button>
       ) : null}
+      <MessageMenus control={menu} actions={actions} chat={chat} me={me} senderName={senderName} onReply={isChannel ? undefined : onReply} onEdit={onEdit} />
     </div>
   );
 }
@@ -235,9 +253,12 @@ type RowProps = {
   replyTo: Message | ReplyTarget | undefined;
   onReply?: (m: Message) => void;
   onJumpTo: (id: string) => void;
+  onOpenMenu: (m: Message, at: { x: number; y: number }) => void;
+  onOpenReactions: (m: Message, at: { x: number; y: number }) => void;
+  onReact: (m: Message, emoji: string) => void;
 };
 
-function MessageRow({ message, meId, groupStart, groupEnd, isGroup, isChannel, senders, replyTo, onReply, onJumpTo }: RowProps) {
+function MessageRow({ message, meId, groupStart, groupEnd, isGroup, isChannel, senders, replyTo, onReply, onJumpTo, onOpenMenu, onOpenReactions, onReact }: RowProps) {
   const mine = message.senderId === meId;
   const replyToName = replyTo && !("deleted" in replyTo) ? (senders(replyTo)?.name ?? null) : null;
   return (
@@ -253,8 +274,12 @@ function MessageRow({ message, meId, groupStart, groupEnd, isGroup, isChannel, s
       isChannel={isChannel}
       replyTo={replyTo ?? null}
       replyToName={replyToName}
+      meId={meId}
       onReply={onReply}
       onJumpTo={onJumpTo}
+      onOpenMenu={onOpenMenu}
+      onOpenReactions={onOpenReactions}
+      onReact={onReact}
     />
   );
 }

@@ -1,15 +1,15 @@
 import { type ReactNode, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 
+import { ChatHeader } from "@/widgets/chat-header";
 import { MessageFeed, type MessageFeedHandle } from "@/widgets/message-feed";
 
+import { useMessageActions } from "@/features/message-actions";
 import { Composer } from "@/features/send-message";
 
 import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, useChatCard, useChatFromList } from "@/entities/chat";
 import type { Message } from "@/entities/message";
 import { type SelfUser, useSession } from "@/entities/session";
-
-import { Avatar, Icon } from "@/shared/ui";
 
 import styles from "./chat-view.module.css";
 
@@ -36,31 +36,24 @@ export function ChatView() {
 function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser }) {
   const feed = useRef<MessageFeedHandle>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editing, setEditing] = useState<Message | null>(null);
+  const actions = useMessageActions(chat, me);
   const title = chatTitle(chat);
+  const reply = (m: Message) => {
+    setEditing(null);
+    setReplyTo(m);
+  };
+  const edit = (m: Message) => {
+    setReplyTo(null);
+    setEditing(m);
+  };
   const senderName = (m: Message) => (m.anonymous ? title : m.senderId === me.id ? me.name : (members.find((u) => u.id === m.senderId) ?? chat.otherUser)?.name ?? null);
 
   return (
     <section className={styles.view} aria-label={title}>
-      <header className={styles.header}>
-        <Link to="/" className={styles.back} title="Назад к чатам">
-          <Icon name="ChevronLeft" size={22} />
-        </Link>
-        {chat.isSaved ? (
-          <span className={styles.saved}>
-            <Icon name="Bookmark" size={20} />
-          </span>
-        ) : (
-          <Avatar
-            size={40}
-            name={chat.otherUser?.name ?? title}
-            color={chat.otherUser?.avatarColor ?? chat.avatarColor}
-            image={chat.otherUser?.avatarImage ?? chat.avatarImage}
-          />
-        )}
-        <h1 className={styles.title}>{title}</h1>
-      </header>
+      <ChatHeader chat={chat} members={members} meId={me.id} />
       <div className={styles.body}>
-        <MessageFeed ref={feed} chat={chat} members={members} meId={me.id} onReply={setReplyTo} />
+        <MessageFeed ref={feed} chat={chat} members={members} me={me} onReply={reply} onEdit={edit} />
         <Bottom
           chat={chat}
           me={me}
@@ -74,6 +67,13 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
               replyToName={replyTo ? senderName(replyTo) : null}
               onCancelReply={() => setReplyTo(null)}
               onSent={() => feed.current?.stickToBottom()}
+              editing={editing}
+              onSaveEdit={(m, text) => void actions.edit(m, text)}
+              onCancelEdit={() => setEditing(null)}
+              onEditLast={() => {
+                const last = feed.current?.lastEditable();
+                if (last) edit(last);
+              }}
             />
           }
         />

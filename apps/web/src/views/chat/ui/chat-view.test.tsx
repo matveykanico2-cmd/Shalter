@@ -9,6 +9,7 @@ import { sessionQueries } from "@/entities/session";
 
 import { ws } from "@/shared/api";
 import { fakeApi, FakeSocket, fakeSocket } from "@/shared/lib/test";
+import { Toaster } from "@/shared/ui";
 
 import { ChatView } from "./chat-view";
 
@@ -71,6 +72,7 @@ function renderChat(c: ChatSummary = chat()) {
   render(
     <QueryClientProvider client={client}>
       <RouterProvider router={router} />
+      <Toaster />
     </QueryClientProvider>
   );
   return { client };
@@ -204,5 +206,207 @@ describe("открытый чат", () => {
     renderChat(restricted);
     expect(await screen.findByText("Вам запрещено писать в этом чате")).toBeTruthy();
     expect(await screen.findByText("Сообщений пока нет — напишите первым")).toBeTruthy();
+  });
+});
+
+const bubble = (id: string) => document.querySelector(`[data-message-id="${id}"]`) as HTMLElement;
+const openMenu = (id: string) => fireEvent.contextMenu(bubble(id), { clientX: 10, clientY: 10 });
+const menuItems = () => within(screen.getByRole("menu", { name: "Действия с сообщением" })).getAllByRole("menuitem").map((b) => b.textContent);
+const typingRoutes = { "POST /api/chats/c_1/draft": { body: { ok: true } }, "POST /api/chats/c_1/typing": { body: { ok: true } } };
+
+describe("действия с сообщением", () => {
+  it("меню своего сообщения в группе; «Изменить» — правка в поле ввода, сразу в ленте", async () => {
+    const mine = msg("было", { senderId: ME.id });
+    let edited: Message | null = null;
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: () => page([edited ?? mine]),
+      [`PATCH /api/chats/c_1/messages/${mine.id}`]: (body) => {
+        edited = { ...mine, text: String(body.text), editedAt: mine.createdAt };
+        return { body: { message: edited } };
+      },
+      ...typingRoutes,
+    });
+    renderChat();
+    await screen.findByText("было");
+
+    openMenu(mine.id);
+    expect(menuItems()).toEqual(["Ответить", "Переслать", "Копировать текст", "Копировать ссылку", "Изменить", "Удалить"]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Изменить" }));
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByText("Изменение")).toBeTruthy();
+    const input = screen.getByRole("textbox", { name: "Сообщение" }) as HTMLTextAreaElement;
+    expect(input.value).toBe("было");
+
+    fireEvent.change(input, { target: { value: "стало " } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(await screen.findByText("стало")).toBeTruthy();
+    expect(input.value).toBe("");
+    expect(screen.queryByText("Изменение")).toBeNull();
+    expect(calls.find((c) => c.key.startsWith("PATCH"))?.body).toEqual({ text: "стало" });
+    // Правка не трогает черновик.
+    expect(calls.some((c) => c.key === "POST /api/chats/c_1/draft")).toBe(false);
+  });
+
+  it("стрелка вверх в пустом поле — правка последнего своего; Escape — отмена с возвратом набранного", async () => {
+    const mine = msg("моё", { senderId: ME.id });
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([mine, msg("чужое")]), ...typingRoutes });
+    renderChat();
+    await screen.findByText("моё");
+    const input = screen.getByRole("textbox", { name: "Сообщение" }) as HTMLTextAreaElement;
+
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(input.value).toBe("моё");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(input.value).toBe("");
+    expect(screen.queryByText("Изменение")).toBeNull();
+  });
+
+  it("удаление у всех; отказ сервера возвращает сообщение и показывает причину", async () => {
+    const a = msg("первое", { senderId: ME.id });
+    const b = msg("второе", { senderId: ME.id });
+    let status = 200;
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([a, b]),
+      [`DELETE /api/chats/c_1/messages/${b.id}`]: (body) => ({ status, body: status === 200 ? { ok: true, id: b.id, forEveryone: body.forEveryone } : { error: "Нельзя" } }),
+    });
+    renderChat();
+    await screen.findByText("второе");
+
+    status = 403;
+    openMenu(b.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Удалить" }));
+    const dialog = screen.getByRole("dialog", { name: "Удалить сообщение?" });
+    fireEvent.click(within(dialog).getByRole("checkbox"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Удалить" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(bubbles()).toEqual([a.id]);
+    expect(await screen.findByText("Нельзя")).toBeTruthy();
+    await waitFor(() => expect(bubbles()).toEqual([a.id, b.id]));
+    expect(calls.find((c) => c.key.startsWith("DELETE"))?.body).toEqual({ forEveryone: true });
+
+    status = 200;
+    openMenu(b.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Удалить" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Удалить" }));
+    await waitFor(() => expect(bubbles()).toEqual([a.id]));
+    expect(calls.filter((c) => c.key.startsWith("DELETE")).at(-1)?.body).toEqual({ forEveryone: false });
+  });
+
+  it("чужое сообщение: удалить можно только у себя", async () => {
+    const theirs = msg("чужое");
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([theirs]) });
+    renderChat();
+    await screen.findByText("чужое");
+    openMenu(theirs.id);
+    expect(menuItems()).not.toContain("Изменить");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Удалить" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).queryByRole("checkbox")).toBeNull();
+    expect(within(dialog).getByText("Чужое сообщение можно убрать только из своей переписки.")).toBeTruthy();
+  });
+
+  it("двойное нажатие — реакции; своя реакция сразу в пузыре, повтор снимает", async () => {
+    const theirs = msg("смешно");
+    const reacted = { ...theirs, reactions: [{ emoji: "😂", userIds: [ME.id] }] };
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([theirs]),
+      [`POST /api/chats/c_1/messages/${theirs.id}/react`]: () => ({ body: { message: calls.filter((c) => c.key.endsWith("/react")).length % 2 ? reacted : theirs } }),
+    });
+    renderChat();
+    await screen.findByText("смешно");
+
+    fireEvent.pointerUp(bubble(theirs.id), { clientX: 5, clientY: 5 });
+    fireEvent.pointerUp(bubble(theirs.id), { clientX: 6, clientY: 5 });
+    const strip = screen.getByRole("group", { name: "Реакции" });
+    fireEvent.click(within(strip).getByRole("button", { name: "😂" }));
+    const pill = await screen.findByRole("button", { name: "😂 1" });
+    expect(pill.getAttribute("aria-pressed")).toBe("true");
+    expect(calls.find((c) => c.key.endsWith("/react"))?.body).toEqual({ emoji: "😂" });
+
+    fireEvent.click(pill);
+    await waitFor(() => expect(screen.queryByRole("button", { name: "😂 1" })).toBeNull());
+  });
+
+  it("закрепить в личке — плашка над лентой ведёт к сообщению; открепить крестиком", async () => {
+    const dm = chat({ type: "dm", title: null, otherUser: { ...LENA, online: false } as ChatSummary["otherUser"] });
+    let target = msg("важное");
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(dm),
+      [HISTORY]: () => page([target]),
+      [`POST /api/chats/c_1/messages/${target.id}/pin`]: (body) => {
+        target = { ...target, pinned: !!body.pinned };
+        return { body: { message: target } };
+      },
+    });
+    renderChat(dm);
+    await screen.findByText("важное");
+
+    openMenu(target.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Закрепить" }));
+    const jump = await screen.findByTitle("Перейти к закреплённому");
+    expect(jump.textContent).toContain("важное");
+    expect(calls.find((c) => c.key.endsWith("/pin"))?.body).toEqual({ pinned: true });
+
+    fireEvent.click(screen.getByTitle("Открепить"));
+    await waitFor(() => expect(screen.queryByTitle("Перейти к закреплённому")).toBeNull());
+    expect(calls.filter((c) => c.key.endsWith("/pin")).at(-1)?.body).toEqual({ pinned: false });
+  });
+
+  it("переслать в выбранный чат — с подписью, откуда", async () => {
+    const other = chat({ id: "c_2", title: "Работа", unreadCount: 0 });
+    const source = msg("новость");
+    const forwarded = msg("новость", { id: "m_fwd", chatId: "c_2", senderId: ME.id });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([source]),
+      "POST /api/chats/c_2/messages": { body: { message: forwarded } },
+    });
+    const { client } = renderChat();
+    client.setQueryData(chatQueries.list().queryKey, [chat(), other]);
+    await screen.findByText("новость");
+
+    openMenu(source.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Переслать" }));
+    const dialog = screen.getByRole("dialog", { name: "Переслать сообщение" });
+    expect(within(dialog).getByRole("button", { name: "Выберите чаты" })).toHaveProperty("disabled", true);
+    fireEvent.click(within(dialog).getByRole("button", { name: /Работа/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Отправить (1)" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(calls.find((c) => c.key === "POST /api/chats/c_2/messages")?.body).toMatchObject({
+      text: "новость",
+      forwardedFrom: { messageId: source.id, hideAuthor: false, chatId: "c_1", chatTitle: "Семья", senderId: LENA.id, senderName: "Лена" },
+    });
+    expect(client.getQueryData(chatQueries.list().queryKey)?.find((c) => c.id === "c_2")?.lastMessage?.id).toBe("m_fwd");
+  });
+});
+
+describe("шапка чата", () => {
+  it("группа: участники; «печатает» по событию сокета и гаснет", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([]) });
+    renderChat();
+    ws.start();
+    act(() => FakeSocket.last().open());
+    expect(await screen.findByText("2 участника")).toBeTruthy();
+
+    act(() => FakeSocket.last().receive({ type: "typing:update", chatId: "c_1", userId: LENA.id, action: "typing" }));
+    expect(screen.getByText("Лена печатает…")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(4100));
+    expect(screen.queryByText("Лена печатает…")).toBeNull();
+  });
+
+  it("личка: «в сети» по событию присутствия", async () => {
+    const dm = chat({ type: "dm", title: null, otherUser: { ...LENA, online: false } as ChatSummary["otherUser"] });
+    fakeApi({ "GET /api/chats/c_1": card(dm), [HISTORY]: page([]) });
+    renderChat(dm);
+    ws.start();
+    act(() => FakeSocket.last().open());
+    expect(await screen.findByText("был(а) недавно")).toBeTruthy();
+    act(() => FakeSocket.last().receive({ type: "presence:update", userId: LENA.id, online: true }));
+    expect(await screen.findByText("в сети")).toBeTruthy();
   });
 });

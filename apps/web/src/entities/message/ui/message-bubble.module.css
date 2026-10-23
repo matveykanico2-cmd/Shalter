@@ -173,8 +173,15 @@
   opacity: 0.8;
 }
 
-.replyButton {
+.actions {
+  display: flex;
   align-self: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.actionButton {
   display: flex;
   padding: 6px;
   border: none;
@@ -182,19 +189,77 @@
   background: color-mix(in srgb, var(--color-bubble-in) 80%, transparent);
   color: var(--color-muted);
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s;
 }
 
-.row:hover .replyButton,
-.replyButton:focus-visible {
+.actionButton:hover {
+  color: var(--color-text);
+}
+
+.row:hover .actions,
+.actions:focus-within {
   opacity: 1;
 }
 
 @media (hover: none) {
-  .replyButton {
+  .actions {
     display: none;
   }
+}
+
+/* Реакции под текстом, время — в конце их строки (как tweb). */
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.reactions > :last-child:not(.reaction) {
+  margin-left: auto;
+}
+
+.reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+
+.reaction:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--color-surface-alt);
+}
+
+.reaction:disabled {
+  cursor: default;
+}
+
+.reactionMine {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.reactionMine:hover:not(:disabled) {
+  background: var(--color-accent-soft);
+}
+
+.reactionGlyph {
+  font-size: 15px;
+}
+
+.reactionCount {
+  font-family: var(--font-mono);
 }
 
 .system {
@@ -290,5 +355,12 @@
 @media (prefers-color-scheme: dark) {
   .sender {
     color: var(--name-dark, var(--color-accent));
+  }
+}
+
+/* Долгое нажатие открывает меню сообщения, а не системную подсказку iOS. */
+@media (hover: none) {
+  .row {
+    -webkit-touch-callout: none;
   }
 }

@@ -1,0 +1,155 @@
+/* Полоса реакций (.rmenu в public/styles/components.css). */
+.strip {
+  display: flex;
+  gap: 2px;
+  max-width: min(340px, calc(100vw - 16px));
+  overflow-x: auto;
+  padding: 6px;
+  scrollbar-width: none;
+}
+
+.reaction {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.reaction:hover,
+.reaction:focus-visible {
+  outline: none;
+  transform: scale(1.18);
+}
+
+.chosen {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
+.checkRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.checkRow input {
+  margin-top: 3px;
+  accent-color: var(--color-accent);
+}
+
+.checkTitle {
+  display: block;
+  font-weight: 500;
+}
+
+.hint {
+  display: block;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.forward {
+  max-width: 420px;
+}
+
+.search {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.forwardList {
+  display: flex;
+  min-height: 120px;
+  max-height: 46vh;
+  flex-direction: column;
+  overflow-y: auto;
+  margin: 0 -8px;
+}
+
+.forwardRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.forwardRow:hover {
+  background: var(--color-surface-alt);
+}
+
+.forwardTitle {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forwardCheck {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  color: transparent;
+}
+
+.selected .forwardCheck {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.savedAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.forwardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.forwardActions {
+  display: flex;
+  gap: 6px;
+}
+
+.forwardActions button {
+  height: 40px;
+  padding: 0 14px;
+}

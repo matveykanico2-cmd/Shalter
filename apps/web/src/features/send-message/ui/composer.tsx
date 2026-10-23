@@ -29,13 +29,29 @@ type Props = {
   onCancelReply: () => void;
   /** Своё сообщение отправлено — лента прокручивается вниз. */
   onSent?: () => void;
+  /** Правка своего сообщения: в поле его текст, Enter — сохранить. */
+  editing?: Message | null;
+  onSaveEdit?: (m: Message, text: string) => void;
+  onCancelEdit?: () => void;
+  /** Стрелка вверх в пустом поле — править последнее своё сообщение. */
+  onEditLast?: () => void;
 };
 
 /** Поле ввода: текст, ответ на сообщение, Enter — отправить, Shift+Enter — новая строка. */
-export function Composer({ chatId, meId, channel, initialDraft, placeholder = "Сообщение", replyTo, replyToName, onCancelReply, onSent }: Props) {
+export function Composer(props: Props) {
+  const { chatId, meId, channel, initialDraft, placeholder = "Сообщение", replyTo, replyToName, onCancelReply, onSent } = props;
+  const { editing = null, onSaveEdit, onCancelEdit, onEditLast } = props;
   const client = useQueryClient();
   const send = useSendMessage(chatId, meId, channel);
   const [text, setText] = useState(initialDraft);
+  // Начали править — в поле текст сообщения, а набранное раньше ждёт конца правки.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [heldDraft, setHeldDraft] = useState("");
+  if ((editing?.id ?? null) !== editingId) {
+    if (editing && !editingId) setHeldDraft(text);
+    setText(editing ? (editing.text ?? "") : heldDraft);
+    setEditingId(editing?.id ?? null);
+  }
   const [error, setError] = useState<string | null>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const lastTyping = useRef(0);
@@ -48,10 +64,10 @@ export function Composer({ chatId, meId, channel, initialDraft, placeholder = "�
     el.style.height = `${Math.min(el.scrollHeight, MAX_ROWS_HEIGHT)}px`;
   }, [text]);
 
-  // Выбрали «Ответить» — сразу печатаем ответ.
+  // Выбрали «Ответить» или «Изменить» — сразу печатаем.
   useEffect(() => {
-    if (replyTo) textarea.current?.focus();
-  }, [replyTo]);
+    if (replyTo || editing) textarea.current?.focus();
+  }, [replyTo, editing]);
 
   useEffect(() => () => clearTimeout(draftTimer.current), []);
 
@@ -66,6 +82,7 @@ export function Composer({ chatId, meId, channel, initialDraft, placeholder = "�
   const onChange = (value: string) => {
     setText(value);
     setError(null);
+    if (editing) return;
     if (value.trim() && Date.now() - lastTyping.current > TYPING_PING_MS) {
       lastTyping.current = Date.now();
       sendTyping(chatId).catch(() => {});
@@ -75,6 +92,12 @@ export function Composer({ chatId, meId, channel, initialDraft, placeholder = "�
 
   const submit = () => {
     const value = text.trim();
+    if (editing) {
+      if (!value) return;
+      if (value !== (editing.text ?? "").trim()) onSaveEdit?.(editing, value);
+      onCancelEdit?.();
+      return;
+    }
     if (!value) return;
     const reply = replyTo;
     setText("");
@@ -96,9 +119,15 @@ export function Composer({ chatId, meId, channel, initialDraft, placeholder = "�
       submit();
       return;
     }
-    if (e.key === "Escape" && replyTo) {
+    if (e.key === "Escape" && (replyTo || editing)) {
       e.preventDefault();
-      onCancelReply();
+      if (editing) onCancelEdit?.();
+      else onCancelReply();
+      return;
+    }
+    if (e.key === "ArrowUp" && onEditLast && !editing && !text && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      onEditLast();
     }
   };
 
@@ -109,7 +138,18 @@ export function Composer({ chatId, meId, channel, initialDraft, placeholder = "�
           {error}
         </p>
       ) : null}
-      {replyTo ? (
+      {editing ? (
+        <div className={styles.banner}>
+          <Icon name="Edit" size={16} />
+          <div className={styles.bannerBody}>
+            <span className={styles.bannerLabel}>Изменение</span>
+            <span className={styles.bannerText}>{stripCustomEmoji(messagePreview(editing)) || "Сообщение"}</span>
+          </div>
+          <button type="button" className={styles.iconButton} title="Отменить изменение" onClick={onCancelEdit}>
+            <Icon name="X" size={16} />
+          </button>
+        </div>
+      ) : replyTo ? (
         <div className={styles.banner}>
           <Icon name="Reply" size={16} />
           <div className={styles.bannerBody}>
@@ -132,8 +172,8 @@ export function Composer({ chatId, meId, channel, initialDraft, placeholder = "�
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
         />
-        <button type="button" className={styles.send} title="Отправить" disabled={!text.trim()} onClick={submit}>
-          <Icon name="Send" size={22} />
+        <button type="button" className={styles.send} title={editing ? "Сохранить" : "Отправить"} disabled={!text.trim()} onClick={submit}>
+          <Icon name={editing ? "Check" : "Send"} size={22} />
         </button>
       </div>
     </div>

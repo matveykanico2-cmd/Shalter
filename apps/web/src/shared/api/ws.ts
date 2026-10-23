@@ -1,7 +1,7 @@
 // Клиент WebSocket — как public/js/lib/wsClient.js: один сокет на вкладку, события
 // { type, … }, ping раз в 20 с и переподключение с нарастающей паузой. Сервер закрывает
 // сокет кодом 4001, когда сеанс этого устройства завершён, — тогда причину выясняем по HTTP.
-import type { wsChatDeleted } from "@shalter/shared/schemas/bots";
+import type { wsChatDeleted, wsTypingUpdate } from "@shalter/shared/schemas/bots";
 import type { wsMessageDeleted, wsMessageNew, wsMessageRead, wsMessageUpdated } from "@shalter/shared/schemas/messages";
 import type { chatAdded, chatUpdated, contactUpdated, presenceUpdate } from "@shalter/shared/schemas/ws";
 import type { z } from "zod";
@@ -22,6 +22,8 @@ export type WsEvents = {
   "chat:deleted": Of<typeof wsChatDeleted>;
   "community:updated": { type: "community:updated"; communityId: string };
   "presence:update": Of<typeof presenceUpdate>;
+  /** Кто-то печатает (action: typing, upload_photo…; cancel — перестал). */
+  "typing:update": Of<typeof wsTypingUpdate>;
   "contact:updated": Of<typeof contactUpdated>;
   /** Сокет (пере)открылся: пока его не было, события могли потеряться. */
   "ws:reconnected": { type: "ws:reconnected" };

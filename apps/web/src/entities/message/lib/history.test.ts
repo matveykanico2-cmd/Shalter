@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { History, HistoryPage, Message } from "../model/types";
 
-import { addPending, applyLive, confirmPending, emptyHistory, markRead, mergeLatest, prependOlder, removeMessage } from "./history";
+import { addPending, applyLive, confirmPending, emptyHistory, markRead, mergeLatest, patchMessage, prependOlder, removeMessage, restoreMessage } from "./history";
 
 const msg = (id: string, minute: number, patch: Partial<Message> = {}): Message => ({
   id,
@@ -106,5 +106,29 @@ describe("лента чата: события и отправка", () => {
 
   it("пустая лента", () => {
     expect(emptyHistory().messages).toEqual([]);
+  });
+});
+
+describe("лента чата: свои действия и откат", () => {
+  const base = (): History => ({ ...emptyHistory(), messages: [msg("a", 1), msg("b", 2), msg("c", 3)] });
+
+  it("правка на месте; чужого id нет — лента та же", () => {
+    const h = patchMessage(base(), "b", (m) => ({ ...m, text: "новый" }));
+    expect(h.messages[1]!.text).toBe("новый");
+    const same = base();
+    expect(patchMessage(same, "zzz", (m) => m)).toBe(same);
+  });
+
+  it("удалённое возвращается на своё место по времени, временные пузыри остаются в конце", () => {
+    const h = addPending(removeMessage(base(), "b"), msg("local_1", 9, { senderId: "u_me" }));
+    expect(ids(restoreMessage(h, msg("b", 2)))).toEqual(["a", "b", "c", "local_1"]);
+    expect(ids(restoreMessage(removeMessage(base(), "c"), msg("c", 3)))).toEqual(["a", "b", "c"]);
+  });
+
+  it("откат правки заменяет сообщение; старше загруженной истории — не вставляем", () => {
+    const edited = patchMessage(base(), "a", (m) => ({ ...m, text: "x" }));
+    expect(restoreMessage(edited, msg("a", 1)).messages[0]!.text).toBe("a");
+    const partial = { ...removeMessage(base(), "a"), hasMore: true };
+    expect(ids(restoreMessage(partial, msg("a", 1)))).toEqual(["b", "c"]);
   });
 });

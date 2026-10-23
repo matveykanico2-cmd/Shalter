@@ -25,6 +25,22 @@ export const chatCache = {
     });
   },
 
+  /** Изменили последнее сообщение чата — превью тоже (правка, реакция). */
+  patchLastMessage(client: QueryClient, chatId: string, id: string, patch: Partial<Message>) {
+    updateChats(client, (chats) =>
+      chats.some((c) => c.id === chatId && c.lastMessage?.id === id)
+        ? chats.map((c) => (c.id === chatId && c.lastMessage ? { ...c, lastMessage: { ...c.lastMessage, ...patch } } : c))
+        : chats
+    );
+  },
+
+  /** Удалили последнее сообщение — в превью встаёт предыдущее (null — его не знаем, ждём сверку). */
+  dropLastMessage(client: QueryClient, chatId: string, id: string, previous: Message | null) {
+    updateChats(client, (chats) =>
+      chats.some((c) => c.id === chatId && c.lastMessage?.id === id) ? chats.map((c) => (c.id === chatId ? { ...c, lastMessage: previous } : c)) : chats
+    );
+  },
+
   /** Чат открыт — его непрочитанные прочитаны (сервер отметил их запросом истории). */
   markRead(client: QueryClient, chatId: string) {
     updateChats(client, (chats) =>
@@ -53,6 +69,21 @@ export const chatCache = {
         ? chats.map((c) => (c.otherUser?.id === userId ? { ...c, otherUser: { ...c.otherUser, ...patch } as OtherUser } : c))
         : chats
     );
+  },
+
+  /** «В сети» участника или собеседника в открытом чате (карточка GET /api/chats/:id). */
+  patchCardUser(client: QueryClient, chatId: string, userId: string, patch: { online?: boolean; lastSeen?: string }) {
+    client.setQueryData(chatQueries.card(chatId).queryKey, (card) => {
+      if (!card) return card;
+      const inMembers = card.members.some((u) => u.id === userId);
+      const isOther = card.chat.otherUser?.id === userId;
+      if (!inMembers && !isOther) return card;
+      return {
+        ...card,
+        chat: isOther ? { ...card.chat, otherUser: { ...card.chat.otherUser, ...patch } as OtherUser } : card.chat,
+        members: inMembers ? card.members.map((u) => (u.id === userId ? { ...u, ...patch } : u)) : card.members,
+      };
+    });
   },
 
   isKnown(client: QueryClient, chatId: string) {

@@ -1,9 +1,11 @@
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, useRef } from "react";
 
+import { useLongPress } from "@/shared/lib/use-long-press";
 import { Avatar, Icon } from "@/shared/ui";
 
 import { isCallLogMessage, isReadByOthers, NAME_COLORS, timeLabel } from "../lib/message-meta";
 import { callLogInfo, messagePreview, stripCustomEmoji } from "../lib/message-preview";
+import { reactionsOf } from "../lib/reactions";
 import type { FeedMessage, Message, ReplyTarget } from "../model/types";
 
 import styles from "./message-bubble.module.css";
@@ -30,13 +32,31 @@ type Props = {
   isChannel?: boolean;
   replyTo?: Message | ReplyTarget | null;
   replyToName?: string | null;
+  /** Для «своих» реакций; без него реакции только показываются. */
+  meId?: string;
   onReply?: (m: Message) => void;
   onJumpTo?: (id: string) => void;
+  /** Меню сообщения: «Ещё», правая кнопка, долгое нажатие. */
+  onOpenMenu?: (m: Message, at: Point) => void;
+  /** Полоса реакций — двойное нажатие. */
+  onOpenReactions?: (m: Message, at: Point) => void;
+  onReact?: (m: Message, emoji: string) => void;
 };
+
+type Point = { x: number; y: number };
+
+/** Кнопки над пузырём и реакции не открывают меню долгим нажатием. */
+const NO_HOLD = "button, a, input, textarea";
+// Двойное нажатие — как в messageBubble.js: два касания за 200 мс в пределах 24 px.
+const DOUBLE_TAP_MS = 200;
+const DOUBLE_TAP_PX = 24;
 
 /** Пузырь сообщения в ленте — основа MessageBubble из public/js/components/messageBubble.js. */
 export function MessageBubble(props: Props) {
   const { message: m, mine, sender, showSender, showAvatar, groupStart = true, groupEnd = true, isChannel = false } = props;
+  const actionable = !m.pending && !!props.onOpenMenu;
+  const hold = useLongPress((at) => props.onOpenMenu?.(m, at), NO_HOLD);
+  const lastTap = useRef({ at: 0, x: 0, y: 0 });
 
   if (m.type === "system") return <SystemLine text={m.text ?? ""} />;
 
@@ -91,25 +111,88 @@ export function MessageBubble(props: Props) {
       </span>
     );
   }
-  if (text) body.push(<MessageText key="text" text={text} meta={meta} />);
-  else if (!isCall) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
+  const reactions = reactionsOf(m);
+  if (text) body.push(<MessageText key="text" text={text} meta={reactions.length ? null : meta} />);
+  if (reactions.length) {
+    body.push(
+      <div key="reactions" className={styles.reactions}>
+        {reactions.map((r) => {
+          const own = !!props.meId && r.userIds.includes(props.meId);
+          return (
+            <button
+              key={r.emoji}
+              type="button"
+              className={own ? `${styles.reaction} ${styles.reactionMine}` : styles.reaction}
+              aria-pressed={own}
+              aria-label={`${r.emoji} ${r.userIds.length}`}
+              disabled={!props.onReact || m.pending}
+              onClick={() => props.onReact?.(m, r.emoji)}
+            >
+              <span className={styles.reactionGlyph}>{r.emoji}</span>
+              <span className={styles.reactionCount}>{r.userIds.length}</span>
+            </button>
+          );
+        })}
+        {!isCall ? meta : null}
+      </div>
+    );
+  } else if (!text && !isCall) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
 
   const bubbleClass = [styles.bubble, out ? styles.out : styles.in, groupStart ? "" : styles.joinTop, groupEnd ? "" : styles.joinBottom, sticker ? styles.stickerBubble : ""]
     .filter(Boolean)
     .join(" ");
 
+  const onContextMenu = (e: MouseEvent) => {
+    if (!actionable || hold.swallow(e)) return;
+    e.preventDefault();
+    props.onOpenMenu?.(m, { x: e.clientX, y: e.clientY });
+  };
+  const onPointerUp = (e: PointerEvent) => {
+    hold.onPointerUp();
+    if (m.pending || !props.onOpenReactions || e.button !== 0 || (e.target as Element).closest?.(NO_HOLD)) {
+      lastTap.current.at = 0;
+      return;
+    }
+    const prev = lastTap.current;
+    const now = Date.now();
+    if (now - prev.at < DOUBLE_TAP_MS && Math.abs(e.clientX - prev.x) < DOUBLE_TAP_PX && Math.abs(e.clientY - prev.y) < DOUBLE_TAP_PX) {
+      lastTap.current = { at: 0, x: 0, y: 0 };
+      // Двойной клик мышью выделяет слово — снимаем выделение.
+      if (e.pointerType === "mouse") window.getSelection?.()?.removeAllRanges();
+      props.onOpenReactions(m, { x: e.clientX, y: e.clientY });
+    } else {
+      lastTap.current = { at: now, x: e.clientX, y: e.clientY };
+    }
+  };
+
   return (
-    <div className={out ? `${styles.row} ${styles.rowOut}` : styles.row} data-message-id={m.id}>
+    <div
+      className={out ? `${styles.row} ${styles.rowOut}` : styles.row}
+      data-message-id={m.id}
+      onContextMenu={onContextMenu}
+      onClickCapture={(e) => void hold.swallow(e)}
+      onPointerUp={onPointerUp}
+      {...(actionable ? { onPointerDown: hold.onPointerDown, onPointerMove: hold.onPointerMove, onPointerCancel: hold.onPointerCancel, onPointerLeave: hold.onPointerLeave } : {})}
+    >
       {showAvatar !== undefined ? (
         <span className={styles.avatarSlot}>
           {showAvatar && sender ? <Avatar size={34} name={sender.name} color={sender.avatarColor} image={sender.avatarImage} /> : null}
         </span>
       ) : null}
       <div className={bubbleClass}>{body}</div>
-      {props.onReply && !m.pending ? (
-        <button type="button" className={styles.replyButton} title="Ответить" onClick={() => props.onReply?.(m)}>
-          <Icon name="Reply" size={16} />
-        </button>
+      {!m.pending && (props.onReply || props.onOpenMenu) ? (
+        <span className={styles.actions}>
+          {props.onReply ? (
+            <button type="button" className={styles.actionButton} title="Ответить" onClick={() => props.onReply?.(m)}>
+              <Icon name="Reply" size={16} />
+            </button>
+          ) : null}
+          {props.onOpenMenu ? (
+            <button type="button" className={styles.actionButton} title="Ещё" onClick={(e) => props.onOpenMenu?.(m, { x: e.clientX, y: e.clientY })}>
+              <Icon name="More" size={16} />
+            </button>
+          ) : null}
+        </span>
       ) : null}
     </div>
   );
