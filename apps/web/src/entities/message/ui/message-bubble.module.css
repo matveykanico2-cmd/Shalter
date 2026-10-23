@@ -32,6 +32,9 @@
 
 .out {
   --accent-line: var(--color-bubble-out-accent);
+  /* Кнопки и полосы плееров в своём пузыре (в тёмной теме он фиолетовый). */
+  --media-accent: var(--color-bubble-out-accent);
+  --media-on-accent: var(--color-bubble-out);
   --link-color: var(--color-bubble-out-link, var(--color-accent));
   background: var(--color-bubble-out);
 }
@@ -363,4 +366,32 @@
   .row {
     -webkit-touch-callout: none;
   }
+}
+
+/* Фото/видео без подписи: пузырь — сама картинка, время поверх неё. */
+.mediaOnly {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.mediaOnly > :first-child:not(.sender) {
+  margin-bottom: 0;
+}
+
+.metaOverlay {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.metaOverlay .meta,
+.out .metaOverlay .meta {
+  top: 0;
+  float: none;
+  margin: 0;
+  color: #fff;
 }

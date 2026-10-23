@@ -3,11 +3,14 @@ import { type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode,
 import { useLongPress } from "@/shared/lib/use-long-press";
 import { Avatar, Icon } from "@/shared/ui";
 
+import { isMediaOnly, linkPreviewOf } from "../lib/attachments";
 import { isCallLogMessage, isReadByOthers, NAME_COLORS, timeLabel } from "../lib/message-meta";
 import { callLogInfo, messagePreview, stripCustomEmoji } from "../lib/message-preview";
 import { reactionsOf } from "../lib/reactions";
 import type { FeedMessage, Message, ReplyTarget } from "../model/types";
 
+import { MessageAttachments } from "./attachments/message-attachments";
+import { LinkPreviewCard } from "./attachments/misc-attachments";
 import styles from "./message-bubble.module.css";
 import { MessageText } from "./message-text";
 
@@ -41,6 +44,10 @@ type Props = {
   /** Полоса реакций — двойное нажатие. */
   onOpenReactions?: (m: Message, at: Point) => void;
   onReact?: (m: Message, emoji: string) => void;
+  /** Открыть фото или видео этого сообщения в просмотрщике. */
+  onOpenMedia?: (m: Message, url: string) => void;
+  /** Чат с запретом сохранения: без кнопок «скачать». */
+  protectedContent?: boolean;
 };
 
 type Point = { x: number; y: number };
@@ -64,8 +71,10 @@ export function MessageBubble(props: Props) {
   const out = mine && !isChannel;
   const isCall = isCallLogMessage(m);
   const sticker = m.type === "sticker" ? (m.sticker as { emoji?: string } | undefined) : undefined;
-  const attachmentLine = attachmentLabel(m);
+  const giftLine = m.type === "gift" ? messagePreview(m) : null;
   const text = !isCall && !sticker && m.text?.trim() ? m.text : null;
+  const mediaOnly = !isCall && isMediaOnly(m);
+  const preview = linkPreviewOf(m);
 
   const meta = (
     <span className={styles.meta}>
@@ -101,7 +110,18 @@ export function MessageBubble(props: Props) {
     );
   }
   if (m.replyToId) body.push(<ReplyQuote key="reply" target={props.replyTo} name={props.replyToName} onJumpTo={props.onJumpTo} />);
-  if (attachmentLine) body.push(<p key="att" className={styles.attachment}>{attachmentLine}</p>);
+  if (giftLine) body.push(<p key="gift" className={styles.attachment}>{giftLine}</p>);
+  if (m.attachments?.length && !isCall) {
+    body.push(
+      <MessageAttachments
+        key="att"
+        message={m}
+        canDownload={!props.protectedContent}
+        onOpenMedia={props.onOpenMedia ? (url) => props.onOpenMedia?.(m, url) : undefined}
+        onDoubleTap={!m.pending && props.onOpenReactions ? (at) => props.onOpenReactions?.(m, at) : undefined}
+      />
+    );
+  }
 
   if (isCall) body.push(<CallBody key="call" message={m} mine={mine} />);
   else if (sticker) {
@@ -112,7 +132,8 @@ export function MessageBubble(props: Props) {
     );
   }
   const reactions = reactionsOf(m);
-  if (text) body.push(<MessageText key="text" text={text} meta={reactions.length ? null : meta} />);
+  if (text) body.push(<MessageText key="text" text={text} meta={reactions.length || preview ? null : meta} />);
+  if (preview) body.push(<LinkPreviewCard key="preview" preview={preview} />);
   if (reactions.length) {
     body.push(
       <div key="reactions" className={styles.reactions}>
@@ -136,9 +157,16 @@ export function MessageBubble(props: Props) {
         {!isCall ? meta : null}
       </div>
     );
-  } else if (!text && !isCall) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
+  } else if (mediaOnly) {
+    // Фото/видео без подписи: время лежит поверх медиа (как в tweb).
+    body.push(
+      <span key="meta" className={styles.metaOverlay}>
+        {meta}
+      </span>
+    );
+  } else if ((!text || preview) && !isCall) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
 
-  const bubbleClass = [styles.bubble, out ? styles.out : styles.in, groupStart ? "" : styles.joinTop, groupEnd ? "" : styles.joinBottom, sticker ? styles.stickerBubble : ""]
+  const bubbleClass = [styles.bubble, out ? styles.out : styles.in, groupStart ? "" : styles.joinTop, groupEnd ? "" : styles.joinBottom, sticker ? styles.stickerBubble : "", mediaOnly ? styles.mediaOnly : ""]
     .filter(Boolean)
     .join(" ");
 
@@ -252,14 +280,4 @@ function CallBody({ message, mine }: { message: Message; mine: boolean }) {
       </span>
     </div>
   );
-}
-
-/**
- * Вложения (фото, файлы, опросы, подарки…) рисуются следующими шагами этапа 4 —
- * пока подпись одной строкой, как в превью списка чатов, чтобы ничего не терялось.
- */
-function attachmentLabel(m: Message) {
-  if (m.type === "gift") return messagePreview(m);
-  if (!m.attachments?.length) return null;
-  return messagePreview({ ...m, text: null });
 }

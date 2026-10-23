@@ -1,0 +1,43 @@
+import { type RefObject, useEffect, useState } from "react";
+
+/** Играет ли и сколько прошло — для кнопки, полоски и таймера плеера. */
+export function useMediaProgress(ref: RefObject<HTMLMediaElement | null>, knownDuration = 0) {
+  const [state, setState] = useState({ playing: false, current: 0, duration: knownDuration });
+  useEffect(() => {
+    const media = ref.current;
+    if (!media) return;
+    const sync = () =>
+      setState({
+        playing: !media.paused && !media.ended,
+        current: media.ended ? 0 : media.currentTime,
+        duration: knownDuration > 0 ? knownDuration : Number.isFinite(media.duration) && media.duration > 0 ? media.duration : 0,
+      });
+    const events = ["play", "pause", "ended", "timeupdate", "seeking", "loadedmetadata"] as const;
+    for (const ev of events) media.addEventListener(ev, sync);
+    return () => {
+      for (const ev of events) media.removeEventListener(ev, sync);
+    };
+  }, [ref, knownDuration]);
+  return state;
+}
+
+/** Перемотка по полосе: нажатие — прыжок, перетаскивание — плавно. */
+export function useSeek(ref: RefObject<HTMLMediaElement | null>, duration: number) {
+  const seek = (e: React.PointerEvent<HTMLElement>) => {
+    const el = ref.current;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!el || !rect.width || !duration) return;
+    el.currentTime = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)) * duration;
+  };
+  return {
+    onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      seek(e);
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) seek(e);
+    },
+  };
+}

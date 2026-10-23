@@ -2,16 +2,17 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { canPin, MessageMenus, useMessageActions, useMessageMenu } from "@/features/message-actions";
+import { canPin, isProtectedChat, MessageMenus, useMessageActions, useMessageMenu } from "@/features/message-actions";
 
 import { chatCache, type ChatMember, type ChatSummary } from "@/entities/chat";
 import { type FeedMessage, loadOlderHistory, type Message, MessageBubble, messageQueries, type MessageSender, type ReplyTarget } from "@/entities/message";
 import type { SelfUser } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
-import { Icon } from "@/shared/ui";
+import { Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
 
 import { feedRows, lastEditable } from "../lib/feed-rows";
+import { buildGallery, galleryIndex } from "../lib/gallery";
 import { useHistorySync } from "../model/use-history-sync";
 
 import styles from "./message-feed.module.css";
@@ -69,6 +70,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
   const [atBottom, setAtBottom] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<{ items: ViewerItem[]; index: number } | null>(null);
 
   // eslint-disable-next-line react-hooks/incompatible-library -- виртуализатор сам следит за прокруткой
   const virtualizer = useVirtualizer({
@@ -176,6 +178,12 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
   }
 
   const senderName = (m: Message) => senders(m)?.name ?? null;
+  const protectedContent = isProtectedChat(chat);
+  const openMedia = (m: Message, url: string) => {
+    const items = buildGallery(data?.messages ?? [], (x) => (x.senderId === meId && !x.anonymous ? "Вы" : senderName(x)));
+    const index = galleryIndex(items, m.id, url);
+    if (index >= 0) setViewer({ items, index });
+  };
 
   return (
     <div className={styles.feed}>
@@ -213,6 +221,8 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
                         onOpenMenu={menu.openMenu}
                         onOpenReactions={menu.openReactions}
                         onReact={actions.react}
+                        onOpenMedia={openMedia}
+                        protectedContent={protectedContent}
                       />
                     </div>
                   )}
@@ -237,6 +247,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
           <Icon name="ChevronDown" size={24} />
         </button>
       ) : null}
+      {viewer ? <MediaViewer items={viewer.items} index={viewer.index} canDownload={!protectedContent} onClose={() => setViewer(null)} /> : null}
       <MessageMenus control={menu} actions={actions} chat={chat} me={me} senderName={senderName} onReply={isChannel ? undefined : onReply} onEdit={onEdit} />
     </div>
   );
@@ -256,9 +267,12 @@ type RowProps = {
   onOpenMenu: (m: Message, at: { x: number; y: number }) => void;
   onOpenReactions: (m: Message, at: { x: number; y: number }) => void;
   onReact: (m: Message, emoji: string) => void;
+  onOpenMedia: (m: Message, url: string) => void;
+  protectedContent: boolean;
 };
 
-function MessageRow({ message, meId, groupStart, groupEnd, isGroup, isChannel, senders, replyTo, onReply, onJumpTo, onOpenMenu, onOpenReactions, onReact }: RowProps) {
+function MessageRow(props: RowProps) {
+  const { message, meId, groupStart, groupEnd, isGroup, isChannel, senders, replyTo, onReply, onJumpTo, onOpenMenu, onOpenReactions, onReact } = props;
   const mine = message.senderId === meId;
   const replyToName = replyTo && !("deleted" in replyTo) ? (senders(replyTo)?.name ?? null) : null;
   return (
@@ -280,6 +294,8 @@ function MessageRow({ message, meId, groupStart, groupEnd, isGroup, isChannel, s
       onOpenMenu={onOpenMenu}
       onOpenReactions={onOpenReactions}
       onReact={onReact}
+      onOpenMedia={props.onOpenMedia}
+      protectedContent={props.protectedContent}
     />
   );
 }

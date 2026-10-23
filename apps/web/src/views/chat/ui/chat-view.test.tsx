@@ -410,3 +410,53 @@ describe("шапка чата", () => {
     expect(await screen.findByText("в сети")).toBeTruthy();
   });
 });
+
+describe("вложения", () => {
+  it("фото открывается в просмотре с автором и подписью; стрелки листают, Escape закрывает", async () => {
+    const first = msg("закат", { attachments: [{ kind: "image", url: "/uploads/a_0000000000000001.jpg", width: 800, height: 600 }] });
+    const second = msg("", { senderId: ME.id, attachments: [{ kind: "image", url: "/uploads/b_0000000000000002.jpg" }] });
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([first, second]) });
+    renderChat();
+    await screen.findByText("закат");
+    fireEvent.click(within(bubble(first.id)).getByRole("button", { name: "Фото" }));
+    const viewer = await screen.findByRole("dialog", { name: "Просмотр медиа" });
+    expect(within(viewer).getByText("Лена")).toBeTruthy();
+    expect(within(viewer).getByText(/1 из 2/)).toBeTruthy();
+    expect(within(viewer).getByText("закат")).toBeTruthy();
+    expect(within(viewer).getByTitle("Скачать")).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    expect(within(viewer).getByText("Вы")).toBeTruthy();
+    expect(within(viewer).getByText(/2 из 2/)).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    // Фото без подписи — время поверх картинки, отдельной строки текста нет.
+    expect(within(bubble(second.id)).queryByText("закат")).toBeNull();
+  });
+
+  it("два фото — один альбом; файл и голосовое; в защищённой личке скачать нельзя", async () => {
+    const dm = chat({ type: "dm", title: null, protectedBy: [LENA.id], otherUser: { ...LENA, online: false } as ChatSummary["otherUser"] });
+    const album = msg("", { attachments: [{ kind: "image", url: "/uploads/a" }, { kind: "video", url: "/uploads/v", durationSec: 65 }] });
+    const file = msg("", { attachments: [{ kind: "file", url: "/uploads/f", name: "Отчёт.pdf", size: 1.5 * 1024 * 1024 }] });
+    const voice = msg("", { attachments: [{ kind: "voice", url: "/uploads/voice", durationSec: 7, waveform: [1, 31, 15], transcript: "привет" }] });
+    fakeApi({ "GET /api/chats/c_1": card(dm), [HISTORY]: page([album, file, voice]) });
+    renderChat(dm);
+    await screen.findByText("Отчёт.pdf");
+
+    expect(within(bubble(album.id)).getByRole("button", { name: "Фото" })).toBeTruthy();
+    expect(within(bubble(album.id)).getByRole("button", { name: "Видео" })).toBeTruthy();
+    expect(within(bubble(album.id)).getByText("1:05")).toBeTruthy();
+    expect(within(bubble(file.id)).getByText("1,5 МБ")).toBeTruthy();
+    expect(bubble(file.id).querySelector("a[download]")).toBeNull();
+
+    expect(within(bubble(voice.id)).getByRole("button", { name: "Слушать" })).toBeTruthy();
+    expect(within(bubble(voice.id)).getByText("0:07")).toBeTruthy();
+    fireEvent.click(within(bubble(voice.id)).getByTitle("Расшифровка"));
+    expect(within(bubble(voice.id)).getByText("привет")).toBeTruthy();
+
+    fireEvent.click(within(bubble(album.id)).getByRole("button", { name: "Видео" }));
+    const viewer = await screen.findByRole("dialog", { name: "Просмотр медиа" });
+    expect(within(viewer).queryByTitle("Скачать")).toBeNull();
+  });
+});
