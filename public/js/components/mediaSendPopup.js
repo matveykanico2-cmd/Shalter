@@ -157,7 +157,8 @@ export function openMediaSendPopup({ picks, onSend, onCancel, allowPaid = false 
    }
   function send() {
     if (!items.length) return;
-    const out = items.map((it) => ({ file: it.file, kind: fileKind(it.file) }));
+    // «Без сжатия» — файлом, как в Telegram (раньше переключатель менял только вид окна).
+    const out = items.map((it) => ({ file: it.file, kind: asFiles ? "file" : fileKind(it.file) }));
     close();
     onSend({ picks: out, paidStars, spoiler });
   }

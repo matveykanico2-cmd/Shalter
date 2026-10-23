@@ -8,7 +8,7 @@ import type { Message } from "@/entities/message";
 import { sessionQueries } from "@/entities/session";
 
 import { ws } from "@/shared/api";
-import { fakeApi, FakeSocket, fakeSocket } from "@/shared/lib/test";
+import { fakeApi, FakeSocket, fakeSocket, FakeXhr, fakeXhr } from "@/shared/lib/test";
 import { Toaster } from "@/shared/ui";
 
 import { ChatView } from "./chat-view";
@@ -425,9 +425,13 @@ describe("вложения", () => {
     expect(within(viewer).getByText("закат")).toBeTruthy();
     expect(within(viewer).getByTitle("Скачать")).toBeTruthy();
 
-    fireEvent.keyDown(document, { key: "ArrowRight" });
+    // Клавиши слушает эффект — он подключается чуть позже, чем окно появилось в DOM.
+    // Лишние нажатия на последнем фото ничего не делают.
+    await waitFor(() => {
+      fireEvent.keyDown(document, { key: "ArrowRight" });
+      expect(within(viewer).getByText(/2 из 2/)).toBeTruthy();
+    });
     expect(within(viewer).getByText("Вы")).toBeTruthy();
-    expect(within(viewer).getByText(/2 из 2/)).toBeTruthy();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
 
@@ -458,5 +462,69 @@ describe("вложения", () => {
     fireEvent.click(within(bubble(album.id)).getByRole("button", { name: "Видео" }));
     const viewer = await screen.findByRole("dialog", { name: "Просмотр медиа" });
     expect(within(viewer).queryByTitle("Скачать")).toBeNull();
+  });
+});
+
+describe("отправка файлов", () => {
+  const png = (name: string) => new File(["x"], name, { type: "image/png" });
+  const pick = (testId: string, files: File[]) => fireEvent.change(screen.getByTestId(testId), { target: { files } });
+
+  it("фото: окно отправки, загрузка, сообщение с подписью из поля и спойлером", async () => {
+    fakeXhr();
+    const sent = msg("море", { senderId: ME.id, attachments: [{ kind: "image", url: "/uploads/a" }, { kind: "image", url: "/uploads/b" }] });
+    const { calls } = fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([]), "POST /api/chats/c_1/messages": { body: { message: sent } }, ...typingRoutes });
+    renderChat();
+    await screen.findByText("Сообщений пока нет — напишите первым");
+    fireEvent.change(screen.getByRole("textbox", { name: "Сообщение" }), { target: { value: "море" } });
+
+    pick("attach-media", [png("1.png"), png("2.png")]);
+    const dialog = screen.getByRole("dialog", { name: "Отправить 2 фото" });
+    fireEvent.click(within(dialog).getByTitle("Ещё"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Скрыть под спойлер" }));
+    expect(within(dialog).getByText("🫥 Фото и видео будут размыты — откроются по нажатию")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Отправить" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await waitFor(() => expect(FakeXhr.requests).toHaveLength(2));
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(FakeXhr.requests.map((x) => x.params.kind)).toEqual(["image", "image"]);
+    act(() => FakeXhr.requests[0]!.respond(200, { url: "/uploads/a", name: "1.png" }));
+    act(() => FakeXhr.requests[1]!.respond(200, { url: "/uploads/b", name: "2.png" }));
+
+    await waitFor(() => expect(calls.some((c) => c.key === "POST /api/chats/c_1/messages")).toBe(true));
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({
+      text: "море",
+      attachments: [
+        { kind: "image", url: "/uploads/a", spoiler: true },
+        { kind: "image", url: "/uploads/b", spoiler: true },
+      ],
+    });
+    expect((screen.getByRole("textbox", { name: "Сообщение" }) as HTMLTextAreaElement).value).toBe("");
+    // У собеседника — «отправляет фото», потом отбой.
+    expect(calls.filter((c) => c.key === "POST /api/chats/c_1/typing").map((c) => (c.body as { action: string }).action)).toEqual(
+      expect.arrayContaining(["upload_photo", "cancel"])
+    );
+    await waitFor(() => expect(bubbles()).toEqual([sent.id]));
+  });
+
+  it("без сжатия — файлом; отменённое не отправляется; ошибка загрузки — над полем", async () => {
+    fakeXhr();
+    const { calls } = fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([]), ...typingRoutes });
+    renderChat();
+    await screen.findByText("Сообщений пока нет — напишите первым");
+
+    pick("attach-media", [png("1.png"), png("2.png")]);
+    fireEvent.click(screen.getByTitle("Ещё"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Отправить без сжатия" }));
+    expect(screen.getByRole("dialog", { name: "Отправить 2 файла" })).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Отправить" }));
+    await waitFor(() => expect(FakeXhr.requests).toHaveLength(2));
+    expect(FakeXhr.requests.map((x) => x.params.kind)).toEqual(["file", "file"]);
+
+    fireEvent.click(screen.getAllByTitle("Отменить")[0]!);
+    act(() => FakeXhr.requests[1]!.respond(413, {}));
+    expect(await screen.findByText("Файл слишком большой для сервера")).toBeTruthy();
+    expect(calls.some((c) => c.key === "POST /api/chats/c_1/messages")).toBe(false);
+    expect(screen.queryByRole("listitem")).toBeNull();
   });
 });

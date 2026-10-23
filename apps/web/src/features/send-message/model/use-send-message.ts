@@ -6,14 +6,14 @@ import { useCallback } from "react";
 import { chatCache } from "@/entities/chat";
 import { historyCache, type Message, messageQueries } from "@/entities/message";
 
-import { sendMessage } from "../api/send-message";
+import { type OutgoingAttachment, sendMessage } from "../api/send-message";
 
 let localSeq = 0;
 
 export function useSendMessage(chatId: string, meId: string, channel: boolean) {
   const client = useQueryClient();
   return useCallback(
-    async (text: string, replyTo: Message | null) => {
+    async (text: string, replyTo: Message | null, attachments: OutgoingAttachment[] = []) => {
       const localId = `local_${++localSeq}_${Date.now()}`;
       historyCache.addPending(client, chatId, {
         id: localId,
@@ -24,7 +24,7 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean) {
         createdAt: new Date().toISOString(),
         pinned: false,
         replyToId: replyTo?.id ?? null,
-        attachments: [],
+        attachments,
         reactions: [],
         readByIds: [],
         deletedForIds: [],
@@ -32,7 +32,7 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean) {
         views: null,
       });
       try {
-        const { message } = await sendMessage(chatId, { text, replyToId: replyTo?.id ?? null, clientId: localId }, channel);
+        const { message } = await sendMessage(chatId, { text, replyToId: replyTo?.id ?? null, clientId: localId, attachments }, channel);
         historyCache.confirmPending(client, chatId, localId, message);
         chatCache.noteMessage(client, chatId, message);
         return message;

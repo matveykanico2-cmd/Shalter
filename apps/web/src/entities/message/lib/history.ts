@@ -22,7 +22,8 @@ export function mergeLatest(prev: History | undefined, page: HistoryPage): Histo
   }
   const waiting = new Set(unconfirmed);
   const cutoff = fresh[0]?.createdAt;
-  const older = prev.messages.filter((m) => !m.pending && (cutoff ? m.createdAt < cutoff : !freshIds.has(m.id)));
+  // Без свежей страницы неподтверждённые встанут ниже, в notYetListed, — здесь их не берём.
+  const older = prev.messages.filter((m) => !m.pending && (cutoff ? m.createdAt < cutoff : !freshIds.has(m.id) && !waiting.has(m.id)));
   const notYetListed = prev.messages.filter((m) => waiting.has(m.id) && !freshIds.has(m.id) && (!cutoff || m.createdAt >= cutoff));
   const stillPending = prev.messages.filter((m) => m.pending);
   return {

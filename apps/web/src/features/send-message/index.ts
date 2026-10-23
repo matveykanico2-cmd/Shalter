@@ -1,1 +1,1 @@
-export { Composer } from "./ui/composer";
+export { Composer, type ComposerHandle } from "./ui/composer";

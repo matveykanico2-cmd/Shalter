@@ -109,6 +109,14 @@ describe("лента чата: события и отправка", () => {
   });
 });
 
+describe("лента чата: пустой ответ сверки", () => {
+  it("своё неподтверждённое сообщение в пустом чате не задваивается", () => {
+    const sent = msg("mine", 1, { senderId: "u_me" });
+    const h = confirmPending(addPending(emptyHistory(), msg("local_1", 1, { senderId: "u_me" })), "local_1", sent);
+    expect(ids(mergeLatest(h, page([])))).toEqual(["mine"]);
+  });
+});
+
 describe("лента чата: свои действия и откат", () => {
   const base = (): History => ({ ...emptyHistory(), messages: [msg("a", 1), msg("b", 2), msg("c", 3)] });
 

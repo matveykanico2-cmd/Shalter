@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type ClipboardEvent, type KeyboardEvent, type Ref, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 
 import { chatCache } from "@/entities/chat";
 import { type Message, messagePreview, stripCustomEmoji } from "@/entities/message";
@@ -7,10 +7,20 @@ import { type Message, messagePreview, stripCustomEmoji } from "@/entities/messa
 import { errorText } from "@/shared/lib/error-text";
 import { Icon } from "@/shared/ui";
 
-import { saveDraft, sendTyping } from "../api/send-message";
+import { type OutgoingAttachment, saveDraft, sendTyping } from "../api/send-message";
+import { chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
 import { useSendMessage } from "../model/use-send-message";
+import { useUploads } from "../model/use-uploads";
 
+import { AttachButton } from "./attach-button";
 import styles from "./composer.module.css";
+import { type MediaSendChoice, SendMediaDialog } from "./send-media-dialog";
+import { UploadStrip } from "./upload-strip";
+
+export type ComposerHandle = {
+  /** Файлы, брошенные на чат, — в окно отправки. */
+  attach: (files: File[]) => void;
+};
 
 // Как public/js/components/composer.js: «печатает» не чаще раза в 2,5 с, черновик на
 // сервер — когда набор затих.
@@ -35,12 +45,13 @@ type Props = {
   onCancelEdit?: () => void;
   /** Стрелка вверх в пустом поле — править последнее своё сообщение. */
   onEditLast?: () => void;
+  ref?: Ref<ComposerHandle>;
 };
 
 /** Поле ввода: текст, ответ на сообщение, Enter — отправить, Shift+Enter — новая строка. */
 export function Composer(props: Props) {
   const { chatId, meId, channel, initialDraft, placeholder = "Сообщение", replyTo, replyToName, onCancelReply, onSent } = props;
-  const { editing = null, onSaveEdit, onCancelEdit, onEditLast } = props;
+  const { editing = null, onSaveEdit, onCancelEdit, onEditLast, ref } = props;
   const client = useQueryClient();
   const send = useSendMessage(chatId, meId, channel);
   const [text, setText] = useState(initialDraft);
@@ -54,6 +65,13 @@ export function Composer(props: Props) {
   }
   const [error, setError] = useState<string | null>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
+  const uploads = useUploads(chatId);
+  const [picked, setPicked] = useState<File[] | null>(null);
+  // Подпись к файлам — то, что в поле, когда загрузка закончилась.
+  const latestText = useRef(text);
+  useEffect(() => {
+    latestText.current = text;
+  }, [text]);
   const lastTyping = useRef(0);
   const draftTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -70,6 +88,11 @@ export function Composer(props: Props) {
   }, [replyTo, editing]);
 
   useEffect(() => () => clearTimeout(draftTimer.current), []);
+
+  const attach = (files: File[]) => {
+    if (!editing && files.length) setPicked(files);
+  };
+  useImperativeHandle(ref, () => ({ attach }));
 
   const scheduleDraft = (value: string) => {
     clearTimeout(draftTimer.current);
@@ -111,6 +134,44 @@ export function Composer(props: Props) {
       setText((current) => current || value);
       setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
     });
+  };
+
+  // Как composer.js: выбранное сначала в окне отправки, потом загрузка, потом сообщение
+  // (по 10 вложений; подпись — у первого).
+  const sendMedia = async ({ picks, spoiler }: MediaSendChoice) => {
+    setPicked(null);
+    setError(null);
+    const { uploaded, error: uploadError, total } = await uploads.upload(picks);
+    if (uploadError) {
+      setError(
+        uploaded.length
+          ? `Загружено ${uploaded.length} из ${total} — часть файлов не отправилась: ${uploadError}`
+          : uploadError || `Не удалось загрузить файл${total > 1 ? "ы" : ""}`
+      );
+    }
+    if (!uploaded.length) return;
+    const caption = latestText.current.trim();
+    const reply = replyTo;
+    const atts: OutgoingAttachment[] = uploaded.map((a) => (spoiler && (a.kind === "image" || a.kind === "video") ? { ...a, spoiler: true } : a));
+    setText("");
+    onCancelReply();
+    clearTimeout(draftTimer.current);
+    chatCache.setDraft(client, chatId, "");
+    saveDraft(chatId, "").catch(() => {});
+    onSent?.();
+    for (const [i, part] of chunks(atts, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
+      await send(i === 0 ? caption : "", i === 0 ? reply : null, part).catch((err: unknown) => {
+        setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
+      });
+    }
+  };
+
+  // Картинка или файл из буфера обмена — в окно отправки.
+  const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = [...(e.clipboardData?.files ?? [])];
+    if (!files.length || editing) return;
+    e.preventDefault();
+    attach(files);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -161,8 +222,11 @@ export function Composer(props: Props) {
           </button>
         </div>
       ) : null}
+      <UploadStrip tiles={uploads.tiles} onCancel={uploads.cancel} />
       <div className={styles.row}>
-        <textarea
+        <div className={styles.field}>
+          {editing ? <span className={styles.attachGap} /> : <AttachButton onFiles={attach} />}
+          <textarea
           ref={textarea}
           className={styles.input}
           rows={1}
@@ -171,11 +235,14 @@ export function Composer(props: Props) {
           aria-label={placeholder}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
         />
+        </div>
         <button type="button" className={styles.send} title={editing ? "Сохранить" : "Отправить"} disabled={!text.trim()} onClick={submit}>
           <Icon name={editing ? "Check" : "Send"} size={22} />
         </button>
       </div>
+      {picked ? <SendMediaDialog files={picked} onSend={(choice) => void sendMedia(choice)} onClose={() => setPicked(null)} /> : null}
     </div>
   );
 }

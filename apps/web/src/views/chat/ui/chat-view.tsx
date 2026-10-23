@@ -1,11 +1,11 @@
-import { type ReactNode, useRef, useState } from "react";
+import { type DragEvent, type ReactNode, useRef, useState } from "react";
 import { useParams } from "react-router";
 
 import { ChatHeader } from "@/widgets/chat-header";
 import { MessageFeed, type MessageFeedHandle } from "@/widgets/message-feed";
 
 import { useMessageActions } from "@/features/message-actions";
-import { Composer } from "@/features/send-message";
+import { Composer, type ComposerHandle } from "@/features/send-message";
 
 import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, useChatCard, useChatFromList } from "@/entities/chat";
 import type { Message } from "@/entities/message";
@@ -35,6 +35,8 @@ export function ChatView() {
 
 function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser }) {
   const feed = useRef<MessageFeedHandle>(null);
+  const composer = useRef<ComposerHandle>(null);
+  const drop = useFileDrop((files) => composer.current?.attach(files));
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const actions = useMessageActions(chat, me);
@@ -50,7 +52,7 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
   const senderName = (m: Message) => (m.anonymous ? title : m.senderId === me.id ? me.name : (members.find((u) => u.id === m.senderId) ?? chat.otherUser)?.name ?? null);
 
   return (
-    <section className={styles.view} aria-label={title}>
+    <section className={drop.active ? `${styles.view} ${styles.dropActive}` : styles.view} aria-label={title} {...drop.handlers}>
       <ChatHeader chat={chat} members={members} meId={me.id} />
       <div className={styles.body}>
         <MessageFeed ref={feed} chat={chat} members={members} me={me} onReply={reply} onEdit={edit} />
@@ -59,6 +61,7 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
           me={me}
           composer={
             <Composer
+              ref={composer}
               chatId={chat.id}
               meId={me.id}
               channel={chat.type === "channel"}
@@ -96,4 +99,40 @@ function Bottom({ chat, me, composer }: { chat: ChatSummary; me: SelfUser; compo
     }
   }
   return composer;
+}
+
+const hasFiles = (e: DragEvent) => [...(e.dataTransfer?.types ?? [])].includes("Files");
+
+/** Файлы, брошенные на чат, — в окно отправки (как mainCol drop в chatView.js). */
+function useFileDrop(onFiles: (files: File[]) => void) {
+  const depth = useRef(0);
+  const [active, setActive] = useState(false);
+  return {
+    active,
+    handlers: {
+      onDragEnter: (e: DragEvent) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        depth.current++;
+        setActive(true);
+      },
+      onDragOver: (e: DragEvent) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      },
+      onDragLeave: () => {
+        depth.current = Math.max(0, depth.current - 1);
+        if (!depth.current) setActive(false);
+      },
+      onDrop: (e: DragEvent) => {
+        depth.current = 0;
+        setActive(false);
+        const files = [...(e.dataTransfer?.files ?? [])];
+        if (!files.length) return;
+        e.preventDefault();
+        onFiles(files);
+      },
+    },
+  };
 }
