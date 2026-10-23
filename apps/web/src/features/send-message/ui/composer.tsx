@@ -17,6 +17,7 @@ import { useUploads } from "../model/use-uploads";
 import { AttachButton } from "./attach-button";
 import { ChecklistDialog } from "./checklist-dialog";
 import styles from "./composer.module.css";
+import { EmojiButton } from "./emoji-picker";
 import { PollDialog } from "./poll-dialog";
 import { RecordButtons } from "./record-buttons";
 import { type HoldControl, RecordingBar, type RecordingDone } from "./recording-bar";
@@ -123,6 +124,23 @@ export function Composer(props: Props) {
       sendTyping(chatId).catch(() => {});
     }
     scheduleDraft(value);
+  };
+
+  // Эмодзи из панели — в место курсора, как insertPlainEmoji в composer.js.
+  const caret = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = textarea.current;
+    if (!el || caret.current === null) return;
+    el.setSelectionRange(caret.current, caret.current);
+    caret.current = null;
+  }, [text]);
+  const insertEmoji = (emoji: string) => {
+    const el = textarea.current;
+    const pos = el?.selectionStart ?? text.length;
+    caret.current = pos + emoji.length;
+    onChange(text.slice(0, pos) + emoji + text.slice(pos));
+    // На телефоне клавиатура не открывается поверх панели — как в tweb.
+    if (!window.matchMedia?.("(pointer: coarse)").matches) el?.focus({ preventScroll: true });
   };
 
   const submit = () => {
@@ -311,6 +329,7 @@ export function Composer(props: Props) {
                 }}
               />
             ) : null}
+            <EmojiButton onPick={insertEmoji} />
           </div>
         )}
         {recording && !recording.hold ? null : !text.trim() && !editing && canRecord ? (

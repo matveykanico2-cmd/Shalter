@@ -19,6 +19,8 @@ type Props = {
   /** Над пунктами — например, полоса реакций. */
   header?: ReactNode;
   label?: string;
+  /** Панель шире обычного меню (эмодзи, стикеры, все реакции) — ширину задаёт она. */
+  wide?: boolean;
   onClose: () => void;
 };
 
@@ -29,19 +31,27 @@ const SHEET_QUERY = "(max-width: 560px)";
  * Выпадающее меню у точки нажатия — как openDropdownMenu в public/js/components/dropdownMenu.js;
  * на узком экране — шторкой снизу.
  */
-export function Menu({ at, items = [], header, label = "Меню", onClose }: Props) {
+export function Menu({ at, items = [], header, label = "Меню", wide = false, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [sheet] = useState(() => typeof window.matchMedia === "function" && window.matchMedia(SHEET_QUERY).matches);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
   // Меню не выходит за край окна: у правого и нижнего края открывается влево и вверх.
+  // Содержимое выросло (раскрыли полный список реакций) — меняем место заново.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || sheet) return;
-    const { width, height } = el.getBoundingClientRect();
-    const left = Math.max(EDGE, Math.min(at.x, window.innerWidth - width - EDGE));
-    const top = at.y + height + EDGE > window.innerHeight ? Math.max(EDGE, at.y - height) : at.y;
-    setPos({ left, top });
+    const place = () => {
+      const { width, height } = el.getBoundingClientRect();
+      const left = Math.max(EDGE, Math.min(at.x, window.innerWidth - width - EDGE));
+      const top = at.y + height + EDGE > window.innerHeight ? Math.max(EDGE, at.y - height) : at.y;
+      setPos((p) => (p?.left === left && p.top === top ? p : { left, top }));
+    };
+    place();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(place);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [at.x, at.y, sheet]);
 
   useEffect(() => {
@@ -80,7 +90,7 @@ export function Menu({ at, items = [], header, label = "Меню", onClose }: Pr
   return createPortal(
     <>
       {sheet ? <div className={styles.backdrop} /> : null}
-      <div ref={ref} className={sheet ? `${styles.menu} ${styles.sheet}` : styles.menu} style={style} role="menu" aria-label={label} onKeyDown={onKeyDown}>
+      <div ref={ref} className={[styles.menu, sheet ? styles.sheet : "", wide ? styles.wide : ""].filter(Boolean).join(" ")} style={style} role="menu" aria-label={label} onKeyDown={onKeyDown}>
         {header}
         {items.length ? (
         <div className={styles.list}>

@@ -331,6 +331,71 @@ describe("действия с сообщением", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: "😂 1" })).toBeNull());
   });
 
+  it("плашка реакций: Premium с замком, ▾ — все эмодзи и стикеры; кто поставил — правой кнопкой", async () => {
+    const theirs = msg("ура", { reactions: [{ emoji: "🔥", userIds: [LENA.id] }] });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([theirs]),
+      [`POST /api/chats/c_1/messages/${theirs.id}/react`]: (body) => ({
+        body: { message: { ...theirs, reactions: [...theirs.reactions, { emoji: String(body.emoji), userIds: [ME.id] }] } },
+      }),
+    });
+    renderChat();
+    await screen.findByText("ура");
+    const openBar = () => {
+      fireEvent.pointerUp(bubble(theirs.id), { clientX: 5, clientY: 5 });
+      fireEvent.pointerUp(bubble(theirs.id), { clientX: 6, clientY: 5 });
+      return screen.getByRole("menu", { name: "Реакции" });
+    };
+
+    // Без Premium его реакции видны, но не ставятся.
+    const locked = within(openBar()).getByRole("button", { name: "💎" });
+    expect(locked.title).toBe("Реакция для Premium");
+    fireEvent.click(locked);
+    expect(await screen.findByText("Реакция для Premium")).toBeTruthy();
+    expect(calls.some((c) => c.key.endsWith("/react"))).toBe(false);
+
+    fireEvent.click(within(openBar()).getByRole("button", { name: "Все реакции" }));
+    const bar = screen.getByRole("menu", { name: "Реакции" });
+    expect(within(bar).getByText("Эмодзи")).toBeTruthy();
+    fireEvent.click(within(bar).getByRole("button", { name: "Привет" }));
+    expect(calls.find((c) => c.key.endsWith("/react"))?.body).toEqual({ emoji: "sticker:art_hello" });
+    expect(await screen.findByRole("button", { name: "sticker:art_hello 1" })).toBeTruthy();
+
+    // Кто поставил: имя и аватарка участника.
+    const fire = screen.getByRole("button", { name: "🔥 1" });
+    expect(within(fire).getByTitle("Лена")).toBeTruthy();
+    fireEvent.contextMenu(fire, { clientX: 10, clientY: 10 });
+    const who = screen.getByRole("menu", { name: "Реакции" });
+    expect(within(who).getByText("🔥 — 1")).toBeTruthy();
+    expect(within(who).getByText("Лена")).toBeTruthy();
+  });
+
+  it("панель эмодзи: вставка в место курсора, «Недавние» при следующем открытии", async () => {
+    localStorage.removeItem("shalter.recentEmoji");
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([]), ...typingRoutes });
+    renderChat();
+    await screen.findByText("Сообщений пока нет — напишите первым");
+    const input = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Сообщение" });
+    fireEvent.change(input, { target: { value: "привет мир" } });
+    input.setSelectionRange(6, 6);
+
+    fireEvent.click(screen.getByTitle("Эмодзи"));
+    const panel = screen.getByRole("menu", { name: "Эмодзи" });
+    expect(within(panel).queryByRole("region", { name: "Недавние" })).toBeNull();
+    fireEvent.click(within(panel).getByRole("button", { name: "😀" }));
+    expect(input.value).toBe("привет😀 мир");
+    // Панель остаётся открытой — можно добавить ещё.
+    fireEvent.click(within(panel).getByRole("button", { name: "🐻" }));
+    expect(input.value).toBe("привет😀🐻 мир");
+
+    fireEvent.click(screen.getByTitle("Эмодзи"));
+    expect(screen.queryByRole("menu", { name: "Эмодзи" })).toBeNull();
+    fireEvent.click(screen.getByTitle("Эмодзи"));
+    const recent = within(screen.getByRole("menu", { name: "Эмодзи" })).getByRole("region", { name: "Недавние" });
+    expect(within(recent).getAllByRole("button").map((b) => b.textContent)).toEqual(["🐻", "😀"]);
+  });
+
   it("закрепить в личке — плашка над лентой ведёт к сообщению; открепить крестиком", async () => {
     const dm = chat({ type: "dm", title: null, otherUser: { ...LENA, online: false } as ChatSummary["otherUser"] });
     let target = msg("важное");

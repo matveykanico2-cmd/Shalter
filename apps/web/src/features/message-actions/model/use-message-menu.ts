@@ -8,6 +8,7 @@ type Point = { x: number; y: number };
 export type MessageMenuState =
   | { kind: "menu"; message: Message; at: Point }
   | { kind: "reactions"; message: Message; at: Point }
+  | { kind: "reactors"; message: Message; emoji: string; at: Point }
   | { kind: "delete"; message: Message }
   | { kind: "forward"; message: Message };
 
@@ -20,6 +21,7 @@ export function useMessageMenu() {
       close,
       openMenu: (message: Message, at: Point) => setState({ kind: "menu", message, at }),
       openReactions: (message: Message, at: Point) => setState({ kind: "reactions", message, at }),
+      openReactors: (message: Message, emoji: string, at: Point) => setState({ kind: "reactors", message, emoji, at }),
       openDelete: (message: Message) => setState({ kind: "delete", message }),
       openForward: (message: Message) => setState({ kind: "forward", message }),
     }),

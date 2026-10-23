@@ -78,6 +78,10 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
     [actions, chat, meId]
   );
   const nameOf = useCallback((userId: string) => senders({ senderId: userId })?.name ?? "участник", [senders]);
+  const userOf = useCallback((userId: string) => senders({ senderId: userId }), [senders]);
+  const knownName = useCallback((userId: string) => senders({ senderId: userId })?.name ?? null, [senders]);
+  // Кто поставил реакцию на пост канала, видят только его админы и модераторы.
+  const canViewReactionDetails = chat.type !== "channel" || isChatAdmin(chat, meId) || isChatModerator(chat, meId);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);
@@ -240,6 +244,8 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
                         protectedContent={protectedContent}
                         attachmentActions={attachmentActions}
                         nameOf={nameOf}
+                        userOf={userOf}
+                        onReactionDetails={canViewReactionDetails ? menu.openReactors : undefined}
                       />
                     </div>
                   )}
@@ -265,7 +271,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
         </button>
       ) : null}
       {viewer ? <MediaViewer items={viewer.items} index={viewer.index} canDownload={!protectedContent} onClose={() => setViewer(null)} /> : null}
-      <MessageMenus control={menu} actions={actions} chat={chat} me={me} senderName={senderName} onReply={isChannel ? undefined : onReply} onEdit={onEdit} />
+      <MessageMenus control={menu} actions={actions} chat={chat} me={me} senderName={senderName} nameOf={knownName} onReply={isChannel ? undefined : onReply} onEdit={onEdit} />
     </div>
   );
 }
@@ -288,6 +294,8 @@ type RowProps = {
   protectedContent: boolean;
   attachmentActions: AttachmentActions;
   nameOf: (userId: string) => string;
+  userOf: (userId: string) => MessageSender | null;
+  onReactionDetails?: (m: Message, emoji: string, at: { x: number; y: number }) => void;
 };
 
 function MessageRow(props: RowProps) {
@@ -317,6 +325,8 @@ function MessageRow(props: RowProps) {
       protectedContent={props.protectedContent}
       attachmentActions={props.attachmentActions}
       nameOf={props.nameOf}
+      userOf={props.userOf}
+      onReactionDetails={props.onReactionDetails}
     />
   );
 }

@@ -1,5 +1,5 @@
 import { type ChatSummary } from "@/entities/chat";
-import type { Message } from "@/entities/message";
+import { type Message, reactionLabel, reactionsOf } from "@/entities/message";
 import type { SelfUser } from "@/entities/session";
 
 import { copyText } from "@/shared/lib/clipboard";
@@ -14,7 +14,7 @@ import type { MessageMenuControl } from "../model/use-message-menu";
 
 import { DeleteMessageDialog } from "./delete-message-dialog";
 import { ForwardDialog } from "./forward-dialog";
-import { ReactionStrip } from "./reaction-strip";
+import { ReactionsBar } from "./reactions-bar";
 
 type Props = {
   control: MessageMenuControl;
@@ -25,10 +25,12 @@ type Props = {
   senderName: (m: Message) => string | null;
   onReply?: (m: Message) => void;
   onEdit?: (m: Message) => void;
+  /** Имя участника по id; неизвестных в «кто поставил» не показываем. */
+  nameOf?: (userId: string) => string | null;
 };
 
 /** Меню сообщения и его диалоги — как openMessageMenu в public/js/components/messageBubble.js. */
-export function MessageMenus({ control, actions, chat, me, senderName, onReply, onEdit }: Props) {
+export function MessageMenus({ control, actions, chat, me, senderName, nameOf, onReply, onEdit }: Props) {
   const { state, close } = control;
   if (!state) return null;
   const m = state.message;
@@ -38,22 +40,37 @@ export function MessageMenus({ control, actions, chat, me, senderName, onReply, 
     return (
       <Menu
         at={state.at}
+        wide
         label="Реакции"
         onClose={close}
         header={
-          <ReactionStrip
-          chat={chat}
-          message={m}
-          meId={me.id}
-          isPremium={!!me.isPremium}
-          onReact={(emoji) => {
-            close();
-            void actions.react(m, emoji);
-          }}
+          <ReactionsBar
+            chat={chat}
+            message={m}
+            meId={me.id}
+            isPremium={!!me.isPremium}
+            onReact={(emoji) => {
+              close();
+              void actions.react(m, emoji);
+            }}
+            onLocked={() => {
+              close();
+              // Экран Premium переедет вместе с настройками.
+              toast("Реакция для Premium");
+            }}
           />
         }
       />
     );
+  }
+
+  // Кто поставил реакцию — как showReactionDetails в messageBubble.js.
+  if (state.kind === "reactors") {
+    const r = reactionsOf(m).find((x) => x.emoji === state.emoji);
+    if (!r) return null;
+    const names = r.userIds.map((id) => nameOf?.(id)).filter((n): n is string => !!n);
+    const items: MenuItem[] = [{ label: `${reactionLabel(r.emoji)} — ${r.userIds.length}` }, ...names.map((name) => ({ icon: "User" as const, label: name }))];
+    return <Menu at={state.at} label="Реакции" items={items} onClose={close} />;
   }
 
   if (state.kind === "delete") {

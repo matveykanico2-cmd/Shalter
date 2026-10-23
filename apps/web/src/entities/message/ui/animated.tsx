@@ -3,6 +3,7 @@ import { renderAnimatedEmoji, renderCustomScene, renderSticker, type Sticker } f
 import { DomNode } from "@/shared/ui";
 
 import { graphemes } from "../lib/jumbo";
+import { reactionSticker } from "../lib/reactions";
 import { hasAnimatedEmoji } from "../lib/reactions-anim";
 
 import styles from "./message-bubble.module.css";
@@ -45,8 +46,10 @@ export function CustomEmoji({ scene, jumbo = false }: { scene: unknown; jumbo?: 
   return <DomNode className={jumbo ? "inline-custom-emoji jumbo" : "inline-custom-emoji"} create={() => renderCustomScene(scene, { size: jumbo ? 100 : 30, replay: jumbo })} />;
 }
 
-/** Эмодзи реакции: анимированный, если есть; играет, если реакцию только что поставили. */
-export function ReactionGlyph({ emoji, play }: { emoji: string; play: boolean }) {
+/** Реакция: стикер, анимированный эмодзи или символ; play — её только что поставили. */
+export function ReactionGlyph({ emoji, play = false, size = 22 }: { emoji: string; play?: boolean; size?: number }) {
+  const sticker = reactionSticker(emoji);
+  if (sticker) return <DomNode create={() => renderSticker(sticker, { size })} label={sticker.name} />;
   if (!hasAnimatedEmoji(emoji)) return <>{emoji}</>;
-  return <DomNode key={play ? "play" : "rest"} create={() => renderAnimatedEmoji(emoji, { size: 22, replay: play, playOnView: true })} />;
+  return <DomNode key={play ? "play" : "rest"} create={() => renderAnimatedEmoji(emoji, { size, replay: play, playOnView: true })} />;
 }

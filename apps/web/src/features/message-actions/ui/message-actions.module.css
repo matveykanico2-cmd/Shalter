@@ -1,14 +1,31 @@
-/* Полоса реакций (.rmenu в public/styles/components.css). */
+/* Плашка реакций (.rmenu в public/styles/components.css). */
+.bar {
+  max-width: calc(100vw - 16px);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+}
+
 .strip {
   display: flex;
   gap: 2px;
-  max-width: min(340px, calc(100vw - 16px));
+  max-width: 320px;
   overflow-x: auto;
-  padding: 6px;
+  /* Запас под увеличенный при наведении эмодзи — иначе полоса срезает его края. */
+  margin: -4px 0;
+  padding: 4px 2px;
   scrollbar-width: none;
 }
 
+.strip::-webkit-scrollbar {
+  display: none;
+}
+
 .reaction {
+  position: relative;
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -33,6 +50,85 @@
 
 .chosen {
   background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
+.glyph {
+  display: flex;
+}
+
+.locked > .glyph {
+  opacity: 0.45;
+}
+
+.lock {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: flex;
+  padding: 2px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+
+.stub {
+  display: block;
+}
+
+.more {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: 2px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.more:hover {
+  color: var(--color-text);
+}
+
+.grid {
+  width: min(340px, calc(100vw - 32px));
+  max-height: min(320px, 50vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 8px 8px;
+}
+
+.gridTitle {
+  position: sticky;
+  top: 0;
+  /* Над эмодзи: кнопки с transform иначе рисуются поверх заголовка при прокрутке. */
+  z-index: 2;
+  margin: 0;
+  padding: 6px 4px 4px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.gridItems {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+}
+
+.small {
+  width: 38px;
+  height: 38px;
+  font-size: 24px;
+}
+
+.small:hover,
+.small:focus-visible {
+  transform: scale(1.1);
 }
 
 .checkRow {

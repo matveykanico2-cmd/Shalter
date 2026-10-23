@@ -1,5 +1,7 @@
 // Реакции на сообщении — как toggleReaction в server/data/messages.js: та же раскладка,
 // чтобы своя реакция встала в пузырь сразу и ответ сервера её не «передвинул».
+import { DRAWN_STICKERS, type Sticker, STICKERS } from "@/shared/lib/anim";
+
 import type { Message } from "../model/types";
 
 export type Reaction = { emoji: string; userIds: string[] };
@@ -34,3 +36,19 @@ export function toggleReaction(list: readonly Reaction[], emoji: string, userId:
 /** Что из быстрых реакций уже стоит от этого человека. */
 export const chosenReactions = (m: Pick<Message, "reactions">, userId: string) =>
   new Set(reactionsOf(m).filter((r) => r.userIds.includes(userId)).map((r) => r.emoji));
+
+/** Реакция стикером — «sticker:<id>» из рисованных и стандартных стикеров. */
+export const REACTION_STICKER_PREFIX = "sticker:";
+export const REACTION_STICKERS: readonly Sticker[] = [...DRAWN_STICKERS, ...STICKERS];
+
+export function reactionSticker(emoji: string): Sticker | null {
+  if (!emoji.startsWith(REACTION_STICKER_PREFIX)) return null;
+  const id = emoji.slice(REACTION_STICKER_PREFIX.length);
+  return REACTION_STICKERS.find((s) => s.id === id) ?? null;
+}
+
+/** Подпись реакции в списке «кто поставил»: у стикера — его эмодзи и имя. */
+export function reactionLabel(emoji: string) {
+  const sticker = reactionSticker(emoji);
+  return sticker ? `${sticker.emoji} ${sticker.name}` : emoji;
+}

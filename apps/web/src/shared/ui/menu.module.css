@@ -14,6 +14,10 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
+.wide {
+  max-width: calc(100vw - 16px);
+}
+
 .sheet {
   inset: auto 0 0 0;
   max-width: 100%;

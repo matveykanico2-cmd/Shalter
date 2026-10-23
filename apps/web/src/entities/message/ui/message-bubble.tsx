@@ -8,7 +8,7 @@ import { isMediaOnly, linkPreviewOf } from "../lib/attachments";
 import { customEmojiOnly, jumboEmojiCount } from "../lib/jumbo";
 import { isCallLogMessage, isReadByOthers, NAME_COLORS, timeLabel } from "../lib/message-meta";
 import { callLogInfo, messagePreview, stripCustomEmoji } from "../lib/message-preview";
-import { reactionsOf } from "../lib/reactions";
+import { type Reaction, reactionsOf,reactionSticker } from "../lib/reactions";
 import { justReacted } from "../lib/reactions-anim";
 import type { FeedMessage, Message, ReplyTarget } from "../model/types";
 
@@ -56,6 +56,10 @@ type Props = {
   attachmentActions?: AttachmentActions;
   /** Имя участника по id — «кто отметил» в чек-листе. */
   nameOf?: (userId: string) => string;
+  /** Участник по id — аватарки на реакциях. */
+  userOf?: (userId: string) => MessageSender | null;
+  /** «Кто поставил» — долгое нажатие или правая кнопка на реакции; без него — только нажатие. */
+  onReactionDetails?: (m: Message, emoji: string, at: Point) => void;
 };
 
 type Point = { x: number; y: number };
@@ -158,25 +162,18 @@ export function MessageBubble(props: Props) {
   if (reactions.length) {
     body.push(
       <div key="reactions" className={styles.reactions}>
-        {reactions.map((r) => {
-          const own = !!props.meId && r.userIds.includes(props.meId);
-          return (
-            <button
-              key={r.emoji}
-              type="button"
-              className={own ? `${styles.reaction} ${styles.reactionMine}` : styles.reaction}
-              aria-pressed={own}
-              aria-label={`${r.emoji} ${r.userIds.length}`}
-              disabled={!props.onReact || m.pending}
-              onClick={() => props.onReact?.(m, r.emoji)}
-            >
-              <span className={styles.reactionGlyph}>
-                <ReactionGlyph emoji={r.emoji} play={justReacted(m.id, r.emoji)} />
-              </span>
-              <span className={styles.reactionCount}>{r.userIds.length}</span>
-            </button>
-          );
-        })}
+        {reactions.map((r) => (
+          <ReactionPill
+            key={r.emoji}
+            reaction={r}
+            own={!!props.meId && r.userIds.includes(props.meId)}
+            play={justReacted(m.id, r.emoji)}
+            disabled={!props.onReact || !!m.pending}
+            userOf={props.userOf}
+            onReact={() => props.onReact?.(m, r.emoji)}
+            onDetails={props.onReactionDetails && !m.pending ? (at) => props.onReactionDetails?.(m, r.emoji, at) : undefined}
+          />
+        ))}
         {!isCall ? meta : null}
       </div>
     );
@@ -304,5 +301,62 @@ function CallBody({ message, mine }: { message: Message; mine: boolean }) {
         <Icon name={video ? "Video" : "Phone"} size={22} />
       </span>
     </div>
+  );
+}
+
+/** На реакции — до трёх аватарок поставивших, как reactionsRow в messageBubble.js. */
+const PILL_AVATARS = 3;
+
+type PillProps = {
+  reaction: Reaction;
+  own: boolean;
+  play: boolean;
+  disabled: boolean;
+  userOf?: (userId: string) => MessageSender | null;
+  onReact: () => void;
+  onDetails?: (at: Point) => void;
+};
+
+function ReactionPill({ reaction: r, own, play, disabled, userOf, onReact, onDetails }: PillProps) {
+  const hold = useLongPress((at) => onDetails?.(at));
+  const avatars = userOf
+    ? r.userIds
+        .slice(0, PILL_AVATARS)
+        .map(userOf)
+        .filter((u): u is MessageSender => !!u)
+    : [];
+  const sticker = !!reactionSticker(r.emoji);
+  return (
+    <button
+      type="button"
+      className={[styles.reaction, own ? styles.reactionMine : "", sticker ? styles.reactionSticker : ""].filter(Boolean).join(" ")}
+      aria-pressed={own}
+      aria-label={`${r.emoji} ${r.userIds.length}`}
+      disabled={disabled}
+      {...(onDetails ? { onPointerDown: hold.onPointerDown, onPointerMove: hold.onPointerMove, onPointerUp: hold.onPointerUp, onPointerCancel: hold.onPointerCancel, onPointerLeave: hold.onPointerLeave } : {})}
+      onContextMenu={(e) => {
+        if (!onDetails) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (!hold.swallow(e)) onDetails({ x: e.clientX, y: e.clientY });
+      }}
+      onClick={(e) => {
+        if (!hold.swallow(e)) onReact();
+      }}
+    >
+      <span className={styles.reactionGlyph}>
+        <ReactionGlyph emoji={r.emoji} play={play} />
+      </span>
+      {avatars.length ? (
+        <span className={styles.reactionAvatars}>
+          {avatars.map((u) => (
+            <span key={u.id} className={styles.reactionAvatar} title={u.name}>
+              <Avatar size={16} name={u.name} color={u.avatarColor} image={u.avatarImage} />
+            </span>
+          ))}
+        </span>
+      ) : null}
+      <span className={styles.reactionCount}>{r.userIds.length}</span>
+    </button>
   );
 }

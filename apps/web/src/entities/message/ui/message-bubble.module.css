@@ -465,3 +465,27 @@
 .customJumbo {
   gap: 6px;
 }
+
+.reactionSticker {
+  padding-block: 1px;
+}
+
+/* Аватарки поставивших (.reaction-pill-avatars в public/styles/components.css). */
+.reactionAvatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+.reactionAvatar {
+  display: inline-flex;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+}
+
+.reactionMine .reactionAvatar {
+  box-shadow: 0 0 0 1.5px var(--color-accent);
+}
+
+.reactionAvatar + .reactionAvatar {
+  margin-left: -5px;
+}

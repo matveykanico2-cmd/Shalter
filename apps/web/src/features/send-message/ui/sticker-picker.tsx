@@ -43,6 +43,7 @@ export function StickerButton({ chatId, onSend }: Props) {
       {at ? (
         <Menu
           at={at}
+          wide
           label="Стикеры"
           onClose={() => setAt(null)}
           header={
