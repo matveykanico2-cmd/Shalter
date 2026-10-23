@@ -8,7 +8,7 @@ import type { Message } from "@/entities/message";
 import { sessionQueries } from "@/entities/session";
 
 import { ws } from "@/shared/api";
-import { fakeApi, FakeSocket, fakeSocket, FakeXhr, fakeXhr } from "@/shared/lib/test";
+import { fakeApi, fakeMedia, FakeMediaRecorder, FakeSocket, fakeSocket, FakeXhr, fakeXhr } from "@/shared/lib/test";
 import { AskHost, Toaster } from "@/shared/ui";
 
 import { ChatView } from "./chat-view";
@@ -650,5 +650,63 @@ describe("опросы, чек-листы, кубики, платные пост
     fireEvent.click(await screen.findByRole("menuitem", { name: /Боулинг/ }));
     await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")).toHaveLength(2));
     expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")[1]?.body).toMatchObject({ text: "", attachments: [{ kind: "dice", meta: { emoji: "🎳" } }] });
+  });
+});
+
+describe("запись голосовых", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "mediaDevices");
+  });
+
+  it("пустое поле — кнопки записи; нажатие — запись без рук, «Отправить» — загрузка и голосовое", async () => {
+    fakeXhr();
+    const { track } = fakeMedia();
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([]),
+      "POST /api/chats/c_1/messages": (body) => ({ body: { message: msg("", { senderId: ME.id, attachments: body.attachments as unknown[] }) } }),
+      ...typingRoutes,
+    });
+    renderChat();
+    await screen.findByText("Сообщений пока нет — напишите первым");
+    expect(screen.queryByTitle("Отправить")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Голосовое сообщение" }));
+    const bar = await screen.findByRole("group", { name: "Запись голосового" });
+    await waitFor(() => expect(within(bar).getByTitle("Отправить")).toHaveProperty("disabled", false));
+    expect(calls.some((c) => c.key === "POST /api/chats/c_1/typing" && (c.body as { action: string }).action === "record_voice")).toBe(true);
+
+    fireEvent.click(within(bar).getByTitle("Отправить"));
+    await waitFor(() => expect(FakeXhr.requests).toHaveLength(1));
+    expect(FakeXhr.requests[0]!.params).toMatchObject({ kind: "voice", mimeType: "audio/webm" });
+    expect(track.stop).toHaveBeenCalled();
+    expect(screen.queryByRole("group", { name: "Запись голосового" })).toBeNull();
+    act(() => FakeXhr.requests[0]!.respond(200, { url: "/uploads/v.webm", name: "voice.webm", mimeType: "audio/webm" }));
+    await waitFor(() => expect(calls.some((c) => c.key === "POST /api/chats/c_1/messages")).toBe(true));
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ text: "", attachments: [{ kind: "voice", url: "/uploads/v.webm", durationSec: 0 }] });
+  });
+
+  it("удержание: потянуть влево — отмена, ничего не уходит; набран текст — вместо записи «Отправить»", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fakeXhr();
+    fakeMedia();
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([]), ...typingRoutes });
+    renderChat();
+    await screen.findByText("Сообщений пока нет — напишите первым");
+
+    const mic = screen.getByRole("button", { name: "Голосовое сообщение" });
+    fireEvent.pointerDown(mic, { pointerId: 1, clientX: 300, clientY: 500, button: 0 });
+    act(() => vi.advanceTimersByTime(500));
+    await screen.findByRole("group", { name: "Запись голосового" });
+    expect(screen.getByText("← Отмена")).toBeTruthy();
+    await waitFor(() => expect(FakeMediaRecorder.instances).toHaveLength(1));
+    fireEvent.pointerMove(mic, { pointerId: 1, clientX: 150, clientY: 500 });
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Запись голосового" })).toBeNull());
+    fireEvent.pointerUp(mic, { pointerId: 1, clientX: 150, clientY: 500 });
+    expect(FakeXhr.requests).toHaveLength(0);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Сообщение" }), { target: { value: "текст" } });
+    expect(screen.queryByRole("button", { name: "Голосовое сообщение" })).toBeNull();
+    expect(screen.getByTitle("Отправить")).toBeTruthy();
   });
 });

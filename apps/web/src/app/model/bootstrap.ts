@@ -5,6 +5,7 @@ import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import type { z } from "zod";
 
 import { chatQueries } from "@/entities/chat";
+import { type Settings, settingsQueries } from "@/entities/settings";
 
 import { http } from "@/shared/api";
 
@@ -17,6 +18,8 @@ export const bootstrapQuery = (client: QueryClient, userId: string) =>
       const data = await http.get<Bootstrap>("/api/bootstrap", signal);
       client.setQueryData(chatQueries.list().queryKey, data.chats);
       client.setQueryData(chatQueries.folders().queryKey, data.folders);
+      // Те же настройки, что GET /api/settings (getSettings); схема bootstrap описывает их не целиком.
+      client.setQueryData(settingsQueries.current().queryKey, data.settings as unknown as Settings);
       return data;
     },
     staleTime: Infinity,

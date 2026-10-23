@@ -167,9 +167,11 @@ export function MessageBubble(props: Props) {
       </div>
     );
   } else if (mediaOnly) {
-    // Фото/видео без подписи: время лежит поверх медиа (как в tweb).
+    // Фото/видео без подписи: время лежит поверх медиа (как в tweb); у кружка внизу свой
+    // таймер — время сообщения под ним.
+    const note = (m.attachments?.[0] as { kind?: string } | undefined)?.kind === "video-note";
     body.push(
-      <span key="meta" className={styles.metaOverlay}>
+      <span key="meta" className={note ? styles.metaBelow : styles.metaOverlay}>
         {meta}
       </span>
     );

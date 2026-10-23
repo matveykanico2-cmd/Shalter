@@ -8,7 +8,9 @@ type SendResult = z.infer<typeof sendResult>;
 const chatPath = (chatId: string) => `/api/chats/${encodeURIComponent(chatId)}`;
 
 /** Вложение в отправке: загруженный файл (+ спойлер у фото и видео) или опрос, чек-лист, кубик. */
-export type OutgoingAttachment = (Uploaded & { spoiler?: true }) | { kind: "poll" | "checklist" | "dice"; meta: Record<string, unknown> };
+export type OutgoingAttachment =
+  | (Uploaded & { spoiler?: true; durationSec?: number; waveform?: number[]; transcript?: string })
+  | { kind: "poll" | "checklist" | "dice"; meta: Record<string, unknown> };
 
 type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[] };
 

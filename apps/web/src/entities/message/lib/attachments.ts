@@ -65,10 +65,14 @@ export function resampleWaveform(wave: readonly number[], bars: number) {
   return out;
 }
 
-/** Фото/видео без подписи и карточки ссылки: время лежит поверх медиа (как в tweb). */
+/**
+ * Фото/видео без подписи и карточки ссылки, а также одиночный кружок: пузыря нет, время
+ * лежит поверх медиа (как в tweb).
+ */
 export function isMediaOnly(m: Message) {
   const atts = attachmentsOf(m);
-  return atts.length > 0 && atts.every(isVisualMedia) && !m.text?.trim() && !linkPreviewOf(m) && !m.paidStars && m.type !== "sticker";
+  if (m.text?.trim() || linkPreviewOf(m) || m.paidStars || m.type === "sticker" || !atts.length) return false;
+  return atts.every(isVisualMedia) || (atts.length === 1 && atts[0]!.kind === "video-note");
 }
 
 /** Видео в ленте и в просмотре: сжатая копия, если есть, а оригинал — запасной и «скачать». */

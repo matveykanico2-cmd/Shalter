@@ -3,8 +3,10 @@ import { type ClipboardEvent, type KeyboardEvent, type Ref, useEffect, useImpera
 
 import { chatCache } from "@/entities/chat";
 import { type Message, messagePreview, stripCustomEmoji } from "@/entities/message";
+import { useSettings } from "@/entities/settings";
 
 import { errorText } from "@/shared/lib/error-text";
+import { isRecordingSupported, type RecordMode } from "@/shared/lib/media/recorder";
 import { Icon } from "@/shared/ui";
 
 import { type OutgoingAttachment, saveDraft, sendTyping } from "../api/send-message";
@@ -16,6 +18,8 @@ import { AttachButton } from "./attach-button";
 import { ChecklistDialog } from "./checklist-dialog";
 import styles from "./composer.module.css";
 import { PollDialog } from "./poll-dialog";
+import { RecordButtons } from "./record-buttons";
+import { type HoldControl, RecordingBar, type RecordingDone } from "./recording-bar";
 import { type MediaSendChoice, SendMediaDialog } from "./send-media-dialog";
 import { UploadStrip } from "./upload-strip";
 
@@ -70,6 +74,10 @@ export function Composer(props: Props) {
   const uploads = useUploads(chatId);
   const [picked, setPicked] = useState<File[] | null>(null);
   const [creating, setCreating] = useState<"poll" | "checklist" | null>(null);
+  const [recording, setRecording] = useState<{ mode: RecordMode; hold: boolean } | null>(null);
+  const holdControlRef = useRef<HoldControl | null>(null);
+  const transcribe = !!useSettings().data?.voiceTranscription;
+  const [canRecord] = useState(isRecordingSupported);
   // Подпись к файлам — то, что в поле, когда загрузка закончилась.
   const latestText = useRef(text);
   useEffect(() => {
@@ -179,6 +187,20 @@ export function Composer(props: Props) {
     });
   };
 
+  // Голосовое или кружок записан — загрузка и сообщение (composer.js, recordingHandle.result).
+  const sendRecording = async (mode: RecordMode, { recorded, waveform, transcript }: RecordingDone) => {
+    setRecording(null);
+    const ext = recorded.mimeType.includes("mp4") ? "mp4" : "webm";
+    const file = new File([recorded.blob], `${mode}-${Date.now()}.${ext}`, { type: recorded.mimeType });
+    const { uploaded, error: uploadError } = await uploads.upload([{ file, kind: mode }]);
+    const att = uploaded[0];
+    if (!att) {
+      setError(uploadError || "Не удалось отправить запись");
+      return;
+    }
+    sendAttachment("", { ...att, kind: mode, durationSec: recorded.durationSec, ...(mode === "voice" ? { waveform, transcript } : {}) });
+  };
+
   // Картинка или файл из буфера обмена — в окно отправки.
   const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
     const files = [...(e.clipboardData?.files ?? [])];
@@ -237,32 +259,54 @@ export function Composer(props: Props) {
       ) : null}
       <UploadStrip tiles={uploads.tiles} onCancel={uploads.cancel} />
       <div className={styles.row}>
-        <div className={styles.field}>
-          {editing ? (
-            <span className={styles.attachGap} />
-          ) : (
-            <AttachButton
-              onFiles={attach}
-              onPoll={() => setCreating("poll")}
-              onChecklist={() => setCreating("checklist")}
-              onDice={(emoji) => sendAttachment("", { kind: "dice", meta: { emoji } })}
+        {recording ? (
+          <RecordingBar
+            key={`${recording.mode}`}
+            chatId={chatId}
+            mode={recording.mode}
+            hold={recording.hold}
+            transcribe={transcribe}
+            holdControlRef={holdControlRef}
+            onDone={(result) => void sendRecording(recording.mode, result)}
+            onCancel={() => setRecording(null)}
+            onError={(text) => {
+              setRecording(null);
+              setError(text);
+            }}
+            onHoldEnd={() => setRecording((r) => (r?.hold ? { ...r, hold: false } : r))}
+          />
+        ) : (
+          <div className={styles.field}>
+            {editing ? (
+              <span className={styles.attachGap} />
+            ) : (
+              <AttachButton
+                onFiles={attach}
+                onPoll={() => setCreating("poll")}
+                onChecklist={() => setCreating("checklist")}
+                onDice={(emoji) => sendAttachment("", { kind: "dice", meta: { emoji } })}
+              />
+            )}
+            <textarea
+              ref={textarea}
+              className={styles.input}
+              rows={1}
+              value={text}
+              placeholder={placeholder}
+              aria-label={placeholder}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={onKeyDown}
+              onPaste={onPaste}
             />
-          )}
-          <textarea
-          ref={textarea}
-          className={styles.input}
-          rows={1}
-          value={text}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          onPaste={onPaste}
-        />
-        </div>
-        <button type="button" className={styles.send} title={editing ? "Сохранить" : "Отправить"} disabled={!text.trim()} onClick={submit}>
-          <Icon name={editing ? "Check" : "Send"} size={22} />
-        </button>
+          </div>
+        )}
+        {recording && !recording.hold ? null : !text.trim() && !editing && canRecord ? (
+          <RecordButtons holdingMode={recording?.hold ? recording.mode : null} holdControlRef={holdControlRef} onStart={(mode, hold) => setRecording((r) => r ?? { mode, hold })} />
+        ) : (
+          <button type="button" className={styles.send} title={editing ? "Сохранить" : "Отправить"} disabled={!text.trim()} onClick={submit}>
+            <Icon name={editing ? "Check" : "Send"} size={22} />
+          </button>
+        )}
       </div>
       {creating === "poll" ? (
         <PollDialog

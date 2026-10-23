@@ -31,6 +31,7 @@ describe("вложения: подписи (attachments.js)", () => {
     expect(isMediaOnly(msg({ attachments: [photo], text: "подпись" }))).toBe(false);
     expect(isMediaOnly(msg({ attachments: [photo, { kind: "file", url: "/uploads/b" }] }))).toBe(false);
     expect(isMediaOnly(msg({ attachments: [] }))).toBe(false);
+    expect(isMediaOnly(msg({ attachments: [{ kind: "video-note", url: "/uploads/n" }] }))).toBe(true);
   });
 
   it("видео: в просмотре сжатая копия, оригинал — скачать и запасной", () => {

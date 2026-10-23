@@ -30,6 +30,8 @@ export { sizeLabel as fileSizeLabel };
 
 /** «Отправляет фото / видео / файл» в шапке у собеседника, пока идёт загрузка. */
 export function uploadActionFor(kinds: readonly UploadKind[]) {
+  if (kinds.includes("voice")) return "upload_voice";
+  if (kinds.includes("video-note")) return "upload_video_note";
   if (kinds.includes("video")) return "upload_video";
   if (kinds.length && kinds.every((k) => k === "image")) return "upload_photo";
   return "upload_document";

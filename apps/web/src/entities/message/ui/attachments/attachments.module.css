@@ -452,6 +452,7 @@
   color: #fff;
   font-family: var(--font-mono);
   font-size: 11px;
+  white-space: nowrap;
   transform: translateX(-50%);
 }
 
