@@ -9,7 +9,7 @@ import { sessionQueries } from "@/entities/session";
 
 import { ws } from "@/shared/api";
 import { fakeApi, FakeSocket, fakeSocket, FakeXhr, fakeXhr } from "@/shared/lib/test";
-import { Toaster } from "@/shared/ui";
+import { AskHost, Toaster } from "@/shared/ui";
 
 import { ChatView } from "./chat-view";
 
@@ -73,6 +73,7 @@ function renderChat(c: ChatSummary = chat()) {
     <QueryClientProvider client={client}>
       <RouterProvider router={router} />
       <Toaster />
+      <AskHost />
     </QueryClientProvider>
   );
   return { client };
@@ -526,5 +527,128 @@ describe("отправка файлов", () => {
     expect(await screen.findByText("Файл слишком большой для сервера")).toBeTruthy();
     expect(calls.some((c) => c.key === "POST /api/chats/c_1/messages")).toBe(false);
     expect(screen.queryByRole("listitem")).toBeNull();
+  });
+});
+
+describe("опросы, чек-листы, кубики, платные посты", () => {
+  const poll = (patch: Record<string, unknown> = {}) => ({ kind: "poll", meta: { options: ["Пицца", "Суши"], voterIds: [[LENA.id], []], votes: [1, 0], correctIndex: null, multiple: false, closed: false, ...patch } });
+
+  it("голос сразу с процентами; ответ сервера поверх; «Отменить голос»", async () => {
+    let onServer = msg("Что на ужин?", { attachments: [poll()] });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: () => page([onServer]),
+      [`POST /api/chats/c_1/messages/${onServer.id}/vote`]: (body) => {
+        onServer = { ...onServer, attachments: [poll({ voterIds: [[LENA.id], [ME.id]], votes: [1, 1] })] };
+        return { body: { message: onServer, optionIndex: body.optionIndex } };
+      },
+      [`DELETE /api/chats/c_1/messages/${onServer.id}/vote`]: () => {
+        onServer = { ...onServer, attachments: [poll()] };
+        return { body: { message: onServer } };
+      },
+    });
+    renderChat();
+    // Вопрос — заголовок опроса, отдельной строкой текста не дублируется.
+    expect(await screen.findAllByText("Что на ужин?")).toHaveLength(1);
+    expect(screen.getByText("1 проголосовал")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Суши/ }));
+    expect(await screen.findAllByText("50%")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /Суши/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(calls.find((c) => c.key.endsWith("/vote"))?.body).toEqual({ optionIndex: 1 });
+    await waitFor(() => expect(screen.getByText("2 проголосовали")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "Отменить голос" }));
+    await waitFor(() => expect(screen.queryByText("50%")).toBeNull());
+    expect(calls.some((c) => c.key.startsWith("DELETE") && c.key.endsWith("/vote"))).toBe(true);
+  });
+
+  it("свой опрос можно остановить после подтверждения", async () => {
+    const mine = msg("Когда встречаемся?", { senderId: ME.id, attachments: [poll()] });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([mine]),
+      [`POST /api/chats/c_1/messages/${mine.id}/poll/close`]: { body: { message: { ...mine, attachments: [poll({ closed: true })] } } },
+    });
+    renderChat();
+    fireEvent.click(await screen.findByRole("button", { name: "Остановить" }));
+    const confirm = await screen.findByRole("dialog", { name: /Остановить опрос/ });
+    fireEvent.click(within(confirm).getByRole("button", { name: "Остановить" }));
+    expect(await screen.findByText("Опрос завершён")).toBeTruthy();
+    expect(calls.some((c) => c.key.endsWith("/poll/close"))).toBe(true);
+    expect(screen.queryByRole("button", { name: "Остановить" })).toBeNull();
+  });
+
+  it("чек-лист: отметка сразу, кто отметил — имя", async () => {
+    const list = msg("Покупки", {
+      attachments: [{ kind: "checklist", meta: { items: [{ id: 1, text: "Хлеб", doneBy: LENA.id }, { id: 2, text: "Молоко" }], othersCanMark: true } }],
+    });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([list]),
+      [`POST /api/chats/c_1/messages/${list.id}/checklist`]: {
+        body: { message: { ...list, attachments: [{ kind: "checklist", meta: { items: [{ id: 1, text: "Хлеб", doneBy: LENA.id }, { id: 2, text: "Молоко", doneBy: ME.id }], othersCanMark: true } }] } },
+      },
+    });
+    renderChat();
+    expect(await screen.findByText("Выполнено 1 из 2")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Молоко/ }));
+    expect(await screen.findByText("Выполнено 2 из 2")).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: /Молоко/ })).getByText("вы")).toBeTruthy();
+    expect(calls.find((c) => c.key.endsWith("/checklist"))?.body).toEqual({ itemId: 2 });
+  });
+
+  it("кубик со значением — результат; платный пост открывается за звёзды", async () => {
+    const dice = msg("", { createdAt: "2026-10-01T10:00:00.000Z", attachments: [{ kind: "dice", meta: { emoji: "🎯", value: 6 } }] });
+    const paid = msg("", { paidStars: 25, attachments: [{ kind: "paid", meta: { stars: 25, photos: 1 } }] });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([dice, paid]),
+      [`GET /api/chats/c_1/messages/${paid.id}/paid`]: { status: 402, body: { error: "Пост платный", stars: 25 } },
+      [`POST /api/chats/c_1/messages/${paid.id}/unlock`]: { body: { attachments: [{ kind: "image", url: "/uploads/secret" }], balance: 75 } },
+    });
+    renderChat();
+    expect(await screen.findByText("В яблочко!")).toBeTruthy();
+
+    fireEvent.click(await screen.findByRole("button", { name: "⭐ Открыть за 25 звёзд" }));
+    const confirm = await screen.findByRole("dialog", { name: /Открыть 1 фото за 25/ });
+    fireEvent.click(within(confirm).getByRole("button", { name: "Открыть за 25 ⭐" }));
+    expect(await screen.findByText("Пост открыт")).toBeTruthy();
+    await waitFor(() => expect(within(bubble(paid.id)).getByRole("button", { name: "Фото" })).toBeTruthy());
+    expect(calls.some((c) => c.key.endsWith("/unlock"))).toBe(true);
+  });
+
+  it("опрос и кубик из скрепки уходят своими сообщениями", async () => {
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([]),
+      "POST /api/chats/c_1/messages": (body) => ({ body: { message: msg(String(body.text), { senderId: ME.id, attachments: body.attachments as unknown[] }) } }),
+      ...typingRoutes,
+    });
+    renderChat();
+    await screen.findByText("Сообщений пока нет — напишите первым");
+
+    fireEvent.click(screen.getByTitle("Прикрепить"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Опрос" }));
+    const dialog = screen.getByRole("dialog", { name: "Новый опрос" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Создать" }));
+    expect(within(dialog).getByRole("alert").textContent).toBe("Введите вопрос");
+    fireEvent.change(within(dialog).getByLabelText("Вопрос"), { target: { value: "Куда?" } });
+    fireEvent.change(within(dialog).getByLabelText("Вариант 1"), { target: { value: "Море" } });
+    fireEvent.change(within(dialog).getByLabelText("Вариант 2"), { target: { value: "Горы" } });
+    fireEvent.click(within(dialog).getByRole("radio", { name: "Викторина" }));
+    fireEvent.click(within(dialog).getAllByTitle("Правильный ответ")[1]!);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Создать" }));
+    await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")).toHaveLength(1));
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({
+      text: "Куда?",
+      attachments: [{ kind: "poll", meta: { options: ["Море", "Горы"], correctIndex: 1, multiple: false } }],
+    });
+
+    fireEvent.click(screen.getByTitle("Прикрепить"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Кубик и игры" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Боулинг/ }));
+    await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")).toHaveLength(2));
+    expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")[1]?.body).toMatchObject({ text: "", attachments: [{ kind: "dice", meta: { emoji: "🎳" } }] });
   });
 });

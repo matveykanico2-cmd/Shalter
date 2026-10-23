@@ -4,13 +4,40 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { chatCache, chatQueries, type ChatSummary } from "@/entities/chat";
-import { historyCache, maxReactionsPerUser, type Message, messageQueries, reactionsOf, toggleReaction } from "@/entities/message";
+import {
+  applyVote,
+  type ChecklistMeta,
+  historyCache,
+  maxReactionsPerUser,
+  type Message,
+  messageQueries,
+  paidMediaQuery,
+  type PaidMediaState,
+  type PollMeta,
+  reactionsOf,
+  toggleChecklistItem,
+  toggleReaction,
+  withAttachmentMeta,
+} from "@/entities/message";
 import type { SelfUser } from "@/entities/session";
 
+import { ApiError } from "@/shared/api";
 import { errorText } from "@/shared/lib/error-text";
-import { toast } from "@/shared/ui";
+import { askConfirm, toast } from "@/shared/ui";
 
-import { deleteMessage, editMessage, forwardMessage, type ForwardOrigin, pinMessage, reactToMessage } from "../api/message-actions";
+import {
+  closePoll,
+  deleteMessage,
+  editMessage,
+  forwardMessage,
+  type ForwardOrigin,
+  pinMessage,
+  reactToMessage,
+  retractVote,
+  unlockPaidMedia,
+  updateChecklist,
+  votePoll,
+} from "../api/message-actions";
 
 const fail = (err: unknown, fallback: string) => toast(errorText(err, fallback), { error: true });
 
@@ -24,6 +51,15 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
   const isPremium = !!me.isPremium;
   return useMemo(() => {
     const reconcile = () => void client.invalidateQueries({ queryKey: messageQueries.history(chatId).queryKey });
+    const applyServer = async (request: Promise<{ message: Message }>, fallback: string) => {
+      try {
+        const { message } = await request;
+        historyCache.replace(client, chatId, message);
+      } catch (err) {
+        fail(err, fallback);
+        reconcile();
+      }
+    };
 
     return {
       async edit(m: Message, text: string) {
@@ -96,6 +132,48 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
         }
         // В группе появится служебная строка «… закрепил(а) …».
         reconcile();
+      },
+
+      // Опрос и чек-лист — как handleVote/handlePollAction в chatView.js и run() чек-листа:
+      // своё сразу, ответ сервера поверх, при ошибке — сверка с сервером.
+      async vote(m: Message, optionIndex: number) {
+        historyCache.patch(client, chatId, m.id, (x) => withAttachmentMeta(x, "poll", (meta: PollMeta) => applyVote(meta, optionIndex, me.id)));
+        await applyServer(votePoll(chatId, m.id, optionIndex), "Не удалось проголосовать");
+      },
+
+      async retractVote(m: Message) {
+        historyCache.patch(client, chatId, m.id, (x) => withAttachmentMeta(x, "poll", (meta: PollMeta) => applyVote(meta, null, me.id)));
+        await applyServer(retractVote(chatId, m.id), "Не удалось отменить голос");
+      },
+
+      async closePoll(m: Message) {
+        historyCache.patch(client, chatId, m.id, (x) => withAttachmentMeta(x, "poll", (meta: PollMeta) => ({ ...meta, closed: true })));
+        await applyServer(closePoll(chatId, m.id), "Не удалось остановить опрос");
+      },
+
+      async toggleChecklist(m: Message, itemId: number) {
+        historyCache.patch(client, chatId, m.id, (x) => withAttachmentMeta(x, "checklist", (meta: ChecklistMeta) => toggleChecklistItem(meta, itemId, me.id)));
+        await applyServer(updateChecklist(chatId, m.id, { itemId }), "Не удалось изменить чек-лист");
+      },
+
+      async addChecklistItems(m: Message, texts: string[]) {
+        await applyServer(updateChecklist(chatId, m.id, { add: texts }), "Не удалось изменить чек-лист");
+      },
+
+      /** Платный пост: подтверждение, звёзды, содержимое — в кэш (paidMedia.js). */
+      async unlockPaid(m: Message, { stars, label }: { stars: number; label: string }) {
+        const ok = await askConfirm(`Открыть ${label.toLowerCase()} за ${stars} ⭐? Звёзды получит автор канала.`, { okLabel: `Открыть за ${stars} ⭐` });
+        if (!ok) return;
+        try {
+          const { attachments } = await unlockPaidMedia(chatId, m.id);
+          const open: PaidMediaState = { attachments };
+          client.setQueryData(paidMediaQuery(chatId, m.id).queryKey, open);
+          toast("Пост открыт");
+        } catch (err) {
+          // Пополнение звёзд переедет вместе с его окном; пока — что не хватает.
+          if (err instanceof ApiError && err.status === 402) toast(err.message || "Не хватает звёзд", { error: true });
+          else fail(err, "Не удалось открыть пост");
+        }
       },
 
       /** Переслать в выбранные чаты по очереди; возвращает, сколько не ушло, и последнюю ошибку. */

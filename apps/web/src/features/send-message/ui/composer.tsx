@@ -13,7 +13,9 @@ import { useSendMessage } from "../model/use-send-message";
 import { useUploads } from "../model/use-uploads";
 
 import { AttachButton } from "./attach-button";
+import { ChecklistDialog } from "./checklist-dialog";
 import styles from "./composer.module.css";
+import { PollDialog } from "./poll-dialog";
 import { type MediaSendChoice, SendMediaDialog } from "./send-media-dialog";
 import { UploadStrip } from "./upload-strip";
 
@@ -67,6 +69,7 @@ export function Composer(props: Props) {
   const textarea = useRef<HTMLTextAreaElement>(null);
   const uploads = useUploads(chatId);
   const [picked, setPicked] = useState<File[] | null>(null);
+  const [creating, setCreating] = useState<"poll" | "checklist" | null>(null);
   // Подпись к файлам — то, что в поле, когда загрузка закончилась.
   const latestText = useRef(text);
   useEffect(() => {
@@ -166,6 +169,16 @@ export function Composer(props: Props) {
     }
   };
 
+  // Опрос, чек-лист, кубик — отдельным сообщением; текст в поле остаётся.
+  const sendAttachment = (caption: string, attachment: OutgoingAttachment) => {
+    const reply = replyTo;
+    onCancelReply();
+    onSent?.();
+    send(caption, reply, [attachment]).catch((err: unknown) => {
+      setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
+    });
+  };
+
   // Картинка или файл из буфера обмена — в окно отправки.
   const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
     const files = [...(e.clipboardData?.files ?? [])];
@@ -225,7 +238,16 @@ export function Composer(props: Props) {
       <UploadStrip tiles={uploads.tiles} onCancel={uploads.cancel} />
       <div className={styles.row}>
         <div className={styles.field}>
-          {editing ? <span className={styles.attachGap} /> : <AttachButton onFiles={attach} />}
+          {editing ? (
+            <span className={styles.attachGap} />
+          ) : (
+            <AttachButton
+              onFiles={attach}
+              onPoll={() => setCreating("poll")}
+              onChecklist={() => setCreating("checklist")}
+              onDice={(emoji) => sendAttachment("", { kind: "dice", meta: { emoji } })}
+            />
+          )}
           <textarea
           ref={textarea}
           className={styles.input}
@@ -242,6 +264,22 @@ export function Composer(props: Props) {
           <Icon name={editing ? "Check" : "Send"} size={22} />
         </button>
       </div>
+      {creating === "poll" ? (
+        <PollDialog
+          onClose={() => setCreating(null)}
+          onCreate={({ question, options, correctIndex, multiple }) =>
+            sendAttachment(question, { kind: "poll", meta: { options, votes: options.map(() => 0), voterIds: options.map(() => []), correctIndex, multiple } })
+          }
+        />
+      ) : null}
+      {creating === "checklist" ? (
+        <ChecklistDialog
+          onClose={() => setCreating(null)}
+          onCreate={({ title, items, othersCanMark, othersCanAdd }) =>
+            sendAttachment(title, { kind: "checklist", meta: { items: items.map((text, i) => ({ id: i + 1, text })), othersCanMark, othersCanAdd } })
+          }
+        />
+      ) : null}
       {picked ? <SendMediaDialog files={picked} onSend={(choice) => void sendMedia(choice)} onClose={() => setPicked(null)} /> : null}
     </div>
   );

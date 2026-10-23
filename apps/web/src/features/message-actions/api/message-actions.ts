@@ -1,7 +1,7 @@
 import type { deleteResult, messageEnvelope, sendResult } from "@shalter/shared/schemas/messages";
 import type { z } from "zod";
 
-import type { Message } from "@/entities/message";
+import type { Attachment, Message } from "@/entities/message";
 
 import { http } from "@/shared/api";
 
@@ -39,3 +39,14 @@ export function forwardMessage(targetChatId: string, m: Message, origin: Forward
     forwardedFrom: { messageId: m.id, hideAuthor, chatId: origin.chatId, chatTitle: origin.chatTitle, senderId: m.senderId, senderName: origin.senderName },
   });
 }
+
+export const votePoll = (chatId: string, id: string, optionIndex: number) => http.post<Envelope>(`${messagePath(chatId, id)}/vote`, { optionIndex });
+
+export const retractVote = (chatId: string, id: string) => http.delete<Envelope>(`${messagePath(chatId, id)}/vote`);
+
+export const closePoll = (chatId: string, id: string) => http.post<Envelope>(`${messagePath(chatId, id)}/poll/close`);
+
+/** Отметить пункт ({ itemId }) или дописать пункты ({ add }). */
+export const updateChecklist = (chatId: string, id: string, body: { itemId: number } | { add: string[] }) => http.post<Envelope>(`${messagePath(chatId, id)}/checklist`, body);
+
+export const unlockPaidMedia = (chatId: string, id: string) => http.post<{ attachments: Attachment[]; balance: number }>(`${messagePath(chatId, id)}/unlock`);

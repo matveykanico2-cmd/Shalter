@@ -2,7 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { RouterProvider } from "react-router";
 
-import { Toaster } from "@/shared/ui";
+import { AskHost, Toaster } from "@/shared/ui";
 
 import { createQueryClient } from "./providers/query-client";
 import { createRouter } from "./router";
@@ -14,6 +14,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
       <Toaster />
+      <AskHost />
     </QueryClientProvider>
   );
 }

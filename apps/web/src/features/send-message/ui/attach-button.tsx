@@ -4,11 +4,27 @@ import { Icon, Menu, type MenuItem } from "@/shared/ui";
 
 import styles from "./composer.module.css";
 
-type Props = { onFiles: (files: File[]) => void };
+type Props = {
+  onFiles: (files: File[]) => void;
+  onPoll: () => void;
+  onChecklist: () => void;
+  onDice: (emoji: string) => void;
+};
 
-/** Скрепка — как меню вложений в composer.js: фото и видео, камера, файл, аудио. */
-export function AttachButton({ onFiles }: Props) {
+/** Эмодзи-игры (число выпадает на сервере). Каталог игр переедет вместе с экраном игр. */
+const DICE: [string, string][] = [
+  ["🎲", "Кубик"],
+  ["🎯", "Дартс"],
+  ["🏀", "Баскетбол"],
+  ["⚽", "Футбол"],
+  ["🎳", "Боулинг"],
+  ["🎰", "Слот-машина"],
+];
+
+/** Скрепка — как меню вложений в composer.js: фото и видео, камера, файл, аудио, опрос, чек-лист, кубики. */
+export function AttachButton({ onFiles, onPoll, onChecklist, onDice }: Props) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const [diceAt, setDiceAt] = useState<{ x: number; y: number } | null>(null);
   const media = useRef<HTMLInputElement>(null);
   const photo = useRef<HTMLInputElement>(null);
   const video = useRef<HTMLInputElement>(null);
@@ -27,6 +43,10 @@ export function AttachButton({ onFiles }: Props) {
     { icon: "File", label: "Файл", onClick: () => any.current?.click() },
     // accept="audio/*" открывает на телефоне музыку, а не галерею; трек уходит файлом с плеером.
     { icon: "Mic", label: "Аудио", onClick: () => audio.current?.click() },
+    { icon: "BarChart", label: "Опрос", onClick: onPoll },
+    { icon: "CheckCheck", label: "Чек-лист", onClick: onChecklist },
+    // Меню закрывается раньше, чем откроется следующее, — второе ставим в ту же точку.
+    { icon: "Smile", label: "Кубик и игры", onClick: () => setTimeout(() => setDiceAt(at), 0) },
   ];
 
   return (
@@ -49,6 +69,9 @@ export function AttachButton({ onFiles }: Props) {
       <input ref={any} type="file" multiple hidden onChange={take} data-testid="attach-file" />
       <input ref={audio} type="file" accept="audio/*" multiple hidden onChange={take} />
       {at ? <Menu at={at} label="Прикрепить" items={items} onClose={() => setAt(null)} /> : null}
+      {diceAt ? (
+        <Menu at={diceAt} label="Кубик и игры" items={DICE.map(([emoji, label]) => ({ label: `${emoji}  ${label}`, onClick: () => onDice(emoji) }))} onClose={() => setDiceAt(null)} />
+      ) : null}
     </>
   );
 }

@@ -4,8 +4,8 @@ import { type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect,
 
 import { canPin, isProtectedChat, MessageMenus, useMessageActions, useMessageMenu } from "@/features/message-actions";
 
-import { chatCache, type ChatMember, type ChatSummary } from "@/entities/chat";
-import { type FeedMessage, loadOlderHistory, type Message, MessageBubble, messageQueries, type MessageSender, type ReplyTarget } from "@/entities/message";
+import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator } from "@/entities/chat";
+import { type AttachmentActions, type FeedMessage, loadOlderHistory, type Message, MessageBubble, messageQueries, type MessageSender, type ReplyTarget } from "@/entities/message";
 import type { SelfUser } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
@@ -63,6 +63,21 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
 
   const rows = useMemo(() => feedRows(data?.messages ?? [], unreadId ?? null), [data?.messages, unreadId]);
   const senders = useSenders(chat, members);
+  const attachmentActions = useMemo<AttachmentActions>(
+    () => ({
+      poll: {
+        onVote: actions.vote,
+        onRetract: actions.retractVote,
+        onClose: actions.closePoll,
+        // Чужой опрос останавливают админы и модераторы группы или канала.
+        canCloseOthers: chat.type !== "dm" && (isChatAdmin(chat, meId) || isChatModerator(chat, meId)),
+      },
+      checklist: { onToggle: actions.toggleChecklist, onAdd: actions.addChecklistItems },
+      onUnlockPaid: actions.unlockPaid,
+    }),
+    [actions, chat, meId]
+  );
+  const nameOf = useCallback((userId: string) => senders({ senderId: userId })?.name ?? "участник", [senders]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);
@@ -223,6 +238,8 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
                         onReact={actions.react}
                         onOpenMedia={openMedia}
                         protectedContent={protectedContent}
+                        attachmentActions={attachmentActions}
+                        nameOf={nameOf}
                       />
                     </div>
                   )}
@@ -269,6 +286,8 @@ type RowProps = {
   onReact: (m: Message, emoji: string) => void;
   onOpenMedia: (m: Message, url: string) => void;
   protectedContent: boolean;
+  attachmentActions: AttachmentActions;
+  nameOf: (userId: string) => string;
 };
 
 function MessageRow(props: RowProps) {
@@ -296,6 +315,8 @@ function MessageRow(props: RowProps) {
       onReact={onReact}
       onOpenMedia={props.onOpenMedia}
       protectedContent={props.protectedContent}
+      attachmentActions={props.attachmentActions}
+      nameOf={props.nameOf}
     />
   );
 }

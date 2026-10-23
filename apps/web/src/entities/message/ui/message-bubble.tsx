@@ -9,7 +9,7 @@ import { callLogInfo, messagePreview, stripCustomEmoji } from "../lib/message-pr
 import { reactionsOf } from "../lib/reactions";
 import type { FeedMessage, Message, ReplyTarget } from "../model/types";
 
-import { MessageAttachments } from "./attachments/message-attachments";
+import { type AttachmentActions, MessageAttachments } from "./attachments/message-attachments";
 import { LinkPreviewCard } from "./attachments/misc-attachments";
 import styles from "./message-bubble.module.css";
 import { MessageText } from "./message-text";
@@ -48,6 +48,10 @@ type Props = {
   onOpenMedia?: (m: Message, url: string) => void;
   /** Чат с запретом сохранения: без кнопок «скачать». */
   protectedContent?: boolean;
+  /** Опросы, чек-листы, платные посты. */
+  attachmentActions?: AttachmentActions;
+  /** Имя участника по id — «кто отметил» в чек-листе. */
+  nameOf?: (userId: string) => string;
 };
 
 type Point = { x: number; y: number };
@@ -72,7 +76,9 @@ export function MessageBubble(props: Props) {
   const isCall = isCallLogMessage(m);
   const sticker = m.type === "sticker" ? (m.sticker as { emoji?: string } | undefined) : undefined;
   const giftLine = m.type === "gift" ? messagePreview(m) : null;
-  const text = !isCall && !sticker && m.text?.trim() ? m.text : null;
+  // У опроса и чек-листа текст — их заголовок, его рисует само вложение.
+  const titled = m.attachments?.some((a) => (a as { kind?: string }).kind === "poll" || (a as { kind?: string }).kind === "checklist");
+  const text = !isCall && !sticker && !titled && m.text?.trim() ? m.text : null;
   const mediaOnly = !isCall && isMediaOnly(m);
   const preview = linkPreviewOf(m);
 
@@ -116,6 +122,9 @@ export function MessageBubble(props: Props) {
       <MessageAttachments
         key="att"
         message={m}
+        meId={props.meId ?? ""}
+        nameOf={props.nameOf ?? (() => "участник")}
+        actions={props.attachmentActions}
         canDownload={!props.protectedContent}
         onOpenMedia={props.onOpenMedia ? (url) => props.onOpenMedia?.(m, url) : undefined}
         onDoubleTap={!m.pending && props.onOpenReactions ? (at) => props.onOpenReactions?.(m, at) : undefined}
