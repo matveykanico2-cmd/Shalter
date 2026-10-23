@@ -21,6 +21,7 @@ import { PollDialog } from "./poll-dialog";
 import { RecordButtons } from "./record-buttons";
 import { type HoldControl, RecordingBar, type RecordingDone } from "./recording-bar";
 import { type MediaSendChoice, SendMediaDialog } from "./send-media-dialog";
+import { StickerButton } from "./sticker-picker";
 import { UploadStrip } from "./upload-strip";
 
 export type ComposerHandle = {
@@ -298,6 +299,18 @@ export function Composer(props: Props) {
               onKeyDown={onKeyDown}
               onPaste={onPaste}
             />
+            {/* В канале стикер публикацией поста не уходит — кнопки нет. */}
+            {!editing && !channel ? (
+              <StickerButton
+                chatId={chatId}
+                onSend={(sticker) => {
+                  const reply = replyTo;
+                  onCancelReply();
+                  onSent?.();
+                  send("", reply, [], sticker).catch((err: unknown) => setError(errorText(err, "Не удалось отправить стикер")));
+                }}
+              />
+            ) : null}
           </div>
         )}
         {recording && !recording.hold ? null : !text.trim() && !editing && canRecord ? (

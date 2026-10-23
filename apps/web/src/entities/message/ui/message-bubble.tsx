@@ -1,16 +1,20 @@
 import { type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, useRef } from "react";
 
+import type { Sticker } from "@/shared/lib/anim";
 import { useLongPress } from "@/shared/lib/use-long-press";
 import { Avatar, Icon } from "@/shared/ui";
 
 import { isMediaOnly, linkPreviewOf } from "../lib/attachments";
+import { customEmojiOnly, jumboEmojiCount } from "../lib/jumbo";
 import { isCallLogMessage, isReadByOthers, NAME_COLORS, timeLabel } from "../lib/message-meta";
 import { callLogInfo, messagePreview, stripCustomEmoji } from "../lib/message-preview";
 import { reactionsOf } from "../lib/reactions";
+import { justReacted } from "../lib/reactions-anim";
 import type { FeedMessage, Message, ReplyTarget } from "../model/types";
 
 import { type AttachmentActions, MessageAttachments } from "./attachments/message-attachments";
 import { LinkPreviewCard } from "./attachments/misc-attachments";
+import { CustomEmoji, JumboEmoji, ReactionGlyph, StickerBody } from "./animated";
 import styles from "./message-bubble.module.css";
 import { MessageText } from "./message-text";
 
@@ -74,7 +78,7 @@ export function MessageBubble(props: Props) {
   // Как в Telegram: пост канала — от канала, «свои» пузыри справа только вне каналов.
   const out = mine && !isChannel;
   const isCall = isCallLogMessage(m);
-  const sticker = m.type === "sticker" ? (m.sticker as { emoji?: string } | undefined) : undefined;
+  const sticker = m.type === "sticker" ? (m.sticker as Sticker | undefined) : undefined;
   const giftLine = m.type === "gift" ? messagePreview(m) : null;
   // У опроса и чек-листа текст — их заголовок, его рисует само вложение.
   const titled = m.attachments?.some((a) => (a as { kind?: string }).kind === "poll" || (a as { kind?: string }).kind === "checklist");
@@ -134,14 +138,22 @@ export function MessageBubble(props: Props) {
 
   if (isCall) body.push(<CallBody key="call" message={m} mine={mine} />);
   else if (sticker) {
-    body.push(
-      <span key="sticker" className={styles.sticker} role="img" aria-label="Стикер">
-        {sticker.emoji ?? "🖼"}
-      </span>
-    );
+    body.push(<StickerBody key="sticker" messageId={m.id} sticker={sticker} />);
   }
   const reactions = reactionsOf(m);
-  if (text) body.push(<MessageText key="text" text={text} meta={reactions.length || preview ? null : meta} />);
+  // 1–3 эмодзи или только свои эмодзи — крупно, как в Telegram.
+  const plain = !m.attachments?.length;
+  const ceOnly = text && plain && Array.isArray(m.customEmoji) ? customEmojiOnly(text) : null;
+  const jumbo = text && plain && !ceOnly ? jumboEmojiCount(text) : 0;
+  if (text && ceOnly && ceOnly.length <= 3) {
+    const scenes = m.customEmoji as unknown[];
+    body.push(
+      <span key="text" className={styles.customJumbo}>
+        {ceOnly.map((idx, i) => (scenes[idx] ? <CustomEmoji key={i} scene={scenes[idx]} jumbo /> : <span key={i}>🎨</span>))}
+      </span>
+    );
+  } else if (text && jumbo) body.push(<JumboEmoji key="text" messageId={m.id} text={text} count={jumbo} />);
+  else if (text) body.push(<MessageText key="text" text={text} customEmoji={Array.isArray(m.customEmoji) ? m.customEmoji : undefined} meta={reactions.length || preview ? null : meta} />);
   if (preview) body.push(<LinkPreviewCard key="preview" preview={preview} />);
   if (reactions.length) {
     body.push(
@@ -158,7 +170,9 @@ export function MessageBubble(props: Props) {
               disabled={!props.onReact || m.pending}
               onClick={() => props.onReact?.(m, r.emoji)}
             >
-              <span className={styles.reactionGlyph}>{r.emoji}</span>
+              <span className={styles.reactionGlyph}>
+                <ReactionGlyph emoji={r.emoji} play={justReacted(m.id, r.emoji)} />
+              </span>
               <span className={styles.reactionCount}>{r.userIds.length}</span>
             </button>
           );
@@ -175,7 +189,7 @@ export function MessageBubble(props: Props) {
         {meta}
       </span>
     );
-  } else if ((!text || preview) && !isCall) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
+  } else if ((!text || preview || jumbo || (ceOnly && ceOnly.length <= 3)) && !isCall) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
 
   const bubbleClass = [styles.bubble, out ? styles.out : styles.in, groupStart ? "" : styles.joinTop, groupEnd ? "" : styles.joinBottom, sticker ? styles.stickerBubble : "", mediaOnly ? styles.mediaOnly : ""]
     .filter(Boolean)

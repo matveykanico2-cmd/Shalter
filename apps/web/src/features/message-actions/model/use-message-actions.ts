@@ -11,6 +11,7 @@ import {
   maxReactionsPerUser,
   type Message,
   messageQueries,
+  noteReacted,
   paidMediaQuery,
   type PaidMediaState,
   type PollMeta,
@@ -22,6 +23,7 @@ import {
 import type { SelfUser } from "@/entities/session";
 
 import { ApiError } from "@/shared/api";
+import { showReactionBurst } from "@/shared/lib/anim";
 import { errorText } from "@/shared/lib/error-text";
 import { askConfirm, toast } from "@/shared/ui";
 
@@ -101,6 +103,11 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
         const mySeq = ++op.seq;
         op.pending += 1;
         reactOps.set(m.id, op);
+        // Ставим (а не снимаем) — анимация реакции и крупная «вспышка» над сообщением.
+        if (!reactionsOf(m).some((r) => r.emoji === emoji && r.userIds.includes(me.id))) {
+          noteReacted(m.id, emoji);
+          showReactionBurst(emoji, document.querySelector(`[data-message-id="${CSS.escape(m.id)}"]`));
+        }
         const before = historyCache.patch(client, chatId, m.id, (x) => ({
           ...x,
           reactions: toggleReaction(reactionsOf(x), emoji, me.id, maxReactionsPerUser(isPremium)),

@@ -1,11 +1,15 @@
-import { type MouseEvent, type ReactNode, useMemo, useState } from "react";
+import { createContext, type MouseEvent, type ReactNode, use, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { langLabel, tokenize } from "@/shared/lib/highlight";
 
 import { type Block, type Inline, internalRoute, linkSafety, parseText, QUOTE_COLLAPSE_LINES } from "../lib/format-text";
 
+import { CustomEmoji } from "./animated";
 import styles from "./message-text.module.css";
+
+/** Свои эмодзи сообщения: [ce:N] в тексте — N-я сцена из message.customEmoji. */
+const CustomEmojiScenes = createContext<readonly unknown[] | undefined>(undefined);
 
 /** Код длиннее этого не подсвечиваем — токенизатор однопроходный, но не бесплатный. */
 const HIGHLIGHT_LIMIT = 20_000;
@@ -15,16 +19,18 @@ const HIGHLIGHT_LIMIT = 20_000;
  * formatText в public/js/lib/formatText.js. meta — время с галочками: встаёт в конец
  * последней строки.
  */
-export function MessageText({ text, meta }: { text: string; meta?: ReactNode }) {
+export function MessageText({ text, meta, customEmoji }: { text: string; meta?: ReactNode; customEmoji?: readonly unknown[] }) {
   const blocks = useMemo(() => parseText(text), [text]);
   const lastLine = blocks.at(-1)?.kind === "line" ? blocks.length - 1 : -1;
   return (
-    <div className={styles.text}>
-      {blocks.map((block, i) => (
-        <BlockView key={i} block={block} tail={i === lastLine ? meta : undefined} />
-      ))}
-      {lastLine < 0 && meta ? <span className={styles.block}>{meta}</span> : null}
-    </div>
+    <CustomEmojiScenes value={customEmoji}>
+      <div className={styles.text}>
+        {blocks.map((block, i) => (
+          <BlockView key={i} block={block} tail={i === lastLine ? meta : undefined} />
+        ))}
+        {lastLine < 0 && meta ? <span className={styles.block}>{meta}</span> : null}
+      </div>
+    </CustomEmojiScenes>
   );
 }
 
@@ -99,10 +105,14 @@ function InlineView({ item }: { item: Inline }) {
     case "mention":
     case "hashtag":
       return <span className={styles.mention}>{item.text}</span>;
-    // Свои эмодзи рисуются сценой (public/js/lib/customScene.js) — пока значком, как в превью.
     case "emoji":
-      return "🎨";
+      return <InlineCustomEmoji index={item.index} />;
   }
+}
+
+function InlineCustomEmoji({ index }: { index: number }) {
+  const scene = use(CustomEmojiScenes)?.[index];
+  return scene ? <CustomEmoji scene={scene} /> : "🎨";
 }
 
 function Quote({ lines }: { lines: Inline[][] }) {

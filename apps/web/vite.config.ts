@@ -10,6 +10,10 @@ const proxy = {
   "/api": { target: backend },
   "/ws": { target: backend, ws: true },
   "/uploads": { target: backend },
+  // Анимации стикеров, подарков и эмодзи и их плеер — отдаёт бэкенд (src/shared/lib/anim).
+  "/tgs": { target: backend },
+  "/gift-emoji": { target: backend },
+  "/js/vendor": { target: backend },
 };
 
 export default defineConfig({
