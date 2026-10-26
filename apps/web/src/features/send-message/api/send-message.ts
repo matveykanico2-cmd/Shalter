@@ -19,7 +19,7 @@ export type OutgoingAttachment =
 /** Как отправить: без звука у получателей, с эффектом (в личке). */
 export type SendOptions = { silent?: true; effect?: string };
 
-type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string } & SendOptions;
+type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string; threadRootId?: string } & SendOptions;
 
 /**
  * Сообщение в чат (POST /api/chats/:id/messages) или пост канала (POST /api/posts/:id/publish).

@@ -12,13 +12,25 @@ import { type OutgoingAttachment, sendMessage, type SendOptions } from "../api/s
 
 let localSeq = 0;
 
-/** topicId — открытая тема группы; без неё ответ уходит в тему исходного сообщения. */
-export function useSendMessage(chatId: string, meId: string, channel: boolean, topicId?: string | null) {
+/**
+ * topicId — открытая тема группы; без неё ответ уходит в тему исходного сообщения.
+ * threadRootId — ответ в ветке: в ленту чата он не попадает, временного пузыря нет.
+ */
+export function useSendMessage(chatId: string, meId: string, channel: boolean, topicId?: string | null, threadRootId?: string) {
   const client = useQueryClient();
   return useCallback(
     async (text: string, replyTo: Message | null, attachments: OutgoingAttachment[] = [], sticker?: Sticker, options: SendOptions = {}) => {
       const localId = `local_${++localSeq}_${Date.now()}`;
       const topic = topicId ?? replyTo?.topicId ?? null;
+      if (threadRootId) {
+        try {
+          const { message } = await sendMessage(chatId, { text, replyToId: null, clientId: localId, attachments, sticker, threadRootId, ...options }, false);
+          return message;
+        } finally {
+          // Счётчик «N ответов» под сообщением в ленте.
+          void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chatId) });
+        }
+      }
       historyCache.addPending(client, chatId, {
         id: localId,
         chatId,
@@ -51,6 +63,6 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
         void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chatId) });
       }
     },
-    [client, chatId, meId, channel, topicId]
+    [client, chatId, meId, channel, topicId, threadRootId]
   );
 }

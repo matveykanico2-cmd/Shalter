@@ -12,7 +12,8 @@ type Props = {
   onLocation: (live: boolean) => void;
   onContact: () => void;
   onHugo: () => void;
-  onSchedule: () => void;
+  /** Нет — «Отправить позже» не показываем (ответ в ветке). */
+  onSchedule?: () => void;
 };
 
 /** Эмодзи-игры (число выпадает на сервере). Каталог игр переедет вместе с экраном игр. */
@@ -55,7 +56,7 @@ export function AttachButton({ onFiles, onPoll, onChecklist, onDice, onLocation,
     { icon: "MapPin", label: "Живая геолокация (15 мин)", onClick: () => onLocation(true) },
     { icon: "Users", label: "Контакт", onClick: onContact },
     { icon: "Check", label: "Проверить текст (Hugo)", onClick: onHugo },
-    { icon: "Clock", label: "Отправить позже", onClick: onSchedule },
+    ...(onSchedule ? [{ icon: "Clock" as const, label: "Отправить позже", onClick: onSchedule }] : []),
   ];
 
   return (

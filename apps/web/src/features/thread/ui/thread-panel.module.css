@@ -100,47 +100,8 @@
   }
 }
 
+/* Поле ответа — общий Composer; по краю панели, как composer-slot в ветке старого клиента. */
 .composer {
-  padding: 8px 10px;
+  padding-top: 10px;
   border-top: 1px solid var(--color-border);
-}
-
-.inputRow {
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-}
-
-.input {
-  flex: 1;
-  min-height: 40px;
-  padding: 9px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 20px;
-  background: var(--color-surface-alt);
-  color: var(--color-text);
-  font: inherit;
-  line-height: 1.4;
-  resize: none;
-}
-
-.send {
-  display: flex;
-  padding: 9px;
-  border: none;
-  border-radius: 50%;
-  background: none;
-  color: var(--color-accent);
-  cursor: pointer;
-}
-
-.send:disabled {
-  color: var(--color-muted);
-  cursor: default;
-}
-
-.error {
-  margin: 0 0 6px;
-  color: var(--color-danger);
-  font-size: 13px;
 }

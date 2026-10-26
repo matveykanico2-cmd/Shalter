@@ -13,6 +13,7 @@ import {
   useMessageSelection,
   useSummaries,
 } from "@/features/message-actions";
+import { Composer } from "@/features/send-message";
 import { ThreadPanel } from "@/features/thread";
 
 import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator } from "@/entities/chat";
@@ -71,6 +72,8 @@ type Props = {
 };
 
 /** Лента открытого чата: история с подгрузкой вверх, живые события, виртуализация. */
+const noop = () => {};
+
 export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: Props) {
   const meId = me.id;
   const client = useQueryClient();
@@ -248,6 +251,8 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
 
   const messagesById = useMemo(() => new Map((data?.messages ?? []).map((m) => [m.id, m])), [data?.messages]);
   const isGroup = chat.type === "group";
+  // Контактом из ветки можно отправить участника группы, как из основного поля.
+  const threadPeople = useMemo(() => members.filter((u) => u.id !== me.id), [members, me.id]);
   const isChannel = chat.type === "channel";
 
   if (history.isPending) {
@@ -367,7 +372,29 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
         summaries={summaries}
         onOpenThread={isGroup ? setThread : undefined}
       />
-      {thread ? <ThreadPanel chat={chat} root={thread} me={me} userOf={userOf} onClose={() => setThread(null)} /> : null}
+      {thread ? (
+        <ThreadPanel
+          chat={chat}
+          root={thread}
+          me={me}
+          userOf={userOf}
+          onClose={() => setThread(null)}
+          composer={(onSent) => (
+            <Composer
+              chatId={chat.id}
+              meId={me.id}
+              channel={false}
+              initialDraft=""
+              placeholder="Ответить в теме"
+              replyTo={null}
+              replyToName={null}
+              onCancelReply={noop}
+              people={threadPeople}
+              thread={{ rootId: thread.id, onSent }}
+            />
+          )}
+        />
+      ) : null}
     </div>
   );
 }

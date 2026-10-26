@@ -87,6 +87,8 @@ function renderChat(c: ChatSummary = chat()) {
   return { client, router };
 }
 
+/** Пузыри только в ленте чата — без панели ветки поверх. */
+const feedBubbles = () => [...screen.getByRole("log", { name: "Сообщения" }).querySelectorAll("[data-message-id]")].map((el) => el.getAttribute("data-message-id"));
 const bubbles = () => [...document.querySelectorAll("[data-message-id]")].map((el) => el.getAttribute("data-message-id"));
 const card = (c: ChatSummary = chat()) => ({ body: { chat: c, members: [ME, LENA], commands: null, paidMessages: null } });
 
@@ -1100,12 +1102,16 @@ describe("темы и ветки", () => {
     const panel = screen.getByRole("dialog", { name: "Тема" });
     expect(await within(panel).findByText("на море")).toBeTruthy();
     expect(within(panel).getByText("Ответы (1)")).toBeTruthy();
-    const input = within(panel).getByRole("textbox", { name: "Ответ в теме" });
+    const input = within(panel).getByRole("textbox", { name: "Ответить в теме" });
+    await waitFor(() => expect(document.activeElement).toBe(input));
     fireEvent.change(input, { target: { value: "в горы" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(await within(panel).findByText("в горы")).toBeTruthy();
-    expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toEqual({ text: "в горы", threadRootId: root.id });
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ text: "в горы", threadRootId: root.id });
     expect((input as HTMLTextAreaElement).value).toBe("");
+    // Ответ в ветке — не в ленте чата и не в черновике.
+    expect(feedBubbles()).toEqual([root.id]);
+    expect(calls.some((c) => c.key === "POST /api/chats/c_1/draft")).toBe(false);
 
     ws.start();
     act(() => FakeSocket.last().open());
@@ -1115,6 +1121,43 @@ describe("темы и ветки", () => {
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Тема" })).toBeNull();
+  });
+
+  it("ветка: фото с подписью и без «Отправить позже»", async () => {
+    fakeXhr();
+    const root = msg("покажите море");
+    const sent = msg("вот", { senderId: ME.id, threadRootId: root.id, attachments: [{ kind: "image", url: "/uploads/a" }] });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([root]),
+      [`GET /api/chats/c_1/messages/${root.id}/thread`]: { body: { root, replies: [] } },
+      "POST /api/chats/c_1/messages": { body: { message: sent } },
+      ...typingRoutes,
+    });
+    renderChat();
+    await screen.findByText("покажите море");
+    openMenu(root.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ответить в теме" }));
+    const panel = screen.getByRole("dialog", { name: "Тема" });
+    await within(panel).findByText("Пока нет ответов — начните тему первым");
+
+    fireEvent.click(within(panel).getByTitle("Прикрепить"));
+    expect(screen.queryByRole("menuitem", { name: "Отправить позже" })).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    fireEvent.change(within(panel).getByRole("textbox", { name: "Ответить в теме" }), { target: { value: "вот" } });
+    fireEvent.change(within(panel).getByTestId("attach-media"), { target: { files: [new File(["x"], "1.png", { type: "image/png" })] } });
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Отправить фото" })).getByRole("button", { name: "Отправить" }));
+    await waitFor(() => expect(FakeXhr.requests).toHaveLength(1));
+    act(() => FakeXhr.requests[0]!.respond(200, { url: "/uploads/a", name: "1.png" }));
+
+    await waitFor(() => expect(within(panel).getByText("Ответы (1)")).toBeTruthy());
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({
+      text: "вот",
+      threadRootId: root.id,
+      attachments: [{ kind: "image", url: "/uploads/a" }],
+    });
+    expect(feedBubbles()).toEqual([root.id]);
   });
 
   it("«Ответить в теме» из меню открывает ветку", async () => {

@@ -21,7 +21,8 @@ type Props = {
   disabled: boolean;
   allowEffects: boolean;
   onSend: (options?: SendOptions) => void;
-  onSchedule: () => void;
+  /** Нет — «Отправить позже» не показываем (ответ в ветке). */
+  onSchedule?: () => void;
 };
 
 /**
@@ -38,7 +39,7 @@ export function SendButton({ editing, disabled, allowEffects, onSend, onSchedule
     ? EFFECTS.map(([emoji, name]) => ({ label: `${emoji}  ${name}`, onClick: () => onSend({ effect: emoji }) }))
     : [
         { icon: "BellOff", label: "Отправить без звука", onClick: () => onSend({ silent: true }) },
-        { icon: "Clock", label: "Отправить позже", onClick: onSchedule },
+        ...(onSchedule ? [{ icon: "Clock" as const, label: "Отправить позже", onClick: onSchedule }] : []),
         // Меню закрывается раньше, чем откроется следующее, — второе ставим в ту же точку.
         ...(allowEffects && menu ? [{ icon: "Zap" as const, label: "Отправить с эффектом", onClick: () => openEffects(menu) }] : []),
       ];

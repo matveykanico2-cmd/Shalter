@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { type ChatSummary, isChatAdmin, isChatModerator } from "@/entities/chat";
@@ -9,7 +9,7 @@ import type { SelfUser } from "@/entities/session";
 import { errorText } from "@/shared/lib/error-text";
 import { askConfirm, askText, Icon, Menu, type MenuItem, toast } from "@/shared/ui";
 
-import { deleteReply, editReply, sendThreadReply } from "../api/thread";
+import { deleteReply, editReply } from "../api/thread";
 import { useThread } from "../model/use-thread";
 
 import styles from "./thread-panel.module.css";
@@ -20,12 +20,14 @@ type Props = {
   me: SelfUser;
   userOf: (userId: string) => MessageSender | null;
   onClose: () => void;
+  /** Поле ответа (Composer в режиме ветки): onSent — ответ ушёл, сразу в список. */
+  composer: (onSent: (m: Message) => void) => ReactNode;
 };
 
 const isServerModerator = (me: SelfUser) => !!me.isDeveloper || (me.adminSections ?? []).includes("moderation");
 
 /** Ответы на сообщение группы — боковая панель, как openThreadPanel в public/js/components/threadPanel.js. */
-export function ThreadPanel({ chat, root: initialRoot, me, userOf, onClose }: Props) {
+export function ThreadPanel({ chat, root: initialRoot, me, userOf, onClose, composer }: Props) {
   const client = useQueryClient();
   const { query, add, replace, remove } = useThread(chat.id, initialRoot.id);
   const root = query.data?.root ?? initialRoot;
@@ -120,83 +122,10 @@ export function ThreadPanel({ chat, root: initialRoot, me, userOf, onClose }: Pr
             );
           })}
         </div>
-        <ThreadComposer
-          onSend={async (text) => {
-            const { message } = await sendThreadReply(chat.id, root.id, text);
-            add(message);
-            touchFeed();
-          }}
-        />
+        <div className={styles.composer}>{composer(add)}</div>
         {menu ? <Menu at={menu.at} label="Комментарий" items={menuItems(menu.message)} onClose={() => setMenu(null)} /> : null}
       </aside>
     </div>,
     document.body
-  );
-}
-
-/** Поле ответа: Enter — отправить, Shift+Enter — новая строка. */
-function ThreadComposer({ onSend }: { onSend: (text: string) => Promise<void> }) {
-  const [text, setText] = useState("");
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const input = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => input.current?.focus(), []);
-  useLayoutEffect(() => {
-    const el = input.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, [text]);
-
-  const send = async () => {
-    const value = text.trim();
-    if (!value || sending) return;
-    setSending(true);
-    setError(null);
-    try {
-      await onSend(value);
-      setText("");
-    } catch (err) {
-      setError(errorText(err, "Не удалось отправить"));
-    } finally {
-      setSending(false);
-      input.current?.focus();
-    }
-  };
-
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-      e.preventDefault();
-      void send();
-    }
-  };
-
-  return (
-    <div className={styles.composer}>
-      {error ? (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      ) : null}
-      <div className={styles.inputRow}>
-        <textarea
-          ref={input}
-          className={styles.input}
-          rows={1}
-          placeholder="Ответить в теме"
-          aria-label="Ответ в теме"
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            setError(null);
-          }}
-          onKeyDown={onKeyDown}
-        />
-        <button type="button" className={styles.send} title="Отправить" disabled={!text.trim() || sending} onClick={() => void send()}>
-          <Icon name="Send" size={20} />
-        </button>
-      </div>
-    </div>
   );
 }

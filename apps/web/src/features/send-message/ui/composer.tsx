@@ -77,6 +77,11 @@ type Props = {
   allowEffects?: boolean;
   /** «Отправить, когда будет в сети» — в личке с человеком. */
   allowWhenOnline?: boolean;
+  /**
+   * Ответ в ветке (threadPanel.js: Composer без черновика): сообщение уходит в ветку,
+   * в ленту чата не попадает, отложенной отправки нет; onSent — ответ сервера.
+   */
+  thread?: { rootId: string; onSent: (m: Message) => void };
   ref?: Ref<ComposerHandle>;
 };
 
@@ -85,7 +90,13 @@ export function Composer(props: Props) {
   const { chatId, meId, channel, initialDraft, placeholder = "Сообщение", replyTo, replyToName, onCancelReply, onSent } = props;
   const { editing = null, onSaveEdit, onCancelEdit, onEditLast, ref } = props;
   const client = useQueryClient();
-  const send = useSendMessage(chatId, meId, channel, props.topicId);
+  const thread = props.thread;
+  const sendOne = useSendMessage(chatId, meId, channel, props.topicId, thread?.rootId);
+  const send: typeof sendOne = async (...args) => {
+    const message = await sendOne(...args);
+    thread?.onSent(message);
+    return message;
+  };
   const [text, setText] = useState(initialDraft);
   // Начали править — в поле текст сообщения, а набранное раньше ждёт конца правки.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -122,10 +133,14 @@ export function Composer(props: Props) {
     el.style.height = `${Math.min(el.scrollHeight, MAX_ROWS_HEIGHT)}px`;
   }, [text]);
 
-  // Выбрали «Ответить» или «Изменить» — сразу печатаем.
+  // Выбрали «Ответить» или «Изменить» — сразу печатаем; ветку открыли — тоже.
   useEffect(() => {
     if (replyTo || editing) textarea.current?.focus();
   }, [replyTo, editing]);
+  const threadOpen = !!thread;
+  useEffect(() => {
+    if (threadOpen) textarea.current?.focus();
+  }, [threadOpen]);
 
   useEffect(() => () => clearTimeout(draftTimer.current), []);
 
@@ -134,6 +149,7 @@ export function Composer(props: Props) {
   };
 
   const scheduleDraft = (value: string) => {
+    if (thread) return;
     clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
       chatCache.setDraft(client, chatId, value);
@@ -217,7 +233,12 @@ export function Composer(props: Props) {
     setText("");
     setHugo(null);
     onCancelReply();
+    clearDraft();
+  };
+
+  const clearDraft = () => {
     clearTimeout(draftTimer.current);
+    if (thread) return;
     chatCache.setDraft(client, chatId, "");
     saveDraft(chatId, "").catch(() => {});
   };
@@ -282,9 +303,7 @@ export function Composer(props: Props) {
     const atts: OutgoingAttachment[] = uploaded.map((a) => (spoiler && (a.kind === "image" || a.kind === "video") ? { ...a, spoiler: true } : a));
     setText("");
     onCancelReply();
-    clearTimeout(draftTimer.current);
-    chatCache.setDraft(client, chatId, "");
-    saveDraft(chatId, "").catch(() => {});
+    clearDraft();
     onSent?.();
     for (const [i, part] of chunks(atts, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
       await send(i === 0 ? caption : "", i === 0 ? reply : null, part).catch((err: unknown) => {
@@ -446,7 +465,7 @@ export function Composer(props: Props) {
                 onLocation={(live) => void sendLocation(live)}
                 onContact={() => setCreating("contact")}
                 onHugo={() => void runHugo()}
-                onSchedule={openSchedule}
+                onSchedule={thread ? undefined : openSchedule}
               />
             )}
             <textarea
@@ -483,7 +502,7 @@ export function Composer(props: Props) {
             disabled={!text.trim()}
             allowEffects={!!props.allowEffects}
             onSend={submit}
-            onSchedule={openSchedule}
+            onSchedule={thread ? undefined : openSchedule}
           />
         )}
       </div>

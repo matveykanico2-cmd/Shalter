@@ -1,4 +1,4 @@
-import type { messageEnvelope, sendResult } from "@shalter/shared/schemas/messages";
+import type { messageEnvelope } from "@shalter/shared/schemas/messages";
 import { queryOptions } from "@tanstack/react-query";
 import type { z } from "zod";
 
@@ -22,9 +22,6 @@ export const threadQueries = {
       queryFn: ({ signal }) => http.get<Thread>(`${messagesPath(chatId)}/${encodeURIComponent(rootId)}/thread`, signal),
     }),
 };
-
-export const sendThreadReply = (chatId: string, rootId: string, text: string) =>
-  http.post<z.infer<typeof sendResult>>(messagesPath(chatId), { text, threadRootId: rootId });
 
 export const editReply = (chatId: string, id: string, text: string) =>
   http.patch<z.infer<typeof messageEnvelope>>(`${messagesPath(chatId)}/${encodeURIComponent(id)}`, { text });
