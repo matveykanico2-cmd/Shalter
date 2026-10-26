@@ -13,9 +13,20 @@ import {
   useMessageSelection,
   useSummaries,
 } from "@/features/message-actions";
+import { ThreadPanel } from "@/features/thread";
 
 import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator } from "@/entities/chat";
-import { type AttachmentActions, type FeedMessage, loadOlderHistory, type Message, MessageBubble, messageQueries, type MessageSender, type ReplyTarget } from "@/entities/message";
+import {
+  type AttachmentActions,
+  type FeedMessage,
+  loadOlderHistory,
+  type Message,
+  MessageBubble,
+  messageQueries,
+  type MessageSender,
+  type ReplyTarget,
+  type TopicFilter,
+} from "@/entities/message";
 import type { SelfUser } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
@@ -50,11 +61,13 @@ type Props = {
   /** quote — выделенная часть текста для цитаты. */
   onReply?: (m: Message, quote?: string) => void;
   onEdit?: (m: Message) => void;
+  /** Тема группы: лента только её сообщений. */
+  topic?: TopicFilter;
   ref?: Ref<MessageFeedHandle>;
 };
 
 /** Лента открытого чата: история с подгрузкой вверх, живые события, виртуализация. */
-export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) {
+export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: Props) {
   const meId = me.id;
   const client = useQueryClient();
   const menu = useMessageMenu();
@@ -62,7 +75,8 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
   const selection = useMessageSelection();
   const summaries = useSummaries(chat.id);
   useHistorySync(chat.id, meId);
-  const history = useQuery(messageQueries.history(chat.id));
+  const history = useQuery(messageQueries.history(chat.id, topic));
+  const [thread, setThread] = useState<Message | null>(null);
   const data = history.data;
 
   // Каждый запрос истории отмечает чат прочитанным — счётчик в списке гасим сразу.
@@ -147,13 +161,13 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
     if (loadingOlder || !data?.hasMore) return;
     setLoadingOlder(true);
     try {
-      await loadOlderHistory(client, chat.id);
+      await loadOlderHistory(client, chat.id, topic);
     } catch {
       // Не вышло — попробуем при следующей прокрутке.
     } finally {
       setLoadingOlder(false);
     }
-  }, [client, chat.id, data?.hasMore, loadingOlder]);
+  }, [client, chat.id, topic, data?.hasMore, loadingOlder]);
 
   const onScroll = () => {
     const el = scrollRef.current;
@@ -280,6 +294,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
                         selected={selection.ids.has(row.message.id)}
                         onToggleSelect={row.message.type === "gift" ? undefined : toggleSelect}
                         summaries={summaries}
+                        onOpenThread={isGroup ? setThread : undefined}
                       />
                     </div>
                   )}
@@ -317,7 +332,9 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
         onEdit={onEdit}
         onSelect={toggleSelect}
         summaries={summaries}
+        onOpenThread={isGroup ? setThread : undefined}
       />
+      {thread ? <ThreadPanel chat={chat} root={thread} me={me} userOf={userOf} onClose={() => setThread(null)} /> : null}
     </div>
   );
 }
@@ -346,13 +363,15 @@ type RowProps = {
   selected: boolean;
   onToggleSelect?: (m: Message) => void;
   summaries: Summaries;
+  onOpenThread?: (m: Message) => void;
 };
 
 function MessageRow(props: RowProps) {
   const { message, meId, groupStart, groupEnd, isGroup, isChannel, senders, replyTo, onReply, onJumpTo, onOpenMenu, onOpenReactions, onReact } = props;
   const mine = message.senderId === meId;
   const replyToName = replyTo && !("deleted" in replyTo) ? (senders(replyTo)?.name ?? null) : null;
-  return (
+  const comments = props.onOpenThread && message.type !== "system" && !message.threadRootId ? (message.commentCount ?? 0) : 0;
+  const bubble = (
     <MessageBubble
       message={message}
       mine={mine}
@@ -383,7 +402,19 @@ function MessageRow(props: RowProps) {
       summary={props.summaries.of(message.id)}
     />
   );
+  if (!comments) return bubble;
+  // Ответы в ветке — ссылкой под сообщением (post-comments-link в chatView.js).
+  return (
+    <>
+      {bubble}
+      <button type="button" className={mine ? `${styles.comments} ${styles.commentsMine}` : styles.comments} onClick={() => props.onOpenThread?.(message)}>
+        💬 {comments} {repliesWord(comments)}
+      </button>
+    </>
+  );
 }
+
+const repliesWord = (n: number) => (n === 1 ? "ответ" : n < 5 ? "ответа" : "ответов");
 
 /** Автор сообщения: участник чата, собеседник в личке, сам чат — у анонимных админов. */
 function useSenders(chat: ChatSummary, members: readonly ChatMember[]) {

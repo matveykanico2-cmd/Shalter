@@ -65,7 +65,7 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
   const chatId = chat.id;
   const isPremium = !!me.isPremium;
   return useMemo(() => {
-    const reconcile = () => void client.invalidateQueries({ queryKey: messageQueries.history(chatId).queryKey });
+    const reconcile = () => void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chatId) });
     const applyServer = async (request: Promise<{ message: Message }>, fallback: string) => {
       try {
         const { message } = await request;
@@ -250,7 +250,7 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
             const { message } = await forwardMessage(target, m, origin, hideAuthor);
             // message:new сервер шлёт только остальным — своё превью обновляем сами.
             chatCache.noteMessage(client, target, message);
-            void client.invalidateQueries({ queryKey: messageQueries.history(target).queryKey });
+            void client.invalidateQueries({ queryKey: messageQueries.chatHistories(target) });
           } catch (err) {
             failed += 1;
             lastError = err;

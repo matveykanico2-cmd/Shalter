@@ -2,7 +2,8 @@
 // { type, … }, ping раз в 20 с и переподключение с нарастающей паузой. Сервер закрывает
 // сокет кодом 4001, когда сеанс этого устройства завершён, — тогда причину выясняем по HTTP.
 import type { wsChatDeleted, wsTypingUpdate } from "@shalter/shared/schemas/bots";
-import type { wsMessageDeleted, wsMessageNew, wsMessageRead, wsMessageUpdated } from "@shalter/shared/schemas/messages";
+import type { wsMessageDeleted, wsMessageNew, wsMessageRead, wsMessageUpdated, wsThreadMessage } from "@shalter/shared/schemas/messages";
+import type { wsTopicsUpdated } from "@shalter/shared/schemas/topics";
 import type { chatAdded, chatUpdated, contactUpdated, presenceUpdate } from "@shalter/shared/schemas/ws";
 import type { z } from "zod";
 
@@ -17,6 +18,9 @@ export type WsEvents = {
   "message:updated": Of<typeof wsMessageUpdated> & { streaming?: boolean };
   "message:deleted": Of<typeof wsMessageDeleted>;
   "message:read": Of<typeof wsMessageRead>;
+  /** Ответ в ветке сообщения (в ленту не попадает). */
+  "thread:message": Of<typeof wsThreadMessage>;
+  "topics:updated": Of<typeof wsTopicsUpdated>;
   "chat:added": Of<typeof chatAdded>;
   "chat:updated": Of<typeof chatUpdated>;
   "chat:deleted": Of<typeof wsChatDeleted>;

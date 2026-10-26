@@ -20,3 +20,6 @@ export const topicListItem = topic.extend({ messageCount: z.number(), lastMessag
 export const topicsListBody = z.strictObject({ enabled: z.boolean(), topics: z.array(topicListItem) });
 export const topicsEnabledBody = z.strictObject({ chat, enabled: z.boolean(), topics: z.array(topicListItem) });
 export const topicBody = z.strictObject({ topic });
+
+/** topics:updated — темы группы изменились (создали, правили, закрыли, удалили). */
+export const wsTopicsUpdated = z.strictObject({ type: z.literal("topics:updated"), chatId: z.string() });

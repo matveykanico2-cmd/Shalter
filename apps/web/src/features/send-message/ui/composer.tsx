@@ -55,6 +55,8 @@ type Props = {
   onCancelEdit?: () => void;
   /** Стрелка вверх в пустом поле — править последнее своё сообщение. */
   onEditLast?: () => void;
+  /** Открытая тема группы — сообщения уходят в неё. */
+  topicId?: string | null;
   ref?: Ref<ComposerHandle>;
 };
 
@@ -63,7 +65,7 @@ export function Composer(props: Props) {
   const { chatId, meId, channel, initialDraft, placeholder = "Сообщение", replyTo, replyToName, onCancelReply, onSent } = props;
   const { editing = null, onSaveEdit, onCancelEdit, onEditLast, ref } = props;
   const client = useQueryClient();
-  const send = useSendMessage(chatId, meId, channel);
+  const send = useSendMessage(chatId, meId, channel, props.topicId);
   const [text, setText] = useState(initialDraft);
   // Начали править — в поле текст сообщения, а набранное раньше ждёт конца правки.
   const [editingId, setEditingId] = useState<string | null>(null);

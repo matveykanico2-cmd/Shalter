@@ -6,9 +6,10 @@ import { MessageFeed, type MessageFeedHandle } from "@/widgets/message-feed";
 
 import { useMessageActions } from "@/features/message-actions";
 import { Composer, type ComposerHandle } from "@/features/send-message";
+import { isTopicStaff, TopicTabs, useTopics } from "@/features/topics";
 
 import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, useChatCard, useChatFromList } from "@/entities/chat";
-import type { Message } from "@/entities/message";
+import type { Message, TopicFilter } from "@/entities/message";
 import { type SelfUser, useSession } from "@/entities/session";
 
 import styles from "./chat-view.module.css";
@@ -41,6 +42,18 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
   const [editing, setEditing] = useState<Message | null>(null);
   const actions = useMessageActions(chat, me);
   const title = chatTitle(chat);
+  // Темы группы: undefined — «Все», "general" — «Общее», иначе id темы.
+  const topics = useTopics(chat);
+  const [chosenTopic, setTopic] = useState<TopicFilter>(undefined);
+  // Тему удалили или темы выключили — обратно ко всем сообщениям.
+  const topic = !topics || (chosenTopic && chosenTopic !== "general" && !topics.some((t) => t.id === chosenTopic)) ? undefined : chosenTopic;
+  const openTopic = topic && topic !== "general" ? (topics?.find((t) => t.id === topic) ?? null) : null;
+  const selectTopic = (next: TopicFilter) => {
+    if (next === topic) return;
+    setTopic(next);
+    setReplyTo(null);
+    setEditing(null);
+  };
   const reply = (m: Message, quote?: string) => {
     // Правка уступает место ответу. Цитату во время правки не вставляем: поле вернёт набранное до неё.
     const wasEditing = !!editing;
@@ -57,17 +70,21 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
   return (
     <section className={drop.active ? `${styles.view} ${styles.dropActive}` : styles.view} aria-label={title} {...drop.handlers}>
       <ChatHeader chat={chat} members={members} meId={me.id} />
+      {topics ? <TopicTabs chat={chat} meId={me.id} topics={topics} active={topic} onSelect={selectTopic} /> : null}
       <div className={styles.body}>
-        <MessageFeed ref={feed} chat={chat} members={members} me={me} onReply={reply} onEdit={edit} />
+        {/* key: у темы своя лента — плашка непрочитанных и прокрутка с нуля. */}
+        <MessageFeed key={topic ?? "all"} ref={feed} chat={chat} members={members} me={me} onReply={reply} onEdit={edit} topic={topic} />
         <Bottom
           chat={chat}
           me={me}
+          topicClosed={!!openTopic?.closed && !isTopicStaff(chat, me.id)}
           composer={
             <Composer
               ref={composer}
               chatId={chat.id}
               meId={me.id}
               channel={chat.type === "channel"}
+              topicId={openTopic?.id ?? null}
               initialDraft={typeof chat.draft === "string" ? chat.draft : ""}
               replyTo={replyTo}
               replyToName={replyTo ? senderName(replyTo) : null}
@@ -89,11 +106,12 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
 }
 
 /** Поле ввода — или почему писать нельзя (как buildComposer в public/js/views/chatView.js). */
-function Bottom({ chat, me, composer }: { chat: ChatSummary; me: SelfUser; composer: ReactNode }) {
+function Bottom({ chat, me, topicClosed, composer }: { chat: ChatSummary; me: SelfUser; topicClosed: boolean; composer: ReactNode }) {
   if (chat.otherUser && me.blockedUserIds?.includes(chat.otherUser.id)) return <p className={styles.hint}>Вы заблокировали этого пользователя</p>;
   // Подписка и отписка от канала появятся вместе с его экраном.
   if (chat.type === "channel" && !isChatAdmin(chat, me.id)) return null;
   if (chat.otherUser?.isServiceBot) return <p className={styles.hint}>Shalter — служебный чат: сюда приходят коды входа и уведомления, отвечать в нём нельзя</p>;
+  if (topicClosed) return <p className={styles.hint}>Тема закрыта — писать в неё могут только администраторы</p>;
   const restrictedUntil = chat.restrictions?.[me.id];
   if (typeof restrictedUntil === "string") {
     if (restrictedUntil === "forever") return <p className={styles.hint}>Вам запрещено писать в этом чате</p>;

@@ -13,7 +13,7 @@ export type OutgoingAttachment =
   | (Uploaded & { spoiler?: true; durationSec?: number; waveform?: number[]; transcript?: string })
   | { kind: "poll" | "checklist" | "dice"; meta: Record<string, unknown> };
 
-type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker };
+type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string };
 
 /**
  * Сообщение в чат (POST /api/chats/:id/messages) или пост канала (POST /api/posts/:id/publish).

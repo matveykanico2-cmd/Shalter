@@ -37,10 +37,12 @@ type Props = {
   /** Начать выбор нескольких с этого сообщения. */
   onSelect?: (m: Message) => void;
   summaries?: Summaries;
+  /** Ветка ответов — в группах. */
+  onOpenThread?: (m: Message) => void;
 };
 
 /** Меню сообщения и его диалоги — как openMessageMenu в public/js/components/messageBubble.js. */
-export function MessageMenus({ control, actions, chat, me, senderName, author, nameOf, onReply, onEdit, onSelect, summaries }: Props) {
+export function MessageMenus({ control, actions, chat, me, senderName, author, nameOf, onReply, onEdit, onSelect, summaries, onOpenThread }: Props) {
   const { state, close } = control;
   if (!state) return null;
 
@@ -143,6 +145,7 @@ export function MessageMenus({ control, actions, chat, me, senderName, author, n
   // «Ответить лично» — как в Telegram: личка с автором, сообщение в черновике цитатой.
   const target = !isDm && !isChannel && !mine && !m.anonymous ? author?.(m) : null;
   if (target && !target.isBot) items.push({ icon: "User", label: "Ответить лично", onClick: () => void actions.replyPrivately(m, target, quote) });
+  if (onOpenThread && !m.threadRootId) items.push({ icon: "MessageSquare", label: "Ответить в теме", onClick: () => onOpenThread(m) });
   if (canTranslate(m)) items.push({ icon: "Globe", label: "Перевести", onClick: () => control.open({ kind: "translate", text: m.text ?? "" }) });
   if (summaries && canSummarize(m, protectedContent)) {
     items.push({ icon: "Zap", label: summaries.has(m.id) ? "Скрыть сводку" : "Кратко", onClick: () => void summaries.toggle(m) });

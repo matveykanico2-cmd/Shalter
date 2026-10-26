@@ -18,7 +18,7 @@ export function useHistorySync(chatId: string, meId: string) {
   const client = useQueryClient();
 
   useEffect(() => {
-    const queryKey = messageQueries.history(chatId).queryKey;
+    const queryKey = messageQueries.chatHistories(chatId);
     let timer: ReturnType<typeof setTimeout> | undefined;
     let lastPoll = Date.now();
     const refresh = () => {

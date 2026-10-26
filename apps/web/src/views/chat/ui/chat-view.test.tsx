@@ -232,7 +232,7 @@ describe("действия с сообщением", () => {
     await screen.findByText("было");
 
     openMenu(mine.id);
-    expect(menuItems()).toEqual(["Ответить", "Переслать", "Копировать текст", "Выделить текст", "Копировать ссылку", "Выбрать", "Перевести", "Изменить", "Удалить"]);
+    expect(menuItems()).toEqual(["Ответить", "Переслать", "Копировать текст", "Выделить текст", "Копировать ссылку", "Выбрать", "Ответить в теме", "Перевести", "Изменить", "Удалить"]);
     fireEvent.click(screen.getByRole("menuitem", { name: "Изменить" }));
     expect(screen.queryByRole("menu")).toBeNull();
     expect(screen.getByText("Изменение")).toBeTruthy();
@@ -1003,5 +1003,123 @@ describe("ещё в меню сообщения", () => {
     fireEvent.click(within(ask).getByRole("button", { name: "Удалить" }));
     await waitFor(() => expect(bubbles()).toEqual([]));
     expect(calls.some((x) => x.key === `POST /api/stars/delete/${theirs.id}`)).toBe(true);
+  });
+});
+
+describe("темы и ветки", () => {
+  const TOPIC = { id: "topic_a", chatId: "c_1", title: "Поездка", icon: "🎉", color: "#f80", closed: false, createdBy: LENA.id, createdAt: "2026-10-20T10:00:00.000Z", messageCount: 1, lastMessageAt: "2026-10-22T10:00:00.000Z" };
+  const topicsOn = () => chat({ topicsEnabled: true });
+
+  it("вкладки тем: лента темы, отправка в тему, закрытая тема — без поля ввода", async () => {
+    const all = msg("в общем чате");
+    const inTopic = msg("про поездку", { topicId: TOPIC.id });
+    const sent = msg("едем!", { senderId: ME.id, topicId: TOPIC.id });
+    let topics = [TOPIC];
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(topicsOn()),
+      [HISTORY]: () => page(calls.some((c) => c.key === "POST /api/chats/c_1/messages") ? [all, inTopic, sent] : [all, inTopic]),
+      [`${HISTORY}&topic=${TOPIC.id}`]: () => page(calls.some((c) => c.key === "POST /api/chats/c_1/messages") ? [inTopic, sent] : [inTopic]),
+      "GET /api/chats/c_1/topics": () => ({ body: { enabled: true, topics } }),
+      "POST /api/chats/c_1/messages": { body: { message: sent } },
+      ...typingRoutes,
+    });
+    renderChat(topicsOn());
+    await screen.findByText("в общем чате");
+
+    const tabs = await screen.findByRole("tablist", { name: "Темы" });
+    expect(within(tabs).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Все", "#Общее", "🎉Поездка"]);
+    fireEvent.click(within(tabs).getByRole("tab", { name: /Поездка/ }));
+    await waitFor(() => expect(bubbles()).toEqual([inTopic.id]));
+
+    const input = screen.getByRole("textbox", { name: "Сообщение" });
+    fireEvent.change(input, { target: { value: "едем!" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(bubbles()).toEqual([inTopic.id, sent.id]));
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ text: "едем!", topicId: TOPIC.id });
+
+    // Тему закрыли — писать в неё может только админ.
+    topics = [{ ...TOPIC, closed: true }];
+    ws.start();
+    act(() => FakeSocket.last().open());
+    act(() => FakeSocket.last().receive({ type: "topics:updated", chatId: "c_1" }));
+    expect(await screen.findByText("Тема закрыта — писать в неё могут только администраторы")).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Сообщение" })).toBeNull();
+
+    // Во «Всех» — и то, что отправили в тему.
+    fireEvent.click(within(tabs).getByRole("tab", { name: "Все" }));
+    await waitFor(() => expect(bubbles()).toEqual([all.id, inTopic.id, sent.id]));
+  });
+
+  it("новая тема: окно, создание и переход в неё", async () => {
+    const created = { ...TOPIC, id: "topic_b", title: "Подарки", icon: "", messageCount: 0 };
+    let topics = [TOPIC];
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(topicsOn()),
+      [HISTORY]: page([msg("привет")]),
+      [`${HISTORY}&topic=topic_b`]: page([]),
+      "GET /api/chats/c_1/topics": () => ({ body: { enabled: true, topics } }),
+      "POST /api/chats/c_1/topics": () => {
+        topics = [...topics, created];
+        return { body: { topic: created } };
+      },
+    });
+    renderChat(topicsOn());
+    fireEvent.click(await screen.findByTitle("Новая тема"));
+    const dialog = screen.getByRole("dialog", { name: "Новая тема" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Создать" }));
+    expect(within(dialog).getByText("Введите название")).toBeTruthy();
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Название темы" }), { target: { value: "Подарки" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Создать" }));
+
+    expect(await screen.findByRole("tab", { name: "Подарки", selected: true })).toBeTruthy();
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/topics")?.body).toEqual({ title: "Подарки", icon: "" });
+    expect(await screen.findByText("Сообщений пока нет — напишите первым")).toBeTruthy();
+  });
+
+  it("ветка: «N ответов» под сообщением, ответ уходит в ветку, чужой приходит событием", async () => {
+    const root = msg("куда едем?", { commentCount: 1 });
+    const first = msg("на море", { threadRootId: root.id });
+    const mine = msg("в горы", { senderId: ME.id, threadRootId: root.id });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([root]),
+      [`GET /api/chats/c_1/messages/${root.id}/thread`]: { body: { root, replies: [first] } },
+      "POST /api/chats/c_1/messages": { body: { message: mine } },
+    });
+    renderChat();
+    fireEvent.click(await screen.findByRole("button", { name: "💬 1 ответ" }));
+
+    const panel = screen.getByRole("dialog", { name: "Тема" });
+    expect(await within(panel).findByText("на море")).toBeTruthy();
+    expect(within(panel).getByText("Ответы (1)")).toBeTruthy();
+    const input = within(panel).getByRole("textbox", { name: "Ответ в теме" });
+    fireEvent.change(input, { target: { value: "в горы" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(await within(panel).findByText("в горы")).toBeTruthy();
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toEqual({ text: "в горы", threadRootId: root.id });
+    expect((input as HTMLTextAreaElement).value).toBe("");
+
+    ws.start();
+    act(() => FakeSocket.last().open());
+    act(() => FakeSocket.last().receive({ type: "thread:message", chatId: "c_1", rootId: root.id, message: msg("а я дома", { threadRootId: root.id }) }));
+    expect(await within(panel).findByText("а я дома")).toBeTruthy();
+    expect(within(panel).getByText("Ответы (3)")).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Тема" })).toBeNull();
+  });
+
+  it("«Ответить в теме» из меню открывает ветку", async () => {
+    const root = msg("вопрос");
+    fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([root]),
+      [`GET /api/chats/c_1/messages/${root.id}/thread`]: { body: { root, replies: [] } },
+    });
+    renderChat();
+    await screen.findByText("вопрос");
+    openMenu(root.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ответить в теме" }));
+    expect(await screen.findByText("Пока нет ответов — начните тему первым")).toBeTruthy();
   });
 });

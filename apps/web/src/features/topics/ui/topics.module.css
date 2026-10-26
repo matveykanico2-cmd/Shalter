@@ -1,0 +1,113 @@
+/* Вкладки тем (.topic-tabs в public/styles/components.css). */
+.tabs {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  padding: 6px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  --topic-color: var(--color-accent);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  max-width: 200px;
+  padding: 4px 11px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tab:hover {
+  background: var(--color-surface-alt);
+}
+
+.active {
+  border-color: var(--topic-color);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.closed .label {
+  opacity: 0.7;
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--topic-color);
+}
+
+.tabIcon {
+  flex: none;
+}
+
+.lock {
+  display: inline-flex;
+  opacity: 0.6;
+}
+
+.add {
+  padding: 4px 8px;
+  color: var(--color-muted);
+}
+
+/* Окно темы. */
+.titleInput {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.iconChoice {
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--color-surface-alt);
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.iconActive {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 13.5px;
+}
