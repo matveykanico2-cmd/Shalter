@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import type { ChatSummary } from "@/entities/chat";
+import { userQueries } from "@/entities/user";
 
 import { Avatar, Button, Dialog, Icon } from "@/shared/ui";
 
-import { contactsQuery } from "../api/members";
 import { useMemberActions } from "../model/use-member-actions";
 
 import styles from "./manage-members.module.css";
@@ -14,7 +14,7 @@ type Props = { chat: ChatSummary; meId: string; onClose: () => void };
 
 /** «Добавить участников» из контактов — как openMemberPickerDialog (public/js/components/memberPickerDialog.js). */
 export function AddMembersDialog({ chat, meId, onClose }: Props) {
-  const contacts = useQuery(contactsQuery());
+  const contacts = useQuery(userQueries.contacts());
   const actions = useMemberActions(chat, meId);
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());

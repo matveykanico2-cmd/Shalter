@@ -1,6 +1,4 @@
 import type { chatBody } from "@shalter/shared/schemas/chats";
-import type { contactListItem } from "@shalter/shared/schemas/contacts";
-import { queryOptions } from "@tanstack/react-query";
 import type { z } from "zod";
 
 import { http } from "@/shared/api";
@@ -21,10 +19,3 @@ export const setMemberTitle = (chatId: string, userId: string, title: string) =>
 export const restrictMember = (chatId: string, userId: string, until: string | null) =>
   http.post<z.infer<typeof chatBody>>(`${chatPath(chatId)}/restrict`, { userId, until });
 
-export type Contact = z.infer<typeof contactListItem>["user"];
-
-export const contactsQuery = () =>
-  queryOptions({
-    queryKey: ["contacts"],
-    queryFn: async () => (await http.get<{ contacts: z.infer<typeof contactListItem>[] }>("/api/contacts")).contacts.map((c) => c.user),
-  });

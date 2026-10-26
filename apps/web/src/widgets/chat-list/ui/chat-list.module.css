@@ -1,5 +1,6 @@
 /* Как .chat-list-pane и соседи в public/styles/components.css. */
 .pane {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;

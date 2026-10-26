@@ -310,3 +310,46 @@ describe("поиск", () => {
     expect(calls.find((c) => c.key === "POST /api/chats")?.body).toMatchObject({ userId: "u_lev0000000", title: "Лев" });
   });
 });
+
+describe("новый чат", () => {
+  it("«Новая группа»: участники с админом → название и тип → создана, ссылка-приглашение; «Новый канал»: название → подписчики", async () => {
+    const lena = { id: "u_lena00000", name: "Лена", username: "lena" };
+    const { calls } = fakeApi({
+      "GET /api/contacts": { body: { contacts: [{ user: lena, localName: null }] } },
+      "POST /api/chats/groups": { body: { chat: chat({ title: "Семья", id: "c_new" }) } },
+      "POST /api/chats/c_new/invite": { body: { code: "AbCdEfGhIjKlMnOpQrStUv", chat: chat({ title: "Семья", id: "c_new" }) } },
+      "POST /api/chats/channels": { body: { chat: chat({ title: "Новости", id: "c_ch", type: "channel" }) } },
+      "POST /api/chats/c_ch/invite": { body: { code: "ZyXwVuTsRqPoNmLkJiHgFe", chat: chat({ title: "Новости", id: "c_ch" }) } },
+      "GET /api/chats": { body: { chats: [] } },
+    });
+    const { client, router } = renderList([chat({ title: "Работа" })]);
+    client.setQueryData(sessionQueries.current().queryKey, { user: { id: ME, name: "Аня", blockedUserIds: [] } } as never);
+    fireEvent.click(await screen.findByRole("button", { name: "Новый чат" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Новая группа" }));
+    const picker = await screen.findByRole("dialog", { name: "Добавить участников" });
+    fireEvent.click(await within(picker).findByRole("checkbox", { name: /Лена/ }));
+    fireEvent.click(within(picker).getByRole("button", { name: "Сделать администратором" }));
+    fireEvent.click(within(picker).getByRole("button", { name: "Далее" }));
+    const details = await screen.findByRole("dialog", { name: "Новая группа" });
+    expect(within(details).getByText("1 участник")).toBeTruthy();
+    fireEvent.change(within(details).getByRole("textbox", { name: "Название группы" }), { target: { value: "Семья" } });
+    fireEvent.click(within(details).getByRole("button", { name: "Создать группу" }));
+    expect(await screen.findByRole("dialog", { name: "Группа создана" })).toBeTruthy();
+    expect(calls.find((c) => c.key === "POST /api/chats/groups")?.body).toMatchObject({ title: "Семья", memberIds: [lena.id], adminIds: [lena.id], isPublic: false });
+    await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_new"));
+    expect(((await screen.findByRole("textbox", { name: "Ссылка" })) as HTMLInputElement).value).toMatch(/\/join\/AbCdEfGhIjKlMnOpQrStUv$/);
+    fireEvent.click(screen.getByRole("button", { name: "Готово" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Новый чат" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Новый канал" }));
+    const info = await screen.findByRole("dialog", { name: "Новый канал" });
+    fireEvent.change(within(info).getByRole("textbox", { name: "Название канала" }), { target: { value: "Новости" } });
+    fireEvent.click(within(info).getByRole("radio", { name: /Публичный канал/ }));
+    fireEvent.change(within(info).getByRole("textbox", { name: /Юзернейм/ }), { target: { value: "@news_ch!" } });
+    fireEvent.click(within(info).getByRole("button", { name: "Далее" }));
+    const subs = await screen.findByRole("dialog", { name: "Добавить подписчиков" });
+    fireEvent.click(within(subs).getByRole("button", { name: "Создать канал" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_ch"));
+    expect(calls.find((c) => c.key === "POST /api/chats/channels")?.body).toMatchObject({ title: "Новости", memberIds: [], isPublic: true, username: "news_ch" });
+  });
+});

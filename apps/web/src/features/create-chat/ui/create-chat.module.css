@@ -1,0 +1,226 @@
+/* Плавающая кнопка «Новый чат» (.sidebar-fab). */
+.fab {
+  position: absolute;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 5;
+  display: flex;
+  width: 54px;
+  height: 54px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+
+.search {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.people {
+  display: flex;
+  max-height: 50vh;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.people > .hint {
+  padding: 12px 8px;
+}
+
+.personRow {
+  display: flex;
+  align-items: center;
+}
+
+.person {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.person:hover {
+  background: var(--color-surface-alt);
+}
+
+.personText {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.check {
+  display: flex;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  color: #fff;
+}
+
+.checked {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+/* Сделать администратором сразу (.tw-admin-toggle). */
+.adminToggle {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.adminOn {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.avatarEdit {
+  position: relative;
+  align-self: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.avatarIcon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+  resize: vertical;
+}
+
+.invalid {
+  border-color: var(--color-danger);
+}
+
+.sectionName {
+  margin: 4px 0 0;
+  color: var(--color-accent);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.radioRow {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.radioRow:hover {
+  background: var(--color-surface-alt);
+}
+
+.radio {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-muted);
+  border-radius: 50%;
+}
+
+.radioOn {
+  border-color: var(--color-accent);
+  box-shadow:
+    inset 0 0 0 3px var(--color-surface),
+    inset 0 0 0 10px var(--color-accent);
+}
+
+.memberList {
+  display: flex;
+  max-height: 160px;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.memberRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}

@@ -3,6 +3,7 @@ import { type DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMatch } from "react-router";
 
 import { ChatRowMenu, useChatListActions } from "@/features/chat-actions";
+import { NewChatButton } from "@/features/create-chat";
 import { SearchBox, SearchResults } from "@/features/global-search";
 
 import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, sortChats, useChatFolders, useChats } from "@/entities/chat";
@@ -216,6 +217,7 @@ export function ChatList({ meId }: { meId: string }) {
           </div>
         )}
       </div>
+      {me && !searching && !showArchive ? <NewChatButton me={me} /> : null}
       {rowMenu && me ? <ChatRowMenu chat={rowMenu.chat} me={me} at={rowMenu.at} onClose={() => setRowMenu(null)} /> : null}
       {tabMenu && chats ? <TabMenu at={tabMenu.at} chats={chatsInTab(tabMenu.tabId, chats, folders)} onReadAll={(list) => void listActions.readAll(list)} onClose={() => setTabMenu(null)} /> : null}
     </div>
