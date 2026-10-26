@@ -1,3 +1,5 @@
+import type { contactListItem } from "@shalter/shared/schemas/contacts";
+import type { geoIpBody, geoSearchBody } from "@shalter/shared/schemas/geo";
 import type { sendResult } from "@shalter/shared/schemas/messages";
 import type { z } from "zod";
 
@@ -11,7 +13,7 @@ const chatPath = (chatId: string) => `/api/chats/${encodeURIComponent(chatId)}`;
 /** Вложение в отправке: загруженный файл (+ спойлер у фото и видео) или опрос, чек-лист, кубик. */
 export type OutgoingAttachment =
   | (Uploaded & { spoiler?: true; durationSec?: number; waveform?: number[]; transcript?: string })
-  | { kind: "poll" | "checklist" | "dice"; meta: Record<string, unknown> };
+  | { kind: "poll" | "checklist" | "dice" | "location" | "contact"; meta: Record<string, unknown> };
 
 type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string };
 
@@ -32,3 +34,14 @@ export const sendTyping = (chatId: string, action = "typing") => http.post<unkno
 
 /** Свои стикерпаки (GET /api/stickers/packs) — в выборе стикера под встроенными. */
 export const getStickerPacks = () => http.get<{ packs: { id: string; name: string; stickers: Sticker[] }[] }>("/api/stickers/packs");
+
+/** Примерное место по IP — когда телефон не отдал координаты. */
+export const geoByIp = () => http.get<z.infer<typeof geoIpBody>>("/api/geo/ip");
+
+export const geoSearch = (q: string) => http.get<z.infer<typeof geoSearchBody>>(`/api/geo/search?q=${encodeURIComponent(q)}`);
+
+/** Живая геопозиция: новая точка в уже отправленном сообщении. */
+export const updateLiveLocation = (chatId: string, messageId: string, lat: number, lng: number) =>
+  http.post<unknown>(`${chatPath(chatId)}/messages/${encodeURIComponent(messageId)}/location`, { lat, lng });
+
+export const listContacts = () => http.get<{ contacts: z.infer<typeof contactListItem>[] }>("/api/contacts");

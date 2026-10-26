@@ -6,18 +6,22 @@ import { type Message, messagePreview, stripCustomEmoji } from "@/entities/messa
 import { useSettings } from "@/entities/settings";
 
 import { errorText } from "@/shared/lib/error-text";
+import { getPosition, type LatLng } from "@/shared/lib/geolocation";
 import { isRecordingSupported, type RecordMode } from "@/shared/lib/media/recorder";
-import { Icon } from "@/shared/ui";
+import { dismissToast, Icon, toast } from "@/shared/ui";
 
 import { type OutgoingAttachment, saveDraft, sendTyping } from "../api/send-message";
 import { chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
+import { startLiveLocationSharing } from "../lib/live-location";
 import { useSendMessage } from "../model/use-send-message";
 import { useUploads } from "../model/use-uploads";
 
 import { AttachButton } from "./attach-button";
 import { ChecklistDialog } from "./checklist-dialog";
 import styles from "./composer.module.css";
+import { ContactPicker, type PickedContact } from "./contact-picker";
 import { EmojiButton } from "./emoji-picker";
+import { LocationPicker, type PickedLocation } from "./location-picker";
 import { PollDialog } from "./poll-dialog";
 import { RecordButtons } from "./record-buttons";
 import { type HoldControl, RecordingBar, type RecordingDone } from "./recording-bar";
@@ -38,6 +42,9 @@ const TYPING_PING_MS = 2500;
 const DRAFT_SAVE_MS = 600;
 const MAX_ROWS_HEIGHT = 200;
 
+const NO_PEOPLE: PickedContact[] = [];
+const NO_IDS: string[] = [];
+
 type Props = {
   chatId: string;
   meId: string;
@@ -57,6 +64,9 @@ type Props = {
   onEditLast?: () => void;
   /** Открытая тема группы — сообщения уходят в неё. */
   topicId?: string | null;
+  /** Кого можно отправить контактом, кроме своих контактов (участники чата), и кого нельзя. */
+  people?: readonly PickedContact[];
+  excludeContacts?: readonly string[];
   ref?: Ref<ComposerHandle>;
 };
 
@@ -79,7 +89,8 @@ export function Composer(props: Props) {
   const textarea = useRef<HTMLTextAreaElement>(null);
   const uploads = useUploads(chatId);
   const [picked, setPicked] = useState<File[] | null>(null);
-  const [creating, setCreating] = useState<"poll" | "checklist" | null>(null);
+  const [creating, setCreating] = useState<"poll" | "checklist" | "contact" | null>(null);
+  const [placePicker, setPlacePicker] = useState<{ reason: string; resolve: (value: PickedLocation) => void } | null>(null);
   const [recording, setRecording] = useState<{ mode: RecordMode; hold: boolean } | null>(null);
   const holdControlRef = useRef<HoldControl | null>(null);
   const transcribe = !!useSettings().data?.voiceTranscription;
@@ -218,9 +229,39 @@ export function Composer(props: Props) {
     const reply = replyTo;
     onCancelReply();
     onSent?.();
-    send(caption, reply, [attachment]).catch((err: unknown) => {
+    return send(caption, reply, [attachment]).catch((err: unknown) => {
       setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
+      return null;
     });
+  };
+
+  // GPS → координаты; не вышло — окно выбора места (примерное по IP или поиск адреса),
+  // чтобы геолокация отправлялась всегда (locateOrPick в composer.js).
+  const locateOrPick = async (live: boolean): Promise<LatLng | null> => {
+    toast("Определяем местоположение…", { durationMs: 25_000 });
+    try {
+      return await getPosition();
+    } catch (err) {
+      dismissToast();
+      const reason = `${errorText(err)}.${live ? " Живая геолокация будет обновляться, только когда телефон отдаст координаты." : ""} Можно выбрать место вручную:`;
+      const picked = await new Promise<PickedLocation>((resolve) => setPlacePicker({ reason, resolve }));
+      setPlacePicker(null);
+      return picked === "retry" ? locateOrPick(live) : picked;
+    } finally {
+      dismissToast();
+    }
+  };
+
+  const sendLocation = async (live: boolean) => {
+    const pos = await locateOrPick(live);
+    if (!pos) return;
+    if (!live) {
+      void sendAttachment("", { kind: "location", meta: pos });
+      return;
+    }
+    const liveMinutes = 15;
+    const message = await sendAttachment("", { kind: "location", meta: { ...pos, liveMinutes } });
+    if (message) startLiveLocationSharing(chatId, message.id, liveMinutes * 60_000);
   };
 
   // Голосовое или кружок записан — загрузка и сообщение (composer.js, recordingHandle.result).
@@ -234,7 +275,7 @@ export function Composer(props: Props) {
       setError(uploadError || "Не удалось отправить запись");
       return;
     }
-    sendAttachment("", { ...att, kind: mode, durationSec: recorded.durationSec, ...(mode === "voice" ? { waveform, transcript } : {}) });
+    void sendAttachment("", { ...att, kind: mode, durationSec: recorded.durationSec, ...(mode === "voice" ? { waveform, transcript } : {}) });
   };
 
   // Картинка или файл из буфера обмена — в окно отправки.
@@ -320,7 +361,9 @@ export function Composer(props: Props) {
                 onFiles={attach}
                 onPoll={() => setCreating("poll")}
                 onChecklist={() => setCreating("checklist")}
-                onDice={(emoji) => sendAttachment("", { kind: "dice", meta: { emoji } })}
+                onDice={(emoji) => void sendAttachment("", { kind: "dice", meta: { emoji } })}
+                onLocation={(live) => void sendLocation(live)}
+                onContact={() => setCreating("contact")}
               />
             )}
             <textarea
@@ -361,7 +404,7 @@ export function Composer(props: Props) {
         <PollDialog
           onClose={() => setCreating(null)}
           onCreate={({ question, options, correctIndex, multiple }) =>
-            sendAttachment(question, { kind: "poll", meta: { options, votes: options.map(() => 0), voterIds: options.map(() => []), correctIndex, multiple } })
+            void sendAttachment(question, { kind: "poll", meta: { options, votes: options.map(() => 0), voterIds: options.map(() => []), correctIndex, multiple } })
           }
         />
       ) : null}
@@ -369,10 +412,19 @@ export function Composer(props: Props) {
         <ChecklistDialog
           onClose={() => setCreating(null)}
           onCreate={({ title, items, othersCanMark, othersCanAdd }) =>
-            sendAttachment(title, { kind: "checklist", meta: { items: items.map((text, i) => ({ id: i + 1, text })), othersCanMark, othersCanAdd } })
+            void sendAttachment(title, { kind: "checklist", meta: { items: items.map((text, i) => ({ id: i + 1, text })), othersCanMark, othersCanAdd } })
           }
         />
       ) : null}
+      {creating === "contact" ? (
+        <ContactPicker
+          extra={props.people ?? NO_PEOPLE}
+          exclude={props.excludeContacts ?? NO_IDS}
+          onClose={() => setCreating(null)}
+          onPick={(u) => void sendAttachment("", { kind: "contact", meta: { userId: u.id, name: u.name, phone: u.phone } })}
+        />
+      ) : null}
+      {placePicker ? <LocationPicker reason={placePicker.reason} onDone={placePicker.resolve} /> : null}
       {picked ? <SendMediaDialog files={picked} onSend={(choice) => void sendMedia(choice)} onClose={() => setPicked(null)} /> : null}
     </div>
   );

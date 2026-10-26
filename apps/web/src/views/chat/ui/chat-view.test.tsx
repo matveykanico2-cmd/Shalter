@@ -1123,3 +1123,61 @@ describe("темы и ветки", () => {
     expect(await screen.findByText("Пока нет ответов — начните тему первым")).toBeTruthy();
   });
 });
+
+describe("геолокация и контакт из скрепки", () => {
+  const sentRoute = { "POST /api/chats/c_1/messages": (body: Record<string, unknown>) => ({ body: { message: msg("", { senderId: ME.id, attachments: body.attachments as never }) } }) };
+  const stubGeo = (getCurrentPosition: (ok: PositionCallback, fail: PositionErrorCallback) => void) => {
+    Object.defineProperty(window, "isSecureContext", { value: true, configurable: true });
+    Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition }, configurable: true });
+  };
+  const attach = (name: string) => {
+    fireEvent.click(screen.getByTitle("Прикрепить"));
+    fireEvent.click(screen.getByRole("menuitem", { name }));
+  };
+
+  it("GPS отдал координаты — геолокация уходит сразу", async () => {
+    stubGeo((ok) => ok({ coords: { latitude: 55.75, longitude: 37.62 } } as GeolocationPosition));
+    const { calls } = fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([msg("привет")]), ...sentRoute });
+    renderChat();
+    await screen.findByText("привет");
+    attach("Геолокация");
+    await waitFor(() => expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ attachments: [{ kind: "location", meta: { lat: 55.75, lng: 37.62 } }] }));
+  });
+
+  it("GPS запрещён — окно: примерное место по IP", async () => {
+    stubGeo((_ok, fail) => fail({ code: 1 } as GeolocationPositionError));
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([msg("привет")]),
+      "GET /api/geo/ip": { body: { lat: 59.9, lng: 30.3, city: "Санкт-Петербург" } },
+      ...sentRoute,
+    });
+    renderChat();
+    await screen.findByText("привет");
+    attach("Геолокация");
+    const dialog = await screen.findByRole("dialog", { name: "Геолокация" });
+    expect(within(dialog).getByText(/Нет доступа к геолокации/)).toBeTruthy();
+    fireEvent.click(await within(dialog).findByRole("button", { name: "📍 Отправить примерное — Санкт-Петербург" }));
+    await waitFor(() => expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ attachments: [{ kind: "location", meta: { lat: 59.9, lng: 30.3 } }] }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("контакт: свои контакты и участники чата", async () => {
+    const OLEG = { id: "u_oleg00000", name: "Олег", phone: "+79990000003" };
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([msg("привет")]),
+      "GET /api/contacts": { body: { contacts: [{ id: "ct_1_a", ownerId: ME.id, userId: OLEG.id, addedAt: "2026-10-01T10:00:00.000Z", localName: null, note: null, user: OLEG }] } },
+      ...sentRoute,
+    });
+    renderChat();
+    await screen.findByText("привет");
+    attach("Контакт");
+    const dialog = await screen.findByRole("dialog", { name: "Отправить контакт" });
+    expect((await within(dialog).findAllByRole("button")).map((b) => b.textContent)).toEqual(["ООлег", "ЛЛена", "Отмена"]);
+    fireEvent.click(within(dialog).getByRole("button", { name: /Олег/ }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ attachments: [{ kind: "contact", meta: { userId: OLEG.id, name: "Олег", phone: OLEG.phone } }] })
+    );
+  });
+});

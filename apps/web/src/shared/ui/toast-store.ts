@@ -11,17 +11,19 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((fn) => fn());
 
-export function toast(text: string, { error = false } = {}) {
+/** durationMs — подольше для «Определяем местоположение…»; убрать раньше — dismissToast(). */
+export function toast(text: string, { error = false, durationMs }: { error?: boolean; durationMs?: number } = {}) {
   clearTimeout(timer);
   current = { id: ++seq, text, error };
   emit();
-  timer = setTimeout(
-    () => {
-      current = null;
-      emit();
-    },
-    error ? ERROR_MS : SHOW_MS
-  );
+  timer = setTimeout(dismissToast, durationMs ?? (error ? ERROR_MS : SHOW_MS));
+}
+
+export function dismissToast() {
+  clearTimeout(timer);
+  if (!current) return;
+  current = null;
+  emit();
 }
 
 export const toastStore = {

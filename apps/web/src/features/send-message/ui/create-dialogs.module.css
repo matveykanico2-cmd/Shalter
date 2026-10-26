@@ -95,3 +95,32 @@
   color: var(--color-danger);
   font-size: 13px;
 }
+
+/* Найденные места (.loc-picker-results) и выбор контакта (.forward-list). */
+.places,
+.people {
+  display: flex;
+  flex-direction: column;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.place,
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.place:hover,
+.person:hover {
+  background: var(--color-surface-alt);
+}

@@ -1,4 +1,4 @@
-import { type DragEvent, type ReactNode, useRef, useState } from "react";
+import { type DragEvent, type ReactNode, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 
 import { ChatHeader } from "@/widgets/chat-header";
@@ -65,6 +65,9 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
     setReplyTo(null);
     setEditing(m);
   };
+  // Контактом можно отправить и участника чата, а в личке — не самого собеседника.
+  const people = useMemo(() => members.filter((u) => u.id !== me.id), [members, me.id]);
+  const notContacts = useMemo(() => (chat.otherUser ? [chat.otherUser.id] : []), [chat.otherUser]);
   const senderName = (m: Message) => (m.anonymous ? title : m.senderId === me.id ? me.name : (members.find((u) => u.id === m.senderId) ?? chat.otherUser)?.name ?? null);
 
   return (
@@ -85,6 +88,8 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
               meId={me.id}
               channel={chat.type === "channel"}
               topicId={openTopic?.id ?? null}
+              people={people}
+              excludeContacts={notContacts}
               initialDraft={typeof chat.draft === "string" ? chat.draft : ""}
               replyTo={replyTo}
               replyToName={replyTo ? senderName(replyTo) : null}
