@@ -90,6 +90,8 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
               topicId={openTopic?.id ?? null}
               people={people}
               excludeContacts={notContacts}
+              allowEffects={chat.type === "dm" && !chat.isSaved}
+              allowWhenOnline={chat.type === "dm" && !chat.isSaved && !!chat.otherUser && !chat.otherUser.isBot}
               initialDraft={typeof chat.draft === "string" ? chat.draft : ""}
               replyTo={replyTo}
               replyToName={replyTo ? senderName(replyTo) : null}

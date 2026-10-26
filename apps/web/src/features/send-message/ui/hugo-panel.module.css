@@ -1,0 +1,139 @@
+/* Находки Hugo (.hugo-* в public/styles/components.css). */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.status {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.good {
+  color: var(--color-success);
+}
+
+.bad {
+  color: var(--color-danger);
+}
+
+.close {
+  display: flex;
+  padding: 4px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.fixAll {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.list {
+  display: flex;
+  max-height: 210px;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.item {
+  padding-left: 8px;
+  border-left: 2px solid var(--color-warning);
+}
+
+.misspelling {
+  border-left-color: var(--color-danger);
+}
+
+.style {
+  border-left-color: var(--color-muted);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.wrong {
+  font-weight: 500;
+  text-decoration: line-through;
+  text-decoration-color: var(--color-danger);
+}
+
+.arrow {
+  color: var(--color-muted);
+}
+
+.right {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.message {
+  margin: 2px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.fixes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.fix {
+  padding: 3px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.fix:hover {
+  border-color: var(--color-accent);
+}
+
+.primary {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent);
+  font-weight: 500;
+}

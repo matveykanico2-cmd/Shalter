@@ -1,4 +1,4 @@
-import { type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, useRef } from "react";
+import { type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, useEffect, useRef } from "react";
 
 import type { Sticker } from "@/shared/lib/anim";
 import { useLongPress } from "@/shared/lib/use-long-press";
@@ -6,6 +6,7 @@ import { Avatar, Icon } from "@/shared/ui";
 
 import { isMediaOnly, linkPreviewOf } from "../lib/attachments";
 import { customEmojiOnly, jumboEmojiCount } from "../lib/jumbo";
+import { playMessageEffect, shouldPlayEffect } from "../lib/message-effect";
 import { isCallLogMessage, isReadByOthers, NAME_COLORS, timeLabel } from "../lib/message-meta";
 import { callLogInfo, messagePreview, stripCustomEmoji } from "../lib/message-preview";
 import { type Reaction, reactionsOf,reactionSticker } from "../lib/reactions";
@@ -130,6 +131,14 @@ export function MessageBubble(props: Props) {
   const lastTap = useRef({ at: 0, x: 0, y: 0 });
   const swipe = useRef<{ x: number; y: number; active: boolean | null } | null>(null);
 
+  // Эффект играет один раз — у только что пришедшего или отправленного.
+  const effect = typeof m.effect === "string" ? m.effect : null;
+  useEffect(() => {
+    if (!effect || m.pending || !shouldPlayEffect(m.id, m.createdAt)) return;
+    const frame = requestAnimationFrame(() => playMessageEffect(effect, bubbleRef.current));
+    return () => cancelAnimationFrame(frame);
+  }, [effect, m.id, m.pending, m.createdAt]);
+
   if (m.type === "system") return <SystemLine text={m.text ?? ""} />;
 
   // Как в Telegram: пост канала — от канала, «свои» пузыри справа только вне каналов.
@@ -149,6 +158,19 @@ export function MessageBubble(props: Props) {
   const meta = (
     <span className={styles.meta}>
       {m.visibleToId ? <span title="Это сообщение бота видите только вы">👁 только вам</span> : null}
+      {effect ? (
+        <button
+          type="button"
+          className={styles.effectBadge}
+          title="Повторить эффект"
+          onClick={(e) => {
+            e.stopPropagation();
+            playMessageEffect(effect, bubbleRef.current);
+          }}
+        >
+          {effect}
+        </button>
+      ) : null}
       {m.editedAt ? <span>изменено</span> : null}
       <span>{timeLabel(m.createdAt)}</span>
       {isChannel && typeof m.views === "number" ? <span>{m.views} 👁</span> : null}

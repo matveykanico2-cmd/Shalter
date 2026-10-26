@@ -158,7 +158,7 @@ describe("открытый чат", () => {
     expect(screen.getByText("Ответ Лена")).toBeTruthy();
     const input = screen.getByRole("textbox", { name: "Сообщение" });
     fireEvent.change(input, { target: { value: "ответ" } });
-    fireEvent.click(screen.getByTitle("Отправить"));
+    fireEvent.click(screen.getByRole("button", { name: "Отправить" }));
 
     expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Вам запрещено писать в этом чате");
     expect((input as HTMLTextAreaElement).value).toBe("ответ");
@@ -734,14 +734,14 @@ describe("запись голосовых", () => {
     });
     renderChat();
     await screen.findByText("Сообщений пока нет — напишите первым");
-    expect(screen.queryByTitle("Отправить")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Отправить" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Голосовое сообщение" }));
     const bar = await screen.findByRole("group", { name: "Запись голосового" });
-    await waitFor(() => expect(within(bar).getByTitle("Отправить")).toHaveProperty("disabled", false));
+    await waitFor(() => expect(within(bar).getByRole("button", { name: "Отправить" })).toHaveProperty("disabled", false));
     expect(calls.some((c) => c.key === "POST /api/chats/c_1/typing" && (c.body as { action: string }).action === "record_voice")).toBe(true);
 
-    fireEvent.click(within(bar).getByTitle("Отправить"));
+    fireEvent.click(within(bar).getByRole("button", { name: "Отправить" }));
     await waitFor(() => expect(FakeXhr.requests).toHaveLength(1));
     expect(FakeXhr.requests[0]!.params).toMatchObject({ kind: "voice", mimeType: "audio/webm" });
     expect(track.stop).toHaveBeenCalled();
@@ -772,7 +772,7 @@ describe("запись голосовых", () => {
 
     fireEvent.change(screen.getByRole("textbox", { name: "Сообщение" }), { target: { value: "текст" } });
     expect(screen.queryByRole("button", { name: "Голосовое сообщение" })).toBeNull();
-    expect(screen.getByTitle("Отправить")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Отправить" })).toBeTruthy();
   });
 });
 
@@ -1179,5 +1179,103 @@ describe("геолокация и контакт из скрепки", () => {
     await waitFor(() =>
       expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ attachments: [{ kind: "contact", meta: { userId: OLEG.id, name: "Олег", phone: OLEG.phone } }] })
     );
+  });
+});
+
+describe("варианты отправки", () => {
+  const sendRoute = {
+    "POST /api/chats/c_1/messages": (body: Record<string, unknown>) => ({
+      body: { message: msg(String(body.text), { senderId: ME.id, ...(body.effect ? { effect: String(body.effect) } : {}) }) },
+    }),
+  };
+  const type = (value: string) => fireEvent.change(screen.getByRole("textbox", { name: "Сообщение" }), { target: { value } });
+  const sendMenu = () => fireEvent.contextMenu(screen.getByRole("button", { name: "Отправить" }));
+
+  it("длинный текст — несколькими сообщениями", async () => {
+    const { calls } = fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([msg("привет")]), ...sendRoute, ...typingRoutes });
+    renderChat();
+    await screen.findByText("привет");
+    type(`${"а".repeat(3000)}\n${"б".repeat(3000)}`);
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Сообщение" }), { key: "Enter" });
+    await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")).toHaveLength(2));
+    expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages").map((c) => String((c.body as { text: string }).text).length)).toEqual([3000, 3000]);
+  });
+
+  it("правой кнопкой: без звука; в личке — с эффектом", async () => {
+    const dm = chat({ type: "dm", title: null, otherUser: LENA as never });
+    const { calls } = fakeApi({ "GET /api/chats/c_1": card(dm), [HISTORY]: page([msg("привет")]), ...sendRoute, ...typingRoutes });
+    renderChat(dm);
+    await screen.findByText("привет");
+    type("тихо");
+    sendMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Отправить без звука" }));
+    await waitFor(() => expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ text: "тихо", silent: true }));
+
+    type("ура");
+    sendMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Отправить с эффектом" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Праздник/ }));
+    await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")[1]?.body).toMatchObject({ text: "ура", effect: "🎉" }));
+    expect(await screen.findByTitle("Повторить эффект")).toBeTruthy();
+  });
+
+  it("отправить позже: время и повтор, поле очищается, затем список запланированных", async () => {
+    const at = new Date(Date.now() + 3 * 3600_000);
+    const local = new Date(at.getTime() - at.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+    const item = { id: "sch_1", chatId: "c_1", senderId: ME.id, text: "напомнить", replyToId: null, topicId: null, repeat: "week", sendAt: new Date(local).toISOString(), createdAt: new Date().toISOString() };
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([msg("привет")]),
+      "POST /api/chats/c_1/messages/scheduled": { body: { scheduled: item } },
+      "GET /api/chats/c_1/messages/scheduled": { body: { scheduled: [item] } },
+      ...typingRoutes,
+    });
+    renderChat();
+    await screen.findByText("привет");
+    type("напомнить");
+    sendMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Отправить позже" }));
+    const dialog = screen.getByRole("dialog", { name: "Отправить позже" });
+    // В группе «когда будет в сети» нет.
+    expect(within(dialog).queryByRole("button", { name: "Отправить, когда будет в сети" })).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText("Когда отправить"), { target: { value: local } });
+    fireEvent.change(within(dialog).getByRole("combobox", { name: "Повтор" }), { target: { value: "week" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Запланировать" }));
+
+    const list = await screen.findByRole("dialog", { name: "Запланированные сообщения" });
+    expect(await within(list).findByText("напомнить")).toBeTruthy();
+    expect(within(list).getByText(/🔁 Каждую неделю/)).toBeTruthy();
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages/scheduled")?.body).toEqual({
+      text: "напомнить",
+      replyToId: null,
+      topicId: null,
+      sendAt: new Date(local).toISOString(),
+      repeat: "week",
+      whenOnline: false,
+    });
+    expect((screen.getByRole("textbox", { name: "Сообщение" }) as HTMLTextAreaElement).value).toBe("");
+  });
+
+  it("Hugo: находки над полем, исправление и повторная проверка", async () => {
+    let checks = 0;
+    fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([msg("привет")]),
+      "POST /api/hugo/check": () => {
+        checks += 1;
+        return { body: { matches: checks === 1 ? [{ offset: 0, length: 6, message: "Орфографическая ошибка", short: "", replacements: ["привет", "превед"], type: "misspelling" }] : [], language: "ru" } };
+      },
+      ...typingRoutes,
+    });
+    renderChat();
+    await screen.findByText("привет");
+    type("превет всем");
+    fireEvent.click(screen.getByTitle("Прикрепить"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Проверить текст (Hugo)" }));
+    const panel = await screen.findByRole("region", { name: "Проверка текста" });
+    expect(within(panel).getByText("Hugo нашёл 1 ошибку")).toBeTruthy();
+    fireEvent.click(within(panel).getAllByRole("button", { name: "привет" })[0]!);
+    expect((screen.getByRole("textbox", { name: "Сообщение" }) as HTMLTextAreaElement).value).toBe("привет всем");
+    expect(await screen.findByText("Ошибок не нашлось")).toBeTruthy();
   });
 });

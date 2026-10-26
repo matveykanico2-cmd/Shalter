@@ -124,3 +124,58 @@
 .person:hover {
   background: var(--color-surface-alt);
 }
+
+/* «Отправить позже» и список запланированных. */
+.repeat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.scheduled {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.scheduledRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.scheduledBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.scheduledText {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduledBody .hint {
+  margin: 2px 0 0;
+}
+
+.rowButton {
+  display: flex;
+  padding: 7px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.rowButton:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}

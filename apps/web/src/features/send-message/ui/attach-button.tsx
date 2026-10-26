@@ -11,6 +11,8 @@ type Props = {
   onDice: (emoji: string) => void;
   onLocation: (live: boolean) => void;
   onContact: () => void;
+  onHugo: () => void;
+  onSchedule: () => void;
 };
 
 /** Эмодзи-игры (число выпадает на сервере). Каталог игр переедет вместе с экраном игр. */
@@ -24,7 +26,7 @@ const DICE: [string, string][] = [
 ];
 
 /** Скрепка — как меню вложений в composer.js: фото и видео, камера, файл, аудио, опрос, чек-лист, кубики, геолокация, контакт. */
-export function AttachButton({ onFiles, onPoll, onChecklist, onDice, onLocation, onContact }: Props) {
+export function AttachButton({ onFiles, onPoll, onChecklist, onDice, onLocation, onContact, onHugo, onSchedule }: Props) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
   const [diceAt, setDiceAt] = useState<{ x: number; y: number } | null>(null);
   const media = useRef<HTMLInputElement>(null);
@@ -52,6 +54,8 @@ export function AttachButton({ onFiles, onPoll, onChecklist, onDice, onLocation,
     { icon: "MapPin", label: "Геолокация", onClick: () => onLocation(false) },
     { icon: "MapPin", label: "Живая геолокация (15 мин)", onClick: () => onLocation(true) },
     { icon: "Users", label: "Контакт", onClick: onContact },
+    { icon: "Check", label: "Проверить текст (Hugo)", onClick: onHugo },
+    { icon: "Clock", label: "Отправить позже", onClick: onSchedule },
   ];
 
   return (

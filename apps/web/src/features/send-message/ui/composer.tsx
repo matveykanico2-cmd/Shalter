@@ -10,9 +10,11 @@ import { getPosition, type LatLng } from "@/shared/lib/geolocation";
 import { isRecordingSupported, type RecordMode } from "@/shared/lib/media/recorder";
 import { dismissToast, Icon, toast } from "@/shared/ui";
 
-import { type OutgoingAttachment, saveDraft, sendTyping } from "../api/send-message";
+import { hugoCheck, type OutgoingAttachment, saveDraft, scheduleMessage, type SendOptions, sendTyping } from "../api/send-message";
 import { chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
+import { applyAll, applyFix, cleanMatches, type ProofMatch } from "../lib/hugo";
 import { startLiveLocationSharing } from "../lib/live-location";
+import { splitLongText } from "../lib/long-text";
 import { useSendMessage } from "../model/use-send-message";
 import { useUploads } from "../model/use-uploads";
 
@@ -21,10 +23,14 @@ import { ChecklistDialog } from "./checklist-dialog";
 import styles from "./composer.module.css";
 import { ContactPicker, type PickedContact } from "./contact-picker";
 import { EmojiButton } from "./emoji-picker";
+import { HugoPanel, type HugoState } from "./hugo-panel";
 import { LocationPicker, type PickedLocation } from "./location-picker";
 import { PollDialog } from "./poll-dialog";
 import { RecordButtons } from "./record-buttons";
 import { type HoldControl, RecordingBar, type RecordingDone } from "./recording-bar";
+import { ScheduleDialog } from "./schedule-dialog";
+import { ScheduledList } from "./scheduled-list";
+import { SendButton } from "./send-button";
 import { type MediaSendChoice, SendMediaDialog } from "./send-media-dialog";
 import { StickerButton } from "./sticker-picker";
 import { UploadStrip } from "./upload-strip";
@@ -67,6 +73,10 @@ type Props = {
   /** Кого можно отправить контактом, кроме своих контактов (участники чата), и кого нельзя. */
   people?: readonly PickedContact[];
   excludeContacts?: readonly string[];
+  /** Эффекты при отправке — в личке. */
+  allowEffects?: boolean;
+  /** «Отправить, когда будет в сети» — в личке с человеком. */
+  allowWhenOnline?: boolean;
   ref?: Ref<ComposerHandle>;
 };
 
@@ -90,6 +100,8 @@ export function Composer(props: Props) {
   const uploads = useUploads(chatId);
   const [picked, setPicked] = useState<File[] | null>(null);
   const [creating, setCreating] = useState<"poll" | "checklist" | "contact" | null>(null);
+  const [hugo, setHugo] = useState<HugoState | null>(null);
+  const [scheduling, setScheduling] = useState<"dialog" | "list" | null>(null);
   const [placePicker, setPlacePicker] = useState<{ reason: string; resolve: (value: PickedLocation) => void } | null>(null);
   const [recording, setRecording] = useState<{ mode: RecordMode; hold: boolean } | null>(null);
   const holdControlRef = useRef<HoldControl | null>(null);
@@ -171,7 +183,7 @@ export function Composer(props: Props) {
     if (!window.matchMedia?.("(pointer: coarse)").matches) el?.focus({ preventScroll: true });
   };
 
-  const submit = () => {
+  const submit = (options: SendOptions = {}) => {
     const value = text.trim();
     if (editing) {
       if (!value) return;
@@ -181,17 +193,74 @@ export function Composer(props: Props) {
     }
     if (!value) return;
     const reply = replyTo;
+    clearInput();
+    onSent?.();
+    // Длиннее 4096 знаков — несколькими сообщениями; ответ и эффект — у первого.
+    void (async () => {
+      const parts = splitLongText(value);
+      for (const [i, part] of parts.entries()) {
+        try {
+          await send(part, i === 0 ? reply : null, [], undefined, i === 0 ? options : options.silent ? { silent: true } : {});
+        } catch (err) {
+          // Не ушло — текст возвращаем, если человек ещё не начал новое сообщение.
+          const left = parts.slice(i).join("\n");
+          setText((current) => current || left);
+          setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
+          return;
+        }
+      }
+    })();
+  };
+
+  // Поле очищено отправкой или отложенной отправкой: ответ, черновик, Hugo — тоже.
+  const clearInput = () => {
     setText("");
+    setHugo(null);
     onCancelReply();
     clearTimeout(draftTimer.current);
     chatCache.setDraft(client, chatId, "");
     saveDraft(chatId, "").catch(() => {});
-    onSent?.();
-    send(value, reply).catch((err: unknown) => {
-      // Не ушло — текст возвращаем, если человек ещё не начал новое сообщение.
-      setText((current) => current || value);
-      setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
-    });
+  };
+
+  // «Отправить позже» — только то, что уже набрано (scheduleSend в composer.js).
+  const openSchedule = () => {
+    if (!text.trim()) {
+      toast("Сначала напишите сообщение — запланировать можно только то, что уже набрано", { error: true });
+      return;
+    }
+    setScheduling("dialog");
+  };
+  const schedule = async ({ sendAt, repeat, whenOnline }: { sendAt: string | null; repeat: Parameters<typeof scheduleMessage>[1]["repeat"]; whenOnline: boolean }) => {
+    try {
+      await scheduleMessage(chatId, { text: text.trim(), replyToId: replyTo?.id ?? null, topicId: props.topicId ?? replyTo?.topicId ?? null, sendAt, repeat, whenOnline });
+    } catch (err) {
+      setError(errorText(err, "Не удалось запланировать отправку"));
+      return;
+    }
+    clearInput();
+    setScheduling("list");
+  };
+
+  // Hugo: проверка набранного; исправление — и проверка заново (runHugo в composer.js).
+  const runHugo = async (value = text) => {
+    if (!value.trim()) return;
+    setHugo({ kind: "checking" });
+    try {
+      const { matches } = await hugoCheck(value);
+      setHugo({ kind: "done", matches: cleanMatches(matches) });
+    } catch (err) {
+      setHugo({ kind: "error", text: errorText(err, "Не удалось проверить текст") });
+    }
+  };
+  const replaceText = (next: string, caretAt?: number) => {
+    if (caretAt !== undefined) caret.current = caretAt;
+    onChange(next);
+    textarea.current?.focus();
+  };
+  const fixOne = (m: ProofMatch, replacement: string) => {
+    const res = applyFix(text, m, replacement);
+    replaceText(res.text, res.caret);
+    void runHugo(res.text);
   };
 
   // Как composer.js: выбранное сначала в окне отправки, потом загрузка, потом сообщение
@@ -334,6 +403,18 @@ export function Composer(props: Props) {
           </button>
         </div>
       ) : null}
+      {hugo ? (
+        <HugoPanel
+          state={hugo}
+          text={text}
+          onFix={fixOne}
+          onFixAll={() => {
+            if (hugo.kind === "done") replaceText(applyAll(text, hugo.matches));
+            setHugo(null);
+          }}
+          onClose={() => setHugo(null)}
+        />
+      ) : null}
       <UploadStrip tiles={uploads.tiles} onCancel={uploads.cancel} />
       <div className={styles.row}>
         {recording ? (
@@ -364,6 +445,8 @@ export function Composer(props: Props) {
                 onDice={(emoji) => void sendAttachment("", { kind: "dice", meta: { emoji } })}
                 onLocation={(live) => void sendLocation(live)}
                 onContact={() => setCreating("contact")}
+                onHugo={() => void runHugo()}
+                onSchedule={openSchedule}
               />
             )}
             <textarea
@@ -395,9 +478,13 @@ export function Composer(props: Props) {
         {recording && !recording.hold ? null : !text.trim() && !editing && canRecord ? (
           <RecordButtons holdingMode={recording?.hold ? recording.mode : null} holdControlRef={holdControlRef} onStart={(mode, hold) => setRecording((r) => r ?? { mode, hold })} />
         ) : (
-          <button type="button" className={styles.send} title={editing ? "Сохранить" : "Отправить"} disabled={!text.trim()} onClick={submit}>
-            <Icon name={editing ? "Check" : "Send"} size={22} />
-          </button>
+          <SendButton
+            editing={!!editing}
+            disabled={!text.trim()}
+            allowEffects={!!props.allowEffects}
+            onSend={submit}
+            onSchedule={openSchedule}
+          />
         )}
       </div>
       {creating === "poll" ? (
@@ -424,6 +511,8 @@ export function Composer(props: Props) {
           onPick={(u) => void sendAttachment("", { kind: "contact", meta: { userId: u.id, name: u.name, phone: u.phone } })}
         />
       ) : null}
+      {scheduling === "dialog" ? <ScheduleDialog allowWhenOnline={!!props.allowWhenOnline} onSchedule={(c) => void schedule(c)} onClose={() => setScheduling(null)} /> : null}
+      {scheduling === "list" ? <ScheduledList chatId={chatId} onClose={() => setScheduling(null)} /> : null}
       {placePicker ? <LocationPicker reason={placePicker.reason} onDone={placePicker.resolve} /> : null}
       {picked ? <SendMediaDialog files={picked} onSend={(choice) => void sendMedia(choice)} onClose={() => setPicked(null)} /> : null}
     </div>

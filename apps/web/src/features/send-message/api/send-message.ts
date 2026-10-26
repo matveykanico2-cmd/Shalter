@@ -1,6 +1,7 @@
 import type { contactListItem } from "@shalter/shared/schemas/contacts";
 import type { geoIpBody, geoSearchBody } from "@shalter/shared/schemas/geo";
-import type { sendResult } from "@shalter/shared/schemas/messages";
+import type { hugoCheckBody } from "@shalter/shared/schemas/integrations";
+import type { scheduled, scheduledEnvelope, scheduledList, sendResult } from "@shalter/shared/schemas/messages";
 import type { z } from "zod";
 
 import { http, type Uploaded } from "@/shared/api";
@@ -15,7 +16,10 @@ export type OutgoingAttachment =
   | (Uploaded & { spoiler?: true; durationSec?: number; waveform?: number[]; transcript?: string })
   | { kind: "poll" | "checklist" | "dice" | "location" | "contact"; meta: Record<string, unknown> };
 
-type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string };
+/** Как отправить: без звука у получателей, с эффектом (в личке). */
+export type SendOptions = { silent?: true; effect?: string };
+
+type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string } & SendOptions;
 
 /**
  * Сообщение в чат (POST /api/chats/:id/messages) или пост канала (POST /api/posts/:id/publish).
@@ -45,3 +49,20 @@ export const updateLiveLocation = (chatId: string, messageId: string, lat: numbe
   http.post<unknown>(`${chatPath(chatId)}/messages/${encodeURIComponent(messageId)}/location`, { lat, lng });
 
 export const listContacts = () => http.get<{ contacts: z.infer<typeof contactListItem>[] }>("/api/contacts");
+
+export type Scheduled = z.infer<typeof scheduled>;
+export type RepeatId = NonNullable<Scheduled["repeat"]>;
+
+/** Отправить позже: в срок (sendAt, с повтором) или «когда будет в сети». */
+export const scheduleMessage = (
+  chatId: string,
+  body: { text: string; replyToId: string | null; topicId: string | null; sendAt: string | null; repeat: RepeatId | null; whenOnline: boolean }
+) => http.post<z.infer<typeof scheduledEnvelope>>(`${chatPath(chatId)}/messages/scheduled`, body);
+
+export const listScheduled = (chatId: string) => http.get<z.infer<typeof scheduledList>>(`${chatPath(chatId)}/messages/scheduled`);
+
+export const sendScheduledNow = (chatId: string, id: string) => http.patch<unknown>(`${chatPath(chatId)}/messages/scheduled/${encodeURIComponent(id)}`, { sendNow: true });
+
+export const deleteScheduled = (chatId: string, id: string) => http.delete<unknown>(`${chatPath(chatId)}/messages/scheduled/${encodeURIComponent(id)}`);
+
+export const hugoCheck = (text: string) => http.post<z.infer<typeof hugoCheckBody>>("/api/hugo/check", { text });

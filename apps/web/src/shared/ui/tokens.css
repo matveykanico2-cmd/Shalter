@@ -10,6 +10,7 @@
   --color-accent-contrast: #ffffff;
   --color-accent-soft: #e5f1fd;
   --color-danger: #e53935;
+  --color-warning: #e39d2b;
   --color-success: #4fae4e;
   --color-bubble-in: #ffffff;
   --color-bubble-out: #eeffde;
@@ -37,6 +38,7 @@
     --color-accent-contrast: #ffffff;
     --color-accent-soft: #2f2a47;
     --color-danger: #ff595a;
+    --color-warning: #f0ad4e;
     --color-success: #5cc85a;
     --color-bubble-in: #212121;
     --color-bubble-out: #766ac8;
