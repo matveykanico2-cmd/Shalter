@@ -309,6 +309,8 @@ export const api = {
   checkUsername: (u) => req(`/api/auth/username-available?u=${encodeURIComponent(u)}`),
   loginEmail: (email, password) =>
     req("/api/auth/login-email", { method: "POST", body: JSON.stringify({ email, password }) }),
+  guestLogin: () =>
+    req("/api/auth/guest", { method: "POST", body: "{}" }),
   startPhoneRecovery: (phone) => req("/api/auth/recover/phone/start", { method: "POST", body: JSON.stringify({ phone }) }),
   finishPhoneRecovery: (phone, code, password) =>
     req("/api/auth/recover/phone/verify", { method: "POST", body: JSON.stringify({ phone, code, password }) }),

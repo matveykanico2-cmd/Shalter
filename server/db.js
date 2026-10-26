@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
   online INTEGER NOT NULL DEFAULT 0,
   lastSeen TEXT,
   isBot INTEGER NOT NULL DEFAULT 0,
+  isGuest INTEGER NOT NULL DEFAULT 0,
   blockedUserIds TEXT NOT NULL DEFAULT '[]',
   isPremium INTEGER NOT NULL DEFAULT 0,
   referralCode TEXT,
@@ -550,6 +551,7 @@ if (!existingUserColumns.has("totpEnabledAt")) db.exec("ALTER TABLE users ADD CO
 if (!existingUserColumns.has("totpRecoveryCodes")) db.exec("ALTER TABLE users ADD COLUMN totpRecoveryCodes TEXT");
 // Статус «Разработчик» — назначается админом вручную (в отличие от isAdminPhone).
 if (!existingUserColumns.has("developer")) db.exec("ALTER TABLE users ADD COLUMN developer INTEGER NOT NULL DEFAULT 0");
+if (!existingUserColumns.has("isGuest")) db.exec("ALTER TABLE users ADD COLUMN isGuest INTEGER NOT NULL DEFAULT 0");
 
 const kugoRow = db.prepare("SELECT id FROM users WHERE id = 'ai_kugo'").get();
 if (kugoRow) {

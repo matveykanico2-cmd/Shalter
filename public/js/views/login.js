@@ -74,6 +74,7 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
   let twoFactorCode = "";
   let twoFactorError = null;
   let twoFactorPending = false;
+  let guestPending = false;
 
   function stopQrPolling() {
     clearInterval(qrPollTimer);
@@ -829,20 +830,43 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
                 },
                 [el("span", { html: iconSvg("MessageCircle", 15) }), " Войти по коду из сообщения"]
               ),
-              el(
-                "button",
-                {
-                  type: "button",
-                  class: "login-link muted",
-                  onclick: () => {
-                    mode = "recover";
-                    error = null;
-                    render();
-                  },
-                },
-                "Забыли пароль?"
-              ),
-            ])
+               el(
+                 "button",
+                 {
+                   type: "button",
+                   class: "login-link muted",
+                   onclick: () => {
+                     mode = "recover";
+                     error = null;
+                     render();
+                   },
+                 },
+                 "Забыли пароль?"
+               ),
+               el(
+                 "button",
+                 {
+                   type: "button",
+                   class: "login-guest-btn",
+                   disabled: guestPending,
+                   onclick: async () => {
+                     error = null;
+                     guestPending = true;
+                     render();
+                     try {
+                       const res = await api.guestLogin();
+                       finishAuth(res.user, res.alreadyLinked);
+                     } catch (err) {
+                       error = err.message;
+                     } finally {
+                       guestPending = false;
+                       render();
+                     }
+                   },
+                 },
+                 guestPending ? "Входим…" : "Продолжить как гость"
+               ),
+             ])
           : null,
         !embedded && !isInstalledApp() ? el("a", { class: "login-link muted login-download-link", href: "/download" }, "Скачать приложение для Windows, Linux и Android") : null,
       ]

@@ -39,6 +39,7 @@ function rowToUser(row) {
     online: !!row.online,
     lastSeen: row.lastSeen ?? undefined,
     isBot: !!row.isBot || undefined,
+    isGuest: !!row.isGuest || undefined,
     blockedUserIds: safeParse(row.blockedUserIds, []),
     isPremium: !!row.premiumUntil && row.premiumUntil > new Date().toISOString(),
     premiumUntil: row.premiumUntil && row.premiumUntil !== FOREVER ? row.premiumUntil : undefined,
@@ -226,7 +227,29 @@ async function createUser(user) {
   return getUser(user.id);
 }
 
-const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng", "nameColor"];
+async function createGuestUser() {
+  const { genId } = require("../lib/genId");
+  const { generateBotUsername } = require("../lib/username");
+  const id = genId("u");
+  const name = `Гость ${crypto.randomInt(1000, 9999)}`;
+  const username = await generateBotUsername("guest");
+  const avatarColors = ["#2E56D9", "#2E86AB", "#A23B72", "#F14668", "#008080", "#5B2C6F", "#1B998B", "#E76F51"];
+  const avatarColor = avatarColors[crypto.randomInt(avatarColors.length)];
+  db.prepare(
+    `INSERT INTO users (id, name, username, phone, email, passwordHash, passwordSalt, avatarColor, avatarImage, bio, online, lastSeen, isBot, isGuest, blockedUserIds, referralCode)
+     VALUES (@id, @name, @username, '', NULL, NULL, NULL, @avatarColor, NULL, '', 1, @lastSeen, 0, 1, '[]', @referralCode)`
+  ).run({
+    id,
+    name,
+    username,
+    avatarColor,
+    lastSeen: new Date().toISOString(),
+    referralCode: generateReferralCode(),
+  });
+  return getUser(id);
+}
+
+const PATCHABLE_FIELDS = ["name", "lastName", "username", "phone", "email", "passwordHash", "passwordSalt", "cloudPasswordHash", "cloudPasswordSalt", "cloudPasswordHint", "twoFactorMethod", "avatarColor", "avatarImage", "bio", "usernameAuctionId", "online", "lastSeen", "isBot", "isGuest", "premiumUntil", "adsUntil", "adText", "adUrl", "birthday", "businessUntil", "businessAddress", "businessLat", "businessLng", "nameColor"];
 
 async function grantPremiumDays(userId, days) {
   const user = await getUser(userId);
@@ -532,7 +555,8 @@ module.exports = {
   generateReferralCode,
   listReferrals,
   listUsersWithBirthdayToday,
-  createUser,
+   createUser,
+  createGuestUser,
   updateUser,
   setBlocked,
   setBanned,

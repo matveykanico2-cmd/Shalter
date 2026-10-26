@@ -11,6 +11,7 @@ function isAdminPhone(phone) {
 }
 
 const PREMIUM_GRANT_DAYS = 30;
+const GUEST_MODE_ENABLED = !/^(0|off|false|no)$/i.test(process.env.GUEST_MODE || "");
 
 // Тарифы и цены — server/data/pricing.js (админ меняет их в Настройки → Цены).
 
@@ -82,6 +83,7 @@ module.exports = {
   isAdminPhone,
   PREMIUM_GRANT_DAYS,
   BUSINESS_GRANT_DAYS,
+  GUEST_MODE_ENABLED,
   DONATIONALERTS_CLIENT_ID,
   DONATIONALERTS_CLIENT_SECRET,
   DONATIONALERTS_REDIRECT_URI,

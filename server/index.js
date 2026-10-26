@@ -101,6 +101,7 @@ app.use("/api/auth/recover", authLimiter);
 app.use("/api/auth/change-password", authLimiter);
 app.use("/api/auth/email", authLimiter);
 app.use("/api/auth/passkey/login", authLimiter);
+app.use("/api/auth/guest", authLimiter);
 
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/users", require("./routes/users"));

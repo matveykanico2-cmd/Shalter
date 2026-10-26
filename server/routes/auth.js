@@ -10,7 +10,7 @@ const {
   getOrCreateDeviceId,
   requireUserId,
 } = require("../middleware/auth");
-const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, getUser, updateUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode, scheduleAccountDeletion, cancelAccountDeletion } = require("../data/users");
+const { findUserByEmail, findUserByPhone, findUserByReferralCode, createUser, createGuestUser, getUser, updateUser, grantPremiumDays, startTotpSetup, startChatTwoFactor, enableTotp, disableTotp, consumeRecoveryCode, scheduleAccountDeletion, cancelAccountDeletion } = require("../data/users");
 const { publicUser, selfUser } = require("../data/sanitize");
 const { hashPassword, verifyPassword } = require("../security");
 const { listSessions, getSession, upsertSession, revokeAllSessions, revokeOtherSessions } = require("../data/sessions");
@@ -18,7 +18,7 @@ const { parseUserAgent } = require("../lib/userAgent");
 const { findOrCreateDm, sendMessageAndBroadcast } = require("../lib/systemChat");
 const { deleteAccount } = require("../lib/deleteAccount");
 const { SYSTEM_BOT_ID } = require("../data/systemBot");
-const { PREMIUM_GRANT_DAYS, isAdminPhone } = require("../config");
+const { PREMIUM_GRANT_DAYS, isAdminPhone, GUEST_MODE_ENABLED } = require("../config");
 const qrLogins = require("../data/qrLogins");
 const codeLogins = require("../data/codeLogins");
 const passkeys = require("../data/passkeys");
@@ -975,6 +975,18 @@ router.post(
     } catch {
     }
     res.json({ ok: true });
+  })
+);
+
+router.post(
+  "/guest",
+  asyncRoute(async (req, res) => {
+    if (!GUEST_MODE_ENABLED) return res.status(404).json({ error: "Гостевой режим отключён" });
+
+    const user = await createGuestUser();
+    addAccountSession(req, res, user.id);
+    await recordSession(req, res, user.id);
+    res.json({ user: selfUser(user), alreadyLinked: false });
   })
 );
 
