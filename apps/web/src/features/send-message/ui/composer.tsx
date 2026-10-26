@@ -93,7 +93,7 @@ type Props = {
    * Ответ в ветке (threadPanel.js: Composer без черновика): сообщение уходит в ветку,
    * в ленту чата не попадает, отложенной отправки нет; onSent — ответ сервера.
    */
-  thread?: { rootId: string; onSent: (m: Message) => void };
+  thread?: { rootId: string; onSent: (m: Message) => void; postId?: string };
   /** Участники с @именем — подсказки при наборе «@». */
   mentions?: readonly MentionUser[];
   /** Команды бота: кнопка «/» и подсказки при наборе «/». */
@@ -116,7 +116,7 @@ export function Composer(props: Props) {
   const { editing = null, onSaveEdit, onCancelEdit, onEditLast, ref } = props;
   const client = useQueryClient();
   const thread = props.thread;
-  const sendOne = useSendMessage(chatId, meId, channel, props.topicId, thread?.rootId);
+  const sendOne = useSendMessage(chatId, meId, channel, props.topicId, thread?.rootId, thread?.postId);
   const send: typeof sendOne = async (...args) => {
     const message = await sendOne(...args);
     thread?.onSent(message);

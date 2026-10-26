@@ -1038,6 +1038,51 @@ describe("особые сообщения и автор", () => {
   });
 });
 
+describe("комментарии к постам", () => {
+  it("«N комментариев» внизу поста — панель с ответами, цена и отправка; просмотр поста уходит на сервер", async () => {
+    const observed: Element[] = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        public constructor(private readonly cb: (e: { isIntersecting: boolean }[]) => void) {}
+        public observe(el: Element) {
+          observed.push(el);
+          this.cb([{ isIntersecting: true }]);
+        }
+        public disconnect() {}
+      }
+    );
+    const channel = chat({ type: "channel", title: "Новости", linkedDiscussionChatId: "c_disc", memberIds: [ME.id] } as Partial<ChatSummary>);
+    const post = msg("Запуск в пятницу", { senderId: LENA.id, discussionAnchorId: "m_anchor", commentCount: 2 } as Partial<Message>);
+    const anchor = msg("Запуск в пятницу", { id: "m_anchor", chatId: "c_disc", senderId: LENA.id });
+    const olya = { id: "u_olya000000", name: "Оля" };
+    const replies = [msg("Ура!", { chatId: "c_disc", senderId: olya.id, threadRootId: "m_anchor" }), msg("Наконец", { chatId: "c_disc", senderId: olya.id, threadRootId: "m_anchor" })];
+    const mine = msg("Жду", { chatId: "c_disc", senderId: ME.id, threadRootId: "m_anchor" });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(channel),
+      [HISTORY]: page([post]),
+      [`POST /api/posts/${post.id}/view`]: { body: { views: 1, counted: true } },
+      [`GET /api/posts/${post.id}/comments`]: {
+        body: { post, anchor, chat: { id: "c_disc", title: "Новости: обсуждение" }, members: [olya, LENA], replies, canComment: true, commentPriceStars: 5, commentPriceFree: false },
+      },
+      [`POST /api/posts/${post.id}/comments`]: { body: { message: mine, chargedStars: 5 } },
+      "POST /api/chats/c_disc/typing": { body: { ok: true } },
+    });
+    renderChat(channel);
+    fireEvent.click(await screen.findByRole("button", { name: "2 комментария" }));
+    const panel = await screen.findByRole("dialog", { name: "Комментарии" });
+    expect(await within(panel).findByText("Ура!")).toBeTruthy();
+    expect(within(panel).getByText("Комментарии (2)")).toBeTruthy();
+    expect(within(panel).getByText("⭐ Комментарии в этом канале стоят 5 ⭐ — спишется за каждый")).toBeTruthy();
+    const input = within(panel).getByRole("textbox", { name: "Комментарий · 5 ⭐" });
+    fireEvent.change(input, { target: { value: "Жду" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(await within(panel).findByText("Комментарии (3)")).toBeTruthy();
+    expect(calls.find((c) => c.key === `POST /api/posts/${post.id}/comments`)?.body).toMatchObject({ text: "Жду" });
+    expect(calls.some((c) => c.key === `POST /api/posts/${post.id}/view`)).toBe(true);
+  });
+});
+
 describe("стикеры и эмодзи", () => {
   it("ссылка в тексте и карточка — во встроенном браузере, статья — быстрым просмотром", async () => {
     const preview = { url: "https://news.ru/a", title: "Новость", description: "Подробности", siteName: "Новости" };

@@ -8,7 +8,7 @@ import { historyCache, type Message, messageQueries } from "@/entities/message";
 
 import type { Sticker } from "@/shared/lib/anim";
 
-import { type OutgoingAttachment, sendMessage, type SendOptions } from "../api/send-message";
+import { type OutgoingAttachment, sendComment, sendMessage, type SendOptions } from "../api/send-message";
 import { retryOffline } from "../lib/retry-offline";
 
 let localSeq = 0;
@@ -16,8 +16,9 @@ let localSeq = 0;
 /**
  * topicId — открытая тема группы; без неё ответ уходит в тему исходного сообщения.
  * threadRootId — ответ в ветке: в ленту чата он не попадает, временного пузыря нет.
+ * postId — комментарий к посту канала: уходит через /api/posts/:id/comments.
  */
-export function useSendMessage(chatId: string, meId: string, channel: boolean, topicId?: string | null, threadRootId?: string) {
+export function useSendMessage(chatId: string, meId: string, channel: boolean, topicId?: string | null, threadRootId?: string, postId?: string) {
   const client = useQueryClient();
   return useCallback(
     async (text: string, replyTo: Message | null, attachments: OutgoingAttachment[] = [], sticker?: Sticker, options: SendOptions = {}) => {
@@ -25,7 +26,11 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
       const topic = topicId ?? replyTo?.topicId ?? null;
       if (threadRootId) {
         try {
-          const { message } = await retryOffline(() => sendMessage(chatId, { text, replyToId: null, clientId: localId, attachments, sticker, threadRootId, ...options }, false));
+          const { message } = await retryOffline(() =>
+            postId
+              ? sendComment(postId, { text, clientId: localId, attachments, sticker, ...options })
+              : sendMessage(chatId, { text, replyToId: null, clientId: localId, attachments, sticker, threadRootId, ...options }, false)
+          );
           return message;
         } finally {
           // Счётчик «N ответов» под сообщением в ленте.
@@ -67,6 +72,6 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
         void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chatId) });
       }
     },
-    [client, chatId, meId, channel, topicId, threadRootId]
+    [client, chatId, meId, channel, topicId, threadRootId, postId]
   );
 }

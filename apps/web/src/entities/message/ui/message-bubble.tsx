@@ -77,6 +77,8 @@ type Props = {
   onToggleSelect?: (m: Message) => void;
   /** «Кратко»: строка — сводка, null — ещё делается. */
   summary?: string | null;
+  /** Полоса внизу пузыря — «Комментарии» у поста канала. */
+  footer?: ReactNode;
 };
 
 type Point = { x: number; y: number };
@@ -313,6 +315,8 @@ export function MessageBubble(props: Props) {
       </span>
     );
   } else if ((!text || below || jumbo || (ceOnly && ceOnly.length <= 3)) && !isCall) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
+
+  if (props.footer) body.push(<div key="footer">{props.footer}</div>);
 
   const bubbleClass = [styles.bubble, out ? styles.out : styles.in, groupStart ? "" : styles.joinTop, groupEnd ? "" : styles.joinBottom, sticker ? styles.stickerBubble : "", mediaOnly ? styles.mediaOnly : ""]
     .filter(Boolean)

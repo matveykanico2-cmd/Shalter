@@ -73,3 +73,9 @@ export const searchGames = (q: string) => http.get<z.infer<typeof gamesBody>>(`/
 
 /** «Стоп» в чате с Shalter AI: ответ обрывается, написанное остаётся. */
 export const stopAi = (chatId: string) => http.post<unknown>("/api/ai/stop", { chatId });
+
+/** Комментарий к посту канала (POST /api/posts/:id/comments) — в ветку его группы обсуждения. */
+export const sendComment = (postId: string, body: { text: string; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker } & SendOptions) => {
+  const { attachments, sticker, ...rest } = body;
+  return http.post<SendResult>(`/api/posts/${encodeURIComponent(postId)}/comments`, { ...rest, ...(attachments?.length ? { attachments } : {}), ...(sticker ? { sticker } : {}) });
+};

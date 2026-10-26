@@ -10,31 +10,42 @@ import { errorText } from "@/shared/lib/error-text";
 import { askConfirm, askText, Icon, Menu, type MenuItem, toast } from "@/shared/ui";
 
 import { deleteReply, editReply } from "../api/thread";
-import { useThread } from "../model/use-thread";
+import { type ThreadSource, useThread } from "../model/use-thread";
 
 import styles from "./thread-panel.module.css";
 
+/** Куда пишет поле ответа: чат и корень ветки; у комментариев — ещё пост и его цена. */
+export type ThreadTarget = { chatId: string; rootId: string; postId?: string; paidStars?: number; people: readonly MessageSender[] };
+
 type Props = {
+  /** Чат, где открыли ветку: группа или канал (у канала ответы живут в группе обсуждения). */
   chat: ChatSummary;
-  root: Message;
+  source: ThreadSource;
   me: SelfUser;
   userOf: (userId: string) => MessageSender | null;
   onClose: () => void;
   /** Поле ответа (Composer в режиме ветки): onSent — ответ ушёл, сразу в список. */
-  composer: (onSent: (m: Message) => void) => ReactNode;
+  composer: (onSent: (m: Message) => void, target: ThreadTarget) => ReactNode;
 };
 
 const isServerModerator = (me: SelfUser) => !!me.isDeveloper || (me.adminSections ?? []).includes("moderation");
 
-/** Ответы на сообщение группы — боковая панель, как openThreadPanel в public/js/components/threadPanel.js. */
-export function ThreadPanel({ chat, root: initialRoot, me, userOf, onClose, composer }: Props) {
+/**
+ * Ответы на сообщение группы или комментарии к посту канала — боковая панель, как
+ * openThreadPanel в public/js/components/threadPanel.js (openPostComments в chatView.js).
+ */
+export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Props) {
   const client = useQueryClient();
-  const { query, add, replace, remove } = useThread(chat.id, initialRoot.id);
-  const root = query.data?.root ?? initialRoot;
-  const replies = query.data?.replies ?? [];
+  const { query, replies, comments, chatId, rootId, add, replace, remove } = useThread(source);
+  const isComments = source.kind === "comments";
+  const root = isComments ? (comments?.anchor ?? source.post) : ((query.data as { root?: Message } | undefined)?.root ?? source.root);
+  const title = isComments ? "Комментарии" : "Тема";
   const [menu, setMenu] = useState<{ message: Message; at: { x: number; y: number } } | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const staff = isChatAdmin(chat, me.id) || isChatModerator(chat, me.id) || isServerModerator(me);
+  // Комментаторы — из ответа сервера: в группе обсуждения могут быть не подписчики канала.
+  const people = comments?.members ?? null;
+  const author = (id: string) => people?.find((u) => u.id === id) ?? userOf(id);
   // Счётчик «N ответов» под сообщением в ленте.
   const touchFeed = () => void client.invalidateQueries({ queryKey: messageQueries.chatHistories(chat.id) });
 
@@ -54,14 +65,14 @@ export function ThreadPanel({ chat, root: initialRoot, me, userOf, onClose, comp
     return () => document.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
-  const sender = (m: Message) => (m.senderId === me.id ? { id: me.id, name: me.name, avatarColor: me.avatarColor, avatarImage: me.avatarImage } : userOf(m.senderId));
+  const sender = (m: Message) => (m.senderId === me.id ? { id: me.id, name: me.name, avatarColor: me.avatarColor, avatarImage: me.avatarImage } : author(m.senderId));
 
   const edit = async (m: Message) => {
     const text = await askText("Изменить комментарий", { initial: m.text ?? "", okLabel: "Сохранить" });
     const clean = text?.trim();
     if (!clean || clean === m.text) return;
     try {
-      replace((await editReply(chat.id, m.id, clean)).message);
+      replace((await editReply(chatId, m.id, clean)).message);
     } catch (err) {
       toast(errorText(err, "Не удалось сохранить"), { error: true });
     }
@@ -71,7 +82,7 @@ export function ThreadPanel({ chat, root: initialRoot, me, userOf, onClose, comp
     const name = sender(m)?.name ?? "участника";
     if (!(await askConfirm(m.senderId === me.id ? "Удалить комментарий?" : `Удалить комментарий ${name}?`, { okLabel: "Удалить", danger: true }))) return;
     try {
-      await deleteReply(chat.id, m.id);
+      await deleteReply(chatId, m.id);
       remove(m.id);
       touchFeed();
     } catch (err) {
@@ -91,9 +102,9 @@ export function ThreadPanel({ chat, root: initialRoot, me, userOf, onClose, comp
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <aside className={styles.panel} role="dialog" aria-modal="true" aria-label="Тема" data-thread="">
+      <aside className={styles.panel} role="dialog" aria-modal="true" aria-label={title} data-thread="">
         <header className={styles.header}>
-          <h2>Тема</h2>
+          <h2>{title}</h2>
           <button type="button" className={styles.close} title="Закрыть" onClick={onClose}>
             <Icon name="X" size={18} />
           </button>
@@ -102,9 +113,12 @@ export function ThreadPanel({ chat, root: initialRoot, me, userOf, onClose, comp
           <div className={styles.root}>
             <MessageBubble message={root} mine={root.senderId === me.id} sender={sender(root)} showSender meId={me.id} />
           </div>
-          <p className={styles.label}>Ответы ({replies.length})</p>
+          <p className={styles.label}>
+            {isComments ? "Комментарии" : "Ответы"} ({replies.length})
+          </p>
           {query.isPending ? <span className={styles.spinner} aria-label="Загрузка" /> : null}
-          {!query.isPending && !replies.length ? <p className={styles.empty}>Пока нет ответов — начните тему первым</p> : null}
+          {query.isError ? <p className={styles.empty}>{errorText(query.error, isComments ? "Комментарии недоступны" : "Не удалось загрузить ответы")}</p> : null}
+          {query.isSuccess && !replies.length ? <p className={styles.empty}>{isComments ? "Комментариев пока нет — напишите первым" : "Пока нет ответов — начните тему первым"}</p> : null}
           {replies.map((m) => {
             const mine = m.senderId === me.id;
             const canAct = menuItems(m).length > 0;
@@ -122,7 +136,17 @@ export function ThreadPanel({ chat, root: initialRoot, me, userOf, onClose, comp
             );
           })}
         </div>
-        <div className={styles.composer}>{composer(add)}</div>
+        {chatId && rootId ? (
+          <div className={styles.composer}>
+            {composer(add, {
+              chatId,
+              rootId,
+              postId: isComments ? source.post.id : undefined,
+              paidStars: comments && !comments.commentPriceFree ? comments.commentPriceStars : 0,
+              people: people ?? [],
+            })}
+          </div>
+        ) : null}
         {menu ? <Menu at={menu.at} label="Комментарий" items={menuItems(menu.message)} onClose={() => setMenu(null)} /> : null}
       </aside>
     </div>,

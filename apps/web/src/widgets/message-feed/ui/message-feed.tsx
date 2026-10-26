@@ -15,7 +15,7 @@ import {
   useSummaries,
 } from "@/features/message-actions";
 import { Composer } from "@/features/send-message";
-import { ThreadPanel } from "@/features/thread";
+import { ThreadPanel, type ThreadSource } from "@/features/thread";
 
 import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator } from "@/entities/chat";
 import {
@@ -44,6 +44,7 @@ import { useHistorySync } from "../model/use-history-sync";
 import { BotThinking } from "./bot-thinking";
 import styles from "./message-feed.module.css";
 import { PinnedBar } from "./pinned-bar";
+import { PostView } from "./post-view";
 
 /** Примерная высота строки; точную меряет виртуализатор. */
 const ROW_ESTIMATE = 56;
@@ -88,7 +89,9 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
   const summaries = useSummaries(chat.id);
   useHistorySync(chat.id, meId);
   const history = useQuery(messageQueries.history(chat.id, topic));
-  const [thread, setThread] = useState<Message | null>(null);
+  // Ветка ответов в группе или комментарии к посту канала.
+  const [thread, setThread] = useState<ThreadSource | null>(null);
+  const openThread = (m: Message) => setThread({ kind: "thread", chatId: chat.id, root: m });
   const data = history.data;
 
   // Каждый запрос истории отмечает чат прочитанным — счётчик в списке гасим сразу.
@@ -341,7 +344,8 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
                         selected={selection.ids.has(row.message.id)}
                         onToggleSelect={row.message.type === "gift" ? undefined : toggleSelect}
                         summaries={summaries}
-                        onOpenThread={isGroup ? setThread : undefined}
+                        onOpenThread={isGroup ? openThread : undefined}
+                        onOpenComments={withComments(chat, row.message) ? (m) => setThread({ kind: "comments", post: m }) : undefined}
                       />
                     </div>
                   )}
@@ -380,27 +384,28 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
         onEdit={onEdit}
         onSelect={toggleSelect}
         summaries={summaries}
-        onOpenThread={isGroup ? setThread : undefined}
+        onOpenThread={isGroup ? openThread : undefined}
       />
       {thread ? (
         <ThreadPanel
           chat={chat}
-          root={thread}
+          source={thread}
           me={me}
           userOf={userOf}
           onClose={() => setThread(null)}
-          composer={(onSent) => (
+          composer={(onSent, target) => (
             <Composer
-              chatId={chat.id}
+              chatId={target.chatId}
               meId={me.id}
               channel={false}
               initialDraft=""
-              placeholder="Ответить в теме"
+              placeholder={target.postId ? (target.paidStars ? `Комментарий · ${target.paidStars} ⭐` : "Комментарий") : "Ответить в теме"}
               replyTo={null}
               replyToName={null}
               onCancelReply={noop}
-              people={threadPeople}
-              thread={{ rootId: thread.id, onSent }}
+              people={target.postId ? target.people.filter((u) => u.id !== me.id) : threadPeople}
+              thread={{ rootId: target.rootId, onSent, postId: target.postId }}
+              paid={target.paidStars ? { stars: target.paidStars, kind: "comment" } : null}
             />
           )}
         />
@@ -437,6 +442,8 @@ type RowProps = {
   onToggleSelect?: (m: Message) => void;
   summaries: Summaries;
   onOpenThread?: (m: Message) => void;
+  /** Пост канала с группой обсуждения — «Комментарии» внизу пузыря. */
+  onOpenComments?: (m: Message) => void;
 };
 
 function MessageRow(props: RowProps) {
@@ -485,8 +492,33 @@ function MessageRow(props: RowProps) {
       selected={props.selected}
       onToggleSelect={props.onToggleSelect}
       summary={props.summaries.of(message.id)}
+      footer={
+        props.onOpenComments ? (
+          <button
+            type="button"
+            className={styles.postComments}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onOpenComments?.(message);
+            }}
+          >
+            <Icon name="MessageSquare" size={20} />
+            {commentsLabel(message.commentCount ?? 0)}
+          </button>
+        ) : undefined
+      }
     />
   );
+  // Просмотры поста считаются, когда его увидел подписчик (viewObserver в chatView.js).
+  const counted = isChannel && !mine && message.type !== "system" && !message.pending ? <PostView postId={message.id} /> : null;
+  if (counted) {
+    return (
+      <>
+        {bubble}
+        {counted}
+      </>
+    );
+  }
   if (!comments) return bubble;
   // Ответы в ветке — ссылкой под сообщением (post-comments-link в chatView.js).
   return (
@@ -497,6 +529,18 @@ function MessageRow(props: RowProps) {
       </button>
     </>
   );
+}
+
+/** У поста есть обсуждение: канал связан с группой, комментарии не выключены (withComments). */
+const withComments = (chat: ChatSummary, m: FeedMessage) => chat.type === "channel" && m.type !== "system" && !!chat.linkedDiscussionChatId && !chat.commentsOff && !!m.discussionAnchorId;
+
+function commentsLabel(n: number) {
+  if (!n) return "Комментарии";
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} комментарий`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} комментария`;
+  return `${n} комментариев`;
 }
 
 /** Тег участника группы — строка из memberTitles. */
