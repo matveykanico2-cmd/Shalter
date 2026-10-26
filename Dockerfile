@@ -1,10 +1,10 @@
 # Multi-stage build.
 #
-# Первый этап собирает клиент через esbuild (он в devDependencies). Основа —
-# Debian: esbuild привозит готовые двоичные файлы под glibc, и на Alpine они
-# без пакетов совместимости не запускаются. От этого этапа дальше едут только
-# server/ и public/ (уже с public/dist) — инструментарий сборки в итоговый
-# образ не попадает.
+# Первый этап собирает клиент apps/web (Vite, в devDependencies) и бэкенд на NestJS.
+# Основа — Debian: сборщики привозят готовые двоичные файлы под glibc, и на Alpine
+# они без пакетов совместимости не запускаются. От этого этапа дальше едут только
+# server/, public/ и сборки apps/web/dist и apps/api/dist — инструментарий сборки
+# в итоговый образ не попадает.
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 # This stage's only job is `npm run build` (scripts/build.js), which just
@@ -27,18 +27,21 @@ WORKDIR /app
 # replaces. No python3/make/g++ needed in this stage at all any more, since
 # nothing here compiles anything from source.
 #
-# Репозиторий — npm workspaces (apps/api, packages/contract-tests), и npm ci
-# сверяет package-lock.json с их package.json, поэтому они копируются вместе
-# с корневым.
+# Репозиторий — npm workspaces (apps/api, apps/web, packages/shared,
+# packages/contract-tests), и npm ci сверяет package-lock.json с их package.json,
+# поэтому они копируются вместе с корневым.
 COPY package*.json ./
 COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY packages/shared/package.json ./packages/shared/
 COPY packages/contract-tests/package.json ./packages/contract-tests/
 RUN npm ci --ignore-scripts --no-audit --no-fund --maxsockets 3 \
   && node node_modules/esbuild/install.js
 COPY . .
-# Распакованные картинки из архивов нужны только nginx (DEPLOY.md) — здесь их
-# отдаёт сам Node из архивов, и в образ они не едут. build:api компилирует
-# бэкенд на NestJS в apps/api/dist; TypeScript тоже остаётся в этом этапе.
+# npm run build собирает клиент в apps/web/dist (scripts/build.js: Vite, сжатые
+# заранее файлы, build.json с версией). Распакованные картинки из архивов нужны
+# только nginx (DEPLOY.md) — здесь их отдаёт сам Node из архивов, и в образ они не
+# едут. build:api компилирует бэкенд на NestJS в apps/api/dist.
 RUN UNPACK_ASSETS=0 npm run build && npm run build:api
 
 # Второй этап — то, что уезжает на сервер: только рабочие зависимости плюс
@@ -70,6 +73,8 @@ ENV NODE_ENV=production
 RUN apk add --no-cache ffmpeg font-dejavu
 COPY package*.json ./
 COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY packages/shared/package.json ./packages/shared/
 COPY packages/contract-tests/package.json ./packages/contract-tests/
 # Копирование из первого этапа стоит до установки намеренно: BuildKit
 # выполняет независимые этапы параллельно, и два тяжёлых npm ci разом
@@ -77,6 +82,8 @@ COPY packages/contract-tests/package.json ./packages/contract-tests/
 # помещается. Эта строка заставляет дождаться окончания первого этапа.
 COPY --from=build /app/server ./server
 COPY --from=build /app/public ./public
+# Клиент — сборка apps/web; её отдают и Nest, и старый сервер (откат).
+COPY --from=build /app/apps/web/dist ./apps/web/dist
 # Бэкенд на NestJS. Старый server/ остаётся рядом: Nest отдаёт ему всё, что ещё
 # не перенесено, и им же можно откатиться (DEPLOY.md, «Переключение на apps/api»).
 COPY --from=build /app/apps/api/dist ./apps/api/dist

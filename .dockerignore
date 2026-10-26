@@ -10,4 +10,5 @@ npm-debug.log*
 data/.*.lockfile
 data/.*.json.tmp
 apps/api/dist
+apps/web/dist
 test-results

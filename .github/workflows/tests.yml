@@ -1,6 +1,6 @@
 name: Tests
 
-# Тесты фиксируют текущее поведение перед миграцией на NestJS + React
+# Тесты фиксируют поведение при миграции на NestJS + React
 # (см. packages/contract-tests/README.md). Контрактные тесты и тесты совместимости данных — на
 # каждый PR; браузерные сценарии (Playwright) — на PR в main и пуш в main.
 # Матрица TARGET: legacy — server/index.js, nest — каркас NestJS (apps/api), который
@@ -71,6 +71,8 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
+      # Клиент — сборка apps/web: её отдают обе цели.
+      - run: npm run build:web
       - run: npm run build:api
         if: matrix.target == 'nest'
       - run: npm run test:e2e

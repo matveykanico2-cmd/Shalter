@@ -1,10 +1,8 @@
 // Service Worker for Shalter - offline caching
-const CACHE_NAME = 'shalter-v3';
+// v4 — клиент apps/web: старый кэш (с public/js) при активации удаляется.
+const CACHE_NAME = 'shalter-v4';
 const STATIC_ASSETS = [
   '/',
-  '/js/app.js',
-  '/styles/base.css',
-  '/styles/components.css',
   '/manifest.webmanifest',
   '/icons/icon.svg',
 ];
@@ -18,13 +16,18 @@ self.addEventListener('install', (event) => {
 });
 
 // Activate - clean old caches
+// Старый кэш (shalter-v3) держал страницу прежнего клиента: открытые вкладки один раз
+// перезагружаются, чтобы сразу взять новый клиент, а не показывать сломанную страницу.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(
-      keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
-    ))
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k).then(() => k))))
+      .then((removed) => self.clients.claim().then(() => removed))
+      .then((removed) => {
+        if (!removed.includes('shalter-v3')) return;
+        return self.clients.matchAll({ type: 'window' }).then((wins) => Promise.all(wins.map((w) => w.navigate(w.url).catch(() => {}))));
+      })
   );
-  self.clients.claim();
 });
 
 // Fetch - serve from cache, fallback to network
@@ -34,6 +37,23 @@ self.addEventListener('fetch', (event) => {
   
   // Skip non-GET and cross-origin
   if (request.method !== 'GET' || url.origin !== location.origin) return;
+
+  // Pages of the app (/, /chat/…, /settings/…) - network first, so a new build shows up at
+  // once; offline - the cached app page. It used to be cache first and kept an old index.html.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok && url.pathname === '/') {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/', clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
+    );
+    return;
+  }
 
   // Uploads - straight to the network: access is checked per request, and with S3 the
   // server answers with a redirect to the bucket that the browser must follow itself

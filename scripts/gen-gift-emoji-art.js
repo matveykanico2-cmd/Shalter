@@ -21,7 +21,7 @@ const sharp = require("sharp");
 const ROOT = path.join(__dirname, "..");
 const OUT_DIR = path.join(ROOT, "public", "gift-emoji");
 const GIFTS_SRC = path.join(ROOT, "server", "data", "catalog", "gifts.json");
-const LOTTIE_SRC = path.join(ROOT, "public", "js", "lib", "lottie.js");
+const LOTTIE_SRC = path.join(ROOT, "apps", "web", "src", "shared", "lib", "anim", "lottie.ts");
 
 const argv = process.argv.slice(2);
 const force = argv.includes("--force");
@@ -58,7 +58,8 @@ function catalogEmojis() {
   const lottie = fs.readFileSync(LOTTIE_SRC, "utf8");
   const [, byId] = lottie.split("const BY_ID");
   const [ids, rest] = byId.split("const BY_EMOJI");
-  const [, byEmoji] = rest.split("export function lottieNameFor");
+  // Таблица по эмодзи — до lottieNameFor (раньше бралось то, что после, и она терялась).
+  const [byEmoji] = rest.split("export function lottieNameFor");
   const animatedIds = new Set([...ids.matchAll(/^\s*(\w+):/gm)].map((m) => m[1]));
   const animatedEmojis = new Set([...byEmoji.matchAll(/"([^"]+)":/g)].map((m) => m[1]));
   const seen = new Set();

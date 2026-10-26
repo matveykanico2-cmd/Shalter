@@ -1,13 +1,13 @@
 // Встроенные сцены подарков: по JSON-файлу на подарок в public/gift-scenes/<id>.json
-// и список имеющихся сцен в public/gift-scenes/index.json. Клиент (public/js/lib/giftTraits.js)
+// и список имеющихся сцен в public/gift-scenes/index.json. Клиент (apps/web, entities/gift/lib/gift-traits.ts)
 // грузит только сцены тех подарков, что на экране, — раньше все 25 тыс. сцен лежали
 // в одном модуле на 60 МБ.
 //
 // Генераторы (generate-scenes*.js, generate-crab-gifts.js) пишут сцены через writeGiftScenes.
 // Запуск без аргументов пересобирает index.json по содержимому папки:
 //   node scripts/gift-scenes.js
-// Разовый перенос из старого модуля сцен:
-//   node scripts/gift-scenes.js --from=public/js/lib/giftTraits.scenes.js
+// Разовый перенос из старого модуля сцен (был в старом клиенте, в git-истории):
+//   node scripts/gift-scenes.js --from=<путь к giftTraits.scenes.js>
 const fs = require("fs");
 const path = require("path");
 const { pathToFileURL } = require("url");

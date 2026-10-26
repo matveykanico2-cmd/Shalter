@@ -1,7 +1,7 @@
 {
   "appId": "ru.shalter.app",
   "appName": "Shalter",
-  "webDir": "public/dist",
+  "webDir": "apps/web/dist",
   "server": {
     "url": "https://shalter.ru",
     "cleartext": false

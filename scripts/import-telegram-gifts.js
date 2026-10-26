@@ -3,7 +3,7 @@
 //   node scripts/import-telegram-gifts.js [путь к telegram-gifts]
 // Пишет:
 //   public/gift-symbols/<id>.webp     — узоры (символы) для фона коллекционных подарков
-//   public/js/lib/tgGiftData.js       — фоны, узоры и модели с настоящей редкостью из записей коллекций
+//   apps/web/src/entities/gift/lib/tg-gift-data.ts — фоны, узоры и модели с настоящей редкостью из записей коллекций
 //   public/tgs/PlushPepe.json         — анимация «Плюшевого Пепе» (только сам подарок, без фона и узора)
 const fs = require("fs");
 const path = require("path");
@@ -139,11 +139,15 @@ function main() {
 
   const out = `// Сгенерировано scripts/import-telegram-gifts.js из telegram-gifts — не править руками.
 // Редкость — доля в настоящих записях коллекций Telegram (${total} подарков), в процентах.
-export const TG_BACKDROPS = ${JSON.stringify(backdrops)};
-export const TG_SYMBOLS = ${JSON.stringify(symbols)};
-export const TG_MODELS = { plushpepe: ${JSON.stringify(pepeModels)} };
+export type TgBackdrop = { name: string; rarity: number; colors: [string, string]; pattern: string };
+export type TgSymbol = { id: string; name: string; rarity: number };
+export type TgModel = { name: string; rarity: number };
+
+export const TG_BACKDROPS: TgBackdrop[] = ${JSON.stringify(backdrops)};
+export const TG_SYMBOLS: TgSymbol[] = ${JSON.stringify(symbols)};
+export const TG_MODELS: Record<string, TgModel[]> = { plushpepe: ${JSON.stringify(pepeModels)} };
 `;
-  fs.writeFileSync(path.join(ROOT, "public", "js", "lib", "tgGiftData.js"), out);
+  fs.writeFileSync(path.join(ROOT, "apps", "web", "src", "entities", "gift", "lib", "tg-gift-data.ts"), out);
 
   // Анимация подарка: оставляем только слой «Gift» — фон и узор рисуем сами (как у модели в Telegram).
   const tgs = path.join(SRC, "plushpepe-1.tgs");

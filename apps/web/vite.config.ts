@@ -16,6 +16,14 @@ const proxy = {
   "/js/vendor": { target: backend },
   // Эмодзи картинками (src/shared/ui/emoji-text.tsx).
   "/img/emoji": { target: backend },
+  // Остальная статика public/: значки и манифест из index.html, service worker, сцены и узоры
+  // подарков, SDK мини-приложений, сборки приложения.
+  "/icons": { target: backend },
+  "/manifest.webmanifest": { target: backend },
+  "/sw.js": { target: backend },
+  "/gift-scenes": { target: backend },
+  "/gift-symbols": { target: backend },
+  "/downloads": { target: backend },
 };
 
 export default defineConfig({

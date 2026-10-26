@@ -15,6 +15,17 @@ import { TEST_KEYS } from "./env";
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const NET_GUARD = path.join(path.dirname(fileURLToPath(import.meta.url)), "net-guard.cjs");
+const FIXTURE_WEB_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "web-dist");
+
+/**
+ * Настоящая сборка клиента для сценариев в браузере: WEB_DIST (vite build --outDir …) или
+ * apps/web/dist (npm run build:web).
+ */
+export function webBuild(): string {
+  const dir = process.env.WEB_DIST ? path.resolve(process.env.WEB_DIST) : path.join(REPO_ROOT, "apps", "web", "dist");
+  if (!fs.existsSync(path.join(dir, "index.html"))) throw new Error(`нет сборки клиента ${dir} — сначала npm run build:web`);
+  return dir;
+}
 
 export interface TestServer {
   baseUrl: string;
@@ -30,6 +41,11 @@ export interface StartOptions {
   /** Готовый каталог data/ (например, фикстура совместимости) — копируется во временную папку. */
   seedDataDir?: string;
   env?: Record<string, string>;
+  /**
+   * Сборка клиента, которую отдаёт сервер: по умолчанию — заглушка fixtures/web-dist (контрактным
+   * тестам раздачи настоящая сборка не нужна); сценариям в браузере — apps/web/dist (webBuild()).
+   */
+  webDist?: string;
 }
 
 function freePort(): Promise<number> {
@@ -107,7 +123,6 @@ export async function startServer(opts: StartOptions = {}): Promise<TestServer> 
     TMPDIR: process.env.TMPDIR ?? os.tmpdir(),
     NODE_ENV: "test",
     PORT: String(port),
-    USE_BUILD: "0",
     SHALTER_TEST_MODE: "1",
     MAIL_DIRECT: "0",
     MAIL_OUTBOX: "1",
@@ -126,10 +141,7 @@ export async function startServer(opts: StartOptions = {}): Promise<TestServer> 
     // отклоняются и записываются; stop() падает, если такие были.
     NODE_OPTIONS: `--require ${NET_GUARD}`,
     SHALTER_NET_GUARD_LOG: netLogFile,
-    // CLIENT=web — Nest отдаёт новый клиент (сборка apps/web/dist, npm run build:web) вместо public/;
-    // WEB_DIST — другая папка сборки (vite build --outDir …).
-    ...(process.env.CLIENT ? { SHALTER_CLIENT: process.env.CLIENT } : {}),
-    ...(process.env.WEB_DIST ? { SHALTER_WEB_DIST: process.env.WEB_DIST } : {}),
+    SHALTER_WEB_DIST: opts.webDist ?? FIXTURE_WEB_DIST,
     ...opts.env,
   };
 

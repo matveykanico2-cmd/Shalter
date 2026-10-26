@@ -3,7 +3,7 @@
 // разрешена ALLOW_ADMIN_PHONE_SIGNUP=1), а главный админ регистрируется
 // через API один раз на воркер.
 import { test as base, expect } from "../support/fixtures";
-import { startServer, type TestServer } from "../../support/server";
+import { startServer, type TestServer, webBuild } from "../../support/server";
 import { registerUser, uniq, type TestUser } from "../../support/seed";
 
 export const ADMIN_PHONE = "+70000000931";
@@ -23,7 +23,7 @@ type WorkerFixtures = { server: TestServer; admin: TestUser };
 export const test = base.extend<{}, WorkerFixtures>({
   server: [
     async ({ egress }, use) => {
-      const server = await startServer({ env: { ...egress.env, ...ADMIN_ENV } });
+      const server = await startServer({ env: { ...egress.env, ...ADMIN_ENV }, webDist: webBuild() });
       try {
         await use(server);
       } finally {

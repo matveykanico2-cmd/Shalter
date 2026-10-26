@@ -1,7 +1,6 @@
-// Раздача файлов клиента из public/ без сборки (USE_BUILD=0, как у npm run dev): файлы,
-// папки, архивы картинок (server/assets/packs, прежние адреса /img/emoji/… и т. п.) и
-// то, что уходит в SPA. Страницы, /.well-known и /gift-scenes — в public.test.ts,
-// собранная версия (/dist) — в static-built.test.ts.
+// Раздача файлов public/: файлы, папки, архивы картинок (server/assets/packs, прежние адреса
+// /img/emoji/… и т. п.) и то, что уходит в SPA. Страницы, /.well-known и /gift-scenes — в
+// public.test.ts, сборка клиента (/assets, index.html) — в client.test.ts.
 import { describe, expect, test } from "vitest";
 import { Api, rawStatus } from "../../support/client";
 import { useServer } from "../../support/use-server";
@@ -12,11 +11,11 @@ const anon = () => new Api(server().baseUrl);
 const titleOf = (html: string) => /<title>([^<]*)<\/title>/.exec(html)?.[1];
 
 describe("файлы из public/", () => {
-  test("тип, кэш без срока, ETag и Last-Modified; If-None-Match — 304, HEAD — без тела, Range — 206", async () => {
+  test("тип, кэш на час, ETag и Last-Modified; If-None-Match — 304, HEAD — без тела, Range — 206", async () => {
     const res = await anon().get("/manifest.webmanifest");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/manifest+json");
-    expect(res.headers.get("cache-control")).toBe("public, max-age=0");
+    expect(res.headers.get("cache-control")).toBe("public, max-age=3600");
     expect(res.headers.get("accept-ranges")).toBe("bytes");
     expect(res.headers.get("last-modified")).toBeTruthy();
     const etag = res.headers.get("etag")!;

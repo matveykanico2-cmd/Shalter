@@ -8,6 +8,7 @@ import { rememberPendingShare } from "@/features/share-inbox";
 
 import { type SelfUser, useSession } from "@/entities/session";
 
+import { hideBootSplash } from "../model/boot-splash";
 import { bootstrapQuery, persistChats, restoreCachedChats } from "../model/bootstrap";
 import { useAppearance } from "../model/use-appearance";
 import { useMessageSounds } from "../model/use-message-sounds";
@@ -20,6 +21,7 @@ import { Splash } from "./splash";
 /** Экраны приложения — только со входом; без него — на /login. */
 export function RequireSession() {
   const { data, isPending, isError, refetch } = useSession();
+  useHideSplash(!isPending);
   const { pathname } = useLocation();
   if (isPending) return <Splash />;
   if (isError) {
@@ -57,8 +59,16 @@ function SignedIn({ user }: { user: SelfUser }) {
 /** /login, когда вход уже есть, — сразу в приложение; /login?add=1 — добавить ещё один аккаунт. */
 export function GuestOnly() {
   const { data, isPending } = useSession();
+  useHideSplash(!isPending);
   const [params] = useSearchParams();
   if (isPending) return <Splash />;
   if (data?.user && params.get("add") !== "1") return <Navigate to="/" replace />;
   return <SignInView />;
+}
+
+/** Сеанс выяснен — заставка из index.html уходит. */
+function useHideSplash(known: boolean) {
+  useEffect(() => {
+    if (known) hideBootSplash();
+  }, [known]);
 }

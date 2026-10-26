@@ -53,7 +53,8 @@ the same one edit covers mobile and desktop:
 ## Try it locally (against `npm run dev`)
 
 ```bash
-npm run dev          # Express server on :3000
+npm run build        # the client build that the server on :3000 serves
+npm run dev          # server on :3000
 npm run desktop:dev  # Tauri window pointed at http://localhost:3000
 ```
 

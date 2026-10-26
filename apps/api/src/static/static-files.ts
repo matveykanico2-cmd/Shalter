@@ -1,7 +1,7 @@
 // Всё, что не API, — то же, что вторая половина server/app.js и в том же порядке: сборка
-// (/dist), /.well-known, страницы документации и промо, архивы картинок, файлы public/,
-// и для остальных GET вне /api и /ws — index.html приложения (SPA). Стоит там, где у Nest
-// нет маршрута (legacy-fallback.adapter.ts), — после всех маршрутов API.
+// клиента (/assets из apps/web/dist), /.well-known, страницы документации и промо, архивы
+// картинок, файлы public/, и для остальных GET вне /api и /ws — index.html клиента (SPA).
+// Стоит там, где у Nest нет маршрута (legacy-fallback.adapter.ts), — после всех маршрутов API.
 //
 // Файлы отдают те же библиотеки, что у старого приложения (serve-static 1 и send 0.19 из
 // Express 4, express-static-gzip), поэтому заголовки совпадают байт в байт: Express 5
@@ -13,7 +13,7 @@ import send from "send";
 import serveStatic from "serve-static";
 import { PUBLIC_DIR } from "../common/config/paths.js";
 import { assetPacks } from "./lib/asset-packs.js";
-import { DIST_DIR, useWebClient, WEB_DIST_DIR } from "./lib/client-build.js";
+import { WEB_DIST_DIR, WEB_INDEX_HTML, webClientBuilt } from "./lib/web-client.js";
 
 type Handler = (req: Request, res: Response, next: NextFunction) => void;
 
@@ -92,23 +92,30 @@ function mount(prefix: string, ...handlers: Handler[]): Handler {
 
 const notFound: Handler = (_req, res) => void res.sendStatus(404);
 
-export function staticFiles(useBuilt: boolean): RequestHandler {
-  // Новый клиент: его index.html и сборка (/assets — с хешем в имени), остальное из public/ как было.
-  const web = useWebClient();
-  const indexHtml = web ? path.join(WEB_DIST_DIR, "index.html") : path.join(useBuilt ? DIST_DIR : PUBLIC_DIR, "index.html");
+/** Сборки клиента нет — страница приложения объясняет, что делать (а не 404 от send). */
+const notBuilt: Handler = (_req, res) =>
+  void res.status(503).type("text/plain; charset=utf-8").send("Клиент не собран: выполните npm run build (сборка apps/web).\n");
+
+export function staticFiles(): RequestHandler {
   const chain: Handler[] = [
-    ...(web ? [mount("/assets", serveStatic(path.join(WEB_DIST_DIR, "assets"), { index: false, maxAge: "1y", immutable: true }), notFound)] : []),
-    ...(useBuilt
-      ? [mount("/dist", expressStaticGzip(DIST_DIR, { enableBrotli: true, orderPreference: ["br", "gz"], serveStatic: { maxAge: "1y", immutable: true } }))]
-      : []),
+    // Сборка клиента: имена с хешем — вечный кэш; brotli и gzip сжаты заранее (scripts/build.js).
+    mount(
+      "/assets",
+      expressStaticGzip(path.join(WEB_DIST_DIR, "assets"), { enableBrotli: true, orderPreference: ["br", "gz"], serveStatic: { maxAge: "1y", immutable: true } }),
+      notFound
+    ),
     mount("/.well-known", serveStatic(path.join(PUBLIC_DIR, ".well-known"), { maxAge: "1h" }), notFound),
     pages(DOC_PAGES),
     assetPacks(),
-    serveStatic(PUBLIC_DIR, { index: false, maxAge: useBuilt ? "1h" : 0 }),
+    serveStatic(PUBLIC_DIR, { index: false, maxAge: "1h" }),
     // Сцены подарков (по файлу на подарок): нет такой сцены — 404, а не index.html приложения.
     mount("/gift-scenes", notFound),
     pages(PAGES),
-    (req, res, next) => (isRead(req) && SPA_PATH.test(req.path) ? sendFile(req, res, next, indexHtml) : next()),
+    (req, res, next) => {
+      if (!isRead(req) || !SPA_PATH.test(req.path)) return next();
+      if (!webClientBuilt()) return notBuilt(req, res, next);
+      sendFile(req, res, next, WEB_INDEX_HTML);
+    },
   ];
   return (req, res, next) => {
     const run = (i: number, err?: unknown) => {

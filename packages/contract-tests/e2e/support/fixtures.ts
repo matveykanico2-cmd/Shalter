@@ -1,7 +1,7 @@
 // Фикстуры e2e: один сервер на воркер (своя временная база), пользователи
 // создаются через API, а в браузер попадают через cookie — без прохода по форме входа.
 import { test as base, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
-import { startServer, type TestServer } from "../../support/server";
+import { startServer, type TestServer, webBuild } from "../../support/server";
 import { startEgress, type Egress } from "./egress";
 import { registerUser, login, type TestUser } from "../../support/seed";
 import type { Api } from "../../support/client";
@@ -105,7 +105,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   ],
   server: [
     async ({ egress }, use) => {
-      const server = await startServer({ env: egress.env });
+      const server = await startServer({ env: egress.env, webDist: webBuild() });
       try {
         await use(server);
       } finally {

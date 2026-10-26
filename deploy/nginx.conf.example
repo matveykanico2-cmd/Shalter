@@ -10,14 +10,14 @@
 #
 # Static files are read straight from the app directory — the paths below
 # assume /opt/shalter (DEPLOY.md, step 2); change every /opt/shalter if yours
-# differs. They exist after `npm run build`: public/dist (bundle + unpacked
-# emoji/gift images in public/dist/packs) and public/gift-scenes. A file that
-# isn't on disk falls through to Node, so a missing build costs speed, not
-# correctness.
+# differs. They exist after `npm run build`: apps/web/dist (the client),
+# public/dist/packs (unpacked emoji/gift images) and public/gift-scenes. A
+# packed image that isn't on disk falls through to Node, so a missing unpack
+# costs speed, not correctness.
 
 # gzip for everything Node still answers (API JSON, index.html). Node's own
 # compression is off under PM2 (DISABLE_APP_GZIP=1 in ecosystem.config.js), so
-# responses aren't compressed twice. The bundle in /dist/ is precompressed at
+# responses aren't compressed twice. The client in /assets/ is precompressed at
 # build time and goes out via gzip_static instead.
 gzip on;
 gzip_types text/plain text/css application/javascript application/json image/svg+xml application/manifest+json;
@@ -75,11 +75,14 @@ server {
   # everything it serves (server/app.js) — nginx drops inherited add_header
   # lines in any location that has its own.
 
-  # The bundle: file names change with every build (chunk hashes, ?v= on the
-  # entry points), so it's cached for a year. gzip_static serves the .gz built
-  # next to each file. Brotli (.br files are built too) needs the
-  # libnginx-mod-http-brotli-static package — then uncomment brotli_static.
-  location ^~ /dist/ {
+  # The client (apps/web, built by `npm run build`): file names carry a content
+  # hash, so they're cached for a year. A file that isn't there is a plain 404
+  # (an old tab asking for a chunk of the previous build), never the app page.
+  # gzip_static serves the .gz built next to each file. Brotli (.br files are
+  # built too) needs the libnginx-mod-http-brotli-static package — then
+  # uncomment brotli_static.
+  location ^~ /assets/ {
+    root /opt/shalter/apps/web/dist;
     gzip_static on;
     # brotli_static on;
     try_files $uri =404;
@@ -152,8 +155,9 @@ server {
     add_header Referrer-Policy strict-origin-when-cross-origin;
   }
 
-  # Everything else: a file in public/ (icons, styles, page scripts) if there
-  # is one, otherwise Node — the app's pages, /uploads/… (access checks), short
+  # Everything else: a file in public/ (icons, styles of the doc pages, the
+  # mini-app SDK /js/shalter-web-app.js) if there is one, otherwise Node — the
+  # app's pages (index.html of apps/web/dist), /uploads/… (access checks), short
   # links. "/" and other directories always go to Node: try_files $uri only
   # matches files.
   location / {

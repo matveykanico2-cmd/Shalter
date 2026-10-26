@@ -43,23 +43,10 @@ app.set("json replacer", require("./lib/publicJson").publicJsonReplacer);
 app.use(require("./front").front);
 
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
-const DIST_DIR = path.join(PUBLIC_DIR, "dist");
-if (process.env.USE_BUILD !== "0") {
-  try {
-    const builder = require("../scripts/build");
-    if (builder.isStale()) {
-      console.log("[static] собранная версия устарела — пересобираю…");
-      const started = Date.now();
-      require("child_process").execFileSync(process.execPath, [path.join(__dirname, "..", "scripts", "build.js")], { stdio: "inherit" });
-      console.log(`[static] сборка готова за ${Date.now() - started} мс`);
-    }
-  } catch (err) {
-    console.error("[static] пересобрать не удалось, отдаю что есть:", err.message);
-  }
-}
-
-const useBuilt = process.env.USE_BUILD !== "0" && fs.existsSync(path.join(DIST_DIR, "index.html"));
-const indexHtml = path.join(useBuilt ? DIST_DIR : PUBLIC_DIR, "index.html");
+// Клиент — сборка apps/web (npm run build); SHALTER_WEB_DIST — другая папка сборки.
+const WEB_DIST_DIR = process.env.SHALTER_WEB_DIST ? path.resolve(process.env.SHALTER_WEB_DIST) : path.join(__dirname, "..", "apps", "web", "dist");
+const indexHtml = path.join(WEB_DIST_DIR, "index.html");
+const webClientBuilt = () => fs.existsSync(indexHtml);
 
 // Подписчиков канала в ответах видят только его админы (lib/chatForViewer.js).
 app.use("/api", (req, res, next) => {
@@ -155,9 +142,9 @@ app.get("/api/share/:token", requireUserId, (req, res) => {
   res.json({ share: payload });
 });
 
-if (useBuilt) {
-  app.use("/dist", expressStaticGzip(DIST_DIR, { enableBrotli: true, orderPreference: ["br", "gz"], serveStatic: { maxAge: "1y", immutable: true } }));
-}
+// Сборка клиента: имена с хешем — вечный кэш; brotli и gzip сжаты заранее (scripts/build.js).
+app.use("/assets", expressStaticGzip(path.join(WEB_DIST_DIR, "assets"), { enableBrotli: true, orderPreference: ["br", "gz"], serveStatic: { maxAge: "1y", immutable: true } }));
+app.use("/assets", (_req, res) => res.sendStatus(404));
 app.use("/.well-known", express.static(path.join(PUBLIC_DIR, ".well-known"), { maxAge: "1h" }));
 // Несуществующий файл в /.well-known — честный 404, а не index.html приложения.
 app.use("/.well-known", (_req, res) => res.sendStatus(404));
@@ -172,7 +159,7 @@ app.get("/games", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "games.html"
 
 // Эмодзи, узоры подарков, анимации — из архивов server/assets/packs (по прежним адресам)
 app.use(require("./lib/assetPacks").assetPacks());
-app.use(express.static(PUBLIC_DIR, { index: false, maxAge: useBuilt ? "1h" : 0 }));
+app.use(express.static(PUBLIC_DIR, { index: false, maxAge: "1h" }));
 // Сцены подарков (по файлу на подарок): нет такой сцены — 404, а не index.html приложения.
 app.use("/gift-scenes", (_req, res) => res.sendStatus(404));
 
@@ -198,14 +185,15 @@ app.get("/oauth-docs", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "oauth-
 
 // Исключаются только /api, /api/…, /ws и /ws/… — «/apiary» или «/wsx» тоже страницы SPA.
 app.get(/^\/(?!(?:api|ws)(?:\/|$)).*/, (req, res) => {
+  if (!webClientBuilt()) return res.status(503).type("text/plain; charset=utf-8").send("Клиент не собран: выполните npm run build (сборка apps/web).\n");
   res.sendFile(indexHtml);
 });
 
 app.get("/api/version", (req, res) => {
   let version = "dev";
   try {
-    if (fs.existsSync(path.join(DIST_DIR, "build.json"))) {
-      version = JSON.parse(fs.readFileSync(path.join(DIST_DIR, "build.json"), "utf-8")).version ?? "dev";
+    if (fs.existsSync(path.join(WEB_DIST_DIR, "build.json"))) {
+      version = JSON.parse(fs.readFileSync(path.join(WEB_DIST_DIR, "build.json"), "utf-8")).version ?? "dev";
     }
   } catch {
   }
@@ -218,4 +206,4 @@ app.use("/api", (_req, res) => res.status(404).json({ error: "not found" }));
 
 app.use(errorHandler);
 
-module.exports = { app, useBuilt };
+module.exports = { app, webClientBuilt, WEB_DIST_DIR };

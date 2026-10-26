@@ -351,7 +351,7 @@ Docker/Dokploy — пункт в конце раздела.
    ```bash
    git pull
    npm install
-   npm run build          # в конце строка «Картинки из архивов: … файлов в dist/packs»
+   npm run build          # в конце строка «Картинки из архивов: … файлов в public/dist/packs»
    npm run build:api      # бэкенд на NestJS, см. «Переключение на apps/api»
    npm prune --omit=dev
    ```
@@ -360,7 +360,7 @@ Docker/Dokploy — пункт в конце раздела.
 3. **Права на чтение для nginx.** nginx (пользователь `www-data`) читает файлы
    прямо из `/opt/shalter/public`. Проверка — обе команды должны напечатать `ok`:
    ```bash
-   sudo -u www-data test -r /opt/shalter/public/dist/index.html && echo ok
+   sudo -u www-data test -r /opt/shalter/apps/web/dist/index.html && echo ok
    sudo -u www-data test -r /opt/shalter/public/gift-scenes/index.json && echo ok
    ```
    Если нет — дайте право на чтение и проход по каталогам:
@@ -388,13 +388,13 @@ Docker/Dokploy — пункт в конце раздела.
 6. **Проверка снаружи** (с любой машины):
    ```bash
    D=https://ВАШ-ДОМЕН
-   curl -sI $D/dist/app.js | grep -iE 'cache-control|x-powered-by'
+   curl -sI $D/assets/$(curl -s $D/ | grep -o 'assets/index-[^"]*\.js' | head -1 | cut -d/ -f2) | grep -iE 'cache-control|x-powered-by'
    curl -sI $D/gift-scenes/index.json | grep -iE 'cache-control|x-powered-by'
    curl -sI $D/img/emoji/0023-20e3.png | grep -iE 'cache-control|x-powered-by'
    curl -s -o /dev/null -w '%{http_code}\n' $D/gift-scenes/nope.json
    curl -s -o /dev/null -w '%{http_code}\n' $D/api/version
    ```
-   Ожидается: у трёх файлов есть `Cache-Control` (`immutable` у `/dist/`,
+   Ожидается: у трёх файлов есть `Cache-Control` (`immutable` у `/assets/`,
    `max-age=3600` у сцен, `max-age=604800` у эмодзи) и **нет**
    `X-Powered-By: Express` — значит, их отдал nginx, а не Node. Несуществующая
    сцена — `404`, `/api/version` — `200`. Затем в браузере: открыть приложение,
@@ -464,7 +464,7 @@ WebSocket и звонки обслуживает новый код, всё ос�
    ```
    В логе: `[worker] фоновый процесс запущен (pid …)`,
    `shalter server (nest) listening on …` и
-   `[static] отдаём собранную версию из public/dist …`, без ошибок.
+   `[static] клиент — сборка …/apps/web/dist`, без ошибок.
 4. **Проверка снаружи** (с любой машины):
    ```bash
    D=https://ВАШ-ДОМЕН
@@ -507,6 +507,88 @@ node --env-file-if-exists=config.env --env-file-if-exists=.env server/index.js
 ```
 и перезапустить контейнер — старый сервер лежит в том же образе. Чтобы
 вернуться на Nest, очистить поле.
+
+## Переключение на новый клиент (apps/web)
+
+С этой версии клиент — сборка `apps/web` (React), старый клиент из `public/js`
+удалён. Сервер, база, `data/` и API не меняются, поэтому откат в обе стороны
+безопасен и данные не теряются. Приложения Android, iOS и для рабочего стола
+открывают сайт и получают новый клиент сами — пересобирать их не нужно.
+
+Что поменялось для выкладки:
+- `npm run build` собирает клиент в `apps/web/dist` (Vite) и, как раньше,
+  распаковывает картинки в `public/dist/packs`. Сборки `public/dist/app.js`
+  больше нет;
+- в конфиге nginx вместо `location ^~ /dist/` — `location ^~ /assets/` с
+  `root /opt/shalter/apps/web/dist` (`deploy/nginx.conf.example`);
+- в логе при старте `[static] клиент — сборка …/apps/web/dist`. Если сборки
+  нет, страницы приложения отвечают `503` «Клиент не собран»;
+- у кого старый клиент открыт, страница один раз перезагрузится сама (новый
+  `sw.js` чистит прежний кэш).
+
+### Шаги (PM2 + nginx)
+
+1. **Резервная копия** `data/` и конфига nginx:
+   ```bash
+   cd /opt/shalter
+   tar czf ~/shalter-data-$(date +%F).tgz data
+   sudo cp /etc/nginx/sites-available/shalter ~/nginx-shalter-$(date +%F).bak
+   ```
+2. **Код, зависимости, сборки:**
+   ```bash
+   git pull
+   npm install
+   npm run build          # Vite собирает apps/web; в конце «Самые большие файлы сборки» и «Картинки из архивов: …»
+   npm run build:api
+   test -f apps/web/dist/index.html && test -f apps/web/dist/build.json && echo ok   # должно напечатать ok
+   npm prune --omit=dev
+   ```
+3. **nginx — раздача клиента с диска.** В файле сайта заменить блок
+   `location ^~ /dist/ { … }` блоком `location ^~ /assets/ { … }` из
+   `deploy/nginx.conf.example` (остальное не менялось) и дать nginx право чтения:
+   ```bash
+   sudo nano /etc/nginx/sites-available/shalter      # заменить блок /dist/ на /assets/ из deploy/nginx.conf.example
+   sudo chmod o+rx /opt/shalter/apps /opt/shalter/apps/web
+   sudo chmod -R o+rX /opt/shalter/apps/web/dist
+   sudo -u www-data test -r /opt/shalter/apps/web/dist/index.html && echo ok
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+4. **Перезапуск Node:**
+   ```bash
+   pm2 restart ecosystem.config.js --update-env
+   pm2 logs shalter --lines 30   # «[static] клиент — сборка /opt/shalter/apps/web/dist», без ошибок
+   ```
+5. **Проверка снаружи** (с любой машины):
+   ```bash
+   D=https://ВАШ-ДОМЕН
+   curl -s $D/ | grep -o '<script type="module"[^>]*>'          # src="/assets/index-….js"
+   JS=$(curl -s $D/ | grep -o 'assets/index-[^"]*\.js' | head -1)
+   curl -sI -H 'Accept-Encoding: gzip' $D/$JS | grep -iE 'cache-control|content-encoding|x-powered-by'
+   curl -s -o /dev/null -w '%{http_code}\n' $D/assets/nope.js     # 404
+   curl -s $D/api/version                                          # version — 10 символов, не "dev"
+   curl -s -o /dev/null -w '%{http_code}\n' $D/js/shalter-web-app.js   # 200: SDK мини-приложений остался на месте
+   ```
+   Ожидается: `Cache-Control: public, max-age=31536000, immutable`,
+   `Content-Encoding: gzip`, **нет** `X-Powered-By` (файл отдал nginx). Затем в
+   браузере: войти, открыть чат, отправить сообщение и фото, позвонить, открыть
+   настройки. Вкладка, открытая до выкладки, сама перезагрузится один раз.
+
+**Откат** на старый клиент — код предыдущей версии и прежний конфиг nginx:
+```bash
+cd /opt/shalter
+git checkout <коммит до переключения>
+npm install && npm run build && npm run build:api && npm prune --omit=dev
+sudo cp ~/nginx-shalter-*.bak /etc/nginx/sites-available/shalter && sudo nginx -t && sudo systemctl reload nginx
+pm2 restart ecosystem.config.js --update-env
+```
+
+### Docker / Dokploy
+
+Достаточно пересобрать образ и перезапустить контейнер: `Dockerfile` сам
+собирает `apps/web` и кладёт `apps/web/dist` в образ. В логе контейнера —
+`[static] клиент — сборка /app/apps/web/dist`. Проверка — шаг 5 выше (без
+строки про `X-Powered-By`: в контейнере файлы отдаёт Node). Откат —
+пересобрать образ из коммита до переключения.
 
 ## Переезд вложений в S3 с шифрованием на стороне хранилища
 
@@ -645,8 +727,8 @@ workers, not just point them at the same database.
 ## Running it
 
 ```bash
-npm install               # full install — esbuild (build step) is a devDependency
-npm run build              # bundles+minifies+precompresses public/ into public/dist/
+npm install               # full install — Vite (build step) is a devDependency
+npm run build              # builds the client apps/web into apps/web/dist (+ precompressed files, unpacked images)
 npm run build:api          # compiles the NestJS backend into apps/api/dist/ (what PM2 starts)
 npm prune --omit=dev       # esbuild/TypeScript are done; drop them (and nodemon) before running
 npm install -g pm2         # process supervisor — restarts on crash, log capture
@@ -655,11 +737,10 @@ pm2 save                   # persist across reboots
 pm2 startup                # prints the systemd command to enable that
 ```
 
-Re-run `npm run build` after every deploy (any change under `public/js/` or
-`public/styles/`) — `NODE_ENV=production` only serves `public/dist/` when it
-actually exists, otherwise it quietly falls back to the raw unbundled files,
-so a stale or missing build doesn't break anything, it just gives up the
-size/CPU win below until you rebuild.
+Re-run `npm run build` after every deploy: the client is `apps/web/dist`, and
+without it the app's pages answer `503` («Клиент не собран»). For development
+there's no build at all: `npm run dev` (backend) plus `npm run dev:web` (Vite
+on :5173, proxies `/api` and `/ws` to it).
 
 Built-in gift scenes are not part of the bundle: they live as one small JSON file
 per gift in `public/gift-scenes/<id>.json` plus a list in
@@ -691,7 +772,7 @@ What nginx serves itself (paths assume the app lives in `/opt/shalter`):
 
 | Path | From disk | Cache |
 | --- | --- | --- |
-| `/dist/…` | `public/dist` — the bundle, with the `.gz` built next to each file | 1 year, immutable |
+| `/assets/…` | `apps/web/dist/assets` — the client build, with the `.gz` built next to each file | 1 year, immutable |
 | `/gift-scenes/…` | `public/gift-scenes` | 1 hour |
 | `/img/emoji/…`, `/gift-symbols/…`, `/gift-emoji/…`, `/tgs/…` | `public/dist/packs` — unpacked by `npm run build` from `server/assets/packs` | 7 days |
 | any other file in `public/` | `public/` | 1 hour; `/sw.js` — always re-checked |
@@ -854,23 +935,18 @@ the reason a code never arrived is visible in the logs.
 
 Три причины, все замеренные, а не предполагаемые.
 
-**1. Сборка не выполнена.** Без `npm run build` браузер тянет 96 отдельных
-модулей вместо одного файла — 100 запросов и ~1 МБ против 5 запросов и 92 КБ.
-На быстром канале разница незаметна, на мобильном интернете это секунды.
-Собранная версия теперь используется, **как только она есть на диске**: проверки
-`NODE_ENV` больше нет, потому что не всякая платформа её выставляет, а без неё
-приложение отдавало исходники при готовой сборке рядом. В логах при старте
-видно, что именно раздаётся:
+**1. Сборка не выполнена.** Без `npm run build` клиента нет вовсе: страницы
+приложения отвечают `503`. В логах при старте видно, что именно раздаётся:
 
 ```
-[static] отдаём собранную версию из public/dist (один файл, сжатый заранее)
-[static] отдаём исходники из public/ — для боевого сервера выполните npm run build
+[static] клиент — сборка /opt/shalter/apps/web/dist
+[static] нет сборки клиента в /opt/shalter/apps/web/dist — выполните npm run build …
 ```
 
 **2. Редактор кода ботов с чужого CDN.** Он подтягивался при первом же открытии
 приложения: 45 запросов и 564 КБ на esm.sh — на экране входа, у каждого
-посетителя. Теперь грузится в момент открытия редактора
-(`public/js/lib/codeEditor.js`), и на старте внешних запросов нет вовсе.
+посетителя. Теперь грузится в момент открытия редактора, и на старте внешних
+запросов нет вовсе.
 
 **3. Сжатие.** Сборка кладёт рядом `.br` и `.gz`, сервер отдаёт готовое без
 затрат процессора. Если перед приложением стоит nginx или Traefik, который сам
@@ -880,11 +956,12 @@ the reason a code never arrived is visible in the logs.
 Проверить, что всё на месте, можно снаружи одной командой:
 
 ```bash
-curl -sI -H "Accept-Encoding: br" https://ваш-домен/dist/app.js | grep -i "content-encoding\|content-length"
+D=https://ваш-домен
+curl -sI -H "Accept-Encoding: br" $D/$(curl -s $D/ | grep -o 'assets/index-[^"]*\.js' | head -1) | grep -i "content-encoding\|content-length"
 ```
 
-Ожидаемое: `content-encoding: br` и порядка 90 КБ. Если вместо этого приходит
-404 — сборка не выполнена, и страница грузит исходники.
+Ожидаемое: `content-encoding: br` (за nginx без модуля brotli — `gzip`) и
+порядка 170 КБ. Если приходит 404 или 503 — сборка не выполнена.
 
 ## OS-level tuning
 
@@ -932,27 +1009,18 @@ space — SQLite doesn't shrink the file automatically on delete.)
 
 ## The production build (`npm run build`)
 
-`scripts/build.js` (esbuild) bundles every `public/js/**` module into one
-minified `public/dist/app.js`, minifies the CSS, and — the part that actually
-saves CPU at runtime, not just bytes — precompresses each output to `.gz` and
-`.br` at build time. `server/app.js` then serves those precomputed files
-directly (`express-static-gzip`) instead of running gzip on every single
-request the way the `compression` middleware does for dynamic API responses.
-Behind nginx the same files go out via `gzip_static`, and Node never sees
-those requests (see "nginx in front"). The build also unpacks the image
+`scripts/build.js` builds the client `apps/web` with Vite (code-split: the
+shell and the chat list first, the chat screen, settings sections and other
+screens as their own chunks), then — the part that actually saves CPU at
+runtime, not just bytes — precompresses every file in `apps/web/dist/assets`
+to `.gz` and `.br` and writes `build.json` with the version that
+`GET /api/version` reports (open tabs reload onto a new build by it).
+`apps/api` (and `server/app.js`, the rollback) then serves those precomputed
+files directly (`express-static-gzip`) instead of running gzip on every
+request. Behind nginx the same files go out via `gzip_static`, and Node never
+sees those requests (see "nginx in front"). The build also unpacks the image
 archives into `public/dist/packs` for nginx (`UNPACK_ASSETS=0` skips that, as
-the Dockerfile does). Measured output for this app:
-
-| file | raw | gzip | brotli |
-|---|---|---|---|
-| app.js (all client JS bundled) | 96KB | 26KB | 22KB |
-| components.css | 33KB | 5.4KB | 4.8KB |
-| base.css | 2.3KB | 0.8KB | 0.6KB |
-
-Concretely, on a 2-core box this means: one HTTP request instead of ~25
-(every view/component/lib module was a separate file before bundling), ~75%
-fewer bytes over the wire, and the compression CPU cost paid once at build
-time instead of on every page load for every visitor.
+the Dockerfile does); `SKIP_WEB_BUILD=1` reuses an existing `apps/web/dist`.
 
 ## What was changed for this box specifically
 

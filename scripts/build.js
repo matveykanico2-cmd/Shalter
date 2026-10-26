@@ -1,160 +1,81 @@
+// Сборка клиента для выкладки (npm run build): apps/web через Vite, затем то, что нужно
+// серверу и nginx, — заранее сжатые файлы сборки, build.json с версией (GET /api/version)
+// и картинки из архивов обычными файлами (nginx отдаёт их с диска).
 const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
 const crypto = require("crypto");
-const esbuild = require("esbuild");
+const { execFileSync } = require("child_process");
 
 const ROOT = path.join(__dirname, "..");
-const PUBLIC_DIR = path.join(ROOT, "public");
-const DIST_DIR = path.join(PUBLIC_DIR, "dist");
+const WEB_DIR = path.join(ROOT, "apps", "web");
+const WEB_DIST = path.join(WEB_DIR, "dist");
+const PACKS_DIR = path.join(ROOT, "public", "dist", "packs");
 
-async function build() {
-  fs.rmSync(DIST_DIR, { recursive: true, force: true });
-  fs.mkdirSync(path.join(DIST_DIR, "styles"), { recursive: true });
+function build() {
+  // SKIP_WEB_BUILD=1 — сборка уже есть (CI собрал её отдельным шагом), только дообработка.
+  if (process.env.SKIP_WEB_BUILD !== "1") {
+    execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build", "-w", "@shalter/web"], { cwd: ROOT, stdio: "inherit" });
+  }
+  if (!fs.existsSync(path.join(WEB_DIST, "index.html"))) throw new Error(`нет сборки клиента: ${WEB_DIST}/index.html`);
 
-  await esbuild.build({
-    entryPoints: [path.join(PUBLIC_DIR, "js", "app.js")],
-    bundle: true,
-    minify: true,
-    format: "esm",
-    target: "es2022",
-    splitting: true,
-    outdir: DIST_DIR,
-    entryNames: "app",
-    chunkNames: "chunk-[hash]",
-    logLevel: "info",
-    external: ["https://esm.sh/*"],
-  });
+  const assets = path.join(WEB_DIST, "assets");
+  const files = fs.readdirSync(assets).filter((f) => /\.(js|css|svg|json)$/.test(f));
+  for (const f of files) precompress(path.join(assets, f));
 
-  await esbuild.build({
-    entryPoints: [
-      path.join(PUBLIC_DIR, "styles", "base.css"),
-      path.join(PUBLIC_DIR, "styles", "components.css"),
-    ],
-    minify: true,
-    outdir: path.join(DIST_DIR, "styles"),
-    logLevel: "info",
-  });
+  // Версия — по index.html: он ссылается на файлы с хешем, значит, меняется с любым из них.
+  const version = crypto.createHash("sha256").update(fs.readFileSync(path.join(WEB_DIST, "index.html"))).digest("hex").slice(0, 10);
+  fs.writeFileSync(path.join(WEB_DIST, "build.json"), JSON.stringify({ version, builtAt: new Date().toISOString() }));
 
-  // Copy service worker to dist
-  fs.copyFileSync(path.join(PUBLIC_DIR, "sw.js"), path.join(DIST_DIR, "sw.js"));
-
-  const stamp = (file) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex").slice(0, 10);
-  const jsV = stamp(path.join(DIST_DIR, "app.js"));
-  const baseV = stamp(path.join(DIST_DIR, "styles", "base.css"));
-  const compV = stamp(path.join(DIST_DIR, "styles", "components.css"));
-
-  const appSource = fs.readFileSync(path.join(DIST_DIR, "app.js"), "utf-8");
-  const eagerChunks = [...new Set([...appSource.matchAll(/from"\.\/(chunk-[A-Z0-9]+\.js)"/g)].map((m) => m[1]))];
-  const preloads = eagerChunks.map((c) => `  <link rel="modulepreload" href="/dist/${c}" />`).join("\n");
-
-  const html = fs
-    .readFileSync(path.join(PUBLIC_DIR, "index.html"), "utf-8")
-    .replace('href="/styles/base.css"', `href="/dist/styles/base.css?v=${baseV}"`)
-    .replace('href="/styles/components.css"', `href="/dist/styles/components.css?v=${compV}"`)
-    .replace('src="/js/app.js"', `src="/dist/app.js?v=${jsV}"`)
-    .replace("</head>", `${preloads}\n</head>`);
-  fs.writeFileSync(path.join(DIST_DIR, "index.html"), html);
-  
-  // Copy service worker to dist root for registration at /sw.js
-  fs.copyFileSync(path.join(DIST_DIR, "sw.js"), path.join(ROOT, "sw.js"));
-
-  fs.writeFileSync(
-    path.join(DIST_DIR, "build.json"),
-    JSON.stringify({
-      version: jsV,
-      builtAt: new Date().toISOString(),
-      sourceStamp: sourceStamp(),
-      // Всё, что нужно приложению без сети: sw.js скачивает это заранее, пока сеть есть.
-      precache: [
-        `/dist/app.js?v=${jsV}`,
-        `/dist/styles/base.css?v=${baseV}`,
-        `/dist/styles/components.css?v=${compV}`,
-        `/sw.js`,
-        ...fs.readdirSync(DIST_DIR).filter((f) => /^chunk-[A-Z0-9]+\.js$/.test(f)).map((f) => `/dist/${f}`),
-      ],
-    })
-  );
-
-  for (const f of fs.readdirSync(DIST_DIR)) if (f.endsWith(".js")) precompress(path.join(DIST_DIR, f));
-  precompress(path.join(DIST_DIR, "styles", "base.css"));
-  precompress(path.join(DIST_DIR, "styles", "components.css"));
-  precompress(path.join(DIST_DIR, "index.html"));
   unpackAssets();
-
-  report();
+  report(assets, files);
 }
 
-// Brotli q11 / gzip 9 — минуты на сборку; по умолчанию берём быстрые уровни,
+// Brotli q11 / gzip 9 — минуты на сборку; по умолчанию быстрые уровни,
 // максимальное сжатие для выкладки: BUILD_FULL=1 npm run build
 const FULL = process.env.BUILD_FULL === "1";
 function precompress(file) {
   const content = fs.readFileSync(file);
   fs.writeFileSync(`${file}.gz`, zlib.gzipSync(content, { level: FULL ? 9 : 6 }));
-  fs.writeFileSync(`${file}.br`, zlib.brotliCompressSync(content, {
-    params: { [zlib.constants.BROTLI_PARAM_QUALITY]: FULL ? 11 : 5 },
-  }));
+  fs.writeFileSync(`${file}.br`, zlib.brotliCompressSync(content, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: FULL ? 11 : 5 } }));
 }
 
-// Картинки из архивов server/assets/packs — обычными файлами в dist/packs/<папка>/…:
+// Картинки из архивов server/assets/packs — обычными файлами в public/dist/packs/<папка>/…:
 // nginx отдаёт их с диска по прежним адресам (deploy/nginx.conf.example), Node их
 // больше не читает. Без nginx (Docker) не нужны — UNPACK_ASSETS=0 их не пишет.
 function unpackAssets() {
   if (process.env.UNPACK_ASSETS === "0") return;
   const { PACKS, packFiles } = require("../server/lib/assetPacks");
+  fs.rmSync(PACKS_DIR, { recursive: true, force: true });
   let count = 0;
   for (const pack of PACKS) {
     for (const [rel, buf] of packFiles(pack)) {
-      const target = path.join(DIST_DIR, "packs", pack.dir, rel);
-      if (!target.startsWith(path.join(DIST_DIR, "packs") + path.sep)) continue;
+      const target = path.join(PACKS_DIR, pack.dir, rel);
+      if (!target.startsWith(PACKS_DIR + path.sep)) continue;
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, buf);
       count++;
     }
   }
-  console.log(`Картинки из архивов: ${count} файлов в dist/packs`);
+  console.log(`Картинки из архивов: ${count} файлов в public/dist/packs`);
 }
 
-function report() {
-  const files = ["app.js", path.join("styles", "base.css"), path.join("styles", "components.css")];
-  console.log("\nBuilt sizes (raw / gz / br):");
-  for (const f of files) {
-    const full = path.join(DIST_DIR, f);
-    const raw = fs.statSync(full).size;
-    const gz = fs.statSync(`${full}.gz`).size;
-    const br = fs.statSync(`${full}.br`).size;
-    console.log(`  ${f}: ${(raw / 1024).toFixed(1)}KB / ${(gz / 1024).toFixed(1)}KB / ${(br / 1024).toFixed(1)}KB`);
+function report(dir, files) {
+  const sized = files.map((f) => ({ f, raw: fs.statSync(path.join(dir, f)).size })).sort((a, b) => b.raw - a.raw).slice(0, 5);
+  console.log("\nСамые большие файлы сборки (raw / br):");
+  for (const { f, raw } of sized) {
+    const br = fs.statSync(path.join(dir, `${f}.br`)).size;
+    console.log(`  ${f}: ${(raw / 1024).toFixed(1)}KB / ${(br / 1024).toFixed(1)}KB`);
   }
 }
 
-function sourceStamp() {
-  let newest = 0;
-  const walk = (dir) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === "dist" || entry.name.startsWith(".")) continue;
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (/\.(js|css|html)$/.test(entry.name)) newest = Math.max(newest, fs.statSync(full).mtimeMs);
-    }
-  };
-  walk(PUBLIC_DIR);
-  return Math.round(newest);
-}
-
-function isStale() {
-  try {
-    const meta = JSON.parse(fs.readFileSync(path.join(DIST_DIR, "build.json"), "utf-8"));
-    return !fs.existsSync(path.join(DIST_DIR, "index.html")) || meta.sourceStamp !== sourceStamp();
-  } catch {
-    return true;
-  }
-}
-
-module.exports = { build, isStale, sourceStamp, DIST_DIR };
+module.exports = { build, WEB_DIST };
 
 if (require.main === module) {
-  build().catch((err) => {
+  try {
+    build();
+  } catch (err) {
     console.error(err);
     process.exit(1);
-  });
+  }
 }

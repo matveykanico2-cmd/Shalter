@@ -3,10 +3,10 @@ import type { z } from "zod";
 
 import { http } from "../api";
 
-// Push-уведомления — порт public/js/lib/push.js: веб-push через service worker, а в
-// установленных приложениях уведомления показывает само приложение. Нативную подписку
-// Android (FCM) и локальные уведомления включает оболочка приложения, а не этот клиент:
-// здесь — только проверка их разрешения для экрана «Уведомления».
+// Push-уведомления — порт public/js/lib/push.js: веб-push через service worker; в
+// Android-приложении с Firebase — токен устройства (плагин PushNotifications), на него сервер
+// шлёт через FCM (server/lib/fcm.js); без Firebase и на десктопе уведомления показывает само
+// приложение (use-native-notify), здесь — только проверка их разрешения.
 
 type PermissionState = "granted" | "denied" | "default" | string;
 
@@ -14,13 +14,19 @@ type CapPlugin = {
   checkPermissions: () => Promise<Record<string, string>>;
   requestPermissions: () => Promise<Record<string, string>>;
 };
+type NativePushPlugin = CapPlugin & {
+  register: () => Promise<void>;
+  createChannel?: (channel: { id: string; name: string; importance: number; visibility: number; vibration: boolean }) => Promise<void>;
+  addListener: (event: string, cb: (data: never) => void) => Promise<unknown>;
+};
 type PushWindow = Window & {
-  Capacitor?: { isNativePlatform?: () => boolean; Plugins?: { PushNotifications?: CapPlugin; LocalNotifications?: CapPlugin } };
+  Capacitor?: { isNativePlatform?: () => boolean; Plugins?: { PushNotifications?: NativePushPlugin; LocalNotifications?: CapPlugin; IncomingCall?: unknown } };
   shalterDesktop?: { notify?: unknown };
+  __shalterOpen?: (path: string) => void;
 };
 
 const win = () => window as PushWindow;
-const nativePlugin = (): CapPlugin | null => (win().Capacitor?.isNativePlatform?.() ? (win().Capacitor?.Plugins?.PushNotifications ?? null) : null);
+const nativePlugin = (): NativePushPlugin | null => (win().Capacitor?.isNativePlatform?.() ? (win().Capacitor?.Plugins?.PushNotifications ?? null) : null);
 const localPlugin = (): CapPlugin | null => {
   const cap = win().Capacitor;
   if (!cap?.isNativePlatform?.() || nativePlugin()) return null;
@@ -40,6 +46,55 @@ function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const raw = atob((base64String + padding).replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+let nativeReady: Promise<void> | null = null;
+let nativeToken: string | null = null;
+
+/** Каналы, токен и нажатие на уведомление — один раз за запуск (setupNativePush в push.js). */
+function setupNativePush(plugin: NativePushPlugin) {
+  nativeReady ??= (async () => {
+    // Свои каналы: звонки громче и поверх всего, сообщения — обычные со звуком.
+    await plugin.createChannel?.({ id: "messages", name: "Сообщения", importance: 4, visibility: 1, vibration: true }).catch(() => {});
+    await plugin.createChannel?.({ id: "calls", name: "Звонки", importance: 5, visibility: 1, vibration: true }).catch(() => {});
+    await plugin.addListener("registration", ({ value }: { value: string }) => {
+      nativeToken = value;
+      // callUi: сборка умеет сама показывать экран звонка — сервер шлёт звонок data-сообщением.
+      void http.post("/api/push/subscribe-native", { token: value, callUi: !!win().Capacitor?.Plugins?.IncomingCall }).catch(() => {});
+    });
+    await plugin.addListener("registrationError", (err: { error?: string }) => {
+      lastError = `Не удалось получить токен уведомлений: ${err?.error || "ошибка"}`;
+    });
+    // Нажали на уведомление — открываем тот чат или звонок, о котором оно.
+    await plugin.addListener("pushNotificationActionPerformed", ({ notification }: { notification?: { data?: { url?: string } } }) => {
+      const url = notification?.data?.url;
+      if (!url) return;
+      try {
+        const u = new URL(url, location.origin);
+        if (u.origin !== location.origin) return;
+        const path = u.pathname + u.search;
+        if (win().__shalterOpen) win().__shalterOpen!(path);
+        else location.href = path;
+      } catch {
+        // Битый адрес в уведомлении — просто остаёмся на месте.
+      }
+    });
+  })();
+  return nativeReady;
+}
+
+async function registerNative(prompt: boolean) {
+  const plugin = nativePlugin();
+  if (!plugin) return false;
+  await setupNativePush(plugin);
+  let { receive } = await plugin.checkPermissions();
+  if (receive !== "granted" && prompt) ({ receive } = await plugin.requestPermissions());
+  if (receive !== "granted") {
+    lastError = "Уведомления запрещены в настройках Android для Shalter.";
+    return false;
+  }
+  await plugin.register();
+  return true;
 }
 
 const listEndpoints = () => http.get<z.infer<typeof endpointsBody>>("/api/push/endpoints").catch(() => ({ endpoints: [] as string[] }));
@@ -104,7 +159,15 @@ export async function pushDiagnostics(): Promise<PushDiagnostics> {
   const native = nativePlugin();
   if (native) {
     const { receive } = await native.checkPermissions().catch(() => ({ receive: "нет" }));
-    return { защищённыйАдрес: true, поддержка: true, разрешение: receive ?? "нет", подпискаВБраузере: receive === "granted", подпискаНаСервере: receive === "granted", ошибка: lastError };
+    const { endpoints } = await listEndpoints();
+    return {
+      защищённыйАдрес: true,
+      поддержка: true,
+      разрешение: receive ?? "нет",
+      подпискаВБраузере: !!nativeToken,
+      подпискаНаСервере: !!nativeToken && endpoints.includes(`fcm:${nativeToken}`),
+      ошибка: lastError,
+    };
   }
   const out: PushDiagnostics = {
     защищённыйАдрес: window.isSecureContext,
@@ -138,8 +201,12 @@ async function requestPlugin(plugin: CapPlugin, field: "display" | "receive") {
 export async function resubscribePush(): Promise<{ ok: true } | { ok: false; ошибка: string }> {
   lastError = null;
   if (isDesktopShell()) return { ok: true };
-  const plugin = localPlugin() ?? nativePlugin();
-  if (plugin) return (await requestPlugin(plugin, localPlugin() ? "display" : "receive")) ? { ok: true } : { ok: false, ошибка: lastError ?? "Не получилось" };
+  const local = localPlugin();
+  if (local) return (await requestPlugin(local, "display")) ? { ok: true } : { ok: false, ошибка: lastError ?? "Не получилось" };
+  if (nativePlugin()) {
+    const ok = await registerNative(true).catch((err: Error) => ((lastError = err.message), false));
+    return ok ? { ok: true } : { ok: false, ошибка: lastError ?? "Не получилось" };
+  }
   if (!isPushSupported()) return { ok: false, ошибка: "Браузер не умеет push-уведомления." };
   try {
     if (Notification.permission !== "granted") {
@@ -161,7 +228,9 @@ export async function resubscribePush(): Promise<{ ok: true } | { ok: false; о�
 
 /** Уже разрешено — подписать это устройство (при входе в приложение). */
 export async function ensurePushSubscribed() {
-  if (isDesktopShell() || localPlugin() || nativePlugin()) return;
+  if (isDesktopShell() || localPlugin()) return;
+  // В приложении спрашиваем разрешение сразу при запуске — как любой мессенджер.
+  if (nativePlugin()) return void (await registerNative(true));
   if (!isPushSupported() || Notification.permission !== "granted") return;
   await subscribeNow();
 }
@@ -169,8 +238,9 @@ export async function ensurePushSubscribed() {
 /** «Включить уведомления»: спросить разрешение и подписаться. */
 export async function requestPushPermission() {
   if (isDesktopShell()) return true;
-  const plugin = localPlugin() ?? nativePlugin();
-  if (plugin) return requestPlugin(plugin, localPlugin() ? "display" : "receive");
+  const local = localPlugin();
+  if (local) return requestPlugin(local, "display");
+  if (nativePlugin()) return registerNative(true);
   if (!isPushSupported()) return false;
   const result = await Notification.requestPermission();
   if (result === "granted") await subscribeNow();

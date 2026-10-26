@@ -2,7 +2,7 @@
 // звёзды — POST /api/stars/grant), Premium по коду друга, фото для платного поста.
 // Состояние готовится через публичный API; предмет сценариев — интерфейс.
 import { test as base, expect } from "../support/fixtures";
-import { startServer, type TestServer } from "../../support/server";
+import { startServer, type TestServer, webBuild } from "../../support/server";
 import { registerUser, type TestUser } from "../../support/seed";
 import type { Api } from "../../support/client";
 import { upload, uniquePng } from "../../contract/uploads/helpers";
@@ -23,7 +23,7 @@ export function economyTest(extraEnv: Record<string, string> = {}) {
   return base.extend<{}, { server: TestServer; admin: TestUser }>({
     server: [
       async ({ egress }, use) => {
-        const server = await startServer({ env: { ...egress.env, ...adminEnv(extraEnv) } });
+        const server = await startServer({ env: { ...egress.env, ...adminEnv(extraEnv) }, webDist: webBuild() });
         try {
           await use(server);
         } finally {
