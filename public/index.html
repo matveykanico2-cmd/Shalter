@@ -104,21 +104,15 @@
       transition: opacity 0.25s ease;
     }
     #boot-splash svg { width: 96px; height: 96px; }
-    #boot-splash svg.bs-spinner-ring {
-      position: absolute;
-      width: 120px;
-      height: 120px;
-      animation: bs-spin 1.6s linear infinite;
-    }
-    #boot-splash svg.bs-spinner-ring circle {
-      stroke-dasharray: 1380;
-      stroke-dashoffset: 1380;
-      animation: bs-draw 1.6s ease-out forwards;
-    }
     #boot-splash .bs-logo { position: relative; display: flex; align-items: center; justify-content: center; }
     /* «Shalter»: буквы кружат по спирали, встают в строку и светятся, а когда
        приложение загрузилось — разлетаются обратно (движение — скрипт ниже) */
     #boot-splash svg.bs-logo-svg { animation: bs-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    #boot-splash circle.bs-spinner {
+      stroke-dasharray: 1640;
+      stroke-dashoffset: 1640;
+      animation: bs-draw 1.2s ease-out 0.3s forwards, bs-spin 2s linear 1.5s infinite;
+    }
     #boot-splash .bs-word {
       position: relative;
       display: flex;
@@ -204,12 +198,10 @@ if (!/^\/(login|qr-login)/.test(location.pathname)) {
     <div class="bs-logo">
       <svg class="bs-logo-svg" viewBox="0 0 512 512" aria-hidden="true">
         <circle cx="256" cy="256" r="256" fill="#3d6df0"/>
+        <circle class="bs-spinner" cx="256" cy="256" r="260" fill="none" stroke="#fff" stroke-width="6" opacity="0.9"/>
         <path fill="#ffffff" d="M65 186L397 131L357 333L77 336Z"/>
         <path fill="#a9c4fb" d="M397 131L250 235L357 333Z"/>
         <path fill="#d3e0fd" d="M134 336L214 340L138 437Z"/>
-      </svg>
-      <svg class="bs-spinner-ring" viewBox="0 0 512 512" aria-hidden="true">
-        <circle cx="256" cy="256" r="218" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" opacity="0.7"/>
       </svg>
     </div>
     <div class="bs-word" aria-label="Shalter"></div>

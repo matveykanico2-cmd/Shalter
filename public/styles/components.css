@@ -5511,6 +5511,19 @@ button.profile-ad-banner {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(280%); }
 }
+.qr-send-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  vertical-align: middle;
+  animation: qr-send-spin 0.7s linear infinite;
+}
+@keyframes qr-send-spin {
+  to { transform: rotate(360deg); }
+}
 .qr-confirm-account {
   display: flex;
   align-items: center;

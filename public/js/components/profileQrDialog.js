@@ -28,6 +28,8 @@ export function openProfileQrDialog(user) {
   const overlay = el("div", { class: "modal-overlay", onclick: (e) => e.target === overlay && close() });
   const url = usernameUrl(user.username);
   const copiedNote = el("p", { class: "settings-toggle-hint" });
+  const spinner = el("span", { class: "qr-send-spinner", hidden: true });
+  copiedNote.append(spinner, " ");
 
   let themeId = "blue";
   try {
@@ -56,12 +58,14 @@ export function openProfileQrDialog(user) {
     let uploaded = null;
     let sent = 0;
     openForwardDialog(
-      async (chatId) => {
-        copiedNote.textContent = "Отправляем…";
-        uploaded ??= preparedCard().then((file) => uploadFile(file, "image")).catch((err) => ((uploaded = null), Promise.reject(err)));
-        await api.sendMessage(chatId, url, { attachments: [await uploaded] });
-        sent++;
-        copiedNote.textContent = sent > 1 ? `QR-код отправлен в ${sent} чатов ✓` : "QR-код отправлен ✓";
+       async (chatId) => {
+          spinner.hidden = false;
+          copiedNote.textContent = "Отправляем…";
+          uploaded ??= preparedCard().then((file) => uploadFile(file, "image")).catch((err) => ((uploaded = null), Promise.reject(err)));
+          await api.sendMessage(chatId, url, { attachments: [await uploaded] });
+          sent++;
+          spinner.hidden = true;
+          copiedNote.textContent = sent > 1 ? `QR-код отправлен в ${sent} чатов ✓` : "QR-код отправлен ✓";
       },
       { title: "Отправить QR-код" }
     );
