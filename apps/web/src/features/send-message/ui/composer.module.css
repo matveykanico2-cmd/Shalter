@@ -208,3 +208,130 @@
   color: var(--color-bg);
   cursor: pointer;
 }
+
+/* Подсказки над полем: @участники и /команды (.composer-mention-menu). */
+.suggest {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: var(--bubble-shadow);
+}
+
+.suggestItem {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.suggestItem:hover,
+.suggestActive {
+  background: var(--color-surface-alt);
+}
+
+.suggestName {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.suggestCommand {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.suggestMuted {
+  color: var(--color-muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.suggestError {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--color-danger);
+  font-size: 13.5px;
+}
+
+/* Панель форматирования выделенного (.composer-format-bar). */
+.formatBar {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  scrollbar-width: none;
+}
+
+.formatButton {
+  flex-shrink: 0;
+  min-width: 34px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.formatButton:hover {
+  background: var(--color-accent-soft);
+}
+
+.formatBold {
+  font-weight: 700;
+}
+
+.formatItalic {
+  font-style: italic;
+}
+
+.formatUnderline {
+  text-decoration: underline;
+}
+
+.formatStrike {
+  text-decoration: line-through;
+}
+
+.formatMono {
+  font-family: var(--font-mono);
+}
+
+/* «/» — команды бота, «от имени группы». */
+.commandButton {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.anonymousOn {
+  color: var(--color-accent);
+}
+
+/* Цена сообщения или комментария (.composer-paid-hint). */
+.paidHint {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 12.5px;
+  line-height: 1.35;
+}

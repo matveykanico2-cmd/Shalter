@@ -1,4 +1,5 @@
 import type { contactListItem } from "@shalter/shared/schemas/contacts";
+import type { gamesBody } from "@shalter/shared/schemas/games";
 import type { geoIpBody, geoSearchBody } from "@shalter/shared/schemas/geo";
 import type { hugoCheckBody } from "@shalter/shared/schemas/integrations";
 import type { scheduled, scheduledEnvelope, scheduledList, sendResult } from "@shalter/shared/schemas/messages";
@@ -14,10 +15,10 @@ const chatPath = (chatId: string) => `/api/chats/${encodeURIComponent(chatId)}`;
 /** Вложение в отправке: загруженный файл (+ спойлер у фото и видео) или опрос, чек-лист, кубик. */
 export type OutgoingAttachment =
   | (Uploaded & { spoiler?: true; durationSec?: number; waveform?: number[]; transcript?: string })
-  | { kind: "poll" | "checklist" | "dice" | "location" | "contact"; meta: Record<string, unknown> };
+  | { kind: "poll" | "checklist" | "dice" | "location" | "contact" | "game"; meta: Record<string, unknown> };
 
-/** Как отправить: без звука у получателей, с эффектом (в личке). */
-export type SendOptions = { silent?: true; effect?: string };
+/** Как отправить: без звука у получателей, с эффектом (в личке), от имени группы (анонимный админ). */
+export type SendOptions = { silent?: true; effect?: string; anonymous?: true };
 
 type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string; threadRootId?: string } & SendOptions;
 
@@ -66,3 +67,6 @@ export const sendScheduledNow = (chatId: string, id: string) => http.patch<unkno
 export const deleteScheduled = (chatId: string, id: string) => http.delete<unknown>(`${chatPath(chatId)}/messages/scheduled/${encodeURIComponent(id)}`);
 
 export const hugoCheck = (text: string) => http.post<z.infer<typeof hugoCheckBody>>("/api/hugo/check", { text });
+
+/** Каталог игр с поиском (GET /api/games?q=) — для «/game название». */
+export const searchGames = (q: string) => http.get<z.infer<typeof gamesBody>>(`/api/games?q=${encodeURIComponent(q)}`);

@@ -815,6 +815,113 @@ describe("запись голосовых", () => {
   });
 });
 
+describe("поле ввода: подсказки, команды, форматирование", () => {
+  const SEND = "POST /api/chats/c_1/messages";
+  const sent = (calls: { key: string; body: unknown }[]) => calls.filter((c) => c.key === SEND).map((c) => c.body as Record<string, unknown>);
+  const type = (input: HTMLElement, value: string) => {
+    fireEvent.change(input, { target: { value, selectionStart: value.length, selectionEnd: value.length } });
+  };
+
+  it("@ — участники с ником, Enter подставляет; /команды — разметка, кубик и подсказка об ошибке", async () => {
+    const lena = { ...LENA, username: "lena" };
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": { body: { chat: chat(), members: [ME, lena], commands: null, paidMessages: null } },
+      [HISTORY]: page([]),
+      [SEND]: (body) => ({ body: { message: msg(String(body.text), { senderId: ME.id }) } }),
+      ...typingRoutes,
+    });
+    renderChat();
+    const input = (await screen.findByRole("textbox", { name: "Сообщение" })) as HTMLTextAreaElement;
+    await screen.findByText("2 участника");
+    type(input, "привет @le");
+    const list = await screen.findByRole("listbox", { name: "Подсказки" });
+    expect(within(list).getByRole("option").textContent).toBe("Лена@lena");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(input.value).toBe("привет @lena ");
+    expect(sent(calls)).toEqual([]);
+
+    type(input, "/spo");
+    expect(within(screen.getByRole("listbox")).getByRole("option").textContent).toContain("/spoiler текст");
+    type(input, "/spoiler тайна");
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(sent(calls)[0]).toMatchObject({ text: "||тайна||" }));
+
+    type(input, "/bold");
+    fireEvent.keyDown(input, { key: "Escape" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(await screen.findByText("Напишите текст после /bold")).toBeTruthy();
+    expect(input.value).toBe("/bold");
+
+    type(input, "/казино");
+    fireEvent.keyDown(input, { key: "Escape" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(sent(calls)[1]).toMatchObject({ text: "", attachments: [{ kind: "dice", meta: { emoji: "🎰" } }] }));
+    expect(input.value).toBe("");
+  });
+
+  it("чат с ботом: «/» — команды бота, его /start не наша команда", async () => {
+    const bot = { id: "u_bot000000", name: "Погода", isBot: true };
+    const dm = chat({ type: "dm", title: "", otherUser: bot as ChatSummary["otherUser"] });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": { body: { chat: dm, members: [ME, bot], commands: [{ command: "start", description: "Начать" }, { command: "dice", description: "Свой кубик" }], paidMessages: null } },
+      [HISTORY]: page([]),
+      [SEND]: (body) => ({ body: { message: msg(String(body.text), { senderId: ME.id }) } }),
+      ...typingRoutes,
+    });
+    renderChat(dm);
+    fireEvent.click(await screen.findByRole("button", { name: "/" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "/start — Начать" }));
+    await waitFor(() => expect(sent(calls)[0]).toMatchObject({ text: "/start" }));
+    const input = screen.getByRole("textbox", { name: "Сообщение" });
+    type(input, "/dice");
+    fireEvent.keyDown(input, { key: "Escape" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(sent(calls)[1]).toMatchObject({ text: "/dice" }));
+  });
+
+  it("выделенный текст — панель форматирования и Ctrl+I", async () => {
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([]), ...typingRoutes });
+    renderChat();
+    const input = (await screen.findByRole("textbox", { name: "Сообщение" })) as HTMLTextAreaElement;
+    type(input, "очень важно");
+    input.focus();
+    input.setSelectionRange(6, 11);
+    fireEvent.keyUp(input);
+    const bar = await screen.findByRole("toolbar", { name: "Форматирование" });
+    fireEvent.click(within(bar).getByRole("button", { name: "Жирный (Ctrl+B)" }));
+    expect(input.value).toBe("очень **важно**");
+    input.setSelectionRange(0, 5);
+    fireEvent.keyDown(input, { key: "i", code: "KeyI", ctrlKey: true });
+    expect(input.value).toBe("*очень* **важно**");
+  });
+
+  it("анонимный админ — «от имени группы» на одно сообщение; платная личка — цена над полем", async () => {
+    const group = chat({ adminIds: [ME.id], anonymousAdmins: true } as Partial<ChatSummary>);
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(group),
+      [HISTORY]: page([]),
+      [SEND]: (body) => ({ body: { message: msg(String(body.text), { senderId: ME.id }) } }),
+      ...typingRoutes,
+    });
+    renderChat(group);
+    const toggle = await screen.findByRole("button", { name: "Отправить от имени группы" });
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("title")).toBe("Отправляется от имени группы");
+    const input = screen.getByRole("textbox", { name: "Сообщение" });
+    type(input, "объявление");
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(sent(calls)[0]).toMatchObject({ text: "объявление", anonymous: true }));
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    cleanup();
+
+    const dm = chat({ type: "dm", title: "", otherUser: LENA as ChatSummary["otherUser"] });
+    fakeApi({ "GET /api/chats/c_1": { body: { chat: dm, members: [ME, LENA], commands: null, paidMessages: { stars: 5, youPay: true } } }, [HISTORY]: page([]) });
+    renderChat(dm);
+    expect(await screen.findByText("⭐ Этот пользователь принимает сообщения за 5 ⭐ — спишется за каждое отправленное")).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Сообщение · 5 ⭐" })).toBeTruthy();
+  });
+});
+
 describe("стикеры и эмодзи", () => {
   it("ссылка в тексте и карточка — во встроенном браузере, статья — быстрым просмотром", async () => {
     const preview = { url: "https://news.ru/a", title: "Новость", description: "Подробности", siteName: "Новости" };

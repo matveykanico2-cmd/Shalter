@@ -8,21 +8,26 @@ import { useSettings } from "@/entities/settings";
 import { errorText } from "@/shared/lib/error-text";
 import { getPosition, type LatLng } from "@/shared/lib/geolocation";
 import { isRecordingSupported, type RecordMode } from "@/shared/lib/media/recorder";
-import { dismissToast, Icon, toast } from "@/shared/ui";
+import { askText, dismissToast, Icon, toast } from "@/shared/ui";
 
-import { hugoCheck, type OutgoingAttachment, saveDraft, scheduleMessage, type SendOptions, sendTyping } from "../api/send-message";
+import { hugoCheck, type OutgoingAttachment, saveDraft, scheduleMessage, searchGames, type SendOptions, sendTyping } from "../api/send-message";
 import { chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
 import { applyAll, applyFix, cleanMatches, type ProofMatch } from "../lib/hugo";
 import { startLiveLocationSharing } from "../lib/live-location";
 import { splitLongText } from "../lib/long-text";
+import { type BotCommand, parseSlashCommand, suggestSlashCommands } from "../lib/slash-commands";
+import { type Edit, formatShortcut, linkSelection, quoteSelection, wrapSelection } from "../lib/text-format";
+import { typingPingDue } from "../lib/typing";
 import { useSendMessage } from "../model/use-send-message";
 import { useUploads } from "../model/use-uploads";
 
 import { AttachButton } from "./attach-button";
+import { BotCommandsButton } from "./bot-commands-button";
 import { ChecklistDialog } from "./checklist-dialog";
 import styles from "./composer.module.css";
 import { ContactPicker, type PickedContact } from "./contact-picker";
 import { EmojiButton } from "./emoji-picker";
+import { FormatBar,type FormatKind } from "./format-bar";
 import { HugoPanel, type HugoState } from "./hugo-panel";
 import { LocationPicker, type PickedLocation } from "./location-picker";
 import { PollDialog } from "./poll-dialog";
@@ -33,6 +38,7 @@ import { ScheduledList } from "./scheduled-list";
 import { SendButton } from "./send-button";
 import { type MediaSendChoice, SendMediaDialog } from "./send-media-dialog";
 import { StickerButton } from "./sticker-picker";
+import { type MentionUser, type Suggestion,SuggestMenu } from "./suggest-menu";
 import { UploadStrip } from "./upload-strip";
 
 export type ComposerHandle = {
@@ -50,6 +56,10 @@ const MAX_ROWS_HEIGHT = 200;
 
 const NO_PEOPLE: PickedContact[] = [];
 const NO_IDS: string[] = [];
+const NO_MENTIONS: MentionUser[] = [];
+const NO_COMMANDS: BotCommand[] = [];
+const MENTION_LIMIT = 6;
+const COMMAND_ERROR_MS = 2500;
 
 type Props = {
   chatId: string;
@@ -82,12 +92,23 @@ type Props = {
    * в ленту чата не попадает, отложенной отправки нет; onSent — ответ сервера.
    */
   thread?: { rootId: string; onSent: (m: Message) => void };
+  /** Участники с @именем — подсказки при наборе «@». */
+  mentions?: readonly MentionUser[];
+  /** Команды бота: кнопка «/» и подсказки при наборе «/». */
+  botCommands?: readonly BotCommand[];
+  /** Админ группы с анонимными админами — «Отправить от имени группы». */
+  canPostAnonymously?: boolean;
+  /** Сообщения или комментарии здесь платные, и платит пишущий. */
+  paid?: { stars: number; kind: "message" | "comment" } | null;
   ref?: Ref<ComposerHandle>;
 };
 
 /** Поле ввода: текст, ответ на сообщение, Enter — отправить, Shift+Enter — новая строка. */
 export function Composer(props: Props) {
-  const { chatId, meId, channel, initialDraft, placeholder = "Сообщение", replyTo, replyToName, onCancelReply, onSent } = props;
+  const { chatId, meId, channel, initialDraft, replyTo, replyToName, onCancelReply, onSent, paid } = props;
+  const placeholder = props.placeholder ?? (paid ? `${paid.kind === "comment" ? "Комментарий" : "Сообщение"} · ${paid.stars} ⭐` : "Сообщение");
+  const mentions = props.mentions ?? NO_MENTIONS;
+  const botCommands = props.botCommands ?? NO_COMMANDS;
   const { editing = null, onSaveEdit, onCancelEdit, onEditLast, ref } = props;
   const client = useQueryClient();
   const thread = props.thread;
@@ -160,9 +181,12 @@ export function Composer(props: Props) {
   const onChange = (value: string) => {
     setText(value);
     setError(null);
+    setMenuClosed(false);
+    setActiveSuggestion(0);
     if (editing) return;
-    if (value.trim() && Date.now() - lastTyping.current > TYPING_PING_MS) {
-      lastTyping.current = Date.now();
+    const pingAt = value.trim() ? typingPingDue(lastTyping.current, TYPING_PING_MS) : null;
+    if (pingAt) {
+      lastTyping.current = pingAt;
       sendTyping(chatId).catch(() => {});
     }
     scheduleDraft(value);
@@ -182,25 +206,26 @@ export function Composer(props: Props) {
     },
   }));
 
-  // Эмодзи из панели — в место курсора, как insertPlainEmoji в composer.js.
-  const caret = useRef<number | null>(null);
+  // Эмодзи из панели — в место курсора, как insertPlainEmoji в composer.js; после
+  // форматирования — выделение или курсор там, где их оставила правка.
+  const caret = useRef<{ start: number; end: number } | null>(null);
   useLayoutEffect(() => {
     const el = textarea.current;
     if (!el || caret.current === null) return;
-    el.setSelectionRange(caret.current, caret.current);
+    el.setSelectionRange(caret.current.start, caret.current.end);
     caret.current = null;
   }, [text]);
   const insertEmoji = (emoji: string) => {
     const el = textarea.current;
     const pos = el?.selectionStart ?? text.length;
-    caret.current = pos + emoji.length;
+    caret.current = { start: pos + emoji.length, end: pos + emoji.length };
     onChange(text.slice(0, pos) + emoji + text.slice(pos));
     // На телефоне клавиатура не открывается поверх панели — как в tweb.
     if (!window.matchMedia?.("(pointer: coarse)").matches) el?.focus({ preventScroll: true });
   };
 
-  const submit = (options: SendOptions = {}) => {
-    const value = text.trim();
+  const submit = (options: SendOptions = {}, typed = text) => {
+    let value = typed.trim();
     if (editing) {
       if (!value) return;
       if (value !== (editing.text ?? "").trim()) onSaveEdit?.(editing, value);
@@ -208,6 +233,27 @@ export function Composer(props: Props) {
       return;
     }
     if (!value) return;
+    // «/команда …» — разметка, кубик или окно; команды бота уходят боту как есть.
+    if (value.startsWith("/")) {
+      const cmd = parseSlashCommand(value, reservedCommands);
+      if (cmd && "error" in cmd) return showCommandError(cmd.error);
+      if (cmd && !("text" in cmd)) {
+        setText("");
+        clearDraft();
+        if ("dice" in cmd) void sendAttachment("", { kind: "dice", meta: { emoji: cmd.dice } });
+        else if (cmd.action === "game") void sendGame(cmd.arg);
+        else setCreating(cmd.action);
+        return;
+      }
+      if (cmd) {
+        value = cmd.text;
+        if (cmd.silent) options = { ...options, silent: true };
+      }
+    }
+    if (asGroup) {
+      options = { ...options, anonymous: true };
+      setAsGroup(false);
+    }
     const reply = replyTo;
     clearInput();
     onSent?.();
@@ -274,7 +320,7 @@ export function Composer(props: Props) {
     }
   };
   const replaceText = (next: string, caretAt?: number) => {
-    if (caretAt !== undefined) caret.current = caretAt;
+    if (caretAt !== undefined) caret.current = { start: caretAt, end: caretAt };
     onChange(next);
     textarea.current?.focus();
   };
@@ -366,6 +412,95 @@ export function Composer(props: Props) {
     void sendAttachment("", { ...att, kind: mode, durationSec: recorded.durationSec, ...(mode === "voice" ? { waveform, transcript } : {}) });
   };
 
+  // «/game змейка» — карточка найденной игры (каталог придёт с экраном игр).
+  const sendGame = async (q: string) => {
+    const query = q.trim();
+    if (!query) return toast("Отправить игру: /game змейка");
+    try {
+      const { games } = await searchGames(query);
+      const found = games.find((g) => g.title.toLowerCase() === query.toLowerCase()) ?? games[0];
+      if (!found) return toast(`Игра «${query}» не найдена`, { error: true });
+      void sendAttachment("", { kind: "game", meta: { gameId: found.id, title: found.title, emoji: found.emoji || "🎮", description: found.description || "" } });
+    } catch (err) {
+      setError(errorText(err, "Не удалось найти игру"));
+    }
+  };
+
+  // Подсказки над полем: «/нач» в начале поля — команды, «@ник» перед курсором — участники.
+  const [cursor, setCursor] = useState(text.length);
+  const [selected, setSelected] = useState(false);
+  const [menuClosed, setMenuClosed] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(0);
+  const [commandError, setCommandError] = useState<string | null>(null);
+  const errorTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(errorTimer.current), []);
+  const showCommandError = (message: string) => {
+    setCommandError(message);
+    clearTimeout(errorTimer.current);
+    errorTimer.current = setTimeout(() => setCommandError(null), COMMAND_ERROR_MS);
+  };
+  const reservedCommands = botCommands.map((c) => c.command.toLowerCase());
+  const suggestions = ((): Suggestion[] => {
+    if (menuClosed || selected) return [];
+    const before = text.slice(0, cursor);
+    const command = editing ? null : /^\/([\p{L}\d_]*)$/u.exec(before);
+    if (command) return suggestSlashCommands(command[1]!, botCommands).map((c) => ({ kind: "command", command: c }));
+    const mention = /(?:^|\s)@(\w*)$/.exec(before);
+    if (!mention) return [];
+    const q = mention[1]!.toLowerCase();
+    return mentions
+      .filter((u) => u.username && (u.username.toLowerCase().startsWith(q) || u.name.toLowerCase().includes(q)))
+      .slice(0, MENTION_LIMIT)
+      .map((u) => ({ kind: "mention", user: u }));
+  })();
+  const active = Math.min(activeSuggestion, Math.max(0, suggestions.length - 1));
+
+  const pickSuggestion = (s: Suggestion) => {
+    if (s.kind === "command") {
+      const next = `/${s.command.name}${s.command.takesArg ? " " : ""}`;
+      // Команда без текста (кубик, опрос, команда бота) выполняется сразу.
+      if (!s.command.takesArg) return submit({}, next);
+      caret.current = { start: next.length, end: next.length };
+      onChange(next);
+      return;
+    }
+    const before = text.slice(0, cursor).replace(/@(\w*)$/, `@${s.user.username} `);
+    caret.current = { start: before.length, end: before.length };
+    onChange(before + text.slice(cursor));
+    setCursor(before.length);
+    textarea.current?.focus();
+  };
+
+  // Форматирование выделенного: кнопки панели и сочетания клавиш.
+  const applyEdit = (edit: Edit | null) => {
+    if (!edit) return;
+    caret.current = { start: edit.start, end: edit.end };
+    onChange(edit.text);
+  };
+  const format = async (kind: FormatKind) => {
+    const el = textarea.current;
+    if (!el) return;
+    const { selectionStart: a, selectionEnd: b } = el;
+    if (kind === "quote") return applyEdit(quoteSelection(text, a, b));
+    if (kind === "link") {
+      if (!text.slice(a, b).trim()) return;
+      const address = await askText("Адрес ссылки", { initial: "https://" });
+      if (address) applyEdit(linkSelection(text, a, b, address));
+      el.focus();
+      return;
+    }
+    applyEdit(wrapSelection(text, a, b, kind));
+  };
+  const trackSelection = () => {
+    const el = textarea.current;
+    if (!el) return;
+    setCursor(el.selectionStart);
+    setSelected(document.activeElement === el && el.selectionEnd > el.selectionStart);
+  };
+
+  // «От имени группы» — для одного сообщения, как postAsChat в composer.js.
+  const [asGroup, setAsGroup] = useState(false);
+
   // Картинка или файл из буфера обмена — в окно отправки.
   const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
     const files = [...(e.clipboardData?.files ?? [])];
@@ -375,6 +510,29 @@ export function Composer(props: Props) {
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (suggestions.length) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveSuggestion((active + (e.key === "ArrowDown" ? 1 : suggestions.length - 1)) % suggestions.length);
+        return;
+      }
+      if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+        e.preventDefault();
+        pickSuggestion(suggestions[active]!);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMenuClosed(true);
+        return;
+      }
+    }
+    const mark = editing ? null : formatShortcut(e);
+    if (mark) {
+      e.preventDefault();
+      applyEdit(wrapSelection(text, e.currentTarget.selectionStart, e.currentTarget.selectionEnd, mark));
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       submit();
@@ -435,6 +593,15 @@ export function Composer(props: Props) {
         />
       ) : null}
       <UploadStrip tiles={uploads.tiles} onCancel={uploads.cancel} />
+      {paid ? (
+        <p className={styles.paidHint}>
+          {paid.kind === "comment"
+            ? `⭐ Комментарии в этом канале стоят ${paid.stars} ⭐ — спишется за каждый`
+            : `⭐ Этот пользователь принимает сообщения за ${paid.stars} ⭐ — спишется за каждое отправленное`}
+        </p>
+      ) : null}
+      <SuggestMenu items={suggestions} active={active} error={commandError} onPick={pickSuggestion} />
+      {selected && !editing ? <FormatBar onFormat={(kind) => void format(kind)} /> : null}
       <div className={styles.row}>
         {recording ? (
           <RecordingBar
@@ -468,6 +635,18 @@ export function Composer(props: Props) {
                 onSchedule={thread ? undefined : openSchedule}
               />
             )}
+            {botCommands.length && !editing ? <BotCommandsButton commands={botCommands} onCommand={(cmd) => submit({}, cmd)} /> : null}
+            {props.canPostAnonymously && !editing ? (
+              <button
+                type="button"
+                className={asGroup ? `${styles.attach} ${styles.anonymousOn}` : styles.attach}
+                title={asGroup ? "Отправляется от имени группы" : "Отправить от имени группы"}
+                aria-pressed={asGroup}
+                onClick={() => setAsGroup((v) => !v)}
+              >
+                <Icon name="Users" size={18} />
+              </button>
+            ) : null}
             <textarea
               ref={textarea}
               className={styles.input}
@@ -475,7 +654,16 @@ export function Composer(props: Props) {
               value={text}
               placeholder={placeholder}
               aria-label={placeholder}
-              onChange={(e) => onChange(e.target.value)}
+              onChange={(e) => {
+                onChange(e.target.value);
+                setCursor(e.target.selectionStart);
+              }}
+              onSelect={trackSelection}
+              onBlur={() => {
+                setSelected(false);
+                setMenuClosed(true);
+              }}
+              onFocus={() => setMenuClosed(false)}
               onKeyDown={onKeyDown}
               onPaste={onPaste}
             />

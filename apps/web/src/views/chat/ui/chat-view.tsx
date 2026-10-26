@@ -9,10 +9,10 @@ import { MessageFeed, type MessageFeedHandle } from "@/widgets/message-feed";
 import { ChatSearch } from "@/features/chat-search";
 import { useMessageActions } from "@/features/message-actions";
 import { useMentionProfile, UserProfileDialog } from "@/features/open-profile";
-import { Composer, type ComposerHandle } from "@/features/send-message";
+import { botCommandsOf, Composer, type ComposerHandle } from "@/features/send-message";
 import { isTopicStaff, TopicTabs, useTopics } from "@/features/topics";
 
-import { type ChatMember, chatQueries, type ChatSummary, chatTitle, isChatAdmin, useChatCard, useChatFromList } from "@/entities/chat";
+import { type ChatCard, type ChatMember, chatQueries, type ChatSummary, chatTitle, isChatAdmin, isChatModerator, useChatCard, useChatFromList } from "@/entities/chat";
 import { inTopic, type Message, MessageLinks, type TopicFilter } from "@/entities/message";
 import { type SelfUser, useSession } from "@/entities/session";
 import { chatWallpaper, useSettings } from "@/entities/settings";
@@ -44,10 +44,12 @@ export function ChatView() {
     return <div className={styles.missing}>Чат не найден</div>;
   }
   // key: новый чат — новое состояние ленты и поля ввода (ответ, плашка непрочитанных).
-  return <OpenChat key={chat.id} chat={chat} members={card.data?.members ?? NO_MEMBERS} me={me} />;
+  return <OpenChat key={chat.id} chat={chat} members={card.data?.members ?? NO_MEMBERS} card={card.data ?? null} me={me} />;
 }
 
-function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser }) {
+type OpenChatProps = { chat: ChatSummary; members: readonly ChatMember[]; card: ChatCard | null; me: SelfUser };
+
+function OpenChat({ chat, members, card, me }: OpenChatProps) {
   const feed = useRef<MessageFeedHandle>(null);
   const composer = useRef<ComposerHandle>(null);
   const drop = useFileDrop((files) => composer.current?.attach(files));
@@ -111,6 +113,10 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
   // Контактом можно отправить и участника чата, а в личке — не самого собеседника.
   const people = useMemo(() => members.filter((u) => u.id !== me.id), [members, me.id]);
   const notContacts = useMemo(() => (chat.otherUser ? [chat.otherUser.id] : []), [chat.otherUser]);
+  // Подсказки «@» — участники с ником; «/» — команды бота из карточки чата.
+  const mentionable = useMemo(() => people.filter((u) => !!u.username), [people]);
+  const botCommands = useMemo(() => botCommandsOf(card?.commands), [card?.commands]);
+  const paid = card?.paidMessages?.youPay ? { stars: card.paidMessages.stars, kind: card.paidMessages.kind ?? ("message" as const) } : null;
   const senderName = (m: Message) => (m.anonymous ? title : m.senderId === me.id ? me.name : (members.find((u) => u.id === m.senderId) ?? chat.otherUser)?.name ?? null);
 
   return (
@@ -140,6 +146,10 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
                 topicId={openTopic?.id ?? null}
                 people={people}
                 excludeContacts={notContacts}
+                mentions={mentionable}
+                botCommands={botCommands}
+                canPostAnonymously={chat.type === "group" && !!chat.anonymousAdmins && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id))}
+                paid={paid}
                 allowEffects={chat.type === "dm" && !chat.isSaved}
                 allowWhenOnline={chat.type === "dm" && !chat.isSaved && !!chat.otherUser && !chat.otherUser.isBot}
                 initialDraft={typeof chat.draft === "string" ? chat.draft : ""}
