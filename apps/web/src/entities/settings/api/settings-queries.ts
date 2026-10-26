@@ -18,3 +18,6 @@ export const settingsQueries = {
       staleTime: 5 * 60_000,
     }),
 };
+
+/** PATCH /api/settings: сервер сливает вложенные объекты по полям и отвечает всеми настройками. */
+export const patchSettings = async (patch: object) => (await http.patch<{ settings: Settings }>("/api/settings", patch)).settings;

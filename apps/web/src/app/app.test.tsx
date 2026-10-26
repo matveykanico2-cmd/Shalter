@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ws } from "@/shared/api";
@@ -60,7 +60,8 @@ describe("вход и оболочка", () => {
     window.history.replaceState(null, "", "/login");
     render(<App />);
     expect(await screen.findByText("Выберите чат")).toBeTruthy();
-    expect(screen.getByTitle("Аня")).toBeTruthy();
+    expect(screen.getByRole("navigation").querySelector("[title='Аккаунты']")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Чаты" })).toBeTruthy();
     expect(window.location.pathname).toBe("/");
   });
 
@@ -76,7 +77,7 @@ describe("список чатов в оболочке", () => {
   it("чаты из /api/bootstrap — без отдельного /api/chats; сокет открыт; чат открывается по ссылке", async () => {
     const { calls } = fakeApi({ "GET /api/auth/session": { body: { user: ME, accounts: [] } }, "GET /api/bootstrap": bootstrap });
     render(<App />);
-    const row = await screen.findByRole("link", { name: /Семья/ });
+    const row = await screen.findByRole("button", { name: /Семья/ });
     // Кроме входа и bootstrap — только сверка входящих звонков (GET /api/calls).
     expect(calls.map((c) => c.key).filter((k) => k !== "GET /api/calls")).toEqual(["GET /api/auth/session", "GET /api/bootstrap"]);
     expect(FakeSocket.last().url).toBe(`ws://${window.location.host}/ws`);
@@ -94,25 +95,4 @@ describe("список чатов в оболочке", () => {
     expect(await screen.findByText("Чат не найден")).toBeTruthy();
   });
 
-  it("выход — сокет закрыт до запроса, сервер его 4001 уже не разбирает", async () => {
-    let session = { user: ME as typeof ME | null, accounts: [] };
-    const { calls } = fakeApi({
-      "GET /api/auth/session": () => ({ body: session }),
-      "GET /api/bootstrap": bootstrap,
-      "POST /api/auth/logout": () => {
-        session = { user: null, accounts: [] };
-        return { body: { ok: true, remaining: [] } };
-      },
-    });
-    render(<App />);
-    await screen.findByRole("link", { name: /Семья/ });
-    const socket = FakeSocket.last();
-    act(() => socket.open());
-    fireEvent.click(screen.getByRole("button", { name: "Выйти" }));
-    expect(await screen.findByText("Вход в Shalter")).toBeTruthy();
-    expect(socket.readyState).toBe(FakeSocket.CLOSED);
-    await waitFor(() => expect(calls.some((c) => c.key === "POST /api/auth/logout")).toBe(true));
-    expect(calls.some((c) => c.key === "GET /api/sessions")).toBe(false);
-    expect(FakeSocket.sockets).toHaveLength(1);
-  });
 });

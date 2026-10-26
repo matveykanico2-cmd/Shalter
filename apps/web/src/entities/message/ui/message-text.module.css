@@ -1,6 +1,6 @@
 /* Разметка текста сообщения — как .message-text, .code-block, .spoiler в public/styles/components.css. */
 .text {
-  font-size: 15px;
+  font-size: var(--messages-text, 15px);
   line-height: 1.35;
   overflow-wrap: anywhere;
   white-space: pre-wrap;

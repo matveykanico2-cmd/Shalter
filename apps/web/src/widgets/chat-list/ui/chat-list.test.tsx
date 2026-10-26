@@ -77,7 +77,7 @@ function renderList(chats: ChatSummary[], folders: ChatFolder[] = [], path = "/"
   return { client, router };
 }
 
-const titles = () => screen.queryAllByRole("link").map((a) => a.querySelector("span span span")?.textContent);
+const titles = () => screen.queryAllByRole("button", { name: /\S/ }).filter((b) => b.querySelector("span span span") && !b.textContent?.startsWith("Архив")).map((a) => a.querySelector("span span span")?.textContent);
 
 beforeEach(() => {
   seq = 0;
@@ -169,7 +169,7 @@ describe("список чатов", () => {
     const a = chat({ title: "Один" });
     const b = chat({ title: "Два" });
     renderList([a, b], [], `/chat/${b.id}`);
-    expect(screen.getByRole("link", { current: "page" }).getAttribute("href")).toBe(`/chat/${b.id}`);
+    expect(screen.getByRole("button", { current: "page" }).textContent).toContain("Два");
   });
 });
 
@@ -202,7 +202,7 @@ describe("список чатов и сокет", () => {
     await act(() => vi.advanceTimersByTimeAsync(1));
     expect(calls.map((c) => c.key).sort()).toEqual(["GET /api/chats", "GET /api/folders"]);
     await act(() => vi.advanceTimersByTimeAsync(50));
-    const row = screen.getByRole("link", { name: /Второй/ });
+    const row = screen.getByRole("button", { name: /Второй/ });
     expect(within(row).getByText("три")).toBeTruthy();
     expect(within(row).getByText("3")).toBeTruthy();
   });
@@ -214,7 +214,7 @@ describe("список чатов и сокет", () => {
     ws.start();
     act(() => FakeSocket.last().open());
 
-    const dot = () => screen.getByRole("link", { name: /Лена/ }).querySelector("[class*=online]");
+    const dot = () => screen.getByRole("button", { name: /Лена/ }).querySelector("[class*=online]");
     expect(dot()).toBeNull();
     act(() => FakeSocket.last().receive({ type: "presence:update", userId: "u_lena000000", online: true }));
     await waitFor(() => expect(dot()).toBeTruthy());
@@ -227,7 +227,7 @@ describe("список чатов и сокет", () => {
 
 describe("действия со строками", () => {
   const withMe = (client: QueryClient) => client.setQueryData(sessionQueries.current().queryKey, { user: { id: ME, name: "Аня", blockedUserIds: [] } } as never);
-  const rowOf = (title: string) => screen.getByRole("link", { name: new RegExp(title) }).parentElement!;
+  const rowOf = (title: string) => screen.getByRole("button", { name: new RegExp(title) }).parentElement!;
 
   it("меню строки: закрепить, в папку, прочитано; правая кнопка на вкладке — «Прочитать все»", async () => {
     const work = chat({ title: "Работа", unreadCount: 3 });

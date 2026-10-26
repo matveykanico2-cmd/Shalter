@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 
 import { type CallKind, type CallListItem, callQueries, useStartCall } from "@/features/call";
 
@@ -10,6 +10,7 @@ import { type Contact, ContactPicker, userQueries } from "@/entities/user";
 
 import { errorText } from "@/shared/lib/error-text";
 import { timeAgo } from "@/shared/lib/presence";
+import { useCloseSidePanel } from "@/shared/lib/side-panel";
 import { Avatar, Icon, toast } from "@/shared/ui";
 
 import styles from "./calls-view.module.css";
@@ -29,6 +30,7 @@ function durationLabel(sec: number) {
 
 function Calls({ me }: { me: SelfUser }) {
   const navigate = useNavigate();
+  const close = useCloseSidePanel();
   const start = useStartCall(me);
   const calls = useQuery(callQueries.history()).data ?? [];
   const contacts = useQuery(userQueries.contacts()).data ?? [];
@@ -56,9 +58,9 @@ function Calls({ me }: { me: SelfUser }) {
   return (
     <div className={styles.view}>
       <header className={styles.header}>
-        <Link to="/" className={styles.back} title="Назад">
+        <button type="button" className={styles.back} title="Назад" aria-label="Назад" onClick={close}>
           <Icon name="ChevronLeft" size={20} />
-        </Link>
+        </button>
         <h1 className={styles.title}>Звонки</h1>
       </header>
       <div className={styles.startPanel}>

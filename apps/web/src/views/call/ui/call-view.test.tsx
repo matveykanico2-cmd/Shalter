@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { createMemoryRouter, Link, RouterProvider } from "react-router";
+import { createMemoryRouter, Link, Outlet, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "@/widgets/app-shell";
@@ -27,7 +27,7 @@ function renderApp(path = "/") {
   const router = createMemoryRouter(
     [
       {
-        element: <AppShell user={ME} />,
+        element: <AppShell user={ME} sidebar={null} main={<Outlet />} mainOpen />,
         children: [
           { path: "/", element: <p>Список чатов</p> },
           { path: "/chat/:chatId", element: <Link to="/">чат</Link> },

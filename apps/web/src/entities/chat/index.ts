@@ -1,4 +1,4 @@
-export { openDm } from "./api/chat-api";
+export { openDm, openServiceChat } from "./api/chat-api";
 export { chatQueries } from "./api/chat-queries";
 export { chatPreview, chatTitle, hasUnread, isChatAdmin, isChatModerator, isChatMuted, isChatOwner, memberRoleLabel, sortChats, timeLabel } from "./lib/chat-list";
 export { levelBounds, levelForPoints, pointsToNextLevel } from "./lib/levels";

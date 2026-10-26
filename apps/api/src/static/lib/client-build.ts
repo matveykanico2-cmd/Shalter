@@ -28,3 +28,14 @@ export function prepareClientBuild(): boolean {
   }
   return fs.existsSync(path.join(DIST_DIR, "index.html"));
 }
+
+/** Новый клиент (этап 4): сборка apps/web, npm run build:web; SHALTER_WEB_DIST — другая папка сборки. */
+export const WEB_DIST_DIR = process.env.SHALTER_WEB_DIST ? path.resolve(process.env.SHALTER_WEB_DIST) : path.join(REPO_ROOT, "apps", "web", "dist");
+
+/** SHALTER_CLIENT=web — отдавать apps/web вместо public/ (index.html и его сборку). */
+export function useWebClient(): boolean {
+  if (process.env.SHALTER_CLIENT !== "web") return false;
+  if (fs.existsSync(path.join(WEB_DIST_DIR, "index.html"))) return true;
+  console.error("[static] SHALTER_CLIENT=web, но нет apps/web/dist — сначала npm run build:web; отдаю public/");
+  return false;
+}

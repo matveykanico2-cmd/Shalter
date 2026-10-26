@@ -126,6 +126,10 @@ export async function startServer(opts: StartOptions = {}): Promise<TestServer> 
     // отклоняются и записываются; stop() падает, если такие были.
     NODE_OPTIONS: `--require ${NET_GUARD}`,
     SHALTER_NET_GUARD_LOG: netLogFile,
+    // CLIENT=web — Nest отдаёт новый клиент (сборка apps/web/dist, npm run build:web) вместо public/;
+    // WEB_DIST — другая папка сборки (vite build --outDir …).
+    ...(process.env.CLIENT ? { SHALTER_CLIENT: process.env.CLIENT } : {}),
+    ...(process.env.WEB_DIST ? { SHALTER_WEB_DIST: process.env.WEB_DIST } : {}),
     ...opts.env,
   };
 

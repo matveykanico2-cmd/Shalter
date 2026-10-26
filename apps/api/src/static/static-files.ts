@@ -13,7 +13,7 @@ import send from "send";
 import serveStatic from "serve-static";
 import { PUBLIC_DIR } from "../common/config/paths.js";
 import { assetPacks } from "./lib/asset-packs.js";
-import { DIST_DIR } from "./lib/client-build.js";
+import { DIST_DIR, useWebClient, WEB_DIST_DIR } from "./lib/client-build.js";
 
 type Handler = (req: Request, res: Response, next: NextFunction) => void;
 
@@ -93,8 +93,11 @@ function mount(prefix: string, ...handlers: Handler[]): Handler {
 const notFound: Handler = (_req, res) => void res.sendStatus(404);
 
 export function staticFiles(useBuilt: boolean): RequestHandler {
-  const indexHtml = path.join(useBuilt ? DIST_DIR : PUBLIC_DIR, "index.html");
+  // Новый клиент: его index.html и сборка (/assets — с хешем в имени), остальное из public/ как было.
+  const web = useWebClient();
+  const indexHtml = web ? path.join(WEB_DIST_DIR, "index.html") : path.join(useBuilt ? DIST_DIR : PUBLIC_DIR, "index.html");
   const chain: Handler[] = [
+    ...(web ? [mount("/assets", serveStatic(path.join(WEB_DIST_DIR, "assets"), { index: false, maxAge: "1y", immutable: true }), notFound)] : []),
     ...(useBuilt
       ? [mount("/dist", expressStaticGzip(DIST_DIR, { enableBrotli: true, orderPreference: ["br", "gz"], serveStatic: { maxAge: "1y", immutable: true } }))]
       : []),

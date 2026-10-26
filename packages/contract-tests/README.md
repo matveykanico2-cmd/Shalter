@@ -32,6 +32,9 @@ npm run test:types        # проверка типов TypeScript в packages/c
   этом режиме) выполняет один проход в фоновом процессе, `now` в теле переводит часы
   обхода (`contract/sweeps`).
 - `TARGET=legacy` (по умолчанию) — `server/index.js`; `TARGET=nest` — каркас NestJS `apps/api` (сначала `npm run build:api`); ещё не перенесённое он отдаёт старому приложению.
+  `CLIENT=web` (только с `TARGET=nest`) — сценарии e2e идут на новом клиенте: Nest отдаёт сборку
+  `apps/web/dist` (`npm run build:web`) вместо `public/`; `WEB_DIST=<папка>` — другая сборка
+  (`vite build --outDir …`). Клиент переключается целиком, когда на нём зелёные все сценарии.
   `TEST_BASE_URL=http://…` — гнать тесты против уже запущенного сервера
   (тесты, которым нужен каталог данных, тогда пропускаются).
 - `KEEP_TEST_DATA=1` — не удалять временные папки (там же `server.log`).

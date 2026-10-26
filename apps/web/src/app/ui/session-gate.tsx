@@ -3,15 +3,14 @@ import { Navigate } from "react-router";
 
 import { SignInView } from "@/views/sign-in";
 
-import { AppShell } from "@/widgets/app-shell";
-import { ChatList } from "@/widgets/chat-list";
-
 import { type SelfUser, useSession } from "@/entities/session";
 
 import { bootstrapQuery } from "../model/bootstrap";
+import { useAppearance } from "../model/use-appearance";
 import { useMessageSounds } from "../model/use-message-sounds";
 import { useRealtime } from "../model/use-realtime";
 
+import { AppRoutes } from "./app-routes";
 import { Splash } from "./splash";
 
 /** Экраны приложения — только со входом; без него — на /login. */
@@ -35,7 +34,8 @@ function SignedIn({ user }: { user: SelfUser }) {
   useRealtime(user.id);
   useMessageSounds(user.id);
   const boot = useQuery(bootstrapQuery(client, user.id));
-  return <AppShell user={user} sidebar={boot.isPending ? null : <ChatList meId={user.id} />} />;
+  useAppearance(!boot.isPending);
+  return <AppRoutes user={user} chatsReady={!boot.isPending} />;
 }
 
 /** /login, когда вход уже есть, — сразу в приложение. */

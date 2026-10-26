@@ -1,5 +1,5 @@
 import { type PointerEvent, useRef, useState } from "react";
-import { NavLink } from "react-router";
+import { useMatch, useNavigate } from "react-router";
 
 import { useLongPress } from "@/shared/lib/use-long-press";
 import { Avatar, EmojiText, Icon } from "@/shared/ui";
@@ -63,6 +63,9 @@ export function ChatRow({ chat, meId, onMenu, onSwipe }: Props) {
     else if (dx <= -SWIPE_ACTION_PX) onSwipe?.("mute");
   };
   const swiping = shift < 0;
+  // Строка — кнопка, как в chatListItem.js: превью в ней не путается с текстом сообщений в чате.
+  const navigate = useNavigate();
+  const active = !!useMatch(`/chat/${chat.id}`);
 
   return (
     <div
@@ -88,9 +91,11 @@ export function ChatRow({ chat, meId, onMenu, onSwipe }: Props) {
           <span className={`${styles.swipeAction} ${styles.swipeArchive}`}>{chat.archived ? "Из архива" : "В архив"}</span>
         </div>
       ) : null}
-    <NavLink
-      to={`/chat/${chat.id}`}
-      className={({ isActive }) => [styles.row, isActive ? styles.active : "", onMenu ? styles.withMore : ""].filter(Boolean).join(" ")}
+    <button
+      type="button"
+      onClick={() => void navigate(`/chat/${chat.id}`)}
+      aria-current={active ? "page" : undefined}
+      className={[styles.row, active ? styles.active : "", onMenu ? styles.withMore : ""].filter(Boolean).join(" ")}
       style={shift ? { transform: `translateX(${shift}px)` } : undefined}
       draggable={false}
     >
@@ -142,7 +147,7 @@ export function ChatRow({ chat, meId, onMenu, onSwipe }: Props) {
           </span>
         </span>
       </span>
-    </NavLink>
+    </button>
       {onMenu ? (
         <button
           type="button"

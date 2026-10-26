@@ -53,12 +53,24 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
   const botUsers = useQuery({ ...botAppQueries.audience(bot?.id ?? ""), enabled: !!bot }).data?.users ?? null;
   const subtitle = chatSubtitle(chat, members, meId, typing, now, botUsers);
   return (
-    <header className={styles.header}>
+    // Шапка чата — banner, как <header> старого клиента вне <main>.
+    <header className={styles.header} role="banner">
       <Link to="/" className={styles.back} title="Назад к чатам">
         <Icon name="ChevronLeft" size={22} />
       </Link>
       {/* Нажатие на аватар и название — как .chat-header-info-btn; с клавиатуры — кнопка «i» и пункт меню. */}
-      <div className={styles.info} onClick={() => onInfo(true)}>
+      <div
+        className={styles.info}
+        role="button"
+        tabIndex={0}
+        onClick={() => onInfo(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onInfo(true);
+          }
+        }}
+      >
         {chat.isSaved ? (
           <span className={styles.saved}>
             <Icon name="Bookmark" size={20} />
