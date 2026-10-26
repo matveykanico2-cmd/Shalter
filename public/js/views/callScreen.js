@@ -9,6 +9,9 @@ import { applyVolumeToAll } from "../lib/mediaVolume.js";
 import { api } from "../api.js";
 import { getState } from "../state.js";
 import { navigate } from "../router.js";
+import { playSendPlaneAnimation } from "../components/messageBubble.js";
+import { GestureDetector, GESTURE_NAMES } from "../lib/gestureDetector.js";
+import { renderCustomScene } from "../lib/customScene.js";
 import {
   subscribeCall,
   getCallState,
@@ -127,6 +130,8 @@ export async function CallScreenView(root, callId) {
   const stripDrag = makeDraggable("shalter.callStripPos", ".call-stage-strip");
   let stripHidden = false;
   let localVideoEl = null;
+  let gestureDetector = null;
+  let gestureEffectsContainer = null;
   // Последний кадр своей камеры поверх превью, пока камера переключается
   // (как в Telegram) — вместо чёрного экрана до первого кадра новой камеры.
   let freezeEl = null;
@@ -222,10 +227,92 @@ export async function CallScreenView(root, callId) {
     document.body.appendChild(overlay);
   }
 
+  function initGestureDetector(videoEl) {
+    if (!videoEl || !videoEl.srcObject) return;
+    gestureDetector = new GestureDetector(videoEl, {
+      onGesture: (gesture) => {
+        const sceneName = GestureDetector.getSceneForGesture(gesture);
+        if (sceneName) {
+          showGestureEffect(sceneName, GESTURE_NAMES[gesture]);
+        }
+      },
+      cooldownMs: 3000,
+    });
+    gestureDetector.start().catch((err) => {
+      console.warn("[callScreen] Gesture detector failed to start:", err);
+      gestureDetector = null;
+    });
+  }
+
+  function showGestureEffect(sceneName, label) {
+    if (!gestureEffectsContainer) {
+      gestureEffectsContainer = el("div", { class: "call-gesture-effects" });
+      document.body.appendChild(gestureEffectsContainer);
+    }
+    const effectEl = el("div", { class: "call-gesture-effect" });
+    gestureEffectsContainer.appendChild(effectEl);
+
+    // Render the custom scene animation
+    const scene = renderCustomScene(null, { size: 120, replay: true });
+    // Replace with the specific scene
+    effectEl.innerHTML = "";
+    const animScene = el("div", { class: "anim-scene" });
+    effectEl.appendChild(animScene);
+
+    // Use the scene name to render the builtin scene
+    import("../lib/animScenes.js").then((mod) => {
+      if (mod.SCENES[sceneName]) {
+        const sceneData = mod.SCENES[sceneName];
+        // Create a simple emoji-based effect for now
+        const emojiMap = {
+          thumbs_pop: "👍",
+          heart_beat: "❤️",
+          clap_hands: "👏",
+          music_notes: "✌️",
+          crown_shine: "👌",
+          fire_burn: "🤘",
+        };
+        const emoji = emojiMap[sceneName] || "✨";
+        animScene.innerHTML = `<span class="scene-part" style="font-size: 80px; animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;">${emoji}</span>`;
+      }
+    });
+
+    // Show label
+    if (label) {
+      const labelEl = el("div", { class: "call-gesture-label" }, label);
+      effectEl.appendChild(labelEl);
+    }
+
+    // Animate in
+    effectEl.style.animation = "gesture-effect-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both";
+
+    // Remove after animation
+    setTimeout(() => {
+      effectEl.style.animation = "gesture-effect-out 0.3s ease-in both";
+      setTimeout(() => effectEl.remove(), 300);
+    }, 2500);
+  }
+
+  // Cleanup gesture detector when call ends
+  function cleanupGestureDetector() {
+    if (gestureDetector) {
+      gestureDetector.stop();
+      gestureDetector = null;
+    }
+    if (gestureEffectsContainer) {
+      gestureEffectsContainer.remove();
+      gestureEffectsContainer = null;
+    }
+  }
+
   function render(s) {
     if (!s || s.call.id !== callId) return;
-    if (s.minimized) return;
+    if (s.minimized) {
+      cleanupGestureDetector();
+      return;
+    }
     if (s.phase === "ended") {
+      cleanupGestureDetector();
       mount(root, el("div", { class: "call-screen ended" }, [el("p", {}, "Звонок завершён")]));
       return;
     }
@@ -412,6 +499,15 @@ export async function CallScreenView(root, callId) {
         }
         if (pipStream && localVideoEl.srcObject !== pipStream) localVideoEl.srcObject = pipStream;
         localVideoEl.classList.toggle("mirrored", !swap && !s.facingBack);
+
+        // Initialize gesture detector for local video when camera is on
+        if (s.cameraOn && ownPreview && !gestureDetector && localVideoEl.srcObject) {
+          initGestureDetector(localVideoEl);
+        } else if ((!s.cameraOn || !ownPreview) && gestureDetector) {
+          gestureDetector.stop();
+          gestureDetector = null;
+        }
+
         if (!frozen) return localVideoEl;
         if (!s.switchingCamera) releaseFreezeOnNextFrame(localVideoEl);
         return el("div", { class: "call-local-stack" }, [localVideoEl, frozen]);

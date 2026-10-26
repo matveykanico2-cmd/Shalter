@@ -41,6 +41,7 @@ const { fetchUploadToTemp, storeGeneratedFile } = require("../lib/uploadTransfer
 const { hasAdminSection } = require("../lib/adminAccess");
 const { getTopic } = require("../data/topics");
 const { serviceLine } = require("../lib/systemChat");
+const { sanitizeArticle } = require("../lib/sanitizeArticle");
 
 const { sendOnce } = require("../lib/sendOnce");
 const router = express.Router({ mergeParams: true });
@@ -437,7 +438,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0, paid = null
     id: genId("m"),
     chatId: chat.id,
     senderId,
-    type: body.sticker ? "sticker" : "text",
+    type: body.sticker ? "sticker" : body.article ? "article" : "text",
     text: body.text ?? "",
     createdAt: new Date().toISOString(),
     pinned: false,
@@ -450,6 +451,7 @@ async function deliverMessage(chat, senderId, body, { paidStars = 0, paid = null
     attachments: paid ? [paid.placeholder] : markPendingPreviews(sanitizeAttachments(body.attachments)),
     forwardedFrom,
     sticker: sanitizeSticker(body.sticker),
+    article: body.article ? sanitizeArticle(body.article) : undefined,
     customEmoji: sanitizeMessageEmoji(body.customEmoji),
     readByIds: [senderId],
     paidStars,

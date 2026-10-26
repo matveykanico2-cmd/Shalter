@@ -275,6 +275,25 @@ function StickerBody(message) {
   ]);
 }
 
+function ArticleBody(message) {
+  const article = message.article;
+  const isNew = !seenEntranceIds.has(message.id);
+  seenEntranceIds.add(message.id);
+  const cover = article.cover ? el("img", { class: "article-cover", src: article.cover, alt: "", loading: "lazy" }) : null;
+  return el("div", { class: `article-message ${isNew ? "" : "no-entrance"}` }, [
+    cover,
+    el("div", { class: "article-content" }, [
+      article.title ? el("h2", { class: "article-title" }, article.title) : null,
+      el("div", { class: "article-text" }, formatText(article.text ?? "", null, article.customEmoji)),
+      article.url ? el("a", { class: "article-link", href: article.url, target: "_blank", rel: "noopener" }, "Читать полностью →") : null,
+    ]),
+    el("div", { class: "article-meta" }, [
+      el("span", { class: "article-badge" }, "⭐ Premium"),
+      el("span", { class: "mono" }, timeLabel(message.createdAt)),
+    ]),
+  ]);
+}
+
 const REASON_LABELS = {
   spam: "Спам",
   scam: "Мошенничество",
@@ -1015,6 +1034,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   }
 
   const isSticker = message.type === "sticker" && !!message.sticker;
+  const isArticle = message.type === "article" && !!message.article;
   const isCallLog = isCallLogMessage(message);
   const isVideoNote =
     !message.text?.trim() && message.attachments?.length === 1 && message.attachments[0]?.kind === "video-note";
@@ -1106,6 +1126,8 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
     bubbleInner.push(CallBubble(message, mine, handlers.onCallBack));
   } else if (isSticker) {
     bubbleInner.push(StickerBody(message));
+  } else if (isArticle) {
+    bubbleInner.push(ArticleBody(message));
   } else if (mediaOnly) {
     // Фото/видео без подписи: пустой строки текста нет, время лежит поверх медиа (как в tweb).
   } else if (!isGift && !message.attachments?.some((a) => a.kind === "poll" || a.kind === "checklist")) {

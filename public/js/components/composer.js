@@ -17,6 +17,7 @@ import { openMemeDialog } from "./memeDialog.js";
 import { openPaintDialog } from "./paintDialog.js";
 import { openContactPickerDialog } from "./contactPickerDialog.js";
 import { openScheduleSendDialog } from "./scheduleSendDialog.js";
+import { openArticleEditor } from "./articleEditor.js";
 import { STICKERS, DRAWN_STICKERS, renderSticker } from "../lib/stickers.js";
 import { openStickerPackDialog } from "./stickerPackDialog.js";
 import { EMOJI_GROUPS } from "../lib/emojiList.js";
@@ -1031,6 +1032,19 @@ export function Composer({
             openChecklistDialog((title, items, opts) => {
               onSend(title, [{ kind: "checklist", meta: { items: items.map((text, i) => ({ id: i + 1, text })), ...opts } }]);
             }),
+        },
+        {
+          icon: "FileText",
+          label: "Статья (Premium)",
+          color: "amber",
+          run: () => {
+            const me = getState().user;
+            if (!me?.isPremium) {
+              showToast("Создание статей доступно только Premium", { error: true });
+              return;
+            }
+            openArticleEditor({ chatId, onSend: (article) => onSend("", [], { article }) });
+          },
         },
         {
           icon: "Smile",
