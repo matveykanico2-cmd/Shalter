@@ -18,6 +18,10 @@ const FIELDS = [
   "approveJoins",
   "signMessages",
   "anonymousAdmins",
+  "commentsOff",
+  "allowedReactions",
+  "linkedDiscussionChatId",
+  "commentPriceStars",
   "permissions",
   "slowModeSeconds",
   "welcomeText",
@@ -30,3 +34,7 @@ const FIELDS = [
 export function chatSettingsPatch(updated: Chat): Partial<ChatSummary> {
   return Object.fromEntries(FIELDS.map((k) => [k, updated[k]])) as Partial<ChatSummary>;
 }
+
+/** Реакции, разрешённые под постами канала, или null — любые. */
+export const allowedReactions = (chat: ChatSummary) =>
+  Array.isArray(chat.allowedReactions) ? chat.allowedReactions.filter((e): e is string => typeof e === "string") : null;

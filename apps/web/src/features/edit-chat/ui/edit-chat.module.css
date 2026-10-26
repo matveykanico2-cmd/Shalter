@@ -288,3 +288,63 @@
 .save {
   width: 100%;
 }
+
+.dangerRow {
+  color: var(--color-danger);
+}
+
+.inlineButton {
+  align-self: flex-start;
+}
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 8px;
+}
+
+.reaction {
+  padding: 5px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: none;
+  font-size: 17px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.reaction:hover {
+  background: rgba(128, 128, 128, 0.16);
+}
+
+.reactionOn {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+.pickList {
+  display: flex;
+  max-height: 60vh;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.pickList .person {
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pickList .person:hover {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
+.log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

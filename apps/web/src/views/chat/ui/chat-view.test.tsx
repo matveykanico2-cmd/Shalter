@@ -1723,6 +1723,25 @@ describe("информация о чате", () => {
         }),
         "GET /api/chats/c_1/banned": { body: { users: [{ ...OLYA, id: "u_bad000000", name: "Спамер", username: undefined }] } },
         "POST /api/chats/c_1/members": () => reply({ bannedIds: [] }),
+        "POST /api/chats/c_1/reactions": (body) => reply({ allowedReactions: body.reactions as string[] | null }),
+        "POST /api/chats/c_1/discussion": (body) => {
+          const discussion = body.action === "unlink" ? null : { ...chat({ id: "c_talk", title: "Семья · Обсуждение" }) };
+          return { body: { ...reply({ linkedDiscussionChatId: discussion?.id }).body, discussion } };
+        },
+        "POST /api/chats/c_1/comment-price": (body) => ({ body: { ...reply({ commentPriceStars: Number(body.stars) }).body, commentPriceStars: Number(body.stars) } }),
+        "GET /api/chats/c_1/admin-log": {
+          body: {
+            entries: Array.from({ length: 100 }, (_, i) =>
+              i === 0
+                ? { id: 200, actorId: ME.id, action: "slow_mode", details: { seconds: 300 }, createdAt: "2026-10-25T10:00:00.000Z" }
+                : { id: 200 - i, actorId: ME.id, action: "member_ban", targetId: OLYA.id, createdAt: "2026-10-25T09:00:00.000Z" }
+            ),
+            users: [ME, OLYA],
+          },
+        },
+        "GET /api/chats/c_1/admin-log?beforeId=101": {
+          body: { entries: [{ id: 1, actorId: LENA.id, action: "chat_title", details: { value: "Семья" }, createdAt: "2026-10-20T10:00:00.000Z" }], users: [LENA] },
+        },
         "GET /api/chats/c_1/features": {
           body: {
             colors: [
@@ -1831,6 +1850,81 @@ describe("информация о чате", () => {
       fireEvent.click(within(panel).getByTitle("Назад"));
       fireEvent.click(within(panel).getByTitle("Назад"));
       expect(screen.getByRole("complementary", { name: "Информация о чате" })).toBeTruthy();
+    });
+
+    it("недавние действия — страницами", async () => {
+      const group = chat({ ownerId: ME.id });
+      server(group);
+      renderChat(group);
+      const panel = await openEditor();
+      nav(panel, /Недавние действия/);
+      const log = await within(panel).findByRole("list", { name: "Недавние действия" });
+      expect(within(log).getAllByRole("listitem")[0]!.textContent).toContain(`${ME.name} включил(а) медленный режим: 5 мин`);
+      expect(within(log).getAllByText(/заблокировал\(а\) Оля/)).toHaveLength(99);
+      fireEvent.click(within(panel).getByRole("button", { name: "Показать ещё" }));
+      expect(await within(log).findByText(/изменил\(а\) название на «Семья»/)).toBeTruthy();
+      expect(within(panel).queryByRole("button", { name: "Показать ещё" })).toBeNull();
+    });
+
+    describe("канал", () => {
+      const channel = (patch: Partial<ChatSummary> = {}) => chat({ type: "channel", ownerId: ME.id, ...patch });
+      const openChannelEditor = () => {
+        fireEvent.click(within(openInfo()).getByRole("button", { name: "Редактировать канал" }));
+        return screen.getByRole("complementary", { name: "Изменить канал" });
+      };
+
+      it("реакции: все или только выбранные", async () => {
+        const { calls } = server(channel());
+        renderChat(channel());
+        const panel = openChannelEditor();
+        expect(within(panel).queryByRole("button", { name: /Права участников/ })).toBeNull();
+        nav(panel, /Реакции.*Все/);
+        fireEvent.click(within(panel).getByRole("radio", { name: "Только выбранные" }));
+        await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/reactions").map((c) => c.body)).toEqual([{ reactions: [] }]));
+        fireEvent.click(within(panel).getByRole("button", { name: "👍" }));
+        expect(within(panel).getByRole("button", { name: "👍" }).getAttribute("aria-pressed")).toBe("true");
+        expect(within(panel).getByText("Разрешено: 1")).toBeTruthy();
+        await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/reactions").at(-1)?.body).toEqual({ reactions: ["👍"] }));
+        fireEvent.click(within(panel).getByTitle("Назад"));
+        expect(await within(panel).findByRole("button", { name: /Реакции.*1/ })).toBeTruthy();
+
+        nav(panel, /Реакции/);
+        fireEvent.click(within(panel).getByRole("radio", { name: "Все реакции" }));
+        await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/reactions").at(-1)?.body).toEqual({ reactions: null }));
+      });
+
+      it("комментарии: переключатель создаёт обсуждение, цена и отключение", async () => {
+        const { calls } = server(channel());
+        renderChat(channel());
+        const panel = openChannelEditor();
+        const comments = within(panel).getByRole("switch", { name: /Комментарии.*Включение создаст группу обсуждения/ });
+        expect(comments.getAttribute("aria-checked")).toBe("false");
+        fireEvent.click(comments);
+        expect(await screen.findByText("Комментарии включены")).toBeTruthy();
+        expect(comments.getAttribute("aria-checked")).toBe("true");
+        expect(calls.find((c) => c.key === "POST /api/chats/c_1/discussion")?.body).toEqual({ action: "create" });
+        expect(calls.find((c) => c.key === "POST /api/chats/c_1/settings")?.body).toEqual({ commentsOff: false });
+        fireEvent.click(comments);
+        await waitFor(() => expect(comments.getAttribute("aria-checked")).toBe("false"));
+        expect(within(panel).getByRole("switch", { name: /Под постами комментариев нет/ })).toBeTruthy();
+
+        nav(panel, /Обсуждение.*Вкл/);
+        expect(within(panel).queryByRole("button", { name: "Создать группу обсуждения" })).toBeNull();
+        fireEvent.click(within(panel).getByRole("button", { name: "Выбрать другую группу" }));
+        const picker = screen.getByRole("dialog", { name: "Какую группу связать с каналом" });
+        expect(within(picker).getByText("У вас пока нет групп — создайте её, и она появится здесь")).toBeTruthy();
+        fireEvent.click(within(picker).getByRole("button", { name: "Отмена" }));
+
+        fireEvent.change(within(panel).getByRole("spinbutton", { name: /Звёзд за комментарий/ }), { target: { value: "15" } });
+        fireEvent.click(within(panel).getByRole("button", { name: "Сохранить цену" }));
+        expect(await screen.findByText("Комментарии стоят 15 ⭐")).toBeTruthy();
+        expect(calls.find((c) => c.key === "POST /api/chats/c_1/comment-price")?.body).toEqual({ stars: 15 });
+
+        fireEvent.click(within(panel).getByRole("button", { name: "Отключить комментарии" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Да" }));
+        expect(await within(panel).findByRole("button", { name: "Создать группу обсуждения" })).toBeTruthy();
+        expect(calls.filter((c) => c.key === "POST /api/chats/c_1/discussion").at(-1)?.body).toEqual({ action: "unlink" });
+      });
     });
 
     it("не админу редактировать нечего", async () => {

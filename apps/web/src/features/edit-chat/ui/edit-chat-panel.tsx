@@ -1,21 +1,23 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
-import type { ChatSummary } from "@/entities/chat";
+import { chatQueries, type ChatSummary } from "@/entities/chat";
 
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageDataUrl } from "@/shared/lib/image";
 import { Avatar, Button, Icon, TextField, toast } from "@/shared/ui";
 
-import { type ChatProfilePatch, editChatQueries, patchChatProfile } from "../api/edit-chat";
+import { type ChatProfilePatch, editChatQueries, patchChatProfile, setChatDiscussion } from "../api/edit-chat";
+import { allowedReactions } from "../lib/chat-fields";
 import { useApplyChat } from "../model/use-apply-chat";
 import { useSaveSetting } from "../model/use-save-setting";
 
+import { AdminLogPage, DiscussionPage, ReactionsPage } from "./channel-pages";
 import styles from "./edit-chat.module.css";
 import { BannedPage, InvitePage, PermissionsPage, RequestsPage, TypePage, WelcomePage } from "./pages";
 import { NavRow, Section, ToggleRow } from "./parts";
 
-type Page = "main" | "type" | "invite" | "permissions" | "welcome" | "requests" | "banned";
+type Page = "main" | "type" | "invite" | "permissions" | "welcome" | "requests" | "banned" | "reactions" | "discussion" | "log";
 
 const TITLES: Record<Exclude<Page, "main" | "type">, string> = {
   invite: "Пригласительные ссылки",
@@ -23,6 +25,9 @@ const TITLES: Record<Exclude<Page, "main" | "type">, string> = {
   welcome: "Приветствие",
   requests: "Заявки на вступление",
   banned: "Заблокированные",
+  reactions: "Реакции",
+  discussion: "Обсуждение",
+  log: "Недавние действия",
 };
 
 type Props = { chat: ChatSummary; onClose: () => void };
@@ -54,6 +59,9 @@ export function EditChatPanel({ chat, onClose }: Props) {
         {page === "welcome" ? <WelcomePage {...props} /> : null}
         {page === "requests" ? <RequestsPage {...props} /> : null}
         {page === "banned" ? <BannedPage {...props} /> : null}
+        {page === "reactions" ? <ReactionsPage chat={chat} /> : null}
+        {page === "discussion" ? <DiscussionPage chat={chat} /> : null}
+        {page === "log" ? <AdminLogPage chat={chat} /> : null}
       </div>
     </>
   );
@@ -75,6 +83,21 @@ function MainPage({ chat, onOpen, onDone }: { chat: ChatSummary; onOpen: (p: Pag
   const requests = useQuery(editChatQueries.joinRequests(chat.id)).data;
   const banned = useQuery(editChatQueries.banned(chat.id)).data;
   const colors = useQuery(editChatQueries.colors(chat.id)).data;
+  const reactions = allowedReactions(chat);
+  const client = useQueryClient();
+
+  const toggleComments = async (on: boolean) => {
+    if (on && !chat.linkedDiscussionChatId) {
+      try {
+        apply((await setChatDiscussion(chat.id, "create")).chat);
+        void client.invalidateQueries({ queryKey: chatQueries.list().queryKey });
+      } catch (err) {
+        toast(errorText(err, "Не удалось включить комментарии"), { error: true });
+        return;
+      }
+    }
+    if (await saveSetting({ commentsOff: !on })) toast(on ? "Комментарии включены" : "Комментарии отключены");
+  };
 
   const pickAvatar = async (file: File | undefined) => {
     if (!file) return;
@@ -156,17 +179,36 @@ function MainPage({ chat, onOpen, onDone }: { chat: ChatSummary; onOpen: (p: Pag
       <Section>
         <NavRow icon={isChannel ? "Send" : "Users"} color="blue" title={isChannel ? "Тип канала" : "Тип группы"} right={chat.isPublic ? "Публичный" : "Частный"} onClick={() => onOpen("type")} />
         <NavRow icon="Link" color="orange" title="Пригласительные ссылки" right={chat.approveJoins ? "по заявкам" : null} onClick={() => onOpen("invite")} />
-        {!isChannel && permissions ? (
+        {isChannel ? (
+          <NavRow icon="Smile" color="pink" title="Реакции" right={reactions ? String(reactions.length) : "Все"} onClick={() => onOpen("reactions")} />
+        ) : permissions ? (
           <NavRow icon="Lock" color="purple" title="Права участников" right={chat.slowModeSeconds ? "медленный режим" : null} onClick={() => onOpen("permissions")} />
         ) : null}
-        {!isChannel ? <NavRow icon="MessageSquare" color="green" title="Приветствие" right={chat.welcomeText ? "Вкл." : "Выкл."} onClick={() => onOpen("welcome")} /> : null}
+        {isChannel ? (
+          <NavRow icon="MessageSquare" color="green" title="Обсуждение" right={chat.linkedDiscussionChatId ? "Вкл." : "Выкл."} onClick={() => onOpen("discussion")} />
+        ) : (
+          <NavRow icon="MessageSquare" color="green" title="Приветствие" right={chat.welcomeText ? "Вкл." : "Выкл."} onClick={() => onOpen("welcome")} />
+        )}
       </Section>
       <Section>
         {isChannel ? (
           <ToggleRow title="Подписывать посты" subtitle="Под постом будет имя автора" checked={!!chat.signMessages} onChange={(v) => void saveSetting({ signMessages: v })} />
         ) : null}
+        {/* Комментарии одним переключателем: группа обсуждения при выключении остаётся
+            привязанной со всей перепиской — включить обратно можно тут же. */}
+        {isChannel ? (
+          <ToggleRow
+            title="Комментарии"
+            subtitle={
+              !chat.linkedDiscussionChatId ? "Включение создаст группу обсуждения" : chat.commentsOff ? "Под постами комментариев нет" : "Под постами можно оставлять комментарии"
+            }
+            checked={!!chat.linkedDiscussionChatId && !chat.commentsOff}
+            onChange={(v) => void toggleComments(v)}
+          />
+        ) : null}
         <NavRow icon="User" color="blue" title="Заявки на вступление" right={requests?.length ? String(requests.length) : null} onClick={() => onOpen("requests")} />
         <NavRow icon="Shield" color="red" title="Заблокированные" right={banned?.length ? String(banned.length) : null} onClick={() => onOpen("banned")} />
+        <NavRow icon="Clock" color="grey" title="Недавние действия" onClick={() => onOpen("log")} />
       </Section>
       {colors?.length ? (
         <Section name="Цвет" caption="Новые цвета открываются с уровнями бустов.">
