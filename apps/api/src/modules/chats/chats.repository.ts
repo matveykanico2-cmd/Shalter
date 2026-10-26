@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Injectable } from "@nestjs/common";
-import { and, asc, eq, getTableColumns, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, count, eq, getTableColumns, inArray, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { newSecretChatKey } from "../../legacy/legacy.js";
 import { InjectDb, type Db } from "../db/db.module.js";
@@ -36,6 +36,17 @@ function parseDevices(json: string | null): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+// deviceId undefined — все чаты; иначе без секретных, привязанных у userId к другому
+// устройству (null — к любому).
+function visibleOnDevice<T extends Pick<ChatRow, "secret" | "secretDevices">>(rows: T[], userId: string, deviceId: string | null | undefined): T[] {
+  if (deviceId === undefined) return rows;
+  const hash = deviceId ? deviceHash(deviceId) : null;
+  return rows.filter((r) => {
+    const bound = r.secret ? (parseDevices(r.secretDevices)[userId] ?? null) : null;
+    return !bound || bound === hash;
+  });
 }
 
 // Чаты — то же, что server/data/chats.js, на тех же таблицах: chats и участники с ролями
@@ -134,15 +145,35 @@ export class ChatsRepository {
       .innerJoin(chatMembers, eq(chatMembers.chatId, chats.id))
       .where(eq(chatMembers.userId, userId))
       .all();
-    const visible =
-      deviceId === undefined
-        ? rows
-        : rows.filter((r) => {
-            const bound = r.secret ? (parseDevices(r.secretDevices)[userId] ?? null) : null;
-            return !bound || bound === (deviceId ? deviceHash(deviceId) : null);
-          });
+    const visible = visibleOnDevice(rows, userId, deviceId);
     const byChat = this.membersByChat(visible.map((r) => r.id));
     return visible.map((r) => toChat(r, byChat.get(r.id) ?? []));
+  }
+
+  /**
+   * Чаты для списка (GET /api/chats, /api/bootstrap) — как findForUser, но у каналов, где
+   * пользователь не владелец и не админ, всех подписчиков не загружает: наружу у такого канала
+   * уходят только сам пользователь и число подписчиков (chatForViewer), а у большого канала это
+   * десятки тысяч строк на каждый запрос списка. Берутся только владельцы, админы, модераторы
+   * и сам пользователь, membersCount — подсчётом.
+   */
+  public findListForUser(userId: string, deviceId: string | null): Chat[] {
+    const rows = this.db
+      .select({ ...getTableColumns(chats), myAdmin: chatMembers.isAdmin, myOwner: chatMembers.isOwner })
+      .from(chats)
+      .innerJoin(chatMembers, eq(chatMembers.chatId, chats.id))
+      .where(eq(chatMembers.userId, userId))
+      .all();
+    const visible = visibleOnDevice(rows, userId, deviceId);
+    const hidesMembers = (r: (typeof rows)[number]) => r.type === "channel" && r.ownerId !== userId && !r.myOwner && !r.myAdmin;
+    const full = visible.filter((r) => !hidesMembers(r)).map((r) => r.id);
+    const reduced = visible.filter(hidesMembers).map((r) => r.id);
+    const byChat = this.membersByChat(full);
+    const staff = this.membersByChat(reduced, userId);
+    const counts = this.countMembers(reduced);
+    return visible.map(({ myAdmin: _a, myOwner: _o, ...r }) =>
+      counts.has(r.id) ? { ...toChat(r, staff.get(r.id) ?? []), membersCount: counts.get(r.id) ?? 0 } : toChat(r, byChat.get(r.id) ?? [])
+    );
   }
 
   /**
@@ -322,14 +353,20 @@ export class ChatsRepository {
     });
   }
 
-  // Участники всех чатов одним запросом на 500 чатов, а не запросом на каждый.
-  private membersByChat(ids: string[]): Map<string, ChatMember[]> {
+  // Участники всех чатов одним запросом на 500 чатов, а не запросом на каждый. С staffAnd —
+  // только владельцы, админы, модераторы и этот пользователь.
+  private membersByChat(ids: string[], staffAnd?: string): Map<string, ChatMember[]> {
     const byChat = new Map<string, ChatMember[]>();
     for (let i = 0; i < ids.length; i += MEMBERS_CHUNK) {
+      const inChats = inArray(chatMembers.chatId, ids.slice(i, i + MEMBERS_CHUNK));
       const rows = this.db
         .select({ chatId: chatMembers.chatId, ...MEMBER_COLUMNS })
         .from(chatMembers)
-        .where(inArray(chatMembers.chatId, ids.slice(i, i + MEMBERS_CHUNK)))
+        .where(
+          staffAnd === undefined
+            ? inChats
+            : and(inChats, or(eq(chatMembers.isOwner, 1), eq(chatMembers.isAdmin, 1), eq(chatMembers.isModerator, 1), eq(chatMembers.userId, staffAnd)))
+        )
         .all();
       for (const { chatId, ...m } of rows) {
         let list = byChat.get(chatId);
@@ -338,6 +375,21 @@ export class ChatsRepository {
       }
     }
     return byChat;
+  }
+
+  // Число участников по чатам, по 500 чатов за запрос.
+  private countMembers(ids: string[]): Map<string, number> {
+    const counts = new Map<string, number>();
+    for (let i = 0; i < ids.length; i += MEMBERS_CHUNK) {
+      const rows = this.db
+        .select({ chatId: chatMembers.chatId, n: count() })
+        .from(chatMembers)
+        .where(inArray(chatMembers.chatId, ids.slice(i, i + MEMBERS_CHUNK)))
+        .groupBy(chatMembers.chatId)
+        .all();
+      for (const { chatId, n } of rows) counts.set(chatId, n);
+    }
+    return counts;
   }
 
   private toChat(row: ChatRow | undefined): Chat | undefined {

@@ -172,6 +172,18 @@ describe("чат совпадает с server/data/chats.js", () => {
     expect(asJson(repo.findChannelByDiscussion("c_group"))).toEqual(lookups.channelOfGroup);
   });
 
+  it("список без подписчиков чужих каналов отдаёт наружу то же, что listChatsForUser", () => {
+    const { shapeBodyForViewer } = createRequire(path.join(REPO_ROOT, "server", "db.js"))("./lib/chatForViewer.js") as {
+      shapeBodyForViewer: (body: unknown, uid: string) => unknown;
+    };
+    const shaped = (chats: unknown, uid: string) => asJson(shapeBodyForViewer({ chats }, uid));
+    const { lookups } = seeded;
+    // u_b в c_channel — простой подписчик, u_a — владелец.
+    expect(shaped(repo.findListForUser("u_b", null), "u_b")).toEqual(shaped(lookups.forBNoDevice, "u_b"));
+    expect(shaped(repo.findListForUser("u_a", "dev-a"), "u_a")).toEqual(shaped(lookups.forAOnDevA, "u_a"));
+    expect(shaped(repo.findListForUser("u_a", "dev-x"), "u_a")).toEqual(shaped(lookups.forAOnOther, "u_a"));
+  });
+
   it("правка пишет те же строки, что updateChat", () => {
     repo.update("c_w2", PATCH);
     expect(rowOf("c_w2")).toEqual(rowOf("c_w1"));

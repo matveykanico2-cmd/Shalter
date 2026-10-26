@@ -18,7 +18,7 @@ export class BootstrapService {
   /** Настройки, чаты со сводками без скрытых (как GET /api/chats), папки и id контактов. */
   public async load(uid: string, deviceId: string | null) {
     const settings = this.userSettings.get(uid);
-    const chats = this.chats.findForUser(uid, deviceId);
+    const chats = this.chats.findListForUser(uid, deviceId);
     const folders = this.folders.findForOwner(uid);
     const contactIds = this.contacts.findForOwner(uid).map((c) => c.userId);
     const summary = chatSummary();

@@ -53,7 +53,7 @@ export class ChatsService {
   ) {}
 
   public async list(uid: string, deviceId: string | null) {
-    const chats = this.chats.findForUser(uid, deviceId);
+    const chats = this.chats.findListForUser(uid, deviceId);
     const { hiddenChats } = this.userSettings.get(uid);
     const summary = chatSummary();
     return { chats: summary.withoutHidden(await summary.attachSummaries(chats, uid), hiddenChats) };
