@@ -56,6 +56,8 @@ function removeSplash() {
   // Letters land (~0.6s from start), then fly back out and splash fades.
   const wait = firstThisSession && !reduced ? Math.max(0, 600 - (Date.now() - (window.__splashStart || Date.now()))) : 0;
   const hide = () => {
+    const ring = splash.querySelector("svg.bs-spinner-ring");
+    if (ring) ring.style.animation = "none";
     splash.classList.add("boot-splash-hidden");
     setTimeout(() => splash.remove(), 300);
   };
