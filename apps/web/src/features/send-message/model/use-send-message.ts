@@ -5,8 +5,10 @@ import { useCallback } from "react";
 
 import { chatCache } from "@/entities/chat";
 import { historyCache, type Message, messageQueries } from "@/entities/message";
+import { settingsQueries } from "@/entities/settings";
 
 import type { Sticker } from "@/shared/lib/anim";
+import { playSentSound } from "@/shared/lib/media/sounds";
 
 import { type OutgoingAttachment, sendComment, sendMessage, type SendOptions } from "../api/send-message";
 import { retryOffline } from "../lib/retry-offline";
@@ -62,6 +64,8 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
           sendMessage(chatId, { text, replyToId: replyTo?.id ?? null, clientId: localId, attachments, sticker, ...(topic ? { topicId: topic } : {}), ...options }, channel)
         );
         historyCache.confirmPending(client, chatId, localId, message);
+        // «Отправлено» — если звук в настройках не выключен (playSentSound в chatView.js).
+        if ((client.getQueryData(settingsQueries.current().queryKey)?.notifications as { sound?: boolean } | undefined)?.sound !== false) playSentSound();
         chatCache.noteMessage(client, chatId, message);
         return message;
       } catch (err) {

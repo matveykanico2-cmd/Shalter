@@ -9,6 +9,7 @@ import { ChatList } from "@/widgets/chat-list";
 import { type SelfUser, useSession } from "@/entities/session";
 
 import { bootstrapQuery } from "../model/bootstrap";
+import { useMessageSounds } from "../model/use-message-sounds";
 import { useRealtime } from "../model/use-realtime";
 
 import { Splash } from "./splash";
@@ -32,6 +33,7 @@ export function RequireSession() {
 function SignedIn({ user }: { user: SelfUser }) {
   const client = useQueryClient();
   useRealtime(user.id);
+  useMessageSounds(user.id);
   const boot = useQuery(bootstrapQuery(client, user.id));
   return <AppShell user={user} sidebar={boot.isPending ? null : <ChatList meId={user.id} />} />;
 }
