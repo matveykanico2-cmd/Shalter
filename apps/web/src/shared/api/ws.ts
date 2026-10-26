@@ -2,6 +2,7 @@
 // { type, … }, ping раз в 20 с и переподключение с нарастающей паузой. Сервер закрывает
 // сокет кодом 4001, когда сеанс этого устройства завершён, — тогда причину выясняем по HTTP.
 import type { wsChatDeleted, wsTypingUpdate } from "@shalter/shared/schemas/bots";
+import type { wsLiveEnded, wsLiveMessage, wsLiveMessageDeleted, wsLiveMessageUpdated, wsLiveSignal, wsLiveStarted, wsLiveState } from "@shalter/shared/schemas/live";
 import type { wsMessageDeleted, wsMessageNew, wsMessageRead, wsMessageUpdated, wsThreadMessage } from "@shalter/shared/schemas/messages";
 import type { wsTopicsUpdated } from "@shalter/shared/schemas/topics";
 import type { aiState, callAnswered, callIncoming, callParticipantsUpdated, callSignal, callUpdated, chatAdded, chatJoinDeclined, chatUpdated, communityUpdated, contactUpdated, presenceUpdate, voicechatUpdated } from "@shalter/shared/schemas/ws";
@@ -41,6 +42,15 @@ export type WsEvents = {
   "call:signal": Of<typeof callSignal>;
   /** Голосовой чат группы начался, сменились участники или закончился (call: null). */
   "voicechat:updated": Of<typeof voicechatUpdated>;
+  /** Эфир в чате начался или закончился. */
+  "live:started": Of<typeof wsLiveStarted>;
+  "live:ended": Of<typeof wsLiveEnded>;
+  /** Эфир: сменились участники, чат эфира, сигнал WebRTC. */
+  "live:state": Of<typeof wsLiveState>;
+  "live:message": Of<typeof wsLiveMessage>;
+  "live:message-updated": Of<typeof wsLiveMessageUpdated>;
+  "live:message-deleted": Of<typeof wsLiveMessageDeleted>;
+  "live:signal": Of<typeof wsLiveSignal>;
   /** Сокет (пере)открылся: пока его не было, события могли потеряться. */
   "ws:reconnected": { type: "ws:reconnected" };
   /** Сменился статус сокета (ws.status()) — для заголовка «Соединение…». */

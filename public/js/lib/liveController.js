@@ -107,7 +107,10 @@ function dropPeer(userId) {
 }
 
 async function handleSignal(msg) {
-  if (!state || msg.streamId !== state.stream.id) return;
+  const s = state;
+  if (!s || msg.streamId !== s.stream.id) return;
+  await s.ready;
+  if (state !== s) return;
   const from = msg.fromUserId;
   try {
     if (msg.kind === "offer") {
@@ -238,6 +241,7 @@ export async function joinLive(streamId) {
   if (state) await leaveLive();
 
   const me = getState().user;
+  let markReady;
   state = {
     me,
     stream: { id: streamId },
@@ -255,9 +259,20 @@ export async function joinLive(streamId) {
     ingest: null,
     error: null,
     unsubs: [],
+    ready: new Promise((resolve) => (markReady = resolve)),
   };
+  const mine = state;
+  // Сигналы — сразу: ведущий шлёт offer, как только мы вошли, а камера и ICE ещё не готовы
+  // (раньше такой offer терялся и зритель видел чёрный экран). Ждут готовности в handleSignal.
+  state.unsubs.push(onWsMessage("live:signal", handleSignal));
 
-  const data = await api.joinLive(streamId);
+  let data;
+  try {
+    data = await api.joinLive(streamId);
+  } catch (err) {
+    if (state === mine) teardown();
+    throw err;
+  }
   state.stream = data.stream;
   if (data.ingest) state.ingest = data.ingest;
   state.participants = data.participants;
@@ -267,8 +282,7 @@ export async function joinLive(streamId) {
   state.camStream = await acquireMedia();
   composeLocalStream();
   applyMuteFlags();
-
-  state.unsubs.push(onWsMessage("live:signal", handleSignal));
+  markReady();
   state.unsubs.push(
     onWsMessage("live:state", async (msg) => {
       if (!state || msg.streamId !== state.stream.id) return;

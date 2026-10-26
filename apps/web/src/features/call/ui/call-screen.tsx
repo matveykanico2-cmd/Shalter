@@ -3,7 +3,7 @@ import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { ContactPicker } from "@/entities/user";
 
 import { errorText } from "@/shared/lib/error-text";
-import { askConfirm, Avatar, Icon, Menu, type MenuItem, toast, VolumeControl } from "@/shared/ui";
+import { askConfirm, Avatar, Icon, Menu, type MenuItem, StreamVideo, toast, VolumeControl } from "@/shared/ui";
 
 import { callApi, type CallPeer } from "../api/call-api";
 import { formatElapsed } from "../lib/format";
@@ -11,7 +11,6 @@ import { addParticipant, type CallState, createInviteLink, flipCamera, hangup, t
 
 import styles from "./call-screen.module.css";
 import { InviteDialog } from "./invite-dialog";
-import { StreamVideo } from "./stream-media";
 import { useDraggable } from "./use-draggable";
 
 type Props = {

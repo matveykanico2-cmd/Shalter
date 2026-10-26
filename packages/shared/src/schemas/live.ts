@@ -64,3 +64,14 @@ export const liveLeaveBody = z.strictObject({ ok: z.literal(true), ended: z.lite
 export const liveStopBody = z.strictObject({ stream: liveStream });
 /** POST /:id/messages — без editedAt; PATCH — с editedAt. */
 export const liveMessageBody = z.strictObject({ message: liveMessage });
+
+/** События сокета: эфир начался и закончился — участникам чата; остальное — участникам эфира. */
+export const wsLiveStarted = z.strictObject({ type: z.literal("live:started"), chatId: z.string(), stream: liveStream });
+export const wsLiveEnded = z.strictObject({ type: z.literal("live:ended"), chatId: z.string(), streamId: liveStreamId });
+/** Сменились участники или роли — перечитать GET /:id. */
+export const wsLiveState = z.strictObject({ type: z.literal("live:state"), streamId: liveStreamId });
+export const wsLiveMessage = z.strictObject({ type: z.literal("live:message"), streamId: liveStreamId, message: liveMessage });
+export const wsLiveMessageUpdated = z.strictObject({ type: z.literal("live:message-updated"), streamId: liveStreamId, message: liveMessage });
+export const wsLiveMessageDeleted = z.strictObject({ type: z.literal("live:message-deleted"), streamId: liveStreamId, messageId: liveMessageId });
+/** Сигнал WebRTC от участника эфира (offer, answer, ice). */
+export const wsLiveSignal = z.strictObject({ type: z.literal("live:signal"), streamId: liveStreamId, fromUserId: z.string(), kind: z.string(), data: z.unknown() });

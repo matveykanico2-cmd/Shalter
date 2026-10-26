@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link, Outlet, useLocation, useMatch } from "react-router";
 
 import { CallDock, IncomingCall } from "@/features/call";
+import { LiveHost } from "@/features/live";
 import { SignOutButton } from "@/features/sign-out";
 
 import type { SelfUser } from "@/entities/session";
@@ -39,6 +40,8 @@ export function AppShell({ user, sidebar }: Props) {
       {/* Звонок живёт вне экранов: звук собеседника, пузырь свёрнутого звонка, входящий. */}
       <CallDock />
       <IncomingCall me={user} />
+      {/* Эфир — поверх всего, как overlay в public/js/components/liveScreen.js. */}
+      <LiveHost me={user} />
     </div>
   );
 }

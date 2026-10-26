@@ -1,12 +1,11 @@
 import { useMatch, useNavigate } from "react-router";
 
-import { Avatar } from "@/shared/ui";
+import { Avatar, StreamAudio } from "@/shared/ui";
 
 import { formatElapsed } from "../lib/format";
 import { useCall } from "../model/use-call";
 
 import styles from "./call-dock.module.css";
-import { StreamAudio } from "./stream-media";
 
 /**
  * Звонок вне своего экрана — как call-bubble-slot и call-audio-sink в public/js/app.js:

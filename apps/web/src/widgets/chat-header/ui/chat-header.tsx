@@ -6,6 +6,7 @@ import { BotAppButton, botAppQueries } from "@/features/bot-app";
 import { CallButtons, useVoiceRoomItem } from "@/features/call";
 import { ChatMenu } from "@/features/chat-actions";
 import { WallpaperDialog } from "@/features/chat-wallpaper";
+import { useStartLiveItem } from "@/features/live";
 import { ScheduledList } from "@/features/send-message";
 import { useTopicsToggle } from "@/features/topics";
 
@@ -38,6 +39,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
   const topicsToggle = useTopicsToggle(chat, meId);
   const search: MenuItem = { icon: "Search", label: "Поиск по чату", onClick: onSearch };
   const voiceRoom = useVoiceRoomItem({ chat, me });
+  const startLive = useStartLiveItem({ chat, meId });
   const middleItems: MenuItem[] = [
     { icon: "Info", label: "Информация о чате", onClick: () => onInfo(true) },
     { icon: "Image", label: "Фон чата", onClick: () => setDialog("wallpaper") },
@@ -108,7 +110,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
       <button type="button" className={styles.infoToggle} title={infoOpen ? "Скрыть информацию" : "Информация о чате"} aria-pressed={infoOpen} onClick={() => onInfo(!infoOpen)}>
         <Icon name="Info" size={18} />
       </button>
-      <ChatMenu chat={chat} me={me} topItems={[search, voiceRoom, topicsToggle].filter((item): item is MenuItem => !!item)} middleItems={middleItems} />
+      <ChatMenu chat={chat} me={me} topItems={[search, voiceRoom, topicsToggle, startLive].filter((item): item is MenuItem => !!item)} middleItems={middleItems} />
       {dialog === "wallpaper" ? <WallpaperDialog chat={chat} onClose={() => setDialog(null)} /> : null}
       {dialog === "scheduled" ? <ScheduledList chatId={chat.id} onClose={() => setDialog(null)} /> : null}
     </header>

@@ -11,6 +11,7 @@ import { SubscribeBar } from "@/features/channel-subscription";
 import { useChatActions } from "@/features/chat-actions";
 import { ChatSearch } from "@/features/chat-search";
 import { ContactBar } from "@/features/contact-bar";
+import { LiveBar } from "@/features/live";
 import { useMessageActions } from "@/features/message-actions";
 import { useMentionProfile, UserProfileDialog } from "@/features/open-profile";
 import { botCommandsOf, Composer, type ComposerHandle, useAiReply } from "@/features/send-message";
@@ -149,6 +150,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
           <ChatSearch key={searching} chatId={chat.id} senderName={senderName} initialQuery={searching} onPick={jumpToFound} onClose={() => setSearching(null)} />
         ) : null}
         {topics ? <TopicTabs chat={chat} meId={me.id} topics={topics} active={topic} onSelect={selectTopic} /> : null}
+        <LiveBar chat={chat} meId={me.id} />
         <ContactBar chat={chat} blocked={blockedOther} onToggleBlock={chatActions.toggleBlock} />
         {/* Обои под лентой и полем ввода, как у .message-list с .composer-slot поверх. */}
         <div className={`${styles.body} ${wallpaper.className}`} style={wallpaper.style}>

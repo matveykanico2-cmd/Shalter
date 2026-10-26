@@ -51,7 +51,7 @@ export class FakePeer {
   public localDescription: RTCSessionDescriptionInit | null = null;
   public onicecandidate: ((e: { candidate: { toJSON: () => object } | null }) => void) | null = null;
   public onnegotiationneeded: (() => void) | null = null;
-  public ontrack: ((e: { track: FakeTrack; transceiver: object }) => void) | null = null;
+  public ontrack: ((e: { track: FakeTrack; transceiver: object; streams: FakeStream[] }) => void) | null = null;
   public onconnectionstatechange: (() => void) | null = null;
   public oniceconnectionstatechange: (() => void) | null = null;
   public readonly transceivers: { mid: string; direction: string; sender: Sender; receiver: { track: FakeTrack } }[] = [];
@@ -112,7 +112,7 @@ export class FakePeer {
   /** Пришла дорожка собеседника. */
   public remoteTrack(kind: "audio" | "video") {
     const t = this.add(kind, null);
-    this.ontrack?.({ track: t.receiver.track, transceiver: t });
+    this.ontrack?.({ track: t.receiver.track, transceiver: t, streams: [] });
   }
 }
 

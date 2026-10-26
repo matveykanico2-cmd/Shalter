@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 
-import { applyVolume, subscribeVolume } from "@/shared/lib/media/media-volume";
+import { applyVolume, subscribeVolume } from "../lib/media/media-volume";
 
 type Props = { stream: MediaStream | null; className?: string };
 
-/** Видео потока звонка — без звука: звук играет CallAudio в оболочке. */
+/** Видео потока звонка или эфира — без звука: звук играет StreamAudio рядом. */
 export function StreamVideo({ stream, className, ref }: Props & { ref?: (el: HTMLVideoElement | null) => void }) {
   const el = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
@@ -24,7 +24,7 @@ export function StreamVideo({ stream, className, ref }: Props & { ref?: (el: HTM
   );
 }
 
-/** Звук собеседника с общей громкостью звонка. */
+/** Звук собеседника с общей громкостью звонков и эфиров. */
 export function StreamAudio({ stream }: { stream: MediaStream }) {
   const el = useRef<HTMLAudioElement>(null);
   useEffect(() => {
