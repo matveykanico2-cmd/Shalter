@@ -1,4 +1,4 @@
-import type { byUsernameBody as chatByUsernameBody, chatBody, joinPendingBody, previewBody } from "@shalter/shared/schemas/chats";
+import type { byUsernameBody as chatByUsernameBody, chatBody, inviteInfoBody, invitePendingBody, joinPendingBody, previewBody } from "@shalter/shared/schemas/chats";
 import type { byUsernameBody as userByUsernameBody } from "@shalter/shared/schemas/users";
 import { queryOptions } from "@tanstack/react-query";
 import type { z } from "zod";
@@ -22,10 +22,22 @@ export const joinPublicChat = (chatId: string) =>
 /** /start с параметром — боту, открытому по ссылке ?start=… */
 export const sendStart = (chatId: string, payload: string) => http.post<unknown>(`/api/chats/${encodeURIComponent(chatId)}/messages`, { text: `/start ${payload}`.trim() });
 
+/** Вступить по пригласительной ссылке: сразу — чат, с одобрением — заявка. */
+export const joinByInvite = (code: string) =>
+  http.post<z.infer<typeof chatBody> | z.infer<typeof invitePendingBody>>(`/api/chats/invite/${encodeURIComponent(code)}/join`);
+
 const baseKey = ["open-profile"] as const;
 
 export const openProfileQueries = {
   baseKey,
+  /** Что за чат по пригласительной ссылке (GET /api/chats/invite/:code). */
+  invite: (code: string) =>
+    queryOptions({
+      queryKey: [...baseKey, "invite", code],
+      queryFn: ({ signal }) => http.get<z.infer<typeof inviteInfoBody>>(`/api/chats/invite/${encodeURIComponent(code)}`, signal),
+      staleTime: 0,
+      retry: false,
+    }),
   /** Публичный чат глазами ещё не вступившего (GET /api/chats/:id/preview). */
   preview: (chatId: string) =>
     queryOptions({

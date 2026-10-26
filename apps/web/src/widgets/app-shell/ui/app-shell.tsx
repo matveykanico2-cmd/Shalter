@@ -17,7 +17,7 @@ export function AppShell({ user, sidebar }: Props) {
   // На телефоне видно что-то одно: список чатов или открытый чат.
   // Ссылка /u/имя или /@имя тоже открывает экран справа: профиль, превью канала.
   const { pathname } = useLocation();
-  const chatOpen = !!useMatch("/chat/:chatId") || /^\/(u\/|@)[^/]+\/?$/.test(pathname);
+  const chatOpen = !!useMatch("/chat/:chatId") || /^\/(u\/|@|join\/)[^/]+\/?$/.test(pathname);
   return (
     <div className={chatOpen ? `${styles.shell} ${styles.chatOpen}` : styles.shell}>
       <nav className={styles.rail} aria-label="Навигация">
