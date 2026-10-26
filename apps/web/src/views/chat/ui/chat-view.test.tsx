@@ -232,7 +232,7 @@ describe("действия с сообщением", () => {
     await screen.findByText("было");
 
     openMenu(mine.id);
-    expect(menuItems()).toEqual(["Ответить", "Переслать", "Копировать текст", "Копировать ссылку", "Изменить", "Удалить"]);
+    expect(menuItems()).toEqual(["Ответить", "Переслать", "Копировать текст", "Выделить текст", "Копировать ссылку", "Выбрать", "Перевести", "Изменить", "Удалить"]);
     fireEvent.click(screen.getByRole("menuitem", { name: "Изменить" }));
     expect(screen.queryByRole("menu")).toBeNull();
     expect(screen.getByText("Изменение")).toBeTruthy();
@@ -820,5 +820,188 @@ describe("стикеры и эмодзи", () => {
     renderChat(channel);
     await screen.findByText("Сообщений пока нет — напишите первым");
     expect(screen.queryByTitle("Стикеры")).toBeNull();
+  });
+});
+
+describe("ещё в меню сообщения", () => {
+  it("«Выбрать»: отметка нажатием, удаление выбранных у себя; Esc снимает выбор", async () => {
+    const a = msg("первое");
+    const b = msg("второе");
+    const c = msg("третье");
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: () => page([a, b, c].filter((m) => !calls.some((x) => x.key === `DELETE /api/chats/c_1/messages/${m.id}`))),
+      [`DELETE /api/chats/c_1/messages/${a.id}`]: { body: { ok: true, id: a.id, forEveryone: false } },
+      [`DELETE /api/chats/c_1/messages/${c.id}`]: { body: { ok: true, id: c.id, forEveryone: false } },
+    });
+    renderChat();
+    await screen.findByText("первое");
+
+    openMenu(a.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Выбрать" }));
+    expect(screen.getByText("Выбрано: 1")).toBeTruthy();
+    // В режиме выбора нажатие отмечает, а правая кнопка не открывает меню.
+    fireEvent.click(screen.getByText("третье"));
+    expect(screen.getByText("Выбрано: 2")).toBeTruthy();
+    fireEvent.contextMenu(bubble(b.id));
+    expect(screen.getByText("Выбрано: 3")).toBeTruthy();
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.click(screen.getByText("второе"));
+
+    fireEvent.click(screen.getByTitle("Удалить"));
+    const dialog = screen.getByRole("dialog", { name: "Удалить сообщений: 2" });
+    expect(within(dialog).queryByRole("checkbox")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Удалить" }));
+    await waitFor(() => expect(bubbles()).toEqual([b.id]));
+    expect(calls.filter((x) => x.key.startsWith("DELETE")).map((x) => x.body)).toEqual([{ forEveryone: false }, { forEveryone: false }]);
+    expect(screen.queryByText(/Выбрано/)).toBeNull();
+
+    openMenu(b.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Выбрать" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByText(/Выбрано/)).toBeNull();
+  });
+
+  it("«Прочитали: N» у своего в группе — кто и во сколько", async () => {
+    const mine = msg("моё", { senderId: ME.id, readByIds: [ME.id, LENA.id] });
+    fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([mine]),
+      [`GET /api/chats/c_1/messages/${mine.id}/readers`]: { body: { readers: [{ user: LENA, readAt: new Date().toISOString() }] } },
+    });
+    renderChat();
+    await screen.findByText("моё");
+    openMenu(mine.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Прочитали: 1" }));
+    const readers = screen.getByRole("menu", { name: "Прочитали" });
+    expect(await within(readers).findByText(/^Лена · сегодня в \d\d:\d\d$/)).toBeTruthy();
+  });
+
+  it("ответ с выделенной частью — цитатой в поле; свайп влево пальцем — ответ", async () => {
+    const theirs = msg("первая строка и вторая");
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([theirs]), ...typingRoutes });
+    renderChat();
+    const text = await screen.findByText("первая строка и вторая");
+    const input = screen.getByRole("textbox", { name: "Сообщение" }) as HTMLTextAreaElement;
+
+    const range = document.createRange();
+    range.setStart(text.firstChild!, 0);
+    range.setEnd(text.firstChild!, 13);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    openMenu(theirs.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ответить" }));
+    expect(screen.getByText("Ответ Лена")).toBeTruthy();
+    expect(input.value).toBe("> первая строка\n");
+    window.getSelection()!.removeAllRanges();
+
+    fireEvent.click(screen.getByTitle("Отменить ответ"));
+    expect(screen.queryByText("Ответ Лена")).toBeNull();
+    const row = bubble(theirs.id);
+    fireEvent.pointerDown(row, { pointerType: "touch", clientX: 300, clientY: 100 });
+    fireEvent.pointerMove(row, { pointerType: "touch", clientX: 280, clientY: 101 });
+    fireEvent.pointerMove(row, { pointerType: "touch", clientX: 240, clientY: 102 });
+    fireEvent.pointerUp(row, { pointerType: "touch", clientX: 240, clientY: 102 });
+    expect(screen.getByText("Ответ Лена")).toBeTruthy();
+  });
+
+  it("«Ответить лично» — личка с автором и цитатой в черновике", async () => {
+    const theirs = msg("встречаемся в 7");
+    const dm = chat({ id: "c_dm", type: "dm", title: null, memberIds: [ME.id, LENA.id], otherUser: LENA as never, unreadCount: 0 });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([theirs]),
+      "POST /api/chats": { body: { chat: dm } },
+      "POST /api/chats/c_dm/draft": { body: { ok: true } },
+      "GET /api/chats": () => ({ body: { chats: calls.some((x) => x.key === "POST /api/chats") ? [chat(), { ...dm, draft: "> встречаемся в 7\n" }] : [chat()] } }),
+      "GET /api/chats/c_dm": card({ ...dm, draft: "> встречаемся в 7\n" }),
+      "GET /api/chats/c_dm/messages?limit=60": page([]),
+    });
+    renderChat();
+    await screen.findByText("встречаемся в 7");
+    openMenu(theirs.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ответить лично" }));
+
+    await waitFor(() => expect(screen.getByRole("region", { name: "Лена" })).toBeTruthy());
+    expect(calls.find((x) => x.key === "POST /api/chats")?.body).toMatchObject({ userId: LENA.id, title: "Лена" });
+    expect(calls.find((x) => x.key === "POST /api/chats/c_dm/draft")?.body).toEqual({ text: "> встречаемся в 7\n" });
+    expect((screen.getByRole("textbox", { name: "Сообщение" }) as HTMLTextAreaElement).value).toBe("> встречаемся в 7\n");
+  });
+
+  it("«Перевести» — окно с переводом; язык запоминается в настройках", async () => {
+    const theirs = msg("Hello there");
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([theirs]),
+      "POST /api/translate": (body) => ({ body: { translated: body.target === "de" ? "Hallo" : "Привет", detectedLang: "en" } }),
+      "PATCH /api/settings": { body: { settings: {} } },
+    });
+    renderChat();
+    await screen.findByText("Hello there");
+    openMenu(theirs.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Перевести" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Перевод" });
+    expect(await within(dialog).findByText("Привет")).toBeTruthy();
+    expect(within(dialog).getByText("Перевод с английского")).toBeTruthy();
+    expect(calls.find((x) => x.key === "POST /api/translate")?.body).toEqual({ text: "Hello there", target: "ru" });
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Язык перевода" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Deutsch" }));
+    expect(await within(dialog).findByText("Hallo")).toBeTruthy();
+    expect(calls.find((x) => x.key === "PATCH /api/settings")?.body).toEqual({ translateLanguage: "de" });
+  });
+
+  it("«Кратко» — сводка под длинным сообщением, повтор прячет", async () => {
+    const long = msg("Очень длинный текст. ".repeat(25));
+    fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([long]),
+      [`GET /api/chats/c_1/messages/${long.id}/summary`]: { body: { summary: "Коротко о главном" } },
+    });
+    renderChat();
+    await screen.findByText(/Очень длинный текст/);
+    openMenu(long.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Кратко" }));
+    expect(await screen.findByText("Коротко о главном")).toBeTruthy();
+
+    openMenu(long.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Скрыть сводку" }));
+    expect(screen.queryByText("Коротко о главном")).toBeNull();
+  });
+
+  it("«Пожаловаться» — причина и подробности уходят жалобой", async () => {
+    const theirs = msg("купи крипту");
+    const { calls } = fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([theirs]), "POST /api/reports": { body: { report: {} } } });
+    renderChat();
+    await screen.findByText("купи крипту");
+    openMenu(theirs.id);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Пожаловаться" }));
+    const dialog = screen.getByRole("dialog", { name: "Пожаловаться на сообщение от Лена" });
+    fireEvent.click(within(dialog).getByRole("radio", { name: "Мошенничество" }));
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Подробности" }), { target: { value: "развод" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Отправить жалобу" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(calls.find((x) => x.key === "POST /api/reports")?.body).toEqual({ targetType: "message", targetId: theirs.id, reason: "scam", details: "развод" });
+  });
+
+  it("личка: чужое — «Удалить за звёзды» после подтверждения с ценой", async () => {
+    const dm = chat({ type: "dm", title: null, otherUser: LENA as never });
+    const theirs = msg("лишнее");
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(dm),
+      [HISTORY]: () => page(calls.some((x) => x.key.startsWith("POST /api/stars/delete")) ? [] : [theirs]),
+      "GET /api/stars": { body: { balance: 50, userId: ME.id, messagePriceStars: 0, packs: [], costs: { boost: 10, boostMinutes: 60, delete: 5, maxMessagePrice: 100 } } },
+      [`POST /api/stars/delete/${theirs.id}`]: { body: { ok: true, balance: 45 } },
+    });
+    renderChat(dm);
+    await screen.findByText("лишнее");
+    openMenu(theirs.id);
+    expect(menuItems()).not.toContain("Ответить лично");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Удалить за звёзды" }));
+    const ask = await screen.findByRole("dialog", { name: "Удалить сообщение у обоих за 5 ⭐?" });
+    fireEvent.click(within(ask).getByRole("button", { name: "Удалить" }));
+    await waitFor(() => expect(bubbles()).toEqual([]));
+    expect(calls.some((x) => x.key === `POST /api/stars/delete/${theirs.id}`)).toBe(true);
   });
 });

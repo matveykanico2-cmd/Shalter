@@ -2,7 +2,17 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { canPin, isProtectedChat, MessageMenus, useMessageActions, useMessageMenu } from "@/features/message-actions";
+import {
+  canPin,
+  isProtectedChat,
+  MessageMenus,
+  SelectionBar,
+  type Summaries,
+  useMessageActions,
+  useMessageMenu,
+  useMessageSelection,
+  useSummaries,
+} from "@/features/message-actions";
 
 import { chatCache, type ChatMember, type ChatSummary, isChatAdmin, isChatModerator } from "@/entities/chat";
 import { type AttachmentActions, type FeedMessage, loadOlderHistory, type Message, MessageBubble, messageQueries, type MessageSender, type ReplyTarget } from "@/entities/message";
@@ -37,7 +47,8 @@ type Props = {
   chat: ChatSummary;
   members: readonly ChatMember[];
   me: SelfUser;
-  onReply?: (m: Message) => void;
+  /** quote — выделенная часть текста для цитаты. */
+  onReply?: (m: Message, quote?: string) => void;
   onEdit?: (m: Message) => void;
   ref?: Ref<MessageFeedHandle>;
 };
@@ -48,6 +59,8 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
   const client = useQueryClient();
   const menu = useMessageMenu();
   const actions = useMessageActions(chat, me);
+  const selection = useMessageSelection();
+  const summaries = useSummaries(chat.id);
   useHistorySync(chat.id, meId);
   const history = useQuery(messageQueries.history(chat.id));
   const data = history.data;
@@ -172,6 +185,20 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
     setHighlightId(id);
   };
 
+  // Esc снимает выбор, если поверх ленты ничего не открыто (как onChatKeydown в chatView.js).
+  const { active: selecting, clear: clearSelection } = selection;
+  const menuOpen = !!menu.state;
+  useEffect(() => {
+    if (!selecting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || menuOpen || document.querySelector("[role=dialog], [role=menu]")) return;
+      e.stopPropagation();
+      clearSelection();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [selecting, menuOpen, clearSelection]);
+
   const messagesById = useMemo(() => new Map((data?.messages ?? []).map((m) => [m.id, m])), [data?.messages]);
   const isGroup = chat.type === "group";
   const isChannel = chat.type === "channel";
@@ -197,6 +224,8 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
   }
 
   const senderName = (m: Message) => senders(m)?.name ?? null;
+  const toggleSelect = (m: Message) => selection.toggle(m.id);
+  const selected = selection.active ? (data?.messages ?? []).filter((m) => selection.ids.has(m.id)) : [];
   const protectedContent = isProtectedChat(chat);
   const openMedia = (m: Message, url: string) => {
     const items = buildGallery(data?.messages ?? [], (x) => (x.senderId === meId && !x.anonymous ? "Вы" : senderName(x)));
@@ -206,6 +235,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
 
   return (
     <div className={styles.feed}>
+      {selection.active ? <SelectionBar messages={selected} chat={chat} me={me} actions={actions} senderName={senderName} onClear={selection.clear} /> : null}
       <PinnedBar messages={data?.messages ?? []} canUnpin={canPin(chat, meId)} onJumpTo={jumpTo} onUnpin={(m) => void actions.togglePin(m)} />
       <div ref={scrollRef} className={styles.scroll} onScroll={onScroll} role="log" aria-label="Сообщения">
         {rows.length === 0 ? (
@@ -246,6 +276,10 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
                         nameOf={nameOf}
                         userOf={userOf}
                         onReactionDetails={canViewReactionDetails ? menu.openReactors : undefined}
+                        selecting={selection.active}
+                        selected={selection.ids.has(row.message.id)}
+                        onToggleSelect={row.message.type === "gift" ? undefined : toggleSelect}
+                        summaries={summaries}
                       />
                     </div>
                   )}
@@ -271,7 +305,19 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, ref }: Props) 
         </button>
       ) : null}
       {viewer ? <MediaViewer items={viewer.items} index={viewer.index} canDownload={!protectedContent} onClose={() => setViewer(null)} /> : null}
-      <MessageMenus control={menu} actions={actions} chat={chat} me={me} senderName={senderName} nameOf={knownName} onReply={isChannel ? undefined : onReply} onEdit={onEdit} />
+      <MessageMenus
+        control={menu}
+        actions={actions}
+        chat={chat}
+        me={me}
+        senderName={senderName}
+        author={(m) => senders(m)}
+        nameOf={knownName}
+        onReply={isChannel ? undefined : onReply}
+        onEdit={onEdit}
+        onSelect={toggleSelect}
+        summaries={summaries}
+      />
     </div>
   );
 }
@@ -285,9 +331,9 @@ type RowProps = {
   isChannel: boolean;
   senders: (m: { senderId: string; anonymous?: boolean }) => MessageSender | null;
   replyTo: Message | ReplyTarget | undefined;
-  onReply?: (m: Message) => void;
+  onReply?: (m: Message, quote?: string) => void;
   onJumpTo: (id: string) => void;
-  onOpenMenu: (m: Message, at: { x: number; y: number }) => void;
+  onOpenMenu: (m: Message, at: { x: number; y: number }, quote?: string) => void;
   onOpenReactions: (m: Message, at: { x: number; y: number }) => void;
   onReact: (m: Message, emoji: string) => void;
   onOpenMedia: (m: Message, url: string) => void;
@@ -296,6 +342,10 @@ type RowProps = {
   nameOf: (userId: string) => string;
   userOf: (userId: string) => MessageSender | null;
   onReactionDetails?: (m: Message, emoji: string, at: { x: number; y: number }) => void;
+  selecting: boolean;
+  selected: boolean;
+  onToggleSelect?: (m: Message) => void;
+  summaries: Summaries;
 };
 
 function MessageRow(props: RowProps) {
@@ -327,6 +377,10 @@ function MessageRow(props: RowProps) {
       nameOf={props.nameOf}
       userOf={props.userOf}
       onReactionDetails={props.onReactionDetails}
+      selecting={props.selecting}
+      selected={props.selected}
+      onToggleSelect={props.onToggleSelect}
+      summary={props.summaries.of(message.id)}
     />
   );
 }

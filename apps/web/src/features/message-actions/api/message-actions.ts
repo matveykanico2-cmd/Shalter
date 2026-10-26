@@ -1,4 +1,8 @@
-import type { deleteResult, messageEnvelope, sendResult } from "@shalter/shared/schemas/messages";
+import type { chatBody } from "@shalter/shared/schemas/chats";
+import type { translateBody } from "@shalter/shared/schemas/integrations";
+import type { deleteResult, messageEnvelope, readersResult, sendResult, summaryResult } from "@shalter/shared/schemas/messages";
+import type { reportReason } from "@shalter/shared/schemas/reports";
+import type { paidDeleteBody, starsInfoBody } from "@shalter/shared/schemas/stars";
 import type { z } from "zod";
 
 import type { Attachment, Message } from "@/entities/message";
@@ -50,3 +54,28 @@ export const closePoll = (chatId: string, id: string) => http.post<Envelope>(`${
 export const updateChecklist = (chatId: string, id: string, body: { itemId: number } | { add: string[] }) => http.post<Envelope>(`${messagePath(chatId, id)}/checklist`, body);
 
 export const unlockPaidMedia = (chatId: string, id: string) => http.post<{ attachments: Attachment[]; balance: number }>(`${messagePath(chatId, id)}/unlock`);
+
+/** Кто и во сколько прочитал — только автору, в группе. */
+export const messageReaders = (chatId: string, id: string) => http.get<z.infer<typeof readersResult>>(`${messagePath(chatId, id)}/readers`);
+
+export const summarizeMessage = (chatId: string, id: string) => http.get<z.infer<typeof summaryResult>>(`${messagePath(chatId, id)}/summary`);
+
+/** Удалить сообщение собеседника в личке у обоих — за звёзды. */
+export const paidDeleteMessage = (id: string) => http.post<z.infer<typeof paidDeleteBody>>(`/api/stars/delete/${encodeURIComponent(id)}`);
+
+export const starsInfo = () => http.get<z.infer<typeof starsInfoBody>>("/api/stars");
+
+export type ReportReason = z.infer<typeof reportReason>;
+
+export const submitReport = (targetType: "message", targetId: string, reason: ReportReason, details: string) =>
+  http.post<unknown>("/api/reports", { targetType, targetId, reason, details });
+
+export const translateText = (text: string, target: string) => http.post<z.infer<typeof translateBody>>("/api/translate", { text, target });
+
+export const saveTranslateLanguage = (translateLanguage: string) => http.patch<unknown>("/api/settings", { translateLanguage });
+
+/** Личка с человеком — существующая или новая (POST /api/chats). */
+export const openDm = (userId: string, title: string, avatarColor?: string | null) =>
+  http.post<z.infer<typeof chatBody>>("/api/chats", { userId, title, avatarColor });
+
+export const saveDraft = (chatId: string, text: string) => http.post<unknown>(`/api/chats/${encodeURIComponent(chatId)}/draft`, { text });

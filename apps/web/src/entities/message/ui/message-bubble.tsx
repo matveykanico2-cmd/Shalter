@@ -25,6 +25,7 @@ export type MessageSender = {
   avatarColor?: string | null;
   avatarImage?: string | null;
   nameColor?: string | null;
+  isBot?: boolean;
 };
 
 type Props = {
@@ -41,10 +42,11 @@ type Props = {
   replyToName?: string | null;
   /** Для «своих» реакций; без него реакции только показываются. */
   meId?: string;
-  onReply?: (m: Message) => void;
+  /** Ответ; quote — выделенная в пузыре часть текста. */
+  onReply?: (m: Message, quote?: string) => void;
   onJumpTo?: (id: string) => void;
-  /** Меню сообщения: «Ещё», правая кнопка, долгое нажатие. */
-  onOpenMenu?: (m: Message, at: Point) => void;
+  /** Меню сообщения: «Ещё», правая кнопка, долгое нажатие пальцем. */
+  onOpenMenu?: (m: Message, at: Point, quote?: string) => void;
   /** Полоса реакций — двойное нажатие. */
   onOpenReactions?: (m: Message, at: Point) => void;
   onReact?: (m: Message, emoji: string) => void;
@@ -60,6 +62,13 @@ type Props = {
   userOf?: (userId: string) => MessageSender | null;
   /** «Кто поставил» — долгое нажатие или правая кнопка на реакции; без него — только нажатие. */
   onReactionDetails?: (m: Message, emoji: string, at: Point) => void;
+  /** Режим выбора: нажатие отмечает сообщение, а не открывает его. */
+  selecting?: boolean;
+  selected?: boolean;
+  /** Отметить или снять (долгое нажатие мышью начинает выбор); без него не выбирается — подарок. */
+  onToggleSelect?: (m: Message) => void;
+  /** «Кратко»: строка — сводка, null — ещё делается. */
+  summary?: string | null;
 };
 
 type Point = { x: number; y: number };
@@ -69,13 +78,57 @@ const NO_HOLD = "button, a, input, textarea";
 // Двойное нажатие — как в messageBubble.js: два касания за 200 мс в пределах 24 px.
 const DOUBLE_TAP_MS = 200;
 const DOUBLE_TAP_PX = 24;
+// Ответ свайпом влево пальцем — как в Telegram: сдвиг до 72 px, ответ от 48 px.
+const SWIPE_START_PX = 12;
+const SWIPE_REPLY_PX = 48;
+const SWIPE_MAX_PX = 72;
+const QUOTE_MAX = 500;
+
+const hasTextSelection = () => {
+  const sel = window.getSelection?.();
+  return !!sel && !sel.isCollapsed && sel.toString().trim() !== "";
+};
+
+/** Выделенный внутри пузыря текст — ответ его процитирует. */
+function selectedQuote(container: HTMLElement | null) {
+  const sel = window.getSelection?.();
+  if (!container || !sel || sel.isCollapsed) return "";
+  const text = sel.toString().trim();
+  return text && container.contains(sel.anchorNode) && container.contains(sel.focusNode) ? text.slice(0, QUOTE_MAX) : "";
+}
 
 /** Пузырь сообщения в ленте — основа MessageBubble из public/js/components/messageBubble.js. */
 export function MessageBubble(props: Props) {
   const { message: m, mine, sender, showSender, showAvatar, groupStart = true, groupEnd = true, isChannel = false } = props;
+  const { selecting = false, onToggleSelect } = props;
   const actionable = !m.pending && !!props.onOpenMenu;
-  const hold = useLongPress((at) => props.onOpenMenu?.(m, at), NO_HOLD);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  // Выделение снимается раньше, чем дойдёт click, — запоминаем его при нажатии.
+  const quote = useRef("");
+  const remember = () => {
+    quote.current = selectedQuote(bubbleRef.current);
+  };
+  const takeQuote = () => {
+    const q = quote.current;
+    quote.current = "";
+    return q || undefined;
+  };
+  const hold = useLongPress(
+    (at, pointerType) => {
+      // Пальцем — меню действий (как в Telegram), мышью — начать выбор; в режиме выбора — отметить.
+      if (selecting || pointerType === "mouse") {
+        onToggleSelect?.(m);
+        return;
+      }
+      remember();
+      props.onOpenMenu?.(m, at, takeQuote());
+    },
+    NO_HOLD,
+    { mouse: !!onToggleSelect }
+  );
   const lastTap = useRef({ at: 0, x: 0, y: 0 });
+  const swipe = useRef<{ x: number; y: number; active: boolean | null } | null>(null);
 
   if (m.type === "system") return <SystemLine text={m.text ?? ""} />;
 
@@ -89,6 +142,9 @@ export function MessageBubble(props: Props) {
   const text = !isCall && !sticker && !titled && m.text?.trim() ? m.text : null;
   const mediaOnly = !isCall && isMediaOnly(m);
   const preview = linkPreviewOf(m);
+  const summary = props.summary;
+  // Под текстом ещё что-то (карточка ссылки, сводка) — время уходит в свою строку.
+  const below = !!preview || summary !== undefined;
 
   const meta = (
     <span className={styles.meta}>
@@ -157,8 +213,16 @@ export function MessageBubble(props: Props) {
       </span>
     );
   } else if (text && jumbo) body.push(<JumboEmoji key="text" messageId={m.id} text={text} count={jumbo} />);
-  else if (text) body.push(<MessageText key="text" text={text} customEmoji={Array.isArray(m.customEmoji) ? m.customEmoji : undefined} meta={reactions.length || preview ? null : meta} />);
+  else if (text) body.push(<MessageText key="text" text={text} customEmoji={Array.isArray(m.customEmoji) ? m.customEmoji : undefined} meta={reactions.length || below ? null : meta} />);
   if (preview) body.push(<LinkPreviewCard key="preview" preview={preview} />);
+  if (summary !== undefined) {
+    body.push(
+      <div key="summary" className={styles.summary}>
+        <span className={styles.summaryLabel}>Кратко</span>
+        <p className={styles.summaryText}>{summary ?? "Делаем сводку…"}</p>
+      </div>
+    );
+  }
   if (reactions.length) {
     body.push(
       <div key="reactions" className={styles.reactions}>
@@ -186,7 +250,7 @@ export function MessageBubble(props: Props) {
         {meta}
       </span>
     );
-  } else if ((!text || preview || jumbo || (ceOnly && ceOnly.length <= 3)) && !isCall) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
+  } else if ((!text || below || jumbo || (ceOnly && ceOnly.length <= 3)) && !isCall) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
 
   const bubbleClass = [styles.bubble, out ? styles.out : styles.in, groupStart ? "" : styles.joinTop, groupEnd ? "" : styles.joinBottom, sticker ? styles.stickerBubble : "", mediaOnly ? styles.mediaOnly : ""]
     .filter(Boolean)
@@ -195,11 +259,62 @@ export function MessageBubble(props: Props) {
   const onContextMenu = (e: MouseEvent) => {
     if (!actionable || hold.swallow(e)) return;
     e.preventDefault();
-    props.onOpenMenu?.(m, { x: e.clientX, y: e.clientY });
+    if (selecting) {
+      onToggleSelect?.(m);
+      return;
+    }
+    remember();
+    props.onOpenMenu?.(m, { x: e.clientX, y: e.clientY }, takeQuote());
+  };
+  const onClickCapture = (e: MouseEvent) => {
+    if (hold.swallow(e) || !selecting || !onToggleSelect || m.pending) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleSelect(m);
+  };
+
+  const resetSwipe = () => {
+    swipe.current = null;
+    const row = rowRef.current;
+    if (!row) return;
+    row.style.transform = "";
+    row.classList.remove(styles.swipeReady!);
+  };
+  const onPointerDown = (e: PointerEvent) => {
+    if (actionable) hold.onPointerDown(e);
+    // Как в tweb: свайп-ответ только пальцем — мышью тянут, чтобы выделить текст.
+    swipe.current = e.pointerType !== "mouse" && props.onReply && !selecting && !m.pending ? { x: e.clientX, y: e.clientY, active: null } : null;
+  };
+  const onPointerMove = (e: PointerEvent) => {
+    if (actionable) hold.onPointerMove(e);
+    const s = swipe.current;
+    if (!s || s.active === false) return;
+    const dx = e.clientX - s.x;
+    const dy = Math.abs(e.clientY - s.y);
+    if (s.active === null) {
+      if (Math.abs(dx) < SWIPE_START_PX && dy < SWIPE_START_PX) return;
+      // Идёт выделение текста (ручки выделения на телефоне) — сообщение не двигаем.
+      s.active = !hasTextSelection() && Math.abs(dx) > dy && dx < 0;
+      if (!s.active) return;
+    } else if (hasTextSelection()) {
+      resetSwipe();
+      return;
+    }
+    const shift = Math.min(SWIPE_MAX_PX, Math.max(0, -dx));
+    const row = rowRef.current;
+    if (!row) return;
+    row.style.transform = `translateX(${-shift}px)`;
+    row.classList.toggle(styles.swipeReady!, shift >= SWIPE_REPLY_PX);
   };
   const onPointerUp = (e: PointerEvent) => {
     hold.onPointerUp();
-    if (m.pending || !props.onOpenReactions || e.button !== 0 || (e.target as Element).closest?.(NO_HOLD)) {
+    const s = swipe.current;
+    resetSwipe();
+    if (s?.active) {
+      if (s.x - e.clientX >= SWIPE_REPLY_PX) props.onReply?.(m);
+      return;
+    }
+    if (m.pending || selecting || !props.onOpenReactions || e.button !== 0 || (e.target as Element).closest?.(NO_HOLD)) {
       lastTap.current.at = 0;
       return;
     }
@@ -215,30 +330,58 @@ export function MessageBubble(props: Props) {
     }
   };
 
+  const selectable = selecting && !!onToggleSelect;
+  const rowClass = [styles.row, out ? styles.rowOut : "", selectable ? styles.selecting : "", selectable && props.selected ? styles.selectedRow : ""].filter(Boolean).join(" ");
+
   return (
     <div
-      className={out ? `${styles.row} ${styles.rowOut}` : styles.row}
+      ref={rowRef}
+      className={rowClass}
       data-message-id={m.id}
       onContextMenu={onContextMenu}
-      onClickCapture={(e) => void hold.swallow(e)}
+      onClickCapture={onClickCapture}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      {...(actionable ? { onPointerDown: hold.onPointerDown, onPointerMove: hold.onPointerMove, onPointerCancel: hold.onPointerCancel, onPointerLeave: hold.onPointerLeave } : {})}
+      onPointerCancel={() => {
+        hold.onPointerCancel();
+        resetSwipe();
+      }}
+      onPointerLeave={hold.onPointerLeave}
     >
+      {selectable ? (
+        <button
+          type="button"
+          className={props.selected ? `${styles.selectMark} ${styles.selectMarkOn}` : styles.selectMark}
+          aria-pressed={!!props.selected}
+          aria-label={props.selected ? "Убрать из выбранных" : "Выбрать"}
+        >
+          {props.selected ? <Icon name="Check" size={13} /> : null}
+        </button>
+      ) : null}
       {showAvatar !== undefined ? (
         <span className={styles.avatarSlot}>
           {showAvatar && sender ? <Avatar size={34} name={sender.name} color={sender.avatarColor} image={sender.avatarImage} /> : null}
         </span>
       ) : null}
-      <div className={bubbleClass}>{body}</div>
-      {!m.pending && (props.onReply || props.onOpenMenu) ? (
+      <div ref={bubbleRef} className={bubbleClass}>
+        {body}
+      </div>
+      {!m.pending && !selecting && (props.onReply || props.onOpenMenu) ? (
         <span className={styles.actions}>
           {props.onReply ? (
-            <button type="button" className={styles.actionButton} title="Ответить" onClick={() => props.onReply?.(m)}>
+            <button type="button" className={styles.actionButton} title="Ответить" onPointerDown={remember} onClick={() => props.onReply?.(m, takeQuote())}>
               <Icon name="Reply" size={16} />
             </button>
           ) : null}
           {props.onOpenMenu ? (
-            <button type="button" className={styles.actionButton} title="Ещё" onClick={(e) => props.onOpenMenu?.(m, { x: e.clientX, y: e.clientY })}>
+            <button
+              type="button"
+              className={styles.actionButton}
+              title="Ещё"
+              onPointerDown={remember}
+              onClick={(e) => props.onOpenMenu?.(m, { x: e.clientX, y: e.clientY }, takeQuote())}
+            >
               <Icon name="More" size={16} />
             </button>
           ) : null}

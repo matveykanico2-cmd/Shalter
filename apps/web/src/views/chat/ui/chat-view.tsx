@@ -41,9 +41,12 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
   const [editing, setEditing] = useState<Message | null>(null);
   const actions = useMessageActions(chat, me);
   const title = chatTitle(chat);
-  const reply = (m: Message) => {
+  const reply = (m: Message, quote?: string) => {
+    // Правка уступает место ответу. Цитату во время правки не вставляем: поле вернёт набранное до неё.
+    const wasEditing = !!editing;
     setEditing(null);
     setReplyTo(m);
+    if (quote && !wasEditing) composer.current?.quote(quote);
   };
   const edit = (m: Message) => {
     setReplyTo(null);

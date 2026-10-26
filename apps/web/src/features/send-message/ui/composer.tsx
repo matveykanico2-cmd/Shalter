@@ -28,6 +28,8 @@ import { UploadStrip } from "./upload-strip";
 export type ComposerHandle = {
   /** Файлы, брошенные на чат, — в окно отправки. */
   attach: (files: File[]) => void;
+  /** Ответ с выделенной частью текста — цитата «> …» в начало поля. */
+  quote: (text: string) => void;
 };
 
 // Как public/js/components/composer.js: «печатает» не чаще раза в 2,5 с, черновик на
@@ -105,7 +107,6 @@ export function Composer(props: Props) {
   const attach = (files: File[]) => {
     if (!editing && files.length) setPicked(files);
   };
-  useImperativeHandle(ref, () => ({ attach }));
 
   const scheduleDraft = (value: string) => {
     clearTimeout(draftTimer.current);
@@ -125,6 +126,20 @@ export function Composer(props: Props) {
     }
     scheduleDraft(value);
   };
+
+  useImperativeHandle(ref, () => ({
+    attach,
+    quote: (q: string) => {
+      const quoted = q
+        .split("\n")
+        .map((line) => `> ${line}`)
+        .join("\n");
+      const next = `${quoted}\n${latestText.current}`;
+      setText(next);
+      scheduleDraft(next);
+      textarea.current?.focus();
+    },
+  }));
 
   // Эмодзи из панели — в место курсора, как insertPlainEmoji в composer.js.
   const caret = useRef<number | null>(null);

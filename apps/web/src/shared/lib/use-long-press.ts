@@ -7,7 +7,10 @@ const HOLD_MS = 450;
 const SLOP_PX = 10;
 const SWALLOW_MS = 1000;
 
-export function useLongPress(onHold: (at: { x: number; y: number }) => void, ignore?: string) {
+type Hold = (at: { x: number; y: number }, pointerType: string) => void;
+
+/** mouse: true — ловить и мышь (долгое нажатие мышью начинает выбор сообщений). */
+export function useLongPress(onHold: Hold, ignore?: string, { mouse = false } = {}) {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const start = useRef({ x: 0, y: 0 });
   const heldAt = useRef(0);
@@ -28,14 +31,15 @@ export function useLongPress(onHold: (at: { x: number; y: number }) => void, ign
 
   return {
     onPointerDown: (e: PointerEvent) => {
-      if (e.pointerType === "mouse" || (ignore && (e.target as Element).closest?.(ignore))) return;
+      if ((e.pointerType === "mouse" && (!mouse || e.button !== 0)) || (ignore && (e.target as Element).closest?.(ignore))) return;
       start.current = { x: e.clientX, y: e.clientY };
+      const type = e.pointerType;
       cancel();
       timer.current = setTimeout(() => {
         timer.current = undefined;
         heldAt.current = Date.now();
-        navigator.vibrate?.(12);
-        onHold(start.current);
+        if (type !== "mouse") navigator.vibrate?.(12);
+        onHold(start.current, type);
       }, HOLD_MS);
     },
     onPointerMove: (e: PointerEvent) => {

@@ -2,6 +2,7 @@
 // сразу, запрос идёт в фоне, отказ сервера откатывает правку и показывает его текст.
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { useNavigate } from "react-router";
 
 import { chatCache, chatQueries, type ChatSummary } from "@/entities/chat";
 import {
@@ -33,9 +34,13 @@ import {
   editMessage,
   forwardMessage,
   type ForwardOrigin,
+  openDm,
+  paidDeleteMessage,
   pinMessage,
   reactToMessage,
   retractVote,
+  saveDraft,
+  starsInfo,
   unlockPaidMedia,
   updateChecklist,
   votePoll,
@@ -43,12 +48,20 @@ import {
 
 const fail = (err: unknown, fallback: string) => toast(errorText(err, fallback), { error: true });
 
+const QUOTE_MAX = 500;
+
+/** Цитата в начало черновика: каждая строка с «> ». */
+const quoteLines = (text: string) => text.split("\n").map((line) => `> ${line}`).join("\n");
+
+export type DmTarget = { id: string; name: string; avatarColor?: string | null };
+
 // Реакции: пока нажатие летит на сервер, ответ на устаревшее не применяется — иначе
 // снятая реакция «возвращалась» из ответа, ушедшего до снятия.
 const reactOps = new Map<string, { seq: number; pending: number }>();
 
 export function useMessageActions(chat: ChatSummary, me: SelfUser) {
   const client = useQueryClient();
+  const navigate = useNavigate();
   const chatId = chat.id;
   const isPremium = !!me.isPremium;
   return useMemo(() => {
@@ -96,6 +109,51 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
           return;
         }
         reconcile();
+      },
+
+      /** Чужое сообщение в личке — у обоих, за звёзды (POST /api/stars/delete/:id). */
+      async paidDelete(m: Message) {
+        const cost = await starsInfo().then(
+          (info) => info.costs.delete,
+          () => null
+        );
+        const ok = await askConfirm(cost === null ? "Удалить сообщение у обоих за звёзды?" : `Удалить сообщение у обоих за ${cost} ⭐?`, {
+          okLabel: "Удалить",
+          danger: true,
+        });
+        if (!ok) return;
+        try {
+          await paidDeleteMessage(m.id);
+        } catch (err) {
+          // Пополнение звёзд переедет вместе с его окном; пока — что не хватает.
+          fail(err, "Не удалось удалить сообщение");
+          return;
+        }
+        historyCache.remove(client, chatId, m.id);
+        chatCache.dropLastMessage(client, chatId, m.id, lastSettled(client, chatId));
+        reconcile();
+      },
+
+      /**
+       * «Ответить лично» — как replyPrivately в messageBubble.js: личка с автором, в её
+       * черновике цитата (выделенное или весь текст).
+       */
+      async replyPrivately(m: Message, author: DmTarget, quote?: string) {
+        try {
+          const { chat: dm } = await openDm(author.id, author.name, author.avatarColor);
+          const source = (quote || m.text || "").trim().slice(0, QUOTE_MAX);
+          const known = client.getQueryData(chatQueries.list().queryKey)?.find((c) => c.id === dm.id);
+          const prev = typeof known?.draft === "string" ? known.draft : "";
+          const draft = (source ? `${quoteLines(source)}\n` : "") + prev;
+          chatCache.setDraft(client, dm.id, draft);
+          // Черновик и на сервер: чат откроется со своим сохранённым черновиком.
+          await saveDraft(dm.id, draft).catch(() => {});
+          if (!known) await client.refetchQueries({ queryKey: chatQueries.list().queryKey }).catch(() => {});
+          client.removeQueries({ queryKey: chatQueries.card(dm.id).queryKey });
+          void navigate(`/chat/${dm.id}`);
+        } catch (err) {
+          fail(err, "Не удалось открыть чат");
+        }
       },
 
       async react(m: Message, emoji: string) {
@@ -201,7 +259,7 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
         return { failed, lastError };
       },
     };
-  }, [client, chatId, me.id, isPremium]);
+  }, [client, chatId, me.id, isPremium, navigate]);
 }
 
 /** Последнее сообщение ленты после удаления — оно встанет в превью списка. */

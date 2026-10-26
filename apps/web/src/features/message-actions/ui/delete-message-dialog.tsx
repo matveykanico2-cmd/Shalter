@@ -5,6 +5,8 @@ import { Button, Dialog } from "@/shared/ui";
 import styles from "./message-actions.module.css";
 
 type Props = {
+  /** Несколько выбранных — «Удалить сообщений: N». */
+  count?: number;
   canDeleteForEveryone: boolean;
   someoneElses: boolean;
   onDelete: (forEveryone: boolean) => void;
@@ -12,10 +14,10 @@ type Props = {
 };
 
 /** «Удалить сообщение?» — как public/js/components/deleteMessageDialog.js. */
-export function DeleteMessageDialog({ canDeleteForEveryone, someoneElses, onDelete, onClose }: Props) {
+export function DeleteMessageDialog({ count = 1, canDeleteForEveryone, someoneElses, onDelete, onClose }: Props) {
   const [forEveryone, setForEveryone] = useState(false);
   return (
-    <Dialog title="Удалить сообщение?" onClose={onClose}>
+    <Dialog title={count > 1 ? `Удалить сообщений: ${count}` : "Удалить сообщение?"} onClose={onClose}>
       {canDeleteForEveryone ? (
         <label className={styles.checkRow}>
           <input type="checkbox" checked={forEveryone} onChange={(e) => setForEveryone(e.target.checked)} />

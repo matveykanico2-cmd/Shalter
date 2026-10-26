@@ -7,6 +7,8 @@ import { Avatar, Button, Dialog, Icon } from "@/shared/ui";
 import styles from "./message-actions.module.css";
 
 type Props = {
+  /** Сколько сообщений пересылаем (выбранные в ленте). */
+  count?: number;
   /** Отправить в эти чаты; вернуть, сколько не ушло. */
   onSend: (chatIds: string[], hideAuthor: boolean, progress: (done: number) => void) => Promise<void>;
   onClose: () => void;
@@ -18,7 +20,7 @@ const titleOf = (c: ChatSummary) => (c.isSaved ? "Избранное" : chatTitl
  * Выбор чатов для пересылки — как public/js/components/forwardDialog.js: касание отмечает
  * чат, отправить можно сразу нескольким; Избранное — первым, архив и секретные — нет.
  */
-export function ForwardDialog({ onSend, onClose }: Props) {
+export function ForwardDialog({ count = 1, onSend, onClose }: Props) {
   const chats = useChats().data;
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -61,7 +63,7 @@ export function ForwardDialog({ onSend, onClose }: Props) {
   const sendLabel = sending ? (total > 1 ? `Отправляем… ${Math.min(sending.done + 1, total)}/${total}` : "Отправляем…") : total ? `Отправить (${total})` : "Выберите чаты";
 
   return (
-    <Dialog title="Переслать сообщение" onClose={onClose} className={styles.forward}>
+    <Dialog title={count > 1 ? `Переслать сообщения (${count})` : "Переслать сообщение"} onClose={onClose} className={styles.forward}>
       <input className={styles.search} type="search" placeholder="Поиск" aria-label="Поиск" value={query} onChange={(e) => setQuery(e.target.value)} />
       <div className={styles.forwardList}>
         {shown.length ? (

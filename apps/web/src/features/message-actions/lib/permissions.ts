@@ -31,3 +31,11 @@ export function allowedReactions(chat: ChatSummary): string[] | null {
 }
 
 export const canReact = (chat: ChatSummary, m: Message) => m.type !== "gift" && !isCallLogMessage(m) && allowedReactions(chat)?.length !== 0;
+
+/** «Перевести» — у текста, кроме стикера, подарка и опроса (его текст — вопрос). */
+export const canTranslate = (m: Message) =>
+  m.type !== "sticker" && m.type !== "gift" && !!m.text?.trim() && !m.attachments?.some((a) => (a as { kind?: string }).kind === "poll");
+
+/** Сводка длиннее 400 знаков; в секретном и защищённом чате — нет. */
+export const SUMMARY_MIN_CHARS = 400;
+export const canSummarize = (m: Message, protectedContent: boolean) => m.type !== "gift" && (m.text ?? "").length >= SUMMARY_MIN_CHARS && !protectedContent;

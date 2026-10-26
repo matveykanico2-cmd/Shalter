@@ -5,6 +5,77 @@
   align-items: flex-end;
   gap: 6px;
   padding: 1px 0;
+  /* Горизонтальный свайп (ответ) достаётся нам, вертикальный — прокрутке. */
+  touch-action: pan-y;
+  transition: transform 0.18s ease;
+}
+
+/* Значок ответа справа — выезжает из-за края при свайпе влево. */
+.row::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -40px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-surface-alt)
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%233390ec' stroke-width='2' stroke-linecap='round'><path d='M9 8 4 12l5 4'/><path d='M4 12h9a6 6 0 0 1 6 6v1'/></svg>")
+    no-repeat center;
+  opacity: 0;
+  transform: translateY(-50%) scale(0.6);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+
+.swipeReady::before {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+/* Режим выбора (.message-row.selecting в public/styles/components.css). */
+.selecting {
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.selecting .bubble:active {
+  transform: scale(0.98);
+}
+
+.selectedRow {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+.selectMark {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  align-self: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 0 4px;
+  padding: 0;
+  border: 1.5px solid var(--color-border);
+  border-radius: 999px;
+  background: none;
+  color: var(--color-accent-contrast);
+  cursor: pointer;
+}
+
+.selectMark:hover {
+  border-color: var(--color-accent);
+}
+
+.selectMarkOn {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.rowOut .selectMark {
+  order: 1;
+  margin-right: auto;
 }
 
 .rowOut {
@@ -488,4 +559,28 @@
 
 .reactionAvatar + .reactionAvatar {
   margin-left: -5px;
+}
+
+/* «Кратко» — ИИ-сводка под длинным сообщением. */
+.summary {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--color-accent);
+  border-radius: 6px;
+  background: var(--color-accent-soft);
+}
+
+.summaryLabel {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.summaryText {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }

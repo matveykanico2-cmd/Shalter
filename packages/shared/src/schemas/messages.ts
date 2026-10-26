@@ -50,7 +50,10 @@ export const readersResult = z.strictObject({
   readers: z.array(z.strictObject({ user: publicUser, readAt: isoDate.nullable() })),
 });
 
-export const threadResult = z.strictObject({ root: message, replies: z.array(message) });
+/** GET /:messageId/summary — «Кратко», ИИ-сводка длинного текста. */
+export const summaryResult = z.strictObject({ summary: z.string() });
+
+export const threadResult =z.strictObject({ root: message, replies: z.array(message) });
 
 export const daysResult = z.strictObject({ days: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)) });
 
