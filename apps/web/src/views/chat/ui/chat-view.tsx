@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { type DragEvent, type ReactNode, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 
@@ -8,9 +9,11 @@ import { useMessageActions } from "@/features/message-actions";
 import { Composer, type ComposerHandle } from "@/features/send-message";
 import { isTopicStaff, TopicTabs, useTopics } from "@/features/topics";
 
-import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, useChatCard, useChatFromList } from "@/entities/chat";
+import { type ChatMember, chatQueries, type ChatSummary, chatTitle, isChatAdmin, useChatCard, useChatFromList } from "@/entities/chat";
 import type { Message, TopicFilter } from "@/entities/message";
 import { type SelfUser, useSession } from "@/entities/session";
+
+import { useWsEvent } from "@/shared/api";
 
 import styles from "./chat-view.module.css";
 
@@ -22,6 +25,11 @@ export function ChatView() {
   const me = useSession().data?.user;
   const listed = useChatFromList(chatId);
   const card = useChatCard(chatId);
+  // Чат изменили (запрет пересылки, темы, участники) — карточка с личным состоянием заново.
+  const client = useQueryClient();
+  useWsEvent("chat:updated", (e) => {
+    if (e.chat.id === chatId) void client.invalidateQueries({ queryKey: chatQueries.card(chatId).queryKey });
+  });
   // Пока карточка грузится, чат берём из списка — экран открывается сразу.
   const chat = card.data?.chat ?? listed.data ?? null;
 
@@ -72,7 +80,7 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
 
   return (
     <section className={drop.active ? `${styles.view} ${styles.dropActive}` : styles.view} aria-label={title} {...drop.handlers}>
-      <ChatHeader chat={chat} members={members} meId={me.id} />
+      <ChatHeader chat={chat} members={members} me={me} />
       {topics ? <TopicTabs chat={chat} meId={me.id} topics={topics} active={topic} onSelect={selectTopic} /> : null}
       <div className={styles.body}>
         {/* key: у темы своя лента — плашка непрочитанных и прокрутка с нуля. */}

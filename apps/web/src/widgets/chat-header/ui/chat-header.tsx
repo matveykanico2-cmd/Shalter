@@ -1,8 +1,14 @@
+import { useState } from "react";
 import { Link } from "react-router";
 
-import { type ChatMember, type ChatSummary, chatTitle } from "@/entities/chat";
+import { ChatMenu } from "@/features/chat-actions";
+import { ScheduledList } from "@/features/send-message";
+import { useTopicsToggle } from "@/features/topics";
 
-import { Avatar, Icon } from "@/shared/ui";
+import { type ChatMember, type ChatSummary, chatTitle } from "@/entities/chat";
+import type { SelfUser } from "@/entities/session";
+
+import { Avatar, Icon, type MenuItem } from "@/shared/ui";
 
 import { chatSubtitle } from "../lib/subtitle";
 import { usePresenceSync } from "../model/use-presence-sync";
@@ -10,10 +16,14 @@ import { useTyping } from "../model/use-typing";
 
 import styles from "./chat-header.module.css";
 
-type Props = { chat: ChatSummary; members: readonly ChatMember[]; meId: string };
+type Props = { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser };
 
-/** Шапка открытого чата: назад, аватар, название, «в сети» / «печатает…» / участники. */
-export function ChatHeader({ chat, members, meId }: Props) {
+/** Шапка открытого чата: назад, аватар, название, «в сети» / «печатает…» / участники, меню «Ещё». */
+export function ChatHeader({ chat, members, me }: Props) {
+  const meId = me.id;
+  const [scheduledOpen, setScheduledOpen] = useState(false);
+  const topicsToggle = useTopicsToggle(chat, meId);
+  const scheduled: MenuItem = { icon: "Clock", label: "Запланированные сообщения", onClick: () => setScheduledOpen(true) };
   const typing = useTyping(chat.id, meId);
   const now = usePresenceSync(chat.id);
   const title = chatTitle(chat);
@@ -57,6 +67,8 @@ export function ChatHeader({ chat, members, meId }: Props) {
           </p>
         ) : null}
       </div>
+      <ChatMenu chat={chat} me={me} topItems={topicsToggle ? [topicsToggle] : []} middleItems={[scheduled]} />
+      {scheduledOpen ? <ScheduledList chatId={chat.id} onClose={() => setScheduledOpen(false)} /> : null}
     </header>
   );
 }

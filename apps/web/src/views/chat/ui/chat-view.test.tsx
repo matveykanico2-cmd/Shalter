@@ -68,7 +68,13 @@ function renderChat(c: ChatSummary = chat()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   client.setQueryData(sessionQueries.current().queryKey, { user: ME } as never);
   client.setQueryData(chatQueries.list().queryKey, [c]);
-  const router = createMemoryRouter([{ path: "/chat/:chatId", element: <ChatView /> }], { initialEntries: [`/chat/${c.id}`] });
+  const router = createMemoryRouter(
+    [
+      { path: "/chat/:chatId", element: <ChatView /> },
+      { path: "/", element: <p>Список чатов</p> },
+    ],
+    { initialEntries: [`/chat/${c.id}`] }
+  );
   render(
     <QueryClientProvider client={client}>
       <RouterProvider router={router} />
@@ -76,7 +82,7 @@ function renderChat(c: ChatSummary = chat()) {
       <AskHost />
     </QueryClientProvider>
   );
-  return { client };
+  return { client, router };
 }
 
 const bubbles = () => [...document.querySelectorAll("[data-message-id]")].map((el) => el.getAttribute("data-message-id"));
@@ -580,7 +586,7 @@ describe("отправка файлов", () => {
     await screen.findByText("Сообщений пока нет — напишите первым");
 
     pick("attach-media", [png("1.png"), png("2.png")]);
-    fireEvent.click(screen.getByTitle("Ещё"));
+    fireEvent.click(within(screen.getByRole("dialog")).getByTitle("Ещё"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Отправить без сжатия" }));
     expect(screen.getByRole("dialog", { name: "Отправить 2 файла" })).toBeTruthy();
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Отправить" }));
@@ -1277,5 +1283,129 @@ describe("варианты отправки", () => {
     fireEvent.click(within(panel).getAllByRole("button", { name: "привет" })[0]!);
     expect((screen.getByRole("textbox", { name: "Сообщение" }) as HTMLTextAreaElement).value).toBe("привет всем");
     expect(await screen.findByText("Ошибок не нашлось")).toBeTruthy();
+  });
+});
+
+describe("меню чата в шапке", () => {
+  const openMenu = () => fireEvent.click(within(document.querySelector("header")!).getByRole("button", { name: "Ещё" }));
+  const pick = (name: string | RegExp) => fireEvent.click(within(screen.getByRole("menu", { name: "Меню чата" })).getByRole("menuitem", { name }));
+  const listed = (client: QueryClient) => client.getQueryData(chatQueries.list().queryKey)?.[0];
+
+  it("уведомления: срок из списка, затем «Включить уведомления»", async () => {
+    const until = "2026-10-27T10:00:00.000Z";
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([]),
+      "POST /api/chats/c_1/mute": (body) => ({ body: { chat: { ...chat(), muted: !body.off, mutedUntil: body.off ? null : until } } }),
+    });
+    const { client } = renderChat();
+    await screen.findByText("2 участника");
+
+    openMenu();
+    pick("Отключить уведомления");
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Отключить уведомления" })).getByRole("button", { name: "На 8 часов" }));
+    await waitFor(() => expect(listed(client)?.mutedUntil).toBe(until));
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/mute")?.body).toEqual({ hours: 8 });
+
+    openMenu();
+    pick("Включить уведомления");
+    await waitFor(() => expect(listed(client)?.muted).toBe(false));
+    expect(calls.filter((c) => c.key === "POST /api/chats/c_1/mute").at(-1)?.body).toEqual({ off: true });
+  });
+
+  it("админ группы включает и выключает темы", async () => {
+    const admin = chat({ adminIds: [ME.id] });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(admin),
+      [HISTORY]: page([msg("привет")]),
+      "POST /api/chats/c_1/topics/enabled": (body) => ({
+        body: { chat: body.enabled ? { ...admin, topicsEnabled: true } : admin, enabled: body.enabled, topics: [] },
+      }),
+    });
+    renderChat(admin);
+    await screen.findByText("привет");
+
+    openMenu();
+    pick("Включить темы");
+    const tabs = await screen.findByRole("tablist", { name: "Темы" });
+    expect(within(tabs).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Все", "#Общее"]);
+
+    openMenu();
+    pick("Выключить темы");
+    fireEvent.click(await screen.findByRole("button", { name: "Да" }));
+    await waitFor(() => expect(screen.queryByRole("tablist", { name: "Темы" })).toBeNull());
+    expect(calls.filter((c) => c.key === "POST /api/chats/c_1/topics/enabled").map((c) => c.body)).toEqual([{ enabled: true }, { enabled: false }]);
+  });
+
+  it("очистить историю у себя — лента пустеет; архивировать — сразу в списке", async () => {
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: () => page(calls.some((c) => c.key === "POST /api/chats/c_1/clear") ? [] : [msg("старое")]),
+      "POST /api/chats/c_1/clear": { body: { ok: true } },
+      "PATCH /api/chats/c_1": { body: { chat: chat({ archived: true }) } },
+      "GET /api/chats": { body: { chats: [chat()] } },
+    });
+    const { client } = renderChat();
+    await screen.findByText("старое");
+
+    openMenu();
+    pick("Очистить историю");
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Очистить историю чата" })).getByRole("button", { name: "Очистить только у себя" }));
+    await waitFor(() => expect(screen.queryByText("старое")).toBeNull());
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/clear")?.body).toEqual({ forEveryone: false });
+
+    openMenu();
+    pick("Архивировать");
+    expect(listed(client)?.archived).toBe(true);
+    expect(calls.find((c) => c.key === "PATCH /api/chats/c_1")?.body).toEqual({ archived: true });
+  });
+
+  it("запланированные сообщения — список из меню", async () => {
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([]), "GET /api/chats/c_1/messages/scheduled": { body: { scheduled: [] } } });
+    renderChat();
+    await screen.findByText("2 участника");
+    openMenu();
+    pick("Запланированные сообщения");
+    expect(await screen.findByText("Нет запланированных сообщений")).toBeTruthy();
+  });
+
+  it("личка: запрет пересылки без Premium — причина; «Удалить чат» у себя — из списка и на главную", async () => {
+    const dm = chat({ type: "dm", title: null, otherUser: { ...LENA, online: false } as ChatSummary["otherUser"], protectedBy: [] });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(dm),
+      [HISTORY]: page([]),
+      "POST /api/chats/c_1/protect": { status: 402, body: { error: "Запрет пересылки доступен с Premium", premiumHelps: true } },
+      "POST /api/chats/c_1/delete-for-me": { body: { ok: true } },
+    });
+    const { client, router } = renderChat(dm);
+    await screen.findByText("был(а) недавно");
+
+    openMenu();
+    pick("Запретить пересылку");
+    expect(await screen.findByText("Запрет пересылки доступен с Premium")).toBeTruthy();
+
+    openMenu();
+    pick("Удалить чат");
+    const dialog = screen.getByRole("dialog", { name: "Удалить чат" });
+    expect(within(dialog).getByText("Удалить чат с Лена?")).toBeTruthy();
+    expect(within(dialog).getByRole("checkbox", { name: "Также удалить для Лена" })).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Удалить" }));
+    expect(await screen.findByText("Список чатов")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/");
+    expect(calls.some((c) => c.key === "POST /api/chats/c_1/delete-for-me")).toBe(true);
+    expect(client.getQueryData(chatQueries.list().queryKey)).toEqual([]);
+  });
+
+  it("участник группы: «Покинуть группу»", async () => {
+    const { calls } = fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([]), "POST /api/chats/c_1/leave": { body: { ok: true, deleted: false } } });
+    renderChat();
+    await screen.findByText("2 участника");
+    openMenu();
+    pick("Группа: выйти или удалить");
+    const dialog = screen.getByRole("dialog", { name: "Удалить группу" });
+    expect(within(dialog).queryByRole("checkbox")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Покинуть группу" }));
+    expect(await screen.findByText("Список чатов")).toBeTruthy();
+    expect(calls.some((c) => c.key === "POST /api/chats/c_1/leave")).toBe(true);
   });
 });

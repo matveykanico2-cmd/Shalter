@@ -157,6 +157,20 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
     prevFirstKey.current = firstKey;
   }, [totalSize, rows.length, firstKey]);
 
+  // Пока истории нет (грузится, ошибка), нет и области прокрутки.
+  const hasScroller = !!data;
+  // Лента стала ниже (появились вкладки тем, плашка ответа над полем) — scrollTop прежний,
+  // события scroll нет, и прилипшая лента уехала бы от низа.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (stuck.current) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasScroller]);
+
   const loadOlder = useCallback(async () => {
     if (loadingOlder || !data?.hasMore) return;
     setLoadingOlder(true);

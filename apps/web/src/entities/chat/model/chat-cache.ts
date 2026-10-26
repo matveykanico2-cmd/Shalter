@@ -57,6 +57,12 @@ export const chatCache = {
     );
   },
 
+  /** Изменили сам чат (звук, архив, запрет пересылки, темы) — в списке и в открытой карточке. */
+  patchChat(client: QueryClient, chatId: string, patch: Partial<ChatSummary>) {
+    updateChats(client, (chats) => (chats.some((c) => c.id === chatId) ? chats.map((c) => (c.id === chatId ? { ...c, ...patch } : c)) : chats));
+    client.setQueryData(chatQueries.card(chatId).queryKey, (card) => (card ? { ...card, chat: { ...card.chat, ...patch } } : card));
+  },
+
   /** Чат удалён или нас из него убрали. */
   removeChat(client: QueryClient, chatId: string) {
     updateChats(client, (chats) => (chats.some((c) => c.id === chatId) ? chats.filter((c) => c.id !== chatId) : chats));

@@ -2,6 +2,7 @@ export { AskHost } from "./ask-host";
 export { askConfirm, askText } from "./ask-store";
 export { Avatar } from "./avatar";
 export { Button } from "./button";
+export { type Choice, ChoiceDialog } from "./choice-dialog";
 export { Dialog } from "./dialog";
 export { DomNode } from "./dom-node";
 export { Icon, type IconName } from "./icon";
