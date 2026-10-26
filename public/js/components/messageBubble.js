@@ -517,6 +517,34 @@ function playMessageEffect(emoji, anchor) {
   setTimeout(() => layer.remove(), 1600);
 }
 
+// Paper plane send animation (like Telegram)
+export function playSendPlaneAnimation(fromEl, toEl) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const from = fromEl.getBoundingClientRect();
+  const to = toEl.getBoundingClientRect();
+  const layer = el("div", { class: "send-plane-layer", "aria-hidden": "true" });
+  const plane = el("span", { class: "send-plane", html: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l17-8L4 4l0 6.5L15 12 4 13.5 4 20Z"/></svg>' });
+  const startX = from.left + from.width / 2;
+  const startY = from.top + from.height / 2;
+  const endX = to.left + to.width / 2;
+  const endY = to.top + to.height / 2;
+  const midX = startX + (endX - startX) * 0.5 + (Math.random() - 0.5) * 100;
+  const midY = startY - 80 + (Math.random() - 0.5) * 40;
+  const midRot = -45 + (Math.random() - 0.5) * 30;
+  const endRot = -45 + (Math.random() - 0.5) * 20;
+  plane.style.left = `${startX}px`;
+  plane.style.top = `${startY}px`;
+  plane.style.setProperty("--mid-x", `${midX}px`);
+  plane.style.setProperty("--mid-y", `${midY}px`);
+  plane.style.setProperty("--mid-rot", `${midRot}deg`);
+  plane.style.setProperty("--end-x", `${endX}px`);
+  plane.style.setProperty("--end-y", `${endY}px`);
+  plane.style.setProperty("--end-rot", `${endRot}deg`);
+  layer.appendChild(plane);
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 700);
+}
+
 // «Прочитано сегодня в 14:05» / «вчера в …» / «12.03 в …».
 function readAtLabel(iso) {
   const d = new Date(iso);
@@ -943,6 +971,8 @@ export function AttachmentView(a, me, ctx) {
 export function MessageBubble({ message, me, sender, showSender, groupStart = true, groupEnd = true, isChannel = false, isDm = false, canPin = true, selection = null, replyToMessage, replyToSender = null, members, handlers, allowedReactions = null, canViewReactionDetails = true, protectedContent = false, senderTag = null }) {
   const { onReply, onEdit, onDelete, onReact, onPin, onJumpTo, onForward, onVote, onPollAction, onKeyboardAction, onKeyboardApp, onOpenThread } = handlers;
   const mine = message.senderId === me.id;
+  // Mark message as seen for entrance animation
+  seenEntranceIds.add(message.id);
   const react = (m, emoji) => {
     const had = (m.reactions ?? []).some((x) => x.emoji === emoji && x.userIds.includes(me.id));
     recentReactions.set(`${m.id}|${emoji}`, Date.now());
@@ -1756,7 +1786,7 @@ export function MessageBubble({ message, me, sender, showSender, groupStart = tr
   const row = el(
     "div",
     {
-      class: `message-row ${mine && !isChannel ? "mine" : ""} ${isChannel ? "channel-post" : ""} ${groupStart ? "group-start" : ""} ${groupEnd ? "group-end" : ""} ${selection?.active ? "selecting" : ""} ${isSelected ? "selected" : ""}`,
+      class: `message-row ${mine && !isChannel ? "mine" : ""} ${isChannel ? "channel-post" : ""} ${groupStart ? "group-start" : ""} ${groupEnd ? "group-end" : ""} ${selection?.active ? "selecting" : ""} ${isSelected ? "selected" : ""} ${seenEntranceIds.has(message.id) ? "no-entrance" : ""}`,
       id: `msg-${message.id}`,
       ...gestures,
     },

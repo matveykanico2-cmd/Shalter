@@ -1498,9 +1498,20 @@
   display: flex;
   gap: 8px;
   padding: 1px 16px;
+  animation: message-entrance 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.message-row.no-entrance {
+  animation: none;
 }
 .message-row.group-start {
   margin-top: 10px;
+}
+@keyframes message-entrance {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .message-row { animation: none; }
 }
 .message-row.group-end {
   margin-bottom: 2px;
@@ -15327,6 +15338,33 @@ video.story-reply-thumb { object-fit: cover; }
   0% { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
   70% { opacity: 1; }
   100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.1); opacity: 0; }
+}
+
+/* Paper plane send animation (like Telegram) */
+.send-plane-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+  overflow: hidden;
+}
+.send-plane {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  animation: send-plane-fly 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  color: var(--color-accent);
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+}
+@keyframes send-plane-fly {
+  0% { transform: translate(-50%, -50%) rotate(-45deg) scale(0.5); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translate(var(--mid-x), var(--mid-y)) rotate(var(--mid-rot)) scale(1.2); opacity: 1; }
+  100% { transform: translate(var(--end-x), var(--end-y)) rotate(var(--end-rot)) scale(0.8); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .send-plane { animation: none; display: none; }
 }
 
 .inapp-browser-external {

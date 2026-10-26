@@ -28,6 +28,7 @@ import { packWaveform } from "../lib/waveform.js";
 import { startTranscription } from "../lib/speech.js";
 import { parseSlashCommand, suggestSlashCommands } from "../lib/slashCommands.js";
 import { showToast } from "./toast.js";
+import { playSendPlaneAnimation } from "./messageBubble.js";
 
 // Сначала точно (GPS), а если не успел — по сети: в помещении GPS ловит долго, и
 // раньше запрос просто падал без объяснений.
@@ -446,6 +447,8 @@ export function Composer({
         ...(opts.silent === true ? { silent: true } : {}),
         ...(opts.effect ? { effect: opts.effect } : {}),
       };
+      const sendBtn = trailingSlot.querySelector(".composer-send-btn");
+      const messageList = document.querySelector(".message-list");
       if (editingMessage) {
         if (!trimmed) return;
         onSaveEdit(trimmed);
@@ -464,6 +467,7 @@ export function Composer({
         for (let i = 0; i < atts.length; i += MAX_ATTACHMENTS_PER_MESSAGE) {
           onSend(i === 0 ? trimmed : "", atts.slice(i, i + MAX_ATTACHMENTS_PER_MESSAGE), i === 0 ? extra : opts.silent === true ? { silent: true } : {});
         }
+        if (sendBtn && messageList) playSendPlaneAnimation(sendBtn, messageList);
         draftEmoji = [];
         clearDraft();
       } else {
@@ -472,6 +476,7 @@ export function Composer({
           ...(postAsChat ? { anonymous: true } : {}),
           ...(draftEmoji.length ? { customEmoji: draftEmoji.slice() } : {}),
         });
+        if (sendBtn && messageList) playSendPlaneAnimation(sendBtn, messageList);
         draftEmoji = [];
         clearDraft();
       }
