@@ -1,11 +1,10 @@
-/* Лента на обоях чата, как .message-list в public/styles/components.css. */
+/* Лента на обоях чата (их рисует views/chat), как .message-list в public/styles/components.css. */
 .feed {
   position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
   flex-direction: column;
-  background: var(--color-chat-bg);
 }
 
 .scroll {

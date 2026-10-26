@@ -13,8 +13,10 @@ import { isTopicStaff, TopicTabs, useTopics } from "@/features/topics";
 import { type ChatMember, chatQueries, type ChatSummary, chatTitle, isChatAdmin, useChatCard, useChatFromList } from "@/entities/chat";
 import { inTopic, type Message, type TopicFilter } from "@/entities/message";
 import { type SelfUser, useSession } from "@/entities/session";
+import { chatWallpaper, useSettings } from "@/entities/settings";
 
 import { useWsEvent } from "@/shared/api";
+import { wallpaperProps } from "@/shared/ui";
 
 import styles from "./chat-view.module.css";
 
@@ -51,6 +53,7 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
   const [editing, setEditing] = useState<Message | null>(null);
   const actions = useMessageActions(chat, me);
   const title = chatTitle(chat);
+  const wallpaper = wallpaperProps(chatWallpaper(useSettings().data, chat.id, chat.wallpaper));
   // Темы группы: undefined — «Все», "general" — «Общее», иначе id темы.
   const topics = useTopics(chat);
   const [chosenTopic, setTopic] = useState<TopicFilter>(undefined);
@@ -101,7 +104,8 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
       <ChatHeader chat={chat} members={members} me={me} onSearch={() => setSearching(true)} />
       {searching ? <ChatSearch chatId={chat.id} senderName={senderName} onPick={jumpToFound} onClose={() => setSearching(false)} /> : null}
       {topics ? <TopicTabs chat={chat} meId={me.id} topics={topics} active={topic} onSelect={selectTopic} /> : null}
-      <div className={styles.body}>
+      {/* Обои под лентой и полем ввода, как у .message-list с .composer-slot поверх. */}
+      <div className={`${styles.body} ${wallpaper.className}`} style={wallpaper.style}>
         {/* key: у темы своя лента — плашка непрочитанных и прокрутка с нуля. */}
         <MessageFeed key={topic ?? "all"} ref={feed} chat={chat} members={members} me={me} onReply={reply} onEdit={edit} topic={topic} />
         <Bottom

@@ -17,6 +17,7 @@
   --color-bubble-out-meta: #4fae4e;
   --color-bubble-out-accent: #3a8e26;
   --color-chat-bg: #99ba92;
+  --chat-gradient: linear-gradient(135deg, #dbddbb 0%, #a8c89a 30%, #d5d88d 60%, #88b884 100%);
   --color-date-pill: rgba(0, 0, 0, 0.18);
   --bubble-radius: 15px;
   --bubble-radius-small: 5px;
@@ -46,6 +47,7 @@
     --color-bubble-out-accent: #ffffff;
     --color-bubble-out-link: #ffffff;
     --color-chat-bg: #0f0f0f;
+    --chat-gradient: linear-gradient(135deg, #1f2b23 0%, #121a16 45%, #1c2420 100%);
     --color-date-pill: rgba(255, 255, 255, 0.12);
   }
 }

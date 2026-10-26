@@ -1360,6 +1360,39 @@ describe("меню чата в шапке", () => {
     expect(calls.find((c) => c.key === "PATCH /api/chats/c_1")?.body).toEqual({ archived: true });
   });
 
+  it("фон чата: «Только у меня» — в настройки, «Сбросить» у всех — общий фон чата", async () => {
+    const SETTINGS = { chatWallpapers: {}, chatWallpaper: "default", chatWallpaperImage: null };
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(chat({ wallpaper: { id: "dots" } })),
+      [HISTORY]: page([]),
+      "GET /api/settings": { body: { settings: SETTINGS } },
+      "POST /api/chats/c_1/wallpaper": (body) =>
+        body.forEveryone ? { body: { chat: chat({ wallpaper: body.wallpaper }) } } : { body: { settings: { ...SETTINGS, chatWallpapers: { c_1: body.wallpaper } } } },
+    });
+    renderChat(chat({ wallpaper: { id: "dots" } }));
+    await screen.findByText("2 участника");
+    const feed = () => screen.getByRole("log", { name: "Сообщения" }).parentElement!.parentElement!;
+    await waitFor(() => expect(feed().className).toMatch(/dots/));
+
+    openMenu();
+    pick("Фон чата");
+    const dialog = screen.getByRole("dialog", { name: "Фон чата" });
+    expect(within(dialog).getByTitle("Точки").getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(within(dialog).getByTitle("Лес"));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Поменять фон" })).getByRole("button", { name: "Только у меня" }));
+    await waitFor(() => expect(feed().className).toMatch(/forest/));
+    expect(calls.find((c) => c.key === "POST /api/chats/c_1/wallpaper")?.body).toEqual({ wallpaper: { id: "forest" }, forEveryone: false, label: null });
+
+    openMenu();
+    pick("Фон чата");
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Фон чата" })).getByRole("button", { name: "Сбросить" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Сбросить фон" })).getByRole("button", { name: "У всех участников" }));
+    await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/wallpaper")).toHaveLength(2));
+    expect(calls.at(-1)?.body).toEqual({ wallpaper: null, forEveryone: true, label: null });
+    // Свой фон этого чата важнее общего.
+    expect(feed().className).toMatch(/forest/);
+  });
+
   it("запланированные сообщения — список из меню", async () => {
     fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([]), "GET /api/chats/c_1/messages/scheduled": { body: { scheduled: [] } } });
     renderChat();

@@ -17,7 +17,6 @@
   flex: 1;
   min-height: 0;
   flex-direction: column;
-  background: var(--color-chat-bg);
 }
 
 .hint {

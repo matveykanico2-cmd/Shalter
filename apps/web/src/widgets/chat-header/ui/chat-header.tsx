@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 
 import { ChatMenu } from "@/features/chat-actions";
+import { WallpaperDialog } from "@/features/chat-wallpaper";
 import { ScheduledList } from "@/features/send-message";
 import { useTopicsToggle } from "@/features/topics";
 
@@ -21,10 +22,13 @@ type Props = { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser; 
 /** Шапка открытого чата: назад, аватар, название, «в сети» / «печатает…» / участники, меню «Ещё». */
 export function ChatHeader({ chat, members, me, onSearch }: Props) {
   const meId = me.id;
-  const [scheduledOpen, setScheduledOpen] = useState(false);
+  const [dialog, setDialog] = useState<"wallpaper" | "scheduled" | null>(null);
   const topicsToggle = useTopicsToggle(chat, meId);
   const search: MenuItem = { icon: "Search", label: "Поиск по чату", onClick: onSearch };
-  const scheduled: MenuItem = { icon: "Clock", label: "Запланированные сообщения", onClick: () => setScheduledOpen(true) };
+  const middleItems: MenuItem[] = [
+    { icon: "Image", label: "Фон чата", onClick: () => setDialog("wallpaper") },
+    { icon: "Clock", label: "Запланированные сообщения", onClick: () => setDialog("scheduled") },
+  ];
   const typing = useTyping(chat.id, meId);
   const now = usePresenceSync(chat.id);
   const title = chatTitle(chat);
@@ -68,8 +72,9 @@ export function ChatHeader({ chat, members, me, onSearch }: Props) {
           </p>
         ) : null}
       </div>
-      <ChatMenu chat={chat} me={me} topItems={topicsToggle ? [search, topicsToggle] : [search]} middleItems={[scheduled]} />
-      {scheduledOpen ? <ScheduledList chatId={chat.id} onClose={() => setScheduledOpen(false)} /> : null}
+      <ChatMenu chat={chat} me={me} topItems={topicsToggle ? [search, topicsToggle] : [search]} middleItems={middleItems} />
+      {dialog === "wallpaper" ? <WallpaperDialog chat={chat} onClose={() => setDialog(null)} /> : null}
+      {dialog === "scheduled" ? <ScheduledList chatId={chat.id} onClose={() => setDialog(null)} /> : null}
     </header>
   );
 }
