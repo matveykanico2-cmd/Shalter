@@ -50,7 +50,6 @@ export function SendButton({ editing, disabled, allowEffects, onSend, onSchedule
         type="button"
         className={styles.send}
         title={editing ? "Сохранить" : "Отправить (правый клик — другие варианты)"}
-        aria-label={editing ? "Сохранить" : "Отправить"}
         disabled={disabled}
         onClick={(e) => {
           if (!hold.swallow(e)) onSend();

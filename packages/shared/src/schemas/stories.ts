@@ -103,6 +103,8 @@ export const commentLikeBody = z.strictObject({ comment: storyComment, liked: z.
 
 // WS-события историй.
 export const wsStoryNew = z.strictObject({ type: z.literal("story:new"), storyId, userId: z.string() });
+/** Видео истории обработано (H.264 1080p) — перечитать ленту (server/lib/mediaJobs.js). */
+export const wsStoryUpdated = z.strictObject({ type: z.literal("story:updated"), storyId, userId: z.string() });
 export const wsStoryDeleted = z.strictObject({ type: z.literal("story:deleted"), storyId, userId: z.string() });
 export const wsStoryLiked = z.strictObject({ type: z.literal("story:liked"), storyId, userId: z.string(), likeCount: z.number().int() });
 export const wsStoryCommented = z.strictObject({ type: z.literal("story:commented"), storyId, comment: storyCommentWithAuthor });

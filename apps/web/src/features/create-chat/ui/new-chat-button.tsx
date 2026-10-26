@@ -25,8 +25,11 @@ type Step =
   | { kind: "invite"; chat: { id: string; type: string } }
   | null;
 
-/** Круглая кнопка «Новый чат» в списке — openNewChatMenu в public/js/views/chatList.js. */
-export function NewChatButton({ me }: { me: SelfUser }) {
+/**
+ * Круглая кнопка «Новый чат» в списке — openNewChatMenu в public/js/views/chatList.js.
+ * «Новое сообщество» — окно другого слайса (features/community-editor), его открывает список.
+ */
+export function NewChatButton({ me, onNewCommunity, onNewBot }: { me: SelfUser; onNewCommunity?: () => void; onNewBot?: () => void }) {
   const [step, setStep] = useState<Step>(null);
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -67,6 +70,10 @@ export function NewChatButton({ me }: { me: SelfUser }) {
             // Как в tweb: у группы сначала участники, у канала — сначала название, подписчиков можно пропустить.
             { icon: "Users", label: "Новая группа", onClick: () => setStep({ kind: "members" }) },
             { icon: "Send", label: "Новый канал", onClick: () => setStep({ kind: "details", chat: "channel", people: [], adminIds: [] }) },
+            ...(onNewCommunity ? [{ icon: "Users" as const, label: "Новое сообщество", onClick: onNewCommunity }] : []),
+            // «Новый бот» — окно features/my-bots, его тоже открывает список.
+            ...(onNewBot ? [{ icon: "Code" as const, label: "Новый бот", onClick: onNewBot }] : []),
+            { icon: "Search", label: "Публичные каналы", onClick: () => void navigate("/discover-channels") },
           ]}
           onClose={() => setStep((s) => (s?.kind === "menu" ? null : s))}
         />

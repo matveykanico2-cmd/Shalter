@@ -106,8 +106,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
     >
       <aside
         className={entering ? `${styles.panel} ${styles.entering}` : styles.panel}
-        role="dialog"
-        aria-modal="true"
+        // Боковая панель (complementary), как thread-panel в старом клиенте.
         aria-label={title}
         data-thread=""
         onAnimationEnd={(e) => {
@@ -142,6 +141,7 @@ export function ThreadPanel({ chat, source, me, userOf, onClose, composer }: Pro
                 showSender={!mine}
                 showAvatar={!mine}
                 meId={me.id}
+                metaApart
                 onOpenMenu={canAct ? (msg, at) => setMenu({ message: msg, at }) : undefined}
               />
             );

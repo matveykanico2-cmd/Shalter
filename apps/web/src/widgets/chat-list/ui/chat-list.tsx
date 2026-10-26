@@ -1,14 +1,23 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type DragEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useMatch } from "react-router";
+import { useLocation, useMatch } from "react-router";
 
+import { openMainMenu } from "@/features/accounts";
 import { ChatRowMenu, useChatListActions } from "@/features/chat-actions";
+import { CreateCommunityDialog } from "@/features/community-editor";
 import { NewChatButton } from "@/features/create-chat";
+import { DownloadsDialog } from "@/features/downloads";
 import { SearchBox, SearchResults } from "@/features/global-search";
+import { NewBotFlow } from "@/features/my-bots";
+import { StoriesBar } from "@/features/stories";
 
 import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, sortChats, useChatFolders, useChats } from "@/entities/chat";
+import { communityActivity, communityQueries, type JoinedCommunity, setCommunityPanel, useCommunityPanel, useOpenCommunity } from "@/entities/community";
 import { useSession } from "@/entities/session";
 
+import { useWsEvent } from "@/shared/api";
+import { CHAT_TAB_EVENT } from "@/shared/lib/chat-tab-event";
 import { errorText } from "@/shared/lib/error-text";
 import { Icon, Menu, NowPlayingBar } from "@/shared/ui";
 
@@ -18,13 +27,16 @@ import { useConnectionTitle } from "../model/use-connection-title";
 import { useUnreadOnly } from "../model/use-unread-only";
 
 import styles from "./chat-list.module.css";
+import { CommunityPanel, CommunityRow } from "./community-panel";
 
 /** Высота строки чата (аватар 54 + отступы 7 + 7); точную меряет виртуализатор. */
 const ROW_HEIGHT = 68;
 
 const NO_FOLDERS: ChatFolder[] = [];
 
-type Row = { kind: "archive"; chats: ChatSummary[] } | { kind: "chat"; chat: ChatSummary };
+type Row = { kind: "archive"; chats: ChatSummary[] } | { kind: "chat"; chat: ChatSummary } | { kind: "community"; community: JoinedCommunity };
+
+const NO_COMMUNITIES: JoinedCommunity[] = [];
 
 /** Список чатов в оболочке: вкладки, архив, «только непрочитанные». Живёт событиями сокета. */
 export function ChatList({ meId }: { meId: string }) {
@@ -37,6 +49,7 @@ export function ChatList({ meId }: { meId: string }) {
 
   const [tab, setTab] = useState("all");
   const [showArchive, setShowArchive] = useState(false);
+  const [downloadsOpen, setDownloadsOpen] = useState(false);
   const [unreadOnly, toggleUnreadOnly] = useUnreadOnly();
   const me = useSession().data?.user;
   const listActions = useChatListActions();
@@ -58,7 +71,44 @@ export function ChatList({ meId }: { meId: string }) {
   };
   const searching = !!search.trim();
 
+  // Сообщества: строки среди чатов и панель вместо списка (communityList.js).
+  const client = useQueryClient();
+  const communities = useQuery(communityQueries.joined()).data ?? NO_COMMUNITIES;
+  useWsEvent("community:updated", ({ communityId }) => {
+    void client.invalidateQueries({ queryKey: communityQueries.detail(communityId).queryKey });
+    void client.invalidateQueries({ queryKey: communityQueries.joined().queryKey });
+  });
+  const panelId = useCommunityPanel();
+  const panelCommunity = communities.find((c) => c.id === panelId) ?? null;
+  // Чат из сообщества — значок на аватаре строки открывает панель сообщества.
+  const communityBadge = (chatId: string) => {
+    const cm = communities.find((c) => c.chatIds.includes(chatId));
+    return cm ? { title: cm.title, onOpen: () => setCommunityPanel(cm.id) } : null;
+  };
+  const openCommunity = useOpenCommunity();
+  const [creatingCommunity, setCreatingCommunity] = useState(false);
+  const [creatingBot, setCreatingBot] = useState(false);
+  // Ушли со списка чатов на другой экран — панель сообщества закрывается (как в chatList.js).
+  const { pathname } = useLocation();
+  const lastPath = useRef(pathname);
+  useEffect(() => {
+    if (lastPath.current === pathname) return;
+    lastPath.current = pathname;
+    if (pathname !== "/" && !pathname.startsWith("/chat/")) setCommunityPanel(null);
+  }, [pathname]);
+
   const tabs = tabsFor(folders);
+  // Ctrl/⌘+1…9 из горячих клавиш оболочки — вкладка по номеру.
+  useEffect(() => {
+    const onTab = (e: Event) => {
+      const t = tabs[(e as CustomEvent<number>).detail];
+      if (!t) return;
+      setShowArchive(false);
+      setTab(t.id);
+    };
+    window.addEventListener(CHAT_TAB_EVENT, onTab);
+    return () => window.removeEventListener(CHAT_TAB_EVENT, onTab);
+  }, [tabs]);
   // Папку удалили — возвращаемся на «Все».
   const activeTab = tabs.some((t) => t.id === tab) ? tab : "all";
 
@@ -69,8 +119,27 @@ export function ChatList({ meId }: { meId: string }) {
     if (unreadOnly) list = list.filter((c) => hasUnread(c) || c.id === currentId);
     const archived = chats.filter((c) => c.archived);
     const head: Row[] = activeTab === "all" && archived.length && !unreadOnly ? [{ kind: "archive", chats: sortChats(archived) }] : [];
-    return [...head, ...list.map((chat): Row => ({ kind: "chat", chat }))];
-  }, [chats, folders, activeTab, showArchive, unreadOnly, currentId]);
+    // Сообщество — строка среди чатов по времени самого свежего из своих чатов; «одной
+    // строкой» (collapsed) — его чаты в общем списке не повторяются; закреплённые — первыми.
+    const shown = ["all", "groups", "channels"].includes(activeTab) && !unreadOnly ? communities : [];
+    const folded = new Set(shown.filter((cm) => cm.collapsed).flatMap((cm) => cm.chatIds));
+    if (folded.size) list = list.filter((c) => !folded.has(c.id) || c.id === currentId);
+    const notArchived = chats.filter((c) => !c.archived);
+    const out: Row[] = [...head, ...shown.filter((cm) => cm.pinned).map((community): Row => ({ kind: "community", community }))];
+    const queue = shown
+      .filter((cm) => !cm.pinned)
+      .map((cm) => ({ cm, at: communityActivity(cm, notArchived) }))
+      .sort((a, b) => b.at.localeCompare(a.at));
+    const flush = (beforeAt: string | null) => {
+      while (queue.length && (beforeAt === null || queue[0]!.at >= beforeAt)) out.push({ kind: "community", community: queue.shift()!.cm });
+    };
+    for (const chat of list) {
+      if (!chat.pinned) flush(chat.lastMessage?.createdAt ?? chat.createdAt ?? "");
+      out.push({ kind: "chat", chat });
+    }
+    flush(null);
+    return out;
+  }, [chats, folders, activeTab, showArchive, unreadOnly, currentId, communities]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line react-hooks/incompatible-library -- виртуализатор сам следит за прокруткой
@@ -81,7 +150,7 @@ export function ChatList({ meId }: { meId: string }) {
     overscan: 8,
     getItemKey: (i) => {
       const row = rows[i]!;
-      return row.kind === "chat" ? row.chat.id : "archive";
+      return row.kind === "chat" ? row.chat.id : row.kind === "community" ? `community:${row.community.id}` : "archive";
     },
   });
 
@@ -124,9 +193,31 @@ export function ChatList({ meId }: { meId: string }) {
       <div className={currentId ? styles.nowPlayingBesideChat : undefined}>
         <NowPlayingBar />
       </div>
-      <SearchBox value={search} onChange={setSearch} onClear={clearSearch} results={() => scrollRef.current} />
+      <div className={styles.searchRow}>
+        {/* Меню ☰ как в tweb (SidebarHeader в chatList.js): аккаунты, разделы, тема. */}
+        <button
+          type="button"
+          className={styles.iconButton}
+          title="Меню"
+          aria-label="Меню"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            openMainMenu({ x: r.left, y: r.bottom + 6 });
+          }}
+        >
+          <Icon name="Menu" size={20} />
+        </button>
+        <div className={styles.searchBox}>
+          <SearchBox value={search} onChange={setSearch} onClear={clearSearch} results={() => scrollRef.current} />
+        </div>
+        {/* Загрузки — отдельной кнопкой на главном экране, как в chatList.js. */}
+        <button type="button" className={styles.iconButton} title="Загрузки" aria-label="Загрузки" onClick={() => setDownloadsOpen(true)}>
+          <Icon name="Download" size={20} />
+        </button>
+      </div>
+      {downloadsOpen ? <DownloadsDialog onClose={() => setDownloadsOpen(false)} /> : null}
 
-      {searching ? null : showArchive ? (
+      {searching || panelCommunity ? null : showArchive ? (
         <div className={styles.archiveHead}>
           <button type="button" className={styles.iconButton} title="Назад к чатам" onClick={() => setShowArchive(false)}>
             <Icon name="ChevronLeft" size={20} />
@@ -136,15 +227,14 @@ export function ChatList({ meId }: { meId: string }) {
         </div>
       ) : (
         <div className={styles.tabsBar}>
-          <div className={styles.tabs} role="tablist">
+          <div className={styles.tabs}>
             {tabs.map((t) => {
               const unread = chats ? chatsInTab(t.id, chats, folders).filter(hasUnread).length : 0;
               return (
                 <button
                   key={t.id}
                   type="button"
-                  role="tab"
-                  aria-selected={t.id === activeTab}
+                  aria-pressed={t.id === activeTab}
                   className={t.id === activeTab ? `${styles.tab} ${styles.tabActive}` : styles.tab}
                   onClick={() => setTab(t.id)}
                   onContextMenu={(e) => {
@@ -170,7 +260,18 @@ export function ChatList({ meId }: { meId: string }) {
         </div>
       )}
 
-      <div ref={scrollRef} className={styles.scroll}>
+      {/* Полоса историй — над чатами, как StoriesBar в chatList.js. */}
+      {me ? <StoriesBar me={me} /> : null}
+
+      {!searching && panelCommunity ? (
+        <CommunityPanel
+          community={panelCommunity}
+          chats={chats ?? []}
+          meId={meId}
+          renderChat={(c) => <ChatRow chat={c} meId={meId} onMenu={(at) => setRowMenu({ chat: c, at })} />}
+        />
+      ) : null}
+      <div ref={scrollRef} className={styles.scroll} hidden={!searching && !!panelCommunity}>
         {searching ? (
           query ? (
             <SearchResults
@@ -207,10 +308,13 @@ export function ChatList({ meId }: { meId: string }) {
                 >
                   {row.kind === "archive" ? (
                     <ArchiveRow chats={row.chats} onOpen={() => setShowArchive(true)} />
+                  ) : row.kind === "community" ? (
+                    <CommunityRow community={row.community} chats={chats ?? []} meId={meId} active={panelId === row.community.id} />
                   ) : (
                     <ChatRow
                       chat={row.chat}
                       meId={meId}
+                      community={communityBadge(row.chat.id)}
                       onMenu={(at) => setRowMenu({ chat: row.chat, at })}
                       onSwipe={(action) => void (action === "mute" ? listActions.toggleMute(row.chat) : listActions.toggleArchive(row.chat))}
                     />
@@ -221,7 +325,9 @@ export function ChatList({ meId }: { meId: string }) {
           </div>
         )}
       </div>
-      {me && !searching && !showArchive ? <NewChatButton me={me} /> : null}
+      {me && !searching && !showArchive && !panelCommunity ? <NewChatButton me={me} onNewCommunity={() => setCreatingCommunity(true)} onNewBot={() => setCreatingBot(true)} /> : null}
+      {creatingBot ? <NewBotFlow onClose={() => setCreatingBot(false)} /> : null}
+      {creatingCommunity ? <CreateCommunityDialog onCreated={(c) => void openCommunity(c.id)} onClose={() => setCreatingCommunity(false)} /> : null}
       {rowMenu && me ? <ChatRowMenu chat={rowMenu.chat} me={me} at={rowMenu.at} onClose={() => setRowMenu(null)} /> : null}
       {tabMenu && chats ? <TabMenu at={tabMenu.at} chats={chatsInTab(tabMenu.tabId, chats, folders)} onReadAll={(list) => void listActions.readAll(list)} onClose={() => setTabMenu(null)} /> : null}
     </div>

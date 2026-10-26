@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 
+import { openGame, openGameScores } from "@/entities/game/@x/message";
+
+import { Button } from "@/shared/ui";
+
 import { diceResult } from "../../lib/message-preview";
 import type { Attachment } from "../../model/attachment";
 import type { Message } from "../../model/types";
@@ -31,9 +35,10 @@ export function DiceAttachment({ message, attachment }: { message: Message; atta
   );
 }
 
-/** Карточка игры. Сами игры (каталог, запуск, рекорды) переедут с их экраном. */
-export function GameCard({ attachment }: { attachment: Attachment }) {
-  const meta = (attachment.meta ?? {}) as { title?: string; emoji?: string; description?: string };
+/** Карточка игры (GameAttachment в games.js): «Играть» открывает игру поверх чата, «Рекорды» — таблицу этого чата. */
+export function GameCard({ attachment, message }: { attachment: Attachment; message: Message }) {
+  const meta = (attachment.meta ?? {}) as { gameId?: string; title?: string; emoji?: string; description?: string };
+  const game = meta.gameId ? { id: meta.gameId, title: meta.title, emoji: meta.emoji } : null;
   return (
     <div className={styles.game}>
       <div className={styles.gameCover}>
@@ -42,6 +47,27 @@ export function GameCard({ attachment }: { attachment: Attachment }) {
       <div className={styles.gameBody}>
         <p className={styles.gameTitle}>{meta.title || "Игра"}</p>
         {meta.description ? <p className={styles.gameDesc}>{meta.description}</p> : null}
+        {game ? (
+          <div className={styles.gameActions}>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                openGame(game, { chatId: message.chatId });
+              }}
+            >
+              ▶ Играть
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={(e) => {
+                e.stopPropagation();
+                openGameScores(game, message.chatId);
+              }}
+            >
+              🏆 Рекорды
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

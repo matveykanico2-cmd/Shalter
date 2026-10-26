@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { errorText } from "@/shared/lib/error-text";
-import { Icon, toast } from "@/shared/ui";
+import { EmojiText, Icon, toast } from "@/shared/ui";
 
 import { type ResolveAction, resolveReport } from "../api/report";
 import { reasonLabel, REPORT_STATUS_LABELS } from "../lib/reasons";
@@ -37,7 +37,10 @@ export function ReportMessage({ messageId, report, canResolve, time, read }: Pro
   };
   return (
     <div className={styles.report}>
-      <p className={styles.title}>🚩 Жалоба: {reasonLabel(report.reason)}</p>
+      {/* Эмодзи картинкой, как в старом клиенте: текст строки — «Жалоба: …». */}
+      <p className={styles.title}>
+        <EmojiText text={`🚩 Жалоба: ${reasonLabel(report.reason)}`} />
+      </p>
       {report.targetSummary ? <p className={styles.summary}>{report.targetSummary}</p> : null}
       {status === "open" ? (
         canResolve ? (
@@ -60,7 +63,9 @@ export function ReportMessage({ messageId, report, canResolve, time, read }: Pro
           <p className={styles.note}>Ожидает решения администратора</p>
         )
       ) : (
-        <p className={styles.note}>{REPORT_STATUS_LABELS[status] ?? status}</p>
+        <p className={styles.note}>
+          <EmojiText text={REPORT_STATUS_LABELS[status] ?? status} />
+        </p>
       )}
       <div className={styles.meta}>
         <span>{time}</span>

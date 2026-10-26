@@ -89,6 +89,31 @@ function soundChoice(kind: "message" | "ringtone") {
   }
 }
 
+/** Выбранные на этом устройстве звук сообщения и рингтон (Настройки → Уведомления). */
+export function getSoundChoice() {
+  return { message: soundChoice("message"), ringtone: soundChoice("ringtone") };
+}
+
+export function setSoundChoice(kind: "message" | "ringtone", id: string) {
+  try {
+    const prev = JSON.parse(localStorage.getItem(SOUNDS_KEY) || "{}") as Record<string, string>;
+    localStorage.setItem(SOUNDS_KEY, JSON.stringify({ ...prev, [kind]: id }));
+  } catch {
+    // Хранилище недоступно (приватный режим) — выбор не сохранится.
+  }
+}
+
+/** Прослушать в настройках: звук сообщения целиком, рингтон — один круг. */
+export function previewSound(kind: "message" | "ringtone", id: string) {
+  try {
+    const t = getCtx().currentTime + 0.02;
+    const list: { id: string; play: (t: number) => void }[] = kind === "ringtone" ? RINGTONES : MESSAGE_SOUNDS;
+    (list.find((x) => x.id === id) ?? list[0]!).play(t);
+  } catch {
+    // Нет AudioContext — без звука.
+  }
+}
+
 let lastIncomingAt = 0;
 
 /** Входящее — не чаще раза в 1,2 с, выбранным звуком. */

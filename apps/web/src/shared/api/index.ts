@@ -1,3 +1,4 @@
+export { type BanInfo, useBan } from "./ban";
 export { ApiError, http } from "./http";
 export { UPLOAD_CANCELLED, type Uploaded, UploadError, uploadFile, type UploadKind } from "./upload";
 export { useWsEvent, useWsStatus } from "./use-ws-event";

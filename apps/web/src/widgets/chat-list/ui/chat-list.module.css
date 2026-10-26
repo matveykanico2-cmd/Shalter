@@ -303,3 +303,15 @@
     display: none;
   }
 }
+
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 8px;
+}
+
+.searchBox {
+  flex: 1;
+  min-width: 0;
+}

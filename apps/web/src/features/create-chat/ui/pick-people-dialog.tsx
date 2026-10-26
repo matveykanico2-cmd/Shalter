@@ -51,6 +51,18 @@ export function PickPeopleDialog({ title, submitLabel, single = false, allowRole
 
   return (
     <Dialog title={title} onClose={onClose}>
+      {/* Выбранные — плашками над поиском (tw-chip в memberPickerDialog.js), нажатие убирает. */}
+      {picked.size ? (
+        <div className={styles.chips}>
+          {[...picked.values()].map((u) => (
+            <button key={u.id} type="button" className={styles.chip} onClick={() => toggle(u)}>
+              <Avatar size={24} name={u.name} color={u.avatarColor} image={u.avatarImage} />
+              <span>{u.name.split(" ")[0]}</span>
+              <Icon name="X" size={14} />
+            </button>
+          ))}
+        </div>
+      ) : null}
       <input className={styles.search} placeholder={single ? "Поиск" : "Кого добавить?"} aria-label={single ? "Поиск" : "Кого добавить?"} value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
       <div className={styles.people}>
         {contacts.isPending ? (
@@ -65,7 +77,7 @@ export function PickPeopleDialog({ title, submitLabel, single = false, allowRole
             const admin = admins.has(u.id);
             return (
               <div key={u.id} className={styles.personRow}>
-                <button type="button" role={single ? undefined : "checkbox"} aria-checked={single ? undefined : checked} className={styles.person} onClick={() => toggle(u)}>
+                <button type="button" aria-pressed={single ? undefined : checked} className={styles.person} onClick={() => toggle(u)}>
                   <Avatar size={40} name={u.name} color={u.avatarColor} image={u.avatarImage} />
                   <span className={styles.personText}>
                     <span>{u.name}</span>

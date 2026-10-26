@@ -74,7 +74,11 @@ export function useHistorySync(chatId: string, meId: string) {
         scheduleRefresh();
       }),
       ws.on("message:read", ({ chatId: id, readerId, messageIds, readAt }) => {
-        if (id === chatId) historyCache.markRead(client, chatId, readerId, messageIds, readAt);
+        if (id !== chatId) return;
+        historyCache.markRead(client, chatId, readerId, messageIds, readAt);
+        // И сверка, как в chatView.js: своё, ушедшее не отсюда («Отправить сейчас» из запланированных,
+        // другое устройство), сокет нам не присылает — его прочли, значит, оно уже в ленте сервера.
+        scheduleRefresh();
       }),
       ws.on("ws:reconnected", catchUp),
     ];

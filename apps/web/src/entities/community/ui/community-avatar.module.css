@@ -1,0 +1,18 @@
+/* .community-avatar: аватар сдвинут вправо, слева из-под него видны «карточки». */
+.wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.decoration {
+  position: absolute;
+  top: 0;
+  left: -18%;
+  width: 125%;
+  height: 100%;
+  color: var(--color-text);
+  pointer-events: none;
+}

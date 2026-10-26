@@ -1,5 +1,6 @@
-import { useState } from "react";
 import { useNavigate } from "react-router";
+
+import { openUserProfile } from "@/entities/user";
 
 import { findUserByUsername } from "../api/open-profile";
 
@@ -7,22 +8,21 @@ type Known = { id: string; username?: string | null };
 
 /**
  * @имя в тексте сообщения — как mention-link в public/js/lib/formatText.js: участник
- * чата или найденный по нику — его профиль, иначе экран /u/имя (канал, группа, «не найдено»).
+ * чата или найденный по нику — его профиль, иначе экран /@имя (канал, группа, «не найдено»).
  */
 export function useMentionProfile(me: Known, members: readonly Known[]) {
   const navigate = useNavigate();
-  const [profileId, setProfileId] = useState<string | null>(null);
   const openMention = async (handle: string) => {
     const name = handle.replace(/^@/, "").toLowerCase();
-    if (me.username?.toLowerCase() === name) return setProfileId(me.id);
+    if (me.username?.toLowerCase() === name) return openUserProfile(me.id);
     const member = members.find((u) => u.username?.toLowerCase() === name);
-    if (member) return setProfileId(member.id);
+    if (member) return openUserProfile(member.id);
     const user = await findUserByUsername(name).then(
       (r) => r.user,
       () => null
     );
-    if (user) setProfileId(user.id);
-    else void navigate(`/u/${name}`);
+    if (user) openUserProfile(user.id);
+    else void navigate(`/@${name}`);
   };
-  return { profileId, openMention, openProfile: setProfileId, closeProfile: () => setProfileId(null) };
+  return { openMention, openProfile: openUserProfile };
 }

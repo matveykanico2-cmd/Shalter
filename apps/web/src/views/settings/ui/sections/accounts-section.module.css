@@ -1,0 +1,55 @@
+/* Как .tw-account-* в public/styles/components.css. */
+.row {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px 6px 12px;
+  border-radius: 16px;
+}
+
+.row:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 14px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 21px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.subtitle {
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--color-muted);
+}
+
+.check {
+  display: flex;
+  color: var(--color-accent);
+}

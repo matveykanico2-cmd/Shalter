@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { chatQueries, type ChatSummary } from "@/entities/chat";
 import { sessionQueries } from "@/entities/session";
+import { closeUserProfile, useOpenedProfile } from "@/entities/user";
 
 import { fakeApi } from "@/shared/lib/test";
 import { Toaster } from "@/shared/ui";
@@ -18,7 +19,13 @@ const chat = (patch: Partial<ChatSummary>) => ({ type: "group", title: "", membe
 
 function ChatStub() {
   const location = useLocation();
-  return <p>{`чат ${location.pathname}${location.search}${(location.state as { info?: boolean } | null)?.info ? " с профилем" : ""}`}</p>;
+  return <p>{`чат ${location.pathname}${location.search}`}</p>;
+}
+
+/** Открытый профиль (панель рисует widgets/user-profile в оболочке). */
+function OpenedProfile() {
+  const id = useOpenedProfile();
+  return id ? <p>{`профиль ${id}`}</p> : null;
 }
 
 function renderAt(path: string, chats: ChatSummary[] = []) {
@@ -36,6 +43,7 @@ function renderAt(path: string, chats: ChatSummary[] = []) {
   render(
     <QueryClientProvider client={client}>
       <RouterProvider router={router} />
+      <OpenedProfile />
       <Toaster />
     </QueryClientProvider>
   );
@@ -59,14 +67,15 @@ describe("ссылка /u/имя", () => {
   it("человек с личкой — личка с профилем; без лички — профиль поверх", async () => {
     fakeApi({ "GET /api/users/by-username/lena": { body: { user: LENA } }, "GET /api/users/u_lena00000": { body: profile } });
     renderAt("/u/lena", [chat({ id: "c_dm", type: "dm", otherUser: LENA as ChatSummary["otherUser"] })]);
-    expect(await screen.findByText("чат /chat/c_dm с профилем")).toBeTruthy();
+    expect(await screen.findByText("чат /chat/c_dm")).toBeTruthy();
+    expect(screen.getByText(`профиль ${LENA.id}`)).toBeTruthy();
+    closeUserProfile();
     cleanup();
 
     renderAt("/u/lena");
-    expect(await screen.findByRole("dialog", { name: "Профиль" })).toBeTruthy();
-    expect(await screen.findByRole("button", { name: "Написать сообщение" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Закрыть" }));
-    expect(await screen.findByText("Список чатов")).toBeTruthy();
+    expect(await screen.findByText(`профиль ${LENA.id}`)).toBeTruthy();
+    expect(screen.queryByText(/^чат /)).toBeNull();
+    closeUserProfile();
   });
 
   it("бот по ссылке ?start= — чат с ним и /start с параметром", async () => {

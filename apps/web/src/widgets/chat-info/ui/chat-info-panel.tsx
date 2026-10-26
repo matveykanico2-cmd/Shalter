@@ -4,17 +4,21 @@ import { BoostCard } from "@/features/boost-chat";
 import { ChannelStats } from "@/features/channel-stats";
 import { AUTO_DELETE_DURATIONS, autoDeleteLabel, MuteDialog, useChatActions } from "@/features/chat-actions";
 import { EditChatPanel } from "@/features/edit-chat";
+import { AdminGiftDialog } from "@/features/gifts";
 import { AddMembersDialog, MemberControls } from "@/features/manage-members";
 import { SimilarChannels } from "@/features/similar-channels";
 import { useStaffActions } from "@/features/staff-actions";
+import { ChannelStoryButton } from "@/features/stories";
 
 import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, isChatMuted, isChatOwner, levelForPoints, memberRoleLabel } from "@/entities/chat";
+import { openGiftShop } from "@/entities/gift";
 import { ReportDialog, type ReportTarget } from "@/entities/report";
 import type { SelfUser } from "@/entities/session";
-import { ProfileRows } from "@/entities/user";
+import { openUserProfile, ProfileRows } from "@/entities/user";
 
 import { statusLabel } from "@/shared/lib/presence";
 import { publicUrl } from "@/shared/lib/public-link";
+import { useEscape } from "@/shared/lib/use-escape";
 import { Avatar, Icon, type IconName, InfoRow, Menu } from "@/shared/ui";
 
 import { membersLine, sortMembers } from "../lib/members";
@@ -29,6 +33,7 @@ type Dialog = { kind: "mute" } | { kind: "report"; target: ReportTarget; label: 
 export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
   const actions = useChatActions(chat, me.id);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [giftPicker, setGiftPicker] = useState(false);
   const [autoDeleteAt, setAutoDeleteAt] = useState<{ x: number; y: number } | null>(null);
   // Вместо информации — «Изменить группу/канал» или статистика канала.
   const [screen, setScreen] = useState<"info" | "edit" | "stats">("info");
@@ -43,11 +48,15 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
   const status = other ? statusLabel(other) : null;
   const level = chat.type === "group" ? levelForPoints(chat.points) : 0;
   const isChannelAdmin = chat.type === "channel" && isAdmin;
+  // Esc закрывает статистику и саму панель; правка ловит Esc сама.
+  useEscape(screen === "stats" ? () => setScreen("info") : onClose, screen !== "edit");
 
   if (screen === "edit" && !isDm && isAdmin) {
     return (
       <aside className={styles.panel} aria-label={chat.type === "channel" ? "Изменить канал" : "Изменить группу"}>
-        <EditChatPanel chat={chat} onClose={() => setScreen("info")} />
+        <ChannelStoryButton chatId={chat.id}>
+          {(open, progress) => <EditChatPanel chat={chat} onClose={() => setScreen("info")} channelStory={{ open, progress }} />}
+        </ChannelStoryButton>
       </aside>
     );
   }
@@ -76,7 +85,8 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
         </button>
       </div>
       <div className={styles.body}>
-        <div className={styles.hero}>
+        {/* В личке аватар с именем открывает полный профиль (как info-panel-avatar-row в infoPanel.js). */}
+        <HeroBox className={styles.hero} onClick={other ? () => openUserProfile(other.id) : undefined}>
           <Avatar size={120} name={other?.name ?? title} color={other?.avatarColor ?? chat.avatarColor} image={other?.avatarImage ?? chat.avatarImage} />
           <p className={styles.title}>
             {other?.name ?? title}
@@ -96,7 +106,7 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
           ) : !isDm ? (
             <p className={styles.subtitle}>{membersLine(chat, members)}</p>
           ) : null}
-        </div>
+        </HeroBox>
 
         {other ? <ProfileRows userId={other.id} className={styles.card} /> : null}
         {!isDm ? (
@@ -133,6 +143,17 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
           {other && staff.isAdmin ? (
             <Row icon="Star" onClick={() => void staff.togglePremium()}>
               {other.isPremium ? "Забрать Shalter Premium" : "Выдать Shalter Premium (30 дней)"}
+            </Row>
+          ) : null}
+          {/* Тот же магазин подарков, что и в профиле. */}
+          {other && !other.isBot && other.id !== me.id ? (
+            <Row icon="Gift" onClick={() => openGiftShop({ recipient: { id: other.id, name: other.name } })}>
+              Отправить подарок
+            </Row>
+          ) : null}
+          {other && staff.isAdmin ? (
+            <Row icon="Shield" onClick={() => setGiftPicker(true)}>
+              Выдать подарок (админ)
             </Row>
           ) : null}
           <Row icon={muted ? "Bell" : "BellOff"} onClick={() => (muted ? void actions.mute({ off: true }) : setDialog({ kind: "mute" }))}>
@@ -180,9 +201,20 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
           onClose={() => setAutoDeleteAt(null)}
         />
       ) : null}
+      {giftPicker && other ? <AdminGiftDialog userId={other.id} onClose={() => setGiftPicker(false)} /> : null}
       {dialog?.kind === "mute" ? <MuteDialog onMute={(opts) => void actions.mute(opts)} onClose={() => setDialog(null)} /> : null}
       {dialog?.kind === "report" ? <ReportDialog target={dialog.target} targetLabel={dialog.label} onClose={() => setDialog(null)} /> : null}
     </aside>
+  );
+}
+
+function HeroBox({ className, onClick, children }: { className?: string; onClick?: () => void; children: ReactNode }) {
+  return onClick ? (
+    <button type="button" className={`${className} ${styles.heroButton}`} onClick={onClick}>
+      {children}
+    </button>
+  ) : (
+    <div className={className}>{children}</div>
   );
 }
 
@@ -218,9 +250,11 @@ function Members({ chat, members, meId }: { chat: ChatSummary; members: readonly
         const status = statusLabel(m);
         return (
           <div key={m.id} className={styles.member}>
+            {/* Аватар и имя — кнопка профиля, как info-panel-member-profile-btn. */}
+            <button type="button" className={styles.memberProfile} onClick={() => openUserProfile(m.id)}>
             <Avatar size={42} name={m.name} color={m.avatarColor} image={m.avatarImage} online={m.online} />
             <span className={styles.memberText}>
-              <span className={styles.memberName}>
+              <span className={styles.memberName} translate="no">
                 <span className={styles.ellipsis}>{m.name}</span>
                 {role ? (
                   <span className={`${styles.tag} ${styles[tone]}`}>
@@ -237,6 +271,7 @@ function Members({ chat, members, meId }: { chat: ChatSummary; members: readonly
                 {m.id === meId ? "это вы" : (status ?? "был(а) недавно")}
               </span>
             </span>
+            </button>
             <MemberControls chat={chat} member={m} meId={meId} />
           </div>
         );

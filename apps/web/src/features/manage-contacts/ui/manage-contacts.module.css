@@ -1,0 +1,290 @@
+/* Как .contacts-add-panel и .import-contacts-* в public/styles/components.css. */
+.addPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+}
+
+.modes {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--color-surface);
+}
+
+.mode {
+  flex: 1;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.modeActive {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.phoneRow {
+  display: flex;
+  gap: 8px;
+}
+
+.phoneRow > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.pill {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pill:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pillMuted {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+
+.candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.candidate {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.candidate:hover {
+  background: var(--color-surface);
+}
+
+.candidateName {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.candidateUsername {
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.emptyHint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.accentButton {
+  height: 40px;
+  padding: 0 18px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.importDialog {
+  max-width: min(460px, 94vw);
+}
+
+.importBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(64vh, 560px);
+  overflow-y: auto;
+  text-align: left;
+}
+
+.importBody > * {
+  margin: 0;
+}
+
+.actionButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.actionButton:hover {
+  background: var(--color-accent-soft);
+}
+
+.vcfButton {
+  border: 1px solid var(--color-border);
+  background: none;
+}
+
+.fieldLabel {
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.paste {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  resize: vertical;
+}
+
+.paste:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: 13px;
+}
+
+.sectionTitle {
+  margin-top: 6px !important;
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.importList {
+  display: flex;
+  flex-direction: column;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+}
+
+.importRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.importRow:last-child {
+  border-bottom: none;
+}
+
+.importText {
+  flex: 1;
+  min-width: 0;
+}
+
+.importName,
+.importSub {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.importName {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.importSub {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.importPlaceholder {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px dashed var(--color-border);
+  border-radius: 50%;
+  color: var(--color-muted);
+}
+
+.importDone {
+  flex-shrink: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.spinner {
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

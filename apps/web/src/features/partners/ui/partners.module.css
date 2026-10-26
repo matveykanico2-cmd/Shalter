@@ -1,0 +1,43 @@
+/* Как .tw-media-header и .tw-section-text в public/styles. */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 16px 16px;
+  text-align: center;
+}
+
+.heroIcon {
+  display: flex;
+  width: 100px;
+  height: 100px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #7e57c2;
+  color: #fff;
+}
+
+.title {
+  margin: 12px 0 6px;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 15px;
+  color: var(--color-muted);
+}
+
+.error {
+  margin: 0 16px 12px;
+  font-size: 14px;
+  color: var(--color-danger);
+}
+
+.text {
+  margin: 0;
+  padding: 8px 12px;
+  white-space: pre-wrap;
+}

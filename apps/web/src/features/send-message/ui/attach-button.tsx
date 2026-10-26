@@ -9,14 +9,19 @@ type Props = {
   onPoll: () => void;
   onChecklist: () => void;
   onDice: (emoji: string) => void;
+  /** Каталог игр — карточка выбранной игры уходит в чат. */
+  onGames: () => void;
   onLocation: (live: boolean) => void;
   onContact: () => void;
   onHugo: () => void;
+  /** Мем и рисунок — картинкой сразу в чат. */
+  onMeme: () => void;
+  onPaint: () => void;
   /** Нет — «Отправить позже» не показываем (ответ в ветке). */
   onSchedule?: () => void;
 };
 
-/** Эмодзи-игры (число выпадает на сервере). Каталог игр переедет вместе с экраном игр. */
+/** Эмодзи-игры (число выпадает на сервере); над ними — каталог HTML5-игр. */
 const DICE: [string, string][] = [
   ["🎲", "Кубик"],
   ["🎯", "Дартс"],
@@ -26,8 +31,8 @@ const DICE: [string, string][] = [
   ["🎰", "Слот-машина"],
 ];
 
-/** Скрепка — как меню вложений в composer.js: фото и видео, камера, файл, аудио, опрос, чек-лист, кубики, геолокация, контакт. */
-export function AttachButton({ onFiles, onPoll, onChecklist, onDice, onLocation, onContact, onHugo, onSchedule }: Props) {
+/** Скрепка — как меню вложений в composer.js: фото и видео, камера, файл, аудио, мем, рисунок, опрос, чек-лист, кубики, геолокация, контакт. */
+export function AttachButton({ onFiles, onPoll, onChecklist, onDice, onGames, onLocation, onContact, onHugo, onMeme, onPaint, onSchedule }: Props) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
   const [diceAt, setDiceAt] = useState<{ x: number; y: number } | null>(null);
   const media = useRef<HTMLInputElement>(null);
@@ -48,6 +53,8 @@ export function AttachButton({ onFiles, onPoll, onChecklist, onDice, onLocation,
     { icon: "File", label: "Файл", onClick: () => any.current?.click() },
     // accept="audio/*" открывает на телефоне музыку, а не галерею; трек уходит файлом с плеером.
     { icon: "Mic", label: "Аудио", onClick: () => audio.current?.click() },
+    { icon: "Zap", label: "Мем", onClick: onMeme },
+    { icon: "Edit", label: "Рисунок", onClick: onPaint },
     { icon: "BarChart", label: "Опрос", onClick: onPoll },
     { icon: "CheckCheck", label: "Чек-лист", onClick: onChecklist },
     // Меню закрывается раньше, чем откроется следующее, — второе ставим в ту же точку.
@@ -64,7 +71,7 @@ export function AttachButton({ onFiles, onPoll, onChecklist, onDice, onLocation,
       <button
         type="button"
         className={styles.attach}
-        title="Прикрепить"
+        title="Вложение"
         aria-haspopup="menu"
         onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
@@ -78,9 +85,9 @@ export function AttachButton({ onFiles, onPoll, onChecklist, onDice, onLocation,
       <input ref={video} type="file" accept="video/*" capture="environment" hidden onChange={take} />
       <input ref={any} type="file" multiple hidden onChange={take} data-testid="attach-file" />
       <input ref={audio} type="file" accept="audio/*" multiple hidden onChange={take} />
-      {at ? <Menu at={at} label="Прикрепить" items={items} onClose={() => setAt(null)} /> : null}
+      {at ? <Menu at={at} label="Вложение" items={items} onClose={() => setAt(null)} /> : null}
       {diceAt ? (
-        <Menu at={diceAt} label="Кубик и игры" items={DICE.map(([emoji, label]) => ({ label: `${emoji}  ${label}`, onClick: () => onDice(emoji) }))} onClose={() => setDiceAt(null)} />
+        <Menu at={diceAt} label="Кубик и игры" items={[{ label: "🎮  Игры — 2048, Змейка, свои…", onClick: onGames }, ...DICE.map(([emoji, label]) => ({ label: `${emoji}  ${label}`, onClick: () => onDice(emoji) }))]} onClose={() => setDiceAt(null)} />
       ) : null}
     </>
   );

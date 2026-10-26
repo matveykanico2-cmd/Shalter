@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 
+import { AiSettingsDialog } from "@/features/ai-settings";
 import { BotAppButton, botAppQueries } from "@/features/bot-app";
 import { CallButtons, useVoiceRoomItem } from "@/features/call";
 import { ChatMenu } from "@/features/chat-actions";
@@ -11,6 +12,7 @@ import { ScheduledList } from "@/features/send-message";
 import { useTopicsToggle } from "@/features/topics";
 
 import { type ChatMember, type ChatSummary, chatTitle, type Typing } from "@/entities/chat";
+import { SafetyBadge } from "@/entities/safety-label";
 import type { SelfUser } from "@/entities/session";
 
 import { Avatar, EmojiText, Icon, type MenuItem } from "@/shared/ui";
@@ -19,6 +21,8 @@ import { chatSubtitle } from "../lib/subtitle";
 import { usePresenceSync } from "../model/use-presence-sync";
 
 import styles from "./chat-header.module.css";
+
+const SHALTER_AI_ID = "bot_shalter_ai";
 
 type Props = {
   chat: ChatSummary;
@@ -35,12 +39,14 @@ type Props = {
 /** Шапка открытого чата: назад, аватар, название, «в сети» / «печатает…» / участники, меню «Ещё». */
 export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onInfo }: Props) {
   const meId = me.id;
-  const [dialog, setDialog] = useState<"wallpaper" | "scheduled" | null>(null);
+  const [dialog, setDialog] = useState<"wallpaper" | "scheduled" | "ai" | null>(null);
   const topicsToggle = useTopicsToggle(chat, meId);
   const search: MenuItem = { icon: "Search", label: "Поиск по чату", onClick: onSearch };
   const voiceRoom = useVoiceRoomItem({ chat, me });
   const startLive = useStartLiveItem({ chat, meId });
   const middleItems: MenuItem[] = [
+    // Личка с Shalter AI: тариф и «крутилки» ответов.
+    ...(chat.type === "dm" && chat.otherUser?.id === SHALTER_AI_ID ? [{ icon: "Settings", label: "Настройки ИИ и тариф", onClick: () => setDialog("ai") } satisfies MenuItem] : []),
     { icon: "Info", label: "Информация о чате", onClick: () => onInfo(true) },
     { icon: "Image", label: "Фон чата", onClick: () => setDialog("wallpaper") },
     { icon: "Clock", label: "Запланированные сообщения", onClick: () => setDialog("scheduled") },
@@ -85,7 +91,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
           />
         )}
         <div className={styles.titles}>
-          <h1 className={styles.title}>
+          <h1 className={styles.title} translate="no">
             {chat.secret ? (
               <span className={styles.lock} title="Секретный чат">
                 <Icon name="Lock" size={14} />
@@ -95,7 +101,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
               <EmojiText text={title} />
             </span>
             {!chat.isSaved && (chat.type === "dm" ? other?.isVerified : chat.isVerified) ? (
-              <span className={styles.verified} title="Подтверждённый аккаунт">
+              <span className={styles.verified} title="Аккаунт подтверждён администрацией Shalter">
                 <Icon name="Verified" size={15} />
               </span>
             ) : null}
@@ -109,6 +115,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
                 <Icon name="Star" size={15} />
               </span>
             ) : null}
+            {chat.type === "dm" && other?.safetyLabel ? <SafetyBadge label={other.safetyLabel} mini /> : null}
           </h1>
           {subtitle.text ? (
             <p className={styles[subtitle.tone]} aria-live="polite">
@@ -125,6 +132,7 @@ export function ChatHeader({ chat, members, me, typing, onSearch, infoOpen, onIn
       <ChatMenu chat={chat} me={me} topItems={[search, voiceRoom, topicsToggle, startLive].filter((item): item is MenuItem => !!item)} middleItems={middleItems} />
       {dialog === "wallpaper" ? <WallpaperDialog chat={chat} onClose={() => setDialog(null)} /> : null}
       {dialog === "scheduled" ? <ScheduledList chatId={chat.id} onClose={() => setDialog(null)} /> : null}
+      {dialog === "ai" ? <AiSettingsDialog onClose={() => setDialog(null)} /> : null}
     </header>
   );
 }

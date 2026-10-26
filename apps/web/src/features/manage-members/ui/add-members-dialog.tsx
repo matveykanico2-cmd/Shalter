@@ -56,7 +56,7 @@ export function AddMembersDialog({ chat, meId, onClose }: Props) {
             {shown.map((u) => {
               const checked = picked.has(u.id);
               return (
-                <button key={u.id} type="button" role="checkbox" aria-checked={checked} className={styles.person} onClick={() => toggle(u.id)}>
+                <button key={u.id} type="button" aria-pressed={checked} className={styles.person} onClick={() => toggle(u.id)}>
                   <Avatar size={40} name={u.name} color={u.avatarColor} image={u.avatarImage} />
                   <span className={styles.personText}>
                     <span>{u.name}</span>

@@ -1,0 +1,201 @@
+/* Окна сообществ — как tw-section/tw-row в public/styles (communityEditor.js). */
+.wide {
+  width: min(460px, 100%);
+}
+
+.sectionName {
+  margin: 4px 0 0;
+  color: var(--color-accent);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.caption {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.list {
+  display: flex;
+  max-height: 46vh;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+}
+
+button.row {
+  cursor: pointer;
+}
+
+button.row:hover:not(:disabled) {
+  background: var(--color-surface-alt);
+}
+
+.row:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.danger {
+  color: var(--color-danger);
+}
+
+.accent {
+  color: var(--color-accent);
+}
+
+.rowIcon {
+  display: flex;
+  flex: none;
+  color: var(--color-muted);
+}
+
+.danger .rowIcon,
+.accent .rowIcon {
+  color: inherit;
+}
+
+.rowBody {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rowTitle {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowSub {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowRight {
+  flex: none;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.radio {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-muted);
+  border-radius: 50%;
+}
+
+.radioOn {
+  border-color: var(--color-accent);
+  box-shadow:
+    inset 0 0 0 3px var(--color-surface),
+    inset 0 0 0 10px var(--color-accent);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font: inherit;
+  resize: vertical;
+}
+
+.invalid {
+  border-color: var(--color-danger);
+}
+
+.avatarEdit {
+  position: relative;
+  align-self: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.avatarIcon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+}
+
+.center {
+  align-self: center;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.iconButton {
+  display: flex;
+  flex: none;
+  padding: 6px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--color-surface-alt);
+}
+
+.request {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.small {
+  padding: 6px 12px;
+  font-size: 13px;
+}

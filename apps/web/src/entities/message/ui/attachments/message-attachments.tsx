@@ -89,8 +89,11 @@ export function MessageAttachments({ message, meId, nameOf, actions, canDownload
       case "dice":
         out.push(<DiceAttachment key={i} message={message} attachment={a} />);
         return;
+      case "birthday":
+        out.push(<BirthdayAttachment key={i} attachment={a} meId={meId} />);
+        return;
       case "game":
-        out.push(<GameCard key={i} attachment={a} />);
+        out.push(<GameCard key={i} attachment={a} message={message} />);
         return;
       case "paid":
         out.push(
@@ -134,8 +137,6 @@ function AttachmentView({ attachment: a, message, canDownload, senderName }: { a
       return <LocationAttachment attachment={a} />;
     case "contact":
       return <ContactAttachment attachment={a} />;
-    case "birthday":
-      return <BirthdayAttachment attachment={a} />;
     default:
       // Незнакомый вид — подписью, как в списке чатов.
       return <p className={styles.pendingKind}>{messagePreview({ ...message, text: null, attachments: [a] })}</p>;

@@ -340,3 +340,10 @@
 .stop {
   background: var(--color-danger);
 }
+
+/* Hugo и «Отправить позже» в поле — только на широком экране (.composer-secondary). */
+@media (max-width: 620px) {
+  .secondary {
+    display: none;
+  }
+}

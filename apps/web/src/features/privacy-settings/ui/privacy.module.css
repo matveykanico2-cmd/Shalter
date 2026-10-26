@@ -1,0 +1,258 @@
+/* Как .tw-radio-row, .tw-user-row, .tw-media-header, .twofa-*, .privacy-exc-* в public/styles/components.css. */
+.radioRow {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 20px;
+  padding: 6px 16px 6px 18px;
+  border: none;
+  border-radius: 16px;
+  background: none;
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.radioRow:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.radio {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 2px solid var(--color-muted);
+  border-radius: 50%;
+}
+
+.radioRow[aria-pressed="true"] .radio {
+  border-color: var(--color-accent);
+}
+
+.radioRow[aria-pressed="true"] .radio::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.userRow {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px;
+}
+
+.userBody {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.userName {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.muted {
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.linkButton {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.empty {
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.mediaHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px 20px;
+  text-align: center;
+  color: var(--color-accent);
+}
+
+.mediaHeader p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.iconButton {
+  display: flex;
+  padding: 6px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.iconDanger {
+  color: var(--color-danger);
+}
+
+/* Окна */
+.hint {
+  margin: 0;
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--color-muted);
+}
+
+.error {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-danger);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.methodButton {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-alt);
+  font: inherit;
+  text-align: left;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.methodButton:hover {
+  border-color: var(--color-accent);
+}
+
+.methodTitle {
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.qr {
+  display: flex;
+  justify-content: center;
+}
+
+.qr svg {
+  width: 200px;
+  height: 200px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.codeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recoveryGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.recoveryGrid span {
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--color-surface-alt);
+  text-align: center;
+}
+
+.codeInput {
+  text-align: center;
+  letter-spacing: 0.3em;
+  font-family: var(--font-mono);
+}
+
+/* Исключения приватности */
+.excDialog {
+  max-width: 440px;
+}
+
+.excGroup {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.excAllow {
+  color: var(--color-success);
+}
+
+.excDeny {
+  color: var(--color-danger);
+}
+
+.excRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.excButton {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.excButton[aria-pressed="true"].excAllowBtn {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: #fff;
+}
+
+.excButton[aria-pressed="true"].excDenyBtn {
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: #fff;
+}

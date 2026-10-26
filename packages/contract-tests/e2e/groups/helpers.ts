@@ -9,9 +9,12 @@ export async function addContact(owner: TestUser, target: TestUser): Promise<voi
   expect(res.status, res.text).toBe(200);
 }
 
-/** Пункт выпадающего меню (у меню нет роли menu — пункты просто кнопки). */
+/**
+ * Пункт выпадающего меню (пункты — просто кнопки). Меню добавляется в конец документа,
+ * а в шапке может быть кнопка с тем же именем («Информация о чате») — берём последнюю.
+ */
 export function menuItem(page: Page, name: string) {
-  return page.getByRole("button", { name, exact: true });
+  return page.getByRole("button", { name, exact: true }).last();
 }
 
 /** Меню «Ещё» в шапке открытого чата → пункт. */

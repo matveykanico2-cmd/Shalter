@@ -1,0 +1,104 @@
+/* .share-inbox-* в public/styles. */
+.dialog {
+  width: min(420px, 100%);
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+}
+
+.text {
+  margin: 0;
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.link {
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fileName {
+  margin: 0;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.list {
+  display: flex;
+  max-height: 40vh;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover:not(:disabled) {
+  background: var(--color-surface-alt);
+}
+
+.row:disabled {
+  opacity: 0.6;
+}
+
+.row p {
+  margin: 0;
+}
+
+.rowTitle {
+  font-weight: 500;
+}
+
+.avatar {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.empty {
+  margin: 12px 0;
+  color: var(--color-muted);
+  text-align: center;
+}

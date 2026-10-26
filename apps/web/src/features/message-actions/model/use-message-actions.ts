@@ -22,6 +22,7 @@ import {
   withAttachmentMeta,
 } from "@/entities/message";
 import type { SelfUser } from "@/entities/session";
+import { openStarsDialog } from "@/entities/stars";
 
 import { ApiError } from "@/shared/api";
 import { showReactionBurst } from "@/shared/lib/anim";
@@ -124,8 +125,10 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
         try {
           await paidDeleteMessage(m.id);
         } catch (err) {
-          // Пополнение звёзд переедет вместе с его окном; пока — что не хватает.
-          fail(err, "Не удалось удалить сообщение");
+          // Не хватает звёзд — предложить купить (runPaid в messageBubble.js).
+          if (err instanceof ApiError && /не хватает/i.test(err.message)) {
+            if (await askConfirm(`${err.message}. Открыть покупку звёзд?`)) openStarsDialog();
+          } else fail(err, "Не удалось удалить сообщение");
           return;
         }
         historyCache.remove(client, chatId, m.id);
@@ -234,9 +237,11 @@ export function useMessageActions(chat: ChatSummary, me: SelfUser) {
           client.setQueryData(paidMediaQuery(chatId, m.id).queryKey, open);
           toast("Пост открыт");
         } catch (err) {
-          // Пополнение звёзд переедет вместе с его окном; пока — что не хватает.
-          if (err instanceof ApiError && err.status === 402) toast(err.message || "Не хватает звёзд", { error: true });
-          else fail(err, "Не удалось открыть пост");
+          // Не хватает звёзд — сразу окно покупки (paidMedia.js).
+          if (err instanceof ApiError && err.status === 402) {
+            toast(err.message || "Не хватает звёзд", { error: true });
+            openStarsDialog();
+          } else fail(err, "Не удалось открыть пост");
         }
       },
 

@@ -3,7 +3,7 @@
 const MAX_PARALLEL = 3;
 const RETRY_DELAYS_MS = [1000, 3000];
 
-export type UploadKind = "image" | "video" | "file" | "voice" | "video-note";
+export type UploadKind = "image" | "video" | "file" | "voice" | "video-note" | "gift" | "avatar" | "avatar-video" | "profile-track";
 
 export type Uploaded = { kind: UploadKind; url: string; name?: string; size?: number; mimeType?: string };
 

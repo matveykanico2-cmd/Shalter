@@ -36,7 +36,7 @@ export function NavRow({ icon, color, title, right, onClick }: { icon: IconName;
 
 export function ToggleRow({ title, subtitle, checked, onChange }: { title: string; subtitle?: string; checked: boolean; onChange: (next: boolean) => void }) {
   return (
-    <button type="button" role="switch" aria-checked={checked} className={styles.row} onClick={() => onChange(!checked)}>
+    <button type="button" aria-pressed={checked} className={styles.row} onClick={() => onChange(!checked)}>
       <span className={styles.rowBody}>
         <span className={styles.rowTitle}>{title}</span>
         {subtitle ? <span className={styles.subtitle}>{subtitle}</span> : null}

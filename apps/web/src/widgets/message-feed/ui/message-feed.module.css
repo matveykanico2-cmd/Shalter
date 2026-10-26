@@ -51,7 +51,14 @@
   padding: 8px 0 6px;
 }
 
-.day span {
+.day button {
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.day span,
+.day button {
   padding: 3px 10px;
   border-radius: 14px;
   background: var(--color-date-pill);
@@ -329,4 +336,18 @@
   margin-left: auto;
   font-size: 22px;
   line-height: 1;
+}
+
+/* Плавающая плашка дня: высота 0, чтобы не сдвигать ленту. */
+.stickyDay {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.stickyDay button {
+  margin-top: 8px;
 }

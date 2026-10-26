@@ -62,3 +62,79 @@ export async function blurThumb(file: File, timeoutMs = 3000): Promise<{ blur: s
     URL.revokeObjectURL(url);
   }
 }
+
+let webpSupported: boolean | null = null;
+function supportsWebp() {
+  if (webpSupported !== null) return webpSupported;
+  try {
+    const probe = document.createElement("canvas");
+    probe.width = probe.height = 1;
+    webpSupported = probe.toDataURL("image/webp").startsWith("data:image/webp");
+  } catch {
+    webpSupported = false;
+  }
+  return webpSupported;
+}
+
+/** Фото, уменьшенное до maxSize, файлом webp/jpeg — для загрузки (fileToImageUpload). */
+export async function fileToImageUpload(file: File, maxSize = 1080) {
+  const webp = supportsWebp();
+  const dataUrl = await fileToImageDataUrl(file, maxSize, webp ? "image/webp" : "image/jpeg", 0.85);
+  const blob = await (await fetch(dataUrl)).blob();
+  const name = (file.name || "photo").replace(/\.[^.]+$/, "") + (webp ? ".webp" : ".jpg");
+  return new File([blob], name, { type: webp ? "image/webp" : "image/jpeg" });
+}
+
+/** Кадр из начала видео как data URL jpeg — обложка видеоаватара (videoPosterDataUrl). */
+export function videoPosterDataUrl(file: File, maxSize = 256): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    const fail = (msg: string) => {
+      URL.revokeObjectURL(url);
+      reject(new Error(msg));
+    };
+    video.onerror = () => fail("Не удалось прочитать видео");
+    video.onloadeddata = () => {
+      video.currentTime = Math.min(0.25, (video.duration || 1) / 4);
+    };
+    video.onseeked = () => {
+      const w0 = video.videoWidth;
+      const h0 = video.videoHeight;
+      if (!w0 || !h0) return fail("Видео без изображения");
+      const scale = Math.min(1, maxSize / Math.max(w0, h0));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(w0 * scale);
+      canvas.height = Math.round(h0 * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return fail("Не удалось получить кадр из видео");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    video.src = url;
+  });
+}
+
+/** Длительность аудио или видео из файла в секундах; не узнали за 5 с — undefined. */
+export function mediaDuration(file: File, tag: "audio" | "video" = "audio"): Promise<number | undefined> {
+  return new Promise((resolve) => {
+    const probe = document.createElement(tag);
+    const url = URL.createObjectURL(file);
+    let done = false;
+    const finish = (v: number | undefined) => {
+      if (done) return;
+      done = true;
+      URL.revokeObjectURL(url);
+      resolve(v);
+    };
+    probe.preload = "metadata";
+    probe.onloadedmetadata = () => finish(Number.isFinite(probe.duration) ? probe.duration : undefined);
+    probe.onerror = () => finish(undefined);
+    setTimeout(() => finish(undefined), 5000);
+    probe.src = url;
+  });
+}

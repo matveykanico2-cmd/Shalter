@@ -2,7 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type ClipboardEvent, type KeyboardEvent, type Ref, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 
 import { chatCache } from "@/entities/chat";
-import { type Message, messagePreview, stripCustomEmoji } from "@/entities/message";
+import { gameAttachmentFor, openGamesCatalog } from "@/entities/game";
+import { MediaPreview, type Message, messagePreview, stripCustomEmoji } from "@/entities/message";
 import { useSettings } from "@/entities/settings";
 import { ContactPicker, type PickedContact } from "@/entities/user";
 
@@ -10,7 +11,7 @@ import { errorText } from "@/shared/lib/error-text";
 import { getPosition, type LatLng } from "@/shared/lib/geolocation";
 import { blurThumb } from "@/shared/lib/image";
 import { isRecordingSupported, type RecordMode } from "@/shared/lib/media/recorder";
-import { askText, dismissToast, Icon, toast } from "@/shared/ui";
+import { askText, dismissToast, EmojiText, Icon, toast } from "@/shared/ui";
 
 import { hugoCheck, type OutgoingAttachment, saveDraft, scheduleMessage, searchGames, type SendOptions, sendTyping } from "../api/send-message";
 import { chunks, MAX_ATTACHMENTS_PER_MESSAGE } from "../lib/files";
@@ -31,6 +32,8 @@ import { EmojiButton } from "./emoji-picker";
 import { FormatBar,type FormatKind } from "./format-bar";
 import { HugoPanel, type HugoState } from "./hugo-panel";
 import { LocationPicker, type PickedLocation } from "./location-picker";
+import { MemeDialog } from "./meme-dialog";
+import { PaintDialog } from "./paint-dialog";
 import { PollDialog } from "./poll-dialog";
 import { RecordButtons } from "./record-buttons";
 import { type HoldControl, RecordingBar, type RecordingDone } from "./recording-bar";
@@ -75,6 +78,8 @@ type Props = {
   onCancelReply: () => void;
   /** Своё сообщение отправлено — лента прокручивается вниз. */
   onSent?: () => void;
+  /** Текст перед отправкой — например, /settings в чате с Shalter AI открывает настройки ИИ. */
+  onBeforeSend?: (text: string) => void;
   /** Правка своего сообщения: в поле его текст, Enter — сохранить. */
   editing?: Message | null;
   onSaveEdit?: (m: Message, text: string) => void;
@@ -156,7 +161,7 @@ export function Composer(props: Props) {
   const textarea = useRef<HTMLTextAreaElement>(null);
   const uploads = useUploads(chatId);
   const [picked, setPicked] = useState<File[] | null>(null);
-  const [creating, setCreating] = useState<"poll" | "checklist" | "contact" | null>(null);
+  const [creating, setCreating] = useState<"poll" | "checklist" | "contact" | "meme" | "paint" | null>(null);
   const [hugo, setHugo] = useState<HugoState | null>(null);
   const [scheduling, setScheduling] = useState<"dialog" | "list" | null>(null);
   const [placePicker, setPlacePicker] = useState<{ reason: string; resolve: (value: PickedLocation) => void } | null>(null);
@@ -262,6 +267,7 @@ export function Composer(props: Props) {
       return;
     }
     if (!value) return;
+    props.onBeforeSend?.(value);
     // «/команда …» — разметка, кубик или окно; команды бота уходят боту как есть.
     if (value.startsWith("/")) {
       const cmd = parseSlashCommand(value, reservedCommands);
@@ -443,18 +449,33 @@ export function Composer(props: Props) {
     void sendAttachment("", { ...att, kind: mode, durationSec: recorded.durationSec, ...(mode === "voice" ? { waveform, transcript } : {}) });
   };
 
-  // «/game змейка» — карточка найденной игры (каталог придёт с экраном игр).
+  // Мем или рисунок — картинкой сразу, без окна отправки (sendImageNow в composer.js).
+  const sendImageNow = async (file: File) => {
+    const { uploaded, error: uploadError } = await uploads.upload([{ file, kind: "image" }]);
+    const att = uploaded[0];
+    if (!att) {
+      setError(uploadError || "Не удалось загрузить файл");
+      return;
+    }
+    void sendAttachment("", att);
+  };
+
+  // Каталог игр: «В чат» отправляет карточку выбранной игры.
+  const openGames = () => openGamesCatalog({ chatId, onPick: (g) => void sendAttachment("", gameAttachmentFor(g)) });
+  // «/game змейка» — сразу карточка найденной игры; без названия или не нашлось — каталог.
   const sendGame = async (q: string) => {
     const query = q.trim();
-    if (!query) return toast("Отправить игру: /game змейка");
-    try {
-      const { games } = await searchGames(query);
-      const found = games.find((g) => g.title.toLowerCase() === query.toLowerCase()) ?? games[0];
-      if (!found) return toast(`Игра «${query}» не найдена`, { error: true });
-      void sendAttachment("", { kind: "game", meta: { gameId: found.id, title: found.title, emoji: found.emoji || "🎮", description: found.description || "" } });
-    } catch (err) {
-      setError(errorText(err, "Не удалось найти игру"));
+    if (query) {
+      try {
+        const { games } = await searchGames(query);
+        const found = games.find((g) => g.title.toLowerCase() === query.toLowerCase()) ?? games[0];
+        if (found) return void sendAttachment("", gameAttachmentFor(found));
+        toast(`Игра «${query}» не найдена — выберите в каталоге`);
+      } catch {
+        // Поиск не ответил — выбираем в каталоге.
+      }
     }
+    openGames();
   };
 
   // Подсказки над полем: «/нач» в начале поля — команды, «@ник» перед курсором — участники.
@@ -593,9 +614,10 @@ export function Composer(props: Props) {
 
   return (
     <div className={styles.composer}>
+      {/* Отказ сервера — как тост старого клиента (role="status"): текст остаётся в поле. */}
       {error ? (
-        <p className={styles.error} role="alert">
-          {error}
+        <p className={styles.error} role="status">
+          <EmojiText text={error} />
         </p>
       ) : null}
       {editing ? (
@@ -603,7 +625,11 @@ export function Composer(props: Props) {
           <Icon name="Edit" size={16} />
           <div className={styles.bannerBody}>
             <span className={styles.bannerLabel}>Изменение</span>
-            <span className={styles.bannerText}>{stripCustomEmoji(messagePreview(editing)) || "Сообщение"}</span>
+            {editing.attachments?.length ? (
+              <MediaPreview className={styles.bannerText} message={editing} size={28} />
+            ) : (
+              <span className={styles.bannerText}>{stripCustomEmoji(messagePreview(editing)) || "Сообщение"}</span>
+            )}
           </div>
           <button type="button" className={styles.iconButton} title="Отменить изменение" onClick={onCancelEdit}>
             <Icon name="X" size={16} />
@@ -614,7 +640,11 @@ export function Composer(props: Props) {
           <Icon name="Reply" size={16} />
           <div className={styles.bannerBody}>
             <span className={styles.bannerLabel}>{replyToName ? `Ответ ${replyToName}` : "Ответ"}</span>
-            <span className={styles.bannerText}>{stripCustomEmoji(messagePreview(replyTo)) || "Сообщение"}</span>
+            {replyTo.attachments?.length ? (
+              <MediaPreview className={styles.bannerText} message={replyTo} size={28} />
+            ) : (
+              <span className={styles.bannerText}>{stripCustomEmoji(messagePreview(replyTo)) || "Сообщение"}</span>
+            )}
           </div>
           <button type="button" className={styles.iconButton} title="Отменить ответ" onClick={onCancelReply}>
             <Icon name="X" size={16} />
@@ -636,9 +666,13 @@ export function Composer(props: Props) {
       <UploadStrip tiles={uploads.tiles} onCancel={uploads.cancel} />
       {paid ? (
         <p className={styles.paidHint}>
-          {paid.kind === "comment"
-            ? `⭐ Комментарии в этом канале стоят ${paid.stars} ⭐ — спишется за каждый`
-            : `⭐ Этот пользователь принимает сообщения за ${paid.stars} ⭐ — спишется за каждое отправленное`}
+          <EmojiText
+            text={
+              paid.kind === "comment"
+                ? `⭐ Комментарии в этом канале стоят ${paid.stars} ⭐ — спишется за каждый`
+                : `⭐ Этот пользователь принимает сообщения за ${paid.stars} ⭐ — спишется за каждое отправленное`
+            }
+          />
         </p>
       ) : null}
       <SuggestMenu items={suggestions} active={active} error={commandError} onPick={pickSuggestion} />
@@ -670,9 +704,12 @@ export function Composer(props: Props) {
                 onPoll={() => setCreating("poll")}
                 onChecklist={() => setCreating("checklist")}
                 onDice={(emoji) => void sendAttachment("", { kind: "dice", meta: { emoji } })}
+                onGames={openGames}
                 onLocation={(live) => void sendLocation(live)}
                 onContact={() => setCreating("contact")}
                 onHugo={() => void runHugo()}
+                onMeme={() => setCreating("meme")}
+                onPaint={() => setCreating("paint")}
                 onSchedule={thread ? undefined : openSchedule}
               />
             )}
@@ -708,6 +745,12 @@ export function Composer(props: Props) {
               onKeyDown={onKeyDown}
               onPaste={onPaste}
             />
+            {/* Hugo и «Позже» прямо в поле, как в composer.js; на узком экране и в ветке — только в меню скрепки. */}
+            {!editing && !thread ? (
+              <button type="button" className={`${styles.attach} ${styles.secondary}`} title="Проверить текст (Hugo)" onClick={() => void runHugo()}>
+                <Icon name="Check" size={19} />
+              </button>
+            ) : null}
             {/* В канале стикер публикацией поста не уходит — кнопки нет. */}
             {!editing && !channel ? (
               <StickerButton
@@ -719,6 +762,11 @@ export function Composer(props: Props) {
                   send("", reply, [], sticker).catch((err: unknown) => setError(errorText(err, "Не удалось отправить стикер")));
                 }}
               />
+            ) : null}
+            {!editing && !thread ? (
+              <button type="button" className={`${styles.attach} ${styles.secondary}`} title="Отправить позже" onClick={openSchedule}>
+                <Icon name="Clock" size={18} />
+              </button>
             ) : null}
             <EmojiButton onPick={insertEmoji} />
           </div>
@@ -741,6 +789,8 @@ export function Composer(props: Props) {
           />
         )}
       </div>
+      {creating === "meme" ? <MemeDialog onDone={(file) => void sendImageNow(file)} onClose={() => setCreating(null)} /> : null}
+      {creating === "paint" ? <PaintDialog onDone={(file) => void sendImageNow(file)} onClose={() => setCreating(null)} /> : null}
       {creating === "poll" ? (
         <PollDialog
           onClose={() => setCreating(null)}

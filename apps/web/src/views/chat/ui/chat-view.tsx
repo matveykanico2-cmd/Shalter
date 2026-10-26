@@ -1,11 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { type DragEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useParams, useSearchParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 
 import { ChatHeader } from "@/widgets/chat-header";
 import { ChatInfoPanel } from "@/widgets/chat-info";
 import { MessageFeed, type MessageFeedHandle } from "@/widgets/message-feed";
 
+import { AiSettingsDialog } from "@/features/ai-settings";
 import { MiniApp, type MiniAppTarget } from "@/features/bot-app";
 import { SubscribeBar } from "@/features/channel-subscription";
 import { useChatActions } from "@/features/chat-actions";
@@ -13,7 +14,7 @@ import { ChatSearch } from "@/features/chat-search";
 import { ContactBar } from "@/features/contact-bar";
 import { LiveBar } from "@/features/live";
 import { useMessageActions } from "@/features/message-actions";
-import { useMentionProfile, UserProfileDialog } from "@/features/open-profile";
+import { useMentionProfile } from "@/features/open-profile";
 import { botCommandsOf, Composer, type ComposerHandle, useAiReply } from "@/features/send-message";
 import { isTopicStaff, TopicTabs, useTopics } from "@/features/topics";
 
@@ -60,6 +61,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
   const drop = useFileDrop((files) => composer.current?.attach(files));
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const actions = useMessageActions(chat, me);
   const chatActions = useChatActions(chat, me.id);
   const blockedOther = !!chat.otherUser && me.blockedUserIds.includes(chat.otherUser.id);
@@ -81,9 +83,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
   // к сообщению — когда лента «Всех» появится.
   // searching — строка запроса (#тег из сообщения) или null, если поиск закрыт.
   const [searching, setSearching] = useState<string | null>(null);
-  // Профиль по ссылке /u/имя открывает личку сразу с панелью справа.
-  const location = useLocation();
-  const [infoOpen, setInfoOpen] = useState(() => !!(location.state as { info?: boolean } | null)?.info);
+  const [infoOpen, setInfoOpen] = useState(false);
   const mention = useMentionProfile(me, members);
   // Кнопки бота: действие — текстом в чат, приложение — мини-приложение (onKeyboardAction, onKeyboardApp).
   const [miniApp, setMiniApp] = useState<MiniAppTarget | null>(null);
@@ -185,6 +185,10 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
                 replyToName={replyTo ? senderName(replyTo) : null}
                 onCancelReply={() => setReplyTo(null)}
                 onSent={() => feed.current?.stickToBottom()}
+                // /settings в чате с Shalter AI — сразу окно настроек (сообщение тоже уходит: бот ответит лимитами).
+                onBeforeSend={(text) => {
+                  if (chat.otherUser?.id === "bot_shalter_ai" && /^\/settings\b/i.test(text)) setAiSettingsOpen(true);
+                }}
                 editing={editing}
                 onSaveEdit={(m, text) => void actions.edit(m, text)}
                 onCancelEdit={() => setEditing(null)}
@@ -198,8 +202,8 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
         </div>
       </div>
       {infoOpen ? <ChatInfoPanel chat={chat} members={members} me={me} onClose={() => setInfoOpen(false)} /> : null}
-      {mention.profileId ? <UserProfileDialog userId={mention.profileId} meId={me.id} onClose={mention.closeProfile} /> : null}
       {miniApp ? <MiniApp target={miniApp} onClose={() => setMiniApp(null)} /> : null}
+      {aiSettingsOpen ? <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} /> : null}
     </section>
   );
 }

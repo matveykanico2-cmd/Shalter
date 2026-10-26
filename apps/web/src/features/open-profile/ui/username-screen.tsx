@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 
 import { useChats } from "@/entities/chat";
 import type { SelfUser } from "@/entities/session";
+import { openUserProfile } from "@/entities/user";
 
 import { Button } from "@/shared/ui";
 
@@ -12,14 +13,13 @@ import { useOpenDm } from "../model/use-open-dm";
 
 import { ChatPreview } from "./chat-preview";
 import styles from "./open-profile.module.css";
-import { UserProfileDialog } from "./user-profile-dialog";
 
 type Props = { handle: string; me: SelfUser; search: URLSearchParams };
 
 /**
  * Ссылка /u/имя или /@имя — как openByUsername в public/js/app.js (t.me/имя): свой ник —
- * «Избранное», человек — его профиль (поверх лички, если она есть), бот — чат с ним,
- * канал или группа — лента, а если вы ещё не там — превью со «Вступить».
+ * «Избранное», человек — его профиль (поверх лички, если она есть, иначе поверх пустого
+ * экрана), бот — чат с ним, канал или группа — лента, а если вы ещё не там — превью со «Вступить».
  */
 export function UsernameScreen({ handle, me, search }: Props) {
   const navigate = useNavigate();
@@ -42,10 +42,11 @@ export function UsernameScreen({ handle, me, search }: Props) {
     } else if (resolved.kind === "user" && resolved.user.isBot) {
       done.current = true;
       void openDm(resolved.user, { replace: true, startPayload });
-    } else if (dm) {
+    } else if (resolved.kind === "user") {
       done.current = true;
-      // Личка уже есть — открываем её с профилем справа.
-      void navigate(`/chat/${dm.id}`, { replace: true, state: { info: true } });
+      // Личка уже есть — открываем её, профиль поверх.
+      if (dm) void navigate(`/chat/${dm.id}`, { replace: true });
+      openUserProfile(resolved.user.id);
     } else if (resolved.kind === "chat" && resolved.chat.isMember) {
       done.current = true;
       void navigate(`/chat/${resolved.chat.id}${msg ? `?msg=${encodeURIComponent(msg)}` : ""}`, { replace: true });
@@ -63,13 +64,6 @@ export function UsernameScreen({ handle, me, search }: Props) {
     );
   }
   if (resolved.kind === "chat" && !resolved.chat.isMember) return <ChatPreview chatId={resolved.chat.id} msg={msg} />;
-  if (user && !user.isBot && chats && !dm) {
-    return (
-      <>
-        <div className={styles.screen} />
-        <UserProfileDialog userId={user.id} meId={me.id} onClose={() => void navigate("/", { replace: true })} />
-      </>
-    );
-  }
+  if (user && !user.isBot && chats && !dm) return <div className={styles.screen} />;
   return null;
 }

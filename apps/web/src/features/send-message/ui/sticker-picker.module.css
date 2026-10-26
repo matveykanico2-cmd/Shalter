@@ -63,3 +63,17 @@
   background: var(--color-surface-alt);
   outline: none;
 }
+
+/* «Мои стикерпаки» под паками (.sticker-manage-btn). */
+.manage {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 0 0;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}

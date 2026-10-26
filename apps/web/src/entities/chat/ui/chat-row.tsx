@@ -1,10 +1,16 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { type PointerEvent, useRef, useState } from "react";
 import { useMatch, useNavigate } from "react-router";
+
+import { hasMediaPreview, MediaPreview } from "@/entities/message/@x/chat";
+import { SafetyBadge } from "@/entities/safety-label/@x/chat";
+import { ProfileStatusBadge } from "@/entities/user/@x/chat";
 
 import { useLongPress } from "@/shared/lib/use-long-press";
 import { Avatar, EmojiText, Icon } from "@/shared/ui";
 
 import { chatPreview, chatTitle, isChatMuted, timeLabel } from "../lib/chat-list";
+import { prefetchChat } from "../model/prefetch-chat";
 import type { ChatSummary } from "../model/types";
 
 import styles from "./chat-row.module.css";
@@ -18,13 +24,15 @@ type Props = {
   onMenu?: (at: Point) => void;
   /** Свайп влево пальцем: на 72 px — звук, на 144 px — архив. */
   onSwipe?: (action: "mute" | "archive") => void;
+  /** Чат входит в сообщество — значок на аватаре открывает его панель (CommunityChildBadge). */
+  community?: { title: string; onOpen: () => void } | null;
 };
 
 const SWIPE_ACTION_PX = 72;
 const SWIPE_MAX_PX = 140;
 
 /** Строка списка чатов — public/js/components/chatListItem.js. */
-export function ChatRow({ chat, meId, onMenu, onSwipe }: Props) {
+export function ChatRow({ chat, meId, onMenu, onSwipe, community }: Props) {
   const title = chatTitle(chat);
   const muted = isChatMuted(chat);
   const preview = chatPreview(chat, meId);
@@ -36,7 +44,9 @@ export function ChatRow({ chat, meId, onMenu, onSwipe }: Props) {
     swipe.current = null;
     setShift(0);
   };
+  const client = useQueryClient();
   const onPointerDown = (e: PointerEvent) => {
+    prefetchChat(client, chat);
     if (onMenu) hold.onPointerDown(e);
     swipe.current = e.pointerType !== "mouse" && onSwipe ? { x: e.clientX, y: e.clientY, active: null } : null;
   };
@@ -75,6 +85,9 @@ export function ChatRow({ chat, meId, onMenu, onSwipe }: Props) {
         e.preventDefault();
         onMenu({ x: e.clientX, y: e.clientY });
       }}
+      onPointerEnter={(e) => {
+        if (e.pointerType === "mouse") prefetchChat(client, chat);
+      }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -104,13 +117,30 @@ export function ChatRow({ chat, meId, onMenu, onSwipe }: Props) {
           <Icon name="Bookmark" size={24} />
         </span>
       ) : (
-        <Avatar
-          size={54}
-          name={chat.otherUser?.name ?? title}
-          color={chat.otherUser?.avatarColor ?? chat.avatarColor}
-          image={chat.otherUser?.avatarImage ?? chat.avatarImage}
-          online={chat.type === "dm" && !!chat.otherUser?.online}
-        />
+        <span className={styles.avatarWrap}>
+          <Avatar
+            size={54}
+            name={chat.otherUser?.name ?? title}
+            color={chat.otherUser?.avatarColor ?? chat.avatarColor}
+            image={chat.otherUser?.avatarImage ?? chat.avatarImage}
+            online={chat.type === "dm" && !!chat.otherUser?.online}
+          />
+          {community ? (
+            <span
+              className={styles.communityBadge}
+              role="button"
+              tabIndex={-1}
+              title={`Сообщество «${community.title}»`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                community.onOpen();
+              }}
+            >
+              <Icon name="ChevronDown" size={11} />
+            </span>
+          ) : null}
+        </span>
       )}
       <span className={styles.body}>
         <span className={styles.line}>
@@ -119,7 +149,7 @@ export function ChatRow({ chat, meId, onMenu, onSwipe }: Props) {
               <Icon name="Lock" size={13} />
             </span>
           ) : null}
-          <span className={chat.secret ? `${styles.title} ${styles.secret}` : styles.title}>
+          <span className={chat.secret ? `${styles.title} ${styles.secret}` : styles.title} translate="no">
             <EmojiText text={title} />
           </span>
           {verified ? (
@@ -127,14 +157,31 @@ export function ChatRow({ chat, meId, onMenu, onSwipe }: Props) {
               <Icon name="Verified" size={13} />
             </span>
           ) : null}
+          {chat.otherUser?.isDeveloper ? (
+            <span className={styles.verified} title="Разработчик Shalter">
+              <Icon name="Code" size={13} />
+            </span>
+          ) : null}
+          {chat.otherUser?.isPremium ? (
+            <span className={styles.premium} title="Shalter Premium">
+              <Icon name="Star" size={14} />
+            </span>
+          ) : null}
+          <ProfileStatusBadge user={statusOf(chat)} size={15} />
+          {chat.type === "dm" && chat.otherUser?.safetyLabel ? <SafetyBadge label={chat.otherUser.safetyLabel} mini /> : null}
           <span className={styles.time}>{chat.lastMessage ? timeLabel(chat.lastMessage.createdAt) : ""}</span>
         </span>
         <span className={styles.line}>
-          <span className={styles.preview}>
-            {preview.draft ? <span className={styles.draft}>Черновик: </span> : null}
-            {preview.who}
-            <EmojiText text={preview.text} />
-          </span>
+          {/* Последнее сообщение с медиа — миниатюрой (кружок, фото, видео, голосовое, подарок). */}
+          {!preview.draft && chat.lastMessage && chat.lastMessage.type !== "system" && chat.lastMessage.type !== "call" && hasMediaPreview(chat.lastMessage) ? (
+            <MediaPreview className={styles.preview} message={chat.lastMessage} who={preview.who} />
+          ) : (
+            <span className={styles.preview} translate="no">
+              {preview.draft ? <span className={styles.draft}>Черновик: </span> : null}
+              {preview.who}
+              <EmojiText text={preview.text} />
+            </span>
+          )}
           <span className={styles.badges}>
             {chat.pinned ? <Icon name="Pin" size={12} /> : null}
             {muted ? <Icon name="BellOff" size={12} /> : null}
@@ -167,4 +214,13 @@ export function ChatRow({ chat, meId, onMenu, onSwipe }: Props) {
       ) : null}
     </div>
   );
+}
+
+/** Статус после имени — у собеседника в личке, у группы и канала свой (ProfileStatusBadge в chatListItem.js). */
+function statusOf(chat: ChatSummary) {
+  const who = (chat.type === "dm" ? chat.otherUser : chat) as { statusIcon?: unknown; statusName?: unknown } | null | undefined;
+  return {
+    statusIcon: typeof who?.statusIcon === "string" ? who.statusIcon : null,
+    statusName: typeof who?.statusName === "string" ? who.statusName : null,
+  };
 }

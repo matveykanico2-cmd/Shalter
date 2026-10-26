@@ -5,6 +5,7 @@ import { chatQueries, type ChatSummary } from "@/entities/chat";
 
 import { errorText } from "@/shared/lib/error-text";
 import { fileToImageDataUrl } from "@/shared/lib/image";
+import { useEscape } from "@/shared/lib/use-escape";
 import { Avatar, Button, Icon, TextField, toast } from "@/shared/ui";
 
 import { type ChatProfilePatch, editChatQueries, patchChatProfile, setChatDiscussion } from "../api/edit-chat";
@@ -30,13 +31,17 @@ const TITLES: Record<Exclude<Page, "main" | "type">, string> = {
   log: "Недавние действия",
 };
 
-type Props = { chat: ChatSummary; onClose: () => void };
+/** «Добавить историю канала» — выбор файлов и редактор у ленты историй, здесь только строка. */
+type ChannelStory = { open: () => void; progress: string | null };
+type Props = { chat: ChatSummary; onClose: () => void; channelStory?: ChannelStory };
 
 /** «Изменить группу/канал» вместо информации о чате — как public/js/components/editChatDialog.js. */
-export function EditChatPanel({ chat, onClose }: Props) {
+export function EditChatPanel({ chat, onClose, channelStory }: Props) {
   const [page, setPage] = useState<Page>("main");
   const isChannel = chat.type === "channel";
   const back = () => setPage("main");
+  // Esc — на шаг назад: с подстраницы к правке, с правки — к информации о чате.
+  useEscape(page === "main" ? onClose : back);
   const title =
     page === "main" ? (isChannel ? "Изменить канал" : "Изменить группу") : page === "type" ? (isChannel ? "Тип канала" : "Тип группы") : TITLES[page];
   const props = { chat, onBack: back };
@@ -51,7 +56,7 @@ export function EditChatPanel({ chat, onClose }: Props) {
       <div className={styles.body}>
         {/* Главная остаётся смонтированной: набранное название не пропадает за вкладкой. */}
         <div hidden={page !== "main"}>
-          <MainPage chat={chat} onOpen={setPage} onDone={onClose} />
+          <MainPage chat={chat} onOpen={setPage} onDone={onClose} channelStory={channelStory} />
         </div>
         {page === "type" ? <TypePage {...props} /> : null}
         {page === "invite" ? <InvitePage {...props} /> : null}
@@ -61,13 +66,13 @@ export function EditChatPanel({ chat, onClose }: Props) {
         {page === "banned" ? <BannedPage {...props} /> : null}
         {page === "reactions" ? <ReactionsPage chat={chat} /> : null}
         {page === "discussion" ? <DiscussionPage chat={chat} /> : null}
-        {page === "log" ? <AdminLogPage chat={chat} /> : null}
+        {page === "log" ? <AdminLogPage {...props} /> : null}
       </div>
     </>
   );
 }
 
-function MainPage({ chat, onOpen, onDone }: { chat: ChatSummary; onOpen: (p: Page) => void; onDone: () => void }) {
+function MainPage({ chat, onOpen, onDone, channelStory }: { chat: ChatSummary; onOpen: (p: Page) => void; onDone: () => void; channelStory?: ChannelStory }) {
   const isChannel = chat.type === "channel";
   const apply = useApplyChat(chat.id);
   const saveSetting = useSaveSetting(chat);
@@ -209,6 +214,9 @@ function MainPage({ chat, onOpen, onDone }: { chat: ChatSummary; onOpen: (p: Pag
         <NavRow icon="User" color="blue" title="Заявки на вступление" right={requests?.length ? String(requests.length) : null} onClick={() => onOpen("requests")} />
         <NavRow icon="Shield" color="red" title="Заблокированные" right={banned?.length ? String(banned.length) : null} onClick={() => onOpen("banned")} />
         <NavRow icon="Clock" color="grey" title="Недавние действия" onClick={() => onOpen("log")} />
+        {chat.type === "channel" && channelStory ? (
+          <NavRow icon="Image" color="purple" title="Добавить историю канала" right={channelStory.progress} onClick={channelStory.open} />
+        ) : null}
       </Section>
       {colors?.length ? (
         <Section name="Цвет" caption="Новые цвета открываются с уровнями бустов.">

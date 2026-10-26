@@ -37,7 +37,7 @@ export function ContactBar({ chat, blocked, onToggleBlock }: Props) {
     }
   };
   const block = async () => {
-    if (!blocked && !(await askConfirm(`Заблокировать ${other.name}? Он(а) не сможет писать и звонить вам.`))) return;
+    if (!blocked && !(await askConfirm(`Заблокировать ${other.name}? Он(а) не сможет писать и звонить вам.`, { okLabel: "Заблокировать", danger: true }))) return;
     await onToggleBlock();
   };
 

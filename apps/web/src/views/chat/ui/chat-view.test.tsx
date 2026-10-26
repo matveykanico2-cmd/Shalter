@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import { createMemoryRouter, Outlet, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { UserProfileHost } from "@/widgets/user-profile";
 
 import { getCall, hangup } from "@/features/call";
 
@@ -9,12 +11,19 @@ import { chatQueries, type ChatSummary } from "@/entities/chat";
 import type { Message } from "@/entities/message";
 import { sessionQueries } from "@/entities/session";
 import { settingsQueries } from "@/entities/settings";
+import { closeUserProfile } from "@/entities/user";
 
 import { ws } from "@/shared/api";
 import { fakeApi, fakeMedia, FakeMediaRecorder, fakeRtc, FakeSocket, fakeSocket, FakeXhr, fakeXhr } from "@/shared/lib/test";
 import { AskHost, BrowserHost, Toaster } from "@/shared/ui";
 
 import { ChatView } from "./chat-view";
+
+/** Текст с эмодзи-картинками (EmojiText): сравниваем с alt вместо картинок, у самого глубокого элемента. */
+const withEmoji = (text: string) => (_: string, el: Element | null) => {
+  const flat = (node: Element): string => [...node.childNodes].map((n) => (n instanceof HTMLImageElement ? n.alt : n instanceof Element ? flat(n) : (n.textContent ?? ""))).join("");
+  return !!el && flat(el) === text && ![...el.children].some((c) => flat(c) === text);
+};
 
 const ME = { id: "u_me0000000", name: "Аня", blockedUserIds: [] as string[] };
 const LENA = { id: "u_lena00000", name: "Лена", avatarColor: "#f00" };
@@ -75,9 +84,20 @@ function renderChat(c: ChatSummary = chat()) {
   client.setQueryData(chatQueries.list().queryKey, [c]);
   const router = createMemoryRouter(
     [
-      { path: "/chat/:chatId", element: <ChatView /> },
-      { path: "/call/:callId", element: <p>Экран звонка</p> },
-      { path: "/", element: <p>Список чатов</p> },
+      {
+        // Профиль — панель поверх экранов, как в оболочке (app/ui/app-routes.tsx).
+        element: (
+          <>
+            <Outlet />
+            <UserProfileHost />
+          </>
+        ),
+        children: [
+          { path: "/chat/:chatId", element: <ChatView /> },
+          { path: "/call/:callId", element: <p>Экран звонка</p> },
+          { path: "/", element: <p>Список чатов</p> },
+        ],
+      },
     ],
     { initialEntries: [`/chat/${c.id}`] }
   );
@@ -106,6 +126,7 @@ beforeEach(() => {
 
 afterEach(() => {
   ws.stop();
+  closeUserProfile();
   cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -176,7 +197,7 @@ describe("открытый чат", () => {
 
     await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")).toHaveLength(1));
     expect(bubbles()).toHaveLength(1);
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
     online = true;
     act(() => void window.dispatchEvent(new Event("online")));
     await waitFor(() => expect(bubbles()).toEqual([sent.id]));
@@ -202,6 +223,20 @@ describe("открытый чат", () => {
     await waitFor(() => expect(down.textContent).toBe("2"));
   });
 
+  it("message:read — сверка: своё, ушедшее не отсюда («Отправить сейчас»), появляется в ленте", async () => {
+    const first = msg("раз");
+    let history = page([first]);
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: () => history, ...typingRoutes });
+    renderChat();
+    await screen.findByText("раз");
+    ws.start();
+    act(() => FakeSocket.last().open());
+    const sent = msg("из запланированных", { senderId: ME.id });
+    history = page([first, sent]);
+    act(() => FakeSocket.last().receive({ type: "message:read", chatId: "c_1", readerId: LENA.id, messageIds: [sent.id], readAt: sent.createdAt }));
+    expect(await screen.findByText("из запланированных")).toBeTruthy();
+  });
+
   it("ответ на сообщение уходит с replyToId; ошибка возвращает текст в поле", async () => {
     const first = msg("вопрос");
     const { calls } = fakeApi({
@@ -218,9 +253,9 @@ describe("открытый чат", () => {
     expect(screen.getByText("Ответ Лена")).toBeTruthy();
     const input = screen.getByRole("textbox", { name: "Сообщение" });
     fireEvent.change(input, { target: { value: "ответ" } });
-    fireEvent.click(screen.getByRole("button", { name: "Отправить" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Отправить \(/ }));
 
-    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Вам запрещено писать в этом чате");
+    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Вам запрещено писать в этом чате");
     expect((input as HTMLTextAreaElement).value).toBe("ответ");
     expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ replyToId: first.id });
     expect(bubbles()).toEqual([first.id]);
@@ -272,7 +307,7 @@ describe("открытый чат", () => {
 
 const bubble = (id: string) => document.querySelector(`[data-message-id="${id}"]`) as HTMLElement;
 const openMenu = (id: string) => fireEvent.contextMenu(bubble(id), { clientX: 10, clientY: 10 });
-const menuItems = () => within(screen.getByRole("menu", { name: "Действия с сообщением" })).getAllByRole("menuitem").map((b) => b.textContent);
+const menuItems = () => within(screen.getByRole("menu", { name: "Действия с сообщением" })).getAllByRole("button").map((b) => b.textContent);
 const typingRoutes = { "POST /api/chats/c_1/draft": { body: { ok: true } }, "POST /api/chats/c_1/typing": { body: { ok: true } } };
 
 describe("действия с сообщением", () => {
@@ -293,7 +328,7 @@ describe("действия с сообщением", () => {
 
     openMenu(mine.id);
     expect(menuItems()).toEqual(["Ответить", "Переслать", "Копировать текст", "Выделить текст", "Копировать ссылку", "Выбрать", "Ответить в теме", "Перевести", "Изменить", "Удалить"]);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Изменить" }));
+    fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
     expect(screen.queryByRole("menu")).toBeNull();
     expect(screen.getByText("Изменение")).toBeTruthy();
     const input = screen.getByRole("textbox", { name: "Сообщение" }) as HTMLTextAreaElement;
@@ -337,7 +372,7 @@ describe("действия с сообщением", () => {
 
     status = 403;
     openMenu(b.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Удалить" }));
+    fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
     const dialog = screen.getByRole("dialog", { name: "Удалить сообщение?" });
     fireEvent.click(within(dialog).getByRole("checkbox"));
     fireEvent.click(within(dialog).getByRole("button", { name: "Удалить" }));
@@ -349,7 +384,7 @@ describe("действия с сообщением", () => {
 
     status = 200;
     openMenu(b.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Удалить" }));
+    fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Удалить" }));
     await waitFor(() => expect(bubbles()).toEqual([a.id]));
     expect(calls.filter((c) => c.key.startsWith("DELETE")).at(-1)?.body).toEqual({ forEveryone: false });
@@ -362,7 +397,7 @@ describe("действия с сообщением", () => {
     await screen.findByText("чужое");
     openMenu(theirs.id);
     expect(menuItems()).not.toContain("Изменить");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Удалить" }));
+    fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).queryByRole("checkbox")).toBeNull();
     expect(within(dialog).getByText("Чужое сообщение можно убрать только из своей переписки.")).toBeTruthy();
@@ -471,7 +506,7 @@ describe("действия с сообщением", () => {
     await screen.findByText("важное");
 
     openMenu(target.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Закрепить" }));
+    fireEvent.click(screen.getByRole("button", { name: "Закрепить" }));
     const jump = await screen.findByTitle("Перейти к закреплённому");
     expect(jump.textContent).toContain("важное");
     expect(calls.find((c) => c.key.endsWith("/pin"))?.body).toEqual({ pinned: true });
@@ -495,7 +530,7 @@ describe("действия с сообщением", () => {
     await screen.findByText("новость");
 
     openMenu(source.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Переслать" }));
+    fireEvent.click(screen.getByRole("button", { name: "Переслать" }));
     const dialog = screen.getByRole("dialog", { name: "Переслать сообщение" });
     expect(within(dialog).getByRole("button", { name: "Выберите чаты" })).toHaveProperty("disabled", true);
     fireEvent.click(within(dialog).getByRole("button", { name: /Работа/ }));
@@ -606,7 +641,7 @@ describe("отправка файлов", () => {
     pick("attach-media", [png("1.png"), png("2.png")]);
     const dialog = screen.getByRole("dialog", { name: "Отправить 2 фото" });
     fireEvent.click(within(dialog).getByTitle("Ещё"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Скрыть под спойлер" }));
+    fireEvent.click(screen.getByRole("button", { name: "Скрыть под спойлер" }));
     expect(within(dialog).getByText("🫥 Фото и видео будут размыты — откроются по нажатию")).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "Отправить" }));
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -644,7 +679,7 @@ describe("отправка файлов", () => {
     pick("attach-media", [png("1.png")]);
     const dialog = screen.getByRole("dialog", { name: "Отправить фото" });
     fireEvent.click(within(dialog).getByTitle("Ещё"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Размыть за звёзды ⭐" }));
+    fireEvent.click(screen.getByRole("button", { name: "Размыть за звёзды ⭐" }));
     const ask = await screen.findByRole("dialog", { name: "Сколько звёзд стоит открыть фото и видео?" });
     fireEvent.change(within(ask).getByRole("textbox"), { target: { value: "50" } });
     fireEvent.click(within(ask).getByRole("button", { name: "Готово" }));
@@ -664,7 +699,7 @@ describe("отправка файлов", () => {
 
     pick("attach-media", [png("1.png"), png("2.png")]);
     fireEvent.click(within(screen.getByRole("dialog")).getByTitle("Ещё"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Отправить без сжатия" }));
+    fireEvent.click(screen.getByRole("button", { name: "Отправить без сжатия" }));
     expect(screen.getByRole("dialog", { name: "Отправить 2 файла" })).toBeTruthy();
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Отправить" }));
     await waitFor(() => expect(FakeXhr.requests).toHaveLength(2));
@@ -758,7 +793,7 @@ describe("опросы, чек-листы, кубики, платные пост
     renderChat();
     expect(await screen.findByText("В яблочко!")).toBeTruthy();
 
-    fireEvent.click(await screen.findByRole("button", { name: "⭐ Открыть за 25 звёзд" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Открыть за 25" }));
     const confirm = await screen.findByRole("dialog", { name: /Открыть 1 фото за 25/ });
     fireEvent.click(within(confirm).getByRole("button", { name: "Открыть за 25 ⭐" }));
     expect(await screen.findByText("Пост открыт")).toBeTruthy();
@@ -776,16 +811,16 @@ describe("опросы, чек-листы, кубики, платные пост
     renderChat();
     await screen.findByText("Сообщений пока нет — напишите первым");
 
-    fireEvent.click(screen.getByTitle("Прикрепить"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Опрос" }));
+    fireEvent.click(screen.getByTitle("Вложение"));
+    fireEvent.click(screen.getByRole("button", { name: "Опрос" }));
     const dialog = screen.getByRole("dialog", { name: "Новый опрос" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Создать" }));
     expect(within(dialog).getByRole("alert").textContent).toBe("Введите вопрос");
     fireEvent.change(within(dialog).getByLabelText("Вопрос"), { target: { value: "Куда?" } });
     fireEvent.change(within(dialog).getByLabelText("Вариант 1"), { target: { value: "Море" } });
     fireEvent.change(within(dialog).getByLabelText("Вариант 2"), { target: { value: "Горы" } });
-    fireEvent.click(within(dialog).getByRole("radio", { name: "Викторина" }));
-    fireEvent.click(within(dialog).getAllByTitle("Правильный ответ")[1]!);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Викторина" }));
+    fireEvent.click(within(dialog).getByTitle("Правильный ответ"));
     fireEvent.click(within(dialog).getByRole("button", { name: "Создать" }));
     await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")).toHaveLength(1));
     expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({
@@ -793,9 +828,9 @@ describe("опросы, чек-листы, кубики, платные пост
       attachments: [{ kind: "poll", meta: { options: ["Море", "Горы"], correctIndex: 1, multiple: false } }],
     });
 
-    fireEvent.click(screen.getByTitle("Прикрепить"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Кубик и игры" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Боулинг/ }));
+    fireEvent.click(screen.getByTitle("Вложение"));
+    fireEvent.click(screen.getByRole("button", { name: "Кубик и игры" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Боулинг/ }));
     await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")).toHaveLength(2));
     expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")[1]?.body).toMatchObject({ text: "", attachments: [{ kind: "dice", meta: { emoji: "🎳" } }] });
   });
@@ -855,7 +890,7 @@ describe("запись голосовых", () => {
 
     fireEvent.change(screen.getByRole("textbox", { name: "Сообщение" }), { target: { value: "текст" } });
     expect(screen.queryByRole("button", { name: "Голосовое сообщение" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Отправить" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Отправить \(/ })).toBeTruthy();
   });
 });
 
@@ -914,7 +949,7 @@ describe("поле ввода: подсказки, команды, формат�
     });
     renderChat(dm);
     fireEvent.click(await screen.findByRole("button", { name: "/" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "/start — Начать" }));
+    fireEvent.click(screen.getByRole("button", { name: "/start — Начать" }));
     await waitFor(() => expect(sent(calls)[0]).toMatchObject({ text: "/start" }));
     const input = screen.getByRole("textbox", { name: "Сообщение" });
     type(input, "/dice");
@@ -968,8 +1003,8 @@ describe("поле ввода: подсказки, команды, формат�
     const dm = chat({ type: "dm", title: "", otherUser: LENA as ChatSummary["otherUser"] });
     fakeApi({ "GET /api/chats/c_1": { body: { chat: dm, members: [ME, LENA], commands: null, paidMessages: { stars: 5, youPay: true } } }, [HISTORY]: page([]) });
     renderChat(dm);
-    expect(await screen.findByText("⭐ Этот пользователь принимает сообщения за 5 ⭐ — спишется за каждое отправленное")).toBeTruthy();
-    expect(screen.getByRole("textbox", { name: "Сообщение · 5 ⭐" })).toBeTruthy();
+    expect(await screen.findByText(withEmoji("⭐ Этот пользователь принимает сообщения за 5 ⭐ — спишется за каждое отправленное"))).toBeTruthy();
+    expect(screen.getByPlaceholderText("Сообщение · 5 ⭐")).toBeTruthy();
   });
 });
 
@@ -1042,6 +1077,15 @@ describe("боты", () => {
 });
 
 describe("особые сообщения и автор", () => {
+  it("ответ на историю — плашка с миниатюрой и автором над текстом", async () => {
+    const reply = msg("Классное фото!", { storyReply: { url: "/uploads/story.jpg", kind: "image", authorName: "Лена" } } as Partial<Message>);
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([reply]) });
+    renderChat();
+    const label = await screen.findByText("Ответ на историю");
+    expect(label.parentElement?.textContent).toBe("Ответ на историюЛена");
+    expect(document.querySelector("img[src='/uploads/story.jpg']")).toBeTruthy();
+  });
+
   const report = { reportId: "r_1", reason: "spam", targetSummary: "Сообщение Лены: «купи»", targetType: "message", status: "open", canBan: true };
 
   it("жалоба: модератор решает прямо в чате, остальные видят «Ожидает решения»", async () => {
@@ -1052,11 +1096,11 @@ describe("особые сообщения и автор", () => {
       "POST /api/reports/r_1/resolve": { body: { status: "resolved_deleted" } },
     });
     const { client } = renderChat();
-    expect(await screen.findByText("🚩 Жалоба: Спам")).toBeTruthy();
+    expect(await screen.findByText("Жалоба: Спам")).toBeTruthy();
     expect(screen.getByText("Ожидает решения администратора")).toBeTruthy();
     act(() => client.setQueryData(sessionQueries.current().queryKey, { user: { ...ME, adminSections: ["moderation"] } } as never));
     fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
-    expect(await screen.findByText("✅ Удалено")).toBeTruthy();
+    expect(await screen.findByText("Удалено")).toBeTruthy();
     expect(calls.find((c) => c.key === "POST /api/reports/r_1/resolve")?.body).toEqual({ action: "delete", messageId: complaint.id });
   });
 
@@ -1092,11 +1136,11 @@ describe("особые сообщения и автор", () => {
     expect(within(name).getByText("дизайнер")).toBeTruthy();
     expect(within(name).getByTitle("Shalter Premium")).toBeTruthy();
     fireEvent.click(name);
-    expect(await screen.findByRole("dialog", { name: "Профиль" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Закрыть" }));
+    expect(await screen.findByRole("complementary", { name: "Профиль" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Закрыть профиль" }));
 
     fireEvent.click(within(bubble(fwd.id)).getByRole("button", { name: "Оля" }));
-    const dialog = await screen.findByRole("dialog", { name: "Профиль" });
+    const dialog = await screen.findByRole("complementary", { name: "Профиль" });
     expect(await within(dialog).findByText("@olya")).toBeTruthy();
   });
 });
@@ -1133,11 +1177,11 @@ describe("комментарии к постам", () => {
     });
     renderChat(channel);
     fireEvent.click(await screen.findByRole("button", { name: "2 комментария" }));
-    const panel = await screen.findByRole("dialog", { name: "Комментарии" });
+    const panel = await screen.findByRole("complementary", { name: "Комментарии" });
     expect(await within(panel).findByText("Ура!")).toBeTruthy();
     expect(within(panel).getByText("Комментарии (2)")).toBeTruthy();
-    expect(within(panel).getByText("⭐ Комментарии в этом канале стоят 5 ⭐ — спишется за каждый")).toBeTruthy();
-    const input = within(panel).getByRole("textbox", { name: "Комментарий · 5 ⭐" });
+    expect(within(panel).getByText(withEmoji("⭐ Комментарии в этом канале стоят 5 ⭐ — спишется за каждый"))).toBeTruthy();
+    const input = within(panel).getByPlaceholderText("Комментарий · 5 ⭐");
     fireEvent.change(input, { target: { value: "Жду" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(await within(panel).findByText("Комментарии (3)")).toBeTruthy();
@@ -1165,7 +1209,7 @@ describe("комментарии: права", () => {
     });
     const { client } = renderChat(channel);
     fireEvent.click(await screen.findByRole("button", { name: "1 комментарий" }));
-    const panel = await screen.findByRole("dialog", { name: "Комментарии" });
+    const panel = await screen.findByRole("complementary", { name: "Комментарии" });
     fireEvent.contextMenu(await within(panel).findByText("Ура!"));
     expect(screen.queryByRole("menu", { name: "Комментарий" })).toBeNull();
     act(() => client.setQueryData(chatQueries.list().queryKey, [channel, chat({ id: "c_disc", title: "Обсуждение", adminIds: [ME.id] })]));
@@ -1174,7 +1218,7 @@ describe("комментарии: права", () => {
       fireEvent.contextMenu(within(panel).getByText("Ура!"));
       expect(screen.getByRole("menu", { name: "Комментарий" })).toBeTruthy();
     });
-    expect(within(screen.getByRole("menu", { name: "Комментарий" })).getByRole("menuitem", { name: "Удалить" })).toBeTruthy();
+    expect(within(screen.getByRole("menu", { name: "Комментарий" })).getByRole("button", { name: "Удалить" })).toBeTruthy();
   });
 });
 
@@ -1236,7 +1280,7 @@ describe("плашки и низ чата", () => {
     await waitFor(() => expect(open).toHaveBeenCalledWith("https://ads.test/", "_blank", "noreferrer"));
     expect(calls.some((c) => c.key === "POST /api/ads/click/ad_1")).toBe(true);
     fireEvent.click(within(ad).getByTitle("Ещё"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Скрыть рекламу" }));
+    fireEvent.click(screen.getByRole("button", { name: "Скрыть рекламу" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/settings/premium"));
   });
 });
@@ -1313,10 +1357,10 @@ describe("стикеры и эмодзи", () => {
     });
     const { router } = renderChat();
     fireEvent.click(await screen.findByRole("button", { name: "@lena" }));
-    const dialog = await screen.findByRole("dialog", { name: "Профиль" });
+    const dialog = await screen.findByRole("complementary", { name: "Профиль" });
     expect(await within(dialog).findByText("@lena")).toBeTruthy();
     expect(within(dialog).getByText("1 общая группа")).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Написать сообщение" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Написать" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_dm"));
     expect(calls.find((c) => c.key === "POST /api/chats")?.body).toMatchObject({ userId: LENA.id, title: "Лена" });
 
@@ -1391,7 +1435,7 @@ describe("ещё в меню сообщения", () => {
     await screen.findByText("первое");
 
     openMenu(a.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Выбрать" }));
+    fireEvent.click(screen.getByRole("button", { name: "Выбрать" }));
     expect(screen.getByText("Выбрано: 1")).toBeTruthy();
     // В режиме выбора нажатие отмечает, а правая кнопка не открывает меню.
     fireEvent.click(screen.getByText("третье"));
@@ -1410,7 +1454,7 @@ describe("ещё в меню сообщения", () => {
     expect(screen.queryByText(/Выбрано/)).toBeNull();
 
     openMenu(b.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Выбрать" }));
+    fireEvent.click(screen.getByRole("button", { name: "Выбрать" }));
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByText(/Выбрано/)).toBeNull();
   });
@@ -1425,7 +1469,7 @@ describe("ещё в меню сообщения", () => {
     renderChat();
     await screen.findByText("моё");
     openMenu(mine.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Прочитали: 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Прочитали: 1" }));
     const readers = screen.getByRole("menu", { name: "Прочитали" });
     expect(await within(readers).findByText(/^Лена · сегодня в \d\d:\d\d$/)).toBeTruthy();
   });
@@ -1443,7 +1487,7 @@ describe("ещё в меню сообщения", () => {
     window.getSelection()!.removeAllRanges();
     window.getSelection()!.addRange(range);
     openMenu(theirs.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Ответить" }));
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("button", { name: "Ответить" }));
     expect(screen.getByText("Ответ Лена")).toBeTruthy();
     expect(input.value).toBe("> первая строка\n");
     window.getSelection()!.removeAllRanges();
@@ -1473,7 +1517,7 @@ describe("ещё в меню сообщения", () => {
     renderChat();
     await screen.findByText("встречаемся в 7");
     openMenu(theirs.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Ответить лично" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ответить лично" }));
 
     await waitFor(() => expect(screen.getByRole("region", { name: "Лена" })).toBeTruthy());
     expect(calls.find((x) => x.key === "POST /api/chats")?.body).toMatchObject({ userId: LENA.id, title: "Лена" });
@@ -1492,7 +1536,7 @@ describe("ещё в меню сообщения", () => {
     renderChat();
     await screen.findByText("Hello there");
     openMenu(theirs.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Перевести" }));
+    fireEvent.click(screen.getByRole("button", { name: "Перевести" }));
 
     const dialog = screen.getByRole("dialog", { name: "Перевод" });
     expect(await within(dialog).findByText("Привет")).toBeTruthy();
@@ -1500,7 +1544,7 @@ describe("ещё в меню сообщения", () => {
     expect(calls.find((x) => x.key === "POST /api/translate")?.body).toEqual({ text: "Hello there", target: "ru" });
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Язык перевода" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Deutsch" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deutsch" }));
     expect(await within(dialog).findByText("Hallo")).toBeTruthy();
     expect(calls.find((x) => x.key === "PATCH /api/settings")?.body).toEqual({ translateLanguage: "de" });
   });
@@ -1515,11 +1559,11 @@ describe("ещё в меню сообщения", () => {
     renderChat();
     await screen.findByText(/Очень длинный текст/);
     openMenu(long.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Кратко" }));
+    fireEvent.click(screen.getByRole("button", { name: "Кратко" }));
     expect(await screen.findByText("Коротко о главном")).toBeTruthy();
 
     openMenu(long.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Скрыть сводку" }));
+    fireEvent.click(screen.getByRole("button", { name: "Скрыть сводку" }));
     expect(screen.queryByText("Коротко о главном")).toBeNull();
   });
 
@@ -1529,7 +1573,7 @@ describe("ещё в меню сообщения", () => {
     renderChat();
     await screen.findByText("купи крипту");
     openMenu(theirs.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Пожаловаться" }));
+    fireEvent.click(screen.getByRole("button", { name: "Пожаловаться" }));
     const dialog = screen.getByRole("dialog", { name: "Пожаловаться на сообщение от Лена" });
     fireEvent.click(within(dialog).getByRole("radio", { name: "Мошенничество" }));
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Подробности" }), { target: { value: "развод" } });
@@ -1551,7 +1595,7 @@ describe("ещё в меню сообщения", () => {
     await screen.findByText("лишнее");
     openMenu(theirs.id);
     expect(menuItems()).not.toContain("Ответить лично");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Удалить за звёзды" }));
+    fireEvent.click(screen.getByRole("button", { name: "Удалить за звёзды" }));
     const ask = await screen.findByRole("dialog", { name: "Удалить сообщение у обоих за 5 ⭐?" });
     fireEvent.click(within(ask).getByRole("button", { name: "Удалить" }));
     await waitFor(() => expect(bubbles()).toEqual([]));
@@ -1642,10 +1686,10 @@ describe("темы и ветки", () => {
     renderChat();
     fireEvent.click(await screen.findByRole("button", { name: "💬 1 ответ" }));
 
-    const panel = screen.getByRole("dialog", { name: "Тема" });
+    const panel = screen.getByRole("complementary", { name: "Тема" });
     expect(await within(panel).findByText("на море")).toBeTruthy();
     expect(within(panel).getByText("Ответы (1)")).toBeTruthy();
-    const input = within(panel).getByRole("textbox", { name: "Ответить в теме" });
+    const input = within(panel).getByRole("textbox", { name: "Сообщение" });
     await waitFor(() => expect(document.activeElement).toBe(input));
     fireEvent.change(input, { target: { value: "в горы" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -1663,7 +1707,7 @@ describe("темы и ветки", () => {
     expect(within(panel).getByText("Ответы (3)")).toBeTruthy();
 
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("dialog", { name: "Тема" })).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Тема" })).toBeNull();
   });
 
   it("ветка: фото с подписью и без «Отправить позже»", async () => {
@@ -1680,15 +1724,15 @@ describe("темы и ветки", () => {
     renderChat();
     await screen.findByText("покажите море");
     openMenu(root.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Ответить в теме" }));
-    const panel = screen.getByRole("dialog", { name: "Тема" });
+    fireEvent.click(screen.getByRole("button", { name: "Ответить в теме" }));
+    const panel = screen.getByRole("complementary", { name: "Тема" });
     await within(panel).findByText("Пока нет ответов — начните тему первым");
 
-    fireEvent.click(within(panel).getByTitle("Прикрепить"));
-    expect(screen.queryByRole("menuitem", { name: "Отправить позже" })).toBeNull();
+    fireEvent.click(within(panel).getByTitle("Вложение"));
+    expect(within(screen.getByRole("menu")).queryByRole("button", { name: "Отправить позже" })).toBeNull();
     fireEvent.keyDown(document, { key: "Escape" });
 
-    fireEvent.change(within(panel).getByRole("textbox", { name: "Ответить в теме" }), { target: { value: "вот" } });
+    fireEvent.change(within(panel).getByRole("textbox", { name: "Сообщение" }), { target: { value: "вот" } });
     fireEvent.change(within(panel).getByTestId("attach-media"), { target: { files: [new File(["x"], "1.png", { type: "image/png" })] } });
     fireEvent.click(within(screen.getByRole("dialog", { name: "Отправить фото" })).getByRole("button", { name: "Отправить" }));
     await waitFor(() => expect(FakeXhr.requests).toHaveLength(1));
@@ -1713,7 +1757,7 @@ describe("темы и ветки", () => {
     renderChat();
     await screen.findByText("вопрос");
     openMenu(root.id);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Ответить в теме" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ответить в теме" }));
     expect(await screen.findByText("Пока нет ответов — начните тему первым")).toBeTruthy();
   });
 });
@@ -1725,8 +1769,8 @@ describe("геолокация и контакт из скрепки", () => {
     Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition }, configurable: true });
   };
   const attach = (name: string) => {
-    fireEvent.click(screen.getByTitle("Прикрепить"));
-    fireEvent.click(screen.getByRole("menuitem", { name }));
+    fireEvent.click(screen.getByTitle("Вложение"));
+    fireEvent.click(screen.getByRole("button", { name }));
   };
 
   it("GPS отдал координаты — геолокация уходит сразу", async () => {
@@ -1784,7 +1828,7 @@ describe("варианты отправки", () => {
     }),
   };
   const type = (value: string) => fireEvent.change(screen.getByRole("textbox", { name: "Сообщение" }), { target: { value } });
-  const sendMenu = () => fireEvent.contextMenu(screen.getByRole("button", { name: "Отправить" }));
+  const sendMenu = () => fireEvent.contextMenu(screen.getByRole("button", { name: /^Отправить \(/ }));
 
   it("длинный текст — несколькими сообщениями", async () => {
     const { calls } = fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([msg("привет")]), ...sendRoute, ...typingRoutes });
@@ -1803,13 +1847,13 @@ describe("варианты отправки", () => {
     await screen.findByText("привет");
     type("тихо");
     sendMenu();
-    fireEvent.click(screen.getByRole("menuitem", { name: "Отправить без звука" }));
+    fireEvent.click(screen.getByRole("button", { name: "Отправить без звука" }));
     await waitFor(() => expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ text: "тихо", silent: true }));
 
     type("ура");
     sendMenu();
-    fireEvent.click(screen.getByRole("menuitem", { name: "Отправить с эффектом" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Праздник/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Отправить с эффектом" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Праздник/ }));
     await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")[1]?.body).toMatchObject({ text: "ура", effect: "🎉" }));
     expect(await screen.findByTitle("Повторить эффект")).toBeTruthy();
   });
@@ -1829,7 +1873,7 @@ describe("варианты отправки", () => {
     await screen.findByText("привет");
     type("напомнить");
     sendMenu();
-    fireEvent.click(screen.getByRole("menuitem", { name: "Отправить позже" }));
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("button", { name: "Отправить позже" }));
     const dialog = screen.getByRole("dialog", { name: "Отправить позже" });
     // В группе «когда будет в сети» нет.
     expect(within(dialog).queryByRole("button", { name: "Отправить, когда будет в сети" })).toBeNull();
@@ -1865,8 +1909,8 @@ describe("варианты отправки", () => {
     renderChat();
     await screen.findByText("привет");
     type("превет всем");
-    fireEvent.click(screen.getByTitle("Прикрепить"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Проверить текст (Hugo)" }));
+    fireEvent.click(screen.getByTitle("Вложение"));
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("button", { name: "Проверить текст (Hugo)" }));
     const panel = await screen.findByRole("region", { name: "Проверка текста" });
     expect(within(panel).getByText("Hugo нашёл 1 ошибку")).toBeTruthy();
     fireEvent.click(within(panel).getAllByRole("button", { name: "привет" })[0]!);
@@ -1877,7 +1921,7 @@ describe("варианты отправки", () => {
 
 describe("меню чата в шапке", () => {
   const openMenu = () => fireEvent.click(within(document.querySelector("header")!).getByRole("button", { name: "Ещё" }));
-  const pick = (name: string | RegExp) => fireEvent.click(within(screen.getByRole("menu", { name: "Меню чата" })).getByRole("menuitem", { name }));
+  const pick = (name: string | RegExp) => fireEvent.click(within(screen.getByRole("menu", { name: "Меню чата" })).getByRole("button", { name }));
   const listed = (client: QueryClient) => client.getQueryData(chatQueries.list().queryKey)?.[0];
 
   it("уведомления: срок из списка, затем «Включить уведомления»", async () => {
@@ -1921,7 +1965,7 @@ describe("меню чата в шапке", () => {
 
     openMenu();
     pick("Выключить темы");
-    fireEvent.click(await screen.findByRole("button", { name: "Да" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Выключить" }));
     await waitFor(() => expect(screen.queryByRole("tablist", { name: "Темы" })).toBeNull());
     expect(calls.filter((c) => c.key === "POST /api/chats/c_1/topics/enabled").map((c) => c.body)).toEqual([{ enabled: true }, { enabled: false }]);
   });
@@ -2048,7 +2092,7 @@ describe("поиск по чату", () => {
     await screen.findByText("привет");
 
     fireEvent.click(within(document.querySelector("header")!).getByRole("button", { name: "Ещё" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Поиск по чату" }));
+    fireEvent.click(screen.getByRole("button", { name: "Поиск по чату" }));
     const field = screen.getByRole("searchbox", { name: "Найти в этом чате" });
     fireEvent.change(field, { target: { value: "зонт" } });
     expect(await screen.findByText("Ничего не найдено")).toBeTruthy();
@@ -2080,7 +2124,7 @@ describe("поиск по чату", () => {
     await waitFor(() => expect(bubbles()).toEqual([inTopicMsg.id]));
 
     fireEvent.click(within(document.querySelector("header")!).getByRole("button", { name: "Ещё" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Поиск по чату" }));
+    fireEvent.click(screen.getByRole("button", { name: "Поиск по чату" }));
     fireEvent.change(screen.getByRole("searchbox", { name: "Найти в этом чате" }), { target: { value: "билет" } });
     fireEvent.click(await screen.findByRole("button", { name: /билеты в общем/ }));
     await waitFor(() => expect(bubbles()).toEqual([general.id, inTopicMsg.id]));
@@ -2092,7 +2136,7 @@ describe("поиск по чату", () => {
 describe("информация о чате", () => {
   const openInfo = () => {
     fireEvent.click(within(document.querySelector("header")!).getByRole("button", { name: "Ещё" }));
-    fireEvent.click(within(screen.getByRole("menu", { name: "Меню чата" })).getByRole("menuitem", { name: "Информация о чате" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Меню чата" })).getByRole("button", { name: "Информация о чате" }));
     return screen.getByRole("complementary", { name: "Информация о чате" });
   };
   const dm = () => chat({ type: "dm", title: "", memberIds: [ME.id, LENA.id], otherUser: { ...LENA, online: true } as ChatSummary["otherUser"] });
@@ -2126,7 +2170,7 @@ describe("информация о чате", () => {
     expect(within(panel).getByText("3 общие группы")).toBeTruthy();
 
     fireEvent.click(within(panel).getByRole("button", { name: "Автоудаление сообщений: Выключено" }));
-    fireEvent.click(within(screen.getByRole("menu", { name: "Автоудаление сообщений" })).getByRole("menuitem", { name: "1 неделя" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Автоудаление сообщений" })).getByRole("button", { name: "1 неделя" }));
     expect(await within(panel).findByRole("button", { name: "Автоудаление сообщений: 1 неделя" })).toBeTruthy();
     expect(calls.find((c) => c.key === "PATCH /api/chats/c_1")?.body).toEqual({ autoDeleteSeconds: 7 * 24 * 3600 });
 
@@ -2337,26 +2381,26 @@ describe("информация о чате", () => {
       await screen.findByText("2 участника");
       const panel = openInfo();
 
-      fireEvent.click(within(await memberMenu(panel, "Лена")).getByRole("menuitem", { name: "Сделать администратором" }));
+      fireEvent.click(within(await memberMenu(panel, "Лена")).getByRole("button", { name: "Сделать администратором" }));
       expect(await within(panel).findByText(/админ/)).toBeTruthy();
       expect(calls.find((c) => c.key === "POST /api/chats/c_1/members")?.body).toEqual({ userId: LENA.id, role: "promote" });
 
-      fireEvent.click(within(await memberMenu(panel, "Лена")).getByRole("menuitem", { name: "Изменить тег" }));
+      fireEvent.click(within(await memberMenu(panel, "Лена")).getByRole("button", { name: "Изменить тег" }));
       const ask = screen.getByRole("dialog", { name: /Тег для Лена/ });
       fireEvent.change(within(ask).getByRole("textbox"), { target: { value: "Сестра" } });
       fireEvent.click(within(ask).getByRole("button", { name: "Готово" }));
       expect(await within(panel).findByText(/Сестра/)).toBeTruthy();
       expect(calls.find((c) => c.key === "POST /api/chats/c_1/title")?.body).toEqual({ userId: LENA.id, title: "Сестра" });
 
-      fireEvent.click(within(await memberMenu(panel, "Лена")).getByRole("menuitem", { name: "Запретить писать" }));
+      fireEvent.click(within(await memberMenu(panel, "Лена")).getByRole("button", { name: "Запретить писать" }));
       fireEvent.click(within(screen.getByRole("dialog", { name: "Запретить писать: Лена" })).getByRole("button", { name: "Навсегда" }));
       expect(await within(panel).findByTitle("Не может писать")).toBeTruthy();
       expect(calls.find((c) => c.key === "POST /api/chats/c_1/restrict")?.body).toEqual({ userId: LENA.id, until: "forever" });
-      expect(within(await memberMenu(panel, "Лена")).getByRole("menuitem", { name: "Разрешить писать" })).toBeTruthy();
+      expect(within(await memberMenu(panel, "Лена")).getByRole("button", { name: "Разрешить писать" })).toBeTruthy();
       fireEvent.keyDown(document, { key: "Escape" });
 
-      fireEvent.click(within(await memberMenu(panel, "Лена")).getByRole("menuitem", { name: "Передать права владельца" }));
-      fireEvent.click(within(screen.getByRole("dialog", { name: /Передать Лена права владельца группы/ })).getByRole("button", { name: "Да" }));
+      fireEvent.click(within(await memberMenu(panel, "Лена")).getByRole("button", { name: "Передать права владельца" }));
+      fireEvent.click(within(screen.getByRole("dialog", { name: /Передать Лена права владельца группы/ })).getByRole("button", { name: "Передать" }));
       await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/members").at(-1)?.body).toEqual({ userId: LENA.id, role: "transfer" }));
     });
 
@@ -2373,8 +2417,8 @@ describe("информация о чате", () => {
       fireEvent.click(within(panel).getByTitle("Добавить участника"));
       const dialog = screen.getByRole("dialog", { name: "Добавить участников" });
       // Кто уже в чате — не предлагаем.
-      const olya = await within(dialog).findByRole("checkbox", { name: /Оля/ });
-      expect(within(dialog).queryByRole("checkbox", { name: /Лена/ })).toBeNull();
+      const olya = await within(dialog).findByRole("button", { name: /Оля/ });
+      expect(within(dialog).queryByRole("button", { name: /Лена/ })).toBeNull();
       const add = within(dialog).getByRole("button", { name: "Добавить" });
       expect((add as HTMLButtonElement).disabled).toBe(true);
       fireEvent.click(olya);
@@ -2513,16 +2557,16 @@ describe("информация о чате", () => {
       expect(await within(panel).findByText("shalter.ru/join/AbCdEfGhIjKlMnOpQrStUv")).toBeTruthy();
       expect(calls.find((c) => c.key === "POST /api/chats/c_1/invite")?.body).toEqual({ revoke: false });
       // Выключенный флаг сервер не присылает — переключатель всё равно гаснет.
-      const approve = within(panel).getByRole("switch", { name: /Заявки на вступление/ });
-      expect(approve.getAttribute("aria-checked")).toBe("true");
+      const approve = within(panel).getByRole("button", { name: /Заявки на вступление/ });
+      expect(approve.getAttribute("aria-pressed")).toBe("true");
       fireEvent.click(approve);
-      await waitFor(() => expect(approve.getAttribute("aria-checked")).toBe("false"));
+      await waitFor(() => expect(approve.getAttribute("aria-pressed")).toBe("false"));
       expect(calls.find((c) => c.key === "POST /api/chats/c_1/settings")?.body).toEqual({ approveJoins: false });
       fireEvent.click(within(panel).getByTitle("Назад"));
 
       nav(panel, /Права участников/);
-      fireEvent.click(await within(panel).findByRole("switch", { name: "Отправлять фото и файлы" }));
-      await waitFor(() => expect(within(panel).getByRole("switch", { name: "Отправлять фото и файлы" }).getAttribute("aria-checked")).toBe("false"));
+      fireEvent.click(await within(panel).findByRole("button", { name: "Отправлять фото и файлы" }));
+      await waitFor(() => expect(within(panel).getByRole("button", { name: "Отправлять фото и файлы" }).getAttribute("aria-pressed")).toBe("false"));
       expect(calls.find((c) => c.key === "POST /api/chats/c_1/permissions")?.body).toEqual({ permissions: { ...PERMS, sendMedia: false } });
       fireEvent.click(within(panel).getByRole("radio", { name: "30 секунд" }));
       await waitFor(() => expect(within(panel).getByRole("radio", { name: "30 секунд" }).getAttribute("aria-checked")).toBe("true"));
@@ -2607,16 +2651,18 @@ describe("информация о чате", () => {
         const { calls } = server(channel());
         renderChat(channel());
         const panel = openChannelEditor();
-        const comments = within(panel).getByRole("switch", { name: /Комментарии.*Включение создаст группу обсуждения/ });
-        expect(comments.getAttribute("aria-checked")).toBe("false");
+        // История канала — строкой в правке канала (editChatDialog.js).
+        expect(within(panel).getByRole("button", { name: /Добавить историю канала/ })).toBeTruthy();
+        const comments = within(panel).getByRole("button", { name: /Комментарии.*Включение создаст группу обсуждения/ });
+        expect(comments.getAttribute("aria-pressed")).toBe("false");
         fireEvent.click(comments);
         expect(await screen.findByText("Комментарии включены")).toBeTruthy();
-        expect(comments.getAttribute("aria-checked")).toBe("true");
+        expect(comments.getAttribute("aria-pressed")).toBe("true");
         expect(calls.find((c) => c.key === "POST /api/chats/c_1/discussion")?.body).toEqual({ action: "create" });
         expect(calls.find((c) => c.key === "POST /api/chats/c_1/settings")?.body).toEqual({ commentsOff: false });
         fireEvent.click(comments);
-        await waitFor(() => expect(comments.getAttribute("aria-checked")).toBe("false"));
-        expect(within(panel).getByRole("switch", { name: /Под постами комментариев нет/ })).toBeTruthy();
+        await waitFor(() => expect(comments.getAttribute("aria-pressed")).toBe("false"));
+        expect(within(panel).getByRole("button", { name: /Под постами комментариев нет/ })).toBeTruthy();
 
         nav(panel, /Обсуждение.*Вкл/);
         expect(within(panel).queryByRole("button", { name: "Создать группу обсуждения" })).toBeNull();
@@ -2627,11 +2673,11 @@ describe("информация о чате", () => {
 
         fireEvent.change(within(panel).getByRole("spinbutton", { name: /Звёзд за комментарий/ }), { target: { value: "15" } });
         fireEvent.click(within(panel).getByRole("button", { name: "Сохранить цену" }));
-        expect(await screen.findByText("Комментарии стоят 15 ⭐")).toBeTruthy();
+        expect(await screen.findByText(withEmoji("Комментарии стоят 15 ⭐"))).toBeTruthy();
         expect(calls.find((c) => c.key === "POST /api/chats/c_1/comment-price")?.body).toEqual({ stars: 15 });
 
         fireEvent.click(within(panel).getByRole("button", { name: "Отключить комментарии" }));
-        fireEvent.click(await screen.findByRole("button", { name: "Да" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Отключить" }));
         expect(await within(panel).findByRole("button", { name: "Создать группу обсуждения" })).toBeTruthy();
         expect(calls.filter((c) => c.key === "POST /api/chats/c_1/discussion").at(-1)?.body).toEqual({ action: "unlink" });
       });
@@ -2688,7 +2734,7 @@ describe("звонки из чата", () => {
     const { router } = renderChat();
     const header = await screen.findByRole("banner");
     fireEvent.click(within(header).getByTitle("Ещё"));
-    expect(await screen.findByRole("menuitem", { name: /Начать голосовой чат/ })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /Начать голосовой чат/ })).toBeTruthy();
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
 
     ws.start();

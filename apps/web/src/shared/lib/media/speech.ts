@@ -19,6 +19,9 @@ const MAX_TRANSCRIPT = 4000;
 const Recognition = (globalThis as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec }).SpeechRecognition
   ?? (globalThis as unknown as { webkitSpeechRecognition?: new () => SpeechRec }).webkitSpeechRecognition;
 
+/** Браузер умеет распознавать речь (Chrome, Edge, Safari). */
+export const isSpeechSupported = () => !!Recognition;
+
 export function startTranscription(lang?: string) {
   if (!Recognition) return null;
   const rec = new Recognition();

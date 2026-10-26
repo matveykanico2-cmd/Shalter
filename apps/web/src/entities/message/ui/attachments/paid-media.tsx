@@ -1,7 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { plural } from "@/shared/lib/presence";
-
 import { paidMediaQuery } from "../../api/paid-media";
 import { isVisualMedia } from "../../lib/attachments";
 import type { Attachment } from "../../model/attachment";
@@ -48,7 +46,7 @@ export function PaidMedia({ message: m, attachment, onUnlock, renderMedia }: Pro
       <span className={styles.paidBlur} style={meta.blur ? { backgroundImage: `url("${meta.blur}")` } : undefined} />
       <span className={styles.paidShade} />
       <button type="button" className={styles.paidUnlock} disabled={!onUnlock || m.pending} onClick={() => onUnlock?.(m, { stars, label })}>
-        ⭐ Открыть за {stars} {plural(stars, "звезду", "звезды", "звёзд")}
+        <span aria-hidden="true">⭐</span> Открыть за {stars}
       </button>
       <span className={styles.paidLabel}>{label}</span>
     </div>

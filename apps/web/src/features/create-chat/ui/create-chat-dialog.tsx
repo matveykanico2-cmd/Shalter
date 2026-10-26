@@ -144,7 +144,8 @@ export function CreateChatDialog({ kind, members, onSubmit, onClose }: Props) {
           Отмена
         </Button>
         <Button disabled={busy} onClick={() => void submit()}>
-          {isChannel ? "Далее" : "Создать группу"}
+          {/* «Далее» и у группы — кнопка-стрелка в createChatDialog.js. */}
+          Далее
         </Button>
       </div>
     </Dialog>

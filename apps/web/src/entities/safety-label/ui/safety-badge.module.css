@@ -1,0 +1,32 @@
+/* .safety-badge в public/styles/components.css. */
+.badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mini {
+  padding: 1px 4px;
+  font-size: 8.5px;
+}
+
+.dark {
+  background: #1f2430;
+  color: #ff9d9d;
+}
+
+.fake {
+  background: #8a6d1f;
+}
+
+.drugs {
+  background: #6d3fa0;
+}

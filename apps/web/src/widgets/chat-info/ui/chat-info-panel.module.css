@@ -243,3 +243,27 @@
 .restricted {
   color: var(--color-danger);
 }
+
+.memberProfile {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Аватар с именем в личке — кнопка полного профиля. */
+.heroButton {
+  width: 100%;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}

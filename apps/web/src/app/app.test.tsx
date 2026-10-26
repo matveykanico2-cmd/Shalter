@@ -38,6 +38,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Список чатов прошлого запуска (shared/lib/local-cache) не должен перейти в следующий тест.
+  localStorage.clear();
   ws.stop();
   cleanup();
   vi.unstubAllGlobals();
@@ -50,7 +52,7 @@ describe("вход и оболочка", () => {
     fakeApi({ "GET /api/auth/session": { body: { user: null, accounts: [] } } });
     window.history.replaceState(null, "", "/chat/c_abc");
     render(<App />);
-    expect(await screen.findByText("Вход в Shalter")).toBeTruthy();
+    expect(await screen.findByText("Рады видеть вас снова")).toBeTruthy();
     expect(window.location.pathname).toBe("/login");
     expect(FakeSocket.sockets).toHaveLength(0);
   });
@@ -59,7 +61,7 @@ describe("вход и оболочка", () => {
     fakeApi({ "GET /api/auth/session": { body: { user: ME, accounts: [] } }, "GET /api/bootstrap": bootstrap });
     window.history.replaceState(null, "", "/login");
     render(<App />);
-    expect(await screen.findByText("Выберите чат")).toBeTruthy();
+    expect(await screen.findByText("Выберите чат, чтобы начать общение")).toBeTruthy();
     expect(screen.getByRole("navigation").querySelector("[title='Аккаунты']")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Чаты" })).toBeTruthy();
     expect(window.location.pathname).toBe("/");
@@ -78,8 +80,9 @@ describe("список чатов в оболочке", () => {
     const { calls } = fakeApi({ "GET /api/auth/session": { body: { user: ME, accounts: [] } }, "GET /api/bootstrap": bootstrap });
     render(<App />);
     const row = await screen.findByRole("button", { name: /Семья/ });
-    // Кроме входа и bootstrap — только сверка входящих звонков (GET /api/calls).
-    expect(calls.map((c) => c.key).filter((k) => k !== "GET /api/calls")).toEqual(["GET /api/auth/session", "GET /api/bootstrap"]);
+    // Кроме входа и bootstrap — только сверка входящих звонков, версия приложения, полоса историй и сообщества.
+    const side = new Set(["GET /api/calls", "GET /api/version", "GET /api/stories", "GET /api/communities/joined"]);
+    expect(calls.map((c) => c.key).filter((k) => !side.has(k))).toEqual(["GET /api/auth/session", "GET /api/bootstrap"]);
     expect(FakeSocket.last().url).toBe(`ws://${window.location.host}/ws`);
 
     fireEvent.click(row);

@@ -191,8 +191,19 @@ function GroupPicker({ title, onPick, onClose }: { title: string; onPick: (chatI
 
 const TIME = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-/** Журнал администраторов за 30 дней (public/js/components/adminLogDialog.js). */
-export function AdminLogPage({ chat }: PageProps) {
+/** Журнал администраторов за 30 дней (public/js/components/adminLogDialog.js): там — окно с «Закрыть». */
+export function AdminLogPage({ chat, onBack }: PageProps & { onBack: () => void }) {
+  return (
+    <>
+      <AdminLogList chat={chat} />
+      <Button variant="link" onClick={onBack}>
+        Закрыть
+      </Button>
+    </>
+  );
+}
+
+function AdminLogList({ chat }: PageProps) {
   const log = useInfiniteQuery(editChatQueries.adminLog(chat.id));
   if (log.isError) return <Empty>{errorText(log.error, "Не удалось загрузить журнал")}</Empty>;
   if (!log.data) return <Empty>Загрузка…</Empty>;

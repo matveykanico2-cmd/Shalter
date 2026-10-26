@@ -3,6 +3,7 @@ import { type ReactNode, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { chatQueries, type ChatSummary, chatTitle, openDm } from "@/entities/chat";
+import { openGame } from "@/entities/game";
 import { stripCustomEmoji } from "@/entities/message";
 
 import { errorText } from "@/shared/lib/error-text";
@@ -13,7 +14,7 @@ import { highlightMatch, searchTimeLabel } from "../lib/highlight";
 
 import styles from "./search.module.css";
 
-type Bucket = "all" | "dms" | "groups" | "channels" | "users" | "bots" | "messages";
+type Bucket = "all" | "dms" | "groups" | "channels" | "users" | "bots" | "games" | "messages";
 
 type Props = {
   query: string;
@@ -42,7 +43,7 @@ export function SearchResults({ query, meId, chats, renderChat, onDone }: Props)
   const dms = mine.filter((c) => c.type === "dm" || c.type === "bot");
   const groups = mine.filter((c) => c.type === "group");
   const myChannels = mine.filter((c) => c.type === "channel");
-  const total = mine.length + r.channels.length + r.users.length + r.bots.length + r.messages.length;
+  const total = mine.length + r.channels.length + r.users.length + r.bots.length + r.games.length + r.messages.length;
   const buckets: { id: Bucket; name: string; count: number }[] = [
     { id: "all" as const, name: "Все", count: total },
     { id: "dms" as const, name: "Личные", count: dms.length },
@@ -50,6 +51,7 @@ export function SearchResults({ query, meId, chats, renderChat, onDone }: Props)
     { id: "channels" as const, name: "Каналы", count: myChannels.length + r.channels.length },
     { id: "users" as const, name: "Люди", count: r.users.length },
     { id: "bots" as const, name: "Боты", count: r.bots.length },
+    { id: "games" as const, name: "Игры", count: r.games.length },
     { id: "messages" as const, name: "Сообщения", count: r.messages.length },
   ].filter((b) => b.id === "all" || b.count > 0);
   const active = buckets.some((b) => b.id === bucket) ? bucket : "all";
@@ -124,6 +126,18 @@ export function SearchResults({ query, meId, chats, renderChat, onDone }: Props)
         : null}
       {show("users") ? section("Люди", r.users.map(accountRow)) : null}
       {show("bots") ? section("Боты", r.bots.map(accountRow)) : null}
+      {show("games")
+        ? section(
+            "Игры",
+            r.games.map((g) => (
+              <button key={g.id} type="button" className={styles.row} data-search-row="" onClick={() => openGame(g)}>
+                <span className={styles.gameEmoji}>{g.emoji || "🎮"}</span>
+                <span className={styles.name}>{g.title}</span>
+                <span className={styles.muted}>{g.description || ("builtin" in g ? "Встроенная игра" : "Игра")}</span>
+              </button>
+            ))
+          )
+        : null}
       {show("messages")
         ? section(
             "Сообщения",

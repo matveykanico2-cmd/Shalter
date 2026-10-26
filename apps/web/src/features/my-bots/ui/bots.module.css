@@ -1,0 +1,294 @@
+/* Как .bot-ways, .settings-device-row, editBotDialog в public/styles. */
+.hint {
+  margin: 2px 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.error {
+  margin: 4px 0;
+  font-size: 14px;
+  color: var(--color-danger);
+}
+
+.notice {
+  margin: 4px 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  font-size: 14px;
+}
+
+.empty {
+  margin: 8px 0;
+  font-size: 14px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.danger {
+  color: var(--color-danger);
+}
+
+.ways {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--color-surface);
+}
+
+.waysTitle {
+  margin: 0;
+  font-weight: 500;
+}
+
+.way {
+  display: flex;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.way p {
+  margin: 0;
+}
+
+.wayIcon {
+  display: flex;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.docLink {
+  font-size: 14px;
+  color: var(--color-accent);
+}
+
+.createButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.listTitle {
+  margin: 16px 0 6px;
+  padding: 0 16px;
+  font-weight: 500;
+  color: var(--color-accent);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  background: var(--color-surface);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--color-border);
+}
+
+.rowBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.rowName {
+  margin: 0;
+}
+
+.badges {
+  display: flex;
+  gap: 4px;
+}
+
+.badge {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--color-surface-alt);
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.badgeAccent {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.iconButton {
+  display: flex;
+  padding: 6px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.avatarEdit {
+  position: relative;
+  display: flex;
+  margin: 0 auto 12px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.avatarIcon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.invalid {
+  border-color: var(--color-danger);
+}
+
+.textarea,
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-bg);
+  font: inherit;
+  color: var(--color-text);
+  resize: vertical;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.codeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+}
+
+.token {
+  min-width: 0;
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.avatarRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.avatarActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  margin: 8px 0 2px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.handle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.at {
+  color: var(--color-muted);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--color-surface-alt);
+}
+
+.blockTitle {
+  margin: 0;
+  font-weight: 500;
+}
+
+.modes {
+  display: flex;
+  gap: 6px;
+}
+
+.mode {
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.modeActive {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}

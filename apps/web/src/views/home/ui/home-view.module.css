@@ -1,6 +1,5 @@
 .empty {
-  display: grid;
-  place-items: center;
+  position: relative;
   height: 100%;
-  color: var(--color-muted);
+  overflow: hidden;
 }

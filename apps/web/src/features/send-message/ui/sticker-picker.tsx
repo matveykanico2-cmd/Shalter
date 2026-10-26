@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { DRAWN_STICKERS, renderSticker, type Sticker, STICKERS } from "@/shared/lib/anim";
 import { DomNode, Icon, Menu } from "@/shared/ui";
 
-import { getStickerPacks, sendTyping } from "../api/send-message";
+import { sendTyping } from "../api/send-message";
+import { stickerPackQueries } from "../api/sticker-packs";
 
+import { StickerPackDialog } from "./sticker-pack-dialog";
 import styles from "./sticker-picker.module.css";
 
 const ACTION_PING_MS = 2500;
@@ -21,11 +23,11 @@ type Props = { chatId: string; onSend: (sticker: Sticker) => void };
 
 /**
  * Стикеры — как toggleStickers/renderStickerPicker в composer.js: Shalter, стандартные и
- * свои паки; пока выбор открыт, у собеседника «выбирает стикер». Редактор паков
- * переедет вместе с настройками.
+ * свои паки; пока выбор открыт, у собеседника «выбирает стикер». Внизу — «Мои стикерпаки».
  */
 export function StickerButton({ chatId, onSend }: Props) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const [managing, setManaging] = useState(false);
   return (
     <>
       <button
@@ -53,16 +55,21 @@ export function StickerButton({ chatId, onSend }: Props) {
                 setAt(null);
                 onSend(outgoing(s));
               }}
+              onManage={() => {
+                setAt(null);
+                setManaging(true);
+              }}
             />
           }
         />
       ) : null}
+      {managing ? <StickerPackDialog onClose={() => setManaging(false)} /> : null}
     </>
   );
 }
 
-function StickerPanel({ chatId, onPick }: { chatId: string; onPick: (s: Sticker) => void }) {
-  const packs = useQuery({ queryKey: ["stickers", "packs"], queryFn: getStickerPacks, staleTime: 60_000 });
+function StickerPanel({ chatId, onPick, onManage }: { chatId: string; onPick: (s: Sticker) => void; onManage: () => void }) {
+  const packs = useQuery(stickerPackQueries.list());
   useEffect(() => {
     sendTyping(chatId, "choose_sticker").catch(() => {});
     const ping = setInterval(() => sendTyping(chatId, "choose_sticker").catch(() => {}), ACTION_PING_MS);
@@ -75,7 +82,7 @@ function StickerPanel({ chatId, onPick }: { chatId: string; onPick: (s: Sticker)
   const sections: { title: string; stickers: Sticker[] }[] = [
     { title: "Shalter", stickers: DRAWN_STICKERS },
     { title: "Стандартные", stickers: STICKERS },
-    ...(packs.data?.packs ?? []).filter((p) => p.stickers.length).map((p) => ({ title: p.name, stickers: p.stickers })),
+    ...(packs.data ?? []).filter((p) => p.stickers.length).map((p) => ({ title: p.name, stickers: p.stickers })),
   ];
   return (
     <div className={styles.panel}>
@@ -91,6 +98,9 @@ function StickerPanel({ chatId, onPick }: { chatId: string; onPick: (s: Sticker)
           </div>
         </section>
       ))}
+      <button type="button" className={styles.manage} onClick={onManage}>
+        Мои стикерпаки
+      </button>
     </div>
   );
 }

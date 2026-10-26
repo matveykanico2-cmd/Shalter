@@ -1,0 +1,319 @@
+/* Как .ad-cabinet, .ad-card, .premium-status-card в public/styles. */
+.cabinet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.hint {
+  margin: 2px 0;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.error {
+  margin: 4px 0;
+  font-size: 14px;
+  color: var(--color-danger);
+}
+
+.empty {
+  margin: 8px 0;
+  font-size: 14px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.balance {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+
+.balance p {
+  margin: 0;
+}
+
+.newButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--color-surface);
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cardTitles {
+  min-width: 0;
+}
+
+.cardTitle {
+  margin: 0;
+  font-weight: 600;
+}
+
+.cardPlace {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.cardText {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.status {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.muted {
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+}
+
+.warn {
+  background: color-mix(in srgb, var(--color-warning) 18%, transparent);
+  color: var(--color-warning);
+}
+
+.ok {
+  background: color-mix(in srgb, var(--color-success) 18%, transparent);
+  color: var(--color-success);
+}
+
+.danger {
+  color: var(--color-danger);
+}
+
+span.danger {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.stat {
+  text-align: center;
+}
+
+.statValue {
+  margin: 0;
+  font-weight: 600;
+}
+
+.statLabel {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.budgetBar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--color-surface-alt);
+}
+
+.budgetFill {
+  height: 100%;
+  background: var(--color-accent);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chart {
+  display: flex;
+  height: 120px;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.chartCol {
+  display: flex;
+  height: 100%;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.chartBar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--color-accent);
+}
+
+.chartDay {
+  font-size: 10px;
+  color: var(--color-muted);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--color-surface);
+}
+
+.label {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.input {
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-bg);
+  font: inherit;
+  color: var(--color-text);
+  resize: vertical;
+}
+
+.placements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.placement {
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.placementActive {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--color-surface);
+}
+
+.notesTitle {
+  margin: 0;
+  font-weight: 500;
+}
+
+.sectionTitle {
+  margin: 8px 0;
+  padding: 0 16px;
+  font-weight: 500;
+  color: var(--color-accent);
+}
+
+.statusCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--color-surface);
+}
+
+.statusActive .statusIcon {
+  color: var(--color-success);
+}
+
+.statusIcon {
+  display: flex;
+  color: var(--color-muted);
+}
+
+.statusTitle {
+  margin: 0;
+  font-weight: 500;
+}
+
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.attachment {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+}
+
+.attachment img,
+.attachment video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fileName {
+  display: block;
+  padding: 6px;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: flex;
+  padding: 3px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  cursor: pointer;
+}

@@ -1,5 +1,7 @@
 import { type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, use, useEffect, useRef } from "react";
 
+import { GiftMessage, type MessageGift } from "@/entities/gift/@x/message";
+
 import type { Sticker } from "@/shared/lib/anim";
 import { useLongPress } from "@/shared/lib/use-long-press";
 import { Avatar, Icon } from "@/shared/ui";
@@ -7,6 +9,7 @@ import { Avatar, Icon } from "@/shared/ui";
 import { isMediaOnly, linkPreviewOf } from "../lib/attachments";
 import { customEmojiOnly, jumboEmojiCount } from "../lib/jumbo";
 import { keyboardOf } from "../lib/keyboard";
+import { hasMediaPreview } from "../lib/media-preview";
 import { playMessageEffect, shouldPlayEffect } from "../lib/message-effect";
 import { isCallLogMessage, isReadByOthers, NAME_COLORS, timeLabel } from "../lib/message-meta";
 import { callLogInfo, messagePreview, stripCustomEmoji } from "../lib/message-preview";
@@ -19,6 +22,7 @@ import { type AttachmentActions, MessageAttachments } from "./attachments/messag
 import { LinkPreviewCard } from "./attachments/misc-attachments";
 import { CustomEmoji, JumboEmoji, ReactionGlyph, StickerBody } from "./animated";
 import { MessageKeyboard } from "./keyboard";
+import { MediaPreview } from "./media-preview";
 import styles from "./message-bubble.module.css";
 import { MessageText } from "./message-text";
 
@@ -81,6 +85,8 @@ type Props = {
   footer?: ReactNode;
   /** Нажатие на запись о звонке — перезвонить тем же видом звонка. */
   onCallBack?: (kind: "audio" | "video") => void;
+  /** Время своей строкой, а не в хвосте текста — как ответы в ветке (thread-reply-time). */
+  metaApart?: boolean;
 };
 
 type Point = { x: number; y: number };
@@ -157,15 +163,17 @@ export function MessageBubble(props: Props) {
   const out = mine && !isChannel;
   const isCall = isCallLogMessage(m);
   const sticker = m.type === "sticker" ? (m.sticker as Sticker | undefined) : undefined;
-  const giftLine = m.type === "gift" ? messagePreview(m) : null;
+  // Подарок — своей карточкой (GiftMessage); без данных о подарке — строкой превью.
+  const gift = m.type === "gift" && m.gift ? (m.gift as MessageGift) : null;
+  const giftLine = m.type === "gift" && !gift ? messagePreview(m) : null;
   // У опроса и чек-листа текст — их заголовок, его рисует само вложение.
   const titled = m.attachments?.some((a) => (a as { kind?: string }).kind === "poll" || (a as { kind?: string }).kind === "checklist");
-  const text = !isCall && !sticker && !titled && m.text?.trim() ? m.text : null;
+  const text = !isCall && !sticker && !gift && !titled && m.text?.trim() ? m.text : null;
   const mediaOnly = !isCall && isMediaOnly(m);
   const preview = linkPreviewOf(m);
   const summary = props.summary;
   // Под текстом ещё что-то (карточка ссылки, сводка) — время уходит в свою строку.
-  const below = !!preview || summary !== undefined;
+  const below = !!preview || summary !== undefined || !!props.metaApart;
 
   const meta = (
     <span className={styles.meta}>
@@ -246,7 +254,9 @@ export function MessageBubble(props: Props) {
     );
   }
   if (m.replyToId) body.push(<ReplyQuote key="reply" target={props.replyTo} name={props.replyToName} onJumpTo={props.onJumpTo} />);
+  if (m.storyReply) body.push(<StoryReplyBanner key="story" reply={m.storyReply as StoryReply} />);
   if (giftLine) body.push(<p key="gift" className={styles.attachment}>{giftLine}</p>);
+  if (gift) body.push(<GiftMessage key="gift" messageId={m.id} gift={gift} mine={mine} meta={meta} />);
   if (m.attachments?.length && !isCall) {
     body.push(
       <MessageAttachments
@@ -317,11 +327,11 @@ export function MessageBubble(props: Props) {
         {meta}
       </span>
     );
-  } else if ((!text || below || jumbo || (ceOnly && ceOnly.length <= 3)) && !isCall) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
+  } else if ((!text || below || jumbo || (ceOnly && ceOnly.length <= 3)) && !isCall && !gift) body.push(<span key="meta" className={styles.metaRow}>{meta}</span>);
 
   if (props.footer) body.push(<div key="footer">{props.footer}</div>);
 
-  const bubbleClass = [styles.bubble, out ? styles.out : styles.in, groupStart ? "" : styles.joinTop, groupEnd ? "" : styles.joinBottom, sticker ? styles.stickerBubble : "", mediaOnly ? styles.mediaOnly : ""]
+  const bubbleClass = [styles.bubble, out ? styles.out : styles.in, groupStart ? "" : styles.joinTop, groupEnd ? "" : styles.joinBottom, sticker ? styles.stickerBubble : "", gift ? styles.giftBubble : "", mediaOnly ? styles.mediaOnly : ""]
     .filter(Boolean)
     .join(" ");
 
@@ -508,7 +518,11 @@ function ReplyQuote({ target, name, onJumpTo }: { target?: Message | ReplyTarget
   return (
     <button type="button" className={styles.reply} onClick={() => onJumpTo?.(target.id)}>
       {name ? <span className={styles.replyName}>{name}</span> : null}
-      <span className={styles.replyText}>{stripCustomEmoji(messagePreview(target as Message)) || "Сообщение"}</span>
+      {hasMediaPreview(target) ? (
+        <MediaPreview className={styles.replyMedia} message={target} size={28} />
+      ) : (
+        <span className={styles.replyText}>{stripCustomEmoji(messagePreview(target as Message)) || "Сообщение"}</span>
+      )}
     </button>
   );
 }
@@ -597,5 +611,26 @@ function ReactionPill({ reaction: r, own, play, disabled, userOf, onReact, onDet
       ) : null}
       <span className={styles.reactionCount}>{r.userIds.length}</span>
     </button>
+  );
+}
+
+type StoryReply = { url?: string | null; kind?: string; authorName?: string | null };
+
+/** Ответ на историю — миниатюра и подпись над текстом (story-reply-banner в messageBubble.js). */
+function StoryReplyBanner({ reply }: { reply: StoryReply }) {
+  return (
+    <div className={styles.storyReply}>
+      {reply.url ? (
+        reply.kind === "video" ? (
+          <video className={styles.storyReplyThumb} src={reply.url} muted playsInline preload="metadata" />
+        ) : (
+          <img className={styles.storyReplyThumb} src={reply.url} alt="" loading="lazy" />
+        )
+      ) : null}
+      <span className={styles.storyReplyText}>
+        <span className={styles.storyReplyLabel}>Ответ на историю</span>
+        {reply.authorName ? <span className={styles.storyReplyAuthor}>{reply.authorName}</span> : null}
+      </span>
+    </div>
   );
 }

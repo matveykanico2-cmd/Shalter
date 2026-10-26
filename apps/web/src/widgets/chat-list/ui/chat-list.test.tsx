@@ -77,7 +77,11 @@ function renderList(chats: ChatSummary[], folders: ChatFolder[] = [], path = "/"
   return { client, router };
 }
 
-const titles = () => screen.queryAllByRole("button", { name: /\S/ }).filter((b) => b.querySelector("span span span") && !b.textContent?.startsWith("Архив")).map((a) => a.querySelector("span span span")?.textContent);
+const titles = () =>
+  screen
+    .queryAllByRole("button", { name: /\S/ })
+    .map((b) => b.querySelector("[class*=title]")?.textContent)
+    .filter((t): t is string => !!t && t !== "Архив");
 
 beforeEach(() => {
   seq = 0;
@@ -128,7 +132,7 @@ describe("список чатов", () => {
     const archive = screen.getByRole("button", { name: /Архив/ });
     expect(archive.textContent).toContain("Старая группа");
 
-    const tab = (name: RegExp) => screen.getByRole("tab", { name });
+    const tab = (name: RegExp) => screen.getByRole("button", { name });
     expect(tab(/^Личные/).textContent).toBe("Личные1");
     fireEvent.click(tab(/^Личные/));
     expect(titles()).toEqual(["Лена"]);
@@ -139,7 +143,10 @@ describe("список чатов", () => {
     expect(titles()).toEqual(["Семья"]);
     fireEvent.click(tab(/^Группы/));
     expect(titles()).toEqual(["Семья"]);
-    expect(screen.getByRole("tab", { selected: true }).textContent).toBe("Группы");
+    expect(screen.getByRole("button", { pressed: true, name: /^Группы/ }).textContent).toBe("Группы");
+    // Ctrl+2 из горячих клавиш — вторая вкладка («Личные»).
+    act(() => void window.dispatchEvent(new CustomEvent("shalter:chat-tab", { detail: 1 })));
+    expect(titles()).toEqual(["Лена"]);
 
     fireEvent.click(tab(/^Все/));
     fireEvent.click(screen.getByRole("button", { name: /Архив/ }));
@@ -152,9 +159,9 @@ describe("список чатов", () => {
     const read = chat({ title: "Прочитан" });
     const unread = chat({ title: "Есть новое", unread: true });
     renderList([read, unread], [], `/chat/${read.id}`);
-    fireEvent.click(screen.getByRole("tab", { name: "Каналы" }));
+    fireEvent.click(screen.getByRole("button", { name: "Каналы" }));
     expect(screen.getByText("Вы пока не подписаны ни на один канал")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /^Все/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Все/ }));
 
     fireEvent.click(screen.getByTitle("Только непрочитанные"));
     expect(titles()).toEqual(["Прочитан", "Есть новое"]);
@@ -242,16 +249,16 @@ describe("действия со строками", () => {
     const { client } = renderList([work, home], [folder]);
     withMe(client);
     fireEvent.contextMenu(rowOf("Работа"), { clientX: 10, clientY: 10 });
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Закрепить" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Закрепить" }));
     await waitFor(() => expect(calls.find((c) => c.key === `PATCH /api/chats/${work.id}`)?.body).toEqual({ pinned: true }));
 
     fireEvent.click(within(rowOf("Работа")).getByRole("button", { name: "Действия с чатом" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Добавить в папку" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Важное" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Добавить в папку" }));
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("button", { name: "Важное" }));
     await waitFor(() => expect(calls.find((c) => c.key === "PATCH /api/folders/f_1")?.body).toEqual({ chatIds: [work.id] }));
 
-    fireEvent.contextMenu(screen.getByRole("tab", { name: /Все/ }), { clientX: 5, clientY: 5 });
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Прочитать все (2)" }));
+    fireEvent.contextMenu(screen.getByRole("button", { name: /^Все/ }), { clientX: 5, clientY: 5 });
+    fireEvent.click(await screen.findByRole("button", { name: "Прочитать все (2)" }));
     await waitFor(() => expect(calls.filter((c) => c.key.endsWith("/read"))).toHaveLength(2));
     expect(screen.queryByText("3")).toBeNull();
   });
@@ -325,15 +332,15 @@ describe("новый чат", () => {
     const { client, router } = renderList([chat({ title: "Работа" })]);
     client.setQueryData(sessionQueries.current().queryKey, { user: { id: ME, name: "Аня", blockedUserIds: [] } } as never);
     fireEvent.click(await screen.findByRole("button", { name: "Новый чат" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Новая группа" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Новая группа" }));
     const picker = await screen.findByRole("dialog", { name: "Добавить участников" });
-    fireEvent.click(await within(picker).findByRole("checkbox", { name: /Лена/ }));
+    fireEvent.click(await within(picker).findByRole("button", { name: /Лена/ }));
     fireEvent.click(within(picker).getByRole("button", { name: "Сделать администратором" }));
     fireEvent.click(within(picker).getByRole("button", { name: "Далее" }));
     const details = await screen.findByRole("dialog", { name: "Новая группа" });
     expect(within(details).getByText("1 участник")).toBeTruthy();
     fireEvent.change(within(details).getByRole("textbox", { name: "Название группы" }), { target: { value: "Семья" } });
-    fireEvent.click(within(details).getByRole("button", { name: "Создать группу" }));
+    fireEvent.click(within(details).getByRole("button", { name: "Далее" }));
     expect(await screen.findByRole("dialog", { name: "Группа создана" })).toBeTruthy();
     expect(calls.find((c) => c.key === "POST /api/chats/groups")?.body).toMatchObject({ title: "Семья", memberIds: [lena.id], adminIds: [lena.id], isPublic: false });
     await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_new"));
@@ -341,7 +348,7 @@ describe("новый чат", () => {
     fireEvent.click(screen.getByRole("button", { name: "Готово" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Новый чат" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Новый канал" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Новый канал" }));
     const info = await screen.findByRole("dialog", { name: "Новый канал" });
     fireEvent.change(within(info).getByRole("textbox", { name: "Название канала" }), { target: { value: "Новости" } });
     fireEvent.click(within(info).getByRole("radio", { name: /Публичный канал/ }));

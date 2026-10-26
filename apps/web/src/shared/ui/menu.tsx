@@ -55,7 +55,7 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
   }, [at.x, at.y, sheet]);
 
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>("[role=menuitem], button")?.focus({ preventScroll: true });
+    ref.current?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
     const onPointerDown = (e: PointerEvent) => {
       if (!ref.current?.contains(e.target as Node)) onClose();
     };
@@ -80,7 +80,7 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
-    const list = [...(ref.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
+    const list = [...(ref.current?.querySelectorAll<HTMLElement>("button") ?? [])];
     const i = list.indexOf(document.activeElement as HTMLElement);
     list[(i + (e.key === "ArrowDown" ? 1 : list.length - 1)) % list.length]?.focus();
   };
@@ -99,7 +99,6 @@ export function Menu({ at, items = [], header, label = "Меню", wide = false,
               <button
                 key={item.label}
                 type="button"
-                role="menuitem"
                 className={item.danger ? `${styles.item} ${styles.danger}` : styles.item}
                 onClick={() => {
                   onClose();

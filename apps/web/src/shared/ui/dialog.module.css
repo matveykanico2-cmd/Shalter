@@ -38,3 +38,12 @@
   color: var(--color-text);
   font: inherit;
 }
+
+/* Пояснение под вопросом askConfirm (confirm-check-text). */
+.text {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-line;
+}

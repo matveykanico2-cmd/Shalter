@@ -102,6 +102,12 @@
   color: #4a9df8;
 }
 
+.premium {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: #a77bf3;
+}
+
 .time {
   flex-shrink: 0;
   margin-left: auto;
@@ -273,4 +279,33 @@
     height: 36px;
     right: 2px;
   }
+}
+
+.avatarWrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* Значок сообщества на аватаре — .community-child-badge. */
+.communityBadge {
+  position: absolute;
+  z-index: 1;
+  top: 38px;
+  left: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-surface);
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.communityBadge svg {
+  stroke-width: 2.6;
 }

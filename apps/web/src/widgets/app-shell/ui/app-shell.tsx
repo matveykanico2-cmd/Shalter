@@ -1,14 +1,19 @@
 import { type ReactNode, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 
-import { useMainMenu } from "@/features/accounts";
+import { MainMenuHost, openMainMenu } from "@/features/accounts";
 import { CallDock, IncomingCall } from "@/features/call";
+import { DownloadsDialog } from "@/features/downloads";
+import { GamesHost } from "@/features/games";
+import { GiftShopHost } from "@/features/gifts";
 import { LiveHost } from "@/features/live";
-import { UserProfileDialog } from "@/features/open-profile";
+import { PurchaseHost } from "@/features/purchase";
+import { StoryViewerHost } from "@/features/stories";
 
+import { openGamesCatalog } from "@/entities/game";
 import type { SelfUser } from "@/entities/session";
 
-import { Avatar, Icon, type IconName, Menu } from "@/shared/ui";
+import { Avatar, Icon, type IconName } from "@/shared/ui";
 
 import styles from "./app-shell.module.css";
 
@@ -16,6 +21,8 @@ type Props = {
   user: SelfUser;
   /** Слева: список чатов или боковой раздел (на компьютере). */
   sidebar: ReactNode;
+  /** Боковой раздел на компьютере (настройки, контакты…) — поверх списка чатов. */
+  side?: ReactNode;
   /** Справа: чат и остальные экраны. */
   main: ReactNode;
   /** На телефоне виден экран справа, а не список. */
@@ -33,16 +40,17 @@ const LINKS: { to: string; icon: IconName; label: string; active: (path: string)
  * Оболочка как в public/js/app.js: «список | экран», снизу — панель навигации (аккаунт, Чаты,
  * Контакты, Звонки, Архив, Настройки). Остаётся смонтированной при переходах.
  */
-export function AppShell({ user, sidebar, main, mainOpen }: Props) {
+export function AppShell({ user, sidebar, side, main, mainOpen }: Props) {
   const { pathname } = useLocation();
-  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const menu = useMainMenu({ me: user, onOpenProfile: () => setProfileOpen(true) });
+  const [downloadsOpen, setDownloadsOpen] = useState(false);
   const linkClass = (active: boolean) => (active ? `${styles.railButton} ${styles.railActive}` : styles.railButton);
 
   return (
     <div className={mainOpen ? `${styles.shell} ${styles.mainOpen}` : styles.shell}>
-      <aside className={styles.sidebar}>{sidebar}</aside>
+      <aside className={styles.sidebar}>
+        {sidebar}
+        {side ? <div className={styles.side}>{side}</div> : null}
+      </aside>
       <main className={styles.main}>{main}</main>
       <nav className={styles.rail} aria-label="Навигация">
         <button
@@ -52,7 +60,7 @@ export function AppShell({ user, sidebar, main, mainOpen }: Props) {
           aria-label="Аккаунты"
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
-            setMenuAt({ x: r.left, y: r.top });
+            openMainMenu({ x: r.left, y: r.top });
           }}
         >
           <Avatar name={user.name || user.phone || "?"} color={user.avatarColor} image={user.avatarImage} size={34} online />
@@ -67,13 +75,24 @@ export function AppShell({ user, sidebar, main, mainOpen }: Props) {
           <Icon name="Settings" size={20} />
         </NavLink>
       </nav>
-      {menuAt ? <Menu at={menuAt} items={menu} label="Аккаунты" onClose={() => setMenuAt(null)} /> : null}
-      {profileOpen ? <UserProfileDialog userId={user.id} meId={user.id} onClose={() => setProfileOpen(false)} /> : null}
+      {/* Главное меню: аватар здесь и «Меню» в шапке списка; extra — разделы со своим окном. */}
+      <MainMenuHost me={user} extra={[
+          { icon: "Smile", label: "Игры", onClick: () => openGamesCatalog() },
+          { icon: "Download", label: "Загрузки", onClick: () => setDownloadsOpen(true) },
+        ]} />
+      {downloadsOpen ? <DownloadsDialog onClose={() => setDownloadsOpen(false)} /> : null}
       {/* Звонок живёт вне экранов: звук собеседника, пузырь свёрнутого звонка, входящий. */}
       <CallDock />
       <IncomingCall me={user} />
       {/* Эфир — поверх всего, как overlay в public/js/components/liveScreen.js. */}
       <LiveHost me={user} />
+      {/* Просмотр историй — из полосы над чатами и из профиля. */}
+      <StoryViewerHost me={user} />
+      {/* Окна покупки звёзд и оплаты донатом — их открывают из ленты, магазина и настроек. */}
+      <PurchaseHost />
+      {/* Магазин подарков и окна игр — их открывают из профиля, ленты, меню и настроек. */}
+      <GiftShopHost />
+      <GamesHost />
     </div>
   );
 }

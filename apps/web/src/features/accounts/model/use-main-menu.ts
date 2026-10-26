@@ -69,7 +69,7 @@ export function useMainMenu({ me, onOpenProfile, extra = [] }: Options): MenuIte
 }
 
 /** «Избранное» — личка с самим собой: открыть, а если её ещё нет — создать (openSavedMessages). */
-async function openSavedMessages(me: SelfUser, client: ReturnType<typeof useQueryClient>, navigate: ReturnType<typeof useNavigate>) {
+export async function openSavedMessages(me: SelfUser, client: ReturnType<typeof useQueryClient>, navigate: ReturnType<typeof useNavigate>) {
   const saved = client.getQueryData(chatQueries.list().queryKey)?.find((c) => c.isSaved);
   if (saved) return void navigate(`/chat/${saved.id}`);
   try {

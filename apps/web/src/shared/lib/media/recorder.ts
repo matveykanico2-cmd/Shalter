@@ -4,10 +4,17 @@ import { getFlippedTrack } from "./camera-switch";
 
 export const MAX_RECORD_SEC = 180;
 
-export type RecordMode = "voice" | "video-note";
+export type RecordMode = "voice" | "video-note" | "avatar-video";
 
 const VIDEO_NOTE_BITRATES = { videoBitsPerSecond: 3_500_000, audioBitsPerSecond: 128_000 };
 const VOICE_BITRATES = { audioBitsPerSecond: 128_000 };
+// Видеоаватар — тот же квадрат, чуть легче кружка (SQUARE_CAPTURE_MODES в recorder.js).
+const AVATAR_VIDEO_BITRATES = { videoBitsPerSecond: 2_500_000, audioBitsPerSecond: 96_000 };
+export const MAX_AVATAR_VIDEO_SEC = 180;
+const SQUARE_CAPTURE_MODES = {
+  "video-note": { bitrates: VIDEO_NOTE_BITRATES, maxSec: MAX_RECORD_SEC },
+  "avatar-video": { bitrates: AVATAR_VIDEO_BITRATES, maxSec: MAX_AVATAR_VIDEO_SEC },
+};
 const SQUARE_SIZE = 640;
 // Из HD-кадра вырезается квадрат — запас по размеру нужен.
 const CAMERA_VIDEO = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 }, facingMode: "user" };
@@ -119,7 +126,7 @@ function firstFrame(video: HTMLVideoElement) {
   });
 }
 
-async function startSquareVideo(): Promise<Recording> {
+async function startSquareVideo({ bitrates, maxSec }: (typeof SQUARE_CAPTURE_MODES)[keyof typeof SQUARE_CAPTURE_MODES]): Promise<Recording> {
   let camStream = await getMic(CAMERA_VIDEO);
   let camVideo = document.createElement("video");
   camVideo.muted = true;
@@ -191,12 +198,18 @@ async function startSquareVideo(): Promise<Recording> {
     return { ok: true };
   }
 
-  const rec = wireRecorder(finalStream, pickMime("video"), VIDEO_NOTE_BITRATES, () => {
-    drawing = false;
-    camStream.getTracks().forEach((t) => t.stop());
-    camVideo.pause();
-    camVideo.srcObject = null;
-  });
+  const rec = wireRecorder(
+    finalStream,
+    pickMime("video"),
+    bitrates,
+    () => {
+      drawing = false;
+      camStream.getTracks().forEach((t) => t.stop());
+      camVideo.pause();
+      camVideo.srcObject = null;
+    },
+    maxSec
+  );
   return { stream: finalStream, previewStream: new MediaStream(canvasStream.getVideoTracks()), ...rec, flipCamera };
 }
 
@@ -205,7 +218,7 @@ export async function startRecording(mode: RecordMode): Promise<Recording> {
     const stream = await getMic();
     return { stream, ...wireRecorder(stream, pickMime("audio"), VOICE_BITRATES) };
   }
-  return startSquareVideo();
+  return startSquareVideo(SQUARE_CAPTURE_MODES[mode]);
 }
 
 /** Громкость микрофона 0..1 для осциллограммы во время записи. */

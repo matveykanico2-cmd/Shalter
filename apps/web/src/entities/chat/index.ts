@@ -6,4 +6,5 @@ export { chatCache } from "./model/chat-cache";
 export type { ChatCard, ChatFolder, ChatMember, ChatSummary } from "./model/types";
 export { useChatCard, useChatFolders, useChatFromList, useChats } from "./model/use-chats";
 export { type Typing, useTyping } from "./model/use-typing";
+export { ChatPickerDialog } from "./ui/chat-picker-dialog";
 export { ChatRow } from "./ui/chat-row";

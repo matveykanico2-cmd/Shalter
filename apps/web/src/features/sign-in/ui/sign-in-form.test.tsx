@@ -72,3 +72,44 @@ describe("вход по почте", () => {
     expect(api.calls.at(-1)).toEqual({ key: "POST /api/auth/2fa/login", body: { ticket, code: "123456" } });
   });
 });
+
+describe("регистрация", () => {
+  it("имя, почта, телефон, свободный юзернейм и пароль — аккаунт создан, вошли", async () => {
+    const api = fakeApi({
+      "GET /api/auth/username-available?u=regina": { body: { username: "regina", available: true, error: null } },
+      "POST /api/auth/register-email": { body: { user } },
+    });
+    const { onSignedIn } = renderForm();
+    fireEvent.click(screen.getByRole("button", { name: "Нет аккаунта? Зарегистрироваться" }));
+    fireEvent.change(screen.getByPlaceholderText("Имя"), { target: { value: "Регина" } });
+    fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "regina@example.com" } });
+    fireEvent.change(screen.getByPlaceholderText("999 123 45 67"), { target: { value: "+79991234567" } });
+    fireEvent.change(screen.getByPlaceholderText("юзернейм"), { target: { value: "@regina!" } });
+    expect((screen.getByPlaceholderText("юзернейм") as HTMLInputElement).value).toBe("regina");
+    expect(await screen.findByText("Свободен ✓", {}, { timeout: 2000 })).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText("Пароль"), { target: { value: "secret123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Создать аккаунт" }));
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
+    expect(api.calls.at(-1)).toEqual({
+      key: "POST /api/auth/register-email",
+      body: { name: "Регина", lastName: "", email: "regina@example.com", phone: "+79991234567", username: "regina", password: "secret123", birthday: null },
+    });
+  });
+
+  it("вход по коду: телефон → код из сообщения", async () => {
+    const api = fakeApi({
+      "POST /api/auth/code/start": { body: { ok: true } },
+      "POST /api/auth/code/verify": { body: { user, alreadyLinked: false } },
+    });
+    const { onSignedIn } = renderForm();
+    fireEvent.click(screen.getByRole("button", { name: /Войти по коду из сообщения/ }));
+    fireEvent.change(screen.getByPlaceholderText("999 123 45 67"), { target: { value: "+79991234567" } });
+    fireEvent.click(screen.getByRole("button", { name: "Отправить код" }));
+    expect(await screen.findByText("Код отправлен в чат Shalter для номера +79991234567.")).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText("······"), { target: { value: "12-34-56" } });
+    fireEvent.click(screen.getByRole("button", { name: "Войти" }));
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
+    expect(api.calls.at(-1)).toEqual({ key: "POST /api/auth/code/verify", body: { phone: "+79991234567", code: "123456" } });
+  });
+});
+

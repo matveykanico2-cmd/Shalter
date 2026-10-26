@@ -7,6 +7,7 @@ import { chatQueries, isChatMuted } from "@/entities/chat";
 import { settingsQueries } from "@/entities/settings";
 
 import { ws } from "@/shared/api";
+import { pulseFavicon } from "@/shared/lib/app-icons";
 import { installSoundUnlock, playIncomingMessageSound } from "@/shared/lib/media/sounds";
 
 export function useMessageSounds(meId: string) {
@@ -19,6 +20,8 @@ export function useMessageSounds(meId: string) {
       if ((settings?.notifications as { sound?: boolean } | undefined)?.sound === false) return;
       const chat = client.getQueryData(chatQueries.list().queryKey)?.find((c) => c.id === chatId);
       if (chat && isChatMuted(chat)) return;
+      // Значок вкладки мигает всегда (его видно и в фоне), звук — только в открытом приложении.
+      pulseFavicon();
       if (document.visibilityState === "visible") playIncomingMessageSound();
     });
   }, [client, meId]);

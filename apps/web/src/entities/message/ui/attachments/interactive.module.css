@@ -315,6 +315,18 @@
   font-size: 13px;
 }
 
+.gameActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.gameActions > button {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
 .paid {
   position: relative;
   display: flex;

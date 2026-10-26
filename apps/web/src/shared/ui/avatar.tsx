@@ -28,7 +28,7 @@ export function Avatar({ name, color, image, size = 44, online = false }: Props)
       {showImage ? (
         <img className={styles.image} src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(image)} />
       ) : (
-        <span className={styles.fallback} style={{ background: color ?? undefined, fontSize: size * 0.4 }}>
+        <span className={styles.fallback} translate="no" style={{ background: color ?? undefined, fontSize: size * 0.4 }}>
           {initials(name) || "?"}
         </span>
       )}

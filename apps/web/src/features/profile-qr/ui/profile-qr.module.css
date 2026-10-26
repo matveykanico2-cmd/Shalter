@@ -1,0 +1,124 @@
+/* Как .qr-profile-* в public/styles/components.css. */
+.dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 340px;
+  text-align: center;
+}
+
+.close {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  padding: 8px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
+.stage {
+  display: flex;
+  justify-content: center;
+  padding: 52px 28px 28px;
+  border-radius: 20px;
+  transition: background 0.3s ease;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 16px 16px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+.avatar {
+  position: absolute;
+  top: -32px;
+  left: 50%;
+  display: flex;
+  transform: translateX(-50%);
+  border: 4px solid #fff;
+  border-radius: 50%;
+}
+
+.code {
+  width: 220px;
+  max-width: 100%;
+  aspect-ratio: 1;
+}
+
+.code svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.username {
+  margin: 10px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.themes {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.theme {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.theme:hover {
+  transform: scale(1.08);
+}
+
+.active {
+  box-shadow:
+    0 0 0 2px var(--color-surface),
+    0 0 0 4px var(--color-accent);
+}
+
+/* «Скопировать ссылку» и «Поделиться» в ряд — на узком экране столбиком. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.actions > * {
+  display: flex;
+  flex: 1 1 140px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.note {
+  min-height: 18px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}

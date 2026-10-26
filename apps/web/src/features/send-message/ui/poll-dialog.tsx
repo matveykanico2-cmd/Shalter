@@ -31,11 +31,11 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
 
   return (
     <Dialog title={quiz ? "Новая викторина" : "Новый опрос"} onClose={onClose}>
-      <div className={styles.modes} role="radiogroup" aria-label="Вид">
-        <button type="button" role="radio" aria-checked={!quiz} className={quiz ? styles.mode : `${styles.mode} ${styles.active}`} onClick={() => setQuiz(false)}>
+      <div className={styles.modes}>
+        <button type="button" aria-pressed={!quiz} className={quiz ? styles.mode : `${styles.mode} ${styles.active}`} onClick={() => setQuiz(false)}>
           Опрос
         </button>
-        <button type="button" role="radio" aria-checked={quiz} className={quiz ? `${styles.mode} ${styles.active}` : styles.mode} onClick={() => setQuiz(true)}>
+        <button type="button" aria-pressed={quiz} className={quiz ? `${styles.mode} ${styles.active}` : styles.mode} onClick={() => setQuiz(true)}>
           Викторина
         </button>
       </div>
@@ -47,7 +47,7 @@ export function PollDialog({ onCreate, onClose }: { onCreate: (poll: PollDraft) 
         {options.map((value, i) => (
           <div key={i} className={styles.optionRow}>
             {quiz ? (
-              <button type="button" className={correct === i ? `${styles.correct} ${styles.active}` : styles.correct} title="Правильный ответ" aria-pressed={correct === i} onClick={() => setCorrect(i)}>
+              <button type="button" className={correct === i ? `${styles.correct} ${styles.active}` : styles.correct} title={correct === i ? "Это правильный вариант" : "Правильный ответ"} aria-pressed={correct === i} onClick={() => setCorrect(i)}>
                 {correct === i ? "✓" : ""}
               </button>
             ) : null}

@@ -1,0 +1,78 @@
+/* Календарь «Перейти к дате» — как .calendar-* в public/styles/components.css. */
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.nav {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.nav:hover {
+  background: var(--color-surface-alt);
+}
+
+.month {
+  font-weight: 600;
+}
+
+.weekdays,
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+
+.weekdays {
+  margin-bottom: 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.cell {
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-muted);
+  font: inherit;
+  opacity: 0.45;
+}
+
+.has {
+  color: var(--color-text);
+  font-weight: 600;
+  opacity: 1;
+  cursor: pointer;
+}
+
+.has:hover {
+  background: var(--color-accent-soft);
+}
+
+.today {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+.loading {
+  padding: 24px 0;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.error {
+  margin: 8px 0 0;
+  color: var(--color-danger);
+  font-size: 14px;
+}

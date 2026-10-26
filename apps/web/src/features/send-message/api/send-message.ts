@@ -46,8 +46,6 @@ export const saveDraft = (chatId: string, text: string) => http.post<unknown>(`$
 /** «Печатает» и другие действия (upload_photo…; cancel — закончил). */
 export const sendTyping = (chatId: string, action = "typing") => http.post<unknown>(`${chatPath(chatId)}/typing`, { action });
 
-/** Свои стикерпаки (GET /api/stickers/packs) — в выборе стикера под встроенными. */
-export const getStickerPacks = () => http.get<{ packs: { id: string; name: string; stickers: Sticker[] }[] }>("/api/stickers/packs");
 
 /** Примерное место по IP — когда телефон не отдал координаты. */
 export const geoByIp = () => http.get<z.infer<typeof geoIpBody>>("/api/geo/ip");

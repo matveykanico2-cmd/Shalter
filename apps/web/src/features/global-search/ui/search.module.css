@@ -153,3 +153,12 @@
 .searchInput:focus {
   outline: 2px solid var(--color-accent);
 }
+
+/* Игра в результатах поиска (.search-game-emoji). */
+.gameEmoji {
+  display: flex;
+  width: 30px;
+  flex-shrink: 0;
+  justify-content: center;
+  font-size: 22px;
+}

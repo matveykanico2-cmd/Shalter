@@ -1,3 +1,5 @@
+import { openGiftShop } from "@/entities/gift/@x/message";
+
 import { Avatar, Icon, openInAppBrowser, openInstantView } from "@/shared/ui";
 
 import type { Attachment, LinkPreview } from "../../model/attachment";
@@ -43,16 +45,55 @@ export function ContactAttachment({ attachment: a }: { attachment: Attachment })
   );
 }
 
-/** День рождения друга (подарки отсюда придут вместе с магазином подарков). */
-export function BirthdayAttachment({ attachment: a }: { attachment: Attachment }) {
-  const { name, avatarImage } = (a.meta ?? {}) as { name?: string; avatarImage?: string };
+/** День рождения друга (BirthdayAttachment в messageBubble.js): «Быстро:» — подарки-подсказки и «Подарить». */
+export function BirthdayAttachment({ attachment: a, meId }: { attachment: Attachment; meId: string }) {
+  const { userId, name, avatarImage, suggestedGifts } = (a.meta ?? {}) as {
+    userId?: string;
+    name?: string;
+    avatarImage?: string;
+    suggestedGifts?: { id: string; emoji: string; name: string }[];
+  };
+  const canGift = !!userId && userId !== meId;
+  const quick = (suggestedGifts ?? []).slice(0, 4);
+  const recipient = userId ? { id: userId, name: name || "Друг" } : null;
   return (
-    <div className={styles.contact}>
+    <div className={`${styles.contact} ${styles.birthday}`}>
       <Avatar size={36} name={name || "Друг"} image={avatarImage} />
       <span className={styles.contactBody}>
         <span className={styles.contactName}>🎂 {name || "Друг"}</span>
         <span className={styles.coords}>День рождения сегодня</span>
+        {canGift && quick.length ? (
+          <span className={styles.giftHints}>
+            <span className={styles.giftHintLabel}>Быстро:</span>
+            {quick.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                className={styles.giftHint}
+                title={g.name}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openGiftShop({ recipient, gift: g });
+                }}
+              >
+                {g.emoji}
+              </button>
+            ))}
+          </span>
+        ) : null}
       </span>
+      {canGift ? (
+        <button
+          type="button"
+          className={styles.contactAdd}
+          onClick={(e) => {
+            e.stopPropagation();
+            openGiftShop({ recipient });
+          }}
+        >
+          🎁 Подарить
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -69,14 +110,12 @@ function hostOf(url: string) {
 export function LinkPreviewCard({ preview: p }: { preview: LinkPreview }) {
   const images = p.images?.length ? p.images : p.image ? [p.image] : [];
   const safety = { unsafe: !!p.unsafe, warning: p.warning ?? null };
+  // Карточка — кнопка, как link-card в старом клиенте: открывает встроенный браузер.
   const card = (
-    <a
+    <button
+      type="button"
       className={styles.linkCard}
-      href={p.url}
-      target="_blank"
-      rel="noreferrer noopener"
       onClick={(e) => {
-        e.preventDefault();
         e.stopPropagation();
         openInAppBrowser(p.url, safety);
       }}
@@ -116,7 +155,7 @@ export function LinkPreviewCard({ preview: p }: { preview: LinkPreview }) {
           <Icon name="Link" size={12} /> {p.siteName || hostOf(p.url)}
         </span>
       </span>
-    </a>
+    </button>
   );
   // Instant View — для статей (есть заголовок и описание), не для голых ссылок.
   if (!p.title || !p.description || p.unsafe) return card;

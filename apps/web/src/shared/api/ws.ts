@@ -4,6 +4,7 @@
 import type { wsChatDeleted, wsTypingUpdate } from "@shalter/shared/schemas/bots";
 import type { wsLiveEnded, wsLiveMessage, wsLiveMessageDeleted, wsLiveMessageUpdated, wsLiveSignal, wsLiveStarted, wsLiveState } from "@shalter/shared/schemas/live";
 import type { wsMessageDeleted, wsMessageNew, wsMessageRead, wsMessageUpdated, wsThreadMessage } from "@shalter/shared/schemas/messages";
+import type { wsStoryCommentDeleted, wsStoryCommented, wsStoryCommentLiked, wsStoryCommentUpdated, wsStoryDeleted, wsStoryLiked, wsStoryNew, wsStoryUpdated } from "@shalter/shared/schemas/stories";
 import type { wsTopicsUpdated } from "@shalter/shared/schemas/topics";
 import type { aiState, callAnswered, callIncoming, callParticipantsUpdated, callSignal, callUpdated, chatAdded, chatJoinDeclined, chatUpdated, communityUpdated, contactUpdated, presenceUpdate, voicechatUpdated } from "@shalter/shared/schemas/ws";
 import type { z } from "zod";
@@ -51,6 +52,15 @@ export type WsEvents = {
   "live:message-updated": Of<typeof wsLiveMessageUpdated>;
   "live:message-deleted": Of<typeof wsLiveMessageDeleted>;
   "live:signal": Of<typeof wsLiveSignal>;
+  /** Истории: новая, видео обработано, удалена; лайки и комментарии открытой истории. */
+  "story:new": Of<typeof wsStoryNew>;
+  "story:updated": Of<typeof wsStoryUpdated>;
+  "story:deleted": Of<typeof wsStoryDeleted>;
+  "story:liked": Of<typeof wsStoryLiked>;
+  "story:commented": Of<typeof wsStoryCommented>;
+  "story:comment-updated": Of<typeof wsStoryCommentUpdated>;
+  "story:comment-deleted": Of<typeof wsStoryCommentDeleted>;
+  "story:comment-liked": Of<typeof wsStoryCommentLiked>;
   /** Сокет (пере)открылся: пока его не было, события могли потеряться. */
   "ws:reconnected": { type: "ws:reconnected" };
   /** Сменился статус сокета (ws.status()) — для заголовка «Соединение…». */

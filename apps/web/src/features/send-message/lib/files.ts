@@ -12,7 +12,7 @@ export function fileKind(file: Pick<File, "type">): UploadKind {
   return "file";
 }
 
-const KIND_LABEL: Record<UploadKind, string> = { video: "Видео", image: "Фото", file: "Файл", voice: "Голосовое сообщение", "video-note": "Видео-кружок" };
+const KIND_LABEL: Partial<Record<UploadKind, string>> = { video: "Видео", image: "Фото", file: "Файл", voice: "Голосовое сообщение", "video-note": "Видео-кружок" };
 
 function sizeLabel(bytes: number) {
   if (bytes >= GB) return `${(bytes / GB).toFixed(2)} ГБ`;
@@ -23,7 +23,7 @@ function sizeLabel(bytes: number) {
 /** null — размер в порядке, иначе текст ошибки. */
 export function checkSize(file: Pick<File, "size">, kind: UploadKind) {
   if (file.size <= LIMIT) return null;
-  return `${KIND_LABEL[kind]} слишком большой: ${sizeLabel(file.size)} из максимальных 5 ГБ`;
+  return `${KIND_LABEL[kind] ?? "Файл"} слишком большой: ${sizeLabel(file.size)} из максимальных 5 ГБ`;
 }
 
 export { sizeLabel as fileSizeLabel };

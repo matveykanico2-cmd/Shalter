@@ -6,7 +6,7 @@ import { type FeedMessage, isCallLogMessage } from "@/entities/message";
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
 export type FeedRow =
-  | { kind: "day"; key: string; label: string }
+  | { kind: "day"; key: string; label: string; at: string }
   | { kind: "unread"; key: string }
   | { kind: "message"; key: string; message: FeedMessage; groupStart: boolean; groupEnd: boolean };
 
@@ -40,7 +40,7 @@ export function feedRows(messages: readonly FeedMessage[], firstUnreadId: string
   messages.forEach((m, i) => {
     const prev = messages[i - 1];
     const next = messages[i + 1];
-    if (!prev || !sameDay(prev.createdAt, m.createdAt)) rows.push({ kind: "day", key: `day:${m.id}`, label: dayLabel(m.createdAt, now) });
+    if (!prev || !sameDay(prev.createdAt, m.createdAt)) rows.push({ kind: "day", key: `day:${m.id}`, label: dayLabel(m.createdAt, now), at: m.createdAt });
     if (m.id === firstUnreadId) rows.push({ kind: "unread", key: `unread:${m.id}` });
     rows.push({ kind: "message", key: m.id, message: m, groupStart: !runsWith(prev, m), groupEnd: !runsWith(m, next) });
   });

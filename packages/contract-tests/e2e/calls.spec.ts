@@ -88,9 +88,10 @@ test("звонящий сбросил до ответа: у него «Отме�
 
   const a = (await openAs(alice.api, `/chat/${chat.id}`)).page;
   await expect(chatRow(a, "Борис", "📞 Отменённый звонок")).toBeVisible();
-  await expect(a.locator(".bubble-call-title")).toHaveText("Отменённый звонок");
+  // Заголовок записи о звонке в ленте: тот же текст есть в превью строки списка, а лента — после списка.
+  await expect(a.getByText("Отменённый звонок", { exact: true }).last()).toBeVisible();
 
   const b = (await openAs(boris.api, `/chat/${chat.id}`)).page;
   await expect(chatRow(b, "Алиса", "📞 Пропущенный звонок")).toBeVisible();
-  await expect(b.locator(".bubble-call-title")).toHaveText("Пропущенный звонок");
+  await expect(b.getByText("Пропущенный звонок", { exact: true }).last()).toBeVisible();
 });

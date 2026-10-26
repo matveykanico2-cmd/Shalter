@@ -38,11 +38,12 @@ import { isServerModerator, type SelfUser } from "@/entities/session";
 import { errorText } from "@/shared/lib/error-text";
 import { Icon, MediaViewer, type ViewerItem } from "@/shared/ui";
 
-import { feedRows, lastEditable } from "../lib/feed-rows";
+import { type FeedRow, feedRows, lastEditable } from "../lib/feed-rows";
 import { buildGallery, galleryIndex } from "../lib/gallery";
 import { useHistorySync } from "../model/use-history-sync";
 
 import { BotThinking } from "./bot-thinking";
+import { ChatCalendar } from "./chat-calendar";
 import styles from "./message-feed.module.css";
 import { PinnedBar } from "./pinned-bar";
 import { PostView } from "./post-view";
@@ -240,6 +241,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   // Сообщения нет среди загруженных — листаем историю старее, пока не найдётся.
   const [jumpTarget, setJumpTarget] = useState<{ id: string; pages: number } | null>(null);
   const jumpTo = (id: string) => setJumpTarget({ id, pages: 0 });
+  const [calendarAt, setCalendarAt] = useState<string | null>(null);
   useEffect(() => {
     if (!jumpTarget) return;
     const i = rows.findIndex((r) => r.kind === "message" && r.message.id === jumpTarget.id);
@@ -302,6 +304,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
   }
 
   const senderName = (m: Message) => senders(m)?.name ?? null;
+  const stickyDay = topDay(rows, virtualizer.getVirtualItems(), virtualizer.scrollOffset ?? 0);
   const toggleSelect = (m: Message) => selection.toggle(m.id);
   const selected = selection.active ? (data?.messages ?? []).filter((m) => selection.ids.has(m.id)) : [];
   const protectedContent = isProtectedChat(chat);
@@ -316,6 +319,14 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
       {selection.active ? <SelectionBar messages={selected} chat={chat} me={me} actions={actions} senderName={senderName} onClear={selection.clear} /> : null}
       <PinnedBar messages={data?.messages ?? []} canUnpin={canPin(chat, meId)} onJumpTo={jumpTo} onUnpin={(m) => void actions.togglePin(m)} />
       <div ref={scrollRef} className={styles.scroll} onScroll={onScroll} role="log" aria-label="Сообщения">
+        {/* День верхнего видимого сообщения — плашкой поверх ленты, когда его разделитель уже уехал вверх. */}
+        {stickyDay ? (
+          <div className={`${styles.day} ${styles.stickyDay}`}>
+            <button type="button" title="Перейти к дате" onClick={() => setCalendarAt(stickyDay.at)}>
+              {stickyDay.label}
+            </button>
+          </div>
+        ) : null}
         {rows.length === 0 ? (
           <p className={styles.empty}>Сообщений пока нет — напишите первым</p>
         ) : (
@@ -326,7 +337,10 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
                 <div key={item.key} ref={virtualizer.measureElement} data-index={item.index} className={styles.slot} style={{ transform: `translateY(${item.start}px)` }}>
                   {row.kind === "day" ? (
                     <div className={styles.day}>
-                      <span>{row.label}</span>
+                      {/* Плашка даты открывает «Перейти к дате», как в chatView.js. */}
+                      <button type="button" title="Перейти к дате" onClick={() => setCalendarAt(row.at)}>
+                        {row.label}
+                      </button>
                     </div>
                   ) : row.kind === "unread" ? (
                     <div className={styles.unread}>
@@ -418,7 +432,6 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
               meId={me.id}
               channel={false}
               initialDraft=""
-              placeholder={target.postId ? (target.paidStars ? `Комментарий · ${target.paidStars} ⭐` : "Комментарий") : "Ответить в теме"}
               replyTo={null}
               replyToName={null}
               onCancelReply={noop}
@@ -430,6 +443,7 @@ export function MessageFeed({ chat, members, me, typing, onReply, onEdit, topic,
           )}
         />
       ) : null}
+      {calendarAt ? <ChatCalendar chatId={chat.id} around={calendarAt} onPick={jumpTo} onClose={() => setCalendarAt(null)} /> : null}
     </div>
   );
 }
@@ -583,4 +597,17 @@ function useSenders(chat: ChatSummary, members: readonly ChatMember[]) {
     const asChat: MessageSender = { id: chat.id, name: chat.title ?? "", avatarColor: chat.avatarColor, avatarImage: chat.avatarImage };
     return (m: { senderId: string; anonymous?: boolean }) => (m.anonymous ? asChat : (byId.get(m.senderId) ?? null));
   }, [chat, members]);
+}
+
+/** Разделитель дня для верхнего видимого сообщения, если сам он уже прокручен выше края ленты. */
+function topDay(rows: readonly FeedRow[], items: readonly { index: number; start: number; end: number }[], offset: number) {
+  const top = items.find((it) => it.end > offset);
+  if (!top) return null;
+  for (let i = top.index; i >= 0; i--) {
+    const row = rows[i];
+    if (row?.kind !== "day") continue;
+    const own = items.find((it) => it.index === i);
+    return own && own.start >= offset ? null : row;
+  }
+  return null;
 }
