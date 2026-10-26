@@ -227,7 +227,7 @@ export function Composer({
     let mentionMatches = [];
     let mentionActiveIndex = 0;
 
-    // Меню над полем: либо @упоминания, либо /команды.
+    // Меню над полем: либо @упоминания, либо /команды, либо #хештеги.
     let menuMode = "mention";
     function currentCommandQuery() {
       if (editingMessage) return null;
@@ -240,6 +240,29 @@ export function Composer({
       const before = textarea.value.slice(0, textarea.selectionStart);
       const m = before.match(/(?:^|\s)@(\w*)$/);
       return m ? m[1] : null;
+    }
+    function currentHashtagQuery() {
+      const before = textarea.value.slice(0, textarea.selectionStart);
+      const m = before.match(/(?:^|\s)#([\p{L}\p{N}_]*)$/u);
+      return m ? m[1] : null;
+    }
+    function getRecentHashtags() {
+      try {
+        const key = `shalter.hashtags.${chatId}`;
+        const stored = localStorage.getItem(key);
+        return stored ? JSON.parse(stored) : [];
+      } catch {
+        return [];
+      }
+    }
+    function addRecentHashtag(tag) {
+      try {
+        const key = `shalter.hashtags.${chatId}`;
+        const recent = getRecentHashtags().filter((t) => t.toLowerCase() !== tag.toLowerCase());
+        recent.unshift(tag);
+        localStorage.setItem(key, JSON.stringify(recent.slice(0, 20)));
+      } catch {
+      }
     }
     function renderMentionMenu() {
       clear(mentionMenu);
@@ -259,6 +282,25 @@ export function Composer({
                 el("span", { class: "composer-command-item-name mono" }, [`/${c.name}`, c.hint ? el("span", { class: "composer-command-item-hint" }, ` ${c.hint}`) : null]),
                 el("span", { class: "composer-command-item-desc" }, c.bot ? c.description || "Команда бота" : c.description),
               ]
+            )
+          )
+        );
+        mentionMenu.querySelector(".active")?.scrollIntoView({ block: "nearest" });
+        return;
+      }
+      if (menuMode === "hashtag") {
+        mentionMatches.forEach((tag, i) =>
+          mentionMenu.appendChild(
+            el(
+              "button",
+              {
+                class: `composer-mention-item ${i === mentionActiveIndex ? "active" : ""}`,
+                onmousedown: (e) => {
+                  e.preventDefault();
+                  selectMention({ type: "hashtag", tag });
+                },
+              },
+              [el("span", { class: "composer-mention-name" }, `#${tag}`)]
             )
           )
         );
@@ -287,6 +329,24 @@ export function Composer({
         menuMode = "command";
         mentionMatches = suggestSlashCommands(commandQuery, botCommands ?? []);
         if (!mentionMatches.length) return closeMentionMenu();
+        mentionActiveIndex = 0;
+        renderMentionMenu();
+        mentionMenu.classList.remove("hidden");
+        return;
+      }
+      const hashtagQuery = currentHashtagQuery();
+      if (hashtagQuery !== null) {
+        menuMode = "hashtag";
+        const q = hashtagQuery.toLowerCase();
+        const recent = getRecentHashtags();
+        mentionMatches = recent
+          .filter((t) => t.toLowerCase().startsWith(q))
+          .slice(0, 8);
+        if (!mentionMatches.length) {
+          mentionMenu.classList.add("hidden");
+          clear(mentionMenu);
+          return;
+        }
         mentionActiveIndex = 0;
         renderMentionMenu();
         mentionMenu.classList.remove("hidden");
@@ -326,6 +386,20 @@ export function Composer({
         updateTrailingButtons();
         // Команда без текста (кубик, опрос, команда бота) выполняется сразу.
         if (!cmd.takesArg) submit();
+        return;
+      }
+      if (menuMode === "hashtag") {
+        const tag = user.tag;
+        addRecentHashtag(tag);
+        closeMentionMenu();
+        const pos = textarea.selectionStart;
+        const before = textarea.value.slice(0, pos).replace(/#([\p{L}\p{N}_]*)$/u, `#${tag} `);
+        textarea.value = before + textarea.value.slice(pos);
+        textarea.focus();
+        textarea.setSelectionRange(before.length, before.length);
+        autoResize();
+        updateTrailingButtons();
+        if (!editingMessage) scheduleDraftSave(textarea.value);
         return;
       }
       const pos = textarea.selectionStart;
@@ -443,6 +517,11 @@ export function Composer({
         if (!res) return;
         trimmed = res.text;
         if (res.silent) opts = { ...opts, silent: true };
+      }
+      // Extract and store hashtags from the message
+      const hashtagMatches = trimmed.match(/#[\p{L}\p{N}_]{2,64}/gu);
+      if (hashtagMatches) {
+        hashtagMatches.forEach((tag) => addRecentHashtag(tag.slice(1)));
       }
       const silent = {
         ...(opts.silent === true ? { silent: true } : {}),
