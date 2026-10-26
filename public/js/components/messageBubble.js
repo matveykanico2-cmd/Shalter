@@ -1,5 +1,6 @@
 import { nameColorValue } from "../lib/nameColors.js";
 import { publicUrl } from "../lib/publicLink.js";
+import { formatTime } from "../lib/presence.js";
 import { PaidMediaAttachment } from "./paidMedia.js";
 import { GameAttachment } from "./games.js";
 import { mediaPreviewNodes } from "./mediaPreview.js";
@@ -567,7 +568,7 @@ export function playSendPlaneAnimation(fromEl, toEl) {
 // «Прочитано сегодня в 14:05» / «вчера в …» / «12.03 в …».
 function readAtLabel(iso) {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const time = formatTime(d, getState?.()?.settings);
   const day = new Date();
   day.setHours(0, 0, 0, 0);
   const diff = Math.floor((day - new Date(d).setHours(0, 0, 0, 0)) / 86400000);

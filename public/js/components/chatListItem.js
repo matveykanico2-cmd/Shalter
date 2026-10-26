@@ -175,7 +175,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
           ]),
           el("span", { class: "chat-list-item-badges" }, [
             chat.pinned ? el("span", { html: iconSvg("Pin", 12) }) : null,
-            muted ? el("span", { html: iconSvg("BellOff", 12) }) : null,
+            el("span", { html: iconSvg(muted ? "VolumeOff" : "Volume", 12) }),
             chat.hasUnreadMention ? el("span", { class: "mention-badge" }, "@") : null,
             chat.unreadCount > 0
               ? el("span", { class: "unread-badge" }, chat.unreadCount > 99 ? "99+" : String(chat.unreadCount))
@@ -211,7 +211,7 @@ export function ChatListItem({ chat, active, meId, onPatch, onMute, onDelete, on
         onClick: () => onPatch(chat.id, { pinned: !chat.pinned }),
       },
       {
-        icon: muted ? "Bell" : "BellOff",
+        icon: muted ? "VolumeOff" : "Volume",
         label: muted ? "Включить уведомления" : "Отключить уведомления",
         onClick: muted
           ? () => onPatch(chat.id, { muted: false })

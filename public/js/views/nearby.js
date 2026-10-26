@@ -56,7 +56,7 @@ export async function NearbyView(root) {
   function render() {
     mount(
       root,
-      el("div", { class: "join-invite" }, [
+      el("div", { class: "nearby-view settings-page" }, [
         el("div", { class: "settings-header" }, [
           el("button", { class: "settings-header-back", html: iconSvg("ChevronLeft", 22), onclick: () => navigate("/contacts") }),
           el("h2", { class: "settings-header-title" }, "Люди рядом"),

@@ -1603,7 +1603,10 @@ async function renderBusiness(root) {
   render();
 }
 
-const ABOUT_TEAM = [{ name: "Shalter", role: "Независимый проект" }];
+const ABOUT_TEAM = [
+  { name: "Николаенко Матвей", role: "Создатель Shalter", url: "https://shalter.ru", target: "_blank" },
+  { name: "Shalter", role: "Независимый проект" },
+];
 
 async function renderAbout(root) {
   let version = null;

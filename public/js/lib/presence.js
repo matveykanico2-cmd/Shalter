@@ -1,3 +1,5 @@
+import { getState } from "../state.js";
+
 export function statusLabel(user, now = new Date()) {
   if (user.isBot) return "бот";
   // Сами без сети — «в сети» у собеседника устаревшее: показываем, когда видели.
@@ -7,10 +9,17 @@ export function statusLabel(user, now = new Date()) {
   return ago ? `был(а) ${ago}` : null;
 }
 
+export function formatTime(date, settings = {}) {
+  const d = date instanceof Date ? date : new Date(date);
+  const hour12 = settings?.timeFormat === 12;
+  return d.toLocaleTimeString("ru-RU", { hour12, hour: "2-digit", minute: "2-digit" });
+}
+
 export function timeAgo(iso, now = new Date()) {
   const d = iso instanceof Date ? iso : new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const settings = typeof getState === "function" ? getState().settings ?? {} : {};
+  const time = formatTime(d, settings);
   const minutes = Math.floor((now - d) / 60000);
   if (minutes < 1) return "только что";
   if (minutes < 60) return minutes === 1 ? "минуту назад" : `${minutes} ${plural(minutes, "минуту", "минуты", "минут")} назад`;
