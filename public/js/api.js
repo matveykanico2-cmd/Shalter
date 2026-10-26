@@ -785,6 +785,13 @@ export const api = {
   deliverGift: (giftId, recipientId) =>
     req("/api/gifts/deliver", { method: "POST", body: JSON.stringify({ giftId, recipientId }) }),
 
+  listPromoCodes: () => req("/api/promotions/admin"),
+  createPromoCode: (data) => req("/api/promotions/admin/create", { method: "POST", body: JSON.stringify(data) }),
+  deletePromoCode: (id) => req(`/api/promotions/admin/${id}`, { method: "DELETE" }),
+  updatePromoCode: (id, patch) => req(`/api/promotions/admin/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  redeemPromoCode: (code) => req("/api/promotions/redeem", { method: "POST", body: JSON.stringify({ code }) }),
+  promoInfo: () => req("/api/promotions/info"),
+
   adminLookupUser: (q) => req(`/api/admin/lookup?q=${encodeURIComponent(q)}`),
   adminLookupChat: (q) => req(`/api/admin/chats/lookup?q=${encodeURIComponent(q)}`),
   adminBulkDelete: (items, reason) => req("/api/admin/moderation/delete", { method: "POST", body: JSON.stringify({ items, reason }) }),

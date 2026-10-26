@@ -1311,4 +1311,26 @@ CREATE TABLE IF NOT EXISTS community_requests (
 CREATE INDEX IF NOT EXISTS idx_community_requests_community ON community_requests(communityId);
 `);
 
+db.exec(`
+CREATE TABLE IF NOT EXISTS promo_codes (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  prize TEXT NOT NULL,
+  config TEXT NOT NULL,
+  usesTotal INTEGER,
+  used INTEGER NOT NULL DEFAULT 0,
+  createdBy TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_promo_codes_code ON promo_codes(code);
+
+CREATE TABLE IF NOT EXISTS promo_code_redemptions (
+  codeId TEXT NOT NULL REFERENCES promo_codes(id) ON DELETE CASCADE,
+  userId TEXT NOT NULL,
+  redeemedAt TEXT NOT NULL,
+  PRIMARY KEY (codeId, userId)
+);
+CREATE INDEX IF NOT EXISTS idx_promo_redemptions_user ON promo_code_redemptions(userId);
+`);
+
 module.exports = db;

@@ -1,12 +1,14 @@
-// Скачивание файлов в Android-приложении. WebView сам ничего не скачивает: нажатие на
-// <a download> там просто игнорируется. Перехватываем такие ссылки, забираем файл
-// изнутри приложения (с куками сессии — приватные вложения иначе не отдадутся) и
-// сохраняем в «Документы/Shalter»; не вышло — системное «Поделиться».
+// Скачивание файлов в нативном приложении (Android и iOS). WebView не
+// скачивает: нажатие на <a download> игнорируется (Android) или открывает
+// системный диалог «Поделиться» и уводит приложение на экран домой (iOS).
+// Перехватываем такие ссылки, забираем файл внутри приложения (с куками
+// сессии — приватные вложения иначе не отдадятся) и сохраняем в «Документы/Shalter»;
+// не вышло — системное «Поделиться».
 const FOLDER = "Shalter";
 
 function plugins() {
   const cap = window.Capacitor;
-  if (!cap?.isNativePlatform?.() || cap.getPlatform?.() !== "android") return null;
+  if (!cap?.isNativePlatform?.()) return null;
   const { Filesystem, Share } = cap.Plugins ?? {};
   return Filesystem ? { fs: Filesystem, share: Share ?? null } : null;
 }

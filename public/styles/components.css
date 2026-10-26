@@ -6062,11 +6062,17 @@ button.profile-ad-banner {
   border-radius: 999px;
   padding: 6px 10px;
   font-size: 13px;
+  font-weight: 500;
   color: var(--color-muted);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.15s;
 }
 .contacts-add-mode.active {
   background: var(--color-accent);
   color: var(--color-accent-contrast);
+  transition: none;
 }
 .contacts-phone-row {
   display: flex;

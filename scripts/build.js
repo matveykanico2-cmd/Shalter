@@ -23,7 +23,7 @@ async function build() {
     entryNames: "app",
     chunkNames: "chunk-[hash]",
     logLevel: "info",
-    external: ["https://esm.sh/*"],
+    external: ["https://esm.sh/*", "/js/lib/giftTraits.scenes.js"],
   });
 
   await esbuild.build({

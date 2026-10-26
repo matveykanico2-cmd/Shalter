@@ -53,7 +53,7 @@ let builtinScenesPromise = null;
 
 async function loadBuiltinScenes() {
   if (!builtinScenesPromise) {
-    builtinScenesPromise = import("./giftTraits.scenes.js").then((m) => m.BUILTIN_GIFT_SCENES);
+    builtinScenesPromise = import("/js/lib/giftTraits.scenes.js").then((m) => m.BUILTIN_GIFT_SCENES);
   }
   return builtinScenesPromise;
 }

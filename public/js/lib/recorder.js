@@ -129,17 +129,20 @@ export function createLevelMeter(stream) {
 }
 
 // Ждём первый настоящий кадр видео (не дольше 1,5 с).
+// true — кадр получен, false — таймаут.
 function firstFrame(video) {
   return new Promise((resolve) => {
-    const done = () => {
+    const ok = () => {
       clearTimeout(timer);
-      resolve();
+      resolve(true);
     };
-    const timer = setTimeout(done, 1500);
-    if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => done());
+    const timer = setTimeout(() => resolve(false), 1500);
+    if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => ok());
     else {
+      const start = Date.now();
       (function check() {
-        if (video.readyState >= 2 && video.videoWidth) return done();
+        if (video.readyState >= 2 && video.videoWidth) return ok();
+        if (Date.now() - start > 1400) return ok();
         requestAnimationFrame(check);
       })();
     }
@@ -200,11 +203,11 @@ async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
   let drawing = true;
   // Пока переключаем камеру, кадры не рисуем: на холсте остаётся последний.
   let switching = false;
-  (function draw() {
-    if (!drawing) return;
-    if (!switching && camVideo.readyState >= 2) drawFrame();
-    requestAnimationFrame(draw);
-  })();
+   (function draw() {
+     if (!drawing) return;
+     if (!switching && camVideo.readyState >= 2 && camVideo.videoWidth > 0) drawFrame();
+     requestAnimationFrame(draw);
+   })();
 
   const canvasStream = canvas.captureStream(30);
   const finalStream = new MediaStream([...canvasStream.getVideoTracks(), ...camStream.getAudioTracks()]);
@@ -234,12 +237,20 @@ async function startSquareVideoRecording(onTick, { bitrates, maxSec }) {
     nextVideo.playsInline = true;
     nextVideo.srcObject = nextStream;
     await nextVideo.play().catch(() => {});
-    await firstFrame(nextVideo);
+    const gotFrame = await firstFrame(nextVideo);
     if (!drawing) {
       // Запись закончилась, пока камера переключалась.
       track.stop();
       nextVideo.srcObject = null;
       return { error: "Запись уже остановлена" };
+    }
+    // firstFrame может не дозвучать — тогда в кадре черный экран.
+    // Держим старую камеру, пока новая не даст первый кадр.
+    if (!gotFrame) {
+      switching = false;
+      track.stop();
+      nextVideo.srcObject = null;
+      return { error: "Камера не отдала кадр" };
     }
     const oldVideo = camVideo;
     camVideo = nextVideo;

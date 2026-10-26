@@ -100,6 +100,7 @@ const SECTIONS = [
   { id: "donations", label: "Донаты", icon: "Zap", color: "pink", group: "admin", adminOnly: true },
   { id: "pricing", label: "Цены и тарифы", icon: "Star", color: "green", group: "admin", adminOnly: true },
   { id: "legal", label: "Запросы органов", icon: "Shield", color: "grey", group: "admin", adminOnly: true },
+  { id: "promotions", label: "Промокоды", icon: "Gift", color: "orange", group: "admin", adminOnly: true },
 ];
 
 let panelTitleEl = null;
@@ -223,6 +224,7 @@ export async function SettingsView(root, page) {
     giftshop: renderGiftShop,
     emojicatalog: renderEmojiCatalog,
     usernames: renderUsernames,
+    promotions: renderPromotions,
   };
   await (renderers[section] ?? renderMenu)(contentSlot);
 
@@ -915,6 +917,10 @@ async function renderPremium(root) {
   let selectedPlan = plans.reduce((best, p) => (best && best.discount >= p.discount ? best : p), null)?.id ?? null;
   let buying = false;
   let buyError = null;
+  let promoInput = "";
+  let promoError = null;
+  let promoSuccess = null;
+  let promoBusy = false;
 
   async function buyPremium() {
     if (!selectedPlan) return;
@@ -1040,11 +1046,53 @@ async function renderPremium(root) {
             ),
           ]),
         ]),
-        twSection(null, [
-          twRow({ icon: "Link", title: "Публичная страница Premium", subtitle: "Откроется у любого, даже без аккаунта", href: "/premium", target: "_blank" }),
-          twRow({ icon: "Gift", title: "Магазин подарков", subtitle: "Цены в звёздах, отправка мгновенная", onClick: () => openGiftShopDialog({}) }),
-        ]),
-        canBuy
+         twSection(null, [
+           twRow({ icon: "Link", title: "Публичная страница Premium", subtitle: "Откроется у любого, даже без аккаунта", href: "/premium", target: "_blank" }),
+           twRow({ icon: "Gift", title: "Магазин подарков", subtitle: "Цены в звёздах, отправка мгновенная", onClick: () => openGiftShopDialog({}) }),
+         ]),
+         twSection(null, [
+           el("div", { class: "settings-field" }, [
+             el("label", { class: "settings-field-label" }, "Промокод"),
+             el("input", {
+               class: "settings-input",
+               placeholder: "Введите код",
+               value: promoInput,
+               oninput: (e) => {
+                 promoInput = e.target.value.trim().toUpperCase();
+                 promoError = null;
+                 promoSuccess = null;
+               },
+             }),
+             promoError ? el("p", { class: "login-error" }, promoError) : null,
+             promoSuccess ? el("p", { class: "login-hint" }, promoSuccess) : null,
+             el("button", {
+               class: "btn-accent",
+               disabled: promoBusy || !promoInput,
+               onclick: async () => {
+                 promoBusy = true;
+                 promoError = null;
+                 promoSuccess = null;
+                 render();
+                 try {
+                   const res = await api.redeemPromoCode(promoInput);
+                   if (res.delivered) {
+                     promoSuccess = "Подарок активирован!";
+                     promoInput = "";
+                     info = await api.getPremiumInfo();
+                   } else {
+                     promoError = res.error || "Не удалось активировать";
+                   }
+                 } catch (err) {
+                   promoError = err.message || "Ошибка";
+                 } finally {
+                   promoBusy = false;
+                   render();
+                 }
+               },
+             }, promoBusy ? "Активируем…" : "Активировать"),
+           ]),
+         ]),
+         canBuy
           ? el("div", { class: "tw-premium-footer" }, [
               el(
                 "button",
@@ -5546,4 +5594,170 @@ async function renderDonations(root) {
         : null,
     ])
   );
+}
+
+const PROMO_PRIZE_OPTIONS = [
+  { value: "premium", label: "Shalter Premium", configLabel: "дней", configPlaceholder: "30" },
+  { value: "stars", label: "Звёзды", configLabel: "звёзд", configPlaceholder: "100" },
+  { value: "ads", label: "Кабинет рекламы", configLabel: "дней", configPlaceholder: "30" },
+  { value: "business", label: "Shalter для бизнеса", configLabel: "дней", configPlaceholder: "30" },
+];
+
+const PROMO_PRIZE_TITLES = {
+  premium: "Shalter Premium",
+  stars: "звёзды",
+  ads: "кабинет рекламы",
+  business: "Shalter для бизнеса",
+};
+
+async function renderPromotions(root) {
+  let codes = [];
+  let creating = false;
+  let saveError = null;
+  let form = null;
+
+  function defaultForm() {
+    return { code: "", prize: "premium", configDays: "30", configStars: "100", usesTotal: "" };
+  }
+
+  async function loadCodes() {
+    try {
+      const r = await api.listPromoCodes();
+      codes = r.codes ?? [];
+    } catch {
+      codes = [];
+    }
+  }
+
+  try {
+    await loadCodes();
+  } catch {}
+
+  function prizeForm() {
+    const selected = PROMO_PRIZE_OPTIONS.find((o) => o.value === form.prize) ?? PROMO_PRIZE_OPTIONS[0];
+    return [
+      el("select", {
+        class: "settings-input",
+        onchange: (e) => {
+          form.prize = e.target.value;
+          render();
+        },
+      }, PROMO_PRIZE_OPTIONS.map((o) => el("option", { value: o.value, selected: o.value === form.prize }, o.label))),
+      el("input", {
+        class: "settings-input",
+        type: "number",
+        min: 1,
+        placeholder: selected.configLabel === "звёзд" ? "100" : "30",
+        value: selected.configLabel === "звёзд" ? form.configStars : form.configDays,
+        oninput: (e) => {
+          const v = e.target.value;
+          if (selected.configLabel === "звёзд") form.configStars = v;
+          else form.configDays = v;
+        },
+      }),
+      el("p", { class: "settings-toggle-hint" }, `Количество ${selected.configLabel} в подарок`),
+    ];
+  }
+
+  async function saveCode() {
+    creating = true;
+    saveError = null;
+    render();
+    try {
+      const prize = form.prize;
+      const config =
+        prize === "stars"
+          ? { type: "stars", amount: Number(form.configStars) }
+          : { type: prize, days: Number(form.configDays) };
+      const payload = {
+        code: form.code || undefined,
+        prize,
+        config,
+        usesTotal: form.usesTotal ? Number(form.usesTotal) : undefined,
+      };
+      await api.createPromoCode(payload);
+      form = defaultForm();
+      await loadCodes();
+      render();
+    } catch (err) {
+      saveError = err.message || "Не удалось создать код";
+    } finally {
+      creating = false;
+      render();
+    }
+  }
+
+  async function removeCode(codeId, codeText) {
+    if (!(await askConfirm(`Удалить промокод «${codeText}»?`))) return;
+    try {
+      await api.deletePromoCode(codeId);
+      codes = codes.filter((c) => c.id !== codeId);
+      render();
+    } catch (err) {
+      showToast(err.message || "Не удалось удалить");
+    }
+  }
+
+  function renderCodeList(items) {
+    return items.length === 0
+      ? el("p", { class: "empty-hint" }, "Промокоды пока нет")
+      : el("div", { class: "settings-devices-list" }, items.map((c) =>
+          el("div", { class: "settings-device-row" }, [
+            el("div", { class: "settings-device-body" }, [
+              el("p", {}, c.code),
+              el("p", { class: "settings-toggle-hint" }, (PROMO_PRIZE_TITLES[c.prize] ?? c.prize) + (c.usesTotal !== null && c.usesTotal !== undefined ? ` · ${c.used}/${c.usesTotal}` : " · неограниченно")),
+            ]),
+            el("button", {
+              class: "icon-btn",
+              title: "Удалить",
+              html: iconSvg("Trash", 15),
+              onclick: () => removeCode(c.id, c.code),
+            }),
+          ])
+        ));
+  }
+
+  function render() {
+    if (!form) form = defaultForm();
+
+    mount(
+      root,
+      pageWrap("Промокоды", "Создавайте промокоды с одноразовой активацией на аккаунт", [
+        el("div", { class: "settings-notice-box" }, [
+          el("p", { class: "settings-toggle-title" }, "Новый промокод"),
+          el("p", { class: "settings-toggle-hint" }, "Активируется один раз на каждый аккаунт. Приз — подарок пользователю."),
+          el("input", {
+            class: "settings-input",
+            placeholder: "Код (оставьте пустым — сгенерируем)",
+            value: form.code,
+            oninput: (e) => {
+              form.code = e.target.value.toUpperCase();
+            },
+          }),
+          ...prizeForm(),
+          el("input", {
+            class: "settings-input",
+            type: "number",
+            min: 1,
+            placeholder: "Лимит активаций (оставьте пустым — неограниченно)",
+            value: form.usesTotal,
+            oninput: (e) => {
+              form.usesTotal = e.target.value;
+            },
+          }),
+          saveError ? el("p", { class: "login-error" }, saveError) : null,
+          el("button", {
+            class: "btn-accent",
+            disabled: creating,
+            onclick: () => saveCode(),
+          }, creating ? "Создаём…" : "Создать промокод"),
+        ]),
+        el("p", { class: "settings-section-title" }, "Существующие промокоды"),
+        renderCodeList(codes),
+      ])
+    );
+  }
+
+  form = defaultForm();
+  render();
 }
