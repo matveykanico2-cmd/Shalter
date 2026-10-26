@@ -1,5 +1,5 @@
 // Подпись под названием чата — как renderHeader в public/js/views/chatView.js.
-import type { ChatMember, ChatSummary } from "@/entities/chat";
+import type { ChatMember, ChatSummary, Typing } from "@/entities/chat";
 
 import { plural, statusLabel } from "@/shared/lib/presence";
 
@@ -17,11 +17,10 @@ export const CHAT_ACTION_LABELS: Record<string, string> = {
   upload_video_note: "отправляет кружок",
 };
 
-export type Typing = { userId: string; action: string } | null;
-
 type Subtitle = { text: string; tone: "typing" | "online" | "muted" };
 
-export function chatSubtitle(chat: ChatSummary, members: readonly ChatMember[], meId: string, typing: Typing, now = new Date()): Subtitle {
+/** botUsers — сколько людей пользуется ботом (GET /api/bots/audience/:id). */
+export function chatSubtitle(chat: ChatSummary, members: readonly ChatMember[], meId: string, typing: Typing, now = new Date(), botUsers: number | null = null): Subtitle {
   const isDm = chat.type === "dm";
   const other = chat.otherUser;
   if (typing) {
@@ -31,7 +30,9 @@ export function chatSubtitle(chat: ChatSummary, members: readonly ChatMember[], 
     if (typist) return { text: `${typist.name} ${label}…`, tone: "typing" };
   }
   if (chat.isSaved) return { text: "", tone: "muted" };
-  if (chat.type === "bot" || (isDm && other?.isBot)) return { text: "бот", tone: "muted" };
+  if (chat.type === "bot" || (isDm && other?.isBot)) {
+    return { text: botUsers == null ? "бот" : `бот · ${botUsers} ${plural(botUsers, "пользователь", "пользователя", "пользователей")}`, tone: "muted" };
+  }
   if (isDm && other) {
     const label = statusLabel(other, now);
     return { text: label ?? "был(а) недавно", tone: label === "в сети" ? "online" : "muted" };

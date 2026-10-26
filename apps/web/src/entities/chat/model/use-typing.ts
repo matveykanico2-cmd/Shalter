@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 import { ws } from "@/shared/api";
 
 import { getTyping } from "../api/typing";
-import type { Typing } from "../lib/subtitle";
+
+/** Кто печатает и что делает (typing, upload_photo, choose_sticker…); null — никто. */
+export type Typing = { userId: string; action: string } | null;
 
 const CLEAR_MS = 4000;
 const POLL_MS = 30_000;
@@ -25,6 +27,11 @@ export function useTyping(chatId: string, meId: string): Typing {
       setTyping({ userId, action: action || "typing" });
       clearTimer = setTimeout(() => setTyping(null), CLEAR_MS);
     });
+    // Пришло сообщение от того, кто печатал, — подпись гаснет сразу (clearTypingStatus).
+    const offMessage = ws.on("message:new", ({ chatId: id, message }) => {
+      if (id !== chatId) return;
+      setTyping((t) => (t && message.senderId === t.userId ? null : t));
+    });
     const poll = setInterval(() => {
       if (document.hidden || ws.isOpen()) return;
       getTyping(chatId)
@@ -33,6 +40,7 @@ export function useTyping(chatId: string, meId: string): Typing {
     }, POLL_MS);
     return () => {
       off();
+      offMessage();
       clearTimeout(clearTimer);
       clearInterval(poll);
     };

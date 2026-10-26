@@ -70,3 +70,6 @@ export const hugoCheck = (text: string) => http.post<z.infer<typeof hugoCheckBod
 
 /** Каталог игр с поиском (GET /api/games?q=) — для «/game название». */
 export const searchGames = (q: string) => http.get<z.infer<typeof gamesBody>>(`/api/games?q=${encodeURIComponent(q)}`);
+
+/** «Стоп» в чате с Shalter AI: ответ обрывается, написанное остаётся. */
+export const stopAi = (chatId: string) => http.post<unknown>("/api/ai/stop", { chatId });

@@ -64,6 +64,19 @@
   color: var(--color-accent);
 }
 
+/* Значки разработчика Shalter и Premium у собеседника (.developer-mini-badge, PremiumStar). */
+.developer {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--color-muted);
+}
+
+.premium {
+  display: flex;
+  flex-shrink: 0;
+  color: #a259ff;
+}
+
 .muted,
 .online,
 .typing {

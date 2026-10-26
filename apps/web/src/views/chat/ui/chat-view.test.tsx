@@ -922,6 +922,74 @@ describe("поле ввода: подсказки, команды, формат�
   });
 });
 
+describe("боты", () => {
+  const BOT = { id: "u_bot000000", name: "Погода", isBot: true };
+  const botDm = () => chat({ type: "dm", title: "", otherUser: BOT as ChatSummary["otherUser"] });
+  const botCard = () => ({ body: { chat: botDm(), members: [ME, BOT], commands: null, paidMessages: null } });
+
+  it("кнопки под сообщением: действие — текстом, ссылка — в браузере, приложение — мини-приложением", async () => {
+    const keyboard = [
+      [
+        { text: "Да", action: "yes" },
+        { text: "Сайт", url: "https://a.ru/" },
+      ],
+      [{ text: "Игра", app: "https://app.test/game" }],
+    ];
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": botCard(),
+      [HISTORY]: page([msg("Выберите", { senderId: BOT.id, keyboard } as Partial<Message>)]),
+      "GET /api/bots/audience/u_bot000000": { body: { users: 12, app: { name: "Погода+" } } },
+      "POST /api/chats/c_1/messages": (body) => ({ body: { message: msg(String(body.text), { senderId: ME.id }) } }),
+      [`GET /api/link-check?url=${encodeURIComponent("https://a.ru/")}`]: { body: { frameable: true } },
+      "POST /api/bots/u_bot000000/app/open": { body: { url: "https://app.test/game#init", name: "Игра", botId: BOT.id } },
+      ...typingRoutes,
+    });
+    renderChat(botDm());
+    expect(await screen.findByText("бот · 12 пользователей")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "Да" }));
+    await waitFor(() => expect(calls.find((c) => c.key === "POST /api/chats/c_1/messages")?.body).toMatchObject({ text: "yes" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Сайт" }));
+    expect(await screen.findByTitle("a.ru")).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Игра" }));
+    const app = await screen.findByRole("dialog", { name: "Игра" });
+    expect(within(app).getByText("бот Погода")).toBeTruthy();
+    expect(calls.find((c) => c.key === "POST /api/bots/u_bot000000/app/open")?.body).toMatchObject({ url: "https://app.test/game", chatId: "c_1" });
+    fireEvent.click(within(app).getByTitle("Закрыть"));
+    expect(screen.queryByRole("dialog", { name: "Игра" })).toBeNull();
+
+    // Приложение бота — кнопкой в шапке.
+    fireEvent.click(screen.getByRole("button", { name: "Погода+" }));
+    expect(await screen.findByRole("dialog", { name: "Погода+" })).toBeTruthy();
+  });
+
+  it("бот печатает — «Думает…» внизу ленты; Shalter AI — «стоп» вместо «Отправить»", async () => {
+    const ai = { id: "bot_shalter_ai", name: "Shalter AI", isBot: true };
+    const aiDm = chat({ type: "dm", title: "", otherUser: ai as ChatSummary["otherUser"] });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": { body: { chat: aiDm, members: [ME, ai], commands: null, paidMessages: null } },
+      [HISTORY]: page([]),
+      "GET /api/bots/audience/bot_shalter_ai": { body: { users: 3, app: null } },
+      "POST /api/ai/stop": { body: { ok: true } },
+    });
+    renderChat(aiDm);
+    await screen.findByText("Сообщений пока нет — напишите первым");
+    expect(screen.queryByTitle("Голосовое сообщение")).toBeNull();
+    ws.start();
+    act(() => FakeSocket.last().open());
+    act(() => FakeSocket.last().receive({ type: "typing:update", chatId: "c_1", userId: ai.id, action: "typing" }));
+    expect(await screen.findByText("Думает…")).toBeTruthy();
+    act(() => FakeSocket.last().receive({ type: "ai:state", chatId: "c_1", active: true }));
+    fireEvent.click(await screen.findByRole("button", { name: "Остановить ответ" }));
+    await waitFor(() => expect(calls.find((c) => c.key === "POST /api/ai/stop")?.body).toEqual({ chatId: "c_1" }));
+    expect(screen.queryByRole("button", { name: "Остановить ответ" })).toBeNull();
+    act(() => FakeSocket.last().receive({ type: "message:new", chatId: "c_1", message: msg("Готово", { senderId: ai.id }) }));
+    await waitFor(() => expect(screen.queryByText("Думает…")).toBeNull());
+  });
+});
+
 describe("стикеры и эмодзи", () => {
   it("ссылка в тексте и карточка — во встроенном браузере, статья — быстрым просмотром", async () => {
     const preview = { url: "https://news.ru/a", title: "Новость", description: "Подробности", siteName: "Новости" };

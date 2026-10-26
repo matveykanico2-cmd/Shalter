@@ -1,19 +1,20 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 
+import { BotAppButton, botAppQueries } from "@/features/bot-app";
 import { ChatMenu } from "@/features/chat-actions";
 import { WallpaperDialog } from "@/features/chat-wallpaper";
 import { ScheduledList } from "@/features/send-message";
 import { useTopicsToggle } from "@/features/topics";
 
-import { type ChatMember, type ChatSummary, chatTitle } from "@/entities/chat";
+import { type ChatMember, type ChatSummary, chatTitle, useTyping } from "@/entities/chat";
 import type { SelfUser } from "@/entities/session";
 
 import { Avatar, EmojiText, Icon, type MenuItem } from "@/shared/ui";
 
 import { chatSubtitle } from "../lib/subtitle";
 import { usePresenceSync } from "../model/use-presence-sync";
-import { useTyping } from "../model/use-typing";
 
 import styles from "./chat-header.module.css";
 
@@ -42,7 +43,10 @@ export function ChatHeader({ chat, members, me, onSearch, infoOpen, onInfo }: Pr
   const now = usePresenceSync(chat.id);
   const title = chatTitle(chat);
   const other = chat.otherUser;
-  const subtitle = chatSubtitle(chat, members, meId, typing, now);
+  // Личка с ботом: «бот · N пользователей» и кнопка его мини-приложения.
+  const bot = chat.type === "dm" && other?.isBot ? other : null;
+  const botUsers = useQuery({ ...botAppQueries.audience(bot?.id ?? ""), enabled: !!bot }).data?.users ?? null;
+  const subtitle = chatSubtitle(chat, members, meId, typing, now, botUsers);
   return (
     <header className={styles.header}>
       <Link to="/" className={styles.back} title="Назад к чатам">
@@ -78,6 +82,16 @@ export function ChatHeader({ chat, members, me, onSearch, infoOpen, onInfo }: Pr
                 <Icon name="Verified" size={15} />
               </span>
             ) : null}
+            {chat.type === "dm" && other?.isDeveloper ? (
+              <span className={styles.developer} title="Разработчик Shalter">
+                <Icon name="Code" size={15} />
+              </span>
+            ) : null}
+            {chat.type === "dm" && other?.isPremium ? (
+              <span className={styles.premium} title="Shalter Premium">
+                <Icon name="Star" size={15} />
+              </span>
+            ) : null}
           </h1>
           {subtitle.text ? (
             <p className={styles[subtitle.tone]} aria-live="polite">
@@ -86,6 +100,7 @@ export function ChatHeader({ chat, members, me, onSearch, infoOpen, onInfo }: Pr
           ) : null}
         </div>
       </div>
+      {bot ? <BotAppButton bot={bot} chatId={chat.id} /> : null}
       <button type="button" className={styles.infoToggle} title={infoOpen ? "Скрыть информацию" : "Информация о чате"} aria-pressed={infoOpen} onClick={() => onInfo(!infoOpen)}>
         <Icon name="Info" size={18} />
       </button>

@@ -13,6 +13,7 @@ const PATHS = {
   ChevronLeft: '<path d="M15 5l-7 7 7 7"/>',
   ChevronRight: '<path d="M9 5l7 7-7 7"/>',
   Clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+  Code: '<path d="M9 8 4 12l5 4"/><path d="M15 8l5 4-5 4"/>',
   Copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
   Crown: '<path d="M3 8l4 3 5-6 5 6 4-3-2 11H5L3 8Z"/><path d="M5 21h14"/>',
   Download: '<path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/>',

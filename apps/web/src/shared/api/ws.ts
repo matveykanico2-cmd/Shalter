@@ -29,6 +29,8 @@ export type WsEvents = {
   /** Кто-то печатает (action: typing, upload_photo…; cancel — перестал). */
   "typing:update": Of<typeof wsTypingUpdate>;
   "contact:updated": Of<typeof contactUpdated>;
+  /** Shalter AI пишет ответ (active) или закончил — кнопка «стоп» в поле ввода. */
+  "ai:state": { type: "ai:state"; chatId: string; active: boolean };
   /** Сокет (пере)открылся: пока его не было, события могли потеряться. */
   "ws:reconnected": { type: "ws:reconnected" };
   /** Сменился статус сокета (ws.status()) — для заголовка «Соединение…». */

@@ -629,3 +629,92 @@
     opacity: 0;
   }
 }
+
+/* Пузырь с кнопками бота под ним (.message-column + .keyboard-rows). */
+.column {
+  display: flex;
+  min-width: 0;
+  max-width: min(480px, 78%);
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.rowOut .column {
+  align-items: flex-end;
+}
+
+.column > .bubble {
+  max-width: 100%;
+}
+
+.keyboard {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.keyboardRow {
+  display: flex;
+  gap: 6px;
+}
+
+.key {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.key:hover {
+  background: var(--color-surface-alt);
+}
+
+.keyApp {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  font-weight: 500;
+}
+
+.keyApp::before {
+  content: "▶ ";
+  opacity: 0.65;
+}
+
+.keyUrl::after {
+  content: " ↗";
+  opacity: 0.65;
+}
+
+.keyPrimary,
+.keySuccess,
+.keyDanger {
+  border-color: transparent;
+  color: #fff;
+  font-weight: 500;
+}
+
+.keyPrimary {
+  background: var(--color-accent);
+}
+
+.keySuccess {
+  background: var(--color-success);
+}
+
+.keyDanger {
+  background: var(--color-danger);
+}
+
+.keyPrimary:hover,
+.keySuccess:hover,
+.keyDanger:hover {
+  filter: brightness(1.08);
+}

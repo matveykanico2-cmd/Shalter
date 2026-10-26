@@ -2,6 +2,7 @@ export { inTopic, loadOlderHistory, messageQueries, PAGE_SIZE, type TopicFilter 
 export { paidMediaQuery, type PaidMediaState } from "./api/paid-media";
 export { attachmentsOf, isVisualMedia, mediaItem } from "./lib/attachments";
 export { canApplyLive, emptyHistory } from "./lib/history";
+export type { KeyboardButton } from "./lib/keyboard";
 export { isCallLogMessage, isReadByOthers, timeLabel } from "./lib/message-meta";
 export { callLogInfo, diceResult, messagePreview, plainText, stripCustomEmoji } from "./lib/message-preview";
 export { applyVote, type ChecklistMeta, type PollMeta, toggleChecklistItem, withAttachmentMeta } from "./lib/poll";

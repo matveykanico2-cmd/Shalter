@@ -6,14 +6,15 @@ import { ChatHeader } from "@/widgets/chat-header";
 import { ChatInfoPanel } from "@/widgets/chat-info";
 import { MessageFeed, type MessageFeedHandle } from "@/widgets/message-feed";
 
+import { MiniApp, type MiniAppTarget } from "@/features/bot-app";
 import { ChatSearch } from "@/features/chat-search";
 import { useMessageActions } from "@/features/message-actions";
 import { useMentionProfile, UserProfileDialog } from "@/features/open-profile";
-import { botCommandsOf, Composer, type ComposerHandle } from "@/features/send-message";
+import { botCommandsOf, Composer, type ComposerHandle, useAiReply } from "@/features/send-message";
 import { isTopicStaff, TopicTabs, useTopics } from "@/features/topics";
 
 import { type ChatCard, type ChatMember, chatQueries, type ChatSummary, chatTitle, isChatAdmin, isChatModerator, useChatCard, useChatFromList } from "@/entities/chat";
-import { inTopic, type Message, MessageLinks, type TopicFilter } from "@/entities/message";
+import { inTopic, type Message, type MessageLinkHandlers, MessageLinks, type TopicFilter } from "@/entities/message";
 import { type SelfUser, useSession } from "@/entities/session";
 import { chatWallpaper, useSettings } from "@/entities/settings";
 
@@ -78,7 +79,17 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
   const location = useLocation();
   const [infoOpen, setInfoOpen] = useState(() => !!(location.state as { info?: boolean } | null)?.info);
   const mention = useMentionProfile(me, members);
-  const links = { onMention: (h: string) => void mention.openMention(h), onHashtag: (tag: string) => setSearching(tag) };
+  // Кнопки бота: действие — текстом в чат, приложение — мини-приложение (onKeyboardAction, onKeyboardApp).
+  const [miniApp, setMiniApp] = useState<MiniAppTarget | null>(null);
+  const links: MessageLinkHandlers = {
+    onMention: (h) => void mention.openMention(h),
+    onHashtag: (tag) => setSearching(tag),
+    onKeyboard: (m, button) => {
+      if (button.app) setMiniApp({ botId: m.senderId, botName: senderName(m), chatId: chat.id, url: button.app });
+      else if (button.action) composer.current?.sendText(button.action);
+    },
+  };
+  const ai = useAiReply(chat.id, chat.type === "dm" && chat.otherUser?.id === "bot_shalter_ai");
   // Ссылка на сообщение (?msg=…) — прокрутить к нему.
   const [params] = useSearchParams();
   const linkedMessage = params.get("msg");
@@ -150,6 +161,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
                 botCommands={botCommands}
                 canPostAnonymously={chat.type === "group" && !!chat.anonymousAdmins && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id))}
                 paid={paid}
+                ai={ai}
                 allowEffects={chat.type === "dm" && !chat.isSaved}
                 allowWhenOnline={chat.type === "dm" && !chat.isSaved && !!chat.otherUser && !chat.otherUser.isBot}
                 initialDraft={typeof chat.draft === "string" ? chat.draft : ""}
@@ -171,6 +183,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
       </div>
       {infoOpen ? <ChatInfoPanel chat={chat} members={members} me={me} onClose={() => setInfoOpen(false)} /> : null}
       {mention.profileId ? <UserProfileDialog userId={mention.profileId} meId={me.id} onClose={mention.closeProfile} /> : null}
+      {miniApp ? <MiniApp target={miniApp} onClose={() => setMiniApp(null)} /> : null}
     </section>
   );
 }

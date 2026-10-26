@@ -46,6 +46,8 @@ export type ComposerHandle = {
   attach: (files: File[]) => void;
   /** Ответ с выделенной частью текста — цитата «> …» в начало поля. */
   quote: (text: string) => void;
+  /** Текст сообщением как есть — нажатая кнопка бота (onKeyboardAction). */
+  sendText: (text: string) => void;
 };
 
 // Как public/js/components/composer.js: «печатает» не чаще раза в 2,5 с, черновик на
@@ -100,6 +102,8 @@ type Props = {
   canPostAnonymously?: boolean;
   /** Сообщения или комментарии здесь платные, и платит пишущий. */
   paid?: { stars: number; kind: "message" | "comment" } | null;
+  /** Чат с Shalter AI: без записи голосовых, а пока бот пишет — «стоп» вместо «Отправить». */
+  ai?: { generating: boolean; onStop: () => void } | null;
   ref?: Ref<ComposerHandle>;
 };
 
@@ -203,6 +207,10 @@ export function Composer(props: Props) {
       setText(next);
       scheduleDraft(next);
       textarea.current?.focus();
+    },
+    sendText: (value: string) => {
+      onSent?.();
+      send(value, null).catch((err: unknown) => setError(errorText(err, "Не удалось отправить сообщение")));
     },
   }));
 
@@ -682,7 +690,13 @@ export function Composer(props: Props) {
             <EmojiButton onPick={insertEmoji} />
           </div>
         )}
-        {recording && !recording.hold ? null : !text.trim() && !editing && canRecord ? (
+        {props.ai?.generating && !editing ? (
+          <button type="button" className={`${styles.send} ${styles.stop}`} title="Остановить ответ" aria-label="Остановить ответ" onClick={props.ai.onStop}>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+              <rect x="5" y="5" width="14" height="14" rx="3" fill="currentColor" />
+            </svg>
+          </button>
+        ) : recording && !recording.hold ? null : !text.trim() && !editing && canRecord && !props.ai ? (
           <RecordButtons holdingMode={recording?.hold ? recording.mode : null} holdControlRef={holdControlRef} onStart={(mode, hold) => setRecording((r) => r ?? { mode, hold })} />
         ) : (
           <SendButton

@@ -37,6 +37,7 @@ import { feedRows, lastEditable } from "../lib/feed-rows";
 import { buildGallery, galleryIndex } from "../lib/gallery";
 import { useHistorySync } from "../model/use-history-sync";
 
+import { BotThinking } from "./bot-thinking";
 import styles from "./message-feed.module.css";
 import { PinnedBar } from "./pinned-bar";
 
@@ -342,6 +343,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
             })}
           </div>
         )}
+        <BotThinking chat={chat} members={members} meId={meId} />
         {loadingOlder ? <span className={`${styles.spinner} ${styles.topSpinner}`} aria-label="Загружаем историю" /> : null}
       </div>
       {!atBottom ? (

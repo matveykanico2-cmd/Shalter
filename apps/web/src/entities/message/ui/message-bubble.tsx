@@ -6,6 +6,7 @@ import { Avatar, Icon } from "@/shared/ui";
 
 import { isMediaOnly, linkPreviewOf } from "../lib/attachments";
 import { customEmojiOnly, jumboEmojiCount } from "../lib/jumbo";
+import { keyboardOf } from "../lib/keyboard";
 import { playMessageEffect, shouldPlayEffect } from "../lib/message-effect";
 import { isCallLogMessage, isReadByOthers, NAME_COLORS, timeLabel } from "../lib/message-meta";
 import { callLogInfo, messagePreview, stripCustomEmoji } from "../lib/message-preview";
@@ -16,6 +17,7 @@ import type { FeedMessage, Message, ReplyTarget } from "../model/types";
 import { type AttachmentActions, MessageAttachments } from "./attachments/message-attachments";
 import { LinkPreviewCard } from "./attachments/misc-attachments";
 import { CustomEmoji, JumboEmoji, ReactionGlyph, StickerBody } from "./animated";
+import { MessageKeyboard } from "./keyboard";
 import styles from "./message-bubble.module.css";
 import { MessageText } from "./message-text";
 
@@ -386,9 +388,18 @@ export function MessageBubble(props: Props) {
           {showAvatar && sender ? <Avatar size={34} name={sender.name} color={sender.avatarColor} image={sender.avatarImage} /> : null}
         </span>
       ) : null}
-      <div ref={bubbleRef} className={bubbleClass}>
-        {body}
-      </div>
+      {keyboardOf(m.keyboard).length ? (
+        <div className={styles.column}>
+          <div ref={bubbleRef} className={bubbleClass}>
+            {body}
+          </div>
+          <MessageKeyboard message={m} />
+        </div>
+      ) : (
+        <div ref={bubbleRef} className={bubbleClass}>
+          {body}
+        </div>
+      )}
       {!m.pending && !selecting && (props.onReply || props.onOpenMenu) ? (
         <span className={styles.actions}>
           {props.onReply ? (

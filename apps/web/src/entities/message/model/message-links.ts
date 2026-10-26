@@ -1,6 +1,17 @@
 import { createContext } from "react";
 
-/** Что делают @имя и #тег в тексте сообщения — решает экран чата (formatText: mention-link, hashtag-link). */
-export type MessageLinkHandlers = { onMention?: (handle: string) => void; onHashtag?: (tag: string) => void };
+import type { KeyboardButton } from "../lib/keyboard";
+
+import type { Message } from "./types";
+
+/**
+ * Что делают @имя и #тег в тексте сообщения и кнопки бота под ним — решает экран чата
+ * (formatText: mention-link, hashtag-link; messageBubble: onKeyboardAction, onKeyboardApp).
+ */
+export type MessageLinkHandlers = {
+  onMention?: (handle: string) => void;
+  onHashtag?: (tag: string) => void;
+  onKeyboard?: (message: Message, button: KeyboardButton) => void;
+};
 
 export const MessageLinks = createContext<MessageLinkHandlers>({});
