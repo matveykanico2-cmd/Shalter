@@ -26,7 +26,6 @@ import { DateField } from "../../components/dateField.js";
 import { hasPasscode } from "../../lib/passcodeLock.js";
 import { hasBiometric, enableBiometric, removeBiometric, isBiometricAvailable } from "../../lib/biometricLock.js";
 import { openSetPasscodeDialog, openRemovePasscodeDialog } from "../../components/passcodeDialog.js";
-import { openTwoFactorSetupDialog, openTwoFactorDisableDialog } from "../../components/twoFactorDialog.js";
 import { passkeysSupported, registerPasskey, passkeyErrorText } from "../../lib/passkey.js";
 import { openChangePasswordDialog, openChangeEmailDialog } from "../../components/credentialsDialog.js";
 import { VerifiedBadge } from "../../components/verifiedBadge.js";
@@ -2943,14 +2942,6 @@ async function renderPrivacy(root) {
     }
     render();
   }
-  let twoFactor = { enabled: false, recoveryCodesLeft: 0 };
-  api
-    .getTwoFactor()
-    .then((res) => {
-      twoFactor = res;
-      render();
-    })
-    .catch(() => {});
   const OPTIONS = [
     { value: "everyone", label: "Все" },
     { value: "contacts", label: "Мои контакты" },
@@ -3206,20 +3197,6 @@ async function renderPrivacy(root) {
 
   let securityNotice = null;
 
-  function enableTwoFactor() {
-    openTwoFactorSetupDialog(async () => {
-      twoFactor = await api.getTwoFactor().catch(() => ({ enabled: true, recoveryCodesLeft: 0 }));
-      render();
-    });
-  }
-
-  function disableTwoFactor() {
-    openTwoFactorDisableDialog(() => {
-      twoFactor = { enabled: false, recoveryCodesLeft: 0 };
-      render();
-    }, twoFactor.method);
-  }
-
   function render() {
     const blocked = blockedUsers.filter((u) => blockedIds.has(u.id));
     const email = getState().user.email;
@@ -3252,16 +3229,6 @@ async function renderPrivacy(root) {
                       { label: "Отключить код-пароль", danger: true, onClick: disablePasscode },
                     ])
                   : changePasscode(),
-            }),
-            twRow({
-              icon: "Shield",
-              title: "Двухэтапная аутентификация",
-              subtitle: twoFactor.enabled
-                ? twoFactor.method === "password"
-                  ? "Вкл. · облачный пароль"
-                  : `Вкл. · ${twoFactor.method === "chat" ? "код в чате Shalter" : "приложение-аутентификатор"}`
-                : "Выкл.",
-              onClick: twoFactor.enabled ? disableTwoFactor : enableTwoFactor,
             }),
             twRow({
               icon: "At",

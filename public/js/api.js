@@ -805,10 +805,15 @@ export const api = {
     req(`/api/admin/users/${userId}/admin-sections`, { method: "POST", body: JSON.stringify({ sections }) }),
   adminDeleteUser: (userId, confirm, reason) =>
     req(`/api/admin/users/${userId}`, { method: "DELETE", body: JSON.stringify({ confirm, reason }) }),
-  adminResetPassword: (userId, { password, confirm, reason, disableTwoFactor }) =>
+   adminResetPassword: (userId, { password, confirm, reason, disableTwoFactor }) =>
     req(`/api/admin/users/${userId}/reset-password`, {
       method: "POST",
       body: JSON.stringify({ password, confirm, reason, disableTwoFactor }),
+    }),
+   adminDisableTwoFactor: (userId, reason) =>
+    req(`/api/admin/users/${userId}/disable-2fa`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
     }),
   adminMailStatus: () => req("/api/admin/mail-status"),
   adminServerStats: () => req("/api/admin/server"),

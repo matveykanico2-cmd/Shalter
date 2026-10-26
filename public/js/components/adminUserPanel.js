@@ -475,6 +475,33 @@ export function openAdminUserPanel(user, onChange) {
         [el("span", { html: iconSvg("Lock", 14) }), " Сбросить пароль"]
       ),
 
+      el("p", { class: "admin-panel-section-title" }, "Двухфакторная аутентификация"),
+      state.twoFactorEnabled
+        ? el("p", { class: "settings-toggle-hint" }, "Включена (" + (state.twoFactorMethod === "password" ? "облачный пароль" : state.twoFactorMethod === "chat" ? "код в чате" : "приложение-аутентификатор") + "). Снятие снимет 2FA и все сеансы будут завершены вручную пользователем.")
+        : el("p", { class: "settings-toggle-hint" }, "Двухфакторка выключена."),
+
+      el(
+        "button",
+        {
+          class: "profile-action-btn",
+          disabled: busy || !state.twoFactorEnabled,
+          onclick: async () => {
+            const handle = state.username || state.id;
+            const typed = (await askText(`Снять двухфакторную аутентификацию с ${state.name}?\n\nДля подтверждения введите @${handle}`));
+            if (typed == null) return;
+            const reason = (await askText("Основание — оно попадёт в журнал администрации:"));
+            if (reason == null || !reason.trim()) return;
+            run(async () => {
+              const res = await api.adminDisableTwoFactor(state.id, reason.trim());
+              state = { ...state, twoFactorEnabled: false, twoFactorMethod: null };
+              onChange?.();
+              return { notice: res.twoFactorLifted ? "Двухфакторная аутентификация снята" : "Двухфакторка не включена" };
+            });
+          },
+        },
+        [el("span", { html: iconSvg("Shield", 14) }), " Снять 2FA"]
+      ),
+
       el("p", { class: "admin-panel-section-title" }, "Удаление аккаунта"),
       el(
         "p",
