@@ -1083,6 +1083,69 @@ describe("комментарии к постам", () => {
   });
 });
 
+describe("плашки и низ чата", () => {
+  const dm = () => chat({ type: "dm", title: "", otherUser: LENA as ChatSummary["otherUser"] });
+
+  it("личка не с контактом: «Добавить в контакты» с именем и без номера; крестик прячет", async () => {
+    localStorage.clear();
+    const { calls } = fakeApi({ "GET /api/chats/c_1": card(dm()), [HISTORY]: page([]), "POST /api/contacts": { body: { ok: true } } });
+    renderChat(dm());
+    fireEvent.click(await screen.findByRole("button", { name: "Добавить в контакты" }));
+    const ask = await screen.findByRole("dialog", { name: "Как записать в контактах?" });
+    fireEvent.change(within(ask).getByRole("textbox"), { target: { value: "Леночка" } });
+    fireEvent.click(within(ask).getByRole("button", { name: "Готово" }));
+    const share = await screen.findByRole("dialog", { name: "Поделиться своим номером телефона с Лена?" });
+    fireEvent.click(within(share).getByRole("button", { name: "Не делиться" }));
+    await waitFor(() => expect(calls.find((c) => c.key === "POST /api/contacts")?.body).toEqual({ userId: LENA.id, localName: "Леночка", sharePhone: false }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Добавить в контакты" })).toBeNull());
+    cleanup();
+
+    fakeApi({ "GET /api/chats/c_1": card(dm()), [HISTORY]: page([]) });
+    renderChat(dm());
+    fireEvent.click(await screen.findByTitle("Скрыть"));
+    expect(screen.queryByRole("button", { name: "Добавить в контакты" })).toBeNull();
+    expect(localStorage.getItem("shalter_contact_bar_hidden_c_1")).toBe("1");
+  });
+
+  it("заблокированный — «Разблокировать» внизу; подписчик канала — «ОТПИСАТЬСЯ» и обратно", async () => {
+    const { calls } = fakeApi({ "GET /api/chats/c_1": card(dm()), [HISTORY]: page([]), "POST /api/users/u_lena00000/block": { body: { user: null } } });
+    const { client } = renderChat(dm());
+    act(() => client.setQueryData(sessionQueries.current().queryKey, { user: { ...ME, blockedUserIds: [LENA.id] } } as never));
+    fireEvent.click(await screen.findByRole("button", { name: "Разблокировать" }));
+    await waitFor(() => expect(calls.find((c) => c.key === "POST /api/users/u_lena00000/block")?.body).toEqual({ blocked: false }));
+    expect(await screen.findByRole("textbox", { name: "Сообщение" })).toBeTruthy();
+    cleanup();
+
+    const channel = chat({ type: "channel", title: "Новости", isPublic: true } as Partial<ChatSummary>);
+    const sub = fakeApi({ "GET /api/chats/c_1": card(channel), [HISTORY]: page([]), "POST /api/chats/c_1/leave": { body: { ok: true } }, "POST /api/channels/c_1/subscribe": { body: { ok: true } } });
+    renderChat(channel);
+    fireEvent.click(await screen.findByRole("button", { name: "ОТПИСАТЬСЯ" }));
+    fireEvent.click(await screen.findByRole("button", { name: "ПОДПИСАТЬСЯ" }));
+    await screen.findByRole("button", { name: "ОТПИСАТЬСЯ" });
+    expect(sub.calls.map((c) => c.key).filter((k) => k.startsWith("POST"))).toEqual(["POST /api/chats/c_1/leave", "POST /api/channels/c_1/subscribe"]);
+  });
+
+  it("в конце ленты канала — реклама: «Открыть» считает переход, «Скрыть» без Premium ведёт к нему", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const channel = chat({ type: "channel", title: "Новости" });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(channel),
+      [HISTORY]: page([msg("Пост")]),
+      "GET /api/ads/serve?placement=chat": { body: { ad: { id: "ad_1", title: "Курсы", text: "Учим рисовать", url: "https://ads.test/", imageUrl: null } } },
+      "POST /api/ads/click/ad_1": { body: { ok: true, url: "https://ads.test/" } },
+    });
+    const { router } = renderChat(channel);
+    const ad = await screen.findByLabelText("Реклама");
+    expect(within(ad).getByText("Учим рисовать")).toBeTruthy();
+    fireEvent.click(within(ad).getByRole("button", { name: "Открыть" }));
+    await waitFor(() => expect(open).toHaveBeenCalledWith("https://ads.test/", "_blank", "noreferrer"));
+    expect(calls.some((c) => c.key === "POST /api/ads/click/ad_1")).toBe(true);
+    fireEvent.click(within(ad).getByTitle("Ещё"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Скрыть рекламу" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/settings/premium"));
+  });
+});
+
 describe("стикеры и эмодзи", () => {
   it("ссылка в тексте и карточка — во встроенном браузере, статья — быстрым просмотром", async () => {
     const preview = { url: "https://news.ru/a", title: "Новость", description: "Подробности", siteName: "Новости" };

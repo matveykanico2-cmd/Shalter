@@ -1,7 +1,7 @@
 // Вопрос человеку — как askConfirm/askText в public/js/components/confirmDialog.js: промис,
 // который ответит окно <AskHost />. Одно окно за раз; новое закрывает прежнее с «нет».
 export type Ask =
-  | { id: number; kind: "confirm"; text: string; okLabel: string; danger: boolean; resolve: (ok: boolean) => void }
+  | { id: number; kind: "confirm"; text: string; okLabel: string; cancelLabel: string; danger: boolean; resolve: (ok: boolean) => void }
   | { id: number; kind: "text"; text: string; okLabel: string; initial: string; resolve: (value: string | null) => void };
 
 let current: Ask | null = null;
@@ -16,8 +16,8 @@ function open(ask: Ask) {
   emit();
 }
 
-export function askConfirm(text: string, { okLabel = "Да", danger = false } = {}) {
-  return new Promise<boolean>((resolve) => open({ id: ++seq, kind: "confirm", text, okLabel, danger, resolve }));
+export function askConfirm(text: string, { okLabel = "Да", cancelLabel = "Отмена", danger = false } = {}) {
+  return new Promise<boolean>((resolve) => open({ id: ++seq, kind: "confirm", text, okLabel, cancelLabel, danger, resolve }));
 }
 
 /** Текст или null — передумали. */

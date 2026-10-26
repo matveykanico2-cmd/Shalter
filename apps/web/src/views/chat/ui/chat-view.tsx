@@ -7,7 +7,10 @@ import { ChatInfoPanel } from "@/widgets/chat-info";
 import { MessageFeed, type MessageFeedHandle } from "@/widgets/message-feed";
 
 import { MiniApp, type MiniAppTarget } from "@/features/bot-app";
+import { SubscribeBar } from "@/features/channel-subscription";
+import { useChatActions } from "@/features/chat-actions";
 import { ChatSearch } from "@/features/chat-search";
+import { ContactBar } from "@/features/contact-bar";
 import { useMessageActions } from "@/features/message-actions";
 import { useMentionProfile, UserProfileDialog } from "@/features/open-profile";
 import { botCommandsOf, Composer, type ComposerHandle, useAiReply } from "@/features/send-message";
@@ -19,7 +22,7 @@ import { type SelfUser, useSession } from "@/entities/session";
 import { chatWallpaper, useSettings } from "@/entities/settings";
 
 import { useWsEvent } from "@/shared/api";
-import { wallpaperProps } from "@/shared/ui";
+import { Button, wallpaperProps } from "@/shared/ui";
 
 import styles from "./chat-view.module.css";
 
@@ -57,6 +60,8 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const actions = useMessageActions(chat, me);
+  const chatActions = useChatActions(chat, me.id);
+  const blockedOther = !!chat.otherUser && me.blockedUserIds.includes(chat.otherUser.id);
   const title = chatTitle(chat);
   const wallpaper = wallpaperProps(chatWallpaper(useSettings().data, chat.id, chat.wallpaper));
   // Темы группы: undefined — «Все», "general" — «Общее», иначе id темы.
@@ -141,6 +146,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
           <ChatSearch key={searching} chatId={chat.id} senderName={senderName} initialQuery={searching} onPick={jumpToFound} onClose={() => setSearching(null)} />
         ) : null}
         {topics ? <TopicTabs chat={chat} meId={me.id} topics={topics} active={topic} onSelect={selectTopic} /> : null}
+        <ContactBar chat={chat} blocked={blockedOther} onToggleBlock={chatActions.toggleBlock} />
         {/* Обои под лентой и полем ввода, как у .message-list с .composer-slot поверх. */}
         <div className={`${styles.body} ${wallpaper.className}`} style={wallpaper.style}>
           {/* key: у темы своя лента — плашка непрочитанных и прокрутка с нуля. */}
@@ -150,6 +156,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
           <Bottom
             chat={chat}
             me={me}
+            onUnblock={() => void chatActions.toggleBlock()}
             topicClosed={!!openTopic?.closed && !isTopicStaff(chat, me.id)}
             composer={
               <Composer
@@ -192,10 +199,18 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
 }
 
 /** Поле ввода — или почему писать нельзя (как buildComposer в public/js/views/chatView.js). */
-function Bottom({ chat, me, topicClosed, composer }: { chat: ChatSummary; me: SelfUser; topicClosed: boolean; composer: ReactNode }) {
-  if (chat.otherUser && me.blockedUserIds?.includes(chat.otherUser.id)) return <p className={styles.hint}>Вы заблокировали этого пользователя</p>;
-  // Подписка и отписка от канала появятся вместе с его экраном.
-  if (chat.type === "channel" && !isChatAdmin(chat, me.id)) return null;
+type BottomProps = { chat: ChatSummary; me: SelfUser; topicClosed: boolean; composer: ReactNode; onUnblock: () => void };
+
+function Bottom({ chat, me, topicClosed, composer, onUnblock }: BottomProps) {
+  if (chat.otherUser && me.blockedUserIds?.includes(chat.otherUser.id)) {
+    return (
+      <div className={styles.blocked}>
+        <p>Вы заблокировали этого пользователя</p>
+        <Button onClick={onUnblock}>Разблокировать</Button>
+      </div>
+    );
+  }
+  if (chat.type === "channel" && !isChatAdmin(chat, me.id)) return <SubscribeBar chat={chat} />;
   if (chat.otherUser?.isServiceBot) return <p className={styles.hint}>Shalter — служебный чат: сюда приходят коды входа и уведомления, отвечать в нём нельзя</p>;
   if (topicClosed) return <p className={styles.hint}>Тема закрыта — писать в неё могут только администраторы</p>;
   const restrictedUntil = chat.restrictions?.[me.id];

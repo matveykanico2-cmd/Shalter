@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { isServerModerator } from "@/features/chat-actions";
+import { SponsoredMessage } from "@/features/chat-ads";
 import {
   canPin,
   isProtectedChat,
@@ -355,6 +356,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
           </div>
         )}
         <BotThinking chat={chat} members={members} meId={meId} />
+        {isChannel && rows.length ? <SponsoredMessage chatId={chat.id} premium={!!me.isPremium} /> : null}
         {loadingOlder ? <span className={`${styles.spinner} ${styles.topSpinner}`} aria-label="Загружаем историю" /> : null}
       </div>
       {!atBottom ? (

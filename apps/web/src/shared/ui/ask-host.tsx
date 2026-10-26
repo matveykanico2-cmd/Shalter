@@ -34,7 +34,7 @@ function AskDialog({ ask }: { ask: Ask }) {
         {ask.okLabel}
       </Button>
       <Button variant="secondary" onClick={cancel}>
-        Отмена
+        {ask.kind === "confirm" ? ask.cancelLabel : "Отмена"}
       </Button>
     </Dialog>
   );
