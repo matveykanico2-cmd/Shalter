@@ -1,5 +1,5 @@
 import { askConfirm } from "../components/confirmDialog.js";
-import { el, mount } from "../lib/dom.js";
+import { el, mount, clear } from "../lib/dom.js";
 import { isInstalledApp } from "../lib/platform.js";
 import { iconSvg } from "../icons.js";
 import { api } from "../api.js";
@@ -9,6 +9,7 @@ import { fileToAvatarDataUrl } from "../lib/image.js";
 import { prettyQrSvg } from "../lib/prettyQr.js";
 import { PhoneField } from "../components/phoneField.js";
 import { DateField, parseDateText } from "../components/dateField.js";
+import { playSendPlaneAnimation } from "../components/messageBubble.js";
 
 const QR_POLL_MS = 1500;
 
@@ -140,8 +141,80 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
     window.location.href = "/";
   }
 
+  // QR Login success animation - message bubble appears + paper plane flies
+  function playQrLoginAnimation(onComplete) {
+    const rootEl = document.getElementById("view-root");
+    if (!rootEl) {
+      onComplete();
+      return;
+    }
+
+    // Create animation overlay
+    const overlay = el("div", { class: "qr-login-animation-overlay" });
+    document.body.appendChild(overlay);
+
+    // Step 1: Welcome message bubble appears
+    const bubble = el("div", { class: "qr-welcome-bubble" }, [
+      el("div", { class: "qr-welcome-avatar" }, [
+        el("span", { html: iconSvg("Check", 20) }),
+      ]),
+      el("div", { class: "qr-welcome-text" }, "Добро пожаловать в Shalter!"),
+    ]);
+    overlay.appendChild(bubble);
+
+    // Animate bubble in
+    requestAnimationFrame(() => {
+      bubble.classList.add("visible");
+    });
+
+    // Step 2: After bubble appears, show paper plane flying
+    setTimeout(() => {
+      bubble.classList.add("done");
+      
+      // Create paper plane flying from QR code area to center
+      const qrCodeEl = document.querySelector(".qr-login-code");
+      const qrRect = qrCodeEl ? qrCodeEl.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2 };
+      
+      const planeLayer = el("div", { class: "send-plane-layer", "aria-hidden": "true" });
+      const plane = el("span", { class: "send-plane", html: '<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l17-8L4 4l0 6.5L15 12 4 13.5 4 20Z"/></svg>' });
+      
+      const startX = qrRect.left + qrRect.width / 2;
+      const startY = qrRect.top + qrRect.height / 2;
+      const endX = window.innerWidth / 2;
+      const endY = window.innerHeight / 2 + 100;
+      const midX = startX + (endX - startX) * 0.5 + (Math.random() - 0.5) * 80;
+      const midY = startY - 100 + (Math.random() - 0.5) * 60;
+      const midRot = -45 + (Math.random() - 0.5) * 40;
+      const endRot = -45 + (Math.random() - 0.5) * 30;
+
+      plane.style.left = `${startX}px`;
+      plane.style.top = `${startY}px`;
+      plane.style.setProperty("--mid-x", `${midX}px`);
+      plane.style.setProperty("--mid-y", `${midY}px`);
+      plane.style.setProperty("--mid-rot", `${midRot}deg`);
+      plane.style.setProperty("--end-x", `${endX}px`);
+      plane.style.setProperty("--end-y", `${endY}px`);
+      plane.style.setProperty("--end-rot", `${endRot}deg`);
+
+      planeLayer.appendChild(plane);
+      document.body.appendChild(planeLayer);
+
+      // Step 3: After plane animation, complete
+      setTimeout(() => {
+        planeLayer.remove();
+        overlay.classList.add("fade-out");
+        setTimeout(() => {
+          overlay.remove();
+          onComplete();
+        }, 300);
+      }, 700);
+    }, 800);
+  }
+
   function finishAuth(user, _alreadyLinked) {
-    (onSuccess ?? goToApp)(user);
+    playQrLoginAnimation(() => {
+      (onSuccess ?? goToApp)(user);
+    });
   }
 
   function qrCodeSvg(text) {

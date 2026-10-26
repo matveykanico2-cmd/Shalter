@@ -15636,6 +15636,69 @@ video.story-reply-thumb { object-fit: cover; }
   .send-plane { animation: none; display: none; }
 }
 
+/* QR Login animation */
+.qr-login-animation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(4px);
+  transition: opacity 0.3s ease;
+}
+.qr-login-animation-overlay.fade-out {
+  opacity: 0;
+}
+
+.qr-welcome-bubble {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  transform: translateY(20px) scale(0.9);
+  opacity: 0;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.qr-welcome-bubble.visible {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+.qr-welcome-bubble.done {
+  transform: translateY(-10px) scale(0.95);
+  opacity: 0;
+  transition: transform 0.3s ease-in, opacity 0.3s ease-in;
+}
+
+.qr-welcome-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-alt));
+  color: var(--color-accent-contrast);
+  flex-shrink: 0;
+}
+
+.qr-welcome-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-login-animation-overlay { display: none; }
+  .qr-welcome-bubble { animation: none; }
+}
+
 /* Call gesture effects (like Yandex Telemost) */
 .call-gesture-effects {
   position: fixed;
