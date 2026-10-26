@@ -141,6 +141,13 @@
   color: var(--color-danger);
 }
 
+.membersHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 4px;
+}
+
 .membersLabel {
   margin: 0;
   padding: 8px 16px;

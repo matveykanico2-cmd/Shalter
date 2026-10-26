@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type MouseEvent, type ReactNode, useState } from "react";
 
 import { AUTO_DELETE_DURATIONS, autoDeleteLabel, MuteDialog, useChatActions } from "@/features/chat-actions";
+import { AddMembersDialog, MemberControls } from "@/features/manage-members";
 
 import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, isChatMuted, isChatOwner, memberRoleLabel } from "@/entities/chat";
 import { ReportDialog, type ReportTarget } from "@/entities/report";
@@ -156,11 +157,19 @@ function ProfileRows({ userId }: { userId: string }) {
 }
 
 function Members({ chat, members, meId }: { chat: ChatSummary; members: readonly ChatMember[]; meId: string }) {
+  const [adding, setAdding] = useState(false);
   return (
     <section className={styles.card} aria-label={chat.type === "channel" ? "Подписчики" : "Участники"}>
-      <p className={styles.membersLabel}>
-        {chat.type === "channel" ? "Подписчики" : "Участники"} ({members.length})
-      </p>
+      <div className={styles.membersHeader}>
+        <p className={styles.membersLabel}>
+          {chat.type === "channel" ? "Подписчики" : "Участники"} ({members.length})
+        </p>
+        {isChatAdmin(chat, meId) ? (
+          <button type="button" className={styles.close} title="Добавить участника" onClick={() => setAdding(true)}>
+            <Icon name="Plus" size={15} />
+          </button>
+        ) : null}
+      </div>
       {sortMembers(chat, members).map((m) => {
         const role = memberRoleLabel(chat, m.id);
         const owner = isChatOwner(chat, m.id);
@@ -187,9 +196,11 @@ function Members({ chat, members, meId }: { chat: ChatSummary; members: readonly
                 {m.id === meId ? "это вы" : (status ?? "был(а) недавно")}
               </span>
             </span>
+            <MemberControls chat={chat} member={m} meId={meId} />
           </div>
         );
       })}
+      {adding ? <AddMembersDialog chat={chat} meId={meId} onClose={() => setAdding(false)} /> : null}
     </section>
   );
 }

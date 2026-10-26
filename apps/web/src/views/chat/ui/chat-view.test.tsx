@@ -1587,4 +1587,109 @@ describe("информация о чате", () => {
     expect(calls.find((c) => c.key === "POST /api/chats/c_1/mute")?.body).toEqual({ forever: true });
     expect(within(panel).getByRole("button", { name: "Пожаловаться на группу" })).toBeTruthy();
   });
+
+  describe("управление участниками", () => {
+    const OLYA = { id: "u_olya00000", name: "Оля", username: "olya" };
+    /** Сервер: роли меняются по запросам, карточка отдаёт текущее состояние. */
+    function server(start: ChatSummary) {
+      let state = start;
+      let members: object[] = [ME, LENA];
+      const reply = (patch: Partial<ChatSummary>) => {
+        state = { ...state, ...patch };
+        return { body: { chat: state } };
+      };
+      return fakeApi({
+        "GET /api/chats/c_1": () => ({ body: { chat: state, members, commands: null, paidMessages: null } }),
+        [HISTORY]: page([]),
+        "POST /api/chats/c_1/members": (body) => {
+          if (body.role === "promote") return reply({ adminIds: [...state.adminIds, String(body.userId)] });
+          if (body.role === "add") {
+            members = [...members, OLYA];
+            return reply({ memberIds: [...state.memberIds, String(body.userId)], membersCount: state.membersCount + 1 });
+          }
+          return reply({});
+        },
+        "POST /api/chats/c_1/title": (body) => reply({ memberTitles: { ...state.memberTitles, [String(body.userId)]: body.title } }),
+        "POST /api/chats/c_1/restrict": (body) => reply({ restrictions: body.until ? { [String(body.userId)]: body.until } : {} }),
+        "GET /api/contacts": { body: { contacts: [{ user: LENA }, { user: OLYA }] } },
+      });
+    }
+    const memberMenu = async (panel: HTMLElement, name: string) => {
+      const members = within(panel).getByRole("region", { name: "Участники" });
+      const row = (await within(members).findByText(name)).closest<HTMLElement>('[class*="_member_"]')!;
+      fireEvent.click(within(row).getByTitle("Действия с участником"));
+      return screen.getByRole("menu", { name });
+    };
+
+    it("владелец: админ, тег, запрет писать и передача прав", async () => {
+      const { calls } = server(chat({ ownerId: ME.id }));
+      renderChat(chat({ ownerId: ME.id }));
+      await screen.findByText("2 участника");
+      const panel = openInfo();
+
+      fireEvent.click(within(await memberMenu(panel, "Лена")).getByRole("menuitem", { name: "Сделать администратором" }));
+      expect(await within(panel).findByText(/админ/)).toBeTruthy();
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/members")?.body).toEqual({ userId: LENA.id, role: "promote" });
+
+      fireEvent.click(within(await memberMenu(panel, "Лена")).getByRole("menuitem", { name: "Изменить тег" }));
+      const ask = screen.getByRole("dialog", { name: /Тег для Лена/ });
+      fireEvent.change(within(ask).getByRole("textbox"), { target: { value: "Сестра" } });
+      fireEvent.click(within(ask).getByRole("button", { name: "Готово" }));
+      expect(await within(panel).findByText(/Сестра/)).toBeTruthy();
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/title")?.body).toEqual({ userId: LENA.id, title: "Сестра" });
+
+      fireEvent.click(within(await memberMenu(panel, "Лена")).getByRole("menuitem", { name: "Запретить писать" }));
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Запретить писать: Лена" })).getByRole("button", { name: "Навсегда" }));
+      expect(await within(panel).findByTitle("Не может писать")).toBeTruthy();
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/restrict")?.body).toEqual({ userId: LENA.id, until: "forever" });
+      expect(within(await memberMenu(panel, "Лена")).getByRole("menuitem", { name: "Разрешить писать" })).toBeTruthy();
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      fireEvent.click(within(await memberMenu(panel, "Лена")).getByRole("menuitem", { name: "Передать права владельца" }));
+      fireEvent.click(within(screen.getByRole("dialog", { name: /Передать Лена права владельца группы/ })).getByRole("button", { name: "Да" }));
+      await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/members").at(-1)?.body).toEqual({ userId: LENA.id, role: "transfer" }));
+    });
+
+    it("админ добавляет участников из контактов", async () => {
+      const { calls } = server(chat({ adminIds: [ME.id], ownerId: LENA.id }));
+      renderChat(chat({ adminIds: [ME.id], ownerId: LENA.id }));
+      await screen.findByText("2 участника");
+      const panel = openInfo();
+      // Владельца админ не трогает.
+      const members = within(panel).getByRole("region", { name: "Участники" });
+      await within(members).findByText("Лена");
+      expect(within(members).queryByTitle("Действия с участником")).toBeNull();
+
+      fireEvent.click(within(panel).getByTitle("Добавить участника"));
+      const dialog = screen.getByRole("dialog", { name: "Добавить участников" });
+      // Кто уже в чате — не предлагаем.
+      const olya = await within(dialog).findByRole("checkbox", { name: /Оля/ });
+      expect(within(dialog).queryByRole("checkbox", { name: /Лена/ })).toBeNull();
+      const add = within(dialog).getByRole("button", { name: "Добавить" });
+      expect((add as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(olya);
+      fireEvent.click(add);
+      expect(await within(members).findByText("Оля")).toBeTruthy();
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/members")?.body).toEqual({ userId: OLYA.id, role: "add" });
+      expect(screen.queryByRole("dialog", { name: "Добавить участников" })).toBeNull();
+    });
+
+    it("участник: без меню и добавления, но свой тег", async () => {
+      const { calls } = server(chat({ ownerId: LENA.id }));
+      renderChat(chat({ ownerId: LENA.id }));
+      await screen.findByText("2 участника");
+      const panel = openInfo();
+      const members = within(panel).getByRole("region", { name: "Участники" });
+      await within(members).findByText("Лена");
+      expect(within(members).queryByTitle("Действия с участником")).toBeNull();
+      expect(within(panel).queryByTitle("Добавить участника")).toBeNull();
+
+      fireEvent.click(within(members).getByTitle("Мой тег"));
+      const ask = screen.getByRole("dialog", { name: /Ваш тег в группе/ });
+      fireEvent.change(within(ask).getByRole("textbox"), { target: { value: "Младшая" } });
+      fireEvent.click(within(ask).getByRole("button", { name: "Готово" }));
+      expect(await within(members).findByText(/Младшая/)).toBeTruthy();
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/title")?.body).toEqual({ userId: ME.id, title: "Младшая" });
+    });
+  });
 });
