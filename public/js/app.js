@@ -57,7 +57,10 @@ function removeSplash() {
   const wait = firstThisSession && !reduced ? Math.max(0, 600 - (Date.now() - (window.__splashStart || Date.now()))) : 0;
   const hide = () => {
     const ring = splash.querySelector("circle.bs-spinner");
-    if (ring) ring.style.animation = "none";
+    if (ring) {
+      ring.style.animation = "none";
+      ring.style.strokeDashoffset = "0";
+    }
     splash.classList.add("boot-splash-hidden");
     setTimeout(() => splash.remove(), 300);
   };

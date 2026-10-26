@@ -5375,6 +5375,17 @@ button.profile-ad-banner {
   opacity: 0.6;
   cursor: wait;
 }
+.login-guest-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: media-viewer-spin 0.8s linear infinite;
+  vertical-align: middle;
+}
 .qr-login-entry {
   display: flex;
   align-items: center;
@@ -19770,6 +19781,8 @@ button.tw-row {
 .tw-tab-fab.busy::after {
   content: "";
   position: absolute;
+  inset: 0;
+  margin: auto;
   width: 24px;
   height: 24px;
   border: 2.5px solid rgba(255, 255, 255, 0.35);

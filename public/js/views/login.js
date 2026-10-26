@@ -843,29 +843,29 @@ export function LoginView(root, { addMode, onSuccess, embedded } = {}) {
                  },
                  "Забыли пароль?"
                ),
-               el(
-                 "button",
-                 {
-                   type: "button",
-                   class: "login-guest-btn",
-                   disabled: guestPending,
-                   onclick: async () => {
-                     error = null;
-                     guestPending = true;
-                     render();
-                     try {
-                       const res = await api.guestLogin();
-                       finishAuth(res.user, res.alreadyLinked);
-                     } catch (err) {
-                       error = err.message;
-                     } finally {
-                       guestPending = false;
-                       render();
-                     }
-                   },
-                 },
-                 guestPending ? "Входим…" : "Продолжить как гость"
-               ),
+                el(
+                  "button",
+                  {
+                    type: "button",
+                    class: "login-guest-btn",
+                    disabled: guestPending,
+                    onclick: async () => {
+                      error = null;
+                      guestPending = true;
+                      render();
+                      try {
+                        const res = await api.guestLogin();
+                        finishAuth(res.user, res.alreadyLinked);
+                      } catch (err) {
+                        error = err.message;
+                      } finally {
+                        guestPending = false;
+                        render();
+                      }
+                    },
+                  },
+                  guestPending ? [el("span", { class: "login-guest-spinner" }), "Входим…"] : "Продолжить как гость"
+                ),
              ])
           : null,
         !embedded && !isInstalledApp() ? el("a", { class: "login-link muted login-download-link", href: "/download" }, "Скачать приложение для Windows, Linux и Android") : null,
