@@ -12,4 +12,5 @@ export { Menu, type MenuItem } from "./menu";
 export { TextField } from "./text-field";
 export { Toaster } from "./toast";
 export { dismissToast, toast } from "./toast-store";
+export { Toggle } from "./toggle";
 export { asWallpaper, type Wallpaper, WALLPAPER_GROUPS, wallpaperProps } from "./wallpaper";

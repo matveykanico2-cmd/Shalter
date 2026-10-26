@@ -1692,4 +1692,152 @@ describe("информация о чате", () => {
       expect(calls.find((c) => c.key === "POST /api/chats/c_1/title")?.body).toEqual({ userId: ME.id, title: "Младшая" });
     });
   });
+  describe("редактирование группы", () => {
+    const OLYA = { id: "u_olya00000", name: "Оля", username: "olya" };
+    const PERMS = { sendMessages: true, sendMedia: true, sendStickers: true, sendPolls: true, addMembers: true, pinMessages: true, createTopics: true, setOwnTag: true };
+    /** Сервер: настройки меняются по запросам; выключенные флаги, как настоящий, не присылает. */
+    function server(start: ChatSummary) {
+      let state = start;
+      let permissions = PERMS;
+      const reply = (patch: Partial<ChatSummary>) => {
+        state = Object.fromEntries(Object.entries({ ...state, ...patch }).filter(([, v]) => v !== false && v !== undefined)) as ChatSummary;
+        return { body: { chat: state } };
+      };
+      return fakeApi({
+        "GET /api/chats/c_1": () => ({ body: { chat: state, members: [ME, LENA], commands: null, paidMessages: null } }),
+        [HISTORY]: page([]),
+        "PATCH /api/chats/c_1": (body) => reply(body as Partial<ChatSummary>),
+        "GET /api/chats/c_1/permissions": () => ({ body: { permissions, fields: [{ id: "sendMedia", label: "Отправлять фото и файлы" }, { id: "setOwnTag", label: "Ставить себе тег" }] } }),
+        "POST /api/chats/c_1/permissions": (body) => {
+          permissions = body.permissions as typeof PERMS;
+          return { body: { ...reply({ permissions }).body, permissions } };
+        },
+        "POST /api/chats/c_1/slow-mode": (body) => ({ body: { ...reply({ slowModeSeconds: Number(body.seconds) || undefined }).body, slowModeSeconds: Number(body.seconds) } }),
+        "POST /api/chats/c_1/settings": (body) => reply(body as Partial<ChatSummary>),
+        "POST /api/chats/c_1/public": (body) => reply({ isPublic: body.isPublic ? true : undefined, username: body.isPublic ? String(body.username) : undefined }),
+        "POST /api/chats/c_1/invite": () => ({ body: { code: "AbCdEfGhIjKlMnOpQrStUv", ...reply({ inviteCode: "AbCdEfGhIjKlMnOpQrStUv" }).body } }),
+        "POST /api/chats/c_1/welcome": (body) => ({ body: { ...reply({ welcomeText: String(body.text) || undefined }).body, welcomeText: String(body.text) } }),
+        "GET /api/chats/c_1/join-requests": { body: { requests: [{ chatId: "c_1", userId: OLYA.id, createdAt: "2026-10-25T10:00:00.000Z", user: OLYA }] } },
+        "POST /api/chats/c_1/join-requests/u_olya00000": () => ({
+          body: { ok: true, approved: true, ...reply({ memberIds: [...state.memberIds, OLYA.id], membersCount: state.membersCount + 1 }).body },
+        }),
+        "GET /api/chats/c_1/banned": { body: { users: [{ ...OLYA, id: "u_bad000000", name: "Спамер", username: undefined }] } },
+        "POST /api/chats/c_1/members": () => reply({ bannedIds: [] }),
+        "GET /api/chats/c_1/features": {
+          body: {
+            colors: [
+              { hex: "#2196F3", name: "Синий", level: 0, unlocked: true },
+              { hex: "#E91E63", name: "Розовый", level: 3, unlocked: false },
+            ],
+            points: 0,
+          },
+        },
+      });
+    }
+    const openEditor = async () => {
+      await screen.findByText("2 участника");
+      fireEvent.click(within(openInfo()).getByRole("button", { name: "Редактировать группу" }));
+      return screen.getByRole("complementary", { name: "Изменить группу" });
+    };
+    const nav = (panel: HTMLElement, name: RegExp) => fireEvent.click(within(panel).getByRole("button", { name }));
+
+    it("название, описание и цвет — одним сохранением, только изменённое", async () => {
+      const group = chat({ ownerId: ME.id, avatarColor: "#78909C" });
+      const { calls } = server(group);
+      renderChat(group);
+      const panel = await openEditor();
+      const title = within(panel).getByRole("textbox", { name: "Название группы" });
+      fireEvent.change(title, { target: { value: "  " } });
+      fireEvent.click(within(panel).getByRole("button", { name: "Сохранить" }));
+      expect(title.getAttribute("aria-invalid")).toBe("true");
+      expect(calls.some((c) => c.key === "PATCH /api/chats/c_1")).toBe(false);
+
+      fireEvent.change(title, { target: { value: "Родня" } });
+      fireEvent.change(within(panel).getByRole("textbox", { name: "Описание" }), { target: { value: "Все свои" } });
+      fireEvent.click(await within(panel).findByTitle("Розовый — с 3-го уровня"));
+      expect(await screen.findByText("Цвет «Розовый» открывается на 3-м уровне бустов")).toBeTruthy();
+      fireEvent.click(within(panel).getByTitle("Синий"));
+      fireEvent.click(within(panel).getByRole("button", { name: "Сохранить" }));
+
+      const info = await screen.findByRole("complementary", { name: "Информация о чате" });
+      expect(within(info).getByText("Все свои")).toBeTruthy();
+      expect(calls.find((c) => c.key === "PATCH /api/chats/c_1")?.body).toEqual({ title: "Родня", description: "Все свои", avatarColor: "#2196F3" });
+      expect(screen.getByText("Сохранено")).toBeTruthy();
+    });
+
+    it("тип, ссылка, заявки, права, медленный режим и приветствие", async () => {
+      const group = chat({ adminIds: [ME.id], ownerId: LENA.id, approveJoins: true });
+      const { calls } = server(group);
+      renderChat(group);
+      const panel = await openEditor();
+
+      nav(panel, /Тип группы/);
+      fireEvent.click(within(panel).getByRole("radio", { name: /Публичная группа/ }));
+      fireEvent.change(within(panel).getByRole("textbox", { name: "Юзернейм" }), { target: { value: "@my family!" } });
+      fireEvent.click(within(panel).getByRole("button", { name: "Сохранить" }));
+      expect(await within(panel).findByRole("button", { name: /Тип группы.*Публичный/ })).toBeTruthy();
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/public")?.body).toEqual({ isPublic: true, username: "myfamily" });
+
+      nav(panel, /Пригласительные ссылки.*по заявкам/);
+      expect(within(panel).getByText("Ссылка ещё не создана")).toBeTruthy();
+      fireEvent.click(within(panel).getByRole("button", { name: "Создать ссылку" }));
+      expect(await within(panel).findByText("shalter.ru/join/AbCdEfGhIjKlMnOpQrStUv")).toBeTruthy();
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/invite")?.body).toEqual({ revoke: false });
+      // Выключенный флаг сервер не присылает — переключатель всё равно гаснет.
+      const approve = within(panel).getByRole("switch", { name: /Заявки на вступление/ });
+      expect(approve.getAttribute("aria-checked")).toBe("true");
+      fireEvent.click(approve);
+      await waitFor(() => expect(approve.getAttribute("aria-checked")).toBe("false"));
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/settings")?.body).toEqual({ approveJoins: false });
+      fireEvent.click(within(panel).getByTitle("Назад"));
+
+      nav(panel, /Права участников/);
+      fireEvent.click(await within(panel).findByRole("switch", { name: "Отправлять фото и файлы" }));
+      await waitFor(() => expect(within(panel).getByRole("switch", { name: "Отправлять фото и файлы" }).getAttribute("aria-checked")).toBe("false"));
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/permissions")?.body).toEqual({ permissions: { ...PERMS, sendMedia: false } });
+      fireEvent.click(within(panel).getByRole("radio", { name: "30 секунд" }));
+      await waitFor(() => expect(within(panel).getByRole("radio", { name: "30 секунд" }).getAttribute("aria-checked")).toBe("true"));
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/slow-mode")?.body).toEqual({ seconds: 30 });
+      fireEvent.click(within(panel).getByTitle("Назад"));
+      expect(within(panel).getByRole("button", { name: /Права участников.*медленный режим/ })).toBeTruthy();
+
+      nav(panel, /Приветствие.*Выкл/);
+      fireEvent.change(within(panel).getByRole("textbox", { name: "Текст приветствия" }), { target: { value: "Привет, {name}!" } });
+      fireEvent.click(within(panel).getByRole("button", { name: "Сохранить" }));
+      expect(await within(panel).findByRole("button", { name: /Приветствие.*Вкл/ })).toBeTruthy();
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/welcome")?.body).toEqual({ text: "Привет, {name}!" });
+      expect(screen.getByText("Приветствие сохранено")).toBeTruthy();
+    });
+
+    it("заявки и заблокированные", async () => {
+      const group = chat({ ownerId: ME.id, bannedIds: ["u_bad000000"] });
+      const { calls } = server(group);
+      renderChat(group);
+      const panel = await openEditor();
+
+      nav(panel, /Заявки на вступление/);
+      fireEvent.click(await within(panel).findByRole("button", { name: "Принять" }));
+      expect(await within(panel).findByText("Новых заявок нет")).toBeTruthy();
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/join-requests/u_olya00000")?.body).toEqual({ approve: true });
+      expect(screen.getByText("Участник добавлен")).toBeTruthy();
+      fireEvent.click(within(panel).getByTitle("Назад"));
+
+      nav(panel, /Заблокированные/);
+      fireEvent.click(await within(panel).findByRole("button", { name: "Разблокировать" }));
+      expect(await within(panel).findByText("Никого не заблокировано")).toBeTruthy();
+      expect(calls.find((c) => c.key === "POST /api/chats/c_1/members")?.body).toEqual({ userId: "u_bad000000", role: "unban" });
+
+      // Назад со списка — к редактированию, с него — к информации.
+      fireEvent.click(within(panel).getByTitle("Назад"));
+      fireEvent.click(within(panel).getByTitle("Назад"));
+      expect(screen.getByRole("complementary", { name: "Информация о чате" })).toBeTruthy();
+    });
+
+    it("не админу редактировать нечего", async () => {
+      server(chat({ ownerId: LENA.id }));
+      renderChat(chat({ ownerId: LENA.id }));
+      await screen.findByText("2 участника");
+      expect(within(openInfo()).queryByRole("button", { name: /Редактировать/ })).toBeNull();
+    });
+  });
 });

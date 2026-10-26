@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type MouseEvent, type ReactNode, useState } from "react";
 
 import { AUTO_DELETE_DURATIONS, autoDeleteLabel, MuteDialog, useChatActions } from "@/features/chat-actions";
+import { EditChatPanel } from "@/features/edit-chat";
 import { AddMembersDialog, MemberControls } from "@/features/manage-members";
 
 import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, isChatMuted, isChatOwner, memberRoleLabel } from "@/entities/chat";
@@ -26,6 +27,7 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
   const actions = useChatActions(chat, me.id);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [autoDeleteAt, setAutoDeleteAt] = useState<{ x: number; y: number } | null>(null);
+  const [editing, setEditing] = useState(false);
   const isDm = chat.type === "dm";
   const other = isDm ? chat.otherUser : undefined;
   const title = chatTitle(chat);
@@ -34,6 +36,14 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
   const blocked = !!other && me.blockedUserIds.includes(other.id);
   const kind = chat.type === "channel" ? "канал" : "группу";
   const status = other ? statusLabel(other) : null;
+
+  if (editing && !isDm && isAdmin) {
+    return (
+      <aside className={styles.panel} aria-label={chat.type === "channel" ? "Изменить канал" : "Изменить группу"}>
+        <EditChatPanel chat={chat} onClose={() => setEditing(false)} />
+      </aside>
+    );
+  }
 
   return (
     <aside className={styles.panel} aria-label="Информация о чате">
@@ -78,6 +88,11 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
         ) : null}
 
         <div className={styles.card}>
+          {!isDm && isAdmin ? (
+            <Row icon="Edit" onClick={() => setEditing(true)}>
+              Редактировать {kind}
+            </Row>
+          ) : null}
           <Row icon={muted ? "Bell" : "BellOff"} onClick={() => (muted ? void actions.mute({ off: true }) : setDialog({ kind: "mute" }))}>
             {muted ? "Включить уведомления" : "Отключить уведомления"}
           </Row>
