@@ -1,4 +1,3 @@
-import type { chatBody } from "@shalter/shared/schemas/chats";
 import type { translateBody } from "@shalter/shared/schemas/integrations";
 import type { deleteResult, messageEnvelope, readersResult, sendResult, summaryResult } from "@shalter/shared/schemas/messages";
 import type { paidDeleteBody, starsInfoBody } from "@shalter/shared/schemas/stars";
@@ -67,9 +66,5 @@ export const starsInfo = () => http.get<z.infer<typeof starsInfoBody>>("/api/sta
 export const translateText = (text: string, target: string) => http.post<z.infer<typeof translateBody>>("/api/translate", { text, target });
 
 export const saveTranslateLanguage = (translateLanguage: string) => http.patch<unknown>("/api/settings", { translateLanguage });
-
-/** Личка с человеком — существующая или новая (POST /api/chats). */
-export const openDm = (userId: string, title: string, avatarColor?: string | null) =>
-  http.post<z.infer<typeof chatBody>>("/api/chats", { userId, title, avatarColor });
 
 export const saveDraft = (chatId: string, text: string) => http.post<unknown>(`/api/chats/${encodeURIComponent(chatId)}/draft`, { text });

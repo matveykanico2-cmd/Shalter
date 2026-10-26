@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Outlet, useMatch } from "react-router";
+import { Outlet, useLocation, useMatch } from "react-router";
 
 import { SignOutButton } from "@/features/sign-out";
 
@@ -15,7 +15,9 @@ type Props = {
 
 export function AppShell({ user, sidebar }: Props) {
   // На телефоне видно что-то одно: список чатов или открытый чат.
-  const chatOpen = !!useMatch("/chat/:chatId");
+  // Ссылка /u/имя или /@имя тоже открывает экран справа: профиль, превью канала.
+  const { pathname } = useLocation();
+  const chatOpen = !!useMatch("/chat/:chatId") || /^\/(u\/|@)[^/]+\/?$/.test(pathname);
   return (
     <div className={chatOpen ? `${styles.shell} ${styles.chatOpen}` : styles.shell}>
       <nav className={styles.rail} aria-label="Навигация">

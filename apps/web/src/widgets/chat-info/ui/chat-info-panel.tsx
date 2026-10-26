@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { type MouseEvent, type ReactNode, useState } from "react";
 
 import { BoostCard } from "@/features/boost-chat";
@@ -12,9 +11,9 @@ import { useStaffActions } from "@/features/staff-actions";
 import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, isChatMuted, isChatOwner, levelForPoints, memberRoleLabel } from "@/entities/chat";
 import { ReportDialog, type ReportTarget } from "@/entities/report";
 import type { SelfUser } from "@/entities/session";
-import { birthdayText, isBirthdayToday, userQueries } from "@/entities/user";
+import { ProfileRows } from "@/entities/user";
 
-import { plural, statusLabel } from "@/shared/lib/presence";
+import { statusLabel } from "@/shared/lib/presence";
 import { publicUrl } from "@/shared/lib/public-link";
 import { Avatar, Icon, type IconName, InfoRow, Menu } from "@/shared/ui";
 
@@ -99,7 +98,7 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
           ) : null}
         </div>
 
-        {other ? <ProfileRows userId={other.id} /> : null}
+        {other ? <ProfileRows userId={other.id} className={styles.card} /> : null}
         {!isDm ? (
           <div className={styles.card}>
             <BoostCard chat={chat} me={me} />
@@ -196,29 +195,6 @@ function Row({ icon, danger, onClick, children }: { icon: IconName; danger?: boo
       <span>{children}</span>
     </button>
   );
-}
-
-/** Телефон, @имя, о себе, день рождения, общие группы — то, что отдаёт приватность (DmProfileRows). */
-function ProfileRows({ userId }: { userId: string }) {
-  const profile = useQuery(userQueries.profile(userId)).data;
-  if (!profile) return null;
-  const u = profile.user;
-  const groups = profile.commonGroupsCount;
-  const rows = [
-    u.phone ? <InfoRow key="phone" icon="Phone" value={u.phone} label="Телефон" copy={u.phone} /> : null,
-    u.username ? <InfoRow key="username" icon="At" value={`@${u.username}`} label="Юзернейм" accent copy={`@${u.username}`} /> : null,
-    u.bio ? <InfoRow key="bio" icon="Info" value={u.bio} label={u.isBot ? "Описание" : "О себе"} multiline /> : null,
-    u.birthday ? (
-      <InfoRow
-        key="birthday"
-        icon="Gift"
-        value={isBirthdayToday(u.birthday) ? `🎉 Сегодня день рождения · ${birthdayText(u.birthday)}` : birthdayText(u.birthday)}
-        label="День рождения"
-      />
-    ) : null,
-    groups > 0 ? <InfoRow key="groups" icon="Users" value={`${groups} ${plural(groups, "общая группа", "общие группы", "общих групп")}`} label="Общие группы" /> : null,
-  ].filter(Boolean);
-  return rows.length ? <div className={styles.card}>{rows}</div> : null;
 }
 
 function Members({ chat, members, meId }: { chat: ChatSummary; members: readonly ChatMember[]; meId: string }) {

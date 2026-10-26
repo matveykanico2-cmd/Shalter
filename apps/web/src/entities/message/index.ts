@@ -21,6 +21,7 @@ export {
 export { justReacted, noteReacted } from "./lib/reactions-anim";
 export type { Attachment, MediaItem } from "./model/attachment";
 export { historyCache } from "./model/history-cache";
+export { type MessageLinkHandlers, MessageLinks } from "./model/message-links";
 export type { FeedMessage, History, HistoryPage, Message, ReplyTarget } from "./model/types";
 export { ReactionGlyph } from "./ui/animated";
 export type { AttachmentActions } from "./ui/attachments/message-attachments";

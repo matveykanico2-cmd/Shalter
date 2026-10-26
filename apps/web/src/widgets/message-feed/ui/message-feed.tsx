@@ -226,14 +226,15 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
       setHighlightId(jumpTarget.id);
       return;
     }
-    if (loadingOlder) return;
-    if (!data?.hasMore || jumpTarget.pages >= JUMP_MAX_PAGES) {
+    // История ещё не пришла (ссылка ?msg=… открывает чат) — ждём её.
+    if (loadingOlder || !data) return;
+    if (!data.hasMore || jumpTarget.pages >= JUMP_MAX_PAGES) {
       setJumpTarget(null);
       return;
     }
     setJumpTarget({ ...jumpTarget, pages: jumpTarget.pages + 1 });
     void loadOlder();
-  }, [jumpTarget, rows, loadingOlder, data?.hasMore, loadOlder, virtualizer]);
+  }, [jumpTarget, rows, loadingOlder, data, loadOlder, virtualizer]);
 
   // Esc снимает выбор, если поверх ленты ничего не открыто (как onChatKeydown в chatView.js).
   const { active: selecting, clear: clearSelection } = selection;

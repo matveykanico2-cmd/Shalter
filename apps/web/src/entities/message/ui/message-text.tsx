@@ -6,6 +6,7 @@ import { linkSafety } from "@/shared/lib/link-safety";
 import { EmojiText, openInAppBrowser } from "@/shared/ui";
 
 import { type Block, type Inline, internalRoute, parseText, QUOTE_COLLAPSE_LINES } from "../lib/format-text";
+import { MessageLinks } from "../model/message-links";
 
 import { CustomEmoji } from "./animated";
 import styles from "./message-text.module.css";
@@ -119,13 +120,49 @@ function InlineView({ item }: { item: Inline }) {
       return <Spoiler text={item.text} />;
     case "link":
       return <TextLink href={item.href} label={item.label} />;
-    // Профиль по @имени и поиск по #тегу появятся вместе с этими экранами.
     case "mention":
+      return <MentionLink text={item.text} handle={item.handle} />;
     case "hashtag":
-      return <span className={styles.mention}>{item.text}</span>;
+      return <HashtagLink tag={item.text} />;
     case "emoji":
       return <InlineCustomEmoji index={item.index} />;
   }
+}
+
+/** @имя — профиль (или канал, группа) по нику. */
+function MentionLink({ text, handle }: { text: string; handle: string }) {
+  const { onMention } = use(MessageLinks);
+  if (!onMention) return <span className={styles.mention}>{text}</span>;
+  return (
+    <button
+      type="button"
+      className={`${styles.mention} ${styles.mentionLink}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onMention(handle);
+      }}
+    >
+      {text}
+    </button>
+  );
+}
+
+/** #тег — поиск по чату с ним. */
+function HashtagLink({ tag }: { tag: string }) {
+  const { onHashtag } = use(MessageLinks);
+  if (!onHashtag) return <span className={styles.mention}>{tag}</span>;
+  return (
+    <button
+      type="button"
+      className={`${styles.mention} ${styles.mentionLink}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onHashtag(tag);
+      }}
+    >
+      {tag}
+    </button>
+  );
 }
 
 function InlineCustomEmoji({ index }: { index: number }) {

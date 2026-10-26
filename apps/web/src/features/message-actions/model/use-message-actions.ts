@@ -4,7 +4,7 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
 
-import { chatCache, chatQueries, type ChatSummary } from "@/entities/chat";
+import { chatCache, chatQueries, type ChatSummary, openDm } from "@/entities/chat";
 import {
   applyVote,
   type ChecklistMeta,
@@ -34,7 +34,6 @@ import {
   editMessage,
   forwardMessage,
   type ForwardOrigin,
-  openDm,
   paidDeleteMessage,
   pinMessage,
   reactToMessage,

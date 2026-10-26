@@ -16,11 +16,13 @@ type Props = {
   senderName: (m: Message) => string | null;
   onPick: (m: Message) => void;
   onClose: () => void;
+  /** Начальный запрос — #тег, нажатый в сообщении. */
+  initialQuery?: string;
 };
 
 /** «Поиск по чату» над лентой — как openSearch в public/js/views/chatView.js. */
-export function ChatSearch({ chatId, senderName, onPick, onClose }: Props) {
-  const [query, setQuery] = useState("");
+export function ChatSearch({ chatId, senderName, onPick, onClose, initialQuery = "" }: Props) {
+  const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<Message[] | null>(null);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);

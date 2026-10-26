@@ -29,6 +29,21 @@
   font-weight: 500;
 }
 
+/* Кнопка-ссылка в строке текста (.mention-link, .hashtag-link). */
+.mentionLink {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.mentionLink:hover {
+  text-decoration: underline;
+}
+
 .quote {
   display: block;
   margin: 2px 0;

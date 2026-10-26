@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { type DragEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router";
+import { useLocation, useParams, useSearchParams } from "react-router";
 
 import { ChatHeader } from "@/widgets/chat-header";
 import { ChatInfoPanel } from "@/widgets/chat-info";
@@ -8,11 +8,12 @@ import { MessageFeed, type MessageFeedHandle } from "@/widgets/message-feed";
 
 import { ChatSearch } from "@/features/chat-search";
 import { useMessageActions } from "@/features/message-actions";
+import { useMentionProfile, UserProfileDialog } from "@/features/open-profile";
 import { Composer, type ComposerHandle } from "@/features/send-message";
 import { isTopicStaff, TopicTabs, useTopics } from "@/features/topics";
 
 import { type ChatMember, chatQueries, type ChatSummary, chatTitle, isChatAdmin, useChatCard, useChatFromList } from "@/entities/chat";
-import { inTopic, type Message, type TopicFilter } from "@/entities/message";
+import { inTopic, type Message, MessageLinks, type TopicFilter } from "@/entities/message";
 import { type SelfUser, useSession } from "@/entities/session";
 import { chatWallpaper, useSettings } from "@/entities/settings";
 
@@ -69,8 +70,19 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
   };
   // Поиск по чату ищет во всём чате: найденное не в открытой теме — переходим во «Все»,
   // к сообщению — когда лента «Всех» появится.
-  const [searching, setSearching] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
+  // searching — строка запроса (#тег из сообщения) или null, если поиск закрыт.
+  const [searching, setSearching] = useState<string | null>(null);
+  // Профиль по ссылке /u/имя открывает личку сразу с панелью справа.
+  const location = useLocation();
+  const [infoOpen, setInfoOpen] = useState(() => !!(location.state as { info?: boolean } | null)?.info);
+  const mention = useMentionProfile(me, members);
+  const links = { onMention: (h: string) => void mention.openMention(h), onHashtag: (tag: string) => setSearching(tag) };
+  // Ссылка на сообщение (?msg=…) — прокрутить к нему.
+  const [params] = useSearchParams();
+  const linkedMessage = params.get("msg");
+  useEffect(() => {
+    if (linkedMessage) feed.current?.jumpTo(linkedMessage);
+  }, [linkedMessage]);
   const pendingJump = useRef<string | null>(null);
   useEffect(() => {
     if (!pendingJump.current) return;
@@ -78,7 +90,7 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
     pendingJump.current = null;
   }, [topic]);
   const jumpToFound = (m: Message) => {
-    setSearching(false);
+    setSearching(null);
     if (inTopic(m, topic)) feed.current?.jumpTo(m.id);
     else {
       pendingJump.current = m.id;
@@ -104,13 +116,17 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
   return (
     <section className={drop.active ? `${styles.view} ${styles.dropActive}` : styles.view} aria-label={title} {...drop.handlers}>
       <div className={styles.main}>
-        <ChatHeader chat={chat} members={members} me={me} onSearch={() => setSearching(true)} infoOpen={infoOpen} onInfo={setInfoOpen} />
-        {searching ? <ChatSearch chatId={chat.id} senderName={senderName} onPick={jumpToFound} onClose={() => setSearching(false)} /> : null}
+        <ChatHeader chat={chat} members={members} me={me} onSearch={() => setSearching("")} infoOpen={infoOpen} onInfo={setInfoOpen} />
+        {searching !== null ? (
+          <ChatSearch key={searching} chatId={chat.id} senderName={senderName} initialQuery={searching} onPick={jumpToFound} onClose={() => setSearching(null)} />
+        ) : null}
         {topics ? <TopicTabs chat={chat} meId={me.id} topics={topics} active={topic} onSelect={selectTopic} /> : null}
         {/* Обои под лентой и полем ввода, как у .message-list с .composer-slot поверх. */}
         <div className={`${styles.body} ${wallpaper.className}`} style={wallpaper.style}>
           {/* key: у темы своя лента — плашка непрочитанных и прокрутка с нуля. */}
-          <MessageFeed key={topic ?? "all"} ref={feed} chat={chat} members={members} me={me} onReply={reply} onEdit={edit} topic={topic} />
+          <MessageLinks value={links}>
+            <MessageFeed key={topic ?? "all"} ref={feed} chat={chat} members={members} me={me} onReply={reply} onEdit={edit} topic={topic} />
+          </MessageLinks>
           <Bottom
             chat={chat}
             me={me}
@@ -144,6 +160,7 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
         </div>
       </div>
       {infoOpen ? <ChatInfoPanel chat={chat} members={members} me={me} onClose={() => setInfoOpen(false)} /> : null}
+      {mention.profileId ? <UserProfileDialog userId={mention.profileId} meId={me.id} onClose={mention.closeProfile} /> : null}
     </section>
   );
 }

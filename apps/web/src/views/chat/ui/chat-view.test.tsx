@@ -831,6 +831,33 @@ describe("стикеры и эмодзи", () => {
     expect(screen.getByRole("button", { name: "⚡ Быстрый просмотр" })).toBeTruthy();
   });
 
+  it("@имя участника — профиль с «Написать сообщение»; #тег — поиск по чату", async () => {
+    const lena = { ...LENA, username: "lena" };
+    const profile = { user: { ...lena, online: false }, isContact: false, inContacts: false, contactName: null, contactNote: null, commonGroupsCount: 1, pinnedChannels: [] };
+    const dm = chat({ id: "c_dm", type: "dm", title: "", otherUser: lena as ChatSummary["otherUser"] });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": { body: { chat: chat(), members: [ME, lena], commands: null, paidMessages: null } },
+      [HISTORY]: page([msg("спроси @lena про #отпуск")]),
+      "GET /api/users/u_lena00000": { body: profile },
+      "POST /api/chats": { body: { chat: dm } },
+      "GET /api/chats": { body: { chats: [chat(), dm] } },
+      [`GET /api/chats/c_1/messages/search?q=${encodeURIComponent("#отпуск")}`]: { body: { messages: [] } },
+    });
+    const { router } = renderChat();
+    fireEvent.click(await screen.findByRole("button", { name: "@lena" }));
+    const dialog = await screen.findByRole("dialog", { name: "Профиль" });
+    expect(await within(dialog).findByText("@lena")).toBeTruthy();
+    expect(within(dialog).getByText("1 общая группа")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Написать сообщение" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_dm"));
+    expect(calls.find((c) => c.key === "POST /api/chats")?.body).toMatchObject({ userId: LENA.id, title: "Лена" });
+
+    await act(() => router.navigate("/chat/c_1"));
+    fireEvent.click(await screen.findByRole("button", { name: "#отпуск" }));
+    expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe("#отпуск");
+    await waitFor(() => expect(calls.some((c) => c.key.includes("/messages/search?q="))).toBe(true));
+  });
+
   it("стикер — сценой, 1–3 эмодзи — крупно, свои эмодзи — сценой в тексте", async () => {
     const sticker = msg("", { type: "sticker", sticker: { emoji: "👋", name: "Привет", scene: "hello" } });
     const jumbo = msg("😐😐");
