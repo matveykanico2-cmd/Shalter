@@ -100,6 +100,25 @@
   color: var(--color-accent);
 }
 
+/* Как .group-level-badge в public/styles/components.css. */
+.levelBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #d9822e, #f0b74a);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Шапка вложенного экрана: «Назад» слева от заголовка. */
+.subHeader {
+  justify-content: flex-start;
+  gap: 8px;
+  padding-left: 8px;
+}
+
 .subtitle {
   margin: 0;
   font-size: 14px;

@@ -1,11 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { type MouseEvent, type ReactNode, useState } from "react";
 
+import { BoostCard } from "@/features/boost-chat";
+import { ChannelStats } from "@/features/channel-stats";
 import { AUTO_DELETE_DURATIONS, autoDeleteLabel, MuteDialog, useChatActions } from "@/features/chat-actions";
 import { EditChatPanel } from "@/features/edit-chat";
 import { AddMembersDialog, MemberControls } from "@/features/manage-members";
+import { SimilarChannels } from "@/features/similar-channels";
+import { useStaffActions } from "@/features/staff-actions";
 
-import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, isChatMuted, isChatOwner, memberRoleLabel } from "@/entities/chat";
+import { type ChatMember, type ChatSummary, chatTitle, isChatAdmin, isChatMuted, isChatOwner, levelForPoints, memberRoleLabel } from "@/entities/chat";
 import { ReportDialog, type ReportTarget } from "@/entities/report";
 import type { SelfUser } from "@/entities/session";
 import { birthdayText, isBirthdayToday, userQueries } from "@/entities/user";
@@ -27,7 +31,9 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
   const actions = useChatActions(chat, me.id);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [autoDeleteAt, setAutoDeleteAt] = useState<{ x: number; y: number } | null>(null);
-  const [editing, setEditing] = useState(false);
+  // Вместо информации — «Изменить группу/канал» или статистика канала.
+  const [screen, setScreen] = useState<"info" | "edit" | "stats">("info");
+  const staff = useStaffActions(chat);
   const isDm = chat.type === "dm";
   const other = isDm ? chat.otherUser : undefined;
   const title = chatTitle(chat);
@@ -36,11 +42,28 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
   const blocked = !!other && me.blockedUserIds.includes(other.id);
   const kind = chat.type === "channel" ? "канал" : "группу";
   const status = other ? statusLabel(other) : null;
+  const level = chat.type === "group" ? levelForPoints(chat.points) : 0;
+  const isChannelAdmin = chat.type === "channel" && isAdmin;
 
-  if (editing && !isDm && isAdmin) {
+  if (screen === "edit" && !isDm && isAdmin) {
     return (
       <aside className={styles.panel} aria-label={chat.type === "channel" ? "Изменить канал" : "Изменить группу"}>
-        <EditChatPanel chat={chat} onClose={() => setEditing(false)} />
+        <EditChatPanel chat={chat} onClose={() => setScreen("info")} />
+      </aside>
+    );
+  }
+  if (screen === "stats" && isChannelAdmin) {
+    return (
+      <aside className={styles.panel} aria-label="Статистика">
+        <div className={`${styles.header} ${styles.subHeader}`}>
+          <button type="button" className={styles.close} title="Назад" onClick={() => setScreen("info")}>
+            <Icon name="ChevronLeft" size={22} />
+          </button>
+          <h2>Статистика</h2>
+        </div>
+        <div className={styles.body}>
+          <ChannelStats chatId={chat.id} />
+        </div>
       </aside>
     );
   }
@@ -63,6 +86,11 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
                 <Icon name="Verified" size={16} />
               </span>
             ) : null}
+            {level > 0 ? (
+              <span className={styles.levelBadge} title={`${chat.points} баллов`}>
+                ★ Ур. {level}
+              </span>
+            ) : null}
           </p>
           {other ? (
             <p className={status === "в сети" ? `${styles.subtitle} ${styles.online}` : styles.subtitle}>{status ?? "был(а) недавно"}</p>
@@ -72,6 +100,11 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
         </div>
 
         {other ? <ProfileRows userId={other.id} /> : null}
+        {!isDm ? (
+          <div className={styles.card}>
+            <BoostCard chat={chat} me={me} />
+          </div>
+        ) : null}
         {!isDm && (chat.description || (chat.isPublic && chat.username)) ? (
           <div className={styles.card}>
             {chat.description ? <InfoRow icon="Info" value={chat.description} label="Описание" multiline /> : null}
@@ -89,19 +122,36 @@ export function ChatInfoPanel({ chat, members, me, onClose }: Props) {
 
         <div className={styles.card}>
           {!isDm && isAdmin ? (
-            <Row icon="Edit" onClick={() => setEditing(true)}>
+            <Row icon="Edit" onClick={() => setScreen("edit")}>
               Редактировать {kind}
+            </Row>
+          ) : null}
+          {!isDm && staff.isAdmin ? (
+            <Row icon="Verified" onClick={() => void staff.toggleVerified()}>
+              {chat.isVerified ? "Снять галочку верификации" : `Верифицировать ${kind}`}
+            </Row>
+          ) : null}
+          {other && staff.isAdmin ? (
+            <Row icon="Star" onClick={() => void staff.togglePremium()}>
+              {other.isPremium ? "Забрать Shalter Premium" : "Выдать Shalter Premium (30 дней)"}
             </Row>
           ) : null}
           <Row icon={muted ? "Bell" : "BellOff"} onClick={() => (muted ? void actions.mute({ off: true }) : setDialog({ kind: "mute" }))}>
             {muted ? "Включить уведомления" : "Отключить уведомления"}
           </Row>
+          {isChannelAdmin ? (
+            <Row icon="BarChart" onClick={() => setScreen("stats")}>
+              Статистика канала
+            </Row>
+          ) : null}
           {isDm || isAdmin ? (
             <Row icon="Clock" onClick={(e) => setAutoDeleteAt({ x: e.clientX, y: e.clientY })}>
               Автоудаление сообщений: {autoDeleteLabel(chat.autoDeleteSeconds)}
             </Row>
           ) : null}
         </div>
+
+        {chat.type === "channel" ? <SimilarChannels chatId={chat.id} /> : null}
 
         <div className={styles.card}>
           {other ? (

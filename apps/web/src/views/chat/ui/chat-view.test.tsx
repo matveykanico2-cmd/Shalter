@@ -1588,6 +1588,129 @@ describe("информация о чате", () => {
     expect(within(panel).getByRole("button", { name: "Пожаловаться на группу" })).toBeTruthy();
   });
 
+  describe("бусты, статистика, похожие каналы, пункты админа Shalter", () => {
+    it("бусты: уровень, окно и буст раз в сутки", async () => {
+      const group = chat({ points: 12, votes: {} });
+      const { calls } = fakeApi({
+        "GET /api/chats/c_1": card(group),
+        [HISTORY]: page([]),
+        "POST /api/chats/c_1/vote": { body: { chat: { ...group, points: 13, votes: { [ME.id]: new Date().toISOString() } } } },
+      });
+      const { client } = renderChat(group);
+      await screen.findByText("2 участника");
+      let info = openInfo();
+      expect(within(info).getByTitle("12 баллов").textContent).toBe("★ Ур. 1");
+      const boost = within(info).getByRole("button", { name: /Бусты · уровень 1/ });
+      expect(boost.textContent).toContain("12 бустов · до уровня 2 ещё 38");
+      expect(boost.textContent).toContain("Premium");
+
+      // Без Premium — только объяснение.
+      fireEvent.click(boost);
+      let dialog = screen.getByRole("dialog", { name: "Нужно больше бустов" });
+      expect(within(dialog).getByText("Ещё 38 бустов — и группу получит уровень 2. Бустить можно раз в сутки.")).toBeTruthy();
+      expect(within(dialog).getByRole("progressbar", { name: "Бусты" }).getAttribute("aria-valuenow")).toBe("12");
+      expect(within(dialog).getByRole("button", { name: "Бусты — с Shalter Premium" })).toBeTruthy();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Закрыть" }));
+
+      act(() => client.setQueryData(sessionQueries.current().queryKey, { user: { ...ME, isPremium: true } } as never));
+      info = screen.getByRole("complementary", { name: "Информация о чате" });
+      fireEvent.click(await within(info).findByRole("button", { name: /Бусты · уровень 1.*Бустнуть/ }));
+      dialog = screen.getByRole("dialog", { name: "Нужно больше бустов" });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Бустнуть группу" }));
+      dialog = await screen.findByRole("dialog", { name: "Вы уже бустили сегодня" });
+      expect((within(dialog).getByRole("button", { name: "Буст через сутки" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(within(dialog).getByRole("progressbar", { name: "Бусты" }).getAttribute("aria-valuenow")).toBe("13");
+      expect(calls.filter((c) => c.key === "POST /api/chats/c_1/vote")).toHaveLength(1);
+      expect(within(info).getByRole("button", { name: /Бусты · уровень 1/ }).textContent).toContain("13 бустов · до уровня 2 ещё 37");
+    });
+
+    it("канал: статистика, похожие каналы с подпиской, верификация админом Shalter", async () => {
+      const channel = chat({ type: "channel", ownerId: ME.id, points: 0, votes: {} });
+      const other = chat({ id: "c_2", type: "channel", title: "Соседний" });
+      const { calls } = fakeApi({
+        "GET /api/chats/c_1": card(channel),
+        [HISTORY]: page([]),
+        "GET /api/premium/me": { body: { isPremium: false, premiumForever: false, isAdmin: true, plans: {}, starsBalance: 0 } },
+        "POST /api/admin/chats/c_1/verify": { body: { chat: { ...channel, isVerified: true } } },
+        "GET /api/channels/c_1/similar": {
+          body: { channels: [{ id: "c_2", title: "Соседний", isVerified: false, subscriberCount: 15300, isMember: false }] },
+        },
+        "POST /api/channels/c_2/subscribe": { body: { ok: true } },
+        "GET /api/chats": { body: { chats: [channel, other] } },
+        "GET /api/channels/c_1/stats": {
+          body: {
+            subscribers: 1234,
+            posts: 2,
+            views: 30,
+            comments: 1,
+            reactions: 5,
+            averageViews: 15,
+            firstPostAt: null,
+            lastPostAt: null,
+            byDay: [
+              { date: "2026-10-25", posts: 1, views: 10 },
+              { date: "2026-10-26", posts: 1, views: 20 },
+            ],
+            top: [{ id: "m_1", text: "", createdAt: "2026-10-26T10:00:00.000Z", views: 20, commentCount: 1 }],
+          },
+        },
+      });
+      const { router } = renderChat(channel);
+      const info = openInfo();
+      fireEvent.click(await within(info).findByRole("button", { name: "Верифицировать канал" }));
+      expect(await within(info).findByRole("button", { name: "Снять галочку верификации" })).toBeTruthy();
+      expect(within(info).getByTitle("Подтверждённый аккаунт")).toBeTruthy();
+      expect(calls.find((c) => c.key === "POST /api/admin/chats/c_1/verify")?.body).toEqual({ verified: true });
+
+      fireEvent.click(within(info).getByRole("button", { name: "Статистика канала" }));
+      const stats = screen.getByRole("complementary", { name: "Статистика" });
+      expect(await within(stats).findByText("1 234")).toBeTruthy();
+      expect(within(stats).getByText("подписчика")).toBeTruthy();
+      expect(within(stats).getByTitle("26.10: 20 просмотров, постов — 1")).toBeTruthy();
+      expect(within(stats).getByText("Без текста")).toBeTruthy();
+      expect(within(stats).getByText("20 просмотров · 1 комментарий · 26.10")).toBeTruthy();
+      fireEvent.click(within(stats).getByTitle("Назад"));
+
+      const similar = await within(screen.getByRole("complementary", { name: "Информация о чате" })).findByRole("region", { name: "Похожие каналы" });
+      expect(within(similar).getByText("15.3K")).toBeTruthy();
+      fireEvent.click(within(similar).getByTitle("Соседний"));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_2"));
+      expect(calls.some((c) => c.key === "POST /api/channels/c_2/subscribe")).toBe(true);
+    });
+
+    it("личка: админ Shalter выдаёт Premium; обычному пункты не видны", async () => {
+      const dmChat = chat({ type: "dm", title: "", otherUser: { ...LENA, isPremium: false } as ChatSummary["otherUser"] });
+      const { calls } = fakeApi({
+        "GET /api/chats/c_1": card(dmChat),
+        [HISTORY]: page([]),
+        "GET /api/premium/me": { body: { isPremium: false, premiumForever: false, isAdmin: true, plans: {}, starsBalance: 0 } },
+        "POST /api/premium/grant": { body: { user: { ...LENA, isPremium: true } } },
+      });
+      renderChat(dmChat);
+      const info = openInfo();
+      expect(within(info).queryByRole("button", { name: /Бусты/ })).toBeNull();
+      fireEvent.click(await within(info).findByRole("button", { name: "Выдать Shalter Premium (30 дней)" }));
+      expect(await within(info).findByRole("button", { name: "Забрать Shalter Premium" })).toBeTruthy();
+      expect(calls.find((c) => c.key === "POST /api/premium/grant")?.body).toEqual({ userId: LENA.id, premium: true });
+    });
+
+    it("не админу Shalter и подписчику — без верификации и статистики", async () => {
+      const channel = chat({ type: "channel", ownerId: LENA.id, points: 0, votes: {} });
+      fakeApi({
+        "GET /api/chats/c_1": card(channel),
+        [HISTORY]: page([]),
+        "GET /api/premium/me": { body: { isPremium: false, premiumForever: false, isAdmin: false, plans: {}, starsBalance: 0 } },
+        "GET /api/channels/c_1/similar": { body: { channels: [] } },
+      });
+      renderChat(channel);
+      const info = openInfo();
+      await waitFor(() => expect(within(info).getByRole("button", { name: /Бусты · уровень 0/ })).toBeTruthy());
+      expect(within(info).queryByRole("button", { name: /Верифицировать/ })).toBeNull();
+      expect(within(info).queryByRole("button", { name: "Статистика канала" })).toBeNull();
+      expect(within(info).queryByRole("region", { name: "Похожие каналы" })).toBeNull();
+    });
+  });
+
   describe("управление участниками", () => {
     const OLYA = { id: "u_olya00000", name: "Оля", username: "olya" };
     /** Сервер: роли меняются по запросам, карточка отдаёт текущее состояние. */
