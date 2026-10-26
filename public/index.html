@@ -150,11 +150,10 @@
     @keyframes bs-shine { from { transform: translateX(100%); } to { transform: translateX(-100%); } }
     @keyframes bs-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
     @keyframes bs-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    @keyframes bs-draw { from { stroke-dashoffset: 1380; } to { stroke-dashoffset: 0; } }
+    @keyframes bs-draw { from { stroke-dashoffset: 1640; } to { stroke-dashoffset: 0; } }
     @media (prefers-reduced-motion: reduce) {
       #boot-splash svg.bs-logo-svg { animation: none; }
-      #boot-splash svg.bs-spinner-ring { animation: none; }
-      #boot-splash svg.bs-spinner-ring circle { animation: none; }
+      #boot-splash circle.bs-spinner { animation: none; }
     }
   </style>
   <meta name="yandex-verification" content="5d613c81ddf70c98" />
@@ -257,13 +256,16 @@ if (!/^\/(login|qr-login)/.test(location.pathname)) {
       var iconSvg = localStorage.getItem("shalter.appIcon.splash");
       var splashEl = document.getElementById("boot-splash");
       if (iconSvg && splashEl) {
+        var oldSvg = splashEl.querySelector("svg.bs-logo-svg");
+        var spinner = oldSvg && oldSvg.querySelector("circle.bs-spinner");
         var holder = document.createElement("div");
         holder.innerHTML = iconSvg;
         var svgEl = holder.querySelector("svg");
         if (svgEl) {
           svgEl.setAttribute("aria-hidden", "true");
           svgEl.classList.add("bs-logo-svg");
-          splashEl.replaceChild(svgEl, splashEl.querySelector("svg.bs-logo-svg"));
+          if (spinner) svgEl.appendChild(spinner.cloneNode(true));
+          splashEl.replaceChild(svgEl, oldSvg);
         }
       }
     } catch (e) {}
@@ -280,13 +282,16 @@ if (!/^\/(login|qr-login)/.test(location.pathname)) {
       var iconSvg = localStorage.getItem("shalter.appIcon.splash");
       var splashEl = document.getElementById("boot-splash");
       if (iconSvg && splashEl) {
+        var oldSvg = splashEl.querySelector("svg.bs-logo-svg");
+        var spinner = oldSvg && oldSvg.querySelector("circle.bs-spinner");
         var holder = document.createElement("div");
         holder.innerHTML = iconSvg;
         var svgEl = holder.querySelector("svg");
         if (svgEl) {
           svgEl.setAttribute("aria-hidden", "true");
           svgEl.classList.add("bs-logo-svg");
-          splashEl.replaceChild(svgEl, splashEl.querySelector("svg.bs-logo-svg"));
+          if (spinner) svgEl.appendChild(spinner.cloneNode(true));
+          splashEl.replaceChild(svgEl, oldSvg);
         }
       }
     } catch (e) {}
