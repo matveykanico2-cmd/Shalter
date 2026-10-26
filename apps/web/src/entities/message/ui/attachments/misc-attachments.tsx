@@ -1,4 +1,4 @@
-import { Avatar, Icon } from "@/shared/ui";
+import { Avatar, Icon, openInAppBrowser, openInstantView } from "@/shared/ui";
 
 import type { Attachment, LinkPreview } from "../../model/attachment";
 
@@ -65,14 +65,22 @@ function hostOf(url: string) {
   }
 }
 
-/**
- * Карточка ссылки (LinkPreviewCard в attachments.js). Пока открывается в новой вкладке —
- * встроенный браузер и быстрый просмотр придут отдельным шагом.
- */
+/** Карточка ссылки (LinkPreviewCard в attachments.js): открывается во встроенном браузере. */
 export function LinkPreviewCard({ preview: p }: { preview: LinkPreview }) {
   const images = p.images?.length ? p.images : p.image ? [p.image] : [];
-  return (
-    <a className={styles.linkCard} href={p.url} target="_blank" rel="noreferrer noopener">
+  const safety = { unsafe: !!p.unsafe, warning: p.warning ?? null };
+  const card = (
+    <a
+      className={styles.linkCard}
+      href={p.url}
+      target="_blank"
+      rel="noreferrer noopener"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openInAppBrowser(p.url, safety);
+      }}
+    >
       {images.length ? (
         <span className={p.video ? `${styles.linkMedia} ${styles.linkVideo}` : styles.linkMedia}>
           <img
@@ -109,5 +117,22 @@ export function LinkPreviewCard({ preview: p }: { preview: LinkPreview }) {
         </span>
       </span>
     </a>
+  );
+  // Instant View — для статей (есть заголовок и описание), не для голых ссылок.
+  if (!p.title || !p.description || p.unsafe) return card;
+  return (
+    <span className={styles.linkWrap}>
+      {card}
+      <button
+        type="button"
+        className={styles.linkInstantView}
+        onClick={(e) => {
+          e.stopPropagation();
+          openInstantView(p.url, safety);
+        }}
+      >
+        ⚡ Быстрый просмотр
+      </button>
+    </span>
   );
 }

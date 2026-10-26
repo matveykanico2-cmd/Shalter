@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { internalRoute, linkSafety, parseInline, parseText } from "./format-text";
+import { internalRoute, parseInline, parseText } from "./format-text";
 
 describe("разметка сообщения (как public/js/lib/formatText.js)", () => {
   it("строчная разметка", () => {
@@ -52,12 +52,5 @@ describe("разметка сообщения (как public/js/lib/formatText.j
     expect(internalRoute("https://app.test/anna", "https://app.test")).toBe("/u/anna");
     expect(internalRoute("https://app.test/settings", "https://app.test")).toBe("/settings");
     expect(internalRoute("https://other.test/anna", "https://app.test")).toBeNull();
-  });
-
-  it("подозрительные ссылки", () => {
-    expect(linkSafety("http://a.ru").unsafe).toBe(true);
-    expect(linkSafety("https://user@a.ru").unsafe).toBe(true);
-    expect(linkSafety("https://bit.ly/x")).toEqual({ unsafe: false, warning: "Сокращённая ссылка — настоящий адрес скрыт" });
-    expect(linkSafety("https://a.ru")).toEqual({ unsafe: false, warning: null });
   });
 });

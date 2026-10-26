@@ -122,19 +122,3 @@ export function internalRoute(href: string, origin: string) {
   if (m && !RESERVED_USERNAME_PATHS.has(m[1]!.toLowerCase())) return `/u/${m[1]}${m[2] ?? ""}`;
   return path;
 }
-
-const SHORTENER_HOSTS = new Set(["bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly", "is.gd", "buff.ly"]);
-
-/** Проверка ссылки перед переходом — как checkLinkSafety (public/js/components/inAppBrowser.js). */
-export function linkSafety(href: string): { unsafe: boolean; warning: string | null } {
-  let u: URL;
-  try {
-    u = new URL(href);
-  } catch {
-    return { unsafe: true, warning: "Некорректная ссылка" };
-  }
-  if (u.username || u.password) return { unsafe: true, warning: "Ссылка содержит логин перед адресом сайта — частый приём фишинга" };
-  if (u.protocol !== "https:") return { unsafe: true, warning: "Небезопасное соединение (не https)" };
-  if (SHORTENER_HOSTS.has(u.hostname.replace(/^www\./, ""))) return { unsafe: false, warning: "Сокращённая ссылка — настоящий адрес скрыт" };
-  return { unsafe: false, warning: null };
-}

@@ -9,7 +9,7 @@ import { sessionQueries } from "@/entities/session";
 
 import { ws } from "@/shared/api";
 import { fakeApi, fakeMedia, FakeMediaRecorder, FakeSocket, fakeSocket, FakeXhr, fakeXhr } from "@/shared/lib/test";
-import { AskHost, Toaster } from "@/shared/ui";
+import { AskHost, BrowserHost, Toaster } from "@/shared/ui";
 
 import { ChatView } from "./chat-view";
 
@@ -80,6 +80,7 @@ function renderChat(c: ChatSummary = chat()) {
   render(
     <QueryClientProvider client={client}>
       <RouterProvider router={router} />
+      <BrowserHost />
       <Toaster />
       <AskHost />
     </QueryClientProvider>
@@ -815,6 +816,21 @@ describe("запись голосовых", () => {
 });
 
 describe("стикеры и эмодзи", () => {
+  it("ссылка в тексте и карточка — во встроенном браузере, статья — быстрым просмотром", async () => {
+    const preview = { url: "https://news.ru/a", title: "Новость", description: "Подробности", siteName: "Новости" };
+    const linked = msg("читай https://news.ru/a", { linkPreview: preview } as Partial<Message>);
+    fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([linked]),
+      [`GET /api/link-check?url=${encodeURIComponent("https://news.ru/a")}`]: { body: { frameable: true } },
+    });
+    renderChat();
+    fireEvent.click(await screen.findByRole("link", { name: "https://news.ru/a" }));
+    expect(await screen.findByTitle("news.ru")).toBeTruthy();
+    fireEvent.click(screen.getByTitle("Закрыть"));
+    expect(screen.getByRole("button", { name: "⚡ Быстрый просмотр" })).toBeTruthy();
+  });
+
   it("стикер — сценой, 1–3 эмодзи — крупно, свои эмодзи — сценой в тексте", async () => {
     const sticker = msg("", { type: "sticker", sticker: { emoji: "👋", name: "Привет", scene: "hello" } });
     const jumbo = msg("😐😐");

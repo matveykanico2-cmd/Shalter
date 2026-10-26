@@ -2,9 +2,10 @@ import { createContext, type MouseEvent, type ReactNode, use, useMemo, useState 
 import { useNavigate } from "react-router";
 
 import { langLabel, tokenize } from "@/shared/lib/highlight";
-import { EmojiText } from "@/shared/ui";
+import { linkSafety } from "@/shared/lib/link-safety";
+import { EmojiText, openInAppBrowser } from "@/shared/ui";
 
-import { type Block, type Inline, internalRoute, linkSafety, parseText, QUOTE_COLLAPSE_LINES } from "../lib/format-text";
+import { type Block, type Inline, internalRoute, parseText, QUOTE_COLLAPSE_LINES } from "../lib/format-text";
 
 import { CustomEmoji } from "./animated";
 import styles from "./message-text.module.css";
@@ -231,14 +232,7 @@ function TextLink({ href, label }: { href: string; label: string }) {
     e.stopPropagation();
     const internal = internalRoute(href, window.location.origin);
     if (internal) return void navigate(internal);
-    // Встроенный браузер (public/js/components/inAppBrowser.js) появится позже —
-    // пока новая вкладка, с тем же предупреждением о подозрительной ссылке.
-    const { unsafe, warning } = linkSafety(href);
-    if (warning || unsafe) {
-      const host = URL.canParse(href) ? new URL(href).hostname : href;
-      if (!window.confirm(`${warning || "Ссылка может быть небезопасной."}\n\n${host}`)) return;
-    }
-    window.open(href, "_blank", "noopener,noreferrer");
+    openInAppBrowser(href, linkSafety(href));
   };
   return (
     <a href={href} target="_blank" rel="noreferrer" className={styles.link} title={label === href ? undefined : href} onClick={open}>
