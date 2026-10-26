@@ -254,6 +254,7 @@ export function MessageBubble(props: Props) {
         nameOf={props.nameOf ?? (() => "участник")}
         actions={props.attachmentActions}
         canDownload={!props.protectedContent}
+        senderName={sender?.name ?? null}
         onOpenMedia={props.onOpenMedia ? (url) => props.onOpenMedia?.(m, url) : undefined}
         onDoubleTap={!m.pending && props.onOpenReactions ? (at) => props.onOpenReactions?.(m, at) : undefined}
       />

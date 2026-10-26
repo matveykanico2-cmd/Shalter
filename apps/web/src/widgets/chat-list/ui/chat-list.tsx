@@ -10,7 +10,7 @@ import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, sortC
 import { useSession } from "@/entities/session";
 
 import { errorText } from "@/shared/lib/error-text";
-import { Icon, Menu } from "@/shared/ui";
+import { Icon, Menu, NowPlayingBar } from "@/shared/ui";
 
 import { chatsInTab, emptyTextFor, tabsFor } from "../lib/tabs";
 import { useChatListSync } from "../model/use-chat-list-sync";
@@ -120,6 +120,10 @@ export function ChatList({ meId }: { meId: string }) {
         <span>{connection ?? "Shalter"}</span>
       </div>
 
+      {/* Что-то играет — полоска и над списком: на телефоне из чата уходят, а звук продолжает играть. */}
+      <div className={currentId ? styles.nowPlayingBesideChat : undefined}>
+        <NowPlayingBar />
+      </div>
       <SearchBox value={search} onChange={setSearch} onClear={clearSearch} results={() => scrollRef.current} />
 
       {searching ? null : showArchive ? (

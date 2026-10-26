@@ -12,6 +12,7 @@ export { Icon, type IconName } from "./icon";
 export { InfoRow } from "./info-row";
 export { MediaViewer, type ViewerItem } from "./media-viewer";
 export { Menu, type MenuItem } from "./menu";
+export { NowPlayingBar } from "./now-playing-bar";
 export { TextField } from "./text-field";
 export { Toaster } from "./toast";
 export { dismissToast, toast } from "./toast-store";

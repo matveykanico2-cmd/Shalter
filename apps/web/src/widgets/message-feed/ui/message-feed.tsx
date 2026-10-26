@@ -130,6 +130,16 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
   const stuck = useRef(true);
   const fromBottom = useRef(0);
   const [atBottom, setAtBottom] = useState(true);
+  // Сколько чужих сообщений пришло, пока лента не внизу, — число на кнопке «вниз» (missedWhileUp).
+  const [leftAt, setLeftAt] = useState<string | null>(null);
+  const lastId = data?.messages.at(-1)?.id ?? null;
+  if (atBottom && leftAt) setLeftAt(null);
+  if (!atBottom && !leftAt && lastId) setLeftAt(lastId);
+  const missed = useMemo(() => {
+    const list = data?.messages ?? [];
+    const from = leftAt ? list.findIndex((m) => m.id === leftAt) : -1;
+    return from < 0 ? 0 : list.slice(from + 1).filter((m) => m.senderId !== meId && m.type !== "system").length;
+  }, [data?.messages, leftAt, meId]);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [viewer, setViewer] = useState<{ items: ViewerItem[]; index: number } | null>(null);
@@ -363,7 +373,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
         <button
           type="button"
           className={styles.down}
-          title="Вниз"
+          title="К последним сообщениям"
           onClick={() => {
             stuck.current = true;
             setAtBottom(true);
@@ -371,6 +381,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
           }}
         >
           <Icon name="ChevronDown" size={24} />
+          {missed > 0 ? <span className={styles.downBadge}>{missed}</span> : null}
         </button>
       ) : null}
       {viewer ? <MediaViewer items={viewer.items} index={viewer.index} canDownload={!protectedContent} onClose={() => setViewer(null)} /> : null}

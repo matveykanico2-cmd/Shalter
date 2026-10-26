@@ -1,19 +1,19 @@
-import { useRef } from "react";
-
-import { playExclusive } from "@/shared/lib/exclusive-media";
 import { Icon } from "@/shared/ui";
 
 import { AUDIO_EXT_RE, clockTime, fileColor, fileExt, formatSize, isAudioFile } from "../../lib/attachments";
 import type { Attachment } from "../../model/attachment";
+import type { FeedMessage } from "../../model/types";
 
 import styles from "./attachments.module.css";
-import { useMediaProgress, useSeek } from "./use-media-progress";
+import { useSeek } from "./use-media-progress";
+import { usePlayer } from "./use-player";
 
-type Props = { attachment: Attachment; canDownload: boolean };
+type Props = { attachment: Attachment; canDownload: boolean; message: FeedMessage; senderName: string | null };
 
 /** Файл: плитка с расширением и размером; музыка — со своим плеером (attachments.js). */
-export function FileAttachment({ attachment, canDownload }: Props) {
-  if (isAudioFile(attachment)) return <AudioFile attachment={attachment} canDownload={canDownload} />;
+export function FileAttachment(props: Props) {
+  const { attachment, canDownload } = props;
+  if (isAudioFile(attachment)) return <AudioFile {...props} />;
   const ext = fileExt(attachment.name);
   const color = fileColor(ext);
   const body = (
@@ -41,24 +41,14 @@ export function FileAttachment({ attachment, canDownload }: Props) {
   );
 }
 
-function AudioFile({ attachment: a, canDownload }: Props) {
-  const audio = useRef<HTMLAudioElement>(null);
-  const { playing, current, duration } = useMediaProgress(audio, a.durationSec ?? 0);
+function AudioFile({ attachment: a, canDownload, message, senderName }: Props) {
+  const { ref: audio, toggle, playing, current, duration } = usePlayer(message, a, "audio", senderName);
   const seek = useSeek(audio, duration);
   const title = (a.name || "Аудио").replace(AUDIO_EXT_RE, "");
   const started = current > 0 || playing;
   const sub = started && duration ? `${clockTime(current)} / ${clockTime(duration)}` : a.size ? formatSize(a.size) : duration ? clockTime(duration) : "";
-  const toggle = () => {
-    const el = audio.current;
-    if (!el) return;
-    if (el.paused) {
-      playExclusive(el);
-      void el.play().catch(() => {});
-    } else el.pause();
-  };
   return (
     <div className={styles.audio}>
-      <audio ref={audio} src={a.url} preload="none" />
       <button type="button" className={styles.audioPlay} aria-label={playing ? "Пауза" : "Слушать"} onClick={toggle}>
         <Icon name={playing ? "PauseFill" : "PlayFill"} size={22} />
       </button>

@@ -36,13 +36,15 @@ type Props = {
   /** Открыть просмотр: url фото/видео из этого сообщения. */
   onOpenMedia?: (url: string) => void;
   onDoubleTap?: (at: { x: number; y: number }) => void;
+  /** Автор — подпись в «сейчас играет». */
+  senderName?: string | null;
 };
 
 /**
  * Вложения пузыря по порядку, как в MessageBubble (messageBubble.js): два и больше
  * фото/видео — одним альбомом там, где стоит первое из них.
  */
-export function MessageAttachments({ message, meId, nameOf, actions, canDownload, onOpenMedia, onDoubleTap }: Props) {
+export function MessageAttachments({ message, meId, nameOf, actions, canDownload, onOpenMedia, onDoubleTap, senderName = null }: Props) {
   const atts = attachmentsOf(message);
   const media = atts.filter(isVisualMedia);
   const album = media.length >= 2;
@@ -102,7 +104,7 @@ export function MessageAttachments({ message, meId, nameOf, actions, canDownload
         );
         return;
     }
-    out.push(<AttachmentView key={i} attachment={a} message={message} canDownload={canDownload} />);
+    out.push(<AttachmentView key={i} attachment={a} message={message} canDownload={canDownload} senderName={senderName} />);
   });
   return out;
 }
@@ -120,14 +122,14 @@ function Album({ media, tile }: { media: Attachment[]; tile: (a: Attachment, i: 
   );
 }
 
-function AttachmentView({ attachment: a, message, canDownload }: { attachment: Attachment; message: Message; canDownload: boolean }) {
+function AttachmentView({ attachment: a, message, canDownload, senderName }: { attachment: Attachment; message: Message; canDownload: boolean; senderName: string | null }) {
   switch (a.kind) {
     case "voice":
-      return a.url ? <VoicePlayer attachment={a} /> : null;
+      return a.url ? <VoicePlayer attachment={a} message={message} senderName={senderName} /> : null;
     case "video-note":
-      return a.url ? <VideoNotePlayer attachment={a} /> : null;
+      return a.url ? <VideoNotePlayer attachment={a} message={message} senderName={senderName} /> : null;
     case "file":
-      return <FileAttachment attachment={a} canDownload={canDownload} />;
+      return <FileAttachment attachment={a} canDownload={canDownload} message={message} senderName={senderName} />;
     case "location":
       return <LocationAttachment attachment={a} />;
     case "contact":

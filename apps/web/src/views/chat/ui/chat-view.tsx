@@ -22,7 +22,7 @@ import { type SelfUser, useSession } from "@/entities/session";
 import { chatWallpaper, useSettings } from "@/entities/settings";
 
 import { useWsEvent } from "@/shared/api";
-import { Button, wallpaperProps } from "@/shared/ui";
+import { Button, NowPlayingBar, wallpaperProps } from "@/shared/ui";
 
 import styles from "./chat-view.module.css";
 
@@ -142,6 +142,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
     <section className={drop.active ? `${styles.view} ${styles.dropActive}` : styles.view} aria-label={title} {...drop.handlers}>
       <div className={styles.main}>
         <ChatHeader chat={chat} members={members} me={me} onSearch={() => setSearching("")} infoOpen={infoOpen} onInfo={setInfoOpen} />
+        <NowPlayingBar />
         {searching !== null ? (
           <ChatSearch key={searching} chatId={chat.id} senderName={senderName} initialQuery={searching} onPick={jumpToFound} onClose={() => setSearching(null)} />
         ) : null}

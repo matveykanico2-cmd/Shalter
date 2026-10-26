@@ -182,6 +182,23 @@ describe("открытый чат", () => {
     expect(ids[0]).toBe(ids[1]);
   });
 
+  it("отлистали вверх — на «К последним сообщениям» число новых чужих сообщений", async () => {
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([msg("раз"), msg("два")]), ...typingRoutes });
+    renderChat();
+    await screen.findByText("два");
+    ws.start();
+    act(() => FakeSocket.last().open());
+    const log = screen.getByRole("log", { name: "Сообщения" });
+    Object.defineProperty(log, "scrollHeight", { configurable: true, value: 3000 });
+    Object.defineProperty(log, "clientHeight", { configurable: true, value: 500 });
+    log.scrollTop = 0;
+    fireEvent.scroll(log);
+    const down = await screen.findByTitle("К последним сообщениям");
+    act(() => FakeSocket.last().receive({ type: "message:new", chatId: "c_1", message: msg("три") }));
+    act(() => FakeSocket.last().receive({ type: "message:new", chatId: "c_1", message: msg("четыре") }));
+    await waitFor(() => expect(down.textContent).toBe("2"));
+  });
+
   it("ответ на сообщение уходит с replyToId; ошибка возвращает текст в поле", async () => {
     const first = msg("вопрос");
     const { calls } = fakeApi({
@@ -1143,6 +1160,48 @@ describe("плашки и низ чата", () => {
     fireEvent.click(within(ad).getByTitle("Ещё"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Скрыть рекламу" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/settings/premium"));
+  });
+});
+
+describe("общий плеер", () => {
+  it("голосовое — «сейчас играет» с автором, скоростью и закрытием; после него — следующее голосовое", async () => {
+    let paused = true;
+    const played: string[] = [];
+    vi.spyOn(HTMLMediaElement.prototype, "paused", "get").mockImplementation(function (this: HTMLMediaElement) {
+      return played.at(-1) !== this.src || paused;
+    });
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function (this: HTMLMediaElement) {
+      paused = false;
+      played.push(this.src);
+      this.dispatchEvent(new Event("play"));
+      return Promise.resolve();
+    });
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(function (this: HTMLMediaElement) {
+      paused = true;
+      this.dispatchEvent(new Event("pause"));
+    });
+    const first = msg("", { attachments: [{ kind: "voice", url: "/uploads/v1", durationSec: 7 }] });
+    const second = msg("", { attachments: [{ kind: "voice", url: "/uploads/v2", durationSec: 5 }] });
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([first, second]) });
+    renderChat();
+    await screen.findAllByRole("button", { name: "Слушать" });
+    fireEvent.click(within(bubble(first.id)).getByRole("button", { name: "Слушать" }));
+    const bar = await screen.findByRole("region", { name: "Сейчас играет" });
+    expect(within(bar).getByText("Лена")).toBeTruthy();
+    expect(within(bar).getByText("Голосовое сообщение")).toBeTruthy();
+    fireEvent.click(within(bar).getByTitle("Скорость воспроизведения"));
+    expect(within(bar).getByTitle("Скорость воспроизведения").textContent).toBe("1.5×");
+    // Голосовое закончилось — сам запускается следующий.
+    expect(played.at(-1)).toMatch(/\/uploads\/v1$/);
+    act(() => {
+      paused = true;
+      (HTMLMediaElement.prototype.play as unknown as { mock: { contexts: HTMLMediaElement[] } }).mock.contexts.at(-1)!.dispatchEvent(new Event("ended"));
+    });
+    await waitFor(() => expect(played.at(-1)).toMatch(/\/uploads\/v2$/));
+    fireEvent.click(within(screen.getByRole("region", { name: "Сейчас играет" })).getByTitle("Закрыть"));
+    expect(screen.queryByRole("region", { name: "Сейчас играет" })).toBeNull();
+    // Скорость общая и запоминается — вернём как было для других тестов.
+    localStorage.removeItem("shalter.playbackRate");
   });
 });
 

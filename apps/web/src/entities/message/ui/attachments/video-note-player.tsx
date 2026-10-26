@@ -1,10 +1,11 @@
 import { useRef } from "react";
 
-import { playExclusive } from "@/shared/lib/exclusive-media";
+import { play } from "@/shared/lib/media/now-playing";
 import { Icon } from "@/shared/ui";
 
 import { clockTime } from "../../lib/attachments";
 import type { Attachment } from "../../model/attachment";
+import type { FeedMessage } from "../../model/types";
 
 import styles from "./attachments.module.css";
 import { useMediaProgress } from "./use-media-progress";
@@ -13,7 +14,7 @@ const RADIUS = 48;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 /** Кружок (VideoNotePlayer в messageBubble.js): нажатие — пауза/воспроизведение, кольцо — сколько прошло. */
-export function VideoNotePlayer({ attachment: a }: { attachment: Attachment }) {
+export function VideoNotePlayer({ attachment: a, message, senderName }: { attachment: Attachment; message: FeedMessage; senderName: string | null }) {
   const video = useRef<HTMLVideoElement>(null);
   const { playing, current, duration } = useMediaProgress(video, a.durationSec ?? 0);
   const done = duration ? Math.min(1, current / duration) : 0;
@@ -21,10 +22,16 @@ export function VideoNotePlayer({ attachment: a }: { attachment: Attachment }) {
   const toggle = () => {
     const el = video.current;
     if (!el) return;
-    if (el.paused) {
-      playExclusive(el);
-      void el.play().catch(() => {});
-    } else el.pause();
+    if (!el.paused) return el.pause();
+    play(el, {
+      key: `${message.id}:${a.url}`,
+      kind: "video-note",
+      title: senderName ?? "Видеосообщение",
+      subtitle: "Видеосообщение",
+      chatId: message.chatId,
+      messageId: message.id,
+      durationSec: a.durationSec,
+    });
   };
   return (
     <button type="button" className={styles.videoNote} aria-label={playing ? "Пауза" : "Смотреть видеосообщение"} onClick={toggle}>

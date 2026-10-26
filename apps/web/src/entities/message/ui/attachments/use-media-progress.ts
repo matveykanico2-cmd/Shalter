@@ -14,6 +14,8 @@ export function useMediaProgress(ref: RefObject<HTMLMediaElement | null>, knownD
       });
     const events = ["play", "pause", "ended", "timeupdate", "seeking", "loadedmetadata"] as const;
     for (const ev of events) media.addEventListener(ev, sync);
+    // Плеер смонтировали заново, а запись уже играет (общий плеер) — сразу её состояние.
+    if (!media.paused || media.currentTime > 0) sync();
     return () => {
       for (const ev of events) media.removeEventListener(ev, sync);
     };

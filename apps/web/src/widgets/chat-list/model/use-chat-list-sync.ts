@@ -10,6 +10,7 @@ import { chatCache, chatQueries } from "@/entities/chat";
 import { type SelfUser, sessionQueries } from "@/entities/session";
 
 import { ws, type WsEvents } from "@/shared/api";
+import { toast } from "@/shared/ui";
 
 /** Сверка после события сообщения: сразу пересчитывать нечего, превью уже обновлено. */
 const EVENT_REFETCH_MS = 1200;
@@ -76,6 +77,7 @@ export function useChatListSync(meId: string) {
       ws.on("presence:update", ({ userId, online, lastSeen }) => chatCache.patchOtherUser(client, userId, { online, lastSeen })),
       ws.on("contact:updated", (e) => applyContactUpdate(client, meId, e)),
       ws.on("ws:reconnected", () => schedule(0)),
+      ws.on("chat:join-declined", ({ title }) => toast(`Заявку в «${title ?? "чат"}» отклонили`)),
     ];
 
     return () => {

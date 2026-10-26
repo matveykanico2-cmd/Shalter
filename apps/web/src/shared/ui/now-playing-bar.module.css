@@ -1,0 +1,107 @@
+/* Как .audio-bar в public/styles/components.css. */
+.slot {
+  position: relative;
+  z-index: 3;
+  flex-shrink: 0;
+}
+
+.bar {
+  display: flex;
+  height: 48px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.toggle {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.toggle:last-child {
+  color: var(--color-muted);
+}
+
+.info {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.title {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtitle {
+  display: flex;
+  max-width: 100%;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.time {
+  font-family: var(--font-mono);
+}
+
+.rate {
+  min-width: 36px;
+  flex-shrink: 0;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rate:hover {
+  background: var(--color-accent-soft);
+}
+
+.progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  transform: scaleX(0);
+  transform-origin: left;
+}

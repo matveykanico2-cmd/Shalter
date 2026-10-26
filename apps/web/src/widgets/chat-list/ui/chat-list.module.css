@@ -296,3 +296,10 @@
 .dropAfter {
   box-shadow: inset 0 -2px 0 var(--color-accent);
 }
+
+/* На широком экране с открытым чатом полоска уже есть под его шапкой — в списке её не дублируем. */
+@media (min-width: 721px) {
+  .nowPlayingBesideChat {
+    display: none;
+  }
+}

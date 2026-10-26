@@ -1,13 +1,15 @@
-import { type KeyboardEvent, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 
-import { playExclusive } from "@/shared/lib/exclusive-media";
+import { seekBy } from "@/shared/lib/media/now-playing";
 import { Icon } from "@/shared/ui";
 
 import { clockTime, resampleWaveform } from "../../lib/attachments";
 import type { Attachment } from "../../model/attachment";
+import type { FeedMessage } from "../../model/types";
 
 import styles from "./attachments.module.css";
-import { useMediaProgress, useSeek } from "./use-media-progress";
+import { useSeek } from "./use-media-progress";
+import { usePlayer } from "./use-player";
 
 const BARS = 40;
 
@@ -15,35 +17,24 @@ const BARS = 40;
  * Голосовое как в Telegram (VoicePlayer в messageBubble.js): круглая кнопка,
  * осциллограмма с перемоткой, длительность и кнопка расшифровки.
  */
-export function VoicePlayer({ attachment: a }: { attachment: Attachment }) {
-  const audio = useRef<HTMLAudioElement>(null);
-  const { playing, current, duration } = useMediaProgress(audio, a.durationSec ?? 0);
+export function VoicePlayer({ attachment: a, message, senderName }: { attachment: Attachment; message: FeedMessage; senderName: string | null }) {
+  const { key, ref: audio, toggle, playing, current, duration } = usePlayer(message, a, "voice", senderName);
   const seek = useSeek(audio, duration);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const bars = useMemo(() => (a.waveform?.length ? resampleWaveform(a.waveform, BARS) : new Array<number>(BARS).fill(0)), [a.waveform]);
   const done = duration ? Math.min(1, current / duration) : 0;
   const lit = Math.round(done * BARS);
 
-  const toggle = () => {
-    const el = audio.current;
-    if (!el) return;
-    if (el.paused) {
-      playExclusive(el);
-      void el.play().catch(() => {});
-    } else el.pause();
-  };
   const onKey = (e: KeyboardEvent) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
-    const el = audio.current;
-    if (el && duration) el.currentTime = Math.max(0, Math.min(duration, el.currentTime + (e.key === "ArrowLeft" ? -5 : 5)));
+    if (duration) seekBy(audio.current, e.key === "ArrowLeft" ? -5 : 5, duration);
   };
 
   return (
     <div className={styles.voiceBlock}>
-      <div className={styles.voice}>
-        <audio ref={audio} src={a.url} preload="metadata" />
-        <button type="button" className={playing ? `${styles.voicePlay} ${styles.playing}` : styles.voicePlay} aria-label={playing ? "Пауза" : "Слушать"} onClick={toggle}>
+      <div className={styles.voice} data-voice-key={key}>
+        <button type="button" data-voice-play="" className={playing ? `${styles.voicePlay} ${styles.playing}` : styles.voicePlay} aria-label={playing ? "Пауза" : "Слушать"} onClick={toggle}>
           <Icon name={playing ? "PauseFill" : "PlayFill"} size={24} />
         </button>
         <span className={styles.voiceBody}>
