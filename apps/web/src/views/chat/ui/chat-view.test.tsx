@@ -1409,3 +1409,60 @@ describe("меню чата в шапке", () => {
     expect(calls.some((c) => c.key === "POST /api/chats/c_1/leave")).toBe(true);
   });
 });
+
+describe("поиск по чату", () => {
+  it("находки с автором; переход к старому — история подгружается, сообщение подсвечено", async () => {
+    const old = msg("билеты на поезд", { createdAt: "2026-09-01T10:00:00.000Z" });
+    const recent = msg("привет");
+    const older = new URLSearchParams({ limit: "60", before: recent.createdAt, beforeId: recent.id });
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([recent], { hasMore: true }),
+      [`GET /api/chats/c_1/messages?${older}`]: page([old], { hasMore: false }),
+      "GET /api/chats/c_1/messages/search?q=%D0%B1%D0%B8%D0%BB%D0%B5%D1%82": { body: { messages: [old] } },
+      "GET /api/chats/c_1/messages/search?q=%D0%B7%D0%BE%D0%BD%D1%82": { body: { messages: [] } },
+    });
+    renderChat();
+    await screen.findByText("привет");
+
+    fireEvent.click(within(document.querySelector("header")!).getByRole("button", { name: "Ещё" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Поиск по чату" }));
+    const field = screen.getByRole("searchbox", { name: "Найти в этом чате" });
+    fireEvent.change(field, { target: { value: "зонт" } });
+    expect(await screen.findByText("Ничего не найдено")).toBeTruthy();
+
+    fireEvent.change(field, { target: { value: "билет" } });
+    const hit = await screen.findByRole("button", { name: /Лена.*билеты на поезд/ });
+    fireEvent.click(hit);
+    expect(screen.queryByRole("search")).toBeNull();
+    await waitFor(() => expect(bubbles()).toEqual([old.id, recent.id]));
+    await waitFor(() => expect(document.querySelector(`[data-message-id="${old.id}"]`)!.closest("[class*=highlight]")).toBeTruthy());
+    expect(calls.filter((c) => c.key.includes("/search?")).length).toBe(2);
+  });
+
+  it("найденное не в открытой теме — переход во «Все»", async () => {
+    const TOPIC = { id: "topic_a", chatId: "c_1", title: "Поездка", icon: "🎉", color: "#f80", closed: false, createdBy: LENA.id, createdAt: "2026-10-20T10:00:00.000Z" };
+    const general = msg("билеты в общем");
+    const inTopicMsg = msg("про поездку", { topicId: TOPIC.id });
+    const c = chat({ topicsEnabled: true });
+    fakeApi({
+      "GET /api/chats/c_1": card(c),
+      [HISTORY]: page([general, inTopicMsg]),
+      [`${HISTORY}&topic=${TOPIC.id}`]: page([inTopicMsg]),
+      "GET /api/chats/c_1/topics": { body: { enabled: true, topics: [TOPIC] } },
+      "GET /api/chats/c_1/messages/search?q=%D0%B1%D0%B8%D0%BB%D0%B5%D1%82": { body: { messages: [general] } },
+    });
+    renderChat(c);
+    const tabs = await screen.findByRole("tablist", { name: "Темы" });
+    fireEvent.click(within(tabs).getByRole("tab", { name: /Поездка/ }));
+    await waitFor(() => expect(bubbles()).toEqual([inTopicMsg.id]));
+
+    fireEvent.click(within(document.querySelector("header")!).getByRole("button", { name: "Ещё" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Поиск по чату" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Найти в этом чате" }), { target: { value: "билет" } });
+    fireEvent.click(await screen.findByRole("button", { name: /билеты в общем/ }));
+    await waitFor(() => expect(bubbles()).toEqual([general.id, inTopicMsg.id]));
+    expect(within(tabs).getByRole("tab", { name: "Все" }).getAttribute("aria-selected")).toBe("true");
+    await waitFor(() => expect(document.querySelector(`[data-message-id="${general.id}"]`)!.closest("[class*=highlight]")).toBeTruthy());
+  });
+});

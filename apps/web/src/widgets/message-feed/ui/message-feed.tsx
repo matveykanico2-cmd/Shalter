@@ -46,12 +46,16 @@ const STICK_PX = 80;
 /** Ближе этого к верху — подгружаем историю раньше. */
 const LOAD_OLDER_PX = 600;
 const HIGHLIGHT_MS = 1600;
+/** Сколько страниц старее листать в поисках сообщения — как jumpTo в chatView.js. */
+const JUMP_MAX_PAGES = 20;
 
 export type MessageFeedHandle = {
   /** Прокрутить вниз и держать низ — после своей отправки. */
   stickToBottom: () => void;
   /** Последнее своё сообщение, которое можно править (стрелка вверх в поле ввода). */
   lastEditable: () => Message | null;
+  /** К сообщению с подсветкой; нет в ленте — подгружает историю старее (поиск по чату). */
+  jumpTo: (id: string) => void;
 };
 
 type Props = {
@@ -140,6 +144,7 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
       scrollToBottom();
     },
     lastEditable: () => lastEditable(data?.messages ?? [], meId),
+    jumpTo,
   }));
 
   // Прилипшая лента держит низ, пока сообщения добавляются и меряются; подгруженная
@@ -205,13 +210,27 @@ export function MessageFeed({ chat, members, me, onReply, onEdit, topic, ref }: 
     return () => clearTimeout(t);
   }, [highlightId]);
 
-  const jumpTo = (id: string) => {
-    const i = rows.findIndex((r) => r.kind === "message" && r.message.id === id);
-    if (i < 0) return;
-    stuck.current = false;
-    virtualizer.scrollToIndex(i, { align: "center" });
-    setHighlightId(id);
-  };
+  // Сообщения нет среди загруженных — листаем историю старее, пока не найдётся.
+  const [jumpTarget, setJumpTarget] = useState<{ id: string; pages: number } | null>(null);
+  const jumpTo = (id: string) => setJumpTarget({ id, pages: 0 });
+  useEffect(() => {
+    if (!jumpTarget) return;
+    const i = rows.findIndex((r) => r.kind === "message" && r.message.id === jumpTarget.id);
+    if (i >= 0) {
+      setJumpTarget(null);
+      stuck.current = false;
+      virtualizer.scrollToIndex(i, { align: "center" });
+      setHighlightId(jumpTarget.id);
+      return;
+    }
+    if (loadingOlder) return;
+    if (!data?.hasMore || jumpTarget.pages >= JUMP_MAX_PAGES) {
+      setJumpTarget(null);
+      return;
+    }
+    setJumpTarget({ ...jumpTarget, pages: jumpTarget.pages + 1 });
+    void loadOlder();
+  }, [jumpTarget, rows, loadingOlder, data?.hasMore, loadOlder, virtualizer]);
 
   // Esc снимает выбор, если поверх ленты ничего не открыто (как onChatKeydown в chatView.js).
   const { active: selecting, clear: clearSelection } = selection;

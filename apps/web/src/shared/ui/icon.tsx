@@ -42,6 +42,7 @@ const PATHS = {
   PlayFill: '<path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor"/>',
   Reply: '<path d="M9 8 4 12l5 4"/><path d="M4 12h9a6 6 0 0 1 6 6v1"/>',
   RotateCw: '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/>',
+  Search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   Send: '<path d="M4 20l17-8L4 4l0 6.5L15 12 4 13.5 4 20Z"/>',
   Smile: '<circle cx="12" cy="12" r="9"/><path d="M8.5 10.5h.01M15.5 10.5h.01"/><path d="M8.5 16.5s1.2-2 3.5-2 3.5 2 3.5 2"/>',
   Sticker:

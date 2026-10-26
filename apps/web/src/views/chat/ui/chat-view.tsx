@@ -1,16 +1,17 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { type DragEvent, type ReactNode, useMemo, useRef, useState } from "react";
+import { type DragEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 
 import { ChatHeader } from "@/widgets/chat-header";
 import { MessageFeed, type MessageFeedHandle } from "@/widgets/message-feed";
 
+import { ChatSearch } from "@/features/chat-search";
 import { useMessageActions } from "@/features/message-actions";
 import { Composer, type ComposerHandle } from "@/features/send-message";
 import { isTopicStaff, TopicTabs, useTopics } from "@/features/topics";
 
 import { type ChatMember, chatQueries, type ChatSummary, chatTitle, isChatAdmin, useChatCard, useChatFromList } from "@/entities/chat";
-import type { Message, TopicFilter } from "@/entities/message";
+import { inTopic, type Message, type TopicFilter } from "@/entities/message";
 import { type SelfUser, useSession } from "@/entities/session";
 
 import { useWsEvent } from "@/shared/api";
@@ -62,6 +63,23 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
     setReplyTo(null);
     setEditing(null);
   };
+  // Поиск по чату ищет во всём чате: найденное не в открытой теме — переходим во «Все»,
+  // к сообщению — когда лента «Всех» появится.
+  const [searching, setSearching] = useState(false);
+  const pendingJump = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pendingJump.current) return;
+    feed.current?.jumpTo(pendingJump.current);
+    pendingJump.current = null;
+  }, [topic]);
+  const jumpToFound = (m: Message) => {
+    setSearching(false);
+    if (inTopic(m, topic)) feed.current?.jumpTo(m.id);
+    else {
+      pendingJump.current = m.id;
+      selectTopic(undefined);
+    }
+  };
   const reply = (m: Message, quote?: string) => {
     // Правка уступает место ответу. Цитату во время правки не вставляем: поле вернёт набранное до неё.
     const wasEditing = !!editing;
@@ -80,7 +98,8 @@ function OpenChat({ chat, members, me }: { chat: ChatSummary; members: readonly 
 
   return (
     <section className={drop.active ? `${styles.view} ${styles.dropActive}` : styles.view} aria-label={title} {...drop.handlers}>
-      <ChatHeader chat={chat} members={members} me={me} />
+      <ChatHeader chat={chat} members={members} me={me} onSearch={() => setSearching(true)} />
+      {searching ? <ChatSearch chatId={chat.id} senderName={senderName} onPick={jumpToFound} onClose={() => setSearching(false)} /> : null}
       {topics ? <TopicTabs chat={chat} meId={me.id} topics={topics} active={topic} onSelect={selectTopic} /> : null}
       <div className={styles.body}>
         {/* key: у темы своя лента — плашка непрочитанных и прокрутка с нуля. */}

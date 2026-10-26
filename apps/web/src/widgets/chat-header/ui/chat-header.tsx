@@ -16,13 +16,14 @@ import { useTyping } from "../model/use-typing";
 
 import styles from "./chat-header.module.css";
 
-type Props = { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser };
+type Props = { chat: ChatSummary; members: readonly ChatMember[]; me: SelfUser; onSearch: () => void };
 
 /** Шапка открытого чата: назад, аватар, название, «в сети» / «печатает…» / участники, меню «Ещё». */
-export function ChatHeader({ chat, members, me }: Props) {
+export function ChatHeader({ chat, members, me, onSearch }: Props) {
   const meId = me.id;
   const [scheduledOpen, setScheduledOpen] = useState(false);
   const topicsToggle = useTopicsToggle(chat, meId);
+  const search: MenuItem = { icon: "Search", label: "Поиск по чату", onClick: onSearch };
   const scheduled: MenuItem = { icon: "Clock", label: "Запланированные сообщения", onClick: () => setScheduledOpen(true) };
   const typing = useTyping(chat.id, meId);
   const now = usePresenceSync(chat.id);
@@ -67,7 +68,7 @@ export function ChatHeader({ chat, members, me }: Props) {
           </p>
         ) : null}
       </div>
-      <ChatMenu chat={chat} me={me} topItems={topicsToggle ? [topicsToggle] : []} middleItems={[scheduled]} />
+      <ChatMenu chat={chat} me={me} topItems={topicsToggle ? [search, topicsToggle] : [search]} middleItems={[scheduled]} />
       {scheduledOpen ? <ScheduledList chatId={chat.id} onClose={() => setScheduledOpen(false)} /> : null}
     </header>
   );
