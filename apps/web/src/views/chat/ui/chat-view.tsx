@@ -172,6 +172,7 @@ function OpenChat({ chat, members, card, me }: OpenChatProps) {
                 botCommands={botCommands}
                 canPostAnonymously={chat.type === "group" && !!chat.anonymousAdmins && (isChatAdmin(chat, me.id) || isChatModerator(chat, me.id))}
                 paid={paid}
+                canPostPaid={!chat.isSaved && !chat.secret && (chat.type !== "channel" || isChatAdmin(chat, me.id))}
                 ai={ai}
                 allowEffects={chat.type === "dm" && !chat.isSaved}
                 allowWhenOnline={chat.type === "dm" && !chat.isSaved && !!chat.otherUser && !chat.otherUser.isBot}

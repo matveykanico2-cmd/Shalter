@@ -2,26 +2,44 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { plural } from "@/shared/lib/presence";
-import { Icon, Menu, type MenuItem } from "@/shared/ui";
+import { askText, Icon, Menu, type MenuItem } from "@/shared/ui";
 
 import { fileKind, fileSizeLabel } from "../lib/files";
 import type { Pick } from "../model/use-uploads";
 
 import styles from "./send-media-dialog.module.css";
 
-export type MediaSendChoice = { picks: Pick[]; spoiler: boolean };
+/** paidStars — платный пост: фото и видео откроют за столько звёзд (0 — бесплатно). */
+export type MediaSendChoice = { picks: Pick[]; spoiler: boolean; paidStars: number };
 
-type Props = { files: readonly File[]; onSend: (choice: MediaSendChoice) => void; onClose: () => void };
+type Props = {
+  files: readonly File[];
+  /** Можно «Размыть за звёзды» (не Избранное, не секретный, в канале — админ). */
+  allowPaid?: boolean;
+  onSend: (choice: MediaSendChoice) => void;
+  onClose: () => void;
+};
+
+const MAX_PAID_STARS = 10_000;
 
 /**
  * Окно отправки вложений — как public/js/components/mediaSendPopup.js (tweb popups/newMedia):
  * фото и видео альбомом, остальное списком; «Отправить без сжатия» и спойлер в «Ещё».
  * Подпись — текст из поля ввода.
  */
-export function SendMediaDialog({ files: initial, onSend, onClose }: Props) {
+export function SendMediaDialog({ files: initial, allowPaid = false, onSend, onClose }: Props) {
   const [files, setFiles] = useState(() => [...initial]);
   const [asFiles, setAsFiles] = useState(false);
   const [spoiler, setSpoiler] = useState(false);
+  const [paidStars, setPaidStars] = useState(0);
+  const askPaidPrice = async () => {
+    const raw = await askText("Сколько звёзд стоит открыть фото и видео?", { initial: paidStars ? String(paidStars) : "25", okLabel: "Готово" });
+    if (raw === null) return;
+    const n = Math.floor(Number(raw.replace(/\s+/g, "")));
+    const stars = Number.isFinite(n) && n > 0 ? Math.min(n, MAX_PAID_STARS) : 0;
+    setPaidStars(stars);
+    if (stars) setSpoiler(false);
+  };
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
 
 
@@ -49,12 +67,33 @@ export function SendMediaDialog({ files: initial, onSend, onClose }: Props) {
   const send = () => {
     if (!files.length) return;
     // «Без сжатия» — файлом: фото и видео уходят как есть, без превью и пережатия.
-    onSend({ picks: files.map((file) => ({ file, kind: asFiles ? "file" : fileKind(file) })), spoiler: !asFiles && spoiler });
+    onSend({ picks: files.map((file) => ({ file, kind: asFiles ? "file" : fileKind(file) })), spoiler: !asFiles && spoiler, paidStars: asFiles ? 0 : paidStars });
   };
 
   const moreItems: MenuItem[] = [
-    asFiles ? { icon: "Image", label: "Отправить сжатым", onClick: () => setAsFiles(false) } : { icon: "File", label: "Отправить без сжатия", onClick: () => setAsFiles(true) },
-    ...(!asFiles ? [{ icon: spoiler ? ("Eye" as const) : ("EyeOff" as const), label: spoiler ? "Убрать размытие" : "Скрыть под спойлер", onClick: () => setSpoiler((v) => !v) }] : []),
+    asFiles
+      ? { icon: "Image", label: "Отправить сжатым", onClick: () => setAsFiles(false) }
+      : {
+          icon: "File",
+          label: "Отправить без сжатия",
+          onClick: () => {
+            setAsFiles(true);
+            setPaidStars(0);
+          },
+        },
+    ...(!asFiles
+      ? [
+          {
+            icon: spoiler ? ("Eye" as const) : ("EyeOff" as const),
+            label: spoiler ? "Убрать размытие" : "Скрыть под спойлер",
+            onClick: () => {
+              setSpoiler((v) => !v);
+              setPaidStars(0);
+            },
+          },
+        ]
+      : []),
+    ...(allowPaid && !asFiles ? [{ icon: "Star" as const, label: paidStars ? "Изменить цену" : "Размыть за звёзды ⭐", onClick: () => void askPaidPrice() }] : []),
   ];
 
   return createPortal(
@@ -76,7 +115,7 @@ export function SendMediaDialog({ files: initial, onSend, onClose }: Props) {
             </button>
           ) : null}
         </div>
-        <div className={spoiler && !asFiles ? `${styles.preview} ${styles.blurred}` : styles.preview}>
+        <div className={(spoiler || paidStars) && !asFiles ? `${styles.preview} ${styles.blurred}` : styles.preview}>
           {media.length ? (
             <div className={[styles.album, styles[`count${Math.min(media.length, 4)}`], media.length > 4 ? styles.many : ""].filter(Boolean).join(" ")}>
               {media.map((f, i) => (
@@ -111,10 +150,16 @@ export function SendMediaDialog({ files: initial, onSend, onClose }: Props) {
             </div>
           ) : null}
         </div>
-        {spoiler && !asFiles ? (
+        {(spoiler || paidStars) && !asFiles ? (
           <div className={styles.notice}>
-            <span>🫥 Фото и видео будут размыты — откроются по нажатию</span>
-            <button type="button" onClick={() => setSpoiler(false)}>
+            <span>{paidStars ? `⭐ Фото и видео откроют за ${paidStars} звёзд` : "🫥 Фото и видео будут размыты — откроются по нажатию"}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setSpoiler(false);
+                setPaidStars(0);
+              }}
+            >
               Убрать
             </button>
           </div>

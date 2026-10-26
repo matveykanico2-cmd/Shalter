@@ -17,8 +17,11 @@ export type OutgoingAttachment =
   | (Uploaded & { spoiler?: true; durationSec?: number; waveform?: number[]; transcript?: string })
   | { kind: "poll" | "checklist" | "dice" | "location" | "contact" | "game"; meta: Record<string, unknown> };
 
-/** Как отправить: без звука у получателей, с эффектом (в личке), от имени группы (анонимный админ). */
-export type SendOptions = { silent?: true; effect?: string; anonymous?: true };
+/** Платный пост: цена и размытая миниатюра, которую видят до оплаты. */
+export type PaidMediaRequest = { stars: number; blur?: string; width?: number; height?: number };
+
+/** Как отправить: без звука у получателей, с эффектом (в личке), от имени группы, за звёзды. */
+export type SendOptions = { silent?: true; effect?: string; anonymous?: true; paidMedia?: PaidMediaRequest };
 
 type Body = { text: string; replyToId: string | null; clientId: string; attachments?: OutgoingAttachment[]; sticker?: Sticker; topicId?: string; threadRootId?: string } & SendOptions;
 
@@ -27,7 +30,14 @@ type Body = { text: string; replyToId: string | null; clientId: string; attachme
  * clientId — метка отправки: повтор после обрыва сети сервер узнаёт и не создаёт дубль.
  */
 export function sendMessage(chatId: string, body: Body, channel: boolean) {
-  if (channel) return http.post<SendResult>(`/api/posts/${encodeURIComponent(chatId)}/publish`, { text: body.text, attachments: body.attachments ?? [], clientId: body.clientId });
+  if (channel) {
+    return http.post<SendResult>(`/api/posts/${encodeURIComponent(chatId)}/publish`, {
+      text: body.text,
+      attachments: body.attachments ?? [],
+      clientId: body.clientId,
+      ...(body.paidMedia ? { paidMedia: body.paidMedia } : {}),
+    });
+  }
   const { attachments, sticker, ...rest } = body;
   return http.post<SendResult>(`${chatPath(chatId)}/messages`, { ...rest, ...(attachments?.length ? { attachments } : {}), ...(sticker ? { sticker } : {}) });
 }

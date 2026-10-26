@@ -21,3 +21,44 @@ export function fileToImageDataUrl(file: File, maxSize = 256, mime = "image/jpeg
     reader.readAsDataURL(file);
   });
 }
+
+/**
+ * Крошечная размытая миниатюра фото или кадра видео (24 px) — её видят до оплаты
+ * платного поста (blurThumbFor в public/js/components/composer.js).
+ */
+export async function blurThumb(file: File, timeoutMs = 3000): Promise<{ blur: string; width: number; height: number }> {
+  const url = URL.createObjectURL(file);
+  try {
+    const src = await new Promise<HTMLImageElement | HTMLVideoElement>((resolve, reject) => {
+      // Кадр не достался (кодек, обрыв) — пост уйдёт без миниатюры, а не повиснет.
+      setTimeout(() => reject(new Error("Не удалось прочитать кадр")), timeoutMs);
+      if (file.type.startsWith("video/")) {
+        const v = document.createElement("video");
+        v.muted = true;
+        v.playsInline = true;
+        v.preload = "auto";
+        v.onloadeddata = () => {
+          v.currentTime = Math.min(1, (v.duration || 2) / 2);
+        };
+        v.onseeked = () => resolve(v);
+        v.onerror = reject;
+        v.src = url;
+      } else {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = url;
+      }
+    });
+    const w = src instanceof HTMLVideoElement ? src.videoWidth : src.naturalWidth;
+    const h = src instanceof HTMLVideoElement ? src.videoHeight : src.naturalHeight;
+    const k = 24 / Math.max(w, h);
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(w * k));
+    c.height = Math.max(1, Math.round(h * k));
+    c.getContext("2d")?.drawImage(src, 0, 0, c.width, c.height);
+    return { blur: c.toDataURL("image/jpeg", 0.6), width: w, height: h };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}

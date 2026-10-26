@@ -7,6 +7,7 @@ import { useSettings } from "@/entities/settings";
 
 import { errorText } from "@/shared/lib/error-text";
 import { getPosition, type LatLng } from "@/shared/lib/geolocation";
+import { blurThumb } from "@/shared/lib/image";
 import { isRecordingSupported, type RecordMode } from "@/shared/lib/media/recorder";
 import { askText, dismissToast, Icon, toast } from "@/shared/ui";
 
@@ -102,6 +103,8 @@ type Props = {
   canPostAnonymously?: boolean;
   /** Сообщения или комментарии здесь платные, и платит пишущий. */
   paid?: { stars: number; kind: "message" | "comment" } | null;
+  /** Можно «Размыть за звёзды» в окне отправки фото. */
+  canPostPaid?: boolean;
   /** «Печатает…» другим — нет, если пишешь не участником (комментарий до вступления в обсуждение). */
   typing?: boolean;
   /** Чат с Shalter AI: без записи голосовых, а пока бот пишет — «стоп» вместо «Отправить». */
@@ -342,7 +345,10 @@ export function Composer(props: Props) {
 
   // Как composer.js: выбранное сначала в окне отправки, потом загрузка, потом сообщение
   // (по 10 вложений; подпись — у первого).
-  const sendMedia = async ({ picks, spoiler }: MediaSendChoice) => {
+  const sendMedia = async ({ picks, spoiler, paidStars }: MediaSendChoice) => {
+    // Платный пост: размытая миниатюра первого фото или видео — её видят до оплаты; готовится, пока идёт загрузка.
+    const firstMedia = picks.find((p) => p.kind === "image" || p.kind === "video");
+    const blur = paidStars && firstMedia ? blurThumb(firstMedia.file).catch(() => ({})) : null;
     setPicked(null);
     setError(null);
     const { uploaded, error: uploadError, total } = await uploads.upload(picks);
@@ -354,6 +360,7 @@ export function Composer(props: Props) {
       );
     }
     if (!uploaded.length) return;
+    const paidMedia = paidStars ? { stars: paidStars, ...((await blur) ?? {}) } : null;
     const caption = latestText.current.trim();
     const reply = replyTo;
     const atts: OutgoingAttachment[] = uploaded.map((a) => (spoiler && (a.kind === "image" || a.kind === "video") ? { ...a, spoiler: true } : a));
@@ -362,7 +369,7 @@ export function Composer(props: Props) {
     clearDraft();
     onSent?.();
     for (const [i, part] of chunks(atts, MAX_ATTACHMENTS_PER_MESSAGE).entries()) {
-      await send(i === 0 ? caption : "", i === 0 ? reply : null, part).catch((err: unknown) => {
+      await send(i === 0 ? caption : "", i === 0 ? reply : null, part, undefined, i === 0 && paidMedia ? { paidMedia } : {}).catch((err: unknown) => {
         setError(err instanceof TypeError ? "Нет связи с сервером — сообщение не отправлено" : errorText(err, "Не удалось отправить сообщение"));
       });
     }
@@ -750,7 +757,7 @@ export function Composer(props: Props) {
       {scheduling === "dialog" ? <ScheduleDialog allowWhenOnline={!!props.allowWhenOnline} onSchedule={(c) => void schedule(c)} onClose={() => setScheduling(null)} /> : null}
       {scheduling === "list" ? <ScheduledList chatId={chatId} onClose={() => setScheduling(null)} /> : null}
       {placePicker ? <LocationPicker reason={placePicker.reason} onDone={placePicker.resolve} /> : null}
-      {picked ? <SendMediaDialog files={picked} onSend={(choice) => void sendMedia(choice)} onClose={() => setPicked(null)} /> : null}
+      {picked ? <SendMediaDialog files={picked} allowPaid={!!props.canPostPaid && !thread} onSend={(choice) => void sendMedia(choice)} onClose={() => setPicked(null)} /> : null}
     </div>
   );
 }

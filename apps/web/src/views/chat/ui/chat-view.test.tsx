@@ -630,6 +630,29 @@ describe("отправка файлов", () => {
     await waitFor(() => expect(bubbles()).toEqual([sent.id]));
   });
 
+  it("в канале админ публикует фото за звёзды: цена в окне, пост с paidMedia", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fakeXhr();
+    const channel = chat({ type: "channel", adminIds: [ME.id] });
+    const sent = msg("", { senderId: ME.id, attachments: [{ kind: "paid", meta: { stars: 50, count: 1, photos: 1, videos: 0 } }] });
+    const { calls } = fakeApi({ "GET /api/chats/c_1": card(channel), [HISTORY]: page([]), "POST /api/posts/c_1/publish": { body: { message: sent } }, ...typingRoutes });
+    renderChat(channel);
+    await screen.findByText("Сообщений пока нет — напишите первым");
+    pick("attach-media", [png("1.png")]);
+    const dialog = screen.getByRole("dialog", { name: "Отправить фото" });
+    fireEvent.click(within(dialog).getByTitle("Ещё"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Размыть за звёзды ⭐" }));
+    const ask = await screen.findByRole("dialog", { name: "Сколько звёзд стоит открыть фото и видео?" });
+    fireEvent.change(within(ask).getByRole("textbox"), { target: { value: "50" } });
+    fireEvent.click(within(ask).getByRole("button", { name: "Готово" }));
+    expect(await within(dialog).findByText("⭐ Фото и видео откроют за 50 звёзд")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Отправить" }));
+    await waitFor(() => expect(FakeXhr.requests).toHaveLength(1));
+    act(() => FakeXhr.requests[0]!.respond(200, { url: "/uploads/a", name: "1.png" }));
+    await act(() => vi.advanceTimersByTimeAsync(3100));
+    await waitFor(() => expect(calls.find((c) => c.key === "POST /api/posts/c_1/publish")?.body).toMatchObject({ attachments: [{ kind: "image", url: "/uploads/a" }], paidMedia: { stars: 50 } }));
+  });
+
   it("без сжатия — файлом; отменённое не отправляется; ошибка загрузки — над полем", async () => {
     fakeXhr();
     const { calls } = fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([]), ...typingRoutes });
