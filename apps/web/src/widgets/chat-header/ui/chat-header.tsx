@@ -9,7 +9,7 @@ import { useTopicsToggle } from "@/features/topics";
 import { type ChatMember, type ChatSummary, chatTitle } from "@/entities/chat";
 import type { SelfUser } from "@/entities/session";
 
-import { Avatar, Icon, type MenuItem } from "@/shared/ui";
+import { Avatar, EmojiText, Icon, type MenuItem } from "@/shared/ui";
 
 import { chatSubtitle } from "../lib/subtitle";
 import { usePresenceSync } from "../model/use-presence-sync";
@@ -70,7 +70,9 @@ export function ChatHeader({ chat, members, me, onSearch, infoOpen, onInfo }: Pr
                 <Icon name="Lock" size={14} />
               </span>
             ) : null}
-            <span className={styles.titleText}>{title}</span>
+            <span className={styles.titleText}>
+              <EmojiText text={title} />
+            </span>
             {!chat.isSaved && (chat.type === "dm" ? other?.isVerified : chat.isVerified) ? (
               <span className={styles.verified} title="Подтверждённый аккаунт">
                 <Icon name="Verified" size={15} />

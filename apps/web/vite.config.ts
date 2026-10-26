@@ -14,6 +14,8 @@ const proxy = {
   "/tgs": { target: backend },
   "/gift-emoji": { target: backend },
   "/js/vendor": { target: backend },
+  // Эмодзи картинками (src/shared/ui/emoji-text.tsx).
+  "/img/emoji": { target: backend },
 };
 
 export default defineConfig({

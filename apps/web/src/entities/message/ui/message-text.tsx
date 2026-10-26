@@ -2,6 +2,7 @@ import { createContext, type MouseEvent, type ReactNode, use, useMemo, useState 
 import { useNavigate } from "react-router";
 
 import { langLabel, tokenize } from "@/shared/lib/highlight";
+import { EmojiText } from "@/shared/ui";
 
 import { type Block, type Inline, internalRoute, linkSafety, parseText, QUOTE_COLLAPSE_LINES } from "../lib/format-text";
 
@@ -86,15 +87,31 @@ function InlineList({ items }: { items: Inline[] }) {
 function InlineView({ item }: { item: Inline }) {
   switch (item.kind) {
     case "text":
-      return item.text;
+      return <EmojiText text={item.text} />;
     case "bold":
-      return <b>{item.text}</b>;
+      return (
+        <b>
+          <EmojiText text={item.text} />
+        </b>
+      );
     case "italic":
-      return <i>{item.text}</i>;
+      return (
+        <i>
+          <EmojiText text={item.text} />
+        </i>
+      );
     case "underline":
-      return <u>{item.text}</u>;
+      return (
+        <u>
+          <EmojiText text={item.text} />
+        </u>
+      );
     case "strike":
-      return <s>{item.text}</s>;
+      return (
+        <s>
+          <EmojiText text={item.text} />
+        </s>
+      );
     case "code":
       return <code className={styles.inlineCode}>{item.text}</code>;
     case "spoiler":

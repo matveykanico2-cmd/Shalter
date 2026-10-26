@@ -1,5 +1,5 @@
 // Отправка как sendOne в public/js/views/chatView.js: временный пузырь сразу, на ответ
-// сервера — настоящее сообщение, на ошибку — пузырь убираем, текст возвращаем в поле.
+// сервера — настоящее сообщение, без сети — повтор, на ошибку — пузырь убираем, текст возвращаем в поле.
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 
@@ -9,6 +9,7 @@ import { historyCache, type Message, messageQueries } from "@/entities/message";
 import type { Sticker } from "@/shared/lib/anim";
 
 import { type OutgoingAttachment, sendMessage, type SendOptions } from "../api/send-message";
+import { retryOffline } from "../lib/retry-offline";
 
 let localSeq = 0;
 
@@ -24,7 +25,7 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
       const topic = topicId ?? replyTo?.topicId ?? null;
       if (threadRootId) {
         try {
-          const { message } = await sendMessage(chatId, { text, replyToId: null, clientId: localId, attachments, sticker, threadRootId, ...options }, false);
+          const { message } = await retryOffline(() => sendMessage(chatId, { text, replyToId: null, clientId: localId, attachments, sticker, threadRootId, ...options }, false));
           return message;
         } finally {
           // Счётчик «N ответов» под сообщением в ленте.
@@ -51,7 +52,10 @@ export function useSendMessage(chatId: string, meId: string, channel: boolean, t
         views: null,
       });
       try {
-        const { message } = await sendMessage(chatId, { text, replyToId: replyTo?.id ?? null, clientId: localId, attachments, sticker, ...(topic ? { topicId: topic } : {}), ...options }, channel);
+        // Без сети пузырь ждёт, пока она появится; clientId не даст дубля.
+        const { message } = await retryOffline(() =>
+          sendMessage(chatId, { text, replyToId: replyTo?.id ?? null, clientId: localId, attachments, sticker, ...(topic ? { topicId: topic } : {}), ...options }, channel)
+        );
         historyCache.confirmPending(client, chatId, localId, message);
         chatCache.noteMessage(client, chatId, message);
         return message;

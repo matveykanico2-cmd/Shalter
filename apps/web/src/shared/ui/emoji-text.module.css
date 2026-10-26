@@ -1,0 +1,16 @@
+/* Как img.emoji в public/styles/components.css. */
+.emoji {
+  display: inline-block;
+  width: 1.25em;
+  height: 1.25em;
+  margin: 0 0.05em;
+  vertical-align: -0.25em;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: text;
+}
+
+button .emoji {
+  width: 1.2em;
+  height: 1.2em;
+}

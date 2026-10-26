@@ -1,6 +1,6 @@
 import { NavLink } from "react-router";
 
-import { Avatar, Icon } from "@/shared/ui";
+import { Avatar, EmojiText, Icon } from "@/shared/ui";
 
 import { chatPreview, chatTitle, isChatMuted, timeLabel } from "../lib/chat-list";
 import type { ChatSummary } from "../model/types";
@@ -37,7 +37,9 @@ export function ChatRow({ chat, meId }: Props) {
               <Icon name="Lock" size={13} />
             </span>
           ) : null}
-          <span className={chat.secret ? `${styles.title} ${styles.secret}` : styles.title}>{title}</span>
+          <span className={chat.secret ? `${styles.title} ${styles.secret}` : styles.title}>
+            <EmojiText text={title} />
+          </span>
           {verified ? (
             <span className={styles.verified} title="Аккаунт подтверждён администрацией Shalter">
               <Icon name="Verified" size={13} />
@@ -49,7 +51,7 @@ export function ChatRow({ chat, meId }: Props) {
           <span className={styles.preview}>
             {preview.draft ? <span className={styles.draft}>Черновик: </span> : null}
             {preview.who}
-            {preview.text}
+            <EmojiText text={preview.text} />
           </span>
           <span className={styles.badges}>
             {chat.pinned ? <Icon name="Pin" size={12} /> : null}

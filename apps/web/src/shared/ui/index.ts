@@ -5,6 +5,7 @@ export { Button } from "./button";
 export { type Choice, ChoiceDialog } from "./choice-dialog";
 export { Dialog } from "./dialog";
 export { DomNode } from "./dom-node";
+export { EmojiText } from "./emoji-text";
 export { Icon, type IconName } from "./icon";
 export { InfoRow } from "./info-row";
 export { MediaViewer, type ViewerItem } from "./media-viewer";

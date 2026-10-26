@@ -512,6 +512,12 @@
   font-size: 32px;
 }
 
+.jumbo :global(img.emoji) {
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: middle;
+}
+
 @keyframes jumbo-pop {
   from {
     opacity: 0;

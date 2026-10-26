@@ -152,6 +152,34 @@ describe("открытый чат", () => {
     await waitFor(() => expect(calls.filter((c) => c.key === HISTORY).length).toBeGreaterThan(1));
   });
 
+  it("без сети пузырь ждёт и уходит, когда сеть появилась, — тем же clientId", async () => {
+    const sent = msg("в метро", { senderId: ME.id });
+    let online = false;
+    const { calls } = fakeApi({
+      "GET /api/chats/c_1": card(),
+      [HISTORY]: page([]),
+      "POST /api/chats/c_1/messages": () => {
+        if (!online) throw new TypeError("Failed to fetch");
+        return { body: { message: sent } };
+      },
+      ...typingRoutes,
+    });
+    renderChat();
+    const input = await screen.findByRole("textbox", { name: "Сообщение" });
+    fireEvent.change(input, { target: { value: "в метро" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(calls.filter((c) => c.key === "POST /api/chats/c_1/messages")).toHaveLength(1));
+    expect(bubbles()).toHaveLength(1);
+    expect(screen.queryByRole("alert")).toBeNull();
+    online = true;
+    act(() => void window.dispatchEvent(new Event("online")));
+    await waitFor(() => expect(bubbles()).toEqual([sent.id]));
+    const ids = calls.filter((c) => c.key === "POST /api/chats/c_1/messages").map((c) => (c.body as { clientId: string }).clientId);
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toBe(ids[1]);
+  });
+
   it("ответ на сообщение уходит с replyToId; ошибка возвращает текст в поле", async () => {
     const first = msg("вопрос");
     const { calls } = fakeApi({
@@ -792,13 +820,17 @@ describe("стикеры и эмодзи", () => {
     const jumbo = msg("😐😐");
     const plainJumbo = msg("🧭");
     const custom = msg("смотри [ce:0]", { customEmoji: [{ v: 1, loop: 3, bg: null, layers: [{ type: "emoji", emoji: "🐱", x: 50, y: 50, size: 40 }] }] });
-    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([sticker, jumbo, plainJumbo, custom]) });
+    const inText = msg("ок 👍 едем");
+    fakeApi({ "GET /api/chats/c_1": card(), [HISTORY]: page([sticker, jumbo, plainJumbo, custom, inText]) });
     renderChat();
     await screen.findByText(/смотри/);
     await waitFor(() => expect(bubble(sticker.id).querySelector(".sticker-message .char-scene, .sticker-message .anim-scene")).toBeTruthy());
-    // Анимированные Noto — анимацией с подписью, остальные — просто крупно.
+    // Анимированные Noto — анимацией с подписью, остальные — крупно картинкой.
     expect(within(bubble(jumbo.id)).getByLabelText("😐😐")).toBeTruthy();
-    expect(within(bubble(plainJumbo.id)).getByText("🧭")).toBeTruthy();
+    expect(within(bubble(plainJumbo.id)).getByRole("img", { name: "🧭" }).getAttribute("src")).toBe("/img/emoji/1f9ed.png");
+    // Эмодзи в тексте — картинкой, текст вокруг — как есть.
+    expect(within(bubble(inText.id)).getByRole("img", { name: "👍" }).getAttribute("src")).toBe("/img/emoji/1f44d.png");
+    expect(bubble(inText.id).textContent).toContain("ок  едем");
     await waitFor(() => expect(bubble(custom.id).querySelector(".inline-custom-emoji .ce-scene text")?.textContent).toBe("🐱"));
   });
 
