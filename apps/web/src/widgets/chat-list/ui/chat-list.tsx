@@ -1,8 +1,9 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type DragEvent, useMemo, useRef, useState } from "react";
+import { type DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMatch } from "react-router";
 
 import { ChatRowMenu, useChatListActions } from "@/features/chat-actions";
+import { SearchBox, SearchResults } from "@/features/global-search";
 
 import { type ChatFolder, ChatRow, type ChatSummary, chatTitle, hasUnread, sortChats, useChatFolders, useChats } from "@/entities/chat";
 import { useSession } from "@/entities/session";
@@ -43,6 +44,18 @@ export function ChatList({ meId }: { meId: string }) {
   // Закреплённые перетаскиваются мышью (makePinnedDraggable): кого тянем и куда встанет.
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<{ id: string; after: boolean } | null>(null);
+  // Поиск: запрос уходит, когда набор затих на 150 мс (как в chatList.js).
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(search.trim()), 150);
+    return () => clearTimeout(t);
+  }, [search]);
+  const clearSearch = () => {
+    setSearch("");
+    setQuery("");
+  };
+  const searching = !!search.trim();
 
   const tabs = tabsFor(folders);
   // Папку удалили — возвращаемся на «Все».
@@ -106,7 +119,9 @@ export function ChatList({ meId }: { meId: string }) {
         <span>{connection ?? "Shalter"}</span>
       </div>
 
-      {showArchive ? (
+      <SearchBox value={search} onChange={setSearch} onClear={clearSearch} results={() => scrollRef.current} />
+
+      {searching ? null : showArchive ? (
         <div className={styles.archiveHead}>
           <button type="button" className={styles.iconButton} title="Назад к чатам" onClick={() => setShowArchive(false)}>
             <Icon name="ChevronLeft" size={20} />
@@ -151,7 +166,22 @@ export function ChatList({ meId }: { meId: string }) {
       )}
 
       <div ref={scrollRef} className={styles.scroll}>
-        {chatsQuery.isPending ? null : chatsQuery.isError && !chats ? (
+        {searching ? (
+          query ? (
+            <SearchResults
+              query={query}
+              meId={meId}
+              chats={chats ?? []}
+              onDone={clearSearch}
+              renderChat={(c) => (
+                // Открыли найденный чат — поиск закрывается; «⋮» его не трогает.
+                <span onClickCapture={(e) => void ((e.target as Element).closest("a") && clearSearch())}>
+                  <ChatRow chat={c} meId={meId} onMenu={(at) => setRowMenu({ chat: c, at })} />
+                </span>
+              )}
+            />
+          ) : null
+        ) : chatsQuery.isPending ? null : chatsQuery.isError && !chats ? (
           <p className={styles.error} role="alert">
             {errorText(chatsQuery.error)}
           </p>

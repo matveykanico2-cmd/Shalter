@@ -276,3 +276,37 @@ describe("действия со строками", () => {
     await waitFor(() => expect(calls.find((c) => c.key === `PATCH /api/chats/${work.id}`)?.body).toEqual({ archived: true }));
   });
 });
+
+describe("поиск", () => {
+  it("свои чаты, люди и сообщения с фильтрами; найденное открывается, поиск закрывается", async () => {
+    const lena = chat({ title: "", type: "dm", otherUser: { id: "u_lena00000", name: "Лена" } as ChatSummary["otherUser"] });
+    const work = chat({ title: "Работа" });
+    const found = message(work.id, "купи лейку", "2026-10-20T10:00:00.000Z");
+    const { calls } = fakeApi({
+      [`GET /api/search?q=${encodeURIComponent("ле")}`]: {
+        body: { chats: [lena], channels: [], users: [{ id: "u_lev0000000", name: "Лев", username: "lev" }], bots: [], games: [], messages: [found] },
+      },
+      "POST /api/chats": { body: { chat: chat({ title: "", id: "c_lev", type: "dm" }) } },
+      "GET /api/chats": { body: { chats: [] } },
+    });
+    const { router } = renderList([lena, work]);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Поиск" }), { target: { value: "ле" } });
+    const chips = await screen.findByRole("tablist", { name: "Что искать" });
+    expect(within(chips).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Все", "Личные 1", "Люди 1", "Сообщения 1"]);
+    expect(screen.getByRole("region", { name: "Личные" })).toBeTruthy();
+    expect(screen.getByText("ле", { selector: "mark" })).toBeTruthy();
+
+    fireEvent.click(within(chips).getByRole("tab", { name: "Люди 1" }));
+    expect(screen.queryByRole("region", { name: "Сообщения" })).toBeNull();
+    fireEvent.click(within(chips).getByRole("tab", { name: "Все" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /купи/ }));
+    await waitFor(() => expect(router.state.location.search).toBe(`?msg=${encodeURIComponent(found.id)}`));
+    expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe("");
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "ле" } });
+    fireEvent.click(await screen.findByRole("button", { name: /Лев/ }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/chat/c_lev"));
+    expect(calls.find((c) => c.key === "POST /api/chats")?.body).toMatchObject({ userId: "u_lev0000000", title: "Лев" });
+  });
+});
